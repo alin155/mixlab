@@ -3,7 +3,7 @@ import {
   InspectorPanel,
   StatusRow
 } from "@mixlab/ui-foundation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AdminDashboardData } from "../../api.ts";
 import {
   asrModelLabel,
@@ -11,6 +11,7 @@ import {
   audioModeLabel,
   booleanLabel,
   chineseDiagnosticText,
+  languageHintsLabel,
   runtimeSourceLabel
 } from "../../app/chinese.ts";
 import {
@@ -32,6 +33,10 @@ export function SettingsPage({
 }) {
   const [audioMode, setAudioMode] = useState(data.runtime.asr.audio_mode);
   const toolState = data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理";
+
+  useEffect(() => {
+    setAudioMode(data.runtime.asr.audio_mode);
+  }, [data.runtime.asr.audio_mode]);
 
   return (
     <>
@@ -91,7 +96,7 @@ export function SettingsPage({
                 },
                 { label: "预览结果", value: audioModeLabel(audioMode) },
                 { label: "接口密钥", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
-                { label: "语言提示", value: "中文" },
+                { label: "语言提示", value: languageHintsLabel(data.runtime.asr.language_hints) },
                 { label: "对象存储", value: "阿里云百炼临时上传" },
                 { label: "最近失败", value: chineseDiagnosticText(data.runtime.asr.last_failure_reason) }
               ]

@@ -5,6 +5,11 @@ import test from "node:test";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createFixtureAdminApiClient, loadAdminDashboardData } from "./api.ts";
+import {
+  chineseDiagnosticText,
+  diagnosticLabel,
+  languageHintsLabel
+} from "./app/chinese.ts";
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
@@ -70,6 +75,51 @@ test("rendered admin pages avoid obvious English user-facing labels", async () =
   ]) {
     assert.equal(text.includes(englishLabel), false, `${englishLabel} should not be visible`);
   }
+});
+
+test("Chinese diagnostic helpers cover real doctor labels without mangling protocol keys", () => {
+  assert.deepEqual(
+    [
+      "Public Library Root",
+      "Source Videos",
+      ".mixlab-library Writable",
+      "Library Counts",
+      "Source Video Manifests",
+      "Current Index",
+      "FFmpeg",
+      "FFprobe",
+      "ASR Config",
+      "Local Clips"
+    ].map(diagnosticLabel),
+    [
+      "公共素材库根目录",
+      "原视频目录",
+      "预处理产物库可写",
+      "素材库计数",
+      "原视频发布清单",
+      "当前索引",
+      "音视频工具",
+      "媒体探测工具",
+      "语音识别配置",
+      "本地剪辑片段"
+    ]
+  );
+
+  assert.equal(
+    chineseDiagnosticText("Current Index ready_video_count matches current_version schema_version"),
+    "当前索引 ready_video_count matches current_version schema_version"
+  );
+  assert.equal(
+    chineseDiagnosticText("DashScope API Key is configured for ASR Config"),
+    "阿里云百炼接口密钥已配置用于语音识别配置"
+  );
+});
+
+test("AdminApp action notices localize API result messages before rendering", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  assert.match(source, /chineseDiagnosticText\(result\.message\)/);
+  assert.equal(source.includes("result.message ? `。${result.message}`"), false);
 });
 
 test("dashboard renders restrained library status", async () => {
@@ -184,7 +234,8 @@ test("doctor page renders Chinese diagnosis checks and report export", async () 
 });
 
 test("settings render runtime and redacted speech recognition key state", async () => {
-  const html = renderToStaticMarkup(h(SettingsPage, { data: await fixtureData() }));
+  const data = await fixtureData();
+  const html = renderToStaticMarkup(h(SettingsPage, { data }));
 
   for (const text of [
     "运行策略",
@@ -200,6 +251,19 @@ test("settings render runtime and redacted speech recognition key state", async 
   }
 
   assert.equal(html.includes("sk-"), false);
+
+  const withoutHints = {
+    ...data,
+    runtime: {
+      ...data.runtime,
+      asr: {
+        ...data.runtime.asr,
+        language_hints: []
+      }
+    }
+  };
+  assert.match(renderToStaticMarkup(h(SettingsPage, { data: withoutHints })), /未配置/);
+  assert.equal(languageHintsLabel(["zh", "en"]), "中文、英文");
 });
 
 test("shared admin UI primitives expose control states and empty state language", () => {
@@ -241,6 +305,7 @@ test("M9B UI shell orchestrates Admin API mutations without duplicating toolbar 
   assert.equal(source.includes("actions={[]}"), true);
   assert.equal(source.includes("root_path ??"), false);
   assert.equal(source.includes("library-settings"), false);
+  assert.match(readFileSync(resolve("apps/admin-web/src/features/settings/SettingsPage.tsx"), "utf8"), /useEffect/);
 });
 
 test("api-backed page controls become enabled when handlers are supplied", async () => {

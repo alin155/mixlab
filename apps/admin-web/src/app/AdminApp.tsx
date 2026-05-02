@@ -27,6 +27,7 @@ import {
   routeToHash,
   type AdminRoute
 } from "./navigation.ts";
+import { chineseDiagnosticText } from "./chinese.ts";
 
 function createRuntimeClient() {
   const baseUrl = import.meta.env.VITE_MIXLAB_ADMIN_API_BASE_URL;
@@ -92,7 +93,7 @@ function formatActionNotice(label: string, result: unknown): string {
       typeof result.passed === "boolean" ? (result.passed ? "检测通过" : "检测未通过") : ""
     ].filter(Boolean);
 
-    return `${label}完成${details.length ? `：${details.join("，")}` : ""}${result.message ? `。${result.message}` : ""}`;
+    return `${label}完成${details.length ? `：${details.join("，")}` : ""}${result.message ? `。${chineseDiagnosticText(result.message)}` : ""}`;
   }
 
   if (isSourceVideo(result)) {

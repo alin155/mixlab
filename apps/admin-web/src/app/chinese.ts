@@ -66,7 +66,16 @@ export function asrModelLabel(model: string): string {
 }
 
 export function languageHintsLabel(hints: string[]): string {
-  return hints.map((hint) => hint === "zh" ? "中文" : hint).join("、");
+  if (!hints.length) {
+    return "未配置";
+  }
+
+  const labels: Record<string, string> = {
+    zh: "中文",
+    en: "英文"
+  };
+
+  return hints.map((hint) => labels[hint] ?? hint).join("、");
 }
 
 export function validationStatusLabel(status: AdminIndexVersion["validation_status"] | string): string {
@@ -92,34 +101,76 @@ export function indexStatusLabel(status: string): string {
 
 export function diagnosticLabel(label: string): string {
   const labels: Record<string, string> = {
+    "Public Library Root": "公共素材库根目录",
+    "Source Videos": "原视频目录",
+    ".mixlab-library Writable": "预处理产物库可写",
+    "Library Counts": "素材库计数",
+    "Source Video Manifests": "原视频发布清单",
+    "Current Index": "当前索引",
     Manifest: "发布清单",
     FFmpeg: "音视频工具",
     FFprobe: "媒体探测工具",
+    "ASR Config": "语音识别配置",
     ASR: "语音识别",
+    "Local Clips": "本地剪辑片段",
     Doctor: "健康诊断"
   };
 
   return labels[label] ?? label;
 }
 
+const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
+  ["Public Library Root", "公共素材库根目录"],
+  ["Source Videos", "原视频目录"],
+  [".mixlab-library Writable", "预处理产物库可写"],
+  ["Library Counts", "素材库计数"],
+  ["Source Video Manifests", "原视频发布清单"],
+  ["Current Index", "当前索引"],
+  ["ASR Config", "语音识别配置"],
+  ["Local Clips", "本地剪辑片段"],
+  ["DashScope API Key", "阿里云百炼接口密钥"],
+  ["DashScope API key", "阿里云百炼接口密钥"],
+  ["DashScope key", "阿里云百炼密钥"],
+  ["DashScope ASR config", "阿里云百炼语音识别配置"],
+  ["DashScope ASR", "阿里云百炼语音识别"],
+  ["DashScope", "阿里云百炼"],
+  [" is configured for ", "已配置用于"],
+  ["API Key", "接口密钥"],
+  ["API key", "接口密钥"],
+  ["ASR model", "语音识别模型"],
+  ["ASR config", "语音识别配置"],
+  ["ASR", "语音识别"],
+  ["Doctor", "健康诊断"],
+  ["FFprobe", "媒体探测工具"],
+  ["FFmpeg", "音视频工具"],
+  ["Manifest", "发布清单"],
+  ["manifest.json", "发布清单文件"],
+  ["source-video.json", "原视频协议文件"],
+  ["library.json is missing or unreadable", "library.json 缺失或不可读"],
+  ["public library root is accessible", "公共素材库根目录可访问"],
+  ["public library root is not accessible", "公共素材库根目录不可访问"],
+  ["source-videos is readable", "原视频目录可读"],
+  ["source-videos is missing or unreadable", "原视频目录缺失或不可读"],
+  [".mixlab-library is writable", "预处理产物库可写"],
+  [".mixlab-library is not writable", "预处理产物库不可写"],
+  ["current index is not available yet", "当前索引尚不可用"],
+  ["current index is", "当前索引为"],
+  ["unexpected 语音识别模型", "语音识别模型异常"],
+  ["is not configured", "未配置"],
+  ["is configured", "已配置"],
+  ["config is present", "配置已存在"],
+  ["no local clips found", "未发现本地剪辑片段"],
+  ["local clip manifests are valid", "个本地剪辑片段清单有效"],
+  ["index-required 与 ready 边界需发布", "待发布索引与已可用边界需发布"],
+  ["index-required", "待发布索引"],
+  ["current.json", "当前索引指针"],
+  ["接口密钥 已配置", "接口密钥已配置"],
+  ["接口密钥 未配置", "接口密钥未配置"]
+];
+
 export function chineseDiagnosticText(text: string): string {
-  return text
-    .replaceAll("DashScope API Key", "阿里云百炼接口密钥")
-    .replaceAll("DashScope key", "阿里云百炼密钥")
-    .replaceAll("DashScope ASR", "阿里云百炼语音识别")
-    .replaceAll("DashScope", "阿里云百炼")
-    .replaceAll("API Key", "接口密钥")
-    .replaceAll("ASR", "语音识别")
-    .replaceAll("语音识别 网络", "语音识别网络")
-    .replaceAll("Doctor", "健康诊断")
-    .replaceAll("FFprobe", "媒体探测工具")
-    .replaceAll("FFmpeg", "音视频工具")
-    .replaceAll("Manifest", "发布清单")
-    .replaceAll("manifest.json", "发布清单文件")
-    .replaceAll("source-video.json", "原视频协议文件")
-    .replaceAll("index-required", "待发布索引")
-    .replaceAll("ready", "已可用")
-    .replaceAll("current.json", "当前索引指针")
-    .replaceAll("current", "当前索引")
-    .replaceAll("schema", "协议版本");
+  return DIAGNOSTIC_TEXT_REPLACEMENTS.reduce(
+    (current, [from, to]) => current.replaceAll(from, to),
+    text
+  ).replaceAll("语音识别 网络", "语音识别网络");
 }
