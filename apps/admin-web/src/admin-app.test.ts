@@ -5,10 +5,10 @@ import test from "node:test";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createFixtureAdminApiClient, loadAdminDashboardData } from "./api.ts";
+import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx";
-import { LibrarySettingsPage } from "./features/library-settings/LibrarySettingsPage.tsx";
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
 import { AdminControlButton, EmptyState, MetricBand } from "./features/shared.tsx";
@@ -18,18 +18,72 @@ async function fixtureData() {
   return loadAdminDashboardData(createFixtureAdminApiClient());
 }
 
-test("dashboard renders restrained library status", async () => {
-  const html = renderToStaticMarkup(h(DashboardPage, { data: await fixtureData() }));
+function visibleText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/g, " ")
+    .replace(/<style[\s\S]*?<\/style>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, "\"")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  for (const text of [
-    "全局风险和产能",
-    "原视频总数",
+test("admin navigation uses approved Chinese IA and legacy route aliases", () => {
+  assert.deepEqual(
+    ADMIN_NAV_ITEMS.map((item) => item.label),
+    ["仪表盘", "原视频管理", "预处理队列", "索引与发布", "健康诊断", "剪辑师用户", "设置"]
+  );
+  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "设置");
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "公共素材库设置"), false);
+  assert.equal(routeFromHash("#/library-settings"), "settings");
+  assert.equal(routeFromHash("#/index-health"), "index-publish");
+});
+
+test("rendered admin pages avoid obvious English user-facing labels", async () => {
+  const data = await fixtureData();
+  const renderedPages = [
+    renderToStaticMarkup(h(DashboardPage, { data })),
+    renderToStaticMarkup(h(SourceVideosPage, { data })),
+    renderToStaticMarkup(h(PreprocessJobsPage, { data })),
+    renderToStaticMarkup(h(IndexPublishPage, { data })),
+    renderToStaticMarkup(h(DoctorPage, { data })),
+    renderToStaticMarkup(h(SettingsPage, { data }))
+  ];
+  const text = visibleText(renderedPages.join(" "));
+
+  for (const englishLabel of [
     "Ready",
     "Processing",
     "Queued",
     "Unprocessed",
     "Failed",
     "Index Required",
+    "Doctor",
+    "ASR",
+    "API Key",
+    "FFmpeg",
+    "FFprobe",
+    "DashScope"
+  ]) {
+    assert.equal(text.includes(englishLabel), false, `${englishLabel} should not be visible`);
+  }
+});
+
+test("dashboard renders restrained library status", async () => {
+  const html = renderToStaticMarkup(h(DashboardPage, { data: await fixtureData() }));
+
+  for (const text of [
+    "全局风险和产能",
+    "原视频总数",
+    "已可用",
+    "处理中",
+    "队列中",
+    "未处理",
+    "处理失败",
+    "待发布索引",
     "处理未处理",
     "磁盘空间",
     "当前任务",
@@ -39,20 +93,24 @@ test("dashboard renders restrained library status", async () => {
   }
 });
 
-test("library settings renders root paths and checks", async () => {
-  const html = renderToStaticMarkup(h(LibrarySettingsPage, { data: await fixtureData() }));
+test("settings merges library paths, runtime policy, and path checks", async () => {
+  const html = renderToStaticMarkup(h(SettingsPage, { data: await fixtureData() }));
 
   for (const text of [
-    "路径与权限",
+    "素材来源",
+    "预处理产物库",
+    "运行策略",
+    "路径与权限校验",
     "/Volumes/PublicLibrary",
     "source-videos",
     ".mixlab-library",
     "MLPUB-001",
     "1.0.0",
-    "路径校验",
+    "路径与权限校验",
     "初始化素材库",
-    "打开文件夹",
-    "data-control-state=\"native-boundary\""
+    "扫描源视频",
+    "音视频工具",
+    "语音识别配置"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
@@ -83,17 +141,17 @@ test("preprocess jobs render failure retry and later success", async () => {
   const html = renderToStaticMarkup(h(PreprocessJobsPage, { data: await fixtureData() }));
 
   for (const text of [
-    "生产队列",
+    "预处理队列",
     "正在处理",
     "队列中",
     "最近完成",
     "失败可重试",
     "失败策略",
-    "启动 Worker",
+    "启动预处理服务",
     "data-control-state=\"native-boundary\"",
-    "build-keyframes",
+    "生成关键帧",
     ".mixlab-library/logs/V000037.log",
-    "DashScope ASR 网络超时",
+    "阿里云百炼语音识别网络超时",
     "J000041"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
@@ -104,39 +162,39 @@ test("index health renders current pointer and repair controls", async () => {
   const html = renderToStaticMarkup(h(IndexPublishPage, { data: await fixtureData() }));
 
   for (const text of [
-    "索引健康与修复",
-    "修复 index-required",
-    "current.json",
+    "索引与发布",
+    "发布待索引视频",
+    "当前索引",
     "v000027",
-    "Ready 数量",
-    "schema",
+    "已可用数量",
+    "协议版本",
     "校验",
-    "原子切换 current"
+    "原子切换当前索引"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
 });
 
-test("doctor page renders checks and JSON export", async () => {
+test("doctor page renders Chinese diagnosis checks and report export", async () => {
   const html = renderToStaticMarkup(h(DoctorPage, { data: await fixtureData() }));
 
-  for (const text of ["诊断系统问题", "公共路径", "Manifest", "FFmpeg", "ASR", "重新运行 Doctor", "导出诊断 JSON"]) {
+  for (const text of ["诊断系统问题", "公共路径", "发布清单", "音视频工具", "语音识别", "重新运行健康诊断", "导出诊断报告"]) {
     assert.match(html, new RegExp(text));
   }
 });
 
-test("settings render runtime and redacted ASR key state", async () => {
+test("settings render runtime and redacted speech recognition key state", async () => {
   const html = renderToStaticMarkup(h(SettingsPage, { data: await fixtureData() }));
 
   for (const text of [
     "运行策略",
-    "阿里云百炼 / DashScope",
-    "paraformer-v2",
-    "mp3_16k_mono_64k",
-    "wav_16k_mono_pcm_s16le",
+    "阿里云百炼",
+    "通义语音识别模型",
+    "压缩单声道",
+    "无损单声道",
     "已配置，已隐藏",
-    "编辑 API Key",
-    "V000037 ASR 网络超时"
+    "编辑接口密钥",
+    "V000037 语音识别网络超时"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
@@ -149,8 +207,8 @@ test("shared admin UI primitives expose control states and empty state language"
     h("section", null,
       h(MetricBand, {
         items: [
-          { label: "Ready", value: 120, caption: "对剪辑师可见" },
-          { label: "Failed", value: 2, caption: "失败可重试" }
+          { label: "已可用", value: 120, caption: "对剪辑师可见" },
+          { label: "处理失败", value: 2, caption: "失败可重试" }
         ]
       }),
       h(AdminControlButton, {
@@ -181,6 +239,8 @@ test("M9B UI shell orchestrates Admin API mutations without duplicating toolbar 
   assert.equal(source.includes("updateSourceVideoMetadata"), true);
   assert.equal(source.includes('actions={["扫描源视频", "处理", "Doctor"]}'), false);
   assert.equal(source.includes("actions={[]}"), true);
+  assert.equal(source.includes("root_path ??"), false);
+  assert.equal(source.includes("library-settings"), false);
 });
 
 test("api-backed page controls become enabled when handlers are supplied", async () => {

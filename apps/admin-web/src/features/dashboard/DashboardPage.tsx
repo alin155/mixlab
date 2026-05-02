@@ -4,6 +4,11 @@ import {
   StatusRow
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
+import {
+  chineseDiagnosticText,
+  indexStatusLabel,
+  jobStageLabel
+} from "../../app/chinese.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader, CountStrip, DiskUsage, JobSummaryForm } from "../shared.tsx";
 
@@ -30,7 +35,7 @@ export function DashboardPage({
             <section className="admin-action-row" aria-label="仪表盘操作">
               <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" onClick={onScanSourceVideos} />
               <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
-              <AdminControlButton label="Doctor" state="m9b-api" reason="M9B 接入 Doctor 运行接口。" onClick={onRunDoctor} />
+              <AdminControlButton label="健康诊断" state="m9b-api" reason="M9B 接入健康诊断运行接口。" onClick={onRunDoctor} />
             </section>
           }
         />
@@ -42,7 +47,7 @@ export function DashboardPage({
             <StatusRow
               tone={adminStatusTone(job.status)}
               label={job.source_video_id}
-              detail={`${job.stage} · ${job.title}`}
+              detail={`${jobStageLabel(job.stage)} · ${chineseDiagnosticText(job.title)}`}
               value={
                 job.status === "failed" && job.retryable
                   ? <AdminControlButton label="重试失败" state="m9b-api" reason="M9B 接入失败重试接口。" onClick={onRetryFailedVideos} />
@@ -60,9 +65,9 @@ export function DashboardPage({
             {
               title: "索引状态",
               rows: [
-                { label: "current", value: data.indexes.current_version },
-                { label: "状态", value: data.status.index_status },
-                { label: "Index Required", value: data.status.index_required_video_count },
+                { label: "当前索引", value: data.indexes.current_version },
+                { label: "状态", value: indexStatusLabel(data.status.index_status) },
+                { label: "待发布索引", value: data.status.index_required_video_count },
                 { label: "更新", value: data.status.updated_at }
               ]
             }

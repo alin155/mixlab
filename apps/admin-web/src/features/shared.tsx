@@ -17,6 +17,13 @@ import {
   formatAdminDuration,
   formatAdminFileSize
 } from "../app/view-model.ts";
+import {
+  booleanLabel,
+  chineseDiagnosticText,
+  jobStageLabel,
+  preprocessStatusLabel,
+  validationStatusLabel
+} from "../app/chinese.ts";
 import type { AdminControlState } from "./admin-ui-contract.ts";
 
 export function AdminPageHeader({
@@ -100,12 +107,12 @@ export function CountStrip({ data }: { data: AdminDashboardData }) {
     <MetricBand
       items={[
         { label: "原视频总数", value: data.status.video_count, caption: "全部原视频" },
-        { label: "Ready", value: data.status.ready_video_count, caption: "对剪辑师可见" },
-        { label: "Processing", value: data.status.processing_video_count, caption: "处理中" },
-        { label: "Queued", value: data.status.queued_video_count, caption: "队列中" },
-        { label: "Unprocessed", value: data.status.unprocessed_video_count, caption: "未处理" },
-        { label: "Failed", value: data.status.failed_video_count, caption: "失败可重试" },
-        { label: "Index Required", value: data.status.index_required_video_count, caption: "待发布索引" }
+        { label: "已可用", value: data.status.ready_video_count, caption: "对剪辑师可见" },
+        { label: "处理中", value: data.status.processing_video_count, caption: "正在生成产物" },
+        { label: "队列中", value: data.status.queued_video_count, caption: "等待预处理" },
+        { label: "未处理", value: data.status.unprocessed_video_count, caption: "等待入队" },
+        { label: "处理失败", value: data.status.failed_video_count, caption: "失败可重试" },
+        { label: "待发布索引", value: data.status.index_required_video_count, caption: "待发布索引" }
       ]}
     />
   );
@@ -134,8 +141,8 @@ export function SourceVideoTable({
         </button>,
         <img className="admin-table-cover" src={video.cover_url} alt="" key={`${video.source_video_id}-cover`} />,
         video.file_name,
-        video.preprocess_status,
-        video.visible_to_cutters ? "是" : "否",
+        preprocessStatusLabel(video.preprocess_status),
+        booleanLabel(video.visible_to_cutters),
         video.tags.join(" / "),
         video.updated_at
       ])}
@@ -207,18 +214,18 @@ export function SourceMetadataInspector({
               { label: "讲师", value: video.lecturer },
               { label: "课程", value: video.course },
               { label: "分类", value: video.category },
-              { label: "对剪辑师可见", value: video.visible_to_cutters ? "是" : "否" }
+              { label: "对剪辑师可见", value: booleanLabel(video.visible_to_cutters) }
             ]
           }
         ]}
       />
       {video.error_message ? (
-        <p className="admin-note">失败原因：{video.error_stage ?? "unknown"} · {video.error_message}</p>
+        <p className="admin-note">失败原因：{jobStageLabel(video.error_stage ?? "unknown")} · {chineseDiagnosticText(video.error_message)}</p>
       ) : null}
       <AdminControlButton
         label="保存公开说明"
         state="m9b-api"
-        reason="M9B 接入 metadata 保存接口。"
+        reason="M9B 接入公开说明保存接口。"
         variant="primary"
         onClick={() =>
           onSave?.({
@@ -248,7 +255,7 @@ export function JobRows({
         <StatusRow
           tone={adminStatusTone(job.status)}
           label={job.job_id}
-          detail={`${job.title} · ${job.stage} · ${job.log_path}${job.error_message ? ` · ${job.error_message}` : ""}`}
+          detail={`${job.title} · ${jobStageLabel(job.stage)} · ${job.log_path}${job.error_message ? ` · ${chineseDiagnosticText(job.error_message)}` : ""}`}
           value={
             job.status === "failed" && job.retryable
               ? (
@@ -271,14 +278,14 @@ export function JobRows({
 export function IndexTable({ versions }: { versions: AdminIndexVersion[] }) {
   return (
     <SourceTable
-      columns={["版本", "创建时间", "Ready 数量", "schema", "校验", "current"]}
+      columns={["版本", "创建时间", "已可用数量", "协议版本", "校验", "当前状态"]}
       rows={versions.map((version) => [
         version.index_version,
         version.created_at,
         version.ready_video_count,
         version.schema_version,
-        version.validation_status === "pass" ? "通过" : version.validation_status,
-        version.is_current ? "current.json 指向" : "历史版本"
+        validationStatusLabel(version.validation_status),
+        version.is_current ? "当前索引指向" : "历史版本"
       ])}
     />
   );
@@ -311,7 +318,7 @@ export function JobSummaryForm({ data }: { data: AdminDashboardData }) {
           title: "当前任务",
           rows: [
             { label: "任务", value: active?.title ?? "无" },
-            { label: "阶段", value: active?.stage ?? "-" },
+            { label: "阶段", value: active ? jobStageLabel(active.stage) : "-" },
             { label: "耗时", value: active ? formatAdminDuration(active.elapsed_ms) : "-" },
             { label: "当前索引", value: data.indexes.current_version }
           ]

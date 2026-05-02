@@ -18,7 +18,6 @@ import {
 import { DashboardPage } from "../features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "../features/index-publish/IndexPublishPage.tsx";
-import { LibrarySettingsPage } from "../features/library-settings/LibrarySettingsPage.tsx";
 import { PreprocessJobsPage } from "../features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { SourceVideosPage } from "../features/source-videos/SourceVideosPage.tsx";
@@ -38,7 +37,18 @@ function createRuntimeClient() {
 }
 
 function routeTitle(route: AdminRoute): string {
-  return ADMIN_NAV_ITEMS.find((item) => item.route === route)?.label ?? "仪表盘";
+  const labels: Record<AdminRoute, string> = {
+    dashboard: "仪表盘",
+    "source-videos": "原视频管理",
+    "source-detail": "原视频详情",
+    "preprocess-jobs": "预处理队列",
+    "index-publish": "索引与发布",
+    doctor: "健康诊断",
+    "cutter-users": "剪辑师用户",
+    settings: "设置"
+  };
+
+  return labels[route];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,18 +120,7 @@ function exportJson(fileName: string, data: unknown): void {
 }
 
 function renderPage(route: AdminRoute, data: AdminDashboardData, actions: AdminActionHandlers) {
-  if (route === "library-settings") {
-    return (
-      <LibrarySettingsPage
-        data={data}
-        onInitializeLibrary={actions.onInitializeLibrary}
-        onScanSourceVideos={actions.onScanSourceVideos}
-        onExportDoctor={actions.onExportDoctor}
-      />
-    );
-  }
-
-  if (route === "source-videos") {
+  if (route === "source-videos" || route === "source-detail") {
     return (
       <SourceVideosPage
         data={data}
@@ -164,7 +163,22 @@ function renderPage(route: AdminRoute, data: AdminDashboardData, actions: AdminA
   }
 
   if (route === "settings") {
-    return <SettingsPage data={data} onTestAsrConfig={actions.onTestAsrConfig} />;
+    return (
+      <SettingsPage
+        data={data}
+        onInitializeLibrary={actions.onInitializeLibrary}
+        onScanSourceVideos={actions.onScanSourceVideos}
+        onTestAsrConfig={actions.onTestAsrConfig}
+      />
+    );
+  }
+
+  if (route === "cutter-users") {
+    return (
+      <InspectorPanel title="剪辑师用户">
+        <p>用户审批、启停和使用统计将在后续任务接入。</p>
+      </InspectorPanel>
+    );
   }
 
   return (
@@ -234,15 +248,15 @@ export function AdminApp() {
     onQueueUnprocessedVideos: () => runAction("处理未处理视频", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试失败视频", (api) => api.retryFailedVideos()),
     onRepairIndex: () => runAction("修复索引", (api) => api.repairIndex()),
-    onRunDoctor: () => runAction("运行 Doctor", (api) => api.runDoctor()),
-    onTestAsrConfig: () => runAction("测试 ASR 配置", (api) => api.testAsrConfig()),
+    onRunDoctor: () => runAction("运行健康诊断", (api) => api.runDoctor()),
+    onTestAsrConfig: () => runAction("测试语音识别配置", (api) => api.testAsrConfig()),
     onUpdateSourceVideoMetadata: (sourceVideoId, metadata) =>
       runAction("保存公开说明", (api) => api.updateSourceVideoMetadata(sourceVideoId, metadata)),
     onExportDoctor: () => {
       if (data) {
         exportJson(`mixlab-doctor-${data.doctor.generated_at.replaceAll(/[:\s]/g, "-")}.json`, data.doctor);
         setActionError("");
-        setActionNotice("Doctor JSON 已生成下载文件");
+        setActionNotice("诊断报告已生成下载文件");
       }
     }
   };
@@ -261,7 +275,7 @@ export function AdminApp() {
           <section className="admin-workspace">
             <UnifiedToolbar
               title="MixLab V3 - 素材库管理端"
-              libraryLabel={data?.status.root_path ?? "/Volumes/PublicLibrary"}
+              libraryLabel={data?.status.name ?? "主素材库"}
               healthLabel={data?.doctor.summary.fail ? "需处理" : "健康"}
               actions={[]}
             />

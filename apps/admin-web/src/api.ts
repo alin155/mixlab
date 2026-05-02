@@ -330,6 +330,7 @@ export interface AdminSourceVideoMetadataUpdate {
 export interface AdminDashboardData {
   status: AdminLibraryStatus;
   path_checks: AdminPathCheck[];
+  settings: AdminSettingsConfig;
   source_videos: AdminSourceVideo[];
   jobs: AdminPreprocessJobsResponse;
   indexes: AdminIndexVersionsResponse;
@@ -1424,6 +1425,7 @@ export async function loadAdminDashboardData(
   const [
     libraryStatus,
     adminPathChecks,
+    adminSettings,
     adminSourceVideos,
     adminJobs,
     adminIndexes,
@@ -1433,6 +1435,7 @@ export async function loadAdminDashboardData(
   ] = await Promise.all([
     client.getLibraryStatus(),
     client.getPathChecks(),
+    client.getAdminSettings(),
     client.listSourceVideos(),
     client.listPreprocessJobs(),
     client.listIndexVersions(),
@@ -1444,6 +1447,7 @@ export async function loadAdminDashboardData(
   return {
     status: libraryStatus,
     path_checks: adminPathChecks,
+    settings: adminSettings,
     source_videos: adminSourceVideos,
     jobs: adminJobs,
     indexes: adminIndexes,

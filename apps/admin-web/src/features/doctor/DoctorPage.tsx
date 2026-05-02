@@ -4,6 +4,10 @@ import {
   StatusRow
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
+import {
+  chineseDiagnosticText,
+  diagnosticLabel
+} from "../../app/chinese.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader, MetricBand } from "../shared.tsx";
 
@@ -22,7 +26,7 @@ export function DoctorPage({
         <AdminPageHeader
           title="健康诊断"
           eyebrow="诊断系统问题"
-          action={<AdminControlButton label="重新运行 Doctor" state="m9b-api" reason="M9B 接入 Doctor 运行接口。" variant="primary" onClick={onRunDoctor} />}
+          action={<AdminControlButton label="重新运行健康诊断" state="m9b-api" reason="M9B 接入健康诊断运行接口。" variant="primary" onClick={onRunDoctor} />}
         />
         <MetricBand
           items={[
@@ -35,8 +39,8 @@ export function DoctorPage({
           {data.doctor.checks.map((item) => (
             <StatusRow
               tone={adminStatusTone(item.status)}
-              label={item.label}
-              detail={item.message}
+              label={diagnosticLabel(item.label)}
+              detail={chineseDiagnosticText(item.message)}
               value={item.status === "pass" ? "通过" : "需处理"}
               key={item.check_id}
             />
@@ -50,7 +54,7 @@ export function DoctorPage({
               title: "报告",
               rows: [
                 { label: "生成时间", value: data.doctor.generated_at },
-                { label: "schema", value: data.doctor.schema_version },
+                { label: "协议版本", value: data.doctor.schema_version },
                 { label: "库路径", value: data.doctor.library_root },
                 { label: "通过", value: data.doctor.summary.pass },
                 { label: "警告", value: data.doctor.summary.warn },
@@ -59,7 +63,7 @@ export function DoctorPage({
             }
           ]}
         />
-        <AdminControlButton label="导出诊断 JSON" state="m9b-api" reason="M9B 接入报告导出。" variant="primary" onClick={onExportDoctor} />
+        <AdminControlButton label="导出诊断报告" state="m9b-api" reason="M9B 接入报告导出。" variant="primary" onClick={onExportDoctor} />
       </InspectorPanel>
     </>
   );

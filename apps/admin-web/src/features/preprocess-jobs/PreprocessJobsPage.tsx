@@ -3,6 +3,7 @@ import {
   InspectorPanel
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
+import { jobStageLabel } from "../../app/chinese.ts";
 import { AdminControlButton, AdminPageHeader, JobRows, MetricBand } from "../shared.tsx";
 
 export function PreprocessJobsPage({
@@ -23,8 +24,8 @@ export function PreprocessJobsPage({
     <>
       <div className="admin-main-column">
         <AdminPageHeader
-          title="预处理任务"
-          eyebrow="生产队列"
+          title="预处理队列"
+          eyebrow="预处理队列"
           action={
             <section className="admin-action-row" aria-label="队列操作">
               <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
@@ -34,7 +35,7 @@ export function PreprocessJobsPage({
         />
         <MetricBand
           items={[
-            { label: "正在处理", value: data.jobs.active_count, caption: "worker 已领取" },
+            { label: "正在处理", value: data.jobs.active_count, caption: "预处理服务已领取" },
             { label: "队列中", value: data.jobs.queued_count, caption: "等待预处理" },
             { label: "最近完成", value: data.jobs.completed_count, caption: "已产生可发布产物" },
             { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
@@ -75,7 +76,7 @@ export function PreprocessJobsPage({
             {
               title: "阶段",
               rows: [
-                { label: "当前阶段", value: "build-keyframes" },
+                { label: "当前阶段", value: jobStageLabel("build-keyframes") },
                 { label: "日志入口", value: ".mixlab-library/logs/V000043.log" }
               ]
             }
@@ -83,7 +84,7 @@ export function PreprocessJobsPage({
         />
         <section className="admin-action-stack">
           <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
-          <AdminControlButton label="启动 Worker" state="native-boundary" reason="长期 Worker 由服务端脚本或桌面壳托管。" />
+          <AdminControlButton label="启动预处理服务" state="native-boundary" reason="长期预处理服务由服务端脚本或桌面壳托管。" />
         </section>
       </InspectorPanel>
     </>
