@@ -653,6 +653,19 @@ function visibilityDetail(manifest: SourceVideoManifest) {
   };
 }
 
+function toAdminApproveCutterUserResponse(result: Awaited<ReturnType<typeof approveCutterUser>>) {
+  return {
+    status: result.status,
+    user: result.user,
+    session: {
+      user_id: result.session.user_id,
+      device_id: result.session.device_id,
+      created_at: result.session.created_at,
+      last_seen_at: result.session.last_seen_at
+    }
+  };
+}
+
 async function artifactDetail(input: {
   library_root: string;
   source_video_id: string;
@@ -1136,10 +1149,11 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       const approveCutterUserMatch = /^\/api\/admin\/cutter-users\/(CU\d+)\/approve$/.exec(url.pathname);
       if (request.method === "POST" && approveCutterUserMatch) {
         try {
-          writeJson(response, 200, apiOk(await approveCutterUser(input.library_root, {
+          const result = await approveCutterUser(input.library_root, {
             user_id: approveCutterUserMatch[1] ?? "",
             now: now()
-          })));
+          });
+          writeJson(response, 200, apiOk(toAdminApproveCutterUserResponse(result)));
         } catch (error) {
           const message = (error as Error).message;
           if (!["剪辑师用户不存在", "只有待审核剪辑师用户可以通过审核", "剪辑师设备不存在"].includes(message)) {

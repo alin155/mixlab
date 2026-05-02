@@ -349,6 +349,10 @@ test("approves cutter applications and disables cutter users", async () => {
     assert.equal(approved.ok, true);
     assert.equal(approved.data.user.status, "approved");
     assert.equal(approved.data.session.user_id, application.user_id);
+    assert.equal(approved.data.session.device_id, "device-a");
+    assert.equal(approved.data.session.created_at, "2026-05-02T12:00:00.000Z");
+    assert.equal(approved.data.session.last_seen_at, "2026-05-02T12:00:00.000Z");
+    assert.equal(approved.data.session.session_token, undefined);
 
     const disabled = await postJson(
       baseUrl,
