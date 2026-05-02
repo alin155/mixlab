@@ -8,7 +8,8 @@ await loadProjectEnv();
 
 const config = resolveCutterApiRuntimeConfigFromEnv();
 const server = createCutterApiServer({
-  library_root: config.library_root
+  library_root: config.library_root,
+  workspace_root: config.workspace_root
 });
 
 server.listen(config.port, config.host, () => {
@@ -18,6 +19,7 @@ server.listen(config.port, config.host, () => {
       {
         url: `http://${config.host}:${config.port}`,
         library_root: config.library_root,
+        workspace_root: config.workspace_root,
         endpoints: [
           "/health",
           "/cutter/source-library",
@@ -28,7 +30,10 @@ server.listen(config.port, config.host, () => {
           "/cutter/source-videos/:source_video_id/subtitles.srt",
           "/cutter/local-clips",
           "/cutter/local-clips/:local_clip_id",
-          "/cutter/local-clips/:local_clip_id/media"
+          "/cutter/local-clips/:local_clip_id/media",
+          "/cutter/clip-lists",
+          "/cutter/cut-jobs",
+          "/cutter/cut-jobs/run-next"
         ]
       },
       null,

@@ -183,6 +183,12 @@ async function resolveCurrentSourceTranscriptIndexFilePath(
   return indexFilePath;
 }
 
+function shouldFallbackToTranscriptArtifactSearch(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+
+  return code === "ENOENT" || code === "ERR_SQLITE_ERROR" || error instanceof SyntaxError;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     return (await stat(filePath)).isFile();
@@ -291,7 +297,7 @@ export async function searchCutterSourceLibrary(
       limit: Math.min(100, Math.max(input.limit * 3, input.limit))
     });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+    if (!shouldFallbackToTranscriptArtifactSearch(error)) {
       throw error;
     }
 

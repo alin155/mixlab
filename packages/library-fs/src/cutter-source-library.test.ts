@@ -298,3 +298,33 @@ test("searches only cutter-visible ready transcripts and enriches groups with co
   });
   assert.deepEqual(hiddenOnly.groups, []);
 });
+
+test("falls back to ready transcript artifacts when the current sqlite search index is invalid", async () => {
+  const libraryRoot = await prepareLibrary();
+  const indexVersionDir = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "indexes",
+    "source-transcript-index",
+    "v000001"
+  );
+
+  await mkdir(indexVersionDir, { recursive: true });
+  await writeFile(
+    path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index", "current.json"),
+    `${JSON.stringify({ library_id: "lib_main_001", current_version: "v000001" }, null, 2)}\n`
+  );
+  await writeFile(path.join(indexVersionDir, "index.sqlite"), "{\"not\":\"sqlite\"}\n");
+
+  const result = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流",
+    limit: 20
+  });
+
+  assert.deepEqual(
+    result.groups.map((group) => group.source_video_id),
+    ["V000001"]
+  );
+  assert.equal(result.groups[0]?.hit_segments[0]?.text, "现金流，是企业的血液。");
+});
