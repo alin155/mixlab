@@ -17,6 +17,7 @@ import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx"
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
 import { AdminControlButton, EmptyState, MetricBand } from "./features/shared.tsx";
+import { AdminSourceDetailPage } from "./features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "./features/source-videos/SourceVideosPage.tsx";
 
 async function fixtureData() {
@@ -185,6 +186,45 @@ test("source video management renders public metadata controls", async () => {
   ]) {
     assert.match(html, new RegExp(text));
   }
+});
+
+test("source video detail renders complete preprocessing data in Chinese", async () => {
+  const detail = await createFixtureAdminApiClient().getSourceVideoDetail("V000042");
+  const html = renderToStaticMarkup(h(AdminSourceDetailPage, { detail }));
+  const text = visibleText(html);
+
+  for (const expectedText of [
+    "原视频详情",
+    "基本信息",
+    "技术信息",
+    "预处理状态",
+    "产物完整性",
+    "文案数据",
+    "视觉数据",
+    "公开元数据",
+    "剪辑师可见",
+    "当前阶段",
+    "任务编号",
+    "索引版本",
+    "现金流管理与风险控制",
+    "现金流，是企业经营中的关键安全边界。"
+  ]) {
+    assert.match(text, new RegExp(expectedText));
+  }
+});
+
+test("source video list exposes detail navigation and AdminApp routes the detail page", () => {
+  const sourcePage = readFileSync(
+    resolve("apps/admin-web/src/features/source-videos/SourceVideosPage.tsx"),
+    "utf8"
+  );
+  const appSource = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  assert.match(sourcePage, /onOpenSourceDetail\?: \(sourceVideoId: string\) => void/);
+  assert.match(sourcePage, /onOpenSourceDetail/);
+  assert.match(appSource, /AdminSourceDetailPage/);
+  assert.match(appSource, /getSourceVideoDetail/);
+  assert.doesNotMatch(appSource, /route === "source-videos" \|\| route === "source-detail"/);
 });
 
 test("preprocess jobs render failure retry and later success", async () => {

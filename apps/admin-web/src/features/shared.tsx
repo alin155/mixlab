@@ -121,11 +121,13 @@ export function CountStrip({ data }: { data: AdminDashboardData }) {
 export function SourceVideoTable({
   videos,
   selectedSourceVideoId,
-  onSelect
+  onSelect,
+  onOpenSourceDetail
 }: {
   videos: AdminSourceVideo[];
   selectedSourceVideoId?: string;
   onSelect?: (sourceVideoId: string) => void;
+  onOpenSourceDetail?: (sourceVideoId: string) => void;
 }) {
   return (
     <SourceTable
@@ -134,7 +136,10 @@ export function SourceVideoTable({
         <button
           className={`admin-link-button${video.source_video_id === selectedSourceVideoId ? " is-selected" : ""}`}
           type="button"
-          onClick={() => onSelect?.(video.source_video_id)}
+          onClick={() => {
+            onSelect?.(video.source_video_id);
+            onOpenSourceDetail?.(video.source_video_id);
+          }}
           key={`${video.source_video_id}-select`}
         >
           {video.source_video_id}

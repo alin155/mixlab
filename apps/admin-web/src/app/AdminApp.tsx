@@ -12,6 +12,7 @@ import {
   type AdminActionResult,
   type AdminApiClient,
   type AdminDashboardData,
+  type AdminSourceVideoDetail,
   type AdminSourceVideo,
   type AdminSourceVideoMetadataUpdate
 } from "../api.ts";
@@ -20,7 +21,9 @@ import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "../features/index-publish/IndexPublishPage.tsx";
 import { PreprocessJobsPage } from "../features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
+import { AdminSourceDetailPage } from "../features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "../features/source-videos/SourceVideosPage.tsx";
+import { EmptyState } from "../features/shared.tsx";
 import {
   ADMIN_NAV_ITEMS,
   routeFromHash,
@@ -68,7 +71,14 @@ interface AdminActionHandlers {
     sourceVideoId: string,
     metadata: AdminSourceVideoMetadataUpdate
   ) => Promise<void>;
+  onOpenSourceDetail: (sourceVideoId: string) => void;
   onExportDoctor: () => void;
+}
+
+interface SourceDetailRenderState {
+  detail: AdminSourceVideoDetail | null;
+  loading: boolean;
+  error: string;
 }
 
 function isActionResult(value: unknown): value is AdminActionResult {
@@ -120,8 +130,13 @@ function exportJson(fileName: string, data: unknown): void {
   URL.revokeObjectURL(url);
 }
 
-function renderPage(route: AdminRoute, data: AdminDashboardData, actions: AdminActionHandlers) {
-  if (route === "source-videos" || route === "source-detail") {
+function renderPage(
+  route: AdminRoute,
+  data: AdminDashboardData,
+  actions: AdminActionHandlers,
+  sourceDetail: SourceDetailRenderState
+) {
+  if (route === "source-videos") {
     return (
       <SourceVideosPage
         data={data}
@@ -129,7 +144,41 @@ function renderPage(route: AdminRoute, data: AdminDashboardData, actions: AdminA
         onQueueUnprocessedVideos={actions.onQueueUnprocessedVideos}
         onRetryFailedVideos={actions.onRetryFailedVideos}
         onUpdateSourceVideoMetadata={actions.onUpdateSourceVideoMetadata}
+        onOpenSourceDetail={actions.onOpenSourceDetail}
       />
+    );
+  }
+
+  if (route === "source-detail") {
+    if (sourceDetail.detail) {
+      return <AdminSourceDetailPage detail={sourceDetail.detail} />;
+    }
+
+    if (sourceDetail.error) {
+      return (
+        <>
+          <div className="admin-main-column">
+            <EmptyState title="原视频详情加载失败" detail={sourceDetail.error} />
+          </div>
+          <InspectorPanel title="原视频详情">
+            <p>请返回原视频管理后重新打开详情。</p>
+          </InspectorPanel>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div className="admin-main-column">
+          <EmptyState
+            title={sourceDetail.loading ? "正在读取原视频详情" : "没有可查看的原视频"}
+            detail={sourceDetail.loading ? "请稍候，正在加载预处理数据。" : "请先在原视频管理中选择一条原视频。"}
+          />
+        </div>
+        <InspectorPanel title="原视频详情">
+          <p>{sourceDetail.loading ? "加载中" : "暂无详情数据"}</p>
+        </InspectorPanel>
+      </>
     );
   }
 
@@ -200,6 +249,10 @@ export function AdminApp() {
   const [actionNotice, setActionNotice] = useState("");
   const [actionError, setActionError] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
+  const [selectedSourceVideoId, setSelectedSourceVideoId] = useState("");
+  const [sourceDetail, setSourceDetail] = useState<AdminSourceVideoDetail | null>(null);
+  const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
+  const [sourceDetailError, setSourceDetailError] = useState("");
   const client = useMemo(createRuntimeClient, []);
 
   useEffect(() => {
@@ -229,6 +282,46 @@ export function AdminApp() {
     };
   }, [client, reloadToken]);
 
+  useEffect(() => {
+    if (route !== "source-detail") {
+      return;
+    }
+
+    const sourceVideoId = selectedSourceVideoId || data?.source_videos[0]?.source_video_id || "";
+    if (!sourceVideoId) {
+      setSourceDetail(null);
+      setSourceDetailLoading(false);
+      setSourceDetailError("没有可查看的原视频");
+      return;
+    }
+
+    let cancelled = false;
+    setSourceDetailLoading(true);
+    setSourceDetailError("");
+
+    client.getSourceVideoDetail(sourceVideoId)
+      .then((detail) => {
+        if (!cancelled) {
+          setSourceDetail(detail);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setSourceDetail(null);
+          setSourceDetailError(loadError instanceof Error ? loadError.message : "原视频详情加载失败");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSourceDetailLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, data?.source_videos, route, selectedSourceVideoId]);
+
   const runAction = async (label: string, action: (client: AdminApiClient) => Promise<unknown>) => {
     setActionError("");
     setActionNotice(`${label}中...`);
@@ -253,6 +346,16 @@ export function AdminApp() {
     onTestAsrConfig: () => runAction("测试语音识别配置", (api) => api.testAsrConfig()),
     onUpdateSourceVideoMetadata: (sourceVideoId, metadata) =>
       runAction("保存公开说明", (api) => api.updateSourceVideoMetadata(sourceVideoId, metadata)),
+    onOpenSourceDetail: (sourceVideoId) => {
+      setSelectedSourceVideoId(sourceVideoId);
+      setSourceDetail(null);
+      setSourceDetailError("");
+      if (window.location.hash === routeToHash("source-detail")) {
+        setRoute("source-detail");
+      } else {
+        window.location.hash = routeToHash("source-detail");
+      }
+    },
     onExportDoctor: () => {
       if (data) {
         exportJson(`mixlab-doctor-${data.doctor.generated_at.replaceAll(/[:\s]/g, "-")}.json`, data.doctor);
@@ -291,7 +394,11 @@ export function AdminApp() {
                   <p>{error}</p>
                 </InspectorPanel>
               ) : data ? (
-                renderPage(route, data, actions)
+                renderPage(route, data, actions, {
+                  detail: sourceDetail,
+                  loading: sourceDetailLoading,
+                  error: sourceDetailError
+                })
               ) : (
                 <InspectorPanel title="加载中">
                   <p>正在读取素材库管理端数据</p>

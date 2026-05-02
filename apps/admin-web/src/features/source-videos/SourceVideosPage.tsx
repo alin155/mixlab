@@ -28,7 +28,8 @@ export function SourceVideosPage({
   onScanSourceVideos,
   onQueueUnprocessedVideos,
   onRetryFailedVideos,
-  onUpdateSourceVideoMetadata
+  onUpdateSourceVideoMetadata,
+  onOpenSourceDetail
 }: {
   data: AdminDashboardData;
   onScanSourceVideos?: () => void;
@@ -38,6 +39,7 @@ export function SourceVideosPage({
     sourceVideoId: string,
     metadata: AdminSourceVideoMetadataUpdate
   ) => void;
+  onOpenSourceDetail?: (sourceVideoId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
@@ -111,6 +113,7 @@ export function SourceVideosPage({
             videos={filteredVideos}
             selectedSourceVideoId={selected?.source_video_id}
             onSelect={setSelectedSourceVideoId}
+            onOpenSourceDetail={onOpenSourceDetail}
           />
         ) : (
           <EmptyState title="没有匹配的原视频" detail="请调整搜索词或状态筛选。" />
