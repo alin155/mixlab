@@ -4,7 +4,8 @@ import {
   createCutterApiClient,
   formatDuration,
   formatFileSize,
-  normalizeApiBaseUrl
+  normalizeApiBaseUrl,
+  type CutterLoginStatus
 } from "./api.ts";
 
 function makeJsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -299,6 +300,240 @@ test("creates clip lists and manages workspace cut jobs through cutter API", asy
     title: "现金流清单",
     items: [item]
   });
+});
+
+test("supports cutter login requests, login status, and usage events", async () => {
+  const requests: Array<{ url: string; method: string | undefined; headers: Headers; body: unknown }> = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789/",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      requests.push({
+        url: String(url),
+        method: init?.method,
+        headers: new Headers(init?.headers),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      if (String(url).endsWith("/cutter/auth/request-login")) {
+        return makeJsonResponse(
+          {
+            schema_version: "1.0",
+            data: {
+              application_id: "app-001",
+              username: "小王",
+              device_id: "device-001",
+              status: "pending",
+              created_at: "2026-05-03T08:00:00Z",
+              updated_at: "2026-05-03T08:00:00Z"
+            }
+          },
+          { status: 201 }
+        );
+      }
+
+      if (String(url).endsWith("/cutter/auth/status")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            status: "approved",
+            username: "小王",
+            device_id: "device-001",
+            session_token: "session-001"
+          } satisfies CutterLoginStatus
+        });
+      }
+
+      if (String(url).endsWith("/cutter/usage-events")) {
+        return makeJsonResponse(
+          {
+            schema_version: "1.0",
+            data: {
+              recorded: true
+            }
+          },
+          { status: 201 }
+        );
+      }
+
+      throw new Error(`unexpected request ${String(url)}`);
+    }
+  });
+
+  const application = await client.requestLogin({
+    username: "小王",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+  const status = await client.getLoginStatus();
+  const usage = await client.recordUsageEvent({
+    event_type: "workbench_opened",
+    metadata: {
+      route: "library"
+    }
+  });
+
+  assert.equal(application.status, "pending");
+  assert.equal(status.status, "approved");
+  assert.deepEqual(usage, { recorded: true });
+  assert.deepEqual(requests.map((request) => [request.url, request.method]), [
+    ["http://127.0.0.1:3789/cutter/auth/request-login", "POST"],
+    ["http://127.0.0.1:3789/cutter/auth/status", undefined],
+    ["http://127.0.0.1:3789/cutter/usage-events", "POST"]
+  ]);
+  assert.deepEqual(requests[0]?.body, {
+    username: "小王",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+  assert.equal(requests[0]?.headers.get("x-mixlab-device-id"), null);
+  assert.equal(requests[1]?.headers.get("x-mixlab-device-id"), "device-001");
+  assert.equal(requests[1]?.headers.get("x-mixlab-session-token"), "session-001");
+  assert.equal(requests[2]?.headers.get("x-mixlab-device-id"), "device-001");
+  assert.equal(requests[2]?.headers.get("x-mixlab-session-token"), "session-001");
+});
+
+test("attaches cutter auth headers to protected data and control requests", async () => {
+  const requests: Array<{ url: string; method: string | undefined; headers: Headers }> = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      requests.push({
+        url: String(url),
+        method: init?.method,
+        headers: new Headers(init?.headers)
+      });
+
+      if (String(url).endsWith("/cutter/source-library")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { available_video_count: 0, videos: [] }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/source-videos/V000001")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            source_video_id: "V000001",
+            title: "现金流",
+            duration_ms: 12_000,
+            media_url: "/media",
+            cover_url: "/cover",
+            detail_url: "/detail",
+            subtitles_url: "/subtitles",
+            transcript: { full_text: "", segments: [] },
+            keyframes: { keyframes_ms: [] }
+          }
+        });
+      }
+
+      if (String(url).includes("/cutter/source-search?")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { query: "现金流", normalized_query: "现金流", groups: [] }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/local-clips") && init?.method === "POST") {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            local_clip_id: "LC000001",
+            title: "片段",
+            media_url: "/media",
+            detail_url: "/detail"
+          }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/local-clips/LC000001")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            local_clip_id: "LC000001",
+            title: "片段",
+            media_url: "/media",
+            detail_url: "/detail"
+          }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/local-clips")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { local_clip_count: 0, clips: [] }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/clip-lists")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            schema_version: "1.0",
+            clip_list_id: "CL000001",
+            library_id: "lib_main_001",
+            title: "清单",
+            item_count: 0,
+            created_at: "2026-05-03T08:00:00Z",
+            updated_at: "2026-05-03T08:00:00Z",
+            items: []
+          }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/cut-jobs/run-next")) {
+        return makeJsonResponse({ schema_version: "1.0", data: null });
+      }
+
+      if (String(url).endsWith("/cutter/cut-jobs") && init?.method === "POST") {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { submitted_count: 0, jobs: [] }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/cut-jobs")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { job_count: 0, jobs: [] }
+        });
+      }
+
+      throw new Error(`unexpected request ${String(url)}`);
+    }
+  });
+
+  await client.listSourceLibrary();
+  await client.getSourceVideoDetail("V000001");
+  await client.searchSourceLibrary("现金流");
+  await client.listLocalClips();
+  await client.getLocalClipDetail("LC000001");
+  await client.createLocalClip({
+    source_video_id: "V000001",
+    start_segment_id: "S001",
+    end_segment_id: "S002"
+  });
+  await client.createClipList({ library_id: "lib_main_001", title: "清单", items: [] });
+  await client.submitCutJobs({ clip_list_id: "CL000001" });
+  await client.listCutJobs();
+  await client.runNextCutJob();
+
+  for (const request of requests) {
+    assert.equal(request.headers.get("x-mixlab-device-id"), "device-001", request.url);
+    assert.equal(request.headers.get("x-mixlab-session-token"), "session-001", request.url);
+  }
+
+  for (const request of requests.filter((request) => request.method === "POST" && !request.url.endsWith("/run-next"))) {
+    assert.equal(request.headers.get("content-type"), "application/json", request.url);
+  }
 });
 
 test("throws readable API errors", async () => {

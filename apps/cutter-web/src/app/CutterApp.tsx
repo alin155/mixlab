@@ -31,10 +31,19 @@ import {
   type MoveDirection
 } from "../state/cut-list.ts";
 import {
+  clearCutterAuthSession,
+  createDeviceId,
+  readCutterAuthSession,
+  writeCutterAuthSession,
+  type CutterAuthSession
+} from "../auth.ts";
+import { CutterLoginGate } from "../features/login/CutterLoginGate.tsx";
+import {
   createQueueJobsFromCutList,
   mapApiCutJobsToQueueJobs,
   type CutQueueJob
 } from "../state/cut-queue.ts";
+import type { CutterLoginStatusValue } from "../api.ts";
 import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
@@ -43,16 +52,28 @@ import {
   type CutterRoute
 } from "./navigation.ts";
 
-function createRuntimeClient() {
-  const baseUrl = import.meta.env.VITE_MIXLAB_CUTTER_API_BASE_URL;
+function getRuntimeApiBaseUrl(): string {
+  return import.meta.env.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
+}
 
+function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | null) {
   return baseUrl
-    ? createCutterApiClient({ base_url: baseUrl })
+    ? createCutterApiClient({
+        base_url: baseUrl,
+        ...(authSession
+          ? {
+              auth: {
+                device_id: authSession.device_id,
+                session_token: authSession.session_token
+              }
+            }
+          : {})
+      })
     : createFixtureCutterApiClient();
 }
 
-function isRuntimeApiMode(): boolean {
-  return Boolean(import.meta.env.VITE_MIXLAB_CUTTER_API_BASE_URL);
+export function shouldShowLoginGate(apiMode: boolean, status: CutterLoginStatusValue): boolean {
+  return apiMode && status !== "approved";
 }
 
 function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
@@ -164,16 +185,116 @@ function renderPage(
 }
 
 export function CutterApp() {
+  const apiBaseUrl = useMemo(getRuntimeApiBaseUrl, []);
+  const apiMode = Boolean(apiBaseUrl);
   const [route, setRoute] = useState<CutterRoute>(() => routeFromHash(window.location.hash));
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
     deserializeCutList(window.localStorage.getItem(CUT_LIST_STORAGE_KEY))
   );
+  const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
+  const [loginStatus, setLoginStatus] = useState<CutterLoginStatusValue>(() => apiMode ? "unknown" : "approved");
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
-  const client = useMemo(createRuntimeClient, []);
-  const apiMode = useMemo(isRuntimeApiMode, []);
+  const client = useMemo(
+    () => createRuntimeClient(apiBaseUrl, authSession),
+    [apiBaseUrl, authSession]
+  );
+  const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus);
+
+  const handleApplyLogin = useCallback(
+    async (username: string) => {
+      const deviceId = createDeviceId();
+      const application = await createCutterApiClient({ base_url: apiBaseUrl }).requestLogin({
+        username,
+        device_id: deviceId,
+        device_name: typeof navigator === "undefined" ? undefined : navigator.userAgent
+      });
+
+      if (application.status === "approved" && application.session_token) {
+        const nextSession = {
+          device_id: application.device_id,
+          session_token: application.session_token,
+          username: application.username
+        };
+        writeCutterAuthSession(nextSession);
+        setAuthSession(nextSession);
+        setLoginStatus("approved");
+        return;
+      }
+
+      if (application.status === "rejected" || application.status === "disabled") {
+        clearCutterAuthSession();
+        setAuthSession(null);
+        setLoginStatus(application.status);
+        return;
+      }
+
+      setLoginStatus("pending");
+    },
+    [apiBaseUrl]
+  );
+
+  useEffect(() => {
+    if (!apiMode) {
+      setLoginStatus("approved");
+      return;
+    }
+
+    if (!authSession) {
+      setLoginStatus((current) => current === "pending" ? current : "unknown");
+      return;
+    }
+
+    let cancelled = false;
+
+    client
+      .getLoginStatus()
+      .then((status) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (status.status === "approved") {
+          if (status.session_token) {
+            const nextSession = {
+              device_id: status.device_id ?? authSession.device_id,
+              session_token: status.session_token,
+              username: status.username ?? authSession.username
+            };
+            writeCutterAuthSession(nextSession);
+            if (
+              nextSession.device_id !== authSession.device_id ||
+              nextSession.session_token !== authSession.session_token ||
+              nextSession.username !== authSession.username
+            ) {
+              setAuthSession(nextSession);
+            }
+          }
+          setLoginStatus("approved");
+          return;
+        }
+
+        if (status.status === "rejected" || status.status === "disabled") {
+          clearCutterAuthSession();
+          setAuthSession(null);
+        }
+
+        setLoginStatus(status.status);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          clearCutterAuthSession();
+          setAuthSession(null);
+          setLoginStatus("unknown");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, authSession, client]);
 
   const refreshLocalClips = useCallback(async () => {
     const localClips = await client.listLocalClips();
@@ -202,6 +323,10 @@ export function CutterApp() {
   useEffect(() => {
     let cancelled = false;
 
+    if (loginGateVisible) {
+      return;
+    }
+
     loadCutterWorkbenchData(client)
       .then((result) => {
         if (!cancelled) {
@@ -217,15 +342,15 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, loginGateVisible]);
 
   useEffect(() => {
-    if (!data || !apiMode) {
+    if (!data || !apiMode || loginGateVisible) {
       return;
     }
 
     void refreshQueueJobs();
-  }, [apiMode, data, refreshQueueJobs]);
+  }, [apiMode, data, loginGateVisible, refreshQueueJobs]);
 
   useEffect(() => {
     if (!data || didSeedCutList) {
@@ -351,7 +476,7 @@ export function CutterApp() {
       : undefined
   };
 
-  return (
+  const workbench = (
     <main className="cutter-app" data-cutter-web-ready={data ? "true" : "false"}>
       <MacWindow
         title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}
@@ -384,5 +509,11 @@ export function CutterApp() {
         </div>
       </MacWindow>
     </main>
+  );
+
+  return (
+    <CutterLoginGate status={loginStatus} onApply={handleApplyLogin}>
+      {workbench}
+    </CutterLoginGate>
   );
 }

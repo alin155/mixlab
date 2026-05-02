@@ -31,6 +31,69 @@ h2 {
   min-height: calc(100vh - 24px);
 }
 
+.cutter-login-gate {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: var(--ml-space-5);
+}
+
+.cutter-login-panel {
+  display: grid;
+  gap: var(--ml-space-4);
+  width: min(420px, calc(100vw - 48px));
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-5);
+  background: var(--ml-color-surface);
+  box-shadow: 0 18px 50px rgba(31, 42, 55, 0.12);
+}
+
+.cutter-login-panel p {
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cutter-login-panel form,
+.cutter-login-panel label {
+  display: grid;
+  gap: var(--ml-space-2);
+}
+
+.cutter-login-panel label {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cutter-login-panel input {
+  min-height: 34px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: 0 10px;
+  background: var(--ml-color-control);
+  color: var(--ml-color-text);
+  font-size: 13px;
+}
+
+.cutter-login-panel button {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--ml-radius-control);
+  padding: 0 12px;
+  color: #fff;
+  background: var(--ml-color-accent);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cutter-login-panel input:disabled,
+.cutter-login-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .cutter-shell {
   display: grid;
   grid-template-columns: 142px minmax(0, 1fr);

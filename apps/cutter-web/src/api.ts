@@ -186,9 +186,52 @@ export interface SubmitCutJobsRequest {
   clip_list_id: string;
 }
 
+export type CutterLoginStatusValue = "unknown" | "pending" | "approved" | "rejected" | "disabled";
+
+export interface CutterLoginRequest {
+  username: string;
+  device_id: string;
+  device_name?: string;
+}
+
+export interface CutterLoginApplication {
+  application_id?: string;
+  username: string;
+  device_id: string;
+  device_name?: string;
+  status: CutterLoginStatusValue;
+  created_at?: string;
+  updated_at?: string;
+  session_token?: string;
+}
+
+export interface CutterLoginStatus {
+  status: CutterLoginStatusValue;
+  username?: string;
+  device_id?: string;
+  session_token?: string;
+  message?: string;
+}
+
+export interface CutterUsageEventInput {
+  event_type: string;
+  metadata?: Record<string, unknown>;
+  occurred_at?: string;
+}
+
+export interface CutterUsageEventResult {
+  recorded: boolean;
+}
+
+export interface CutterAuthHeaders {
+  device_id: string;
+  session_token: string;
+}
+
 export interface CutterApiClientInput {
   base_url: string;
   fetch?: typeof fetch;
+  auth?: CutterAuthHeaders;
 }
 
 export class CutterApiError extends Error {
@@ -204,6 +247,9 @@ export class CutterApiError extends Error {
 }
 
 export interface CutterApiClient {
+  requestLogin(input: CutterLoginRequest): Promise<CutterLoginApplication>;
+  getLoginStatus(): Promise<CutterLoginStatus>;
+  recordUsageEvent(event: CutterUsageEventInput): Promise<CutterUsageEventResult>;
   listSourceLibrary(): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number): Promise<SearchResponse>;
@@ -224,6 +270,22 @@ export function normalizeApiBaseUrl(baseUrl: string): string {
 function appendPath(baseUrl: string, path: string): string {
   const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   return normalizedBaseUrl ? `${normalizedBaseUrl}${path}` : path;
+}
+
+function authHeaders(auth: CutterAuthHeaders | undefined): HeadersInit {
+  return auth
+    ? {
+        "X-MixLab-Device-Id": auth.device_id,
+        "X-MixLab-Session-Token": auth.session_token
+      }
+    : {};
+}
+
+function jsonHeaders(auth?: CutterAuthHeaders): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    ...authHeaders(auth)
+  };
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -252,19 +314,66 @@ async function requestEnvelope<T>(
 
 export function createCutterApiClient(input: CutterApiClientInput): CutterApiClient {
   const fetchImpl = input.fetch ?? fetch;
+  const protectedHeaders = authHeaders(input.auth);
 
   return {
+    requestLogin(request: CutterLoginRequest) {
+      return requestEnvelope<CutterLoginApplication>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/request-login"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            username: request.username,
+            device_id: request.device_id,
+            ...(request.device_name ? { device_name: request.device_name } : {})
+          })
+        }
+      );
+    },
+
+    getLoginStatus() {
+      return requestEnvelope<CutterLoginStatus>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/status"),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    recordUsageEvent(event: CutterUsageEventInput) {
+      return requestEnvelope<CutterUsageEventResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/usage-events"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(event)
+        }
+      );
+    },
+
     listSourceLibrary() {
       return requestEnvelope<SourceLibraryResponse>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/source-library")
+        appendPath(input.base_url, "/cutter/source-library"),
+        {
+          headers: protectedHeaders
+        }
       );
     },
 
     getSourceVideoDetail(sourceVideoId: string) {
       return requestEnvelope<SourceVideoDetail>(
         fetchImpl,
-        appendPath(input.base_url, `/cutter/source-videos/${encodeURIComponent(sourceVideoId)}`)
+        appendPath(input.base_url, `/cutter/source-videos/${encodeURIComponent(sourceVideoId)}`),
+        {
+          headers: protectedHeaders
+        }
       );
     },
 
@@ -275,21 +384,30 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       });
       return requestEnvelope<SearchResponse>(
         fetchImpl,
-        appendPath(input.base_url, `/cutter/source-search?${params.toString()}`)
+        appendPath(input.base_url, `/cutter/source-search?${params.toString()}`),
+        {
+          headers: protectedHeaders
+        }
       );
     },
 
     listLocalClips() {
       return requestEnvelope<LocalClipCatalog>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/local-clips")
+        appendPath(input.base_url, "/cutter/local-clips"),
+        {
+          headers: protectedHeaders
+        }
       );
     },
 
     getLocalClipDetail(localClipId: string) {
       return requestEnvelope<LocalClip>(
         fetchImpl,
-        appendPath(input.base_url, `/cutter/local-clips/${encodeURIComponent(localClipId)}`)
+        appendPath(input.base_url, `/cutter/local-clips/${encodeURIComponent(localClipId)}`),
+        {
+          headers: protectedHeaders
+        }
       );
     },
 
@@ -299,9 +417,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         appendPath(input.base_url, "/cutter/local-clips"),
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: jsonHeaders(input.auth),
           body: JSON.stringify({
             source_video_id: request.source_video_id,
             start_segment_id: request.start_segment_id,
@@ -321,9 +437,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         appendPath(input.base_url, "/cutter/clip-lists"),
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: jsonHeaders(input.auth),
           body: JSON.stringify({
             library_id: request.library_id,
             title: request.title,
@@ -339,9 +453,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         appendPath(input.base_url, "/cutter/cut-jobs"),
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: jsonHeaders(input.auth),
           body: JSON.stringify({
             clip_list_id: request.clip_list_id
           })
@@ -352,7 +464,10 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
     listCutJobs() {
       return requestEnvelope<CutJobCatalog>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/cut-jobs")
+        appendPath(input.base_url, "/cutter/cut-jobs"),
+        {
+          headers: protectedHeaders
+        }
       );
     },
 
@@ -361,7 +476,8 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         fetchImpl,
         appendPath(input.base_url, "/cutter/cut-jobs/run-next"),
         {
-          method: "POST"
+          method: "POST",
+          headers: protectedHeaders
         }
       );
     },

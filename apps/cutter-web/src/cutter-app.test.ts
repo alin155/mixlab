@@ -10,8 +10,48 @@ import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
+import { CutterLoginGate } from "./features/login/CutterLoginGate.tsx";
+import {
+  clearCutterAuthSession,
+  createDeviceId,
+  readCutterAuthSession,
+  writeCutterAuthSession,
+  CUTTER_AUTH_STORAGE_KEY
+} from "./auth.ts";
+import { shouldShowLoginGate } from "./app/CutterApp.tsx";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList } from "./state/cut-queue.ts";
+
+function installTestWindow() {
+  const store = new Map<string, string>();
+  const localStorage = {
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value);
+    },
+    get length() {
+      return store.size;
+    }
+  } satisfies Storage;
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage
+    }
+  });
+}
 
 function fixture() {
   const data = createFixtureCutterData();
@@ -164,4 +204,101 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
   ]) {
     assert.match(html, new RegExp(text));
   }
+});
+
+test("cutter auth storage creates a stable device id and handles session lifecycle", () => {
+  installTestWindow();
+  window.localStorage.clear();
+
+  const firstDeviceId = createDeviceId();
+  const secondDeviceId = createDeviceId();
+  assert.equal(firstDeviceId, secondDeviceId);
+  assert.match(firstDeviceId, /^cutter-/);
+
+  assert.equal(readCutterAuthSession(), null);
+
+  writeCutterAuthSession({
+    device_id: firstDeviceId,
+    session_token: "session-001",
+    username: "小王"
+  });
+  assert.deepEqual(readCutterAuthSession(), {
+    device_id: firstDeviceId,
+    session_token: "session-001",
+    username: "小王"
+  });
+
+  clearCutterAuthSession();
+  assert.equal(readCutterAuthSession(), null);
+});
+
+test("cutter auth storage tolerates corrupt JSON", () => {
+  installTestWindow();
+  window.localStorage.setItem(CUTTER_AUTH_STORAGE_KEY, "{not-json");
+
+  assert.equal(readCutterAuthSession(), null);
+  assert.equal(window.localStorage.getItem(CUTTER_AUTH_STORAGE_KEY), null);
+});
+
+test("login gate renders Chinese application states and only approved status renders children", async () => {
+  const unknown = renderToStaticMarkup(
+    h(CutterLoginGate, {
+      status: "unknown",
+      onApply: async () => undefined,
+      children: h("p", null, "工作台内容")
+    })
+  );
+  assert.match(unknown, /申请使用剪辑师工作台/);
+  assert.match(unknown, /用户名/);
+  assert.match(unknown, /提交申请/);
+  assert.equal(unknown.includes("工作台内容"), false);
+
+  const pending = renderToStaticMarkup(
+    h(CutterLoginGate, {
+      status: "pending",
+      onApply: async () => undefined,
+      children: h("p", null, "工作台内容")
+    })
+  );
+  assert.match(pending, /申请已提交，请等待管理员审核。/);
+  assert.match(pending, /disabled=""/);
+
+  const rejected = renderToStaticMarkup(
+    h(CutterLoginGate, {
+      status: "rejected",
+      onApply: async () => undefined,
+      children: h("p", null, "工作台内容")
+    })
+  );
+  assert.match(rejected, /申请未通过，请联系管理员。/);
+  assert.match(rejected, /提交申请/);
+
+  const disabled = renderToStaticMarkup(
+    h(CutterLoginGate, {
+      status: "disabled",
+      onApply: async () => undefined,
+      children: h("p", null, "工作台内容")
+    })
+  );
+  assert.match(disabled, /账号已停用，请联系管理员。/);
+  assert.match(disabled, /提交申请/);
+
+  const approved = renderToStaticMarkup(
+    h(CutterLoginGate, {
+      status: "approved",
+      onApply: async () => undefined,
+      children: h("p", null, "工作台内容")
+    })
+  );
+  assert.equal(approved, "<p>工作台内容</p>");
+});
+
+test("fixture mode bypasses login and runtime mode requires approved auth", () => {
+  assert.equal(shouldShowLoginGate(false, "unknown"), false);
+  assert.equal(shouldShowLoginGate(false, "pending"), false);
+  assert.equal(shouldShowLoginGate(true, "unknown"), true);
+  assert.equal(shouldShowLoginGate(true, "pending"), true);
+  assert.equal(shouldShowLoginGate(true, "rejected"), true);
+  assert.equal(shouldShowLoginGate(true, "disabled"), true);
+  assert.equal(shouldShowLoginGate(true, "approved"), false);
 });

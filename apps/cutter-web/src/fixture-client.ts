@@ -377,6 +377,31 @@ export function createFixtureCutterApiClient(): CutterApiClient {
   const data = createFixtureCutterData();
 
   return {
+    async requestLogin(request) {
+      return {
+        application_id: "fixture-approved",
+        username: request.username,
+        device_id: request.device_id,
+        device_name: request.device_name,
+        status: "approved",
+        session_token: "fixture-session-token",
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:00:00Z"
+      };
+    },
+    async getLoginStatus() {
+      return {
+        status: "approved",
+        username: "fixture-user",
+        device_id: "fixture-device",
+        session_token: "fixture-session-token"
+      };
+    },
+    async recordUsageEvent() {
+      return {
+        recorded: true
+      };
+    },
     async listSourceLibrary() {
       return data.library;
     },
