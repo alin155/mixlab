@@ -489,7 +489,7 @@ async function requireCutterSession(input: {
   };
 }
 
-async function recordCutterUsageEvent(input: {
+async function recordCutterUsageEventBestEffort(input: {
   api_input: CreateCutterApiServerInput;
   auth: AuthenticatedCutterSession;
   event_type: Parameters<typeof appendUsageEvent>[1]["event_type"];
@@ -499,18 +499,23 @@ async function recordCutterUsageEvent(input: {
   selected_duration_ms?: number;
   result_status?: Parameters<typeof appendUsageEvent>[1]["result_status"];
 }): Promise<void> {
-  await appendUsageEvent(input.api_input.library_root, {
-    user_id: input.auth.user.user_id,
-    username: input.auth.user.username,
-    device_id: input.auth.device_id,
-    event_type: input.event_type,
-    occurred_at: currentNow(input.api_input),
-    source_video_id: input.source_video_id,
-    cut_job_id: input.cut_job_id,
-    query: input.query,
-    selected_duration_ms: input.selected_duration_ms,
-    result_status: input.result_status
-  });
+  try {
+    await appendUsageEvent(input.api_input.library_root, {
+      user_id: input.auth.user.user_id,
+      username: input.auth.user.username,
+      device_id: input.auth.device_id,
+      event_type: input.event_type,
+      occurred_at: currentNow(input.api_input),
+      source_video_id: input.source_video_id,
+      cut_job_id: input.cut_job_id,
+      query: input.query,
+      selected_duration_ms: input.selected_duration_ms,
+      result_status: input.result_status
+    });
+  } catch {
+    // Usage analytics are best-effort for cutter workflows. Do not let malformed
+    // history or write failures turn successful search/view/cut actions into 500s.
+  }
 }
 
 function selectedDurationMs(input: { begin_ms: number; end_ms: number }): number {
@@ -816,14 +821,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               api_input: input,
               body
             });
-            await recordCutterUsageEvent({
+            await recordCutterUsageEventBestEffort({
               api_input: input,
               auth,
               event_type: "select_transcript_span",
               source_video_id: clip.source_video_id,
               selected_duration_ms: selectedDurationMs(clip)
             });
-            await recordCutterUsageEvent({
+            await recordCutterUsageEventBestEffort({
               api_input: input,
               auth,
               event_type: "create_local_clip",
@@ -914,14 +919,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           created_at: input.now?.() ?? new Date().toISOString()
         });
 
-        await recordCutterUsageEvent({
+        await recordCutterUsageEventBestEffort({
           api_input: input,
           auth,
           event_type: "select_transcript_span",
           source_video_id: sourceVideoId,
           selected_duration_ms: selectedDurationMs(selection)
         });
-        await recordCutterUsageEvent({
+        await recordCutterUsageEventBestEffort({
           api_input: input,
           auth,
           event_type: "create_local_clip",
@@ -959,7 +964,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         });
 
         for (const item of clipList.items) {
-          await recordCutterUsageEvent({
+          await recordCutterUsageEventBestEffort({
             api_input: input,
             auth,
             event_type: "add_to_cut_list",
@@ -1001,7 +1006,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           clip_list: clipList,
           now: input.now?.() ?? new Date().toISOString()
         });
-        await recordCutterUsageEvent({
+        await recordCutterUsageEventBestEffort({
           api_input: input,
           auth,
           event_type: "submit_cut_job"
@@ -1027,7 +1032,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           workspace_root: workspaceRoot
         });
         if (job && (job.status === "done" || job.status === "failed")) {
-          await recordCutterUsageEvent({
+          await recordCutterUsageEventBestEffort({
             api_input: input,
             auth,
             event_type: job.status === "done" ? "cut_success" : "cut_failure",
@@ -1111,7 +1116,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           limit: parsePositiveLimit(url.searchParams.get("limit"))
         });
         const groups: ApiSearchGroup[] = result.groups.map(addSourceVideoUrls);
-        await recordCutterUsageEvent({
+        await recordCutterUsageEventBestEffort({
           api_input: input,
           auth,
           event_type: "search",
@@ -1334,7 +1339,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             throw new Error("login_required");
           }
 
-          await recordCutterUsageEvent({
+          await recordCutterUsageEventBestEffort({
             api_input: input,
             auth: detailAuth,
             event_type: "view_source_video",

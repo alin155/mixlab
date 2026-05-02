@@ -257,6 +257,12 @@ async function createApprovedAuthHeaders(libraryRoot: string): Promise<Record<st
   };
 }
 
+async function writeMalformedUsageEvents(libraryRoot: string): Promise<void> {
+  const usageDir = path.join(libraryRoot, ".mixlab-library", "usage-events");
+  await mkdir(usageDir, { recursive: true });
+  await writeFile(path.join(usageDir, "events.ndjson"), "{not-json}\n", "utf8");
+}
+
 test("cutter auth request-login creates a pending application without auth headers", async () => {
   const libraryRoot = await prepareLibrary();
 
@@ -335,6 +341,85 @@ test("cutter source library requires approved session headers", async () => {
       }
     });
   });
+});
+
+test("malformed usage events do not break authenticated source search", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  await writeMalformedUsageEvents(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("现金流")}`, {
+      headers
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    assert.equal(body.data.groups[0].source_video_id, "V000001");
+    await assert.rejects(() => readUsageMetrics(libraryRoot), /使用事件存储文件格式错误/);
+  });
+});
+
+test("malformed usage events do not break authenticated local clip creation", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  await writeMalformedUsageEvents(libraryRoot);
+  const cutOutputs: Array<{ output_path: string; begin_ms: number; end_ms: number }> = [];
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:00:00Z",
+    cut_runner: async (input) => {
+      cutOutputs.push({
+        output_path: input.output_path,
+        begin_ms: input.begin_ms,
+        end_ms: input.end_ms
+      });
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "local-clip-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const response = await fetch(`${baseUrl}/cutter/local-clips`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_id: "V000001",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        pre_roll_ms: 250,
+        post_roll_ms: 400,
+        cut_mode: "copy"
+      })
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json() as any;
+    assert.equal(body.data.local_clip_id, "LC000001");
+    assert.equal(cutOutputs.length, 1);
+    await assert.rejects(() => readUsageMetrics(libraryRoot), /使用事件存储文件格式错误/);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
 });
 
 test("serves cutter source library, detail, and search JSON with API media URLs", async () => {
