@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  addAdminSourceFolder,
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   publishReadySourceVideo,
@@ -159,4 +160,71 @@ test("reports library health, incomplete ready artifacts, malformed local clips,
   });
   assert.equal(JSON.stringify(report).includes("sk-do-not-leak"), false);
   assert.equal(report.summary.fail >= 3, true);
+});
+
+test("accepts ready source video manifests from configured source folders", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const sourceRoot = path.join(libraryRoot, "course-source");
+  const sourceVideoPath = path.join(sourceRoot, "课程", "现金流.mp4");
+
+  await mkdir(path.join(libraryRoot, "source-videos"), { recursive: true });
+  await writeDummyVideo(sourceVideoPath);
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: sourceRoot,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:01:00Z"
+  });
+  await writeTextArtifacts(libraryRoot, "V000001");
+  await writeFile(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "cover.jpg"),
+    "cover-bytes",
+    "utf8"
+  );
+  await completePreprocessArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    now: "2026-05-02T00:02:00Z",
+    media: {
+      duration_ms: 4000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      content_hash: "stat:size:17:mtime_ms:1"
+    },
+    artifacts: {
+      transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+      srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+      keyframes_path: ".mixlab-library/videos/V000001/keyframes.json",
+      cover_path: ".mixlab-library/videos/V000001/cover.jpg"
+    }
+  });
+  await publishReadySourceVideo({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    index_version: "v000001",
+    now: "2026-05-02T00:03:00Z"
+  });
+
+  const report = await runMixlabDoctor({
+    library_root: libraryRoot,
+    now: "2026-05-02T08:00:00Z",
+    env: {}
+  });
+
+  assert.equal(byId(report, "source-video-manifests").status, "pass");
 });

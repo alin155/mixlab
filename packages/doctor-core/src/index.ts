@@ -1,8 +1,8 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveFfmpegRuntime } from "../../ffmpeg-core/src/index.ts";
+import { resolveSourceVideoFilePath } from "../../library-fs/src/index.ts";
 import {
-  resolveSourceVideoPath,
   validateIndexCurrentPointer,
   validateLibraryCounts,
   validateLocalClipManifest,
@@ -260,10 +260,7 @@ async function checkSourceVideoManifests(libraryRoot: string): Promise<DoctorChe
       errors.push(`${manifest.source_video_id}: ${error}`);
     }
 
-    const sourcePath = resolveSourceVideoPath({
-      mount_root: libraryRoot,
-      relative_path: manifest.relative_path
-    });
+    const sourcePath = await resolveSourceVideoFilePath(libraryRoot, manifest);
 
     if (!(await fileExists(sourcePath))) {
       errors.push(`${manifest.source_video_id}: source video file is missing`);

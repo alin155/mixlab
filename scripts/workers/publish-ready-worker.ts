@@ -11,7 +11,7 @@ import {
   publishIndexRequiredSourceVideos,
   readAllSourceVideoManifests
 } from "../../packages/library-fs/src/index.ts";
-import { resolveSourceVideoPath } from "../../packages/protocol/src/index.ts";
+import { resolveReadyPublishSourceVideoPath } from "./publish-ready-source-path.ts";
 
 const ENABLE_FLAG = "MIXLAB_ENABLE_READY_PUBLISH_WORKER";
 
@@ -159,9 +159,9 @@ console.log(
 const preparedSourceVideoIds: string[] = [];
 
 for (const manifest of indexRequired) {
-  const sourceVideoPath = resolveSourceVideoPath({
-    mount_root: libraryRoot,
-    relative_path: manifest.relative_path
+  const sourceVideoPath = await resolveReadyPublishSourceVideoPath({
+    library_root: libraryRoot,
+    manifest
   });
   const coverPath = `.mixlab-library/videos/${manifest.source_video_id}/cover.jpg`;
   const absoluteCoverPath = path.join(libraryRoot, coverPath);
