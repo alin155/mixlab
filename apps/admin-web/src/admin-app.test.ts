@@ -13,6 +13,7 @@ import {
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
 import {
   AdminApp,
+  sourceDetailForRequest,
   sourceDetailLoadErrorMessage,
   sourceDetailRequestForRoute
 } from "./app/AdminApp.tsx";
@@ -297,6 +298,23 @@ test("source detail request helper resolves selected id, fallback id, and non-de
   assert.equal(sourceDetailRequestForRoute("source-detail", null, ""), null);
 });
 
+test("source detail display helper hides stale detail from another request", async () => {
+  const detail = await createFixtureAdminApiClient().getSourceVideoDetail("V000042");
+
+  assert.equal(
+    sourceDetailForRequest(detail, { sourceVideoId: "V000041" }),
+    null
+  );
+  assert.equal(
+    sourceDetailForRequest(null, { sourceVideoId: "V000042" }),
+    null
+  );
+  assert.equal(
+    sourceDetailForRequest(detail, { sourceVideoId: "V000042" }),
+    detail
+  );
+});
+
 test("source detail load errors are mapped to Chinese-safe messages", () => {
   const cases = [
     {
@@ -310,13 +328,21 @@ test("source detail load errors are mapped to Chinese-safe messages", () => {
     {
       error: new Error("not_found: 原视频不存在"),
       expected: "原视频不存在或已被移除。"
+    },
+    {
+      error: new Error("权限不足：无法读取原视频详情"),
+      expected: "权限不足：无法读取原视频详情"
+    },
+    {
+      error: new Error("validation_failed: 原视频协议文件无效"),
+      expected: "原视频协议文件无效"
     }
   ];
 
   for (const item of cases) {
     const message = sourceDetailLoadErrorMessage(item.error);
     assert.equal(message, item.expected);
-    assert.doesNotMatch(message, /Failed to fetch|Route not found|not_found/);
+    assert.doesNotMatch(message, /Failed to fetch|Route not found|not_found|validation_failed/);
   }
 
   assert.equal(sourceDetailLoadErrorMessage("timeout"), "原视频详情加载失败，请稍后重试。");

@@ -81,11 +81,15 @@ interface SourceDetailRenderState {
   error: string;
 }
 
+interface SourceDetailRequest {
+  sourceVideoId: string;
+}
+
 export function sourceDetailRequestForRoute(
   route: AdminRoute,
   data: AdminDashboardData | null,
   selectedSourceVideoId: string
-): { sourceVideoId: string } | null {
+): SourceDetailRequest | null {
   if (route !== "source-detail") {
     return null;
   }
@@ -94,23 +98,48 @@ export function sourceDetailRequestForRoute(
   return sourceVideoId ? { sourceVideoId } : null;
 }
 
+export function sourceDetailForRequest(
+  detail: AdminSourceVideoDetail | null,
+  request: SourceDetailRequest | null
+): AdminSourceVideoDetail | null {
+  if (!detail || !request) {
+    return null;
+  }
+
+  return detail.source_video.source_video_id === request.sourceVideoId ? detail : null;
+}
+
+function containsChinese(text: string): boolean {
+  return /[\u4e00-\u9fff]/.test(text);
+}
+
+function stripKnownProtocolPrefix(text: string): string {
+  return text.replace(/^(validation_failed|not_found):\s*/i, "").trim();
+}
+
 export function sourceDetailLoadErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) {
     return "原视频详情加载失败，请稍后重试。";
   }
 
-  const message = error.message.toLowerCase();
+  const rawMessage = error.message.trim();
+  const normalizedMessage = rawMessage.toLowerCase();
 
-  if (message.includes("failed to fetch")) {
+  if (normalizedMessage.includes("failed to fetch")) {
     return "无法连接管理端服务，请检查网络或服务状态。";
   }
 
-  if (message.includes("route not found")) {
+  if (normalizedMessage.includes("route not found")) {
     return "原视频详情接口暂不可用，请稍后重试。";
   }
 
-  if (message.includes("not_found")) {
+  if (normalizedMessage.includes("not_found")) {
     return "原视频不存在或已被移除。";
+  }
+
+  const withoutProtocolPrefix = stripKnownProtocolPrefix(rawMessage);
+  if (containsChinese(withoutProtocolPrefix)) {
+    return withoutProtocolPrefix;
   }
 
   return "原视频详情加载失败，请稍后重试。";
@@ -334,6 +363,7 @@ export function AdminApp() {
     let cancelled = false;
     setSourceDetailLoading(true);
     setSourceDetailError("");
+    setSourceDetail(null);
 
     client.getSourceVideoDetail(request.sourceVideoId)
       .then((detail) => {
@@ -431,7 +461,10 @@ export function AdminApp() {
                 </InspectorPanel>
               ) : data ? (
                 renderPage(route, data, actions, {
-                  detail: sourceDetail,
+                  detail: sourceDetailForRequest(
+                    sourceDetail,
+                    sourceDetailRequestForRoute(route, data, selectedSourceVideoId)
+                  ),
                   loading: sourceDetailLoading,
                   error: sourceDetailError
                 })
