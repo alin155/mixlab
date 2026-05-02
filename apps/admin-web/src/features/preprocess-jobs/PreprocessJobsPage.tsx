@@ -4,6 +4,7 @@ import {
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
 import { jobStageLabel } from "../../app/chinese.ts";
+import { formatAdminDuration } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader, JobRows, MetricBand } from "../shared.tsx";
 
 export function PreprocessJobsPage({
@@ -26,21 +27,31 @@ export function PreprocessJobsPage({
         <AdminPageHeader
           title="预处理队列"
           eyebrow="预处理队列"
-          action={
-            <section className="admin-action-row" aria-label="队列操作">
-              <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
-              <AdminControlButton label="重试失败" state="m9b-api" reason="M9B 接入失败重试接口。" onClick={onRetryFailedVideos} />
-            </section>
-          }
         />
         <MetricBand
           items={[
+            { label: "未处理原视频", value: data.status.unprocessed_video_count, caption: "等待加入队列" },
+            { label: "将加入", value: data.status.unprocessed_video_count, caption: "点击后进入队列" },
+            { label: "预计总时长", value: formatAdminDuration(data.metrics.material.unprocessed_duration_ms), caption: "按原视频时长估算" },
             { label: "正在处理", value: data.jobs.active_count, caption: "预处理服务已领取" },
             { label: "队列中", value: data.jobs.queued_count, caption: "等待预处理" },
             { label: "最近完成", value: data.jobs.completed_count, caption: "已产生可发布产物" },
             { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
           ]}
         />
+        <GroupedForm
+          groups={[{
+            title: "素材来源",
+            rows: data.settings.source_folders.map((folder) => ({
+              label: folder.name,
+              value: `${folder.enabled ? "启用" : "停用"} · ${folder.discovered_video_count ?? 0} 个原视频 · ${folder.path}`
+            }))
+          }]}
+        />
+        <section className="admin-action-row" aria-label="队列操作">
+          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
+          <AdminControlButton label="重试失败" state="m9b-api" reason="M9B 接入失败重试接口。" onClick={onRetryFailedVideos} />
+        </section>
         <section className="admin-job-groups">
           <div>
             <h2>正在处理</h2>

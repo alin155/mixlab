@@ -147,14 +147,27 @@ const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
   ["manifest.json", "发布清单文件"],
   ["source-video.json", "原视频协议文件"],
   ["library.json is missing or unreadable", "library.json 缺失或不可读"],
+  ["library.json 有效", "发布清单文件有效"],
+  ["library.json 可读", "发布清单文件可读"],
+  ["library.json 尚未创建", "发布清单文件尚未创建"],
+  ["library counts are consistent", "素材库计数一致"],
   ["public library root is accessible", "公共素材库根目录可访问"],
   ["public library root is not accessible", "公共素材库根目录不可访问"],
   ["source-videos is readable", "原视频目录可读"],
+  ["source-videos is not readable", "原视频目录不可读"],
   ["source-videos is missing or unreadable", "原视频目录缺失或不可读"],
+  ["source-videos", "原视频目录"],
+  ["source video manifests are valid", "个原视频发布清单有效"],
   [".mixlab-library is writable", "预处理产物库可写"],
   [".mixlab-library is not writable", "预处理产物库不可写"],
+  [".mixlab-library", "预处理产物库"],
   ["current index is not available yet", "当前索引尚不可用"],
   ["current index is", "当前索引为"],
+  ["ffmpeg is available from bundled", "内置音视频工具可用"],
+  ["ffprobe is available from bundled", "内置媒体探测工具可用"],
+  ["from bundled", "来自内置工具"],
+  ["bundled", "内置"],
+  ["network timeout", "网络超时"],
   ["unexpected 语音识别模型", "语音识别模型异常"],
   ["is not configured", "未配置"],
   ["is configured", "已配置"],
@@ -164,6 +177,9 @@ const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
   ["index-required 与 ready 边界需发布", "待发布索引与已可用边界需发布"],
   ["index-required", "待发布索引"],
   ["current.json", "当前索引指针"],
+  ["library.json", "发布清单文件"],
+  ["EACCES", "权限不足"],
+  ["ENOENT", "文件或目录不存在"],
   ["接口密钥 已配置", "接口密钥已配置"],
   ["接口密钥 未配置", "接口密钥未配置"]
 ];
@@ -173,4 +189,16 @@ export function chineseDiagnosticText(text: string): string {
     (current, [from, to]) => current.replaceAll(from, to),
     text
   ).replaceAll("语音识别 网络", "语音识别网络");
+}
+
+export function strictChineseDiagnosticText(text: string): string {
+  const translated = chineseDiagnosticText(text);
+  const withoutAllowedBusinessIds = translated.replace(/\b[A-Z]{1,4}\d{3,}\b/g, "");
+  if (/[A-Za-z]/.test(withoutAllowedBusinessIds)) {
+    const businessIds = Array.from(new Set(translated.match(/\b[A-Z]{1,4}\d{3,}\b/g) ?? []));
+    const prefix = businessIds.length ? `相关对象 ${businessIds.join("、")}；` : "";
+    return `${prefix}原始诊断信息已隐藏，可导出诊断报告查看。`;
+  }
+
+  return translated;
 }

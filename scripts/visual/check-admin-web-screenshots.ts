@@ -10,11 +10,11 @@ const baseUrl = `http://127.0.0.1:${port}`;
 
 const routes = [
   ["dashboard", "dashboard.png"],
-  ["library-settings", "library-settings.png"],
   ["source-videos", "source-videos.png"],
   ["preprocess-jobs", "preprocess-jobs.png"],
   ["index-publish", "index-publish.png"],
   ["doctor", "doctor.png"],
+  ["cutter-users", "cutter-users.png"],
   ["settings", "settings.png"]
 ] as const;
 
@@ -104,14 +104,9 @@ async function captureRoute(
 
   if (route === "dashboard") {
     await requireText(page, "全局风险和产能");
-    await requireText(page, "Ready");
-    await requireText(page, "Failed");
+    await requireText(page, "素材规模");
+    await requireText(page, "风险摘要");
     await requireText(page, "处理未处理");
-  }
-
-  if (route === "library-settings") {
-    await requireText(page, "路径与权限");
-    await requireText(page, "打开文件夹");
   }
 
   if (route === "source-videos") {
@@ -120,24 +115,31 @@ async function captureRoute(
   }
 
   if (route === "preprocess-jobs") {
-    await requireText(page, "生产队列");
-    await requireText(page, "启动 Worker");
+    await requireText(page, "预处理队列");
+    await requireText(page, "未处理原视频");
+    await requireText(page, "启动预处理服务");
   }
 
   if (route === "index-publish") {
-    await requireText(page, "索引健康与修复");
-    await requireText(page, "修复 index-required");
+    await requireText(page, "索引与发布");
+    await requireText(page, "发布待索引视频");
   }
 
   if (route === "doctor") {
     await requireText(page, "诊断系统问题");
-    await requireText(page, "导出诊断 JSON");
+    await requireText(page, "检查目的");
+    await requireText(page, "导出诊断报告");
+  }
+
+  if (route === "cutter-users") {
+    await requireText(page, "剪辑师用户");
+    await requireText(page, "通过申请");
   }
 
   if (route === "settings") {
     await requireText(page, "运行策略");
-    await requireText(page, "DashScope 临时上传");
-    await requireText(page, "wav_16k_mono_pcm_s16le");
+    await requireText(page, "阿里云百炼");
+    await requireText(page, "无损单声道");
   }
 
   await page.screenshot({

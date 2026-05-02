@@ -8,7 +8,8 @@ import { createFixtureAdminApiClient, loadAdminDashboardData } from "./api.ts";
 import {
   chineseDiagnosticText,
   diagnosticLabel,
-  languageHintsLabel
+  languageHintsLabel,
+  strictChineseDiagnosticText
 } from "./app/chinese.ts";
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
 import {
@@ -89,7 +90,7 @@ test("rendered admin pages avoid obvious English user-facing labels", async () =
   }
 });
 
-test("Chinese diagnostic helpers cover real doctor labels without mangling protocol keys", () => {
+test("Chinese diagnostic helpers cover real doctor labels and hide unhandled English details", () => {
   assert.deepEqual(
     [
       "Public Library Root",
@@ -125,6 +126,15 @@ test("Chinese diagnostic helpers cover real doctor labels without mangling proto
     chineseDiagnosticText("DashScope API Key is configured for ASR Config"),
     "阿里云百炼接口密钥已配置用于语音识别配置"
   );
+  assert.equal(chineseDiagnosticText("ffmpeg is available from bundled"), "内置音视频工具可用");
+  assert.equal(chineseDiagnosticText("2 source video manifests are valid"), "2 个原视频发布清单有效");
+  assert.equal(chineseDiagnosticText("source-videos is not readable: EACCES"), "原视频目录不可读: 权限不足");
+  assert.equal(chineseDiagnosticText("library counts are consistent"), "素材库计数一致");
+  assert.equal(
+    strictChineseDiagnosticText("V000037: source video file is missing"),
+    "相关对象 V000037；原始诊断信息已隐藏，可导出诊断报告查看。"
+  );
+  assert.equal(chineseDiagnosticText("AI剪辑实战 V000037"), "AI剪辑实战 V000037");
 });
 
 test("AdminApp action notices localize API result messages before rendering", () => {
@@ -135,7 +145,8 @@ test("AdminApp action notices localize API result messages before rendering", ()
 });
 
 test("dashboard renders restrained library status", async () => {
-  const html = renderToStaticMarkup(h(DashboardPage, { data: await fixtureData() }));
+  const data = await fixtureData();
+  const html = renderToStaticMarkup(h(DashboardPage, { data }));
 
   for (const text of [
     "全局风险和产能",
@@ -149,10 +160,42 @@ test("dashboard renders restrained library status", async () => {
     "处理未处理",
     "磁盘空间",
     "当前任务",
-    "v000027"
+    "v000027",
+    "素材规模",
+    "文案与索引",
+    "预处理产能",
+    "剪辑端使用",
+    "风险摘要",
+    "原视频总时长",
+    "文案总字数",
+    "搜索请求",
+    "活跃剪辑师"
   ]) {
     assert.match(html, new RegExp(text));
   }
+
+  const withoutEstimate = {
+    ...data,
+    metrics: {
+      ...data.metrics,
+      production: {
+        ...data.metrics.production,
+        estimated_queue_done_at: ""
+      }
+    }
+  };
+  assert.match(renderToStaticMarkup(h(DashboardPage, { data: withoutEstimate })), /暂无估算/);
+
+  const withEnglishTitle = {
+    ...data,
+    jobs: {
+      ...data.jobs,
+      jobs: data.jobs.jobs.map((job, index) => (
+        index === 0 ? { ...job, title: "AI剪辑实战 V000037" } : job
+      ))
+    }
+  };
+  assert.match(renderToStaticMarkup(h(DashboardPage, { data: withEnglishTitle })), /AI剪辑实战 V000037/);
 });
 
 test("settings merges library paths, runtime policy, and path checks", async () => {
@@ -358,6 +401,10 @@ test("preprocess jobs render failure retry and later success", async () => {
 
   for (const text of [
     "预处理队列",
+    "未处理原视频",
+    "将加入",
+    "预计总时长",
+    "素材来源",
     "正在处理",
     "队列中",
     "最近完成",
@@ -371,6 +418,13 @@ test("preprocess jobs render failure retry and later success", async () => {
     "J000041"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
+  }
+  const queueActionIndex = html.indexOf(">处理未处理</button>");
+  for (const contextLabel of ["未处理原视频", "将加入", "预计总时长", "素材来源"]) {
+    assert.ok(
+      html.indexOf(contextLabel) < queueActionIndex,
+      `${contextLabel} 必须出现在队列操作之前`
+    );
   }
 });
 
@@ -392,11 +446,70 @@ test("index health renders current pointer and repair controls", async () => {
 });
 
 test("doctor page renders Chinese diagnosis checks and report export", async () => {
-  const html = renderToStaticMarkup(h(DoctorPage, { data: await fixtureData() }));
+  const data = await fixtureData();
+  const html = renderToStaticMarkup(h(DoctorPage, { data }));
 
-  for (const text of ["诊断系统问题", "公共路径", "发布清单", "音视频工具", "语音识别", "重新运行健康诊断", "导出诊断报告"]) {
+  for (const text of [
+    "诊断系统问题",
+    "发布清单",
+    "音视频工具",
+    "语音识别",
+    "检查目的",
+    "失败影响",
+    "处理建议",
+    "公共素材库根目录",
+    "重新运行健康诊断",
+    "导出诊断报告"
+  ]) {
     assert.match(html, new RegExp(text));
   }
+
+  const realDoctorIds = {
+    ...data,
+    doctor: {
+      ...data.doctor,
+      summary: { pass: 1, warn: 2, fail: 0 },
+      checks: [
+        {
+          check_id: "source-videos-readable",
+          label: "Source Videos",
+          status: "warn" as const,
+          message: "source-videos is not readable: EACCES"
+        },
+        {
+          check_id: "source-video-manifests",
+          label: "Source Video Manifests",
+          status: "pass" as const,
+          message: "2 source video manifests are valid"
+        },
+        {
+          check_id: "library-counts",
+          label: "Library Counts",
+          status: "pass" as const,
+          message: "library counts are consistent"
+        },
+        {
+          check_id: "ffmpeg",
+          label: "FFmpeg",
+          status: "pass" as const,
+          message: "ffmpeg is available from bundled"
+        },
+        {
+          check_id: "unknown-probe",
+          label: "Unknown English Probe",
+          status: "warn" as const,
+          message: "raw probe detail"
+        }
+      ]
+    }
+  };
+  const realDoctorHtml = renderToStaticMarkup(h(DoctorPage, { data: realDoctorIds }));
+  assert.match(realDoctorHtml, /素材来源可读性/);
+  assert.match(realDoctorHtml, /原视频发布清单/);
+  assert.match(realDoctorHtml, /素材库计数一致/);
+  assert.match(realDoctorHtml, /内置音视频工具可用/);
+  assert.match(realDoctorHtml, /技术检查项/);
+  assert.doesNotMatch(realDoctorHtml, /Unknown English Probe|raw probe detail|source-videos|source video manifests|library counts|ffmpeg|bundled|EACCES/i);
 });
 
 test("cutter users page renders login applications and user metrics", async () => {
