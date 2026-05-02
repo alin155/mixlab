@@ -101,6 +101,30 @@ test("source video validation rejects unsafe ready artifact paths", () => {
   assert.match(result.errors.join("\n"), /cover_path must be portable/);
 });
 
+test("source video validation rejects unsafe source folder relative paths", () => {
+  const result = validateSourceVideoManifest({
+    ...manifest("unprocessed", false),
+    source_folder_id: "src_002",
+    source_folder_relative_path: "../课程.mp4"
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /source_folder_relative_path must be portable/);
+});
+
+test("source video validation accepts safe source folder metadata", () => {
+  const result = validateSourceVideoManifest({
+    ...manifest("unprocessed", false),
+    source_folder_id: "src_002",
+    source_folder_relative_path: "课程/现金流.mp4"
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    errors: []
+  });
+});
+
 test("source video validation accepts public metadata fields", () => {
   const result = validateSourceVideoManifest({
     ...manifest("ready", true),

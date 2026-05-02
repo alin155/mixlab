@@ -25,6 +25,7 @@ export interface ScanSourceVideosResult {
 
 interface ExistingManifestIndex {
   byRelativePath: Map<string, SourceVideoManifest>;
+  manifests: SourceVideoManifest[];
   maxNumericId: number;
 }
 
@@ -72,10 +73,14 @@ async function readEnabledScanFolders(libraryRoot: string): Promise<ScanFolderRu
 }
 
 function toSourceFolderRelativePath(row: SourceFileRow): string {
-  const relativePath = toLibraryRelativePath(row.folder.folder.path, row.file_path);
+  const relativePath = toSourceFolderFileRelativePath(row);
   return row.folder.is_default_source
     ? relativePath
     : `${row.folder.folder.id}/${relativePath}`;
+}
+
+function toSourceFolderFileRelativePath(row: SourceFileRow): string {
+  return toLibraryRelativePath(row.folder.folder.path, row.file_path);
 }
 
 function assertUniqueSourceRelativePaths(files: SourceFileRow[]): void {
@@ -157,13 +162,14 @@ async function listVideoFiles(root: string, current = root): Promise<string[]> {
 async function readExistingManifests(libraryRoot: string): Promise<ExistingManifestIndex> {
   const root = videosRoot(libraryRoot);
   const byRelativePath = new Map<string, SourceVideoManifest>();
+  const manifests: SourceVideoManifest[] = [];
   let maxNumericId = 0;
 
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {
-    return { byRelativePath, maxNumericId };
+    return { byRelativePath, manifests, maxNumericId };
   }
 
   for (const entry of entries) {
@@ -176,13 +182,14 @@ async function readExistingManifests(libraryRoot: string): Promise<ExistingManif
     try {
       const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as SourceVideoManifest;
       byRelativePath.set(manifest.relative_path, manifest);
+      manifests.push(manifest);
       maxNumericId = Math.max(maxNumericId, numericSourceVideoId(manifest.source_video_id));
     } catch {
       // Ignore malformed existing manifests during scan; Doctor will report them later.
     }
   }
 
-  return { byRelativePath, maxNumericId };
+  return { byRelativePath, manifests, maxNumericId };
 }
 
 function emptyArtifactPath(): string {
@@ -192,6 +199,8 @@ function emptyArtifactPath(): string {
 async function createUnprocessedManifest(input: {
   source_video_id: string;
   relative_path: string;
+  source_folder_id: string;
+  source_folder_relative_path: string;
   file_path: string;
 }): Promise<SourceVideoManifest> {
   const fileStat = await stat(input.file_path);
@@ -201,6 +210,8 @@ async function createUnprocessedManifest(input: {
     source_video_id: input.source_video_id,
     title,
     relative_path: input.relative_path,
+    source_folder_id: input.source_folder_id,
+    source_folder_relative_path: input.source_folder_relative_path,
     logical_uri: `library://source-video/${input.source_video_id}`,
     duration_ms: 0,
     width: 0,
@@ -285,12 +296,14 @@ export async function scanSourceVideos(
   const scanFolders = await readEnabledScanFolders(input.library_root);
   const files: SourceFileRow[] = [];
   const folderStats = new Map<string, SourceFolderScanStats>();
+  const skippedFolderIds = new Set<string>();
 
   for (const folder of scanFolders) {
     let folderFiles: string[] = [];
     try {
       folderFiles = await listVideoFiles(folder.folder.path);
     } catch {
+      skippedFolderIds.add(folder.folder.id);
       continue;
     }
     folderStats.set(folder.folder.id, {
@@ -312,6 +325,7 @@ export async function scanSourceVideos(
 
   for (const row of files) {
     const relativePath = toSourceFolderRelativePath(row);
+    const sourceFolderRelativePath = toSourceFolderFileRelativePath(row);
     const existingManifest = existing.byRelativePath.get(relativePath);
 
     if (existingManifest) {
@@ -323,6 +337,8 @@ export async function scanSourceVideos(
     const manifest = await createUnprocessedManifest({
       source_video_id: formatSourceVideoId(nextNumericId),
       relative_path: relativePath,
+      source_folder_id: row.folder.folder.id,
+      source_folder_relative_path: sourceFolderRelativePath,
       file_path: row.file_path
     });
 
@@ -334,6 +350,22 @@ export async function scanSourceVideos(
     nextNumericId += 1;
     newVideoCount += 1;
     manifests.push(manifest);
+  }
+
+  const includedSourceVideoIds = new Set(
+    manifests.map((manifest) => manifest.source_video_id)
+  );
+
+  for (const manifest of existing.manifests) {
+    if (
+      manifest.source_folder_id !== undefined &&
+      skippedFolderIds.has(manifest.source_folder_id) &&
+      !includedSourceVideoIds.has(manifest.source_video_id)
+    ) {
+      manifests.push(manifest);
+      includedSourceVideoIds.add(manifest.source_video_id);
+      existingVideoCount += 1;
+    }
   }
 
   for (const manifest of manifests) {

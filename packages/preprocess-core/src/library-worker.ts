@@ -4,10 +4,10 @@ import {
   failPreprocessJob,
   getFileIdentity,
   readSourceVideoManifest,
+  resolveSourceVideoFilePath,
   scanSourceVideos,
   type ScanSourceVideosResult
 } from "../../library-fs/src/index.ts";
-import { resolveSourceVideoPath } from "../../protocol/src/index.ts";
 import type { SourceVideoMediaMetadata } from "../../ffmpeg-core/src/index.ts";
 import type { PreprocessAudioModeId } from "./audio-mode.ts";
 import type { SourceVideoTextPreprocessResult } from "./index.ts";
@@ -118,10 +118,7 @@ export async function runLibraryTextPreprocessWorker(
     }
 
     const manifest = await readSourceVideoManifest(input.library_root, job.source_video_id);
-    const sourceVideoPath = resolveSourceVideoPath({
-      mount_root: input.library_root,
-      relative_path: manifest.relative_path
-    });
+    const sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
 
     try {
       const mediaMetadata = await input.probe_source_video({

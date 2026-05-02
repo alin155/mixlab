@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { addAdminSourceFolder } from "../../library-fs/src/index.ts";
 import { runLibraryTextPreprocessWorker } from "./library-worker.ts";
 
 async function makeLibraryRoot(): Promise<string> {
@@ -183,4 +184,63 @@ test("marks failed videos and continues processing later claimed videos", async 
   assert.equal(library.failed_video_count, 1);
   assert.equal(library.processing_video_count, 0);
   assert.equal(library.index_required_video_count, 1);
+});
+
+test("preprocesses non-default configured source folder files by physical path", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const courseSource = path.join(libraryRoot, "course-source");
+  const sourceVideoPath = path.join(courseSource, "课程", "现金流.mp4");
+
+  await writeDummyVideo(sourceVideoPath);
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: courseSource,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  const result = await runLibraryTextPreprocessWorker({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    worker_id: "worker-a",
+    limit: 1,
+    now: deterministicNow(),
+    async probe_source_video(input) {
+      assert.equal(input.source_video_path, sourceVideoPath);
+
+      return {
+        duration_ms: 4_000,
+        width: 1280,
+        height: 720,
+        fps: 25,
+        codec: "h264"
+      };
+    },
+    async get_content_hash(sourceVideoPathInput) {
+      assert.equal(sourceVideoPathInput, sourceVideoPath);
+      return "sha256:external";
+    },
+    async preprocess_source_video(input) {
+      assert.equal(input.source_video_path, sourceVideoPath);
+
+      return {
+        source_video_id: input.source_video_id,
+        audio_path: ".mixlab-library/videos/V000001/asr-audio/audio.mp3",
+        audio_object_key: "temporary/V000001/audio.mp3",
+        audio_file_url: "oss://temporary/V000001/audio.mp3",
+        asr_task_id: "task-v000001",
+        transcription_url: "https://example.com/V000001.json",
+        transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+        srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+        duration_ms: 4_000,
+        segment_count: 1
+      };
+    }
+  });
+
+  assert.equal(result.items[0]?.source_video_path, sourceVideoPath);
+  assert.equal(result.succeeded_count, 1);
 });

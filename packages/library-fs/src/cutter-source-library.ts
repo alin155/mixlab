@@ -2,7 +2,6 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   isVideoVisibleToCutters,
-  resolveSourceVideoPath,
   validateSourceVideoManifest,
   type SourceVideoManifest,
   type TranscriptSegment
@@ -16,6 +15,7 @@ import {
   readAllSourceVideoManifests,
   readSourceVideoManifest
 } from "./preprocess-lifecycle.ts";
+import { resolveSourceVideoFilePath } from "./source-paths.ts";
 
 export interface ListCutterSourceLibraryInput {
   library_root: string;
@@ -118,10 +118,10 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   return JSON.parse(await readFile(filePath, "utf8")) as T;
 }
 
-function toCutterSourceVideoCard(
+async function toCutterSourceVideoCard(
   libraryRoot: string,
   manifest: SourceVideoManifest
-): CutterSourceVideoCard {
+): Promise<CutterSourceVideoCard> {
   return {
     source_video_id: manifest.source_video_id,
     title: manifest.title,
@@ -133,10 +133,7 @@ function toCutterSourceVideoCard(
     file_size: manifest.file_size,
     relative_path: manifest.relative_path,
     logical_uri: manifest.logical_uri,
-    source_video_file_path: resolveSourceVideoPath({
-      mount_root: libraryRoot,
-      relative_path: manifest.relative_path
-    }),
+    source_video_file_path: await resolveSourceVideoFilePath(libraryRoot, manifest),
     cover_path: manifest.cover_path,
     cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path)
   };
@@ -209,10 +206,7 @@ async function isCutterReadableReadyManifest(
     return false;
   }
 
-  const sourceVideoFilePath = resolveSourceVideoPath({
-    mount_root: libraryRoot,
-    relative_path: manifest.relative_path
-  });
+  const sourceVideoFilePath = await resolveSourceVideoFilePath(libraryRoot, manifest);
 
   if (!(await fileExists(sourceVideoFilePath))) {
     return false;
@@ -235,8 +229,10 @@ async function isCutterReadableReadyManifest(
 export async function listCutterSourceLibrary(
   input: ListCutterSourceLibraryInput
 ): Promise<CutterSourceLibraryView> {
-  const videos = (await readVisibleSourceVideoManifests(input.library_root)).map((manifest) =>
-    toCutterSourceVideoCard(input.library_root, manifest)
+  const videos = await Promise.all(
+    (await readVisibleSourceVideoManifests(input.library_root)).map((manifest) =>
+      toCutterSourceVideoCard(input.library_root, manifest)
+    )
   );
 
   return {
@@ -254,7 +250,7 @@ export async function getCutterSourceVideoDetail(
     return null;
   }
 
-  const card = toCutterSourceVideoCard(input.library_root, manifest);
+  const card = await toCutterSourceVideoCard(input.library_root, manifest);
   const transcriptFilePath = artifactFilePath(input.library_root, manifest.transcript_path);
   const srtFilePath = artifactFilePath(input.library_root, manifest.srt_path);
   const keyframesFilePath = artifactFilePath(input.library_root, manifest.keyframes_path);
@@ -280,7 +276,7 @@ export async function searchCutterSourceLibrary(
   const cardsBySourceVideoId = new Map<string, CutterSourceVideoCard>();
 
   for (const manifest of visibleManifests) {
-    const card = toCutterSourceVideoCard(input.library_root, manifest);
+    const card = await toCutterSourceVideoCard(input.library_root, manifest);
     cardsBySourceVideoId.set(manifest.source_video_id, card);
   }
 

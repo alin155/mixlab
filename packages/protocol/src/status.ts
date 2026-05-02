@@ -97,6 +97,7 @@ export function validateSourceVideoManifest(manifest: SourceVideoManifest): Vali
 
   for (const key of [
     "relative_path",
+    "source_folder_relative_path",
     "transcript_path",
     "srt_path",
     "keyframes_path",
@@ -104,7 +105,7 @@ export function validateSourceVideoManifest(manifest: SourceVideoManifest): Vali
   ] as const) {
     const value = manifest[key];
 
-    if (value.trim() !== "" && !isPortablePath(value)) {
+    if (value !== undefined && value.trim() !== "" && !isPortablePath(value)) {
       errors.push(`${key} must be portable and must not be absolute or traversal`);
     }
   }

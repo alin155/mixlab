@@ -57,7 +57,7 @@ test("rejects empty source folder names and paths", async () => {
   await assert.rejects(
     () => writeAdminSettings(root, {
       ...current,
-      source_folders: [{ id: "src_bad", name: "", path: "", enabled: true }]
+      source_folders: [{ id: "src_002", name: "", path: "", enabled: true }]
     }),
     /素材来源名称和路径不能为空/
   );
@@ -82,6 +82,47 @@ test("rejects duplicate source folder ids", async () => {
     }),
     /素材来源 ID 不能重复/
   );
+});
+
+test("rejects unsafe source folder ids", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+
+  for (const id of ["", ".", "..", "src/002", "src\\002", "src_abc"]) {
+    await assert.rejects(
+      () => writeAdminSettings(root, {
+        ...current,
+        source_folders: [
+          current.source_folders[0]!,
+          {
+            id,
+            name: "不安全素材来源",
+            path: "/Volumes/UnsafeVideos",
+            enabled: true
+          }
+        ]
+      }),
+      /素材来源 ID 格式无效/
+    );
+  }
+});
+
+test("accepts generated source folder ids", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+
+  await writeAdminSettings(root, {
+    ...current,
+    source_folders: [
+      current.source_folders[0]!,
+      {
+        id: "src_002",
+        name: "课程素材",
+        path: "/Volumes/CourseVideos",
+        enabled: true
+      }
+    ]
+  });
 });
 
 test("throws a Chinese error for malformed persisted JSON", async () => {

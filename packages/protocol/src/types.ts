@@ -23,6 +23,8 @@ export interface SourceVideoManifest {
   source_video_id: string;
   title: string;
   relative_path: string;
+  source_folder_id?: string;
+  source_folder_relative_path?: string;
   logical_uri: string;
   duration_ms: number;
   width: number;

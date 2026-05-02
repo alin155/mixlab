@@ -93,6 +93,10 @@ function isNonNegativeInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) >= 0;
 }
 
+function isSafeSourceFolderId(value: unknown): value is string {
+  return value === "src_default" || (typeof value === "string" && /^src_\d+$/.test(value));
+}
+
 function invalidSettings(message: string): never {
   throw new Error(`管理员设置文件格式无效：${message}`);
 }
@@ -125,8 +129,8 @@ function validate(settings: unknown): asserts settings is AdminSettings {
       invalidSettings("素材来源必须是对象");
     }
 
-    if (!isNonEmptyString(folder.id)) {
-      invalidSettings("素材来源 ID 不能为空");
+    if (!isSafeSourceFolderId(folder.id)) {
+      invalidSettings("素材来源 ID 格式无效");
     }
 
     if (sourceFolderIds.has(folder.id)) {

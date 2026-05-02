@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -223,13 +223,19 @@ test("scans every enabled admin source folder into one artifact library", async 
   const first = await readJson<{ relative_path: string }>(
     path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
   );
-  const second = await readJson<{ relative_path: string }>(
+  const second = await readJson<{
+    relative_path: string;
+    source_folder_id?: string;
+    source_folder_relative_path?: string;
+  }>(
     path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")
   );
   const settings = await readAdminSettings(libraryRoot);
 
   assert.equal(first.relative_path, "默认素材.mp4");
   assert.equal(second.relative_path, "src_002/课程/现金流.mp4");
+  assert.equal(second.source_folder_id, "src_002");
+  assert.equal(second.source_folder_relative_path, "课程/现金流.mp4");
   assert.equal(settings.artifact_library.path, path.join(libraryRoot, ".mixlab-library"));
   assert.equal(settings.source_folders[0]?.discovered_video_count, 1);
   assert.equal(settings.source_folders[1]?.discovered_video_count, 1);
@@ -297,6 +303,54 @@ test("preserves missing enabled source folder scan stats", async () => {
   assert.equal(settings.source_folders[1]?.last_scanned_at, "2026-05-01T00:00:00Z");
   assert.equal(settings.source_folders[1]?.discovered_video_count, 7);
   assert.equal(settings.source_folders[1]?.new_unprocessed_count, 3);
+});
+
+test("preserves existing manifests from skipped missing source folders", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const courseSource = path.join(libraryRoot, "course-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "默认素材.mp4"));
+  await writeDummyFile(path.join(courseSource, "课程.mp4"));
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: courseSource,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  await rm(courseSource, { recursive: true, force: true });
+
+  const result = await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+  const library = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "library.json")
+  );
+  const settings = await readAdminSettings(libraryRoot);
+
+  assert.deepEqual(result, {
+    total_video_count: 2,
+    new_video_count: 0,
+    existing_video_count: 2,
+    source_video_ids: ["V000001", "V000002"]
+  });
+  assert.equal(library.video_count, 2);
+  assert.equal(library.unprocessed_video_count, 2);
+  assert.equal(settings.source_folders[1]?.last_scanned_at, "2026-05-02T00:00:00Z");
+  assert.equal(settings.source_folders[1]?.discovered_video_count, 1);
+  assert.equal(settings.source_folders[1]?.new_unprocessed_count, 1);
 });
 
 test("treats default source with trailing separator as unprefixed", async () => {

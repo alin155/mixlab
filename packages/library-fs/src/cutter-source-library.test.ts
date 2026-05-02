@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import type { TranscriptSegment } from "../../protocol/src/index.ts";
 import {
+  addAdminSourceFolder,
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   getCutterSourceVideoDetail,
@@ -250,6 +251,63 @@ test("returns cutter source video detail with full transcript and playable sourc
     source_video_id: "V000002"
   });
   assert.equal(hiddenDetail, null);
+});
+
+test("resolves configured source folder paths for cutter source videos", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const courseSource = path.join(libraryRoot, "course-source");
+  const sourceVideoPath = path.join(courseSource, "课程", "现金流.mp4");
+
+  await writeDummyVideo(sourceVideoPath);
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: courseSource,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:01:00Z"
+  });
+  await writeReadyArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    full_text: "现金流。",
+    segments: [
+      segment({
+        source_video_id: "V000001",
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 2000,
+        text: "现金流。",
+        normalized_text: "现金流"
+      })
+    ]
+  });
+  await completeVideoToReady({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    duration_ms: 1_000
+  });
+
+  const library = await listCutterSourceLibrary({ library_root: libraryRoot });
+  const detail = await getCutterSourceVideoDetail({
+    library_root: libraryRoot,
+    source_video_id: "V000001"
+  });
+
+  assert.equal(library.videos[0]?.relative_path, "src_002/课程/现金流.mp4");
+  assert.equal(library.videos[0]?.source_video_file_path, sourceVideoPath);
+  assert.equal(detail?.source_video_file_path, sourceVideoPath);
 });
 
 test("hides ready source videos with missing published artifacts from cutters", async () => {
