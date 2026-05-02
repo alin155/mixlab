@@ -33,7 +33,7 @@ import {
 import { chineseDiagnosticText } from "./chinese.ts";
 
 function createRuntimeClient() {
-  const baseUrl = import.meta.env.VITE_MIXLAB_ADMIN_API_BASE_URL;
+  const baseUrl = import.meta.env?.VITE_MIXLAB_ADMIN_API_BASE_URL;
 
   return baseUrl
     ? createAdminApiClient({ base_url: baseUrl })

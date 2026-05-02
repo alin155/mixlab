@@ -4,7 +4,7 @@ import {
   SourceTable,
   StatusRow
 } from "@mixlab/ui-foundation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import type {
   AdminDashboardData,
   AdminIndexVersion,
@@ -129,28 +129,46 @@ export function SourceVideoTable({
   onSelect?: (sourceVideoId: string) => void;
   onOpenSourceDetail?: (sourceVideoId: string) => void;
 }) {
+  const columns = onOpenSourceDetail
+    ? ["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间", "操作"]
+    : ["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间"];
+
   return (
     <SourceTable
-      columns={["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间"]}
-      rows={videos.map((video) => [
-        <button
-          className={`admin-link-button${video.source_video_id === selectedSourceVideoId ? " is-selected" : ""}`}
-          type="button"
-          onClick={() => {
-            onSelect?.(video.source_video_id);
-            onOpenSourceDetail?.(video.source_video_id);
-          }}
-          key={`${video.source_video_id}-select`}
-        >
-          {video.source_video_id}
-        </button>,
-        <img className="admin-table-cover" src={video.cover_url} alt="" key={`${video.source_video_id}-cover`} />,
-        video.file_name,
-        preprocessStatusLabel(video.preprocess_status),
-        booleanLabel(video.visible_to_cutters),
-        video.tags.join(" / "),
-        video.updated_at
-      ])}
+      columns={columns}
+      rows={videos.map((video) => {
+        const cells: Array<string | ReactElement> = [
+          <button
+            className={`admin-link-button${video.source_video_id === selectedSourceVideoId ? " is-selected" : ""}`}
+            type="button"
+            onClick={() => onSelect?.(video.source_video_id)}
+            key={`${video.source_video_id}-select`}
+          >
+            {video.source_video_id}
+          </button>,
+          <img className="admin-table-cover" src={video.cover_url} alt="" key={`${video.source_video_id}-cover`} />,
+          video.file_name,
+          preprocessStatusLabel(video.preprocess_status),
+          booleanLabel(video.visible_to_cutters),
+          video.tags.join(" / "),
+          video.updated_at
+        ];
+
+        if (onOpenSourceDetail) {
+          cells.push(
+            <button
+              className="admin-link-button"
+              type="button"
+              onClick={() => onOpenSourceDetail(video.source_video_id)}
+              key={`${video.source_video_id}-detail`}
+            >
+              查看详情
+            </button>
+          );
+        }
+
+        return cells;
+      })}
     />
   );
 }

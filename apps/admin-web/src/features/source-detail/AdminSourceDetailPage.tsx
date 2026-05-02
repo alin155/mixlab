@@ -19,8 +19,15 @@ function textOrEmpty(value: string, emptyLabel = "未记录"): string {
   return value.trim() ? value : emptyLabel;
 }
 
-function artifactLabel(artifact: { path: string; file_path: string; exists: boolean }): string {
-  return `${booleanLabel(artifact.exists)} · ${artifact.path || artifact.file_path || "未记录"}`;
+function artifactRows(
+  label: string,
+  artifact: { path: string; file_path: string; exists: boolean }
+): Array<{ label: string; value: string }> {
+  return [
+    { label: `${label}状态`, value: booleanLabel(artifact.exists) },
+    { label: `${label}便携路径`, value: textOrEmpty(artifact.path) },
+    { label: `${label}文件系统路径`, value: textOrEmpty(artifact.file_path) }
+  ];
 }
 
 export function AdminSourceDetailPage({ detail }: { detail: AdminSourceVideoDetail }) {
@@ -80,10 +87,10 @@ export function AdminSourceDetailPage({ detail }: { detail: AdminSourceVideoDeta
             {
               title: "产物完整性",
               rows: [
-                { label: "文案产物", value: artifactLabel(detail.artifacts.transcript) },
-                { label: "字幕产物", value: artifactLabel(detail.artifacts.subtitles) },
-                { label: "封面产物", value: artifactLabel(detail.artifacts.cover) },
-                { label: "关键帧产物", value: artifactLabel(detail.artifacts.keyframes) },
+                ...artifactRows("文案产物", detail.artifacts.transcript),
+                ...artifactRows("字幕产物", detail.artifacts.subtitles),
+                ...artifactRows("封面产物", detail.artifacts.cover),
+                ...artifactRows("关键帧产物", detail.artifacts.keyframes),
                 { label: "索引版本", value: textOrEmpty(detail.artifacts.index_version) }
               ]
             },

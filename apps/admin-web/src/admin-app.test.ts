@@ -11,12 +11,13 @@ import {
   languageHintsLabel
 } from "./app/chinese.ts";
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
+import { AdminApp } from "./app/AdminApp.tsx";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx";
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
-import { AdminControlButton, EmptyState, MetricBand } from "./features/shared.tsx";
+import { AdminControlButton, EmptyState, MetricBand, SourceVideoTable } from "./features/shared.tsx";
 import { AdminSourceDetailPage } from "./features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "./features/source-videos/SourceVideosPage.tsx";
 
@@ -206,25 +207,75 @@ test("source video detail renders complete preprocessing data in Chinese", async
     "当前阶段",
     "任务编号",
     "索引版本",
+    "便携路径",
+    "文件系统路径",
     "现金流管理与风险控制",
-    "现金流，是企业经营中的关键安全边界。"
+    "现金流，是企业经营中的关键安全边界。",
+    ".mixlab-library/videos/V000042/transcript.json",
+    "/Volumes/PublicLibrary/.mixlab-library/videos/V000042/transcript.json"
   ]) {
     assert.match(text, new RegExp(expectedText));
   }
 });
 
-test("source video list exposes detail navigation and AdminApp routes the detail page", () => {
-  const sourcePage = readFileSync(
-    resolve("apps/admin-web/src/features/source-videos/SourceVideosPage.tsx"),
-    "utf8"
-  );
-  const appSource = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+test("source video table keeps ID selection separate from detail navigation", async () => {
+  const data = await fixtureData();
+  const videos = data.source_videos.filter((video) => video.source_video_id === "V000042");
+  const calls: string[] = [];
+  const table = SourceVideoTable({
+    videos,
+    selectedSourceVideoId: "V000042",
+    onSelect: (sourceVideoId) => calls.push(`选择:${sourceVideoId}`),
+    onOpenSourceDetail: (sourceVideoId) => calls.push(`详情:${sourceVideoId}`)
+  }) as { props: { columns: string[]; rows: Array<unknown[]> } };
+  const idButton = table.props.rows[0][0] as { props: { children: string; onClick: () => void } };
+  const detailButton = table.props.rows[0].at(-1) as { props: { children: string; onClick: () => void } };
 
-  assert.match(sourcePage, /onOpenSourceDetail\?: \(sourceVideoId: string\) => void/);
-  assert.match(sourcePage, /onOpenSourceDetail/);
-  assert.match(appSource, /AdminSourceDetailPage/);
-  assert.match(appSource, /getSourceVideoDetail/);
-  assert.doesNotMatch(appSource, /route === "source-videos" \|\| route === "source-detail"/);
+  assert.deepEqual(table.props.columns, ["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间", "操作"]);
+  assert.equal(idButton.props.children, "V000042");
+  assert.equal(detailButton.props.children, "查看详情");
+
+  idButton.props.onClick();
+  assert.deepEqual(calls, ["选择:V000042"]);
+
+  detailButton.props.onClick();
+  assert.deepEqual(calls, ["选择:V000042", "详情:V000042"]);
+});
+
+test("source video page renders a separate Chinese detail control only when supplied", async () => {
+  const data = await fixtureData();
+  const withoutDetail = renderToStaticMarkup(h(SourceVideosPage, { data }));
+  const withDetail = renderToStaticMarkup(h(SourceVideosPage, {
+    data,
+    onOpenSourceDetail: () => {}
+  }));
+
+  assert.match(withDetail, />V000042<\/button>/);
+  assert.match(withDetail, />查看详情<\/button>/);
+  assert.doesNotMatch(withoutDetail, />查看详情<\/button>/);
+});
+
+test("AdminApp source detail hash renders Chinese detail loading route", () => {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+
+  globalThis.window = {
+    location: { hash: "#/source-detail" },
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  } as unknown as Window & typeof globalThis;
+  globalThis.document = {
+    createElement: () => ({ click: () => {} })
+  } as unknown as Document;
+
+  try {
+    const html = renderToStaticMarkup(h(AdminApp));
+    assert.match(html, /原视频详情/);
+    assert.match(html, /正在读取素材库管理端数据/);
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.document = originalDocument;
+  }
 });
 
 test("preprocess jobs render failure retry and later success", async () => {
