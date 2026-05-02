@@ -74,15 +74,15 @@ Hi-fi references:
 
 | ID | Source | Requirement | Current Status | Acceptance |
 |---|---|---|---|---|
-| CUTTER-001 | `09`, `21` | Cutter has independent pages: public source library, search/document, cut list, local library, cut queue, settings. | partial | M3 fixture shows all six page boundaries; formal cutter app acceptance remains M4. |
-| CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | partial | M3 foundation provides gallery-first primitives; final ready-only product UI remains M4. |
-| CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | partial | Continuous selection can be added to cut list from the detail page. |
-| CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | partial | Search acceptance test passes and screenshot confirms grouped result layout. |
-| CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | not-started | Selecting multiple adjacent segments creates one cut-list row. |
-| CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | not-started | Queue can run while user searches and opens source details. |
-| CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | Local clip manifests are validator-guarded; formal UI reuse remains for M4/M7. |
+| CUTTER-001 | `09`, `21` | Cutter has independent pages: public source library, search/document, cut list, local library, cut queue, settings. | accepted | M4 cutter web app renders all cutter pages with screenshot acceptance. Tauri shell remains a later packaging step. |
+| CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | accepted | M4 public library page is gallery-first, ready-only, and shows admin-configured cover/tags/description. |
+| CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | partial | M4 UI and state tests prove continuous selection becomes one cut-list span; richer player interactions remain later polish. |
+| CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | accepted | M4 search tests and visual checks assert grouped source-video layout and forbid sentence-waterfall UI. |
+| CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | partial | M4 local state and UI cover span/order/delete/clear/submit; production queue persistence belongs to M7. |
+| CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | partial | M4 queue page shows all states and non-blocking navigation; real FFmpeg execution belongs to M7. |
+| CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | M4 local-library UI is independent and traceable; native open/reveal/reuse execution belongs to Tauri/M7. |
 | CUTTER-008 | `11`, `07` | Every export writes `export-clip.json`. | not-started | Export fixture contains video and manifest with source traceability. |
-| CUTTER-009 | `22`, `21` | Settings show public mount path, local workspace, FFmpeg status, default cut mode, concurrency, Doctor entry. | not-started | Connection test passes without writing public library. |
+| CUTTER-009 | `22`, `21` | Settings show public mount path, local workspace, FFmpeg status, default cut mode, concurrency, Doctor entry. | partial | M4 settings UI shows all required fields and Doctor status; real connection/native path tests remain later. |
 
 ## Acceptance And Delivery
 

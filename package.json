@@ -35,6 +35,7 @@
     "visual:admin-web": "tsx scripts/visual/check-admin-web-screenshots.ts",
     "dev:cutter-web": "npm run dev -w @mixlab/cutter-web",
     "build:cutter-web": "npm run build -w @mixlab/cutter-web",
+    "visual:cutter-web": "tsx scripts/visual/check-cutter-web-screenshots.ts",
     "dev:ui-fixtures": "npm run dev -w @mixlab/ui-fixtures",
     "build:ui-fixtures": "npm run build -w @mixlab/ui-fixtures",
     "visual:ui-foundation": "tsx scripts/visual/check-ui-foundation-screenshots.ts",

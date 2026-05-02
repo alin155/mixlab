@@ -13,13 +13,13 @@ Current implementation status:
 - `packages/ui-foundation`: Apple-HIG inspired shared tokens, layout primitives, React components, and design-contract guards for formal UI work.
 - `packages/cutter-api`: local cutter-side HTTP bridge for ready source-video catalog, detail, transcript search, cover, subtitles, and range-capable source media streaming.
 - `apps/admin-web`: formal management console MVP for dashboard, public library settings, source metadata governance, preprocessing jobs, index publication, Doctor, and runtime/ASR settings.
-- `apps/cutter-web`: cutter-side browser workspace for source library browsing, transcript search, source playback, keyframe jump, and transcript reading.
+- `apps/cutter-web`: formal cutter-side React workspace for ready-only public source gallery, source detail and complete transcript reading, grouped search, cut list, local reusable clips, cut queue, and settings.
 - `apps/ui-fixtures`: non-product visual acceptance fixtures for cutter/admin UI direction and screenshot checks.
 - TDD coverage for ready visibility, library count consistency, cross-platform path resolution, transcript normalization, segment span selection, versioned read-only index package validation, search result grouping, FFmpeg command plans, FFmpeg bundled runtime detection, and DashScope ASR request construction.
 
 Important product-status note:
 
-- The current cutter web app is a development preview for validating the core flow. It is not the final delivered UI.
+- The cutter web app now has the formal M4 product UI surface. Native Tauri packaging and production FFmpeg queue execution remain later milestones.
 - Formal product UI must follow `/Users/allen/Desktop/MixLab_V3_开发交付规格书/21_视觉与交互设计规范.md`.
 - Formal cutter UI must align with `/Users/allen/Desktop/MixLab_V3_开发交付规格书/assets/ui/cutter-workbench-apple-hig.png`.
 - Formal admin UI must align with `/Users/allen/Desktop/MixLab_V3_开发交付规格书/assets/ui/admin-console-apple-hig.png`.
@@ -83,6 +83,7 @@ npm run build:admin-web
 npm run visual:admin-web
 npm run dev:cutter-web
 npm run build:cutter-web
+npm run visual:cutter-web
 npm run build:ui-fixtures
 npm run visual:ui-foundation
 ```
@@ -129,7 +130,7 @@ npm run visual:ui-foundation
 
 `server:cutter-api` starts the local cutter-side HTTP bridge. Set `MIXLAB_CUTTER_LIBRARY_ROOT` or reuse `MIXLAB_PREPROCESS_LIBRARY_ROOT`; optional `MIXLAB_CUTTER_API_HOST` and `MIXLAB_CUTTER_API_PORT` default to `127.0.0.1:3789`. The server exposes ready-only JSON APIs at `/cutter/source-library`, `/cutter/source-videos/:source_video_id`, and `/cutter/source-search`, plus `/media`, `/cover`, and `/subtitles.srt` endpoints for playback and preview. Source media supports HTTP Range requests for browser video playback. It also exposes local reusable clips at `/cutter/local-clips`; `POST /cutter/local-clips` cuts a selected transcript segment range into `.mixlab-library/local-clips/<local_clip_id>/clip.mp4` and records source traceability.
 
-`dev:cutter-web` starts the cutter-side browser workspace. Start `server:cutter-api` first, then run the web app. `VITE_MIXLAB_CUTTER_API_BASE_URL` defaults to `http://127.0.0.1:3789`; set it when the API bridge runs on another host or port. The current UI includes source library browsing, transcript search, source playback, single-sentence "剪入" local clip creation, and the local reusable clip library.
+`dev:cutter-web` starts the formal cutter-side browser workspace. It uses fixture data by default so the Apple-HIG workbench can be reviewed without a backend. Set `VITE_MIXLAB_CUTTER_API_BASE_URL=http://127.0.0.1:3789` to bind it to `server:cutter-api`. The M4 surface includes independent pages for the ready-only public source gallery, source detail and complete transcript, grouped search, local cut list, local reusable clip library, cut queue, and settings. `visual:cutter-web` opens the cutter app in local Chrome at 1536x1024 and saves screenshots under `docs/acceptance/artifacts/m4-cutter-workbench/`.
 
 `build:ui-fixtures` builds the M3 formal UI foundation fixture app. `visual:ui-foundation` opens the fixture app in local Chrome at 1536x1024, captures cutter/admin reference screenshots, and saves them under `docs/acceptance/artifacts/m3-ui-foundation/`. These fixtures are design acceptance scaffolding, not the final cutter or admin products.
 

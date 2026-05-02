@@ -20,6 +20,12 @@ export interface SourceVideoCard {
   codec?: string;
   file_size?: number;
   relative_path?: string;
+  description?: string;
+  tags?: string[];
+  category?: string;
+  course?: string;
+  lecturer?: string;
+  publish_status?: "ready";
   media_url: string;
   cover_url: string;
   detail_url: string;
