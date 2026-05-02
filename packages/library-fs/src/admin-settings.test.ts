@@ -62,6 +62,27 @@ test("rejects empty source folder names and paths", async () => {
   );
 });
 
+test("rejects duplicate source folder ids", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+
+  await assert.rejects(
+    () => writeAdminSettings(root, {
+      ...current,
+      source_folders: [
+        current.source_folders[0]!,
+        {
+          id: "src_default",
+          name: "重复素材来源",
+          path: "/Volumes/DuplicateVideos",
+          enabled: true
+        }
+      ]
+    }),
+    /素材来源 ID 不能重复/
+  );
+});
+
 test("throws a Chinese error for malformed persisted JSON", async () => {
   const root = await makeRoot();
   await mkdir(path.join(root, ".mixlab-library"), { recursive: true });

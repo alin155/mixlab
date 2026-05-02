@@ -118,6 +118,8 @@ function validate(settings: unknown): asserts settings is AdminSettings {
     invalidSettings("素材来源列表必须是数组");
   }
 
+  const sourceFolderIds = new Set<string>();
+
   for (const folder of settings.source_folders) {
     if (!isRecord(folder)) {
       invalidSettings("素材来源必须是对象");
@@ -126,6 +128,11 @@ function validate(settings: unknown): asserts settings is AdminSettings {
     if (!isNonEmptyString(folder.id)) {
       invalidSettings("素材来源 ID 不能为空");
     }
+
+    if (sourceFolderIds.has(folder.id)) {
+      throw new Error("素材来源 ID 不能重复");
+    }
+    sourceFolderIds.add(folder.id);
 
     if (!isBoolean(folder.enabled)) {
       invalidSettings("素材来源启用状态必须是布尔值");
@@ -161,18 +168,20 @@ function validate(settings: unknown): asserts settings is AdminSettings {
     invalidSettings("预处理产物库设置必须是对象");
   }
 
+  const artifactLibrary = settings.artifact_library;
+
   if (
-    settings.artifact_library.mode !== "default" &&
-    settings.artifact_library.mode !== "custom"
+    artifactLibrary.mode !== "default" &&
+    artifactLibrary.mode !== "custom"
   ) {
     invalidSettings("预处理产物库模式无效");
   }
 
-  if (!isBoolean(settings.artifact_library.migration_required)) {
+  if (!isBoolean(artifactLibrary.migration_required)) {
     invalidSettings("预处理产物库迁移状态必须是布尔值");
   }
 
-  if (!isNonEmptyString(settings.artifact_library.path)) {
+  if (!isNonEmptyString(artifactLibrary.path)) {
     throw new Error("预处理产物库路径不能为空");
   }
 
@@ -180,16 +189,19 @@ function validate(settings: unknown): asserts settings is AdminSettings {
     invalidSettings("运行策略必须是对象");
   }
 
+  const runtimePolicy = settings.runtime_policy;
+
   if (
-    settings.runtime_policy.audio_mode !== "mp3_16k_mono_64k" &&
-    settings.runtime_policy.audio_mode !== "wav_16k_mono_pcm_s16le"
+    runtimePolicy.audio_mode !== "mp3_16k_mono_64k" &&
+    runtimePolicy.audio_mode !== "wav_16k_mono_pcm_s16le"
   ) {
     invalidSettings("音频模式无效");
   }
 
   if (
-    !Number.isInteger(settings.runtime_policy.concurrent_jobs) ||
-    settings.runtime_policy.concurrent_jobs < 1
+    typeof runtimePolicy.concurrent_jobs !== "number" ||
+    !Number.isInteger(runtimePolicy.concurrent_jobs) ||
+    runtimePolicy.concurrent_jobs < 1
   ) {
     invalidSettings("并发任务数必须是正整数");
   }
@@ -199,7 +211,7 @@ function validate(settings: unknown): asserts settings is AdminSettings {
     "auto_queue_enabled",
     "auto_publish_index_enabled"
   ] as const) {
-    if (!isBoolean(settings.runtime_policy[key])) {
+    if (!isBoolean(runtimePolicy[key])) {
       invalidSettings("自动处理开关必须是布尔值");
     }
   }
