@@ -34,10 +34,12 @@ export interface UserUsageMetrics {
   user_id: string;
   username: string;
   search_request_count: number;
+  add_to_cut_list_count: number;
   transcript_selection_count: number;
   cut_submission_count: number;
   cut_success_count: number;
   local_clip_count: number;
+  reuse_local_clip_count: number;
   last_used_at: string;
 }
 
@@ -47,10 +49,12 @@ export interface UsageMetrics {
   search_empty_count: number;
   source_detail_view_count: number;
   transcript_selection_count: number;
+  add_to_cut_list_count: number;
   cut_submission_count: number;
   cut_success_count: number;
   cut_failure_count: number;
   local_clip_count: number;
+  reuse_local_clip_count: number;
   active_user_count: number;
   recent_keywords: string[];
   most_used_source_video_ids: string[];
@@ -87,10 +91,12 @@ function emptyMetrics(): UsageMetrics {
     search_empty_count: 0,
     source_detail_view_count: 0,
     transcript_selection_count: 0,
+    add_to_cut_list_count: 0,
     cut_submission_count: 0,
     cut_success_count: 0,
     cut_failure_count: 0,
     local_clip_count: 0,
+    reuse_local_clip_count: 0,
     active_user_count: 0,
     recent_keywords: [],
     most_used_source_video_ids: [],
@@ -126,12 +132,17 @@ function trimOptionalString(value: unknown, field: string): string | undefined {
   return trimmed || undefined;
 }
 
-function validateUsageEvent(value: unknown): MixlabUsageEvent {
+function validateUsageEvent(
+  value: unknown,
+  options: { require_event_id: boolean }
+): MixlabUsageEvent {
   if (!isRecord(value)) {
     throw new Error("使用事件数据无效：事件必须是对象");
   }
 
-  const eventId = trimOptionalString(value.event_id, "event_id") ?? randomUUID();
+  const eventId = options.require_event_id
+    ? trimRequiredString(value.event_id, "event_id")
+    : trimOptionalString(value.event_id, "event_id") ?? randomUUID();
   const userId = trimRequiredString(value.user_id, "user_id");
   const username = trimRequiredString(value.username, "username");
   const deviceId = trimRequiredString(value.device_id, "device_id");
@@ -221,7 +232,7 @@ async function readUsageEvents(libraryRoot: string): Promise<MixlabUsageEvent[]>
     }
 
     try {
-      events.push(validateUsageEvent(parsed));
+      events.push(validateUsageEvent(parsed, { require_event_id: true }));
     } catch (error) {
       throw new Error(`使用事件存储文件格式错误：第 ${index + 1} 行事件数据无效`, {
         cause: error
@@ -271,10 +282,12 @@ function getOrCreateUserMetrics(
     user_id: event.user_id,
     username: event.username,
     search_request_count: 0,
+    add_to_cut_list_count: 0,
     transcript_selection_count: 0,
     cut_submission_count: 0,
     cut_success_count: 0,
     local_clip_count: 0,
+    reuse_local_clip_count: 0,
     last_used_at: event.occurred_at
   };
   users.set(event.user_id, created);
@@ -331,6 +344,10 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
         metrics.transcript_selection_count += 1;
         user.transcript_selection_count += 1;
         break;
+      case "add_to_cut_list":
+        metrics.add_to_cut_list_count += 1;
+        user.add_to_cut_list_count += 1;
+        break;
       case "submit_cut_job":
         metrics.cut_submission_count += 1;
         user.cut_submission_count += 1;
@@ -343,12 +360,14 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
         metrics.cut_failure_count += 1;
         break;
       case "create_local_clip":
-      case "reuse_local_clip":
         metrics.local_clip_count += 1;
         user.local_clip_count += 1;
         break;
+      case "reuse_local_clip":
+        metrics.reuse_local_clip_count += 1;
+        user.reuse_local_clip_count += 1;
+        break;
       case "view_transcript":
-      case "add_to_cut_list":
         break;
     }
   }
@@ -356,12 +375,14 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
   metrics.active_user_count = users.size;
   metrics.recent_keywords = [...keywordByKey.values()]
     .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+    .slice(0, 8)
     .map((entry) => entry.keyword);
   metrics.most_used_source_video_ids = [...sourceVideoCounts.entries()]
     .sort((left, right) => {
       const countOrder = right[1] - left[1];
       return countOrder === 0 ? left[0].localeCompare(right[0]) : countOrder;
     })
+    .slice(0, 8)
     .map(([sourceVideoId]) => sourceVideoId);
   metrics.users = [...users.values()].sort((left, right) => {
     const usedOrder = right.last_used_at.localeCompare(left.last_used_at);
@@ -376,7 +397,7 @@ export async function appendUsageEvent(
   event: MixlabUsageEvent
 ): Promise<MixlabUsageEvent> {
   return withEventMutation(libraryRoot, async () => {
-    const normalizedEvent = validateUsageEvent(event);
+    const normalizedEvent = validateUsageEvent(event, { require_event_id: false });
     await readUsageEvents(libraryRoot);
 
     const targetPath = usageEventsPath(libraryRoot);

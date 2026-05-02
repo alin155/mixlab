@@ -32,6 +32,15 @@ function baseEvent(
   };
 }
 
+function storedEvent(
+  overrides: Partial<UsageEventInput> & Pick<UsageEventInput, "event_type">
+): UsageEventInput {
+  return {
+    event_id: "evt-stored-1",
+    ...baseEvent(overrides)
+  };
+}
+
 test("aggregates search, selection, cut success, active users, and per-user counts", async () => {
   const root = await makeRoot();
 
@@ -84,10 +93,12 @@ test("aggregates search, selection, cut success, active users, and per-user coun
       user_id: "CU000001",
       username: "小王",
       search_request_count: 1,
+      add_to_cut_list_count: 0,
       transcript_selection_count: 1,
       cut_submission_count: 1,
       cut_success_count: 1,
       local_clip_count: 0,
+      reuse_local_clip_count: 0,
       last_used_at: "2026-05-03T10:03:00.000Z"
     }
   ]);
@@ -102,10 +113,12 @@ test("missing usage event store returns zero metrics and empty arrays", async ()
     search_empty_count: 0,
     source_detail_view_count: 0,
     transcript_selection_count: 0,
+    add_to_cut_list_count: 0,
     cut_submission_count: 0,
     cut_success_count: 0,
     cut_failure_count: 0,
     local_clip_count: 0,
+    reuse_local_clip_count: 0,
     active_user_count: 0,
     recent_keywords: [],
     most_used_source_video_ids: [],
@@ -116,7 +129,7 @@ test("missing usage event store returns zero metrics and empty arrays", async ()
 test("malformed NDJSON throws Chinese error and append does not overwrite it", async () => {
   const root = await makeRoot();
   const malformed = `${JSON.stringify(
-    baseEvent({ event_type: "search", query: "现金流", result_status: "success" })
+    storedEvent({ event_type: "search", query: "现金流", result_status: "success" })
   )}\n{ 这不是 json }\n`;
   await writeRawEvents(root, malformed);
 
@@ -134,6 +147,29 @@ test("malformed NDJSON throws Chinese error and append does not overwrite it", a
     /使用事件存储文件格式错误/
   );
   assert.equal(await readFile(eventsPath(root), "utf8"), malformed);
+});
+
+test("stored event without event_id throws Chinese storage error and append does not overwrite it", async () => {
+  const root = await makeRoot();
+  const corrupted = `${JSON.stringify(
+    baseEvent({ event_type: "search", query: "现金流", result_status: "success" })
+  )}\n`;
+  await writeRawEvents(root, corrupted);
+
+  await assert.rejects(() => readUsageMetrics(root), /使用事件存储文件格式错误/);
+  await assert.rejects(
+    () =>
+      appendUsageEvent(
+        root,
+        baseEvent({
+          event_type: "search",
+          query: "组织能力",
+          result_status: "empty"
+        })
+      ),
+    /使用事件存储文件格式错误/
+  );
+  assert.equal(await readFile(eventsPath(root), "utf8"), corrupted);
 });
 
 test("invalid usage event input throws Chinese validation error", async () => {
@@ -204,6 +240,7 @@ test("concurrent appends preserve all events", async () => {
   assert.equal(metrics.search_hit_count, 15);
   assert.equal(metrics.search_empty_count, 15);
   assert.equal(metrics.active_user_count, 30);
+  assert.equal(metrics.recent_keywords.length, 8);
 });
 
 test("aggregates all event categories and ranks keywords and source videos", async () => {
@@ -277,10 +314,65 @@ test("aggregates all event categories and ranks keywords and source videos", asy
   assert.equal(metrics.search_hit_count, 2);
   assert.equal(metrics.search_empty_count, 1);
   assert.equal(metrics.source_detail_view_count, 1);
+  assert.equal(metrics.add_to_cut_list_count, 1);
   assert.equal(metrics.cut_submission_count, 1);
   assert.equal(metrics.cut_failure_count, 1);
-  assert.equal(metrics.local_clip_count, 2);
+  assert.equal(metrics.local_clip_count, 1);
+  assert.equal(metrics.reuse_local_clip_count, 1);
   assert.deepEqual(metrics.recent_keywords, ["现金流", "组织能力"]);
   assert.deepEqual(metrics.most_used_source_video_ids, ["V000002", "V000001"]);
-  assert.equal(metrics.users.find((user) => user.user_id === "CU000002")?.local_clip_count, 1);
+  const firstUser = metrics.users.find((user) => user.user_id === "CU000001");
+  assert.equal(firstUser?.add_to_cut_list_count, 1);
+  assert.equal(firstUser?.local_clip_count, 1);
+  assert.equal(firstUser?.reuse_local_clip_count, 0);
+  const secondUser = metrics.users.find((user) => user.user_id === "CU000002");
+  assert.equal(secondUser?.local_clip_count, 0);
+  assert.equal(secondUser?.reuse_local_clip_count, 1);
+});
+
+test("caps recent keywords and most used source videos to 8", async () => {
+  const root = await makeRoot();
+
+  for (let index = 0; index < 10; index += 1) {
+    await appendUsageEvent(
+      root,
+      baseEvent({
+        event_type: "search",
+        query: `关键词${index}`,
+        result_status: "success",
+        occurred_at: `2026-05-03T10:${String(index).padStart(2, "0")}:00.000Z`
+      })
+    );
+    await appendUsageEvent(
+      root,
+      baseEvent({
+        event_type: "view_source_video",
+        source_video_id: `V${String(index).padStart(6, "0")}`,
+        occurred_at: `2026-05-03T11:${String(index).padStart(2, "0")}:00.000Z`
+      })
+    );
+  }
+
+  const metrics = await readUsageMetrics(root);
+
+  assert.deepEqual(metrics.recent_keywords, [
+    "关键词9",
+    "关键词8",
+    "关键词7",
+    "关键词6",
+    "关键词5",
+    "关键词4",
+    "关键词3",
+    "关键词2"
+  ]);
+  assert.deepEqual(metrics.most_used_source_video_ids, [
+    "V000000",
+    "V000001",
+    "V000002",
+    "V000003",
+    "V000004",
+    "V000005",
+    "V000006",
+    "V000007"
+  ]);
 });
