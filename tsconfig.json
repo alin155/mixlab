@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
     "strict": true,
     "declaration": true,
     "noEmit": true,
@@ -15,6 +16,8 @@
   },
   "include": [
     "packages/**/*.ts",
-    "apps/**/*.ts"
+    "packages/**/*.tsx",
+    "apps/**/*.ts",
+    "apps/**/*.tsx"
   ]
 }

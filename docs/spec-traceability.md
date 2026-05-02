@@ -62,7 +62,7 @@ Hi-fi references:
 
 | ID | Source | Requirement | Current Status | Acceptance |
 |---|---|---|---|---|
-| ADMIN-001 | `08_素材库管理端规格.md`, `21_视觉与交互设计规范.md` | Admin dashboard shows restrained public-library governance status. | not-started | Screenshot matches admin hi-fi dashboard panel. |
+| ADMIN-001 | `08_素材库管理端规格.md`, `21_视觉与交互设计规范.md` | Admin dashboard shows restrained public-library governance status. | partial | M3 fixture validates the visual foundation; formal admin console acceptance remains M5. |
 | ADMIN-002 | `08`, `21` | Public library settings initialize and validate root, `source-videos`, `.mixlab-library`, id, protocol, permissions. | not-started | Stage 1 initialization test passes through UI. |
 | ADMIN-003 | `08`, `21` | Source video management edits public metadata: cover, tags, description, lecturer, course, category. | not-started | Cutter gallery displays admin-configured metadata. |
 | ADMIN-004 | `08`, `19`, `21` | Preprocessing task page shows active, queued, completed, failed/retry, stage, logs, error reason. | not-started | A failed video can be retried without blocking later videos. |
@@ -74,8 +74,8 @@ Hi-fi references:
 
 | ID | Source | Requirement | Current Status | Acceptance |
 |---|---|---|---|---|
-| CUTTER-001 | `09`, `21` | Cutter has independent pages: public source library, search/document, cut list, local library, cut queue, settings. | preview-ui | Screenshot shows all six pages aligned with cutter hi-fi. |
-| CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | preview-ui | Public source library panel matches hi-fi direction and displays ready-only materials. |
+| CUTTER-001 | `09`, `21` | Cutter has independent pages: public source library, search/document, cut list, local library, cut queue, settings. | partial | M3 fixture shows all six page boundaries; formal cutter app acceptance remains M4. |
+| CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | partial | M3 foundation provides gallery-first primitives; final ready-only product UI remains M4. |
 | CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | partial | Continuous selection can be added to cut list from the detail page. |
 | CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | partial | Search acceptance test passes and screenshot confirms grouped result layout. |
 | CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | not-started | Selecting multiple adjacent segments creates one cut-list row. |

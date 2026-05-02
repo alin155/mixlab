@@ -1,0 +1,58 @@
+:root {
+  --ml-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", sans-serif;
+  --ml-color-text: #1d1d1f;
+  --ml-color-text-secondary: #626873;
+  --ml-color-text-tertiary: #8b919b;
+  --ml-color-canvas: #f5f6f8;
+  --ml-color-window: rgba(255, 255, 255, 0.88);
+  --ml-color-sidebar: rgba(246, 247, 249, 0.78);
+  --ml-color-surface: #ffffff;
+  --ml-color-surface-subtle: #f8f9fb;
+  --ml-color-separator: rgba(29, 29, 31, 0.11);
+  --ml-color-control: rgba(255, 255, 255, 0.82);
+  --ml-color-control-active: #e8eef7;
+  --ml-color-accent: #0a84ff;
+  --ml-color-accent-pressed: #0067d6;
+  --ml-color-ready: #25a244;
+  --ml-color-processing: #0a84ff;
+  --ml-color-queued: #8e8e93;
+  --ml-color-warning: #bf7b00;
+  --ml-color-failed: #d92d20;
+  --ml-shadow-window: 0 18px 54px rgba(22, 28, 38, 0.18);
+  --ml-shadow-panel: 0 10px 30px rgba(22, 28, 38, 0.08);
+  --ml-radius-window: 10px;
+  --ml-radius-panel: 8px;
+  --ml-radius-control: 7px;
+  --ml-space-1: 4px;
+  --ml-space-2: 8px;
+  --ml-space-3: 12px;
+  --ml-space-4: 16px;
+  --ml-space-5: 20px;
+  --ml-space-6: 24px;
+  --ml-toolbar-height: 46px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ml-color-text);
+  background: var(--ml-color-canvas);
+  font-family: var(--ml-font-family);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

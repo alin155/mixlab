@@ -10,8 +10,10 @@ Current implementation status:
 - `packages/ffmpeg-core`: FFmpeg cut command planning for `copy`, `smart`, and `precise` modes.
 - `packages/asr-core`: Aliyun Bailian / DashScope Paraformer request planning and secret-safe request redaction.
 - `packages/doctor-core`: non-UI health diagnostics for public-library paths, manifests, ready artifacts, current index, FFmpeg/FFprobe, ASR config, and local clip manifests.
+- `packages/ui-foundation`: Apple-HIG inspired shared tokens, layout primitives, React components, and design-contract guards for formal UI work.
 - `packages/cutter-api`: local cutter-side HTTP bridge for ready source-video catalog, detail, transcript search, cover, subtitles, and range-capable source media streaming.
 - `apps/cutter-web`: cutter-side browser workspace for source library browsing, transcript search, source playback, keyframe jump, and transcript reading.
+- `apps/ui-fixtures`: non-product visual acceptance fixtures for cutter/admin UI direction and screenshot checks.
 - TDD coverage for ready visibility, library count consistency, cross-platform path resolution, transcript normalization, segment span selection, versioned read-only index package validation, search result grouping, FFmpeg command plans, FFmpeg bundled runtime detection, and DashScope ASR request construction.
 
 Important product-status note:
@@ -77,6 +79,8 @@ npm run worker:publish-ready
 npm run server:cutter-api
 npm run dev:cutter-web
 npm run build:cutter-web
+npm run build:ui-fixtures
+npm run visual:ui-foundation
 ```
 
 `spike:ffmpeg-plan` prints command strategy and detects system plus bundled `ffmpeg` / `ffprobe` availability.
@@ -120,6 +124,8 @@ npm run build:cutter-web
 `server:cutter-api` starts the local cutter-side HTTP bridge. Set `MIXLAB_CUTTER_LIBRARY_ROOT` or reuse `MIXLAB_PREPROCESS_LIBRARY_ROOT`; optional `MIXLAB_CUTTER_API_HOST` and `MIXLAB_CUTTER_API_PORT` default to `127.0.0.1:3789`. The server exposes ready-only JSON APIs at `/cutter/source-library`, `/cutter/source-videos/:source_video_id`, and `/cutter/source-search`, plus `/media`, `/cover`, and `/subtitles.srt` endpoints for playback and preview. Source media supports HTTP Range requests for browser video playback. It also exposes local reusable clips at `/cutter/local-clips`; `POST /cutter/local-clips` cuts a selected transcript segment range into `.mixlab-library/local-clips/<local_clip_id>/clip.mp4` and records source traceability.
 
 `dev:cutter-web` starts the cutter-side browser workspace. Start `server:cutter-api` first, then run the web app. `VITE_MIXLAB_CUTTER_API_BASE_URL` defaults to `http://127.0.0.1:3789`; set it when the API bridge runs on another host or port. The current UI includes source library browsing, transcript search, source playback, single-sentence "剪入" local clip creation, and the local reusable clip library.
+
+`build:ui-fixtures` builds the M3 formal UI foundation fixture app. `visual:ui-foundation` opens the fixture app in local Chrome at 1536x1024, captures cutter/admin reference screenshots, and saves them under `docs/acceptance/artifacts/m3-ui-foundation/`. These fixtures are design acceptance scaffolding, not the final cutter or admin products.
 
 ## Implementation Order
 

@@ -32,10 +32,20 @@
     "server:cutter-api": "tsx scripts/servers/cutter-api-server.ts",
     "dev:cutter-web": "npm run dev -w @mixlab/cutter-web",
     "build:cutter-web": "npm run build -w @mixlab/cutter-web",
+    "dev:ui-fixtures": "npm run dev -w @mixlab/ui-fixtures",
+    "build:ui-fixtures": "npm run build -w @mixlab/ui-fixtures",
+    "visual:ui-foundation": "tsx scripts/visual/check-ui-foundation-screenshots.ts",
     "test": "node --test --import tsx packages/*/src/*.test.ts apps/*/src/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "playwright": "^1.56.0",
     "@types/node": "^24.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
