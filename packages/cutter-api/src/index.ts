@@ -10,13 +10,17 @@ import {
 } from "../../ffmpeg-core/src/index.ts";
 import {
   allocateNextLocalClipId,
+  appendUsageEvent,
   buildLocalClipArtifactPaths,
+  createCutterLoginApplication,
   getCutterSourceVideoDetail,
   getLocalClipDetail,
   listCutterSourceLibrary,
   listLocalClips,
   searchCutterSourceLibrary,
   writeLocalClipManifest,
+  validateCutterSession,
+  type CutterUserRecord,
   type CutterSourceLibrarySearchGroup,
   type CutterSourceVideoCard,
   type CutterSourceVideoDetail,
@@ -100,6 +104,17 @@ interface SubmitCutJobsRequestBody {
   clip_list_id?: unknown;
 }
 
+interface CutterLoginRequestBody {
+  username?: unknown;
+  device_id?: unknown;
+  device_name?: unknown;
+}
+
+interface AuthenticatedCutterSession {
+  user: CutterUserRecord;
+  device_id: string;
+}
+
 function optionalTrimmed(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -134,7 +149,10 @@ export function resolveCutterApiRuntimeConfigFromEnv(
 function setCorsHeaders(response: ServerResponse): void {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type,Range");
+  response.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type,Range,X-MixLab-Device-Id,X-MixLab-Session-Token"
+  );
   response.setHeader("Access-Control-Expose-Headers", "Content-Length,Content-Range,Accept-Ranges");
 }
 
@@ -421,6 +439,84 @@ function requiredString(value: unknown, key: string): string {
   return value.trim();
 }
 
+function requiredChineseString(value: unknown, message: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(message);
+  }
+
+  return value.trim();
+}
+
+function firstHeaderValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+
+  return value?.trim() ?? "";
+}
+
+function currentNow(input: CreateCutterApiServerInput): string {
+  return input.now?.() ?? new Date().toISOString();
+}
+
+async function requireCutterSession(input: {
+  api_input: CreateCutterApiServerInput;
+  request: IncomingMessage;
+  response: ServerResponse;
+}): Promise<AuthenticatedCutterSession | null> {
+  const deviceId = firstHeaderValue(input.request.headers["x-mixlab-device-id"]);
+  const sessionToken = firstHeaderValue(input.request.headers["x-mixlab-session-token"]);
+
+  if (!deviceId || !sessionToken) {
+    writeError(input.response, 401, "login_required", "请先登录剪辑工作台");
+    return null;
+  }
+
+  const validation = await validateCutterSession(input.api_input.library_root, {
+    device_id: deviceId,
+    session_token: sessionToken,
+    now: currentNow(input.api_input)
+  });
+
+  if (!validation.ok) {
+    writeError(input.response, 401, "login_required", validation.reason);
+    return null;
+  }
+
+  return {
+    user: validation.user,
+    device_id: deviceId
+  };
+}
+
+async function recordCutterUsageEvent(input: {
+  api_input: CreateCutterApiServerInput;
+  auth: AuthenticatedCutterSession;
+  event_type: Parameters<typeof appendUsageEvent>[1]["event_type"];
+  source_video_id?: string;
+  cut_job_id?: string;
+  query?: string;
+  selected_duration_ms?: number;
+  result_status?: Parameters<typeof appendUsageEvent>[1]["result_status"];
+}): Promise<void> {
+  await appendUsageEvent(input.api_input.library_root, {
+    user_id: input.auth.user.user_id,
+    username: input.auth.user.username,
+    device_id: input.auth.device_id,
+    event_type: input.event_type,
+    occurred_at: currentNow(input.api_input),
+    source_video_id: input.source_video_id,
+    cut_job_id: input.cut_job_id,
+    query: input.query,
+    selected_duration_ms: input.selected_duration_ms,
+    result_status: input.result_status
+  });
+}
+
+function selectedDurationMs(input: { begin_ms: number; end_ms: number }): number {
+  return Math.max(input.end_ms - input.begin_ms, 0);
+}
+
 function optionalNonNegativeInteger(value: unknown, fallback: number, key: string): number {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -678,7 +774,40 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
+      if (request.method === "POST" && url.pathname === "/cutter/auth/request-login") {
+        try {
+          const body = (await readRequestJson(request)) as CutterLoginRequestBody;
+          const application = await createCutterLoginApplication(input.library_root, {
+            username: requiredChineseString(body.username, "用户名不能为空"),
+            device_id: requiredChineseString(body.device_id, "设备 ID 不能为空"),
+            device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
+            now: currentNow(input)
+          });
+          writeJson(response, 200, apiResponse(application));
+          return;
+        } catch (error) {
+          const message = (error as Error).message;
+          writeError(
+            response,
+            400,
+            "invalid_login_request",
+            message === "invalid_json" ? "请求 JSON 格式不正确" : message
+          );
+          return;
+        }
+      }
+
       if (request.method === "POST" && url.pathname === "/cutter/local-clips") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
         const body = (await readRequestJson(request)) as CreateLocalClipRequestBody;
 
         if (input.workspace_root) {
@@ -686,6 +815,20 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             const clip = await createWorkspaceLocalClip({
               api_input: input,
               body
+            });
+            await recordCutterUsageEvent({
+              api_input: input,
+              auth,
+              event_type: "select_transcript_span",
+              source_video_id: clip.source_video_id,
+              selected_duration_ms: selectedDurationMs(clip)
+            });
+            await recordCutterUsageEvent({
+              api_input: input,
+              auth,
+              event_type: "create_local_clip",
+              source_video_id: clip.source_video_id,
+              selected_duration_ms: selectedDurationMs(clip)
             });
             writeJson(response, 201, apiResponse(toWorkspaceLocalClipPayload(clip)));
             return;
@@ -771,6 +914,21 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           created_at: input.now?.() ?? new Date().toISOString()
         });
 
+        await recordCutterUsageEvent({
+          api_input: input,
+          auth,
+          event_type: "select_transcript_span",
+          source_video_id: sourceVideoId,
+          selected_duration_ms: selectedDurationMs(selection)
+        });
+        await recordCutterUsageEvent({
+          api_input: input,
+          auth,
+          event_type: "create_local_clip",
+          source_video_id: sourceVideoId,
+          selected_duration_ms: selectedDurationMs(selection)
+        });
+
         writeJson(response, 201, apiResponse({
           ...manifest,
           media_file_path: clipPaths.media_file_path,
@@ -780,6 +938,16 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (request.method === "POST" && url.pathname === "/cutter/clip-lists") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
         const workspaceRoot = workspaceRootOrThrow(input);
         const body = (await readRequestJson(request)) as CreateClipListRequestBody;
         const clipList = await writeClipList({
@@ -790,11 +958,31 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           now: input.now?.() ?? new Date().toISOString()
         });
 
+        for (const item of clipList.items) {
+          await recordCutterUsageEvent({
+            api_input: input,
+            auth,
+            event_type: "add_to_cut_list",
+            source_video_id: item.source_video_id,
+            selected_duration_ms: selectedDurationMs(item)
+          });
+        }
+
         writeJson(response, 201, apiResponse(clipList));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/cutter/cut-jobs") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
         const workspaceRoot = workspaceRootOrThrow(input);
         const body = (await readRequestJson(request)) as SubmitCutJobsRequestBody;
         const clipListId = requiredString(body.clip_list_id, "clip_list_id");
@@ -813,16 +1001,41 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           clip_list: clipList,
           now: input.now?.() ?? new Date().toISOString()
         });
+        await recordCutterUsageEvent({
+          api_input: input,
+          auth,
+          event_type: "submit_cut_job"
+        });
         writeJson(response, 201, apiResponse(submission));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/cutter/cut-jobs/run-next") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
         const workspaceRoot = workspaceRootOrThrow(input);
         const job = await runWorkspaceCutJob({
           api_input: input,
           workspace_root: workspaceRoot
         });
+        if (job && (job.status === "done" || job.status === "failed")) {
+          await recordCutterUsageEvent({
+            api_input: input,
+            auth,
+            event_type: job.status === "done" ? "cut_success" : "cut_failure",
+            source_video_id: job.source_video_id,
+            cut_job_id: job.cut_job_id,
+            selected_duration_ms: selectedDurationMs(job)
+          });
+        }
         writeJson(response, 200, apiResponse(job));
         return;
       }
@@ -837,7 +1050,33 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (url.pathname === "/cutter/auth/status") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
+        writeJson(response, 200, apiResponse({
+          ok: true,
+          user: auth.user
+        }));
+        return;
+      }
+
       if (url.pathname === "/cutter/source-library") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
         const library = await listCutterSourceLibrary({
           library_root: input.library_root
         });
@@ -855,12 +1094,30 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (url.pathname === "/cutter/source-search") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
+        const query = url.searchParams.get("query") ?? "";
         const result = await searchCutterSourceLibrary({
           library_root: input.library_root,
-          query: url.searchParams.get("query") ?? "",
+          query,
           limit: parsePositiveLimit(url.searchParams.get("limit"))
         });
         const groups: ApiSearchGroup[] = result.groups.map(addSourceVideoUrls);
+        await recordCutterUsageEvent({
+          api_input: input,
+          auth,
+          event_type: "search",
+          query,
+          result_status: groups.length > 0 ? "success" : "empty"
+        });
         writeJson(
           response,
           200,
@@ -873,6 +1130,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (url.pathname === "/cutter/clip-lists") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
         const workspaceRoot = workspaceRootOrThrow(input);
         writeJson(response, 200, apiResponse(await listClipLists({
           workspace_root: workspaceRoot
@@ -881,6 +1146,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (url.pathname === "/cutter/cut-jobs") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
         const workspaceRoot = workspaceRootOrThrow(input);
         writeJson(response, 200, apiResponse(await listCutJobs({
           workspace_root: workspaceRoot
@@ -889,6 +1162,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (url.pathname === "/cutter/local-clips") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
         if (input.workspace_root) {
           const catalog = await listExportClips({
             workspace_root: input.workspace_root
@@ -933,6 +1214,16 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (localClipRoute) {
+        if (localClipRoute.action === "") {
+          if (!(await requireCutterSession({
+            api_input: input,
+            request,
+            response
+          }))) {
+            return;
+          }
+        }
+
         if (input.workspace_root) {
           if (!/^E\d{6}$/.test(localClipRoute.local_clip_id)) {
             writeError(response, 404, "local_clip_not_found", "Local clip not found");
@@ -954,6 +1245,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
+          // Media streams are intentionally not header-gated: browser video elements
+          // cannot reliably attach the custom cutter auth headers after an approved
+          // page has loaded the URL.
           await streamFile({
             request,
             response,
@@ -982,6 +1276,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
+        // Media streams are intentionally not header-gated; see the workspace
+        // branch above for the browser playback rationale.
         await streamFile({
           request,
           response,
@@ -1012,6 +1308,19 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (route) {
+        let auth: AuthenticatedCutterSession | null = null;
+        if (route.action === "") {
+          auth = await requireCutterSession({
+            api_input: input,
+            request,
+            response
+          });
+
+          if (!auth) {
+            return;
+          }
+        }
+
         const detail = await loadVisibleDetail(input.library_root, route.source_video_id);
 
         if (!detail) {
@@ -1020,10 +1329,23 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         }
 
         if (route.action === "") {
+          const detailAuth = auth;
+          if (!detailAuth) {
+            throw new Error("login_required");
+          }
+
+          await recordCutterUsageEvent({
+            api_input: input,
+            auth: detailAuth,
+            event_type: "view_source_video",
+            source_video_id: detail.source_video_id
+          });
           writeJson(response, 200, apiResponse(addSourceVideoUrls(detail) as ApiSourceVideoDetail));
           return;
         }
 
+        // Media, covers, and subtitles are allowed without custom auth headers so
+        // authenticated pages can hand URLs to native video/img/subtitle loaders.
         if (route.action === "media") {
           await streamFile({
             request,

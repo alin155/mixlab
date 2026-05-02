@@ -7,9 +7,12 @@ import test from "node:test";
 import type { Server } from "node:http";
 import type { TranscriptSegment } from "../../protocol/src/index.ts";
 import {
+  approveCutterUser,
   claimNextPreprocessJob,
   completePreprocessArtifacts,
+  createCutterLoginApplication,
   publishReadySourceVideo,
+  readUsageMetrics,
   scanSourceVideos
 } from "../../library-fs/src/index.ts";
 import { createCutterApiServer } from "./index.ts";
@@ -236,13 +239,122 @@ async function withApiServer<T>(
   }
 }
 
-test("serves cutter source library, detail, and search JSON with API media URLs", async () => {
+async function createApprovedAuthHeaders(libraryRoot: string): Promise<Record<string, string>> {
+  const application = await createCutterLoginApplication(libraryRoot, {
+    username: "cutter-user",
+    device_id: "test-device",
+    device_name: "Test Device",
+    now: "2026-05-02T09:00:00Z"
+  });
+  const approved = await approveCutterUser(libraryRoot, {
+    user_id: application.user_id,
+    now: "2026-05-02T09:01:00Z"
+  });
+
+  return {
+    "X-MixLab-Device-Id": approved.session.device_id,
+    "X-MixLab-Session-Token": approved.session.session_token
+  };
+}
+
+test("cutter auth request-login creates a pending application without auth headers", async () => {
   const libraryRoot = await prepareLibrary();
 
   await withApiServer(libraryRoot, async (baseUrl) => {
-    const catalogResponse = await fetch(`${baseUrl}/cutter/source-library`);
+    const response = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    assert.equal(body.schema_version, "1.0");
+    assert.equal(body.data.username, "lisi");
+    assert.equal(body.data.status, "pending");
+    assert.equal(body.data.devices[0].device_id, "device-login");
+  });
+});
+
+test("cutter auth status requires and validates approved session headers", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const missing = await fetch(`${baseUrl}/cutter/auth/status`);
+    assert.equal(missing.status, 401);
+    assert.deepEqual(await missing.json(), {
+      error: {
+        code: "login_required",
+        message: "请先登录剪辑工作台"
+      }
+    });
+
+    const invalid = await fetch(`${baseUrl}/cutter/auth/status`, {
+      headers: {
+        ...headers,
+        "X-MixLab-Session-Token": "bad-token"
+      }
+    });
+    assert.equal(invalid.status, 401);
+    assert.deepEqual(await invalid.json(), {
+      error: {
+        code: "login_required",
+        message: "登录凭证无效"
+      }
+    });
+
+    const response = await fetch(`${baseUrl}/cutter/auth/status`, {
+      headers
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    assert.equal(body.data.ok, true);
+    assert.equal(body.data.user.username, "cutter-user");
+    assert.equal(body.data.user.status, "approved");
+  });
+});
+
+test("cutter source library requires approved session headers", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/source-library`);
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      error: {
+        code: "login_required",
+        message: "请先登录剪辑工作台"
+      }
+    });
+  });
+});
+
+test("serves cutter source library, detail, and search JSON with API media URLs", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const catalogResponse = await fetch(`${baseUrl}/cutter/source-library`, {
+      headers
+    });
     assert.equal(catalogResponse.status, 200);
     assert.equal(catalogResponse.headers.get("access-control-allow-origin"), "*");
+    assert.match(
+      catalogResponse.headers.get("access-control-allow-headers") ?? "",
+      /X-MixLab-Device-Id/
+    );
+    assert.match(
+      catalogResponse.headers.get("access-control-allow-headers") ?? "",
+      /X-MixLab-Session-Token/
+    );
 
     const catalog = await catalogResponse.json() as any;
     assert.equal(catalog.schema_version, "1.0");
@@ -253,17 +365,23 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
     assert.equal(catalog.data.videos[0].media_url, "/cutter/source-videos/V000001/media");
     assert.equal(catalog.data.videos[0].cover_url, "/cutter/source-videos/V000001/cover");
 
-    const detailResponse = await fetch(`${baseUrl}${catalog.data.videos[0].detail_url}`);
+    const detailResponse = await fetch(`${baseUrl}${catalog.data.videos[0].detail_url}`, {
+      headers
+    });
     assert.equal(detailResponse.status, 200);
     const detail = await detailResponse.json() as any;
     assert.equal(detail.data.source_video_id, "V000001");
     assert.equal(detail.data.transcript.full_text, "现金流，是企业的血液。不是账面数字。");
     assert.deepEqual(detail.data.keyframes.keyframes_ms, [0, 5000, 10000]);
 
-    const hiddenDetail = await fetch(`${baseUrl}/cutter/source-videos/V000002`);
+    const hiddenDetail = await fetch(`${baseUrl}/cutter/source-videos/V000002`, {
+      headers
+    });
     assert.equal(hiddenDetail.status, 404);
 
-    const searchResponse = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("现金流")}&limit=10`);
+    const searchResponse = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("现金流")}&limit=10`, {
+      headers
+    });
     assert.equal(searchResponse.status, 200);
     const search = await searchResponse.json() as any;
     assert.deepEqual(
@@ -272,8 +390,19 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
     );
     assert.equal(search.data.groups[0].cover_url, "/cutter/source-videos/V000001/cover");
 
-    const hiddenSearch = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}`);
+    const hiddenSearch = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}`, {
+      headers
+    });
     assert.deepEqual(((await hiddenSearch.json()) as any).data.groups, []);
+
+    const metrics = await readUsageMetrics(libraryRoot);
+    assert.equal(metrics.search_request_count, 2);
+    assert.equal(metrics.search_hit_count, 1);
+    assert.equal(metrics.search_empty_count, 1);
+    assert.equal(metrics.source_detail_view_count, 1);
+    assert.deepEqual(metrics.recent_keywords, ["组织效率", "现金流"]);
+    assert.equal(metrics.users[0].user_id, "CU000001");
+    assert.equal(metrics.users[0].username, "cutter-user");
   });
 });
 
@@ -329,6 +458,7 @@ test("returns structured JSON errors for missing routes and invalid source ids",
 
 test("creates, lists, reads, and streams local clips", async () => {
   const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
   const cutOutputs: Array<{ output_path: string; begin_ms: number; end_ms: number }> = [];
 
   const server = createCutterApiServer({
@@ -355,6 +485,7 @@ test("creates, lists, reads, and streams local clips", async () => {
     const createResponse = await fetch(`${baseUrl}/cutter/local-clips`, {
       method: "POST",
       headers: {
+        ...headers,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -377,11 +508,11 @@ test("creates, lists, reads, and streams local clips", async () => {
     assert.equal(cutOutputs.length, 1);
     assert.equal(path.basename(cutOutputs[0]?.output_path ?? ""), "clip.mp4");
 
-    const list = await (await fetch(`${baseUrl}/cutter/local-clips`)).json() as any;
+    const list = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
     assert.equal(list.data.local_clip_count, 1);
     assert.equal(list.data.clips[0].local_clip_id, "LC000001");
 
-    const detail = await (await fetch(`${baseUrl}/cutter/local-clips/LC000001`)).json() as any;
+    const detail = await (await fetch(`${baseUrl}/cutter/local-clips/LC000001`, { headers })).json() as any;
     assert.equal(detail.data.selected_text, "现金流，是企业的血液。");
 
     const media = await fetch(`${baseUrl}/cutter/local-clips/LC000001/media`, {
@@ -392,6 +523,11 @@ test("creates, lists, reads, and streams local clips", async () => {
     assert.equal(media.status, 206);
     assert.equal(media.headers.get("content-range"), "bytes 0-4/16");
     assert.equal(await media.text(), "local");
+
+    const metrics = await readUsageMetrics(libraryRoot);
+    assert.equal(metrics.local_clip_count, 1);
+    assert.equal(metrics.transcript_selection_count, 1);
+    assert.equal(metrics.most_used_source_video_ids[0], "V000001");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
@@ -408,6 +544,7 @@ test("creates, lists, reads, and streams local clips", async () => {
 
 test("creates workspace-backed local exports without writing public-library local clips", async () => {
   const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-workspace-"));
   const cutOutputs: Array<{ output_path: string; begin_ms: number; end_ms: number }> = [];
 
@@ -436,6 +573,7 @@ test("creates workspace-backed local exports without writing public-library loca
     const createResponse = await fetch(`${baseUrl}/cutter/local-clips`, {
       method: "POST",
       headers: {
+        ...headers,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -466,11 +604,11 @@ test("creates workspace-backed local exports without writing public-library loca
       false
     );
 
-    const list = await (await fetch(`${baseUrl}/cutter/local-clips`)).json() as any;
+    const list = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
     assert.equal(list.data.local_clip_count, 1);
     assert.equal(list.data.clips[0].local_clip_id, "E000001");
 
-    const detail = await (await fetch(`${baseUrl}/cutter/local-clips/E000001`)).json() as any;
+    const detail = await (await fetch(`${baseUrl}/cutter/local-clips/E000001`, { headers })).json() as any;
     assert.equal(detail.data.selected_text, "现金流，是企业的血液。");
 
     const media = await fetch(`${baseUrl}/cutter/local-clips/E000001/media`, {
@@ -496,6 +634,7 @@ test("creates workspace-backed local exports without writing public-library loca
 
 test("persists clip lists and runs queued workspace cut jobs", async () => {
   const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-queue-"));
 
   const server = createCutterApiServer({
@@ -518,6 +657,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
       method: "POST",
       headers: {
+        ...headers,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -545,6 +685,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
       method: "POST",
       headers: {
+        ...headers,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -557,16 +698,22 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     assert.equal(submitted.data.jobs[0].status, "pending");
 
     const runResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
-      method: "POST"
+      method: "POST",
+      headers
     });
     assert.equal(runResponse.status, 200);
     const run = await runResponse.json() as any;
     assert.equal(run.data.status, "done");
     assert.equal(run.data.export_clip_id, "E000001");
 
-    const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`)).json() as any;
+    const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`, { headers })).json() as any;
     assert.equal(jobs.data.job_count, 1);
     assert.equal(jobs.data.jobs[0].status, "done");
+
+    const metrics = await readUsageMetrics(libraryRoot);
+    assert.equal(metrics.add_to_cut_list_count, 1);
+    assert.equal(metrics.cut_submission_count, 1);
+    assert.equal(metrics.cut_success_count, 1);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
