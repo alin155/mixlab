@@ -1,0 +1,208 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  createCutterApiClient,
+  formatDuration,
+  formatFileSize,
+  normalizeApiBaseUrl
+} from "./api.ts";
+
+function makeJsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status: init.status ?? 200,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {})
+    }
+  });
+}
+
+test("normalizes cutter API base URLs without trailing slash", () => {
+  assert.equal(normalizeApiBaseUrl(" http://127.0.0.1:3789/ "), "http://127.0.0.1:3789");
+  assert.equal(normalizeApiBaseUrl(""), "");
+});
+
+test("loads source library, source detail, and search through cutter API", async () => {
+  const requests: string[] = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789/",
+    fetch: async (url) => {
+      requests.push(String(url));
+
+      if (String(url).endsWith("/cutter/source-library")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            available_video_count: 1,
+            videos: [
+              {
+                source_video_id: "V000001",
+                title: "现金流",
+                duration_ms: 12_000,
+                cover_url: "/cutter/source-videos/V000001/cover",
+                media_url: "/cutter/source-videos/V000001/media",
+                detail_url: "/cutter/source-videos/V000001",
+                subtitles_url: "/cutter/source-videos/V000001/subtitles.srt"
+              }
+            ]
+          }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/source-videos/V000001")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            source_video_id: "V000001",
+            title: "现金流",
+            duration_ms: 12_000,
+            media_url: "/cutter/source-videos/V000001/media",
+            cover_url: "/cutter/source-videos/V000001/cover",
+            transcript: {
+              full_text: "现金流，是企业的血液。",
+              segments: [
+                {
+                  segment_id: "V000001-S000001",
+                  begin_ms: 1000,
+                  end_ms: 3600,
+                  text: "现金流，是企业的血液。"
+                }
+              ]
+            },
+            keyframes: {
+              keyframes_ms: [0, 5000, 10000]
+            }
+          }
+        });
+      }
+
+      if (String(url).includes("/cutter/source-search?")) {
+        assert.equal(String(url), "http://127.0.0.1:3789/cutter/source-search?query=%E7%8E%B0%E9%87%91%E6%B5%81&limit=7");
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            query: "现金流",
+            normalized_query: "现金流",
+            groups: [
+              {
+                source_video_id: "V000001",
+                title: "现金流",
+                hit_count: 1,
+                best_excerpt: "现金流，是企业的血液。",
+                hit_segments: []
+              }
+            ]
+          }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/local-clips")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            local_clip_count: 1,
+            clips: [
+              {
+                local_clip_id: "LC000001",
+                title: "C0018 00:11-00:35",
+                duration_ms: 24_000,
+                media_url: "/cutter/local-clips/LC000001/media",
+                detail_url: "/cutter/local-clips/LC000001"
+              }
+            ]
+          }
+        });
+      }
+
+      throw new Error(`unexpected request ${String(url)}`);
+    }
+  });
+
+  const library = await client.listSourceLibrary();
+  const detail = await client.getSourceVideoDetail("V000001");
+  const search = await client.searchSourceLibrary("现金流", 7);
+  const clips = await client.listLocalClips();
+
+  assert.deepEqual(requests.slice(0, 2), [
+    "http://127.0.0.1:3789/cutter/source-library",
+    "http://127.0.0.1:3789/cutter/source-videos/V000001"
+  ]);
+  assert.equal(library.available_video_count, 1);
+  assert.equal(detail.transcript.full_text, "现金流，是企业的血液。");
+  assert.equal(search.groups[0]?.source_video_id, "V000001");
+  assert.equal(clips.local_clip_count, 1);
+  assert.equal(clips.clips[0]?.local_clip_id, "LC000001");
+});
+
+test("creates local clips through cutter API", async () => {
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/local-clips");
+      assert.equal(init?.method, "POST");
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        source_video_id: "V000001",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000002",
+        pre_roll_ms: 250,
+        post_roll_ms: 400,
+        cut_mode: "copy"
+      });
+
+      return makeJsonResponse(
+        {
+          schema_version: "1.0",
+          data: {
+            local_clip_id: "LC000001",
+            title: "C0018 00:00-00:06",
+            media_url: "/cutter/local-clips/LC000001/media",
+            detail_url: "/cutter/local-clips/LC000001"
+          }
+        },
+        {
+          status: 201
+        }
+      );
+    }
+  });
+
+  const clip = await client.createLocalClip({
+    source_video_id: "V000001",
+    start_segment_id: "V000001-S000001",
+    end_segment_id: "V000001-S000002",
+    pre_roll_ms: 250,
+    post_roll_ms: 400,
+    cut_mode: "copy"
+  });
+
+  assert.equal(clip.local_clip_id, "LC000001");
+});
+
+test("throws readable API errors", async () => {
+  const client = createCutterApiClient({
+    base_url: "",
+    fetch: async () =>
+      makeJsonResponse(
+        {
+          error: {
+            code: "source_video_not_found",
+            message: "Source video not found"
+          }
+        },
+        {
+          status: 404
+        }
+      )
+  });
+
+  await assert.rejects(() => client.getSourceVideoDetail("V000404"), {
+    name: "CutterApiError",
+    message: "Source video not found"
+  });
+});
+
+test("formats durations and file sizes for dense media cards", () => {
+  assert.equal(formatDuration(65_432), "01:05");
+  assert.equal(formatDuration(3_726_000), "1:02:06");
+  assert.equal(formatFileSize(495_019_386), "472.1 MB");
+});

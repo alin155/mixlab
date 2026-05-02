@@ -1,0 +1,43 @@
+{
+  "name": "mixlab-v3",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "spike:index-publish": "tsx scripts/spikes/index-publish.ts",
+    "spike:source-scan": "tsx scripts/spikes/source-scan.ts",
+    "spike:preprocess-lifecycle": "tsx scripts/spikes/preprocess-lifecycle.ts",
+    "spike:cutter-catalog": "tsx scripts/spikes/cutter-catalog.ts",
+    "spike:path-resolution": "tsx scripts/spikes/path-resolution.ts",
+    "spike:search": "tsx scripts/spikes/search.ts",
+    "spike:ffmpeg-plan": "tsx scripts/spikes/ffmpeg-plan.ts",
+    "spike:ffmpeg-real-cut": "tsx scripts/spikes/ffmpeg-real-cut.ts",
+    "spike:ffmpeg-extract-audio": "tsx scripts/spikes/ffmpeg-extract-audio.ts",
+    "spike:oss-upload-plan": "tsx scripts/spikes/oss-upload-plan.ts",
+    "spike:oss-client-factory": "tsx scripts/spikes/oss-client-factory.ts",
+    "spike:oss-live-upload": "tsx scripts/spikes/oss-live-upload.ts",
+    "spike:asr-request": "tsx scripts/spikes/asr-request.ts",
+    "spike:dashscope-temp-upload": "tsx scripts/spikes/dashscope-temp-upload.ts",
+    "spike:asr-live-run": "tsx scripts/spikes/asr-live-run.ts",
+    "spike:asr-artifact-write": "tsx scripts/spikes/asr-artifact-write.ts",
+    "spike:audio-format-benchmark": "tsx scripts/spikes/audio-format-benchmark.ts",
+    "spike:preprocess-live-batch": "tsx scripts/spikes/preprocess-live-batch.ts",
+    "spike:preprocess-live-text-pipeline": "tsx scripts/spikes/preprocess-live-text-pipeline.ts",
+    "spike:preprocess-text-pipeline": "tsx scripts/spikes/preprocess-text-pipeline.ts",
+    "worker:preprocess-library": "tsx scripts/workers/preprocess-library-worker.ts",
+    "worker:publish-ready": "tsx scripts/workers/publish-ready-worker.ts",
+    "server:cutter-api": "tsx scripts/servers/cutter-api-server.ts",
+    "dev:cutter-web": "npm run dev -w @mixlab/cutter-web",
+    "build:cutter-web": "npm run build -w @mixlab/cutter-web",
+    "test": "node --test --import tsx packages/*/src/*.test.ts apps/*/src/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
