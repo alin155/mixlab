@@ -31,14 +31,84 @@ test("calls admin API endpoints through the typed client", async () => {
     base_url: "http://127.0.0.1:4899",
     fetch: async (url) => {
       requested.push(String(url));
-      return new Response(JSON.stringify({ ok: true, data: {} }), {
+      const pathname = new URL(String(url)).pathname;
+      const sourceVideo = {
+        source_video_id: "V000001",
+        title: "现金流",
+        file_name: "cashflow.mp4",
+        relative_path: "source-videos/cashflow.mp4",
+        cover_url: "/api/admin/source-videos/V000001/cover",
+        duration_ms: 120_000,
+        file_size: 4096,
+        preprocess_status: "ready",
+        visible_to_cutters: true,
+        tags: [],
+        description: "",
+        lecturer: "",
+        course: "",
+        category: "",
+        updated_at: ""
+      };
+      const data = pathname === "/api/admin/source-videos"
+        ? []
+        : pathname === "/api/admin/source-videos/V000001"
+          ? {
+              source_video: sourceVideo,
+              technical: {
+                duration_ms: 120_000,
+                width: 1920,
+                height: 1080,
+                fps: 25,
+                codec: "h264",
+                file_size: 4096,
+                content_hash: "hash",
+                relative_path: "source-videos/cashflow.mp4"
+              },
+              visibility: {
+                visible_to_cutters: true,
+                label: "剪辑师可见",
+                reason: ""
+              },
+              preprocess: {
+                status: "ready",
+                job_id: "J000001",
+                stage: "publish-ready",
+                attempt: 1,
+                started_at: "",
+                completed_at: "",
+                failed_at: "",
+                error_stage: "",
+                error_message: ""
+              },
+              artifacts: {
+                transcript: { path: "transcript.json", file_path: "/tmp/transcript.json", exists: true },
+                subtitles: { path: "subtitles.srt", file_path: "/tmp/subtitles.srt", exists: true },
+                cover: { path: "cover.jpg", file_path: "/tmp/cover.jpg", exists: true },
+                keyframes: { path: "keyframes.json", file_path: "/tmp/keyframes.json", exists: true },
+                index_version: "v000001"
+              },
+              transcript: {
+                full_text: "现金流",
+                segment_count: 1,
+                character_count: 3
+              }
+            }
+          : {};
+
+      return new Response(JSON.stringify({ ok: true, data }), {
         headers: { "content-type": "application/json" }
       });
     }
   });
 
   await client.getLibraryStatus();
+  await client.getAdminSettings();
+  await client.getDashboardMetrics();
   await client.listSourceVideos();
+  await client.getSourceVideoDetail("V000001");
+  await client.listCutterUsers();
+  await client.approveCutterUser("CU000001");
+  await client.disableCutterUser("CU000001");
   await client.listPreprocessJobs();
   await client.listIndexVersions();
   await client.getDoctorReport();
@@ -59,7 +129,13 @@ test("calls admin API endpoints through the typed client", async () => {
     requested.map((url) => new URL(url).pathname),
     [
       "/api/admin/library/status",
+      "/api/admin/settings/config",
+      "/api/admin/dashboard/metrics",
       "/api/admin/source-videos",
+      "/api/admin/source-videos/V000001",
+      "/api/admin/cutter-users",
+      "/api/admin/cutter-users/CU000001/approve",
+      "/api/admin/cutter-users/CU000001/disable",
       "/api/admin/preprocess/jobs",
       "/api/admin/index/versions",
       "/api/admin/doctor/report",
@@ -74,6 +150,94 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/source-videos/V000001/metadata"
     ]
   );
+});
+
+test("client resolves admin media URLs against base URL", async () => {
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async (url) => {
+      const pathname = new URL(String(url)).pathname;
+      const sourceVideo = {
+        source_video_id: "V000001",
+        title: "现金流",
+        file_name: "cashflow.mp4",
+        relative_path: "source-videos/cashflow.mp4",
+        cover_url: "/api/admin/source-videos/V000001/cover",
+        duration_ms: 120_000,
+        file_size: 4096,
+        preprocess_status: "ready",
+        visible_to_cutters: true,
+        tags: [],
+        description: "",
+        lecturer: "",
+        course: "",
+        category: "",
+        updated_at: ""
+      };
+
+      const data = pathname === "/api/admin/source-videos"
+        ? [
+            sourceVideo,
+            { ...sourceVideo, source_video_id: "V000002", cover_url: "covers/V000002.jpg" },
+            { ...sourceVideo, source_video_id: "V000003", cover_url: "https://cdn.example.test/cover.jpg" },
+            { ...sourceVideo, source_video_id: "V000004", cover_url: "data:image/png;base64,AAAA" }
+          ]
+        : {
+            source_video: sourceVideo,
+            technical: {
+              duration_ms: 120_000,
+              width: 1920,
+              height: 1080,
+              fps: 25,
+              codec: "h264",
+              file_size: 4096,
+              content_hash: "hash",
+              relative_path: "source-videos/cashflow.mp4"
+            },
+            visibility: {
+              visible_to_cutters: true,
+              label: "剪辑师可见",
+              reason: ""
+            },
+            preprocess: {
+              status: "ready",
+              job_id: "J000001",
+              stage: "publish-ready",
+              attempt: 1,
+              started_at: "",
+              completed_at: "",
+              failed_at: "",
+              error_stage: "",
+              error_message: ""
+            },
+            artifacts: {
+              transcript: { path: "transcript.json", file_path: "/tmp/transcript.json", exists: true },
+              subtitles: { path: "subtitles.srt", file_path: "/tmp/subtitles.srt", exists: true },
+              cover: { path: "cover.jpg", file_path: "/tmp/cover.jpg", exists: true },
+              keyframes: { path: "keyframes.json", file_path: "/tmp/keyframes.json", exists: true },
+              index_version: "v000001"
+            },
+            transcript: {
+              full_text: "现金流",
+              segment_count: 1,
+              character_count: 3
+            }
+          };
+
+      return new Response(JSON.stringify({ ok: true, data }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  const videos = await client.listSourceVideos();
+  assert.equal(videos[0]?.cover_url, "http://127.0.0.1:4899/api/admin/source-videos/V000001/cover");
+  assert.equal(videos[1]?.cover_url, "http://127.0.0.1:4899/covers/V000002.jpg");
+  assert.equal(videos[2]?.cover_url, "https://cdn.example.test/cover.jpg");
+  assert.equal(videos[3]?.cover_url, "data:image/png;base64,AAAA");
+
+  const detail = await client.getSourceVideoDetail("V000001");
+  assert.equal(detail.source_video.cover_url, "http://127.0.0.1:4899/api/admin/source-videos/V000001/cover");
 });
 
 test("fixture client separates ready, failed, and index-required counts", async () => {
@@ -101,6 +265,54 @@ test("fixture runtime settings redact DashScope key values", async () => {
 
   assert.equal(settings.asr.dashscope_api_key_configured, true);
   assert.equal(asJson.includes("sk-"), false);
+});
+
+test("fixture client includes settings, metrics, cutter users, and source detail", async () => {
+  const client = createFixtureAdminApiClient();
+
+  const settings = await client.getAdminSettings();
+  assert.equal(settings.source_folders.length >= 2, true);
+  assert.equal(settings.source_folders[0]?.enabled, true);
+
+  const metrics = await client.getDashboardMetrics();
+  assert.equal(metrics.material.video_count > 0, true);
+  assert.equal(metrics.transcript.transcript_video_count > 0, true);
+  assert.equal(metrics.production.completed_today_count > 0, true);
+  assert.equal(metrics.usage.add_to_cut_list_count > 0, true);
+  assert.equal(metrics.usage.reuse_local_clip_count > 0, true);
+  assert.equal(metrics.usage.users.some((user) => user.add_to_cut_list_count > 0), true);
+  assert.equal(metrics.usage.users.some((user) => user.reuse_local_clip_count > 0), true);
+  assert.equal(metrics.risk.failed_video_count > 0, true);
+
+  const users = await client.listCutterUsers();
+  assert.equal(users.users.some((user) => user.status === "pending"), true);
+  assert.equal(users.users.some((user) => user.status === "approved" && user.devices.length > 0), true);
+
+  const detail = await client.getSourceVideoDetail("P000042");
+  assert.equal(detail.source_video.preprocess_status, "ready");
+  assert.deepEqual(detail.artifacts.cover, {
+    path: ".mixlab-library/videos/P000042/cover.jpg",
+    file_path: "/Volumes/PublicLibrary/.mixlab-library/videos/P000042/cover.jpg",
+    exists: true
+  });
+  assert.equal(detail.artifacts.index_version, "v000027");
+});
+
+test("fixture cutter user approval redacts session token and disable mutates status", async () => {
+  const client = createFixtureAdminApiClient();
+
+  const approved = await client.approveCutterUser("CU000001");
+  assert.equal(approved.status, "approved");
+  assert.equal(approved.user.status, "approved");
+  assert.equal(approved.session.user_id, "CU000001");
+  assert.equal("session_token" in approved.session, false);
+
+  const usersAfterApproval = await client.listCutterUsers();
+  assert.equal(usersAfterApproval.users.find((user) => user.user_id === "CU000001")?.status, "approved");
+
+  const disabled = await client.disableCutterUser("CU000001");
+  assert.equal(disabled.status, "disabled");
+  assert.equal(disabled.devices.every((device) => device.status === "disabled"), true);
 });
 
 test("fixture admin actions mutate queue, index, and metadata state", async () => {

@@ -134,6 +134,180 @@ export interface AdminRuntimeSettings {
   };
 }
 
+export interface AdminSourceFolder {
+  id: string;
+  name: string;
+  path: string;
+  enabled: boolean;
+  last_scanned_at?: string;
+  discovered_video_count?: number;
+  new_unprocessed_count?: number;
+}
+
+export interface AdminSettingsConfig {
+  schema_version: "1.0";
+  library_name: string;
+  source_folders: AdminSourceFolder[];
+  artifact_library: {
+    mode: "default" | "custom";
+    path: string;
+    migration_required: boolean;
+  };
+  runtime_policy: {
+    audio_mode: "mp3_16k_mono_64k" | "wav_16k_mono_pcm_s16le";
+    concurrent_jobs: number;
+    auto_scan_enabled: boolean;
+    auto_queue_enabled: boolean;
+    auto_publish_index_enabled: boolean;
+  };
+  updated_at: string;
+}
+
+export interface UserUsageMetrics {
+  user_id: string;
+  username: string;
+  search_request_count: number;
+  add_to_cut_list_count: number;
+  transcript_selection_count: number;
+  cut_submission_count: number;
+  cut_success_count: number;
+  local_clip_count: number;
+  reuse_local_clip_count: number;
+  last_used_at: string;
+}
+
+export interface UsageMetrics {
+  search_request_count: number;
+  search_hit_count: number;
+  search_empty_count: number;
+  source_detail_view_count: number;
+  transcript_selection_count: number;
+  add_to_cut_list_count: number;
+  cut_submission_count: number;
+  cut_success_count: number;
+  cut_failure_count: number;
+  local_clip_count: number;
+  reuse_local_clip_count: number;
+  active_user_count: number;
+  recent_keywords: string[];
+  most_used_source_video_ids: string[];
+  users: UserUsageMetrics[];
+}
+
+export interface AdminDashboardMetrics {
+  material: {
+    video_count: number;
+    ready_video_count: number;
+    total_duration_ms: number;
+    ready_duration_ms: number;
+    unprocessed_duration_ms: number;
+    total_size_bytes: number;
+  };
+  transcript: {
+    transcript_video_count: number;
+    character_count: number;
+    segment_count: number;
+    current_index_version: string;
+  };
+  production: {
+    completed_today_count: number;
+    failed_today_count: number;
+    average_video_process_ms: number;
+    estimated_queue_done_at: string;
+  };
+  usage: UsageMetrics;
+  risk: {
+    failed_video_count: number;
+    index_required_video_count: number;
+  };
+}
+
+export interface AdminArtifactDetail {
+  path: string;
+  file_path: string;
+  exists: boolean;
+}
+
+export interface AdminSourceVideoDetail {
+  source_video: AdminSourceVideo;
+  technical: {
+    duration_ms: number;
+    width: number;
+    height: number;
+    fps: number;
+    codec: string;
+    file_size: number;
+    content_hash: string;
+    relative_path: string;
+  };
+  visibility: {
+    visible_to_cutters: boolean;
+    label: string;
+    reason: string;
+  };
+  preprocess: {
+    status: AdminPreprocessStatus;
+    job_id: string;
+    stage: string;
+    attempt: number;
+    started_at: string;
+    completed_at: string;
+    failed_at: string;
+    error_stage: string;
+    error_message: string;
+  };
+  artifacts: {
+    transcript: AdminArtifactDetail;
+    subtitles: AdminArtifactDetail;
+    cover: AdminArtifactDetail;
+    keyframes: AdminArtifactDetail;
+    index_version: string;
+  };
+  transcript: {
+    full_text: string;
+    segment_count: number;
+    character_count: number;
+  };
+}
+
+export interface AdminCutterDevice {
+  device_id: string;
+  device_name: string;
+  status: "active" | "disabled";
+  first_seen_at: string;
+  last_login_at: string;
+}
+
+export interface AdminCutterUser {
+  user_id: string;
+  username: string;
+  display_name: string;
+  status: "pending" | "approved" | "rejected" | "disabled";
+  applied_at: string;
+  approved_at: string;
+  rejected_at: string;
+  disabled_at: string;
+  last_login_at: string;
+  last_used_at: string;
+  note: string;
+  devices: AdminCutterDevice[];
+}
+
+export interface AdminCutterUsersResponse {
+  users: AdminCutterUser[];
+}
+
+export interface AdminCutterUserApprovalResult {
+  status: "approved";
+  user: AdminCutterUser;
+  session: {
+    user_id: string;
+    device_id: string;
+    created_at: string;
+    last_seen_at: string;
+  };
+}
+
 export interface AdminActionResult {
   affected_count?: number;
   source_video_ids?: string[];
@@ -161,12 +335,19 @@ export interface AdminDashboardData {
   indexes: AdminIndexVersionsResponse;
   doctor: MixlabDoctorReport;
   runtime: AdminRuntimeSettings;
+  metrics: AdminDashboardMetrics;
 }
 
 export interface AdminApiClient {
   getLibraryStatus(): Promise<AdminLibraryStatus>;
   getPathChecks(): Promise<AdminPathCheck[]>;
+  getAdminSettings(): Promise<AdminSettingsConfig>;
+  getDashboardMetrics(): Promise<AdminDashboardMetrics>;
   listSourceVideos(): Promise<AdminSourceVideo[]>;
+  getSourceVideoDetail(sourceVideoId: string): Promise<AdminSourceVideoDetail>;
+  listCutterUsers(): Promise<AdminCutterUsersResponse>;
+  approveCutterUser(userId: string): Promise<AdminCutterUserApprovalResult>;
+  disableCutterUser(userId: string): Promise<AdminCutterUser>;
   listPreprocessJobs(): Promise<AdminPreprocessJobsResponse>;
   listIndexVersions(): Promise<AdminIndexVersionsResponse>;
   getDoctorReport(): Promise<MixlabDoctorReport>;
@@ -199,6 +380,32 @@ export function unwrapAdminResponse<T>(envelope: AdminApiEnvelope<T>): T {
 
 function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, "")}${path}`;
+}
+
+export function resolveMediaUrl(baseUrl: string, pathOrUrl: string): string {
+  if (/^(?:https?:|data:)/i.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+
+  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return new URL(pathOrUrl, normalizedBaseUrl).toString();
+}
+
+function resolveSourceVideoMedia(baseUrl: string, video: AdminSourceVideo): AdminSourceVideo {
+  return {
+    ...video,
+    cover_url: resolveMediaUrl(baseUrl, video.cover_url)
+  };
+}
+
+function resolveSourceVideoDetailMedia(
+  baseUrl: string,
+  detail: AdminSourceVideoDetail
+): AdminSourceVideoDetail {
+  return {
+    ...detail,
+    source_video: resolveSourceVideoMedia(baseUrl, detail.source_video)
+  };
 }
 
 async function getJson<T>(
@@ -237,8 +444,32 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
       getJson<AdminLibraryStatus>(fetchImpl, input.base_url, "/api/admin/library/status"),
     getPathChecks: () =>
       getJson<AdminPathCheck[]>(fetchImpl, input.base_url, "/api/admin/library/path-checks"),
+    getAdminSettings: () =>
+      getJson<AdminSettingsConfig>(fetchImpl, input.base_url, "/api/admin/settings/config"),
+    getDashboardMetrics: () =>
+      getJson<AdminDashboardMetrics>(fetchImpl, input.base_url, "/api/admin/dashboard/metrics"),
     listSourceVideos: () =>
-      getJson<AdminSourceVideo[]>(fetchImpl, input.base_url, "/api/admin/source-videos"),
+      getJson<AdminSourceVideo[]>(fetchImpl, input.base_url, "/api/admin/source-videos")
+        .then((videos) => videos.map((video) => resolveSourceVideoMedia(input.base_url, video))),
+    getSourceVideoDetail: (sourceVideoId) =>
+      getJson<AdminSourceVideoDetail>(fetchImpl, input.base_url, `/api/admin/source-videos/${sourceVideoId}`)
+        .then((detail) => resolveSourceVideoDetailMedia(input.base_url, detail)),
+    listCutterUsers: () =>
+      getJson<AdminCutterUsersResponse>(fetchImpl, input.base_url, "/api/admin/cutter-users"),
+    approveCutterUser: (userId) =>
+      sendJson<AdminCutterUserApprovalResult>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/cutter-users/${userId}/approve`,
+        "POST"
+      ),
+    disableCutterUser: (userId) =>
+      sendJson<AdminCutterUser>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/cutter-users/${userId}/disable`,
+        "POST"
+      ),
     listPreprocessJobs: () =>
       getJson<AdminPreprocessJobsResponse>(fetchImpl, input.base_url, "/api/admin/preprocess/jobs"),
     listIndexVersions: () =>
@@ -612,6 +843,260 @@ const runtime: AdminRuntimeSettings = {
   }
 };
 
+const settings: AdminSettingsConfig = {
+  schema_version: "1.0",
+  library_name: "公司公开课程素材库",
+  source_folders: [
+    {
+      id: "src_default",
+      name: "默认素材来源",
+      path: "/Volumes/PublicLibrary/source-videos",
+      enabled: true,
+      last_scanned_at: "2024-05-07 10:27:03",
+      discovered_video_count: 623,
+      new_unprocessed_count: 1
+    },
+    {
+      id: "src_002",
+      name: "财务课程归档",
+      path: "/Volumes/CourseArchive/finance",
+      enabled: true,
+      last_scanned_at: "2024-05-07 09:20:00",
+      discovered_video_count: 84,
+      new_unprocessed_count: 0
+    }
+  ],
+  artifact_library: {
+    mode: "default",
+    path: "/Volumes/PublicLibrary/.mixlab-library",
+    migration_required: false
+  },
+  runtime_policy: {
+    audio_mode: "mp3_16k_mono_64k",
+    concurrent_jobs: 2,
+    auto_scan_enabled: true,
+    auto_queue_enabled: false,
+    auto_publish_index_enabled: true
+  },
+  updated_at: "2024-05-07 10:27:03"
+};
+
+const usage: UsageMetrics = {
+  search_request_count: 42,
+  search_hit_count: 36,
+  search_empty_count: 6,
+  source_detail_view_count: 28,
+  transcript_selection_count: 19,
+  add_to_cut_list_count: 11,
+  cut_submission_count: 8,
+  cut_success_count: 7,
+  cut_failure_count: 1,
+  local_clip_count: 9,
+  reuse_local_clip_count: 4,
+  active_user_count: 2,
+  recent_keywords: ["现金流", "风险控制", "品牌定价"],
+  most_used_source_video_ids: ["P000042", "P000041", "P000037"],
+  users: [
+    {
+      user_id: "CU000002",
+      username: "wangwu",
+      search_request_count: 24,
+      add_to_cut_list_count: 8,
+      transcript_selection_count: 12,
+      cut_submission_count: 5,
+      cut_success_count: 5,
+      local_clip_count: 6,
+      reuse_local_clip_count: 1,
+      last_used_at: "2024-05-07 10:25:00"
+    },
+    {
+      user_id: "CU000003",
+      username: "zhaoliu",
+      search_request_count: 18,
+      add_to_cut_list_count: 3,
+      transcript_selection_count: 7,
+      cut_submission_count: 3,
+      cut_success_count: 2,
+      local_clip_count: 3,
+      reuse_local_clip_count: 3,
+      last_used_at: "2024-05-07 10:18:00"
+    }
+  ]
+};
+
+const dashboardMetrics: AdminDashboardMetrics = {
+  material: {
+    video_count: status.video_count,
+    ready_video_count: status.ready_video_count,
+    total_duration_ms: 1_982_000_000,
+    ready_duration_ms: 426_000_000,
+    unprocessed_duration_ms: 1_120_000_000,
+    total_size_bytes: 820_000_000_000
+  },
+  transcript: {
+    transcript_video_count: 118,
+    character_count: 1_240_000,
+    segment_count: 24_800,
+    current_index_version: status.current_index_version
+  },
+  production: {
+    completed_today_count: 6,
+    failed_today_count: 1,
+    average_video_process_ms: 540_000,
+    estimated_queue_done_at: "2024-05-07 15:40:00"
+  },
+  usage,
+  risk: {
+    failed_video_count: status.failed_video_count,
+    index_required_video_count: status.index_required_video_count
+  }
+};
+
+const cutterUsers: AdminCutterUser[] = [
+  {
+    user_id: "CU000001",
+    username: "zhangsan",
+    display_name: "张三",
+    status: "pending",
+    applied_at: "2024-05-07 09:10:00",
+    approved_at: "",
+    rejected_at: "",
+    disabled_at: "",
+    last_login_at: "",
+    last_used_at: "",
+    note: "新设备申请访问素材库",
+    devices: [
+      {
+        device_id: "device-a",
+        device_name: "剪辑工作站 A",
+        status: "active",
+        first_seen_at: "2024-05-07 09:10:00",
+        last_login_at: ""
+      }
+    ]
+  },
+  {
+    user_id: "CU000002",
+    username: "wangwu",
+    display_name: "王五",
+    status: "approved",
+    applied_at: "2024-05-06 11:12:00",
+    approved_at: "2024-05-06 11:30:00",
+    rejected_at: "",
+    disabled_at: "",
+    last_login_at: "2024-05-07 10:12:00",
+    last_used_at: "2024-05-07 10:25:00",
+    note: "",
+    devices: [
+      {
+        device_id: "device-b",
+        device_name: "剪辑工作站 B",
+        status: "active",
+        first_seen_at: "2024-05-06 11:12:00",
+        last_login_at: "2024-05-07 10:12:00"
+      }
+    ]
+  }
+];
+
+function cloneSettings(value: AdminSettingsConfig): AdminSettingsConfig {
+  return {
+    ...value,
+    source_folders: value.source_folders.map((folder) => ({ ...folder })),
+    artifact_library: { ...value.artifact_library },
+    runtime_policy: { ...value.runtime_policy }
+  };
+}
+
+function cloneUsageMetrics(value: UsageMetrics): UsageMetrics {
+  return {
+    ...value,
+    recent_keywords: [...value.recent_keywords],
+    most_used_source_video_ids: [...value.most_used_source_video_ids],
+    users: value.users.map((user) => ({ ...user }))
+  };
+}
+
+function cloneDashboardMetrics(value: AdminDashboardMetrics): AdminDashboardMetrics {
+  return {
+    material: { ...value.material },
+    transcript: { ...value.transcript },
+    production: { ...value.production },
+    usage: cloneUsageMetrics(value.usage),
+    risk: { ...value.risk }
+  };
+}
+
+function cloneCutterUser(user: AdminCutterUser): AdminCutterUser {
+  return {
+    ...user,
+    devices: user.devices.map((device) => ({ ...device }))
+  };
+}
+
+function artifact(sourceVideoId: string, fileName: string, exists = true): AdminArtifactDetail {
+  const path = `.mixlab-library/videos/${sourceVideoId}/${fileName}`;
+  return {
+    path,
+    file_path: `/Volumes/PublicLibrary/${path}`,
+    exists
+  };
+}
+
+function makeSourceVideoDetail(video: AdminSourceVideo): AdminSourceVideoDetail {
+  const job = jobs.jobs.find((candidate) => candidate.source_video_id === video.source_video_id);
+  const ready = video.preprocess_status === "ready";
+
+  return {
+    source_video: {
+      ...video,
+      tags: [...video.tags]
+    },
+    technical: {
+      duration_ms: video.duration_ms,
+      width: ready ? 1920 : 0,
+      height: ready ? 1080 : 0,
+      fps: ready ? 25 : 0,
+      codec: ready ? "h264" : "",
+      file_size: video.file_size,
+      content_hash: ready ? `${video.source_video_id.toLowerCase()}-content-hash` : "",
+      relative_path: video.relative_path
+    },
+    visibility: {
+      visible_to_cutters: video.preprocess_status === "ready" && video.visible_to_cutters,
+      label: video.preprocess_status === "ready" && video.visible_to_cutters ? "剪辑师可见" : "剪辑师暂不可见",
+      reason: video.preprocess_status === "ready" && video.visible_to_cutters
+        ? ""
+        : video.preprocess_status !== "ready"
+          ? "视频尚未完成预处理"
+          : "管理员尚未开放给剪辑师"
+    },
+    preprocess: {
+      status: video.preprocess_status,
+      job_id: `J${video.source_video_id.slice(1)}`,
+      stage: job?.stage ?? video.preprocess_status,
+      attempt: ready ? 1 : 0,
+      started_at: job?.started_at ?? "",
+      completed_at: job?.completed_at ?? "",
+      failed_at: job?.failed_at ?? "",
+      error_stage: video.error_stage ?? "",
+      error_message: video.error_message ?? ""
+    },
+    artifacts: {
+      transcript: artifact(video.source_video_id, "transcript.json", ready),
+      subtitles: artifact(video.source_video_id, "subtitles.srt", ready),
+      cover: artifact(video.source_video_id, "cover.jpg", ready),
+      keyframes: artifact(video.source_video_id, "keyframes.json", ready),
+      index_version: ready ? status.current_index_version : ""
+    },
+    transcript: {
+      full_text: ready ? "现金流，是企业经营中的关键安全边界。" : "",
+      segment_count: ready ? 12 : 0,
+      character_count: ready ? 19 : 0
+    }
+  };
+}
+
 export function createFixtureAdminApiClient(): AdminApiClient {
   let fixtureStatus: AdminLibraryStatus = { ...status };
   let fixturePathChecks: AdminPathCheck[] = pathChecks.map((item) => ({ ...item }));
@@ -632,6 +1117,9 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     summary: { ...doctor.summary },
     checks: doctor.checks.map((check) => ({ ...check }))
   };
+  let fixtureSettings = cloneSettings(settings);
+  let fixtureMetrics = cloneDashboardMetrics(dashboardMetrics);
+  let fixtureCutterUsers = cutterUsers.map(cloneCutterUser);
 
   function recount(): void {
     fixtureStatus = {
@@ -642,6 +1130,21 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       unprocessed_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "unprocessed").length,
       failed_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "failed").length,
       index_required_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "index-required").length
+    };
+    fixtureMetrics = {
+      ...fixtureMetrics,
+      material: {
+        ...fixtureMetrics.material,
+        video_count: fixtureSourceVideos.length,
+        ready_video_count: fixtureStatus.ready_video_count,
+        unprocessed_duration_ms: fixtureSourceVideos
+          .filter((video) => video.preprocess_status === "unprocessed")
+          .reduce((total, video) => total + video.duration_ms, 0)
+      },
+      risk: {
+        failed_video_count: fixtureStatus.failed_video_count,
+        index_required_video_count: fixtureStatus.index_required_video_count
+      }
     };
   }
 
@@ -695,10 +1198,89 @@ export function createFixtureAdminApiClient(): AdminApiClient {
   return {
     getLibraryStatus: async () => ({ ...fixtureStatus }),
     getPathChecks: async () => fixturePathChecks.map((item) => ({ ...item })),
+    getAdminSettings: async () => cloneSettings(fixtureSettings),
+    getDashboardMetrics: async () => cloneDashboardMetrics(fixtureMetrics),
     listSourceVideos: async () => fixtureSourceVideos.map((video) => ({
       ...video,
       tags: [...video.tags]
     })),
+    getSourceVideoDetail: async (sourceVideoId) => {
+      const video = fixtureSourceVideos.find((candidate) => candidate.source_video_id === sourceVideoId);
+      if (!video) {
+        throw new Error(`source video not found: ${sourceVideoId}`);
+      }
+      return makeSourceVideoDetail(video);
+    },
+    listCutterUsers: async () => ({
+      users: fixtureCutterUsers.map(cloneCutterUser)
+    }),
+    approveCutterUser: async (userId) => {
+      let updated: AdminCutterUser | undefined;
+
+      fixtureCutterUsers = fixtureCutterUsers.map((user) => {
+        if (user.user_id !== userId) {
+          return user;
+        }
+
+        updated = {
+          ...user,
+          status: "approved",
+          approved_at: user.approved_at || "2024-05-07 10:35:00",
+          disabled_at: "",
+          devices: user.devices.map((device) => ({
+            ...device,
+            status: "active"
+          }))
+        };
+        return updated;
+      });
+
+      if (!updated) {
+        throw new Error(`cutter user not found: ${userId}`);
+      }
+
+      const device = updated.devices[0];
+      if (!device) {
+        throw new Error(`cutter user has no devices: ${userId}`);
+      }
+
+      return {
+        status: "approved",
+        user: cloneCutterUser(updated),
+        session: {
+          user_id: updated.user_id,
+          device_id: device.device_id,
+          created_at: "2024-05-07 10:35:00",
+          last_seen_at: "2024-05-07 10:35:00"
+        }
+      };
+    },
+    disableCutterUser: async (userId) => {
+      let updated: AdminCutterUser | undefined;
+
+      fixtureCutterUsers = fixtureCutterUsers.map((user) => {
+        if (user.user_id !== userId) {
+          return user;
+        }
+
+        updated = {
+          ...user,
+          status: "disabled",
+          disabled_at: "2024-05-07 10:36:00",
+          devices: user.devices.map((device) => ({
+            ...device,
+            status: "disabled"
+          }))
+        };
+        return updated;
+      });
+
+      if (!updated) {
+        throw new Error(`cutter user not found: ${userId}`);
+      }
+
+      return cloneCutterUser(updated);
+    },
     listPreprocessJobs: async () => ({
       ...fixtureJobs,
       jobs: fixtureJobs.jobs.map((job) => ({ ...job }))
@@ -810,7 +1392,8 @@ export async function loadAdminDashboardData(
     adminJobs,
     adminIndexes,
     adminDoctor,
-    adminRuntime
+    adminRuntime,
+    adminMetrics
   ] = await Promise.all([
     client.getLibraryStatus(),
     client.getPathChecks(),
@@ -818,7 +1401,8 @@ export async function loadAdminDashboardData(
     client.listPreprocessJobs(),
     client.listIndexVersions(),
     client.getDoctorReport(),
-    client.getRuntimeSettings()
+    client.getRuntimeSettings(),
+    client.getDashboardMetrics()
   ]);
 
   return {
@@ -828,6 +1412,7 @@ export async function loadAdminDashboardData(
     jobs: adminJobs,
     indexes: adminIndexes,
     doctor: adminDoctor,
-    runtime: adminRuntime
+    runtime: adminRuntime,
+    metrics: adminMetrics
   };
 }
