@@ -12,13 +12,28 @@ import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
 import { CutterLoginGate } from "./features/login/CutterLoginGate.tsx";
 import {
+  CutterApiError,
+  type CutterLoginStatus,
+  type CutterUserRecord,
+  type CutterUserStatus,
+  type CutterDeviceRecord,
+  type CutterLoginStatusValue,
+  type CutterLoginApplication
+} from "./api.ts";
+import {
   clearCutterAuthSession,
   createDeviceId,
   readCutterAuthSession,
   writeCutterAuthSession,
   CUTTER_AUTH_STORAGE_KEY
 } from "./auth.ts";
-import { shouldShowLoginGate } from "./app/CutterApp.tsx";
+import {
+  loginMessageForAuthError,
+  loginStatusFromApplication,
+  loginStatusFromBackendStatus,
+  shouldClearSessionForLoginStatusError,
+  shouldShowLoginGate
+} from "./app/CutterApp.tsx";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList } from "./state/cut-queue.ts";
 
@@ -51,6 +66,41 @@ function installTestWindow() {
       localStorage
     }
   });
+}
+
+function backendDevice(overrides: Partial<CutterDeviceRecord> = {}): CutterDeviceRecord {
+  return {
+    device_id: "device-001",
+    device_name: "MacBook Pro",
+    status: "active",
+    first_seen_at: "2026-05-03T08:00:00Z",
+    last_login_at: "2026-05-03T08:05:00Z",
+    ...overrides
+  };
+}
+
+function backendUser(status: CutterUserStatus): CutterUserRecord {
+  return {
+    user_id: "CU000001",
+    username: "xiaowang",
+    display_name: "小王",
+    status,
+    applied_at: "2026-05-03T08:00:00Z",
+    approved_at: status === "approved" ? "2026-05-03T08:05:00Z" : "",
+    rejected_at: status === "rejected" ? "2026-05-03T08:05:00Z" : "",
+    disabled_at: status === "disabled" ? "2026-05-03T08:05:00Z" : "",
+    last_login_at: status === "approved" ? "2026-05-03T08:05:00Z" : "",
+    last_used_at: "",
+    note: "",
+    devices: [backendDevice()]
+  };
+}
+
+function backendStatus(status: CutterUserStatus): CutterLoginStatus {
+  return {
+    ok: true,
+    user: backendUser(status)
+  };
 }
 
 function fixture() {
@@ -240,6 +290,42 @@ test("cutter auth storage tolerates corrupt JSON", () => {
   assert.equal(window.localStorage.getItem(CUTTER_AUTH_STORAGE_KEY), null);
 });
 
+test("cutter auth storage tolerates storage methods throwing", () => {
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: {
+        clear() {
+          throw new Error("blocked");
+        },
+        getItem() {
+          throw new Error("blocked");
+        },
+        key() {
+          throw new Error("blocked");
+        },
+        removeItem() {
+          throw new Error("blocked");
+        },
+        setItem() {
+          throw new Error("blocked");
+        },
+        length: 0
+      } satisfies Storage
+    }
+  });
+
+  assert.match(createDeviceId(), /^cutter-/);
+  assert.equal(readCutterAuthSession(), null);
+  assert.doesNotThrow(() =>
+    writeCutterAuthSession({
+      device_id: "device-001",
+      session_token: "session-001"
+    })
+  );
+  assert.doesNotThrow(() => clearCutterAuthSession());
+});
+
 test("login gate renders Chinese application states and only approved status renders children", async () => {
   const unknown = renderToStaticMarkup(
     h(CutterLoginGate, {
@@ -283,6 +369,16 @@ test("login gate renders Chinese application states and only approved status ren
   assert.match(disabled, /账号已停用，请联系管理员。/);
   assert.match(disabled, /提交申请/);
 
+  const expired = renderToStaticMarkup(
+    h(CutterLoginGate, {
+      status: "unknown",
+      message: "登录已失效，请重新申请或联系管理员。",
+      onApply: async () => undefined,
+      children: h("p", null, "工作台内容")
+    })
+  );
+  assert.match(expired, /登录已失效，请重新申请或联系管理员。/);
+
   const approved = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "approved",
@@ -301,4 +397,37 @@ test("fixture mode bypasses login and runtime mode requires approved auth", () =
   assert.equal(shouldShowLoginGate(true, "rejected"), true);
   assert.equal(shouldShowLoginGate(true, "disabled"), true);
   assert.equal(shouldShowLoginGate(true, "approved"), false);
+});
+
+test("backend approved login status allows runtime workbench without returned session token", () => {
+  const status = loginStatusFromBackendStatus(backendStatus("approved"));
+
+  assert.equal(status, "approved");
+  assert.equal(shouldShowLoginGate(true, status), false);
+});
+
+test("backend login status maps non-approved user states to login gate states", () => {
+  const cases: Array<[CutterUserStatus, CutterLoginStatusValue]> = [
+    ["pending", "pending"],
+    ["rejected", "rejected"],
+    ["disabled", "disabled"]
+  ];
+
+  for (const [backend, expected] of cases) {
+    assert.equal(loginStatusFromBackendStatus(backendStatus(backend)), expected);
+    assert.equal(loginStatusFromApplication(backendUser(backend) as CutterLoginApplication), expected);
+  }
+
+  assert.equal(loginStatusFromBackendStatus({ ok: false, reason: "登录凭证无效" }), "unknown");
+});
+
+test("401 login_required status errors clear stored session and show an honest Chinese message", () => {
+  const error = new CutterApiError({
+    status: 401,
+    code: "login_required",
+    message: "登录凭证无效"
+  });
+
+  assert.equal(shouldClearSessionForLoginStatusError(error), true);
+  assert.equal(loginMessageForAuthError(error), "登录已失效，请重新申请或联系管理员。");
 });

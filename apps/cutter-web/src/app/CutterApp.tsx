@@ -5,7 +5,13 @@ import {
   Sidebar,
   UnifiedToolbar
 } from "@mixlab/ui-foundation";
-import { createCutterApiClient } from "../api.ts";
+import {
+  CutterApiError,
+  createCutterApiClient,
+  type CutterLoginApplication,
+  type CutterLoginStatus,
+  type CutterLoginStatusValue
+} from "../api.ts";
 import {
   createFixtureCutterApiClient,
   loadCutterWorkbenchData,
@@ -43,7 +49,6 @@ import {
   mapApiCutJobsToQueueJobs,
   type CutQueueJob
 } from "../state/cut-queue.ts";
-import type { CutterLoginStatusValue } from "../api.ts";
 import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
@@ -74,6 +79,30 @@ function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | n
 
 export function shouldShowLoginGate(apiMode: boolean, status: CutterLoginStatusValue): boolean {
   return apiMode && status !== "approved";
+}
+
+export function loginStatusFromApplication(application: CutterLoginApplication): CutterLoginStatusValue {
+  return application.status;
+}
+
+export function loginStatusFromBackendStatus(status: CutterLoginStatus): CutterLoginStatusValue {
+  if (!status.ok) {
+    return status.user?.status ?? "unknown";
+  }
+
+  return status.user.status === "approved" ? "approved" : status.user.status;
+}
+
+export function shouldClearSessionForLoginStatusError(error: unknown): boolean {
+  return error instanceof CutterApiError && error.status === 401 && error.code === "login_required";
+}
+
+export function loginMessageForAuthError(error: unknown): string {
+  if (shouldClearSessionForLoginStatusError(error)) {
+    return "登录已失效，请重新申请或联系管理员。";
+  }
+
+  return error instanceof Error ? error.message : "登录状态校验失败，请重新申请或联系管理员。";
 }
 
 function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
@@ -194,6 +223,7 @@ export function CutterApp() {
   );
   const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
   const [loginStatus, setLoginStatus] = useState<CutterLoginStatusValue>(() => apiMode ? "unknown" : "approved");
+  const [loginMessage, setLoginMessage] = useState("");
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
@@ -211,27 +241,18 @@ export function CutterApp() {
         device_id: deviceId,
         device_name: typeof navigator === "undefined" ? undefined : navigator.userAgent
       });
+      const nextStatus = loginStatusFromApplication(application);
 
-      if (application.status === "approved" && application.session_token) {
-        const nextSession = {
-          device_id: application.device_id,
-          session_token: application.session_token,
-          username: application.username
-        };
-        writeCutterAuthSession(nextSession);
-        setAuthSession(nextSession);
-        setLoginStatus("approved");
-        return;
-      }
-
-      if (application.status === "rejected" || application.status === "disabled") {
+      if (nextStatus === "rejected" || nextStatus === "disabled") {
         clearCutterAuthSession();
         setAuthSession(null);
-        setLoginStatus(application.status);
+        setLoginStatus(nextStatus);
+        setLoginMessage("");
         return;
       }
 
-      setLoginStatus("pending");
+      setLoginStatus(nextStatus);
+      setLoginMessage("");
     },
     [apiBaseUrl]
   );
@@ -256,38 +277,37 @@ export function CutterApp() {
           return;
         }
 
-        if (status.status === "approved") {
-          if (status.session_token) {
-            const nextSession = {
-              device_id: status.device_id ?? authSession.device_id,
-              session_token: status.session_token,
-              username: status.username ?? authSession.username
-            };
-            writeCutterAuthSession(nextSession);
-            if (
-              nextSession.device_id !== authSession.device_id ||
-              nextSession.session_token !== authSession.session_token ||
-              nextSession.username !== authSession.username
-            ) {
-              setAuthSession(nextSession);
-            }
+        const nextStatus = loginStatusFromBackendStatus(status);
+        if (nextStatus === "approved") {
+          const nextSession = {
+            ...authSession,
+            username: status.ok ? status.user.username : authSession.username
+          };
+          writeCutterAuthSession(nextSession);
+          if (nextSession.username !== authSession.username) {
+            setAuthSession(nextSession);
           }
           setLoginStatus("approved");
+          setLoginMessage("");
           return;
         }
 
-        if (status.status === "rejected" || status.status === "disabled") {
+        if (nextStatus === "rejected" || nextStatus === "disabled") {
           clearCutterAuthSession();
           setAuthSession(null);
         }
 
-        setLoginStatus(status.status);
+        setLoginStatus(nextStatus);
+        setLoginMessage("");
       })
-      .catch(() => {
+      .catch((loginError) => {
         if (!cancelled) {
-          clearCutterAuthSession();
-          setAuthSession(null);
+          if (shouldClearSessionForLoginStatusError(loginError)) {
+            clearCutterAuthSession();
+            setAuthSession(null);
+          }
           setLoginStatus("unknown");
+          setLoginMessage(loginMessageForAuthError(loginError));
         }
       });
 
@@ -512,7 +532,7 @@ export function CutterApp() {
   );
 
   return (
-    <CutterLoginGate status={loginStatus} onApply={handleApplyLogin}>
+    <CutterLoginGate status={loginStatus} message={loginMessage || undefined} onApply={handleApplyLogin}>
       {workbench}
     </CutterLoginGate>
   );

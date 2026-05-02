@@ -3,6 +3,7 @@ import type { CutterLoginStatusValue } from "../../api.ts";
 
 export interface CutterLoginGateProps {
   status: CutterLoginStatusValue;
+  message?: string;
   onApply: (username: string) => Promise<void> | void;
   children: ReactNode;
 }
@@ -23,7 +24,7 @@ function reasonForStatus(status: CutterLoginStatusValue): string {
   return "请输入用户名，提交后由管理员审核。";
 }
 
-export function CutterLoginGate({ status, onApply, children }: CutterLoginGateProps) {
+export function CutterLoginGate({ status, message, onApply, children }: CutterLoginGateProps) {
   const [username, setUsername] = useState("");
   const [isApplying, setIsApplying] = useState(false);
   const isPending = status === "pending";
@@ -53,7 +54,7 @@ export function CutterLoginGate({ status, onApply, children }: CutterLoginGatePr
     <main className="cutter-login-gate">
       <section className="cutter-login-panel">
         <h1>申请使用剪辑师工作台</h1>
-        <p>{reasonForStatus(status)}</p>
+        <p>{message ?? reasonForStatus(status)}</p>
         <form onSubmit={handleSubmit}>
           <label>
             用户名

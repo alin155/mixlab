@@ -186,7 +186,31 @@ export interface SubmitCutJobsRequest {
   clip_list_id: string;
 }
 
-export type CutterLoginStatusValue = "unknown" | "pending" | "approved" | "rejected" | "disabled";
+export type CutterUserStatus = "pending" | "approved" | "rejected" | "disabled";
+export type CutterLoginStatusValue = "unknown" | CutterUserStatus;
+
+export interface CutterDeviceRecord {
+  device_id: string;
+  device_name: string;
+  status: "active" | "disabled";
+  first_seen_at: string;
+  last_login_at: string;
+}
+
+export interface CutterUserRecord {
+  user_id: string;
+  username: string;
+  display_name: string;
+  status: CutterUserStatus;
+  applied_at: string;
+  approved_at: string;
+  rejected_at: string;
+  disabled_at: string;
+  last_login_at: string;
+  last_used_at: string;
+  note: string;
+  devices: CutterDeviceRecord[];
+}
 
 export interface CutterLoginRequest {
   username: string;
@@ -194,33 +218,24 @@ export interface CutterLoginRequest {
   device_name?: string;
 }
 
-export interface CutterLoginApplication {
-  application_id?: string;
-  username: string;
-  device_id: string;
-  device_name?: string;
-  status: CutterLoginStatusValue;
-  created_at?: string;
-  updated_at?: string;
-  session_token?: string;
-}
+export type CutterLoginApplication = CutterUserRecord;
 
-export interface CutterLoginStatus {
-  status: CutterLoginStatusValue;
-  username?: string;
-  device_id?: string;
-  session_token?: string;
+export type CutterLoginStatus =
+  | {
+      ok: true;
+      user: CutterUserRecord;
+    }
+  | {
+      ok: false;
+      user?: CutterUserRecord;
+      reason?: string;
+      message?: string;
+    };
+
+export interface CutterLoginStatusFailure {
+  ok: false;
+  reason?: string;
   message?: string;
-}
-
-export interface CutterUsageEventInput {
-  event_type: string;
-  metadata?: Record<string, unknown>;
-  occurred_at?: string;
-}
-
-export interface CutterUsageEventResult {
-  recorded: boolean;
 }
 
 export interface CutterAuthHeaders {
@@ -249,7 +264,6 @@ export class CutterApiError extends Error {
 export interface CutterApiClient {
   requestLogin(input: CutterLoginRequest): Promise<CutterLoginApplication>;
   getLoginStatus(): Promise<CutterLoginStatus>;
-  recordUsageEvent(event: CutterUsageEventInput): Promise<CutterUsageEventResult>;
   listSourceLibrary(): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number): Promise<SearchResponse>;
@@ -341,18 +355,6 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         appendPath(input.base_url, "/cutter/auth/status"),
         {
           headers: protectedHeaders
-        }
-      );
-    },
-
-    recordUsageEvent(event: CutterUsageEventInput) {
-      return requestEnvelope<CutterUsageEventResult>(
-        fetchImpl,
-        appendPath(input.base_url, "/cutter/usage-events"),
-        {
-          method: "POST",
-          headers: jsonHeaders(input.auth),
-          body: JSON.stringify(event)
         }
       );
     },

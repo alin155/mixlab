@@ -4,8 +4,7 @@ import {
   createCutterApiClient,
   formatDuration,
   formatFileSize,
-  normalizeApiBaseUrl,
-  type CutterLoginStatus
+  normalizeApiBaseUrl
 } from "./api.ts";
 
 function makeJsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -302,7 +301,7 @@ test("creates clip lists and manages workspace cut jobs through cutter API", asy
   });
 });
 
-test("supports cutter login requests, login status, and usage events", async () => {
+test("supports cutter login requests and backend-shaped login status", async () => {
   const requests: Array<{ url: string; method: string | undefined; headers: Headers; body: unknown }> = [];
   const client = createCutterApiClient({
     base_url: "http://127.0.0.1:3789/",
@@ -323,15 +322,29 @@ test("supports cutter login requests, login status, and usage events", async () 
           {
             schema_version: "1.0",
             data: {
-              application_id: "app-001",
+              user_id: "CU000001",
               username: "小王",
-              device_id: "device-001",
+              display_name: "小王",
               status: "pending",
-              created_at: "2026-05-03T08:00:00Z",
-              updated_at: "2026-05-03T08:00:00Z"
+              applied_at: "2026-05-03T08:00:00Z",
+              approved_at: "",
+              rejected_at: "",
+              disabled_at: "",
+              last_login_at: "",
+              last_used_at: "",
+              note: "",
+              devices: [
+                {
+                  device_id: "device-001",
+                  device_name: "MacBook Pro",
+                  status: "active",
+                  first_seen_at: "2026-05-03T08:00:00Z",
+                  last_login_at: ""
+                }
+              ]
             }
           },
-          { status: 201 }
+          { status: 200 }
         );
       }
 
@@ -339,24 +352,31 @@ test("supports cutter login requests, login status, and usage events", async () 
         return makeJsonResponse({
           schema_version: "1.0",
           data: {
-            status: "approved",
-            username: "小王",
-            device_id: "device-001",
-            session_token: "session-001"
-          } satisfies CutterLoginStatus
-        });
-      }
-
-      if (String(url).endsWith("/cutter/usage-events")) {
-        return makeJsonResponse(
-          {
-            schema_version: "1.0",
-            data: {
-              recorded: true
+            ok: true,
+            user: {
+              user_id: "CU000001",
+              username: "xiaowang",
+              display_name: "小王",
+              status: "approved",
+              applied_at: "2026-05-03T08:00:00Z",
+              approved_at: "2026-05-03T08:05:00Z",
+              rejected_at: "",
+              disabled_at: "",
+              last_login_at: "2026-05-03T08:05:00Z",
+              last_used_at: "",
+              note: "",
+              devices: [
+                {
+                  device_id: "device-001",
+                  device_name: "MacBook Pro",
+                  status: "active",
+                  first_seen_at: "2026-05-03T08:00:00Z",
+                  last_login_at: "2026-05-03T08:05:00Z"
+                }
+              ]
             }
-          },
-          { status: 201 }
-        );
+          }
+        });
       }
 
       throw new Error(`unexpected request ${String(url)}`);
@@ -369,20 +389,17 @@ test("supports cutter login requests, login status, and usage events", async () 
     device_name: "MacBook Pro"
   });
   const status = await client.getLoginStatus();
-  const usage = await client.recordUsageEvent({
-    event_type: "workbench_opened",
-    metadata: {
-      route: "library"
-    }
-  });
 
   assert.equal(application.status, "pending");
-  assert.equal(status.status, "approved");
-  assert.deepEqual(usage, { recorded: true });
+  assert.equal(application.user_id, "CU000001");
+  assert.equal(application.devices[0]?.device_id, "device-001");
+  assert.equal(status.ok, true);
+  assert.equal(status.user?.status, "approved");
+  assert.equal(status.user?.devices[0]?.device_id, "device-001");
+  assert.equal("recordUsageEvent" in client, false);
   assert.deepEqual(requests.map((request) => [request.url, request.method]), [
     ["http://127.0.0.1:3789/cutter/auth/request-login", "POST"],
-    ["http://127.0.0.1:3789/cutter/auth/status", undefined],
-    ["http://127.0.0.1:3789/cutter/usage-events", "POST"]
+    ["http://127.0.0.1:3789/cutter/auth/status", undefined]
   ]);
   assert.deepEqual(requests[0]?.body, {
     username: "小王",
@@ -392,8 +409,6 @@ test("supports cutter login requests, login status, and usage events", async () 
   assert.equal(requests[0]?.headers.get("x-mixlab-device-id"), null);
   assert.equal(requests[1]?.headers.get("x-mixlab-device-id"), "device-001");
   assert.equal(requests[1]?.headers.get("x-mixlab-session-token"), "session-001");
-  assert.equal(requests[2]?.headers.get("x-mixlab-device-id"), "device-001");
-  assert.equal(requests[2]?.headers.get("x-mixlab-session-token"), "session-001");
 });
 
 test("attaches cutter auth headers to protected data and control requests", async () => {

@@ -31,20 +31,36 @@ function makeDeviceId(): string {
 
 export function createDeviceId(): string {
   const storage = getLocalStorage();
-  const existing = storage?.getItem(CUTTER_DEVICE_STORAGE_KEY);
+  let existing: string | null = null;
+
+  try {
+    existing = storage?.getItem(CUTTER_DEVICE_STORAGE_KEY) ?? null;
+  } catch {
+    existing = null;
+  }
 
   if (existing) {
     return existing;
   }
 
   const deviceId = makeDeviceId();
-  storage?.setItem(CUTTER_DEVICE_STORAGE_KEY, deviceId);
+  try {
+    storage?.setItem(CUTTER_DEVICE_STORAGE_KEY, deviceId);
+  } catch {
+    // Storage may be unavailable in private or locked-down browser contexts.
+  }
   return deviceId;
 }
 
 export function readCutterAuthSession(): CutterAuthSession | null {
   const storage = getLocalStorage();
-  const raw = storage?.getItem(CUTTER_AUTH_STORAGE_KEY);
+  let raw: string | null = null;
+
+  try {
+    raw = storage?.getItem(CUTTER_AUTH_STORAGE_KEY) ?? null;
+  } catch {
+    return null;
+  }
 
   if (!raw) {
     return null;
@@ -54,7 +70,11 @@ export function readCutterAuthSession(): CutterAuthSession | null {
     const parsed = JSON.parse(raw) as Partial<CutterAuthSession>;
 
     if (typeof parsed.device_id !== "string" || typeof parsed.session_token !== "string") {
-      storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+      try {
+        storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
       return null;
     }
 
@@ -64,17 +84,29 @@ export function readCutterAuthSession(): CutterAuthSession | null {
       ...(typeof parsed.username === "string" ? { username: parsed.username } : {})
     };
   } catch {
-    storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+    try {
+      storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
     return null;
   }
 }
 
 export function writeCutterAuthSession(session: CutterAuthSession): void {
   const storage = getLocalStorage();
-  storage?.setItem(CUTTER_AUTH_STORAGE_KEY, JSON.stringify(session));
+  try {
+    storage?.setItem(CUTTER_AUTH_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    // Ignore storage failures so auth checks do not crash rendering.
+  }
 }
 
 export function clearCutterAuthSession(): void {
   const storage = getLocalStorage();
-  storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+  try {
+    storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures so auth checks do not crash rendering.
+  }
 }

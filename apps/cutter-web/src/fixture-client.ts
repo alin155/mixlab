@@ -379,27 +379,53 @@ export function createFixtureCutterApiClient(): CutterApiClient {
   return {
     async requestLogin(request) {
       return {
-        application_id: "fixture-approved",
+        user_id: "CU000001",
         username: request.username,
-        device_id: request.device_id,
-        device_name: request.device_name,
+        display_name: request.username,
         status: "approved",
-        session_token: "fixture-session-token",
-        created_at: "2026-05-02T10:00:00Z",
-        updated_at: "2026-05-02T10:00:00Z"
+        applied_at: "2026-05-02T10:00:00Z",
+        approved_at: "2026-05-02T10:00:00Z",
+        rejected_at: "",
+        disabled_at: "",
+        last_login_at: "2026-05-02T10:00:00Z",
+        last_used_at: "",
+        note: "",
+        devices: [
+          {
+            device_id: request.device_id,
+            device_name: request.device_name ?? "Fixture Device",
+            status: "active",
+            first_seen_at: "2026-05-02T10:00:00Z",
+            last_login_at: "2026-05-02T10:00:00Z"
+          }
+        ]
       };
     },
     async getLoginStatus() {
       return {
-        status: "approved",
-        username: "fixture-user",
-        device_id: "fixture-device",
-        session_token: "fixture-session-token"
-      };
-    },
-    async recordUsageEvent() {
-      return {
-        recorded: true
+        ok: true,
+        user: {
+          user_id: "CU000001",
+          username: "fixture-user",
+          display_name: "fixture-user",
+          status: "approved",
+          applied_at: "2026-05-02T10:00:00Z",
+          approved_at: "2026-05-02T10:00:00Z",
+          rejected_at: "",
+          disabled_at: "",
+          last_login_at: "2026-05-02T10:00:00Z",
+          last_used_at: "",
+          note: "",
+          devices: [
+            {
+              device_id: "fixture-device",
+              device_name: "Fixture Device",
+              status: "active",
+              first_seen_at: "2026-05-02T10:00:00Z",
+              last_login_at: "2026-05-02T10:00:00Z"
+            }
+          ]
+        }
       };
     },
     async listSourceLibrary() {
