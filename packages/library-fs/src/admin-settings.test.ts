@@ -92,6 +92,46 @@ test("throws a Chinese error for invalid persisted settings shape", async () => 
   );
 });
 
+test("throws a Chinese error for invalid persisted updated_at", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  await mkdir(path.join(root, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    adminSettingsPath(root),
+    JSON.stringify({ ...current, updated_at: 123 }),
+    "utf8"
+  );
+
+  await assert.rejects(
+    () => readAdminSettings(root),
+    /管理员设置文件格式无效/
+  );
+});
+
+test("throws a Chinese error for invalid optional persisted source folder fields", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  await mkdir(path.join(root, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    adminSettingsPath(root),
+    JSON.stringify({
+      ...current,
+      source_folders: [{
+        ...current.source_folders[0],
+        last_scanned_at: 123,
+        discovered_video_count: -1,
+        new_unprocessed_count: 1.5
+      }]
+    }),
+    "utf8"
+  );
+
+  await assert.rejects(
+    () => readAdminSettings(root),
+    /管理员设置文件格式无效/
+  );
+});
+
 test("rejects blank artifact library paths", async () => {
   const root = await makeRoot();
   const current = await readAdminSettings(root);
@@ -113,7 +153,7 @@ test("allocates source folder ids from the max numeric suffix", async () => {
     source_folders: [
       current.source_folders[0]!,
       {
-        id: "src_010",
+        id: "src_1000",
         name: "历史素材",
         path: "/Volumes/OldVideos",
         enabled: true
@@ -130,5 +170,5 @@ test("allocates source folder ids from the max numeric suffix", async () => {
     new_unprocessed_count: 0
   });
 
-  assert.equal(next.source_folders.at(-1)?.id, "src_011");
+  assert.equal(next.source_folders.at(-1)?.id, "src_1001");
 });

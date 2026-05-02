@@ -89,6 +89,10 @@ function isBoolean(value: unknown): value is boolean {
   return typeof value === "boolean";
 }
 
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 0;
+}
+
 function invalidSettings(message: string): never {
   throw new Error(`管理员设置文件格式无效：${message}`);
 }
@@ -104,6 +108,10 @@ function validate(settings: unknown): asserts settings is AdminSettings {
 
   if (!isNonEmptyString(settings.library_name)) {
     invalidSettings("素材库名称不能为空");
+  }
+
+  if (typeof settings.updated_at !== "string") {
+    invalidSettings("更新时间必须是字符串");
   }
 
   if (!Array.isArray(settings.source_folders)) {
@@ -125,6 +133,27 @@ function validate(settings: unknown): asserts settings is AdminSettings {
 
     if (!isNonEmptyString(folder.name) || !isNonEmptyString(folder.path)) {
       throw new Error("素材来源名称和路径不能为空");
+    }
+
+    if (
+      folder.last_scanned_at !== undefined &&
+      typeof folder.last_scanned_at !== "string"
+    ) {
+      invalidSettings("素材来源最后扫描时间必须是字符串");
+    }
+
+    if (
+      folder.discovered_video_count !== undefined &&
+      !isNonNegativeInteger(folder.discovered_video_count)
+    ) {
+      invalidSettings("素材来源发现视频数必须是非负整数");
+    }
+
+    if (
+      folder.new_unprocessed_count !== undefined &&
+      !isNonNegativeInteger(folder.new_unprocessed_count)
+    ) {
+      invalidSettings("素材来源新增待处理数必须是非负整数");
     }
   }
 
@@ -180,7 +209,7 @@ function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
   let maxSuffix = 0;
 
   for (const folder of sourceFolders) {
-    const match = /^src_(\d{3})$/.exec(folder.id);
+    const match = /^src_(\d+)$/.exec(folder.id);
     if (match) {
       maxSuffix = Math.max(maxSuffix, Number.parseInt(match[1] ?? "0", 10));
     }
