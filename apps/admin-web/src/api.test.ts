@@ -93,6 +93,30 @@ test("calls admin API endpoints through the typed client", async () => {
                 character_count: 3
               }
             }
+          : pathname === "/api/admin/cutter-users/CU000001/approve"
+            ? {
+                status: "approved",
+                user: {
+                  user_id: "CU000001",
+                  username: "zhangsan",
+                  display_name: "张三",
+                  status: "approved",
+                  applied_at: "",
+                  approved_at: "",
+                  rejected_at: "",
+                  disabled_at: "",
+                  last_login_at: "",
+                  last_used_at: "",
+                  note: "",
+                  devices: []
+                },
+                session: {
+                  user_id: "CU000001",
+                  device_id: "device-a",
+                  created_at: "",
+                  last_seen_at: ""
+                }
+              }
           : {};
 
       return new Response(JSON.stringify({ ok: true, data }), {
@@ -240,6 +264,132 @@ test("client resolves admin media URLs against base URL", async () => {
   assert.equal(detail.source_video.cover_url, "http://127.0.0.1:4899/api/admin/source-videos/V000001/cover");
 });
 
+test("client neutralizes unsupported admin media URL schemes", async () => {
+  const sourceVideo = {
+    source_video_id: "V000001",
+    title: "现金流",
+    file_name: "cashflow.mp4",
+    relative_path: "source-videos/cashflow.mp4",
+    cover_url: "javascript:alert(1)",
+    duration_ms: 120_000,
+    file_size: 4096,
+    preprocess_status: "ready",
+    visible_to_cutters: true,
+    tags: [],
+    description: "",
+    lecturer: "",
+    course: "",
+    category: "",
+    updated_at: ""
+  };
+  const detail = {
+    source_video: { ...sourceVideo, cover_url: "file:///tmp/cover.jpg" },
+    technical: {
+      duration_ms: 120_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 4096,
+      content_hash: "hash",
+      relative_path: "source-videos/cashflow.mp4"
+    },
+    visibility: {
+      visible_to_cutters: true,
+      label: "剪辑师可见",
+      reason: ""
+    },
+    preprocess: {
+      status: "ready",
+      job_id: "J000001",
+      stage: "publish-ready",
+      attempt: 1,
+      started_at: "",
+      completed_at: "",
+      failed_at: "",
+      error_stage: "",
+      error_message: ""
+    },
+    artifacts: {
+      transcript: { path: "transcript.json", file_path: "/tmp/transcript.json", exists: true },
+      subtitles: { path: "subtitles.srt", file_path: "/tmp/subtitles.srt", exists: true },
+      cover: { path: "cover.jpg", file_path: "/tmp/cover.jpg", exists: true },
+      keyframes: { path: "keyframes.json", file_path: "/tmp/keyframes.json", exists: true },
+      index_version: "v000001"
+    },
+    transcript: {
+      full_text: "现金流",
+      segment_count: 1,
+      character_count: 3
+    }
+  };
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async (url) => {
+      const pathname = new URL(String(url)).pathname;
+      return new Response(JSON.stringify({
+        ok: true,
+        data: pathname === "/api/admin/source-videos"
+          ? [
+              sourceVideo,
+              { ...sourceVideo, source_video_id: "V000002", cover_url: "file:///tmp/list-cover.jpg" },
+              { ...sourceVideo, source_video_id: "V000003", cover_url: "data:text/html,<script></script>" }
+            ]
+          : detail
+      }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  const videos = await client.listSourceVideos();
+  assert.equal(videos[0]?.cover_url, "");
+  assert.equal(videos[1]?.cover_url, "");
+  assert.equal(videos[2]?.cover_url, "");
+
+  const resolvedDetail = await client.getSourceVideoDetail("V000001");
+  assert.equal(resolvedDetail.source_video.cover_url, "");
+});
+
+test("client defensively redacts approve session tokens at runtime", async () => {
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async () => new Response(JSON.stringify({
+      ok: true,
+      data: {
+        status: "approved",
+        user: {
+          user_id: "CU000001",
+          username: "zhangsan",
+          display_name: "张三",
+          status: "approved",
+          applied_at: "2024-05-07 09:10:00",
+          approved_at: "2024-05-07 10:35:00",
+          rejected_at: "",
+          disabled_at: "",
+          last_login_at: "",
+          last_used_at: "",
+          note: "",
+          devices: []
+        },
+        session: {
+          user_id: "CU000001",
+          device_id: "device-a",
+          session_token: "secret-token",
+          created_at: "2024-05-07 10:35:00",
+          last_seen_at: "2024-05-07 10:35:00"
+        }
+      }
+    }), {
+      headers: { "content-type": "application/json" }
+    })
+  });
+
+  const approved = await client.approveCutterUser("CU000001");
+  assert.equal("session_token" in approved.session, false);
+  assert.equal(JSON.stringify(approved).includes("secret-token"), false);
+});
+
 test("fixture client separates ready, failed, and index-required counts", async () => {
   const data = await loadAdminDashboardData(createFixtureAdminApiClient());
 
@@ -326,6 +476,24 @@ test("fixture cutter user approval redacts session token and disable mutates sta
   const disabled = await client.disableCutterUser("CU000001");
   assert.equal(disabled.status, "disabled");
   assert.equal(disabled.devices.every((device) => device.status === "disabled"), true);
+});
+
+test("fixture source detail reflects retried jobs and repaired index state", async () => {
+  const client = createFixtureAdminApiClient();
+
+  await client.retryFailedVideos();
+  const retried = await client.getSourceVideoDetail("V000037");
+  assert.equal(retried.source_video.preprocess_status, "queued");
+  assert.equal(retried.preprocess.status, "queued");
+  assert.equal(retried.preprocess.stage, "extract-audio");
+  assert.equal(retried.preprocess.failed_at, "");
+  assert.equal(retried.preprocess.error_message, "");
+
+  await client.repairIndex();
+  const repaired = await client.getSourceVideoDetail("V000039");
+  assert.equal(repaired.source_video.preprocess_status, "ready");
+  assert.equal(repaired.visibility.visible_to_cutters, true);
+  assert.equal(repaired.artifacts.index_version, "v000028");
 });
 
 test("fixture admin actions mutate queue, index, and metadata state", async () => {

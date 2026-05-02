@@ -383,12 +383,23 @@ function joinUrl(baseUrl: string, path: string): string {
 }
 
 export function resolveMediaUrl(baseUrl: string, pathOrUrl: string): string {
-  if (/^(?:https?:|data:)/i.test(pathOrUrl)) {
-    return pathOrUrl;
+  const trimmed = pathOrUrl.trim();
+
+  if (!trimmed) {
+    return "";
   }
 
-  const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return new URL(pathOrUrl, normalizedBaseUrl).toString();
+  if (/^data:/i.test(trimmed)) {
+    return /^data:image\//i.test(trimmed) ? trimmed : "";
+  }
+
+  try {
+    const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const resolved = new URL(trimmed, normalizedBaseUrl);
+    return resolved.protocol === "http:" || resolved.protocol === "https:" ? resolved.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function resolveSourceVideoMedia(baseUrl: string, video: AdminSourceVideo): AdminSourceVideo {
@@ -405,6 +416,22 @@ function resolveSourceVideoDetailMedia(
   return {
     ...detail,
     source_video: resolveSourceVideoMedia(baseUrl, detail.source_video)
+  };
+}
+
+function redactApprovalResult(
+  result: AdminCutterUserApprovalResult & {
+    session: AdminCutterUserApprovalResult["session"] & { session_token?: unknown };
+  }
+): AdminCutterUserApprovalResult {
+  return {
+    ...result,
+    session: {
+      user_id: result.session.user_id,
+      device_id: result.session.device_id,
+      created_at: result.session.created_at,
+      last_seen_at: result.session.last_seen_at
+    }
   };
 }
 
@@ -462,7 +489,7 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         input.base_url,
         `/api/admin/cutter-users/${userId}/approve`,
         "POST"
-      ),
+      ).then(redactApprovalResult),
     disableCutterUser: (userId) =>
       sendJson<AdminCutterUser>(
         fetchImpl,
@@ -1043,8 +1070,14 @@ function artifact(sourceVideoId: string, fileName: string, exists = true): Admin
   };
 }
 
-function makeSourceVideoDetail(video: AdminSourceVideo): AdminSourceVideoDetail {
-  const job = jobs.jobs.find((candidate) => candidate.source_video_id === video.source_video_id);
+function makeSourceVideoDetail(
+  video: AdminSourceVideo,
+  input: {
+    jobs: AdminPreprocessJobsResponse;
+    status: AdminLibraryStatus;
+  }
+): AdminSourceVideoDetail {
+  const job = input.jobs.jobs.find((candidate) => candidate.source_video_id === video.source_video_id);
   const ready = video.preprocess_status === "ready";
 
   return {
@@ -1087,7 +1120,7 @@ function makeSourceVideoDetail(video: AdminSourceVideo): AdminSourceVideoDetail 
       subtitles: artifact(video.source_video_id, "subtitles.srt", ready),
       cover: artifact(video.source_video_id, "cover.jpg", ready),
       keyframes: artifact(video.source_video_id, "keyframes.json", ready),
-      index_version: ready ? status.current_index_version : ""
+      index_version: ready ? input.status.current_index_version : ""
     },
     transcript: {
       full_text: ready ? "现金流，是企业经营中的关键安全边界。" : "",
@@ -1209,7 +1242,10 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       if (!video) {
         throw new Error(`source video not found: ${sourceVideoId}`);
       }
-      return makeSourceVideoDetail(video);
+      return makeSourceVideoDetail(video, {
+        jobs: fixtureJobs,
+        status: fixtureStatus
+      });
     },
     listCutterUsers: async () => ({
       users: fixtureCutterUsers.map(cloneCutterUser)
