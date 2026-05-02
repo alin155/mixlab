@@ -1,6 +1,10 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  createSourceTranscriptSqliteIndexBytes,
+  type SourceTranscriptSqliteVideo
+} from "../../search-sqlite/src/index.ts";
+import {
   validateIndexPackageManifest,
   type IndexCurrentPointer,
   type IndexPackageManifest
@@ -213,6 +217,53 @@ export async function readCurrentIndexPointer(
   return JSON.parse(await readFile(currentPath, "utf8")) as IndexCurrentPointer;
 }
 
+export async function resolveCurrentSourceTranscriptIndexFilePath(
+  libraryRoot: string
+): Promise<string> {
+  const pointer = await readCurrentIndexPointer(libraryRoot);
+  return path.join(indexRoot(libraryRoot), pointer.current_version, "index.sqlite");
+}
+
+async function readJsonArtifact<T>(libraryRoot: string, relativePath: string): Promise<T> {
+  if (!isSafeLibraryRelativePath(relativePath)) {
+    throw new Error("artifact path must be a safe library-relative path");
+  }
+
+  return JSON.parse(await readFile(path.join(libraryRoot, relativePath), "utf8")) as T;
+}
+
+async function buildSearchSqliteVideos(input: {
+  library_root: string;
+  source_video_ids: string[];
+}): Promise<SourceTranscriptSqliteVideo[]> {
+  const manifests = await readAllSourceVideoManifests(input.library_root);
+  const manifestsById = new Map(manifests.map((manifest) => [manifest.source_video_id, manifest]));
+  const videos: SourceTranscriptSqliteVideo[] = [];
+
+  for (const sourceVideoId of input.source_video_ids) {
+    const manifest = manifestsById.get(sourceVideoId);
+
+    if (!manifest) {
+      throw new Error(`source video manifest not found for ${sourceVideoId}`);
+    }
+
+    const transcript = await readJsonArtifact<{
+      segments: SourceTranscriptSqliteVideo["segments"];
+    }>(input.library_root, manifest.transcript_path);
+
+    videos.push({
+      source_video_id: manifest.source_video_id,
+      title: manifest.title,
+      duration_ms: manifest.duration_ms,
+      relative_path: manifest.relative_path,
+      cover_path: manifest.cover_path,
+      segments: transcript.segments
+    });
+  }
+
+  return videos;
+}
+
 export async function publishIndexRequiredSourceVideos(
   input: PublishIndexRequiredSourceVideosInput
 ): Promise<PublishIndexRequiredSourceVideosResult> {
@@ -266,6 +317,16 @@ export async function publishIndexRequiredSourceVideos(
 
   const indexVersion = nextIndexVersion(currentVersion);
 
+  const indexSqliteBytes = await createSourceTranscriptSqliteIndexBytes({
+    library_id: input.library_id,
+    index_version: indexVersion,
+    created_at: input.now,
+    videos: await buildSearchSqliteVideos({
+      library_root: input.library_root,
+      source_video_ids: nextReadyIds
+    })
+  });
+
   await publishIndexPackage({
     library_root: input.library_root,
     manifest: {
@@ -276,13 +337,7 @@ export async function publishIndexRequiredSourceVideos(
       source_video_ids: nextReadyIds,
       schema_version: "1.0"
     },
-    index_sqlite_bytes: Buffer.from(
-      jsonBytes({
-        schema_version: "1.0",
-        index_version: indexVersion,
-        source_video_ids: nextReadyIds
-      })
-    )
+    index_sqlite_bytes: indexSqliteBytes
   });
 
   for (const sourceVideoId of publishedSourceVideoIds) {

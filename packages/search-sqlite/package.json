@@ -1,5 +1,5 @@
 {
-  "name": "@mixlab/library-fs",
+  "name": "@mixlab/search-sqlite",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@mixlab/protocol": "0.1.0",
-    "@mixlab/search-sqlite": "0.1.0"
+    "@mixlab/search-core": "0.1.0"
   }
 }

@@ -3,6 +3,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { readSourceTranscriptSqliteIndexMetadata } from "../../search-sqlite/src/index.ts";
 import {
   claimNextPreprocessJob,
   completePreprocessArtifacts,
@@ -10,6 +11,7 @@ import {
   listCutterVisibleSourceVideos,
   publishIndexRequiredSourceVideos,
   readCurrentIndexPointer,
+  resolveCurrentSourceTranscriptIndexFilePath,
   scanSourceVideos
 } from "./index.ts";
 
@@ -186,6 +188,17 @@ test("publishes complete index-required videos into a new index package and cutt
   });
 
   assert.deepEqual(indexManifest.source_video_ids, ["V000001"]);
+  assert.deepEqual(
+    readSourceTranscriptSqliteIndexMetadata(await resolveCurrentSourceTranscriptIndexFilePath(libraryRoot)),
+    {
+      library_id: "lib_main_001",
+      index_version: "v000001",
+      created_at: "2026-05-02T00:04:00Z",
+      source_video_count: 1,
+      segment_count: 1,
+      schema_version: "1.0"
+    }
+  );
   assert.equal(manifest.preprocess_status, "ready");
   assert.equal(manifest.visible_to_cutters, true);
   assert.equal(library.index_required_video_count, 0);

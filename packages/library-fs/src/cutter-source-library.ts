@@ -8,10 +8,10 @@ import {
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
 import {
-  buildTranscriptSearchIndex,
   searchTranscripts,
   type TranscriptSearchGroup
 } from "../../search-core/src/index.ts";
+import { searchSourceTranscriptSqliteIndex } from "../../search-sqlite/src/index.ts";
 import {
   readAllSourceVideoManifests,
   readSourceVideoManifest
@@ -157,6 +157,32 @@ async function readVisibleSourceVideoManifests(
   return visible;
 }
 
+async function resolveCurrentSourceTranscriptIndexFilePath(
+  libraryRoot: string
+): Promise<string> {
+  const currentPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "indexes",
+    "source-transcript-index",
+    "current.json"
+  );
+  const pointer = JSON.parse(await readFile(currentPath, "utf8")) as {
+    current_version: string;
+  };
+  const indexFilePath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "indexes",
+    "source-transcript-index",
+    pointer.current_version,
+    "index.sqlite"
+  );
+
+  await stat(indexFilePath);
+  return indexFilePath;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     return (await stat(filePath)).isFile();
@@ -246,45 +272,67 @@ export async function searchCutterSourceLibrary(
 ): Promise<CutterSourceLibrarySearchResult> {
   const visibleManifests = await readVisibleSourceVideoManifests(input.library_root);
   const cardsBySourceVideoId = new Map<string, CutterSourceVideoCard>();
-  const searchableVideos = [];
 
   for (const manifest of visibleManifests) {
     const card = toCutterSourceVideoCard(input.library_root, manifest);
-    const transcript = await readJsonFile<CutterTranscriptArtifact>(
-      artifactFilePath(input.library_root, manifest.transcript_path)
-    );
-
     cardsBySourceVideoId.set(manifest.source_video_id, card);
-    searchableVideos.push({
-      source_video_id: manifest.source_video_id,
-      title: manifest.title,
-      duration_ms: manifest.duration_ms,
-      segments: transcript.segments
-    });
   }
 
-  const result = searchTranscripts(buildTranscriptSearchIndex(searchableVideos), {
-    query: input.query,
-    limit: input.limit
-  });
+  let result: {
+    query: string;
+    normalized_query: string;
+    groups: TranscriptSearchGroup[];
+  };
+
+  try {
+    result = searchSourceTranscriptSqliteIndex({
+      index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root),
+      query: input.query,
+      limit: Math.min(100, Math.max(input.limit * 3, input.limit))
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+
+    const searchableVideos = [];
+
+    for (const manifest of visibleManifests) {
+      const transcript = await readJsonFile<CutterTranscriptArtifact>(
+        artifactFilePath(input.library_root, manifest.transcript_path)
+      );
+
+      searchableVideos.push({
+        source_video_id: manifest.source_video_id,
+        title: manifest.title,
+        duration_ms: manifest.duration_ms,
+        segments: transcript.segments
+      });
+    }
+
+    result = searchTranscripts({ videos: searchableVideos }, {
+      query: input.query,
+      limit: input.limit
+    });
+  }
 
   return {
     query: result.query,
     normalized_query: result.normalized_query,
-    groups: result.groups.map((group) => {
+    groups: result.groups.flatMap((group) => {
       const card = cardsBySourceVideoId.get(group.source_video_id);
 
       if (!card) {
-        throw new Error(`missing source video card for ${group.source_video_id}`);
+        return [];
       }
 
-      return {
+      return [{
         ...group,
         relative_path: card.relative_path,
         source_video_file_path: card.source_video_file_path,
         cover_path: card.cover_path,
         cover_file_path: card.cover_file_path
-      };
-    })
+      }];
+    }).slice(0, input.limit)
   };
 }
