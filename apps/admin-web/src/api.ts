@@ -526,7 +526,7 @@ const status: AdminLibraryStatus = {
   disk_available_bytes: 2_480_000_000_000,
   index_status: "ready",
   current_index_version: "v000027",
-  active_task_label: "P000043 - build-keyframes 65%",
+  active_task_label: "V000043 - build-keyframes 65%",
   updated_at: "2024-05-07 10:26"
 };
 
@@ -559,11 +559,11 @@ const pathChecks: AdminPathCheck[] = [
 
 const sourceVideos: AdminSourceVideo[] = [
   {
-    source_video_id: "P000043",
+    source_video_id: "V000043",
     title: "现金流课程片段",
     file_name: "现金流课程片段.mp4",
     relative_path: "source-videos/2024/05/现金流课程片段.mp4",
-    cover_url: cover("P43", "9bb8d6"),
+    cover_url: cover("V43", "9bb8d6"),
     duration_ms: 3_374_000,
     file_size: 2_420_000_000,
     preprocess_status: "processing",
@@ -576,11 +576,11 @@ const sourceVideos: AdminSourceVideo[] = [
     updated_at: "2024-05-07 10:24:18"
   },
   {
-    source_video_id: "P000042",
+    source_video_id: "V000042",
     title: "现金流管理与风险控制",
     file_name: "现金流管理与风险控制.mp4",
     relative_path: "source-videos/2024/05/现金流管理与风险控制.mp4",
-    cover_url: cover("P42", "86a98b"),
+    cover_url: cover("V42", "86a98b"),
     duration_ms: 3_374_000,
     file_size: 2_110_000_000,
     preprocess_status: "ready",
@@ -593,11 +593,11 @@ const sourceVideos: AdminSourceVideo[] = [
     updated_at: "2024-05-07 10:22:07"
   },
   {
-    source_video_id: "P000041",
+    source_video_id: "V000041",
     title: "利润增长的估价优化",
     file_name: "利润增长估价优化.mp4",
     relative_path: "source-videos/2024/05/利润增长估价优化.mp4",
-    cover_url: cover("P41", "d8b16f"),
+    cover_url: cover("V41", "d8b16f"),
     duration_ms: 4_329_000,
     file_size: 2_870_000_000,
     preprocess_status: "ready",
@@ -610,11 +610,11 @@ const sourceVideos: AdminSourceVideo[] = [
     updated_at: "2024-05-07 10:20:13"
   },
   {
-    source_video_id: "P000039",
+    source_video_id: "V000039",
     title: "组织复制方法",
     file_name: "组织复制方法.mp4",
     relative_path: "source-videos/2024/05/组织复制方法.mp4",
-    cover_url: cover("P39", "b0a2cb"),
+    cover_url: cover("V39", "b0a2cb"),
     duration_ms: 2_821_000,
     file_size: 1_760_000_000,
     preprocess_status: "index-required",
@@ -627,11 +627,11 @@ const sourceVideos: AdminSourceVideo[] = [
     updated_at: "2024-05-07 10:16:44"
   },
   {
-    source_video_id: "P000037",
+    source_video_id: "V000037",
     title: "客户筛选与品牌定价",
     file_name: "客户筛选与品牌定价.mp4",
     relative_path: "source-videos/2024/05/客户筛选与品牌定价.mp4",
-    cover_url: cover("P37", "c79f8d"),
+    cover_url: cover("V37", "c79f8d"),
     duration_ms: 2_295_000,
     file_size: 1_280_000_000,
     preprocess_status: "failed",
@@ -646,11 +646,11 @@ const sourceVideos: AdminSourceVideo[] = [
     updated_at: "2024-05-07 10:12:51"
   },
   {
-    source_video_id: "P000044",
+    source_video_id: "V000044",
     title: "人工智能商业落地",
     file_name: "人工智能商业落地.mp4",
     relative_path: "source-videos/2024/05/人工智能商业落地.mp4",
-    cover_url: cover("P44", "95b9a8"),
+    cover_url: cover("V44", "95b9a8"),
     duration_ms: 0,
     file_size: 1_920_000_000,
     preprocess_status: "unprocessed",
@@ -672,62 +672,62 @@ const jobs: AdminPreprocessJobsResponse = {
   jobs: [
     {
       job_id: "J000043",
-      source_video_id: "P000043",
+      source_video_id: "V000043",
       title: "现金流课程片段",
       status: "running",
       stage: "build-keyframes",
       progress: 65,
       started_at: "2024-05-07 10:24:18",
       elapsed_ms: 272_000,
-      log_path: ".mixlab-library/logs/P000043.log",
+      log_path: ".mixlab-library/logs/V000043.log",
       retryable: false
     },
     {
       job_id: "J000044",
-      source_video_id: "P000044",
+      source_video_id: "V000044",
       title: "人工智能商业落地",
       status: "queued",
       stage: "extract-audio",
       progress: 0,
       elapsed_ms: 0,
-      log_path: ".mixlab-library/logs/P000044.log",
+      log_path: ".mixlab-library/logs/V000044.log",
       retryable: false
     },
     {
       job_id: "J000037",
-      source_video_id: "P000037",
+      source_video_id: "V000037",
       title: "客户筛选与品牌定价",
       status: "failed",
       stage: "asr",
       progress: 0,
       failed_at: "2024-05-07 10:18:20",
       elapsed_ms: 38_000,
-      log_path: ".mixlab-library/logs/P000037.log",
+      log_path: ".mixlab-library/logs/V000037.log",
       retryable: true,
       error_message: "DashScope ASR 网络超时"
     },
     {
       job_id: "J000042",
-      source_video_id: "P000042",
+      source_video_id: "V000042",
       title: "现金流管理与风险控制",
       status: "done",
       stage: "publish-ready",
       progress: 100,
       completed_at: "2024-05-07 10:23:02",
       elapsed_ms: 468_000,
-      log_path: ".mixlab-library/logs/P000042.log",
+      log_path: ".mixlab-library/logs/V000042.log",
       retryable: false
     },
     {
       job_id: "J000041",
-      source_video_id: "P000041",
+      source_video_id: "V000041",
       title: "利润增长的估价优化",
       status: "done",
       stage: "publish-ready",
       progress: 100,
       completed_at: "2024-05-07 10:25:40",
       elapsed_ms: 655_000,
-      log_path: ".mixlab-library/logs/P000041.log",
+      log_path: ".mixlab-library/logs/V000041.log",
       retryable: false
     }
   ]
@@ -839,7 +839,7 @@ const runtime: AdminRuntimeSettings = {
     language_hints: ["zh"],
     speaker_diarization_enabled: false,
     object_storage_mode: "dashscope-temporary",
-    last_failure_reason: "P000037 ASR 网络超时，可重试"
+    last_failure_reason: "V000037 ASR 网络超时，可重试"
   }
 };
 
@@ -895,7 +895,7 @@ const usage: UsageMetrics = {
   reuse_local_clip_count: 4,
   active_user_count: 2,
   recent_keywords: ["现金流", "风险控制", "品牌定价"],
-  most_used_source_video_ids: ["P000042", "P000041", "P000037"],
+  most_used_source_video_ids: ["V000042", "V000041", "V000037"],
   users: [
     {
       user_id: "CU000002",

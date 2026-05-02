@@ -76,7 +76,7 @@ export function PreprocessJobsPage({
               title: "阶段",
               rows: [
                 { label: "当前阶段", value: "build-keyframes" },
-                { label: "日志入口", value: ".mixlab-library/logs/P000043.log" }
+                { label: "日志入口", value: ".mixlab-library/logs/V000043.log" }
               ]
             }
           ]}

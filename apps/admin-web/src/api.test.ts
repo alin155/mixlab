@@ -267,6 +267,19 @@ test("fixture runtime settings redact DashScope key values", async () => {
   assert.equal(asJson.includes("sk-"), false);
 });
 
+test("fixture source video protocol uses V-prefixed ids", async () => {
+  const client = createFixtureAdminApiClient();
+  const [data, detail, runtime, metrics] = await Promise.all([
+    loadAdminDashboardData(client),
+    client.getSourceVideoDetail("V000042"),
+    client.getRuntimeSettings(),
+    client.getDashboardMetrics()
+  ]);
+
+  assert.match(data.status.active_task_label, /^V000043\b/);
+  assert.equal(JSON.stringify([data.source_videos, data.jobs, detail, runtime, metrics]).includes(`P${"000"}`), false);
+});
+
 test("fixture client includes settings, metrics, cutter users, and source detail", async () => {
   const client = createFixtureAdminApiClient();
 
@@ -288,11 +301,11 @@ test("fixture client includes settings, metrics, cutter users, and source detail
   assert.equal(users.users.some((user) => user.status === "pending"), true);
   assert.equal(users.users.some((user) => user.status === "approved" && user.devices.length > 0), true);
 
-  const detail = await client.getSourceVideoDetail("P000042");
+  const detail = await client.getSourceVideoDetail("V000042");
   assert.equal(detail.source_video.preprocess_status, "ready");
   assert.deepEqual(detail.artifacts.cover, {
-    path: ".mixlab-library/videos/P000042/cover.jpg",
-    file_path: "/Volumes/PublicLibrary/.mixlab-library/videos/P000042/cover.jpg",
+    path: ".mixlab-library/videos/V000042/cover.jpg",
+    file_path: "/Volumes/PublicLibrary/.mixlab-library/videos/V000042/cover.jpg",
     exists: true
   });
   assert.equal(detail.artifacts.index_version, "v000027");
@@ -327,7 +340,7 @@ test("fixture admin actions mutate queue, index, and metadata state", async () =
   const repaired = await client.repairIndex();
   assert.equal(repaired.affected_count, 1);
 
-  const metadata = await client.updateSourceVideoMetadata("P000042", {
+  const metadata = await client.updateSourceVideoMetadata("V000042", {
     title: "现金流管理更新",
     tags: ["现金流", "风险"],
     description: "已更新说明"

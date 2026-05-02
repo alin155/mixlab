@@ -41,7 +41,7 @@ export function SourceVideosPage({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState(
-    data.source_videos.find((video) => video.source_video_id === "P000042")?.source_video_id ??
+    data.source_videos.find((video) => video.source_video_id === "V000042")?.source_video_id ??
     data.source_videos[0]?.source_video_id ??
     ""
   );

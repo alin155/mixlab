@@ -92,7 +92,7 @@ test("preprocess jobs render failure retry and later success", async () => {
     "启动 Worker",
     "data-control-state=\"native-boundary\"",
     "build-keyframes",
-    ".mixlab-library/logs/P000037.log",
+    ".mixlab-library/logs/V000037.log",
     "DashScope ASR 网络超时",
     "J000041"
   ]) {
@@ -136,7 +136,7 @@ test("settings render runtime and redacted ASR key state", async () => {
     "wav_16k_mono_pcm_s16le",
     "已配置，已隐藏",
     "编辑 API Key",
-    "P000037 ASR 网络超时"
+    "V000037 ASR 网络超时"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
