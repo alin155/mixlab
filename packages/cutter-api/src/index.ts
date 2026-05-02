@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
 import {
@@ -22,10 +22,24 @@ import {
   type CutterSourceVideoDetail,
   type LocalClipView
 } from "../../library-fs/src/index.ts";
+import {
+  getExportClipDetail,
+  listClipLists,
+  listCutJobs,
+  listExportClips,
+  readClipList,
+  runNextCutJob,
+  submitClipListToQueue,
+  writeClipList,
+  type ClipListManifest,
+  type ExportClipView,
+  type WriteClipListItemInput
+} from "../../cutter-local/src/index.ts";
 import { createSegmentSpanSelection } from "../../protocol/src/index.ts";
 
 export interface CreateCutterApiServerInput {
   library_root: string;
+  workspace_root?: string;
   now?: () => string;
   cut_runner?: CutterClipCutRunner;
 }
@@ -54,7 +68,7 @@ type ApiSourceVideoDetail = CutterSourceVideoDetail & ApiSourceVideoUrls;
 type ApiSearchGroup = CutterSourceLibrarySearchGroup & ApiSourceVideoUrls;
 
 const SOURCE_VIDEO_ID_PATTERN = /^V\d{6}$/;
-const LOCAL_CLIP_ID_PATTERN = /^LC\d{6}$/;
+const LOCAL_CLIP_ID_PATTERN = /^(?:LC|E)\d{6}$/;
 
 export interface CutterClipCutRunnerInput {
   source_video_path: string;
@@ -74,6 +88,16 @@ interface CreateLocalClipRequestBody {
   post_roll_ms?: unknown;
   cut_mode?: unknown;
   title?: unknown;
+}
+
+interface CreateClipListRequestBody {
+  library_id?: unknown;
+  title?: unknown;
+  items?: unknown;
+}
+
+interface SubmitCutJobsRequestBody {
+  clip_list_id?: unknown;
 }
 
 function optionalTrimmed(value: string | undefined): string | undefined {
@@ -101,6 +125,7 @@ export function resolveCutterApiRuntimeConfigFromEnv(
 
   return {
     library_root: libraryRoot,
+    workspace_root: optionalTrimmed(env.MIXLAB_CUTTER_WORKSPACE_ROOT),
     host: optionalTrimmed(env.MIXLAB_CUTTER_API_HOST) ?? "127.0.0.1",
     port
   };
@@ -164,6 +189,16 @@ function localClipUrls(localClipId: string): {
   return {
     detail_url: `/cutter/local-clips/${localClipId}`,
     media_url: `/cutter/local-clips/${localClipId}/media`
+  };
+}
+
+function addLocalClipUrls<T extends { local_clip_id: string }>(item: T): T & {
+  detail_url: string;
+  media_url: string;
+} {
+  return {
+    ...item,
+    ...localClipUrls(item.local_clip_id)
   };
 }
 
@@ -398,6 +433,14 @@ function optionalNonNegativeInteger(value: unknown, fallback: number, key: strin
   return value;
 }
 
+function requiredNonNegativeInteger(value: unknown, key: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${key} must be a non-negative integer`);
+  }
+
+  return value;
+}
+
 function parseCutMode(value: unknown): CutMode {
   if (value === undefined || value === null || value === "") {
     return "smart";
@@ -453,6 +496,167 @@ async function loadVisibleDetail(
   }
 }
 
+async function readLibraryId(libraryRoot: string): Promise<string> {
+  try {
+    const library = JSON.parse(
+      await readFile(path.join(libraryRoot, ".mixlab-library", "library.json"), "utf8")
+    ) as { library_id?: unknown };
+
+    if (typeof library.library_id === "string" && library.library_id.trim()) {
+      return library.library_id.trim();
+    }
+  } catch {
+    // A hand-built fixture may not have library.json; keep the local bridge usable.
+  }
+
+  return "local-library";
+}
+
+function workspaceRootOrThrow(input: CreateCutterApiServerInput): string {
+  if (!input.workspace_root) {
+    throw new Error("workspace_root is required for cutter workspace routes");
+  }
+
+  return input.workspace_root;
+}
+
+function toWorkspaceLocalClipPayload(clip: ExportClipView): ExportClipView & {
+  detail_url: string;
+  media_url: string;
+} {
+  return addLocalClipUrls(clip);
+}
+
+function parseClipListItems(value: unknown): WriteClipListItemInput[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("items must contain at least one cut-list row");
+  }
+
+  return value.map((raw, index) => {
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error(`items[${index}] must be an object`);
+    }
+
+    const item = raw as Record<string, unknown>;
+
+    return {
+      source_video_id: requiredString(item.source_video_id, `items[${index}].source_video_id`),
+      source_title: requiredString(item.source_title, `items[${index}].source_title`),
+      source_relative_path: requiredString(item.source_relative_path, `items[${index}].source_relative_path`),
+      start_segment_id: requiredString(item.start_segment_id, `items[${index}].start_segment_id`),
+      end_segment_id: requiredString(item.end_segment_id, `items[${index}].end_segment_id`),
+      begin_ms: requiredNonNegativeInteger(item.begin_ms, `items[${index}].begin_ms`),
+      end_ms: requiredNonNegativeInteger(item.end_ms, `items[${index}].end_ms`),
+      selected_text: requiredString(item.selected_text, `items[${index}].selected_text`),
+      cut_mode: parseCutMode(item.cut_mode),
+      pre_roll_ms: optionalNonNegativeInteger(item.pre_roll_ms, 0, `items[${index}].pre_roll_ms`),
+      post_roll_ms: optionalNonNegativeInteger(item.post_roll_ms, 0, `items[${index}].post_roll_ms`)
+    };
+  });
+}
+
+async function runWorkspaceCutJob(input: {
+  api_input: CreateCutterApiServerInput;
+  workspace_root: string;
+}): ReturnType<typeof runNextCutJob> {
+  const cutRunner = input.api_input.cut_runner ?? defaultCutRunner;
+
+  return runNextCutJob({
+    workspace_root: input.workspace_root,
+    library_root: input.api_input.library_root,
+    now: () => input.api_input.now?.() ?? new Date().toISOString(),
+    resolve_source: async (job) => {
+      const detail = await loadVisibleDetail(input.api_input.library_root, job.source_video_id);
+
+      if (!detail) {
+        return null;
+      }
+
+      return {
+        source_video_id: detail.source_video_id,
+        title: detail.title,
+        relative_path: detail.relative_path,
+        source_video_file_path: detail.source_video_file_path
+      };
+    },
+    cut_runner: cutRunner
+  });
+}
+
+async function createWorkspaceLocalClip(input: {
+  api_input: CreateCutterApiServerInput;
+  body: CreateLocalClipRequestBody;
+}): Promise<ExportClipView> {
+  const workspaceRoot = workspaceRootOrThrow(input.api_input);
+  const sourceVideoId = requiredString(input.body.source_video_id, "source_video_id");
+
+  if (!SOURCE_VIDEO_ID_PATTERN.test(sourceVideoId)) {
+    throw new Error("invalid_source_video_id");
+  }
+
+  const detail = await loadVisibleDetail(input.api_input.library_root, sourceVideoId);
+
+  if (!detail) {
+    throw new Error("source_video_not_found");
+  }
+
+  const selection = createSegmentSpanSelection({
+    source_video_id: sourceVideoId,
+    segments: detail.transcript.segments,
+    start_segment_id: requiredString(input.body.start_segment_id, "start_segment_id"),
+    end_segment_id: requiredString(input.body.end_segment_id, "end_segment_id"),
+    pre_roll_ms: optionalNonNegativeInteger(input.body.pre_roll_ms, 0, "pre_roll_ms"),
+    post_roll_ms: optionalNonNegativeInteger(input.body.post_roll_ms, 0, "post_roll_ms")
+  });
+  const createdAt = input.api_input.now?.() ?? new Date().toISOString();
+  const clipList = await writeClipList({
+    workspace_root: workspaceRoot,
+    library_id: await readLibraryId(input.api_input.library_root),
+    title:
+      typeof input.body.title === "string" && input.body.title.trim()
+        ? input.body.title.trim()
+        : `${detail.title} ${formatClipTime(selection.begin_ms)}-${formatClipTime(selection.end_ms)}`,
+    items: [{
+      source_video_id: sourceVideoId,
+      source_title: detail.title,
+      source_relative_path: detail.relative_path,
+      start_segment_id: selection.start_segment_id,
+      end_segment_id: selection.end_segment_id,
+      begin_ms: selection.begin_ms,
+      end_ms: selection.end_ms,
+      selected_text: selection.selected_text,
+      cut_mode: parseCutMode(input.body.cut_mode),
+      pre_roll_ms: selection.pre_roll_ms,
+      post_roll_ms: selection.post_roll_ms
+    }],
+    now: createdAt
+  });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: createdAt
+  });
+  const job = await runWorkspaceCutJob({
+    api_input: input.api_input,
+    workspace_root: workspaceRoot
+  });
+
+  if (!job || job.status !== "done" || !job.export_clip_id) {
+    throw new Error(job?.error_message ?? "cut job did not complete");
+  }
+
+  const clip = await getExportClipDetail({
+    workspace_root: workspaceRoot,
+    export_clip_id: job.export_clip_id
+  });
+
+  if (!clip) {
+    throw new Error("export clip not found after cut");
+  }
+
+  return clip;
+}
+
 export function createCutterApiServer(input: CreateCutterApiServerInput): Server {
   return createServer(async (request, response) => {
     try {
@@ -476,6 +680,35 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
       if (request.method === "POST" && url.pathname === "/cutter/local-clips") {
         const body = (await readRequestJson(request)) as CreateLocalClipRequestBody;
+
+        if (input.workspace_root) {
+          try {
+            const clip = await createWorkspaceLocalClip({
+              api_input: input,
+              body
+            });
+            writeJson(response, 201, apiResponse(toWorkspaceLocalClipPayload(clip)));
+            return;
+          } catch (error) {
+            if ((error as Error).message === "invalid_source_video_id") {
+              writeError(
+                response,
+                400,
+                "invalid_source_video_id",
+                "source_video_id must use V000001 format"
+              );
+              return;
+            }
+
+            if ((error as Error).message === "source_video_not_found") {
+              writeError(response, 404, "source_video_not_found", "Source video not found");
+              return;
+            }
+
+            throw error;
+          }
+        }
+
         const sourceVideoId = requiredString(body.source_video_id, "source_video_id");
 
         if (!SOURCE_VIDEO_ID_PATTERN.test(sourceVideoId)) {
@@ -546,6 +779,54 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/clip-lists") {
+        const workspaceRoot = workspaceRootOrThrow(input);
+        const body = (await readRequestJson(request)) as CreateClipListRequestBody;
+        const clipList = await writeClipList({
+          workspace_root: workspaceRoot,
+          library_id: requiredString(body.library_id, "library_id"),
+          title: requiredString(body.title, "title"),
+          items: parseClipListItems(body.items),
+          now: input.now?.() ?? new Date().toISOString()
+        });
+
+        writeJson(response, 201, apiResponse(clipList));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/cutter/cut-jobs") {
+        const workspaceRoot = workspaceRootOrThrow(input);
+        const body = (await readRequestJson(request)) as SubmitCutJobsRequestBody;
+        const clipListId = requiredString(body.clip_list_id, "clip_list_id");
+        const clipList = await readClipList({
+          workspace_root: workspaceRoot,
+          clip_list_id: clipListId
+        });
+
+        if (!clipList) {
+          writeError(response, 404, "clip_list_not_found", "Clip list not found");
+          return;
+        }
+
+        const submission = await submitClipListToQueue({
+          workspace_root: workspaceRoot,
+          clip_list: clipList,
+          now: input.now?.() ?? new Date().toISOString()
+        });
+        writeJson(response, 201, apiResponse(submission));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/cutter/cut-jobs/run-next") {
+        const workspaceRoot = workspaceRootOrThrow(input);
+        const job = await runWorkspaceCutJob({
+          api_input: input,
+          workspace_root: workspaceRoot
+        });
+        writeJson(response, 200, apiResponse(job));
+        return;
+      }
+
       if (request.method === "POST") {
         writeError(response, 404, "not_found", "Route not found");
         return;
@@ -590,7 +871,34 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (url.pathname === "/cutter/clip-lists") {
+        const workspaceRoot = workspaceRootOrThrow(input);
+        writeJson(response, 200, apiResponse(await listClipLists({
+          workspace_root: workspaceRoot
+        })));
+        return;
+      }
+
+      if (url.pathname === "/cutter/cut-jobs") {
+        const workspaceRoot = workspaceRootOrThrow(input);
+        writeJson(response, 200, apiResponse(await listCutJobs({
+          workspace_root: workspaceRoot
+        })));
+        return;
+      }
+
       if (url.pathname === "/cutter/local-clips") {
+        if (input.workspace_root) {
+          const catalog = await listExportClips({
+            workspace_root: input.workspace_root
+          });
+          writeJson(response, 200, apiResponse({
+            ...catalog,
+            clips: catalog.clips.map(toWorkspaceLocalClipPayload)
+          }));
+          return;
+        }
+
         const catalog = await listLocalClips({
           library_root: input.library_root
         });
@@ -614,7 +922,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             response,
             400,
             "invalid_local_clip_id",
-            "local_clip_id must use LC000001 format"
+            "local_clip_id must use LC000001 or E000001 format"
           );
           return;
         }
@@ -624,6 +932,37 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (localClipRoute) {
+        if (input.workspace_root) {
+          if (!/^E\d{6}$/.test(localClipRoute.local_clip_id)) {
+            writeError(response, 404, "local_clip_not_found", "Local clip not found");
+            return;
+          }
+
+          const clip = await getExportClipDetail({
+            workspace_root: input.workspace_root,
+            export_clip_id: localClipRoute.local_clip_id
+          });
+
+          if (!clip) {
+            writeError(response, 404, "local_clip_not_found", "Local clip not found");
+            return;
+          }
+
+          if (localClipRoute.action === "") {
+            writeJson(response, 200, apiResponse(toWorkspaceLocalClipPayload(clip)));
+            return;
+          }
+
+          await streamFile({
+            request,
+            response,
+            file_path: clip.media_file_path,
+            content_type: "video/mp4",
+            range_enabled: true
+          });
+          return;
+        }
+
         const clip = await getLocalClipDetail({
           library_root: input.library_root,
           local_clip_id: localClipRoute.local_clip_id

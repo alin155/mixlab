@@ -1,5 +1,5 @@
 {
-  "name": "@mixlab/cutter-api",
+  "name": "@mixlab/cutter-local",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -8,9 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@mixlab/ffmpeg-core": "0.1.0",
-    "@mixlab/protocol": "0.1.0",
-    "@mixlab/cutter-local": "0.1.0",
-    "@mixlab/library-fs": "0.1.0"
+    "@mixlab/protocol": "0.1.0"
   }
 }

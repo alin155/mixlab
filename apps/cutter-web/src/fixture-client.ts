@@ -1,4 +1,8 @@
 import type {
+  ClipList,
+  CutJob,
+  CutJobCatalog,
+  CutJobSubmission,
   CutterApiClient,
   LocalClip,
   LocalClipCatalog,
@@ -417,6 +421,85 @@ export function createFixtureCutterApiClient(): CutterApiClient {
           .join(" "),
         media_url: "/local-clips/new.mp4",
         detail_url: "/cutter/local-clips/new"
+      };
+    },
+    async createClipList(request): Promise<ClipList> {
+      return {
+        schema_version: "1.0",
+        clip_list_id: "CL20260502-0001",
+        library_id: request.library_id,
+        title: request.title,
+        item_count: request.items.length,
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:00:00Z",
+        items: request.items.map((item, index) => ({
+          ...item,
+          item_id: `CLI${String(index + 1).padStart(6, "0")}`,
+          order: index + 1,
+          pre_roll_ms: item.pre_roll_ms ?? 0,
+          post_roll_ms: item.post_roll_ms ?? 0
+        }))
+      };
+    },
+    async submitCutJobs(request): Promise<CutJobSubmission> {
+      return {
+        submitted_count: 1,
+        jobs: [
+          {
+            cut_job_id: "CJ20260502-0001",
+            clip_list_id: request.clip_list_id,
+            clip_list_item_id: "CLI000001",
+            status: "pending",
+            created_at: "2026-05-02T10:00:00Z",
+            updated_at: "2026-05-02T10:00:00Z"
+          }
+        ]
+      };
+    },
+    async listCutJobs(): Promise<CutJobCatalog> {
+      return {
+        job_count: 3,
+        jobs: [
+          {
+            cut_job_id: "CJ20260502-0003",
+            clip_list_id: "CL20260502-0001",
+            clip_list_item_id: "CLI000003",
+            status: "done",
+            export_clip_id: "E000003",
+            output_file: "export-clips/E000003/E000003_销售话术拆解.mp4",
+            created_at: "2026-05-02T10:10:00Z",
+            updated_at: "2026-05-02T10:15:00Z"
+          },
+          {
+            cut_job_id: "CJ20260502-0002",
+            clip_list_id: "CL20260502-0001",
+            clip_list_item_id: "CLI000002",
+            status: "running",
+            created_at: "2026-05-02T10:05:00Z",
+            updated_at: "2026-05-02T10:12:00Z"
+          },
+          {
+            cut_job_id: "CJ20260502-0001",
+            clip_list_id: "CL20260502-0001",
+            clip_list_item_id: "CLI000001",
+            status: "failed",
+            error_message: "示例失败：源片段需要重新导出",
+            created_at: "2026-05-02T10:00:00Z",
+            updated_at: "2026-05-02T10:02:00Z"
+          }
+        ]
+      };
+    },
+    async runNextCutJob(): Promise<CutJob | null> {
+      return {
+        cut_job_id: "CJ20260502-0002",
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000002",
+        status: "done",
+        export_clip_id: "E000002",
+        output_file: "export-clips/E000002/E000002_现金流，是企业的血液.mp4",
+        created_at: "2026-05-02T10:05:00Z",
+        updated_at: "2026-05-02T10:16:00Z"
       };
     },
     resolveApiUrl(pathOrUrl: string) {

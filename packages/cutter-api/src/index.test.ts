@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -21,6 +21,19 @@ async function makeLibraryRoot(): Promise<string> {
 async function writeDummyVideo(filePath: string, bytes = "dummy-video-bytes"): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, bytes);
+}
+
+async function fileOrDirExists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 function segment(input: {
@@ -378,6 +391,181 @@ test("creates, lists, reads, and streams local clips", async () => {
     assert.equal(media.status, 206);
     assert.equal(media.headers.get("content-range"), "bytes 0-4/16");
     assert.equal(await media.text(), "local");
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("creates workspace-backed local exports without writing public-library local clips", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-workspace-"));
+  const cutOutputs: Array<{ output_path: string; begin_ms: number; end_ms: number }> = [];
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-02T10:00:00Z",
+    cut_runner: async (input) => {
+      cutOutputs.push({
+        output_path: input.output_path,
+        begin_ms: input.begin_ms,
+        end_ms: input.end_ms
+      });
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "workspace-clip-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const createResponse = await fetch(`${baseUrl}/cutter/local-clips`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_id: "V000001",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        pre_roll_ms: 250,
+        post_roll_ms: 400,
+        cut_mode: "copy"
+      })
+    });
+
+    assert.equal(createResponse.status, 201);
+    const created = await createResponse.json() as any;
+    assert.equal(created.data.local_clip_id, "E000001");
+    assert.equal(created.data.export_clip_id, "E000001");
+    assert.equal(created.data.source_video_id, "V000001");
+    assert.equal(created.data.begin_ms, 750);
+    assert.equal(created.data.end_ms, 4000);
+    assert.equal(created.data.media_url, "/cutter/local-clips/E000001/media");
+    assert.equal(cutOutputs.length, 1);
+    assert.equal(
+      await fileOrDirExists(path.join(workspaceRoot, "export-clips", "E000001", "export-clip.json")),
+      true
+    );
+    assert.equal(
+      await fileOrDirExists(path.join(libraryRoot, ".mixlab-library", "local-clips")),
+      false
+    );
+
+    const list = await (await fetch(`${baseUrl}/cutter/local-clips`)).json() as any;
+    assert.equal(list.data.local_clip_count, 1);
+    assert.equal(list.data.clips[0].local_clip_id, "E000001");
+
+    const detail = await (await fetch(`${baseUrl}/cutter/local-clips/E000001`)).json() as any;
+    assert.equal(detail.data.selected_text, "现金流，是企业的血液。");
+
+    const media = await fetch(`${baseUrl}/cutter/local-clips/E000001/media`, {
+      headers: {
+        Range: "bytes=0-8"
+      }
+    });
+    assert.equal(media.status, 206);
+    assert.equal(await media.text(), "workspace");
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("persists clip lists and runs queued workspace cut jobs", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-queue-"));
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-02T10:00:00Z",
+    cut_runner: async (input) => {
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "queued-clip-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        library_id: "lib_main_001",
+        title: "现金流清单",
+        items: [
+          {
+            source_video_id: "V000001",
+            source_title: "01_现金流.mp4",
+            source_relative_path: "source-videos/01_现金流.mp4",
+            start_segment_id: "V000001-S000001",
+            end_segment_id: "V000001-S000001",
+            begin_ms: 1000,
+            end_ms: 3600,
+            selected_text: "现金流，是企业的血液。",
+            cut_mode: "smart"
+          }
+        ]
+      })
+    });
+    assert.equal(clipListResponse.status, 201);
+    const clipList = await clipListResponse.json() as any;
+    assert.equal(clipList.data.clip_list_id, "CL20260502-0001");
+
+    const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        clip_list_id: "CL20260502-0001"
+      })
+    });
+    assert.equal(submitResponse.status, 201);
+    const submitted = await submitResponse.json() as any;
+    assert.equal(submitted.data.submitted_count, 1);
+    assert.equal(submitted.data.jobs[0].status, "pending");
+
+    const runResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
+      method: "POST"
+    });
+    assert.equal(runResponse.status, 200);
+    const run = await runResponse.json() as any;
+    assert.equal(run.data.status, "done");
+    assert.equal(run.data.export_clip_id, "E000001");
+
+    const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`)).json() as any;
+    assert.equal(jobs.data.job_count, 1);
+    assert.equal(jobs.data.jobs[0].status, "done");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

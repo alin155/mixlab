@@ -178,6 +178,127 @@ test("creates local clips through cutter API", async () => {
   assert.equal(clip.local_clip_id, "LC000001");
 });
 
+test("creates clip lists and manages workspace cut jobs through cutter API", async () => {
+  const requests: Array<{ url: string; method: string | undefined; body: unknown }> = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789/",
+    fetch: async (url, init) => {
+      requests.push({
+        url: String(url),
+        method: init?.method,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      if (String(url).endsWith("/cutter/clip-lists")) {
+        return makeJsonResponse(
+          {
+            schema_version: "1.0",
+            data: {
+              schema_version: "1.0",
+              clip_list_id: "CL20260502-0001",
+              library_id: "lib_main_001",
+              title: "现金流清单",
+              item_count: 1,
+              created_at: "2026-05-02T10:00:00Z",
+              updated_at: "2026-05-02T10:00:00Z",
+              items: []
+            }
+          },
+          { status: 201 }
+        );
+      }
+
+      if (String(url).endsWith("/cutter/cut-jobs/run-next")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            cut_job_id: "CJ20260502-0001",
+            clip_list_id: "CL20260502-0001",
+            status: "done",
+            export_clip_id: "E000001"
+          }
+        });
+      }
+
+      if (String(url).endsWith("/cutter/cut-jobs") && init?.method === "POST") {
+        return makeJsonResponse(
+          {
+            schema_version: "1.0",
+            data: {
+              submitted_count: 1,
+              jobs: [
+                {
+                  cut_job_id: "CJ20260502-0001",
+                  clip_list_id: "CL20260502-0001",
+                  status: "pending"
+                }
+              ]
+            }
+          },
+          { status: 201 }
+        );
+      }
+
+      if (String(url).endsWith("/cutter/cut-jobs")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            job_count: 1,
+            jobs: [
+              {
+                cut_job_id: "CJ20260502-0001",
+                clip_list_id: "CL20260502-0001",
+                status: "done"
+              }
+            ]
+          }
+        });
+      }
+
+      throw new Error(`unexpected request ${String(url)}`);
+    }
+  });
+
+  const item = {
+    source_video_id: "V000001",
+    source_title: "现金流",
+    source_relative_path: "source-videos/01_现金流.mp4",
+    start_segment_id: "V000001-S000001",
+    end_segment_id: "V000001-S000001",
+    begin_ms: 1000,
+    end_ms: 3600,
+    selected_text: "现金流，是企业的血液。",
+    cut_mode: "smart" as const
+  };
+
+  const clipList = await client.createClipList({
+    library_id: "lib_main_001",
+    title: "现金流清单",
+    items: [item]
+  });
+  const submission = await client.submitCutJobs({
+    clip_list_id: clipList.clip_list_id
+  });
+  const jobs = await client.listCutJobs();
+  const run = await client.runNextCutJob();
+
+  assert.equal(clipList.clip_list_id, "CL20260502-0001");
+  assert.equal(submission.submitted_count, 1);
+  assert.equal(jobs.jobs[0]?.status, "done");
+  assert.equal(run?.export_clip_id, "E000001");
+  assert.deepEqual(requests.map((request) => [request.url, request.method]), [
+    ["http://127.0.0.1:3789/cutter/clip-lists", "POST"],
+    ["http://127.0.0.1:3789/cutter/cut-jobs", "POST"],
+    ["http://127.0.0.1:3789/cutter/cut-jobs", undefined],
+    ["http://127.0.0.1:3789/cutter/cut-jobs/run-next", "POST"]
+  ]);
+  assert.deepEqual(requests[0]?.body, {
+    library_id: "lib_main_001",
+    title: "现金流清单",
+    items: [item]
+  });
+});
+
 test("throws readable API errors", async () => {
   const client = createCutterApiClient({
     base_url: "",

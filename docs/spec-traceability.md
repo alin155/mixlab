@@ -53,7 +53,7 @@ Hi-fi references:
 | LIB-002 | `06_公共素材库协议.md` | Each source video has stable `source_video_id`. | validated-core | Rescan tests preserve existing ids and add new ids deterministically. |
 | LIB-003 | `06_公共素材库协议.md`, `19_增量预处理与可见性规则.md` | Only `ready` videos are cutter visible/searchable. | validated-core | Tests prove unprocessed, processing, failed, and index-required videos are hidden. |
 | LIB-004 | `19_增量预处理与可见性规则.md` | Partially preprocessed library is usable; ready videos appear while later videos continue processing. | partial | M6 proves current SQLite index refresh sees newly ready videos without process restart; 10-video manual acceptance remains. |
-| LIB-005 | `07_数据模型与Manifest.md` | `library.json`, `source-video.json`, `transcript.json`, `keyframes.json`, `clip-list.json`, and `export-clip.json` match the schema. | partial | Manifest validators and fixture tests exist for every schema. |
+| LIB-005 | `07_数据模型与Manifest.md` | `library.json`, `source-video.json`, `transcript.json`, `keyframes.json`, `clip-list.json`, and `export-clip.json` match the schema. | partial | M7 adds tested cutter-local `clip-list.json` and `export-clip.json` writers; formal shared protocol validators for clip-list remain later cleanup. |
 | LIB-006 | `20_开发落地路线与技术护栏.md` | Ready publication is atomic and follows transcript/SRT/keyframes/cover/index validation before visibility. | validated-core | Ready publisher tests cover complete and incomplete artifacts. |
 | LIB-007 | `20_开发落地路线与技术护栏.md` | Versioned read-only index packages and `current.json` are used. | accepted | M6 publishes real SQLite transcript index packages and cutter search reads the current pointer. |
 | LIB-008 | `22_运行时依赖与ASR配置.md` | ASR uses DashScope temporary upload storage rather than local file paths. | validated-core | Tests and live spike use temporary upload and `oss://` submission. |
@@ -78,10 +78,10 @@ Hi-fi references:
 | CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | accepted | M4 public library page is gallery-first, ready-only, and shows admin-configured cover/tags/description. |
 | CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | partial | M4 UI and state tests prove continuous selection becomes one cut-list span; richer player interactions remain later polish. |
 | CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | accepted | M4 visual tests assert grouped layout; M6 SQLite/n-gram tests preserve grouped result shape and original text display. |
-| CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | partial | M4 local state and UI cover span/order/delete/clear/submit; production queue persistence belongs to M7. |
-| CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | partial | M4 queue page shows all states and non-blocking navigation; real FFmpeg execution belongs to M7. |
-| CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | M4 local-library UI is independent and traceable; native open/reveal/reuse execution belongs to Tauri/M7. |
-| CUTTER-008 | `11`, `07` | Every export writes `export-clip.json`. | not-started | Export fixture contains video and manifest with source traceability. |
+| CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | accepted | M7 persists `clip-list.json`, preserves source segment spans/order/cut mode, and exposes submit routes. |
+| CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | accepted | M7 persists pending/running/done/failed jobs and executes one pending job through the local runner boundary; search/source routes remain separate. |
+| CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | M7 stores reusable workspace exports with source traceability and media/detail APIs; native reveal/open and production local-library search polish remain later. |
+| CUTTER-008 | `11`, `07` | Every export writes `export-clip.json`. | accepted | M7 tests prove completed workspace cuts write output video plus `export-clip.json` with source traceability. |
 | CUTTER-009 | `22`, `21` | Settings show public mount path, local workspace, FFmpeg status, default cut mode, concurrency, Doctor entry. | partial | M4 settings UI shows all required fields and Doctor status; real connection/native path tests remain later. |
 
 ## Acceptance And Delivery
@@ -93,8 +93,8 @@ Hi-fi references:
 | ACC-003 | `14` | Cutter connection test. | not-started | library/transcript/source readable, local workspace writable, public library not written. |
 | ACC-004 | `14` | Incremental preprocessing visibility test with 10 videos. | partial | M6 automated current-index refresh test passes; full 10-video stage script remains. |
 | ACC-005 | `14` | Search and document test. | partial | M6 SQLite search returns grouped ready-only results with transcript anchors; full manual document-reader acceptance remains. |
-| ACC-006 | `14` | Selection and cutting test. | partial | Multi-sentence span exports as one local clip with manifest. |
-| ACC-007 | `14` | Export reuse test. | partial | Local clip can be found, opened, traced to source, and opened in folder. |
+| ACC-006 | `14` | Selection and cutting test. | partial | M7 automated tests prove a selected segment span exports as one workspace clip with manifest; manual desktop acceptance remains. |
+| ACC-007 | `14` | Export reuse test. | partial | M7 automated tests prove exported clips can be listed, read, streamed, and traced to source; native reveal/open remains Tauri work. |
 | ACC-008 | `14` | Windows test. | not-started | Drive letter, UNC, Chinese path, FFmpeg, export parity pass. |
 | ACC-009 | `14` | NAS final test. | not-started | SMB read-only public library and multi-user search/cut pass. |
 | DELIV-001 | `16_交付物清单.md` | Deliver admin app, cutter app, public library protocol, docs, tests, acceptance reports. | partial | `docs/acceptance/*` and packaged apps exist. |

@@ -105,6 +105,86 @@ export interface CreateLocalClipRequest {
   title?: string;
 }
 
+export type CutMode = "copy" | "smart" | "precise";
+
+export interface CutListItemInput {
+  source_video_id: string;
+  source_title: string;
+  source_relative_path: string;
+  start_segment_id: string;
+  end_segment_id: string;
+  begin_ms: number;
+  end_ms: number;
+  selected_text: string;
+  cut_mode: CutMode;
+  pre_roll_ms?: number;
+  post_roll_ms?: number;
+}
+
+export interface ClipListItem extends CutListItemInput {
+  item_id: string;
+  order: number;
+  pre_roll_ms: number;
+  post_roll_ms: number;
+}
+
+export interface ClipList {
+  schema_version: string;
+  clip_list_id: string;
+  library_id: string;
+  title: string;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+  items: ClipListItem[];
+}
+
+export interface CreateClipListRequest {
+  library_id: string;
+  title: string;
+  items: CutListItemInput[];
+}
+
+export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
+
+export interface CutJob {
+  cut_job_id: string;
+  clip_list_id: string;
+  clip_list_item_id?: string;
+  library_id?: string;
+  source_video_id?: string;
+  source_title?: string;
+  source_relative_path?: string;
+  start_segment_id?: string;
+  end_segment_id?: string;
+  begin_ms?: number;
+  end_ms?: number;
+  selected_text?: string;
+  cut_mode?: CutMode;
+  status: CutJobStatus;
+  created_at?: string;
+  updated_at?: string;
+  started_at?: string;
+  finished_at?: string;
+  error_message?: string;
+  export_clip_id?: string;
+  output_file?: string;
+}
+
+export interface CutJobSubmission {
+  submitted_count: number;
+  jobs: CutJob[];
+}
+
+export interface CutJobCatalog {
+  job_count: number;
+  jobs: CutJob[];
+}
+
+export interface SubmitCutJobsRequest {
+  clip_list_id: string;
+}
+
 export interface CutterApiClientInput {
   base_url: string;
   fetch?: typeof fetch;
@@ -129,6 +209,10 @@ export interface CutterApiClient {
   listLocalClips(): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
   createLocalClip(request: CreateLocalClipRequest): Promise<LocalClip>;
+  createClipList(request: CreateClipListRequest): Promise<ClipList>;
+  submitCutJobs(request: SubmitCutJobsRequest): Promise<CutJobSubmission>;
+  listCutJobs(): Promise<CutJobCatalog>;
+  runNextCutJob(): Promise<CutJob | null>;
   resolveApiUrl(pathOrUrl: string): string;
 }
 
@@ -226,6 +310,57 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
             cut_mode: request.cut_mode ?? "smart",
             ...(request.title ? { title: request.title } : {})
           })
+        }
+      );
+    },
+
+    createClipList(request: CreateClipListRequest) {
+      return requestEnvelope<ClipList>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/clip-lists"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            library_id: request.library_id,
+            title: request.title,
+            items: request.items
+          })
+        }
+      );
+    },
+
+    submitCutJobs(request: SubmitCutJobsRequest) {
+      return requestEnvelope<CutJobSubmission>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/cut-jobs"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            clip_list_id: request.clip_list_id
+          })
+        }
+      );
+    },
+
+    listCutJobs() {
+      return requestEnvelope<CutJobCatalog>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/cut-jobs")
+      );
+    },
+
+    runNextCutJob() {
+      return requestEnvelope<CutJob | null>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/cut-jobs/run-next"),
+        {
+          method: "POST"
         }
       );
     },
