@@ -7,7 +7,13 @@ import type { AdminDashboardData } from "../../api.ts";
 import { redactConfiguredSecret } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader } from "../shared.tsx";
 
-export function SettingsPage({ data }: { data: AdminDashboardData }) {
+export function SettingsPage({
+  data,
+  onTestAsrConfig
+}: {
+  data: AdminDashboardData;
+  onTestAsrConfig?: () => void;
+}) {
   const [audioMode, setAudioMode] = useState(data.runtime.asr.audio_mode);
 
   return (
@@ -61,7 +67,7 @@ export function SettingsPage({ data }: { data: AdminDashboardData }) {
         </p>
         <section className="admin-action-stack">
           <AdminControlButton label="保存运行策略" state="m9b-api" reason="M9B 接入配置保存或环境提示。" variant="primary" />
-          <AdminControlButton label="测试 ASR 配置" state="m9b-api" reason="M9B 接入 ASR 配置检测。" />
+          <AdminControlButton label="测试 ASR 配置" state="m9b-api" reason="M9B 接入 ASR 配置检测。" onClick={onTestAsrConfig} />
           <AdminControlButton label="编辑 API Key" state="native-boundary" reason="密钥只通过 .env.local 或部署环境变量配置。" />
         </section>
       </InspectorPanel>

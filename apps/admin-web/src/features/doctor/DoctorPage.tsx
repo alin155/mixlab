@@ -7,14 +7,22 @@ import type { AdminDashboardData } from "../../api.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader, MetricBand } from "../shared.tsx";
 
-export function DoctorPage({ data }: { data: AdminDashboardData }) {
+export function DoctorPage({
+  data,
+  onRunDoctor,
+  onExportDoctor
+}: {
+  data: AdminDashboardData;
+  onRunDoctor?: () => void;
+  onExportDoctor?: () => void;
+}) {
   return (
     <>
       <div className="admin-main-column">
         <AdminPageHeader
           title="健康诊断"
           eyebrow="诊断系统问题"
-          action={<AdminControlButton label="重新运行 Doctor" state="m9b-api" reason="M9B 接入 Doctor 运行接口。" variant="primary" />}
+          action={<AdminControlButton label="重新运行 Doctor" state="m9b-api" reason="M9B 接入 Doctor 运行接口。" variant="primary" onClick={onRunDoctor} />}
         />
         <MetricBand
           items={[
@@ -51,7 +59,7 @@ export function DoctorPage({ data }: { data: AdminDashboardData }) {
             }
           ]}
         />
-        <AdminControlButton label="导出诊断 JSON" state="m9b-api" reason="M9B 接入报告导出。" variant="primary" />
+        <AdminControlButton label="导出诊断 JSON" state="m9b-api" reason="M9B 接入报告导出。" variant="primary" onClick={onExportDoctor} />
       </InspectorPanel>
     </>
   );

@@ -173,12 +173,31 @@ test("shared admin UI primitives expose control states and empty state language"
   assert.match(html, /对剪辑师可见/);
 });
 
-test("M9A UI shell does not orchestrate Admin API mutations", () => {
+test("M9B UI shell orchestrates Admin API mutations without duplicating toolbar actions", () => {
   const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
 
-  assert.equal(source.includes("runAction("), false);
-  assert.equal(source.includes("onInitializeLibrary"), false);
-  assert.equal(source.includes("updateSourceVideoMetadata"), false);
+  assert.equal(source.includes("runAction("), true);
+  assert.equal(source.includes("onInitializeLibrary"), true);
+  assert.equal(source.includes("updateSourceVideoMetadata"), true);
   assert.equal(source.includes('actions={["扫描源视频", "处理", "Doctor"]}'), false);
   assert.equal(source.includes("actions={[]}"), true);
+});
+
+test("api-backed page controls become enabled when handlers are supplied", async () => {
+  const data = await fixtureData();
+  const noop = () => {};
+  const html = renderToStaticMarkup(
+    h(SourceVideosPage, {
+      data,
+      onScanSourceVideos: noop,
+      onQueueUnprocessedVideos: noop,
+      onRetryFailedVideos: noop,
+      onUpdateSourceVideoMetadata: noop
+    })
+  );
+
+  assert.match(html, /data-control-state="m9b-api"/);
+  assert.match(html, /保存公开说明/);
+  assert.doesNotMatch(html, /保存公开说明[^<]*<\/button>.*disabled/s);
+  assert.match(html, /data-control-state="read-only" disabled=""/);
 });

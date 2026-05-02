@@ -7,7 +7,17 @@ import type { AdminDashboardData } from "../../api.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader } from "../shared.tsx";
 
-export function LibrarySettingsPage({ data }: { data: AdminDashboardData }) {
+export function LibrarySettingsPage({
+  data,
+  onInitializeLibrary,
+  onScanSourceVideos,
+  onExportDoctor
+}: {
+  data: AdminDashboardData;
+  onInitializeLibrary?: () => void;
+  onScanSourceVideos?: () => void;
+  onExportDoctor?: () => void;
+}) {
   return (
     <>
       <div className="admin-main-column">
@@ -27,10 +37,10 @@ export function LibrarySettingsPage({ data }: { data: AdminDashboardData }) {
           ]}
         />
         <section className="admin-action-row">
-          <AdminControlButton label="初始化素材库" state="m9b-api" reason="M9B 接入初始化接口。" variant="primary" />
-          <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" />
+          <AdminControlButton label="初始化素材库" state="m9b-api" reason="M9B 接入初始化接口。" variant="primary" onClick={onInitializeLibrary} />
+          <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" onClick={onScanSourceVideos} />
           <AdminControlButton label="打开文件夹" state="native-boundary" reason="浏览器不能直接唤起本机 Finder。" />
-          <AdminControlButton label="导出诊断" state="m9b-api" reason="M9B 接入 Doctor JSON 导出。" />
+          <AdminControlButton label="导出诊断" state="m9b-api" reason="M9B 接入 Doctor JSON 导出。" onClick={onExportDoctor} />
         </section>
       </div>
       <InspectorPanel title="路径校验">

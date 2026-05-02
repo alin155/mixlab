@@ -4,12 +4,13 @@ import {
   SourceTable,
   StatusRow
 } from "@mixlab/ui-foundation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   AdminDashboardData,
   AdminIndexVersion,
   AdminPreprocessJob,
-  AdminSourceVideo
+  AdminSourceVideo,
+  AdminSourceVideoMetadataUpdate
 } from "../api.ts";
 import {
   adminStatusTone,
@@ -51,7 +52,7 @@ export function AdminControlButton({
   variant?: "primary" | "secondary";
   onClick?: () => void;
 }) {
-  const disabled = state !== "local" || !onClick;
+  const disabled = state === "native-boundary" || state === "read-only" || !onClick;
 
   return (
     <button
@@ -142,34 +143,56 @@ export function SourceVideoTable({
   );
 }
 
-export function SourceMetadataInspector({ video }: { video: AdminSourceVideo }) {
+export function SourceMetadataInspector({
+  video,
+  onSave
+}: {
+  video: AdminSourceVideo;
+  onSave?: (metadata: AdminSourceVideoMetadataUpdate) => void;
+}) {
+  const [title, setTitle] = useState(video.title);
+  const [tags, setTags] = useState(video.tags.join(", "));
+  const [description, setDescription] = useState(video.description);
+  const [lecturer, setLecturer] = useState(video.lecturer);
+  const [course, setCourse] = useState(video.course);
+  const [category, setCategory] = useState(video.category);
+
+  useEffect(() => {
+    setTitle(video.title);
+    setTags(video.tags.join(", "));
+    setDescription(video.description);
+    setLecturer(video.lecturer);
+    setCourse(video.course);
+    setCategory(video.category);
+  }, [video]);
+
   return (
     <InspectorPanel title={video.source_video_id}>
       <img className="admin-inspector-cover" src={video.cover_url} alt="" />
       <div className="admin-edit-form" aria-label="公开元数据预览">
         <label>
           <span>标题</span>
-          <input value={video.title} readOnly />
+          <input value={title} onChange={(event) => setTitle(event.currentTarget.value)} />
         </label>
         <label>
           <span>标签</span>
-          <input value={video.tags.join(", ")} readOnly />
+          <input value={tags} onChange={(event) => setTags(event.currentTarget.value)} />
         </label>
         <label>
           <span>说明</span>
-          <textarea value={video.description} readOnly />
+          <textarea value={description} onChange={(event) => setDescription(event.currentTarget.value)} />
         </label>
         <label>
           <span>讲师</span>
-          <input value={video.lecturer} readOnly />
+          <input value={lecturer} onChange={(event) => setLecturer(event.currentTarget.value)} />
         </label>
         <label>
           <span>课程</span>
-          <input value={video.course} readOnly />
+          <input value={course} onChange={(event) => setCourse(event.currentTarget.value)} />
         </label>
         <label>
           <span>分类</span>
-          <input value={video.category} readOnly />
+          <input value={category} onChange={(event) => setCategory(event.currentTarget.value)} />
         </label>
       </div>
       <GroupedForm
@@ -197,12 +220,28 @@ export function SourceMetadataInspector({ video }: { video: AdminSourceVideo }) 
         state="m9b-api"
         reason="M9B 接入 metadata 保存接口。"
         variant="primary"
+        onClick={() =>
+          onSave?.({
+            title,
+            tags: tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean),
+            description,
+            lecturer,
+            course,
+            category
+          })
+        }
       />
     </InspectorPanel>
   );
 }
 
-export function JobRows({ jobs }: { jobs: AdminPreprocessJob[] }) {
+export function JobRows({
+  jobs,
+  onRetryFailed
+}: {
+  jobs: AdminPreprocessJob[];
+  onRetryFailed?: () => void;
+}) {
   return (
     <section className="admin-list-panel">
       {jobs.map((job) => (
@@ -217,6 +256,7 @@ export function JobRows({ jobs }: { jobs: AdminPreprocessJob[] }) {
                   label="重试失败"
                   state="m9b-api"
                   reason="M9B 接入失败重试接口。"
+                  onClick={onRetryFailed}
                 />
               )
               : `${job.progress}%`

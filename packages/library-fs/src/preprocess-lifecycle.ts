@@ -255,7 +255,9 @@ export async function claimNextPreprocessJob(
   input: ClaimNextPreprocessJobInput
 ): Promise<PreprocessJobSummary | null> {
   const manifests = await readAllSourceVideoManifests(input.library_root);
-  const manifest = manifests.find((candidate) => candidate.preprocess_status === "unprocessed");
+  const manifest =
+    manifests.find((candidate) => candidate.preprocess_status === "queued") ??
+    manifests.find((candidate) => candidate.preprocess_status === "unprocessed");
 
   if (!manifest) {
     return null;

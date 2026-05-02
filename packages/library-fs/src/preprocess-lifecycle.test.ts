@@ -84,6 +84,37 @@ test("claims unprocessed source videos as invisible processing jobs", async () =
   assert.equal(job.attempt, 1);
 });
 
+test("claims queued source videos before unprocessed source videos", async () => {
+  const libraryRoot = await makeScannedLibrary();
+  const queuedManifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000002",
+    "source-video.json"
+  );
+  const queuedManifest = await readJson<Record<string, unknown>>(queuedManifestPath);
+
+  await writeFile(
+    queuedManifestPath,
+    `${JSON.stringify({ ...queuedManifest, preprocess_status: "queued" }, null, 2)}\n`
+  );
+
+  const job = await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-01T00:01:00Z"
+  });
+  const firstManifest = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
+  );
+  const secondManifest = await readJson<Record<string, unknown>>(queuedManifestPath);
+
+  assert.equal(job?.source_video_id, "V000002");
+  assert.equal(firstManifest.preprocess_status, "unprocessed");
+  assert.equal(secondManifest.preprocess_status, "processing");
+});
+
 test("completed preprocessing becomes index-required and remains hidden from cutters", async () => {
   const libraryRoot = await makeScannedLibrary();
 

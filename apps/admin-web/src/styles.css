@@ -36,7 +36,7 @@ h2 {
 
 .admin-workspace {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-width: 0;
 }
 
@@ -139,6 +139,20 @@ h2 {
   flex-wrap: wrap;
   gap: var(--ml-space-2);
   align-items: center;
+}
+
+.admin-action-notice {
+  min-height: 34px;
+  border-bottom: 1px solid var(--ml-color-separator);
+  padding: 9px var(--ml-space-5);
+  color: #0758b8;
+  background: #eef6ff;
+  font-size: 12px;
+}
+
+.admin-action-notice.is-error {
+  color: var(--ml-color-failed);
+  background: #fff1f0;
 }
 
 .admin-action-stack {

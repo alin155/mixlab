@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import type { AdminDashboardData, AdminPreprocessStatus } from "../../api.ts";
+import type {
+  AdminDashboardData,
+  AdminPreprocessStatus,
+  AdminSourceVideoMetadataUpdate
+} from "../../api.ts";
 import {
   AdminControlButton,
   AdminPageHeader,
@@ -18,7 +22,22 @@ const statusOptions: Array<{ label: string; value: AdminPreprocessStatus | "all"
   { label: "Index Required", value: "index-required" }
 ];
 
-export function SourceVideosPage({ data }: { data: AdminDashboardData }) {
+export function SourceVideosPage({
+  data,
+  onScanSourceVideos,
+  onQueueUnprocessedVideos,
+  onRetryFailedVideos,
+  onUpdateSourceVideoMetadata
+}: {
+  data: AdminDashboardData;
+  onScanSourceVideos?: () => void;
+  onQueueUnprocessedVideos?: () => void;
+  onRetryFailedVideos?: () => void;
+  onUpdateSourceVideoMetadata?: (
+    sourceVideoId: string,
+    metadata: AdminSourceVideoMetadataUpdate
+  ) => void;
+}) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState(
@@ -81,9 +100,9 @@ export function SourceVideosPage({ data }: { data: AdminDashboardData }) {
               <option value={option.value} key={option.value}>{option.label}</option>
             ))}
           </select>
-          <AdminControlButton label="扫描新增视频" state="m9b-api" reason="M9B 接入扫描接口。" variant="primary" />
-          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" />
-          <AdminControlButton label="重试失败视频" state="m9b-api" reason="M9B 接入失败重试接口。" />
+          <AdminControlButton label="扫描新增视频" state="m9b-api" reason="M9B 接入扫描接口。" variant="primary" onClick={onScanSourceVideos} />
+          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" onClick={onQueueUnprocessedVideos} />
+          <AdminControlButton label="重试失败视频" state="m9b-api" reason="M9B 接入失败重试接口。" onClick={onRetryFailedVideos} />
           <AdminControlButton label="查看 Manifest" state="read-only" reason="M9A 只呈现入口，JSON 查看器另行实现。" />
         </section>
         {filteredVideos.length ? (
@@ -96,7 +115,12 @@ export function SourceVideosPage({ data }: { data: AdminDashboardData }) {
           <EmptyState title="没有匹配的原视频" detail="请调整搜索词或状态筛选。" />
         )}
       </div>
-      {selected ? <SourceMetadataInspector video={selected} /> : null}
+      {selected ? (
+        <SourceMetadataInspector
+          video={selected}
+          onSave={(metadata) => onUpdateSourceVideoMetadata?.(selected.source_video_id, metadata)}
+        />
+      ) : null}
     </>
   );
 }

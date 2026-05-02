@@ -43,6 +43,17 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.listIndexVersions();
   await client.getDoctorReport();
   await client.getRuntimeSettings();
+  await client.initializeLibrary();
+  await client.scanSourceVideos();
+  await client.queueUnprocessedVideos();
+  await client.retryFailedVideos();
+  await client.repairIndex();
+  await client.runDoctor();
+  await client.testAsrConfig();
+  await client.updateSourceVideoMetadata("V000001", {
+    title: "现金流",
+    tags: ["财务"]
+  });
 
   assert.deepEqual(
     requested.map((url) => new URL(url).pathname),
@@ -52,7 +63,15 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/preprocess/jobs",
       "/api/admin/index/versions",
       "/api/admin/doctor/report",
-      "/api/admin/settings/runtime"
+      "/api/admin/settings/runtime",
+      "/api/admin/library/init",
+      "/api/admin/library/scan",
+      "/api/admin/preprocess/queue-unprocessed",
+      "/api/admin/preprocess/retry-failed",
+      "/api/admin/index/repair",
+      "/api/admin/doctor/run",
+      "/api/admin/settings/test-asr",
+      "/api/admin/source-videos/V000001/metadata"
     ]
   );
 });
@@ -82,4 +101,29 @@ test("fixture runtime settings redact DashScope key values", async () => {
 
   assert.equal(settings.asr.dashscope_api_key_configured, true);
   assert.equal(asJson.includes("sk-"), false);
+});
+
+test("fixture admin actions mutate queue, index, and metadata state", async () => {
+  const client = createFixtureAdminApiClient();
+
+  const queued = await client.queueUnprocessedVideos();
+  assert.equal(queued.affected_count, 1);
+
+  const retried = await client.retryFailedVideos();
+  assert.equal(retried.affected_count, 1);
+
+  const repaired = await client.repairIndex();
+  assert.equal(repaired.affected_count, 1);
+
+  const metadata = await client.updateSourceVideoMetadata("P000042", {
+    title: "现金流管理更新",
+    tags: ["现金流", "风险"],
+    description: "已更新说明"
+  });
+  assert.equal(metadata.title, "现金流管理更新");
+  assert.deepEqual(metadata.tags, ["现金流", "风险"]);
+
+  const data = await loadAdminDashboardData(client);
+  assert.equal(data.source_videos.some((video) => video.preprocess_status === "failed"), false);
+  assert.equal(data.source_videos.some((video) => video.preprocess_status === "index-required"), false);
 });

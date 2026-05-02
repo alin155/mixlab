@@ -134,6 +134,25 @@ export interface AdminRuntimeSettings {
   };
 }
 
+export interface AdminActionResult {
+  affected_count?: number;
+  source_video_ids?: string[];
+  new_video_count?: number;
+  existing_video_count?: number;
+  published_source_video_ids?: string[];
+  passed?: boolean;
+  message?: string;
+}
+
+export interface AdminSourceVideoMetadataUpdate {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  lecturer?: string;
+  course?: string;
+  category?: string;
+}
+
 export interface AdminDashboardData {
   status: AdminLibraryStatus;
   path_checks: AdminPathCheck[];
@@ -152,6 +171,17 @@ export interface AdminApiClient {
   listIndexVersions(): Promise<AdminIndexVersionsResponse>;
   getDoctorReport(): Promise<MixlabDoctorReport>;
   getRuntimeSettings(): Promise<AdminRuntimeSettings>;
+  initializeLibrary(): Promise<AdminActionResult>;
+  scanSourceVideos(): Promise<AdminActionResult>;
+  queueUnprocessedVideos(): Promise<AdminActionResult>;
+  retryFailedVideos(): Promise<AdminActionResult>;
+  repairIndex(): Promise<AdminActionResult>;
+  runDoctor(): Promise<MixlabDoctorReport>;
+  testAsrConfig(): Promise<AdminActionResult>;
+  updateSourceVideoMetadata(
+    sourceVideoId: string,
+    metadata: AdminSourceVideoMetadataUpdate
+  ): Promise<AdminSourceVideo>;
 }
 
 export interface CreateAdminApiClientInput {
@@ -181,6 +211,24 @@ async function getJson<T>(
   return unwrapAdminResponse(envelope);
 }
 
+async function sendJson<T>(
+  fetchImpl: typeof fetch,
+  baseUrl: string,
+  endpoint: string,
+  method: "POST" | "PATCH",
+  body?: unknown
+): Promise<T> {
+  const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const envelope = (await response.json()) as AdminApiEnvelope<T>;
+  return unwrapAdminResponse(envelope);
+}
+
 export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApiClient {
   const fetchImpl = input.fetch ?? fetch;
 
@@ -198,7 +246,29 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
     getDoctorReport: () =>
       getJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/report"),
     getRuntimeSettings: () =>
-      getJson<AdminRuntimeSettings>(fetchImpl, input.base_url, "/api/admin/settings/runtime")
+      getJson<AdminRuntimeSettings>(fetchImpl, input.base_url, "/api/admin/settings/runtime"),
+    initializeLibrary: () =>
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/init", "POST"),
+    scanSourceVideos: () =>
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/scan", "POST"),
+    queueUnprocessedVideos: () =>
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/queue-unprocessed", "POST"),
+    retryFailedVideos: () =>
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/retry-failed", "POST"),
+    repairIndex: () =>
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/index/repair", "POST"),
+    runDoctor: () =>
+      sendJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/run", "POST"),
+    testAsrConfig: () =>
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/settings/test-asr", "POST"),
+    updateSourceVideoMetadata: (sourceVideoId, metadata) =>
+      sendJson<AdminSourceVideo>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/source-videos/${sourceVideoId}/metadata`,
+        "PATCH",
+        metadata
+      )
   };
 }
 
@@ -343,6 +413,23 @@ const sourceVideos: AdminSourceVideo[] = [
     error_stage: "asr",
     error_message: "DashScope ASR 网络超时",
     updated_at: "2024-05-07 10:12:51"
+  },
+  {
+    source_video_id: "P000044",
+    title: "人工智能商业落地",
+    file_name: "人工智能商业落地.mp4",
+    relative_path: "source-videos/2024/05/人工智能商业落地.mp4",
+    cover_url: cover("P44", "95b9a8"),
+    duration_ms: 0,
+    file_size: 1_920_000_000,
+    preprocess_status: "unprocessed",
+    visible_to_cutters: false,
+    tags: ["AI", "商业"],
+    description: "新扫描素材，尚未预处理。",
+    lecturer: "王然",
+    course: "AI 商业化",
+    category: "公开课",
+    updated_at: "2024-05-07 10:27:03"
   }
 ];
 
@@ -526,14 +613,190 @@ const runtime: AdminRuntimeSettings = {
 };
 
 export function createFixtureAdminApiClient(): AdminApiClient {
+  let fixtureStatus: AdminLibraryStatus = { ...status };
+  let fixturePathChecks: AdminPathCheck[] = pathChecks.map((item) => ({ ...item }));
+  let fixtureSourceVideos: AdminSourceVideo[] = sourceVideos.map((video) => ({
+    ...video,
+    tags: [...video.tags]
+  }));
+  let fixtureJobs: AdminPreprocessJobsResponse = {
+    ...jobs,
+    jobs: jobs.jobs.map((job) => ({ ...job }))
+  };
+  let fixtureIndexes: AdminIndexVersionsResponse = {
+    ...indexes,
+    versions: indexes.versions.map((version) => ({ ...version }))
+  };
+  let fixtureDoctor: MixlabDoctorReport = {
+    ...doctor,
+    summary: { ...doctor.summary },
+    checks: doctor.checks.map((check) => ({ ...check }))
+  };
+
+  function recount(): void {
+    fixtureStatus = {
+      ...fixtureStatus,
+      ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
+      processing_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "processing").length,
+      queued_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "queued").length,
+      unprocessed_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "unprocessed").length,
+      failed_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "failed").length,
+      index_required_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "index-required").length
+    };
+  }
+
+  function queueVideos(statuses: AdminPreprocessStatus[], message: string): AdminActionResult {
+    const affected = fixtureSourceVideos.filter((video) => statuses.includes(video.preprocess_status));
+
+    fixtureSourceVideos = fixtureSourceVideos.map((video) =>
+      statuses.includes(video.preprocess_status)
+        ? {
+            ...video,
+            preprocess_status: "queued",
+            visible_to_cutters: false,
+            error_stage: undefined,
+            error_message: undefined,
+            updated_at: "2024-05-07 10:30:00"
+          }
+        : video
+    );
+
+    for (const video of affected) {
+      const jobId = `J${video.source_video_id.slice(1)}`;
+      const existing = fixtureJobs.jobs.find((job) => job.job_id === jobId);
+      const nextJob: AdminPreprocessJob = {
+        job_id: jobId,
+        source_video_id: video.source_video_id,
+        title: video.title,
+        status: "queued",
+        stage: "extract-audio",
+        progress: 0,
+        elapsed_ms: 0,
+        log_path: `.mixlab-library/logs/${video.source_video_id}.log`,
+        retryable: false
+      };
+
+      fixtureJobs = {
+        ...fixtureJobs,
+        jobs: existing
+          ? fixtureJobs.jobs.map((job) => job.job_id === jobId ? nextJob : job)
+          : [nextJob, ...fixtureJobs.jobs]
+      };
+    }
+
+    recount();
+    return {
+      affected_count: affected.length,
+      source_video_ids: affected.map((video) => video.source_video_id),
+      message
+    };
+  }
+
   return {
-    getLibraryStatus: async () => status,
-    getPathChecks: async () => pathChecks,
-    listSourceVideos: async () => sourceVideos,
-    listPreprocessJobs: async () => jobs,
-    listIndexVersions: async () => indexes,
-    getDoctorReport: async () => doctor,
-    getRuntimeSettings: async () => runtime
+    getLibraryStatus: async () => ({ ...fixtureStatus }),
+    getPathChecks: async () => fixturePathChecks.map((item) => ({ ...item })),
+    listSourceVideos: async () => fixtureSourceVideos.map((video) => ({
+      ...video,
+      tags: [...video.tags]
+    })),
+    listPreprocessJobs: async () => ({
+      ...fixtureJobs,
+      jobs: fixtureJobs.jobs.map((job) => ({ ...job }))
+    }),
+    listIndexVersions: async () => ({
+      ...fixtureIndexes,
+      versions: fixtureIndexes.versions.map((version) => ({ ...version }))
+    }),
+    getDoctorReport: async () => ({
+      ...fixtureDoctor,
+      summary: { ...fixtureDoctor.summary },
+      checks: fixtureDoctor.checks.map((check) => ({ ...check }))
+    }),
+    getRuntimeSettings: async () => runtime,
+    initializeLibrary: async () => ({
+      affected_count: 0,
+      message: "fixture 素材库已初始化"
+    }),
+    scanSourceVideos: async () => ({
+      new_video_count: 0,
+      existing_video_count: fixtureSourceVideos.length,
+      message: "fixture 扫描完成"
+    }),
+    queueUnprocessedVideos: async () =>
+      queueVideos(["unprocessed"], "已将未处理视频加入预处理队列"),
+    retryFailedVideos: async () =>
+      queueVideos(["failed"], "已将失败视频重新加入预处理队列"),
+    repairIndex: async () => {
+      const affected = fixtureSourceVideos.filter((video) => video.preprocess_status === "index-required");
+
+      fixtureSourceVideos = fixtureSourceVideos.map((video) =>
+        video.preprocess_status === "index-required"
+          ? {
+              ...video,
+              preprocess_status: "ready",
+              visible_to_cutters: true,
+              updated_at: "2024-05-07 10:31:00"
+            }
+          : video
+      );
+      fixtureIndexes = {
+        current_version: "v000028",
+        versions: [
+          {
+            index_version: "v000028",
+            created_at: "2024-05-07 10:31:00",
+            ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
+            schema_version: "1.0.0",
+            validation_status: "pass",
+            is_current: true,
+            published_by: "admin"
+          },
+          ...fixtureIndexes.versions.map((version) => ({ ...version, is_current: false }))
+        ]
+      };
+      fixtureStatus = {
+        ...fixtureStatus,
+        current_index_version: "v000028",
+        index_status: "ready"
+      };
+      recount();
+
+      return {
+        affected_count: affected.length,
+        published_source_video_ids: affected.map((video) => video.source_video_id),
+        message: "索引修复完成"
+      };
+    },
+    runDoctor: async () => fixtureDoctor,
+    testAsrConfig: async () => ({
+      passed: runtime.asr.dashscope_api_key_configured,
+      message: runtime.asr.dashscope_api_key_configured
+        ? "DashScope API Key 已配置，测试通过。"
+        : "DashScope API Key 未配置。"
+    }),
+    updateSourceVideoMetadata: async (sourceVideoId, metadata) => {
+      let updated: AdminSourceVideo | undefined;
+
+      fixtureSourceVideos = fixtureSourceVideos.map((video) => {
+        if (video.source_video_id !== sourceVideoId) {
+          return video;
+        }
+
+        updated = {
+          ...video,
+          ...metadata,
+          tags: metadata.tags ?? video.tags,
+          updated_at: "2024-05-07 10:32:00"
+        };
+        return updated;
+      });
+
+      if (!updated) {
+        throw new Error(`source video not found: ${sourceVideoId}`);
+      }
+
+      return updated;
+    }
   };
 }
 

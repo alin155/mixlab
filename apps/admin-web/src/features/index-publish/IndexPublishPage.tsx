@@ -5,7 +5,15 @@ import {
 import type { AdminDashboardData } from "../../api.ts";
 import { AdminControlButton, AdminPageHeader, IndexTable, MetricBand } from "../shared.tsx";
 
-export function IndexPublishPage({ data }: { data: AdminDashboardData }) {
+export function IndexPublishPage({
+  data,
+  onRepairIndex,
+  onRunDoctor
+}: {
+  data: AdminDashboardData;
+  onRepairIndex?: () => void;
+  onRunDoctor?: () => void;
+}) {
   const current = data.indexes.versions.find((version) => version.is_current);
 
   return (
@@ -23,8 +31,8 @@ export function IndexPublishPage({ data }: { data: AdminDashboardData }) {
           ]}
         />
         <section className="admin-action-row">
-          <AdminControlButton label="修复 index-required" state="m9b-api" reason="M9B 接入索引修复接口。" variant="primary" />
-          <AdminControlButton label="校验索引" state="m9b-api" reason="M9B 接入 Doctor/索引校验。" />
+          <AdminControlButton label="修复 index-required" state="m9b-api" reason="M9B 接入索引修复接口。" variant="primary" onClick={onRepairIndex} />
+          <AdminControlButton label="校验索引" state="m9b-api" reason="M9B 接入 Doctor/索引校验。" onClick={onRunDoctor} />
           <AdminControlButton label="原子切换 current" state="native-boundary" reason="手动切换 current 不作为 Web 常规操作暴露。" />
         </section>
         <IndexTable versions={data.indexes.versions} />

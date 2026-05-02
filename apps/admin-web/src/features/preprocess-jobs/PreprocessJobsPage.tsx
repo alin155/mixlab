@@ -5,7 +5,15 @@ import {
 import type { AdminDashboardData } from "../../api.ts";
 import { AdminControlButton, AdminPageHeader, JobRows, MetricBand } from "../shared.tsx";
 
-export function PreprocessJobsPage({ data }: { data: AdminDashboardData }) {
+export function PreprocessJobsPage({
+  data,
+  onQueueUnprocessedVideos,
+  onRetryFailedVideos
+}: {
+  data: AdminDashboardData;
+  onQueueUnprocessedVideos?: () => void;
+  onRetryFailedVideos?: () => void;
+}) {
   const running = data.jobs.jobs.filter((job) => job.status === "running");
   const queued = data.jobs.jobs.filter((job) => job.status === "queued");
   const done = data.jobs.jobs.filter((job) => job.status === "done");
@@ -19,8 +27,8 @@ export function PreprocessJobsPage({ data }: { data: AdminDashboardData }) {
           eyebrow="生产队列"
           action={
             <section className="admin-action-row" aria-label="队列操作">
-              <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" />
-              <AdminControlButton label="重试失败" state="m9b-api" reason="M9B 接入失败重试接口。" />
+              <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
+              <AdminControlButton label="重试失败" state="m9b-api" reason="M9B 接入失败重试接口。" onClick={onRetryFailedVideos} />
             </section>
           }
         />
@@ -47,7 +55,7 @@ export function PreprocessJobsPage({ data }: { data: AdminDashboardData }) {
           </div>
           <div>
             <h2>失败可重试</h2>
-            <JobRows jobs={failed} />
+            <JobRows jobs={failed} onRetryFailed={onRetryFailedVideos} />
           </div>
         </section>
       </div>
@@ -74,7 +82,7 @@ export function PreprocessJobsPage({ data }: { data: AdminDashboardData }) {
           ]}
         />
         <section className="admin-action-stack">
-          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" />
+          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" onClick={onQueueUnprocessedVideos} />
           <AdminControlButton label="启动 Worker" state="native-boundary" reason="长期 Worker 由服务端脚本或桌面壳托管。" />
         </section>
       </InspectorPanel>

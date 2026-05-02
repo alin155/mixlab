@@ -29,6 +29,7 @@
     "spike:preprocess-text-pipeline": "tsx scripts/spikes/preprocess-text-pipeline.ts",
     "worker:preprocess-library": "tsx scripts/workers/preprocess-library-worker.ts",
     "worker:publish-ready": "tsx scripts/workers/publish-ready-worker.ts",
+    "server:admin-api": "tsx scripts/servers/admin-api-server.ts",
     "server:cutter-api": "tsx scripts/servers/cutter-api-server.ts",
     "dev:admin-web": "npm run dev -w @mixlab/admin-web",
     "build:admin-web": "npm run build -w @mixlab/admin-web",
