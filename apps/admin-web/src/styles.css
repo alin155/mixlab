@@ -138,10 +138,55 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ml-space-2);
+  align-items: center;
+}
+
+.admin-action-stack {
+  display: grid;
+  gap: var(--ml-space-2);
+}
+
+.admin-metric-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: var(--ml-space-3);
+}
+
+.admin-metric-tile,
+.admin-empty-state {
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface);
+}
+
+.admin-metric-tile {
+  display: grid;
+  gap: 3px;
+  min-height: 84px;
+}
+
+.admin-metric-tile strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.admin-metric-tile span,
+.admin-empty-state strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.admin-metric-tile p,
+.admin-empty-state p {
+  color: var(--ml-color-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .admin-primary-button,
-.admin-secondary-button {
+.admin-secondary-button,
+.admin-select {
   min-height: 30px;
   border-radius: var(--ml-radius-control);
   padding: 0 12px;
@@ -161,6 +206,33 @@ h2 {
   background: var(--ml-color-control);
 }
 
+.admin-select {
+  border: 1px solid var(--ml-color-separator);
+  color: var(--ml-color-text);
+  background: var(--ml-color-control);
+}
+
+.admin-primary-button:disabled,
+.admin-secondary-button:disabled,
+.admin-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.admin-link-button {
+  border: 0;
+  padding: 0;
+  color: #0758b8;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.admin-link-button.is-selected {
+  color: var(--ml-color-accent);
+}
+
 .admin-table-cover {
   display: block;
   width: 72px;
@@ -177,6 +249,37 @@ h2 {
   border-radius: var(--ml-radius-panel);
   object-fit: cover;
   background: #dfe3ea;
+}
+
+.admin-edit-form {
+  display: grid;
+  gap: var(--ml-space-2);
+  margin-bottom: var(--ml-space-3);
+}
+
+.admin-edit-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--ml-color-text-secondary);
+  font-size: 11px;
+}
+
+.admin-edit-form input,
+.admin-edit-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: 7px 9px;
+  outline: 0;
+  color: var(--ml-color-text);
+  background: rgba(255, 255, 255, 0.84);
+  font-size: 12px;
+}
+
+.admin-edit-form textarea {
+  min-height: 76px;
+  resize: vertical;
 }
 
 .admin-job-groups {

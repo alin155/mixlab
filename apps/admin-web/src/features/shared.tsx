@@ -16,6 +16,7 @@ import {
   formatAdminDuration,
   formatAdminFileSize
 } from "../app/view-model.ts";
+import type { AdminControlState } from "./admin-ui-contract.ts";
 
 export function AdminPageHeader({
   title,
@@ -37,40 +38,104 @@ export function AdminPageHeader({
   );
 }
 
-export function CountStrip({ data }: { data: AdminDashboardData }) {
-  const counts = [
-    ["原视频总数", data.status.video_count, "全部原视频"],
-    ["Ready", data.status.ready_video_count, "对剪辑师可见"],
-    ["Processing", data.status.processing_video_count, "处理中"],
-    ["Queued", data.status.queued_video_count, "队列中"],
-    ["Unprocessed", data.status.unprocessed_video_count, "未处理"],
-    ["Failed", data.status.failed_video_count, "失败可重试"],
-    ["Index Required", data.status.index_required_video_count, "待发布索引"]
-  ];
+export function AdminControlButton({
+  label,
+  state,
+  reason,
+  variant = "secondary",
+  onClick
+}: {
+  label: string;
+  state: AdminControlState;
+  reason: string;
+  variant?: "primary" | "secondary";
+  onClick?: () => void;
+}) {
+  const disabled = state !== "local" || !onClick;
 
   return (
-    <section className="admin-count-strip" aria-label="素材库状态计数">
-      {counts.map(([label, value, caption]) => (
-        <article className="admin-count-tile" key={String(label)}>
-          <strong>{value}</strong>
-          <span>{label}</span>
-          <p>{caption}</p>
+    <button
+      className={variant === "primary" ? "admin-primary-button" : "admin-secondary-button"}
+      type="button"
+      data-control-state={state}
+      disabled={disabled}
+      title={reason}
+      onClick={disabled ? undefined : onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+export function MetricBand({
+  items
+}: {
+  items: Array<{ label: string; value: string | number; caption: string }>;
+}) {
+  return (
+    <section className="admin-metric-band" aria-label="核心指标">
+      {items.map((item) => (
+        <article className="admin-metric-tile" key={item.label}>
+          <strong>{item.value}</strong>
+          <span>{item.label}</span>
+          <p>{item.caption}</p>
         </article>
       ))}
     </section>
   );
 }
 
-export function SourceVideoTable({ videos }: { videos: AdminSourceVideo[] }) {
+export function EmptyState({ title, detail }: { title: string; detail: string }) {
+  return (
+    <section className="admin-empty-state">
+      <strong>{title}</strong>
+      <p>{detail}</p>
+    </section>
+  );
+}
+
+export function CountStrip({ data }: { data: AdminDashboardData }) {
+  return (
+    <MetricBand
+      items={[
+        { label: "原视频总数", value: data.status.video_count, caption: "全部原视频" },
+        { label: "Ready", value: data.status.ready_video_count, caption: "对剪辑师可见" },
+        { label: "Processing", value: data.status.processing_video_count, caption: "处理中" },
+        { label: "Queued", value: data.status.queued_video_count, caption: "队列中" },
+        { label: "Unprocessed", value: data.status.unprocessed_video_count, caption: "未处理" },
+        { label: "Failed", value: data.status.failed_video_count, caption: "失败可重试" },
+        { label: "Index Required", value: data.status.index_required_video_count, caption: "待发布索引" }
+      ]}
+    />
+  );
+}
+
+export function SourceVideoTable({
+  videos,
+  selectedSourceVideoId,
+  onSelect
+}: {
+  videos: AdminSourceVideo[];
+  selectedSourceVideoId?: string;
+  onSelect?: (sourceVideoId: string) => void;
+}) {
   return (
     <SourceTable
-      columns={["ID", "封面", "文件名", "状态", "对剪辑师可见", "更新时间"]}
+      columns={["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间"]}
       rows={videos.map((video) => [
-        video.source_video_id,
+        <button
+          className={`admin-link-button${video.source_video_id === selectedSourceVideoId ? " is-selected" : ""}`}
+          type="button"
+          onClick={() => onSelect?.(video.source_video_id)}
+          key={`${video.source_video_id}-select`}
+        >
+          {video.source_video_id}
+        </button>,
         <img className="admin-table-cover" src={video.cover_url} alt="" key={`${video.source_video_id}-cover`} />,
         video.file_name,
         video.preprocess_status,
         video.visible_to_cutters ? "是" : "否",
+        video.tags.join(" / "),
         video.updated_at
       ])}
     />
@@ -81,6 +146,32 @@ export function SourceMetadataInspector({ video }: { video: AdminSourceVideo }) 
   return (
     <InspectorPanel title={video.source_video_id}>
       <img className="admin-inspector-cover" src={video.cover_url} alt="" />
+      <div className="admin-edit-form" aria-label="公开元数据预览">
+        <label>
+          <span>标题</span>
+          <input value={video.title} readOnly />
+        </label>
+        <label>
+          <span>标签</span>
+          <input value={video.tags.join(", ")} readOnly />
+        </label>
+        <label>
+          <span>说明</span>
+          <textarea value={video.description} readOnly />
+        </label>
+        <label>
+          <span>讲师</span>
+          <input value={video.lecturer} readOnly />
+        </label>
+        <label>
+          <span>课程</span>
+          <input value={video.course} readOnly />
+        </label>
+        <label>
+          <span>分类</span>
+          <input value={video.category} readOnly />
+        </label>
+      </div>
       <GroupedForm
         groups={[
           {
@@ -98,7 +189,15 @@ export function SourceMetadataInspector({ video }: { video: AdminSourceVideo }) 
           }
         ]}
       />
-      <button className="admin-primary-button" type="button">保存公开说明</button>
+      {video.error_message ? (
+        <p className="admin-note">失败原因：{video.error_stage ?? "unknown"} · {video.error_message}</p>
+      ) : null}
+      <AdminControlButton
+        label="保存公开说明"
+        state="m9b-api"
+        reason="M9B 接入 metadata 保存接口。"
+        variant="primary"
+      />
     </InspectorPanel>
   );
 }
@@ -111,7 +210,17 @@ export function JobRows({ jobs }: { jobs: AdminPreprocessJob[] }) {
           tone={adminStatusTone(job.status)}
           label={job.job_id}
           detail={`${job.title} · ${job.stage} · ${job.log_path}${job.error_message ? ` · ${job.error_message}` : ""}`}
-          value={job.status === "failed" && job.retryable ? "重试" : `${job.progress}%`}
+          value={
+            job.status === "failed" && job.retryable
+              ? (
+                <AdminControlButton
+                  label="重试失败"
+                  state="m9b-api"
+                  reason="M9B 接入失败重试接口。"
+                />
+              )
+              : `${job.progress}%`
+          }
           key={job.job_id}
         />
       ))}
@@ -137,7 +246,9 @@ export function IndexTable({ versions }: { versions: AdminIndexVersion[] }) {
 
 export function DiskUsage({ data }: { data: AdminDashboardData }) {
   const used = data.status.disk_total_bytes - data.status.disk_available_bytes;
-  const percent = Math.round((used / data.status.disk_total_bytes) * 100);
+  const percent = data.status.disk_total_bytes > 0
+    ? Math.round((used / data.status.disk_total_bytes) * 100)
+    : 0;
 
   return (
     <section className="admin-disk">

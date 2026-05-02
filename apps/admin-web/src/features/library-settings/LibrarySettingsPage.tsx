@@ -5,13 +5,13 @@ import {
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
-import { AdminPageHeader } from "../shared.tsx";
+import { AdminControlButton, AdminPageHeader } from "../shared.tsx";
 
 export function LibrarySettingsPage({ data }: { data: AdminDashboardData }) {
   return (
     <>
       <div className="admin-main-column">
-        <AdminPageHeader title="公共素材库设置" eyebrow="路径、协议与权限" />
+        <AdminPageHeader title="公共素材库设置" eyebrow="路径与权限" />
         <GroupedForm
           groups={[
             {
@@ -27,9 +27,10 @@ export function LibrarySettingsPage({ data }: { data: AdminDashboardData }) {
           ]}
         />
         <section className="admin-action-row">
-          <button className="admin-primary-button" type="button">初始化素材库</button>
-          <button className="admin-secondary-button" type="button">打开文件夹</button>
-          <button className="admin-secondary-button" type="button">导出诊断</button>
+          <AdminControlButton label="初始化素材库" state="m9b-api" reason="M9B 接入初始化接口。" variant="primary" />
+          <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" />
+          <AdminControlButton label="打开文件夹" state="native-boundary" reason="浏览器不能直接唤起本机 Finder。" />
+          <AdminControlButton label="导出诊断" state="m9b-api" reason="M9B 接入 Doctor JSON 导出。" />
         </section>
       </div>
       <InspectorPanel title="路径校验">

@@ -1,13 +1,56 @@
-import type { AdminDashboardData } from "../../api.ts";
+import { useMemo, useState } from "react";
+import type { AdminDashboardData, AdminPreprocessStatus } from "../../api.ts";
 import {
+  AdminControlButton,
   AdminPageHeader,
+  EmptyState,
   SourceMetadataInspector,
   SourceVideoTable
 } from "../shared.tsx";
 
+const statusOptions: Array<{ label: string; value: AdminPreprocessStatus | "all" }> = [
+  { label: "全部状态", value: "all" },
+  { label: "Ready", value: "ready" },
+  { label: "Processing", value: "processing" },
+  { label: "Queued", value: "queued" },
+  { label: "Unprocessed", value: "unprocessed" },
+  { label: "Failed", value: "failed" },
+  { label: "Index Required", value: "index-required" }
+];
+
 export function SourceVideosPage({ data }: { data: AdminDashboardData }) {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
+  const [selectedSourceVideoId, setSelectedSourceVideoId] = useState(
+    data.source_videos.find((video) => video.source_video_id === "P000042")?.source_video_id ??
+    data.source_videos[0]?.source_video_id ??
+    ""
+  );
+
+  const filteredVideos = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return data.source_videos.filter((video) => {
+      const matchesStatus = statusFilter === "all" || video.preprocess_status === statusFilter;
+      const searchableText = [
+        video.source_video_id,
+        video.title,
+        video.file_name,
+        video.relative_path,
+        video.description,
+        video.lecturer,
+        video.course,
+        video.category,
+        ...video.tags
+      ].join(" ").toLowerCase();
+
+      return matchesStatus && (!normalizedQuery || searchableText.includes(normalizedQuery));
+    });
+  }, [data.source_videos, query, statusFilter]);
+
   const selected =
-    data.source_videos.find((video) => video.source_video_id === "P000042") ??
+    data.source_videos.find((video) => video.source_video_id === selectedSourceVideoId) ??
+    filteredVideos[0] ??
     data.source_videos[0];
 
   return (
@@ -15,16 +58,43 @@ export function SourceVideosPage({ data }: { data: AdminDashboardData }) {
       <div className="admin-main-column">
         <AdminPageHeader
           title="原视频管理"
-          eyebrow="封面、标签、说明和可见性由管理端配置"
-          action={<span className="ml-search">⌕<input readOnly value="" placeholder="搜索文件名 / 标签 / 相对路径" /></span>}
+          eyebrow="公共元数据"
+          action={
+            <span className="ml-search">
+              ⌕
+              <input
+                value={query}
+                placeholder="搜索文件名 / 标签 / 相对路径"
+                onChange={(event) => setQuery(event.currentTarget.value)}
+              />
+            </span>
+          }
         />
         <section className="admin-action-row">
-          <button className="admin-primary-button" type="button">扫描新增视频</button>
-          <button className="admin-secondary-button" type="button">重新扫描</button>
-          <button className="admin-secondary-button" type="button">重新处理选中视频</button>
-          <button className="admin-secondary-button" type="button">查看 Manifest</button>
+          <select
+            className="admin-select"
+            value={statusFilter}
+            aria-label="筛选预处理状态"
+            onChange={(event) => setStatusFilter(event.currentTarget.value as AdminPreprocessStatus | "all")}
+          >
+            {statusOptions.map((option) => (
+              <option value={option.value} key={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <AdminControlButton label="扫描新增视频" state="m9b-api" reason="M9B 接入扫描接口。" variant="primary" />
+          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" />
+          <AdminControlButton label="重试失败视频" state="m9b-api" reason="M9B 接入失败重试接口。" />
+          <AdminControlButton label="查看 Manifest" state="read-only" reason="M9A 只呈现入口，JSON 查看器另行实现。" />
         </section>
-        <SourceVideoTable videos={data.source_videos} />
+        {filteredVideos.length ? (
+          <SourceVideoTable
+            videos={filteredVideos}
+            selectedSourceVideoId={selected?.source_video_id}
+            onSelect={setSelectedSourceVideoId}
+          />
+        ) : (
+          <EmptyState title="没有匹配的原视频" detail="请调整搜索词或状态筛选。" />
+        )}
       </div>
       {selected ? <SourceMetadataInspector video={selected} /> : null}
     </>

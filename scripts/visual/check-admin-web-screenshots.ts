@@ -103,35 +103,41 @@ async function captureRoute(
   await assertNoSecret(page);
 
   if (route === "dashboard") {
+    await requireText(page, "全局风险和产能");
     await requireText(page, "Ready");
     await requireText(page, "Failed");
-    await requireText(page, "Index Required");
+    await requireText(page, "处理未处理");
+  }
+
+  if (route === "library-settings") {
+    await requireText(page, "路径与权限");
+    await requireText(page, "打开文件夹");
   }
 
   if (route === "source-videos") {
     await requireText(page, "公共元数据");
-    await requireText(page, "对剪辑师可见");
-    await requireText(page, "讲师");
+    await requireText(page, "保存公开说明");
   }
 
   if (route === "preprocess-jobs") {
-    await requireText(page, "失败可重试");
-    await requireText(page, "DashScope ASR 网络超时");
-    await requireText(page, "J000041");
+    await requireText(page, "生产队列");
+    await requireText(page, "启动 Worker");
   }
 
   if (route === "index-publish") {
-    await requireText(page, "current.json");
-    await requireText(page, "原子切换 current");
+    await requireText(page, "索引健康与修复");
+    await requireText(page, "修复 index-required");
   }
 
   if (route === "doctor") {
+    await requireText(page, "诊断系统问题");
     await requireText(page, "导出诊断 JSON");
   }
 
   if (route === "settings") {
-    await requireText(page, "已配置，已隐藏");
+    await requireText(page, "运行策略");
     await requireText(page, "DashScope 临时上传");
+    await requireText(page, "wav_16k_mono_pcm_s16le");
   }
 
   await page.screenshot({

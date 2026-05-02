@@ -5,13 +5,23 @@ import {
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
-import { AdminPageHeader, CountStrip, DiskUsage, JobSummaryForm } from "../shared.tsx";
+import { AdminControlButton, AdminPageHeader, CountStrip, DiskUsage, JobSummaryForm } from "../shared.tsx";
 
 export function DashboardPage({ data }: { data: AdminDashboardData }) {
   return (
     <>
       <div className="admin-main-column">
-        <AdminPageHeader title="仪表盘" eyebrow={data.status.name} />
+        <AdminPageHeader
+          title="仪表盘"
+          eyebrow="全局风险和产能"
+          action={
+            <section className="admin-action-row" aria-label="仪表盘操作">
+              <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" />
+              <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" variant="primary" />
+              <AdminControlButton label="Doctor" state="m9b-api" reason="M9B 接入 Doctor 运行接口。" />
+            </section>
+          }
+        />
         <CountStrip data={data} />
         <DiskUsage data={data} />
         <section className="admin-list-panel">
@@ -21,7 +31,11 @@ export function DashboardPage({ data }: { data: AdminDashboardData }) {
               tone={adminStatusTone(job.status)}
               label={job.source_video_id}
               detail={`${job.stage} · ${job.title}`}
-              value={job.status === "failed" && job.retryable ? "重试" : `${job.progress}%`}
+              value={
+                job.status === "failed" && job.retryable
+                  ? <AdminControlButton label="重试失败" state="m9b-api" reason="M9B 接入失败重试接口。" />
+                  : `${job.progress}%`
+              }
               key={job.job_id}
             />
           ))}

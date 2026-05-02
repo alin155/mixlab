@@ -5,13 +5,24 @@ import {
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
-import { AdminPageHeader } from "../shared.tsx";
+import { AdminControlButton, AdminPageHeader, MetricBand } from "../shared.tsx";
 
 export function DoctorPage({ data }: { data: AdminDashboardData }) {
   return (
     <>
       <div className="admin-main-column">
-        <AdminPageHeader title="健康诊断" eyebrow="Doctor 诊断报告可导出 JSON" />
+        <AdminPageHeader
+          title="健康诊断"
+          eyebrow="诊断系统问题"
+          action={<AdminControlButton label="重新运行 Doctor" state="m9b-api" reason="M9B 接入 Doctor 运行接口。" variant="primary" />}
+        />
+        <MetricBand
+          items={[
+            { label: "通过", value: data.doctor.summary.pass, caption: "检查通过" },
+            { label: "警告", value: data.doctor.summary.warn, caption: "需要关注" },
+            { label: "失败", value: data.doctor.summary.fail, caption: "需要处理" }
+          ]}
+        />
         <section className="admin-list-panel">
           {data.doctor.checks.map((item) => (
             <StatusRow
@@ -40,7 +51,7 @@ export function DoctorPage({ data }: { data: AdminDashboardData }) {
             }
           ]}
         />
-        <button className="admin-primary-button" type="button">导出诊断 JSON</button>
+        <AdminControlButton label="导出诊断 JSON" state="m9b-api" reason="M9B 接入报告导出。" variant="primary" />
       </InspectorPanel>
     </>
   );

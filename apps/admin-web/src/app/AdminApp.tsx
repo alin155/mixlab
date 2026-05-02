@@ -113,7 +113,7 @@ export function AdminApp() {
               title="MixLab V3 - 素材库管理端"
               libraryLabel={data?.status.root_path ?? "/Volumes/PublicLibrary"}
               healthLabel={data?.doctor.summary.fail ? "需处理" : "健康"}
-              actions={["扫描源视频", "处理", "Doctor"]}
+              actions={[]}
             />
             <section className="admin-content-split">
               {error ? (
