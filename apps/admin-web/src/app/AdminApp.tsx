@@ -81,6 +81,41 @@ interface SourceDetailRenderState {
   error: string;
 }
 
+export function sourceDetailRequestForRoute(
+  route: AdminRoute,
+  data: AdminDashboardData | null,
+  selectedSourceVideoId: string
+): { sourceVideoId: string } | null {
+  if (route !== "source-detail") {
+    return null;
+  }
+
+  const sourceVideoId = selectedSourceVideoId || data?.source_videos[0]?.source_video_id || "";
+  return sourceVideoId ? { sourceVideoId } : null;
+}
+
+export function sourceDetailLoadErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "原视频详情加载失败，请稍后重试。";
+  }
+
+  const message = error.message.toLowerCase();
+
+  if (message.includes("failed to fetch")) {
+    return "无法连接管理端服务，请检查网络或服务状态。";
+  }
+
+  if (message.includes("route not found")) {
+    return "原视频详情接口暂不可用，请稍后重试。";
+  }
+
+  if (message.includes("not_found")) {
+    return "原视频不存在或已被移除。";
+  }
+
+  return "原视频详情加载失败，请稍后重试。";
+}
+
 function isActionResult(value: unknown): value is AdminActionResult {
   return isRecord(value) && (
     "affected_count" in value ||
@@ -283,12 +318,13 @@ export function AdminApp() {
   }, [client, reloadToken]);
 
   useEffect(() => {
+    const request = sourceDetailRequestForRoute(route, data, selectedSourceVideoId);
+
     if (route !== "source-detail") {
       return;
     }
 
-    const sourceVideoId = selectedSourceVideoId || data?.source_videos[0]?.source_video_id || "";
-    if (!sourceVideoId) {
+    if (!request) {
       setSourceDetail(null);
       setSourceDetailLoading(false);
       setSourceDetailError("没有可查看的原视频");
@@ -299,7 +335,7 @@ export function AdminApp() {
     setSourceDetailLoading(true);
     setSourceDetailError("");
 
-    client.getSourceVideoDetail(sourceVideoId)
+    client.getSourceVideoDetail(request.sourceVideoId)
       .then((detail) => {
         if (!cancelled) {
           setSourceDetail(detail);
@@ -308,7 +344,7 @@ export function AdminApp() {
       .catch((loadError) => {
         if (!cancelled) {
           setSourceDetail(null);
-          setSourceDetailError(loadError instanceof Error ? loadError.message : "原视频详情加载失败");
+          setSourceDetailError(sourceDetailLoadErrorMessage(loadError));
         }
       })
       .finally(() => {

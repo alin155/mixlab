@@ -11,7 +11,11 @@ import {
   languageHintsLabel
 } from "./app/chinese.ts";
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
-import { AdminApp } from "./app/AdminApp.tsx";
+import {
+  AdminApp,
+  sourceDetailLoadErrorMessage,
+  sourceDetailRequestForRoute
+} from "./app/AdminApp.tsx";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx";
@@ -276,6 +280,46 @@ test("AdminApp source detail hash renders Chinese detail loading route", () => {
     globalThis.window = originalWindow;
     globalThis.document = originalDocument;
   }
+});
+
+test("source detail request helper resolves selected id, fallback id, and non-detail routes", async () => {
+  const data = await fixtureData();
+
+  assert.deepEqual(
+    sourceDetailRequestForRoute("source-detail", data, "V000042"),
+    { sourceVideoId: "V000042" }
+  );
+  assert.deepEqual(
+    sourceDetailRequestForRoute("source-detail", data, ""),
+    { sourceVideoId: "V000043" }
+  );
+  assert.equal(sourceDetailRequestForRoute("source-videos", data, "V000042"), null);
+  assert.equal(sourceDetailRequestForRoute("source-detail", null, ""), null);
+});
+
+test("source detail load errors are mapped to Chinese-safe messages", () => {
+  const cases = [
+    {
+      error: new Error("Failed to fetch"),
+      expected: "无法连接管理端服务，请检查网络或服务状态。"
+    },
+    {
+      error: new Error("Route not found"),
+      expected: "原视频详情接口暂不可用，请稍后重试。"
+    },
+    {
+      error: new Error("not_found: 原视频不存在"),
+      expected: "原视频不存在或已被移除。"
+    }
+  ];
+
+  for (const item of cases) {
+    const message = sourceDetailLoadErrorMessage(item.error);
+    assert.equal(message, item.expected);
+    assert.doesNotMatch(message, /Failed to fetch|Route not found|not_found/);
+  }
+
+  assert.equal(sourceDetailLoadErrorMessage("timeout"), "原视频详情加载失败，请稍后重试。");
 });
 
 test("preprocess jobs render failure retry and later success", async () => {
