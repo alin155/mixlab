@@ -206,16 +206,19 @@ function validate(settings: unknown): asserts settings is AdminSettings {
 }
 
 function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
-  let maxSuffix = 0;
+  let maxSuffix = 0n;
 
   for (const folder of sourceFolders) {
     const match = /^src_(\d+)$/.exec(folder.id);
     if (match) {
-      maxSuffix = Math.max(maxSuffix, Number.parseInt(match[1] ?? "0", 10));
+      const suffix = BigInt(match[1] ?? "0");
+      if (suffix > maxSuffix) {
+        maxSuffix = suffix;
+      }
     }
   }
 
-  return `src_${String(maxSuffix + 1).padStart(3, "0")}`;
+  return `src_${String(maxSuffix + 1n).padStart(3, "0")}`;
 }
 
 export async function readAdminSettings(libraryRoot: string): Promise<AdminSettings> {

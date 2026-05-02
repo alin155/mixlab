@@ -172,3 +172,31 @@ test("allocates source folder ids from the max numeric suffix", async () => {
 
   assert.equal(next.source_folders.at(-1)?.id, "src_1001");
 });
+
+test("allocates source folder ids without number precision collisions", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  await writeAdminSettings(root, {
+    ...current,
+    source_folders: [
+      current.source_folders[0]!,
+      {
+        id: "src_9007199254740992",
+        name: "超大编号素材",
+        path: "/Volumes/HugeIds",
+        enabled: true
+      }
+    ]
+  });
+
+  const next = await addAdminSourceFolder(root, {
+    name: "课程素材",
+    path: "/Volumes/CourseVideos",
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  assert.equal(next.source_folders.at(-1)?.id, "src_9007199254740993");
+});
