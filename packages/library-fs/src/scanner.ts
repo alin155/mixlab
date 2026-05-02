@@ -136,6 +136,10 @@ function numericSourceVideoId(sourceVideoId: string): number {
   return match ? Number.parseInt(match[1] ?? "0", 10) : 0;
 }
 
+function manifestSourceFolderId(manifest: SourceVideoManifest): string {
+  return manifest.source_folder_id ?? "src_default";
+}
+
 async function listVideoFiles(root: string, current = root): Promise<string[]> {
   const entries = (await readdir(current, { withFileTypes: true })).sort((left, right) => {
     if (left.isDirectory() !== right.isDirectory()) {
@@ -358,8 +362,7 @@ export async function scanSourceVideos(
 
   for (const manifest of existing.manifests) {
     if (
-      manifest.source_folder_id !== undefined &&
-      skippedFolderIds.has(manifest.source_folder_id) &&
+      skippedFolderIds.has(manifestSourceFolderId(manifest)) &&
       !includedSourceVideoIds.has(manifest.source_video_id)
     ) {
       manifests.push(manifest);

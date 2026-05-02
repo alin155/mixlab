@@ -353,6 +353,62 @@ test("preserves existing manifests from skipped missing source folders", async (
   assert.equal(settings.source_folders[1]?.new_unprocessed_count, 1);
 });
 
+test("preserves legacy default source manifests when source-videos is missing", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const manifestDir = path.join(libraryRoot, ".mixlab-library", "videos", "V000001");
+
+  await mkdir(manifestDir, { recursive: true });
+  await writeFile(
+    path.join(manifestDir, "source-video.json"),
+    `${JSON.stringify(
+      {
+        source_video_id: "V000001",
+        title: "legacy",
+        relative_path: "legacy.mp4",
+        logical_uri: "library://source-video/V000001",
+        duration_ms: 0,
+        width: 0,
+        height: 0,
+        fps: 0,
+        codec: "",
+        file_size: 12,
+        content_hash: "pending:size:12",
+        preprocess_status: "unprocessed",
+        visible_to_cutters: false,
+        transcript_path: "",
+        srt_path: "",
+        keyframes_path: "",
+        cover_path: ""
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  const result = await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+  const library = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "library.json")
+  );
+  const settings = await readAdminSettings(libraryRoot);
+
+  assert.deepEqual(result, {
+    total_video_count: 1,
+    new_video_count: 0,
+    existing_video_count: 1,
+    source_video_ids: ["V000001"]
+  });
+  assert.equal(library.video_count, 1);
+  assert.equal(library.unprocessed_video_count, 1);
+  assert.equal(settings.source_folders[0]?.last_scanned_at, "");
+  assert.equal(settings.source_folders[0]?.discovered_video_count, 0);
+});
+
 test("treats default source with trailing separator as unprefixed", async () => {
   const libraryRoot = await makeLibraryRoot();
   const settings = await readAdminSettings(libraryRoot);
