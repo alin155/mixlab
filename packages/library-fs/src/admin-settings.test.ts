@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,6 +13,10 @@ async function makeRoot(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "mixlab-admin-settings-"));
   await mkdir(path.join(root, "source-videos"), { recursive: true });
   return root;
+}
+
+function adminSettingsPath(root: string): string {
+  return path.join(root, ".mixlab-library", "admin-settings.json");
 }
 
 test("creates default admin settings with one default source folder", async () => {
@@ -56,4 +60,75 @@ test("rejects empty source folder names and paths", async () => {
     }),
     /素材来源名称和路径不能为空/
   );
+});
+
+test("throws a Chinese error for malformed persisted JSON", async () => {
+  const root = await makeRoot();
+  await mkdir(path.join(root, ".mixlab-library"), { recursive: true });
+  await writeFile(adminSettingsPath(root), "{ bad json", "utf8");
+
+  await assert.rejects(
+    () => readAdminSettings(root),
+    /管理员设置文件读取失败/
+  );
+});
+
+test("throws a Chinese error for invalid persisted settings shape", async () => {
+  const root = await makeRoot();
+  await mkdir(path.join(root, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    adminSettingsPath(root),
+    JSON.stringify({
+      schema_version: "2.0",
+      library_name: "",
+      source_folders: "bad"
+    }),
+    "utf8"
+  );
+
+  await assert.rejects(
+    () => readAdminSettings(root),
+    /管理员设置文件格式无效/
+  );
+});
+
+test("rejects blank artifact library paths", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+
+  await assert.rejects(
+    () => writeAdminSettings(root, {
+      ...current,
+      artifact_library: { ...current.artifact_library, path: " " }
+    }),
+    /预处理产物库路径不能为空/
+  );
+});
+
+test("allocates source folder ids from the max numeric suffix", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  await writeAdminSettings(root, {
+    ...current,
+    source_folders: [
+      current.source_folders[0]!,
+      {
+        id: "src_010",
+        name: "历史素材",
+        path: "/Volumes/OldVideos",
+        enabled: true
+      }
+    ]
+  });
+
+  const next = await addAdminSourceFolder(root, {
+    name: "课程素材",
+    path: "/Volumes/CourseVideos",
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  assert.equal(next.source_folders.at(-1)?.id, "src_011");
 });
