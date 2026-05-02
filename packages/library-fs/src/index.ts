@@ -41,6 +41,7 @@ export { writeAsrTextArtifacts } from "./asr-artifacts.ts";
 export { getFileIdentity, hashFileSha256 } from "./file-hash.ts";
 export * from "./admin-settings.ts";
 export * from "./cutter-users.ts";
+export * from "./usage-events.ts";
 export { resolveSourceVideoFilePath } from "./source-paths.ts";
 export type { FileIdentityMode } from "./file-hash.ts";
 export type {
