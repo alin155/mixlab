@@ -13,15 +13,21 @@ import path from "node:path";
 import { runMixlabDoctor } from "../../doctor-core/src/index.ts";
 import { resolveFfmpegRuntime } from "../../ffmpeg-core/src/index.ts";
 import {
+  approveCutterUser,
+  disableCutterUser,
+  listCutterUsers,
   publishIndexRequiredSourceVideos,
+  readAdminSettings,
   readAllSourceVideoManifests,
+  readUsageMetrics,
   scanSourceVideos
 } from "../../library-fs/src/index.ts";
 import {
   validateSourceVideoManifest,
   type LibraryCounts,
   type PreprocessStatus,
-  type SourceVideoManifest
+  type SourceVideoManifest,
+  type TranscriptSegment
 } from "../../protocol/src/index.ts";
 
 export interface CreateAdminApiServerInput {
@@ -52,6 +58,17 @@ interface PreprocessJobRecord {
   failed_at?: string;
   error_stage?: string;
   error_message?: string;
+}
+
+interface TranscriptArtifact {
+  full_text?: string;
+  segments?: TranscriptSegment[];
+}
+
+interface SourceVideoDetailTranscript {
+  full_text: string;
+  segment_count: number;
+  character_count: number;
 }
 
 const STATUS_ORDER: PreprocessStatus[] = [
@@ -100,6 +117,63 @@ function sourceVideoManifestPath(libraryRoot: string, sourceVideoId: string): st
 
 function preprocessJobPath(libraryRoot: string, sourceVideoId: string): string {
   return path.join(videosRoot(libraryRoot), sourceVideoId, "preprocess-job.json");
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT";
+}
+
+function safeRelativeArtifactPath(libraryRelativePath: string): string | null {
+  const normalized = libraryRelativePath.replace(/\\/g, "/");
+
+  if (
+    normalized.trim() === "" ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
+    return null;
+  }
+
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.includes("..")) {
+    return null;
+  }
+
+  return path.join(...parts);
+}
+
+function resolveVideoArtifactPath(input: {
+  library_root: string;
+  source_video_id: string;
+  artifact_path: string;
+  fallback_file_name?: string;
+}): string | null {
+  const artifactPath = input.artifact_path.trim();
+  const libraryUriMatch = /^library:\/\/video\/(V\d{6})(?:\/(.*))?$/.exec(artifactPath);
+
+  if (libraryUriMatch) {
+    const uriSourceVideoId = libraryUriMatch[1] ?? "";
+    if (uriSourceVideoId !== input.source_video_id) {
+      return null;
+    }
+
+    const uriRelativePath = libraryUriMatch[2] || input.fallback_file_name || "";
+    const safeUriRelativePath = safeRelativeArtifactPath(uriRelativePath);
+    return safeUriRelativePath
+      ? path.join(videosRoot(input.library_root), input.source_video_id, safeUriRelativePath)
+      : null;
+  }
+
+  const safeArtifactPath = safeRelativeArtifactPath(artifactPath);
+  if (safeArtifactPath) {
+    return path.join(input.library_root, safeArtifactPath);
+  }
+
+  return input.fallback_file_name
+    ? path.join(videosRoot(input.library_root), input.source_video_id, input.fallback_file_name)
+    : null;
 }
 
 function numericSourceVideoId(sourceVideoId: string): number {
@@ -296,6 +370,49 @@ function indexStatus(input: {
   return "ready" as const;
 }
 
+async function readTranscriptSummary(
+  libraryRoot: string,
+  manifest: SourceVideoManifest
+): Promise<SourceVideoDetailTranscript> {
+  if (!manifest.transcript_path.trim()) {
+    return { full_text: "", segment_count: 0, character_count: 0 };
+  }
+
+  const transcriptPath = resolveVideoArtifactPath({
+    library_root: libraryRoot,
+    source_video_id: manifest.source_video_id,
+    artifact_path: manifest.transcript_path,
+    fallback_file_name: "transcript.json"
+  });
+
+  if (!transcriptPath) {
+    return { full_text: "", segment_count: 0, character_count: 0 };
+  }
+
+  let artifact: TranscriptArtifact;
+  try {
+    artifact = await readJsonFile<TranscriptArtifact>(transcriptPath);
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return { full_text: "", segment_count: 0, character_count: 0 };
+    }
+
+    throw error;
+  }
+
+  const segments = Array.isArray(artifact.segments) ? artifact.segments : [];
+  const joinedSegmentText = segments
+    .map((segment) => typeof segment.text === "string" ? segment.text : "")
+    .join("");
+  const fullText = typeof artifact.full_text === "string" ? artifact.full_text : joinedSegmentText;
+
+  return {
+    full_text: fullText,
+    segment_count: segments.length,
+    character_count: fullText.length
+  };
+}
+
 async function getLibraryStatus(input: CreateAdminApiServerInput) {
   const now = input.now?.() ?? new Date().toISOString();
   const library = await readLibraryManifest(input.library_root);
@@ -323,6 +440,88 @@ async function getLibraryStatus(input: CreateAdminApiServerInput) {
     current_index_version: currentVersion,
     active_task_label: activeManifest ? `${activeManifest.source_video_id} - processing` : "无正在处理任务",
     updated_at: library?.updated_at ?? now
+  };
+}
+
+async function getDashboardMetrics(input: CreateAdminApiServerInput) {
+  const now = input.now?.() ?? new Date().toISOString();
+  const today = now.slice(0, 10);
+  const manifests = await readAllSourceVideoManifests(input.library_root);
+  const counts = countByStatus(manifests);
+  const currentIndexVersion = await readCurrentIndexVersion(input.library_root);
+  let characterCount = 0;
+  let segmentCount = 0;
+  let transcriptVideoCount = 0;
+  let completedTodayCount = 0;
+  let failedTodayCount = 0;
+  const processDurations: number[] = [];
+  let queuedOrRunningCount = 0;
+
+  for (const manifest of manifests) {
+    if (manifest.preprocess_status === "queued" || manifest.preprocess_status === "processing") {
+      queuedOrRunningCount += 1;
+    }
+
+    const transcript = await readTranscriptSummary(input.library_root, manifest);
+    if (transcript.segment_count > 0 || transcript.full_text.length > 0) {
+      transcriptVideoCount += 1;
+      characterCount += transcript.character_count;
+      segmentCount += transcript.segment_count;
+    }
+
+    const job = await readPreprocessJob(input.library_root, manifest.source_video_id);
+    const completedAt = job?.completed_at ?? job?.indexed_at ?? "";
+    if (completedAt.startsWith(today) || (job?.indexed_at ?? "").startsWith(today)) {
+      completedTodayCount += 1;
+    }
+    if ((job?.failed_at ?? "").startsWith(today)) {
+      failedTodayCount += 1;
+    }
+
+    const startedMs = Date.parse(job?.claimed_at ?? "");
+    const finishedMs = Date.parse(job?.indexed_at ?? job?.completed_at ?? "");
+    if (Number.isFinite(startedMs) && Number.isFinite(finishedMs) && finishedMs >= startedMs) {
+      processDurations.push(finishedMs - startedMs);
+    }
+  }
+
+  const averageVideoProcessMs = processDurations.length > 0
+    ? Math.round(processDurations.reduce((total, value) => total + value, 0) / processDurations.length)
+    : 0;
+  const estimatedQueueDoneAt = averageVideoProcessMs > 0 && queuedOrRunningCount > 0
+    ? new Date(Date.parse(now) + queuedOrRunningCount * averageVideoProcessMs).toISOString()
+    : "";
+
+  return {
+    material: {
+      video_count: counts.video_count,
+      ready_video_count: counts.ready_video_count,
+      total_duration_ms: manifests.reduce((total, manifest) => total + manifest.duration_ms, 0),
+      ready_duration_ms: manifests
+        .filter((manifest) => manifest.preprocess_status === "ready")
+        .reduce((total, manifest) => total + manifest.duration_ms, 0),
+      unprocessed_duration_ms: manifests
+        .filter((manifest) => manifest.preprocess_status === "unprocessed")
+        .reduce((total, manifest) => total + manifest.duration_ms, 0),
+      total_size_bytes: manifests.reduce((total, manifest) => total + manifest.file_size, 0)
+    },
+    transcript: {
+      transcript_video_count: transcriptVideoCount,
+      character_count: characterCount,
+      segment_count: segmentCount,
+      current_index_version: currentIndexVersion
+    },
+    production: {
+      completed_today_count: completedTodayCount,
+      failed_today_count: failedTodayCount,
+      average_video_process_ms: averageVideoProcessMs,
+      estimated_queue_done_at: estimatedQueueDoneAt
+    },
+    usage: await readUsageMetrics(input.library_root),
+    risk: {
+      failed_video_count: counts.failed_video_count,
+      index_required_video_count: counts.index_required_video_count
+    }
   };
 }
 
@@ -437,6 +636,103 @@ async function listPreprocessJobs(libraryRoot: string) {
     completed_count: ordered.filter((job) => job.status === "done").length,
     failed_count: ordered.filter((job) => job.status === "failed").length,
     jobs: ordered
+  };
+}
+
+function visibilityDetail(manifest: SourceVideoManifest) {
+  const visible = manifest.preprocess_status === "ready" && manifest.visible_to_cutters;
+
+  return {
+    visible_to_cutters: visible,
+    label: visible ? "剪辑师可见" : "剪辑师暂不可见",
+    reason: visible
+      ? ""
+      : manifest.preprocess_status !== "ready"
+        ? "视频尚未完成预处理"
+        : "管理员尚未开放给剪辑师"
+  };
+}
+
+async function artifactDetail(input: {
+  library_root: string;
+  source_video_id: string;
+  artifact_path: string;
+  fallback_file_name?: string;
+}) {
+  const filePath = input.artifact_path.trim()
+    ? resolveVideoArtifactPath(input)
+    : null;
+
+  return {
+    path: input.artifact_path,
+    file_path: filePath ?? "",
+    exists: filePath ? await fileExists(filePath) : false
+  };
+}
+
+async function getSourceVideoDetail(libraryRoot: string, sourceVideoId: string) {
+  const manifests = await readAllSourceVideoManifests(libraryRoot);
+  const manifest = manifests.find((candidate) => candidate.source_video_id === sourceVideoId);
+
+  if (!manifest) {
+    return null;
+  }
+
+  const job = await readPreprocessJob(libraryRoot, sourceVideoId);
+  const transcript = await readTranscriptSummary(libraryRoot, manifest);
+
+  return {
+    source_video: toAdminSourceVideo(manifest),
+    technical: {
+      duration_ms: manifest.duration_ms,
+      width: manifest.width,
+      height: manifest.height,
+      fps: manifest.fps,
+      codec: manifest.codec,
+      file_size: manifest.file_size,
+      content_hash: manifest.content_hash,
+      relative_path: manifest.relative_path
+    },
+    visibility: visibilityDetail(manifest),
+    preprocess: {
+      status: manifest.preprocess_status,
+      job_id: `J${manifest.source_video_id.slice(1)}`,
+      stage: jobStageFromManifest(manifest, job),
+      attempt: job?.attempt ?? 0,
+      started_at: job?.claimed_at ?? "",
+      completed_at: job?.completed_at ?? job?.indexed_at ?? "",
+      failed_at: job?.failed_at ?? "",
+      error_stage: job?.error_stage ?? "",
+      error_message: job?.error_message ?? ""
+    },
+    artifacts: {
+      transcript: await artifactDetail({
+        library_root: libraryRoot,
+        source_video_id: sourceVideoId,
+        artifact_path: manifest.transcript_path,
+        fallback_file_name: "transcript.json"
+      }),
+      subtitles: await artifactDetail({
+        library_root: libraryRoot,
+        source_video_id: sourceVideoId,
+        artifact_path: manifest.srt_path,
+        fallback_file_name: "subtitles.srt"
+      }),
+      cover: await artifactDetail({
+        library_root: libraryRoot,
+        source_video_id: sourceVideoId,
+        artifact_path: manifest.cover_path,
+        fallback_file_name: "cover.jpg"
+      }),
+      keyframes: await artifactDetail({
+        library_root: libraryRoot,
+        source_video_id: sourceVideoId,
+        artifact_path: manifest.keyframes_path,
+        fallback_file_name: "keyframes.json"
+      }),
+      index_version: job?.index_version ?? ""
+    },
+    transcript
   };
 }
 
@@ -635,14 +931,19 @@ async function writeCover(response: ServerResponse, input: CreateAdminApiServerI
   );
 
   if (!manifest?.cover_path) {
-    writeJson(response, 404, apiError("not_found", "Cover not found"));
+    writeJson(response, 404, apiError("not_found", "封面不存在"));
     return;
   }
 
-  const coverPath = path.join(input.library_root, manifest.cover_path);
+  const coverPath = resolveVideoArtifactPath({
+    library_root: input.library_root,
+    source_video_id: sourceVideoId,
+    artifact_path: manifest.cover_path,
+    fallback_file_name: "cover.jpg"
+  });
 
-  if (!(await fileExists(coverPath))) {
-    writeJson(response, 404, apiError("not_found", "Cover not found"));
+  if (!coverPath || !(await fileExists(coverPath))) {
+    writeJson(response, 404, apiError("not_found", "封面不存在"));
     return;
   }
 
@@ -678,15 +979,43 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/api/admin/settings/config") {
+        writeJson(response, 200, apiOk(await readAdminSettings(input.library_root)));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/admin/dashboard/metrics") {
+        writeJson(response, 200, apiOk(await getDashboardMetrics(input)));
+        return;
+      }
+
       if (request.method === "GET" && url.pathname === "/api/admin/source-videos") {
         const manifests = await readAllSourceVideoManifests(input.library_root);
         writeJson(response, 200, apiOk(manifests.map(toAdminSourceVideo)));
         return;
       }
 
+      const sourceVideoDetailMatch = /^\/api\/admin\/source-videos\/(V\d{6})$/.exec(url.pathname);
+      if (request.method === "GET" && sourceVideoDetailMatch) {
+        const detail = await getSourceVideoDetail(input.library_root, sourceVideoDetailMatch[1] ?? "");
+
+        if (!detail) {
+          writeJson(response, 404, apiError("not_found", "原视频不存在"));
+          return;
+        }
+
+        writeJson(response, 200, apiOk(detail));
+        return;
+      }
+
       const coverMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/cover$/.exec(url.pathname);
       if (request.method === "GET" && coverMatch) {
         await writeCover(response, input, coverMatch[1] ?? "");
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/admin/cutter-users") {
+        writeJson(response, 200, apiOk(await listCutterUsers(input.library_root)));
         return;
       }
 
@@ -804,6 +1133,48 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
+      const approveCutterUserMatch = /^\/api\/admin\/cutter-users\/(CU\d+)\/approve$/.exec(url.pathname);
+      if (request.method === "POST" && approveCutterUserMatch) {
+        try {
+          writeJson(response, 200, apiOk(await approveCutterUser(input.library_root, {
+            user_id: approveCutterUserMatch[1] ?? "",
+            now: now()
+          })));
+        } catch (error) {
+          const message = (error as Error).message;
+          if (!["剪辑师用户不存在", "只有待审核剪辑师用户可以通过审核", "剪辑师设备不存在"].includes(message)) {
+            throw error;
+          }
+          writeJson(
+            response,
+            message === "剪辑师用户不存在" ? 404 : 400,
+            apiError(message === "剪辑师用户不存在" ? "not_found" : "invalid_request", message)
+          );
+        }
+        return;
+      }
+
+      const disableCutterUserMatch = /^\/api\/admin\/cutter-users\/(CU\d+)\/disable$/.exec(url.pathname);
+      if (request.method === "POST" && disableCutterUserMatch) {
+        try {
+          writeJson(response, 200, apiOk(await disableCutterUser(input.library_root, {
+            user_id: disableCutterUserMatch[1] ?? "",
+            now: now()
+          })));
+        } catch (error) {
+          const message = (error as Error).message;
+          if (message !== "剪辑师用户不存在") {
+            throw error;
+          }
+          writeJson(
+            response,
+            message === "剪辑师用户不存在" ? 404 : 400,
+            apiError(message === "剪辑师用户不存在" ? "not_found" : "invalid_request", message)
+          );
+        }
+        return;
+      }
+
       const metadataMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/metadata$/.exec(url.pathname);
       if (request.method === "PATCH" && metadataMatch) {
         const sourceVideoId = metadataMatch[1] ?? "";
@@ -813,7 +1184,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         );
 
         if (!manifest) {
-          writeJson(response, 404, apiError("not_found", "Source video not found"));
+          writeJson(response, 404, apiError("not_found", "原视频不存在"));
           return;
         }
 
@@ -832,7 +1203,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
-      writeJson(response, 404, apiError("not_found", "Route not found"));
+      writeJson(response, 404, apiError("not_found", "路由不存在"));
     } catch (error) {
       writeJson(response, 500, apiError("internal_error", (error as Error).message));
     }
