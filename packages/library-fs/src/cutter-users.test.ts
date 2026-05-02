@@ -7,6 +7,7 @@ import {
   approveCutterUser,
   createCutterLoginApplication,
   disableCutterUser,
+  ensureCutterSessionForDevice,
   listCutterUsers,
   validateCutterSession
 } from "./cutter-users.ts";
@@ -52,6 +53,37 @@ test("creates pending login application and approves it into a reusable session"
 
   assert.equal(session.ok, true);
   assert.equal(session.user?.username, "小王");
+});
+
+test("approved login applications can recover their device session", async () => {
+  const root = await makeRoot();
+  const application = await createCutterLoginApplication(root, {
+    username: "小王",
+    device_id: "device-1",
+    device_name: "Allen Mac",
+    now: "2026-05-02T10:00:00.000Z"
+  });
+  const approved = await approveCutterUser(root, {
+    user_id: application.user_id,
+    now: "2026-05-02T10:01:00.000Z"
+  });
+
+  const recovered = await ensureCutterSessionForDevice(root, {
+    user_id: application.user_id,
+    device_id: "device-1",
+    now: "2026-05-02T10:02:00.000Z"
+  });
+
+  assert.equal(recovered.session_token, approved.session.session_token);
+  assert.equal(recovered.last_seen_at, "2026-05-02T10:02:00.000Z");
+  assert.deepEqual(
+    await validateCutterSession(root, {
+      device_id: "device-1",
+      session_token: recovered.session_token,
+      now: "2026-05-02T10:03:00.000Z"
+    }),
+    { ok: true, user: { ...(await listCutterUsers(root)).users[0] } }
+  );
 });
 
 test("disabled users cannot keep using existing sessions", async () => {
@@ -305,7 +337,7 @@ test("sparse large existing user ids allocate next id safely", async () => {
   assert.equal(created.user_id, "CU1000000000000000000000000");
 });
 
-test("same username reuses existing user and attaches new devices", async () => {
+test("same username only reuses the same device application", async () => {
   const root = await makeRoot();
   const first = await createCutterLoginApplication(root, {
     username: " 小吴 ",
@@ -327,14 +359,57 @@ test("same username reuses existing user and attaches new devices", async () => 
   });
 
   assert.equal(repeated.user_id, first.user_id);
-  assert.equal(secondDevice.user_id, first.user_id);
+  assert.notEqual(secondDevice.user_id, first.user_id);
   assert.equal(secondDevice.status, "pending");
 
   const users = (await listCutterUsers(root)).users;
-  assert.equal(users.length, 1);
+  assert.equal(users.length, 2);
   assert.deepEqual(
     users.map((user) => user.devices.map((device) => device.device_id)),
-    [["device-9", "device-10"]]
+    [["device-9"], ["device-10"]]
+  );
+});
+
+test("approved username on a new device creates a fresh pending application", async () => {
+  const root = await makeRoot();
+  const approvedDevice = await createCutterLoginApplication(root, {
+    username: "小周",
+    device_id: "approved-device",
+    device_name: "Mac",
+    now: "2026-05-02T10:00:00.000Z"
+  });
+  await approveCutterUser(root, {
+    user_id: approvedDevice.user_id,
+    now: "2026-05-02T10:01:00.000Z"
+  });
+
+  const newDevice = await createCutterLoginApplication(root, {
+    username: "小周",
+    device_id: "unreviewed-device",
+    device_name: "Windows",
+    now: "2026-05-02T10:02:00.000Z"
+  });
+
+  assert.notEqual(newDevice.user_id, approvedDevice.user_id);
+  assert.equal(newDevice.status, "pending");
+  assert.deepEqual(
+    (await listCutterUsers(root)).users.map((user) => ({
+      user_id: user.user_id,
+      status: user.status,
+      devices: user.devices.map((device) => device.device_id)
+    })),
+    [
+      {
+        user_id: approvedDevice.user_id,
+        status: "approved",
+        devices: ["approved-device"]
+      },
+      {
+        user_id: newDevice.user_id,
+        status: "pending",
+        devices: ["unreviewed-device"]
+      }
+    ]
   );
 });
 

@@ -13,6 +13,7 @@ import {
   appendUsageEvent,
   buildLocalClipArtifactPaths,
   createCutterLoginApplication,
+  ensureCutterSessionForDevice,
   getCutterSourceVideoDetail,
   getLocalClipDetail,
   listCutterSourceLibrary,
@@ -782,13 +783,25 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       if (request.method === "POST" && url.pathname === "/cutter/auth/request-login") {
         try {
           const body = (await readRequestJson(request)) as CutterLoginRequestBody;
+          const deviceId = requiredChineseString(body.device_id, "设备 ID 不能为空");
+          const now = currentNow(input);
           const application = await createCutterLoginApplication(input.library_root, {
             username: requiredChineseString(body.username, "用户名不能为空"),
-            device_id: requiredChineseString(body.device_id, "设备 ID 不能为空"),
+            device_id: deviceId,
             device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
-            now: currentNow(input)
+            now
           });
-          writeJson(response, 200, apiResponse(application));
+          const session = application.status === "approved"
+            ? await ensureCutterSessionForDevice(input.library_root, {
+                user_id: application.user_id,
+                device_id: deviceId,
+                now
+              })
+            : undefined;
+          writeJson(response, 200, apiResponse({
+            user: application,
+            ...(session ? { session } : {})
+          }));
           return;
         } catch (error) {
           const message = (error as Error).message;

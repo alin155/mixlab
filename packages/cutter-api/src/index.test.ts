@@ -282,9 +282,120 @@ test("cutter auth request-login creates a pending application without auth heade
     assert.equal(response.status, 200);
     const body = await response.json() as any;
     assert.equal(body.schema_version, "1.0");
-    assert.equal(body.data.username, "lisi");
-    assert.equal(body.data.status, "pending");
-    assert.equal(body.data.devices[0].device_id, "device-login");
+    assert.equal(body.data.user.username, "lisi");
+    assert.equal(body.data.user.status, "pending");
+    assert.equal(body.data.user.devices[0].device_id, "device-login");
+    assert.equal(body.data.session, undefined);
+  });
+});
+
+test("cutter auth request-login returns approved device session after admin approval", async () => {
+  const libraryRoot = await prepareLibrary();
+  const application = await createCutterLoginApplication(libraryRoot, {
+    username: "lisi",
+    device_id: "device-login",
+    device_name: "剪辑工作站",
+    now: "2026-05-02T09:00:00Z"
+  });
+  const approved = await approveCutterUser(libraryRoot, {
+    user_id: application.user_id,
+    now: "2026-05-02T09:01:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    assert.equal(body.data.user.status, "approved");
+    assert.equal(body.data.session.user_id, application.user_id);
+    assert.equal(body.data.session.device_id, "device-login");
+    assert.equal(body.data.session.session_token, approved.session.session_token);
+  });
+});
+
+test("cutter auth request-login does not grant approved username to unreviewed device", async () => {
+  const libraryRoot = await prepareLibrary();
+  const application = await createCutterLoginApplication(libraryRoot, {
+    username: "lisi",
+    device_id: "approved-device",
+    device_name: "剪辑工作站",
+    now: "2026-05-02T09:00:00Z"
+  });
+  await approveCutterUser(libraryRoot, {
+    user_id: application.user_id,
+    now: "2026-05-02T09:01:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        device_id: "unreviewed-device",
+        device_name: "新设备"
+      })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    assert.equal(body.data.user.status, "pending");
+    assert.equal(body.data.user.devices[0].device_id, "unreviewed-device");
+    assert.equal(body.data.session, undefined);
+  });
+});
+
+test("cutter auth approval does not grant sessions to sibling pending devices", async () => {
+  const libraryRoot = await prepareLibrary();
+  const first = await createCutterLoginApplication(libraryRoot, {
+    username: "wangwu",
+    device_id: "first-device",
+    device_name: "第一台设备",
+    now: "2026-05-02T09:00:00Z"
+  });
+  const second = await createCutterLoginApplication(libraryRoot, {
+    username: "wangwu",
+    device_id: "second-device",
+    device_name: "第二台设备",
+    now: "2026-05-02T09:00:30Z"
+  });
+  assert.notEqual(second.user_id, first.user_id);
+  await approveCutterUser(libraryRoot, {
+    user_id: first.user_id,
+    now: "2026-05-02T09:01:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "wangwu",
+        device_id: "second-device",
+        device_name: "第二台设备"
+      })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    assert.equal(body.data.user.user_id, second.user_id);
+    assert.equal(body.data.user.status, "pending");
+    assert.equal(body.data.session, undefined);
   });
 });
 

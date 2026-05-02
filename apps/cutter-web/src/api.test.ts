@@ -322,26 +322,35 @@ test("supports cutter login requests and backend-shaped login status", async () 
           {
             schema_version: "1.0",
             data: {
-              user_id: "CU000001",
-              username: "小王",
-              display_name: "小王",
-              status: "pending",
-              applied_at: "2026-05-03T08:00:00Z",
-              approved_at: "",
-              rejected_at: "",
-              disabled_at: "",
-              last_login_at: "",
-              last_used_at: "",
-              note: "",
-              devices: [
-                {
-                  device_id: "device-001",
-                  device_name: "MacBook Pro",
-                  status: "active",
-                  first_seen_at: "2026-05-03T08:00:00Z",
-                  last_login_at: ""
-                }
-              ]
+              user: {
+                user_id: "CU000001",
+                username: "小王",
+                display_name: "小王",
+                status: "approved",
+                applied_at: "2026-05-03T08:00:00Z",
+                approved_at: "2026-05-03T08:05:00Z",
+                rejected_at: "",
+                disabled_at: "",
+                last_login_at: "2026-05-03T08:05:00Z",
+                last_used_at: "",
+                note: "",
+                devices: [
+                  {
+                    device_id: "device-001",
+                    device_name: "MacBook Pro",
+                    status: "active",
+                    first_seen_at: "2026-05-03T08:00:00Z",
+                    last_login_at: "2026-05-03T08:05:00Z"
+                  }
+                ]
+              },
+              session: {
+                user_id: "CU000001",
+                device_id: "device-001",
+                session_token: "session-001",
+                created_at: "2026-05-03T08:05:00Z",
+                last_seen_at: "2026-05-03T08:06:00Z"
+              }
             }
           },
           { status: 200 }
@@ -390,9 +399,10 @@ test("supports cutter login requests and backend-shaped login status", async () 
   });
   const status = await client.getLoginStatus();
 
-  assert.equal(application.status, "pending");
-  assert.equal(application.user_id, "CU000001");
-  assert.equal(application.devices[0]?.device_id, "device-001");
+  assert.equal(application.user.status, "approved");
+  assert.equal(application.user.user_id, "CU000001");
+  assert.equal(application.user.devices[0]?.device_id, "device-001");
+  assert.equal(application.session?.session_token, "session-001");
   assert.equal(status.ok, true);
   assert.equal(status.user?.status, "approved");
   assert.equal(status.user?.devices[0]?.device_id, "device-001");

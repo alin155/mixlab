@@ -22,16 +22,22 @@ import {
 } from "./api.ts";
 import {
   clearCutterAuthSession,
+  clearCutterPendingLogin,
   createDeviceId,
+  readCutterPendingLogin,
   readCutterAuthSession,
+  writeCutterPendingLogin,
   writeCutterAuthSession,
   CUTTER_AUTH_STORAGE_KEY
 } from "./auth.ts";
 import {
+  authSessionFromApprovedApplication,
+  loginGateStatusFromApplication,
   loginMessageForAuthError,
   loginStatusFromApplication,
   loginStatusFromBackendStatus,
   shouldClearSessionForLoginStatusError,
+  shouldRetryPendingLoginError,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
@@ -268,11 +274,13 @@ test("cutter auth storage creates a stable device id and handles session lifecyc
   assert.equal(readCutterAuthSession(), null);
 
   writeCutterAuthSession({
+    user_id: "CU000001",
     device_id: firstDeviceId,
     session_token: "session-001",
     username: "小王"
   });
   assert.deepEqual(readCutterAuthSession(), {
+    user_id: "CU000001",
     device_id: firstDeviceId,
     session_token: "session-001",
     username: "小王"
@@ -280,6 +288,25 @@ test("cutter auth storage creates a stable device id and handles session lifecyc
 
   clearCutterAuthSession();
   assert.equal(readCutterAuthSession(), null);
+});
+
+test("cutter auth storage migrates legacy sessions without user id", () => {
+  installTestWindow();
+  window.localStorage.setItem(
+    CUTTER_AUTH_STORAGE_KEY,
+    JSON.stringify({
+      device_id: "legacy-device",
+      session_token: "legacy-session",
+      username: "小王"
+    })
+  );
+
+  assert.deepEqual(readCutterAuthSession(), {
+    user_id: "",
+    device_id: "legacy-device",
+    session_token: "legacy-session",
+    username: "小王"
+  });
 });
 
 test("cutter auth storage tolerates corrupt JSON", () => {
@@ -319,11 +346,32 @@ test("cutter auth storage tolerates storage methods throwing", () => {
   assert.equal(readCutterAuthSession(), null);
   assert.doesNotThrow(() =>
     writeCutterAuthSession({
+      user_id: "CU000001",
       device_id: "device-001",
       session_token: "session-001"
     })
   );
   assert.doesNotThrow(() => clearCutterAuthSession());
+});
+
+test("cutter pending login storage preserves username and device for approval polling", () => {
+  installTestWindow();
+  window.localStorage.clear();
+
+  assert.equal(readCutterPendingLogin(), null);
+  writeCutterPendingLogin({
+    username: "小王",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+  assert.deepEqual(readCutterPendingLogin(), {
+    username: "小王",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+
+  clearCutterPendingLogin();
+  assert.equal(readCutterPendingLogin(), null);
 });
 
 test("login gate renders Chinese application states and only approved status renders children", async () => {
@@ -406,6 +454,48 @@ test("backend approved login status allows runtime workbench without returned se
   assert.equal(shouldShowLoginGate(true, status), false);
 });
 
+test("approved login application yields a stored cutter auth session", () => {
+  const application: CutterLoginApplication = {
+    user: backendUser("approved"),
+    session: {
+      user_id: "CU000001",
+      device_id: "device-001",
+      session_token: "session-001",
+      created_at: "2026-05-03T08:05:00Z",
+      last_seen_at: "2026-05-03T08:06:00Z"
+    }
+  };
+
+  assert.equal(loginStatusFromApplication(application), "approved");
+  assert.deepEqual(authSessionFromApprovedApplication(application), {
+    user_id: "CU000001",
+    username: "xiaowang",
+    device_id: "device-001",
+    session_token: "session-001"
+  });
+  assert.equal(
+    authSessionFromApprovedApplication({
+      user: backendUser("pending")
+    }),
+    null
+  );
+  assert.equal(
+    loginGateStatusFromApplication({
+      user: backendUser("approved")
+    }),
+    "unknown"
+  );
+  assert.equal(
+    shouldShowLoginGate(
+      true,
+      loginGateStatusFromApplication({
+        user: backendUser("approved")
+      })
+    ),
+    true
+  );
+});
+
 test("backend login status maps non-approved user states to login gate states", () => {
   const cases: Array<[CutterUserStatus, CutterLoginStatusValue]> = [
     ["pending", "pending"],
@@ -415,10 +505,18 @@ test("backend login status maps non-approved user states to login gate states", 
 
   for (const [backend, expected] of cases) {
     assert.equal(loginStatusFromBackendStatus(backendStatus(backend)), expected);
-    assert.equal(loginStatusFromApplication(backendUser(backend) as CutterLoginApplication), expected);
+    assert.equal(loginStatusFromApplication({ user: backendUser(backend) }), expected);
   }
 
   assert.equal(loginStatusFromBackendStatus({ ok: false, reason: "登录凭证无效" }), "unknown");
+  assert.equal(
+    loginStatusFromBackendStatus({
+      ok: false,
+      reason: "登录凭证无效",
+      user: backendUser("approved")
+    }),
+    "unknown"
+  );
 });
 
 test("401 login_required status errors clear stored session and show an honest Chinese message", () => {
@@ -430,4 +528,28 @@ test("401 login_required status errors clear stored session and show an honest C
 
   assert.equal(shouldClearSessionForLoginStatusError(error), true);
   assert.equal(loginMessageForAuthError(error), "登录已失效，请重新申请或联系管理员。");
+});
+
+test("pending login polling retries transient errors only", () => {
+  assert.equal(
+    shouldRetryPendingLoginError(
+      new CutterApiError({
+        status: 400,
+        code: "invalid_login_request",
+        message: "设备已停用"
+      })
+    ),
+    false
+  );
+  assert.equal(
+    shouldRetryPendingLoginError(
+      new CutterApiError({
+        status: 500,
+        code: "internal_error",
+        message: "服务暂不可用"
+      })
+    ),
+    true
+  );
+  assert.equal(shouldRetryPendingLoginError(new TypeError("网络中断")), true);
 });

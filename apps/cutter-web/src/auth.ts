@@ -1,12 +1,20 @@
 export interface CutterAuthSession {
+  user_id: string;
   device_id: string;
   session_token: string;
   username?: string;
 }
 
+export interface CutterPendingLogin {
+  username: string;
+  device_id: string;
+  device_name: string;
+}
+
 export const CUTTER_AUTH_STORAGE_KEY = "mixlab:cutter:auth_session";
 
 const CUTTER_DEVICE_STORAGE_KEY = "mixlab:cutter:device_id";
+const CUTTER_PENDING_LOGIN_STORAGE_KEY = "mixlab:cutter:pending_login";
 
 function getLocalStorage(): Storage | null {
   if (typeof window === "undefined") {
@@ -69,7 +77,10 @@ export function readCutterAuthSession(): CutterAuthSession | null {
   try {
     const parsed = JSON.parse(raw) as Partial<CutterAuthSession>;
 
-    if (typeof parsed.device_id !== "string" || typeof parsed.session_token !== "string") {
+    if (
+      typeof parsed.device_id !== "string" ||
+      typeof parsed.session_token !== "string"
+    ) {
       try {
         storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
       } catch {
@@ -79,6 +90,7 @@ export function readCutterAuthSession(): CutterAuthSession | null {
     }
 
     return {
+      user_id: typeof parsed.user_id === "string" ? parsed.user_id : "",
       device_id: parsed.device_id,
       session_token: parsed.session_token,
       ...(typeof parsed.username === "string" ? { username: parsed.username } : {})
@@ -106,6 +118,69 @@ export function clearCutterAuthSession(): void {
   const storage = getLocalStorage();
   try {
     storage?.removeItem(CUTTER_AUTH_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures so auth checks do not crash rendering.
+  }
+}
+
+export function readCutterPendingLogin(): CutterPendingLogin | null {
+  const storage = getLocalStorage();
+  let raw: string | null = null;
+
+  try {
+    raw = storage?.getItem(CUTTER_PENDING_LOGIN_STORAGE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<CutterPendingLogin>;
+
+    if (
+      typeof parsed.username !== "string" ||
+      typeof parsed.device_id !== "string" ||
+      typeof parsed.device_name !== "string"
+    ) {
+      try {
+        storage?.removeItem(CUTTER_PENDING_LOGIN_STORAGE_KEY);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
+      return null;
+    }
+
+    return {
+      username: parsed.username,
+      device_id: parsed.device_id,
+      device_name: parsed.device_name
+    };
+  } catch {
+    try {
+      storage?.removeItem(CUTTER_PENDING_LOGIN_STORAGE_KEY);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+    return null;
+  }
+}
+
+export function writeCutterPendingLogin(login: CutterPendingLogin): void {
+  const storage = getLocalStorage();
+  try {
+    storage?.setItem(CUTTER_PENDING_LOGIN_STORAGE_KEY, JSON.stringify(login));
+  } catch {
+    // Ignore storage failures so auth checks do not crash rendering.
+  }
+}
+
+export function clearCutterPendingLogin(): void {
+  const storage = getLocalStorage();
+  try {
+    storage?.removeItem(CUTTER_PENDING_LOGIN_STORAGE_KEY);
   } catch {
     // Ignore storage failures so auth checks do not crash rendering.
   }

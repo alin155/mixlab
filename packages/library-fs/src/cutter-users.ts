@@ -295,20 +295,11 @@ export async function createCutterLoginApplication(
     const existing = store.users.find(
       (user) =>
         user.username === username &&
-        (user.status === "pending" || user.status === "approved")
+        (user.status === "pending" || user.status === "approved") &&
+        user.devices.some((device) => device.device_id === input.device_id)
     );
 
     if (existing) {
-      if (!existing.devices.some((device) => device.device_id === input.device_id)) {
-        existing.devices.push({
-          device_id: input.device_id,
-          device_name: input.device_name,
-          status: "active",
-          first_seen_at: input.now,
-          last_login_at: ""
-        });
-        await writeStore(libraryRoot, store);
-      }
       return existing;
     }
 
@@ -373,6 +364,54 @@ export async function approveCutterUser(
     store.sessions.push(session);
     await writeStore(libraryRoot, store);
     return { status: "approved", user, session };
+  });
+}
+
+export async function ensureCutterSessionForDevice(
+  libraryRoot: string,
+  input: { user_id: string; device_id: string; now: string }
+): Promise<CutterSessionRecord> {
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const user = store.users.find((candidate) => candidate.user_id === input.user_id);
+    if (!user) {
+      throw new Error("剪辑师用户不存在");
+    }
+    if (user.status !== "approved") {
+      throw new Error("剪辑师用户尚未通过审核");
+    }
+
+    const device = user.devices.find((candidate) => candidate.device_id === input.device_id);
+    if (!device) {
+      throw new Error("剪辑师设备不存在");
+    }
+    if (device.status !== "active") {
+      throw new Error("剪辑师设备已停用");
+    }
+
+    let session = store.sessions.find(
+      (candidate) =>
+        candidate.user_id === user.user_id &&
+        candidate.device_id === input.device_id
+    );
+
+    if (!session) {
+      session = {
+        user_id: user.user_id,
+        device_id: input.device_id,
+        session_token: randomUUID(),
+        created_at: input.now,
+        last_seen_at: input.now
+      };
+      store.sessions.push(session);
+    } else {
+      session.last_seen_at = input.now;
+    }
+
+    user.last_login_at = input.now;
+    device.last_login_at = input.now;
+    await writeStore(libraryRoot, store);
+    return session;
   });
 }
 

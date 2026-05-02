@@ -215,10 +215,21 @@ export interface CutterUserRecord {
 export interface CutterLoginRequest {
   username: string;
   device_id: string;
-  device_name?: string;
+  device_name: string;
 }
 
-export type CutterLoginApplication = CutterUserRecord;
+export interface CutterSessionRecord {
+  user_id: string;
+  device_id: string;
+  session_token: string;
+  created_at: string;
+  last_seen_at: string;
+}
+
+export interface CutterLoginApplication {
+  user: CutterUserRecord;
+  session?: CutterSessionRecord;
+}
 
 export type CutterLoginStatus =
   | {
@@ -343,7 +354,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
           body: JSON.stringify({
             username: request.username,
             device_id: request.device_id,
-            ...(request.device_name ? { device_name: request.device_name } : {})
+            device_name: request.device_name
           })
         }
       );

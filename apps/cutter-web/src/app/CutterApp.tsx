@@ -38,8 +38,11 @@ import {
 } from "../state/cut-list.ts";
 import {
   clearCutterAuthSession,
+  clearCutterPendingLogin,
   createDeviceId,
+  readCutterPendingLogin,
   readCutterAuthSession,
+  writeCutterPendingLogin,
   writeCutterAuthSession,
   type CutterAuthSession
 } from "../auth.ts";
@@ -58,7 +61,7 @@ import {
 } from "./navigation.ts";
 
 function getRuntimeApiBaseUrl(): string {
-  return import.meta.env.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
+  return import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
 }
 
 function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | null) {
@@ -82,15 +85,40 @@ export function shouldShowLoginGate(apiMode: boolean, status: CutterLoginStatusV
 }
 
 export function loginStatusFromApplication(application: CutterLoginApplication): CutterLoginStatusValue {
-  return application.status;
+  return application.user.status;
 }
 
 export function loginStatusFromBackendStatus(status: CutterLoginStatus): CutterLoginStatusValue {
   if (!status.ok) {
-    return status.user?.status ?? "unknown";
+    const userStatus = status.user?.status;
+    return userStatus && userStatus !== "approved" ? userStatus : "unknown";
   }
 
   return status.user.status === "approved" ? "approved" : status.user.status;
+}
+
+export function loginMessageFromBackendStatus(status: CutterLoginStatus): string {
+  return status.ok ? "" : status.message ?? status.reason ?? "";
+}
+
+export function authSessionFromApprovedApplication(
+  application: CutterLoginApplication
+): CutterAuthSession | null {
+  if (application.user.status !== "approved" || !application.session) {
+    return null;
+  }
+
+  return {
+    user_id: application.user.user_id,
+    username: application.user.username,
+    device_id: application.session.device_id,
+    session_token: application.session.session_token
+  };
+}
+
+export function loginGateStatusFromApplication(application: CutterLoginApplication): CutterLoginStatusValue {
+  const status = loginStatusFromApplication(application);
+  return status === "approved" && !authSessionFromApprovedApplication(application) ? "unknown" : status;
 }
 
 export function shouldClearSessionForLoginStatusError(error: unknown): boolean {
@@ -103,6 +131,10 @@ export function loginMessageForAuthError(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : "登录状态校验失败，请重新申请或联系管理员。";
+}
+
+export function shouldRetryPendingLoginError(error: unknown): boolean {
+  return !(error instanceof CutterApiError) || error.status >= 500;
 }
 
 function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
@@ -142,6 +174,26 @@ function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
 
 function selectedSegmentsForData(data: CutterFixtureData) {
   return data.primaryDetail.transcript.segments.slice(1, 4);
+}
+
+function safeLocalStorageGetItem(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalStorageSetItem(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures so the login gate and workbench can still render.
+  }
+}
+
+function cutterDeviceName(): string {
+  return typeof navigator === "undefined" ? "剪辑工作站" : navigator.userAgent;
 }
 
 function renderPage(
@@ -219,11 +271,12 @@ export function CutterApp() {
   const [route, setRoute] = useState<CutterRoute>(() => routeFromHash(window.location.hash));
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
-    deserializeCutList(window.localStorage.getItem(CUT_LIST_STORAGE_KEY))
+    deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
   );
   const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
   const [loginStatus, setLoginStatus] = useState<CutterLoginStatusValue>(() => apiMode ? "unknown" : "approved");
   const [loginMessage, setLoginMessage] = useState("");
+  const [loginPollTick, setLoginPollTick] = useState(0);
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
@@ -236,23 +289,40 @@ export function CutterApp() {
   const handleApplyLogin = useCallback(
     async (username: string) => {
       const deviceId = createDeviceId();
-      const application = await createCutterApiClient({ base_url: apiBaseUrl }).requestLogin({
+      const pendingLogin = {
         username,
         device_id: deviceId,
-        device_name: typeof navigator === "undefined" ? undefined : navigator.userAgent
+        device_name: cutterDeviceName()
+      };
+      writeCutterPendingLogin(pendingLogin);
+      const application = await createCutterApiClient({ base_url: apiBaseUrl }).requestLogin({
+        username,
+        device_id: pendingLogin.device_id,
+        device_name: pendingLogin.device_name
       });
       const nextStatus = loginStatusFromApplication(application);
+      const nextSession = authSessionFromApprovedApplication(application);
+
+      if (nextSession) {
+        writeCutterAuthSession(nextSession);
+        clearCutterPendingLogin();
+        setAuthSession(nextSession);
+        setLoginStatus("approved");
+        setLoginMessage("");
+        return;
+      }
 
       if (nextStatus === "rejected" || nextStatus === "disabled") {
         clearCutterAuthSession();
+        clearCutterPendingLogin();
         setAuthSession(null);
         setLoginStatus(nextStatus);
         setLoginMessage("");
         return;
       }
 
-      setLoginStatus(nextStatus);
-      setLoginMessage("");
+      setLoginStatus(loginGateStatusFromApplication(application));
+      setLoginMessage(nextStatus === "approved" ? "登录凭证尚未生成，请稍后刷新或重新提交申请。" : "");
     },
     [apiBaseUrl]
   );
@@ -264,8 +334,65 @@ export function CutterApp() {
     }
 
     if (!authSession) {
-      setLoginStatus((current) => current === "pending" ? current : "unknown");
-      return;
+      const pendingLogin = readCutterPendingLogin();
+
+      if (!pendingLogin) {
+        setLoginStatus((current) => current === "pending" ? current : "unknown");
+        return;
+      }
+
+      let cancelled = false;
+      let retryTimer: number | null = null;
+      setLoginStatus("pending");
+      createCutterApiClient({ base_url: apiBaseUrl })
+        .requestLogin(pendingLogin)
+        .then((application) => {
+          if (cancelled) {
+            return;
+          }
+
+          const nextStatus = loginStatusFromApplication(application);
+          const nextSession = authSessionFromApprovedApplication(application);
+          if (nextSession) {
+            writeCutterAuthSession(nextSession);
+            clearCutterPendingLogin();
+            setAuthSession(nextSession);
+            setLoginStatus("approved");
+            setLoginMessage("");
+            return;
+          }
+
+          if (nextStatus === "rejected" || nextStatus === "disabled") {
+            clearCutterAuthSession();
+            clearCutterPendingLogin();
+            setAuthSession(null);
+          }
+          setLoginStatus(loginGateStatusFromApplication(application));
+          setLoginMessage(
+            nextStatus === "approved" ? "登录凭证尚未生成，请稍后刷新或重新提交申请。" : ""
+          );
+          if (nextStatus === "pending") {
+            retryTimer = window.setTimeout(() => setLoginPollTick((tick) => tick + 1), 5000);
+          }
+        })
+        .catch((loginError) => {
+          if (!cancelled) {
+            setLoginStatus("unknown");
+            setLoginMessage(loginMessageForAuthError(loginError));
+            if (shouldRetryPendingLoginError(loginError)) {
+              retryTimer = window.setTimeout(() => setLoginPollTick((tick) => tick + 1), 10000);
+            } else {
+              clearCutterPendingLogin();
+            }
+          }
+        });
+
+      return () => {
+        cancelled = true;
+        if (retryTimer) {
+          window.clearTimeout(retryTimer);
+        }
+      };
     }
 
     let cancelled = false;
@@ -278,13 +405,18 @@ export function CutterApp() {
         }
 
         const nextStatus = loginStatusFromBackendStatus(status);
+        const nextMessage = loginMessageFromBackendStatus(status);
         if (nextStatus === "approved") {
           const nextSession = {
             ...authSession,
+            user_id: status.ok ? status.user.user_id : authSession.user_id,
             username: status.ok ? status.user.username : authSession.username
           };
           writeCutterAuthSession(nextSession);
-          if (nextSession.username !== authSession.username) {
+          if (
+            nextSession.user_id !== authSession.user_id ||
+            nextSession.username !== authSession.username
+          ) {
             setAuthSession(nextSession);
           }
           setLoginStatus("approved");
@@ -298,7 +430,7 @@ export function CutterApp() {
         }
 
         setLoginStatus(nextStatus);
-        setLoginMessage("");
+        setLoginMessage(nextMessage);
       })
       .catch((loginError) => {
         if (!cancelled) {
@@ -314,7 +446,7 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [apiMode, authSession, client]);
+  }, [apiBaseUrl, apiMode, authSession, client, loginPollTick]);
 
   const refreshLocalClips = useCallback(async () => {
     const localClips = await client.listLocalClips();
@@ -377,7 +509,7 @@ export function CutterApp() {
       return;
     }
 
-    if (!apiMode && !window.localStorage.getItem(CUT_LIST_STORAGE_KEY) && cutList.length === 0) {
+    if (!apiMode && !safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY) && cutList.length === 0) {
       setCutList(defaultCutListForData(data));
     }
 
@@ -386,7 +518,7 @@ export function CutterApp() {
 
   useEffect(() => {
     if (didSeedCutList) {
-      window.localStorage.setItem(CUT_LIST_STORAGE_KEY, serializeCutList(cutList));
+      safeLocalStorageSetItem(CUT_LIST_STORAGE_KEY, serializeCutList(cutList));
     }
   }, [cutList, didSeedCutList]);
 
