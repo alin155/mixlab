@@ -306,6 +306,15 @@ h2 {
   gap: var(--ml-space-2);
 }
 
+.admin-user-inspector {
+  display: grid;
+  gap: var(--ml-space-4);
+}
+
+.admin-user-inspector h2 {
+  margin-bottom: var(--ml-space-2);
+}
+
 .ml-inspector {
   align-self: stretch;
 }

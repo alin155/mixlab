@@ -11,12 +11,14 @@ import {
   loadAdminDashboardData,
   type AdminActionResult,
   type AdminApiClient,
+  type AdminCutterUsersResponse,
   type AdminDashboardData,
   type AdminSourceVideoDetail,
   type AdminSourceVideo,
   type AdminSourceVideoMetadataUpdate
 } from "../api.ts";
 import { DashboardPage } from "../features/dashboard/DashboardPage.tsx";
+import { CutterUsersPage } from "../features/cutter-users/CutterUsersPage.tsx";
 import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "../features/index-publish/IndexPublishPage.tsx";
 import { PreprocessJobsPage } from "../features/preprocess-jobs/PreprocessJobsPage.tsx";
@@ -71,6 +73,8 @@ interface AdminActionHandlers {
     sourceVideoId: string,
     metadata: AdminSourceVideoMetadataUpdate
   ) => Promise<void>;
+  onApproveCutterUser: (userId: string) => Promise<void>;
+  onDisableCutterUser: (userId: string) => Promise<void>;
   onOpenSourceDetail: (sourceVideoId: string) => void;
   onExportDoctor: () => void;
 }
@@ -198,7 +202,8 @@ function renderPage(
   route: AdminRoute,
   data: AdminDashboardData,
   actions: AdminActionHandlers,
-  sourceDetail: SourceDetailRenderState
+  sourceDetail: SourceDetailRenderState,
+  cutterUsers: AdminCutterUsersResponse | null
 ) {
   if (route === "source-videos") {
     return (
@@ -288,10 +293,26 @@ function renderPage(
   }
 
   if (route === "cutter-users") {
+    if (!cutterUsers) {
+      return (
+        <>
+          <div className="admin-main-column">
+            <EmptyState title="正在读取剪辑师用户" detail="请稍候，正在加载登录申请和使用统计。" />
+          </div>
+          <InspectorPanel title="用户统计">
+            <p>加载中</p>
+          </InspectorPanel>
+        </>
+      );
+    }
+
     return (
-      <InspectorPanel title="剪辑师用户">
-        <p>用户审批、启停和使用统计将在后续任务接入。</p>
-      </InspectorPanel>
+      <CutterUsersPage
+        users={cutterUsers}
+        metrics={data.metrics.usage}
+        onApprove={actions.onApproveCutterUser}
+        onDisable={actions.onDisableCutterUser}
+      />
     );
   }
 
@@ -317,6 +338,8 @@ export function AdminApp() {
   const [sourceDetail, setSourceDetail] = useState<AdminSourceVideoDetail | null>(null);
   const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
   const [sourceDetailError, setSourceDetailError] = useState("");
+  const [cutterUsers, setCutterUsers] = useState<AdminCutterUsersResponse | null>(null);
+  const [cutterUsersReloadToken, setCutterUsersReloadToken] = useState(0);
   const client = useMemo(createRuntimeClient, []);
 
   useEffect(() => {
@@ -388,6 +411,29 @@ export function AdminApp() {
     };
   }, [client, data?.source_videos, route, selectedSourceVideoId]);
 
+  useEffect(() => {
+    if (route !== "cutter-users") {
+      return;
+    }
+
+    let cancelled = false;
+    client.listCutterUsers()
+      .then((result) => {
+        if (!cancelled) {
+          setCutterUsers(result);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setActionError(loadError instanceof Error ? loadError.message : "剪辑师用户加载失败");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, cutterUsersReloadToken, route]);
+
   const runAction = async (label: string, action: (client: AdminApiClient) => Promise<unknown>) => {
     setActionError("");
     setActionNotice(`${label}中...`);
@@ -412,6 +458,18 @@ export function AdminApp() {
     onTestAsrConfig: () => runAction("测试语音识别配置", (api) => api.testAsrConfig()),
     onUpdateSourceVideoMetadata: (sourceVideoId, metadata) =>
       runAction("保存公开说明", (api) => api.updateSourceVideoMetadata(sourceVideoId, metadata)),
+    onApproveCutterUser: (userId) =>
+      runAction("通过剪辑师申请", async (api) => {
+        const result = await api.approveCutterUser(userId);
+        setCutterUsersReloadToken((current) => current + 1);
+        return result;
+      }),
+    onDisableCutterUser: (userId) =>
+      runAction("停用剪辑师用户", async (api) => {
+        const result = await api.disableCutterUser(userId);
+        setCutterUsersReloadToken((current) => current + 1);
+        return result;
+      }),
     onOpenSourceDetail: (sourceVideoId) => {
       setSelectedSourceVideoId(sourceVideoId);
       setSourceDetail(null);
@@ -467,7 +525,7 @@ export function AdminApp() {
                   ),
                   loading: sourceDetailLoading,
                   error: sourceDetailError
-                })
+                }, cutterUsers)
               ) : (
                 <InspectorPanel title="加载中">
                   <p>正在读取素材库管理端数据</p>

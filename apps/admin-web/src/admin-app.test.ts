@@ -22,6 +22,7 @@ import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
 import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx";
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
+import { CutterUsersPage } from "./features/cutter-users/CutterUsersPage.tsx";
 import { AdminControlButton, EmptyState, MetricBand, SourceVideoTable } from "./features/shared.tsx";
 import { AdminSourceDetailPage } from "./features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "./features/source-videos/SourceVideosPage.tsx";
@@ -62,6 +63,10 @@ test("rendered admin pages avoid obvious English user-facing labels", async () =
     renderToStaticMarkup(h(PreprocessJobsPage, { data })),
     renderToStaticMarkup(h(IndexPublishPage, { data })),
     renderToStaticMarkup(h(DoctorPage, { data })),
+    renderToStaticMarkup(h(CutterUsersPage, {
+      users: await createFixtureAdminApiClient().listCutterUsers(),
+      metrics: data.metrics.usage
+    })),
     renderToStaticMarkup(h(SettingsPage, { data }))
   ];
   const text = visibleText(renderedPages.join(" "));
@@ -390,6 +395,37 @@ test("doctor page renders Chinese diagnosis checks and report export", async () 
   const html = renderToStaticMarkup(h(DoctorPage, { data: await fixtureData() }));
 
   for (const text of ["诊断系统问题", "公共路径", "发布清单", "音视频工具", "语音识别", "重新运行健康诊断", "导出诊断报告"]) {
+    assert.match(html, new RegExp(text));
+  }
+});
+
+test("cutter users page renders login applications and user metrics", async () => {
+  const client = createFixtureAdminApiClient();
+  const users = await client.listCutterUsers();
+  const metrics = (await client.getDashboardMetrics()).usage;
+  const html = renderToStaticMarkup(h(CutterUsersPage, {
+    users,
+    metrics,
+    onApprove: () => {},
+    onDisable: () => {}
+  }));
+
+  for (const text of [
+    "剪辑师用户",
+    "登录申请与使用统计",
+    "待审核",
+    "已通过",
+    "已拒绝",
+    "已停用",
+    "设备",
+    "搜索次数",
+    "剪切成功",
+    "最近使用",
+    "通过申请",
+    "停用用户",
+    "张三",
+    "王五"
+  ]) {
     assert.match(html, new RegExp(text));
   }
 });

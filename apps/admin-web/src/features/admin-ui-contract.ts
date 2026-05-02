@@ -103,7 +103,9 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
     goal: "管理剪辑师准入",
     primaryQuestion: "哪些剪辑师需要审批、停用或查看使用情况？",
     controls: [
-      { route: "cutter-users", label: "查看剪辑师用户", state: "read-only", reason: "后续任务接入审批接口。" }
+      { route: "cutter-users", label: "查看剪辑师用户", state: "m9b-api", reason: "M9B 接入剪辑师用户列表接口。" },
+      { route: "cutter-users", label: "通过申请", state: "m9b-api", reason: "M9B 接入剪辑师用户审核接口。" },
+      { route: "cutter-users", label: "停用用户", state: "m9b-api", reason: "M9B 接入剪辑师用户停用接口。" }
     ]
   },
   settings: {

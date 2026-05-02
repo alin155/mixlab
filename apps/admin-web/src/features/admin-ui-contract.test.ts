@@ -40,6 +40,8 @@ test("every visible control is classified before implementation", () => {
 
   assert.ok(apiControls.includes("处理未处理"));
   assert.ok(apiControls.includes("发布待索引视频"));
+  assert.ok(apiControls.includes("通过申请"));
+  assert.ok(apiControls.includes("停用用户"));
   assert.ok(nativeControls.includes("启动预处理服务"));
   assert.ok(nativeControls.includes("编辑接口密钥"));
   assert.ok(localControls.includes("搜索原视频"));
