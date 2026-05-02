@@ -846,6 +846,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           response,
           200,
           apiResponse({
+            library_id: await readLibraryId(input.library_root),
             ...library,
             videos
           })

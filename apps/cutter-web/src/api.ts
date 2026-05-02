@@ -33,6 +33,7 @@ export interface SourceVideoCard {
 }
 
 export interface SourceLibraryResponse {
+  library_id?: string;
   available_video_count: number;
   videos: SourceVideoCard[];
 }

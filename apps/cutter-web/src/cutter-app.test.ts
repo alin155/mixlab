@@ -134,6 +134,20 @@ test("cut queue renders every task state and retry affordance", () => {
   }
 });
 
+test("cut queue renders optional API refresh and run controls", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue,
+      onRefresh: () => undefined,
+      onRunNext: () => undefined
+    })
+  );
+
+  assert.match(html, /刷新队列/);
+  assert.match(html, /执行下一个/);
+});
+
 test("settings render mount, workspace, ffmpeg, default mode, concurrency, and Doctor", () => {
   const data = fixture();
   const html = renderToStaticMarkup(h(SettingsPage, { settings: data.settings }));

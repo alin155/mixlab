@@ -18,7 +18,15 @@ function toneForStatus(status: CutQueueJob["status"]) {
   return "queued" as const;
 }
 
-export function CutQueuePage({ jobs }: { jobs: readonly CutQueueJob[] }) {
+export function CutQueuePage({
+  jobs,
+  onRefresh,
+  onRunNext
+}: {
+  jobs: readonly CutQueueJob[];
+  onRefresh?: () => void;
+  onRunNext?: () => void;
+}) {
   return (
     <section className="cutter-page cutter-cut-queue" data-page="cut-queue">
       <div className="cutter-page-main">
@@ -28,7 +36,22 @@ export function CutQueuePage({ jobs }: { jobs: readonly CutQueueJob[] }) {
             <h1>剪切队列</h1>
             <p>队列状态在独立页面查看；剪切运行时不阻塞搜索和继续找素材。</p>
           </div>
-          <span className="cutter-note">不阻塞搜索</span>
+          {onRefresh || onRunNext ? (
+            <div className="cutter-button-group">
+              {onRefresh ? (
+                <button className="cutter-secondary-button" type="button" onClick={onRefresh}>
+                  刷新队列
+                </button>
+              ) : null}
+              {onRunNext ? (
+                <button className="cutter-primary-button" type="button" onClick={onRunNext}>
+                  执行下一个
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <span className="cutter-note">不阻塞搜索</span>
+          )}
         </header>
 
         <div className="cutter-queue-list">

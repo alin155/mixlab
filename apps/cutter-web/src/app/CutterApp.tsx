@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   InspectorPanel,
   MacWindow,
@@ -26,10 +26,15 @@ import {
   moveCutListItem,
   removeCutListItem,
   serializeCutList,
+  toCreateClipListRequest,
   type CutListItem,
   type MoveDirection
 } from "../state/cut-list.ts";
-import { createQueueJobsFromCutList, type CutQueueJob } from "../state/cut-queue.ts";
+import {
+  createQueueJobsFromCutList,
+  mapApiCutJobsToQueueJobs,
+  type CutQueueJob
+} from "../state/cut-queue.ts";
 import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
@@ -44,6 +49,10 @@ function createRuntimeClient() {
   return baseUrl
     ? createCutterApiClient({ base_url: baseUrl })
     : createFixtureCutterApiClient();
+}
+
+function isRuntimeApiMode(): boolean {
+  return Boolean(import.meta.env.VITE_MIXLAB_CUTTER_API_BASE_URL);
 }
 
 function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
@@ -96,6 +105,8 @@ function renderPage(
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
     submitCuts: () => void;
+    refreshQueue?: () => void;
+    runNextJob?: () => void;
   }
 ) {
   const selectedSegments = selectedSegmentsForData(data);
@@ -131,7 +142,13 @@ function renderPage(
   }
 
   if (route === "cut-queue") {
-    return <CutQueuePage jobs={queue} />;
+    return (
+      <CutQueuePage
+        jobs={queue}
+        onRefresh={handlers.refreshQueue}
+        onRunNext={handlers.runNextJob}
+      />
+    );
   }
 
   if (route === "settings") {
@@ -156,6 +173,25 @@ export function CutterApp() {
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
   const client = useMemo(createRuntimeClient, []);
+  const apiMode = useMemo(isRuntimeApiMode, []);
+
+  const refreshLocalClips = useCallback(async () => {
+    const localClips = await client.listLocalClips();
+    setData((current) => current ? { ...current, localClips } : current);
+  }, [client]);
+
+  const refreshQueueJobs = useCallback(async () => {
+    if (!apiMode) {
+      return;
+    }
+
+    try {
+      const catalog = await client.listCutJobs();
+      setQueueJobs(mapApiCutJobsToQueueJobs(catalog));
+    } catch (queueError) {
+      setError(queueError instanceof Error ? queueError.message : "剪切队列加载失败");
+    }
+  }, [apiMode, client]);
 
   useEffect(() => {
     const listener = () => setRoute(routeFromHash(window.location.hash));
@@ -184,16 +220,24 @@ export function CutterApp() {
   }, [client]);
 
   useEffect(() => {
+    if (!data || !apiMode) {
+      return;
+    }
+
+    void refreshQueueJobs();
+  }, [apiMode, data, refreshQueueJobs]);
+
+  useEffect(() => {
     if (!data || didSeedCutList) {
       return;
     }
 
-    if (!window.localStorage.getItem(CUT_LIST_STORAGE_KEY) && cutList.length === 0) {
+    if (!apiMode && !window.localStorage.getItem(CUT_LIST_STORAGE_KEY) && cutList.length === 0) {
       setCutList(defaultCutListForData(data));
     }
 
     setDidSeedCutList(true);
-  }, [cutList.length, data, didSeedCutList]);
+  }, [apiMode, cutList.length, data, didSeedCutList]);
 
   useEffect(() => {
     if (didSeedCutList) {
@@ -209,7 +253,9 @@ export function CutterApp() {
 
   const visibleCutList = data && cutList.length === 0 && !didSeedCutList ? defaultCutListForData(data) : cutList;
   const visibleQueue =
-    queueJobs.length > 0
+    apiMode
+      ? queueJobs
+      : queueJobs.length > 0
       ? queueJobs
       : buildQueueFixture(
           createQueueJobsFromCutList(visibleCutList, {
@@ -245,16 +291,64 @@ export function CutterApp() {
     clearCuts() {
       setCutList((current) => clearCutList(current));
     },
-    submitCuts() {
-      setQueueJobs(
-        buildQueueFixture(
-          createQueueJobsFromCutList(visibleCutList, {
-            createdAt: new Date().toISOString()
-          })
-        )
-      );
+    async submitCuts() {
+      if (visibleCutList.length === 0) {
+        return;
+      }
+
+      if (apiMode) {
+        if (!data) {
+          return;
+        }
+
+        try {
+          const clipList = await client.createClipList(
+            toCreateClipListRequest({
+              libraryId: data.library.library_id ?? "local-library",
+              title: "待剪清单",
+              items: visibleCutList
+            })
+          );
+          const submission = await client.submitCutJobs({
+            clip_list_id: clipList.clip_list_id
+          });
+          setQueueJobs(mapApiCutJobsToQueueJobs({
+            job_count: submission.submitted_count,
+            jobs: submission.jobs
+          }));
+          await refreshQueueJobs();
+        } catch (submitError) {
+          setError(submitError instanceof Error ? submitError.message : "剪切清单提交失败");
+          return;
+        }
+      } else {
+        setQueueJobs(
+          buildQueueFixture(
+            createQueueJobsFromCutList(visibleCutList, {
+              createdAt: new Date().toISOString()
+            })
+          )
+        );
+      }
+
       window.location.hash = routeToHash("cut-queue");
-    }
+    },
+    refreshQueue: apiMode
+      ? () => {
+          void refreshQueueJobs();
+        }
+      : undefined,
+    runNextJob: apiMode
+      ? async () => {
+          try {
+            await client.runNextCutJob();
+            await refreshQueueJobs();
+            await refreshLocalClips();
+          } catch (runError) {
+            setError(runError instanceof Error ? runError.message : "剪切任务执行失败");
+          }
+        }
+      : undefined
   };
 
   return (

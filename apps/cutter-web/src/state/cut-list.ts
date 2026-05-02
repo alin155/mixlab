@@ -1,4 +1,5 @@
 import type {
+  CreateClipListRequest,
   CreateLocalClipRequest,
   SourceVideoCard,
   TranscriptSegment
@@ -12,6 +13,7 @@ export interface CutListItem {
   cut_list_item_id: string;
   source_video_id: string;
   source_title: string;
+  source_relative_path: string;
   start_segment_id: string;
   end_segment_id: string;
   begin_ms: number;
@@ -61,6 +63,7 @@ export function createCutListItemFromSegments(input: CreateCutListItemInput): Cu
     cut_list_item_id: stableCutListId(input.sourceVideo.source_video_id, first, last),
     source_video_id: input.sourceVideo.source_video_id,
     source_title: input.sourceVideo.title,
+    source_relative_path: input.sourceVideo.relative_path ?? "",
     start_segment_id: first.segment_id,
     end_segment_id: last.segment_id,
     begin_ms: first.begin_ms,
@@ -130,5 +133,51 @@ export function toCreateLocalClipRequest(item: CutListItem): CreateLocalClipRequ
     post_roll_ms: item.post_roll_ms ?? 0,
     cut_mode: item.cut_mode,
     ...(item.title ? { title: item.title } : {})
+  };
+}
+
+function isPortableRelativePath(value: string): boolean {
+  const normalized = value.replace(/\\/g, "/");
+
+  if (
+    normalized.trim() === "" ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
+    return false;
+  }
+
+  return !normalized.split("/").filter(Boolean).includes("..");
+}
+
+export function toCreateClipListRequest(input: {
+  libraryId: string;
+  title: string;
+  items: readonly CutListItem[];
+}): CreateClipListRequest {
+  const items = [...input.items].sort((left, right) => left.order - right.order);
+
+  return {
+    library_id: input.libraryId,
+    title: input.title,
+    items: items.map((item) => {
+      if (!isPortableRelativePath(item.source_relative_path)) {
+        throw new Error("source_relative_path is required for clip-list submission");
+      }
+
+      return {
+        source_video_id: item.source_video_id,
+        source_title: item.source_title,
+        source_relative_path: item.source_relative_path.replace(/\\/g, "/"),
+        start_segment_id: item.start_segment_id,
+        end_segment_id: item.end_segment_id,
+        begin_ms: item.begin_ms,
+        end_ms: item.end_ms,
+        selected_text: item.selected_text,
+        cut_mode: item.cut_mode,
+        pre_roll_ms: item.pre_roll_ms ?? 0,
+        post_roll_ms: item.post_roll_ms ?? 0
+      };
+    })
   };
 }

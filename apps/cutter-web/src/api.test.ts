@@ -33,6 +33,7 @@ test("loads source library, source detail, and search through cutter API", async
         return makeJsonResponse({
           schema_version: "1.0",
           data: {
+            library_id: "lib_main_001",
             available_video_count: 1,
             videos: [
               {
@@ -128,6 +129,7 @@ test("loads source library, source detail, and search through cutter API", async
     "http://127.0.0.1:3789/cutter/source-videos/V000001"
   ]);
   assert.equal(library.available_video_count, 1);
+  assert.equal(library.library_id, "lib_main_001");
   assert.equal(detail.transcript.full_text, "现金流，是企业的血液。");
   assert.equal(search.groups[0]?.source_video_id, "V000001");
   assert.equal(clips.local_clip_count, 1);

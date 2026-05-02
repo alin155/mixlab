@@ -1,3 +1,4 @@
+import type { CutJob, CutJobCatalog } from "../api.ts";
 import type { CutListItem, CutMode } from "./cut-list.ts";
 
 export type CutQueueStatus = "pending" | "running" | "done" | "failed" | "cancelled";
@@ -67,4 +68,48 @@ export function updateQueueJobStatus(
         }
       : job
   );
+}
+
+function progressForApiStatus(status: CutJob["status"]): number {
+  if (status === "done") {
+    return 100;
+  }
+
+  if (status === "running") {
+    return 50;
+  }
+
+  return 0;
+}
+
+export function mapApiCutJobsToQueueJobs(catalog: CutJobCatalog): CutQueueJob[] {
+  return [...catalog.jobs]
+    .sort((left, right) => {
+      const updatedCompare = (right.updated_at ?? "").localeCompare(left.updated_at ?? "");
+      return updatedCompare || right.cut_job_id.localeCompare(left.cut_job_id);
+    })
+    .map((job) => {
+      const beginMs = job.begin_ms ?? 0;
+      const endMs = job.end_ms ?? beginMs;
+      const sourceTitle = job.source_title ?? "本地剪切任务";
+
+      return {
+        queue_job_id: job.cut_job_id,
+        cut_list_item_id: job.clip_list_item_id ?? job.cut_job_id,
+        source_video_id: job.source_video_id ?? "",
+        source_title: sourceTitle,
+        title: job.export_clip_id
+          ? `${sourceTitle} · ${job.export_clip_id}`
+          : `${sourceTitle} · ${job.cut_job_id}`,
+        begin_ms: beginMs,
+        end_ms: endMs,
+        duration_ms: Math.max(0, endMs - beginMs),
+        selected_text: job.selected_text ?? "",
+        cut_mode: job.cut_mode ?? "smart",
+        status: job.status,
+        progress: progressForApiStatus(job.status),
+        created_at: job.created_at ?? "",
+        ...(job.error_message ? { error_message: job.error_message } : {})
+      };
+    });
 }

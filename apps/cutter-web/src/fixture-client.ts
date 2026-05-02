@@ -362,6 +362,7 @@ const settings: CutterWorkbenchSettings = {
 export function createFixtureCutterData(): CutterFixtureData {
   return {
     library: {
+      library_id: "lib_main_001",
       available_video_count: videos.length,
       videos
     },

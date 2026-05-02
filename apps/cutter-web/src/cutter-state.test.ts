@@ -9,10 +9,12 @@ import {
   removeCutListItem,
   serializeCutList,
   toCreateLocalClipRequest,
+  toCreateClipListRequest,
   type CutListItem
 } from "./state/cut-list.ts";
 import {
   createQueueJobsFromCutList,
+  mapApiCutJobsToQueueJobs,
   updateQueueJobStatus
 } from "./state/cut-queue.ts";
 import * as cutListModule from "./state/cut-list.ts";
@@ -30,7 +32,8 @@ const sourceVideo: SourceVideoCard = {
   detail_url: "/cutter/source-videos/src-001",
   subtitles_url: "/subtitles/src-001.vtt",
   tags: ["财务", "经营分析"],
-  description: "由管理端配置的课程说明。"
+  description: "由管理端配置的课程说明。",
+  relative_path: "source-videos/cashflow.mp4"
 };
 
 const transcriptSegments: TranscriptSegment[] = [
@@ -59,6 +62,7 @@ function item(overrides: Partial<CutListItem>): CutListItem {
     cut_list_item_id: overrides.cut_list_item_id ?? "cut-a",
     source_video_id: overrides.source_video_id ?? "src-001",
     source_title: overrides.source_title ?? "现金流管理与风险控制",
+    source_relative_path: overrides.source_relative_path ?? "source-videos/cashflow.mp4",
     start_segment_id: overrides.start_segment_id ?? "s-001",
     end_segment_id: overrides.end_segment_id ?? "s-001",
     begin_ms: overrides.begin_ms ?? 1_000,
@@ -144,6 +148,32 @@ test("cut-list items submit as local clip requests without public source mutatio
   assert.equal("deleteSourceVideo" in cutListModule, false);
 });
 
+test("cut-list items submit as traceable clip-list API requests", () => {
+  const cut = createCutListItemFromSegments({
+    sourceVideo,
+    segments: transcriptSegments.slice(0, 2),
+    cutMode: "smart",
+    title: "现金流安全片段",
+    preRollMs: 200,
+    postRollMs: 300
+  });
+
+  const request = toCreateClipListRequest({
+    libraryId: "lib_main_001",
+    title: "待剪清单",
+    items: [cut]
+  });
+
+  assert.equal(request.library_id, "lib_main_001");
+  assert.equal(request.title, "待剪清单");
+  assert.equal(request.items[0]?.source_relative_path, "source-videos/cashflow.mp4");
+  assert.equal(request.items[0]?.begin_ms, 10_000);
+  assert.equal(request.items[0]?.end_ms, 21_400);
+  assert.equal(request.items[0]?.selected_text.includes("现金流"), true);
+  assert.equal(request.items[0]?.pre_roll_ms, 200);
+  assert.equal(request.items[0]?.post_roll_ms, 300);
+});
+
 test("queue jobs are derived from cut-list items and can change status independently", () => {
   const list = [
     item({ cut_list_item_id: "cut-a", order: 1, selected_text: "第一段" }),
@@ -167,4 +197,51 @@ test("queue jobs are derived from cut-list items and can change status independe
   assert.equal(running[0]?.status, "running");
   assert.equal(running[0]?.progress, 42);
   assert.equal(running[1]?.status, "pending");
+});
+
+test("API cut jobs map to queue rows with progress and traceability", () => {
+  const jobs = mapApiCutJobsToQueueJobs({
+    job_count: 2,
+    jobs: [
+      {
+        cut_job_id: "CJ20260502-0001",
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000001",
+        source_video_id: "V000001",
+        source_title: "现金流",
+        begin_ms: 10_000,
+        end_ms: 21_400,
+        selected_text: "现金流不是利润表的影子。",
+        cut_mode: "smart",
+        status: "done",
+        export_clip_id: "E000001",
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:01:00Z"
+      },
+      {
+        cut_job_id: "CJ20260502-0002",
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000002",
+        source_video_id: "V000002",
+        source_title: "组织增长",
+        begin_ms: 1_000,
+        end_ms: 3_000,
+        selected_text: "组织效率决定增长。",
+        cut_mode: "copy",
+        status: "failed",
+        error_message: "ffmpeg failed",
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:02:00Z"
+      }
+    ]
+  });
+
+  assert.equal(jobs[0]?.queue_job_id, "CJ20260502-0002");
+  assert.equal(jobs[0]?.status, "failed");
+  assert.equal(jobs[0]?.progress, 0);
+  assert.equal(jobs[0]?.error_message, "ffmpeg failed");
+  assert.equal(jobs[1]?.queue_job_id, "CJ20260502-0001");
+  assert.equal(jobs[1]?.status, "done");
+  assert.equal(jobs[1]?.progress, 100);
+  assert.equal(jobs[1]?.duration_ms, 11_400);
 });

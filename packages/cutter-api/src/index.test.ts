@@ -246,6 +246,7 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
 
     const catalog = await catalogResponse.json() as any;
     assert.equal(catalog.schema_version, "1.0");
+    assert.equal(catalog.data.library_id, "lib_main_001");
     assert.equal(catalog.data.available_video_count, 1);
     assert.equal(catalog.data.videos[0].source_video_id, "V000001");
     assert.equal(catalog.data.videos[0].detail_url, "/cutter/source-videos/V000001");

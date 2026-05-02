@@ -78,9 +78,9 @@ Hi-fi references:
 | CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | accepted | M4 public library page is gallery-first, ready-only, and shows admin-configured cover/tags/description. |
 | CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | partial | M4 UI and state tests prove continuous selection becomes one cut-list span; richer player interactions remain later polish. |
 | CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | accepted | M4 visual tests assert grouped layout; M6 SQLite/n-gram tests preserve grouped result shape and original text display. |
-| CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | accepted | M7 persists `clip-list.json`, preserves source segment spans/order/cut mode, and exposes submit routes. |
-| CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | accepted | M7 persists pending/running/done/failed jobs and executes one pending job through the local runner boundary; search/source routes remain separate. |
-| CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | M7 stores reusable workspace exports with source traceability and media/detail APIs; native reveal/open and production local-library search polish remain later. |
+| CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | accepted | M8 binds the cut-list UI to the M7 `clip-list.json` and `/cutter/cut-jobs` API flow while preserving ordering and cut modes. |
+| CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | accepted | M8 binds the queue UI to `/cutter/cut-jobs`, adds refresh/run-next controls, and keeps source/search routes independent. |
+| CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | M8 refreshes local library data from workspace exports after queue execution; native reveal/open and production local-library search polish remain later. |
 | CUTTER-008 | `11`, `07` | Every export writes `export-clip.json`. | accepted | M7 tests prove completed workspace cuts write output video plus `export-clip.json` with source traceability. |
 | CUTTER-009 | `22`, `21` | Settings show public mount path, local workspace, FFmpeg status, default cut mode, concurrency, Doctor entry. | partial | M4 settings UI shows all required fields and Doctor status; real connection/native path tests remain later. |
 
@@ -93,8 +93,8 @@ Hi-fi references:
 | ACC-003 | `14` | Cutter connection test. | not-started | library/transcript/source readable, local workspace writable, public library not written. |
 | ACC-004 | `14` | Incremental preprocessing visibility test with 10 videos. | partial | M6 automated current-index refresh test passes; full 10-video stage script remains. |
 | ACC-005 | `14` | Search and document test. | partial | M6 SQLite search returns grouped ready-only results with transcript anchors; full manual document-reader acceptance remains. |
-| ACC-006 | `14` | Selection and cutting test. | partial | M7 automated tests prove a selected segment span exports as one workspace clip with manifest; manual desktop acceptance remains. |
-| ACC-007 | `14` | Export reuse test. | partial | M7 automated tests prove exported clips can be listed, read, streamed, and traced to source; native reveal/open remains Tauri work. |
+| ACC-006 | `14` | Selection and cutting test. | partial | M8 automated tests prove UI-selected spans become traceable clip-list API requests and queue jobs; manual desktop acceptance remains. |
+| ACC-007 | `14` | Export reuse test. | partial | M8 binds local-library refresh to workspace exports after run-next; native reveal/open remains Tauri work. |
 | ACC-008 | `14` | Windows test. | not-started | Drive letter, UNC, Chinese path, FFmpeg, export parity pass. |
 | ACC-009 | `14` | NAS final test. | not-started | SMB read-only public library and multi-user search/cut pass. |
 | DELIV-001 | `16_交付物清单.md` | Deliver admin app, cutter app, public library protocol, docs, tests, acceptance reports. | partial | `docs/acceptance/*` and packaged apps exist. |
