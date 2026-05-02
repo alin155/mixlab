@@ -43,6 +43,7 @@ test("persists multiple source folders without changing the single artifact libr
   });
 
   assert.equal(next.source_folders.length, 2);
+  assert.equal(next.source_folders[1]?.id, "src_002");
   assert.equal(next.artifact_library.path, path.join(root, ".mixlab-library"));
 
   const raw = await readFile(path.join(root, ".mixlab-library", "admin-settings.json"), "utf8");

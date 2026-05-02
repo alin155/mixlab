@@ -65,7 +65,9 @@ async function readEnabledScanFolders(libraryRoot: string): Promise<ScanFolderRu
     .filter((folder) => folder.enabled)
     .map((folder) => ({
       folder,
-      is_default_source: folder.id === "src_default" && folder.path === sourceVideosRoot(libraryRoot)
+      is_default_source:
+        folder.id === "src_default" &&
+        path.resolve(folder.path) === path.resolve(sourceVideosRoot(libraryRoot))
     }));
 }
 
@@ -74,6 +76,20 @@ function toSourceFolderRelativePath(row: SourceFileRow): string {
   return row.folder.is_default_source
     ? relativePath
     : `${row.folder.folder.id}/${relativePath}`;
+}
+
+function assertUniqueSourceRelativePaths(files: SourceFileRow[]): void {
+  const seen = new Set<string>();
+
+  for (const row of files) {
+    const relativePath = toSourceFolderRelativePath(row);
+
+    if (seen.has(relativePath)) {
+      throw new Error(`素材来源相对路径重复：${relativePath}`);
+    }
+
+    seen.add(relativePath);
+  }
 }
 
 async function writeSourceFolderScanStats(input: {
@@ -275,7 +291,7 @@ export async function scanSourceVideos(
     try {
       folderFiles = await listVideoFiles(folder.folder.path);
     } catch {
-      folderFiles = [];
+      continue;
     }
     folderStats.set(folder.folder.id, {
       discovered_video_count: folderFiles.length,
@@ -283,6 +299,8 @@ export async function scanSourceVideos(
     });
     files.push(...folderFiles.map((file_path) => ({ folder, file_path })));
   }
+
+  assertUniqueSourceRelativePaths(files);
 
   const existing = await readExistingManifests(input.library_root);
   const manifests: SourceVideoManifest[] = [];

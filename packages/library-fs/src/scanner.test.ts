@@ -5,7 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import {
   addAdminSourceFolder,
-  readAdminSettings
+  readAdminSettings,
+  writeAdminSettings
 } from "./admin-settings.ts";
 import { scanSourceVideos } from "./index.ts";
 
@@ -234,4 +235,147 @@ test("scans every enabled admin source folder into one artifact library", async 
   assert.equal(settings.source_folders[1]?.discovered_video_count, 1);
   assert.equal(settings.source_folders[1]?.new_unprocessed_count, 1);
   assert.equal(settings.source_folders[2]?.discovered_video_count, 0);
+});
+
+test("throws a Chinese error for duplicate computed relative paths in one scan", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const courseSource = path.join(libraryRoot, "course-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "src_002", "foo.mp4"));
+  await writeDummyFile(path.join(courseSource, "foo.mp4"));
+
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: courseSource,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  await assert.rejects(
+    () => scanSourceVideos({
+      library_root: libraryRoot,
+      library_id: "lib_main_001",
+      library_name: "主素材库",
+      now: "2026-05-02T00:00:00Z"
+    }),
+    /素材来源相对路径重复：src_002\/foo\.mp4/
+  );
+
+  await assert.rejects(
+    () => readFile(
+      path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"),
+      "utf8"
+    ),
+    /ENOENT/
+  );
+});
+
+test("preserves missing enabled source folder scan stats", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const missingSource = path.join(libraryRoot, "missing-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "默认素材.mp4"));
+  await addAdminSourceFolder(libraryRoot, {
+    name: "缺失素材",
+    path: missingSource,
+    enabled: true,
+    last_scanned_at: "2026-05-01T00:00:00Z",
+    discovered_video_count: 7,
+    new_unprocessed_count: 3
+  });
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const settings = await readAdminSettings(libraryRoot);
+  assert.equal(settings.source_folders[1]?.last_scanned_at, "2026-05-01T00:00:00Z");
+  assert.equal(settings.source_folders[1]?.discovered_video_count, 7);
+  assert.equal(settings.source_folders[1]?.new_unprocessed_count, 3);
+});
+
+test("treats default source with trailing separator as unprefixed", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const settings = await readAdminSettings(libraryRoot);
+
+  await writeAdminSettings(libraryRoot, {
+    ...settings,
+    source_folders: settings.source_folders.map((folder) =>
+      folder.id === "src_default"
+        ? { ...folder, path: `${folder.path}${path.sep}` }
+        : folder
+    )
+  });
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "默认素材.mp4"));
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const manifest = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
+  );
+
+  assert.equal(manifest.relative_path, "默认素材.mp4");
+});
+
+test("rescans multiple configured folders without changing existing source video ids", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const courseSource = path.join(libraryRoot, "course-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "默认素材.mp4"));
+  await writeDummyFile(path.join(courseSource, "课程A.mp4"));
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: courseSource,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  await writeDummyFile(path.join(courseSource, "课程B.mp4"));
+
+  const result = await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+
+  assert.deepEqual(result, {
+    total_video_count: 3,
+    new_video_count: 1,
+    existing_video_count: 2,
+    source_video_ids: ["V000001", "V000002", "V000003"]
+  });
+
+  const first = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
+  );
+  const second = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")
+  );
+  const third = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000003", "source-video.json")
+  );
+
+  assert.equal(first.relative_path, "默认素材.mp4");
+  assert.equal(second.relative_path, "src_002/课程A.mp4");
+  assert.equal(third.relative_path, "src_002/课程B.mp4");
 });
