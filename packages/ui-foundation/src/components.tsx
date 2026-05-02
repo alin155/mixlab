@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export interface SidebarItem {
   label: string;
   icon: string;
+  href?: string;
 }
 
 export interface ToolbarProps {
@@ -86,15 +87,16 @@ export function Sidebar({
   return (
     <nav className="ml-sidebar" aria-label="MixLab navigation">
       {items.map((item) => (
-        <span
+        <a
           className={`ml-sidebar-item${item.label === active ? " is-active" : ""}`}
+          href={item.href}
           key={item.label}
         >
           <span className="ml-sidebar-icon" aria-hidden="true">
             {iconSymbol(item.icon)}
           </span>
           <span>{item.label}</span>
-        </span>
+        </a>
       ))}
     </nav>
   );

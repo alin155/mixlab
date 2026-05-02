@@ -62,13 +62,13 @@ Hi-fi references:
 
 | ID | Source | Requirement | Current Status | Acceptance |
 |---|---|---|---|---|
-| ADMIN-001 | `08_素材库管理端规格.md`, `21_视觉与交互设计规范.md` | Admin dashboard shows restrained public-library governance status. | partial | M3 fixture validates the visual foundation; formal admin console acceptance remains M5. |
-| ADMIN-002 | `08`, `21` | Public library settings initialize and validate root, `source-videos`, `.mixlab-library`, id, protocol, permissions. | not-started | Stage 1 initialization test passes through UI. |
-| ADMIN-003 | `08`, `21` | Source video management edits public metadata: cover, tags, description, lecturer, course, category. | not-started | Cutter gallery displays admin-configured metadata. |
-| ADMIN-004 | `08`, `19`, `21` | Preprocessing task page shows active, queued, completed, failed/retry, stage, logs, error reason. | not-started | A failed video can be retried without blocking later videos. |
-| ADMIN-005 | `08`, `20`, `21` | Index publication page shows current pointer, historical versions, validation, and atomic switch. | not-started | New ready index appears to cutter after refresh without app restart. |
-| ADMIN-006 | `08`, `21`, `22` | Doctor checks public paths, manifests, artifacts, index, FFmpeg, ASR, permissions, counts, logs and exports JSON. | partial | Doctor core JSON report exists; formal admin UI/export remains for M5. |
-| ADMIN-007 | `22` | Admin ASR settings manage provider, model, audio mode, key configured status, and last failure reason. | not-started | Key is configured without exposing it in UI logs or diagnostic exports. |
+| ADMIN-001 | `08_素材库管理端规格.md`, `21_视觉与交互设计规范.md` | Admin dashboard shows restrained public-library governance status. | partial | M5 admin web MVP dashboard exists; real backend status binding remains later. |
+| ADMIN-002 | `08`, `21` | Public library settings initialize and validate root, `source-videos`, `.mixlab-library`, id, protocol, permissions. | partial | M5 settings UI/path checks exist; real init/write action remains backend work. |
+| ADMIN-003 | `08`, `21` | Source video management edits public metadata: cover, tags, description, lecturer, course, category. | partial | M5 metadata UI exists; persistence to public library remains backend work. |
+| ADMIN-004 | `08`, `19`, `21` | Preprocessing task page shows active, queued, completed, failed/retry, stage, logs, error reason. | partial | M5 jobs UI proves failed video does not block later success; real task control remains backend work. |
+| ADMIN-005 | `08`, `20`, `21` | Index publication page shows current pointer, historical versions, validation, and atomic switch. | partial | M5 index page exists; real index rebuild/current switch remains backend work. |
+| ADMIN-006 | `08`, `21`, `22` | Doctor checks public paths, manifests, artifacts, index, FFmpeg, ASR, permissions, counts, logs and exports JSON. | partial | Doctor core and M5 Doctor UI/export entry exist; real export file action remains backend/Tauri work. |
+| ADMIN-007 | `22` | Admin ASR settings manage provider, model, audio mode, key configured status, and last failure reason. | partial | M5 settings UI redacts key state; secure persistence/test submit remains later runtime work. |
 
 ## Cutter End
 

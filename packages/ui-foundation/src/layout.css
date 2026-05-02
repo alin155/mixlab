@@ -92,6 +92,7 @@
   color: var(--ml-color-text-secondary);
   font-size: 12px;
   line-height: 1;
+  text-decoration: none;
 }
 
 .ml-sidebar-item.is-active {

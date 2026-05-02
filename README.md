@@ -12,6 +12,7 @@ Current implementation status:
 - `packages/doctor-core`: non-UI health diagnostics for public-library paths, manifests, ready artifacts, current index, FFmpeg/FFprobe, ASR config, and local clip manifests.
 - `packages/ui-foundation`: Apple-HIG inspired shared tokens, layout primitives, React components, and design-contract guards for formal UI work.
 - `packages/cutter-api`: local cutter-side HTTP bridge for ready source-video catalog, detail, transcript search, cover, subtitles, and range-capable source media streaming.
+- `apps/admin-web`: formal management console MVP for dashboard, public library settings, source metadata governance, preprocessing jobs, index publication, Doctor, and runtime/ASR settings.
 - `apps/cutter-web`: cutter-side browser workspace for source library browsing, transcript search, source playback, keyframe jump, and transcript reading.
 - `apps/ui-fixtures`: non-product visual acceptance fixtures for cutter/admin UI direction and screenshot checks.
 - TDD coverage for ready visibility, library count consistency, cross-platform path resolution, transcript normalization, segment span selection, versioned read-only index package validation, search result grouping, FFmpeg command plans, FFmpeg bundled runtime detection, and DashScope ASR request construction.
@@ -77,6 +78,9 @@ npm run spike:preprocess-text-pipeline
 npm run worker:preprocess-library
 npm run worker:publish-ready
 npm run server:cutter-api
+npm run dev:admin-web
+npm run build:admin-web
+npm run visual:admin-web
 npm run dev:cutter-web
 npm run build:cutter-web
 npm run build:ui-fixtures
@@ -120,6 +124,8 @@ npm run visual:ui-foundation
 `worker:preprocess-library` is the production-shaped public-library preprocessing worker. It is skipped by default. A real run requires `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1`, `DASHSCOPE_API_KEY`, and `MIXLAB_PREPROCESS_LIBRARY_ROOT` pointing at a library root containing `source-videos/`. Each run scans for newly added videos, claims up to `MIXLAB_PREPROCESS_WORKER_LIMIT` unprocessed videos, probes media metadata with bundled ffprobe, extracts ASR audio with the selected `MIXLAB_PREPROCESS_AUDIO_MODE`, uploads audio through DashScope temporary storage, writes transcript/SRT artifacts, and moves successful videos to hidden `index-required`. Per-video failures are written as hidden `failed` records and do not stop later videos. `MIXLAB_PREPROCESS_FILE_IDENTITY_MODE=stat` is the default fast identity mode for large libraries; set it to `sha256` only when exact full-file hashing is required.
 
 `worker:publish-ready` is the production-shaped ready-publication worker. It is skipped by default. A real run requires `MIXLAB_ENABLE_READY_PUBLISH_WORKER=1` and `MIXLAB_PREPROCESS_LIBRARY_ROOT`. It scans `index-required` videos, generates `cover.jpg` with bundled FFmpeg, writes `keyframes.json`, publishes a new immutable source transcript index package, and only then marks complete videos as cutter-visible `ready`. Incomplete videos remain hidden.
+
+`dev:admin-web` starts the formal management console MVP. It uses fixture data by default and can point to a future backend with `VITE_MIXLAB_ADMIN_API_BASE_URL`. `visual:admin-web` opens the admin app in local Chrome at 1536x1024 and saves dashboard/settings/source/jobs/index/Doctor screenshots under `docs/acceptance/artifacts/m5-admin-console/`.
 
 `server:cutter-api` starts the local cutter-side HTTP bridge. Set `MIXLAB_CUTTER_LIBRARY_ROOT` or reuse `MIXLAB_PREPROCESS_LIBRARY_ROOT`; optional `MIXLAB_CUTTER_API_HOST` and `MIXLAB_CUTTER_API_PORT` default to `127.0.0.1:3789`. The server exposes ready-only JSON APIs at `/cutter/source-library`, `/cutter/source-videos/:source_video_id`, and `/cutter/source-search`, plus `/media`, `/cover`, and `/subtitles.srt` endpoints for playback and preview. Source media supports HTTP Range requests for browser video playback. It also exposes local reusable clips at `/cutter/local-clips`; `POST /cutter/local-clips` cuts a selected transcript segment range into `.mixlab-library/local-clips/<local_clip_id>/clip.mp4` and records source traceability.
 
