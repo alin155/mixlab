@@ -49,6 +49,7 @@ const USER_STATUSES = new Set<CutterUserStatus>([
   "disabled"
 ]);
 const DEVICE_STATUSES = new Set<CutterDeviceRecord["status"]>(["active", "disabled"]);
+const storeMutationQueues = new Map<string, Promise<void>>();
 
 function usersPath(libraryRoot: string): string {
   return path.join(libraryRoot, ".mixlab-library", "cutter-users", "users.json");
@@ -233,6 +234,30 @@ async function writeStore(libraryRoot: string, store: CutterUserStore): Promise<
   }
 }
 
+async function withStoreMutation<T>(
+  libraryRoot: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const key = usersPath(libraryRoot);
+  const previous = storeMutationQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.catch(() => undefined).then(() => gate);
+  storeMutationQueues.set(key, queued);
+
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (storeMutationQueues.get(key) === queued) {
+      storeMutationQueues.delete(key);
+    }
+  }
+}
+
 function createUserId(sequence: bigint): string {
   const digits = sequence.toString();
   return `CU${digits.length >= 6 ? digits : digits.padStart(6, "0")}`;
@@ -257,102 +282,109 @@ export async function createCutterLoginApplication(
   libraryRoot: string,
   input: { username: string; device_id: string; device_name: string; now: string }
 ): Promise<CutterUserRecord> {
-  const username = input.username.trim();
-  if (!username) {
-    throw new Error("用户名不能为空");
-  }
-  if (!input.device_id.trim()) {
-    throw new Error("设备 ID 不能为空");
-  }
+  return withStoreMutation(libraryRoot, async () => {
+    const username = input.username.trim();
+    if (!username) {
+      throw new Error("用户名不能为空");
+    }
+    if (!input.device_id.trim()) {
+      throw new Error("设备 ID 不能为空");
+    }
 
-  const store = await readStore(libraryRoot);
-  const existing = store.users.find(
-    (user) =>
-      user.username === username &&
-      user.devices.some((device) => device.device_id === input.device_id)
-  );
+    const store = await readStore(libraryRoot);
+    const existing = store.users.find(
+      (user) =>
+        user.username === username &&
+        (user.status === "pending" || user.status === "approved") &&
+        user.devices.some((device) => device.device_id === input.device_id)
+    );
 
-  if (existing) {
-    return existing;
-  }
+    if (existing) {
+      return existing;
+    }
 
-  const user: CutterUserRecord = {
-    user_id: nextUserId(store.users),
-    username,
-    display_name: username,
-    status: "pending",
-    applied_at: input.now,
-    approved_at: "",
-    rejected_at: "",
-    disabled_at: "",
-    last_login_at: "",
-    last_used_at: "",
-    note: "",
-    devices: [
-      {
-        device_id: input.device_id,
-        device_name: input.device_name,
-        status: "active",
-        first_seen_at: input.now,
-        last_login_at: ""
-      }
-    ]
-  };
-  store.users.push(user);
-  await writeStore(libraryRoot, store);
-  return user;
+    const user: CutterUserRecord = {
+      user_id: nextUserId(store.users),
+      username,
+      display_name: username,
+      status: "pending",
+      applied_at: input.now,
+      approved_at: "",
+      rejected_at: "",
+      disabled_at: "",
+      last_login_at: "",
+      last_used_at: "",
+      note: "",
+      devices: [
+        {
+          device_id: input.device_id,
+          device_name: input.device_name,
+          status: "active",
+          first_seen_at: input.now,
+          last_login_at: ""
+        }
+      ]
+    };
+    store.users.push(user);
+    await writeStore(libraryRoot, store);
+    return user;
+  });
 }
 
 export async function approveCutterUser(
   libraryRoot: string,
   input: { user_id: string; now: string }
 ): Promise<{ status: "approved"; user: CutterUserRecord; session: CutterSessionRecord }> {
-  const store = await readStore(libraryRoot);
-  const user = store.users.find((candidate) => candidate.user_id === input.user_id);
-  if (!user) {
-    throw new Error("剪辑师用户不存在");
-  }
-  if (user.status !== "pending") {
-    throw new Error("只有待审核剪辑师用户可以通过审核");
-  }
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const user = store.users.find((candidate) => candidate.user_id === input.user_id);
+    if (!user) {
+      throw new Error("剪辑师用户不存在");
+    }
+    if (user.status !== "pending") {
+      throw new Error("只有待审核剪辑师用户可以通过审核");
+    }
 
-  user.status = "approved";
-  user.approved_at = input.now;
-  user.last_login_at = input.now;
-  const firstDevice = user.devices[0];
-  if (!firstDevice) {
-    throw new Error("剪辑师设备不存在");
-  }
-  firstDevice.last_login_at = input.now;
+    user.status = "approved";
+    user.approved_at = input.now;
+    user.last_login_at = input.now;
+    const firstDevice = user.devices[0];
+    if (!firstDevice) {
+      throw new Error("剪辑师设备不存在");
+    }
+    firstDevice.last_login_at = input.now;
 
-  const session: CutterSessionRecord = {
-    user_id: user.user_id,
-    device_id: firstDevice.device_id,
-    session_token: randomUUID(),
-    created_at: input.now,
-    last_seen_at: input.now
-  };
-  store.sessions.push(session);
-  await writeStore(libraryRoot, store);
-  return { status: "approved", user, session };
+    const session: CutterSessionRecord = {
+      user_id: user.user_id,
+      device_id: firstDevice.device_id,
+      session_token: randomUUID(),
+      created_at: input.now,
+      last_seen_at: input.now
+    };
+    store.sessions.push(session);
+    await writeStore(libraryRoot, store);
+    return { status: "approved", user, session };
+  });
 }
 
 export async function disableCutterUser(
   libraryRoot: string,
   input: { user_id: string; now: string }
 ): Promise<CutterUserRecord> {
-  const store = await readStore(libraryRoot);
-  const user = store.users.find((candidate) => candidate.user_id === input.user_id);
-  if (!user) {
-    throw new Error("剪辑师用户不存在");
-  }
-  user.status = "disabled";
-  if (!user.disabled_at) {
-    user.disabled_at = input.now;
-  }
-  store.sessions = store.sessions.filter((session) => session.user_id !== user.user_id);
-  await writeStore(libraryRoot, store);
-  return user;
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const user = store.users.find((candidate) => candidate.user_id === input.user_id);
+    if (!user) {
+      throw new Error("剪辑师用户不存在");
+    }
+    user.status = "disabled";
+    if (!user.disabled_at) {
+      user.disabled_at = input.now;
+    }
+    store.sessions = store.sessions.filter((session) => session.user_id !== user.user_id);
+    await writeStore(libraryRoot, store);
+    return user;
+  });
 }
 
 export async function listCutterUsers(libraryRoot: string): Promise<{ users: CutterUserRecord[] }> {
@@ -364,33 +396,35 @@ export async function validateCutterSession(
   libraryRoot: string,
   input: { device_id: string; session_token: string; now: string }
 ): Promise<{ ok: true; user: CutterUserRecord } | { ok: false; reason: string }> {
-  const store = await readStore(libraryRoot);
-  const session = store.sessions.find(
-    (candidate) =>
-      candidate.device_id === input.device_id &&
-      candidate.session_token === input.session_token
-  );
-  if (!session) {
-    return { ok: false, reason: "登录凭证无效" };
-  }
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const session = store.sessions.find(
+      (candidate) =>
+        candidate.device_id === input.device_id &&
+        candidate.session_token === input.session_token
+    );
+    if (!session) {
+      return { ok: false, reason: "登录凭证无效" };
+    }
 
-  const user = store.users.find((candidate) => candidate.user_id === session.user_id);
-  if (!user) {
-    return { ok: false, reason: "用户不存在" };
-  }
-  if (user.status === "disabled") {
-    return { ok: false, reason: "用户已停用" };
-  }
-  if (user.status !== "approved") {
-    return { ok: false, reason: "用户尚未通过审核" };
-  }
+    const user = store.users.find((candidate) => candidate.user_id === session.user_id);
+    if (!user) {
+      return { ok: false, reason: "用户不存在" };
+    }
+    if (user.status === "disabled") {
+      return { ok: false, reason: "用户已停用" };
+    }
+    if (user.status !== "approved") {
+      return { ok: false, reason: "用户尚未通过审核" };
+    }
 
-  session.last_seen_at = input.now;
-  user.last_login_at = input.now;
-  const device = user.devices.find((candidate) => candidate.device_id === input.device_id);
-  if (device) {
-    device.last_login_at = input.now;
-  }
-  await writeStore(libraryRoot, store);
-  return { ok: true, user };
+    session.last_seen_at = input.now;
+    user.last_login_at = input.now;
+    const device = user.devices.find((candidate) => candidate.device_id === input.device_id);
+    if (device) {
+      device.last_login_at = input.now;
+    }
+    await writeStore(libraryRoot, store);
+    return { ok: true, user };
+  });
 }

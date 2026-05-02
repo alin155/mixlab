@@ -516,3 +516,158 @@ test("invalid and pending sessions return expected Chinese reasons", async () =>
     { ok: false, reason: "用户尚未通过审核" }
   );
 });
+
+test("concurrent login applications persist all distinct users with unique ids", async () => {
+  const root = await makeRoot();
+  const applications = await Promise.all(
+    Array.from({ length: 20 }, (_, index) =>
+      createCutterLoginApplication(root, {
+        username: `剪辑师-${index}`,
+        device_id: `concurrent-device-${index}`,
+        device_name: `Device ${index}`,
+        now: "2026-05-02T11:00:00.000Z"
+      })
+    )
+  );
+
+  const returnedIds = new Set(applications.map((application) => application.user_id));
+  assert.equal(returnedIds.size, 20);
+
+  const users = (await listCutterUsers(root)).users;
+  const persistedIds = new Set(users.map((user) => user.user_id));
+  assert.equal(users.length, 20);
+  assert.equal(persistedIds.size, 20);
+  assert.deepEqual([...persistedIds].sort(), [
+    "CU000001",
+    "CU000002",
+    "CU000003",
+    "CU000004",
+    "CU000005",
+    "CU000006",
+    "CU000007",
+    "CU000008",
+    "CU000009",
+    "CU000010",
+    "CU000011",
+    "CU000012",
+    "CU000013",
+    "CU000014",
+    "CU000015",
+    "CU000016",
+    "CU000017",
+    "CU000018",
+    "CU000019",
+    "CU000020"
+  ]);
+});
+
+test("validate after disable cannot resurrect revoked session", async () => {
+  const root = await makeRoot();
+  const application = await createCutterLoginApplication(root, {
+    username: "小高",
+    device_id: "race-device-1",
+    device_name: "Mac",
+    now: "2026-05-02T11:10:00.000Z"
+  });
+  const approved = await approveCutterUser(root, {
+    user_id: application.user_id,
+    now: "2026-05-02T11:11:00.000Z"
+  });
+
+  await disableCutterUser(root, {
+    user_id: application.user_id,
+    now: "2026-05-02T11:12:00.000Z"
+  });
+
+  assert.deepEqual(
+    await validateCutterSession(root, {
+      device_id: "race-device-1",
+      session_token: approved.session.session_token,
+      now: "2026-05-02T11:13:00.000Z"
+    }),
+    { ok: false, reason: "登录凭证无效" }
+  );
+
+  const store = JSON.parse(await readFile(storePath(root), "utf8")) as {
+    sessions: { user_id: string }[];
+    users: { user_id: string; status: string }[];
+  };
+  assert.equal(
+    store.sessions.some((session) => session.user_id === application.user_id),
+    false
+  );
+  assert.equal(
+    store.users.find((user) => user.user_id === application.user_id)?.status,
+    "disabled"
+  );
+});
+
+test("same username and device after disabled or rejected creates fresh pending application", async () => {
+  const root = await makeRoot();
+  const first = await createCutterLoginApplication(root, {
+    username: "小贺",
+    device_id: "device-after-disabled",
+    device_name: "Mac",
+    now: "2026-05-02T11:20:00.000Z"
+  });
+  await disableCutterUser(root, {
+    user_id: first.user_id,
+    now: "2026-05-02T11:21:00.000Z"
+  });
+
+  const second = await createCutterLoginApplication(root, {
+    username: "小贺",
+    device_id: "device-after-disabled",
+    device_name: "Mac",
+    now: "2026-05-02T11:22:00.000Z"
+  });
+
+  assert.notEqual(second.user_id, first.user_id);
+  assert.equal(second.status, "pending");
+  assert.equal(second.devices[0]?.device_id, "device-after-disabled");
+  assert.equal((await listCutterUsers(root)).users.length, 2);
+
+  const rejectedRoot = await makeRoot();
+  await writeRawStore(
+    rejectedRoot,
+    `${JSON.stringify({
+      schema_version: "1.0",
+      users: [
+        {
+          user_id: "CU000001",
+          username: "小贺",
+          display_name: "小贺",
+          status: "rejected",
+          applied_at: "2026-05-02T11:30:00.000Z",
+          approved_at: "",
+          rejected_at: "2026-05-02T11:31:00.000Z",
+          disabled_at: "",
+          last_login_at: "",
+          last_used_at: "",
+          note: "",
+          devices: [
+            {
+              device_id: "device-after-rejected",
+              device_name: "Mac",
+              status: "active",
+              first_seen_at: "2026-05-02T11:30:00.000Z",
+              last_login_at: ""
+            }
+          ]
+        }
+      ],
+      sessions: []
+    })}\n`
+  );
+
+  const afterRejected = await createCutterLoginApplication(rejectedRoot, {
+    username: "小贺",
+    device_id: "device-after-rejected",
+    device_name: "Mac",
+    now: "2026-05-02T11:32:00.000Z"
+  });
+
+  assert.equal(afterRejected.user_id, "CU000002");
+  assert.equal(afterRejected.status, "pending");
+  assert.equal((await listCutterUsers(rejectedRoot)).users.length, 2);
+});
