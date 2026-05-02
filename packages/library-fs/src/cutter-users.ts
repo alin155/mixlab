@@ -295,11 +295,20 @@ export async function createCutterLoginApplication(
     const existing = store.users.find(
       (user) =>
         user.username === username &&
-        (user.status === "pending" || user.status === "approved") &&
-        user.devices.some((device) => device.device_id === input.device_id)
+        (user.status === "pending" || user.status === "approved")
     );
 
     if (existing) {
+      if (!existing.devices.some((device) => device.device_id === input.device_id)) {
+        existing.devices.push({
+          device_id: input.device_id,
+          device_name: input.device_name,
+          status: "active",
+          first_seen_at: input.now,
+          last_login_at: ""
+        });
+        await writeStore(libraryRoot, store);
+      }
       return existing;
     }
 

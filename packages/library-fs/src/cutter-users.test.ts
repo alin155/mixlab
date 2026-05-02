@@ -305,7 +305,7 @@ test("sparse large existing user ids allocate next id safely", async () => {
   assert.equal(created.user_id, "CU1000000000000000000000000");
 });
 
-test("same username same device is idempotent but different device creates separate pending user", async () => {
+test("same username reuses existing user and attaches new devices", async () => {
   const root = await makeRoot();
   const first = await createCutterLoginApplication(root, {
     username: " 小吴 ",
@@ -327,14 +327,14 @@ test("same username same device is idempotent but different device creates separ
   });
 
   assert.equal(repeated.user_id, first.user_id);
-  assert.notEqual(secondDevice.user_id, first.user_id);
+  assert.equal(secondDevice.user_id, first.user_id);
   assert.equal(secondDevice.status, "pending");
 
   const users = (await listCutterUsers(root)).users;
-  assert.equal(users.length, 2);
+  assert.equal(users.length, 1);
   assert.deepEqual(
     users.map((user) => user.devices.map((device) => device.device_id)),
-    [["device-9"], ["device-10"]]
+    [["device-9", "device-10"]]
   );
 });
 
