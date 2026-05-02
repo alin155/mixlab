@@ -1,6 +1,11 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryCounts, PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
+import {
+  readAdminSettings,
+  writeAdminSettings,
+  type AdminSourceFolder
+} from "./admin-settings.ts";
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".m4v", ".avi", ".webm"]);
 
@@ -23,6 +28,21 @@ interface ExistingManifestIndex {
   maxNumericId: number;
 }
 
+interface ScanFolderRuntime {
+  folder: AdminSourceFolder;
+  is_default_source: boolean;
+}
+
+interface SourceFileRow {
+  folder: ScanFolderRuntime;
+  file_path: string;
+}
+
+interface SourceFolderScanStats {
+  discovered_video_count: number;
+  new_unprocessed_count: number;
+}
+
 function jsonBytes(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
@@ -37,6 +57,45 @@ function sourceVideosRoot(libraryRoot: string): string {
 
 function toLibraryRelativePath(root: string, filePath: string): string {
   return path.relative(root, filePath).split(path.sep).join("/");
+}
+
+async function readEnabledScanFolders(libraryRoot: string): Promise<ScanFolderRuntime[]> {
+  const settings = await readAdminSettings(libraryRoot);
+  return settings.source_folders
+    .filter((folder) => folder.enabled)
+    .map((folder) => ({
+      folder,
+      is_default_source: folder.id === "src_default" && folder.path === sourceVideosRoot(libraryRoot)
+    }));
+}
+
+function toSourceFolderRelativePath(row: SourceFileRow): string {
+  const relativePath = toLibraryRelativePath(row.folder.folder.path, row.file_path);
+  return row.folder.is_default_source
+    ? relativePath
+    : `${row.folder.folder.id}/${relativePath}`;
+}
+
+async function writeSourceFolderScanStats(input: {
+  library_root: string;
+  now: string;
+  stats: Map<string, SourceFolderScanStats>;
+}): Promise<void> {
+  const settings = await readAdminSettings(input.library_root);
+  await writeAdminSettings(input.library_root, {
+    ...settings,
+    source_folders: settings.source_folders.map((folder) => {
+      const stats = input.stats.get(folder.id);
+      return stats
+        ? {
+            ...folder,
+            last_scanned_at: input.now,
+            discovered_video_count: stats.discovered_video_count,
+            new_unprocessed_count: stats.new_unprocessed_count
+          }
+        : folder;
+    })
+  });
 }
 
 function isVideoPath(filePath: string): boolean {
@@ -207,8 +266,24 @@ async function writeLibraryManifest(input: {
 export async function scanSourceVideos(
   input: ScanSourceVideosInput
 ): Promise<ScanSourceVideosResult> {
-  const sourceRoot = sourceVideosRoot(input.library_root);
-  const files = await listVideoFiles(sourceRoot);
+  const scanFolders = await readEnabledScanFolders(input.library_root);
+  const files: SourceFileRow[] = [];
+  const folderStats = new Map<string, SourceFolderScanStats>();
+
+  for (const folder of scanFolders) {
+    let folderFiles: string[] = [];
+    try {
+      folderFiles = await listVideoFiles(folder.folder.path);
+    } catch {
+      folderFiles = [];
+    }
+    folderStats.set(folder.folder.id, {
+      discovered_video_count: folderFiles.length,
+      new_unprocessed_count: 0
+    });
+    files.push(...folderFiles.map((file_path) => ({ folder, file_path })));
+  }
+
   const existing = await readExistingManifests(input.library_root);
   const manifests: SourceVideoManifest[] = [];
   let nextNumericId = existing.maxNumericId + 1;
@@ -217,8 +292,8 @@ export async function scanSourceVideos(
 
   await mkdir(videosRoot(input.library_root), { recursive: true });
 
-  for (const filePath of files) {
-    const relativePath = toLibraryRelativePath(sourceRoot, filePath);
+  for (const row of files) {
+    const relativePath = toSourceFolderRelativePath(row);
     const existingManifest = existing.byRelativePath.get(relativePath);
 
     if (existingManifest) {
@@ -230,8 +305,13 @@ export async function scanSourceVideos(
     const manifest = await createUnprocessedManifest({
       source_video_id: formatSourceVideoId(nextNumericId),
       relative_path: relativePath,
-      file_path: filePath
+      file_path: row.file_path
     });
+
+    const stats = folderStats.get(row.folder.folder.id);
+    if (stats) {
+      stats.new_unprocessed_count += 1;
+    }
 
     nextNumericId += 1;
     newVideoCount += 1;
@@ -248,6 +328,12 @@ export async function scanSourceVideos(
     library_name: input.library_name,
     now: input.now,
     manifests
+  });
+
+  await writeSourceFolderScanStats({
+    library_root: input.library_root,
+    now: input.now,
+    stats: folderStats
   });
 
   return {

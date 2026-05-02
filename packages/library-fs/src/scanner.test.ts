@@ -3,6 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import {
+  addAdminSourceFolder,
+  readAdminSettings
+} from "./admin-settings.ts";
 import { scanSourceVideos } from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
@@ -171,4 +175,63 @@ test("updates library.json counts after scan", async () => {
   assert.equal(library.ready_video_count, 0);
   assert.equal(library.unprocessed_video_count, 2);
   assert.equal(library.index_required_video_count, 0);
+});
+
+test("scans every enabled admin source folder into one artifact library", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const courseSource = path.join(libraryRoot, "course-source");
+  const disabledSource = path.join(libraryRoot, "disabled-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "默认素材.mp4"));
+  await writeDummyFile(path.join(courseSource, "课程", "现金流.mp4"));
+  await writeDummyFile(path.join(disabledSource, "隐藏素材.mp4"));
+
+  await addAdminSourceFolder(libraryRoot, {
+    name: "课程素材",
+    path: courseSource,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+  const withDisabled = await addAdminSourceFolder(libraryRoot, {
+    name: "停用来源",
+    path: disabledSource,
+    enabled: false,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  assert.equal(withDisabled.source_folders.length, 3);
+
+  const result = await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  assert.deepEqual(result, {
+    total_video_count: 2,
+    new_video_count: 2,
+    existing_video_count: 0,
+    source_video_ids: ["V000001", "V000002"]
+  });
+
+  const first = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
+  );
+  const second = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")
+  );
+  const settings = await readAdminSettings(libraryRoot);
+
+  assert.equal(first.relative_path, "默认素材.mp4");
+  assert.equal(second.relative_path, "src_002/课程/现金流.mp4");
+  assert.equal(settings.artifact_library.path, path.join(libraryRoot, ".mixlab-library"));
+  assert.equal(settings.source_folders[0]?.discovered_video_count, 1);
+  assert.equal(settings.source_folders[1]?.discovered_video_count, 1);
+  assert.equal(settings.source_folders[1]?.new_unprocessed_count, 1);
+  assert.equal(settings.source_folders[2]?.discovered_video_count, 0);
 });

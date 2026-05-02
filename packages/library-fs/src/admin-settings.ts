@@ -218,7 +218,7 @@ function validate(settings: unknown): asserts settings is AdminSettings {
 }
 
 function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
-  let maxSuffix = 0n;
+  let maxSuffix = BigInt(sourceFolders.length);
 
   for (const folder of sourceFolders) {
     const match = /^src_(\d+)$/.exec(folder.id);
