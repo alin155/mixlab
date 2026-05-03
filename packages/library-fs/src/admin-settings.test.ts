@@ -6,6 +6,10 @@ import test from "node:test";
 import {
   addAdminSourceFolder,
   readAdminSettings,
+  removeAdminSourceFolder,
+  updateAdminRuntimePolicy,
+  updateAdminSettings,
+  updateAdminSourceFolder,
   writeAdminSettings
 } from "./admin-settings.ts";
 
@@ -262,4 +266,132 @@ test("allocates source folder ids without number precision collisions", async ()
   });
 
   assert.equal(next.source_folders.at(-1)?.id, "src_9007199254740993");
+});
+
+test("updates admin settings with source folders and runtime policy", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  const updated = await updateAdminSettings(root, {
+    library_name: "课程公共素材库",
+    source_folders: [
+      {
+        ...current.source_folders[0]!,
+        name: "默认课程素材",
+        enabled: false
+      },
+      {
+        id: "src_002",
+        name: "新增课程素材",
+        path: "/Volumes/CourseVideos",
+        enabled: true
+      }
+    ],
+    runtime_policy: {
+      audio_mode: "wav_16k_mono_pcm_s16le",
+      concurrent_jobs: 3,
+      auto_scan_enabled: true,
+      auto_queue_enabled: true,
+      auto_publish_index_enabled: false
+    }
+  });
+
+  assert.equal(updated.library_name, "课程公共素材库");
+  assert.equal(updated.source_folders.length, 2);
+  assert.equal(updated.source_folders[0]?.name, "默认课程素材");
+  assert.equal(updated.source_folders[0]?.enabled, false);
+  assert.equal(updated.source_folders[1]?.id, "src_002");
+  assert.equal(updated.runtime_policy.audio_mode, "wav_16k_mono_pcm_s16le");
+  assert.equal(updated.runtime_policy.concurrent_jobs, 3);
+  assert.equal(updated.runtime_policy.auto_queue_enabled, true);
+
+  const persisted = await readAdminSettings(root);
+  assert.equal(persisted.library_name, "课程公共素材库");
+  assert.equal(persisted.runtime_policy.concurrent_jobs, 3);
+});
+
+test("clears source folder scan stats when path changes", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  await writeAdminSettings(root, {
+    ...current,
+    source_folders: [{
+      ...current.source_folders[0]!,
+      last_scanned_at: "2026-05-03T10:00:00.000Z",
+      discovered_video_count: 10,
+      new_unprocessed_count: 4
+    }]
+  });
+
+  const updated = await updateAdminSourceFolder(root, "src_default", {
+    path: path.join(root, "new-source-videos")
+  });
+
+  assert.equal(updated.source_folders[0]?.path, path.join(root, "new-source-videos"));
+  assert.equal(updated.source_folders[0]?.last_scanned_at, "");
+  assert.equal(updated.source_folders[0]?.discovered_video_count, 0);
+  assert.equal(updated.source_folders[0]?.new_unprocessed_count, 0);
+});
+
+test("updates runtime policy without changing source folders", async () => {
+  const root = await makeRoot();
+  await addAdminSourceFolder(root, {
+    name: "课程素材",
+    path: "/Volumes/CourseVideos",
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  const updated = await updateAdminRuntimePolicy(root, {
+    concurrent_jobs: 4,
+    auto_scan_enabled: true,
+    auto_queue_enabled: true
+  });
+
+  assert.equal(updated.runtime_policy.concurrent_jobs, 4);
+  assert.equal(updated.runtime_policy.auto_scan_enabled, true);
+  assert.equal(updated.runtime_policy.auto_queue_enabled, true);
+  assert.equal(updated.source_folders.length, 2);
+});
+
+test("rejects removing the default source folder", async () => {
+  const root = await makeRoot();
+
+  await assert.rejects(
+    () => removeAdminSourceFolder(root, "src_default"),
+    /默认素材来源不能移除/
+  );
+});
+
+test("removes non-default source folders", async () => {
+  const root = await makeRoot();
+  await addAdminSourceFolder(root, {
+    name: "课程素材",
+    path: "/Volumes/CourseVideos",
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  });
+
+  const updated = await removeAdminSourceFolder(root, "src_002");
+
+  assert.equal(updated.source_folders.length, 1);
+  assert.equal(updated.source_folders[0]?.id, "src_default");
+});
+
+test("rejects relative source folder paths when saving settings", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+
+  await assert.rejects(
+    () => updateAdminSettings(root, {
+      source_folders: [{
+        ...current.source_folders[0]!,
+        path: "relative/source-videos"
+      }]
+    }),
+    /素材来源路径必须是绝对路径/
+  );
 });

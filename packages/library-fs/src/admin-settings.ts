@@ -34,6 +34,10 @@ export interface AdminSettings {
   updated_at: string;
 }
 
+export type AdminSettingsPatch = Partial<Pick<AdminSettings, "library_name" | "source_folders" | "runtime_policy">>;
+export type AdminSourceFolderPatch = Partial<Pick<AdminSourceFolder, "name" | "path" | "enabled">>;
+export type AdminRuntimePolicyPatch = Partial<AdminRuntimePolicy>;
+
 interface NodeError extends Error {
   code?: string;
 }
@@ -99,6 +103,14 @@ function isSafeSourceFolderId(value: unknown): value is string {
 
 function invalidSettings(message: string): never {
   throw new Error(`管理员设置文件格式无效：${message}`);
+}
+
+function assertAbsoluteSourceFolderPaths(sourceFolders: AdminSourceFolder[]): void {
+  for (const folder of sourceFolders) {
+    if (!path.isAbsolute(folder.path)) {
+      throw new Error("素材来源路径必须是绝对路径");
+    }
+  }
 }
 
 function validate(settings: unknown): asserts settings is AdminSettings {
@@ -221,6 +233,20 @@ function validate(settings: unknown): asserts settings is AdminSettings {
   }
 }
 
+function normalizeSourceFolderAfterPathChange(
+  previous: AdminSourceFolder,
+  next: AdminSourceFolder
+): AdminSourceFolder {
+  return path.resolve(previous.path) === path.resolve(next.path)
+    ? next
+    : {
+        ...next,
+        last_scanned_at: "",
+        discovered_video_count: 0,
+        new_unprocessed_count: 0
+      };
+}
+
 function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
   let maxSuffix = BigInt(sourceFolders.length);
 
@@ -268,6 +294,7 @@ export async function writeAdminSettings(
   settings: AdminSettings
 ): Promise<AdminSettings> {
   validate(settings);
+  assertAbsoluteSourceFolderPaths(settings.source_folders);
   const next = { ...settings, updated_at: new Date().toISOString() };
   await mkdir(mixlabRoot(libraryRoot), { recursive: true });
   await writeFile(settingsPath(libraryRoot), `${JSON.stringify(next, null, 2)}\n`, "utf8");
@@ -283,5 +310,92 @@ export async function addAdminSourceFolder(
   return writeAdminSettings(libraryRoot, {
     ...current,
     source_folders: [...current.source_folders, { ...folder, id: nextId }]
+  });
+}
+
+export async function updateAdminSettings(
+  libraryRoot: string,
+  patch: AdminSettingsPatch
+): Promise<AdminSettings> {
+  const current = await readAdminSettings(libraryRoot);
+  const currentById = new Map(current.source_folders.map((folder) => [folder.id, folder]));
+  const sourceFolders = patch.source_folders
+    ? patch.source_folders.map((folder) => {
+        const previous = currentById.get(folder.id);
+        return previous ? normalizeSourceFolderAfterPathChange(previous, folder) : folder;
+      })
+    : current.source_folders;
+
+  return writeAdminSettings(libraryRoot, {
+    ...current,
+    library_name: patch.library_name ?? current.library_name,
+    source_folders: sourceFolders,
+    runtime_policy: patch.runtime_policy
+      ? { ...current.runtime_policy, ...patch.runtime_policy }
+      : current.runtime_policy
+  });
+}
+
+export async function updateAdminSourceFolder(
+  libraryRoot: string,
+  sourceFolderId: string,
+  patch: AdminSourceFolderPatch
+): Promise<AdminSettings> {
+  const current = await readAdminSettings(libraryRoot);
+  let found = false;
+  const sourceFolders = current.source_folders.map((folder) => {
+    if (folder.id !== sourceFolderId) {
+      return folder;
+    }
+
+    found = true;
+    return normalizeSourceFolderAfterPathChange(folder, {
+      ...folder,
+      ...patch
+    });
+  });
+
+  if (!found) {
+    throw new Error("素材来源不存在");
+  }
+
+  return writeAdminSettings(libraryRoot, {
+    ...current,
+    source_folders: sourceFolders
+  });
+}
+
+export async function removeAdminSourceFolder(
+  libraryRoot: string,
+  sourceFolderId: string
+): Promise<AdminSettings> {
+  if (sourceFolderId === "src_default") {
+    throw new Error("默认素材来源不能移除");
+  }
+
+  const current = await readAdminSettings(libraryRoot);
+  const sourceFolders = current.source_folders.filter((folder) => folder.id !== sourceFolderId);
+
+  if (sourceFolders.length === current.source_folders.length) {
+    throw new Error("素材来源不存在");
+  }
+
+  return writeAdminSettings(libraryRoot, {
+    ...current,
+    source_folders: sourceFolders
+  });
+}
+
+export async function updateAdminRuntimePolicy(
+  libraryRoot: string,
+  patch: AdminRuntimePolicyPatch
+): Promise<AdminSettings> {
+  const current = await readAdminSettings(libraryRoot);
+  return writeAdminSettings(libraryRoot, {
+    ...current,
+    runtime_policy: {
+      ...current.runtime_policy,
+      ...patch
+    }
   });
 }
