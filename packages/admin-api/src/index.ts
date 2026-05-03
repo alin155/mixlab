@@ -13,6 +13,7 @@ import path from "node:path";
 import { runMixlabDoctor } from "../../doctor-core/src/index.ts";
 import { resolveFfmpegRuntime } from "../../ffmpeg-core/src/index.ts";
 import {
+  addAdminSourceFolder,
   approveCutterUser,
   disableCutterUser,
   listCutterUsers,
@@ -20,7 +21,13 @@ import {
   readAdminSettings,
   readAllSourceVideoManifests,
   readUsageMetrics,
-  scanSourceVideos
+  removeAdminSourceFolder,
+  scanSourceVideos,
+  updateAdminSettings,
+  updateAdminSourceFolder,
+  type AdminSettingsPatch,
+  type AdminSourceFolder,
+  type AdminSourceFolderPatch
 } from "../../library-fs/src/index.ts";
 import {
   validateSourceVideoManifest,
@@ -93,6 +100,97 @@ function apiOk<T>(data: T) {
 
 function apiError(errorCode: string, message: string, details?: Record<string, unknown>) {
   return details ? { ok: false, error_code: errorCode, message, details } : { ok: false, error_code: errorCode, message };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requireRequestRecord(body: unknown): Record<string, unknown> {
+  if (!isRecord(body)) {
+    throw new Error("请求内容必须是对象");
+  }
+
+  return body;
+}
+
+function adminSettingsPatchFromBody(body: Record<string, unknown>): AdminSettingsPatch {
+  const patch: AdminSettingsPatch = {};
+
+  if ("library_name" in body) {
+    patch.library_name = body.library_name as string;
+  }
+
+  if ("source_folders" in body) {
+    if (!Array.isArray(body.source_folders)) {
+      throw new Error("素材来源列表必须是数组");
+    }
+    patch.source_folders = body.source_folders as AdminSourceFolder[];
+  }
+
+  if ("runtime_policy" in body) {
+    if (!isRecord(body.runtime_policy)) {
+      throw new Error("运行策略必须是对象");
+    }
+    patch.runtime_policy = body.runtime_policy as unknown as AdminSettingsPatch["runtime_policy"];
+  }
+
+  return patch;
+}
+
+function adminSourceFolderFromBody(body: Record<string, unknown>): Omit<AdminSourceFolder, "id"> {
+  return {
+    name: body.name as string,
+    path: body.path as string,
+    enabled: body.enabled === undefined ? true : (body.enabled as boolean)
+  };
+}
+
+function adminSourceFolderPatchFromBody(body: Record<string, unknown>): AdminSourceFolderPatch {
+  const patch: AdminSourceFolderPatch = {};
+
+  if ("name" in body) {
+    patch.name = body.name as string;
+  }
+
+  if ("path" in body) {
+    patch.path = body.path as string;
+  }
+
+  if ("enabled" in body) {
+    patch.enabled = body.enabled as boolean;
+  }
+
+  return patch;
+}
+
+function writeSettingsMutationError(response: ServerResponse, error: unknown): void {
+  if (error instanceof SyntaxError) {
+    writeJson(response, 400, apiError("invalid_request", "请求 JSON 格式无效"));
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : "设置保存失败";
+
+  if (message === "素材来源不存在") {
+    writeJson(response, 404, apiError("not_found", message));
+    return;
+  }
+
+  if (
+    message === "请求内容必须是对象" ||
+    message === "素材来源列表必须是数组" ||
+    message === "运行策略必须是对象" ||
+    message.includes("管理员设置文件格式无效") ||
+    message.includes("素材来源") ||
+    message.includes("预处理产物库") ||
+    message.includes("默认素材来源不能移除")
+  ) {
+    writeJson(response, 400, apiError("invalid_request", message));
+    return;
+  }
+
+  throw error;
 }
 
 function mixlabRoot(libraryRoot: string): string {
@@ -923,7 +1021,7 @@ function writeJson(response: ServerResponse, statusCode: number, body: unknown):
   response.writeHead(statusCode, {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Content-Type": "application/json; charset=utf-8"
   });
   response.end(JSON.stringify(body));
@@ -933,7 +1031,7 @@ function writeNoContent(response: ServerResponse): void {
   response.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,PATCH,OPTIONS"
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS"
   });
   response.end();
 }
@@ -994,6 +1092,66 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
 
       if (request.method === "GET" && url.pathname === "/api/admin/settings/config") {
         writeJson(response, 200, apiOk(await readAdminSettings(input.library_root)));
+        return;
+      }
+
+      if (request.method === "PATCH" && url.pathname === "/api/admin/settings/config") {
+        try {
+          const body = requireRequestRecord(await readRequestJson(request));
+          writeJson(
+            response,
+            200,
+            apiOk(await updateAdminSettings(input.library_root, adminSettingsPatchFromBody(body)))
+          );
+        } catch (error) {
+          writeSettingsMutationError(response, error);
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/settings/source-folders") {
+        try {
+          const body = requireRequestRecord(await readRequestJson(request));
+          writeJson(
+            response,
+            200,
+            apiOk(await addAdminSourceFolder(input.library_root, adminSourceFolderFromBody(body)))
+          );
+        } catch (error) {
+          writeSettingsMutationError(response, error);
+        }
+        return;
+      }
+
+      const sourceFolderMutationMatch = /^\/api\/admin\/settings\/source-folders\/(src_default|src_\d+)$/.exec(url.pathname);
+      if (request.method === "PATCH" && sourceFolderMutationMatch) {
+        try {
+          const body = requireRequestRecord(await readRequestJson(request));
+          writeJson(
+            response,
+            200,
+            apiOk(await updateAdminSourceFolder(
+              input.library_root,
+              sourceFolderMutationMatch[1] ?? "",
+              adminSourceFolderPatchFromBody(body)
+            ))
+          );
+        } catch (error) {
+          writeSettingsMutationError(response, error);
+        }
+        return;
+      }
+
+      if (request.method === "DELETE" && sourceFolderMutationMatch) {
+        try {
+          writeJson(
+            response,
+            200,
+            apiOk(await removeAdminSourceFolder(input.library_root, sourceFolderMutationMatch[1] ?? ""))
+          );
+        } catch (error) {
+          writeSettingsMutationError(response, error);
+        }
         return;
       }
 

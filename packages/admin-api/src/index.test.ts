@@ -63,6 +63,14 @@ async function patchJson(baseUrl: string, pathName: string, body: unknown): Prom
   return response.json();
 }
 
+async function deleteJson(baseUrl: string, pathName: string): Promise<any> {
+  const response = await fetch(`${baseUrl}${pathName}`, {
+    method: "DELETE"
+  });
+
+  return response.json();
+}
+
 async function getJson(baseUrl: string, pathName: string): Promise<any> {
   const response = await fetch(`${baseUrl}${pathName}`);
 
@@ -172,6 +180,117 @@ test("returns admin settings config with the default source folder", async () =>
     assert.equal(settings.ok, true);
     assert.equal(settings.data.source_folders[0].name, "默认素材来源");
     assert.equal(settings.data.source_folders[0].path, path.join(libraryRoot, "source-videos"));
+  });
+});
+
+test("persists admin settings config through API", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const current = await getJson(baseUrl, "/api/admin/settings/config");
+    const defaultSource = current.data.source_folders[0];
+    const saved = await patchJson(baseUrl, "/api/admin/settings/config", {
+      library_name: "课程公共素材库",
+      source_folders: [
+        {
+          ...defaultSource,
+          name: "主课程素材",
+          path: path.join(libraryRoot, "main-videos"),
+          enabled: true
+        },
+        {
+          id: "src_002",
+          name: "外部课程素材",
+          path: "/Volumes/CourseVideos",
+          enabled: false
+        }
+      ],
+      runtime_policy: {
+        audio_mode: "wav_16k_mono_pcm_s16le",
+        concurrent_jobs: 3,
+        auto_scan_enabled: true,
+        auto_queue_enabled: true,
+        auto_publish_index_enabled: false
+      }
+    });
+
+    assert.equal(saved.ok, true);
+    assert.equal(saved.data.library_name, "课程公共素材库");
+    assert.equal(saved.data.source_folders.length, 2);
+    assert.equal(saved.data.source_folders[0].name, "主课程素材");
+    assert.equal(saved.data.source_folders[1].path, "/Volumes/CourseVideos");
+    assert.equal(saved.data.runtime_policy.audio_mode, "wav_16k_mono_pcm_s16le");
+    assert.equal(saved.data.runtime_policy.concurrent_jobs, 3);
+
+    const persisted = await getJson(baseUrl, "/api/admin/settings/config");
+    assert.equal(persisted.data.library_name, "课程公共素材库");
+    assert.equal(persisted.data.source_folders[1].enabled, false);
+    assert.equal(persisted.data.runtime_policy.auto_queue_enabled, true);
+  });
+});
+
+test("mutates source folders through API", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const added = await postJson(baseUrl, "/api/admin/settings/source-folders", {
+      name: "课程素材",
+      path: "/Volumes/CourseVideos",
+      enabled: true
+    });
+
+    assert.equal(added.ok, true);
+    assert.equal(added.data.source_folders[1].id, "src_002");
+    assert.equal(added.data.source_folders[1].name, "课程素材");
+
+    const updated = await patchJson(baseUrl, "/api/admin/settings/source-folders/src_002", {
+      name: "课程素材归档",
+      enabled: false
+    });
+
+    assert.equal(updated.ok, true);
+    assert.equal(updated.data.source_folders[1].name, "课程素材归档");
+    assert.equal(updated.data.source_folders[1].enabled, false);
+
+    const removed = await deleteJson(baseUrl, "/api/admin/settings/source-folders/src_002");
+
+    assert.equal(removed.ok, true);
+    assert.equal(removed.data.source_folders.length, 1);
+    assert.equal(removed.data.source_folders[0].id, "src_default");
+  });
+});
+
+test("returns Chinese settings validation errors", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const current = await getJson(baseUrl, "/api/admin/settings/config");
+    const invalidPath = await patchJson(baseUrl, "/api/admin/settings/config", {
+      source_folders: [
+        {
+          ...current.data.source_folders[0],
+          path: "relative/source"
+        }
+      ]
+    });
+
+    assert.equal(invalidPath.ok, false);
+    assert.equal(invalidPath.error_code, "invalid_request");
+    assert.match(invalidPath.message, /素材来源路径必须是绝对路径/);
+
+    const missingFolder = await patchJson(baseUrl, "/api/admin/settings/source-folders/src_999", {
+      name: "不存在"
+    });
+
+    assert.equal(missingFolder.ok, false);
+    assert.equal(missingFolder.error_code, "not_found");
+    assert.match(missingFolder.message, /素材来源不存在/);
+
+    const defaultRemoval = await deleteJson(baseUrl, "/api/admin/settings/source-folders/src_default");
+
+    assert.equal(defaultRemoval.ok, false);
+    assert.equal(defaultRemoval.error_code, "invalid_request");
+    assert.match(defaultRemoval.message, /默认素材来源不能移除/);
   });
 });
 
