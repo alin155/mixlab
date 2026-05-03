@@ -163,6 +163,13 @@ export interface AdminSettingsConfig {
   updated_at: string;
 }
 
+export type AdminSettingsConfigUpdate = Pick<
+  AdminSettingsConfig,
+  "library_name" | "source_folders" | "runtime_policy"
+>;
+export type AdminSourceFolderCreate = Omit<AdminSourceFolder, "id">;
+export type AdminSourceFolderUpdate = Partial<Pick<AdminSourceFolder, "name" | "path" | "enabled">>;
+
 export interface UserUsageMetrics {
   user_id: string;
   username: string;
@@ -343,6 +350,10 @@ export interface AdminApiClient {
   getLibraryStatus(): Promise<AdminLibraryStatus>;
   getPathChecks(): Promise<AdminPathCheck[]>;
   getAdminSettings(): Promise<AdminSettingsConfig>;
+  saveAdminSettings(settings: AdminSettingsConfigUpdate): Promise<AdminSettingsConfig>;
+  addSourceFolder(folder: AdminSourceFolderCreate): Promise<AdminSettingsConfig>;
+  updateSourceFolder(sourceFolderId: string, patch: AdminSourceFolderUpdate): Promise<AdminSettingsConfig>;
+  removeSourceFolder(sourceFolderId: string): Promise<AdminSettingsConfig>;
   getDashboardMetrics(): Promise<AdminDashboardMetrics>;
   listSourceVideos(): Promise<AdminSourceVideo[]>;
   getSourceVideoDetail(sourceVideoId: string): Promise<AdminSourceVideoDetail>;
@@ -464,6 +475,18 @@ async function sendJson<T>(
   return unwrapAdminResponse(envelope);
 }
 
+async function deleteJson<T>(
+  fetchImpl: typeof fetch,
+  baseUrl: string,
+  endpoint: string
+): Promise<T> {
+  const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
+    method: "DELETE"
+  });
+  const envelope = (await response.json()) as AdminApiEnvelope<T>;
+  return unwrapAdminResponse(envelope);
+}
+
 export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApiClient {
   const fetchImpl = input.fetch ?? fetch;
 
@@ -474,6 +497,36 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
       getJson<AdminPathCheck[]>(fetchImpl, input.base_url, "/api/admin/library/path-checks"),
     getAdminSettings: () =>
       getJson<AdminSettingsConfig>(fetchImpl, input.base_url, "/api/admin/settings/config"),
+    saveAdminSettings: (settingsUpdate) =>
+      sendJson<AdminSettingsConfig>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/settings/config",
+        "PATCH",
+        settingsUpdate
+      ),
+    addSourceFolder: (folder) =>
+      sendJson<AdminSettingsConfig>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/settings/source-folders",
+        "POST",
+        folder
+      ),
+    updateSourceFolder: (sourceFolderId, patch) =>
+      sendJson<AdminSettingsConfig>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/settings/source-folders/${sourceFolderId}`,
+        "PATCH",
+        patch
+      ),
+    removeSourceFolder: (sourceFolderId) =>
+      deleteJson<AdminSettingsConfig>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/settings/source-folders/${sourceFolderId}`
+      ),
     getDashboardMetrics: () =>
       getJson<AdminDashboardMetrics>(fetchImpl, input.base_url, "/api/admin/dashboard/metrics"),
     listSourceVideos: () =>
@@ -1036,6 +1089,46 @@ function cloneSettings(value: AdminSettingsConfig): AdminSettingsConfig {
   };
 }
 
+function cloneRuntimeSettings(value: AdminRuntimeSettings): AdminRuntimeSettings {
+  return {
+    ffmpeg: { ...value.ffmpeg },
+    ffprobe: { ...value.ffprobe },
+    asr: { ...value.asr, language_hints: [...value.asr.language_hints] }
+  };
+}
+
+function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
+  let maxSuffix = BigInt(sourceFolders.length);
+
+  for (const folder of sourceFolders) {
+    const match = /^src_(\d+)$/.exec(folder.id);
+    if (match) {
+      const suffix = BigInt(match[1] ?? "0");
+      if (suffix > maxSuffix) {
+        maxSuffix = suffix;
+      }
+    }
+  }
+
+  return `src_${String(maxSuffix + 1n).padStart(3, "0")}`;
+}
+
+function normalizeFixtureSourceFolder(
+  previous: AdminSourceFolder | undefined,
+  next: AdminSourceFolder
+): AdminSourceFolder {
+  if (!previous || previous.path === next.path) {
+    return next;
+  }
+
+  return {
+    ...next,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  };
+}
+
 function cloneUsageMetrics(value: UsageMetrics): UsageMetrics {
   return {
     ...value,
@@ -1229,10 +1322,104 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     };
   }
 
+  function syncSettingsSideEffects(): void {
+    const primarySourceFolder = fixtureSettings.source_folders.find((folder) => folder.enabled)
+      ?? fixtureSettings.source_folders[0];
+    fixtureStatus = {
+      ...fixtureStatus,
+      name: fixtureSettings.library_name,
+      source_videos_path: primarySourceFolder?.path ?? fixtureStatus.source_videos_path
+    };
+  }
+
+  function saveFixtureSettings(settingsUpdate: AdminSettingsConfigUpdate): AdminSettingsConfig {
+    const currentById = new Map(fixtureSettings.source_folders.map((folder) => [folder.id, folder]));
+    fixtureSettings = cloneSettings({
+      ...fixtureSettings,
+      library_name: settingsUpdate.library_name,
+      source_folders: settingsUpdate.source_folders.map((folder) =>
+        normalizeFixtureSourceFolder(currentById.get(folder.id), folder)
+      ),
+      runtime_policy: { ...settingsUpdate.runtime_policy },
+      updated_at: "2024-05-07 10:37:00"
+    });
+    syncSettingsSideEffects();
+    return cloneSettings(fixtureSettings);
+  }
+
+  function addFixtureSourceFolder(folder: AdminSourceFolderCreate): AdminSettingsConfig {
+    const nextFolder: AdminSourceFolder = {
+      ...folder,
+      id: nextSourceFolderId(fixtureSettings.source_folders),
+      last_scanned_at: folder.last_scanned_at ?? "",
+      discovered_video_count: folder.discovered_video_count ?? 0,
+      new_unprocessed_count: folder.new_unprocessed_count ?? 0
+    };
+    fixtureSettings = cloneSettings({
+      ...fixtureSettings,
+      source_folders: [...fixtureSettings.source_folders, nextFolder],
+      updated_at: "2024-05-07 10:38:00"
+    });
+    syncSettingsSideEffects();
+    return cloneSettings(fixtureSettings);
+  }
+
+  function updateFixtureSourceFolder(
+    sourceFolderId: string,
+    patch: AdminSourceFolderUpdate
+  ): AdminSettingsConfig {
+    let found = false;
+    fixtureSettings = cloneSettings({
+      ...fixtureSettings,
+      source_folders: fixtureSettings.source_folders.map((folder) => {
+        if (folder.id !== sourceFolderId) {
+          return folder;
+        }
+
+        found = true;
+        return normalizeFixtureSourceFolder(folder, {
+          ...folder,
+          ...patch
+        });
+      }),
+      updated_at: "2024-05-07 10:39:00"
+    });
+
+    if (!found) {
+      throw new Error("素材来源不存在");
+    }
+
+    syncSettingsSideEffects();
+    return cloneSettings(fixtureSettings);
+  }
+
+  function removeFixtureSourceFolder(sourceFolderId: string): AdminSettingsConfig {
+    if (sourceFolderId === "src_default") {
+      throw new Error("默认素材来源不能移除");
+    }
+
+    const sourceFolders = fixtureSettings.source_folders.filter((folder) => folder.id !== sourceFolderId);
+    if (sourceFolders.length === fixtureSettings.source_folders.length) {
+      throw new Error("素材来源不存在");
+    }
+
+    fixtureSettings = cloneSettings({
+      ...fixtureSettings,
+      source_folders: sourceFolders,
+      updated_at: "2024-05-07 10:40:00"
+    });
+    syncSettingsSideEffects();
+    return cloneSettings(fixtureSettings);
+  }
+
   return {
     getLibraryStatus: async () => ({ ...fixtureStatus }),
     getPathChecks: async () => fixturePathChecks.map((item) => ({ ...item })),
     getAdminSettings: async () => cloneSettings(fixtureSettings),
+    saveAdminSettings: async (settingsUpdate) => saveFixtureSettings(settingsUpdate),
+    addSourceFolder: async (folder) => addFixtureSourceFolder(folder),
+    updateSourceFolder: async (sourceFolderId, patch) => updateFixtureSourceFolder(sourceFolderId, patch),
+    removeSourceFolder: async (sourceFolderId) => removeFixtureSourceFolder(sourceFolderId),
     getDashboardMetrics: async () => cloneDashboardMetrics(fixtureMetrics),
     listSourceVideos: async () => fixtureSourceVideos.map((video) => ({
       ...video,
@@ -1331,7 +1518,16 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       summary: { ...fixtureDoctor.summary },
       checks: fixtureDoctor.checks.map((check) => ({ ...check }))
     }),
-    getRuntimeSettings: async () => runtime,
+    getRuntimeSettings: async () => {
+      const clonedRuntime = cloneRuntimeSettings(runtime);
+      return {
+        ...clonedRuntime,
+        asr: {
+          ...clonedRuntime.asr,
+          audio_mode: fixtureSettings.runtime_policy.audio_mode
+        }
+      };
+    },
     initializeLibrary: async () => ({
       affected_count: 0,
       message: "fixture 素材库已初始化"

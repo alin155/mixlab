@@ -5,7 +5,8 @@ import {
   createFixtureAdminApiClient,
   loadAdminDashboardData,
   unwrapAdminResponse,
-  type AdminApiEnvelope
+  type AdminApiEnvelope,
+  type AdminSettingsConfig
 } from "./api.ts";
 
 test("unwraps successful admin API envelopes", () => {
@@ -174,6 +175,89 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/source-videos/V000001/metadata"
     ]
   );
+});
+
+test("calls admin settings mutation endpoints through the typed client", async () => {
+  const requests: Array<{ method: string; pathname: string; body?: unknown }> = [];
+  const savedSettings: AdminSettingsConfig = {
+    schema_version: "1.0",
+    library_name: "课程公共素材库",
+    source_folders: [
+      {
+        id: "src_default",
+        name: "默认素材来源",
+        path: "/Volumes/PublicLibrary/source-videos",
+        enabled: true
+      }
+    ],
+    artifact_library: {
+      mode: "default",
+      path: "/Volumes/PublicLibrary/.mixlab-library",
+      migration_required: false
+    },
+    runtime_policy: {
+      audio_mode: "mp3_16k_mono_64k",
+      concurrent_jobs: 2,
+      auto_scan_enabled: true,
+      auto_queue_enabled: false,
+      auto_publish_index_enabled: true
+    },
+    updated_at: "2026-05-03T10:00:00.000Z"
+  };
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async (url, init) => {
+      requests.push({
+        method: init?.method ?? "GET",
+        pathname: new URL(String(url)).pathname,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+      return new Response(JSON.stringify({ ok: true, data: savedSettings }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  await client.saveAdminSettings({
+    library_name: "课程公共素材库",
+    source_folders: savedSettings.source_folders,
+    runtime_policy: savedSettings.runtime_policy
+  });
+  await client.addSourceFolder({
+    name: "品牌素材",
+    path: "/Volumes/BrandVideos",
+    enabled: true
+  });
+  await client.updateSourceFolder("src_002", {
+    name: "品牌素材归档",
+    enabled: false
+  });
+  await client.removeSourceFolder("src_002");
+
+  assert.deepEqual(
+    requests.map((request) => [request.method, request.pathname]),
+    [
+      ["PATCH", "/api/admin/settings/config"],
+      ["POST", "/api/admin/settings/source-folders"],
+      ["PATCH", "/api/admin/settings/source-folders/src_002"],
+      ["DELETE", "/api/admin/settings/source-folders/src_002"]
+    ]
+  );
+  assert.deepEqual(requests[0]?.body, {
+    library_name: "课程公共素材库",
+    source_folders: savedSettings.source_folders,
+    runtime_policy: savedSettings.runtime_policy
+  });
+  assert.deepEqual(requests[1]?.body, {
+    name: "品牌素材",
+    path: "/Volumes/BrandVideos",
+    enabled: true
+  });
+  assert.deepEqual(requests[2]?.body, {
+    name: "品牌素材归档",
+    enabled: false
+  });
+  assert.equal(requests[3]?.body, undefined);
 });
 
 test("client resolves admin media URLs against base URL", async () => {
@@ -459,6 +543,57 @@ test("fixture client includes settings, metrics, cutter users, and source detail
     exists: true
   });
   assert.equal(detail.artifacts.index_version, "v000027");
+});
+
+test("fixture settings mutations persist and appear in dashboard data", async () => {
+  const client = createFixtureAdminApiClient();
+  const before = await client.getAdminSettings();
+  const saved = await client.saveAdminSettings({
+    library_name: "课程公共素材库",
+    source_folders: before.source_folders.map((folder) =>
+      folder.id === "src_default"
+        ? { ...folder, name: "主素材来源" }
+        : folder
+    ),
+    runtime_policy: {
+      ...before.runtime_policy,
+      audio_mode: "wav_16k_mono_pcm_s16le",
+      concurrent_jobs: 4,
+      auto_queue_enabled: true
+    }
+  });
+
+  assert.equal(saved.library_name, "课程公共素材库");
+  assert.equal(saved.source_folders[0]?.name, "主素材来源");
+  assert.equal(saved.runtime_policy.concurrent_jobs, 4);
+
+  const added = await client.addSourceFolder({
+    name: "品牌素材",
+    path: "/Volumes/BrandVideos",
+    enabled: true
+  });
+  const newFolder = added.source_folders.at(-1);
+
+  assert.match(newFolder?.id ?? "", /^src_\d+$/);
+  assert.equal(newFolder?.name, "品牌素材");
+
+  const updated = await client.updateSourceFolder(newFolder?.id ?? "", {
+    path: "/Volumes/BrandArchive",
+    enabled: false
+  });
+  const updatedFolder = updated.source_folders.find((folder) => folder.id === newFolder?.id);
+
+  assert.equal(updatedFolder?.path, "/Volumes/BrandArchive");
+  assert.equal(updatedFolder?.enabled, false);
+  assert.equal(updatedFolder?.discovered_video_count, 0);
+
+  const removed = await client.removeSourceFolder(newFolder?.id ?? "");
+
+  assert.equal(removed.source_folders.some((folder) => folder.id === newFolder?.id), false);
+
+  const dashboard = await loadAdminDashboardData(client);
+  assert.equal(dashboard.settings.library_name, "课程公共素材库");
+  assert.equal(dashboard.settings.runtime_policy.audio_mode, "wav_16k_mono_pcm_s16le");
 });
 
 test("fixture cutter user approval redacts session token and disable mutates status", async () => {
