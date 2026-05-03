@@ -62,7 +62,17 @@ async function requireCount(page: Page, selector: string, minCount: number): Pro
 }
 
 async function requireText(page: Page, text: string): Promise<void> {
-  await page.getByText(text, { exact: false }).first().waitFor();
+  const matches = page.getByText(text, { exact: false });
+  const count = await matches.count();
+
+  for (let index = 0; index < count; index += 1) {
+    const candidate = matches.nth(index);
+    if (await candidate.isVisible().catch(() => false)) {
+      return;
+    }
+  }
+
+  await matches.first().waitFor({ state: "visible" });
 }
 
 async function assertNoSecret(page: Page): Promise<void> {
