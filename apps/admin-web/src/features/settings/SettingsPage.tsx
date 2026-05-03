@@ -4,7 +4,11 @@ import {
   StatusRow
 } from "@mixlab/ui-foundation";
 import { useEffect, useState } from "react";
-import type { AdminDashboardData } from "../../api.ts";
+import type {
+  AdminDashboardData,
+  AdminSettingsConfigUpdate,
+  AdminSourceFolder
+} from "../../api.ts";
 import {
   asrModelLabel,
   asrProviderLabel,
@@ -20,43 +24,174 @@ import {
 } from "../../app/view-model.ts";
 import { AdminControlButton, AdminPageHeader } from "../shared.tsx";
 
+type RuntimePolicy = AdminSettingsConfigUpdate["runtime_policy"];
+
+function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
+  let maxSuffix = BigInt(sourceFolders.length);
+
+  for (const folder of sourceFolders) {
+    const match = /^src_(\d+)$/.exec(folder.id);
+    if (match) {
+      const suffix = BigInt(match[1] ?? "0");
+      if (suffix > maxSuffix) {
+        maxSuffix = suffix;
+      }
+    }
+  }
+
+  return `src_${String(maxSuffix + 1n).padStart(3, "0")}`;
+}
+
+function defaultNewSourceFolder(data: AdminDashboardData, sourceFolders: AdminSourceFolder[]): AdminSourceFolder {
+  const rootPath = data.status.root_path.replace(/\/$/, "") || "/Volumes/PublicLibrary";
+  const suffix = sourceFolders.length + 1;
+  return {
+    id: nextSourceFolderId(sourceFolders),
+    name: `新素材来源 ${suffix}`,
+    path: `${rootPath}/source-videos-${suffix}`,
+    enabled: true,
+    last_scanned_at: "",
+    discovered_video_count: 0,
+    new_unprocessed_count: 0
+  };
+}
+
 export function SettingsPage({
   data,
   onInitializeLibrary,
   onScanSourceVideos,
+  onSaveAdminSettings,
   onTestAsrConfig
 }: {
   data: AdminDashboardData;
   onInitializeLibrary?: () => void;
   onScanSourceVideos?: () => void;
+  onSaveAdminSettings?: (settings: AdminSettingsConfigUpdate) => void | Promise<void>;
   onTestAsrConfig?: () => void;
 }) {
-  const [audioMode, setAudioMode] = useState(data.runtime.asr.audio_mode);
+  const [libraryName, setLibraryName] = useState(data.settings.library_name);
+  const [sourceFolders, setSourceFolders] = useState<AdminSourceFolder[]>(() =>
+    data.settings.source_folders.map((folder) => ({ ...folder }))
+  );
+  const [runtimePolicy, setRuntimePolicy] = useState<RuntimePolicy>(() => ({
+    ...data.settings.runtime_policy
+  }));
   const toolState = data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理";
 
   useEffect(() => {
-    setAudioMode(data.runtime.asr.audio_mode);
-  }, [data.runtime.asr.audio_mode]);
+    setLibraryName(data.settings.library_name);
+    setSourceFolders(data.settings.source_folders.map((folder) => ({ ...folder })));
+    setRuntimePolicy({ ...data.settings.runtime_policy });
+  }, [data.settings]);
+
+  const updateSourceFolder = (sourceFolderId: string, patch: Partial<AdminSourceFolder>) => {
+    setSourceFolders((current) =>
+      current.map((folder) => folder.id === sourceFolderId ? { ...folder, ...patch } : folder)
+    );
+  };
+
+  const removeSourceFolder = (sourceFolderId: string) => {
+    setSourceFolders((current) => current.filter((folder) => folder.id !== sourceFolderId));
+  };
+
+  const updateRuntimePolicy = (patch: Partial<RuntimePolicy>) => {
+    setRuntimePolicy((current) => ({ ...current, ...patch }));
+  };
+
+  const saveSettings = () => {
+    onSaveAdminSettings?.({
+      library_name: libraryName,
+      source_folders: sourceFolders,
+      runtime_policy: runtimePolicy
+    });
+  };
 
   return (
     <>
       <div className="admin-main-column">
-        <AdminPageHeader title="设置" eyebrow="素材来源与运行策略" />
+        <AdminPageHeader
+          title="设置"
+          eyebrow="素材来源与运行策略"
+          action={(
+            <AdminControlButton
+              label="新增素材来源"
+              state="local"
+              reason="在当前页面新增一条素材来源，保存后写入设置。"
+              onClick={() => setSourceFolders((current) => [...current, defaultNewSourceFolder(data, current)])}
+            />
+          )}
+        />
+        <section className="ml-form-group">
+          <h2 className="ml-form-group-title">素材库基本信息</h2>
+          <div className="ml-form-row">
+            <span className="ml-form-label">素材库名称</span>
+            <span>
+              <input
+                className="admin-text-input"
+                aria-label="素材库名称"
+                value={libraryName}
+                onChange={(event) => setLibraryName(event.currentTarget.value)}
+              />
+            </span>
+          </div>
+          <div className="ml-form-row">
+            <span className="ml-form-label">素材库编号</span>
+            <span>{data.status.library_id}</span>
+          </div>
+          <div className="ml-form-row">
+            <span className="ml-form-label">协议版本</span>
+            <span>{data.status.protocol_version}</span>
+          </div>
+        </section>
+        <section className="ml-form-group">
+          <h2 className="ml-form-group-title">素材来源</h2>
+          <div className="admin-source-folder-list">
+            {sourceFolders.map((folder) => (
+              <section className="admin-source-folder-row" key={folder.id}>
+                <label>
+                  <span>来源名称</span>
+                  <input
+                    className="admin-text-input"
+                    value={folder.name}
+                    aria-label={`${folder.name} 来源名称`}
+                    onChange={(event) => updateSourceFolder(folder.id, { name: event.currentTarget.value })}
+                  />
+                </label>
+                <label>
+                  <span>文件夹路径</span>
+                  <input
+                    className="admin-text-input"
+                    value={folder.path}
+                    aria-label={`${folder.name} 文件夹路径`}
+                    onChange={(event) => updateSourceFolder(folder.id, { path: event.currentTarget.value })}
+                  />
+                </label>
+                <label className="admin-checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={folder.enabled}
+                    onChange={(event) => updateSourceFolder(folder.id, { enabled: event.currentTarget.checked })}
+                  />
+                  <span>启用素材来源</span>
+                </label>
+                <span className="admin-source-folder-meta">
+                  已发现 {folder.discovered_video_count ?? 0} 个 · 新增未处理 {folder.new_unprocessed_count ?? 0} 个 · 最近扫描 {folder.last_scanned_at || "未扫描"}
+                </span>
+                <AdminControlButton
+                  label="移除"
+                  state={folder.id === "src_default" ? "read-only" : "local"}
+                  reason={folder.id === "src_default" ? "默认素材来源不能移除。" : "从设置中移除该素材来源，保存后生效。"}
+                  onClick={folder.id === "src_default" ? undefined : () => removeSourceFolder(folder.id)}
+                />
+              </section>
+            ))}
+          </div>
+        </section>
         <GroupedForm
           groups={[
             {
-              title: "素材来源",
-              rows: data.settings.source_folders.map((folder) => ({
-                label: folder.name,
-                value: `${folder.enabled ? "启用" : "停用"} · ${folder.path} · 已发现 ${folder.discovered_video_count ?? 0} 个 · 新增未处理 ${folder.new_unprocessed_count ?? 0} 个`
-              }))
-            },
-            {
               title: "预处理产物库",
               rows: [
-                { label: "素材库名称", value: data.settings.library_name },
-                { label: "素材库编号", value: data.status.library_id },
-                { label: "协议版本", value: data.status.protocol_version },
                 { label: "存储模式", value: runtimeSourceLabel(data.settings.artifact_library.mode) },
                 { label: "产物路径", value: data.settings.artifact_library.path },
                 { label: "是否需要迁移", value: booleanLabel(data.settings.artifact_library.migration_required) }
@@ -65,11 +200,76 @@ export function SettingsPage({
             {
               title: "运行策略",
               rows: [
-                { label: "并发任务", value: data.settings.runtime_policy.concurrent_jobs },
-                { label: "自动扫描", value: booleanLabel(data.settings.runtime_policy.auto_scan_enabled) },
-                { label: "自动入队", value: booleanLabel(data.settings.runtime_policy.auto_queue_enabled) },
-                { label: "自动发布索引", value: booleanLabel(data.settings.runtime_policy.auto_publish_index_enabled) },
-                { label: "音频模式", value: audioModeLabel(data.settings.runtime_policy.audio_mode) },
+                {
+                  label: "并发任务数",
+                  value: (
+                    <input
+                      className="admin-number-input"
+                      aria-label="并发任务数"
+                      type="number"
+                      min={1}
+                      value={runtimePolicy.concurrent_jobs}
+                      onChange={(event) => updateRuntimePolicy({
+                        concurrent_jobs: Math.max(1, Number(event.currentTarget.value) || 1)
+                      })}
+                    />
+                  )
+                },
+                {
+                  label: "自动扫描",
+                  value: (
+                    <label className="admin-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={runtimePolicy.auto_scan_enabled}
+                        onChange={(event) => updateRuntimePolicy({ auto_scan_enabled: event.currentTarget.checked })}
+                      />
+                      <span>自动扫描素材来源</span>
+                    </label>
+                  )
+                },
+                {
+                  label: "自动入队",
+                  value: (
+                    <label className="admin-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={runtimePolicy.auto_queue_enabled}
+                        onChange={(event) => updateRuntimePolicy({ auto_queue_enabled: event.currentTarget.checked })}
+                      />
+                      <span>自动入队未处理视频</span>
+                    </label>
+                  )
+                },
+                {
+                  label: "自动发布索引",
+                  value: (
+                    <label className="admin-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={runtimePolicy.auto_publish_index_enabled}
+                        onChange={(event) => updateRuntimePolicy({ auto_publish_index_enabled: event.currentTarget.checked })}
+                      />
+                      <span>自动发布可用索引</span>
+                    </label>
+                  )
+                },
+                {
+                  label: "音频模式",
+                  value: (
+                    <select
+                      className="admin-select"
+                      value={runtimePolicy.audio_mode}
+                      aria-label="选择音频模式"
+                      onChange={(event) => updateRuntimePolicy({
+                        audio_mode: event.currentTarget.value as RuntimePolicy["audio_mode"]
+                      })}
+                    >
+                      <option value="mp3_16k_mono_64k">压缩单声道</option>
+                      <option value="wav_16k_mono_pcm_s16le">无损单声道</option>
+                    </select>
+                  )
+                },
                 { label: "音视频工具", value: `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}` }
               ]
             },
@@ -78,23 +278,8 @@ export function SettingsPage({
               rows: [
                 { label: "供应商", value: asrProviderLabel(data.runtime.asr.provider) },
                 { label: "模型", value: asrModelLabel(data.runtime.asr.model) },
-                { label: "当前音频模式", value: audioModeLabel(data.runtime.asr.audio_mode) },
+                { label: "当前音频模式", value: audioModeLabel(runtimePolicy.audio_mode) },
                 { label: "可选音频模式", value: "压缩单声道 / 无损单声道" },
-                {
-                  label: "音频模式预览",
-                  value: (
-                    <select
-                      className="admin-select"
-                      value={audioMode}
-                      aria-label="选择音频模式"
-                      onChange={(event) => setAudioMode(event.currentTarget.value as typeof audioMode)}
-                    >
-                      <option value="mp3_16k_mono_64k">压缩单声道</option>
-                      <option value="wav_16k_mono_pcm_s16le">无损单声道</option>
-                    </select>
-                  )
-                },
-                { label: "预览结果", value: audioModeLabel(audioMode) },
                 { label: "接口密钥", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
                 { label: "语言提示", value: languageHintsLabel(data.runtime.asr.language_hints) },
                 { label: "对象存储", value: "阿里云百炼临时上传" },
@@ -122,7 +307,13 @@ export function SettingsPage({
         <section className="admin-action-stack">
           <AdminControlButton label="初始化素材库" state="m9b-api" reason="M9B 接入初始化接口。" variant="primary" onClick={onInitializeLibrary} />
           <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" onClick={onScanSourceVideos} />
-          <AdminControlButton label="保存运行策略" state="m9b-api" reason="M9B 接入配置保存或环境提示。" variant="primary" />
+          <AdminControlButton
+            label="保存设置"
+            state="m9b-api"
+            reason="M10 保存素材来源和运行策略。"
+            variant="primary"
+            onClick={onSaveAdminSettings ? saveSettings : undefined}
+          />
           <AdminControlButton label="测试语音识别配置" state="m9b-api" reason="M9B 接入语音识别配置检测。" onClick={onTestAsrConfig} />
           <AdminControlButton label="编辑接口密钥" state="native-boundary" reason="密钥只通过本地环境或部署环境变量配置。" />
         </section>

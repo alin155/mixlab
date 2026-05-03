@@ -13,6 +13,7 @@ import {
   type AdminApiClient,
   type AdminCutterUsersResponse,
   type AdminDashboardData,
+  type AdminSettingsConfigUpdate,
   type AdminSourceVideoDetail,
   type AdminSourceVideo,
   type AdminSourceVideoMetadataUpdate
@@ -69,6 +70,7 @@ interface AdminActionHandlers {
   onRepairIndex: () => Promise<void>;
   onRunDoctor: () => Promise<void>;
   onTestAsrConfig: () => Promise<void>;
+  onSaveAdminSettings: (settings: AdminSettingsConfigUpdate) => Promise<void>;
   onUpdateSourceVideoMetadata: (
     sourceVideoId: string,
     metadata: AdminSourceVideoMetadataUpdate
@@ -287,6 +289,7 @@ function renderPage(
         data={data}
         onInitializeLibrary={actions.onInitializeLibrary}
         onScanSourceVideos={actions.onScanSourceVideos}
+        onSaveAdminSettings={actions.onSaveAdminSettings}
         onTestAsrConfig={actions.onTestAsrConfig}
       />
     );
@@ -456,6 +459,8 @@ export function AdminApp() {
     onRepairIndex: () => runAction("修复索引", (api) => api.repairIndex()),
     onRunDoctor: () => runAction("运行健康诊断", (api) => api.runDoctor()),
     onTestAsrConfig: () => runAction("测试语音识别配置", (api) => api.testAsrConfig()),
+    onSaveAdminSettings: (settings) =>
+      runAction("保存设置", (api) => api.saveAdminSettings(settings)),
     onUpdateSourceVideoMetadata: (sourceVideoId, metadata) =>
       runAction("保存公开说明", (api) => api.updateSourceVideoMetadata(sourceVideoId, metadata)),
     onApproveCutterUser: (userId) =>

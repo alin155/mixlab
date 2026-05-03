@@ -221,6 +221,35 @@ test("settings merges library paths, runtime policy, and path checks", async () 
   }
 });
 
+test("settings renders editable source folder and runtime controls", async () => {
+  const html = renderToStaticMarkup(h(SettingsPage, {
+    data: await fixtureData(),
+    onSaveAdminSettings: () => {}
+  }));
+
+  for (const text of [
+    "素材库名称",
+    "新增素材来源",
+    "来源名称",
+    "文件夹路径",
+    "启用素材来源",
+    "移除",
+    "并发任务数",
+    "自动扫描素材来源",
+    "自动入队未处理视频",
+    "自动发布可用索引",
+    "保存设置"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+
+  assert.match(html, /aria-label="素材库名称"/);
+  assert.match(html, /aria-label="选择音频模式"/);
+  const saveButton = html.match(/<button[^>]*>保存设置<\/button>/)?.[0] ?? "";
+  assert.notEqual(saveButton, "");
+  assert.doesNotMatch(saveButton, /disabled/);
+});
+
 test("source video management renders public metadata controls", async () => {
   const html = renderToStaticMarkup(h(SourceVideosPage, { data: await fixtureData() }));
 

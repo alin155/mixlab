@@ -138,6 +138,9 @@ async function captureRoute(
 
   if (route === "settings") {
     await requireText(page, "运行策略");
+    await requireText(page, "新增素材来源");
+    await requireText(page, "启用素材来源");
+    await requireText(page, "保存设置");
     await requireText(page, "阿里云百炼");
     await requireText(page, "无损单声道");
   }
