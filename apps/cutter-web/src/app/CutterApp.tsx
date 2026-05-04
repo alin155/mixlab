@@ -196,6 +196,25 @@ export function appendDirectCutFixtureQueue(
   ];
 }
 
+export function materialSelectionFromResult(result: MaterialLocatorResult): {
+  range: TranscriptSelectionRange;
+  highlightedSegmentIds: string[];
+} {
+  const highlightedSegmentIds = result.segments.map((segment) => segment.segment_id);
+
+  return {
+    range: {
+      startSegmentId: highlightedSegmentIds[0],
+      endSegmentId: highlightedSegmentIds[highlightedSegmentIds.length - 1]
+    },
+    highlightedSegmentIds
+  };
+}
+
+export function cutNoticeForSubmittedJobs(count: number): string {
+  return count > 0 ? `已加入剪切任务 · 等待中 ${count}` : "";
+}
+
 function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
   const selectedSegments = data.primaryDetail.transcript.segments.slice(1, 4);
 
@@ -276,6 +295,7 @@ function renderPage(
     selectedDetail: CutterFixtureData["primaryDetail"];
     sourceFilter: MaterialSearchSourceFilter;
     orientationFilter: VideoOrientationFilter;
+    cutNotice: string;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -318,6 +338,7 @@ function renderPage(
         selectedDetail={viewState.selectedDetail}
         selectedSegments={viewState.selectedSegments}
         highlightedSegmentIds={viewState.highlightedSegmentIds}
+        cutNotice={viewState.cutNotice}
         queue={queue}
         onSearch={handlers.search}
         onSelectMaterial={handlers.selectMaterial}
@@ -372,6 +393,8 @@ export function CutterApp() {
   const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>("all");
   const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>("all");
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
+  const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
+  const [cutNotice, setCutNotice] = useState("");
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
     deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
@@ -577,6 +600,8 @@ export function CutterApp() {
       setSearchQuery(searchQueryFromHash(window.location.hash));
       setSourceDetailContext(sourceDetailContextFromHash(window.location.hash));
       setTranscriptSelection({});
+      setLocatorHighlightedSegmentIds([]);
+      setCutNotice("");
     };
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
@@ -693,7 +718,8 @@ export function CutterApp() {
             createdAt: "2026-05-02T10:00:00.000Z"
           })
         );
-  const highlightedSegmentIds = route === "source-detail" ? sourceDetailContext.segmentIds : [];
+  const highlightedSegmentIds =
+    route === "source-detail" ? sourceDetailContext.segmentIds : locatorHighlightedSegmentIds;
   const selectedTranscriptSegments = selectedDetail
     ? continuousTranscriptSegments(selectedDetail.transcript.segments, {
         ...transcriptSelection,
@@ -738,6 +764,7 @@ export function CutterApp() {
             jobs: submission.jobs
           });
           setQueueJobs((current) => [...submittedJobs, ...current]);
+          setCutNotice(cutNoticeForSubmittedJobs(submission.submitted_count || submittedJobs.length));
           await refreshQueueJobs();
         } catch (submitError) {
           setError(submitError instanceof Error ? submitError.message : "剪切任务创建失败");
@@ -747,6 +774,7 @@ export function CutterApp() {
         setQueueJobs((current) =>
           appendDirectCutFixtureQueue(current, item, new Date().toISOString())
         );
+        setCutNotice(cutNoticeForSubmittedJobs(1));
       }
 
       setTranscriptSelection({});
@@ -754,13 +782,15 @@ export function CutterApp() {
     search(query: string) {
       const nextQuery = query.trim();
       setSearchQuery(nextQuery);
+      setLocatorHighlightedSegmentIds([]);
+      setCutNotice("");
       window.location.hash = searchHash(nextQuery);
     },
     selectMaterial(result: MaterialLocatorResult) {
-      setTranscriptSelection({
-        startSegmentId: result.segments[0]?.segment_id,
-        endSegmentId: result.segments[result.segments.length - 1]?.segment_id
-      });
+      const selection = materialSelectionFromResult(result);
+      setTranscriptSelection(selection.range);
+      setLocatorHighlightedSegmentIds(selection.highlightedSegmentIds);
+      setCutNotice("");
 
       if (result.source === "local") {
         setSelectedLocalClipId(result.id);
@@ -884,7 +914,8 @@ export function CutterApp() {
                     selectedSegments: selectedTranscriptSegments,
                     selectedDetail: selectedDetail ?? data.primaryDetail,
                     sourceFilter,
-                    orientationFilter
+                    orientationFilter,
+                    cutNotice
                   },
                   handlers
                 )

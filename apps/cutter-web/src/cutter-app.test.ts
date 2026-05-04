@@ -34,11 +34,13 @@ import {
 import {
   authSessionFromApprovedApplication,
   appendDirectCutFixtureQueue,
+  cutNoticeForSubmittedJobs,
   cutterDeviceNameFromNavigator,
   loginGateStatusFromApplication,
   loginMessageForAuthError,
   loginStatusFromApplication,
   loginStatusFromBackendStatus,
+  materialSelectionFromResult,
   shouldClearSessionForLoginStatusError,
   shouldRefreshCutQueueForRoute,
   shouldRetryPendingLoginError,
@@ -57,6 +59,7 @@ import {
 } from "./app/navigation.ts";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList } from "./state/cut-queue.ts";
+import { buildMaterialLocatorSections } from "./state/material-locator.ts";
 
 function installTestWindow() {
   const store = new Map<string, string>();
@@ -290,6 +293,7 @@ test("material locator is the main search-select-cut workbench with local result
       selectedDetail: data.primaryDetail,
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 3),
       highlightedSegmentIds: ["s-001"],
+      cutNotice: "已加入剪切任务 · 等待中 1",
       queue: data.queue,
       onSearch: () => undefined,
       onSelectMaterial: () => undefined,
@@ -309,6 +313,7 @@ test("material locator is the main search-select-cut workbench with local result
     "竖版",
     "完整文案",
     "剪切这段",
+    "已加入剪切任务 · 等待中 1",
     "剪切中",
     "查看全部任务"
   ]) {
@@ -320,6 +325,8 @@ test("material locator is the main search-select-cut workbench with local result
   assert.ok(html.indexOf("本地素材") < html.indexOf("公共原素材"));
   assert.match(html, /data-page="material-locator"/);
   assert.match(html, /<video/);
+  assert.match(html, /data-testid="locator-video"/);
+  assert.match(html, /data-testid="preview-selection"/);
 });
 
 test("material locator transcript renders as natural text with invisible segment mapping", () => {
@@ -364,6 +371,35 @@ test("direct cut creates a background fixture task and stays compatible with mat
   assert.equal(queue[0]?.source_title, "现金流管理与风险控制");
   assert.equal(routeToHash("material-locator"), "#material-locator");
   assert.equal(routeToHash("cut-tasks"), "#cut-tasks");
+});
+
+test("direct cut notice is concise and keeps the cutter on the locator page", () => {
+  assert.equal(cutNoticeForSubmittedJobs(1), "已加入剪切任务 · 等待中 1");
+  assert.equal(cutNoticeForSubmittedJobs(3), "已加入剪切任务 · 等待中 3");
+  assert.equal(cutNoticeForSubmittedJobs(0), "");
+});
+
+test("selecting a search result keeps its hit range highlighted and selected", () => {
+  const data = fixture();
+  const result = buildMaterialLocatorSections({
+    query: data.search.query,
+    sourceFilter: "all",
+    orientationFilter: "all",
+    localClips: data.localClips,
+    library: data.library,
+    search: data.search
+  })
+    .find((section) => section.key === "public")
+    ?.items.find((item) => item.id === data.primaryDetail.source_video_id);
+
+  assert.ok(result);
+  assert.deepEqual(materialSelectionFromResult(result), {
+    range: {
+      startSegmentId: "s-001",
+      endSegmentId: "s-003"
+    },
+    highlightedSegmentIds: ["s-001", "s-002", "s-003"]
+  });
 });
 
 test("cut list renders order, range, text, mode, reorder, delete, clear, and submit", () => {

@@ -21,8 +21,14 @@ import * as cutListModule from "./state/cut-list.ts";
 import {
   continuousTranscriptSegments,
   nextTranscriptSelectionRange,
+  shouldSuppressTranscriptClickAfterMouseUp,
   transcriptSelectionRangeFromDrag
 } from "./state/transcript-selection.ts";
+import {
+  previewStartSeconds,
+  selectionPlaybackWindow,
+  shouldPauseSelectionPreview
+} from "./state/transcript-playback.ts";
 import {
   matchesOrientationFilter,
   videoOrientation,
@@ -356,6 +362,25 @@ test("dragged transcript endpoints resolve to one continuous selectable range", 
     continuousTranscriptSegments(transcriptSegments, dragged).map((segment) => segment.segment_id),
     ["s-001", "s-002", "s-003"]
   );
+});
+
+test("drag selection suppresses the synthetic click that follows mouseup", () => {
+  assert.equal(shouldSuppressTranscriptClickAfterMouseUp("s-001", "s-003"), true);
+  assert.equal(shouldSuppressTranscriptClickAfterMouseUp("s-003", "s-001"), true);
+  assert.equal(shouldSuppressTranscriptClickAfterMouseUp("s-002", "s-002"), false);
+  assert.equal(shouldSuppressTranscriptClickAfterMouseUp("s-002", undefined), false);
+});
+
+test("transcript playback helpers convert selected milliseconds into player seconds", () => {
+  assert.equal(previewStartSeconds(12_200), 11.7);
+  assert.equal(previewStartSeconds(200), 0);
+  assert.deepEqual(selectionPlaybackWindow(transcriptSegments.slice(0, 2)), {
+    startSeconds: 9.5,
+    endSeconds: 21.4
+  });
+  assert.equal(selectionPlaybackWindow([]), null);
+  assert.equal(shouldPauseSelectionPreview(21.39, 21_400), false);
+  assert.equal(shouldPauseSelectionPreview(21.41, 21_400), true);
 });
 
 test("cut-list reorder, remove, clear, serialize are deterministic", () => {

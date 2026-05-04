@@ -17,6 +17,15 @@ import {
   videoOrientation,
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
+import {
+  continuousTranscriptSegments,
+  shouldSuppressTranscriptClickAfterMouseUp
+} from "../../state/transcript-selection.ts";
+import {
+  previewStartSeconds,
+  selectionPlaybackWindow,
+  shouldPauseSelectionPreview
+} from "../../state/transcript-playback.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 
 function selectedText(segments: readonly TranscriptSegment[]): string {
@@ -59,6 +68,7 @@ export function MaterialLocatorPage({
   selectedDetail,
   selectedSegments = [],
   highlightedSegmentIds = [],
+  cutNotice = "",
   queue,
   onSearch,
   onSelectMaterial,
@@ -78,6 +88,7 @@ export function MaterialLocatorPage({
   selectedDetail: SourceVideoDetail;
   selectedSegments?: readonly TranscriptSegment[];
   highlightedSegmentIds?: readonly string[];
+  cutNotice?: string;
   queue: readonly CutQueueJob[];
   onSearch?: (query: string) => void;
   onSelectMaterial?: (result: MaterialLocatorResult) => void;
@@ -103,12 +114,97 @@ export function MaterialLocatorPage({
   const runningCount = countJobs(queue, "running");
   const pendingCount = countJobs(queue, "pending");
   const doneCount = countJobs(queue, "done");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const dragStartRef = useRef<string | null>(null);
+  const dragEndRef = useRef<string | null>(null);
+  const suppressClickRef = useRef(false);
+  const previewEndMsRef = useRef<number | null>(null);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     onSearch?.(String(formData.get("query") ?? ""));
+  }
+
+  function seekToSegment(segment: TranscriptSegment) {
+    if (!videoRef.current) {
+      return;
+    }
+
+    videoRef.current.currentTime = previewStartSeconds(segment.begin_ms);
+  }
+
+  function handleSegmentClick(segment: TranscriptSegment) {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+
+    previewEndMsRef.current = null;
+    seekToSegment(segment);
+    onSelectTranscriptSegment?.(segment.segment_id);
+  }
+
+  function handleSegmentMouseDown(segment: TranscriptSegment) {
+    dragStartRef.current = segment.segment_id;
+    dragEndRef.current = segment.segment_id;
+  }
+
+  function handleSegmentMouseEnter(segment: TranscriptSegment) {
+    if (dragStartRef.current) {
+      dragEndRef.current = segment.segment_id;
+    }
+  }
+
+  function handleTranscriptMouseUp() {
+    const dragStartSegmentId = dragStartRef.current;
+    const dragEndSegmentId = dragEndRef.current;
+    if (!dragStartSegmentId) {
+      dragStartRef.current = null;
+      dragEndRef.current = null;
+      return;
+    }
+
+    if (shouldSuppressTranscriptClickAfterMouseUp(dragStartSegmentId, dragEndSegmentId ?? undefined)) {
+      suppressClickRef.current = true;
+      const draggedSegments = continuousTranscriptSegments(selectedDetail.transcript.segments, {
+        startSegmentId: dragStartSegmentId,
+        endSegmentId: dragEndSegmentId ?? dragStartSegmentId
+      });
+      const firstDraggedSegment = draggedSegments[0];
+      if (firstDraggedSegment) {
+        seekToSegment(firstDraggedSegment);
+      }
+      onSelectTranscriptRange?.(dragStartSegmentId, dragEndSegmentId ?? dragStartSegmentId);
+    }
+    dragStartRef.current = null;
+    dragEndRef.current = null;
+  }
+
+  function handlePreviewSelection() {
+    const playbackWindow = selectionPlaybackWindow(selectedSegments);
+    if (!playbackWindow || !videoRef.current) {
+      return;
+    }
+
+    videoRef.current.currentTime = playbackWindow.startSeconds;
+    previewEndMsRef.current = selectedSegments[selectedSegments.length - 1]?.end_ms ?? null;
+    const playResult = videoRef.current.play();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch(() => undefined);
+    }
+  }
+
+  function handleVideoTimeUpdate() {
+    const previewEndMs = previewEndMsRef.current;
+    if (!previewEndMs || !videoRef.current) {
+      return;
+    }
+
+    if (shouldPauseSelectionPreview(videoRef.current.currentTime, previewEndMs)) {
+      videoRef.current.pause();
+      previewEndMsRef.current = null;
+    }
   }
 
   return (
@@ -165,6 +261,12 @@ export function MaterialLocatorPage({
           </div>
         </section>
 
+        {cutNotice ? (
+          <div className="cutter-locator-notice" role="status">
+            {cutNotice}
+          </div>
+        ) : null}
+
         <section className="cutter-locator-results">
           {sections.length === 0 ? (
             <div className="cutter-empty-state">
@@ -206,7 +308,15 @@ export function MaterialLocatorPage({
 
         <section className={`cutter-locator-workspace is-${orientation}`}>
           <section className="cutter-video-panel">
-            <video controls preload="none" poster={selectedDetail.cover_url} src={videoSource} />
+            <video
+              controls
+              data-testid="locator-video"
+              onTimeUpdate={handleVideoTimeUpdate}
+              poster={selectedDetail.cover_url}
+              preload="none"
+              ref={videoRef}
+              src={videoSource}
+            />
             <div>
               <strong>{selectedDetail.title}</strong>
               <span>{formatDuration(selectedDetail.duration_ms)}</span>
@@ -221,7 +331,7 @@ export function MaterialLocatorPage({
               </div>
               <span>自然文案</span>
             </header>
-            <p>
+            <p onMouseUp={handleTranscriptMouseUp}>
               {selectedDetail.transcript.segments.map((segment) => (
                 <span
                   className={[
@@ -232,16 +342,9 @@ export function MaterialLocatorPage({
                     .join(" ")}
                   data-segment-id={segment.segment_id}
                   key={segment.segment_id}
-                  onMouseDown={() => {
-                    dragStartRef.current = segment.segment_id;
-                  }}
-                  onMouseUp={() => {
-                    if (dragStartRef.current && dragStartRef.current !== segment.segment_id) {
-                      onSelectTranscriptRange?.(dragStartRef.current, segment.segment_id);
-                    }
-                    dragStartRef.current = null;
-                  }}
-                  onClick={() => onSelectTranscriptSegment?.(segment.segment_id)}
+                  onMouseDown={() => handleSegmentMouseDown(segment)}
+                  onMouseEnter={() => handleSegmentMouseEnter(segment)}
+                  onClick={() => handleSegmentClick(segment)}
                 >
                   {segment.text}
                 </span>
@@ -251,7 +354,12 @@ export function MaterialLocatorPage({
               <div className="cutter-selection-bar">
                 <strong>已选中一段文案 · 预计 {selectedDurationLabel(selectedSegments)}</strong>
                 <span>{selectedText(selectedSegments)}</span>
-                <button className="cutter-secondary-button" type="button">
+                <button
+                  className="cutter-secondary-button"
+                  data-testid="preview-selection"
+                  type="button"
+                  onClick={handlePreviewSelection}
+                >
                   播放预览
                 </button>
                 <button className="cutter-primary-button" type="button" onClick={onCutSelection}>

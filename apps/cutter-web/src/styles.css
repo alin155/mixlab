@@ -438,6 +438,16 @@ h2 {
   background: var(--ml-color-control);
 }
 
+.cutter-locator-notice {
+  border: 1px solid #b7dfc6;
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  color: #146c2e;
+  background: #eef9f1;
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .cutter-locator-results,
 .cutter-locator-section {
   display: grid;

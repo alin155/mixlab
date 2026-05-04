@@ -64,6 +64,13 @@ export function transcriptSelectionRangeFromDrag(
   };
 }
 
+export function shouldSuppressTranscriptClickAfterMouseUp(
+  startSegmentId: string,
+  endSegmentId: string | undefined
+): boolean {
+  return Boolean(endSegmentId && startSegmentId !== endSegmentId);
+}
+
 export function continuousTranscriptSegments(
   segments: readonly TranscriptSegment[],
   options: TranscriptSelectionOptions = {}
