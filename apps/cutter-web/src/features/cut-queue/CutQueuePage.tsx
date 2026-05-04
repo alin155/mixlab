@@ -18,6 +18,21 @@ function toneForStatus(status: CutQueueJob["status"]) {
   return "queued" as const;
 }
 
+function labelForStatus(status: CutQueueJob["status"]): string {
+  switch (status) {
+    case "pending":
+      return "等待中";
+    case "running":
+      return "剪切中";
+    case "done":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "cancelled":
+      return "已取消";
+  }
+}
+
 export function CutQueuePage({
   jobs,
   onRefresh,
@@ -28,19 +43,19 @@ export function CutQueuePage({
   onRunNext?: () => void;
 }) {
   return (
-    <section className="cutter-page cutter-cut-queue" data-page="cut-queue">
+    <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
       <div className="cutter-page-main">
         <header className="cutter-page-header">
           <div>
             <p className="cutter-eyebrow">本地执行</p>
-            <h1>剪切队列</h1>
-            <p>队列状态在独立页面查看；剪切运行时不阻塞搜索和继续找素材。</p>
+            <h1>剪切任务</h1>
+            <p>后台任务在这里查看；剪切运行时不阻塞搜索和继续找素材。</p>
           </div>
           {onRefresh || onRunNext ? (
             <div className="cutter-button-group">
               {onRefresh ? (
                 <button className="cutter-secondary-button" type="button" onClick={onRefresh}>
-                  刷新队列
+                  刷新任务
                 </button>
               ) : null}
               {onRunNext ? (
@@ -59,7 +74,7 @@ export function CutQueuePage({
             <StatusRow
               key={job.queue_job_id}
               tone={toneForStatus(job.status)}
-              label={job.status}
+              label={labelForStatus(job.status)}
               detail={`${job.title} · ${formatDuration(job.begin_ms)} - ${formatDuration(job.end_ms)}`}
               value={
                 <span className="cutter-row-actions">
@@ -72,12 +87,12 @@ export function CutQueuePage({
         </div>
       </div>
 
-      <InspectorPanel title="队列说明">
+      <InspectorPanel title="任务说明">
         <div className="cutter-inspector-stack">
-          <span>pending 等待本机 FFmpeg 执行。</span>
-          <span>running 展示本地任务进度。</span>
-          <span>done 自动进入本地素材库。</span>
-          <span>failed 可重试并保留错误原因。</span>
+          <span>等待中：任务已经创建，等待本机剪切服务执行。</span>
+          <span>剪切中：正在生成本地片段，并展示当前进度。</span>
+          <span>已完成：片段会进入本地素材库，后续可再次搜索和剪切。</span>
+          <span>失败：可以重试，并保留错误原因方便诊断。</span>
         </div>
       </InspectorPanel>
     </section>

@@ -69,6 +69,13 @@ h2 {
   line-height: 1.5;
 }
 
+.admin-inline-note {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 28px;
+  white-space: nowrap;
+}
+
 .admin-count-strip {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -122,6 +129,103 @@ h2 {
   width: 100%;
 }
 
+.admin-smart-scan-card {
+  display: grid;
+  gap: var(--ml-space-3);
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-4);
+  background: var(--ml-color-surface);
+}
+
+.admin-smart-scan-card.is-attention {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.admin-smart-scan-card.is-blocked {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.admin-smart-scan-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-smart-scan-copy p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.admin-smart-scan-copy h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.admin-smart-scan-copy span {
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-smart-scan-suggestions {
+  display: grid;
+  gap: var(--ml-space-2);
+}
+
+.admin-smart-scan-suggestions article {
+  display: grid;
+  gap: 3px;
+  padding: var(--ml-space-3);
+  border: 1px solid var(--ml-color-separator);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.admin-smart-scan-suggestions span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-production-status-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-4);
+  background: var(--ml-color-surface);
+}
+
+.admin-production-status-card.is-attention {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.admin-production-status-card.is-blocked {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.admin-production-status-card p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.admin-production-status-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.admin-production-status-card span {
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .admin-list-panel {
   overflow: hidden;
   border: 1px solid var(--ml-color-separator);
@@ -132,6 +236,44 @@ h2 {
 .admin-list-panel h2 {
   padding: var(--ml-space-3);
   border-bottom: 1px solid var(--ml-color-separator);
+}
+
+.admin-user-identity-note {
+  padding: var(--ml-space-3);
+}
+
+.admin-user-identity-note h2 {
+  border-bottom: 0;
+  padding: 0;
+  margin-bottom: var(--ml-space-2);
+}
+
+.admin-user-identity-note p {
+  max-width: 760px;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-list-section {
+  display: grid;
+  gap: var(--ml-space-3);
+  min-width: 0;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface);
+}
+
+.admin-section-header {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-section-header p {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .admin-action-row {
@@ -312,6 +454,13 @@ h2 {
   color: var(--ml-color-accent);
 }
 
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .admin-table-cover {
   display: block;
   width: 72px;
@@ -369,6 +518,114 @@ h2 {
 .admin-job-groups > div {
   display: grid;
   gap: var(--ml-space-2);
+}
+
+.admin-observability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ml-space-3);
+}
+
+.admin-observability-card,
+.admin-current-job-card {
+  min-width: 0;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.admin-observability-card {
+  display: grid;
+  gap: 5px;
+}
+
+.admin-observability-card p,
+.admin-current-job-card p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.admin-observability-card h2,
+.admin-current-job-card h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ml-color-text);
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.admin-observability-card span,
+.admin-current-job-card span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.admin-observability-card.is-attention {
+  border-color: rgba(176, 112, 0, 0.32);
+  background: rgba(255, 246, 224, 0.8);
+}
+
+.admin-observability-card.is-blocked {
+  border-color: rgba(190, 38, 38, 0.32);
+  background: rgba(255, 238, 238, 0.86);
+}
+
+.admin-current-job-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+  gap: var(--ml-space-4);
+  align-items: center;
+}
+
+.admin-current-job-meter {
+  display: grid;
+  gap: var(--ml-space-2);
+  min-width: 0;
+}
+
+.admin-current-job-meter strong {
+  color: var(--ml-color-text-secondary);
+  font-size: 11px;
+}
+
+.admin-current-job-meter meter {
+  width: 100%;
+  height: 10px;
+}
+
+.admin-current-job-meter dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ml-space-2);
+  margin: 0;
+}
+
+.admin-current-job-meter div {
+  min-width: 0;
+}
+
+.admin-current-job-meter dt {
+  color: var(--ml-color-text-secondary);
+  font-size: 10px;
+}
+
+.admin-current-job-meter dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ml-color-text);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .admin-dashboard-grid {
@@ -432,6 +689,16 @@ h2 {
   margin-bottom: var(--ml-space-2);
 }
 
+.admin-user-device-group {
+  display: grid;
+  gap: var(--ml-space-1);
+}
+
+.admin-user-device-group h3 {
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .ml-inspector {
   align-self: stretch;
 }
@@ -462,5 +729,11 @@ h2 {
 
   .admin-count-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-observability-grid,
+  .admin-current-job-card,
+  .admin-current-job-meter dl {
+    grid-template-columns: 1fr;
   }
 }

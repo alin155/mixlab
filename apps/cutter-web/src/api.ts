@@ -496,7 +496,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
     },
 
     resolveApiUrl(pathOrUrl: string) {
-      if (/^https?:\/\//.test(pathOrUrl)) {
+      if (/^(?:https?:\/\/|data:|blob:)/.test(pathOrUrl)) {
         return pathOrUrl;
       }
 

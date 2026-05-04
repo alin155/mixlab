@@ -10,6 +10,8 @@ export interface CutterDeviceRecord {
   status: "active" | "disabled";
   first_seen_at: string;
   last_login_at: string;
+  last_ip_address?: string;
+  user_agent?: string;
 }
 
 export interface CutterUserRecord {
@@ -72,6 +74,14 @@ function assertNonEmptyString(value: unknown, field: string): asserts value is s
   }
 }
 
+function optionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  assertString(value, field);
+  return value;
+}
+
 function validateDevice(value: unknown, field: string): CutterDeviceRecord {
   if (!isRecord(value)) {
     throw new Error(`剪辑师用户存储数据无效：${field} 必须是对象`);
@@ -85,6 +95,8 @@ function validateDevice(value: unknown, field: string): CutterDeviceRecord {
   }
   assertString(value.first_seen_at, `${field}.first_seen_at`);
   assertString(value.last_login_at, `${field}.last_login_at`);
+  optionalString(value.last_ip_address, `${field}.last_ip_address`);
+  optionalString(value.user_agent, `${field}.user_agent`);
 
   return value as unknown as CutterDeviceRecord;
 }
@@ -280,7 +292,14 @@ function nextUserId(users: CutterUserRecord[]): string {
 
 export async function createCutterLoginApplication(
   libraryRoot: string,
-  input: { username: string; device_id: string; device_name: string; now: string }
+  input: {
+    username: string;
+    device_id: string;
+    device_name: string;
+    now: string;
+    ip_address?: string;
+    user_agent?: string;
+  }
 ): Promise<CutterUserRecord> {
   return withStoreMutation(libraryRoot, async () => {
     const username = input.username.trim();
@@ -300,6 +319,13 @@ export async function createCutterLoginApplication(
     );
 
     if (existing) {
+      const device = existing.devices.find((candidate) => candidate.device_id === input.device_id);
+      if (device) {
+        device.device_name = input.device_name;
+        device.last_ip_address = input.ip_address;
+        device.user_agent = input.user_agent;
+        await writeStore(libraryRoot, store);
+      }
       return existing;
     }
 
@@ -321,7 +347,9 @@ export async function createCutterLoginApplication(
           device_name: input.device_name,
           status: "active",
           first_seen_at: input.now,
-          last_login_at: ""
+          last_login_at: "",
+          last_ip_address: input.ip_address,
+          user_agent: input.user_agent
         }
       ]
     };

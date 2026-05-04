@@ -278,6 +278,18 @@
   font-size: 11px;
 }
 
+.ml-gallery-action {
+  width: fit-content;
+  color: var(--ml-color-accent);
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.ml-gallery-action:hover {
+  text-decoration: underline;
+}
+
 .ml-tag-row {
   display: flex;
   flex-wrap: wrap;

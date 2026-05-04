@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createFixtureAdminApiClient, loadAdminDashboardData } from "./api.ts";
+import { createAdminSmartScanReport, createFixtureAdminApiClient, loadAdminDashboardData } from "./api.ts";
 import {
   chineseDiagnosticText,
   diagnosticLabel,
@@ -13,14 +13,17 @@ import {
 } from "./app/chinese.ts";
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
 import {
+  ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS,
   AdminApp,
+  adminActionErrorMessage,
+  adminLoadErrorMessage,
+  shouldAutoRefreshAdminData,
   sourceDetailForRequest,
   sourceDetailLoadErrorMessage,
   sourceDetailRequestForRoute
 } from "./app/AdminApp.tsx";
 import { DashboardPage } from "./features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
-import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx";
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
 import { CutterUsersPage } from "./features/cutter-users/CutterUsersPage.tsx";
@@ -48,12 +51,14 @@ function visibleText(html: string): string {
 test("admin navigation uses approved Chinese IA and legacy route aliases", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["仪表盘", "原视频管理", "预处理队列", "索引与发布", "健康诊断", "剪辑师用户", "设置"]
+    ["仪表盘", "原视频管理", "预处理", "健康诊断", "剪辑师用户", "设置"]
   );
   assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "设置");
   assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "公共素材库设置"), false);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "索引与发布"), false);
   assert.equal(routeFromHash("#/library-settings"), "settings");
-  assert.equal(routeFromHash("#/index-health"), "index-publish");
+  assert.equal(routeFromHash("#/index-health"), "preprocess-jobs");
+  assert.equal(routeFromHash("#/index-publish"), "preprocess-jobs");
 });
 
 test("rendered admin pages avoid obvious English user-facing labels", async () => {
@@ -62,7 +67,6 @@ test("rendered admin pages avoid obvious English user-facing labels", async () =
     renderToStaticMarkup(h(DashboardPage, { data })),
     renderToStaticMarkup(h(SourceVideosPage, { data })),
     renderToStaticMarkup(h(PreprocessJobsPage, { data })),
-    renderToStaticMarkup(h(IndexPublishPage, { data })),
     renderToStaticMarkup(h(DoctorPage, { data })),
     renderToStaticMarkup(h(CutterUsersPage, {
       users: await createFixtureAdminApiClient().listCutterUsers(),
@@ -150,6 +154,8 @@ test("dashboard renders restrained library status", async () => {
 
   for (const text of [
     "全局风险和产能",
+    "智能扫描",
+    "智能扫描建议",
     "原视频总数",
     "已可用",
     "处理中",
@@ -157,7 +163,6 @@ test("dashboard renders restrained library status", async () => {
     "未处理",
     "处理失败",
     "待发布索引",
-    "处理未处理",
     "磁盘空间",
     "当前任务",
     "v000027",
@@ -166,6 +171,11 @@ test("dashboard renders restrained library status", async () => {
     "预处理产能",
     "剪辑端使用",
     "风险摘要",
+    "设备负荷",
+    "CPU",
+    "内存",
+    "网络",
+    "服务心跳",
     "原视频总时长",
     "文案总字数",
     "搜索请求",
@@ -173,6 +183,44 @@ test("dashboard renders restrained library status", async () => {
   ]) {
     assert.match(html, new RegExp(text));
   }
+  assert.doesNotMatch(html, />处理未处理<\/button>/);
+
+  const queuedIdleData = {
+    ...data,
+    status: {
+      ...data.status,
+      unprocessed_video_count: 0,
+      queued_video_count: 40,
+      failed_video_count: 0,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...data.jobs,
+      active_count: 0,
+      queued_count: 40,
+      failed_count: 0,
+      supervisor: {
+        ...data.jobs.supervisor,
+        state: "idle" as const,
+        state_label: "未运行"
+      }
+    },
+    doctor: {
+      ...data.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    }
+  };
+  const queuedIdleHtml = renderToStaticMarkup(h(DashboardPage, {
+    data: queuedIdleData,
+    smartScanReport: createAdminSmartScanReport(queuedIdleData),
+    onRunSmartScan: () => {},
+    onApplySmartScanPrimaryAction: () => {}
+  }));
+  assert.match(queuedIdleHtml, /40 个视频已排队，但预处理服务未运行/);
+  assert.match(queuedIdleHtml, />启动预处理流水线<\/button>/);
+  assert.match(queuedIdleHtml, /排队第 1 位/);
+  assert.match(queuedIdleHtml, /等待处理/);
+  assert.doesNotMatch(queuedIdleHtml, /queued-by-admin|>0%<\/span>/);
 
   const withoutEstimate = {
     ...data,
@@ -198,6 +246,150 @@ test("dashboard renders restrained library status", async () => {
   assert.match(renderToStaticMarkup(h(DashboardPage, { data: withEnglishTitle })), /AI剪辑实战 V000037/);
 });
 
+test("smart scan report recommends the next production action", async () => {
+  const base = await fixtureData();
+  const queuedIdle = createAdminSmartScanReport({
+    ...base,
+    status: {
+      ...base.status,
+      unprocessed_video_count: 0,
+      queued_video_count: 40,
+      failed_video_count: 0,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...base.jobs,
+      active_count: 0,
+      queued_count: 40,
+      failed_count: 0,
+      supervisor: {
+        ...base.jobs.supervisor,
+        state: "idle",
+        state_label: "未运行"
+      }
+    },
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    }
+  });
+
+  assert.equal(queuedIdle.severity, "attention");
+  assert.equal(queuedIdle.primary_action, "start-preprocess");
+  assert.equal(queuedIdle.primary_label, "启动预处理流水线");
+  assert.match(queuedIdle.title, /40 个视频已排队，但预处理服务未运行/);
+  assert.equal(queuedIdle.suggestions.some((item) => item.action === "start-preprocess"), true);
+
+  const unprocessed = createAdminSmartScanReport({
+    ...base,
+    status: {
+      ...base.status,
+      unprocessed_video_count: 6,
+      queued_video_count: 0,
+      failed_video_count: 0,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...base.jobs,
+      queued_count: 0,
+      failed_count: 0
+    },
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    }
+  });
+  assert.equal(unprocessed.primary_action, "start-preprocess");
+  assert.equal(unprocessed.primary_label, "启动预处理流水线");
+  assert.equal(unprocessed.suggestions.some((item) => item.action === "queue-unprocessed"), false);
+
+  const indexRequired = createAdminSmartScanReport({
+    ...base,
+    status: {
+      ...base.status,
+      unprocessed_video_count: 0,
+      queued_video_count: 0,
+      failed_video_count: 0,
+      index_required_video_count: 7
+    },
+    jobs: {
+      ...base.jobs,
+      active_count: 0,
+      queued_count: 0,
+      failed_count: 0,
+      supervisor: {
+        ...base.jobs.supervisor,
+        state: "idle",
+        state_label: "未运行"
+      }
+    },
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    }
+  });
+  assert.equal(indexRequired.primary_action, "start-preprocess");
+  assert.equal(indexRequired.primary_label, "启动预处理流水线");
+  assert.equal(indexRequired.suggestions.some((item) => item.action === "publish-index"), false);
+
+  const failed = createAdminSmartScanReport({
+    ...base,
+    status: {
+      ...base.status,
+      unprocessed_video_count: 0,
+      queued_video_count: 0,
+      failed_video_count: 2,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...base.jobs,
+      queued_count: 0,
+      failed_count: 2
+    },
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    }
+  });
+  assert.equal(failed.primary_action, "retry-failed");
+  assert.equal(failed.primary_label, "重试失败视频");
+
+  const blockedLoad = createAdminSmartScanReport({
+    ...base,
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    },
+    metrics: {
+      ...base.metrics,
+      runtime_load: {
+        ...base.metrics.runtime_load,
+        overall_status: "blocked",
+        cpu: {
+          ...base.metrics.runtime_load.cpu,
+          status: "blocked",
+          label: "负荷过高"
+        }
+      }
+    }
+  });
+  assert.equal(blockedLoad.severity, "blocked");
+  assert.equal(blockedLoad.primary_action, "run-doctor");
+  assert.match(blockedLoad.title, /运行负荷存在阻塞风险/);
+  assert.equal(blockedLoad.suggestions.some((item) => item.label.includes("降低并发")), true);
+
+  const blocked = createAdminSmartScanReport({
+    ...base,
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 8, warn: 0, fail: 2 }
+    }
+  });
+  assert.equal(blocked.severity, "blocked");
+  assert.equal(blocked.primary_action, "run-doctor");
+  assert.equal(blocked.primary_label, "查看健康诊断");
+});
+
 test("settings merges library paths, runtime policy, and path checks", async () => {
   const html = renderToStaticMarkup(h(SettingsPage, { data: await fixtureData() }));
 
@@ -212,13 +404,12 @@ test("settings merges library paths, runtime policy, and path checks", async () 
     "MLPUB-001",
     "1.0.0",
     "路径与权限校验",
-    "初始化素材库",
-    "扫描源视频",
     "音视频工具",
     "语音识别配置"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
+  assert.doesNotMatch(html, /初始化素材库|扫描源视频|自动扫描素材来源|自动入队未处理视频|自动发布可用索引/);
 });
 
 test("settings renders editable source folder and runtime controls", async () => {
@@ -235,13 +426,11 @@ test("settings renders editable source folder and runtime controls", async () =>
     "启用素材来源",
     "移除",
     "并发任务数",
-    "自动扫描素材来源",
-    "自动入队未处理视频",
-    "自动发布可用索引",
     "保存设置"
   ]) {
     assert.match(html, new RegExp(text));
   }
+  assert.doesNotMatch(html, /自动扫描素材来源|自动入队未处理视频|自动发布可用索引/);
 
   assert.match(html, /aria-label="素材库名称"/);
   assert.match(html, /aria-label="选择音频模式"/);
@@ -425,11 +614,45 @@ test("source detail load errors are mapped to Chinese-safe messages", () => {
   assert.equal(sourceDetailLoadErrorMessage("timeout"), "原视频详情加载失败，请稍后重试。");
 });
 
+test("admin load and action errors are mapped to Chinese-safe messages", () => {
+  assert.equal(
+    adminLoadErrorMessage(new Error("Failed to fetch")),
+    "无法连接管理端服务，请检查服务是否启动。"
+  );
+  assert.equal(
+    adminLoadErrorMessage(new Error("Route not found")),
+    "管理端接口暂不可用，请刷新后重试。"
+  );
+  assert.equal(
+    adminActionErrorMessage("发布此视频", new Error("not_found: Route not found")),
+    "发布此视频失败：管理端接口暂不可用，请刷新后重试。"
+  );
+  assert.equal(
+    adminActionErrorMessage("保存设置", new Error("validation_failed: 素材来源路径不存在")),
+    "保存设置失败：素材来源路径不存在"
+  );
+
+  for (const message of [
+    adminLoadErrorMessage(new Error("Route not found")),
+    adminActionErrorMessage("发布此视频", new Error("not_found: Route not found"))
+  ]) {
+    assert.doesNotMatch(message, /Failed to fetch|Route not found|not_found|validation_failed/);
+  }
+});
+
 test("preprocess jobs render failure retry and later success", async () => {
-  const html = renderToStaticMarkup(h(PreprocessJobsPage, { data: await fixtureData() }));
+  const data = await fixtureData();
+  const html = renderToStaticMarkup(h(PreprocessJobsPage, { data }));
 
   for (const text of [
-    "预处理队列",
+    "预处理",
+    "生产状态",
+    "流水线总览",
+    "当前处理视频",
+    "阶段进度",
+    "预计剩余",
+    "预计完成",
+    "负荷建议",
     "未处理原视频",
     "将加入",
     "预计总时长",
@@ -439,39 +662,212 @@ test("preprocess jobs render failure retry and later success", async () => {
     "最近完成",
     "失败可重试",
     "失败策略",
-    "启动预处理服务",
-    "data-control-state=\"native-boundary\"",
+    "预处理服务",
+    "运行负荷",
+    "CPU",
+    "内存",
+    "网络",
+    "服务心跳",
+    "运行中",
+    "启动预处理流水线",
+    "暂停预处理流水线",
+    "上次处理",
+    "索引状态",
+    "自动增量发布",
     "生成关键帧",
-    ".mixlab-library/logs/V000037.log",
     "阿里云百炼语音识别网络超时",
     "J000041"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
-  const queueActionIndex = html.indexOf(">处理未处理</button>");
-  for (const contextLabel of ["未处理原视频", "将加入", "预计总时长", "素材来源"]) {
-    assert.ok(
-      html.indexOf(contextLabel) < queueActionIndex,
-      `${contextLabel} 必须出现在队列操作之前`
-    );
-  }
+  assert.match(html, /运行负荷正常，可以继续处理/);
+  assert.doesNotMatch(html, /data-control-state="native-boundary"/);
+  assert.doesNotMatch(html, />加入预处理队列<\/button>/);
+
+  const queuedIdleData = {
+    ...data,
+    status: {
+      ...data.status,
+      unprocessed_video_count: 0,
+      queued_video_count: 2,
+      processing_video_count: 0,
+      failed_video_count: 0
+    },
+    jobs: {
+      ...data.jobs,
+      active_count: 0,
+      queued_count: 2,
+      completed_count: 0,
+      failed_count: 0,
+      supervisor: {
+        ...data.jobs.supervisor,
+        state: "idle" as const,
+        state_label: "未运行",
+        started_at: "",
+        stopped_at: "",
+        last_result: null
+      },
+      jobs: [
+        {
+          job_id: "J000042",
+          source_video_id: "V000042",
+          title: "C2102",
+          status: "queued" as const,
+          stage: "queued-by-admin",
+          progress: 0,
+          elapsed_ms: 0,
+          log_path: ".mixlab-library/logs/V000042.log",
+          retryable: false,
+          status_label: "等待处理",
+          stage_label: "等待处理",
+          queue_position: 1,
+          estimated_start_at: "2026-05-02T12:10:00.000Z",
+          estimated_done_at: "2026-05-02T12:20:00.000Z",
+          estimated_remaining_ms: 1_200_000
+        },
+        {
+          job_id: "J000041",
+          source_video_id: "V000041",
+          title: "C2101",
+          status: "queued" as const,
+          stage: "queued-by-admin",
+          progress: 0,
+          elapsed_ms: 0,
+          log_path: ".mixlab-library/logs/V000041.log",
+          retryable: false,
+          status_label: "等待处理",
+          stage_label: "等待处理",
+          queue_position: 2,
+          estimated_start_at: "2026-05-02T12:20:00.000Z",
+          estimated_done_at: "2026-05-02T12:30:00.000Z",
+          estimated_remaining_ms: 1_800_000
+        }
+      ],
+      observability: {
+        running_job_id: "",
+        running_source_video_id: "",
+        pipeline_progress_percent: 0,
+        estimated_all_done_at: "2026-05-02T12:30:00.000Z",
+        estimated_queue_duration_ms: 1_800_000,
+        throughput_label: "预计 30:00 完成当前队列",
+        load_advice: "运行负荷正常，可以继续处理"
+      }
+    }
+  };
+  const queuedIdleHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
+    data: queuedIdleData,
+    onStartPreprocessSupervisor: () => {}
+  }));
+  assert.match(queuedIdleHtml, /2 个视频已排队，但预处理服务未运行/);
+  assert.match(queuedIdleHtml, /建议启动预处理流水线/);
+  assert.match(queuedIdleHtml, /等待处理/);
+  assert.match(queuedIdleHtml, /排队第 1 位/);
+  assert.match(queuedIdleHtml, /预计开始/);
+  assert.match(queuedIdleHtml, /预计耗时/);
+  assert.doesNotMatch(queuedIdleHtml, /queued-by-admin|\.mixlab-library\/logs|>0%<\/span>/);
 });
 
-test("index health renders current pointer and repair controls", async () => {
-  const html = renderToStaticMarkup(h(IndexPublishPage, { data: await fixtureData() }));
+test("preprocess start and pause controls follow supervisor state", async () => {
+  const data = await fixtureData();
+  const idleData = {
+    ...data,
+    jobs: {
+      ...data.jobs,
+      supervisor: {
+        ...data.jobs.supervisor,
+        state: "idle" as const,
+        state_label: "未运行"
+      }
+    }
+  };
+  const runningData = {
+    ...data,
+    jobs: {
+      ...data.jobs,
+      supervisor: {
+        ...data.jobs.supervisor,
+        state: "running" as const,
+        state_label: "运行中"
+      }
+    }
+  };
+  const render = (input: typeof data) => renderToStaticMarkup(h(PreprocessJobsPage, {
+    data: input,
+    onStartPreprocessSupervisor: () => {},
+    onStopPreprocessSupervisor: () => {}
+  }));
+  const buttonMarkup = (html: string, label: string) =>
+    html.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0] ?? "";
+  const idleHtml = render(idleData);
+  const runningHtml = render(runningData);
 
-  for (const text of [
-    "索引与发布",
-    "发布待索引视频",
-    "当前索引",
-    "v000027",
-    "已可用数量",
-    "协议版本",
-    "校验",
-    "原子切换当前索引"
-  ]) {
-    assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
-  }
+  assert.doesNotMatch(buttonMarkup(idleHtml, "启动预处理流水线"), /disabled/);
+  assert.match(buttonMarkup(idleHtml, "暂停预处理流水线"), /disabled/);
+  assert.match(buttonMarkup(runningHtml, "启动预处理流水线"), /disabled/);
+  assert.doesNotMatch(buttonMarkup(runningHtml, "暂停预处理流水线"), /disabled/);
+});
+
+test("admin data auto refresh stays active while preprocessing can change page state", async () => {
+  const data = await fixtureData();
+  const queuedData = {
+    ...data,
+    status: {
+      ...data.status,
+      queued_video_count: 2,
+      processing_video_count: 0,
+      unprocessed_video_count: 0,
+      failed_video_count: 0,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...data.jobs,
+      active_count: 0,
+      queued_count: 2,
+      failed_count: 0,
+      supervisor: {
+        ...data.jobs.supervisor,
+        state: "idle" as const,
+        state_label: "未运行"
+      }
+    }
+  };
+  const idleData = {
+    ...queuedData,
+    status: {
+      ...queuedData.status,
+      queued_video_count: 0
+    },
+    jobs: {
+      ...queuedData.jobs,
+      queued_count: 0
+    }
+  };
+  const runningData = {
+    ...idleData,
+    status: {
+      ...idleData.status,
+      processing_video_count: 1
+    },
+    jobs: {
+      ...idleData.jobs,
+      active_count: 1,
+      supervisor: {
+        ...idleData.jobs.supervisor,
+        state: "running" as const,
+        state_label: "运行中"
+      }
+    }
+  };
+
+  assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS <= 3_000, true);
+  assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", queuedData), true);
+  assert.equal(shouldAutoRefreshAdminData("dashboard", queuedData), true);
+  assert.equal(shouldAutoRefreshAdminData("source-videos", queuedData), true);
+  assert.equal(shouldAutoRefreshAdminData("settings", queuedData), false);
+  assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", runningData), true);
+  assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", idleData), true);
+  assert.equal(shouldAutoRefreshAdminData("dashboard", idleData), true);
+  assert.equal(shouldAutoRefreshAdminData("source-videos", idleData), false);
 });
 
 test("doctor page renders Chinese diagnosis checks and report export", async () => {
@@ -486,6 +882,8 @@ test("doctor page renders Chinese diagnosis checks and report export", async () 
     "检查目的",
     "失败影响",
     "处理建议",
+    "诊断详情",
+    "本地剪辑片段属于剪辑端本地工作区",
     "公共素材库根目录",
     "重新运行健康诊断",
     "导出诊断报告"
@@ -538,6 +936,7 @@ test("doctor page renders Chinese diagnosis checks and report export", async () 
   assert.match(realDoctorHtml, /素材库计数一致/);
   assert.match(realDoctorHtml, /内置音视频工具可用/);
   assert.match(realDoctorHtml, /技术检查项/);
+  assert.match(realDoctorHtml, /需关注/);
   assert.doesNotMatch(realDoctorHtml, /Unknown English Probe|raw probe detail|source-videos|source video manifests|library counts|ffmpeg|bundled|EACCES/i);
 });
 
@@ -572,6 +971,62 @@ test("cutter users page renders login applications and user metrics", async () =
   }
 });
 
+test("cutter users page explains identity model and renders device audit details readably", async () => {
+  const client = createFixtureAdminApiClient();
+  const metrics = (await client.getDashboardMetrics()).usage;
+  const html = renderToStaticMarkup(h(CutterUsersPage, {
+    users: {
+      users: [
+        {
+          user_id: "CU000009",
+          username: "xiaolin",
+          display_name: "小林",
+          status: "pending",
+          applied_at: "2026-05-03T08:00:00.000Z",
+          approved_at: "",
+          rejected_at: "",
+          disabled_at: "",
+          last_login_at: "",
+          last_used_at: "",
+          note: "",
+          devices: [
+            {
+              device_id: "cutter-1234567890abcdef",
+              device_name: "Mac 剪辑端 · Safari",
+              status: "active",
+              first_seen_at: "2026-05-03T08:00:00.000Z",
+              last_login_at: "",
+              last_ip_address: "192.168.31.10",
+              user_agent:
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15"
+            } as any
+          ]
+        }
+      ]
+    },
+    metrics,
+    onApprove: () => {},
+    onDisable: () => {}
+  }));
+
+  for (const text of [
+    "身份方式",
+    "用户名 + 本机设备令牌",
+    "会话令牌",
+    "IP 仅用于诊断",
+    "设备编号",
+    "cutter…cdef",
+    "最近 IP",
+    "192.168.31.10",
+    "浏览器标识",
+    "Safari"
+  ]) {
+    assert.match(html, new RegExp(text.replaceAll("+", "\\+")));
+  }
+  assert.doesNotMatch(html, /Mozilla\/5\.0/);
+  assert.doesNotMatch(html, /AppleWebKit\/605\.1\.15/);
+});
+
 test("settings render runtime and redacted speech recognition key state", async () => {
   const data = await fixtureData();
   const html = renderToStaticMarkup(h(SettingsPage, { data }));
@@ -583,7 +1038,7 @@ test("settings render runtime and redacted speech recognition key state", async 
     "压缩单声道",
     "无损单声道",
     "已配置，已隐藏",
-    "编辑接口密钥",
+    "接口密钥通过本地环境变量或部署环境配置，不在页面中编辑。",
     "V000037 语音识别网络超时"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
@@ -615,9 +1070,9 @@ test("shared admin UI primitives expose control states and empty state language"
         ]
       }),
       h(AdminControlButton, {
-        label: "处理未处理",
+        label: "启动预处理流水线",
         state: "m9b-api",
-        reason: "M9B 接加入队接口。",
+        reason: "扫描、入队、预处理并自动发布索引。",
         variant: "primary"
       }),
       h(EmptyState, {
@@ -628,8 +1083,8 @@ test("shared admin UI primitives expose control states and empty state language"
   );
 
   assert.match(html, /data-control-state="m9b-api"/);
-  assert.match(html, /处理未处理/);
-  assert.match(html, /M9B 接加入队接口/);
+  assert.match(html, /启动预处理流水线/);
+  assert.match(html, /扫描、入队、预处理并自动发布索引/);
   assert.match(html, /没有匹配的原视频/);
   assert.match(html, /对剪辑师可见/);
 });
@@ -653,15 +1108,19 @@ test("api-backed page controls become enabled when handlers are supplied", async
   const html = renderToStaticMarkup(
     h(SourceVideosPage, {
       data,
-      onScanSourceVideos: noop,
-      onQueueUnprocessedVideos: noop,
-      onRetryFailedVideos: noop,
+      onQueueSourceVideo: noop,
+      onRetrySourceVideo: noop,
+      onPublishSourceVideo: noop,
       onUpdateSourceVideoMetadata: noop
     })
   );
 
   assert.match(html, /data-control-state="m9b-api"/);
+  assert.match(html, /处理此视频/);
+  assert.match(html, /重试此视频/);
+  assert.match(html, /发布此视频/);
   assert.match(html, /保存公开说明/);
   assert.doesNotMatch(html, /保存公开说明[^<]*<\/button>.*disabled/s);
-  assert.match(html, /data-control-state="read-only" disabled=""/);
+  assert.doesNotMatch(html, /data-control-state="read-only"/);
+  assert.doesNotMatch(html, /data-control-state="native-boundary"/);
 });

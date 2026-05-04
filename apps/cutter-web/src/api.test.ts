@@ -4,8 +4,10 @@ import {
   createCutterApiClient,
   formatDuration,
   formatFileSize,
-  normalizeApiBaseUrl
+  normalizeApiBaseUrl,
+  type CutterApiClient
 } from "./api.ts";
+import { loadCutterWorkbenchData, resolveSearchResponseUrls } from "./fixture-client.ts";
 
 function makeJsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -134,6 +136,205 @@ test("loads source library, source detail, and search through cutter API", async
   assert.equal(search.groups[0]?.source_video_id, "V000001");
   assert.equal(clips.local_clip_count, 1);
   assert.equal(clips.clips[0]?.local_clip_id, "LC000001");
+});
+
+test("workbench data resolves Cutter API media URLs before rendering", async () => {
+  const client = {
+    async listSourceLibrary() {
+      return {
+        library_id: "lib_main_001",
+        available_video_count: 1,
+        videos: [
+          {
+            source_video_id: "V000001",
+            title: "现金流",
+            duration_ms: 12_000,
+            cover_url: "/cutter/source-videos/V000001/cover",
+            media_url: "/cutter/source-videos/V000001/media",
+            detail_url: "/cutter/source-videos/V000001",
+            subtitles_url: "/cutter/source-videos/V000001/subtitles.srt"
+          }
+        ]
+      };
+    },
+    async getSourceVideoDetail() {
+      return {
+        source_video_id: "V000001",
+        title: "现金流",
+        duration_ms: 12_000,
+        cover_url: "/cutter/source-videos/V000001/cover",
+        media_url: "/cutter/source-videos/V000001/media",
+        detail_url: "/cutter/source-videos/V000001",
+        subtitles_url: "/cutter/source-videos/V000001/subtitles.srt",
+        transcript: {
+          full_text: "现金流，是企业的血液。",
+          segments: [
+            {
+              segment_id: "V000001-S000001",
+              begin_ms: 1000,
+              end_ms: 3600,
+              text: "现金流，是企业的血液。"
+            }
+          ]
+        },
+        keyframes: {
+          keyframes_ms: [0, 5000, 10000]
+        }
+      };
+    },
+    async searchSourceLibrary() {
+      return {
+        query: "现金流",
+        normalized_query: "现金流",
+        groups: [
+          {
+            source_video_id: "V000001",
+            title: "现金流",
+            hit_count: 1,
+            best_excerpt: "现金流，是企业的血液。",
+            hit_segments: [],
+            cover_url: "/cutter/source-videos/V000001/cover",
+            media_url: "/cutter/source-videos/V000001/media",
+            detail_url: "/cutter/source-videos/V000001",
+            subtitles_url: "/cutter/source-videos/V000001/subtitles.srt"
+          }
+        ]
+      };
+    },
+    async listLocalClips() {
+      return {
+        local_clip_count: 1,
+        clips: [
+          {
+            local_clip_id: "LC000001",
+            title: "现金流片段",
+            media_url: "/cutter/local-clips/LC000001/media",
+            detail_url: "/cutter/local-clips/LC000001"
+          }
+        ]
+      };
+    },
+    resolveApiUrl(pathOrUrl: string) {
+      return pathOrUrl.startsWith("http")
+        ? pathOrUrl
+        : `http://127.0.0.1:3789${pathOrUrl}`;
+    }
+  } as Partial<CutterApiClient> as CutterApiClient;
+
+  const data = await loadCutterWorkbenchData(client);
+
+  assert.equal(data.library.videos[0]?.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
+  assert.equal(data.library.videos[0]?.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
+  assert.equal(data.primaryDetail.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
+  assert.equal(data.primaryDetail.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
+  assert.equal(data.search.groups[0]?.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
+  assert.equal(data.localClips.clips[0]?.media_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001/media");
+});
+
+test("runtime search results resolve media URLs before rendering", () => {
+  const client = {
+    resolveApiUrl(pathOrUrl: string) {
+      return pathOrUrl.startsWith("http")
+        ? pathOrUrl
+        : `http://127.0.0.1:3789${pathOrUrl}`;
+    }
+  } as Partial<CutterApiClient> as CutterApiClient;
+
+  const search = resolveSearchResponseUrls(client, {
+    query: "现金流",
+    normalized_query: "现金流",
+    groups: [
+      {
+        source_video_id: "V000001",
+        title: "现金流",
+        hit_count: 1,
+        best_excerpt: "现金流，是企业的血液。",
+        hit_segments: [],
+        cover_url: "/cutter/source-videos/V000001/cover",
+        media_url: "/cutter/source-videos/V000001/media",
+        detail_url: "/cutter/source-videos/V000001",
+        subtitles_url: "/cutter/source-videos/V000001/subtitles.srt"
+      }
+    ]
+  });
+
+  assert.equal(search.groups[0]?.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
+  assert.equal(search.groups[0]?.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
+});
+
+test("workbench data loads preferred source video detail when route carries an id", async () => {
+  const detailRequests: string[] = [];
+  const client = {
+    async listSourceLibrary() {
+      return {
+        library_id: "lib_main_001",
+        available_video_count: 2,
+        videos: [
+          {
+            source_video_id: "V000001",
+            title: "现金流",
+            duration_ms: 12_000,
+            cover_url: "/cutter/source-videos/V000001/cover",
+            media_url: "/cutter/source-videos/V000001/media",
+            detail_url: "/cutter/source-videos/V000001",
+            subtitles_url: "/cutter/source-videos/V000001/subtitles.srt"
+          },
+          {
+            source_video_id: "V000002",
+            title: "组织增长",
+            duration_ms: 18_000,
+            cover_url: "/cutter/source-videos/V000002/cover",
+            media_url: "/cutter/source-videos/V000002/media",
+            detail_url: "/cutter/source-videos/V000002",
+            subtitles_url: "/cutter/source-videos/V000002/subtitles.srt"
+          }
+        ]
+      };
+    },
+    async getSourceVideoDetail(sourceVideoId: string) {
+      detailRequests.push(sourceVideoId);
+      return {
+        source_video_id: sourceVideoId,
+        title: sourceVideoId === "V000002" ? "组织增长" : "现金流",
+        duration_ms: sourceVideoId === "V000002" ? 18_000 : 12_000,
+        cover_url: `/cutter/source-videos/${sourceVideoId}/cover`,
+        media_url: `/cutter/source-videos/${sourceVideoId}/media`,
+        detail_url: `/cutter/source-videos/${sourceVideoId}`,
+        subtitles_url: `/cutter/source-videos/${sourceVideoId}/subtitles.srt`,
+        transcript: {
+          full_text: sourceVideoId === "V000002" ? "组织增长来自流程。" : "现金流，是企业的血液。",
+          segments: []
+        },
+        keyframes: {
+          keyframes_ms: []
+        }
+      };
+    },
+    async searchSourceLibrary() {
+      return {
+        query: "现金流",
+        normalized_query: "现金流",
+        groups: []
+      };
+    },
+    async listLocalClips() {
+      return {
+        local_clip_count: 0,
+        clips: []
+      };
+    },
+    resolveApiUrl(pathOrUrl: string) {
+      return pathOrUrl;
+    }
+  } as Partial<CutterApiClient> as CutterApiClient;
+
+  const data = await loadCutterWorkbenchData(client, {
+    preferredSourceVideoId: "V000002"
+  });
+
+  assert.deepEqual(detailRequests, ["V000002"]);
+  assert.equal(data.primaryDetail.source_video_id, "V000002");
+  assert.equal(data.primaryDetail.title, "组织增长");
 });
 
 test("creates local clips through cutter API", async () => {

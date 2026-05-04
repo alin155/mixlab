@@ -97,8 +97,8 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
   "local-clips": {
     name: "本地剪辑片段",
     purpose: "确认本地剪切后生成的片段清单和媒体文件有效。",
-    impact: "本地片段异常时，剪辑师复用素材会失败。",
-    suggestion: "检查本地工作区文件，必要时重新执行失败剪切任务。"
+    impact: "本地剪辑片段属于剪辑端本地工作区，不会阻断公共素材库扫描、预处理和发布，但会影响剪辑师复用本地片段。",
+    suggestion: "让对应剪辑端重新生成缺失片段，或在后续本地素材库管理中清理失效片段。"
   }
 };
 
@@ -141,27 +141,33 @@ export function DoctorPage({
               tone={adminStatusTone(item.status)}
               label={doctorExplanation(item.check_id, item.label).name}
               detail={`${doctorExplanation(item.check_id, item.label).name} · ${strictChineseDiagnosticText(item.message)}`}
-              value={item.status === "pass" ? "通过" : "需处理"}
+              value={item.status === "pass" ? "通过" : item.status === "warn" ? "需关注" : "需处理"}
               key={item.check_id}
             />
           ))}
         </section>
+        <section className="admin-list-section">
+          <header className="admin-section-header">
+            <h2>诊断详情</h2>
+            <p>每个检查项都说明检查目的、失败影响和处理建议；原始技术信息可导出报告查看。</p>
+          </header>
+          <GroupedForm
+            groups={data.doctor.checks.map((item) => {
+              const explanation = doctorExplanation(item.check_id, item.label);
+              return {
+                title: explanation.name,
+                rows: [
+                  { label: "检查目的", value: explanation.purpose },
+                  { label: "失败影响", value: explanation.impact },
+                  { label: "处理建议", value: explanation.suggestion },
+                  { label: "技术详情", value: strictChineseDiagnosticText(item.message) }
+                ]
+              };
+            })}
+          />
+        </section>
       </div>
       <InspectorPanel title="诊断报告">
-        <GroupedForm
-          groups={data.doctor.checks.map((item) => {
-            const explanation = doctorExplanation(item.check_id, item.label);
-            return {
-              title: explanation.name,
-              rows: [
-                { label: "检查目的", value: explanation.purpose },
-                { label: "失败影响", value: explanation.impact },
-                { label: "处理建议", value: explanation.suggestion },
-                { label: "技术详情", value: strictChineseDiagnosticText(item.message) }
-              ]
-            };
-          })}
-        />
         <GroupedForm
           groups={[
             {

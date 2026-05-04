@@ -43,7 +43,7 @@ Hi-fi references:
 | ARCH-003 | `05_技术栈选型.md` | Formal admin backend is Go; formal cutter desktop is Tauri + React + TypeScript. | not-started | Go/Tauri parity exists or a written change request is accepted. |
 | ARCH-004 | `12_权限与路径解析规格.md` | Portable manifests must use library id, source video id, and relative paths rather than public-library absolute paths. | validated-core | Tests cover macOS, Windows drive, UNC, traversal rejection, and Chinese/space paths. |
 | ARCH-005 | `22_运行时依赖与ASR配置.md` | FFmpeg/FFprobe are bundled or configurable; users are not asked to manually install FFmpeg for first version. | validated-core | Settings and Doctor show FFmpeg source/status without manual install. |
-| ARCH-006 | `22_运行时依赖与ASR配置.md` | DashScope API key and ASR logs are redacted. | validated-core | Tests prove request/log redaction and no key appears in diagnostics. |
+| ARCH-006 | `22_运行时依赖与ASR配置.md` | DashScope API key and ASR logs are redacted. | validated-core | Tests prove request/log redaction; M12.4 also proves admin supervisor APIs expose only aggregate ASR run counts. |
 
 ## Public Library And Preprocessing
 
@@ -52,7 +52,7 @@ Hi-fi references:
 | LIB-001 | `06_公共素材库协议.md` | Public library directory structure is fixed and NAS-compatible. | validated-core | Scanner creates `source-videos` and `.mixlab-library` compatible structures. |
 | LIB-002 | `06_公共素材库协议.md` | Each source video has stable `source_video_id`. | validated-core | Rescan tests preserve existing ids and add new ids deterministically. |
 | LIB-003 | `06_公共素材库协议.md`, `19_增量预处理与可见性规则.md` | Only `ready` videos are cutter visible/searchable. | validated-core | Tests prove unprocessed, processing, failed, and index-required videos are hidden. |
-| LIB-004 | `19_增量预处理与可见性规则.md` | Partially preprocessed library is usable; ready videos appear while later videos continue processing. | partial | M6 proves current SQLite index refresh sees newly ready videos without process restart; 10-video manual acceptance remains. |
+| LIB-004 | `19_增量预处理与可见性规则.md` | Partially preprocessed library is usable; ready videos appear while later videos continue processing. | accepted | M12.4 live run processed 23 queued videos incrementally: ready count advanced while later videos stayed queued/processing, and cutter catalog reached 41 visible videos after automatic publication. |
 | LIB-005 | `07_数据模型与Manifest.md` | `library.json`, `source-video.json`, `transcript.json`, `keyframes.json`, `clip-list.json`, and `export-clip.json` match the schema. | partial | M7 adds tested cutter-local `clip-list.json` and `export-clip.json` writers; formal shared protocol validators for clip-list remain later cleanup. |
 | LIB-006 | `20_开发落地路线与技术护栏.md` | Ready publication is atomic and follows transcript/SRT/keyframes/cover/index validation before visibility. | validated-core | Ready publisher tests cover complete and incomplete artifacts. |
 | LIB-007 | `20_开发落地路线与技术护栏.md` | Versioned read-only index packages and `current.json` are used. | accepted | M6 publishes real SQLite transcript index packages and cutter search reads the current pointer. |
@@ -65,7 +65,7 @@ Hi-fi references:
 | ADMIN-001 | `08_素材库管理端规格.md`, `21_视觉与交互设计规范.md` | Admin dashboard shows restrained public-library governance status. | partial | M5 admin web MVP dashboard exists; real backend status binding remains later. |
 | ADMIN-002 | `08`, `21` | Public library settings initialize and validate root, `source-videos`, `.mixlab-library`, id, protocol, permissions. | partial | M5 settings UI/path checks exist; real init/write action remains backend work. |
 | ADMIN-003 | `08`, `21` | Source video management edits public metadata: cover, tags, description, lecturer, course, category. | partial | M5 metadata UI exists; persistence to public library remains backend work. |
-| ADMIN-004 | `08`, `19`, `21` | Preprocessing task page shows active, queued, completed, failed/retry, stage, logs, error reason. | partial | M5 jobs UI proves failed video does not block later success; real task control remains backend work. |
+| ADMIN-004 | `08`, `19`, `21` | Preprocessing task page shows active, queued, completed, failed/retry, stage, logs, error reason. | partial | M12.4 proves real start/resume, active stage/progress, queued/completed/failed counts, and automatic refresh; M13 must replace placeholder log paths with real task records. |
 | ADMIN-005 | `08`, `20`, `21` | Index publication page shows current pointer, historical versions, validation, and atomic switch. | partial | M5 index page exists; real index rebuild/current switch remains backend work. |
 | ADMIN-006 | `08`, `21`, `22` | Doctor checks public paths, manifests, artifacts, index, FFmpeg, ASR, permissions, counts, logs and exports JSON. | partial | Doctor core and M5 Doctor UI/export entry exist; real export file action remains backend/Tauri work. |
 | ADMIN-007 | `22` | Admin ASR settings manage provider, model, audio mode, key configured status, and last failure reason. | partial | M5 settings UI redacts key state; secure persistence/test submit remains later runtime work. |
@@ -76,8 +76,8 @@ Hi-fi references:
 |---|---|---|---|---|
 | CUTTER-001 | `09`, `21` | Cutter has independent pages: public source library, search/document, cut list, local library, cut queue, settings. | accepted | M4 cutter web app renders all cutter pages with screenshot acceptance. Tauri shell remains a later packaging step. |
 | CUTTER-002 | `21` | Public source library is gallery-first like Apple TV/Photos/Finder Gallery, not a table or backend dashboard. | accepted | M4 public library page is gallery-first, ready-only, and shows admin-configured cover/tags/description. |
-| CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | partial | M4 UI and state tests prove continuous selection becomes one cut-list span; richer player interactions remain later polish. |
-| CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | accepted | M4 visual tests assert grouped layout; M6 SQLite/n-gram tests preserve grouped result shape and original text display. |
+| CUTTER-003 | `09`, `10`, `21` | Source detail shows video, complete transcript, timestamps, highlights, continuous selection, right inspector. | accepted | M14 wires detail hash context, highlighted hit segments, continuous transcript selection, and one-span add-to-cut-list with automated tests and browser smoke. |
+| CUTTER-004 | `10`, `21` | Search results are grouped by source video and open full transcript context; no sentence waterfall. | accepted | M14 search form calls the Cutter API through hash state, renders grouped source-video results, and opens full transcript context with hit segment ids. |
 | CUTTER-005 | `09`, `11`, `21` | Cut list persists segment spans, ordering, cut mode, clear/delete, and submit. | accepted | M8 binds the cut-list UI to the M7 `clip-list.json` and `/cutter/cut-jobs` API flow while preserving ordering and cut modes. |
 | CUTTER-006 | `09`, `11`, `21` | Cut queue shows pending/running/done/failed/retry and does not block search. | accepted | M8 binds the queue UI to `/cutter/cut-jobs`, adds refresh/run-next controls, and keeps source/search routes independent. |
 | CUTTER-007 | `09`, `11`, `21` | Local library is independent, searchable, reusable, and shows source traceability. | partial | M8 refreshes local library data from workspace exports after queue execution; native reveal/open and production local-library search polish remain later. |
@@ -89,10 +89,10 @@ Hi-fi references:
 | ID | Source | Requirement | Current Status | Acceptance |
 |---|---|---|---|---|
 | ACC-001 | `14_验收标准与测试剧本.md` | Management initialization test. | not-started | Acceptance report includes pass/fail evidence. |
-| ACC-002 | `14` | Preprocessing test with at least three videos. | partial | UI shows current file/stage and outputs transcript, SRT, keyframes, cover, manifest. |
+| ACC-002 | `14` | Preprocessing test with at least three videos. | accepted | M12.4 live run processed 23 videos; sampled videos have manifest, job record, transcript, SRT, cover, and keyframes. |
 | ACC-003 | `14` | Cutter connection test. | not-started | library/transcript/source readable, local workspace writable, public library not written. |
-| ACC-004 | `14` | Incremental preprocessing visibility test with 10 videos. | partial | M6 automated current-index refresh test passes; full 10-video stage script remains. |
-| ACC-005 | `14` | Search and document test. | partial | M6 SQLite search returns grouped ready-only results with transcript anchors; full manual document-reader acceptance remains. |
+| ACC-004 | `14` | Incremental preprocessing visibility test with 10 videos. | accepted | M12.4 live run processed 23 queued videos with automatic incremental publication and cutter-visible ready catalog updates. |
+| ACC-005 | `14` | Search and document test. | accepted | M14 focused tests and browser smoke prove query search, grouped results, detail context, highlighted transcript, and add-to-cut-list path. |
 | ACC-006 | `14` | Selection and cutting test. | partial | M8 automated tests prove UI-selected spans become traceable clip-list API requests and queue jobs; manual desktop acceptance remains. |
 | ACC-007 | `14` | Export reuse test. | partial | M8 binds local-library refresh to workspace exports after run-next; native reveal/open remains Tauri work. |
 | ACC-008 | `14` | Windows test. | not-started | Drive letter, UNC, Chinese path, FFmpeg, export parity pass. |

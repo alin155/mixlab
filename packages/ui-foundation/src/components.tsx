@@ -21,6 +21,8 @@ export interface GalleryItem {
   meta: string;
   tags?: readonly string[];
   description?: string;
+  href?: string;
+  action_label?: string;
 }
 
 export type StatusTone = "ready" | "processing" | "queued" | "warning" | "failed";
@@ -170,6 +172,11 @@ export function GalleryGrid({ items }: { items: readonly GalleryItem[] }) {
             ) : null}
             {item.description ? (
               <span className="ml-gallery-description">{item.description}</span>
+            ) : null}
+            {item.href ? (
+              <a className="ml-gallery-action" href={item.href}>
+                {item.action_label ?? "查看详情"}
+              </a>
             ) : null}
           </div>
         </article>

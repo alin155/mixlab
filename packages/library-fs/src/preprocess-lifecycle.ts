@@ -11,6 +11,7 @@ export interface ClaimNextPreprocessJobInput {
   library_root: string;
   worker_id: string;
   now: string;
+  claim_statuses?: Array<"queued" | "unprocessed">;
 }
 
 export interface PreprocessJobSummary {
@@ -56,6 +57,13 @@ export interface FailPreprocessJobInput {
   error_message: string;
 }
 
+export interface UpdatePreprocessJobStageInput {
+  library_root: string;
+  source_video_id: string;
+  stage: string;
+  now: string;
+}
+
 export interface CompleteReadyVisualArtifactsInput {
   library_root: string;
   source_video_id: string;
@@ -74,6 +82,8 @@ interface PreprocessJobRecord {
   indexed_at?: string;
   index_version?: string;
   failed_at?: string;
+  current_stage?: string;
+  stage_updated_at?: string;
   error_stage?: string;
   error_message?: string;
 }
@@ -255,9 +265,10 @@ export async function claimNextPreprocessJob(
   input: ClaimNextPreprocessJobInput
 ): Promise<PreprocessJobSummary | null> {
   const manifests = await readAllSourceVideoManifests(input.library_root);
-  const manifest =
-    manifests.find((candidate) => candidate.preprocess_status === "queued") ??
-    manifests.find((candidate) => candidate.preprocess_status === "unprocessed");
+  const claimStatuses = input.claim_statuses ?? ["queued", "unprocessed"];
+  const manifest = claimStatuses
+    .map((status) => manifests.find((candidate) => candidate.preprocess_status === status))
+    .find((candidate): candidate is SourceVideoManifest => Boolean(candidate));
 
   if (!manifest) {
     return null;
@@ -326,6 +337,22 @@ export async function completePreprocessArtifacts(
     completed_at: input.now
   });
   await refreshLibraryCounts(input.library_root, input.now);
+}
+
+export async function updatePreprocessJobStage(
+  input: UpdatePreprocessJobStageInput
+): Promise<void> {
+  const existingJob = await readExistingJob(input.library_root, input.source_video_id);
+
+  if (!existingJob || existingJob.status !== "processing") {
+    throw new Error(`source video ${input.source_video_id} must be processing before updating stage`);
+  }
+
+  await writePreprocessJob(input.library_root, {
+    ...existingJob,
+    current_stage: input.stage,
+    stage_updated_at: input.now
+  });
 }
 
 export async function failPreprocessJob(input: FailPreprocessJobInput): Promise<void> {

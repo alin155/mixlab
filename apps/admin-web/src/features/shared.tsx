@@ -122,14 +122,26 @@ export function SourceVideoTable({
   videos,
   selectedSourceVideoId,
   onSelect,
-  onOpenSourceDetail
+  onOpenSourceDetail,
+  onQueueSourceVideo,
+  onRetrySourceVideo,
+  onPublishSourceVideo
 }: {
   videos: AdminSourceVideo[];
   selectedSourceVideoId?: string;
   onSelect?: (sourceVideoId: string) => void;
   onOpenSourceDetail?: (sourceVideoId: string) => void;
+  onQueueSourceVideo?: (sourceVideoId: string) => void;
+  onRetrySourceVideo?: (sourceVideoId: string) => void;
+  onPublishSourceVideo?: (sourceVideoId: string) => void;
 }) {
-  const columns = onOpenSourceDetail
+  const hasActions = Boolean(
+    onOpenSourceDetail ||
+    onQueueSourceVideo ||
+    onRetrySourceVideo ||
+    onPublishSourceVideo
+  );
+  const columns = hasActions
     ? ["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间", "操作"]
     : ["ID", "封面", "文件名", "状态", "对剪辑师可见", "标签", "更新时间"];
 
@@ -154,16 +166,66 @@ export function SourceVideoTable({
           video.updated_at
         ];
 
-        if (onOpenSourceDetail) {
+        if (hasActions) {
+          const actions: ReactElement[] = [];
+
+          if (video.preprocess_status === "unprocessed") {
+            actions.push(
+              <AdminControlButton
+                label="处理此视频"
+                state="m9b-api"
+                reason="只将这一条未处理原视频加入预处理队列。"
+                onClick={() => onQueueSourceVideo?.(video.source_video_id)}
+                key={`${video.source_video_id}-queue`}
+              />
+            );
+          }
+
+          if (video.preprocess_status === "failed") {
+            actions.push(
+              <AdminControlButton
+                label="重试此视频"
+                state="m9b-api"
+                reason="只将这一条失败原视频重新加入预处理队列。"
+                onClick={() => onRetrySourceVideo?.(video.source_video_id)}
+                key={`${video.source_video_id}-retry`}
+              />
+            );
+          }
+
+          if (video.preprocess_status === "index-required") {
+            actions.push(
+              <AdminControlButton
+                label="发布此视频"
+                state="m9b-api"
+                reason="只发布这一条待索引视频，发布前会补齐封面和关键帧。"
+                onClick={() => onPublishSourceVideo?.(video.source_video_id)}
+                key={`${video.source_video_id}-publish`}
+              />
+            );
+          }
+
+          if (onOpenSourceDetail) {
+            actions.push(
+              <button
+                className="admin-link-button"
+                type="button"
+                onClick={() => onOpenSourceDetail(video.source_video_id)}
+                key={`${video.source_video_id}-detail`}
+              >
+                查看详情
+              </button>
+            );
+          }
+
           cells.push(
-            <button
-              className="admin-link-button"
-              type="button"
-              onClick={() => onOpenSourceDetail(video.source_video_id)}
-              key={`${video.source_video_id}-detail`}
-            >
-              查看详情
-            </button>
+            actions.length === 1
+              ? actions[0]
+              : (
+                  <span className="admin-row-actions" key={`${video.source_video_id}-actions`}>
+                    {actions}
+                  </span>
+                )
           );
         }
 
@@ -267,33 +329,56 @@ export function SourceMetadataInspector({
 
 export function JobRows({
   jobs,
-  onRetryFailed
+  onRetryFailed,
+  averageProcessMs = 0
 }: {
   jobs: AdminPreprocessJob[];
   onRetryFailed?: () => void;
+  averageProcessMs?: number;
 }) {
   return (
     <section className="admin-list-panel">
-      {jobs.map((job) => (
-        <StatusRow
-          tone={adminStatusTone(job.status)}
-          label={job.job_id}
-          detail={`${job.title} · ${jobStageLabel(job.stage)} · ${job.log_path}${job.error_message ? ` · ${chineseDiagnosticText(job.error_message)}` : ""}`}
-          value={
-            job.status === "failed" && job.retryable
-              ? (
-                <AdminControlButton
-                  label="重试失败"
-                  state="m9b-api"
-                  reason="M9B 接入失败重试接口。"
-                  onClick={onRetryFailed}
-                />
-              )
-              : `${job.progress}%`
-          }
-          key={job.job_id}
-        />
-      ))}
+      {jobs.map((job, index) => {
+        const estimatedDuration = averageProcessMs > 0
+          ? formatAdminDuration(averageProcessMs)
+          : "等待估算";
+        const estimatedStart = job.estimated_start_at
+          ? ` · 预计开始 ${job.estimated_start_at.replace("T", " ").slice(0, 16)}`
+          : "";
+        const estimatedDone = job.estimated_done_at
+          ? ` · 预计完成 ${job.estimated_done_at.replace("T", " ").slice(0, 16)}`
+          : "";
+        const detail = job.status === "queued"
+          ? `${job.title} · ${job.status_label || "等待处理"} · 排队第 ${job.queue_position || index + 1} 位${estimatedStart} · 预计耗时 ${estimatedDuration}${estimatedDone}`
+          : job.status === "running"
+            ? `${job.title} · ${job.stage_label || jobStageLabel(job.stage)} · 已用时 ${formatAdminDuration(job.elapsed_ms)} · 预计剩余 ${formatAdminDuration(job.estimated_remaining_ms)}`
+            : job.status === "failed"
+              ? `${job.title} · ${job.stage_label || jobStageLabel(job.stage)}${job.error_message ? ` · ${chineseDiagnosticText(job.error_message)}` : ""}`
+              : `${job.title} · ${job.stage_label || jobStageLabel(job.stage)} · 已完成`;
+
+        return (
+          <StatusRow
+            tone={adminStatusTone(job.status)}
+            label={job.job_id}
+            detail={detail}
+            value={
+              job.status === "failed" && job.retryable
+                ? (
+                  <AdminControlButton
+                    label="重试失败"
+                    state="m9b-api"
+                    reason="M9B 接入失败重试接口。"
+                    onClick={onRetryFailed}
+                  />
+                )
+                : job.status === "queued"
+                  ? "等待处理"
+                  : `${job.progress}%`
+            }
+            key={job.job_id}
+          />
+        );
+      })}
     </section>
   );
 }

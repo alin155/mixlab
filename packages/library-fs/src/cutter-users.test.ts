@@ -370,6 +370,36 @@ test("same username only reuses the same device application", async () => {
   );
 });
 
+test("login applications persist device audit metadata without using IP as identity", async () => {
+  const root = await makeRoot();
+  const first = await createCutterLoginApplication(root, {
+    username: "小吴",
+    device_id: "device-audit",
+    device_name: "Mac 剪辑端 · Safari",
+    now: "2026-05-02T10:00:00.000Z",
+    ip_address: "192.168.31.10",
+    user_agent: "Safari/605.1.15"
+  } as any);
+
+  assert.equal((first.devices[0] as any)?.last_ip_address, "192.168.31.10");
+  assert.equal((first.devices[0] as any)?.user_agent, "Safari/605.1.15");
+
+  const repeated = await createCutterLoginApplication(root, {
+    username: "小吴",
+    device_id: "device-audit",
+    device_name: "Mac 剪辑端 · Safari",
+    now: "2026-05-02T10:01:00.000Z",
+    ip_address: "10.0.0.8",
+    user_agent: "Safari/605.1.15"
+  } as any);
+
+  assert.equal(repeated.user_id, first.user_id);
+  const users = (await listCutterUsers(root)).users;
+  assert.equal(users.length, 1);
+  assert.equal((users[0]?.devices[0] as any)?.last_ip_address, "10.0.0.8");
+  assert.equal((users[0]?.devices[0] as any)?.device_id, "device-audit");
+});
+
 test("approved username on a new device creates a fresh pending application", async () => {
   const root = await makeRoot();
   const approvedDevice = await createCutterLoginApplication(root, {

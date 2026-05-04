@@ -15,13 +15,13 @@ import {
 import {
   createFixtureCutterApiClient,
   loadCutterWorkbenchData,
+  resolveSearchResponseUrls,
   type CutterFixtureData
 } from "../fixture-client.ts";
-import { CutListPage } from "../features/cut-list/CutListPage.tsx";
 import { CutQueuePage } from "../features/cut-queue/CutQueuePage.tsx";
 import { LocalLibraryPage } from "../features/local-library/LocalLibraryPage.tsx";
+import { MaterialLocatorPage } from "../features/material-locator/MaterialLocatorPage.tsx";
 import { PublicLibraryPage } from "../features/public-library/PublicLibraryPage.tsx";
-import { SearchPage } from "../features/search/SearchPage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
 import {
@@ -36,6 +36,11 @@ import {
   type CutListItem,
   type MoveDirection
 } from "../state/cut-list.ts";
+import {
+  localClipToSourceVideoDetail,
+  type MaterialLocatorResult,
+  type MaterialSearchSourceFilter
+} from "../state/material-locator.ts";
 import {
   clearCutterAuthSession,
   clearCutterPendingLogin,
@@ -57,8 +62,19 @@ import {
   routeFromHash,
   routeTitle,
   routeToHash,
+  searchHash,
+  searchQueryFromHash,
+  sourceDetailContextFromHash,
+  sourceVideoIdFromHash,
   type CutterRoute
 } from "./navigation.ts";
+import {
+  continuousTranscriptSegments,
+  nextTranscriptSelectionRange,
+  transcriptSelectionRangeFromDrag,
+  type TranscriptSelectionRange
+} from "../state/transcript-selection.ts";
+import type { VideoOrientationFilter } from "../state/video-orientation.ts";
 
 function getRuntimeApiBaseUrl(): string {
   return import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
@@ -82,6 +98,15 @@ function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | n
 
 export function shouldShowLoginGate(apiMode: boolean, status: CutterLoginStatusValue): boolean {
   return apiMode && status !== "approved";
+}
+
+export function shouldRefreshCutQueueForRoute(input: {
+  apiMode: boolean;
+  hasData: boolean;
+  loginGateVisible: boolean;
+  route: CutterRoute;
+}): boolean {
+  return input.apiMode && input.hasData && !input.loginGateVisible && input.route === "cut-tasks";
 }
 
 export function loginStatusFromApplication(application: CutterLoginApplication): CutterLoginStatusValue {
@@ -158,6 +183,19 @@ function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
   ];
 }
 
+export function appendDirectCutFixtureQueue(
+  current: readonly CutQueueJob[],
+  item: CutListItem,
+  createdAt: string
+): CutQueueJob[] {
+  return [
+    ...createQueueJobsFromCutList([{ ...item, order: 1 }], {
+      createdAt
+    }),
+    ...current
+  ];
+}
+
 function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
   const selectedSegments = data.primaryDetail.transcript.segments.slice(1, 4);
 
@@ -170,10 +208,6 @@ function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
       title: "现金流短片开场"
     })
   ];
-}
-
-function selectedSegmentsForData(data: CutterFixtureData) {
-  return data.primaryDetail.transcript.segments.slice(1, 4);
 }
 
 function safeLocalStorageGetItem(key: string): string | null {
@@ -192,8 +226,42 @@ function safeLocalStorageSetItem(key: string, value: string): void {
   }
 }
 
+export function cutterDeviceNameFromNavigator(
+  input: { platform?: string; userAgent?: string } | undefined
+): string {
+  if (!input) {
+    return "剪辑工作站";
+  }
+
+  const platform = `${input.platform ?? ""} ${input.userAgent ?? ""}`.toLowerCase();
+  const browser = input.userAgent?.includes("Edg/")
+    ? "Edge"
+    : input.userAgent?.includes("Chrome/")
+      ? "Chrome"
+      : input.userAgent?.includes("Safari/")
+        ? "Safari"
+        : "浏览器";
+
+  if (platform.includes("mac")) {
+    return `Mac 剪辑端 · ${browser}`;
+  }
+  if (platform.includes("win")) {
+    return `Windows 剪辑端 · ${browser}`;
+  }
+  if (platform.includes("linux")) {
+    return `Linux 剪辑端 · ${browser}`;
+  }
+
+  return `剪辑工作站 · ${browser}`;
+}
+
 function cutterDeviceName(): string {
-  return typeof navigator === "undefined" ? "剪辑工作站" : navigator.userAgent;
+  return typeof navigator === "undefined"
+    ? "剪辑工作站"
+    : cutterDeviceNameFromNavigator({
+        platform: navigator.platform,
+        userAgent: navigator.userAgent
+      });
 }
 
 function renderPage(
@@ -201,8 +269,23 @@ function renderPage(
   data: CutterFixtureData,
   cutList: readonly CutListItem[],
   queue: readonly CutQueueJob[],
+  viewState: {
+    searchQuery: string;
+    highlightedSegmentIds: readonly string[];
+    selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
+    selectedDetail: CutterFixtureData["primaryDetail"];
+    sourceFilter: MaterialSearchSourceFilter;
+    orientationFilter: VideoOrientationFilter;
+  },
   handlers: {
     addSelectedSpan: () => void;
+    search: (query: string) => void;
+    selectMaterial: (result: MaterialLocatorResult) => void;
+    selectTranscriptSegment: (segmentId: string) => void;
+    selectTranscriptRange: (startSegmentId: string, endSegmentId: string) => void;
+    cancelTranscriptSelection: () => void;
+    setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
+    setOrientationFilter: (filter: VideoOrientationFilter) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
@@ -211,30 +294,39 @@ function renderPage(
     runNextJob?: () => void;
   }
 ) {
-  const selectedSegments = selectedSegmentsForData(data);
-
   if (route === "source-detail") {
     return (
       <SourceDetailPage
         detail={data.primaryDetail}
-        selectedSegments={selectedSegments}
+        selectedSegments={viewState.selectedSegments}
+        highlightedSegmentIds={viewState.highlightedSegmentIds}
+        onSelectSegment={handlers.selectTranscriptSegment}
         onAddToCutList={handlers.addSelectedSpan}
       />
     );
   }
 
-  if (route === "search") {
-    return <SearchPage search={data.search} query={data.search.query} />;
-  }
-
-  if (route === "cut-list") {
+  if (route === "material-locator") {
     return (
-      <CutListPage
-        items={cutList}
-        onMove={handlers.moveCut}
-        onRemove={handlers.removeCut}
-        onClear={handlers.clearCuts}
-        onSubmit={handlers.submitCuts}
+      <MaterialLocatorPage
+        library={data.library}
+        localClips={data.localClips}
+        search={data.search}
+        query={viewState.searchQuery || data.search.query}
+        sourceFilter={viewState.sourceFilter}
+        orientationFilter={viewState.orientationFilter}
+        selectedDetail={viewState.selectedDetail}
+        selectedSegments={viewState.selectedSegments}
+        highlightedSegmentIds={viewState.highlightedSegmentIds}
+        queue={queue}
+        onSearch={handlers.search}
+        onSelectMaterial={handlers.selectMaterial}
+        onSelectTranscriptSegment={handlers.selectTranscriptSegment}
+        onSelectTranscriptRange={handlers.selectTranscriptRange}
+        onCutSelection={handlers.addSelectedSpan}
+        onCancelSelection={handlers.cancelTranscriptSelection}
+        onSetSourceFilter={handlers.setSourceFilter}
+        onSetOrientationFilter={handlers.setOrientationFilter}
       />
     );
   }
@@ -243,7 +335,7 @@ function renderPage(
     return <LocalLibraryPage catalog={data.localClips} query="" />;
   }
 
-  if (route === "cut-queue") {
+  if (route === "cut-tasks") {
     return (
       <CutQueuePage
         jobs={queue}
@@ -269,6 +361,17 @@ export function CutterApp() {
   const apiBaseUrl = useMemo(getRuntimeApiBaseUrl, []);
   const apiMode = Boolean(apiBaseUrl);
   const [route, setRoute] = useState<CutterRoute>(() => routeFromHash(window.location.hash));
+  const [selectedSourceVideoId, setSelectedSourceVideoId] = useState<string | undefined>(() =>
+    sourceVideoIdFromHash(window.location.hash)
+  );
+  const [searchQuery, setSearchQuery] = useState(() => searchQueryFromHash(window.location.hash));
+  const [sourceDetailContext, setSourceDetailContext] = useState(() =>
+    sourceDetailContextFromHash(window.location.hash)
+  );
+  const [selectedLocalClipId, setSelectedLocalClipId] = useState<string | undefined>();
+  const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>("all");
+  const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>("all");
+  const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
     deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
@@ -467,7 +570,14 @@ export function CutterApp() {
   }, [apiMode, client]);
 
   useEffect(() => {
-    const listener = () => setRoute(routeFromHash(window.location.hash));
+    const listener = () => {
+      setRoute(routeFromHash(window.location.hash));
+      setSelectedSourceVideoId(sourceVideoIdFromHash(window.location.hash));
+      setSelectedLocalClipId(undefined);
+      setSearchQuery(searchQueryFromHash(window.location.hash));
+      setSourceDetailContext(sourceDetailContextFromHash(window.location.hash));
+      setTranscriptSelection({});
+    };
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
   }, []);
@@ -479,10 +589,13 @@ export function CutterApp() {
       return;
     }
 
-    loadCutterWorkbenchData(client)
+    loadCutterWorkbenchData(client, {
+      preferredSourceVideoId: selectedSourceVideoId
+    })
       .then((result) => {
         if (!cancelled) {
           setData(result);
+          setError("");
         }
       })
       .catch((loadError) => {
@@ -494,15 +607,54 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, loginGateVisible]);
+  }, [client, loginGateVisible, selectedSourceVideoId]);
 
   useEffect(() => {
-    if (!data || !apiMode || loginGateVisible) {
+    const query = searchQuery.trim();
+    if (!data || loginGateVisible || route !== "material-locator" || !query) {
+      return;
+    }
+
+    let cancelled = false;
+
+    client
+      .searchSourceLibrary(query, 20)
+      .then((searchResult) => {
+        if (!cancelled) {
+          setData((current) =>
+            current
+              ? {
+                  ...current,
+                  search: resolveSearchResponseUrls(client, searchResult)
+                }
+              : current
+          );
+          setError("");
+        }
+      })
+      .catch((searchError) => {
+        if (!cancelled) {
+          setError(searchError instanceof Error ? searchError.message : "搜索结果加载失败");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, Boolean(data), loginGateVisible, route, searchQuery]);
+
+  useEffect(() => {
+    if (!shouldRefreshCutQueueForRoute({
+      apiMode,
+      hasData: Boolean(data),
+      loginGateVisible,
+      route
+    })) {
       return;
     }
 
     void refreshQueueJobs();
-  }, [apiMode, data, loginGateVisible, refreshQueueJobs]);
+  }, [apiMode, data, loginGateVisible, refreshQueueJobs, route]);
 
   useEffect(() => {
     if (!data || didSeedCutList) {
@@ -529,6 +681,8 @@ export function CutterApp() {
   }));
 
   const visibleCutList = data && cutList.length === 0 && !didSeedCutList ? defaultCutListForData(data) : cutList;
+  const selectedLocalClip = data?.localClips.clips.find((clip) => clip.local_clip_id === selectedLocalClipId);
+  const selectedDetail = selectedLocalClip ? localClipToSourceVideoDetail(selectedLocalClip) : data?.primaryDetail;
   const visibleQueue =
     apiMode
       ? queueJobs
@@ -539,26 +693,95 @@ export function CutterApp() {
             createdAt: "2026-05-02T10:00:00.000Z"
           })
         );
+  const highlightedSegmentIds = route === "source-detail" ? sourceDetailContext.segmentIds : [];
+  const selectedTranscriptSegments = selectedDetail
+    ? continuousTranscriptSegments(selectedDetail.transcript.segments, {
+        ...transcriptSelection,
+        fallbackSegmentIds: highlightedSegmentIds
+      })
+    : [];
   const handlers = {
-    addSelectedSpan() {
+    async addSelectedSpan() {
       if (!data) {
+        return;
+      }
+      if (selectedTranscriptSegments.length === 0) {
+        return;
+      }
+
+      if (!selectedDetail) {
         return;
       }
 
       const item = createCutListItemFromSegments({
-        sourceVideo: data.primaryDetail,
-        segments: selectedSegmentsForData(data),
+        sourceVideo: selectedDetail,
+        segments: selectedTranscriptSegments,
         cutMode: data.settings.default_cut_mode,
         order: visibleCutList.length + 1,
-        title: "现金流短片开场"
+        title: `${selectedDetail.title} 片段`
       });
 
-      setCutList((current) => {
-        const exists = current.some((cut) => cut.cut_list_item_id === item.cut_list_item_id);
-        return exists ? current : [...current, { ...item, order: current.length + 1 }];
-      });
-      window.location.hash = routeToHash("cut-list");
+      if (apiMode) {
+        try {
+          const clipList = await client.createClipList(
+            toCreateClipListRequest({
+              libraryId: data.library.library_id ?? "local-library",
+              title: "快速剪切",
+              items: [item]
+            })
+          );
+          const submission = await client.submitCutJobs({
+            clip_list_id: clipList.clip_list_id
+          });
+          const submittedJobs = mapApiCutJobsToQueueJobs({
+            job_count: submission.submitted_count,
+            jobs: submission.jobs
+          });
+          setQueueJobs((current) => [...submittedJobs, ...current]);
+          await refreshQueueJobs();
+        } catch (submitError) {
+          setError(submitError instanceof Error ? submitError.message : "剪切任务创建失败");
+          return;
+        }
+      } else {
+        setQueueJobs((current) =>
+          appendDirectCutFixtureQueue(current, item, new Date().toISOString())
+        );
+      }
+
+      setTranscriptSelection({});
     },
+    search(query: string) {
+      const nextQuery = query.trim();
+      setSearchQuery(nextQuery);
+      window.location.hash = searchHash(nextQuery);
+    },
+    selectMaterial(result: MaterialLocatorResult) {
+      setTranscriptSelection({
+        startSegmentId: result.segments[0]?.segment_id,
+        endSegmentId: result.segments[result.segments.length - 1]?.segment_id
+      });
+
+      if (result.source === "local") {
+        setSelectedLocalClipId(result.id);
+        setSelectedSourceVideoId(undefined);
+        return;
+      }
+
+      setSelectedLocalClipId(undefined);
+      setSelectedSourceVideoId(result.id);
+    },
+    selectTranscriptSegment(segmentId: string) {
+      setTranscriptSelection((current) => nextTranscriptSelectionRange(current, segmentId));
+    },
+    selectTranscriptRange(startSegmentId: string, endSegmentId: string) {
+      setTranscriptSelection(transcriptSelectionRangeFromDrag(startSegmentId, endSegmentId));
+    },
+    cancelTranscriptSelection() {
+      setTranscriptSelection({});
+    },
+    setSourceFilter,
+    setOrientationFilter,
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
     },
@@ -608,7 +831,7 @@ export function CutterApp() {
         );
       }
 
-      window.location.hash = routeToHash("cut-queue");
+      window.location.hash = routeToHash("cut-tasks");
     },
     refreshQueue: apiMode
       ? () => {
@@ -650,7 +873,21 @@ export function CutterApp() {
                   <p>{error}</p>
                 </InspectorPanel>
               ) : data ? (
-                renderPage(route, data, visibleCutList, visibleQueue, handlers)
+                renderPage(
+                  route,
+                  data,
+                  visibleCutList,
+                  visibleQueue,
+                  {
+                    searchQuery,
+                    highlightedSegmentIds,
+                    selectedSegments: selectedTranscriptSegments,
+                    selectedDetail: selectedDetail ?? data.primaryDetail,
+                    sourceFilter,
+                    orientationFilter
+                  },
+                  handlers
+                )
               ) : (
                 <InspectorPanel title="加载中">
                   <p>正在读取剪辑师工作台数据</p>
@@ -664,7 +901,12 @@ export function CutterApp() {
   );
 
   return (
-    <CutterLoginGate status={loginStatus} message={loginMessage || undefined} onApply={handleApplyLogin}>
+    <CutterLoginGate
+      status={loginStatus}
+      message={loginMessage || undefined}
+      deviceName={cutterDeviceName()}
+      onApply={handleApplyLogin}
+    >
       {workbench}
     </CutterLoginGate>
   );

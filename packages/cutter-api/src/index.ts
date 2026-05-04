@@ -456,6 +456,16 @@ function firstHeaderValue(value: string | string[] | undefined): string {
   return value?.trim() ?? "";
 }
 
+function requestIpAddress(request: IncomingMessage): string | undefined {
+  const forwardedFor = firstHeaderValue(request.headers["x-forwarded-for"]);
+  const forwardedIp = forwardedFor.split(",")[0]?.trim();
+  if (forwardedIp) {
+    return forwardedIp;
+  }
+
+  return request.socket.remoteAddress?.trim() || undefined;
+}
+
 function currentNow(input: CreateCutterApiServerInput): string {
   return input.now?.() ?? new Date().toISOString();
 }
@@ -789,7 +799,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             username: requiredChineseString(body.username, "用户名不能为空"),
             device_id: deviceId,
             device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
-            now
+            now,
+            ip_address: requestIpAddress(request),
+            user_agent: firstHeaderValue(request.headers["user-agent"]) || undefined
           });
           const session = application.status === "approved"
             ? await ensureCutterSessionForDevice(input.library_root, {

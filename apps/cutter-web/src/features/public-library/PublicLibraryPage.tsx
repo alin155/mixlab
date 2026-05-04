@@ -1,5 +1,11 @@
 import { GalleryGrid, InspectorPanel, SegmentedControl } from "@mixlab/ui-foundation";
 import { formatDuration, formatFileSize, type SourceLibraryResponse, type SourceVideoCard } from "../../api.ts";
+import { sourceDetailHash } from "../../app/navigation.ts";
+import {
+  matchesOrientationFilter,
+  videoOrientationLabel,
+  type VideoOrientationFilter
+} from "../../state/video-orientation.ts";
 
 function galleryMeta(video: SourceVideoCard): string {
   const resolution = video.width && video.height ? `${video.width}x${video.height}` : "";
@@ -10,13 +16,16 @@ function galleryMeta(video: SourceVideoCard): string {
 
 export function PublicLibraryPage({
   library,
-  selectedSourceVideoId
+  selectedSourceVideoId,
+  orientationFilter = "all"
 }: {
   library: SourceLibraryResponse;
   selectedSourceVideoId?: string;
+  orientationFilter?: VideoOrientationFilter;
 }) {
+  const filtered = library.videos.filter((video) => matchesOrientationFilter(video, orientationFilter));
   const selected =
-    library.videos.find((video) => video.source_video_id === selectedSourceVideoId) ?? library.videos[0];
+    filtered.find((video) => video.source_video_id === selectedSourceVideoId) ?? filtered[0] ?? library.videos[0];
 
   return (
     <section className="cutter-page cutter-public-library" data-page="public-library">
@@ -27,17 +36,19 @@ export function PublicLibraryPage({
             <h1>可用原素材</h1>
             <p>剪辑端只读浏览管理端已经发布为 ready 的原视频。</p>
           </div>
-          <SegmentedControl options={["全部可用资源", "课程", "标签"]} active="全部可用资源" />
+          <SegmentedControl options={["全部", "横版", "竖版"]} active="全部" />
         </header>
 
         <GalleryGrid
-          items={library.videos.map((video) => ({
+          items={filtered.map((video) => ({
             id: video.source_video_id,
             title: video.title,
             image: video.cover_url,
             meta: galleryMeta(video),
-            tags: video.tags,
-            description: video.description
+            tags: [videoOrientationLabel(video), ...(video.tags ?? [])],
+            description: video.description,
+            href: sourceDetailHash(video.source_video_id),
+            action_label: "查看详情"
           }))}
         />
       </div>

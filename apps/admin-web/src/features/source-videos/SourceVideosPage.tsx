@@ -6,7 +6,6 @@ import type {
 } from "../../api.ts";
 import { preprocessStatusLabel } from "../../app/chinese.ts";
 import {
-  AdminControlButton,
   AdminPageHeader,
   EmptyState,
   SourceMetadataInspector,
@@ -25,16 +24,16 @@ const statusOptions: Array<{ label: string; value: AdminPreprocessStatus | "all"
 
 export function SourceVideosPage({
   data,
-  onScanSourceVideos,
-  onQueueUnprocessedVideos,
-  onRetryFailedVideos,
+  onQueueSourceVideo,
+  onRetrySourceVideo,
+  onPublishSourceVideo,
   onUpdateSourceVideoMetadata,
   onOpenSourceDetail
 }: {
   data: AdminDashboardData;
-  onScanSourceVideos?: () => void;
-  onQueueUnprocessedVideos?: () => void;
-  onRetryFailedVideos?: () => void;
+  onQueueSourceVideo?: (sourceVideoId: string) => void;
+  onRetrySourceVideo?: (sourceVideoId: string) => void;
+  onPublishSourceVideo?: (sourceVideoId: string) => void;
   onUpdateSourceVideoMetadata?: (
     sourceVideoId: string,
     metadata: AdminSourceVideoMetadataUpdate
@@ -103,10 +102,6 @@ export function SourceVideosPage({
               <option value={option.value} key={option.value}>{option.label}</option>
             ))}
           </select>
-          <AdminControlButton label="扫描新增视频" state="m9b-api" reason="M9B 接入扫描接口。" variant="primary" onClick={onScanSourceVideos} />
-          <AdminControlButton label="处理未处理" state="m9b-api" reason="M9B 接加入队接口。" onClick={onQueueUnprocessedVideos} />
-          <AdminControlButton label="重试失败视频" state="m9b-api" reason="M9B 接入失败重试接口。" onClick={onRetryFailedVideos} />
-          <AdminControlButton label="查看发布清单" state="read-only" reason="M9A 只呈现入口，报告查看器另行实现。" />
         </section>
         {filteredVideos.length ? (
           <SourceVideoTable
@@ -114,6 +109,9 @@ export function SourceVideosPage({
             selectedSourceVideoId={selected?.source_video_id}
             onSelect={setSelectedSourceVideoId}
             onOpenSourceDetail={onOpenSourceDetail}
+            onQueueSourceVideo={onQueueSourceVideo}
+            onRetrySourceVideo={onRetrySourceVideo}
+            onPublishSourceVideo={onPublishSourceVideo}
           />
         ) : (
           <EmptyState title="没有匹配的原视频" detail="请调整搜索词或状态筛选。" />

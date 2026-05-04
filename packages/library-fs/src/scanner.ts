@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryCounts, PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
 import {
@@ -242,6 +242,23 @@ async function writeSourceVideoManifest(
   await writeFile(path.join(targetDir, "source-video.json"), jsonBytes(manifest), "utf8");
 }
 
+async function pruneInactiveManifestDirectories(input: {
+  library_root: string;
+  existing_manifests: SourceVideoManifest[];
+  active_source_video_ids: Set<string>;
+}): Promise<void> {
+  for (const manifest of input.existing_manifests) {
+    if (input.active_source_video_ids.has(manifest.source_video_id)) {
+      continue;
+    }
+
+    await rm(path.join(videosRoot(input.library_root), manifest.source_video_id), {
+      recursive: true,
+      force: true
+    });
+  }
+}
+
 function countByStatus(manifests: SourceVideoManifest[]): LibraryCounts {
   const counts: Record<PreprocessStatus, number> = {
     unprocessed: 0,
@@ -283,6 +300,9 @@ async function writeLibraryManifest(input: {
     updated_at: input.now,
     source_root: "library://source-videos",
     preprocess_root: "library://.mixlab-library",
+    source_video_ids: input.manifests
+      .map((manifest) => manifest.source_video_id)
+      .sort((left, right) => numericSourceVideoId(left) - numericSourceVideoId(right)),
     ...counts
   };
 
@@ -370,6 +390,12 @@ export async function scanSourceVideos(
       existingVideoCount += 1;
     }
   }
+
+  await pruneInactiveManifestDirectories({
+    library_root: input.library_root,
+    existing_manifests: existing.manifests,
+    active_source_video_ids: includedSourceVideoIds
+  });
 
   for (const manifest of manifests) {
     await writeSourceVideoManifest(input.library_root, manifest);

@@ -58,14 +58,10 @@ function defaultNewSourceFolder(data: AdminDashboardData, sourceFolders: AdminSo
 
 export function SettingsPage({
   data,
-  onInitializeLibrary,
-  onScanSourceVideos,
   onSaveAdminSettings,
   onTestAsrConfig
 }: {
   data: AdminDashboardData;
-  onInitializeLibrary?: () => void;
-  onScanSourceVideos?: () => void;
   onSaveAdminSettings?: (settings: AdminSettingsConfigUpdate) => void | Promise<void>;
   onTestAsrConfig?: () => void;
 }) {
@@ -177,12 +173,16 @@ export function SettingsPage({
                 <span className="admin-source-folder-meta">
                   已发现 {folder.discovered_video_count ?? 0} 个 · 新增未处理 {folder.new_unprocessed_count ?? 0} 个 · 最近扫描 {folder.last_scanned_at || "未扫描"}
                 </span>
-                <AdminControlButton
-                  label="移除"
-                  state={folder.id === "src_default" ? "read-only" : "local"}
-                  reason={folder.id === "src_default" ? "默认素材来源不能移除。" : "从设置中移除该素材来源，保存后生效。"}
-                  onClick={folder.id === "src_default" ? undefined : () => removeSourceFolder(folder.id)}
-                />
+                {folder.id === "src_default" ? (
+                  <span className="admin-inline-note">默认来源不可移除</span>
+                ) : (
+                  <AdminControlButton
+                    label="移除"
+                    state="local"
+                    reason="从设置中移除该素材来源，保存后生效。"
+                    onClick={() => removeSourceFolder(folder.id)}
+                  />
+                )}
               </section>
             ))}
           </div>
@@ -213,45 +213,6 @@ export function SettingsPage({
                         concurrent_jobs: Math.max(1, Number(event.currentTarget.value) || 1)
                       })}
                     />
-                  )
-                },
-                {
-                  label: "自动扫描",
-                  value: (
-                    <label className="admin-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={runtimePolicy.auto_scan_enabled}
-                        onChange={(event) => updateRuntimePolicy({ auto_scan_enabled: event.currentTarget.checked })}
-                      />
-                      <span>自动扫描素材来源</span>
-                    </label>
-                  )
-                },
-                {
-                  label: "自动入队",
-                  value: (
-                    <label className="admin-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={runtimePolicy.auto_queue_enabled}
-                        onChange={(event) => updateRuntimePolicy({ auto_queue_enabled: event.currentTarget.checked })}
-                      />
-                      <span>自动入队未处理视频</span>
-                    </label>
-                  )
-                },
-                {
-                  label: "自动发布索引",
-                  value: (
-                    <label className="admin-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={runtimePolicy.auto_publish_index_enabled}
-                        onChange={(event) => updateRuntimePolicy({ auto_publish_index_enabled: event.currentTarget.checked })}
-                      />
-                      <span>自动发布可用索引</span>
-                    </label>
                   )
                 },
                 {
@@ -304,9 +265,10 @@ export function SettingsPage({
         <p className="admin-note">
           接口密钥不写入代码、协议清单、日志或诊断报告。管理端只显示配置状态。
         </p>
+        <p className="admin-note">
+          接口密钥通过本地环境变量或部署环境配置，不在页面中编辑。
+        </p>
         <section className="admin-action-stack">
-          <AdminControlButton label="初始化素材库" state="m9b-api" reason="M9B 接入初始化接口。" variant="primary" onClick={onInitializeLibrary} />
-          <AdminControlButton label="扫描源视频" state="m9b-api" reason="M9B 接入扫描接口。" onClick={onScanSourceVideos} />
           <AdminControlButton
             label="保存设置"
             state="m9b-api"
@@ -315,7 +277,6 @@ export function SettingsPage({
             onClick={onSaveAdminSettings ? saveSettings : undefined}
           />
           <AdminControlButton label="测试语音识别配置" state="m9b-api" reason="M9B 接入语音识别配置检测。" onClick={onTestAsrConfig} />
-          <AdminControlButton label="编辑接口密钥" state="native-boundary" reason="密钥只通过本地环境或部署环境变量配置。" />
         </section>
       </InspectorPanel>
     </>

@@ -34,6 +34,10 @@ export interface CutterFixtureData {
   settings: CutterWorkbenchSettings;
 }
 
+export interface LoadCutterWorkbenchDataOptions {
+  preferredSourceVideoId?: string;
+}
+
 function cover(seed: string, tint: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><rect width="640" height="360" fill="#f6f7f9"/><rect y="210" width="640" height="150" fill="#${tint}"/><path d="M46 252h50v-92h56v92h42V124h64v128h48v-74h54v74h60V94h66v158h48v-98h62v98h34v30H46z" fill="#26313d"/><circle cx="540" cy="82" r="52" fill="#ffffff" opacity=".72"/><text x="36" y="326" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#ffffff">${seed}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -569,12 +573,76 @@ export function createFixtureCutterApiClient(): CutterApiClient {
   };
 }
 
-export async function loadCutterWorkbenchData(client: CutterApiClient): Promise<CutterFixtureData> {
-  const [library, localClips] = await Promise.all([
+function resolveSourceVideoCardUrls<T extends SourceVideoCard>(
+  client: CutterApiClient,
+  card: T
+): T {
+  return {
+    ...card,
+    media_url: client.resolveApiUrl(card.media_url),
+    cover_url: client.resolveApiUrl(card.cover_url),
+    detail_url: client.resolveApiUrl(card.detail_url),
+    subtitles_url: client.resolveApiUrl(card.subtitles_url)
+  };
+}
+
+function resolveSourceVideoDetailUrls(
+  client: CutterApiClient,
+  detail: SourceVideoDetail
+): SourceVideoDetail {
+  return resolveSourceVideoCardUrls(client, detail);
+}
+
+function resolveSearchGroupUrls(
+  client: CutterApiClient,
+  group: SearchResponse["groups"][number]
+): SearchResponse["groups"][number] {
+  return {
+    ...group,
+    ...(group.media_url ? { media_url: client.resolveApiUrl(group.media_url) } : {}),
+    ...(group.cover_url ? { cover_url: client.resolveApiUrl(group.cover_url) } : {}),
+    ...(group.detail_url ? { detail_url: client.resolveApiUrl(group.detail_url) } : {}),
+    ...(group.subtitles_url ? { subtitles_url: client.resolveApiUrl(group.subtitles_url) } : {})
+  };
+}
+
+export function resolveSearchResponseUrls(
+  client: CutterApiClient,
+  searchResult: SearchResponse
+): SearchResponse {
+  return {
+    ...searchResult,
+    groups: searchResult.groups.map((group) => resolveSearchGroupUrls(client, group))
+  };
+}
+
+function resolveLocalClipUrls(client: CutterApiClient, clip: LocalClip): LocalClip {
+  return {
+    ...clip,
+    media_url: client.resolveApiUrl(clip.media_url),
+    detail_url: client.resolveApiUrl(clip.detail_url)
+  };
+}
+
+export async function loadCutterWorkbenchData(
+  client: CutterApiClient,
+  options: LoadCutterWorkbenchDataOptions = {}
+): Promise<CutterFixtureData> {
+  const [libraryResult, localClipsResult] = await Promise.all([
     client.listSourceLibrary(),
     client.listLocalClips()
   ]);
-  const primary = library.videos[0];
+  const library = {
+    ...libraryResult,
+    videos: libraryResult.videos.map((video) => resolveSourceVideoCardUrls(client, video))
+  };
+  const localClips = {
+    ...localClipsResult,
+    clips: localClipsResult.clips.map((clip) => resolveLocalClipUrls(client, clip))
+  };
+  const primary =
+    libraryResult.videos.find((video) => video.source_video_id === options.preferredSourceVideoId) ??
+    libraryResult.videos[0];
 
   const [primaryDetailResult, searchResult] = await Promise.all([
     primary ? client.getSourceVideoDetail(primary.source_video_id) : Promise.resolve(primaryDetail),
@@ -583,8 +651,8 @@ export async function loadCutterWorkbenchData(client: CutterApiClient): Promise<
 
   return {
     library,
-    primaryDetail: primaryDetailResult,
-    search: searchResult,
+    primaryDetail: resolveSourceVideoDetailUrls(client, primaryDetailResult),
+    search: resolveSearchResponseUrls(client, searchResult),
     localClips,
     settings
   };

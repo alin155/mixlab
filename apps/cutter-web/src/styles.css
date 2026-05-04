@@ -256,8 +256,9 @@ h2 {
 
 .cutter-segment {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 58px minmax(0, 1fr) 72px;
   gap: var(--ml-space-3);
+  align-items: center;
   min-width: 0;
   min-height: 42px;
   border: 0;
@@ -285,6 +286,24 @@ h2 {
 
 .cutter-segment.is-selected {
   background: #eef6ff;
+}
+
+.cutter-segment.is-highlighted {
+  box-shadow: inset 3px 0 0 #f5a524;
+}
+
+.cutter-segment small {
+  justify-self: end;
+  color: var(--ml-color-text-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.cutter-search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ml-space-2);
+  justify-content: flex-end;
 }
 
 .cutter-search-box {
@@ -360,6 +379,235 @@ h2 {
   line-height: 1.45;
 }
 
+.cutter-inline-action {
+  color: var(--ml-color-accent);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.cutter-empty-state {
+  display: grid;
+  gap: var(--ml-space-2);
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-4);
+  background: var(--ml-color-surface);
+}
+
+.cutter-empty-state span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-locator-header {
+  align-items: flex-start;
+}
+
+.cutter-locator-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ml-space-3);
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-2);
+  background: var(--ml-color-surface);
+}
+
+.cutter-locator-filters > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ml-space-2);
+}
+
+.cutter-locator-filters button {
+  min-height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--ml-radius-control);
+  padding: 0 11px;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cutter-locator-filters button.is-active {
+  border-color: var(--ml-color-separator);
+  color: var(--ml-color-accent);
+  background: var(--ml-color-control);
+}
+
+.cutter-locator-results,
+.cutter-locator-section {
+  display: grid;
+  gap: var(--ml-space-3);
+}
+
+.cutter-locator-section {
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface);
+}
+
+.cutter-locator-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ml-space-3);
+}
+
+.cutter-locator-section > header span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-locator-result-list {
+  display: grid;
+  gap: var(--ml-space-2);
+}
+
+.cutter-locator-result {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 72px;
+  gap: var(--ml-space-3);
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: var(--ml-space-2);
+  color: var(--ml-color-text);
+  background: var(--ml-color-control);
+  text-align: left;
+}
+
+.cutter-locator-result img,
+.cutter-cover-placeholder {
+  display: block;
+  width: 92px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #dfe5ee;
+}
+
+.cutter-locator-result > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cutter-locator-result strong,
+.cutter-locator-result small,
+.cutter-locator-result em,
+.cutter-locator-result b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-locator-result small,
+.cutter-locator-result em,
+.cutter-locator-result b {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.cutter-locator-result b {
+  justify-self: end;
+  font-weight: 650;
+}
+
+.cutter-locator-workspace {
+  display: grid;
+  gap: var(--ml-space-4);
+  min-width: 0;
+}
+
+.cutter-locator-workspace.is-portrait {
+  grid-template-columns: minmax(320px, 0.86fr) minmax(340px, 1fr);
+  align-items: start;
+}
+
+.cutter-locator-workspace.is-portrait .cutter-video-panel video {
+  aspect-ratio: 9 / 16;
+  max-height: 620px;
+}
+
+.cutter-natural-transcript {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  background: var(--ml-color-surface);
+}
+
+.cutter-natural-transcript header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ml-space-4);
+  padding: var(--ml-space-3);
+  border-bottom: 1px solid var(--ml-color-separator);
+}
+
+.cutter-natural-transcript header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.cutter-natural-transcript header span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-natural-transcript p {
+  padding: var(--ml-space-4);
+  color: var(--ml-color-text);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.cutter-natural-transcript p span {
+  border-radius: 4px;
+  padding: 1px 0;
+}
+
+.cutter-natural-transcript p span.is-highlighted {
+  background: #fff4c2;
+}
+
+.cutter-natural-transcript p span.is-selected {
+  background: #dceeff;
+}
+
+.cutter-selection-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: var(--ml-space-2);
+  align-items: center;
+  border-top: 1px solid var(--ml-color-separator);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface-subtle);
+}
+
+.cutter-selection-bar strong,
+.cutter-selection-bar span {
+  grid-column: 1 / -1;
+}
+
+.cutter-selection-bar strong {
+  font-size: 13px;
+}
+
+.cutter-selection-bar span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .cutter-local-library .ml-gallery-grid,
 .cutter-public-library .ml-gallery-grid {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -368,6 +616,13 @@ h2 {
 .cutter-local-library .ml-gallery-card,
 .cutter-public-library .ml-gallery-card {
   box-shadow: none;
+}
+
+.cutter-local-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ml-space-2);
+  justify-content: flex-end;
 }
 
 .cutter-queue-list,
@@ -422,7 +677,8 @@ h2 {
   }
 
   .cutter-shell,
-  .cutter-page {
+  .cutter-page,
+  .cutter-locator-workspace.is-portrait {
     grid-template-columns: 1fr;
   }
 

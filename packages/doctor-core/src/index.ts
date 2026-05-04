@@ -444,7 +444,7 @@ async function checkLocalClips(libraryRoot: string): Promise<DoctorCheck> {
 
   return errors.length === 0
     ? check("local-clips", "Local Clips", "pass", `${checkedCount} local clip manifests are valid`)
-    : check("local-clips", "Local Clips", "fail", errors.join("; "), {
+    : check("local-clips", "Local Clips", "warn", errors.join("; "), {
         error_count: errors.length
       });
 }

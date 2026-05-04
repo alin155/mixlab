@@ -6,6 +6,7 @@ import { createFixtureCutterData } from "./fixture-client.ts";
 import { PublicLibraryPage } from "./features/public-library/PublicLibraryPage.tsx";
 import { SourceDetailPage } from "./features/source-detail/SourceDetailPage.tsx";
 import { SearchPage } from "./features/search/SearchPage.tsx";
+import { MaterialLocatorPage } from "./features/material-locator/MaterialLocatorPage.tsx";
 import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
@@ -32,14 +33,28 @@ import {
 } from "./auth.ts";
 import {
   authSessionFromApprovedApplication,
+  appendDirectCutFixtureQueue,
+  cutterDeviceNameFromNavigator,
   loginGateStatusFromApplication,
   loginMessageForAuthError,
   loginStatusFromApplication,
   loginStatusFromBackendStatus,
   shouldClearSessionForLoginStatusError,
+  shouldRefreshCutQueueForRoute,
   shouldRetryPendingLoginError,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
+import {
+  CUTTER_NAV_ITEMS,
+  routeFromHash,
+  routeToHash,
+  routeTitle,
+  searchHash,
+  searchQueryFromHash,
+  sourceDetailHash,
+  sourceDetailContextFromHash,
+  sourceVideoIdFromHash
+} from "./app/navigation.ts";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList } from "./state/cut-queue.ts";
 
@@ -142,6 +157,58 @@ function fixture() {
   };
 }
 
+test("source detail hash keeps route and selected source video id separate", () => {
+  assert.equal(routeFromHash("#source-detail/V000001"), "source-detail");
+  assert.equal(sourceVideoIdFromHash("#source-detail/V000001"), "V000001");
+  assert.equal(sourceVideoIdFromHash("#source-detail/V000001?query=现金流"), "V000001");
+  assert.equal(sourceVideoIdFromHash("#source-detail/not-safe"), undefined);
+  assert.equal(sourceVideoIdFromHash("#public-library"), undefined);
+  assert.equal(sourceDetailHash("V000001"), "#source-detail/V000001");
+  assert.equal(
+    sourceDetailHash("V000001", {
+      query: "现金流",
+      segmentIds: ["V000001-S000001", "V000001-S000002"]
+    }),
+    "#source-detail/V000001?query=%E7%8E%B0%E9%87%91%E6%B5%81&segments=V000001-S000001%2CV000001-S000002"
+  );
+  assert.deepEqual(sourceDetailContextFromHash("#source-detail/V000001?query=%E7%8E%B0%E9%87%91%E6%B5%81&segments=V000001-S000001%2CV000001-S000002"), {
+    sourceVideoId: "V000001",
+    query: "现金流",
+    segmentIds: ["V000001-S000001", "V000001-S000002"]
+  });
+});
+
+test("M14.1 cutter navigation exposes only the five primary workbench areas", () => {
+  assert.deepEqual(
+    CUTTER_NAV_ITEMS.map((item) => item.label),
+    ["素材定位", "剪切任务", "本地素材", "公共素材库", "设置"]
+  );
+  assert.equal(routeFromHash(""), "material-locator");
+  assert.equal(routeFromHash("#public-library"), "public-library");
+  assert.equal(routeTitle("material-locator"), "素材定位");
+
+  const labels = CUTTER_NAV_ITEMS.map((item) => item.label).join(" / ");
+  for (const oldLabel of ["原视频详情", "搜索与文案", "待剪清单", "剪切队列"]) {
+    assert.equal(labels.includes(oldLabel), false);
+  }
+});
+
+test("legacy cutter hashes resolve into the M14.1 primary flow without breaking old links", () => {
+  assert.equal(routeFromHash("#search?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "material-locator");
+  assert.equal(routeFromHash("#cut-list"), "cut-tasks");
+  assert.equal(routeFromHash("#cut-queue"), "cut-tasks");
+  assert.equal(routeFromHash("#source-detail/V000001"), "source-detail");
+});
+
+test("search hash preserves query while targeting the material locator route", () => {
+  assert.equal(routeFromHash("#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "material-locator");
+  assert.equal(routeFromHash("#search?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "material-locator");
+  assert.equal(searchQueryFromHash("#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
+  assert.equal(searchQueryFromHash("#search?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
+  assert.equal(searchQueryFromHash("#public-library"), "");
+  assert.equal(searchHash(" 现金流 "), "#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81");
+});
+
 test("public library is a read-only gallery of available source videos", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
@@ -151,10 +218,12 @@ test("public library is a read-only gallery of available source videos", () => {
     })
   );
 
-  for (const text of ["可用原素材", "全部可用资源", "现金流管理与风险控制", "经营分析", "由管理端配置"]) {
+  for (const text of ["可用原素材", "全部", "横版", "竖版", "现金流管理与风险控制", "经营分析", "由管理端配置"]) {
     assert.match(html, new RegExp(text));
   }
 
+  assert.match(html, /href="#source-detail\/src-001"/);
+  assert.match(html, /查看详情/);
   assert.match(html, /ml-gallery-grid/);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
@@ -166,7 +235,9 @@ test("source detail renders player, complete transcript, continuous selection, a
   const html = renderToStaticMarkup(
     h(SourceDetailPage, {
       detail: data.primaryDetail,
-      selectedSegments: data.primaryDetail.transcript.segments.slice(1, 4)
+      selectedSegments: data.primaryDetail.transcript.segments.slice(1, 4),
+      highlightedSegmentIds: ["s-001", "s-003"],
+      onSelectSegment: () => undefined
     })
   );
 
@@ -176,13 +247,15 @@ test("source detail renders player, complete transcript, continuous selection, a
     "连续选择",
     "已选 3 句",
     "加入待剪清单",
-    "现金流短片开场"
+    "现金流短片开场",
+    "选择此句"
   ]) {
     assert.match(html, new RegExp(text));
   }
 
   assert.match(html, /<video/);
   assert.match(html, /data-selection-mode="continuous"/);
+  assert.match(html, /is-highlighted/);
 });
 
 test("search page groups hits by source video and avoids sentence waterfall", () => {
@@ -190,15 +263,107 @@ test("search page groups hits by source video and avoids sentence waterfall", ()
   const html = renderToStaticMarkup(
     h(SearchPage, {
       search: data.search,
-      query: data.search.query
+      query: data.search.query,
+      onSearch: () => undefined
     })
   );
 
-  for (const text of ["按原素材分组", "2 组命中", "现金流管理与风险控制", "上下文文案"]) {
+  for (const text of ["按原素材分组", "2 组命中", "现金流管理与风险控制", "上下文文案", "执行搜索", "查看完整文案"]) {
     assert.match(html, new RegExp(text));
   }
 
+  assert.match(html, /name="query"/);
+  assert.match(html, /href="#source-detail\/src-001\?query=%E7%8E%B0%E9%87%91%E6%B5%81&amp;segments=/);
   assert.equal(html.includes("sentence-waterfall"), false);
+});
+
+test("material locator is the main search-select-cut workbench with local results first", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: data.localClips,
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "all",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedSegments: data.primaryDetail.transcript.segments.slice(1, 3),
+      highlightedSegmentIds: ["s-001"],
+      queue: data.queue,
+      onSearch: () => undefined,
+      onSelectMaterial: () => undefined,
+      onSelectTranscriptSegment: () => undefined,
+      onCutSelection: () => undefined,
+      onCancelSelection: () => undefined
+    })
+  );
+
+  for (const text of [
+    "素材定位",
+    "搜索文案关键词或粘贴文案",
+    "全部",
+    "本地素材",
+    "公共原素材",
+    "横版",
+    "竖版",
+    "完整文案",
+    "剪切这段",
+    "剪切中",
+    "查看全部任务"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+
+  assert.equal(html.includes("片段篮"), false);
+  assert.equal(html.includes("待剪清单"), false);
+  assert.ok(html.indexOf("本地素材") < html.indexOf("公共原素材"));
+  assert.match(html, /data-page="material-locator"/);
+  assert.match(html, /<video/);
+});
+
+test("material locator transcript renders as natural text with invisible segment mapping", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: data.localClips,
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "all",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedSegments: data.primaryDetail.transcript.segments.slice(0, 2),
+      highlightedSegmentIds: ["s-001"],
+      queue: data.queue
+    })
+  );
+
+  assert.match(html, /data-selection-mode="natural-text"/);
+  assert.match(html, /data-segment-id="s-001"/);
+  assert.match(html, /现金流不是利润表的影子。/);
+  assert.equal(html.includes("选择此句"), false);
+  assert.equal(html.includes("cutter-segment"), false);
+  assert.equal(html.includes("内部映射"), false);
+});
+
+test("direct cut creates a background fixture task and stays compatible with material locator route", () => {
+  const data = fixture();
+  const item = createCutListItemFromSegments({
+    sourceVideo: data.primaryDetail,
+    segments: data.primaryDetail.transcript.segments.slice(0, 2),
+    cutMode: "smart",
+    order: 1,
+    title: "直接剪切片段"
+  });
+  const queue = appendDirectCutFixtureQueue([], item, "2026-05-04T09:00:00.000Z");
+
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0]?.status, "pending");
+  assert.equal(queue[0]?.progress, 0);
+  assert.equal(queue[0]?.source_title, "现金流管理与风险控制");
+  assert.equal(routeToHash("material-locator"), "#material-locator");
+  assert.equal(routeToHash("cut-tasks"), "#cut-tasks");
 });
 
 test("cut list renders order, range, text, mode, reorder, delete, clear, and submit", () => {
@@ -210,27 +375,33 @@ test("cut list renders order, range, text, mode, reorder, delete, clear, and sub
   }
 });
 
-test("local library is independent and exposes reusable local clips", () => {
+test("local library is independent and exposes local recut materials with orientation filters", () => {
   const data = fixture();
   const html = renderToStaticMarkup(h(LocalLibraryPage, { catalog: data.localClips, query: "现金流" }));
 
-  for (const text of ["本地素材库", "可复用片段", "搜索本地素材", "打开视频", "显示文件夹", "复用", "来源追踪"]) {
+  for (const text of ["本地素材库", "本地可复剪素材", "全部", "横版", "竖版", "未知", "搜索本地素材", "打开视频", "显示文件夹", "再次选段", "来源追踪"]) {
     assert.match(html, new RegExp(text));
   }
 
   assert.equal(html.includes("可用原素材"), false);
 });
 
-test("cut queue renders every task state and retry affordance", () => {
+test("cut tasks page renders every task state in Chinese and keeps retry affordance", () => {
   const data = fixture();
   const html = renderToStaticMarkup(h(CutQueuePage, { jobs: data.queue }));
 
-  for (const text of ["剪切队列", "pending", "running", "done", "failed", "重试", "不阻塞搜索"]) {
+  for (const text of ["剪切任务", "等待中", "剪切中", "已完成", "失败", "重试", "不阻塞搜索"]) {
     assert.match(html, new RegExp(text));
   }
+
+  assert.equal(html.includes("剪切队列"), false);
+  for (const englishStatus of ["pending", "running", "done", "failed"]) {
+    assert.equal(html.includes(`<strong>${englishStatus}</strong>`), false);
+  }
+  assert.match(html, /data-page="cut-tasks"/);
 });
 
-test("cut queue renders optional API refresh and run controls", () => {
+test("cut tasks renders optional API refresh and run controls", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
     h(CutQueuePage, {
@@ -240,7 +411,7 @@ test("cut queue renders optional API refresh and run controls", () => {
     })
   );
 
-  assert.match(html, /刷新队列/);
+  assert.match(html, /刷新任务/);
   assert.match(html, /执行下一个/);
 });
 
@@ -378,6 +549,7 @@ test("login gate renders Chinese application states and only approved status ren
   const unknown = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "unknown",
+      deviceName: "Mac 剪辑端 · Safari",
       onApply: async () => undefined,
       children: h("p", null, "工作台内容")
     })
@@ -385,6 +557,9 @@ test("login gate renders Chinese application states and only approved status ren
   assert.match(unknown, /申请使用剪辑师工作台/);
   assert.match(unknown, /用户名/);
   assert.match(unknown, /提交申请/);
+  assert.match(unknown, /当前设备：Mac 剪辑端 · Safari/);
+  assert.match(unknown, /身份方式：用户名 \+ 本机设备令牌/);
+  assert.match(unknown, /IP 只用于诊断/);
   assert.equal(unknown.includes("工作台内容"), false);
 
   const pending = renderToStaticMarkup(
@@ -437,6 +612,26 @@ test("login gate renders Chinese application states and only approved status ren
   assert.equal(approved, "<p>工作台内容</p>");
 });
 
+test("cutter device name is friendly and does not expose the full browser user agent", () => {
+  assert.equal(
+    cutterDeviceNameFromNavigator({
+      platform: "MacIntel",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+    }),
+    "Mac 剪辑端 · Safari"
+  );
+  assert.equal(
+    cutterDeviceNameFromNavigator({
+      platform: "Win32",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }),
+    "Windows 剪辑端 · Chrome"
+  );
+  assert.equal(cutterDeviceNameFromNavigator(undefined), "剪辑工作站");
+});
+
 test("fixture mode bypasses login and runtime mode requires approved auth", () => {
   assert.equal(shouldShowLoginGate(false, "unknown"), false);
   assert.equal(shouldShowLoginGate(false, "pending"), false);
@@ -445,6 +640,36 @@ test("fixture mode bypasses login and runtime mode requires approved auth", () =
   assert.equal(shouldShowLoginGate(true, "rejected"), true);
   assert.equal(shouldShowLoginGate(true, "disabled"), true);
   assert.equal(shouldShowLoginGate(true, "approved"), false);
+});
+
+test("cut task refresh is limited to the cut tasks route", () => {
+  assert.equal(
+    shouldRefreshCutQueueForRoute({
+      apiMode: true,
+      hasData: true,
+      loginGateVisible: false,
+      route: "cut-tasks"
+    }),
+    true
+  );
+  assert.equal(
+    shouldRefreshCutQueueForRoute({
+      apiMode: true,
+      hasData: true,
+      loginGateVisible: false,
+      route: "public-library"
+    }),
+    false
+  );
+  assert.equal(
+    shouldRefreshCutQueueForRoute({
+      apiMode: false,
+      hasData: true,
+      loginGateVisible: false,
+      route: "cut-tasks"
+    }),
+    false
+  );
 });
 
 test("backend approved login status allows runtime workbench without returned session token", () => {

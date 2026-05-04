@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { SourceVideoCard, TranscriptSegment } from "./api.ts";
+import type { LocalClipCatalog, SearchResponse, SourceLibraryResponse, SourceVideoCard, TranscriptSegment } from "./api.ts";
 import {
   clearCutList,
   createCutListItemFromSegments,
@@ -18,6 +18,21 @@ import {
   updateQueueJobStatus
 } from "./state/cut-queue.ts";
 import * as cutListModule from "./state/cut-list.ts";
+import {
+  continuousTranscriptSegments,
+  nextTranscriptSelectionRange,
+  transcriptSelectionRangeFromDrag
+} from "./state/transcript-selection.ts";
+import {
+  matchesOrientationFilter,
+  videoOrientation,
+  videoOrientationLabel,
+  type VideoOrientationFilter
+} from "./state/video-orientation.ts";
+import {
+  buildMaterialLocatorSections,
+  localClipToSourceVideoDetail
+} from "./state/material-locator.ts";
 
 const sourceVideo: SourceVideoCard = {
   source_video_id: "src-001",
@@ -57,6 +72,207 @@ const transcriptSegments: TranscriptSegment[] = [
   }
 ];
 
+test("video orientation follows width and height in Chinese product labels", () => {
+  assert.equal(videoOrientation({ width: 1920, height: 1080 }), "landscape");
+  assert.equal(videoOrientationLabel({ width: 1920, height: 1080 }), "横版");
+  assert.equal(videoOrientation({ width: 1080, height: 1920 }), "portrait");
+  assert.equal(videoOrientationLabel({ width: 1080, height: 1920 }), "竖版");
+  assert.equal(videoOrientation({ width: 1080, height: 1080 }), "square");
+  assert.equal(videoOrientationLabel({ width: 1080, height: 1080 }), "方形");
+  assert.equal(videoOrientation({}), "unknown");
+  assert.equal(videoOrientationLabel({}), "未知");
+});
+
+test("orientation filters preserve all videos or keep only landscape and portrait", () => {
+  const videos = [
+    { source_video_id: "landscape", width: 1920, height: 1080 },
+    { source_video_id: "portrait", width: 1080, height: 1920 },
+    { source_video_id: "square", width: 1080, height: 1080 },
+    { source_video_id: "unknown" }
+  ];
+
+  const idsFor = (filter: VideoOrientationFilter) =>
+    videos
+      .filter((video) => matchesOrientationFilter(video, filter))
+      .map((video) => video.source_video_id);
+
+  assert.deepEqual(idsFor("all"), ["landscape", "portrait", "square", "unknown"]);
+  assert.deepEqual(idsFor("landscape"), ["landscape"]);
+  assert.deepEqual(idsFor("portrait"), ["portrait"]);
+});
+
+test("material locator groups local reusable materials before public source materials", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "现金流",
+    sourceFilter: "all",
+    orientationFilter: "all",
+    localClips: {
+      local_clip_count: 2,
+      clips: [
+        {
+          local_clip_id: "clip-001",
+          title: "现金流短片开场",
+          source_video_id: "src-001",
+          source_title: "现金流管理与风险控制",
+          begin_ms: 12_200,
+          end_ms: 31_000,
+          duration_ms: 18_800,
+          selected_text: "现金流决定企业能不能安全穿过周期。",
+          media_url: "/local-clips/clip-001.mp4",
+          detail_url: "/cutter/local-clips/clip-001",
+          width: 1080,
+          height: 1920
+        },
+        {
+          local_clip_id: "clip-002",
+          title: "无文案片段",
+          media_url: "/local-clips/clip-002.mp4",
+          detail_url: "/cutter/local-clips/clip-002"
+        }
+      ]
+    } as unknown as LocalClipCatalog,
+    library: {
+      available_video_count: 1,
+      videos: [sourceVideo]
+    },
+    search: {
+      query: "现金流",
+      normalized_query: "现金流",
+      groups: [
+        {
+          source_video_id: "src-001",
+          title: "现金流管理与风险控制",
+          duration_ms: 618_000,
+          hit_count: 2,
+          best_excerpt: "现金流不是利润表的影子。",
+          hit_segments: transcriptSegments.slice(0, 2),
+          media_url: "/media/src-001.mp4",
+          cover_url: "/covers/src-001.jpg",
+          detail_url: "/cutter/source-videos/src-001",
+          subtitles_url: "/subtitles/src-001.vtt"
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(sections.map((section) => section.label), ["本地素材", "公共原素材"]);
+  assert.equal(sections[0]?.items[0]?.source, "local");
+  assert.equal(sections[0]?.items[0]?.title, "现金流短片开场");
+  assert.equal(sections[0]?.items[0]?.orientation_label, "竖版");
+  assert.equal(sections[1]?.items[0]?.source, "public");
+  assert.equal(sections[1]?.items[0]?.orientation_label, "横版");
+});
+
+test("material locator source and orientation filters narrow the unified result set", () => {
+  const localClips = {
+    local_clip_count: 1,
+    clips: [
+      {
+        local_clip_id: "clip-001",
+        title: "现金流竖版复剪素材",
+        begin_ms: 0,
+        end_ms: 10_000,
+        duration_ms: 10_000,
+        selected_text: "现金流要先看回款。",
+        media_url: "/local-clips/clip-001.mp4",
+        detail_url: "/cutter/local-clips/clip-001",
+        width: 1080,
+        height: 1920
+      }
+    ]
+  } as unknown as LocalClipCatalog;
+  const library: SourceLibraryResponse = {
+    available_video_count: 1,
+    videos: [sourceVideo]
+  };
+  const search: SearchResponse = {
+    query: "现金流",
+    normalized_query: "现金流",
+    groups: [
+      {
+        source_video_id: "src-001",
+        title: "现金流管理与风险控制",
+        duration_ms: sourceVideo.duration_ms,
+        hit_count: 1,
+        best_excerpt: "现金流不是利润表的影子。",
+        hit_segments: transcriptSegments.slice(0, 1)
+      }
+    ]
+  };
+
+  assert.deepEqual(
+    buildMaterialLocatorSections({
+      query: "现金流",
+      sourceFilter: "local",
+      orientationFilter: "all",
+      localClips,
+      library,
+      search
+    }).map((section) => section.key),
+    ["local"]
+  );
+  assert.deepEqual(
+    buildMaterialLocatorSections({
+      query: "现金流",
+      sourceFilter: "public",
+      orientationFilter: "all",
+      localClips,
+      library,
+      search
+    }).map((section) => section.key),
+    ["public"]
+  );
+  assert.deepEqual(
+    buildMaterialLocatorSections({
+      query: "现金流",
+      sourceFilter: "all",
+      orientationFilter: "portrait",
+      localClips,
+      library,
+      search
+    }).map((section) => section.key),
+    ["local"]
+  );
+  assert.deepEqual(
+    buildMaterialLocatorSections({
+      query: "现金流",
+      sourceFilter: "all",
+      orientationFilter: "landscape",
+      localClips,
+      library,
+      search
+    }).map((section) => section.key),
+    ["public"]
+  );
+});
+
+test("local reusable material becomes a one-span selectable video detail", () => {
+  const detail = localClipToSourceVideoDetail({
+    local_clip_id: "clip-001",
+    title: "现金流短片开场",
+    source_video_id: "src-001",
+    source_title: "现金流管理与风险控制",
+    begin_ms: 12_200,
+    end_ms: 31_000,
+    duration_ms: 18_800,
+    selected_text: "现金流决定企业能不能安全穿过周期。",
+    media_url: "/local-clips/clip-001.mp4",
+    detail_url: "/cutter/local-clips/clip-001"
+  });
+
+  assert.equal(detail.source_video_id, "clip-001");
+  assert.equal(detail.title, "现金流短片开场");
+  assert.equal(detail.transcript.full_text, "现金流决定企业能不能安全穿过周期。");
+  assert.deepEqual(detail.transcript.segments, [
+    {
+      segment_id: "clip-001-S000001",
+      begin_ms: 12_200,
+      end_ms: 31_000,
+      text: "现金流决定企业能不能安全穿过周期。"
+    }
+  ]);
+});
+
 function item(overrides: Partial<CutListItem>): CutListItem {
   return {
     cut_list_item_id: overrides.cut_list_item_id ?? "cut-a",
@@ -94,6 +310,51 @@ test("continuous transcript range becomes one cut-list item", () => {
   assert.equal(
     cut.selected_text,
     "现金流不是利润表的影子。 它直接决定企业能不能安全穿过周期。 所以第一步要看回款节奏。"
+  );
+});
+
+test("transcript selection uses clicked range or search-highlight fallback as one continuous span", () => {
+  assert.deepEqual(nextTranscriptSelectionRange({}, "s-002"), {
+    startSegmentId: "s-002",
+    endSegmentId: "s-002"
+  });
+  assert.deepEqual(nextTranscriptSelectionRange({ startSegmentId: "s-002" }, "s-001"), {
+    startSegmentId: "s-002",
+    endSegmentId: "s-001"
+  });
+  assert.deepEqual(
+    nextTranscriptSelectionRange({ startSegmentId: "s-002", endSegmentId: "s-003" }, "s-001"),
+    {
+      startSegmentId: "s-001",
+      endSegmentId: "s-001"
+    }
+  );
+
+  assert.deepEqual(
+    continuousTranscriptSegments(transcriptSegments, {
+      startSegmentId: "s-003",
+      endSegmentId: "s-001"
+    }).map((segment) => segment.segment_id),
+    ["s-001", "s-002", "s-003"]
+  );
+  assert.deepEqual(
+    continuousTranscriptSegments(transcriptSegments, {
+      fallbackSegmentIds: ["s-002", "s-003"]
+    }).map((segment) => segment.segment_id),
+    ["s-002", "s-003"]
+  );
+});
+
+test("dragged transcript endpoints resolve to one continuous selectable range", () => {
+  const dragged = transcriptSelectionRangeFromDrag("s-003", "s-001");
+
+  assert.deepEqual(dragged, {
+    startSegmentId: "s-003",
+    endSegmentId: "s-001"
+  });
+  assert.deepEqual(
+    continuousTranscriptSegments(transcriptSegments, dragged).map((segment) => segment.segment_id),
+    ["s-001", "s-002", "s-003"]
   );
 });
 

@@ -49,6 +49,7 @@ export interface RunSourceVideoTextPreprocessInput {
   audio_bitrate?: string;
   oss_object_key_prefix?: string;
   now: string;
+  on_stage?(stage: string): Promise<void> | void;
   command_runner: CommandRunner;
   uploader: AsrAudioUploader;
   asr_http: DashScopeJsonHttpClient;
@@ -162,8 +163,10 @@ export async function runSourceVideoTextPreprocess(
     audio_bitrate: audioSettings.audio_bitrate
   });
 
+  await input.on_stage?.("extract-audio");
   await input.command_runner.run(input.ffmpeg_path, extractionPlan.args);
 
+  await input.on_stage?.("upload-audio");
   const objectKey = input.oss_object_key_prefix
     ? buildAsrAudioObjectKey({
         prefix: input.oss_object_key_prefix,
@@ -177,6 +180,7 @@ export async function runSourceVideoTextPreprocess(
     ...(objectKey ? { object_key: objectKey } : {}),
     content_type: audioSettings.content_type
   });
+  await input.on_stage?.("asr");
   const asr = await runDashScopeRecordedAudioAsr({
     api_key: input.asr.api_key,
     model: input.asr.model,
@@ -189,6 +193,7 @@ export async function runSourceVideoTextPreprocess(
     sleep: input.asr.sleep,
     http: input.asr_http
   });
+  await input.on_stage?.("write-transcript");
   const textArtifactPaths = await writeAsrTextArtifacts({
     library_root: input.library_root,
     source_video_id: input.source_video_id,

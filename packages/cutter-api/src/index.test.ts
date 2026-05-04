@@ -11,6 +11,7 @@ import {
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   createCutterLoginApplication,
+  listCutterUsers,
   publishReadySourceVideo,
   readUsageMetrics,
   scanSourceVideos
@@ -286,6 +287,42 @@ test("cutter auth request-login creates a pending application without auth heade
     assert.equal(body.data.user.status, "pending");
     assert.equal(body.data.user.devices[0].device_id, "device-login");
     assert.equal(body.data.session, undefined);
+  });
+});
+
+test("cutter auth request-login records IP and browser as audit data only", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "MixLabTestBrowser/1.0",
+        "X-Forwarded-For": "192.168.31.10, 10.0.0.1"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        device_id: "device-login",
+        device_name: "Mac 剪辑端 · Safari"
+      })
+    });
+
+    assert.equal(response.status, 200);
+    const users = await listCutterUsers(libraryRoot);
+    const device = users.users[0]?.devices[0] as any;
+    assert.equal(users.users[0]?.username, "lisi");
+    assert.equal(device.device_id, "device-login");
+    assert.equal(device.last_ip_address, "192.168.31.10");
+    assert.equal(device.user_agent, "MixLabTestBrowser/1.0");
+
+    const protectedResponse = await fetch(`${baseUrl}/cutter/source-library`, {
+      headers: {
+        "X-MixLab-Device-Id": "device-login",
+        "X-MixLab-Session-Token": "not-approved-yet"
+      }
+    });
+    assert.equal(protectedResponse.status, 401);
   });
 });
 
