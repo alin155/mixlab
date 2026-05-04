@@ -34,6 +34,7 @@ import {
 import {
   authSessionFromApprovedApplication,
   appendDirectCutFixtureQueue,
+  cutNoticeForCompletedLocalClips,
   cutNoticeForSubmittedJobs,
   cutterDeviceNameFromNavigator,
   loginGateStatusFromApplication,
@@ -377,6 +378,8 @@ test("direct cut notice is concise and keeps the cutter on the locator page", ()
   assert.equal(cutNoticeForSubmittedJobs(1), "已加入剪切任务 · 等待中 1");
   assert.equal(cutNoticeForSubmittedJobs(3), "已加入剪切任务 · 等待中 3");
   assert.equal(cutNoticeForSubmittedJobs(0), "");
+  assert.equal(cutNoticeForCompletedLocalClips(1), "剪切完成 · 本地素材已更新 1");
+  assert.equal(cutNoticeForCompletedLocalClips(0), "");
 });
 
 test("selecting a search result keeps its hit range highlighted and selected", () => {
@@ -422,11 +425,17 @@ test("local library is independent and exposes local recut materials with orient
   assert.equal(html.includes("可用原素材"), false);
 });
 
-test("cut tasks page renders every task state in Chinese and keeps retry affordance", () => {
+test("cut tasks page renders every task state, summary, and auto-refresh status in Chinese", () => {
   const data = fixture();
-  const html = renderToStaticMarkup(h(CutQueuePage, { jobs: data.queue }));
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue,
+      autoRefreshEnabled: true,
+      lastUpdatedLabel: "刚刚更新"
+    })
+  );
 
-  for (const text of ["剪切任务", "等待中", "剪切中", "已完成", "失败", "重试", "不阻塞搜索"]) {
+  for (const text of ["剪切任务", "等待中", "剪切中", "已完成", "失败", "重试", "自动刷新", "刚刚更新"]) {
     assert.match(html, new RegExp(text));
   }
 

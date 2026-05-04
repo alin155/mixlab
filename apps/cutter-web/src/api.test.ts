@@ -7,7 +7,11 @@ import {
   normalizeApiBaseUrl,
   type CutterApiClient
 } from "./api.ts";
-import { loadCutterWorkbenchData, resolveSearchResponseUrls } from "./fixture-client.ts";
+import {
+  loadCutterWorkbenchData,
+  resolveLocalClipUrls,
+  resolveSearchResponseUrls
+} from "./fixture-client.ts";
 
 function makeJsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -260,6 +264,26 @@ test("runtime search results resolve media URLs before rendering", () => {
 
   assert.equal(search.groups[0]?.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
   assert.equal(search.groups[0]?.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
+});
+
+test("runtime local clip refresh resolves media URLs before rendering", () => {
+  const client = {
+    resolveApiUrl(pathOrUrl: string) {
+      return pathOrUrl.startsWith("http")
+        ? pathOrUrl
+        : `http://127.0.0.1:3789${pathOrUrl}`;
+    }
+  } as Partial<CutterApiClient> as CutterApiClient;
+
+  const clip = resolveLocalClipUrls(client, {
+    local_clip_id: "LC000001",
+    title: "现金流片段",
+    media_url: "/cutter/local-clips/LC000001/media",
+    detail_url: "/cutter/local-clips/LC000001"
+  });
+
+  assert.equal(clip.media_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001/media");
+  assert.equal(clip.detail_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001");
 });
 
 test("workbench data loads preferred source video detail when route carries an id", async () => {

@@ -15,6 +15,7 @@ import {
 import {
   createFixtureCutterApiClient,
   loadCutterWorkbenchData,
+  resolveLocalClipUrls,
   resolveSearchResponseUrls,
   type CutterFixtureData
 } from "../fixture-client.ts";
@@ -55,8 +56,14 @@ import { CutterLoginGate } from "../features/login/CutterLoginGate.tsx";
 import {
   createQueueJobsFromCutList,
   mapApiCutJobsToQueueJobs,
+  updateQueueJobStatus,
   type CutQueueJob
 } from "../state/cut-queue.ts";
+import {
+  hasActiveCutJobs,
+  shouldAutoRefreshCutJobs,
+  shouldRefreshLocalClipsAfterQueueUpdate
+} from "../state/cut-task-refresh.ts";
 import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
@@ -74,6 +81,10 @@ import {
   transcriptSelectionRangeFromDrag,
   type TranscriptSelectionRange
 } from "../state/transcript-selection.ts";
+import {
+  appendCompletedLocalClip,
+  localClipFromCutListItem
+} from "../state/local-clip-reuse.ts";
 import type { VideoOrientationFilter } from "../state/video-orientation.ts";
 
 function getRuntimeApiBaseUrl(): string {
@@ -215,6 +226,10 @@ export function cutNoticeForSubmittedJobs(count: number): string {
   return count > 0 ? `已加入剪切任务 · 等待中 ${count}` : "";
 }
 
+export function cutNoticeForCompletedLocalClips(count: number): string {
+  return count > 0 ? `剪切完成 · 本地素材已更新 ${count}` : "";
+}
+
 function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
   const selectedSegments = data.primaryDetail.transcript.segments.slice(1, 4);
 
@@ -296,6 +311,8 @@ function renderPage(
     sourceFilter: MaterialSearchSourceFilter;
     orientationFilter: VideoOrientationFilter;
     cutNotice: string;
+    autoRefreshCutJobs: boolean;
+    lastQueueUpdatedLabel: string;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -360,6 +377,8 @@ function renderPage(
     return (
       <CutQueuePage
         jobs={queue}
+        autoRefreshEnabled={viewState.autoRefreshCutJobs}
+        lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
         onRefresh={handlers.refreshQueue}
         onRunNext={handlers.runNextJob}
       />
@@ -395,6 +414,8 @@ export function CutterApp() {
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
   const [cutNotice, setCutNotice] = useState("");
+  const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
+  const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
     deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
@@ -576,7 +597,17 @@ export function CutterApp() {
 
   const refreshLocalClips = useCallback(async () => {
     const localClips = await client.listLocalClips();
-    setData((current) => current ? { ...current, localClips } : current);
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            localClips: {
+              ...localClips,
+              clips: localClips.clips.map((clip) => resolveLocalClipUrls(client, clip))
+            }
+          }
+        : current
+    );
   }, [client]);
 
   const refreshQueueJobs = useCallback(async () => {
@@ -586,11 +617,28 @@ export function CutterApp() {
 
     try {
       const catalog = await client.listCutJobs();
-      setQueueJobs(mapApiCutJobsToQueueJobs(catalog));
+      const nextJobs = mapApiCutJobsToQueueJobs(catalog);
+      setQueueJobs((current) => {
+        const shouldRefreshLocalClips = shouldRefreshLocalClipsAfterQueueUpdate(current, nextJobs);
+        if (shouldRefreshLocalClips) {
+          void refreshLocalClips()
+            .then(() => {
+              setCutNotice(cutNoticeForCompletedLocalClips(1));
+            })
+            .catch((localClipError) => {
+              setError(localClipError instanceof Error ? localClipError.message : "本地素材刷新失败");
+            });
+        }
+        return nextJobs;
+      });
+      setLastQueueUpdatedLabel("刚刚更新");
+      if (!hasActiveCutJobs(nextJobs)) {
+        setHasSubmittedCutJobs(false);
+      }
     } catch (queueError) {
       setError(queueError instanceof Error ? queueError.message : "剪切队列加载失败");
     }
-  }, [apiMode, client]);
+  }, [apiMode, client, refreshLocalClips]);
 
   useEffect(() => {
     const listener = () => {
@@ -681,6 +729,28 @@ export function CutterApp() {
     void refreshQueueJobs();
   }, [apiMode, data, loginGateVisible, refreshQueueJobs, route]);
 
+  const autoRefreshCutJobs = shouldAutoRefreshCutJobs({
+    apiMode,
+    hasData: Boolean(data),
+    loginGateVisible,
+    route,
+    hasSubmittedCutJobs,
+    jobs: queueJobs
+  });
+
+  useEffect(() => {
+    if (!autoRefreshCutJobs) {
+      return;
+    }
+
+    void refreshQueueJobs();
+    const timer = window.setInterval(() => {
+      void refreshQueueJobs();
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [autoRefreshCutJobs, refreshQueueJobs]);
+
   useEffect(() => {
     if (!data || didSeedCutList) {
       return;
@@ -765,16 +835,48 @@ export function CutterApp() {
           });
           setQueueJobs((current) => [...submittedJobs, ...current]);
           setCutNotice(cutNoticeForSubmittedJobs(submission.submitted_count || submittedJobs.length));
+          setHasSubmittedCutJobs(true);
           await refreshQueueJobs();
         } catch (submitError) {
           setError(submitError instanceof Error ? submitError.message : "剪切任务创建失败");
           return;
         }
       } else {
-        setQueueJobs((current) =>
-          appendDirectCutFixtureQueue(current, item, new Date().toISOString())
+        const fixtureJob = createQueueJobsFromCutList([{ ...item, order: 1 }], {
+          createdAt: new Date().toISOString()
+        })[0]!;
+        const localClip = localClipFromCutListItem(
+          item,
+          `clip-${fixtureJob.queue_job_id.replace(/[^a-z0-9]/gi, "").slice(-12)}`
         );
+
+        setQueueJobs((current) => [fixtureJob, ...current]);
         setCutNotice(cutNoticeForSubmittedJobs(1));
+        window.setTimeout(() => {
+          setQueueJobs((current) =>
+            updateQueueJobStatus(current, fixtureJob.queue_job_id, {
+              status: "running",
+              progress: 50
+            })
+          );
+        }, 400);
+        window.setTimeout(() => {
+          setQueueJobs((current) =>
+            updateQueueJobStatus(current, fixtureJob.queue_job_id, {
+              status: "done",
+              progress: 100
+            })
+          );
+          setData((current) =>
+            current
+              ? {
+                  ...current,
+                  localClips: appendCompletedLocalClip(current.localClips, localClip)
+                }
+              : current
+          );
+          setCutNotice(cutNoticeForCompletedLocalClips(1));
+        }, 900);
       }
 
       setTranscriptSelection({});
@@ -915,7 +1017,9 @@ export function CutterApp() {
                     selectedDetail: selectedDetail ?? data.primaryDetail,
                     sourceFilter,
                     orientationFilter,
-                    cutNotice
+                    cutNotice,
+                    autoRefreshCutJobs,
+                    lastQueueUpdatedLabel
                   },
                   handlers
                 )

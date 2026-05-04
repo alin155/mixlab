@@ -17,6 +17,12 @@ import {
   mapApiCutJobsToQueueJobs,
   updateQueueJobStatus
 } from "./state/cut-queue.ts";
+import {
+  cutQueueSummary,
+  hasActiveCutJobs,
+  shouldAutoRefreshCutJobs,
+  shouldRefreshLocalClipsAfterQueueUpdate
+} from "./state/cut-task-refresh.ts";
 import * as cutListModule from "./state/cut-list.ts";
 import {
   continuousTranscriptSegments,
@@ -39,6 +45,10 @@ import {
   buildMaterialLocatorSections,
   localClipToSourceVideoDetail
 } from "./state/material-locator.ts";
+import {
+  appendCompletedLocalClip,
+  localClipFromCutListItem
+} from "./state/local-clip-reuse.ts";
 
 const sourceVideo: SourceVideoCard = {
   source_video_id: "src-001",
@@ -279,6 +289,54 @@ test("local reusable material becomes a one-span selectable video detail", () =>
   ]);
 });
 
+test("completed cut-list items become local clips for reuse search", () => {
+  const cut = createCutListItemFromSegments({
+    sourceVideo,
+    segments: transcriptSegments.slice(0, 2),
+    cutMode: "smart",
+    title: "现金流安全片段"
+  });
+  const clip = localClipFromCutListItem(cut, "clip-finished-001");
+
+  assert.equal(clip.local_clip_id, "clip-finished-001");
+  assert.equal(clip.title, "现金流安全片段");
+  assert.equal(clip.source_title, "现金流管理与风险控制");
+  assert.equal(clip.selected_text?.includes("现金流"), true);
+  assert.equal(clip.duration_ms, 11_400);
+
+  const catalog = appendCompletedLocalClip({ local_clip_count: 0, clips: [] }, clip);
+  assert.equal(catalog.local_clip_count, 1);
+  assert.equal(appendCompletedLocalClip(catalog, clip).local_clip_count, 1);
+
+  const sections = buildMaterialLocatorSections({
+    query: "现金流安全",
+    sourceFilter: "all",
+    orientationFilter: "all",
+    localClips: catalog,
+    library: {
+      available_video_count: 1,
+      videos: [sourceVideo]
+    },
+    search: {
+      query: "现金流安全",
+      normalized_query: "现金流安全",
+      groups: [
+        {
+          source_video_id: sourceVideo.source_video_id,
+          title: sourceVideo.title,
+          duration_ms: sourceVideo.duration_ms,
+          hit_count: 1,
+          best_excerpt: "公共原素材命中",
+          hit_segments: transcriptSegments.slice(0, 1)
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(sections.map((section) => section.label), ["本地素材", "公共原素材"]);
+  assert.equal(sections[0]?.items[0]?.id, "clip-finished-001");
+});
+
 function item(overrides: Partial<CutListItem>): CutListItem {
   return {
     cut_list_item_id: overrides.cut_list_item_id ?? "cut-a",
@@ -483,6 +541,70 @@ test("queue jobs are derived from cut-list items and can change status independe
   assert.equal(running[0]?.status, "running");
   assert.equal(running[0]?.progress, 42);
   assert.equal(running[1]?.status, "pending");
+});
+
+test("cut task refresh helpers summarize jobs and refresh only useful cutter routes", () => {
+  const jobs = [
+    item({ cut_list_item_id: "cut-a", order: 1 }),
+    item({ cut_list_item_id: "cut-b", order: 2 })
+  ];
+  const queue = createQueueJobsFromCutList(jobs, { createdAt: "2026-05-04T10:00:00.000Z" });
+  const activeQueue = [
+    { ...queue[0]!, status: "pending" as const, progress: 0 },
+    { ...queue[1]!, status: "running" as const, progress: 50 }
+  ];
+
+  assert.deepEqual(cutQueueSummary(activeQueue), {
+    pending: 1,
+    running: 1,
+    done: 0,
+    failed: 0,
+    cancelled: 0,
+    total: 2
+  });
+  assert.equal(hasActiveCutJobs(activeQueue), true);
+  assert.equal(hasActiveCutJobs([{ ...activeQueue[0]!, status: "done", progress: 100 }]), false);
+  assert.equal(
+    shouldAutoRefreshCutJobs({
+      apiMode: true,
+      hasData: true,
+      loginGateVisible: false,
+      route: "material-locator",
+      hasSubmittedCutJobs: true,
+      jobs: []
+    }),
+    true
+  );
+  assert.equal(
+    shouldAutoRefreshCutJobs({
+      apiMode: true,
+      hasData: true,
+      loginGateVisible: false,
+      route: "settings",
+      hasSubmittedCutJobs: true,
+      jobs: activeQueue
+    }),
+    false
+  );
+});
+
+test("local clips refresh only when queue gains completed jobs", () => {
+  const queue = createQueueJobsFromCutList([item({ cut_list_item_id: "cut-a", order: 1 })], {
+    createdAt: "2026-05-04T10:00:00.000Z"
+  });
+
+  assert.equal(
+    shouldRefreshLocalClipsAfterQueueUpdate(queue, [
+      { ...queue[0]!, status: "done", progress: 100 }
+    ]),
+    true
+  );
+  assert.equal(
+    shouldRefreshLocalClipsAfterQueueUpdate([{ ...queue[0]!, status: "done", progress: 100 }], [
+      { ...queue[0]!, status: "done", progress: 100 }
+    ]),
+    false
+  );
 });
 
 test("API cut jobs map to queue rows with progress and traceability", () => {

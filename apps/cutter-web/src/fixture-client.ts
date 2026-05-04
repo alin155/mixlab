@@ -616,7 +616,7 @@ export function resolveSearchResponseUrls(
   };
 }
 
-function resolveLocalClipUrls(client: CutterApiClient, clip: LocalClip): LocalClip {
+export function resolveLocalClipUrls(client: CutterApiClient, clip: LocalClip): LocalClip {
   return {
     ...clip,
     media_url: client.resolveApiUrl(clip.media_url),

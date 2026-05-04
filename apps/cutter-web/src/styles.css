@@ -643,6 +643,33 @@ h2 {
   background: var(--ml-color-surface);
 }
 
+.cutter-queue-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ml-space-3);
+}
+
+.cutter-queue-summary div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface);
+}
+
+.cutter-queue-summary strong {
+  color: var(--ml-color-text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.cutter-queue-summary span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .cutter-settings .ml-form-row {
   grid-template-columns: 128px minmax(0, 1fr);
 }

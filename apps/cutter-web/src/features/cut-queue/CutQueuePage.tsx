@@ -1,6 +1,7 @@
 import { InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
+import { cutQueueSummary } from "../../state/cut-task-refresh.ts";
 
 function toneForStatus(status: CutQueueJob["status"]) {
   if (status === "done") {
@@ -35,13 +36,19 @@ function labelForStatus(status: CutQueueJob["status"]): string {
 
 export function CutQueuePage({
   jobs,
+  autoRefreshEnabled = false,
+  lastUpdatedLabel = "",
   onRefresh,
   onRunNext
 }: {
   jobs: readonly CutQueueJob[];
+  autoRefreshEnabled?: boolean;
+  lastUpdatedLabel?: string;
   onRefresh?: () => void;
   onRunNext?: () => void;
 }) {
+  const summary = cutQueueSummary(jobs);
+
   return (
     <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
       <div className="cutter-page-main">
@@ -51,8 +58,9 @@ export function CutQueuePage({
             <h1>剪切任务</h1>
             <p>后台任务在这里查看；剪切运行时不阻塞搜索和继续找素材。</p>
           </div>
-          {onRefresh || onRunNext ? (
+          {onRefresh || onRunNext || autoRefreshEnabled ? (
             <div className="cutter-button-group">
+              {autoRefreshEnabled ? <span className="cutter-note">自动刷新 · {lastUpdatedLabel || "等待更新"}</span> : null}
               {onRefresh ? (
                 <button className="cutter-secondary-button" type="button" onClick={onRefresh}>
                   刷新任务
@@ -68,6 +76,25 @@ export function CutQueuePage({
             <span className="cutter-note">不阻塞搜索</span>
           )}
         </header>
+
+        <section className="cutter-queue-summary" aria-label="剪切任务概览">
+          <div>
+            <strong>{summary.pending}</strong>
+            <span>等待中</span>
+          </div>
+          <div>
+            <strong>{summary.running}</strong>
+            <span>剪切中</span>
+          </div>
+          <div>
+            <strong>{summary.done}</strong>
+            <span>已完成</span>
+          </div>
+          <div>
+            <strong>{summary.failed}</strong>
+            <span>失败</span>
+          </div>
+        </section>
 
         <div className="cutter-queue-list">
           {jobs.map((job) => (
