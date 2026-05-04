@@ -116,6 +116,26 @@ interface AuthenticatedCutterSession {
   device_id: string;
 }
 
+interface CutterRuntimeStatusPayload {
+  mode: "api";
+  mode_label: string;
+  api_ready: boolean;
+  generated_at: string;
+  library_id: string;
+  library_root_label: string;
+  available_video_count: number;
+  workspace_enabled: boolean;
+  workspace_root_label: string;
+  local_clip_count: number;
+  ffmpeg_status: "可用" | "不可用";
+  ffmpeg_source: "内置" | "环境配置" | "未检测到";
+  current_user: {
+    user_id: string;
+    username: string;
+    display_name: string;
+  };
+}
+
 function optionalTrimmed(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -624,6 +644,57 @@ async function readLibraryId(libraryRoot: string): Promise<string> {
   return "local-library";
 }
 
+function pathLabel(filePath: string | undefined, fallback: string): string {
+  if (!filePath) {
+    return fallback;
+  }
+
+  return path.basename(filePath) || filePath;
+}
+
+async function runtimeStatusForSession(input: {
+  api_input: CreateCutterApiServerInput;
+  auth: AuthenticatedCutterSession;
+}): Promise<CutterRuntimeStatusPayload> {
+  const library = await listCutterSourceLibrary({
+    library_root: input.api_input.library_root
+  });
+  const localClips = input.api_input.workspace_root
+    ? await listExportClips({ workspace_root: input.api_input.workspace_root })
+    : await listLocalClips({ library_root: input.api_input.library_root });
+
+  let ffmpegStatus: CutterRuntimeStatusPayload["ffmpeg_status"] = "不可用";
+  let ffmpegSource: CutterRuntimeStatusPayload["ffmpeg_source"] = "未检测到";
+
+  try {
+    const runtime = resolveFfmpegRuntime();
+    ffmpegStatus = "可用";
+    ffmpegSource = runtime.source === "env" ? "环境配置" : "内置";
+  } catch {
+    ffmpegStatus = "不可用";
+  }
+
+  return {
+    mode: "api",
+    mode_label: "真实 Cutter API 模式",
+    api_ready: true,
+    generated_at: input.api_input.now?.() ?? new Date().toISOString(),
+    library_id: await readLibraryId(input.api_input.library_root),
+    library_root_label: pathLabel(input.api_input.library_root, "公共素材库"),
+    available_video_count: library.available_video_count,
+    workspace_enabled: Boolean(input.api_input.workspace_root),
+    workspace_root_label: pathLabel(input.api_input.workspace_root, "未启用本地剪切工作区"),
+    local_clip_count: localClips.local_clip_count,
+    ffmpeg_status: ffmpegStatus,
+    ffmpeg_source: ffmpegSource,
+    current_user: {
+      user_id: input.auth.user.user_id,
+      username: input.auth.user.username,
+      display_name: input.auth.user.display_name
+    }
+  };
+}
+
 function workspaceRootOrThrow(input: CreateCutterApiServerInput): string {
   if (!input.workspace_root) {
     throw new Error("workspace_root is required for cutter workspace routes");
@@ -1095,6 +1166,24 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           ok: true,
           user: auth.user
         }));
+        return;
+      }
+
+      if (url.pathname === "/cutter/runtime-status") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
+        writeJson(response, 200, apiResponse(await runtimeStatusForSession({
+          api_input: input,
+          auth
+        })));
         return;
       }
 

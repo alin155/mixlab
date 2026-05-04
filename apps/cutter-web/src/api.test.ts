@@ -218,6 +218,27 @@ test("workbench data resolves Cutter API media URLs before rendering", async () 
         ]
       };
     },
+    async getRuntimeStatus() {
+      return {
+        mode: "api",
+        mode_label: "真实 Cutter API 模式",
+        api_ready: true,
+        generated_at: "2026-05-04T10:00:00.000Z",
+        library_id: "lib_main_001",
+        library_root_label: "source-library",
+        available_video_count: 1,
+        workspace_enabled: true,
+        workspace_root_label: "cutter-workspace",
+        local_clip_count: 1,
+        ffmpeg_status: "可用",
+        ffmpeg_source: "内置",
+        current_user: {
+          user_id: "CU000001",
+          username: "剪辑师A",
+          display_name: "剪辑师A"
+        }
+      };
+    },
     resolveApiUrl(pathOrUrl: string) {
       return pathOrUrl.startsWith("http")
         ? pathOrUrl
@@ -345,6 +366,27 @@ test("workbench data loads preferred source video detail when route carries an i
       return {
         local_clip_count: 0,
         clips: []
+      };
+    },
+    async getRuntimeStatus() {
+      return {
+        mode: "api",
+        mode_label: "真实 Cutter API 模式",
+        api_ready: true,
+        generated_at: "2026-05-04T10:00:00.000Z",
+        library_id: "lib_main_001",
+        library_root_label: "source-library",
+        available_video_count: 2,
+        workspace_enabled: true,
+        workspace_root_label: "cutter-workspace",
+        local_clip_count: 0,
+        ffmpeg_status: "可用",
+        ffmpeg_source: "内置",
+        current_user: {
+          user_id: "CU000001",
+          username: "剪辑师A",
+          display_name: "剪辑师A"
+        }
       };
     },
     resolveApiUrl(pathOrUrl: string) {
@@ -546,6 +588,53 @@ test("run-next cut job request keeps cutter auth headers and accepts an empty qu
   });
 
   assert.equal(await client.runNextCutJob(), null);
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
+test("loads cutter runtime status with approved session headers", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/runtime-status");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          mode: "api",
+          mode_label: "真实 Cutter API 模式",
+          api_ready: true,
+          generated_at: "2026-05-04T10:00:00.000Z",
+          library_id: "lib_main_001",
+          library_root_label: "source-library",
+          available_video_count: 1,
+          workspace_enabled: true,
+          workspace_root_label: "cutter-workspace",
+          local_clip_count: 1,
+          ffmpeg_status: "可用",
+          ffmpeg_source: "内置",
+          current_user: {
+            user_id: "CU000001",
+            username: "剪辑师A",
+            display_name: "剪辑师A"
+          }
+        }
+      });
+    }
+  });
+
+  const status = await client.getRuntimeStatus();
+
+  assert.equal(status.mode_label, "真实 Cutter API 模式");
+  assert.equal(status.current_user.username, "剪辑师A");
   assert.equal(observedDevice, "device-001");
   assert.equal(observedSession, "session-001");
 });

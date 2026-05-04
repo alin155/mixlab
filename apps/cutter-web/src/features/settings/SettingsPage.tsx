@@ -1,7 +1,43 @@
 import { GroupedForm, InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
+import type { CutterRuntimeStatus } from "../../api.ts";
 import type { CutterWorkbenchSettings } from "../../fixture-client.ts";
 
-export function SettingsPage({ settings }: { settings: CutterWorkbenchSettings }) {
+export function SettingsPage({
+  settings,
+  runtimeStatus,
+  apiBaseUrl = ""
+}: {
+  settings: CutterWorkbenchSettings;
+  runtimeStatus?: CutterRuntimeStatus;
+  apiBaseUrl?: string;
+}) {
+  const runtimeGroup = runtimeStatus
+    ? {
+        title: "真实模式联调状态",
+        rows: [
+          { label: "运行模式", value: runtimeStatus.mode_label },
+          { label: "API 地址", value: apiBaseUrl || "未连接真实 API" },
+          {
+            label: "当前剪辑师",
+            value: runtimeStatus.current_user.display_name || runtimeStatus.current_user.username
+          },
+          { label: "可用原素材", value: `${runtimeStatus.available_video_count}` },
+          {
+            label: "本地工作区",
+            value: runtimeStatus.workspace_enabled ? runtimeStatus.workspace_root_label : "未启用"
+          },
+          { label: "本地素材数", value: `${runtimeStatus.local_clip_count}` },
+          { label: "FFmpeg", value: `${runtimeStatus.ffmpeg_status} · ${runtimeStatus.ffmpeg_source}` }
+        ]
+      }
+    : {
+        title: "真实模式联调状态",
+        rows: [
+          { label: "运行模式", value: "界面演示模式" },
+          { label: "API 地址", value: "未连接真实 API" }
+        ]
+      };
+
   return (
     <section className="cutter-page cutter-settings" data-page="settings">
       <div className="cutter-page-main">
@@ -15,6 +51,7 @@ export function SettingsPage({ settings }: { settings: CutterWorkbenchSettings }
 
         <GroupedForm
           groups={[
+            runtimeGroup,
             {
               title: "素材与工作区",
               rows: [

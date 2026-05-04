@@ -249,6 +249,26 @@ export interface CutterLoginStatusFailure {
   message?: string;
 }
 
+export interface CutterRuntimeStatus {
+  mode: "api" | "fixture";
+  mode_label: string;
+  api_ready: boolean;
+  generated_at: string;
+  library_id: string;
+  library_root_label: string;
+  available_video_count: number;
+  workspace_enabled: boolean;
+  workspace_root_label: string;
+  local_clip_count: number;
+  ffmpeg_status: "可用" | "不可用";
+  ffmpeg_source: "内置" | "环境配置" | "未检测到";
+  current_user: {
+    user_id: string;
+    username: string;
+    display_name: string;
+  };
+}
+
 export interface CutterAuthHeaders {
   device_id: string;
   session_token: string;
@@ -275,6 +295,7 @@ export class CutterApiError extends Error {
 export interface CutterApiClient {
   requestLogin(input: CutterLoginRequest): Promise<CutterLoginApplication>;
   getLoginStatus(): Promise<CutterLoginStatus>;
+  getRuntimeStatus(): Promise<CutterRuntimeStatus>;
   listSourceLibrary(): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number): Promise<SearchResponse>;
@@ -364,6 +385,16 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       return requestEnvelope<CutterLoginStatus>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/auth/status"),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    getRuntimeStatus() {
+      return requestEnvelope<CutterRuntimeStatus>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/runtime-status"),
         {
           headers: protectedHeaders
         }

@@ -331,6 +331,7 @@ function renderPage(
     autoRefreshCutJobs: boolean;
     lastQueueUpdatedLabel: string;
     cutPipelineState: CutPipelineState;
+    apiBaseUrl: string;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -405,7 +406,13 @@ function renderPage(
   }
 
   if (route === "settings") {
-    return <SettingsPage settings={data.settings} />;
+    return (
+      <SettingsPage
+        settings={data.settings}
+        runtimeStatus={data.runtimeStatus}
+        apiBaseUrl={viewState.apiBaseUrl}
+      />
+    );
   }
 
   return (
@@ -1068,7 +1075,8 @@ export function CutterApp() {
                     cutNotice,
                     autoRefreshCutJobs,
                     lastQueueUpdatedLabel,
-                    cutPipelineState
+                    cutPipelineState,
+                    apiBaseUrl
                   },
                   handlers
                 )

@@ -22,6 +22,7 @@ server.listen(config.port, config.host, () => {
         workspace_root: config.workspace_root,
         endpoints: [
           "/health",
+          "/cutter/runtime-status",
           "/cutter/source-library",
           "/cutter/source-videos/:source_video_id",
           "/cutter/source-search?query=现金流",

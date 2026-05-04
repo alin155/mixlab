@@ -4,6 +4,7 @@ import type {
   CutJobCatalog,
   CutJobSubmission,
   CutterApiClient,
+  CutterRuntimeStatus,
   LocalClip,
   LocalClipCatalog,
   SearchResponse,
@@ -32,6 +33,7 @@ export interface CutterFixtureData {
   search: SearchResponse;
   localClips: LocalClipCatalog;
   settings: CutterWorkbenchSettings;
+  runtimeStatus: CutterRuntimeStatus;
 }
 
 export interface LoadCutterWorkbenchDataOptions {
@@ -363,6 +365,26 @@ const settings: CutterWorkbenchSettings = {
   ]
 };
 
+const runtimeStatus: CutterRuntimeStatus = {
+  mode: "fixture",
+  mode_label: "界面演示模式",
+  api_ready: true,
+  generated_at: "2026-05-04T10:00:00.000Z",
+  library_id: "fixture",
+  library_root_label: "演示素材库",
+  available_video_count: videos.length,
+  workspace_enabled: true,
+  workspace_root_label: "演示本地工作区",
+  local_clip_count: localClips.local_clip_count,
+  ffmpeg_status: "可用",
+  ffmpeg_source: "内置",
+  current_user: {
+    user_id: "fixture",
+    username: "演示剪辑师",
+    display_name: "演示剪辑师"
+  }
+};
+
 export function createFixtureCutterData(): CutterFixtureData {
   return {
     library: {
@@ -373,7 +395,8 @@ export function createFixtureCutterData(): CutterFixtureData {
     primaryDetail,
     search,
     localClips,
-    settings
+    settings,
+    runtimeStatus
   };
 }
 
@@ -440,6 +463,9 @@ export function createFixtureCutterApiClient(): CutterApiClient {
           ]
         }
       };
+    },
+    async getRuntimeStatus() {
+      return data.runtimeStatus;
     },
     async listSourceLibrary() {
       return data.library;
@@ -628,9 +654,10 @@ export async function loadCutterWorkbenchData(
   client: CutterApiClient,
   options: LoadCutterWorkbenchDataOptions = {}
 ): Promise<CutterFixtureData> {
-  const [libraryResult, localClipsResult] = await Promise.all([
+  const [libraryResult, localClipsResult, runtimeStatusResult] = await Promise.all([
     client.listSourceLibrary(),
-    client.listLocalClips()
+    client.listLocalClips(),
+    client.getRuntimeStatus()
   ]);
   const library = {
     ...libraryResult,
@@ -654,6 +681,7 @@ export async function loadCutterWorkbenchData(
     primaryDetail: resolveSourceVideoDetailUrls(client, primaryDetailResult),
     search: resolveSearchResponseUrls(client, searchResult),
     localClips,
-    settings
+    settings,
+    runtimeStatus: runtimeStatusResult
   };
 }

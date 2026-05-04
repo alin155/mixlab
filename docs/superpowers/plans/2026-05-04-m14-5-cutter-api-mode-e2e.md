@@ -1,6 +1,6 @@
 # M14.5 Cutter API Mode E2E Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make cutter API mode diagnosable and prove the real public-library-to-local-cut reuse path with a repeatable browser smoke.
 
@@ -16,7 +16,7 @@
 - Modify: `/Users/allen/Documents/mixlab/packages/cutter-api/src/index.ts`
 - Modify: `/Users/allen/Documents/mixlab/packages/cutter-api/src/index.test.ts`
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Add tests near the existing cutter auth/source-library tests in `/Users/allen/Documents/mixlab/packages/cutter-api/src/index.test.ts`:
 
@@ -78,7 +78,7 @@ test("runtime status remains readable when cutter workspace is not configured", 
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -88,7 +88,7 @@ node --test --import tsx packages/cutter-api/src/index.test.ts
 
 Expected: fails because `/cutter/runtime-status` is not implemented.
 
-- [ ] **Step 3: Add runtime status types and helper**
+- [x] **Step 3: Add runtime status types and helper**
 
 In `/Users/allen/Documents/mixlab/packages/cutter-api/src/index.ts`, add:
 
@@ -168,7 +168,7 @@ async function runtimeStatusForSession(input: {
 }
 ```
 
-- [ ] **Step 4: Add the protected route**
+- [x] **Step 4: Add the protected route**
 
 Inside `createCutterApiServer()`, before `/cutter/source-library`, add:
 
@@ -192,7 +192,7 @@ if (url.pathname === "/cutter/runtime-status") {
 }
 ```
 
-- [ ] **Step 5: Re-run focused API tests**
+- [x] **Step 5: Re-run focused API tests**
 
 Run:
 
@@ -212,7 +212,7 @@ Expected: all package tests pass.
 - Modify: `/Users/allen/Documents/mixlab/apps/cutter-web/src/app/CutterApp.tsx`
 - Modify: `/Users/allen/Documents/mixlab/apps/cutter-web/src/cutter-app.test.ts`
 
-- [ ] **Step 1: Add failing API client test**
+- [x] **Step 1: Add failing API client test**
 
 In `/Users/allen/Documents/mixlab/apps/cutter-web/src/api.test.ts`, add:
 
@@ -265,7 +265,7 @@ test("loads cutter runtime status with approved session headers", async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused client test and verify RED**
+- [x] **Step 2: Run focused client test and verify RED**
 
 Run:
 
@@ -275,7 +275,7 @@ node --test --import tsx apps/cutter-web/src/api.test.ts
 
 Expected: fails because `getRuntimeStatus()` does not exist.
 
-- [ ] **Step 3: Add client type and method**
+- [x] **Step 3: Add client type and method**
 
 In `/Users/allen/Documents/mixlab/apps/cutter-web/src/api.ts`, add:
 
@@ -321,7 +321,7 @@ getRuntimeStatus() {
 },
 ```
 
-- [ ] **Step 4: Add fixture runtime status**
+- [x] **Step 4: Add fixture runtime status**
 
 In `/Users/allen/Documents/mixlab/apps/cutter-web/src/fixture-client.ts`:
 
@@ -370,7 +370,7 @@ getRuntimeStatus: async () => runtimeStatus
 
 In `loadCutterWorkbenchData()`, include `client.getRuntimeStatus()` in the initial `Promise.all` and return `runtimeStatus`.
 
-- [ ] **Step 5: Add failing settings render test**
+- [x] **Step 5: Add failing settings render test**
 
 In `/Users/allen/Documents/mixlab/apps/cutter-web/src/cutter-app.test.ts`, update the settings test to render:
 
@@ -407,7 +407,7 @@ node --test --import tsx apps/cutter-web/src/cutter-app.test.ts
 
 Expected: fails because SettingsPage does not render runtime status.
 
-- [ ] **Step 6: Render runtime status in SettingsPage**
+- [x] **Step 6: Render runtime status in SettingsPage**
 
 Update `SettingsPage` props:
 
@@ -454,7 +454,7 @@ Pass the new props from `CutterApp`:
 return <SettingsPage settings={data.settings} runtimeStatus={data.runtimeStatus} apiBaseUrl={apiBaseUrl} />;
 ```
 
-- [ ] **Step 7: Re-run focused cutter web tests**
+- [x] **Step 7: Re-run focused cutter web tests**
 
 Run:
 
@@ -471,7 +471,7 @@ Expected: both pass.
 - Create: `/Users/allen/Documents/mixlab/scripts/smoke/cutter-api-web.ts`
 - Modify: `/Users/allen/Documents/mixlab/package.json`
 
-- [ ] **Step 1: Add package script first**
+- [x] **Step 1: Add package script first**
 
 In `/Users/allen/Documents/mixlab/package.json`, add:
 
@@ -487,7 +487,7 @@ npm run smoke:cutter-api-web
 
 Expected: fails because the script file does not exist.
 
-- [ ] **Step 2: Create the smoke script**
+- [x] **Step 2: Create the smoke script**
 
 Create `/Users/allen/Documents/mixlab/scripts/smoke/cutter-api-web.ts` with these responsibilities:
 
@@ -773,7 +773,7 @@ main().catch((error) => {
 });
 ```
 
-- [ ] **Step 3: Run the smoke script**
+- [x] **Step 3: Run the smoke script**
 
 Run:
 
@@ -789,12 +789,12 @@ If port `3789` or `5185` is occupied, change the script to allocate free ports d
 
 **Files:** read-only unless verification exposes a bug.
 
-- [ ] **Step 1:** Run `node --test --import tsx packages/cutter-api/src/index.test.ts`.
-- [ ] **Step 2:** Run `node --test --import tsx apps/cutter-web/src/api.test.ts`.
-- [ ] **Step 3:** Run `node --test --import tsx apps/cutter-web/src/cutter-app.test.ts`.
-- [ ] **Step 4:** Run `npm run typecheck`.
-- [ ] **Step 5:** Run `npm test`.
-- [ ] **Step 6:** Run `npm run build:cutter-web`.
-- [ ] **Step 7:** Run `npm run smoke:cutter-api-web`.
-- [ ] **Step 8:** Run `git diff --check`.
-- [ ] **Step 9:** Commit with `feat: complete M14.5 cutter api e2e`.
+- [x] **Step 1:** Run `node --test --import tsx packages/cutter-api/src/index.test.ts`.
+- [x] **Step 2:** Run `node --test --import tsx apps/cutter-web/src/api.test.ts`.
+- [x] **Step 3:** Run `node --test --import tsx apps/cutter-web/src/cutter-app.test.ts`.
+- [x] **Step 4:** Run `npm run typecheck`.
+- [x] **Step 5:** Run `npm test`.
+- [x] **Step 6:** Run `npm run build:cutter-web`.
+- [x] **Step 7:** Run `npm run smoke:cutter-api-web`.
+- [x] **Step 8:** Run `git diff --check`.
+- [x] **Step 9:** Commit with `feat: complete M14.5 cutter api e2e`.

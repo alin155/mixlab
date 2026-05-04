@@ -85,6 +85,7 @@ npm run build:admin-web
 npm run visual:admin-web
 npm run dev:cutter-web
 npm run build:cutter-web
+npm run smoke:cutter-api-web
 npm run visual:cutter-web
 npm run build:ui-fixtures
 npm run visual:ui-foundation
@@ -131,6 +132,8 @@ npm run visual:ui-foundation
 `dev:admin-web` starts the formal management console MVP. It uses fixture data by default and can point to a future backend with `VITE_MIXLAB_ADMIN_API_BASE_URL`. `visual:admin-web` opens the admin app in local Chrome at 1536x1024 and saves dashboard/settings/source/jobs/index/Doctor screenshots under `docs/acceptance/artifacts/m5-admin-console/`.
 
 `server:cutter-api` starts the local cutter-side HTTP bridge. Set `MIXLAB_CUTTER_LIBRARY_ROOT` or reuse `MIXLAB_PREPROCESS_LIBRARY_ROOT`; optional `MIXLAB_CUTTER_API_HOST` and `MIXLAB_CUTTER_API_PORT` default to `127.0.0.1:3789`. The server exposes ready-only JSON APIs at `/cutter/source-library`, `/cutter/source-videos/:source_video_id`, and `/cutter/source-search`, plus `/media`, `/cover`, and `/subtitles.srt` endpoints for playback and preview. Source media supports HTTP Range requests for browser video playback. Search reads the immutable SQLite index package pointed to by `.mixlab-library/indexes/source-transcript-index/current.json`, then filters hits through the current ready/artifact visibility guard. If a hand-built fixture has no current index yet, the bridge falls back to the legacy in-memory transcript scan for debugging only. Set `MIXLAB_CUTTER_WORKSPACE_ROOT` to enable the M7 cutter-local workspace: `/cutter/clip-lists` persists cut-list rows, `/cutter/cut-jobs` submits and lists local jobs, `/cutter/cut-jobs/run-next` executes one pending job, and `/cutter/local-clips` lists workspace exports backed by `export-clips/<export_clip_id>/export-clip.json`. In this mode cutter exports write only to the local workspace; the public library remains read-only. Without `MIXLAB_CUTTER_WORKSPACE_ROOT`, the legacy preview local-clip route remains available for older fixtures.
+
+`smoke:cutter-api-web` creates a temporary ready public library and cutter workspace, generates a real playable MP4 with bundled FFmpeg, starts Cutter API plus cutter-web in API mode, injects an approved cutter session, and verifies the browser path: search text, select transcript, cut with real FFmpeg, refresh local reusable materials, and keep local materials first in search results.
 
 `dev:cutter-web` starts the formal cutter-side browser workspace. It uses fixture data by default so the Apple-HIG workbench can be reviewed without a backend. Set `VITE_MIXLAB_CUTTER_API_BASE_URL=http://127.0.0.1:3789` to bind it to `server:cutter-api`. In API mode, the source gallery/search/detail read ready public sources, the cut list submits `clip-list.json` rows through `/cutter/clip-lists`, queue submission uses `/cutter/cut-jobs`, the queue page can refresh or execute one pending job through `/cutter/cut-jobs/run-next`, and completed exports refresh the local library from `/cutter/local-clips`. The M4 surface includes independent pages for the ready-only public source gallery, source detail and complete transcript, grouped search, local cut list, local reusable clip library, cut queue, and settings. `visual:cutter-web` opens the cutter app in local Chrome at 1536x1024 and saves screenshots under `docs/acceptance/artifacts/m4-cutter-workbench/`.
 

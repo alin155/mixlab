@@ -491,6 +491,69 @@ test("cutter source library requires approved session headers", async () => {
   });
 });
 
+test("runtime status requires approved cutter session and reports workspace readiness", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-runtime-"));
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-04T10:00:00.000Z"
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const anonymous = await fetch(`${baseUrl}/cutter/runtime-status`);
+    assert.equal(anonymous.status, 401);
+
+    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.mode_label, "真实 Cutter API 模式");
+    assert.equal(body.data.api_ready, true);
+    assert.equal(body.data.available_video_count, 1);
+    assert.equal(body.data.workspace_enabled, true);
+    assert.equal(body.data.local_clip_count, 0);
+    assert.equal(body.data.current_user.username, "cutter-user");
+    assert.match(body.data.workspace_root_label, /mixlab-cutter-runtime-/);
+    assert.match(body.data.ffmpeg_status, /可用|不可用/);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("runtime status remains readable when cutter workspace is not configured", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.workspace_enabled, false);
+    assert.equal(body.data.workspace_root_label, "未启用本地剪切工作区");
+    assert.equal(body.data.local_clip_count, 0);
+  });
+});
+
 test("malformed usage events do not break authenticated source search", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

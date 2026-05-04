@@ -518,10 +518,22 @@ test("cut tasks renders optional API refresh and run controls", () => {
 
 test("settings render mount, workspace, ffmpeg, default mode, concurrency, and Doctor", () => {
   const data = fixture();
-  const html = renderToStaticMarkup(h(SettingsPage, { settings: data.settings }));
+  const html = renderToStaticMarkup(
+    h(SettingsPage, {
+      settings: data.settings,
+      runtimeStatus: data.runtimeStatus,
+      apiBaseUrl: "http://127.0.0.1:3789"
+    })
+  );
 
   for (const text of [
     "设置",
+    "真实模式联调状态",
+    "http://127.0.0.1:3789",
+    "界面演示模式",
+    "演示剪辑师",
+    "演示本地工作区",
+    "本地素材数",
     "公共素材库挂载",
     "本地工作区",
     "FFmpeg",
