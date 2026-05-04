@@ -35,6 +35,7 @@ import {
   authSessionFromApprovedApplication,
   appendDirectCutFixtureQueue,
   cutNoticeForCompletedLocalClips,
+  cutNoticeForPipelineResult,
   cutNoticeForSubmittedJobs,
   cutterDeviceNameFromNavigator,
   loginGateStatusFromApplication,
@@ -380,6 +381,39 @@ test("direct cut notice is concise and keeps the cutter on the locator page", ()
   assert.equal(cutNoticeForSubmittedJobs(0), "");
   assert.equal(cutNoticeForCompletedLocalClips(1), "剪切完成 · 本地素材已更新 1");
   assert.equal(cutNoticeForCompletedLocalClips(0), "");
+  assert.equal(
+    cutNoticeForPipelineResult({
+      status: "completed",
+      processed_count: 2,
+      done_count: 2,
+      failed_count: 0,
+      message: "本机剪切已完成",
+      last_updated_label: "刚刚更新"
+    }),
+    "剪切完成 · 本地素材已更新 2"
+  );
+  assert.equal(
+    cutNoticeForPipelineResult({
+      status: "completed",
+      processed_count: 2,
+      done_count: 1,
+      failed_count: 1,
+      message: "本机剪切已完成",
+      last_updated_label: "刚刚更新"
+    }),
+    "剪切完成 1 个 · 失败 1 个"
+  );
+  assert.equal(
+    cutNoticeForPipelineResult({
+      status: "completed",
+      processed_count: 1,
+      done_count: 0,
+      failed_count: 1,
+      message: "本机剪切已完成",
+      last_updated_label: "刚刚更新"
+    }),
+    "剪切失败 1 个"
+  );
 });
 
 test("selecting a search result keeps its hit range highlighted and selected", () => {
@@ -431,15 +465,37 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
     h(CutQueuePage, {
       jobs: data.queue,
       autoRefreshEnabled: true,
-      lastUpdatedLabel: "刚刚更新"
+      lastUpdatedLabel: "刚刚更新",
+      pipelineState: {
+        status: "running",
+        processed_count: 1,
+        done_count: 1,
+        failed_count: 0,
+        message: "本机剪切运行中",
+        last_updated_label: "刚刚更新"
+      },
+      onRunNext: () => undefined
     })
   );
 
-  for (const text of ["剪切任务", "等待中", "剪切中", "已完成", "失败", "重试", "自动刷新", "刚刚更新"]) {
+  for (const text of [
+    "剪切任务",
+    "等待中",
+    "剪切中",
+    "已完成",
+    "失败",
+    "重试",
+    "自动刷新",
+    "刚刚更新",
+    "本机剪切运行中",
+    "已处理 1 个任务",
+    "继续剪切"
+  ]) {
     assert.match(html, new RegExp(text));
   }
 
   assert.equal(html.includes("剪切队列"), false);
+  assert.equal(html.includes("执行下一个"), false);
   for (const englishStatus of ["pending", "running", "done", "failed"]) {
     assert.equal(html.includes(`<strong>${englishStatus}</strong>`), false);
   }
@@ -457,7 +513,7 @@ test("cut tasks renders optional API refresh and run controls", () => {
   );
 
   assert.match(html, /刷新任务/);
-  assert.match(html, /执行下一个/);
+  assert.match(html, /继续剪切/);
 });
 
 test("settings render mount, workspace, ffmpeg, default mode, concurrency, and Doctor", () => {

@@ -1,6 +1,12 @@
 import { InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
+import {
+  cutPipelineDetailLabel,
+  cutPipelineStatusLabel,
+  idleCutPipelineState,
+  type CutPipelineState
+} from "../../state/cut-pipeline.ts";
 import { cutQueueSummary } from "../../state/cut-task-refresh.ts";
 
 function toneForStatus(status: CutQueueJob["status"]) {
@@ -38,16 +44,20 @@ export function CutQueuePage({
   jobs,
   autoRefreshEnabled = false,
   lastUpdatedLabel = "",
+  pipelineState = idleCutPipelineState,
   onRefresh,
   onRunNext
 }: {
   jobs: readonly CutQueueJob[];
   autoRefreshEnabled?: boolean;
   lastUpdatedLabel?: string;
+  pipelineState?: CutPipelineState;
   onRefresh?: () => void;
   onRunNext?: () => void;
 }) {
   const summary = cutQueueSummary(jobs);
+  const pipelineStatus = cutPipelineStatusLabel(pipelineState);
+  const pipelineDetail = cutPipelineDetailLabel(pipelineState);
 
   return (
     <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
@@ -68,7 +78,7 @@ export function CutQueuePage({
               ) : null}
               {onRunNext ? (
                 <button className="cutter-primary-button" type="button" onClick={onRunNext}>
-                  执行下一个
+                  继续剪切
                 </button>
               ) : null}
             </div>
@@ -94,6 +104,14 @@ export function CutQueuePage({
             <strong>{summary.failed}</strong>
             <span>失败</span>
           </div>
+        </section>
+
+        <section className={`cutter-pipeline-card is-${pipelineState.status}`} aria-label="本机剪切流水线">
+          <div>
+            <span>本机剪切流水线</span>
+            <strong>{pipelineStatus}</strong>
+          </div>
+          <p>{pipelineDetail}</p>
         </section>
 
         <div className="cutter-queue-list">

@@ -23,6 +23,12 @@ import {
   shouldAutoRefreshCutJobs,
   shouldRefreshLocalClipsAfterQueueUpdate
 } from "./state/cut-task-refresh.ts";
+import {
+  cutPipelineDetailLabel,
+  cutPipelineStatusLabel,
+  idleCutPipelineState,
+  runCutPipeline
+} from "./state/cut-pipeline.ts";
 import * as cutListModule from "./state/cut-list.ts";
 import {
   continuousTranscriptSegments,
@@ -287,6 +293,71 @@ test("local reusable material becomes a one-span selectable video detail", () =>
       text: "现金流决定企业能不能安全穿过周期。"
     }
   ]);
+});
+
+test("cut pipeline labels expose Chinese running, completed, failed and idle states", () => {
+  assert.equal(cutPipelineStatusLabel(idleCutPipelineState), "本机剪切空闲");
+  assert.equal(cutPipelineStatusLabel({ ...idleCutPipelineState, status: "running" }), "本机剪切运行中");
+  assert.equal(cutPipelineStatusLabel({ ...idleCutPipelineState, status: "completed" }), "本机剪切已完成");
+  assert.equal(cutPipelineStatusLabel({ ...idleCutPipelineState, status: "failed" }), "本机剪切失败");
+  assert.equal(
+    cutPipelineDetailLabel({
+      status: "completed",
+      processed_count: 3,
+      done_count: 2,
+      failed_count: 1,
+      message: "本机剪切已完成",
+      last_updated_label: "刚刚更新"
+    }),
+    "已处理 3 个任务，完成 2 个，失败 1 个。"
+  );
+});
+
+test("cut pipeline runs pending jobs sequentially and refreshes local clips after completed jobs", async () => {
+  const states: string[] = [];
+  let queueRefreshes = 0;
+  let localRefreshes = 0;
+  const jobs = [
+    {
+      cut_job_id: "CJ20260504-0001",
+      clip_list_id: "CL20260504-0001",
+      status: "failed" as const,
+      source_video_id: "V000001",
+      begin_ms: 1000,
+      end_ms: 2000
+    },
+    {
+      cut_job_id: "CJ20260504-0002",
+      clip_list_id: "CL20260504-0001",
+      status: "done" as const,
+      source_video_id: "V000001",
+      begin_ms: 3000,
+      end_ms: 5000,
+      export_clip_id: "E000001"
+    },
+    null
+  ];
+
+  const result = await runCutPipeline({
+    runNextCutJob: async () => jobs.shift() ?? null,
+    refreshQueueJobs: async () => {
+      queueRefreshes += 1;
+    },
+    refreshLocalClips: async () => {
+      localRefreshes += 1;
+    },
+    onState(state) {
+      states.push(cutPipelineStatusLabel(state));
+    }
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.processed_count, 2);
+  assert.equal(result.done_count, 1);
+  assert.equal(result.failed_count, 1);
+  assert.equal(queueRefreshes, 2);
+  assert.equal(localRefreshes, 1);
+  assert.deepEqual(states, ["本机剪切运行中", "本机剪切运行中", "本机剪切运行中", "本机剪切已完成"]);
 });
 
 test("completed cut-list items become local clips for reuse search", () => {

@@ -670,6 +670,35 @@ h2 {
   font-weight: 650;
 }
 
+.cutter-pipeline-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface);
+}
+
+.cutter-pipeline-card > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ml-space-3);
+}
+
+.cutter-pipeline-card span,
+.cutter-pipeline-card p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cutter-pipeline-card strong {
+  color: var(--ml-color-text);
+  font-size: 16px;
+}
+
 .cutter-settings .ml-form-row {
   grid-template-columns: 128px minmax(0, 1fr);
 }

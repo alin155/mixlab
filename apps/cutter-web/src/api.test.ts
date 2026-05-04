@@ -526,6 +526,30 @@ test("creates clip lists and manages workspace cut jobs through cutter API", asy
   });
 });
 
+test("run-next cut job request keeps cutter auth headers and accepts an empty queue", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/cut-jobs/run-next");
+      assert.equal(init?.method, "POST");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      return makeJsonResponse({ schema_version: "1.0", data: null });
+    }
+  });
+
+  assert.equal(await client.runNextCutJob(), null);
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
 test("supports cutter login requests and backend-shaped login status", async () => {
   const requests: Array<{ url: string; method: string | undefined; headers: Headers; body: unknown }> = [];
   const client = createCutterApiClient({

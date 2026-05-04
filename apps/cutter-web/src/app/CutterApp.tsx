@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   InspectorPanel,
   MacWindow,
@@ -64,6 +64,11 @@ import {
   shouldAutoRefreshCutJobs,
   shouldRefreshLocalClipsAfterQueueUpdate
 } from "../state/cut-task-refresh.ts";
+import {
+  idleCutPipelineState,
+  runCutPipeline,
+  type CutPipelineState
+} from "../state/cut-pipeline.ts";
 import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
@@ -230,6 +235,18 @@ export function cutNoticeForCompletedLocalClips(count: number): string {
   return count > 0 ? `剪切完成 · 本地素材已更新 ${count}` : "";
 }
 
+export function cutNoticeForPipelineResult(result: CutPipelineState): string {
+  if (result.done_count > 0 && result.failed_count > 0) {
+    return `剪切完成 ${result.done_count} 个 · 失败 ${result.failed_count} 个`;
+  }
+
+  if (result.failed_count > 0) {
+    return `剪切失败 ${result.failed_count} 个`;
+  }
+
+  return cutNoticeForCompletedLocalClips(result.done_count);
+}
+
 function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
   const selectedSegments = data.primaryDetail.transcript.segments.slice(1, 4);
 
@@ -313,6 +330,7 @@ function renderPage(
     cutNotice: string;
     autoRefreshCutJobs: boolean;
     lastQueueUpdatedLabel: string;
+    cutPipelineState: CutPipelineState;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -379,6 +397,7 @@ function renderPage(
         jobs={queue}
         autoRefreshEnabled={viewState.autoRefreshCutJobs}
         lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
+        pipelineState={viewState.cutPipelineState}
         onRefresh={handlers.refreshQueue}
         onRunNext={handlers.runNextJob}
       />
@@ -416,6 +435,8 @@ export function CutterApp() {
   const [cutNotice, setCutNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
+  const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
+  const cutPipelineRunningRef = useRef(false);
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
     deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
@@ -796,6 +817,36 @@ export function CutterApp() {
         fallbackSegmentIds: highlightedSegmentIds
       })
     : [];
+
+  const runRealCutPipeline = useCallback(async () => {
+    if (!apiMode || loginGateVisible || cutPipelineRunningRef.current) {
+      return;
+    }
+
+    cutPipelineRunningRef.current = true;
+    try {
+      const result = await runCutPipeline({
+        runNextCutJob: () => client.runNextCutJob(),
+        refreshQueueJobs,
+        refreshLocalClips,
+        onState: setCutPipelineState
+      });
+      const notice = cutNoticeForPipelineResult(result);
+      if (notice) {
+        setCutNotice(notice);
+      }
+      setHasSubmittedCutJobs(false);
+      await refreshQueueJobs();
+      if (result.done_count > 0) {
+        await refreshLocalClips();
+      }
+    } catch (pipelineError) {
+      setError(pipelineError instanceof Error ? pipelineError.message : "本机剪切执行失败");
+    } finally {
+      cutPipelineRunningRef.current = false;
+    }
+  }, [apiMode, client, loginGateVisible, refreshLocalClips, refreshQueueJobs]);
+
   const handlers = {
     async addSelectedSpan() {
       if (!data) {
@@ -837,6 +888,7 @@ export function CutterApp() {
           setCutNotice(cutNoticeForSubmittedJobs(submission.submitted_count || submittedJobs.length));
           setHasSubmittedCutJobs(true);
           await refreshQueueJobs();
+          void runRealCutPipeline();
         } catch (submitError) {
           setError(submitError instanceof Error ? submitError.message : "剪切任务创建失败");
           return;
@@ -948,7 +1000,9 @@ export function CutterApp() {
             job_count: submission.submitted_count,
             jobs: submission.jobs
           }));
+          setHasSubmittedCutJobs(true);
           await refreshQueueJobs();
+          void runRealCutPipeline();
         } catch (submitError) {
           setError(submitError instanceof Error ? submitError.message : "剪切清单提交失败");
           return;
@@ -971,14 +1025,8 @@ export function CutterApp() {
         }
       : undefined,
     runNextJob: apiMode
-      ? async () => {
-          try {
-            await client.runNextCutJob();
-            await refreshQueueJobs();
-            await refreshLocalClips();
-          } catch (runError) {
-            setError(runError instanceof Error ? runError.message : "剪切任务执行失败");
-          }
+      ? () => {
+          void runRealCutPipeline();
         }
       : undefined
   };
@@ -1019,7 +1067,8 @@ export function CutterApp() {
                     orientationFilter,
                     cutNotice,
                     autoRefreshCutJobs,
-                    lastQueueUpdatedLabel
+                    lastQueueUpdatedLabel,
+                    cutPipelineState
                   },
                   handlers
                 )
