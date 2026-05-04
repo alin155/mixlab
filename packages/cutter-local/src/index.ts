@@ -34,6 +34,7 @@ export type {
 export {
   getCutJob,
   listCutJobs,
+  retryCutJob,
   runNextCutJob,
   submitClipListToQueue
 } from "./cut-queue.ts";
@@ -47,6 +48,7 @@ export type {
   CutRunnerInput,
   GetCutJobInput,
   ListCutJobsInput,
+  RetryCutJobInput,
   RunNextCutJobInput,
   SubmitClipListToQueueInput
 } from "./cut-queue.ts";

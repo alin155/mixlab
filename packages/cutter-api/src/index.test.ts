@@ -1023,3 +1023,121 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     });
   }
 });
+
+test("retries failed workspace cut jobs through protected Cutter API", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-retry-"));
+  let failNextCut = true;
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-04T10:00:00Z",
+    cut_runner: async (input) => {
+      if (failNextCut) {
+        throw new Error("ffmpeg failed");
+      }
+
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "retried-clip-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        library_id: "lib_main_001",
+        title: "现金流重试清单",
+        items: [
+          {
+            source_video_id: "V000001",
+            source_title: "01_现金流.mp4",
+            source_relative_path: "source-videos/01_现金流.mp4",
+            start_segment_id: "V000001-S000001",
+            end_segment_id: "V000001-S000001",
+            begin_ms: 1000,
+            end_ms: 3600,
+            selected_text: "现金流，是企业的血液。",
+            cut_mode: "smart"
+          }
+        ]
+      })
+    });
+    assert.equal(clipListResponse.status, 201);
+
+    const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        clip_list_id: "CL20260504-0001"
+      })
+    });
+    assert.equal(submitResponse.status, 201);
+
+    const failedResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(failedResponse.status, 200);
+    const failed = await failedResponse.json() as any;
+    assert.equal(failed.data.status, "failed");
+    assert.match(failed.data.error_message, /ffmpeg failed/);
+
+    const anonymousRetry = await fetch(`${baseUrl}/cutter/cut-jobs/${failed.data.cut_job_id}/retry`, {
+      method: "POST"
+    });
+    assert.equal(anonymousRetry.status, 401);
+
+    const retryResponse = await fetch(`${baseUrl}/cutter/cut-jobs/${failed.data.cut_job_id}/retry`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(retryResponse.status, 200);
+    const retried = await retryResponse.json() as any;
+    assert.equal(retried.data.status, "pending");
+    assert.equal(retried.data.error_message, undefined);
+
+    failNextCut = false;
+    const doneResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(doneResponse.status, 200);
+    const done = await doneResponse.json() as any;
+    assert.equal(done.data.status, "done");
+
+    const nonFailedRetry = await fetch(`${baseUrl}/cutter/cut-jobs/${failed.data.cut_job_id}/retry`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(nonFailedRetry.status, 409);
+    const nonFailed = await nonFailedRetry.json() as any;
+    assert.match(nonFailed.error.message, /只有失败任务需要重试/);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});

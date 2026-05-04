@@ -60,6 +60,12 @@ export interface GetCutJobInput {
   cut_job_id: string;
 }
 
+export interface RetryCutJobInput {
+  workspace_root: string;
+  cut_job_id: string;
+  now: string;
+}
+
 export interface CutJobSourceDetail {
   source_video_id: string;
   title: string;
@@ -271,6 +277,34 @@ export async function listCutJobs(input: ListCutJobsInput): Promise<CutJobCatalo
     job_count: jobs.length,
     jobs
   };
+}
+
+export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManifest> {
+  const job = await getCutJob({
+    workspace_root: input.workspace_root,
+    cut_job_id: input.cut_job_id
+  });
+
+  if (!job) {
+    throw new Error("cut job not found");
+  }
+
+  if (job.status !== "failed") {
+    throw new Error("only failed cut jobs can be retried");
+  }
+
+  const retried: CutJobManifest = {
+    ...job,
+    status: "pending",
+    updated_at: input.now,
+    started_at: undefined,
+    finished_at: undefined,
+    error_message: undefined,
+    export_clip_id: undefined,
+    output_file: undefined
+  };
+  await writeCutJob(input.workspace_root, retried);
+  return retried;
 }
 
 function oldestPendingJob(jobs: CutJobManifest[]): CutJobManifest | null {

@@ -348,6 +348,7 @@ function renderPage(
     submitCuts: () => void;
     refreshQueue?: () => void;
     runNextJob?: () => void;
+    retryFailedCutJob?: (cutJobId: string) => void;
   }
 ) {
   if (route === "source-detail") {
@@ -401,6 +402,7 @@ function renderPage(
         pipelineState={viewState.cutPipelineState}
         onRefresh={handlers.refreshQueue}
         onRunNext={handlers.runNextJob}
+        onRetryFailed={handlers.retryFailedCutJob}
       />
     );
   }
@@ -1035,7 +1037,47 @@ export function CutterApp() {
       ? () => {
           void runRealCutPipeline();
         }
-      : undefined
+      : undefined,
+    retryFailedCutJob: async (cutJobId: string) => {
+      if (!apiMode) {
+        setQueueJobs((current) =>
+          current.map((job) =>
+            job.queue_job_id === cutJobId && job.status === "failed"
+              ? {
+                  ...job,
+                  status: "pending",
+                  progress: 0,
+                  error_message: undefined
+                }
+              : job
+          )
+        );
+        setCutNotice("已重试失败任务 · 等待本机剪切");
+        return;
+      }
+
+      try {
+        const retried = await client.retryCutJob(cutJobId);
+        const retriedQueueJob = mapApiCutJobsToQueueJobs({
+          job_count: 1,
+          jobs: [retried]
+        })[0];
+
+        if (retriedQueueJob) {
+          setQueueJobs((current) => [
+            retriedQueueJob,
+            ...current.filter((job) => job.queue_job_id !== cutJobId)
+          ]);
+        }
+
+        setCutNotice("已重试失败任务 · 等待本机剪切");
+        setHasSubmittedCutJobs(true);
+        await refreshQueueJobs();
+        void runRealCutPipeline();
+      } catch (retryError) {
+        setError(retryError instanceof Error ? retryError.message : "重试剪切任务失败");
+      }
+    }
   };
 
   const workbench = (

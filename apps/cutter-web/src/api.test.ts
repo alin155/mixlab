@@ -592,6 +592,39 @@ test("run-next cut job request keeps cutter auth headers and accepts an empty qu
   assert.equal(observedSession, "session-001");
 });
 
+test("retry cut job request keeps cutter auth headers", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/cut-jobs/CJ20260504-0001/retry");
+      assert.equal(init?.method, "POST");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          cut_job_id: "CJ20260504-0001",
+          clip_list_id: "CL20260504-0001",
+          status: "pending"
+        }
+      });
+    }
+  });
+
+  const retried = await client.retryCutJob("CJ20260504-0001");
+
+  assert.equal(retried.status, "pending");
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
 test("loads cutter runtime status with approved session headers", async () => {
   let observedDevice = "";
   let observedSession = "";

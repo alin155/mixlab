@@ -474,7 +474,8 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
         message: "本机剪切运行中",
         last_updated_label: "刚刚更新"
       },
-      onRunNext: () => undefined
+      onRunNext: () => undefined,
+      onRetryFailed: () => undefined
     })
   );
 
@@ -489,7 +490,10 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
     "刚刚更新",
     "本机剪切运行中",
     "已处理 1 个任务",
-    "继续剪切"
+    "继续剪切",
+    "失败原因",
+    "FFmpeg 输出目录不可写",
+    "选中文案"
   ]) {
     assert.match(html, new RegExp(text));
   }
@@ -500,6 +504,19 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
     assert.equal(html.includes(`<strong>${englishStatus}</strong>`), false);
   }
   assert.match(html, /data-page="cut-tasks"/);
+});
+
+test("cut tasks does not render dead retry controls without a retry handler", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue
+    })
+  );
+
+  assert.match(html, /失败原因/);
+  assert.match(html, /FFmpeg 输出目录不可写/);
+  assert.equal(html.includes("<button type=\"button\">重试</button>"), false);
 });
 
 test("cut tasks renders optional API refresh and run controls", () => {

@@ -33,6 +33,7 @@ import {
   listCutJobs,
   listExportClips,
   readClipList,
+  retryCutJob,
   runNextCutJob,
   submitClipListToQueue,
   writeClipList,
@@ -74,6 +75,7 @@ type ApiSearchGroup = CutterSourceLibrarySearchGroup & ApiSourceVideoUrls;
 
 const SOURCE_VIDEO_ID_PATTERN = /^V\d{6}$/;
 const LOCAL_CLIP_ID_PATTERN = /^(?:LC|E)\d{6}$/;
+const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
 
 export interface CutterClipCutRunnerInput {
   source_video_path: string;
@@ -1138,6 +1140,46 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           });
         }
         writeJson(response, 200, apiResponse(job));
+        return;
+      }
+
+      const cutJobRetryMatch = /^\/cutter\/cut-jobs\/([^/]+)\/retry$/.exec(url.pathname);
+      if (request.method === "POST" && cutJobRetryMatch) {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const cutJobId = cutJobRetryMatch[1] ?? "";
+        if (!CUT_JOB_ID_PATTERN.test(cutJobId)) {
+          writeError(response, 400, "invalid_cut_job_id", "剪切任务编号格式不正确");
+          return;
+        }
+
+        const workspaceRoot = workspaceRootOrThrow(input);
+        try {
+          writeJson(response, 200, apiResponse(await retryCutJob({
+            workspace_root: workspaceRoot,
+            cut_job_id: cutJobId,
+            now: input.now?.() ?? new Date().toISOString()
+          })));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (message === "cut job not found") {
+            writeError(response, 404, "cut_job_not_found", "剪切任务不存在");
+            return;
+          }
+
+          if (message === "only failed cut jobs can be retried") {
+            writeError(response, 409, "cut_job_not_failed", "只有失败任务需要重试");
+            return;
+          }
+
+          throw error;
+        }
         return;
       }
 

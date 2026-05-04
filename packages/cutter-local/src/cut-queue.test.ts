@@ -10,6 +10,7 @@ import {
 import {
   getCutJob,
   listCutJobs,
+  retryCutJob,
   runNextCutJob,
   submitClipListToQueue
 } from "./cut-queue.ts";
@@ -157,6 +158,69 @@ test("marks failed jobs with error message and continues to later pending jobs",
   assert.deepEqual(
     (await listCutJobs({ workspace_root: workspaceRoot })).jobs.map((job) => job.status),
     ["done", "failed"]
+  );
+});
+
+test("retries failed cut jobs by returning them to pending", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-retry-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeClipList(workspaceRoot);
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-04T10:00:00.000Z"
+  });
+
+  const failed = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-04T10:01:00.000Z",
+    resolve_source: async (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path)
+    }),
+    cut_runner: async () => {
+      throw new Error("ffmpeg failed");
+    }
+  });
+
+  assert.equal(failed?.status, "failed");
+  assert.match(failed?.error_message ?? "", /ffmpeg failed/);
+
+  const retried = await retryCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: failed!.cut_job_id,
+    now: "2026-05-04T10:02:00.000Z"
+  });
+
+  assert.equal(retried.status, "pending");
+  assert.equal(retried.error_message, undefined);
+  assert.equal(retried.started_at, undefined);
+  assert.equal(retried.finished_at, undefined);
+  assert.equal(retried.export_clip_id, undefined);
+  assert.equal(retried.output_file, undefined);
+  assert.equal(retried.updated_at, "2026-05-04T10:02:00.000Z");
+});
+
+test("retry rejects non-failed cut jobs", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-retry-non-failed-");
+  const clipList = await makeClipList(workspaceRoot);
+  const submission = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-04T10:00:00.000Z"
+  });
+
+  await assert.rejects(
+    () =>
+      retryCutJob({
+        workspace_root: workspaceRoot,
+        cut_job_id: submission.jobs[0]!.cut_job_id,
+        now: "2026-05-04T10:01:00.000Z"
+      }),
+    /only failed cut jobs can be retried/
   );
 });
 

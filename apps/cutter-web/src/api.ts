@@ -306,6 +306,7 @@ export interface CutterApiClient {
   submitCutJobs(request: SubmitCutJobsRequest): Promise<CutJobSubmission>;
   listCutJobs(): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
+  retryCutJob(cutJobId: string): Promise<CutJob>;
   resolveApiUrl(pathOrUrl: string): string;
 }
 
@@ -519,6 +520,17 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       return requestEnvelope<CutJob | null>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/cut-jobs/run-next"),
+        {
+          method: "POST",
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    retryCutJob(cutJobId: string) {
+      return requestEnvelope<CutJob>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/retry`),
         {
           method: "POST",
           headers: protectedHeaders

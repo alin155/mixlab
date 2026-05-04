@@ -1,6 +1,6 @@
 # M15 Cutter Acceptance Patch Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make the real cutter workflow easier to accept-test by adding real failed cut retry, clearer task diagnosis, and verified UI feedback.
 
@@ -17,7 +17,7 @@
 - Modify: `/Users/allen/Documents/mixlab/packages/cutter-local/src/cut-queue.test.ts`
 - Modify: `/Users/allen/Documents/mixlab/packages/cutter-local/src/index.ts`
 
-- [ ] **Step 1: Add failing tests for retrying failed jobs**
+- [x] **Step 1: Add failing tests for retrying failed jobs**
 
 Add tests in `/Users/allen/Documents/mixlab/packages/cutter-local/src/cut-queue.test.ts`:
 
@@ -85,7 +85,7 @@ test("retry rejects non-failed cut jobs", async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test and verify RED**
+- [x] **Step 2: Run focused test and verify RED**
 
 Run:
 
@@ -95,7 +95,7 @@ node --test --import tsx packages/cutter-local/src/cut-queue.test.ts
 
 Expected: fails because `retryCutJob` is not implemented or exported.
 
-- [ ] **Step 3: Implement retryCutJob**
+- [x] **Step 3: Implement retryCutJob**
 
 Add to `/Users/allen/Documents/mixlab/packages/cutter-local/src/cut-queue.ts`:
 
@@ -137,7 +137,7 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
 
 Export `retryCutJob` and `RetryCutJobInput` from `/Users/allen/Documents/mixlab/packages/cutter-local/src/index.ts`.
 
-- [ ] **Step 4: Re-run focused test and verify GREEN**
+- [x] **Step 4: Re-run focused test and verify GREEN**
 
 Run:
 
@@ -156,11 +156,11 @@ Expected: all cutter-local cut queue tests pass.
 - Modify: `/Users/allen/Documents/mixlab/apps/cutter-web/src/api.test.ts`
 - Modify: `/Users/allen/Documents/mixlab/apps/cutter-web/src/fixture-client.ts`
 
-- [ ] **Step 1: Add failing Cutter API endpoint tests**
+- [x] **Step 1: Add failing Cutter API endpoint tests**
 
 Add an API test that creates a failed job, calls `POST /cutter/cut-jobs/:id/retry`, and asserts status returns `pending`; also assert anonymous requests are rejected and non-failed jobs return 409.
 
-- [ ] **Step 2: Run focused Cutter API tests and verify RED**
+- [x] **Step 2: Run focused Cutter API tests and verify RED**
 
 Run:
 
@@ -170,11 +170,11 @@ node --test --import tsx packages/cutter-api/src/index.test.ts
 
 Expected: retry route returns 404.
 
-- [ ] **Step 3: Add protected retry route**
+- [x] **Step 3: Add protected retry route**
 
 In `/Users/allen/Documents/mixlab/packages/cutter-api/src/index.ts`, import `retryCutJob`, parse `/cutter/cut-jobs/:cut_job_id/retry`, guard with `requireCutterSession`, call `retryCutJob`, and return the retried job. Map "not found" to 404 and "only failed" to 409 with Chinese messages.
 
-- [ ] **Step 4: Add failing cutter-web API client test**
+- [x] **Step 4: Add failing cutter-web API client test**
 
 Add a test in `/Users/allen/Documents/mixlab/apps/cutter-web/src/api.test.ts` verifying:
 
@@ -184,11 +184,11 @@ await client.retryCutJob("CJ20260504-0001")
 
 uses `POST http://127.0.0.1:3789/cutter/cut-jobs/CJ20260504-0001/retry` with cutter auth headers.
 
-- [ ] **Step 5: Implement client and fixture method**
+- [x] **Step 5: Implement client and fixture method**
 
 Add `retryCutJob(cutJobId: string): Promise<CutJob>` to `CutterApiClient`, implement the real client call, and add fixture behavior that turns a failed fixture job back to `pending`.
 
-- [ ] **Step 6: Re-run focused API/client tests**
+- [x] **Step 6: Re-run focused API/client tests**
 
 Run:
 
@@ -208,7 +208,7 @@ Expected: both pass.
 - Modify: `/Users/allen/Documents/mixlab/apps/cutter-web/src/cutter-state.test.ts`
 - Modify: `/Users/allen/Documents/mixlab/apps/cutter-web/src/styles.css`
 
-- [ ] **Step 1: Add failing render tests**
+- [x] **Step 1: Add failing render tests**
 
 Update cut task render tests so failed rows must show:
 
@@ -218,7 +218,7 @@ Update cut task render tests so failed rows must show:
 
 Also add a render case without `onRetryFailed` where `重试` is absent, proving there is no dead button.
 
-- [ ] **Step 2: Run focused render tests and verify RED**
+- [x] **Step 2: Run focused render tests and verify RED**
 
 Run:
 
@@ -228,7 +228,7 @@ node --test --import tsx apps/cutter-web/src/cutter-app.test.ts
 
 Expected: fails because the page does not expose failed reason or conditional retry behavior.
 
-- [ ] **Step 3: Update CutQueuePage**
+- [x] **Step 3: Update CutQueuePage**
 
 Add prop:
 
@@ -238,7 +238,7 @@ onRetryFailed?: (cutJobId: string) => void;
 
 Show selected text and failed reason. Render `重试` only for failed jobs when `onRetryFailed` exists.
 
-- [ ] **Step 4: Wire retry into CutterApp**
+- [x] **Step 4: Wire retry into CutterApp**
 
 Add handler:
 
@@ -273,7 +273,7 @@ async retryFailedCutJob(cutJobId: string) {
 
 Pass it to `CutQueuePage`.
 
-- [ ] **Step 5: Re-run focused UI tests**
+- [x] **Step 5: Re-run focused UI tests**
 
 Run:
 
@@ -290,15 +290,15 @@ Expected: both pass.
 - Modify if needed: `/Users/allen/Documents/mixlab/scripts/smoke/cutter-api-web.ts`
 - Modify: `/Users/allen/Documents/mixlab/docs/superpowers/plans/2026-05-04-m15-cutter-acceptance-patch.md`
 
-- [ ] **Step 1:** Ensure smoke still validates the successful real search-select-cut-reuse path.
-- [ ] **Step 2:** Run `node --test --import tsx packages/cutter-local/src/cut-queue.test.ts`.
-- [ ] **Step 3:** Run `node --test --import tsx packages/cutter-api/src/index.test.ts`.
-- [ ] **Step 4:** Run `node --test --import tsx apps/cutter-web/src/api.test.ts`.
-- [ ] **Step 5:** Run `node --test --import tsx apps/cutter-web/src/cutter-app.test.ts`.
-- [ ] **Step 6:** Run `node --test --import tsx apps/cutter-web/src/cutter-state.test.ts`.
-- [ ] **Step 7:** Run `npm run typecheck`.
-- [ ] **Step 8:** Run `npm test`.
-- [ ] **Step 9:** Run `npm run build:cutter-web`.
-- [ ] **Step 10:** Run `npm run smoke:cutter-api-web`.
-- [ ] **Step 11:** Run `git diff --check`.
-- [ ] **Step 12:** Commit with `feat: complete M15 cutter acceptance patch`.
+- [x] **Step 1:** Ensure smoke still validates the successful real search-select-cut-reuse path.
+- [x] **Step 2:** Run `node --test --import tsx packages/cutter-local/src/cut-queue.test.ts`.
+- [x] **Step 3:** Run `node --test --import tsx packages/cutter-api/src/index.test.ts`.
+- [x] **Step 4:** Run `node --test --import tsx apps/cutter-web/src/api.test.ts`.
+- [x] **Step 5:** Run `node --test --import tsx apps/cutter-web/src/cutter-app.test.ts`.
+- [x] **Step 6:** Run `node --test --import tsx apps/cutter-web/src/cutter-state.test.ts`.
+- [x] **Step 7:** Run `npm run typecheck`.
+- [x] **Step 8:** Run `npm test`.
+- [x] **Step 9:** Run `npm run build:cutter-web`.
+- [x] **Step 10:** Run `npm run smoke:cutter-api-web`.
+- [x] **Step 11:** Run `git diff --check`.
+- [x] **Step 12:** Commit with `feat: complete M15 cutter acceptance patch`.

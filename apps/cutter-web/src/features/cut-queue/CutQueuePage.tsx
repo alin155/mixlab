@@ -46,7 +46,8 @@ export function CutQueuePage({
   lastUpdatedLabel = "",
   pipelineState = idleCutPipelineState,
   onRefresh,
-  onRunNext
+  onRunNext,
+  onRetryFailed
 }: {
   jobs: readonly CutQueueJob[];
   autoRefreshEnabled?: boolean;
@@ -54,6 +55,7 @@ export function CutQueuePage({
   pipelineState?: CutPipelineState;
   onRefresh?: () => void;
   onRunNext?: () => void;
+  onRetryFailed?: (cutJobId: string) => void;
 }) {
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
@@ -120,11 +122,21 @@ export function CutQueuePage({
               key={job.queue_job_id}
               tone={toneForStatus(job.status)}
               label={labelForStatus(job.status)}
-              detail={`${job.title} · ${formatDuration(job.begin_ms)} - ${formatDuration(job.end_ms)}`}
+              detail={[
+                `${job.title} · ${formatDuration(job.begin_ms)} - ${formatDuration(job.end_ms)}`,
+                job.selected_text ? `选中文案：${job.selected_text}` : "",
+                job.status === "failed" && job.error_message ? `失败原因：${job.error_message}` : ""
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               value={
                 <span className="cutter-row-actions">
                   {job.progress}%
-                  {job.status === "failed" ? <button type="button">重试</button> : null}
+                  {job.status === "failed" && onRetryFailed ? (
+                    <button type="button" onClick={() => onRetryFailed(job.queue_job_id)}>
+                      重试
+                    </button>
+                  ) : null}
                 </span>
               }
             />

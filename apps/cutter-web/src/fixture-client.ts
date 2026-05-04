@@ -593,6 +593,16 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         updated_at: "2026-05-02T10:16:00Z"
       };
     },
+    async retryCutJob(cutJobId: string): Promise<CutJob> {
+      return {
+        cut_job_id: cutJobId,
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000001",
+        status: "pending",
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:17:00Z"
+      };
+    },
     resolveApiUrl(pathOrUrl: string) {
       return pathOrUrl;
     }
