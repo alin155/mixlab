@@ -255,10 +255,16 @@ test("material locator search query survives navigating to task pages and back",
   );
 });
 
-test("material locator hides the general toolbar to keep the transcript workbench focused", () => {
-  assert.equal(shouldShowCutterToolbar("material-locator"), false);
-  assert.equal(shouldShowCutterToolbar("cut-tasks"), true);
-  assert.equal(shouldShowCutterToolbar("public-library"), true);
+test("all cutter pages hide the general toolbar so the page body owns the workspace", () => {
+  for (const route of [
+    "material-locator",
+    "cut-tasks",
+    "local-library",
+    "public-library",
+    "settings"
+  ] as const) {
+    assert.equal(shouldShowCutterToolbar(route), false);
+  }
 });
 
 test("public library is a read-only gallery of available source videos", () => {

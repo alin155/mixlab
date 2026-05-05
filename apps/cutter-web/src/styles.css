@@ -227,13 +227,9 @@ h2 {
 
 .cutter-workspace {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
-}
-
-.cutter-workspace.is-toolbar-hidden {
-  grid-template-rows: minmax(0, 1fr);
 }
 
 .cutter-content {
@@ -243,7 +239,7 @@ h2 {
   padding: var(--ml-space-5);
 }
 
-.cutter-workspace.is-toolbar-hidden .cutter-content {
+.cutter-workspace.is-content-locked .cutter-content {
   overflow: hidden;
 }
 

@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   InspectorPanel,
   MacWindow,
-  Sidebar,
-  UnifiedToolbar
+  Sidebar
 } from "@mixlab/ui-foundation";
 import {
   CutterApiError,
@@ -139,7 +138,7 @@ export function shouldRefreshCutQueueForRoute(input: {
 }
 
 export function shouldShowCutterToolbar(route: CutterRoute): boolean {
-  return route !== "material-locator";
+  return false;
 }
 
 export function materialLocatorSearchQueryForHashChange(input: {
@@ -1411,16 +1410,9 @@ export function CutterApp() {
               ) : null
             }
           />
-          <section className={`cutter-workspace ${shouldShowCutterToolbar(route) ? "" : "is-toolbar-hidden"}`}>
-            {shouldShowCutterToolbar(route) ? (
-              <UnifiedToolbar
-                title="MixLab V3 - 剪辑师工作台"
-                libraryLabel={data?.settings.public_library_mount ?? "/Volumes/PublicLibrary"}
-                availableCountLabel={data ? `${data.library.available_video_count} 可用原素材` : undefined}
-                healthLabel={data ? "健康" : "加载中"}
-                actions={["进入素材库", "搜索", "Doctor"]}
-              />
-            ) : null}
+          <section
+            className={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
+          >
             <section className="cutter-content">
               {error ? (
                 <InspectorPanel title="加载失败">
