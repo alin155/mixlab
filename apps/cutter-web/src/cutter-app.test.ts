@@ -247,13 +247,12 @@ test("project home renders search-first startup, recent projects, and project de
   );
 
   for (const text of [
-    "开始搜索或继续项目",
+    "开始搜索",
     "搜索文案关键词或粘贴爆款文案",
-    "首次剪切时自动创建剪切项目",
     "最近项目",
     "今天想学管理",
     "已剪",
-    "剪切中",
+    "搜索",
     "项目详情",
     "进入项目",
     "最近搜索",
@@ -264,6 +263,9 @@ test("project home renders search-first startup, recent projects, and project de
 
   assert.match(html, /data-page="project-home"/);
   assert.match(html, /href="#material-locator\?query=/);
+  assert.equal(html.includes("启动入口"), false);
+  assert.equal(html.includes("首次剪切时自动创建剪切项目"), false);
+  assert.equal(html.includes("最近搜索："), false);
 });
 
 test("chrome project switcher exposes project and temporary search actions", () => {
@@ -500,6 +502,7 @@ test("material locator is the main search-select-cut workbench with local result
   assert.ok(html.indexOf("cutter-locator-status") < html.indexOf("cutter-locator-visual"));
   assert.ok(html.indexOf("cutter-locator-visual") < html.indexOf("cutter-locator-queue-panel"));
   assert.ok(html.indexOf("cutter-locator-queue-panel") < html.indexOf("cutter-locator-bottom-row"));
+  assert.ok(html.indexOf("cutter-locator-queue-notice") > html.indexOf("cutter-locator-queue-panel"));
   assert.ok(html.indexOf("cutter-locator-candidates") < html.indexOf("cutter-natural-transcript"));
   assert.equal(html.includes("当前搜索"), false);
   assert.equal(html.includes("画面方向"), false);
@@ -514,6 +517,7 @@ test("material locator is the main search-select-cut workbench with local result
   assert.equal(html.includes("横版 · 29:50"), false);
   assert.equal(html.includes("<h2>剪切队列</h2>"), false);
   assert.equal(html.includes("剪切中 0 · 等待 1 · 完成 2 · 失败 0"), false);
+  assert.equal(html.includes("cutter-locator-notice"), false);
   assert.match(html, /现金流管理与风险控制 · 公共原素材 · 横版 · 10:18 · 文案 \d+ 字 · 命中 3 处/);
   assert.match(html, new RegExp(`文案 ${publicTranscriptLength} 字`));
   assert.match(html, /\d+ 处命中/);
@@ -772,7 +776,8 @@ test("material locator keeps search and review areas fixed while transcript scro
   assert.match(statusRule, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
   assert.match(statusRule, /overflow:\s*hidden/);
   assert.match(historyListRule, /overflow:\s*auto/);
-  assert.match(queuePanelRule, /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/);
+  assert.match(topRowRule, /grid-template-columns:\s*196px minmax\(540px,\s*1fr\) minmax\(320px,\s*1fr\)/);
+  assert.match(queuePanelRule, /grid-template-rows:\s*auto auto auto minmax\(0,\s*1fr\)/);
   assert.match(queuePanelRule, /overflow:\s*hidden/);
   assert.match(queueListRule, /overflow:\s*auto/);
   assert.match(bottomRowRule, /min-height:\s*0/);

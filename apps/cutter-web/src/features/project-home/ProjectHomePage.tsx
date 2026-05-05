@@ -72,10 +72,9 @@ export function ProjectHomePage({
   return (
     <section className="cutter-page cutter-project-home" data-page="project-home">
       <div className="cutter-page-main">
-        <section className="cutter-project-hero" aria-label="启动入口">
+        <section className="cutter-project-hero" aria-label="开始搜索">
           <div>
-            <span className="cutter-eyebrow">启动入口</span>
-            <h1>开始搜索或继续项目</h1>
+            <h1>开始搜索</h1>
           </div>
           <form className="cutter-search-form cutter-project-search-form" onSubmit={handleSubmit}>
             <label className="cutter-search-box">
@@ -106,7 +105,6 @@ export function ProjectHomePage({
               搜索
             </button>
           </form>
-          <p>首次剪切时自动创建剪切项目，搜索探索不会污染项目列表。</p>
         </section>
 
         <section className="cutter-project-board" aria-label="项目入口">
@@ -135,16 +133,12 @@ export function ProjectHomePage({
                           已剪<strong>{project.clip_count}</strong>
                         </span>
                         <span>
-                          剪切中<strong>{project.running_count}</strong>
+                          搜索<strong>{project.searches.length}</strong>
                         </span>
                         <span>
                           失败<strong>{project.failed_count}</strong>
                         </span>
                       </div>
-                      <p>
-                        最近搜索：
-                        {project.searches.slice(0, 3).map((search) => search.query).join("、") || "-"}
-                      </p>
                       <small>更新：{formatProjectTime(project.updated_at)}</small>
                       <div className="cutter-project-actions">
                         <button type="button" onClick={() => onOpenProject?.(project.project_id)}>

@@ -264,18 +264,35 @@ export function CutterProjectSwitcher({
   onStartTemporarySearch?: () => void;
   onRenameProject?: () => void;
 }) {
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const closeMenu = () => {
+    menuRef.current?.removeAttribute("open");
+  };
+
   return (
-    <details className="cutter-project-switcher">
+    <details className="cutter-project-switcher" ref={menuRef}>
       <summary>{projectSwitcherLabel(project)}</summary>
       <div>
-        <a href="#project-home">回到启动页</a>
-        <button type="button" onClick={onStartTemporarySearch}>
+        <a href="#project-home" onClick={closeMenu}>回到启动页</a>
+        <button
+          type="button"
+          onClick={() => {
+            closeMenu();
+            onStartTemporarySearch?.();
+          }}
+        >
           新建搜索
         </button>
-        <a href="#cut-tasks">查看项目剪切任务</a>
+        <a href="#cut-tasks" onClick={closeMenu}>查看项目剪切任务</a>
         {project ? (
           <>
-            <button type="button" onClick={onRenameProject}>
+            <button
+              type="button"
+              onClick={() => {
+                closeMenu();
+                onRenameProject?.();
+              }}
+            >
               重命名当前项目
             </button>
           </>

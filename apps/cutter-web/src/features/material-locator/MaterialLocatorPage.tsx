@@ -406,12 +406,6 @@ export function MaterialLocatorPage({
           </div>
         </section>
 
-        {cutNotice ? (
-          <div className="cutter-locator-notice" role="status">
-            {cutNotice}
-          </div>
-        ) : null}
-
         <section className={`cutter-locator-workbench is-${orientation}`} aria-label="素材定位工作区">
           <section className="cutter-locator-top-row" aria-label="画面验证与剪切状态">
             <section className="cutter-locator-status" aria-label="工作台状态">
@@ -466,6 +460,11 @@ export function MaterialLocatorPage({
               <a className="cutter-inline-action cutter-queue-top-action" href="#cut-tasks">
                 查看全部任务
               </a>
+              {cutNotice ? (
+                <div className="cutter-locator-queue-notice" role="status">
+                  {cutNotice}
+                </div>
+              ) : null}
               <div className="cutter-locator-queue-counts" aria-label="剪切队列状态">
                 <span>剪切中 {runningCount}</span>
                 <span>等待 {pendingCount}</span>
