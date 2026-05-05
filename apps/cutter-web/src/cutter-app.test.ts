@@ -51,6 +51,7 @@ import {
   shouldRefreshCutQueueForRoute,
   shouldRetryPendingLoginError,
   shouldShowCutterToolbar,
+  CutterApp,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
 import {
@@ -67,6 +68,7 @@ import {
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList } from "./state/cut-queue.ts";
 import { buildMaterialLocatorSections } from "./state/material-locator.ts";
+import { CUTTER_APPEARANCE_STORAGE_KEY } from "./state/appearance.ts";
 
 function installTestWindow() {
   const store = new Map<string, string>();
@@ -94,7 +96,10 @@ function installTestWindow() {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
     value: {
-      localStorage
+      localStorage,
+      location: {
+        hash: ""
+      }
     }
   });
 }
@@ -856,7 +861,9 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
     h(SettingsPage, {
       settings: data.settings,
       runtimeStatus: data.runtimeStatus,
-      apiBaseUrl: "http://127.0.0.1:3789"
+      apiBaseUrl: "http://127.0.0.1:3789",
+      appearanceMode: "system",
+      onSetAppearanceMode: () => undefined
     })
   );
 
@@ -872,12 +879,27 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
     "本地工作区",
     "FFmpeg",
     "默认剪切模式",
+    "显示模式",
+    "跟随系统",
+    "默认",
+    "深夜",
+    "护眼",
     "并发数",
     "Doctor",
     "mp3_16k_mono_64k"
   ]) {
     assert.match(html, new RegExp(text));
   }
+});
+
+test("cutter app root applies the persisted display mode", () => {
+  installTestWindow();
+  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "night");
+
+  const html = renderToStaticMarkup(h(CutterApp));
+
+  assert.match(html, /class="cutter-app"/);
+  assert.match(html, /data-appearance-mode="night"/);
 });
 
 test("cutter auth storage creates a stable device id and handles session lifecycle", () => {
@@ -906,6 +928,22 @@ test("cutter auth storage creates a stable device id and handles session lifecyc
 
   clearCutterAuthSession();
   assert.equal(readCutterAuthSession(), null);
+});
+
+test("cutter appearance CSS scopes night and comfort modes without filtering media", async () => {
+  const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
+  const appRule = css.match(/\.cutter-app\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const nightRule = css.match(/\.cutter-app\[data-appearance-mode="night"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const comfortRule = css.match(/\.cutter-app\[data-appearance-mode="comfort"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const systemDarkRule = css.match(/@media \(prefers-color-scheme: dark\)\s*{\s*\.cutter-app\[data-appearance-mode="system"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const mediaRules = Array.from(css.matchAll(/\.cutter-app\[data-appearance-mode="(?:night|comfort|system)"\]\s+(?:video|img)[^{]*{(?<body>[^}]+)}/g));
+
+  assert.match(appRule, /background:\s*var\(--ml-color-canvas\)/);
+  assert.match(nightRule, /--ml-color-canvas:\s*#14161a/);
+  assert.match(nightRule, /color-scheme:\s*dark/);
+  assert.match(comfortRule, /--ml-color-canvas:\s*#f6f0e7/);
+  assert.match(systemDarkRule, /--ml-color-canvas:\s*#14161a/);
+  assert.equal(mediaRules.some((match) => match.groups?.body.includes("filter")), false);
 });
 
 test("cutter auth storage migrates legacy sessions without user id", () => {

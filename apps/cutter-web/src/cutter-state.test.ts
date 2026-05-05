@@ -55,6 +55,43 @@ import {
   appendCompletedLocalClip,
   localClipFromCutListItem
 } from "./state/local-clip-reuse.ts";
+import {
+  CUTTER_APPEARANCE_STORAGE_KEY,
+  appearanceModeLabel,
+  readCutterAppearanceMode,
+  writeCutterAppearanceMode
+} from "./state/appearance.ts";
+
+function installTestWindow() {
+  const store = new Map<string, string>();
+  const localStorage = {
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value);
+    },
+    get length() {
+      return store.size;
+    }
+  } satisfies Storage;
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage
+    }
+  });
+}
 
 const sourceVideo: SourceVideoCard = {
   source_video_id: "src-001",
@@ -103,6 +140,23 @@ test("video orientation follows width and height in Chinese product labels", () 
   assert.equal(videoOrientationLabel({ width: 1080, height: 1080 }), "方形");
   assert.equal(videoOrientation({}), "unknown");
   assert.equal(videoOrientationLabel({}), "未知");
+});
+
+test("cutter appearance mode persists locally with Chinese labels", () => {
+  installTestWindow();
+  window.localStorage.clear();
+
+  assert.equal(readCutterAppearanceMode(), "system");
+  assert.equal(appearanceModeLabel("system"), "跟随系统");
+  assert.equal(appearanceModeLabel("default"), "默认");
+  assert.equal(appearanceModeLabel("night"), "深夜");
+  assert.equal(appearanceModeLabel("comfort"), "护眼");
+
+  writeCutterAppearanceMode("night");
+  assert.equal(readCutterAppearanceMode(), "night");
+
+  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "invalid");
+  assert.equal(readCutterAppearanceMode(), "system");
 });
 
 test("orientation filters preserve all videos or keep only landscape and portrait", () => {

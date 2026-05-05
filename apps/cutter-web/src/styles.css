@@ -25,6 +25,67 @@ h2 {
 .cutter-app {
   min-height: 100vh;
   padding: 12px;
+  color-scheme: light;
+  background: var(--ml-color-canvas);
+}
+
+.cutter-app[data-appearance-mode="night"] {
+  color-scheme: dark;
+  --ml-color-text: #f2f4f7;
+  --ml-color-text-secondary: #b8c0cc;
+  --ml-color-text-tertiary: #7f8998;
+  --ml-color-canvas: #14161a;
+  --ml-color-window: rgba(28, 31, 36, 0.96);
+  --ml-color-sidebar: rgba(24, 27, 32, 0.9);
+  --ml-color-surface: #1f2329;
+  --ml-color-surface-subtle: #252a32;
+  --ml-color-separator: rgba(255, 255, 255, 0.13);
+  --ml-color-control: rgba(38, 43, 52, 0.9);
+  --ml-color-control-active: #26364a;
+  --ml-color-accent: #4aa3ff;
+  --ml-color-accent-pressed: #1b83e6;
+  --ml-shadow-window: 0 18px 54px rgba(0, 0, 0, 0.42);
+  --ml-shadow-panel: 0 10px 30px rgba(0, 0, 0, 0.24);
+}
+
+.cutter-app[data-appearance-mode="comfort"] {
+  color-scheme: light;
+  --ml-color-text: #24211c;
+  --ml-color-text-secondary: #675f52;
+  --ml-color-text-tertiary: #918676;
+  --ml-color-canvas: #f6f0e7;
+  --ml-color-window: rgba(255, 250, 242, 0.9);
+  --ml-color-sidebar: rgba(248, 239, 225, 0.88);
+  --ml-color-surface: #fffaf2;
+  --ml-color-surface-subtle: #fbf3e8;
+  --ml-color-separator: rgba(83, 65, 39, 0.14);
+  --ml-color-control: rgba(255, 250, 242, 0.86);
+  --ml-color-control-active: #efe1cf;
+  --ml-color-accent: #0f76d6;
+  --ml-color-accent-pressed: #075cad;
+  --ml-shadow-window: 0 18px 54px rgba(91, 67, 36, 0.16);
+  --ml-shadow-panel: 0 10px 30px rgba(91, 67, 36, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cutter-app[data-appearance-mode="system"] {
+    color-scheme: dark;
+    --ml-color-text: #f2f4f7;
+    --ml-color-text-secondary: #b8c0cc;
+    --ml-color-text-tertiary: #7f8998;
+    --ml-color-canvas: #14161a;
+    --ml-color-window: rgba(28, 31, 36, 0.96);
+    --ml-color-sidebar: rgba(24, 27, 32, 0.9);
+    --ml-color-surface: #1f2329;
+    --ml-color-surface-subtle: #252a32;
+    --ml-color-separator: rgba(255, 255, 255, 0.13);
+    --ml-color-control: rgba(38, 43, 52, 0.9);
+    --ml-color-control-active: #26364a;
+    --ml-color-accent: #4aa3ff;
+    --ml-color-accent-pressed: #1b83e6;
+    --ml-shadow-window: 0 18px 54px rgba(0, 0, 0, 0.42);
+    --ml-shadow-panel: 0 10px 30px rgba(0, 0, 0, 0.24);
+  }
 }
 
 .cutter-app > .ml-window {
@@ -1234,6 +1295,17 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cutter-appearance-select {
+  min-height: 30px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: 0 10px;
+  color: var(--ml-color-text);
+  background: var(--ml-color-control);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .cutter-cut-list .ml-source-table {

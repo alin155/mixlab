@@ -99,6 +99,11 @@ import {
   localClipFromCutListItem
 } from "../state/local-clip-reuse.ts";
 import type { VideoOrientationFilter } from "../state/video-orientation.ts";
+import {
+  readCutterAppearanceMode,
+  writeCutterAppearanceMode,
+  type CutterAppearanceMode
+} from "../state/appearance.ts";
 
 function getRuntimeApiBaseUrl(): string {
   return import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
@@ -486,6 +491,7 @@ function renderPage(
     lastQueueUpdatedLabel: string;
     cutPipelineState: CutPipelineState;
     apiBaseUrl: string;
+    appearanceMode: CutterAppearanceMode;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -504,6 +510,7 @@ function renderPage(
     refreshQueue?: () => void;
     runNextJob?: () => void;
     retryFailedCutJob?: (cutJobId: string) => void;
+    setAppearanceMode: (mode: CutterAppearanceMode) => void;
   }
 ) {
   if (route === "source-detail") {
@@ -574,6 +581,8 @@ function renderPage(
         settings={data.settings}
         runtimeStatus={data.runtimeStatus}
         apiBaseUrl={viewState.apiBaseUrl}
+        appearanceMode={viewState.appearanceMode}
+        onSetAppearanceMode={handlers.setAppearanceMode}
       />
     );
   }
@@ -608,6 +617,9 @@ export function CutterApp() {
   const [cutNotice, setCutNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
+  const [appearanceMode, setAppearanceMode] = useState<CutterAppearanceMode>(() =>
+    readCutterAppearanceMode()
+  );
   const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
   const cutPipelineRunningRef = useRef(false);
   const [data, setData] = useState<CutterFixtureData | null>(null);
@@ -1129,6 +1141,11 @@ export function CutterApp() {
     }
   }, [apiMode, client, loginGateVisible, refreshLocalClips, refreshQueueJobs]);
 
+  const handleSetAppearanceMode = (mode: CutterAppearanceMode) => {
+    setAppearanceMode(mode);
+    writeCutterAppearanceMode(mode);
+  };
+
   const handlers = {
     async addSelectedSpan() {
       if (!data) {
@@ -1369,11 +1386,16 @@ export function CutterApp() {
       } catch (retryError) {
         setError(retryError instanceof Error ? retryError.message : "重试剪切任务失败");
       }
-    }
+    },
+    setAppearanceMode: handleSetAppearanceMode
   };
 
   const workbench = (
-    <main className="cutter-app" data-cutter-web-ready={data ? "true" : "false"}>
+    <main
+      className="cutter-app"
+      data-appearance-mode={appearanceMode}
+      data-cutter-web-ready={data ? "true" : "false"}
+    >
       <MacWindow title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}>
         <div className="cutter-shell">
           <Sidebar
@@ -1426,7 +1448,8 @@ export function CutterApp() {
                     autoRefreshCutJobs,
                     lastQueueUpdatedLabel,
                     cutPipelineState,
-                    apiBaseUrl
+                    apiBaseUrl,
+                    appearanceMode
                   },
                   handlers
                 )

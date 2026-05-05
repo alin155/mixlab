@@ -1,15 +1,23 @@
 import { GroupedForm, InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
 import type { CutterRuntimeStatus } from "../../api.ts";
 import type { CutterWorkbenchSettings } from "../../fixture-client.ts";
+import {
+  appearanceModeLabel,
+  type CutterAppearanceMode
+} from "../../state/appearance.ts";
 
 export function SettingsPage({
   settings,
   runtimeStatus,
-  apiBaseUrl = ""
+  apiBaseUrl = "",
+  appearanceMode,
+  onSetAppearanceMode
 }: {
   settings: CutterWorkbenchSettings;
   runtimeStatus?: CutterRuntimeStatus;
   apiBaseUrl?: string;
+  appearanceMode: CutterAppearanceMode;
+  onSetAppearanceMode: (mode: CutterAppearanceMode) => void;
 }) {
   const runtimeGroup = runtimeStatus
     ? {
@@ -65,7 +73,24 @@ export function SettingsPage({
                 { label: "FFmpeg", value: settings.ffmpeg_path },
                 { label: "默认剪切模式", value: settings.default_cut_mode },
                 { label: "并发数", value: settings.concurrency },
-                { label: "音频预处理", value: settings.audio_mode }
+                { label: "音频预处理", value: settings.audio_mode },
+                {
+                  label: "显示模式",
+                  value: (
+                    <select
+                      className="cutter-appearance-select"
+                      value={appearanceMode}
+                      onChange={(event) =>
+                        onSetAppearanceMode(event.currentTarget.value as CutterAppearanceMode)
+                      }
+                    >
+                      <option value="system">{appearanceModeLabel("system")}</option>
+                      <option value="default">{appearanceModeLabel("default")}</option>
+                      <option value="night">{appearanceModeLabel("night")}</option>
+                      <option value="comfort">{appearanceModeLabel("comfort")}</option>
+                    </select>
+                  )
+                }
               ]
             }
           ]}
