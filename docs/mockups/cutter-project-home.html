@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MixLab V3 剪辑师工作台启动页高保真图</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --window: #fbfbfc;
+        --panel: #ffffff;
+        --line: #e4e6eb;
+        --line-strong: #d8dce3;
+        --text: #1d1d1f;
+        --muted: #6b7280;
+        --blue: #0a84ff;
+        --blue-soft: #eaf4ff;
+        --green: #28a745;
+        --shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #dde1e8;
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      }
+
+      .window {
+        width: 1480px;
+        height: 940px;
+        overflow: hidden;
+        border: 1px solid #ced3dc;
+        border-radius: 10px;
+        background: var(--window);
+        box-shadow: var(--shadow);
+      }
+
+      .chrome {
+        height: 46px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        padding: 0 18px;
+        gap: 10px;
+        background: #fafafa;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+
+      .dot.red { background: #ff5f57; }
+      .dot.yellow { background: #ffbd2e; }
+      .dot.green { background: #28c840; }
+
+      .chrome-title {
+        margin-left: 14px;
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .app {
+        height: calc(100% - 46px);
+        display: grid;
+        grid-template-columns: 136px 1fr;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        padding: 18px 12px 14px;
+        border-right: 1px solid var(--line);
+        background: #f6f7f9;
+      }
+
+      .nav {
+        display: grid;
+        gap: 6px;
+      }
+
+      .nav-item {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 7px;
+        padding: 0 12px;
+        color: #4b5563;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .nav-item::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border: 1.5px solid currentColor;
+        border-radius: 3px;
+      }
+
+      .nav-item.active {
+        color: #006bd6;
+        background: #e6f1ff;
+      }
+
+      .sidebar-bottom {
+        margin-top: auto;
+        display: grid;
+        gap: 8px;
+      }
+
+      .user {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .user::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .mini-stat {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 28px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 0 10px;
+        background: var(--panel);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .mini-stat strong {
+        color: var(--text);
+        font-size: 15px;
+      }
+
+      .workspace {
+        position: relative;
+        padding: 22px 24px 26px;
+        overflow: hidden;
+      }
+
+      .project-switcher {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        padding: 0 12px;
+        background: var(--panel);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .project-switcher span {
+        max-width: 260px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .hero {
+        margin-right: 280px;
+      }
+
+      .eyebrow {
+        margin: 0 0 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      .search-card {
+        margin-top: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 12px;
+      }
+
+      .search-row {
+        display: grid;
+        grid-template-columns: 1fr 132px 132px 76px;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .search-input,
+      .select,
+      .button {
+        height: 38px;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+
+      .search-input {
+        color: #9aa1ad;
+      }
+
+      .search-input::before {
+        content: "⌕";
+        margin-right: 10px;
+        color: #64748b;
+      }
+
+      .select {
+        justify-content: space-between;
+        color: #374151;
+        font-weight: 600;
+      }
+
+      .button {
+        justify-content: center;
+        border-color: var(--blue);
+        background: var(--blue);
+        color: white;
+        font-weight: 700;
+      }
+
+      .hint {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .content-grid {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: 1fr 310px;
+        gap: 16px;
+        height: 710px;
+      }
+
+      .main-column,
+      .inspector {
+        min-width: 0;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 0 0 10px;
+      }
+
+      .section-header h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .section-header span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .projects {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .project-card {
+        display: grid;
+        grid-template-columns: 128px 1fr;
+        gap: 12px;
+        min-height: 132px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 10px;
+      }
+
+      .project-card.active {
+        border-color: var(--blue);
+        background: #f8fbff;
+        box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.2);
+      }
+
+      .thumb {
+        position: relative;
+        overflow: hidden;
+        border-radius: 7px;
+        background: #111827;
+      }
+
+      .thumb::before,
+      .thumb::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+      }
+
+      .thumb::before {
+        background:
+          linear-gradient(120deg, rgba(7, 24, 46, 0.15), rgba(7, 24, 46, 0.7)),
+          radial-gradient(circle at 65% 42%, #f0c08b 0 12%, transparent 13%),
+          radial-gradient(circle at 28% 58%, #202b3a 0 10%, transparent 11%),
+          linear-gradient(135deg, #0ea5e9 0%, #2dd4bf 42%, #f59e0b 43%, #9a3412 100%);
+      }
+
+      .thumb::after {
+        background:
+          linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent 45%),
+          repeating-linear-gradient(90deg, transparent 0 20px, rgba(255,255,255,0.16) 21px 22px);
+      }
+
+      .thumb-label {
+        position: absolute;
+        left: 9px;
+        bottom: 8px;
+        z-index: 1;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .project-body {
+        min-width: 0;
+      }
+
+      .project-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .project-title strong {
+        font-size: 15px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        background: #eef2f7;
+        padding: 3px 7px;
+        color: #4b5563;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .badge.green {
+        color: #12743b;
+        background: #e9f8ee;
+      }
+
+      .project-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin: 10px 0;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 6px 8px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 3px;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .project-meta {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .project-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .text-button {
+        height: 28px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        padding: 0 10px;
+        color: #006bd6;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .recent-searches {
+        margin-top: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 12px;
+      }
+
+      .search-list {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+
+      .search-chip {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .search-chip strong {
+        max-width: 110px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .search-chip span {
+        color: var(--muted);
+      }
+
+      .inspector {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .inspector-head {
+        padding: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .inspector-head h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .inspector-body {
+        padding: 14px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .big-thumb {
+        height: 164px;
+      }
+
+      .detail-table {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .detail-row {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        border-bottom: 1px solid var(--line);
+        min-height: 34px;
+      }
+
+      .detail-row:last-child {
+        border-bottom: 0;
+      }
+
+      .detail-row span,
+      .detail-row strong {
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+
+      .detail-row span {
+        color: var(--muted);
+      }
+
+      .detail-row strong {
+        font-weight: 600;
+      }
+
+      .primary-wide {
+        height: 36px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--blue);
+        color: white;
+        font-weight: 700;
+      }
+
+      .secondary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .secondary-grid button {
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: #374151;
+        font-weight: 650;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="window">
+      <header class="chrome">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+        <span class="chrome-title">MixLab V3 - 剪辑师工作台 / 启动页</span>
+      </header>
+      <main class="app">
+        <aside class="sidebar">
+          <nav class="nav">
+            <div class="nav-item active">素材定位</div>
+            <div class="nav-item">剪切任务</div>
+            <div class="nav-item">本地素材</div>
+            <div class="nav-item">公共素材库</div>
+            <div class="nav-item">设置</div>
+          </nav>
+          <div class="sidebar-bottom">
+            <div class="user">Allen</div>
+            <div class="mini-stat"><strong>3</strong><span>本地素材</span></div>
+            <div class="mini-stat"><strong>41</strong><span>公共素材库</span></div>
+          </div>
+        </aside>
+        <section class="workspace">
+          <button class="project-switcher" type="button"><span>临时搜索</span>▾</button>
+          <div class="hero">
+            <p class="eyebrow">启动入口</p>
+            <h1>开始搜索或继续项目</h1>
+          </div>
+
+          <section class="search-card">
+            <div class="search-row">
+              <div class="search-input">搜索文案关键词或粘贴爆款文案</div>
+              <div class="select">素材来源 <strong>全部</strong></div>
+              <div class="select">视频类型 <strong>全部</strong></div>
+              <div class="button">搜索</div>
+            </div>
+            <div class="hint">首次点击“剪切这段”时，系统会静默创建剪切项目；搜索探索不会污染项目列表。</div>
+          </section>
+
+          <section class="content-grid">
+            <div class="main-column">
+              <div class="section-header">
+                <h2>最近项目</h2>
+                <span>未完成 3 · 已交付 6</span>
+              </div>
+              <div class="projects">
+                <article class="project-card active">
+                  <div class="thumb"><span class="thumb-label">C0017</span></div>
+                  <div class="project-body">
+                    <div class="project-title"><strong>今天想学管理</strong><span class="badge">未完成</span></div>
+                    <div class="project-metrics">
+                      <div class="metric">已剪<strong>3</strong></div>
+                      <div class="metric">剪切中<strong>1</strong></div>
+                      <div class="metric">失败<strong>0</strong></div>
+                    </div>
+                    <div class="project-meta">
+                      <span>最近搜索：管理、团队、老板</span>
+                      <span>更新：今天 14:26</span>
+                    </div>
+                    <div class="project-actions">
+                      <button class="text-button">打开项目</button>
+                      <button class="text-button">打开文件夹</button>
+                    </div>
+                  </div>
+                </article>
+                <article class="project-card">
+                  <div class="thumb"><span class="thumb-label">C0015</span></div>
+                  <div class="project-body">
+                    <div class="project-title"><strong>现金流爆款素材</strong><span class="badge green">已交付</span></div>
+                    <div class="project-metrics">
+                      <div class="metric">已剪<strong>8</strong></div>
+                      <div class="metric">剪切中<strong>0</strong></div>
+                      <div class="metric">失败<strong>0</strong></div>
+                    </div>
+                    <div class="project-meta">
+                      <span>最近搜索：现金流、企业老板</span>
+                      <span>更新：昨天 22:10</span>
+                    </div>
+                    <div class="project-actions">
+                      <button class="text-button">打开项目</button>
+                      <button class="text-button">打开文件夹</button>
+                    </div>
+                  </div>
+                </article>
+                <article class="project-card">
+                  <div class="thumb"><span class="thumb-label">C0020</span></div>
+                  <div class="project-body">
+                    <div class="project-title"><strong>企业老板表达</strong><span class="badge">未完成</span></div>
+                    <div class="project-metrics">
+                      <div class="metric">已剪<strong>2</strong></div>
+                      <div class="metric">剪切中<strong>0</strong></div>
+                      <div class="metric">失败<strong>1</strong></div>
+                    </div>
+                    <div class="project-meta">
+                      <span>最近搜索：老板、股权、增长</span>
+                      <span>更新：周日 19:42</span>
+                    </div>
+                    <div class="project-actions">
+                      <button class="text-button">打开项目</button>
+                      <button class="text-button">打开文件夹</button>
+                    </div>
+                  </div>
+                </article>
+                <article class="project-card">
+                  <div class="thumb"><span class="thumb-label">C0031</span></div>
+                  <div class="project-body">
+                    <div class="project-title"><strong>老师金句选段</strong><span class="badge">未完成</span></div>
+                    <div class="project-metrics">
+                      <div class="metric">已剪<strong>5</strong></div>
+                      <div class="metric">剪切中<strong>0</strong></div>
+                      <div class="metric">失败<strong>0</strong></div>
+                    </div>
+                    <div class="project-meta">
+                      <span>最近搜索：老师、人生、选择</span>
+                      <span>更新：5月2日 16:08</span>
+                    </div>
+                    <div class="project-actions">
+                      <button class="text-button">打开项目</button>
+                      <button class="text-button">打开文件夹</button>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <section class="recent-searches">
+                <div class="section-header">
+                  <h2>最近搜索</h2>
+                  <span>点击继续搜索</span>
+                </div>
+                <div class="search-list">
+                  <div class="search-chip"><strong>今天想学管理</strong><span>1 处命中</span></div>
+                  <div class="search-chip"><strong>现金流</strong><span>7 处命中</span></div>
+                  <div class="search-chip"><strong>老师</strong><span>202 处命中</span></div>
+                  <div class="search-chip"><strong>富人投资</strong><span>1 处命中</span></div>
+                </div>
+              </section>
+            </div>
+
+            <aside class="inspector">
+              <div class="inspector-head">
+                <h2>项目详情</h2>
+              </div>
+              <div class="inspector-body">
+                <div class="thumb big-thumb"><span class="thumb-label">今天想学管理</span></div>
+                <div class="detail-table">
+                  <div class="detail-row"><span>项目名</span><strong>今天想学管理</strong></div>
+                  <div class="detail-row"><span>创建时间</span><strong>今天 13:58</strong></div>
+                  <div class="detail-row"><span>已剪片段</span><strong>3 个</strong></div>
+                  <div class="detail-row"><span>剪切中</span><strong>1 个</strong></div>
+                  <div class="detail-row"><span>最近搜索</span><strong>管理、团队</strong></div>
+                  <div class="detail-row"><span>交付目录</span><strong>MixLabLocal/projects/今天想学管理</strong></div>
+                </div>
+                <button class="primary-wide">进入项目</button>
+                <div class="secondary-grid">
+                  <button>重命名</button>
+                  <button>打开文件夹</button>
+                </div>
+              </div>
+            </aside>
+          </section>
+        </section>
+      </main>
+    </section>
+  </body>
+</html>

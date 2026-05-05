@@ -61,6 +61,14 @@ import {
   readCutterAppearanceMode,
   writeCutterAppearanceMode
 } from "./state/appearance.ts";
+import {
+  createProjectFromFirstCut,
+  projectSwitcherLabel,
+  readCutterProjects,
+  recordProjectCut,
+  writeCutterProjects,
+  type CutterProject
+} from "./state/cutter-projects.ts";
 
 function installTestWindow() {
   const store = new Map<string, string>();
@@ -790,6 +798,115 @@ test("cut-list items submit as traceable clip-list API requests", () => {
   assert.equal(request.items[0]?.selected_text.includes("现金流"), true);
   assert.equal(request.items[0]?.pre_roll_ms, 200);
   assert.equal(request.items[0]?.post_roll_ms, 300);
+});
+
+test("first cut silently creates a cutter project from the active search query", () => {
+  const cut = createCutListItemFromSegments({
+    sourceVideo,
+    segments: transcriptSegments.slice(0, 2),
+    cutMode: "smart",
+    title: "现金流安全片段"
+  });
+
+  const project = createProjectFromFirstCut({
+    cut,
+    query: "  今天想学管理  ",
+    recentSearches: [
+      { query: "现金流", hitCount: 7 },
+      { query: "老师", hitCount: 202 }
+    ],
+    coverUrl: "/covers/project.jpg",
+    now: "2026-05-05T10:00:00.000Z"
+  });
+
+  assert.match(project.project_id, /^P20260505-/);
+  assert.equal(project.title, "今天想学管理");
+  assert.equal(project.cover_url, "/covers/project.jpg");
+  assert.equal(project.status, "active");
+  assert.equal(project.clip_count, 1);
+  assert.deepEqual(
+    project.searches.map((item) => [item.query, item.hit_count]),
+    [
+      ["今天想学管理", 1],
+      ["现金流", 7],
+      ["老师", 202]
+    ]
+  );
+});
+
+test("first cut project falls back to selected text when there is no query", () => {
+  const cut = createCutListItemFromSegments({
+    sourceVideo,
+    segments: transcriptSegments,
+    cutMode: "smart"
+  });
+
+  const project = createProjectFromFirstCut({
+    cut,
+    query: "",
+    recentSearches: [],
+    now: "2026-05-05T10:00:00.000Z"
+  });
+
+  assert.equal(project.title, "现金流不是利润表的影子它直接决定企业能不能安全穿");
+  assert.equal(projectSwitcherLabel(null), "临时搜索");
+  assert.equal(projectSwitcherLabel(project), "当前项目：现金流不是利润表的影子它直接决定企业能不能安全穿");
+});
+
+test("cutter projects persist with newest updated project first", () => {
+  installTestWindow();
+  const oldProject: CutterProject = {
+    project_id: "P20260504-001",
+    title: "昨天项目",
+    status: "active",
+    created_at: "2026-05-04T10:00:00.000Z",
+    updated_at: "2026-05-04T10:00:00.000Z",
+    clip_count: 1,
+    running_count: 0,
+    failed_count: 0,
+    searches: []
+  };
+  const newProject = {
+    ...oldProject,
+    project_id: "P20260505-001",
+    title: "今天项目",
+    updated_at: "2026-05-05T10:00:00.000Z"
+  };
+
+  writeCutterProjects([oldProject, newProject], newProject.project_id);
+
+  const restored = readCutterProjects();
+  assert.equal(restored.currentProjectId, newProject.project_id);
+  assert.deepEqual(
+    restored.projects.map((project) => project.title),
+    ["今天项目", "昨天项目"]
+  );
+});
+
+test("recording a cut updates project metrics and keeps the first cover", () => {
+  const project = createProjectFromFirstCut({
+    cut: createCutListItemFromSegments({
+      sourceVideo,
+      segments: transcriptSegments.slice(0, 1),
+      cutMode: "smart"
+    }),
+    query: "现金流",
+    recentSearches: [],
+    coverUrl: "/covers/first.jpg",
+    now: "2026-05-05T10:00:00.000Z"
+  });
+
+  const updated = recordProjectCut(project, {
+    status: "pending",
+    coverUrl: "/covers/second.jpg",
+    now: "2026-05-05T10:05:00.000Z"
+  });
+
+  assert.equal(updated.clip_count, 2);
+  assert.equal(updated.running_count, 1);
+  assert.equal(updated.failed_count, 0);
+  assert.equal(updated.cover_url, "/covers/first.jpg");
+  assert.equal(updated.updated_at, "2026-05-05T10:05:00.000Z");
 });
 
 test("queue jobs are derived from cut-list items and can change status independently", () => {

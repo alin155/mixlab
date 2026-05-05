@@ -12,6 +12,7 @@ import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
+import { ProjectHomePage } from "./features/project-home/ProjectHomePage.tsx";
 import { CutterLoginGate } from "./features/login/CutterLoginGate.tsx";
 import {
   CutterApiError,
@@ -51,6 +52,7 @@ import {
   shouldRefreshCutQueueForRoute,
   shouldRetryPendingLoginError,
   shouldShowCutterToolbar,
+  CutterProjectSwitcher,
   CutterApp,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
@@ -198,14 +200,108 @@ test("M14.1 cutter navigation exposes only the five primary workbench areas", ()
     CUTTER_NAV_ITEMS.map((item) => item.label),
     ["素材定位", "剪切任务", "本地素材", "公共素材库", "设置"]
   );
-  assert.equal(routeFromHash(""), "material-locator");
+  assert.equal(routeFromHash(""), "project-home");
+  assert.equal(routeFromHash("#project-home"), "project-home");
   assert.equal(routeFromHash("#public-library"), "public-library");
+  assert.equal(routeTitle("project-home"), "启动页");
   assert.equal(routeTitle("material-locator"), "素材定位");
 
   const labels = CUTTER_NAV_ITEMS.map((item) => item.label).join(" / ");
   for (const oldLabel of ["原视频详情", "搜索与文案", "待剪清单", "剪切队列"]) {
     assert.equal(labels.includes(oldLabel), false);
   }
+});
+
+test("project home renders search-first startup, recent projects, and project detail", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(ProjectHomePage, {
+      library: data.library,
+      localClips: data.localClips,
+      projects: [
+        {
+          project_id: "P20260505-001",
+          title: "今天想学管理",
+          status: "active",
+          created_at: "2026-05-05T10:00:00.000Z",
+          updated_at: "2026-05-05T10:05:00.000Z",
+          clip_count: 3,
+          running_count: 1,
+          failed_count: 0,
+          cover_url: data.primaryDetail.cover_url,
+          source_title: data.primaryDetail.title,
+          searches: [
+            {
+              query: "今天想学管理",
+              hit_count: 1,
+              searched_at: "2026-05-05T10:00:00.000Z"
+            }
+          ]
+        }
+      ],
+      selectedProjectId: "P20260505-001",
+      recentSearches: [{ query: "现金流", hitCount: 7 }],
+      onSearch: () => undefined,
+      onOpenProject: () => undefined
+    })
+  );
+
+  for (const text of [
+    "开始搜索或继续项目",
+    "搜索文案关键词或粘贴爆款文案",
+    "首次剪切时自动创建剪切项目",
+    "最近项目",
+    "今天想学管理",
+    "已剪",
+    "剪切中",
+    "项目详情",
+    "进入项目",
+    "最近搜索",
+    "现金流"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+
+  assert.match(html, /data-page="project-home"/);
+  assert.match(html, /href="#material-locator\?query=/);
+});
+
+test("chrome project switcher exposes project and temporary search actions", () => {
+  const data = fixture();
+  const project = {
+    project_id: "P20260505-001",
+    title: "今天想学管理",
+    status: "active" as const,
+    created_at: "2026-05-05T10:00:00.000Z",
+    updated_at: "2026-05-05T10:05:00.000Z",
+    clip_count: 3,
+    running_count: 1,
+    failed_count: 0,
+    cover_url: data.primaryDetail.cover_url,
+    source_title: data.primaryDetail.title,
+    searches: []
+  };
+
+  const activeHtml = renderToStaticMarkup(
+    h(CutterProjectSwitcher, {
+      project,
+      onStartTemporarySearch: () => undefined,
+      onRenameProject: () => undefined
+    })
+  );
+  const temporaryHtml = renderToStaticMarkup(
+    h(CutterProjectSwitcher, {
+      onStartTemporarySearch: () => undefined
+    })
+  );
+
+  assert.match(activeHtml, /当前项目：今天想学管理/);
+  assert.match(activeHtml, /回到启动页/);
+  assert.match(activeHtml, /新建搜索/);
+  assert.match(activeHtml, /查看项目剪切任务/);
+  assert.match(activeHtml, /重命名当前项目/);
+  assert.match(temporaryHtml, /临时搜索/);
+  assert.equal(temporaryHtml.includes("重命名当前项目"), false);
 });
 
 test("legacy cutter hashes resolve into the M14.1 primary flow without breaking old links", () => {

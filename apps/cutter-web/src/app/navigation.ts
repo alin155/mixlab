@@ -1,4 +1,5 @@
 export type CutterRoute =
+  | "project-home"
   | "material-locator"
   | "cut-tasks"
   | "local-library"
@@ -28,7 +29,10 @@ const SOURCE_VIDEO_HASH_ID_PATTERN = /^(?:V\d{6}|src-\d{3})$/;
 
 export function routeFromHash(hash: string): CutterRoute {
   const route = hash.replace(/^#/, "").split(/[/?]/)[0];
-  if (route === "search" || route === "material-locator" || !route) {
+  if (!route || route === "project-home") {
+    return "project-home";
+  }
+  if (route === "search" || route === "material-locator") {
     return "material-locator";
   }
   if (route === "cut-list" || route === "cut-queue" || route === "cut-tasks") {
@@ -104,6 +108,9 @@ export function sourceDetailContextFromHash(hash: string): {
 }
 
 export function routeTitle(route: CutterRoute): string {
+  if (route === "project-home") {
+    return "启动页";
+  }
   if (route === "source-detail") {
     return "原视频详情";
   }

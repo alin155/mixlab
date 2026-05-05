@@ -26,6 +26,7 @@ import {
   type MaterialSearchHistoryItem
 } from "../features/material-locator/MaterialLocatorPage.tsx";
 import { PublicLibraryPage } from "../features/public-library/PublicLibraryPage.tsx";
+import { ProjectHomePage } from "../features/project-home/ProjectHomePage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
 import {
@@ -103,6 +104,17 @@ import {
   writeCutterAppearanceMode,
   type CutterAppearanceMode
 } from "../state/appearance.ts";
+import {
+  createProjectFromFirstCut,
+  projectSwitcherLabel,
+  projectTitleFromFirstCut,
+  readCutterProjects,
+  recordProjectCut,
+  recordProjectSearch,
+  upsertCutterProject,
+  writeCutterProjects,
+  type CutterProject
+} from "../state/cutter-projects.ts";
 
 function getRuntimeApiBaseUrl(): string {
   return import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
@@ -240,6 +252,36 @@ function CutterSidebarFooter({
         </span>
       </div>
     </div>
+  );
+}
+
+export function CutterProjectSwitcher({
+  project,
+  onStartTemporarySearch,
+  onRenameProject
+}: {
+  project?: CutterProject;
+  onStartTemporarySearch?: () => void;
+  onRenameProject?: () => void;
+}) {
+  return (
+    <details className="cutter-project-switcher">
+      <summary>{projectSwitcherLabel(project)}</summary>
+      <div>
+        <a href="#project-home">回到启动页</a>
+        <button type="button" onClick={onStartTemporarySearch}>
+          新建搜索
+        </button>
+        <a href="#cut-tasks">查看项目剪切任务</a>
+        {project ? (
+          <>
+            <button type="button" onClick={onRenameProject}>
+              重命名当前项目
+            </button>
+          </>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -483,6 +525,8 @@ function renderPage(
     recentSearches: readonly MaterialSearchHistoryItem[];
     selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
     selectedDetail: CutterFixtureData["primaryDetail"];
+    projects: readonly CutterProject[];
+    currentProjectId?: string;
     sourceFilter: MaterialSearchSourceFilter;
     orientationFilter: VideoOrientationFilter;
     cutNotice: string;
@@ -502,6 +546,7 @@ function renderPage(
     cancelTranscriptSelection: () => void;
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
+    openProject: (projectId: string) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
@@ -512,6 +557,20 @@ function renderPage(
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
   }
 ) {
+  if (route === "project-home") {
+    return (
+      <ProjectHomePage
+        library={data.library}
+        localClips={data.localClips}
+        projects={viewState.projects}
+        selectedProjectId={viewState.currentProjectId}
+        recentSearches={viewState.recentSearches}
+        onSearch={handlers.search}
+        onOpenProject={handlers.openProject}
+      />
+    );
+  }
+
   if (route === "source-detail") {
     return (
       <SourceDetailPage
@@ -619,6 +678,10 @@ export function CutterApp() {
   const [appearanceMode, setAppearanceMode] = useState<CutterAppearanceMode>(() =>
     readCutterAppearanceMode()
   );
+  const [projects, setProjects] = useState<CutterProject[]>(() => readCutterProjects().projects);
+  const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(() =>
+    readCutterProjects().currentProjectId
+  );
   const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
   const cutPipelineRunningRef = useRef(false);
   const [data, setData] = useState<CutterFixtureData | null>(null);
@@ -640,6 +703,59 @@ export function CutterApp() {
     [apiBaseUrl, authSession]
   );
   const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus);
+  const currentProject = projects.find((project) => project.project_id === currentProjectId);
+
+  function commitProjects(nextProjects: readonly CutterProject[], nextProjectId?: string) {
+    const sortedProjects = [...nextProjects].sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+    setProjects(sortedProjects);
+    setCurrentProjectId(nextProjectId);
+    writeCutterProjects(sortedProjects, nextProjectId);
+  }
+
+  function projectDraftForCut(item: CutListItem): {
+    project: CutterProject;
+    created: boolean;
+  } {
+    if (currentProject) {
+      return {
+        project: recordProjectCut(currentProject, {
+          status: "pending",
+          coverUrl: selectedDetail?.cover_url
+        }),
+        created: false
+      };
+    }
+
+    return {
+      project: createProjectFromFirstCut({
+        cut: item,
+        query: searchQuery,
+        recentSearches: recentMaterialSearches,
+        coverUrl: selectedDetail?.cover_url
+      }),
+      created: true
+    };
+  }
+
+  function commitProjectAfterCut(project: CutterProject) {
+    commitProjects(upsertCutterProject(projects, project), project.project_id);
+  }
+
+  function startTemporarySearch() {
+    commitProjects(projects, undefined);
+    setSearchQuery("");
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            search: emptySearchResponse()
+          }
+        : current
+    );
+    clearMaterialLocatorFocus();
+    setCutNotice("");
+    window.location.hash = routeToHash("material-locator");
+  }
 
   function clearMaterialLocatorFocus() {
     setSelectedLocalClipId(undefined);
@@ -1000,6 +1116,22 @@ export function CutterApp() {
               hitCount: resolvedSearch.groups.reduce((sum, group) => sum + group.hit_count, 0)
             })
           );
+          if (currentProject) {
+            const hitCount = resolvedSearch.groups.reduce((sum, group) => sum + group.hit_count, 0);
+            const updatedProject = {
+              ...currentProject,
+              updated_at: new Date().toISOString(),
+              searches: recordProjectSearch(
+                currentProject.searches,
+                {
+                  query,
+                  hitCount
+                },
+                new Date().toISOString()
+              )
+            };
+            commitProjects(upsertCutterProject(projects, updatedProject), updatedProject.project_id);
+          }
           setError("");
         }
       })
@@ -1165,13 +1297,15 @@ export function CutterApp() {
         order: visibleCutList.length + 1,
         title: `${selectedDetail.title} 片段`
       });
+      const projectDraft = projectDraftForCut(item);
+      const clipListTitle = projectDraft.project.title;
 
       if (apiMode) {
         try {
           const clipList = await client.createClipList(
             toCreateClipListRequest({
               libraryId: data.library.library_id ?? "local-library",
-              title: "快速剪切",
+              title: clipListTitle,
               items: [item]
             })
           );
@@ -1183,7 +1317,12 @@ export function CutterApp() {
             jobs: submission.jobs
           });
           setQueueJobs((current) => [...submittedJobs, ...current]);
-          setCutNotice(cutNoticeForSubmittedJobs(submission.submitted_count || submittedJobs.length));
+          commitProjectAfterCut(projectDraft.project);
+          setCutNotice(
+            projectDraft.created
+              ? `已创建剪切项目：${projectDraft.project.title} · 等待中 ${submission.submitted_count || submittedJobs.length}`
+              : cutNoticeForSubmittedJobs(submission.submitted_count || submittedJobs.length)
+          );
           setHasSubmittedCutJobs(true);
           await refreshQueueJobs();
           void runRealCutPipeline();
@@ -1201,7 +1340,12 @@ export function CutterApp() {
         );
 
         setQueueJobs((current) => [fixtureJob, ...current]);
-        setCutNotice(cutNoticeForSubmittedJobs(1));
+        commitProjectAfterCut(projectDraft.project);
+        setCutNotice(
+          projectDraft.created
+            ? `已创建剪切项目：${projectDraft.project.title} · 等待中 1`
+            : cutNoticeForSubmittedJobs(1)
+        );
         window.setTimeout(() => {
           setQueueJobs((current) =>
             updateQueueJobStatus(current, fixtureJob.queue_job_id, {
@@ -1242,6 +1386,18 @@ export function CutterApp() {
       setLocatorCurrentHitIndex(0);
       setCutNotice("");
       window.location.hash = searchHash(nextQuery);
+    },
+    openProject(projectId: string) {
+      const project = projects.find((item) => item.project_id === projectId);
+      commitProjects(projects, projectId);
+      const latestQuery = project?.searches[0]?.query.trim() ?? "";
+      if (latestQuery) {
+        setSearchQuery(latestQuery);
+        window.location.hash = searchHash(latestQuery);
+        return;
+      }
+
+      window.location.hash = routeToHash("material-locator");
     },
     selectMaterial(result: MaterialLocatorResult) {
       const materialKey = materialKeyFromResult(result);
@@ -1303,10 +1459,28 @@ export function CutterApp() {
         }
 
         try {
+          const firstItem = visibleCutList[0]!;
+          const projectDraft = currentProject
+            ? {
+                project: recordProjectCut(currentProject, {
+                  status: "pending",
+                  coverUrl: selectedDetail?.cover_url
+                }),
+                created: false
+              }
+            : {
+                project: createProjectFromFirstCut({
+                  cut: firstItem,
+                  query: searchQuery,
+                  recentSearches: recentMaterialSearches,
+                  coverUrl: selectedDetail?.cover_url
+                }),
+                created: true
+              };
           const clipList = await client.createClipList(
             toCreateClipListRequest({
               libraryId: data.library.library_id ?? "local-library",
-              title: "待剪清单",
+              title: projectDraft.project.title,
               items: visibleCutList
             })
           );
@@ -1317,6 +1491,7 @@ export function CutterApp() {
             job_count: submission.submitted_count,
             jobs: submission.jobs
           }));
+          commitProjectAfterCut(projectDraft.project);
           setHasSubmittedCutJobs(true);
           await refreshQueueJobs();
           void runRealCutPipeline();
@@ -1325,6 +1500,25 @@ export function CutterApp() {
           return;
         }
       } else {
+        const firstItem = visibleCutList[0]!;
+        const projectDraft = currentProject
+          ? {
+              project: recordProjectCut(currentProject, {
+                status: "pending",
+                coverUrl: selectedDetail?.cover_url
+              }),
+              created: false
+            }
+          : {
+              project: createProjectFromFirstCut({
+                cut: firstItem,
+                query: searchQuery,
+                recentSearches: recentMaterialSearches,
+                coverUrl: selectedDetail?.cover_url
+              }),
+              created: true
+            };
+        commitProjectAfterCut(projectDraft.project);
         setQueueJobs(
           buildQueueFixture(
             createQueueJobsFromCutList(visibleCutList, {
@@ -1389,13 +1583,43 @@ export function CutterApp() {
     setAppearanceMode: handleSetAppearanceMode
   };
 
+  function handleRenameProject() {
+    if (!currentProject) {
+      return;
+    }
+
+    const nextTitle = window.prompt("重命名当前项目", currentProject.title)?.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    const updatedProject = {
+      ...currentProject,
+      title: projectTitleFromFirstCut({
+        query: nextTitle,
+        selectedText: currentProject.title
+      }),
+      updated_at: new Date().toISOString()
+    };
+    commitProjects(upsertCutterProject(projects, updatedProject), updatedProject.project_id);
+  }
+
   const workbench = (
     <main
       className="cutter-app"
       data-appearance-mode={appearanceMode}
       data-cutter-web-ready={data ? "true" : "false"}
     >
-      <MacWindow title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}>
+      <MacWindow
+        title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}
+        meta={
+          <CutterProjectSwitcher
+            project={currentProject}
+            onStartTemporarySearch={startTemporarySearch}
+            onRenameProject={handleRenameProject}
+          />
+        }
+      >
         <div className="cutter-shell">
           <Sidebar
             items={navItems}
@@ -1434,6 +1658,8 @@ export function CutterApp() {
                     recentSearches: recentMaterialSearches,
                     selectedSegments: selectedTranscriptSegments,
                     selectedDetail: selectedDetail ?? data.primaryDetail,
+                    projects,
+                    currentProjectId,
                     sourceFilter,
                     orientationFilter,
                     cutNotice,
