@@ -86,6 +86,7 @@ export interface CutterSourceLibrarySearchGroup extends TranscriptSearchGroup {
   source_video_file_path: string;
   cover_path: string;
   cover_file_path: string;
+  transcript_character_count: number;
 }
 
 export interface CutterSourceLibrarySearchResult {
@@ -116,6 +117,21 @@ function artifactFilePath(libraryRoot: string, libraryRelativePath: string): str
 
 async function readJsonFile<T>(filePath: string): Promise<T> {
   return JSON.parse(await readFile(filePath, "utf8")) as T;
+}
+
+function compactCharacterCount(text: string): number {
+  return text.replace(/\s+/g, "").length;
+}
+
+async function readTranscriptCharacterCount(
+  libraryRoot: string,
+  manifest: SourceVideoManifest
+): Promise<number> {
+  const transcript = await readJsonFile<CutterTranscriptArtifact>(
+    artifactFilePath(libraryRoot, manifest.transcript_path)
+  );
+
+  return compactCharacterCount(transcript.full_text);
 }
 
 async function toCutterSourceVideoCard(
@@ -274,10 +290,12 @@ export async function searchCutterSourceLibrary(
 ): Promise<CutterSourceLibrarySearchResult> {
   const visibleManifests = await readVisibleSourceVideoManifests(input.library_root);
   const cardsBySourceVideoId = new Map<string, CutterSourceVideoCard>();
+  const manifestsBySourceVideoId = new Map<string, SourceVideoManifest>();
 
   for (const manifest of visibleManifests) {
     const card = await toCutterSourceVideoCard(input.library_root, manifest);
     cardsBySourceVideoId.set(manifest.source_video_id, card);
+    manifestsBySourceVideoId.set(manifest.source_video_id, manifest);
   }
 
   let result: {
@@ -318,6 +336,19 @@ export async function searchCutterSourceLibrary(
     });
   }
 
+  const transcriptCharacterCounts = new Map(
+    await Promise.all(
+      result.groups.map(async (group) => {
+        const manifest = manifestsBySourceVideoId.get(group.source_video_id);
+        const count = manifest
+          ? await readTranscriptCharacterCount(input.library_root, manifest)
+          : group.hit_segments.reduce((sum, segment) => sum + compactCharacterCount(segment.text), 0);
+
+        return [group.source_video_id, count] as const;
+      })
+    )
+  );
+
   return {
     query: result.query,
     normalized_query: result.normalized_query,
@@ -333,7 +364,8 @@ export async function searchCutterSourceLibrary(
         relative_path: card.relative_path,
         source_video_file_path: card.source_video_file_path,
         cover_path: card.cover_path,
-        cover_file_path: card.cover_file_path
+        cover_file_path: card.cover_file_path,
+        transcript_character_count: transcriptCharacterCounts.get(group.source_video_id) ?? 0
       }];
     }).slice(0, input.limit)
   };

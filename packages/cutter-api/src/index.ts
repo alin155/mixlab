@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import os from "node:os";
 import path from "node:path";
 import {
   buildFfmpegCutPlan,
@@ -143,6 +144,10 @@ function optionalTrimmed(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function defaultCutterWorkspaceRoot(): string {
+  return path.join(os.homedir(), "Movies", "MixLabLocal");
+}
+
 export function resolveCutterApiRuntimeConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): CutterApiRuntimeConfig {
@@ -163,7 +168,7 @@ export function resolveCutterApiRuntimeConfigFromEnv(
 
   return {
     library_root: libraryRoot,
-    workspace_root: optionalTrimmed(env.MIXLAB_CUTTER_WORKSPACE_ROOT),
+    workspace_root: optionalTrimmed(env.MIXLAB_CUTTER_WORKSPACE_ROOT) ?? defaultCutterWorkspaceRoot(),
     host: optionalTrimmed(env.MIXLAB_CUTTER_API_HOST) ?? "127.0.0.1",
     port
   };
@@ -1312,6 +1317,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           request,
           response
         }))) {
+          return;
+        }
+
+        if (!input.workspace_root) {
+          writeJson(response, 200, apiResponse({
+            job_count: 0,
+            jobs: []
+          }));
           return;
         }
 

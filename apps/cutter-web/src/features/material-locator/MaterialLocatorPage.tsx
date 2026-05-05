@@ -1,5 +1,11 @@
-import { useRef, type FormEvent } from "react";
-import { InspectorPanel } from "@mixlab/ui-foundation";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent
+} from "react";
 import {
   formatDuration,
   type LocalClipCatalog,
@@ -28,10 +34,6 @@ import {
 } from "../../state/transcript-playback.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 
-function selectedText(segments: readonly TranscriptSegment[]): string {
-  return segments.map((segment) => segment.text).join(" ");
-}
-
 function selectedDurationLabel(segments: readonly TranscriptSegment[]): string {
   const first = segments[0];
   const last = segments[segments.length - 1];
@@ -46,6 +48,21 @@ function countJobs(queue: readonly CutQueueJob[], status: CutQueueJob["status"])
   return queue.filter((job) => job.status === status).length;
 }
 
+function queueStatusLabel(status: CutQueueJob["status"]): string {
+  switch (status) {
+    case "pending":
+      return "等待中";
+    case "running":
+      return "剪切中";
+    case "done":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "cancelled":
+      return "已取消";
+  }
+}
+
 const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
   { value: "all", label: "全部" },
   { value: "local", label: "本地素材" },
@@ -58,6 +75,11 @@ const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: st
   { value: "portrait", label: "竖版" }
 ];
 
+export interface MaterialSearchHistoryItem {
+  query: string;
+  hitCount: number;
+}
+
 export function MaterialLocatorPage({
   library,
   localClips,
@@ -68,12 +90,18 @@ export function MaterialLocatorPage({
   selectedDetail,
   selectedSegments = [],
   highlightedSegmentIds = [],
+  currentHitIndex = 0,
+  currentHitSegmentId,
+  globalHitCount,
+  selectedMaterialKey,
+  recentSearches = [],
   cutNotice = "",
   queue,
   onSearch,
   onSelectMaterial,
   onSelectTranscriptSegment,
   onSelectTranscriptRange,
+  onNavigateHit,
   onCutSelection,
   onCancelSelection,
   onSetSourceFilter,
@@ -88,12 +116,18 @@ export function MaterialLocatorPage({
   selectedDetail: SourceVideoDetail;
   selectedSegments?: readonly TranscriptSegment[];
   highlightedSegmentIds?: readonly string[];
+  currentHitIndex?: number;
+  currentHitSegmentId?: string;
+  globalHitCount?: number;
+  selectedMaterialKey?: string;
+  recentSearches?: readonly MaterialSearchHistoryItem[];
   cutNotice?: string;
   queue: readonly CutQueueJob[];
   onSearch?: (query: string) => void;
   onSelectMaterial?: (result: MaterialLocatorResult) => void;
   onSelectTranscriptSegment?: (segmentId: string) => void;
   onSelectTranscriptRange?: (startSegmentId: string, endSegmentId: string) => void;
+  onNavigateHit?: (direction: "previous" | "next") => void;
   onCutSelection?: () => void;
   onCancelSelection?: () => void;
   onSetSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
@@ -107,23 +141,55 @@ export function MaterialLocatorPage({
     library,
     search
   });
+  const hasActiveQuery = query.trim().length > 0;
+  const hasFocusedMaterial = hasActiveQuery && Boolean(selectedMaterialKey);
+  const focusedDetail = hasFocusedMaterial ? selectedDetail : undefined;
   const selectedIds = new Set(selectedSegments.map((segment) => segment.segment_id));
   const highlightedIds = new Set(highlightedSegmentIds);
-  const orientation = videoOrientation(selectedDetail);
-  const videoSource = selectedDetail.media_url.startsWith("/fixture-media/") ? undefined : selectedDetail.media_url;
+  const hitCount = globalHitCount ?? highlightedSegmentIds.length;
+  const safeCurrentHitIndex =
+    hitCount > 0
+      ? Math.min(Math.max(currentHitIndex, 0), hitCount - 1)
+      : 0;
+  const activeHitSegmentId = currentHitSegmentId ?? highlightedSegmentIds[safeCurrentHitIndex];
+  const currentHitOrdinal = hitCount > 0 && activeHitSegmentId ? safeCurrentHitIndex + 1 : 0;
+  const orientation = focusedDetail ? videoOrientation(focusedDetail) : "landscape";
+  const videoSource = focusedDetail?.media_url.startsWith("/fixture-media/") ? undefined : focusedDetail?.media_url;
   const runningCount = countJobs(queue, "running");
   const pendingCount = countJobs(queue, "pending");
   const doneCount = countJobs(queue, "done");
+  const failedCount = countJobs(queue, "failed");
+  const candidateCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+  const hasHitNavigation = hitCount > 0;
+  const recentQueue = queue.slice(0, 5);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const segmentRefs = useRef(new Map<string, HTMLSpanElement>());
   const dragStartRef = useRef<string | null>(null);
   const dragEndRef = useRef<string | null>(null);
   const suppressClickRef = useRef(false);
   const previewEndMsRef = useRef<number | null>(null);
+  const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
+  const [previewActive, setPreviewActive] = useState(false);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     onSearch?.(String(formData.get("query") ?? ""));
+  }
+
+  function setSegmentRef(segmentId: string, node: HTMLSpanElement | null) {
+    if (node) {
+      segmentRefs.current.set(segmentId, node);
+    } else {
+      segmentRefs.current.delete(segmentId);
+    }
+  }
+
+  function floatingAnchorFromEvent(event: ReactMouseEvent<HTMLElement>): { left: number; top: number } {
+    return {
+      left: Math.min(Math.max(event.clientX, 220), window.innerWidth - 220),
+      top: Math.max(88, event.clientY - 8)
+    };
   }
 
   function seekToSegment(segment: TranscriptSegment) {
@@ -134,14 +200,38 @@ export function MaterialLocatorPage({
     videoRef.current.currentTime = previewStartSeconds(segment.begin_ms);
   }
 
-  function handleSegmentClick(segment: TranscriptSegment) {
+  function playSegmentsPreview(segments: readonly TranscriptSegment[]) {
+    const playbackWindow = selectionPlaybackWindow(segments);
+    if (!playbackWindow || !videoRef.current) {
+      return;
+    }
+
+    videoRef.current.currentTime = playbackWindow.startSeconds;
+    previewEndMsRef.current = segments[segments.length - 1]?.end_ms ?? null;
+    const playResult = videoRef.current.play();
+    setPreviewActive(true);
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch(() => setPreviewActive(false));
+    }
+  }
+
+  function pauseSelectionPreview() {
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+    previewEndMsRef.current = null;
+    setPreviewActive(false);
+  }
+
+  function handleSegmentClick(event: ReactMouseEvent<HTMLSpanElement>, segment: TranscriptSegment) {
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
     }
 
-    previewEndMsRef.current = null;
+    setSelectionBarAnchor(floatingAnchorFromEvent(event));
     seekToSegment(segment);
+    playSegmentsPreview([segment]);
     onSelectTranscriptSegment?.(segment.segment_id);
   }
 
@@ -156,7 +246,11 @@ export function MaterialLocatorPage({
     }
   }
 
-  function handleTranscriptMouseUp() {
+  function handleTranscriptMouseUp(event: ReactMouseEvent<HTMLParagraphElement>) {
+    if (!focusedDetail) {
+      return;
+    }
+
     const dragStartSegmentId = dragStartRef.current;
     const dragEndSegmentId = dragEndRef.current;
     if (!dragStartSegmentId) {
@@ -167,7 +261,7 @@ export function MaterialLocatorPage({
 
     if (shouldSuppressTranscriptClickAfterMouseUp(dragStartSegmentId, dragEndSegmentId ?? undefined)) {
       suppressClickRef.current = true;
-      const draggedSegments = continuousTranscriptSegments(selectedDetail.transcript.segments, {
+      const draggedSegments = continuousTranscriptSegments(focusedDetail.transcript.segments, {
         startSegmentId: dragStartSegmentId,
         endSegmentId: dragEndSegmentId ?? dragStartSegmentId
       });
@@ -175,24 +269,27 @@ export function MaterialLocatorPage({
       if (firstDraggedSegment) {
         seekToSegment(firstDraggedSegment);
       }
+      setSelectionBarAnchor(floatingAnchorFromEvent(event));
+      playSegmentsPreview(draggedSegments);
       onSelectTranscriptRange?.(dragStartSegmentId, dragEndSegmentId ?? dragStartSegmentId);
     }
     dragStartRef.current = null;
     dragEndRef.current = null;
   }
 
-  function handlePreviewSelection() {
-    const playbackWindow = selectionPlaybackWindow(selectedSegments);
-    if (!playbackWindow || !videoRef.current) {
+  function handleToggleSelectionPreview() {
+    if (previewActive) {
+      pauseSelectionPreview();
       return;
     }
 
-    videoRef.current.currentTime = playbackWindow.startSeconds;
-    previewEndMsRef.current = selectedSegments[selectedSegments.length - 1]?.end_ms ?? null;
-    const playResult = videoRef.current.play();
-    if (playResult && typeof playResult.catch === "function") {
-      playResult.catch(() => undefined);
-    }
+    playSegmentsPreview(selectedSegments);
+  }
+
+  function handleCancelSelection() {
+    pauseSelectionPreview();
+    setSelectionBarAnchor(null);
+    onCancelSelection?.();
   }
 
   function handleVideoTimeUpdate() {
@@ -202,62 +299,87 @@ export function MaterialLocatorPage({
     }
 
     if (shouldPauseSelectionPreview(videoRef.current.currentTime, previewEndMs)) {
-      videoRef.current.pause();
-      previewEndMsRef.current = null;
+      pauseSelectionPreview();
     }
   }
 
-  return (
-    <section className="cutter-page cutter-material-locator" data-page="material-locator">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header cutter-locator-header">
-          <div>
-            <p className="cutter-eyebrow">搜、选、剪</p>
-            <h1>素材定位</h1>
-            <p>
-              本地素材 {localClips.local_clip_count} · 公共原素材 {library.available_video_count} · 剪切中 {runningCount}
-            </p>
-          </div>
-          <form className="cutter-search-form" onSubmit={handleSubmit}>
-            <label className="cutter-search-box">
-              <span>⌕</span>
-              <input
-                name="query"
-                defaultValue={query}
-                aria-label="搜索文案关键词或粘贴文案"
-                placeholder="搜索文案关键词或粘贴文案"
-              />
-            </label>
-            <button className="cutter-primary-button" type="submit">
-              搜索
-            </button>
-          </form>
-        </header>
+  useEffect(() => {
+    if (!activeHitSegmentId || !focusedDetail) {
+      return;
+    }
 
-        <section className="cutter-locator-filters" aria-label="素材定位筛选">
-          <div>
-            {sourceFilterOptions.map((option) => (
-              <button
-                className={option.value === sourceFilter ? "is-active" : ""}
-                type="button"
-                key={option.value}
-                onClick={() => onSetSourceFilter?.(option.value)}
-              >
-                {option.label}
+    const currentHitNode = segmentRefs.current.get(activeHitSegmentId);
+    currentHitNode?.scrollIntoView({ block: "center" });
+
+    const currentHitSegment = focusedDetail.transcript.segments.find(
+      (segment) => segment.segment_id === activeHitSegmentId
+    );
+    if (currentHitSegment) {
+      seekToSegment(currentHitSegment);
+    }
+  }, [activeHitSegmentId, focusedDetail]);
+
+  const selectionBarStyle: CSSProperties | undefined = selectionBarAnchor
+    ? {
+        left: selectionBarAnchor.left,
+        top: selectionBarAnchor.top
+      }
+    : undefined;
+
+  return (
+    <section
+      className="cutter-page cutter-material-locator"
+      data-layout="search-select-cut"
+      data-page="material-locator"
+    >
+      <div className="cutter-page-main">
+        <section className="cutter-locator-command" aria-label="搜索定位">
+          <div className="cutter-locator-command-header">
+            <div>
+              <h2>搜索定位</h2>
+            </div>
+            <form className="cutter-search-form cutter-locator-search-form" onSubmit={handleSubmit}>
+              <label className="cutter-search-box">
+                <span>⌕</span>
+                <input
+                  name="query"
+                  defaultValue=""
+                  aria-label="搜索文案关键词或粘贴文案"
+                  placeholder="搜索文案关键词或粘贴文案"
+                />
+              </label>
+              <label className="cutter-filter-select">
+                <span>素材来源</span>
+                <select
+                  name="sourceFilter"
+                  value={sourceFilter}
+                  onChange={(event) => onSetSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)}
+                >
+                  {sourceFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="cutter-filter-select">
+                <span>视频类型</span>
+                <select
+                  name="orientationFilter"
+                  value={orientationFilter}
+                  onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+                >
+                  {orientationFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="cutter-primary-button" type="submit">
+                搜索
               </button>
-            ))}
-          </div>
-          <div>
-            {orientationFilterOptions.map((option) => (
-              <button
-                className={option.value === orientationFilter ? "is-active" : ""}
-                type="button"
-                key={option.value}
-                onClick={() => onSetOrientationFilter?.(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
+            </form>
           </div>
         </section>
 
@@ -267,124 +389,251 @@ export function MaterialLocatorPage({
           </div>
         ) : null}
 
-        <section className="cutter-locator-results">
-          {sections.length === 0 ? (
-            <div className="cutter-empty-state">
-              <strong>没有找到可选素材</strong>
-              <span>可以换一个关键词，或到公共素材库确认可用素材是否已经发布。</span>
-            </div>
-          ) : (
-            sections.map((section) => (
-              <section className="cutter-locator-section" key={section.key}>
-                <header>
-                  <h2>{section.label}</h2>
-                  <span>{section.items.length} 个候选视频</span>
-                </header>
-                <div className="cutter-locator-result-list">
-                  {section.items.map((item) => (
-                    <button
-                      className="cutter-locator-result"
-                      type="button"
-                      key={`${item.source}-${item.id}`}
-                      onClick={() => onSelectMaterial?.(item)}
-                    >
-                      {item.cover_url ? <img src={item.cover_url} alt="" /> : <span className="cutter-cover-placeholder" />}
-                      <span>
-                        <strong>{item.title}</strong>
-                        <small>
-                          {item.source === "local" ? "本地素材" : "公共原素材"} · {item.orientation_label} ·{" "}
-                          {formatDuration(item.duration_ms)}
-                        </small>
-                        <em>{item.excerpt}</em>
-                      </span>
-                      <b>{item.hit_count} 处命中</b>
-                    </button>
-                  ))}
+        <section className={`cutter-locator-workbench is-${orientation}`} aria-label="素材定位工作区">
+          <section className="cutter-locator-top-row" aria-label="画面验证与剪切状态">
+            <section className="cutter-locator-status" aria-label="工作台状态">
+              <div className="cutter-locator-status-grid">
+                <div>
+                  <span>本地素材</span>
+                  <strong>{localClips.local_clip_count}</strong>
                 </div>
+                <div>
+                  <span>公共素材库</span>
+                  <strong>{library.available_video_count}</strong>
+                </div>
+                <div>
+                  <span>候选素材</span>
+                  <strong>{candidateCount}</strong>
+                </div>
+                <div>
+                  <span>搜索次数</span>
+                  <strong>{recentSearches.length}</strong>
+                </div>
+              </div>
+              <section className="cutter-locator-search-history" aria-label="搜索记录">
+                <h2>搜索记录</h2>
+                {recentSearches.length > 0 ? (
+                  <div>
+                    {recentSearches.map((searchItem) => (
+                      <button
+                        type="button"
+                        key={searchItem.query}
+                        onClick={() => onSearch?.(searchItem.query)}
+                      >
+                        <span>{searchItem.query}</span>
+                        <strong>{searchItem.hitCount} 处命中</strong>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span>暂无搜索记录</span>
+                )}
               </section>
-            ))
-          )}
-        </section>
+            </section>
 
-        <section className={`cutter-locator-workspace is-${orientation}`}>
-          <section className="cutter-video-panel">
-            <video
-              controls
-              data-testid="locator-video"
-              onTimeUpdate={handleVideoTimeUpdate}
-              poster={selectedDetail.cover_url}
-              preload="none"
-              ref={videoRef}
-              src={videoSource}
-            />
-            <div>
-              <strong>{selectedDetail.title}</strong>
-              <span>{formatDuration(selectedDetail.duration_ms)}</span>
-            </div>
+            <section className="cutter-locator-visual" aria-label="画面验证">
+              <section className="cutter-video-panel">
+                {focusedDetail ? (
+                  <>
+                    <video
+                      controls
+                      data-testid="locator-video"
+                      onTimeUpdate={handleVideoTimeUpdate}
+                      poster={focusedDetail.cover_url}
+                      preload="none"
+                      ref={videoRef}
+                      src={videoSource}
+                    />
+                    <div>
+                      <strong>{focusedDetail.title}</strong>
+                      <span>{formatDuration(focusedDetail.duration_ms)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="cutter-video-empty">
+                    <strong>先搜索文案</strong>
+                    <span>选择候选素材后，这里用于验证画面。</span>
+                  </div>
+                )}
+              </section>
+            </section>
+
+            <section className="cutter-locator-queue-panel" aria-label="剪切队列">
+              <a className="cutter-inline-action cutter-queue-top-action" href="#cut-tasks">
+                查看全部任务
+              </a>
+              <div className="cutter-locator-queue-counts" aria-label="剪切队列状态">
+                <span>剪切中 {runningCount}</span>
+                <span>等待 {pendingCount}</span>
+                <span>完成 {doneCount}</span>
+                <span>失败 {failedCount}</span>
+              </div>
+              <div className="cutter-locator-queue-list">
+                {recentQueue.length > 0 ? (
+                  recentQueue.map((job) => (
+                    <div className={`cutter-locator-queue-item is-${job.status}`} key={job.queue_job_id}>
+                      <span>{queueStatusLabel(job.status)}</span>
+                      <strong>{job.title}</strong>
+                      <small>{Math.round(job.progress)}%</small>
+                    </div>
+                  ))
+                ) : (
+                  <span>暂无剪切任务</span>
+                )}
+              </div>
+            </section>
           </section>
 
-          <section className="cutter-natural-transcript" data-selection-mode="natural-text">
-            <header>
-              <div>
-                <h2>完整文案</h2>
-                <span>点击定位视频，拖选文案后剪切这段。</span>
+          <section className="cutter-locator-bottom-row" aria-label="候选素材与视频文案">
+            <section className="cutter-locator-candidates" aria-label="候选素材">
+              <header>
+                <div>
+                  <h2>候选素材</h2>
+                </div>
+              </header>
+              <div className="cutter-locator-results">
+                {!hasActiveQuery ? (
+                  <div className="cutter-empty-state">
+                    <strong>先搜索文案</strong>
+                    <span>输入关键词或粘贴文案后，系统会列出可选素材。</span>
+                  </div>
+                ) : sections.length === 0 ? (
+                  <div className="cutter-empty-state">
+                    <strong>没有找到可选素材</strong>
+                    <span>可以换一个关键词，或到公共素材库确认可用素材是否已经发布。</span>
+                  </div>
+                ) : (
+                  sections.map((section) => (
+                    <section className="cutter-locator-section" key={section.key}>
+                      <header>
+                        <h2>{section.label}</h2>
+                        <span>{section.items.length} 个候选视频</span>
+                      </header>
+                      <div className="cutter-locator-result-list">
+                        {section.items.map((item) => (
+                          <button
+                            className={[
+                              "cutter-locator-result",
+                              selectedMaterialKey === `${item.source}:${item.id}` ? "is-selected" : ""
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            type="button"
+                            key={`${item.source}-${item.id}`}
+                            onClick={() => onSelectMaterial?.(item)}
+                          >
+                            {item.cover_url ? (
+                              <img src={item.cover_url} alt="" />
+                            ) : (
+                              <span className="cutter-cover-placeholder" />
+                            )}
+                            <span>
+                              <strong>{item.title}</strong>
+                              <small>
+                                文案 {item.transcript_character_count} 字
+                              </small>
+                              <b>{item.hit_count} 处命中</b>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                )}
               </div>
-              <span>自然文案</span>
-            </header>
-            <p onMouseUp={handleTranscriptMouseUp}>
-              {selectedDetail.transcript.segments.map((segment) => (
-                <span
+            </section>
+
+            <section
+              className="cutter-natural-transcript"
+              data-autoscroll-target={activeHitSegmentId}
+              data-current-hit-segment-id={activeHitSegmentId}
+              data-selection-mode="natural-text"
+            >
+              <header>
+                <div className="cutter-transcript-heading">
+                  <h2>视频文案</h2>
+                  <span>
+                    命中 {currentHitOrdinal} / {hitCount} · 已选 {selectedSegments.length} 句
+                  </span>
+                </div>
+                <div className="cutter-hit-navigation" aria-label="命中文案切换">
+                  <button
+                    type="button"
+                    disabled={!hasHitNavigation}
+                    onClick={() => onNavigateHit?.("previous")}
+                  >
+                    上一个
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!hasHitNavigation}
+                    onClick={() => onNavigateHit?.("next")}
+                  >
+                    下一个
+                  </button>
+                </div>
+              </header>
+              {focusedDetail ? (
+                <p onMouseUp={handleTranscriptMouseUp}>
+                  {focusedDetail.transcript.segments.map((segment) => (
+                    <span
+                      className={[
+                        selectedIds.has(segment.segment_id) ? "is-selected" : "",
+                        highlightedIds.has(segment.segment_id) ? "is-highlighted" : "",
+                        segment.segment_id === activeHitSegmentId ? "is-current-hit" : ""
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      data-segment-id={segment.segment_id}
+                      key={segment.segment_id}
+                      ref={(node) => setSegmentRef(segment.segment_id, node)}
+                      onMouseDown={() => handleSegmentMouseDown(segment)}
+                      onMouseEnter={() => handleSegmentMouseEnter(segment)}
+                      onClick={(event) => handleSegmentClick(event, segment)}
+                    >
+                      {segment.text}
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <div className="cutter-transcript-empty">
+                  <strong>先搜索文案</strong>
+                  <span>点击候选素材后，这里会定位到命中文案并高亮显示。</span>
+                </div>
+              )}
+              {focusedDetail && selectedSegments.length > 0 ? (
+                <div
                   className={[
-                    selectedIds.has(segment.segment_id) ? "is-selected" : "",
-                    highlightedIds.has(segment.segment_id) ? "is-highlighted" : ""
+                    "cutter-selection-bar",
+                    "cutter-floating-selection-bar",
+                    "cutter-compact-selection-bar",
+                    selectionBarAnchor ? "is-anchored" : ""
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  data-segment-id={segment.segment_id}
-                  key={segment.segment_id}
-                  onMouseDown={() => handleSegmentMouseDown(segment)}
-                  onMouseEnter={() => handleSegmentMouseEnter(segment)}
-                  onClick={() => handleSegmentClick(segment)}
+                  style={selectionBarStyle}
                 >
-                  {segment.text}
-                </span>
-              ))}
-            </p>
-            {selectedSegments.length > 0 ? (
-              <div className="cutter-selection-bar">
-                <strong>已选中一段文案 · 预计 {selectedDurationLabel(selectedSegments)}</strong>
-                <span>{selectedText(selectedSegments)}</span>
-                <button
-                  className="cutter-secondary-button"
-                  data-testid="preview-selection"
-                  type="button"
-                  onClick={handlePreviewSelection}
-                >
-                  播放预览
-                </button>
-                <button className="cutter-primary-button" type="button" onClick={onCutSelection}>
-                  剪切这段
-                </button>
-                <button className="cutter-secondary-button" type="button" onClick={onCancelSelection}>
-                  取消
-                </button>
-              </div>
-            ) : null}
+                  <strong>已选 {selectedDurationLabel(selectedSegments)}</strong>
+                  <button
+                    className="cutter-secondary-button"
+                    data-testid="preview-selection"
+                    type="button"
+                    onClick={handleToggleSelectionPreview}
+                  >
+                    {previewActive || selectedSegments.length > 0 ? "暂停预览" : "预览"}
+                  </button>
+                  <button className="cutter-primary-button" type="button" onClick={onCutSelection}>
+                    剪切这段
+                  </button>
+                  <button className="cutter-secondary-button" type="button" onClick={handleCancelSelection}>
+                    取消
+                  </button>
+                </div>
+              ) : null}
+            </section>
           </section>
         </section>
       </div>
-
-      <InspectorPanel title="剪切任务">
-        <div className="cutter-inspector-stack">
-          <strong>
-            剪切中 {runningCount} · 等待 {pendingCount} · 完成 {doneCount}
-          </strong>
-          <span>剪切任务在后台执行，当前页面可以继续搜索和选段。</span>
-          <a className="cutter-inline-action" href="#cut-tasks">
-            查看全部任务
-          </a>
-        </div>
-      </InspectorPanel>
     </section>
   );
 }

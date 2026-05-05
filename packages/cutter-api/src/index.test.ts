@@ -16,11 +16,31 @@ import {
   readUsageMetrics,
   scanSourceVideos
 } from "../../library-fs/src/index.ts";
-import { createCutterApiServer } from "./index.ts";
+import { createCutterApiServer, resolveCutterApiRuntimeConfigFromEnv } from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-"));
 }
+
+test("cutter API runtime config defaults the local workspace to the user Movies folder", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary"
+  });
+
+  assert.equal(config.library_root, "/Volumes/PublicLibrary");
+  assert.equal(config.workspace_root, path.join(os.homedir(), "Movies", "MixLabLocal"));
+  assert.equal(config.host, "127.0.0.1");
+  assert.equal(config.port, 3789);
+});
+
+test("cutter API runtime config still honors an explicit local workspace path", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary",
+    MIXLAB_CUTTER_WORKSPACE_ROOT: "/Volumes/FastDisk/MixLabLocal"
+  });
+
+  assert.equal(config.workspace_root, "/Volumes/FastDisk/MixLabLocal");
+});
 
 async function writeDummyVideo(filePath: string, bytes = "dummy-video-bytes"): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -554,6 +574,20 @@ test("runtime status remains readable when cutter workspace is not configured", 
   });
 });
 
+test("cut job catalog remains readable when cutter workspace is not configured", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/cut-jobs`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.job_count, 0);
+    assert.deepEqual(body.data.jobs, []);
+  });
+});
+
 test("malformed usage events do not break authenticated source search", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
@@ -685,6 +719,7 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
       ["V000001"]
     );
     assert.equal(search.data.groups[0].cover_url, "/cutter/source-videos/V000001/cover");
+    assert.equal(search.data.groups[0].transcript_character_count, 18);
 
     const hiddenSearch = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}`, {
       headers

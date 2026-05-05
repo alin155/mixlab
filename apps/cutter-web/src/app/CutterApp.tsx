@@ -14,6 +14,7 @@ import {
 } from "../api.ts";
 import {
   createFixtureCutterApiClient,
+  emptySearchResponse,
   loadCutterWorkbenchData,
   resolveLocalClipUrls,
   resolveSearchResponseUrls,
@@ -21,7 +22,10 @@ import {
 } from "../fixture-client.ts";
 import { CutQueuePage } from "../features/cut-queue/CutQueuePage.tsx";
 import { LocalLibraryPage } from "../features/local-library/LocalLibraryPage.tsx";
-import { MaterialLocatorPage } from "../features/material-locator/MaterialLocatorPage.tsx";
+import {
+  MaterialLocatorPage,
+  type MaterialSearchHistoryItem
+} from "../features/material-locator/MaterialLocatorPage.tsx";
 import { PublicLibraryPage } from "../features/public-library/PublicLibraryPage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
@@ -38,7 +42,10 @@ import {
   type MoveDirection
 } from "../state/cut-list.ts";
 import {
+  buildMaterialLocatorSections,
   localClipToSourceVideoDetail,
+  normalizedMaterialSearchQuery,
+  type BuildMaterialLocatorSectionsInput,
   type MaterialLocatorResult,
   type MaterialSearchSourceFilter
 } from "../state/material-locator.ts";
@@ -50,7 +57,8 @@ import {
   readCutterAuthSession,
   writeCutterPendingLogin,
   writeCutterAuthSession,
-  type CutterAuthSession
+  type CutterAuthSession,
+  type CutterPendingLogin
 } from "../auth.ts";
 import { CutterLoginGate } from "../features/login/CutterLoginGate.tsx";
 import {
@@ -125,6 +133,23 @@ export function shouldRefreshCutQueueForRoute(input: {
   return input.apiMode && input.hasData && !input.loginGateVisible && input.route === "cut-tasks";
 }
 
+export function shouldShowCutterToolbar(route: CutterRoute): boolean {
+  return route !== "material-locator";
+}
+
+export function materialLocatorSearchQueryForHashChange(input: {
+  hash: string;
+  currentSearchQuery: string;
+}): string {
+  const nextRoute = routeFromHash(input.hash);
+  if (nextRoute !== "material-locator") {
+    return input.currentSearchQuery;
+  }
+
+  const queryFromHash = searchQueryFromHash(input.hash).trim();
+  return queryFromHash || input.currentSearchQuery;
+}
+
 export function loginStatusFromApplication(application: CutterLoginApplication): CutterLoginStatusValue {
   return application.user.status;
 }
@@ -178,6 +203,14 @@ export function shouldRetryPendingLoginError(error: unknown): boolean {
   return !(error instanceof CutterApiError) || error.status >= 500;
 }
 
+export function shouldPollPendingLogin(input: {
+  apiMode: boolean;
+  authSession: CutterAuthSession | null;
+  pendingLogin: CutterPendingLogin | null;
+}): boolean {
+  return input.apiMode && !input.authSession && Boolean(input.pendingLogin);
+}
+
 function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
   const base = jobs[0];
 
@@ -212,19 +245,107 @@ export function appendDirectCutFixtureQueue(
   ];
 }
 
-export function materialSelectionFromResult(result: MaterialLocatorResult): {
-  range: TranscriptSelectionRange;
+export function materialFocusFromResult(result: MaterialLocatorResult): {
+  currentSegmentId: string | undefined;
   highlightedSegmentIds: string[];
 } {
-  const highlightedSegmentIds = result.segments.map((segment) => segment.segment_id);
+  const highlightedSegmentIds =
+    materialHitSegmentGroups(result)[0]?.map((segment) => segment.segment_id) ?? [];
 
   return {
-    range: {
-      startSegmentId: highlightedSegmentIds[0],
-      endSegmentId: highlightedSegmentIds[highlightedSegmentIds.length - 1]
-    },
+    currentSegmentId: highlightedSegmentIds[0],
     highlightedSegmentIds
   };
+}
+
+export interface MaterialLocatorHitTarget {
+  materialKey: string;
+  material: MaterialLocatorResult;
+  segmentId: string;
+  highlightedSegmentIds: string[];
+}
+
+export function materialKeyFromResult(result: MaterialLocatorResult): string {
+  return `${result.source}:${result.id}`;
+}
+
+function materialHitSegmentGroups(result: MaterialLocatorResult): MaterialLocatorResult["segments"][] {
+  const groups = new Map<string, MaterialLocatorResult["segments"]>();
+
+  for (const segment of result.segments) {
+    const key = segment.match_id || segment.segment_id;
+    const current = groups.get(key) ?? [];
+    current.push(segment);
+    groups.set(key, current);
+  }
+
+  return [...groups.values()];
+}
+
+export function materialLocatorHitTargets(input: BuildMaterialLocatorSectionsInput): MaterialLocatorHitTarget[] {
+  return buildMaterialLocatorSections(input).flatMap((section) =>
+    section.items.flatMap((material) =>
+      materialHitSegmentGroups(material).map((segments) => ({
+        materialKey: materialKeyFromResult(material),
+        material,
+        segmentId: segments[0]?.segment_id ?? "",
+        highlightedSegmentIds: segments.map((segment) => segment.segment_id)
+      }))
+    )
+  );
+}
+
+export function nextMaterialLocatorHitIndex(
+  currentIndex: number,
+  direction: "previous" | "next",
+  total: number
+): number {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return direction === "previous"
+    ? (currentIndex - 1 + total) % total
+    : (currentIndex + 1) % total;
+}
+
+export function nextMaterialSearchHistory(
+  current: readonly MaterialSearchHistoryItem[],
+  next: MaterialSearchHistoryItem
+): MaterialSearchHistoryItem[] {
+  const query = next.query.trim();
+  if (!query) {
+    return [...current];
+  }
+
+  return [
+    { query, hitCount: next.hitCount },
+    ...current.filter((item) => item.query !== query)
+  ].slice(0, 6);
+}
+
+function normalizeLocatorQuery(query: string): string {
+  return normalizedMaterialSearchQuery(query);
+}
+
+export function mergeMaterialLocatorReloadData(
+  current: CutterFixtureData | null,
+  next: CutterFixtureData,
+  activeSearchQuery: string
+): CutterFixtureData {
+  const normalizedActiveQuery = normalizeLocatorQuery(activeSearchQuery);
+  const normalizedCurrentSearchQuery = current
+    ? normalizeLocatorQuery(current.search.normalized_query || current.search.query)
+    : "";
+
+  if (current && normalizedActiveQuery && normalizedCurrentSearchQuery === normalizedActiveQuery) {
+    return {
+      ...next,
+      search: current.search
+    };
+  }
+
+  return next;
 }
 
 export function cutNoticeForSubmittedJobs(count: number): string {
@@ -323,6 +444,11 @@ function renderPage(
   viewState: {
     searchQuery: string;
     highlightedSegmentIds: readonly string[];
+    currentHitIndex: number;
+    currentHitSegmentId?: string;
+    globalHitCount: number;
+    selectedMaterialKey?: string;
+    recentSearches: readonly MaterialSearchHistoryItem[];
     selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
     selectedDetail: CutterFixtureData["primaryDetail"];
     sourceFilter: MaterialSearchSourceFilter;
@@ -339,6 +465,7 @@ function renderPage(
     selectMaterial: (result: MaterialLocatorResult) => void;
     selectTranscriptSegment: (segmentId: string) => void;
     selectTranscriptRange: (startSegmentId: string, endSegmentId: string) => void;
+    navigateHit: (direction: "previous" | "next") => void;
     cancelTranscriptSelection: () => void;
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
@@ -369,18 +496,24 @@ function renderPage(
         library={data.library}
         localClips={data.localClips}
         search={data.search}
-        query={viewState.searchQuery || data.search.query}
+        query={viewState.searchQuery}
         sourceFilter={viewState.sourceFilter}
         orientationFilter={viewState.orientationFilter}
         selectedDetail={viewState.selectedDetail}
         selectedSegments={viewState.selectedSegments}
         highlightedSegmentIds={viewState.highlightedSegmentIds}
+        currentHitIndex={viewState.currentHitIndex}
+        currentHitSegmentId={viewState.currentHitSegmentId}
+        globalHitCount={viewState.globalHitCount}
+        selectedMaterialKey={viewState.selectedMaterialKey}
+        recentSearches={viewState.recentSearches}
         cutNotice={viewState.cutNotice}
         queue={queue}
         onSearch={handlers.search}
         onSelectMaterial={handlers.selectMaterial}
         onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
+        onNavigateHit={handlers.navigateHit}
         onCutSelection={handlers.addSelectedSpan}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onSetSourceFilter={handlers.setSourceFilter}
@@ -441,6 +574,9 @@ export function CutterApp() {
   const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>("all");
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
+  const [locatorCurrentHitIndex, setLocatorCurrentHitIndex] = useState(0);
+  const [selectedMaterialFocusKey, setSelectedMaterialFocusKey] = useState<string | undefined>();
+  const [recentMaterialSearches, setRecentMaterialSearches] = useState<MaterialSearchHistoryItem[]>([]);
   const [cutNotice, setCutNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
@@ -451,6 +587,9 @@ export function CutterApp() {
     deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
   );
   const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
+  const [pendingLogin, setPendingLogin] = useState<CutterPendingLogin | null>(() =>
+    apiMode ? readCutterPendingLogin() : null
+  );
   const [loginStatus, setLoginStatus] = useState<CutterLoginStatusValue>(() => apiMode ? "unknown" : "approved");
   const [loginMessage, setLoginMessage] = useState("");
   const [loginPollTick, setLoginPollTick] = useState(0);
@@ -463,19 +602,45 @@ export function CutterApp() {
   );
   const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus);
 
+  function clearMaterialLocatorFocus() {
+    setSelectedLocalClipId(undefined);
+    setSelectedMaterialFocusKey(undefined);
+    setTranscriptSelection({});
+    setLocatorHighlightedSegmentIds([]);
+    setLocatorCurrentHitIndex(0);
+  }
+
+  function focusMaterialTarget(target: MaterialLocatorHitTarget, globalHitIndex: number) {
+    setTranscriptSelection({});
+    setLocatorHighlightedSegmentIds(target.highlightedSegmentIds);
+    setLocatorCurrentHitIndex(globalHitIndex);
+    setSelectedMaterialFocusKey(target.materialKey);
+    setCutNotice("");
+
+    if (target.material.source === "local") {
+      setSelectedLocalClipId(target.material.id);
+      setSelectedSourceVideoId(undefined);
+      return;
+    }
+
+    setSelectedLocalClipId(undefined);
+    setSelectedSourceVideoId(target.material.id);
+  }
+
   const handleApplyLogin = useCallback(
     async (username: string) => {
       const deviceId = createDeviceId();
-      const pendingLogin = {
+      const nextPendingLogin = {
         username,
         device_id: deviceId,
         device_name: cutterDeviceName()
       };
-      writeCutterPendingLogin(pendingLogin);
+      writeCutterPendingLogin(nextPendingLogin);
+      setPendingLogin(nextPendingLogin);
       const application = await createCutterApiClient({ base_url: apiBaseUrl }).requestLogin({
         username,
-        device_id: pendingLogin.device_id,
-        device_name: pendingLogin.device_name
+        device_id: nextPendingLogin.device_id,
+        device_name: nextPendingLogin.device_name
       });
       const nextStatus = loginStatusFromApplication(application);
       const nextSession = authSessionFromApprovedApplication(application);
@@ -483,6 +648,7 @@ export function CutterApp() {
       if (nextSession) {
         writeCutterAuthSession(nextSession);
         clearCutterPendingLogin();
+        setPendingLogin(null);
         setAuthSession(nextSession);
         setLoginStatus("approved");
         setLoginMessage("");
@@ -492,6 +658,7 @@ export function CutterApp() {
       if (nextStatus === "rejected" || nextStatus === "disabled") {
         clearCutterAuthSession();
         clearCutterPendingLogin();
+        setPendingLogin(null);
         setAuthSession(null);
         setLoginStatus(nextStatus);
         setLoginMessage("");
@@ -511,9 +678,8 @@ export function CutterApp() {
     }
 
     if (!authSession) {
-      const pendingLogin = readCutterPendingLogin();
-
-      if (!pendingLogin) {
+      const loginToPoll = pendingLogin;
+      if (!shouldPollPendingLogin({ apiMode, authSession, pendingLogin: loginToPoll }) || !loginToPoll) {
         setLoginStatus((current) => current === "pending" ? current : "unknown");
         return;
       }
@@ -522,7 +688,7 @@ export function CutterApp() {
       let retryTimer: number | null = null;
       setLoginStatus("pending");
       createCutterApiClient({ base_url: apiBaseUrl })
-        .requestLogin(pendingLogin)
+        .requestLogin(loginToPoll)
         .then((application) => {
           if (cancelled) {
             return;
@@ -533,6 +699,7 @@ export function CutterApp() {
           if (nextSession) {
             writeCutterAuthSession(nextSession);
             clearCutterPendingLogin();
+            setPendingLogin(null);
             setAuthSession(nextSession);
             setLoginStatus("approved");
             setLoginMessage("");
@@ -542,6 +709,7 @@ export function CutterApp() {
           if (nextStatus === "rejected" || nextStatus === "disabled") {
             clearCutterAuthSession();
             clearCutterPendingLogin();
+            setPendingLogin(null);
             setAuthSession(null);
           }
           setLoginStatus(loginGateStatusFromApplication(application));
@@ -560,6 +728,7 @@ export function CutterApp() {
               retryTimer = window.setTimeout(() => setLoginPollTick((tick) => tick + 1), 10000);
             } else {
               clearCutterPendingLogin();
+              setPendingLogin(null);
             }
           }
         });
@@ -590,6 +759,8 @@ export function CutterApp() {
             username: status.ok ? status.user.username : authSession.username
           };
           writeCutterAuthSession(nextSession);
+          clearCutterPendingLogin();
+          setPendingLogin(null);
           if (
             nextSession.user_id !== authSession.user_id ||
             nextSession.username !== authSession.username
@@ -623,7 +794,7 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, apiMode, authSession, client, loginPollTick]);
+  }, [apiBaseUrl, apiMode, authSession, client, loginPollTick, pendingLogin]);
 
   const refreshLocalClips = useCallback(async () => {
     const localClips = await client.listLocalClips();
@@ -672,13 +843,21 @@ export function CutterApp() {
 
   useEffect(() => {
     const listener = () => {
-      setRoute(routeFromHash(window.location.hash));
-      setSelectedSourceVideoId(sourceVideoIdFromHash(window.location.hash));
+      const nextHash = window.location.hash;
+      setRoute(routeFromHash(nextHash));
+      setSelectedSourceVideoId(sourceVideoIdFromHash(nextHash));
       setSelectedLocalClipId(undefined);
-      setSearchQuery(searchQueryFromHash(window.location.hash));
-      setSourceDetailContext(sourceDetailContextFromHash(window.location.hash));
+      setSearchQuery((current) =>
+        materialLocatorSearchQueryForHashChange({
+          hash: nextHash,
+          currentSearchQuery: current
+        })
+      );
+      setSourceDetailContext(sourceDetailContextFromHash(nextHash));
       setTranscriptSelection({});
       setLocatorHighlightedSegmentIds([]);
+      setLocatorCurrentHitIndex(0);
+      setSelectedMaterialFocusKey(undefined);
       setCutNotice("");
     };
     window.addEventListener("hashchange", listener);
@@ -697,7 +876,7 @@ export function CutterApp() {
     })
       .then((result) => {
         if (!cancelled) {
-          setData(result);
+          setData((current) => mergeMaterialLocatorReloadData(current, result, searchQuery));
           setError("");
         }
       })
@@ -712,9 +891,38 @@ export function CutterApp() {
     };
   }, [client, loginGateVisible, selectedSourceVideoId]);
 
+  const locatorHitTargets = useMemo(
+    () =>
+      data
+        ? materialLocatorHitTargets({
+            query: searchQuery,
+            sourceFilter,
+            orientationFilter,
+            localClips: data.localClips,
+            library: data.library,
+            search: data.search
+          })
+        : [],
+    [data, orientationFilter, searchQuery, sourceFilter]
+  );
+  const globalHitCount = locatorHitTargets.length;
+
   useEffect(() => {
     const query = searchQuery.trim();
-    if (!data || loginGateVisible || route !== "material-locator" || !query) {
+    if (!data || loginGateVisible || route !== "material-locator") {
+      return;
+    }
+
+    if (!query) {
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              search: emptySearchResponse()
+            }
+          : current
+      );
+      clearMaterialLocatorFocus();
       return;
     }
 
@@ -724,13 +932,34 @@ export function CutterApp() {
       .searchSourceLibrary(query, 20)
       .then((searchResult) => {
         if (!cancelled) {
+          const resolvedSearch = resolveSearchResponseUrls(client, searchResult);
           setData((current) =>
             current
               ? {
                   ...current,
-                  search: resolveSearchResponseUrls(client, searchResult)
+                  search: resolvedSearch
                 }
               : current
+          );
+          const firstTarget = materialLocatorHitTargets({
+            query,
+            sourceFilter,
+            orientationFilter,
+            localClips: data.localClips,
+            library: data.library,
+            search: resolvedSearch
+          })[0];
+
+          if (firstTarget) {
+            focusMaterialTarget(firstTarget, 0);
+          } else {
+            clearMaterialLocatorFocus();
+          }
+          setRecentMaterialSearches((current) =>
+            nextMaterialSearchHistory(current, {
+              query,
+              hitCount: resolvedSearch.groups.reduce((sum, group) => sum + group.hit_count, 0)
+            })
           );
           setError("");
         }
@@ -744,7 +973,7 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, Boolean(data), loginGateVisible, route, searchQuery]);
+  }, [client, Boolean(data), loginGateVisible, orientationFilter, route, searchQuery, sourceFilter]);
 
   useEffect(() => {
     if (!shouldRefreshCutQueueForRoute({
@@ -799,6 +1028,14 @@ export function CutterApp() {
     }
   }, [cutList, didSeedCutList]);
 
+  useEffect(() => {
+    setLocatorCurrentHitIndex((current) =>
+      globalHitCount === 0
+        ? 0
+        : Math.min(current, globalHitCount - 1)
+    );
+  }, [globalHitCount]);
+
   const navItems = CUTTER_NAV_ITEMS.map((item) => ({
     label: item.label,
     icon: item.icon,
@@ -808,6 +1045,8 @@ export function CutterApp() {
   const visibleCutList = data && cutList.length === 0 && !didSeedCutList ? defaultCutListForData(data) : cutList;
   const selectedLocalClip = data?.localClips.clips.find((clip) => clip.local_clip_id === selectedLocalClipId);
   const selectedDetail = selectedLocalClip ? localClipToSourceVideoDetail(selectedLocalClip) : data?.primaryDetail;
+  const selectedMaterialKey =
+    route === "material-locator" && searchQuery.trim() ? selectedMaterialFocusKey : undefined;
   const visibleQueue =
     apiMode
       ? queueJobs
@@ -820,10 +1059,16 @@ export function CutterApp() {
         );
   const highlightedSegmentIds =
     route === "source-detail" ? sourceDetailContext.segmentIds : locatorHighlightedSegmentIds;
+  const currentLocatorHitTarget =
+    route === "material-locator" ? locatorHitTargets[locatorCurrentHitIndex] : undefined;
+  const currentHitSegmentId =
+    currentLocatorHitTarget && currentLocatorHitTarget.materialKey === selectedMaterialKey
+      ? currentLocatorHitTarget.segmentId
+      : highlightedSegmentIds[0];
   const selectedTranscriptSegments = selectedDetail
     ? continuousTranscriptSegments(selectedDetail.transcript.segments, {
         ...transcriptSelection,
-        fallbackSegmentIds: highlightedSegmentIds
+        fallbackSegmentIds: route === "source-detail" ? highlightedSegmentIds : []
       })
     : [];
 
@@ -945,24 +1190,43 @@ export function CutterApp() {
     search(query: string) {
       const nextQuery = query.trim();
       setSearchQuery(nextQuery);
+      setSelectedSourceVideoId(undefined);
+      setSelectedLocalClipId(undefined);
+      setSelectedMaterialFocusKey(undefined);
+      setTranscriptSelection({});
       setLocatorHighlightedSegmentIds([]);
+      setLocatorCurrentHitIndex(0);
       setCutNotice("");
       window.location.hash = searchHash(nextQuery);
     },
     selectMaterial(result: MaterialLocatorResult) {
-      const selection = materialSelectionFromResult(result);
-      setTranscriptSelection(selection.range);
-      setLocatorHighlightedSegmentIds(selection.highlightedSegmentIds);
-      setCutNotice("");
+      const materialKey = materialKeyFromResult(result);
+      const targetIndex = locatorHitTargets.findIndex((target) => target.materialKey === materialKey);
+      const target = targetIndex >= 0 ? locatorHitTargets[targetIndex] : undefined;
 
-      if (result.source === "local") {
-        setSelectedLocalClipId(result.id);
-        setSelectedSourceVideoId(undefined);
+      if (target) {
+        focusMaterialTarget(target, targetIndex);
         return;
       }
 
-      setSelectedLocalClipId(undefined);
-      setSelectedSourceVideoId(result.id);
+      focusMaterialTarget(
+        {
+          materialKey,
+          material: result,
+          segmentId: materialFocusFromResult(result).currentSegmentId ?? "",
+          highlightedSegmentIds: materialFocusFromResult(result).highlightedSegmentIds
+        },
+        0
+      );
+    },
+    navigateHit(direction: "previous" | "next") {
+      const nextIndex = nextMaterialLocatorHitIndex(locatorCurrentHitIndex, direction, globalHitCount);
+      const target = locatorHitTargets[nextIndex];
+      if (!target) {
+        return;
+      }
+
+      focusMaterialTarget(target, nextIndex);
     },
     selectTranscriptSegment(segmentId: string) {
       setTranscriptSelection((current) => nextTranscriptSelectionRange(current, segmentId));
@@ -1088,14 +1352,16 @@ export function CutterApp() {
       >
         <div className="cutter-shell">
           <Sidebar items={navItems} active={routeTitle(route)} />
-          <section className="cutter-workspace">
-            <UnifiedToolbar
-              title="MixLab V3 - 剪辑师工作台"
-              libraryLabel={data?.settings.public_library_mount ?? "/Volumes/PublicLibrary"}
-              availableCountLabel={data ? `${data.library.available_video_count} 可用原素材` : undefined}
-              healthLabel={data ? "健康" : "加载中"}
-              actions={["进入素材库", "搜索", "Doctor"]}
-            />
+          <section className={`cutter-workspace ${shouldShowCutterToolbar(route) ? "" : "is-toolbar-hidden"}`}>
+            {shouldShowCutterToolbar(route) ? (
+              <UnifiedToolbar
+                title="MixLab V3 - 剪辑师工作台"
+                libraryLabel={data?.settings.public_library_mount ?? "/Volumes/PublicLibrary"}
+                availableCountLabel={data ? `${data.library.available_video_count} 可用原素材` : undefined}
+                healthLabel={data ? "健康" : "加载中"}
+                actions={["进入素材库", "搜索", "Doctor"]}
+              />
+            ) : null}
             <section className="cutter-content">
               {error ? (
                 <InspectorPanel title="加载失败">
@@ -1110,6 +1376,11 @@ export function CutterApp() {
                   {
                     searchQuery,
                     highlightedSegmentIds,
+                    currentHitIndex: locatorCurrentHitIndex,
+                    currentHitSegmentId,
+                    globalHitCount,
+                    selectedMaterialKey,
+                    recentSearches: recentMaterialSearches,
                     selectedSegments: selectedTranscriptSegments,
                     selectedDetail: selectedDetail ?? data.primaryDetail,
                     sourceFilter,

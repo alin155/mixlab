@@ -57,6 +57,8 @@ export interface SourceVideoDetail extends SourceVideoCard {
 
 export interface SearchHitSegment extends TranscriptSegment {
   match_ranges?: Array<[number, number]>;
+  match_id?: string;
+  match_type?: "exact" | "tolerant";
 }
 
 export interface SearchGroup {
@@ -66,6 +68,7 @@ export interface SearchGroup {
   hit_count: number;
   best_excerpt: string;
   hit_segments: SearchHitSegment[];
+  transcript_character_count?: number;
   media_url?: string;
   cover_url?: string;
   detail_url?: string;

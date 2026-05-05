@@ -59,28 +59,16 @@ const index = buildTranscriptSearchIndex([
 ]);
 
 test("search ignores punctuation and groups hits by source video", () => {
-  assert.deepEqual(searchTranscripts(index, { query: "现金流，是企业的血液", limit: 20 }), {
-    query: "现金流，是企业的血液",
-    normalized_query: "现金流是企业的血液",
-    groups: [
-      {
-        source_video_id: "V000001",
-        title: "老板现金流课程",
-        duration_ms: 3_600_000,
-        hit_count: 1,
-        best_excerpt: "现金流，是企业的血液。",
-        hit_segments: [
-          {
-            segment_id: "V000001-S000001",
-            begin_ms: 10_000,
-            end_ms: 14_000,
-            text: "现金流，是企业的血液。",
-            match_ranges: [[0, 8]]
-          }
-        ]
-      }
-    ]
-  });
+  const result = searchTranscripts(index, { query: "现金流，是企业的血液", limit: 20 });
+
+  assert.equal(result.query, "现金流，是企业的血液");
+  assert.equal(result.normalized_query, "现金流是企业的血液");
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0]?.source_video_id, "V000001");
+  assert.equal(result.groups[0]?.hit_count, 1);
+  assert.equal(result.groups[0]?.best_excerpt, "现金流，是企业的血液。");
+  assert.deepEqual(result.groups[0]?.hit_segments[0]?.match_ranges, [[0, 8]]);
+  assert.equal(result.groups[0]?.hit_segments[0]?.match_type, "exact");
 });
 
 test("search returns multiple grouped source videos without sentence waterfall shape", () => {
@@ -117,6 +105,80 @@ test("search returns multiple grouped source videos without sentence waterfall s
   );
   assert.equal(result.groups[0]?.hit_segments.length, 1);
   assert.equal(result.groups[1]?.hit_segments.length, 1);
+});
+
+test("search matches long natural text across adjacent transcript segments", () => {
+  const result = searchTranscripts(index, {
+    query: "现金流是企业的血液不是账面数字",
+    limit: 20
+  });
+
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0]?.source_video_id, "V000001");
+  assert.equal(result.groups[0]?.hit_count, 1);
+  assert.deepEqual(
+    result.groups[0]?.hit_segments.map((segment) => segment.segment_id),
+    ["V000001-S000001", "V000001-S000002"]
+  );
+  assert.equal(result.groups[0]?.best_excerpt, "现金流，是企业的血液。不是账面数字。");
+});
+
+test("search tolerates one ASR-style character error in medium-length original text", () => {
+  const result = searchTranscripts(index, {
+    query: "现金流是企业的血夜",
+    limit: 20
+  });
+
+  assert.deepEqual(
+    result.groups.map((group) => group.source_video_id),
+    ["V000001"]
+  );
+  assert.equal(result.groups[0]?.hit_count, 1);
+});
+
+test("search does not tolerate a one-character error in very short text", () => {
+  const result = searchTranscripts(index, {
+    query: "组织校率",
+    limit: 20
+  });
+
+  assert.deepEqual(result.groups, []);
+});
+
+test("search ranks exact and concentrated matches ahead of weaker tolerant matches", () => {
+  const rankedIndex = buildTranscriptSearchIndex([
+    {
+      source_video_id: "V000010",
+      title: "ASR 有误课程",
+      duration_ms: 3_600_000,
+      segments: [
+        {
+          segment_id: "V000010-S000001",
+          index: 0,
+          begin_ms: 10_000,
+          end_ms: 14_000,
+          begin_char: 0,
+          end_char: 16,
+          normalized_begin_char: 0,
+          normalized_end_char: 15,
+          text: "现金流，是企业的血夜。",
+          normalized_text: "现金流是企业的血夜",
+          confidence: 0.88
+        }
+      ]
+    },
+    ...index.videos
+  ]);
+
+  const result = searchTranscripts(rankedIndex, {
+    query: "现金流，是企业的血液",
+    limit: 20
+  });
+
+  assert.deepEqual(
+    result.groups.map((group) => group.source_video_id),
+    ["V000001", "V000010"]
+  );
 });
 
 test("empty or punctuation-only queries return no groups", () => {

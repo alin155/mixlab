@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createFixtureCutterData } from "./fixture-client.ts";
+import { createFixtureCutterData, emptySearchResponse } from "./fixture-client.ts";
 import { PublicLibraryPage } from "./features/public-library/PublicLibraryPage.tsx";
 import { SourceDetailPage } from "./features/source-detail/SourceDetailPage.tsx";
 import { SearchPage } from "./features/search/SearchPage.tsx";
@@ -42,10 +43,14 @@ import {
   loginMessageForAuthError,
   loginStatusFromApplication,
   loginStatusFromBackendStatus,
-  materialSelectionFromResult,
+  materialLocatorSearchQueryForHashChange,
+  materialFocusFromResult,
+  mergeMaterialLocatorReloadData,
   shouldClearSessionForLoginStatusError,
+  shouldPollPendingLogin,
   shouldRefreshCutQueueForRoute,
   shouldRetryPendingLoginError,
+  shouldShowCutterToolbar,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
 import {
@@ -214,6 +219,43 @@ test("search hash preserves query while targeting the material locator route", (
   assert.equal(searchHash(" 现金流 "), "#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81");
 });
 
+test("material locator search query survives navigating to task pages and back", () => {
+  assert.equal(
+    materialLocatorSearchQueryForHashChange({
+      hash: "#cut-tasks",
+      currentSearchQuery: "老师"
+    }),
+    "老师"
+  );
+  assert.equal(
+    materialLocatorSearchQueryForHashChange({
+      hash: "#material-locator",
+      currentSearchQuery: "老师"
+    }),
+    "老师"
+  );
+  assert.equal(
+    materialLocatorSearchQueryForHashChange({
+      hash: "#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+      currentSearchQuery: "老师"
+    }),
+    "现金流"
+  );
+  assert.equal(
+    materialLocatorSearchQueryForHashChange({
+      hash: "#material-locator",
+      currentSearchQuery: ""
+    }),
+    ""
+  );
+});
+
+test("material locator hides the general toolbar to keep the transcript workbench focused", () => {
+  assert.equal(shouldShowCutterToolbar("material-locator"), false);
+  assert.equal(shouldShowCutterToolbar("cut-tasks"), true);
+  assert.equal(shouldShowCutterToolbar("public-library"), true);
+});
+
 test("public library is a read-only gallery of available source videos", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
@@ -284,8 +326,9 @@ test("search page groups hits by source video and avoids sentence waterfall", ()
 
 test("material locator is the main search-select-cut workbench with local results first", () => {
   const data = fixture();
+  const publicTranscriptLength = data.primaryDetail.transcript.full_text.replace(/\s+/g, "").length;
   const html = renderToStaticMarkup(
-    h(MaterialLocatorPage, {
+    h(MaterialLocatorPage as any, {
       library: data.library,
       localClips: data.localClips,
       search: data.search,
@@ -295,11 +338,20 @@ test("material locator is the main search-select-cut workbench with local result
       selectedDetail: data.primaryDetail,
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 3),
       highlightedSegmentIds: ["s-001"],
+      currentHitIndex: 0,
+      currentHitSegmentId: "s-001",
+      globalHitCount: 3,
+      selectedMaterialKey: `public:${data.primaryDetail.source_video_id}`,
+      recentSearches: [
+        { query: "老师", hitCount: 20 },
+        { query: "现金流", hitCount: 3 }
+      ],
       cutNotice: "已加入剪切任务 · 等待中 1",
       queue: data.queue,
       onSearch: () => undefined,
       onSelectMaterial: () => undefined,
       onSelectTranscriptSegment: () => undefined,
+      onNavigateHit: () => undefined,
       onCutSelection: () => undefined,
       onCancelSelection: () => undefined
     })
@@ -307,16 +359,27 @@ test("material locator is the main search-select-cut workbench with local result
 
   for (const text of [
     "素材定位",
+    "工作台状态",
+    "搜索定位",
     "搜索文案关键词或粘贴文案",
+    "素材来源",
+    "视频类型",
+    "候选素材",
+    "搜索次数",
+    "搜索记录",
+    "老师",
     "全部",
     "本地素材",
     "公共原素材",
     "横版",
     "竖版",
-    "完整文案",
+    "视频文案",
+    "命中 1 / 3",
+    "上一个",
+    "下一个",
     "剪切这段",
     "已加入剪切任务 · 等待中 1",
-    "剪切中",
+    "剪切队列",
     "查看全部任务"
   ]) {
     assert.match(html, new RegExp(text));
@@ -324,11 +387,192 @@ test("material locator is the main search-select-cut workbench with local result
 
   assert.equal(html.includes("片段篮"), false);
   assert.equal(html.includes("待剪清单"), false);
+  assert.equal(html.includes("候选素材 <span>·"), false);
   assert.ok(html.indexOf("本地素材") < html.indexOf("公共原素材"));
+  assert.match(html, /cutter-locator-top-row/);
+  assert.match(html, /cutter-locator-bottom-row/);
+  assert.ok(html.indexOf("cutter-locator-command") < html.indexOf("cutter-locator-workbench"));
+  assert.ok(html.indexOf("cutter-locator-status") < html.indexOf("cutter-locator-visual"));
+  assert.ok(html.indexOf("cutter-locator-visual") < html.indexOf("cutter-locator-queue-panel"));
+  assert.ok(html.indexOf("cutter-locator-queue-panel") < html.indexOf("cutter-locator-bottom-row"));
+  assert.ok(html.indexOf("cutter-locator-candidates") < html.indexOf("cutter-natural-transcript"));
+  assert.equal(html.includes("当前搜索"), false);
+  assert.equal(html.includes("画面方向"), false);
+  assert.equal(html.includes('value="现金流"'), false);
+  assert.equal(html.includes("搜、选、剪"), false);
+  assert.equal(html.includes("<h1>素材定位</h1>"), false);
+  assert.equal(html.includes("完整文案"), false);
+  assert.equal(html.includes("自然文案"), false);
+  assert.equal(html.includes("<h2>画面验证</h2>"), false);
+  assert.equal(html.includes("横版 · 29:50"), false);
+  assert.equal(html.includes("<h2>剪切队列</h2>"), false);
+  assert.equal(html.includes("剪切中 0 · 等待 1 · 完成 2 · 失败 0"), false);
+  assert.equal(html.includes("公共原素材 · 横版"), false);
+  assert.match(html, new RegExp(`文案 ${publicTranscriptLength} 字`));
+  assert.match(html, /\d+ 处命中/);
+  assert.match(html, /cutter-locator-result is-selected/);
+  assert.equal(html.includes("<em>"), false);
+  assert.match(html, /<select[^>]+name="sourceFilter"/);
+  assert.match(html, /<select[^>]+name="orientationFilter"/);
+  assert.match(html, /data-layout="search-select-cut"/);
   assert.match(html, /data-page="material-locator"/);
   assert.match(html, /<video/);
   assert.match(html, /data-testid="locator-video"/);
   assert.match(html, /data-testid="preview-selection"/);
+  assert.match(html, /cutter-floating-selection-bar/);
+  assert.match(html, /cutter-compact-selection-bar/);
+  assert.match(html, /已选 \d+ 秒/);
+  assert.equal(html.includes("已选中一段文案"), false);
+  assert.doesNotMatch(html, /cutter-selection-bar[\s\S]*现金流不是利润表的影子[\s\S]*preview-selection/);
+  assert.match(html, /暂停预览/);
+});
+
+test("material locator uses global hit navigation and wraps across candidate materials", async () => {
+  const data = fixture();
+  const appModule = (await import("./app/CutterApp.tsx")) as any;
+
+  assert.equal(typeof appModule.materialLocatorHitTargets, "function");
+  assert.equal(typeof appModule.nextMaterialLocatorHitIndex, "function");
+
+  const targets = appModule.materialLocatorHitTargets({
+    query: data.search.query,
+    sourceFilter: "all",
+    orientationFilter: "all",
+    localClips: data.localClips,
+    library: data.library,
+    search: data.search
+  });
+
+  assert.ok(targets.length > 3);
+  assert.equal(targets[0].material.source, "local");
+  assert.equal(targets[1].material.source, "public");
+  assert.equal(appModule.nextMaterialLocatorHitIndex(0, "previous", targets.length), targets.length - 1);
+  assert.equal(appModule.nextMaterialLocatorHitIndex(targets.length - 1, "next", targets.length), 0);
+});
+
+test("material locator counts one natural text hit across multiple transcript segments", async () => {
+  const data = fixture();
+  const appModule = (await import("./app/CutterApp.tsx")) as any;
+
+  const targets = appModule.materialLocatorHitTargets({
+    query: "现金流决定企业能不能安全穿过周期",
+    sourceFilter: "public",
+    orientationFilter: "all",
+    localClips: { local_clip_count: 0, clips: [] },
+    library: data.library,
+    search: {
+      query: "现金流决定企业能不能安全穿过周期",
+      normalized_query: "现金流决定企业能不能安全穿过周期",
+      groups: [
+        {
+          source_video_id: data.primaryDetail.source_video_id,
+          title: data.primaryDetail.title,
+          duration_ms: data.primaryDetail.duration_ms,
+          hit_count: 2,
+          best_excerpt: "现金流决定企业能不能安全穿过周期",
+          hit_segments: [
+            {
+              ...data.primaryDetail.transcript.segments[0],
+              match_id: "M000001"
+            },
+            {
+              ...data.primaryDetail.transcript.segments[1],
+              match_id: "M000001"
+            },
+            {
+              ...data.primaryDetail.transcript.segments[2],
+              match_id: "M000002"
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(targets.length, 2);
+  assert.deepEqual(targets[0].highlightedSegmentIds, [
+    data.primaryDetail.transcript.segments[0]?.segment_id,
+    data.primaryDetail.transcript.segments[1]?.segment_id
+  ]);
+  assert.deepEqual(targets[1].highlightedSegmentIds, [
+    data.primaryDetail.transcript.segments[2]?.segment_id
+  ]);
+});
+
+test("material locator hit controls stay available while displaying the global hit ordinal", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage as any, {
+      library: data.library,
+      localClips: data.localClips,
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "all",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: `public:${data.primaryDetail.source_video_id}`,
+      highlightedSegmentIds: ["s-001"],
+      currentHitSegmentId: "s-001",
+      currentHitIndex: 9,
+      globalHitCount: 10,
+      queue: data.queue,
+      onNavigateHit: () => undefined
+    })
+  );
+
+  assert.match(html, /命中 10 \/ 10/);
+  assert.doesNotMatch(html, /<button type="button" disabled="">上一个<\/button>/);
+  assert.doesNotMatch(html, /<button type="button" disabled="">下一个<\/button>/);
+});
+
+test("material locator data reload preserves the active search while focusing a public result", async () => {
+  const data = createFixtureCutterData();
+  const reloadedData = {
+    ...data,
+    search: emptySearchResponse(),
+    primaryDetail: {
+      ...data.primaryDetail,
+      source_video_id: "src-002",
+      title: "私域直播复盘方法"
+    }
+  };
+
+  assert.equal(typeof mergeMaterialLocatorReloadData, "function");
+
+  const merged = mergeMaterialLocatorReloadData(data, reloadedData, data.search.query);
+  assert.equal(merged.primaryDetail.source_video_id, "src-002");
+  assert.equal(merged.search.groups.length, data.search.groups.length);
+  assert.equal(merged.search.query, data.search.query);
+
+  const blankSearchMerged = mergeMaterialLocatorReloadData(data, reloadedData, "");
+  assert.equal(blankSearchMerged.search.groups.length, 0);
+});
+
+test("material locator clears candidate, video, and transcript focus when no search is active", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: data.localClips,
+      search: emptySearchResponse(),
+      query: "",
+      sourceFilter: "all",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: undefined,
+      highlightedSegmentIds: [],
+      selectedSegments: [],
+      queue: []
+    })
+  );
+
+  assert.match(html, /先搜索文案/);
+  assert.equal(html.includes("没有找到可选素材"), false);
+  assert.equal(html.includes("<video"), false);
+  assert.equal(html.includes("data-testid=\"locator-video\""), false);
+  assert.equal(html.includes("现金流不是利润表的影子。"), false);
+  assert.equal(html.includes("现金流管理与风险控制"), false);
+  assert.equal(html.includes("cutter-locator-result is-selected"), false);
 });
 
 test("material locator transcript renders as natural text with invisible segment mapping", () => {
@@ -342,6 +586,7 @@ test("material locator transcript renders as natural text with invisible segment
       sourceFilter: "all",
       orientationFilter: "all",
       selectedDetail: data.primaryDetail,
+      selectedMaterialKey: `public:${data.primaryDetail.source_video_id}`,
       selectedSegments: data.primaryDetail.transcript.segments.slice(0, 2),
       highlightedSegmentIds: ["s-001"],
       queue: data.queue
@@ -350,10 +595,85 @@ test("material locator transcript renders as natural text with invisible segment
 
   assert.match(html, /data-selection-mode="natural-text"/);
   assert.match(html, /data-segment-id="s-001"/);
+  assert.match(html, /data-current-hit-segment-id="s-001"/);
+  assert.match(html, /data-autoscroll-target="s-001"/);
+  assert.match(html, /is-current-hit/);
   assert.match(html, /现金流不是利润表的影子。/);
   assert.equal(html.includes("选择此句"), false);
   assert.equal(html.includes("cutter-segment"), false);
   assert.equal(html.includes("内部映射"), false);
+});
+
+test("material locator candidate focus highlights hits without creating a cut selection", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: data.localClips,
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "all",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: `public:${data.primaryDetail.source_video_id}`,
+      highlightedSegmentIds: ["s-001", "s-003"],
+      queue: data.queue
+    })
+  );
+
+  assert.match(html, /is-highlighted/);
+  assert.match(html, /is-current-hit/);
+  assert.equal(html.includes("已选中一段文案"), false);
+  assert.equal(html.includes("cutter-floating-selection-bar"), false);
+});
+
+test("material locator floating selection toolbar is compact instead of a blocking overlay", async () => {
+  const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
+  const compactRule = css.match(/\.cutter-compact-selection-bar\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const anchoredRule = css.match(/\.cutter-floating-selection-bar\.is-anchored\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const responsiveRule = css.match(/\.cutter-floating-selection-bar\.is-anchored:not\(\.cutter-compact-selection-bar\)\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+
+  assert.match(compactRule, /display:\s*inline-flex/);
+  assert.match(compactRule, /max-height:\s*40px/);
+  assert.match(compactRule, /overflow:\s*hidden/);
+  assert.match(anchoredRule, /height:\s*auto/);
+  assert.match(anchoredRule, /margin:\s*0/);
+  assert.match(responsiveRule, /width:\s*calc\(100vw - 32px\)/);
+});
+
+test("material locator keeps search and review areas fixed while transcript scrolls independently", async () => {
+  const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
+  const pageMainRule = css.match(/\.cutter-material-locator \.cutter-page-main\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const workbenchRule = css.match(/\.cutter-locator-workbench\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const topRowRule = css.match(/\.cutter-locator-top-row\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const bottomRowRule = css.match(/\.cutter-locator-bottom-row\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const statusRule = css.match(/\.cutter-locator-status\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const historyListRule = css.match(/\.cutter-locator-search-history > div\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const queuePanelMatches = Array.from(css.matchAll(/\.cutter-locator-queue-panel\s*{(?<body>[^}]+)}/g));
+  const queuePanelRule = queuePanelMatches.at(-1)?.groups?.body ?? "";
+  const queueListRule = css.match(/\.cutter-locator-queue-list\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const transcriptRule = css.match(/\.cutter-natural-transcript\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const transcriptBodyRule = css.match(/\.cutter-natural-transcript p\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+
+  assert.match(pageMainRule, /height:\s*100%/);
+  assert.match(pageMainRule, /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/);
+  assert.match(pageMainRule, /overflow:\s*hidden/);
+  assert.match(workbenchRule, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)/);
+  assert.doesNotMatch(topRowRule, /position:\s*sticky/);
+  assert.match(topRowRule, /height:\s*430px/);
+  assert.match(topRowRule, /overflow:\s*hidden/);
+  assert.match(statusRule, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)/);
+  assert.match(statusRule, /overflow:\s*hidden/);
+  assert.match(historyListRule, /overflow:\s*auto/);
+  assert.match(queuePanelRule, /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/);
+  assert.match(queuePanelRule, /overflow:\s*hidden/);
+  assert.match(queueListRule, /overflow:\s*auto/);
+  assert.match(bottomRowRule, /min-height:\s*0/);
+  assert.match(bottomRowRule, /overflow:\s*hidden/);
+  assert.match(transcriptRule, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)/);
+  assert.match(transcriptRule, /min-height:\s*0/);
+  assert.match(transcriptBodyRule, /min-height:\s*0/);
+  assert.match(transcriptBodyRule, /overflow:\s*auto/);
 });
 
 test("direct cut creates a background fixture task and stays compatible with material locator route", () => {
@@ -416,7 +736,7 @@ test("direct cut notice is concise and keeps the cutter on the locator page", ()
   );
 });
 
-test("selecting a search result keeps its hit range highlighted and selected", () => {
+test("selecting a search result focuses the first natural hit without creating a cut range", () => {
   const data = fixture();
   const result = buildMaterialLocatorSections({
     query: data.search.query,
@@ -430,12 +750,9 @@ test("selecting a search result keeps its hit range highlighted and selected", (
     ?.items.find((item) => item.id === data.primaryDetail.source_video_id);
 
   assert.ok(result);
-  assert.deepEqual(materialSelectionFromResult(result), {
-    range: {
-      startSegmentId: "s-001",
-      endSegmentId: "s-003"
-    },
-    highlightedSegmentIds: ["s-001", "s-002", "s-003"]
+  assert.deepEqual(materialFocusFromResult(result), {
+    currentSegmentId: "s-001",
+    highlightedSegmentIds: ["s-001"]
   });
 });
 
@@ -673,6 +990,51 @@ test("cutter pending login storage preserves username and device for approval po
 
   clearCutterPendingLogin();
   assert.equal(readCutterPendingLogin(), null);
+});
+
+test("pending login approval polling runs only while API mode is waiting for a stored request", () => {
+  const pendingLogin = {
+    username: "小王",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  };
+
+  assert.equal(
+    shouldPollPendingLogin({
+      apiMode: true,
+      authSession: null,
+      pendingLogin
+    }),
+    true
+  );
+  assert.equal(
+    shouldPollPendingLogin({
+      apiMode: false,
+      authSession: null,
+      pendingLogin
+    }),
+    false
+  );
+  assert.equal(
+    shouldPollPendingLogin({
+      apiMode: true,
+      authSession: {
+        user_id: "CU000001",
+        device_id: "device-001",
+        session_token: "session-001"
+      },
+      pendingLogin
+    }),
+    false
+  );
+  assert.equal(
+    shouldPollPendingLogin({
+      apiMode: true,
+      authSession: null,
+      pendingLogin: null
+    }),
+    false
+  );
 });
 
 test("login gate renders Chinese application states and only approved status renders children", async () => {

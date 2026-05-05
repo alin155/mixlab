@@ -117,35 +117,20 @@ test("searches grouped source videos with punctuation-insensitive Chinese matchi
     videos
   });
 
-  assert.deepEqual(
-    searchSourceTranscriptSqliteIndex({
-      index_file_path: dbPath,
-      query: "现金流，是企业的血液",
-      limit: 20
-    }),
-    {
-      query: "现金流，是企业的血液",
-      normalized_query: "现金流是企业的血液",
-      groups: [
-        {
-          source_video_id: "V000001",
-          title: "老板现金流课程",
-          duration_ms: 3_600_000,
-          hit_count: 1,
-          best_excerpt: "现金流，是企业的血液。",
-          hit_segments: [
-            {
-              segment_id: "V000001-S000001",
-              begin_ms: 10_000,
-              end_ms: 14_000,
-              text: "现金流，是企业的血液。",
-              match_ranges: [[0, 8]]
-            }
-          ]
-        }
-      ]
-    }
-  );
+  const result = searchSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    query: "现金流，是企业的血液",
+    limit: 20
+  });
+
+  assert.equal(result.query, "现金流，是企业的血液");
+  assert.equal(result.normalized_query, "现金流是企业的血液");
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0]?.source_video_id, "V000001");
+  assert.equal(result.groups[0]?.hit_count, 1);
+  assert.equal(result.groups[0]?.best_excerpt, "现金流，是企业的血液。");
+  assert.deepEqual(result.groups[0]?.hit_segments[0]?.match_ranges, [[0, 8]]);
+  assert.equal(result.groups[0]?.hit_segments[0]?.match_type, "exact");
 });
 
 test("uses ngram-backed search while preserving single-character query support", async () => {
@@ -175,6 +160,61 @@ test("uses ngram-backed search while preserving single-character query support",
       limit: 20
     }).groups.map((group) => group.source_video_id),
     ["V000001"]
+  );
+});
+
+test("searches long natural text across adjacent SQLite transcript segments", async () => {
+  const dbPath = await makeDbPath();
+
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    library_id: "lib_main_001",
+    index_version: "v000001",
+    created_at: "2026-05-02T00:00:00Z",
+    videos
+  });
+
+  const result = searchSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    query: "现金流是企业的血液不是账面数字",
+    limit: 20
+  });
+
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0]?.source_video_id, "V000001");
+  assert.deepEqual(
+    result.groups[0]?.hit_segments.map((segment) => segment.segment_id),
+    ["V000001-S000001", "V000001-S000002"]
+  );
+});
+
+test("searches SQLite transcripts with ASR-tolerant original text matching", async () => {
+  const dbPath = await makeDbPath();
+
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    library_id: "lib_main_001",
+    index_version: "v000001",
+    created_at: "2026-05-02T00:00:00Z",
+    videos
+  });
+
+  assert.deepEqual(
+    searchSourceTranscriptSqliteIndex({
+      index_file_path: dbPath,
+      query: "现金流是企业的血夜",
+      limit: 20
+    }).groups.map((group) => group.source_video_id),
+    ["V000001"]
+  );
+
+  assert.deepEqual(
+    searchSourceTranscriptSqliteIndex({
+      index_file_path: dbPath,
+      query: "组织校率",
+      limit: 20
+    }).groups,
+    []
   );
 });
 

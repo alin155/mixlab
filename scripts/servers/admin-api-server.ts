@@ -1,5 +1,6 @@
 import { loadProjectEnv } from "../shared/load-project-env.ts";
 import { createAdminApiServer } from "../../packages/admin-api/src/index.ts";
+import { assertPersistentRuntimePath } from "../../packages/runtime-config/src/index.ts";
 
 interface AdminApiRuntimeConfig {
   library_root: string;
@@ -53,6 +54,10 @@ function resolveAdminApiRuntimeConfigFromEnv(
 await loadProjectEnv();
 
 const config = resolveAdminApiRuntimeConfigFromEnv();
+assertPersistentRuntimePath({
+  path_value: config.library_root,
+  path_label: "公共素材库根目录"
+});
 const server = createAdminApiServer({
   library_root: config.library_root,
   library_id: config.library_id,

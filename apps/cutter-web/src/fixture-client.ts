@@ -270,6 +270,7 @@ const search: SearchResponse = {
       hit_count: 3,
       best_excerpt: "现金流不是利润表的影子，它直接决定企业能不能安全穿过周期。",
       hit_segments: primaryDetail.transcript.segments.slice(0, 3),
+      transcript_character_count: primaryDetail.transcript.full_text.replace(/\s+/g, "").length,
       media_url: videos[0]!.media_url,
       cover_url: videos[0]!.cover_url,
       detail_url: videos[0]!.detail_url,
@@ -281,6 +282,7 @@ const search: SearchResponse = {
       duration_ms: videos[1]!.duration_ms,
       hit_count: 1,
       best_excerpt: "直播复盘先看成交曲线，再回到现金流和投放回收周期。",
+      transcript_character_count: "直播复盘先看成交曲线，再回到现金流和投放回收周期。".replace(/\s+/g, "").length,
       hit_segments: [
         {
           segment_id: "l-003",
@@ -400,6 +402,22 @@ export function createFixtureCutterData(): CutterFixtureData {
   };
 }
 
+export function emptySearchResponse(query = ""): SearchResponse {
+  return {
+    query,
+    normalized_query: query.trim().toLowerCase(),
+    groups: []
+  };
+}
+
+function searchGroupText(group: SearchResponse["groups"][number]): string {
+  return [
+    group.title,
+    group.best_excerpt,
+    ...group.hit_segments.map((segment) => segment.text)
+  ].filter(Boolean).join(" ");
+}
+
 export function createFixtureCutterApiClient(): CutterApiClient {
   const data = createFixtureCutterData();
 
@@ -476,10 +494,18 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
     async searchSourceLibrary(query: string) {
+      const normalizedQuery = query.trim().toLowerCase();
+      if (!normalizedQuery) {
+        return emptySearchResponse(query);
+      }
+
       return {
         ...data.search,
         query,
-        normalized_query: query.trim().toLowerCase()
+        normalized_query: normalizedQuery,
+        groups: data.search.groups.filter((group) =>
+          searchGroupText(group).toLowerCase().includes(normalizedQuery)
+        )
       };
     },
     async listLocalClips() {
@@ -681,15 +707,14 @@ export async function loadCutterWorkbenchData(
     libraryResult.videos.find((video) => video.source_video_id === options.preferredSourceVideoId) ??
     libraryResult.videos[0];
 
-  const [primaryDetailResult, searchResult] = await Promise.all([
-    primary ? client.getSourceVideoDetail(primary.source_video_id) : Promise.resolve(primaryDetail),
-    client.searchSourceLibrary("现金流", 20)
-  ]);
+  const primaryDetailResult = primary
+    ? await client.getSourceVideoDetail(primary.source_video_id)
+    : primaryDetail;
 
   return {
     library,
     primaryDetail: resolveSourceVideoDetailUrls(client, primaryDetailResult),
-    search: resolveSearchResponseUrls(client, searchResult),
+    search: emptySearchResponse(),
     localClips,
     settings,
     runtimeStatus: runtimeStatusResult

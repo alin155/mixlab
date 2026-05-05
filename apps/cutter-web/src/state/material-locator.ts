@@ -10,6 +10,10 @@ import type {
   TranscriptSegment
 } from "../api.ts";
 import {
+  normalizeTranscriptSearchQuery,
+  transcriptTextMatchesQuery
+} from "@mixlab/search-core";
+import {
   videoOrientation,
   videoOrientationLabel,
   type VideoDimensions,
@@ -32,13 +36,14 @@ export interface MaterialLocatorResult {
   source_title: string;
   duration_ms: number;
   hit_count: number;
+  transcript_character_count: number;
   excerpt: string;
   media_url: string;
   cover_url: string;
   detail_url: string;
   orientation: VideoOrientation;
   orientation_label: string;
-  segments: TranscriptSegment[];
+  segments: SearchHitSegment[];
   source_video?: SourceVideoCard;
   local_clip?: LocalClip;
 }
@@ -59,16 +64,20 @@ export interface BuildMaterialLocatorSectionsInput {
 }
 
 function textIncludesQuery(text: string | undefined, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = query.trim();
   if (!normalizedQuery) {
     return true;
   }
 
-  return (text ?? "").toLowerCase().includes(normalizedQuery);
+  return transcriptTextMatchesQuery(text ?? "", normalizedQuery);
 }
 
 function localClipSearchText(clip: LocalClip): string {
   return [clip.title, clip.source_title, clip.selected_text].filter(Boolean).join(" ");
+}
+
+export function normalizedMaterialSearchQuery(query: string): string {
+  return normalizeTranscriptSearchQuery(query);
 }
 
 function hasUsableLocalTranscript(clip: LocalClip): boolean {
@@ -87,6 +96,14 @@ function localClipSegment(clip: LocalClip): TranscriptSegment {
     end_ms: clip.end_ms ?? clip.duration_ms ?? clip.begin_ms ?? 0,
     text: clip.selected_text?.trim() ?? ""
   };
+}
+
+function compactCharacterCount(text: string): number {
+  return text.replace(/\s+/g, "").length;
+}
+
+function segmentCharacterCount(segments: readonly TranscriptSegment[]): number {
+  return compactCharacterCount(segments.map((segment) => segment.text).join(""));
 }
 
 export function localClipToSourceVideoDetail(clip: LocalClip): SourceVideoDetail {
@@ -130,6 +147,7 @@ function publicResultFromGroup(
     source_title: group.title,
     duration_ms: group.duration_ms ?? sourceVideo?.duration_ms ?? 0,
     hit_count: group.hit_count,
+    transcript_character_count: group.transcript_character_count ?? segmentCharacterCount(group.hit_segments),
     excerpt: group.best_excerpt,
     media_url: group.media_url ?? sourceVideo?.media_url ?? "",
     cover_url: group.cover_url ?? sourceVideo?.cover_url ?? "",
@@ -151,6 +169,7 @@ function localResultFromClip(clip: LocalClip): MaterialLocatorResult {
     source_title: clip.source_title ?? "本地素材",
     duration_ms: clip.duration_ms ?? Math.max(0, (clip.end_ms ?? 0) - (clip.begin_ms ?? 0)),
     hit_count: 1,
+    transcript_character_count: compactCharacterCount(clip.selected_text?.trim() ?? ""),
     excerpt: clip.selected_text?.trim() ?? "",
     media_url: clip.media_url,
     cover_url: visual.cover_url ?? "",
@@ -172,6 +191,11 @@ function resultMatchesOrientationFilter(
 export function buildMaterialLocatorSections(
   input: BuildMaterialLocatorSectionsInput
 ): MaterialLocatorSection[] {
+  const normalizedInputQuery = normalizedMaterialSearchQuery(input.query);
+  if (!normalizedInputQuery) {
+    return [];
+  }
+
   const sourceVideosById = new Map(
     input.library.videos.map((video) => [video.source_video_id, video])
   );
@@ -194,9 +218,14 @@ export function buildMaterialLocatorSections(
   }
 
   if (input.sourceFilter === "all" || input.sourceFilter === "public") {
-    const publicItems = input.search.groups
-      .map((group) => publicResultFromGroup(group, sourceVideosById.get(group.source_video_id)))
-      .filter((item) => resultMatchesOrientationFilter(item, input.orientationFilter));
+    const normalizedSearchResponseQuery = normalizedMaterialSearchQuery(
+      input.search.normalized_query || input.search.query
+    );
+    const publicItems = normalizedSearchResponseQuery === normalizedInputQuery
+      ? input.search.groups
+          .map((group) => publicResultFromGroup(group, sourceVideosById.get(group.source_video_id)))
+          .filter((item) => resultMatchesOrientationFilter(item, input.orientationFilter))
+      : [];
 
     if (publicItems.length > 0) {
       sections.push({

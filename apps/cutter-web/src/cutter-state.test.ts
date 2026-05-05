@@ -185,6 +185,129 @@ test("material locator groups local reusable materials before public source mate
   assert.equal(sections[1]?.items[0]?.orientation_label, "横版");
 });
 
+test("material locator local material search normalizes punctuation and tolerates ASR errors", () => {
+  const localClips = {
+    local_clip_count: 1,
+    clips: [
+      {
+        local_clip_id: "clip-001",
+        title: "现金流短片开场",
+        source_video_id: "src-001",
+        source_title: "现金流管理与风险控制",
+        begin_ms: 12_200,
+        end_ms: 31_000,
+        duration_ms: 18_800,
+        selected_text: "现金流决定企业能不能安全穿过周期。",
+        media_url: "/local-clips/clip-001.mp4",
+        detail_url: "/cutter/local-clips/clip-001",
+        width: 1080,
+        height: 1920
+      }
+    ]
+  } as unknown as LocalClipCatalog;
+  const emptyPublicSearch: SearchResponse = {
+    query: "现金流，决定企业能不能安全穿过周其",
+    normalized_query: "现金流决定企业能不能安全穿过周其",
+    groups: []
+  };
+
+  const tolerantSections = buildMaterialLocatorSections({
+    query: "现金流，决定企业能不能安全穿过周其",
+    sourceFilter: "local",
+    orientationFilter: "all",
+    localClips,
+    library: {
+      available_video_count: 0,
+      videos: []
+    },
+    search: emptyPublicSearch
+  });
+  assert.equal(tolerantSections[0]?.items[0]?.id, "clip-001");
+  assert.equal(tolerantSections[0]?.items[0]?.hit_count, 1);
+
+  const tooShort = buildMaterialLocatorSections({
+    query: "现今流",
+    sourceFilter: "local",
+    orientationFilter: "all",
+    localClips,
+    library: {
+      available_video_count: 0,
+      videos: []
+    },
+    search: {
+      query: "现今流",
+      normalized_query: "现今流",
+      groups: []
+    }
+  });
+  assert.deepEqual(tooShort, []);
+});
+
+test("material locator public candidates keep whole-video transcript character counts", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "现金流",
+    sourceFilter: "public",
+    orientationFilter: "all",
+    localClips: { local_clip_count: 0, clips: [] },
+    library: {
+      available_video_count: 1,
+      videos: [sourceVideo]
+    },
+    search: {
+      query: "现金流",
+      normalized_query: "现金流",
+      groups: [
+        {
+          source_video_id: "src-001",
+          title: "现金流管理与风险控制",
+          duration_ms: sourceVideo.duration_ms,
+          hit_count: 1,
+          best_excerpt: "现金流不是利润表的影子。",
+          hit_segments: transcriptSegments.slice(0, 1),
+          transcript_character_count: 1234
+        }
+      ]
+    } as unknown as SearchResponse
+  });
+
+  assert.equal(sections[0]?.items[0]?.transcript_character_count, 1234);
+  assert.notEqual(
+    sections[0]?.items[0]?.transcript_character_count,
+    transcriptSegments[0]!.text.replace(/\s+/g, "").length
+  );
+});
+
+test("material locator keeps public candidates when the active query contains punctuation", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "让自己清醒，通过不断的清醒让自己选择正确的道路。",
+    sourceFilter: "public",
+    orientationFilter: "all",
+    localClips: { local_clip_count: 0, clips: [] },
+    library: {
+      available_video_count: 1,
+      videos: [sourceVideo]
+    },
+    search: {
+      query: "让自己清醒，通过不断的清醒让自己选择正确的道路。",
+      normalized_query: "让自己清醒通过不断的清醒让自己选择正确的道路",
+      groups: [
+        {
+          source_video_id: "src-001",
+          title: "现金流管理与风险控制",
+          duration_ms: sourceVideo.duration_ms,
+          hit_count: 1,
+          best_excerpt: "让自己清醒，通过不断的清醒让自己选择正确的道路。",
+          hit_segments: transcriptSegments.slice(0, 1),
+          transcript_character_count: 1234
+        }
+      ]
+    } as unknown as SearchResponse
+  });
+
+  assert.equal(sections[0]?.key, "public");
+  assert.equal(sections[0]?.items[0]?.id, "src-001");
+});
+
 test("material locator source and orientation filters narrow the unified result set", () => {
   const localClips = {
     local_clip_count: 1,
@@ -265,6 +388,28 @@ test("material locator source and orientation filters narrow the unified result 
       search
     }).map((section) => section.key),
     ["public"]
+  );
+  assert.deepEqual(
+    buildMaterialLocatorSections({
+      query: "",
+      sourceFilter: "all",
+      orientationFilter: "all",
+      localClips,
+      library,
+      search
+    }),
+    []
+  );
+  assert.deepEqual(
+    buildMaterialLocatorSections({
+      query: "素材定位",
+      sourceFilter: "all",
+      orientationFilter: "all",
+      localClips,
+      library,
+      search
+    }),
+    []
   );
 });
 
@@ -477,6 +622,10 @@ test("transcript selection uses clicked range or search-highlight fallback as on
       fallbackSegmentIds: ["s-002", "s-003"]
     }).map((segment) => segment.segment_id),
     ["s-002", "s-003"]
+  );
+  assert.deepEqual(
+    continuousTranscriptSegments(transcriptSegments).map((segment) => segment.segment_id),
+    []
   );
 });
 

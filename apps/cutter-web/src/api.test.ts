@@ -8,6 +8,7 @@ import {
   type CutterApiClient
 } from "./api.ts";
 import {
+  createFixtureCutterApiClient,
   loadCutterWorkbenchData,
   resolveLocalClipUrls,
   resolveSearchResponseUrls
@@ -143,6 +144,7 @@ test("loads source library, source detail, and search through cutter API", async
 });
 
 test("workbench data resolves Cutter API media URLs before rendering", async () => {
+  let searchRequestCount = 0;
   const client = {
     async listSourceLibrary() {
       return {
@@ -187,6 +189,7 @@ test("workbench data resolves Cutter API media URLs before rendering", async () 
       };
     },
     async searchSourceLibrary() {
+      searchRequestCount += 1;
       return {
         query: "现金流",
         normalized_query: "现金流",
@@ -252,8 +255,25 @@ test("workbench data resolves Cutter API media URLs before rendering", async () 
   assert.equal(data.library.videos[0]?.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
   assert.equal(data.primaryDetail.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
   assert.equal(data.primaryDetail.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
-  assert.equal(data.search.groups[0]?.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
+  assert.deepEqual(data.search, { query: "", normalized_query: "", groups: [] });
+  assert.equal(searchRequestCount, 0);
   assert.equal(data.localClips.clips[0]?.media_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001/media");
+});
+
+test("fixture search does not reuse the default cashflow results for blank or unmatched queries", async () => {
+  const client = createFixtureCutterApiClient();
+
+  assert.equal((await client.searchSourceLibrary("现金流", 20)).groups.length > 0, true);
+  assert.deepEqual(await client.searchSourceLibrary("", 20), {
+    query: "",
+    normalized_query: "",
+    groups: []
+  });
+  assert.deepEqual(await client.searchSourceLibrary("素材定位", 20), {
+    query: "素材定位",
+    normalized_query: "素材定位",
+    groups: []
+  });
 });
 
 test("runtime search results resolve media URLs before rendering", () => {

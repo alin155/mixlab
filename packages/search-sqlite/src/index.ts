@@ -6,11 +6,8 @@ import {
   normalizeTranscriptText,
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
-import type {
-  TranscriptSearchGroup,
-  TranscriptSearchHitSegment,
-  TranscriptSearchResult
-} from "../../search-core/src/index.ts";
+import type { TranscriptSearchResult } from "../../search-core/src/index.ts";
+import { searchTranscripts } from "../../search-core/src/index.ts";
 
 export interface SourceTranscriptSqliteVideo {
   source_video_id: string;
@@ -54,10 +51,18 @@ interface SegmentSearchRow {
   title: string;
   duration_ms: number;
   segment_id: string;
+  segment_index: number;
   begin_ms: number;
   end_ms: number;
   text: string;
   normalized_text: string;
+}
+
+interface SourceVideoSearchRow {
+  position: number;
+  source_video_id: string;
+  title: string;
+  duration_ms: number;
 }
 
 function openDatabase(filePath: string): DatabaseSync {
@@ -75,9 +80,8 @@ function ngrams(normalizedText: string): string[] {
   return [...grams];
 }
 
-function firstNgram(normalizedText: string): string | null {
-  const chars = Array.from(normalizedText);
-  return chars.length >= 2 ? `${chars[0]}${chars[1]}` : null;
+function ngramsFromQuery(normalizedText: string): string[] {
+  return ngrams(normalizedText);
 }
 
 function metadataRows(input: WriteSourceTranscriptSqliteIndexInput): Array<[string, string]> {
@@ -259,50 +263,122 @@ export function readSourceTranscriptSqliteIndexMetadata(
   }
 }
 
-function queryRows(
-  db: DatabaseSync,
-  normalizedQuery: string
-): SegmentSearchRow[] {
-  const gram = firstNgram(normalizedQuery);
+function candidateSourceVideoIds(db: DatabaseSync, normalizedQuery: string, limit: number): string[] {
+  const grams = ngramsFromQuery(normalizedQuery);
 
-  if (gram) {
-    return db
+  if (grams.length === 0) {
+    const rows = db
       .prepare(`
-        SELECT DISTINCT
+        SELECT DISTINCT v.position, v.source_video_id
+        FROM segments s
+        JOIN source_videos v ON v.source_video_id = s.source_video_id
+        WHERE instr(s.normalized_text, ?) > 0
+        ORDER BY v.position ASC
+        LIMIT ?
+      `)
+      .all(normalizedQuery, limit) as Array<{ source_video_id: string }>;
+
+    return rows.map((row) => row.source_video_id);
+  }
+
+  const placeholders = grams.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`
+      SELECT
+        v.position,
+        v.source_video_id,
+        COUNT(DISTINCT g.gram) AS matched_grams
+      FROM segment_ngrams g
+      JOIN source_videos v ON v.source_video_id = g.source_video_id
+      WHERE g.gram IN (${placeholders})
+      GROUP BY v.source_video_id
+      ORDER BY matched_grams DESC, v.position ASC
+      LIMIT ?
+    `)
+    .all(...grams, limit) as Array<{ source_video_id: string }>;
+
+  return rows.map((row) => row.source_video_id);
+}
+
+function readCandidateVideos(
+  db: DatabaseSync,
+  sourceVideoIds: readonly string[]
+): Array<{
+  source_video_id: string;
+  title: string;
+  duration_ms: number;
+  segments: TranscriptSegment[];
+}> {
+  if (sourceVideoIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = sourceVideoIds.map(() => "?").join(", ");
+  const videoRows = db
+    .prepare(`
+      SELECT position, source_video_id, title, duration_ms
+      FROM source_videos
+      WHERE source_video_id IN (${placeholders})
+      ORDER BY position ASC
+    `)
+    .all(...sourceVideoIds) as unknown as SourceVideoSearchRow[];
+  const segmentRows = db
+    .prepare(`
+      SELECT
+        source_video_id,
+        title,
+        duration_ms,
+        segment_id,
+        segment_index,
+        begin_ms,
+        end_ms,
+        text,
+        normalized_text
+      FROM (
+        SELECT
           v.source_video_id,
           v.title,
           v.duration_ms,
           s.segment_id,
+          s.segment_index,
           s.begin_ms,
           s.end_ms,
           s.text,
-          s.normalized_text
-        FROM segment_ngrams g
-        JOIN segments s ON s.segment_id = g.segment_id
+          s.normalized_text,
+          v.position
+        FROM segments s
         JOIN source_videos v ON v.source_video_id = s.source_video_id
-        WHERE g.gram = ? AND instr(s.normalized_text, ?) > 0
-        ORDER BY v.position ASC, s.segment_index ASC
-      `)
-      .all(gram, normalizedQuery) as unknown as SegmentSearchRow[];
+        WHERE v.source_video_id IN (${placeholders})
+      )
+      ORDER BY position ASC, segment_index ASC
+    `)
+    .all(...sourceVideoIds) as unknown as SegmentSearchRow[];
+  const segmentsByVideo = new Map<string, TranscriptSegment[]>();
+
+  for (const row of segmentRows) {
+    const current = segmentsByVideo.get(row.source_video_id) ?? [];
+    current.push({
+      segment_id: row.segment_id,
+      index: row.segment_index,
+      begin_ms: row.begin_ms,
+      end_ms: row.end_ms,
+      begin_char: 0,
+      end_char: row.text.length,
+      normalized_begin_char: 0,
+      normalized_end_char: row.normalized_text.length,
+      text: row.text,
+      normalized_text: row.normalized_text,
+      confidence: 1
+    });
+    segmentsByVideo.set(row.source_video_id, current);
   }
 
-  return db
-    .prepare(`
-      SELECT
-        v.source_video_id,
-        v.title,
-        v.duration_ms,
-        s.segment_id,
-        s.begin_ms,
-        s.end_ms,
-        s.text,
-        s.normalized_text
-      FROM segments s
-      JOIN source_videos v ON v.source_video_id = s.source_video_id
-      WHERE instr(s.normalized_text, ?) > 0
-      ORDER BY v.position ASC, s.segment_index ASC
-    `)
-    .all(normalizedQuery) as unknown as SegmentSearchRow[];
+  return videoRows.map((video) => ({
+    source_video_id: video.source_video_id,
+    title: video.title,
+    duration_ms: video.duration_ms,
+    segments: segmentsByVideo.get(video.source_video_id) ?? []
+  }));
 }
 
 export function searchSourceTranscriptSqliteIndex(
@@ -321,50 +397,21 @@ export function searchSourceTranscriptSqliteIndex(
   const db = openDatabase(input.index_file_path);
 
   try {
-    const groups = new Map<string, TranscriptSearchGroup>();
-
-    for (const row of queryRows(db, normalizedQuery)) {
-      if (!groups.has(row.source_video_id)) {
-        if (groups.size >= input.limit) {
-          continue;
-        }
-
-        groups.set(row.source_video_id, {
-          source_video_id: row.source_video_id,
-          title: row.title,
-          duration_ms: row.duration_ms,
-          hit_count: 0,
-          best_excerpt: row.text,
-          hit_segments: []
-        });
-      }
-
-      const group = groups.get(row.source_video_id);
-
-      if (!group) {
-        continue;
-      }
-
-      const matchStart = row.normalized_text.indexOf(normalizedQuery);
-      const hitSegment: TranscriptSearchHitSegment = {
-        segment_id: row.segment_id,
-        begin_ms: row.begin_ms,
-        end_ms: row.end_ms,
-        text: row.text,
-        match_ranges:
-          matchStart === -1
-            ? []
-            : [[matchStart, matchStart + normalizedQuery.length - 1]]
-      };
-
-      group.hit_segments.push(hitSegment);
-      group.hit_count = group.hit_segments.length;
-    }
+    const candidateIds = candidateSourceVideoIds(
+      db,
+      normalizedQuery,
+      Math.max(input.limit * 20, input.limit)
+    );
+    const candidateVideos = readCandidateVideos(db, candidateIds);
+    const result = searchTranscripts({ videos: candidateVideos }, {
+      query: input.query,
+      limit: input.limit
+    });
 
     return {
       query: input.query,
       normalized_query: normalizedQuery,
-      groups: [...groups.values()]
+      groups: result.groups
     };
   } finally {
     db.close();

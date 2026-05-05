@@ -3,10 +3,21 @@ import {
   createCutterApiServer,
   resolveCutterApiRuntimeConfigFromEnv
 } from "../../packages/cutter-api/src/index.ts";
+import { assertPersistentRuntimePath } from "../../packages/runtime-config/src/index.ts";
 
 await loadProjectEnv();
 
 const config = resolveCutterApiRuntimeConfigFromEnv();
+assertPersistentRuntimePath({
+  path_value: config.library_root,
+  path_label: "公共素材库根目录"
+});
+if (config.workspace_root) {
+  assertPersistentRuntimePath({
+    path_value: config.workspace_root,
+    path_label: "剪辑端本地工作区"
+  });
+}
 const server = createCutterApiServer({
   library_root: config.library_root,
   workspace_root: config.workspace_root

@@ -87,5 +87,5 @@ export function continuousTranscriptSegments(
     return segments.slice(firstIndex, lastIndex + 1);
   }
 
-  return segments.slice(0, Math.min(1, segments.length));
+  return [];
 }
