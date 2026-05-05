@@ -211,6 +211,34 @@ export function shouldPollPendingLogin(input: {
   return input.apiMode && !input.authSession && Boolean(input.pendingLogin);
 }
 
+function CutterSidebarFooter({
+  username,
+  localCount,
+  publicCount
+}: {
+  username: string;
+  localCount: number;
+  publicCount: number;
+}) {
+  return (
+    <div className="cutter-sidebar-footer" aria-label="剪辑师与素材状态">
+      <div className="cutter-sidebar-user">
+        <span>{username}</span>
+      </div>
+      <div className="cutter-sidebar-metrics">
+        <span>
+          <strong>{localCount}</strong>
+          <small>本地素材</small>
+        </span>
+        <span>
+          <strong>{publicCount}</strong>
+          <small>公共素材库</small>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
   const base = jobs[0];
 
@@ -1346,12 +1374,21 @@ export function CutterApp() {
 
   const workbench = (
     <main className="cutter-app" data-cutter-web-ready={data ? "true" : "false"}>
-      <MacWindow
-        title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}
-        meta={data ? `${data.library.available_video_count} 可用原素材` : "加载中"}
-      >
+      <MacWindow title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}>
         <div className="cutter-shell">
-          <Sidebar items={navItems} active={routeTitle(route)} />
+          <Sidebar
+            items={navItems}
+            active={routeTitle(route)}
+            footer={
+              data ? (
+                <CutterSidebarFooter
+                  username={authSession?.username?.trim() || "本机剪辑师"}
+                  localCount={data.localClips.local_clip_count}
+                  publicCount={data.library.available_video_count}
+                />
+              ) : null
+            }
+          />
           <section className={`cutter-workspace ${shouldShowCutterToolbar(route) ? "" : "is-toolbar-hidden"}`}>
             {shouldShowCutterToolbar(route) ? (
               <UnifiedToolbar

@@ -21,6 +21,7 @@ import {
 } from "../../state/material-locator.ts";
 import {
   videoOrientation,
+  videoOrientationLabel,
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
 import {
@@ -61,6 +62,14 @@ function queueStatusLabel(status: CutQueueJob["status"]): string {
     case "cancelled":
       return "已取消";
   }
+}
+
+function sourceLabelFromMaterialKey(materialKey?: string): string {
+  return materialKey?.startsWith("local:") ? "本地素材" : "公共原素材";
+}
+
+function transcriptCharacterCount(detail: SourceVideoDetail): number {
+  return detail.transcript.full_text.replace(/\s+/g, "").length;
 }
 
 const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
@@ -160,6 +169,20 @@ export function MaterialLocatorPage({
   const doneCount = countJobs(queue, "done");
   const failedCount = countJobs(queue, "failed");
   const candidateCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+  const focusedMaterial = sections
+    .flatMap((section) => section.items)
+    .find((item) => `${item.source}:${item.id}` === selectedMaterialKey);
+  const focusedMaterialHitCount = focusedMaterial?.hit_count ?? highlightedSegmentIds.length;
+  const focusedVideoLabel = focusedDetail
+    ? [
+        focusedDetail.title,
+        sourceLabelFromMaterialKey(selectedMaterialKey),
+        videoOrientationLabel(focusedDetail),
+        formatDuration(focusedDetail.duration_ms),
+        `文案 ${transcriptCharacterCount(focusedDetail)} 字`,
+        `命中 ${focusedMaterialHitCount} 处`
+      ].join(" · ")
+    : "";
   const hasHitNavigation = hitCount > 0;
   const recentQueue = queue.slice(0, 5);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -392,26 +415,8 @@ export function MaterialLocatorPage({
         <section className={`cutter-locator-workbench is-${orientation}`} aria-label="素材定位工作区">
           <section className="cutter-locator-top-row" aria-label="画面验证与剪切状态">
             <section className="cutter-locator-status" aria-label="工作台状态">
-              <div className="cutter-locator-status-grid">
-                <div>
-                  <span>本地素材</span>
-                  <strong>{localClips.local_clip_count}</strong>
-                </div>
-                <div>
-                  <span>公共素材库</span>
-                  <strong>{library.available_video_count}</strong>
-                </div>
-                <div>
-                  <span>候选素材</span>
-                  <strong>{candidateCount}</strong>
-                </div>
-                <div>
-                  <span>搜索次数</span>
-                  <strong>{recentSearches.length}</strong>
-                </div>
-              </div>
               <section className="cutter-locator-search-history" aria-label="搜索记录">
-                <h2>搜索记录</h2>
+                <h2>搜索记录 · {recentSearches.length}次</h2>
                 {recentSearches.length > 0 ? (
                   <div>
                     {recentSearches.map((searchItem) => (
@@ -445,8 +450,7 @@ export function MaterialLocatorPage({
                       src={videoSource}
                     />
                     <div>
-                      <strong>{focusedDetail.title}</strong>
-                      <span>{formatDuration(focusedDetail.duration_ms)}</span>
+                      <strong>{focusedVideoLabel}</strong>
                     </div>
                   </>
                 ) : (
@@ -488,7 +492,7 @@ export function MaterialLocatorPage({
             <section className="cutter-locator-candidates" aria-label="候选素材">
               <header>
                 <div>
-                  <h2>候选素材</h2>
+                  <h2>候选素材 · {candidateCount} 个可选结果</h2>
                 </div>
               </header>
               <div className="cutter-locator-results">

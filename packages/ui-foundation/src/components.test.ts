@@ -32,13 +32,16 @@ test("renders sidebar with page labels and active item", () => {
       items: [
         { label: "公共原素材库", icon: "archive" },
         { label: "搜索与文案", icon: "search" }
-      ]
+      ],
+      footer: h("div", { className: "cutter-sidebar-footer" }, "剪辑师 Allen")
     })
   );
 
   assert.match(html, /ml-sidebar/);
   assert.match(html, /公共原素材库/);
   assert.match(html, /is-active/);
+  assert.match(html, /ml-sidebar-footer/);
+  assert.match(html, /剪辑师 Allen/);
 });
 
 test("renders unified toolbar with library selector, actions, and health", () => {

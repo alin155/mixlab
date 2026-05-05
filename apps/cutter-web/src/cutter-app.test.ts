@@ -359,14 +359,12 @@ test("material locator is the main search-select-cut workbench with local result
 
   for (const text of [
     "素材定位",
-    "工作台状态",
     "搜索定位",
     "搜索文案关键词或粘贴文案",
     "素材来源",
     "视频类型",
     "候选素材",
-    "搜索次数",
-    "搜索记录",
+    "搜索记录 · 2次",
     "老师",
     "全部",
     "本地素材",
@@ -399,6 +397,8 @@ test("material locator is the main search-select-cut workbench with local result
   assert.equal(html.includes("当前搜索"), false);
   assert.equal(html.includes("画面方向"), false);
   assert.equal(html.includes('value="现金流"'), false);
+  assert.equal(html.includes("<span>候选素材</span>"), false);
+  assert.equal(html.includes("<span>搜索次数</span>"), false);
   assert.equal(html.includes("搜、选、剪"), false);
   assert.equal(html.includes("<h1>素材定位</h1>"), false);
   assert.equal(html.includes("完整文案"), false);
@@ -407,7 +407,7 @@ test("material locator is the main search-select-cut workbench with local result
   assert.equal(html.includes("横版 · 29:50"), false);
   assert.equal(html.includes("<h2>剪切队列</h2>"), false);
   assert.equal(html.includes("剪切中 0 · 等待 1 · 完成 2 · 失败 0"), false);
-  assert.equal(html.includes("公共原素材 · 横版"), false);
+  assert.match(html, /现金流管理与风险控制 · 公共原素材 · 横版 · 10:18 · 文案 \d+ 字 · 命中 3 处/);
   assert.match(html, new RegExp(`文案 ${publicTranscriptLength} 字`));
   assert.match(html, /\d+ 处命中/);
   assert.match(html, /cutter-locator-result is-selected/);
@@ -662,7 +662,7 @@ test("material locator keeps search and review areas fixed while transcript scro
   assert.doesNotMatch(topRowRule, /position:\s*sticky/);
   assert.match(topRowRule, /height:\s*430px/);
   assert.match(topRowRule, /overflow:\s*hidden/);
-  assert.match(statusRule, /grid-template-rows:\s*auto minmax\(0,\s*1fr\)/);
+  assert.match(statusRule, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
   assert.match(statusRule, /overflow:\s*hidden/);
   assert.match(historyListRule, /overflow:\s*auto/);
   assert.match(queuePanelRule, /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/);

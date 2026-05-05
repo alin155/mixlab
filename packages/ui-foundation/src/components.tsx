@@ -81,10 +81,12 @@ export function MacWindow({
 
 export function Sidebar({
   items,
-  active
+  active,
+  footer
 }: {
   items: readonly SidebarItem[];
   active: string;
+  footer?: ReactNode;
 }) {
   return (
     <nav className="ml-sidebar" aria-label="MixLab navigation">
@@ -100,6 +102,7 @@ export function Sidebar({
           <span>{item.label}</span>
         </a>
       ))}
+      {footer ? <div className="ml-sidebar-footer">{footer}</div> : null}
     </nav>
   );
 }
