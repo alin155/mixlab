@@ -4,23 +4,20 @@
 2026-05-06
 
 ## Current State
-已确认真正项目根目录应为 `/Users/allen/Documents/mixlab`。此前误在 `/Users/allen/Documents/New project 2` 初始化了空的 `.codex-context`。
+MixLab V3 剪辑端项目层、素材定位和剪切任务模块已进入连续产品迭代阶段。当前重点是把剪辑师的“搜、选、剪”闭环收束到项目内，让搜索记录、剪切任务、本地素材和项目启动页形成稳定工作流。
 
-## Files Changed
-- `.codex-context/README.md`
-- `.codex-context/PROJECT.md`
-- `.codex-context/TASK.md`
-- `.codex-context/CHECKPOINT.md`
-- `.codex-context/HANDOFF.md`
+## Saved Commit
+- `ca2719a chore: checkpoint cutter project handoff`
 
-## Commands Run
-- `git rev-parse --show-toplevel 2>/dev/null || pwd`
-- `git status --short`
-- `find /Users/allen/Documents/New project 2 -maxdepth 2 -mindepth 1 -print`
+## Verification
+- `npm test`：415 个测试通过。
+- `npm run typecheck`：通过。
 
-## Known Issues
-- `/Users/allen/Documents/New project 2` 不是空目录，包含 `packages/library-fs`，删除前需要用户确认。
-- 当前 Codex 会话环境变量中的 `cwd` 仍显示为 `/Users/allen/Documents/New project 2`，但后续命令应显式使用 `/Users/allen/Documents/mixlab`。
+## Product Focus
+- 启动页：搜索优先、最近项目、项目详情、项目切换。
+- 素材定位：搜索文案、候选素材、视频预览、自然文案、命中跳转、直接剪切。
+- 剪切任务：项目内任务列表、任务状态、剪切命名、剪切结果进入本地素材。
+- 项目归属：搜索词、剪切任务、本地素材复用都应归属到当前项目。
 
 ## Suggested Next Step
-确认是否删除 `/Users/allen/Documents/New project 2`，然后继续 MixLab 剪辑端项目层和剪切任务落地。
+继续修复最新用户反馈：项目队列加载、启动页无项目状态、最近项目选择/进入交互、启动页搜索布局、剪切任务信息密度和命名规则。
