@@ -1,19 +1,9 @@
 import type { FormEvent } from "react";
 import type { LocalClipCatalog, SourceLibraryResponse } from "../../api.ts";
-import { searchHash } from "../../app/navigation.ts";
-import type { CutterProject } from "../../state/cutter-projects.ts";
-import type { MaterialSearchHistoryItem } from "../material-locator/MaterialLocatorPage.tsx";
-
-function projectStatusLabel(status: CutterProject["status"]): string {
-  switch (status) {
-    case "active":
-      return "未完成";
-    case "delivered":
-      return "已交付";
-    case "archived":
-      return "已归档";
-  }
-}
+import type { CutQueueJob } from "../../state/cut-queue.ts";
+import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
+import type { MaterialSearchSourceFilter } from "../../state/material-locator.ts";
+import type { VideoOrientationFilter } from "../../state/video-orientation.ts";
 
 function formatProjectTime(value: string): string {
   if (!value) {
@@ -32,36 +22,60 @@ function ProjectCover({ project }: { project: CutterProject }) {
   return project.cover_url ? (
     <img src={project.cover_url} alt="" />
   ) : (
-    <span>{project.source_title ?? project.title}</span>
+    <span>{project.source_title ?? projectDisplayTitle(project)}</span>
   );
 }
+
+export function projectCompletedClipCount(project: CutterProject, queue: readonly CutQueueJob[] = []): number {
+  const projectJobs = queue.filter((job) => job.project_id === project.project_id);
+  if (projectJobs.length === 0) {
+    return project.clip_count;
+  }
+
+  return projectJobs.filter((job) => job.status === "done").length;
+}
+
+const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "local", label: "本地素材" },
+  { value: "public", label: "公共原素材" }
+];
+
+const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "landscape", label: "横版" },
+  { value: "portrait", label: "竖版" }
+];
 
 export function ProjectHomePage({
   library,
   localClips,
   projects,
   selectedProjectId,
-  recentSearches,
+  queue = [],
+  sourceFilter = "all",
+  orientationFilter = "all",
   onSearch,
-  onOpenProject
+  onSetSourceFilter,
+  onSetOrientationFilter,
+  onOpenProject,
+  onRenameProject
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
   projects: readonly CutterProject[];
   selectedProjectId?: string;
-  recentSearches?: readonly MaterialSearchHistoryItem[];
+  queue?: readonly CutQueueJob[];
+  sourceFilter?: MaterialSearchSourceFilter;
+  orientationFilter?: VideoOrientationFilter;
   onSearch?: (query: string) => void;
+  onSetSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
+  onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
   onOpenProject?: (projectId: string) => void;
+  onRenameProject?: (projectId: string) => void;
 }) {
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId) ?? projects[0];
-  const deliveredCount = projects.filter((project) => project.status === "delivered").length;
-  const activeCount = projects.filter((project) => project.status === "active").length;
-  const searches = recentSearches?.length
-    ? recentSearches
-    : selectedProject?.searches.map((search) => ({
-        query: search.query,
-        hitCount: search.hit_count
-      })) ?? [];
+  const selectedProjectClipCount = selectedProject ? projectCompletedClipCount(selectedProject, queue) : 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,25 +99,42 @@ export function ProjectHomePage({
                 placeholder="搜索文案关键词或粘贴爆款文案"
               />
             </label>
-            <label className="cutter-filter-select">
-              <span>素材来源</span>
-              <select name="sourceFilter" defaultValue="all">
-                <option value="all">全部</option>
-                <option value="local">本地素材</option>
-                <option value="public">公共原素材</option>
-              </select>
-            </label>
-            <label className="cutter-filter-select">
-              <span>视频类型</span>
-              <select name="orientationFilter" defaultValue="all">
-                <option value="all">全部</option>
-                <option value="landscape">横版</option>
-                <option value="portrait">竖版</option>
-              </select>
-            </label>
             <button className="cutter-primary-button" type="submit">
               搜索
             </button>
+            <details className="cutter-search-options">
+              <summary>选项</summary>
+              <div>
+                <label className="cutter-filter-select">
+                  <span>素材来源</span>
+                  <select
+                    name="sourceFilter"
+                    value={sourceFilter}
+                    onChange={(event) => onSetSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)}
+                  >
+                    {sourceFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="cutter-filter-select">
+                  <span>视频类型</span>
+                  <select
+                    name="orientationFilter"
+                    value={orientationFilter}
+                    onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+                  >
+                    {orientationFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </details>
           </form>
         </section>
 
@@ -111,43 +142,30 @@ export function ProjectHomePage({
           <div>
             <header className="cutter-section-heading">
               <h2>最近项目</h2>
-              <span>未完成 {activeCount} · 已交付 {deliveredCount}</span>
             </header>
             <div className="cutter-project-grid">
               {projects.length > 0 ? (
-                projects.map((project) => (
-                  <article
-                    className={`cutter-project-card${project.project_id === selectedProject?.project_id ? " is-selected" : ""}`}
-                    key={project.project_id}
-                  >
-                    <div className="cutter-project-cover">
-                      <ProjectCover project={project} />
-                    </div>
-                    <div className="cutter-project-card-body">
-                      <header>
-                        <strong>{project.title}</strong>
-                        <span>{projectStatusLabel(project.status)}</span>
-                      </header>
-                      <div className="cutter-project-metrics">
-                        <span>
-                          已剪<strong>{project.clip_count}</strong>
-                        </span>
-                        <span>
-                          搜索<strong>{project.searches.length}</strong>
-                        </span>
-                        <span>
-                          失败<strong>{project.failed_count}</strong>
-                        </span>
+                projects.map((project) => {
+                  const completedClipCount = projectCompletedClipCount(project, queue);
+                  return (
+                    <button
+                      type="button"
+                      className={`cutter-project-card${project.project_id === selectedProject?.project_id ? " is-selected" : ""}`}
+                      key={project.project_id}
+                      onClick={() => onOpenProject?.(project.project_id)}
+                      aria-label={`打开项目 ${projectDisplayTitle(project)}`}
+                    >
+                      <div className="cutter-project-cover">
+                        <ProjectCover project={project} />
                       </div>
-                      <small>更新：{formatProjectTime(project.updated_at)}</small>
-                      <div className="cutter-project-actions">
-                        <button type="button" onClick={() => onOpenProject?.(project.project_id)}>
-                          打开项目
-                        </button>
+                      <div className="cutter-project-card-summary">
+                        <strong>{projectDisplayTitle(project)}</strong>
+                        <span>已剪 {completedClipCount}</span>
+                        <span>搜索 {project.searches.length}</span>
                       </div>
-                    </div>
-                  </article>
-                ))
+                    </button>
+                  );
+                })
               ) : (
                 <div className="cutter-empty-state">
                   <strong>还没有剪切项目</strong>
@@ -155,25 +173,6 @@ export function ProjectHomePage({
                 </div>
               )}
             </div>
-
-            <section className="cutter-recent-searches" aria-label="最近搜索">
-              <header className="cutter-section-heading">
-                <h2>最近搜索</h2>
-                <span>点击继续搜索</span>
-              </header>
-              <div>
-                {searches.length > 0 ? (
-                  searches.map((search) => (
-                    <a href={searchHash(search.query)} key={search.query}>
-                      <strong>{search.query}</strong>
-                      <span>{search.hitCount} 处命中</span>
-                    </a>
-                  ))
-                ) : (
-                  <span>暂无搜索记录</span>
-                )}
-              </div>
-            </section>
           </div>
 
           <aside className="cutter-project-detail" aria-label="项目详情">
@@ -186,7 +185,21 @@ export function ProjectHomePage({
                 <dl>
                   <div>
                     <dt>项目名</dt>
-                    <dd>{selectedProject.title}</dd>
+                    <dd>
+                      <button
+                        className="cutter-project-name-edit"
+                        type="button"
+                        onDoubleClick={() => onRenameProject?.(selectedProject.project_id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            onRenameProject?.(selectedProject.project_id);
+                          }
+                        }}
+                        title="双击修改项目名称"
+                      >
+                        {projectDisplayTitle(selectedProject)}
+                      </button>
+                    </dd>
                   </div>
                   <div>
                     <dt>创建时间</dt>
@@ -194,11 +207,7 @@ export function ProjectHomePage({
                   </div>
                   <div>
                     <dt>已剪片段</dt>
-                    <dd>{selectedProject.clip_count} 个</dd>
-                  </div>
-                  <div>
-                    <dt>最近搜索</dt>
-                    <dd>{selectedProject.searches[0]?.query ?? "-"}</dd>
+                    <dd>{selectedProjectClipCount} 个</dd>
                   </div>
                   <div>
                     <dt>素材规模</dt>

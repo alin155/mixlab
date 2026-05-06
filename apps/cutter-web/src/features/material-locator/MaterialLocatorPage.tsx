@@ -4,7 +4,8 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
-  type MouseEvent as ReactMouseEvent
+  type MouseEvent as ReactMouseEvent,
+  type SyntheticEvent
 } from "react";
 import {
   formatDuration,
@@ -70,6 +71,17 @@ function sourceLabelFromMaterialKey(materialKey?: string): string {
 
 function transcriptCharacterCount(detail: SourceVideoDetail): number {
   return detail.transcript.full_text.replace(/\s+/g, "").length;
+}
+
+export function materialLocatorDisplayDurationMs(
+  manifestDurationMs: number,
+  mediaDurationMs?: number
+): number {
+  if (typeof mediaDurationMs === "number" && Number.isFinite(mediaDurationMs) && mediaDurationMs > 0) {
+    return Math.round(mediaDurationMs);
+  }
+
+  return manifestDurationMs;
 }
 
 const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
@@ -173,16 +185,6 @@ export function MaterialLocatorPage({
     .flatMap((section) => section.items)
     .find((item) => `${item.source}:${item.id}` === selectedMaterialKey);
   const focusedMaterialHitCount = focusedMaterial?.hit_count ?? highlightedSegmentIds.length;
-  const focusedVideoLabel = focusedDetail
-    ? [
-        focusedDetail.title,
-        sourceLabelFromMaterialKey(selectedMaterialKey),
-        videoOrientationLabel(focusedDetail),
-        formatDuration(focusedDetail.duration_ms),
-        `文案 ${transcriptCharacterCount(focusedDetail)} 字`,
-        `命中 ${focusedMaterialHitCount} 处`
-      ].join(" · ")
-    : "";
   const hasHitNavigation = hitCount > 0;
   const recentQueue = queue.slice(0, 5);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -193,6 +195,17 @@ export function MaterialLocatorPage({
   const previewEndMsRef = useRef<number | null>(null);
   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
   const [previewActive, setPreviewActive] = useState(false);
+  const [mediaDurationMs, setMediaDurationMs] = useState<number | undefined>();
+  const focusedVideoLabel = focusedDetail
+    ? [
+        focusedDetail.title,
+        sourceLabelFromMaterialKey(selectedMaterialKey),
+        videoOrientationLabel(focusedDetail),
+        formatDuration(materialLocatorDisplayDurationMs(focusedDetail.duration_ms, mediaDurationMs)),
+        `文案 ${transcriptCharacterCount(focusedDetail)} 字`,
+        `命中 ${focusedMaterialHitCount} 处`
+      ].join(" · ")
+    : "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -326,6 +339,17 @@ export function MaterialLocatorPage({
     }
   }
 
+  function handleVideoLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>) {
+    const durationSeconds = event.currentTarget.duration;
+    if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
+      setMediaDurationMs(Math.round(durationSeconds * 1000));
+    }
+  }
+
+  useEffect(() => {
+    setMediaDurationMs(undefined);
+  }, [focusedDetail?.source_video_id, focusedDetail?.media_url, selectedMaterialKey]);
+
   useEffect(() => {
     if (!activeHitSegmentId || !focusedDetail) {
       return;
@@ -356,10 +380,10 @@ export function MaterialLocatorPage({
       data-page="material-locator"
     >
       <div className="cutter-page-main">
-        <section className="cutter-locator-command" aria-label="搜索定位">
+        <section className="cutter-locator-command" aria-label="开始搜索">
           <div className="cutter-locator-command-header">
             <div>
-              <h2>搜索定位</h2>
+              <h2>开始搜索</h2>
             </div>
             <form className="cutter-search-form cutter-locator-search-form" onSubmit={handleSubmit}>
               <label className="cutter-search-box">
@@ -367,41 +391,46 @@ export function MaterialLocatorPage({
                 <input
                   name="query"
                   defaultValue=""
-                  aria-label="搜索文案关键词或粘贴文案"
-                  placeholder="搜索文案关键词或粘贴文案"
+                  aria-label="搜索文案关键词或粘贴爆款文案"
+                  placeholder="搜索文案关键词或粘贴爆款文案"
                 />
-              </label>
-              <label className="cutter-filter-select">
-                <span>素材来源</span>
-                <select
-                  name="sourceFilter"
-                  value={sourceFilter}
-                  onChange={(event) => onSetSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)}
-                >
-                  {sourceFilterOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="cutter-filter-select">
-                <span>视频类型</span>
-                <select
-                  name="orientationFilter"
-                  value={orientationFilter}
-                  onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
-                >
-                  {orientationFilterOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
               </label>
               <button className="cutter-primary-button" type="submit">
                 搜索
               </button>
+              <details className="cutter-search-options">
+                <summary>选项</summary>
+                <div>
+                  <label className="cutter-filter-select">
+                    <span>素材来源</span>
+                    <select
+                      name="sourceFilter"
+                      value={sourceFilter}
+                      onChange={(event) => onSetSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)}
+                    >
+                      {sourceFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="cutter-filter-select">
+                    <span>视频类型</span>
+                    <select
+                      name="orientationFilter"
+                      value={orientationFilter}
+                      onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+                    >
+                      {orientationFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </details>
             </form>
           </div>
         </section>
@@ -437,6 +466,7 @@ export function MaterialLocatorPage({
                     <video
                       controls
                       data-testid="locator-video"
+                      onLoadedMetadata={handleVideoLoadedMetadata}
                       onTimeUpdate={handleVideoTimeUpdate}
                       poster={focusedDetail.cover_url}
                       preload="none"

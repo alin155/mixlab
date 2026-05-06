@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
@@ -599,6 +599,30 @@ function formatClipTime(milliseconds: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function runFfmpegAsync(executable: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, {
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    let stderr = "";
+
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      const reason = stderr.trim() || (signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`);
+      reject(new Error(`ffmpeg clip cut failed: ${reason}`));
+    });
+  });
+}
+
 async function defaultCutRunner(input: CutterClipCutRunnerInput): Promise<void> {
   const runtime = resolveFfmpegRuntime();
   const plan = buildFfmpegCutPlan({
@@ -608,13 +632,8 @@ async function defaultCutRunner(input: CutterClipCutRunnerInput): Promise<void> 
     end_ms: input.end_ms,
     cut_mode: input.cut_mode
   });
-  const result = spawnSync(runtime.ffmpeg_path, plan.args, {
-    encoding: "utf8"
-  });
 
-  if (result.status !== 0) {
-    throw new Error(`ffmpeg clip cut failed: ${result.stderr}`);
-  }
+  await runFfmpegAsync(runtime.ffmpeg_path, plan.args);
 }
 
 async function loadVisibleDetail(

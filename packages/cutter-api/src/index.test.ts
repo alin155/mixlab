@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -40,6 +40,12 @@ test("cutter API runtime config still honors an explicit local workspace path", 
   });
 
   assert.equal(config.workspace_root, "/Volumes/FastDisk/MixLabLocal");
+});
+
+test("default Cutter cut runner avoids synchronous child processes so API requests stay responsive", async () => {
+  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /\bspawnSync\b/);
 });
 
 async function writeDummyVideo(filePath: string, bytes = "dummy-video-bytes"): Promise<void> {

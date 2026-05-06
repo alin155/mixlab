@@ -14,6 +14,7 @@ export interface CutterProjectSearch {
 export interface CutterProject {
   project_id: string;
   title: string;
+  title_source?: "auto" | "manual";
   status: CutterProjectStatus;
   created_at: string;
   updated_at: string;
@@ -67,6 +68,63 @@ function projectIdFromDate(now: string): string {
   return `P${year}${month}${day}-${suffix}`;
 }
 
+function projectDateLabel(now: string): string {
+  const date = new Date(now);
+  if (Number.isNaN(date.getTime())) {
+    return "未命名剪切项目";
+  }
+
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function projectDisplayTitle(project: CutterProject): string {
+  if (project.title_source === "manual") {
+    return project.title;
+  }
+
+  if (project.title_source === "auto") {
+    return project.title;
+  }
+
+  return projectDateLabel(project.created_at);
+}
+
+export function projectAutoTitleFromDate(
+  now: string,
+  existingProjects: readonly CutterProject[] = []
+): string {
+  const baseTitle = projectDateLabel(now);
+  if (baseTitle === "未命名剪切项目") {
+    return baseTitle;
+  }
+
+  const basePattern = new RegExp(`^${escapeRegExp(baseTitle)}(?:-(\\d+))?$`);
+  const usedSuffixes = new Set<number>();
+  for (const project of existingProjects) {
+    const match = projectDisplayTitle(project).match(basePattern);
+    if (!match) {
+      continue;
+    }
+
+    usedSuffixes.add(match[1] ? Number(match[1]) : 0);
+  }
+
+  if (!usedSuffixes.has(0)) {
+    return baseTitle;
+  }
+
+  let suffix = 1;
+  while (usedSuffixes.has(suffix)) {
+    suffix += 1;
+  }
+
+  return `${baseTitle}-${suffix}`;
+}
+
 export function projectTitleFromFirstCut(input: {
   query: string;
   selectedText: string;
@@ -109,15 +167,12 @@ export function createProjectFromFirstCut(input: {
   cut: CutListItem;
   query: string;
   recentSearches: readonly ProjectSearchInput[];
+  existingProjects?: readonly CutterProject[];
   coverUrl?: string;
   now?: string;
 }): CutterProject {
   const now = input.now ?? new Date().toISOString();
-  const title = projectTitleFromFirstCut({
-    query: input.query,
-    selectedText: input.cut.selected_text,
-    sourceTitle: input.cut.source_title
-  });
+  const title = projectAutoTitleFromDate(now, input.existingProjects);
   const searches = [
     ...(input.query.trim()
       ? [
@@ -135,6 +190,7 @@ export function createProjectFromFirstCut(input: {
   return {
     project_id: projectIdFromDate(now),
     title,
+    title_source: "auto",
     status: "active",
     created_at: now,
     updated_at: now,
@@ -215,5 +271,5 @@ export function upsertCutterProject(
 }
 
 export function projectSwitcherLabel(project: CutterProject | null | undefined): string {
-  return project ? `当前项目：${project.title}` : "临时搜索";
+  return project ? `当前项目：${projectDisplayTitle(project)}` : "临时搜索";
 }

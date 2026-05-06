@@ -7,7 +7,10 @@ import { createFixtureCutterData, emptySearchResponse } from "./fixture-client.t
 import { PublicLibraryPage } from "./features/public-library/PublicLibraryPage.tsx";
 import { SourceDetailPage } from "./features/source-detail/SourceDetailPage.tsx";
 import { SearchPage } from "./features/search/SearchPage.tsx";
-import { MaterialLocatorPage } from "./features/material-locator/MaterialLocatorPage.tsx";
+import {
+  MaterialLocatorPage,
+  materialLocatorDisplayDurationMs
+} from "./features/material-locator/MaterialLocatorPage.tsx";
 import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
@@ -68,9 +71,10 @@ import {
   sourceVideoIdFromHash
 } from "./app/navigation.ts";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
-import { createQueueJobsFromCutList } from "./state/cut-queue.ts";
+import { createQueueJobsFromCutList, type CutQueueJob } from "./state/cut-queue.ts";
 import { buildMaterialLocatorSections } from "./state/material-locator.ts";
 import { CUTTER_APPEARANCE_STORAGE_KEY } from "./state/appearance.ts";
+import type { CutterProject } from "./state/cutter-projects.ts";
 
 function installTestWindow() {
   const store = new Map<string, string>();
@@ -214,14 +218,50 @@ test("M14.1 cutter navigation exposes only the five primary workbench areas", ()
 
 test("project home renders search-first startup, recent projects, and project detail", () => {
   const data = fixture();
+  const queue: CutQueueJob[] = [
+    {
+      queue_job_id: "done-1",
+      cut_list_item_id: "cut-1",
+      project_id: "P20260505-001",
+      source_video_id: "V000001",
+      source_title: "C0015",
+      title: "C0015 · E000001",
+      begin_ms: 0,
+      end_ms: 1000,
+      duration_ms: 1000,
+      selected_text: "完成片段",
+      cut_mode: "smart",
+      status: "done",
+      progress: 100,
+      created_at: "2026-05-05T10:01:00.000Z"
+    },
+    {
+      queue_job_id: "running-1",
+      cut_list_item_id: "cut-2",
+      project_id: "P20260505-001",
+      source_video_id: "V000001",
+      source_title: "C0015",
+      title: "C0015 · CJ000001",
+      begin_ms: 1000,
+      end_ms: 2000,
+      duration_ms: 1000,
+      selected_text: "剪切中片段",
+      cut_mode: "smart",
+      status: "running",
+      progress: 50,
+      created_at: "2026-05-05T10:02:00.000Z"
+    }
+  ];
   const html = renderToStaticMarkup(
     h(ProjectHomePage, {
       library: data.library,
       localClips: data.localClips,
+      queue,
       projects: [
         {
           project_id: "P20260505-001",
-          title: "今天想学管理",
+          title: "5月5日",
+          title_source: "auto",
           status: "active",
           created_at: "2026-05-05T10:00:00.000Z",
           updated_at: "2026-05-05T10:05:00.000Z",
@@ -240,7 +280,6 @@ test("project home renders search-first startup, recent projects, and project de
         }
       ],
       selectedProjectId: "P20260505-001",
-      recentSearches: [{ query: "现金流", hitCount: 7 }],
       onSearch: () => undefined,
       onOpenProject: () => undefined
     })
@@ -249,30 +288,32 @@ test("project home renders search-first startup, recent projects, and project de
   for (const text of [
     "开始搜索",
     "搜索文案关键词或粘贴爆款文案",
+    "选项",
     "最近项目",
-    "今天想学管理",
-    "已剪",
+    "5月5日",
+    "已剪 1",
     "搜索",
     "项目详情",
-    "进入项目",
-    "最近搜索",
-    "现金流"
+    "进入项目"
   ]) {
     assert.match(html, new RegExp(text));
   }
 
   assert.match(html, /data-page="project-home"/);
-  assert.match(html, /href="#material-locator\?query=/);
   assert.equal(html.includes("启动入口"), false);
   assert.equal(html.includes("首次剪切时自动创建剪切项目"), false);
+  assert.equal(html.includes("最近搜索"), false);
   assert.equal(html.includes("最近搜索："), false);
+  assert.equal(html.includes("未完成 1 · 已交付 0"), false);
+  assert.match(html, /已剪片段<\/dt><dd>1 个/);
 });
 
 test("chrome project switcher exposes project and temporary search actions", () => {
   const data = fixture();
   const project = {
     project_id: "P20260505-001",
-    title: "今天想学管理",
+    title: "5月5日",
+    title_source: "auto" as const,
     status: "active" as const,
     created_at: "2026-05-05T10:00:00.000Z",
     updated_at: "2026-05-05T10:05:00.000Z",
@@ -297,7 +338,7 @@ test("chrome project switcher exposes project and temporary search actions", () 
     })
   );
 
-  assert.match(activeHtml, /当前项目：今天想学管理/);
+  assert.match(activeHtml, /当前项目：5月5日/);
   assert.match(activeHtml, /回到启动页/);
   assert.match(activeHtml, /新建搜索/);
   assert.match(activeHtml, /查看项目剪切任务/);
@@ -468,8 +509,9 @@ test("material locator is the main search-select-cut workbench with local result
 
   for (const text of [
     "素材定位",
-    "搜索定位",
-    "搜索文案关键词或粘贴文案",
+    "开始搜索",
+    "搜索文案关键词或粘贴爆款文案",
+    "选项",
     "素材来源",
     "视频类型",
     "候选素材",
@@ -494,6 +536,7 @@ test("material locator is the main search-select-cut workbench with local result
 
   assert.equal(html.includes("片段篮"), false);
   assert.equal(html.includes("待剪清单"), false);
+  assert.equal(html.includes("搜索定位"), false);
   assert.equal(html.includes("候选素材 <span>·"), false);
   assert.ok(html.indexOf("本地素材") < html.indexOf("公共原素材"));
   assert.match(html, /cutter-locator-top-row/);
@@ -536,6 +579,12 @@ test("material locator is the main search-select-cut workbench with local result
   assert.equal(html.includes("已选中一段文案"), false);
   assert.doesNotMatch(html, /cutter-selection-bar[\s\S]*现金流不是利润表的影子[\s\S]*preview-selection/);
   assert.match(html, /暂停预览/);
+});
+
+test("material locator prefers real media duration when browser metadata is available", () => {
+  assert.equal(materialLocatorDisplayDurationMs(1_326_000), 1_326_000);
+  assert.equal(materialLocatorDisplayDurationMs(1_326_000, 1_790_400), 1_790_400);
+  assert.equal(materialLocatorDisplayDurationMs(1_326_000, 0), 1_326_000);
 });
 
 test("material locator uses global hit navigation and wraps across candidate materials", async () => {
@@ -933,6 +982,37 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
     assert.equal(html.includes(`<strong>${englishStatus}</strong>`), false);
   }
   assert.match(html, /data-page="cut-tasks"/);
+});
+
+test("cut tasks page names the current cutter project context", () => {
+  const data = fixture();
+  const project: CutterProject = {
+    project_id: "P20260505-0001",
+    title: "现金流",
+    title_source: "manual",
+    status: "active",
+    created_at: "2026-05-05T10:00:00.000Z",
+    updated_at: "2026-05-05T10:00:00.000Z",
+    clip_count: 1,
+    running_count: 0,
+    failed_count: 0,
+    searches: [
+      {
+        query: "现金流",
+        hit_count: 7,
+        searched_at: "2026-05-05T10:00:00.000Z"
+      }
+    ]
+  };
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue.map((job) => ({ ...job, project_id: project.project_id })),
+      project
+    })
+  );
+
+  assert.match(html, /当前项目：现金流/);
+  assert.match(html, /剪切任务/);
 });
 
 test("cut tasks does not render dead retry controls without a retry handler", () => {

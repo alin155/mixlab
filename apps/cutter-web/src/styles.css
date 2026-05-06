@@ -633,7 +633,7 @@ h2 {
 
 .cutter-project-hero {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: var(--ml-space-4);
   align-items: center;
   padding: var(--ml-space-4);
@@ -647,12 +647,62 @@ h2 {
 
 .cutter-project-search-form {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) 132px 116px auto;
+  grid-template-columns: minmax(420px, 1fr) auto auto;
   justify-content: stretch;
+  align-items: stretch;
 }
 
 .cutter-project-search-form .cutter-search-box {
   width: auto;
+}
+
+.cutter-search-options {
+  position: relative;
+  display: grid;
+}
+
+.cutter-search-options summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: 0 12px;
+  color: var(--ml-color-text);
+  background: var(--ml-color-control);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.cutter-search-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.cutter-search-options summary::after {
+  content: "⌄";
+  margin-left: 8px;
+  color: var(--ml-color-text-secondary);
+}
+
+.cutter-search-options[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.cutter-search-options > div {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  display: grid;
+  gap: var(--ml-space-2);
+  width: 220px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: var(--ml-space-3);
+  background: var(--ml-color-surface);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
 }
 
 .cutter-project-board {
@@ -683,17 +733,21 @@ h2 {
 }
 
 .cutter-project-card {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: var(--ml-space-3);
+  position: relative;
+  display: block;
   overflow: hidden;
   width: 280px;
-  height: 132px;
+  height: 150px;
   min-width: 0;
   border: 1px solid var(--ml-color-separator);
   border-radius: var(--ml-radius-panel);
-  padding: var(--ml-space-3);
+  padding: 0;
+  appearance: none;
+  color: #fff;
   background: var(--ml-color-control);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .cutter-project-card.is-selected {
@@ -712,8 +766,9 @@ h2 {
 }
 
 .cutter-project-cover {
-  width: 96px;
-  aspect-ratio: 16 / 9;
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
 }
 
 .cutter-project-cover img,
@@ -723,17 +778,38 @@ h2 {
   object-fit: cover;
 }
 
-.cutter-project-card-body {
-  display: grid;
-  gap: 6px;
+.cutter-project-card-summary {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
   min-width: 0;
+  padding: 28px var(--ml-space-3) var(--ml-space-3);
+  color: #fff;
+  background: linear-gradient(180deg, rgba(10, 18, 32, 0), rgba(10, 18, 32, 0.82));
 }
 
-.cutter-project-card-body header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--ml-space-2);
+.cutter-project-card-summary strong {
+  overflow: hidden;
   min-width: 0;
+  max-width: 112px;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-project-card-summary span {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: var(--ml-radius-control);
+  padding: 3px 6px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(15, 23, 42, 0.42);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .cutter-project-card-body strong,
@@ -857,6 +933,21 @@ h2 {
 
 .cutter-project-detail dt {
   color: var(--ml-color-text-secondary);
+}
+
+.cutter-project-name-edit {
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  color: var(--ml-color-text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.cutter-project-name-edit:hover {
+  color: var(--ml-color-accent);
 }
 
 .cutter-project-detail dd {
@@ -1019,7 +1110,7 @@ h2 {
 }
 
 .cutter-locator-command-header {
-  grid-template-columns: 90px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
 }
 
 .cutter-locator-visual > header,
@@ -1040,8 +1131,9 @@ h2 {
 
 .cutter-locator-search-form {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) 132px 116px auto;
+  grid-template-columns: minmax(420px, 1fr) auto auto;
   gap: var(--ml-space-2);
+  align-items: stretch;
   justify-content: stretch;
 }
 

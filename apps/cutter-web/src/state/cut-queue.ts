@@ -5,7 +5,9 @@ export type CutQueueStatus = "pending" | "running" | "done" | "failed" | "cancel
 
 export interface CutQueueJob {
   queue_job_id: string;
+  clip_list_id?: string;
   cut_list_item_id: string;
+  project_id?: string;
   source_video_id: string;
   source_title: string;
   title: string;
@@ -22,6 +24,70 @@ export interface CutQueueJob {
 
 export interface CreateQueueJobsInput {
   createdAt?: string;
+  projectId?: string;
+}
+
+export interface CutJobProjectIndex {
+  jobs: Record<string, string>;
+  clipLists: Record<string, string>;
+}
+
+export const CUT_JOB_PROJECT_INDEX_STORAGE_KEY = "mixlab.cutter.cutJobProjectIndex";
+
+export function emptyCutJobProjectIndex(): CutJobProjectIndex {
+  return {
+    jobs: {},
+    clipLists: {}
+  };
+}
+
+function hasBrowserStorage(): boolean {
+  return typeof window !== "undefined" && Boolean(window.localStorage);
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0
+    )
+  );
+}
+
+export function readCutJobProjectIndex(): CutJobProjectIndex {
+  if (!hasBrowserStorage()) {
+    return emptyCutJobProjectIndex();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(CUT_JOB_PROJECT_INDEX_STORAGE_KEY);
+    if (!raw) {
+      return emptyCutJobProjectIndex();
+    }
+
+    const parsed = JSON.parse(raw) as Partial<CutJobProjectIndex>;
+    return {
+      jobs: stringRecord(parsed.jobs),
+      clipLists: stringRecord(parsed.clipLists)
+    };
+  } catch {
+    return emptyCutJobProjectIndex();
+  }
+}
+
+export function writeCutJobProjectIndex(index: CutJobProjectIndex): void {
+  if (!hasBrowserStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(CUT_JOB_PROJECT_INDEX_STORAGE_KEY, JSON.stringify(index));
+  } catch {
+    // Storage is best-effort; queue rendering can still continue without persistence.
+  }
 }
 
 export function createQueueJobsFromCutList(
@@ -35,6 +101,7 @@ export function createQueueJobsFromCutList(
     .map((item) => ({
       queue_job_id: `job-${item.cut_list_item_id}`,
       cut_list_item_id: item.cut_list_item_id,
+      ...(input.projectId ? { project_id: input.projectId } : {}),
       source_video_id: item.source_video_id,
       source_title: item.source_title,
       title: item.title ?? `${item.source_title} ${item.order}`,
@@ -47,6 +114,37 @@ export function createQueueJobsFromCutList(
       progress: 0,
       created_at: createdAt
     }));
+}
+
+export function rememberCutJobsForProject(
+  index: CutJobProjectIndex,
+  jobs: readonly CutQueueJob[],
+  projectId: string
+): CutJobProjectIndex {
+  const next: CutJobProjectIndex = {
+    jobs: { ...index.jobs },
+    clipLists: { ...index.clipLists }
+  };
+
+  for (const job of jobs) {
+    next.jobs[job.queue_job_id] = projectId;
+    if (job.clip_list_id) {
+      next.clipLists[job.clip_list_id] = projectId;
+    }
+  }
+
+  return next;
+}
+
+export function filterCutQueueJobsByProject(
+  jobs: readonly CutQueueJob[],
+  projectId?: string
+): CutQueueJob[] {
+  if (!projectId) {
+    return [];
+  }
+
+  return jobs.filter((job) => job.project_id === projectId);
 }
 
 export function updateQueueJobStatus(
@@ -82,7 +180,22 @@ function progressForApiStatus(status: CutJob["status"]): number {
   return 0;
 }
 
-export function mapApiCutJobsToQueueJobs(catalog: CutJobCatalog): CutQueueJob[] {
+export interface MapApiCutJobsInput {
+  projectIndex?: CutJobProjectIndex;
+}
+
+function projectIdForApiCutJob(job: CutJob, projectIndex?: CutJobProjectIndex): string | undefined {
+  if (!projectIndex) {
+    return undefined;
+  }
+
+  return projectIndex.jobs[job.cut_job_id] ?? projectIndex.clipLists[job.clip_list_id];
+}
+
+export function mapApiCutJobsToQueueJobs(
+  catalog: CutJobCatalog,
+  input: MapApiCutJobsInput = {}
+): CutQueueJob[] {
   return [...catalog.jobs]
     .sort((left, right) => {
       const updatedCompare = (right.updated_at ?? "").localeCompare(left.updated_at ?? "");
@@ -92,10 +205,13 @@ export function mapApiCutJobsToQueueJobs(catalog: CutJobCatalog): CutQueueJob[] 
       const beginMs = job.begin_ms ?? 0;
       const endMs = job.end_ms ?? beginMs;
       const sourceTitle = job.source_title ?? "本地剪切任务";
+      const projectId = projectIdForApiCutJob(job, input.projectIndex);
 
       return {
         queue_job_id: job.cut_job_id,
+        clip_list_id: job.clip_list_id,
         cut_list_item_id: job.clip_list_item_id ?? job.cut_job_id,
+        ...(projectId ? { project_id: projectId } : {}),
         source_video_id: job.source_video_id ?? "",
         source_title: sourceTitle,
         title: job.export_clip_id

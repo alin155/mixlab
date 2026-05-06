@@ -8,6 +8,7 @@ import {
   type CutPipelineState
 } from "../../state/cut-pipeline.ts";
 import { cutQueueSummary } from "../../state/cut-task-refresh.ts";
+import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
 
 function toneForStatus(status: CutQueueJob["status"]) {
   if (status === "done") {
@@ -42,6 +43,7 @@ function labelForStatus(status: CutQueueJob["status"]): string {
 
 export function CutQueuePage({
   jobs,
+  project,
   autoRefreshEnabled = false,
   lastUpdatedLabel = "",
   pipelineState = idleCutPipelineState,
@@ -50,6 +52,7 @@ export function CutQueuePage({
   onRetryFailed
 }: {
   jobs: readonly CutQueueJob[];
+  project?: CutterProject;
   autoRefreshEnabled?: boolean;
   lastUpdatedLabel?: string;
   pipelineState?: CutPipelineState;
@@ -60,15 +63,20 @@ export function CutQueuePage({
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
   const pipelineDetail = cutPipelineDetailLabel(pipelineState);
+  const projectTitle = project ? projectDisplayTitle(project) : "";
 
   return (
     <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
       <div className="cutter-page-main">
         <header className="cutter-page-header">
           <div>
-            <p className="cutter-eyebrow">本地执行</p>
+            <p className="cutter-eyebrow">{projectTitle ? `当前项目：${projectTitle}` : "本地执行"}</p>
             <h1>剪切任务</h1>
-            <p>后台任务在这里查看；剪切运行时不阻塞搜索和继续找素材。</p>
+            <p>
+              {projectTitle
+                ? "这里只显示当前项目的剪切交付；切换项目后任务列表会同步切换。"
+                : "先选择项目或完成首次剪切，任务会自动归入对应项目。"}
+            </p>
           </div>
           {onRefresh || onRunNext || autoRefreshEnabled ? (
             <div className="cutter-button-group">

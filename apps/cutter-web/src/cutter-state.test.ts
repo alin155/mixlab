@@ -14,7 +14,9 @@ import {
 } from "./state/cut-list.ts";
 import {
   createQueueJobsFromCutList,
+  filterCutQueueJobsByProject,
   mapApiCutJobsToQueueJobs,
+  rememberCutJobsForProject,
   updateQueueJobStatus
 } from "./state/cut-queue.ts";
 import {
@@ -63,6 +65,7 @@ import {
 } from "./state/appearance.ts";
 import {
   createProjectFromFirstCut,
+  projectDisplayTitle,
   projectSwitcherLabel,
   readCutterProjects,
   recordProjectCut,
@@ -820,7 +823,9 @@ test("first cut silently creates a cutter project from the active search query",
   });
 
   assert.match(project.project_id, /^P20260505-/);
-  assert.equal(project.title, "今天想学管理");
+  assert.equal(project.title, "5月5日");
+  assert.equal(project.title_source, "auto");
+  assert.equal(projectDisplayTitle(project), "5月5日");
   assert.equal(project.cover_url, "/covers/project.jpg");
   assert.equal(project.status, "active");
   assert.equal(project.clip_count, 1);
@@ -834,7 +839,7 @@ test("first cut silently creates a cutter project from the active search query",
   );
 });
 
-test("first cut project falls back to selected text when there is no query", () => {
+test("first cut project uses date suffix when the day already has a project", () => {
   const cut = createCutListItemFromSegments({
     sourceVideo,
     segments: transcriptSegments,
@@ -845,12 +850,20 @@ test("first cut project falls back to selected text when there is no query", () 
     cut,
     query: "",
     recentSearches: [],
+    existingProjects: [
+      createProjectFromFirstCut({
+        cut,
+        query: "现金流",
+        recentSearches: [],
+        now: "2026-05-05T09:00:00.000Z"
+      })
+    ],
     now: "2026-05-05T10:00:00.000Z"
   });
 
-  assert.equal(project.title, "现金流不是利润表的影子它直接决定企业能不能安全穿");
+  assert.equal(project.title, "5月5日-1");
   assert.equal(projectSwitcherLabel(null), "临时搜索");
-  assert.equal(projectSwitcherLabel(project), "当前项目：现金流不是利润表的影子它直接决定企业能不能安全穿");
+  assert.equal(projectSwitcherLabel(project), "当前项目：5月5日-1");
 });
 
 test("cutter projects persist with newest updated project first", () => {
@@ -1043,4 +1056,65 @@ test("API cut jobs map to queue rows with progress and traceability", () => {
   assert.equal(jobs[1]?.status, "done");
   assert.equal(jobs[1]?.progress, 100);
   assert.equal(jobs[1]?.duration_ms, 11_400);
+});
+
+test("cut queue jobs can be scoped back to the current cutter project", () => {
+  const list = [
+    item({ cut_list_item_id: "cut-project-a", order: 1, selected_text: "项目 A 的文案" }),
+    item({ cut_list_item_id: "cut-project-b", order: 2, selected_text: "项目 B 的文案" })
+  ];
+  const projectAJobs = createQueueJobsFromCutList([list[0]!], {
+    createdAt: "2026-05-05T10:00:00.000Z",
+    projectId: "P-a"
+  });
+  const projectBJobs = createQueueJobsFromCutList([list[1]!], {
+    createdAt: "2026-05-05T10:05:00.000Z",
+    projectId: "P-b"
+  });
+
+  assert.equal(projectAJobs[0]?.project_id, "P-a");
+  assert.equal(projectBJobs[0]?.project_id, "P-b");
+  assert.deepEqual(
+    filterCutQueueJobsByProject([...projectAJobs, ...projectBJobs], "P-a").map((job) => job.cut_list_item_id),
+    ["cut-project-a"]
+  );
+
+  const projectIndex = rememberCutJobsForProject(
+    { jobs: {}, clipLists: {} },
+    [
+      {
+        ...projectAJobs[0]!,
+        queue_job_id: "CJ20260505-0001",
+        clip_list_id: "CL20260505-0001"
+      }
+    ],
+    "P-a"
+  );
+  const mappedApiJobs = mapApiCutJobsToQueueJobs(
+    {
+      job_count: 1,
+      jobs: [
+        {
+          cut_job_id: "CJ20260505-0002",
+          clip_list_id: "CL20260505-0001",
+          clip_list_item_id: "CLI000001",
+          source_video_id: "V000001",
+          source_title: "项目归属",
+          begin_ms: 0,
+          end_ms: 3_000,
+          selected_text: "刷新后仍然属于项目 A。",
+          cut_mode: "smart",
+          status: "pending",
+          created_at: "2026-05-05T10:10:00.000Z",
+          updated_at: "2026-05-05T10:10:00.000Z"
+        }
+      ]
+    },
+    { projectIndex }
+  );
+
+  assert.equal(projectIndex.jobs["CJ20260505-0001"], "P-a");
+  assert.equal(projectIndex.clipLists["CL20260505-0001"], "P-a");
+  assert.equal(mappedApiJobs[0]?.clip_list_id, "CL20260505-0001");
+  assert.equal(mappedApiJobs[0]?.project_id, "P-a");
 });

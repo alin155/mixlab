@@ -63,8 +63,13 @@ import {
 import { CutterLoginGate } from "../features/login/CutterLoginGate.tsx";
 import {
   createQueueJobsFromCutList,
+  filterCutQueueJobsByProject,
   mapApiCutJobsToQueueJobs,
+  readCutJobProjectIndex,
+  rememberCutJobsForProject,
   updateQueueJobStatus,
+  writeCutJobProjectIndex,
+  type CutJobProjectIndex,
   type CutQueueJob
 } from "../state/cut-queue.ts";
 import {
@@ -106,6 +111,7 @@ import {
 } from "../state/appearance.ts";
 import {
   createProjectFromFirstCut,
+  projectDisplayTitle,
   projectSwitcherLabel,
   projectTitleFromFirstCut,
   readCutterProjects,
@@ -543,6 +549,7 @@ function renderPage(
     selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
     selectedDetail: CutterFixtureData["primaryDetail"];
     projects: readonly CutterProject[];
+    currentProject?: CutterProject;
     currentProjectId?: string;
     sourceFilter: MaterialSearchSourceFilter;
     orientationFilter: VideoOrientationFilter;
@@ -564,6 +571,7 @@ function renderPage(
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
     openProject: (projectId: string) => void;
+    renameProject: (projectId?: string) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
@@ -581,9 +589,14 @@ function renderPage(
         localClips={data.localClips}
         projects={viewState.projects}
         selectedProjectId={viewState.currentProjectId}
-        recentSearches={viewState.recentSearches}
+        queue={queue}
+        sourceFilter={viewState.sourceFilter}
+        orientationFilter={viewState.orientationFilter}
         onSearch={handlers.search}
+        onSetSourceFilter={handlers.setSourceFilter}
+        onSetOrientationFilter={handlers.setOrientationFilter}
         onOpenProject={handlers.openProject}
+        onRenameProject={handlers.renameProject}
       />
     );
   }
@@ -640,6 +653,7 @@ function renderPage(
     return (
       <CutQueuePage
         jobs={queue}
+        project={viewState.currentProject}
         autoRefreshEnabled={viewState.autoRefreshCutJobs}
         lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
         pipelineState={viewState.cutPipelineState}
@@ -713,6 +727,9 @@ export function CutterApp() {
   const [loginMessage, setLoginMessage] = useState("");
   const [loginPollTick, setLoginPollTick] = useState(0);
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
+  const [cutJobProjectIndex, setCutJobProjectIndex] = useState<CutJobProjectIndex>(() =>
+    readCutJobProjectIndex()
+  );
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
   const client = useMemo(
@@ -748,6 +765,7 @@ export function CutterApp() {
         cut: item,
         query: searchQuery,
         recentSearches: recentMaterialSearches,
+        existingProjects: projects,
         coverUrl: selectedDetail?.cover_url
       }),
       created: true
@@ -756,6 +774,27 @@ export function CutterApp() {
 
   function commitProjectAfterCut(project: CutterProject) {
     commitProjects(upsertCutterProject(projects, project), project.project_id);
+  }
+
+  function rememberQueueJobsForProject(
+    jobs: readonly CutQueueJob[],
+    projectId: string
+  ): {
+    jobs: CutQueueJob[];
+    index: CutJobProjectIndex;
+  } {
+    const taggedJobs = jobs.map((job) => ({
+      ...job,
+      project_id: projectId
+    }));
+    const nextIndex = rememberCutJobsForProject(cutJobProjectIndex, taggedJobs, projectId);
+    setCutJobProjectIndex(nextIndex);
+    writeCutJobProjectIndex(nextIndex);
+
+    return {
+      jobs: taggedJobs,
+      index: nextIndex
+    };
   }
 
   function startTemporarySearch() {
@@ -983,14 +1022,16 @@ export function CutterApp() {
     );
   }, [client]);
 
-  const refreshQueueJobs = useCallback(async () => {
+  const refreshQueueJobs = useCallback(async (projectIndexOverride?: CutJobProjectIndex) => {
     if (!apiMode) {
       return;
     }
 
     try {
       const catalog = await client.listCutJobs();
-      const nextJobs = mapApiCutJobsToQueueJobs(catalog);
+      const nextJobs = mapApiCutJobsToQueueJobs(catalog, {
+        projectIndex: projectIndexOverride ?? cutJobProjectIndex
+      });
       setQueueJobs((current) => {
         const shouldRefreshLocalClips = shouldRefreshLocalClipsAfterQueueUpdate(current, nextJobs);
         if (shouldRefreshLocalClips) {
@@ -1011,7 +1052,7 @@ export function CutterApp() {
     } catch (queueError) {
       setError(queueError instanceof Error ? queueError.message : "剪切队列加载失败");
     }
-  }, [apiMode, client, refreshLocalClips]);
+  }, [apiMode, client, cutJobProjectIndex, refreshLocalClips]);
 
   useEffect(() => {
     const listener = () => {
@@ -1235,7 +1276,7 @@ export function CutterApp() {
   const selectedDetail = selectedLocalClip ? localClipToSourceVideoDetail(selectedLocalClip) : data?.primaryDetail;
   const selectedMaterialKey =
     route === "material-locator" && searchQuery.trim() ? selectedMaterialFocusKey : undefined;
-  const visibleQueue =
+  const allVisibleQueue =
     apiMode
       ? queueJobs
       : queueJobs.length > 0
@@ -1245,6 +1286,12 @@ export function CutterApp() {
             createdAt: "2026-05-02T10:00:00.000Z"
           })
         );
+  const visibleQueue = filterCutQueueJobsByProject(allVisibleQueue, currentProjectId);
+  const projectRecentMaterialSearches =
+    currentProject?.searches.map((search) => ({
+      query: search.query,
+      hitCount: search.hit_count
+    })) ?? recentMaterialSearches;
   const highlightedSegmentIds =
     route === "source-detail" ? sourceDetailContext.segmentIds : locatorHighlightedSegmentIds;
   const currentLocatorHitTarget =
@@ -1333,7 +1380,11 @@ export function CutterApp() {
             job_count: submission.submitted_count,
             jobs: submission.jobs
           });
-          setQueueJobs((current) => [...submittedJobs, ...current]);
+          const taggedSubmission = rememberQueueJobsForProject(
+            submittedJobs,
+            projectDraft.project.project_id
+          );
+          setQueueJobs((current) => [...taggedSubmission.jobs, ...current]);
           commitProjectAfterCut(projectDraft.project);
           setCutNotice(
             projectDraft.created
@@ -1341,7 +1392,7 @@ export function CutterApp() {
               : cutNoticeForSubmittedJobs(submission.submitted_count || submittedJobs.length)
           );
           setHasSubmittedCutJobs(true);
-          await refreshQueueJobs();
+          await refreshQueueJobs(taggedSubmission.index);
           void runRealCutPipeline();
         } catch (submitError) {
           setError(submitError instanceof Error ? submitError.message : "剪切任务创建失败");
@@ -1349,7 +1400,8 @@ export function CutterApp() {
         }
       } else {
         const fixtureJob = createQueueJobsFromCutList([{ ...item, order: 1 }], {
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          projectId: projectDraft.project.project_id
         })[0]!;
         const localClip = localClipFromCutListItem(
           item,
@@ -1456,6 +1508,7 @@ export function CutterApp() {
     },
     setSourceFilter,
     setOrientationFilter,
+    renameProject: handleRenameProject,
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
     },
@@ -1490,6 +1543,7 @@ export function CutterApp() {
                   cut: firstItem,
                   query: searchQuery,
                   recentSearches: recentMaterialSearches,
+                  existingProjects: projects,
                   coverUrl: selectedDetail?.cover_url
                 }),
                 created: true
@@ -1504,13 +1558,18 @@ export function CutterApp() {
           const submission = await client.submitCutJobs({
             clip_list_id: clipList.clip_list_id
           });
-          setQueueJobs(mapApiCutJobsToQueueJobs({
+          const submittedJobs = mapApiCutJobsToQueueJobs({
             job_count: submission.submitted_count,
             jobs: submission.jobs
-          }));
+          });
+          const taggedSubmission = rememberQueueJobsForProject(
+            submittedJobs,
+            projectDraft.project.project_id
+          );
+          setQueueJobs(taggedSubmission.jobs);
           commitProjectAfterCut(projectDraft.project);
           setHasSubmittedCutJobs(true);
-          await refreshQueueJobs();
+          await refreshQueueJobs(taggedSubmission.index);
           void runRealCutPipeline();
         } catch (submitError) {
           setError(submitError instanceof Error ? submitError.message : "剪切清单提交失败");
@@ -1531,6 +1590,7 @@ export function CutterApp() {
                 cut: firstItem,
                 query: searchQuery,
                 recentSearches: recentMaterialSearches,
+                existingProjects: projects,
                 coverUrl: selectedDetail?.cover_url
               }),
               created: true
@@ -1539,7 +1599,8 @@ export function CutterApp() {
         setQueueJobs(
           buildQueueFixture(
             createQueueJobsFromCutList(visibleCutList, {
-              createdAt: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              projectId: projectDraft.project.project_id
             })
           )
         );
@@ -1580,6 +1641,8 @@ export function CutterApp() {
         const retriedQueueJob = mapApiCutJobsToQueueJobs({
           job_count: 1,
           jobs: [retried]
+        }, {
+          projectIndex: cutJobProjectIndex
         })[0];
 
         if (retriedQueueJob) {
@@ -1600,22 +1663,26 @@ export function CutterApp() {
     setAppearanceMode: handleSetAppearanceMode
   };
 
-  function handleRenameProject() {
-    if (!currentProject) {
+  function handleRenameProject(projectId?: string) {
+    const targetProject = projectId
+      ? projects.find((project) => project.project_id === projectId)
+      : currentProject;
+    if (!targetProject) {
       return;
     }
 
-    const nextTitle = window.prompt("重命名当前项目", currentProject.title)?.trim();
+    const nextTitle = window.prompt("重命名当前项目", projectDisplayTitle(targetProject))?.trim();
     if (!nextTitle) {
       return;
     }
 
     const updatedProject = {
-      ...currentProject,
+      ...targetProject,
       title: projectTitleFromFirstCut({
         query: nextTitle,
-        selectedText: currentProject.title
+        selectedText: targetProject.title
       }),
+      title_source: "manual" as const,
       updated_at: new Date().toISOString()
     };
     commitProjects(upsertCutterProject(projects, updatedProject), updatedProject.project_id);
@@ -1672,10 +1739,12 @@ export function CutterApp() {
                     currentHitSegmentId,
                     globalHitCount,
                     selectedMaterialKey,
-                    recentSearches: recentMaterialSearches,
+                    recentSearches:
+                      route === "project-home" ? recentMaterialSearches : projectRecentMaterialSearches,
                     selectedSegments: selectedTranscriptSegments,
                     selectedDetail: selectedDetail ?? data.primaryDetail,
                     projects,
+                    currentProject,
                     currentProjectId,
                     sourceFilter,
                     orientationFilter,
