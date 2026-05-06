@@ -249,29 +249,72 @@ export function shouldPollPendingLogin(input: {
   return input.apiMode && !input.authSession && Boolean(input.pendingLogin);
 }
 
-function CutterSidebarFooter({
+function formatSidebarDiskIo(bytesPerSecond?: number): string {
+  if (typeof bytesPerSecond !== "number" || !Number.isFinite(bytesPerSecond)) {
+    return "--";
+  }
+
+  const mbPerSecond = bytesPerSecond / 1024 / 1024;
+  if (mbPerSecond >= 10) {
+    return `${Math.round(mbPerSecond)} MB/s`;
+  }
+
+  return `${mbPerSecond.toFixed(1)} MB/s`;
+}
+
+export function CutterSidebarFooter({
   username,
   localCount,
-  publicCount
+  publicCount,
+  activeTaskCount,
+  concurrency,
+  cpuUsagePercent,
+  diskIoBytesPerSecond,
+  engineReady
 }: {
   username: string;
   localCount: number;
   publicCount: number;
+  activeTaskCount: number;
+  concurrency: number;
+  cpuUsagePercent?: number;
+  diskIoBytesPerSecond?: number;
+  engineReady: boolean;
 }) {
+  const safeConcurrency = Math.max(1, concurrency);
+  const cpuLabel =
+    typeof cpuUsagePercent === "number" && Number.isFinite(cpuUsagePercent)
+      ? `${Math.max(0, Math.min(100, Math.round(cpuUsagePercent)))}%`
+      : "--";
+
   return (
-    <div className="cutter-sidebar-footer" aria-label="剪辑师与素材状态">
-      <div className="cutter-sidebar-user">
-        <span>{username}</span>
-      </div>
-      <div className="cutter-sidebar-metrics">
-        <span>
-          <strong>{localCount}</strong>
-          <small>本地素材</small>
-        </span>
-        <span>
-          <strong>{publicCount}</strong>
-          <small>公共素材库</small>
-        </span>
+    <div className="cutter-sidebar-footer" aria-label="本机引擎状态">
+      <section className="cutter-sidebar-engine-card">
+        <div>
+          <span>本机引擎</span>
+          <strong className={engineReady ? "is-ready" : "is-failed"}>
+            {engineReady ? "正常" : "异常"}
+          </strong>
+        </div>
+        <div>
+          <span>并发任务</span>
+          <strong>{activeTaskCount} / {safeConcurrency}</strong>
+        </div>
+        <div>
+          <span>CPU 使用率</span>
+          <strong>{cpuLabel}</strong>
+        </div>
+        <div>
+          <span>磁盘 I/O</span>
+          <strong>{formatSidebarDiskIo(diskIoBytesPerSecond)}</strong>
+        </div>
+        <div>
+          <span>素材库</span>
+          <strong>本地 {localCount} / 公共 {publicCount}</strong>
+        </div>
+      </section>
+      <div className="cutter-sidebar-user-entry" aria-label="当前用户">
+        <strong>{username}</strong>
       </div>
     </div>
   );
@@ -607,7 +650,7 @@ function cutterDeviceName(): string {
     : cutterDeviceNameFromNavigator({
         platform: navigator.platform,
         userAgent: navigator.userAgent
-      });
+  });
 }
 
 function renderPage(
@@ -1971,6 +2014,13 @@ export function CutterApp() {
     removeProjectFromFrontend(projectId, title);
   }
 
+  const cutterUsername =
+    authSession?.username?.trim() ||
+    data?.runtimeStatus.current_user.display_name.trim() ||
+    data?.runtimeStatus.current_user.username.trim() ||
+    "本机剪辑师";
+  const engineReady = Boolean(data?.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用");
+
   const workbench = (
     <main
       className="cutter-app"
@@ -1995,9 +2045,14 @@ export function CutterApp() {
             footer={
               data ? (
                 <CutterSidebarFooter
-                  username={authSession?.username?.trim() || "本机剪辑师"}
+                  username={cutterUsername}
                   localCount={data.localClips.local_clip_count}
                   publicCount={data.library.available_video_count}
+                  activeTaskCount={allVisibleQueue.filter((job) => job.status === "running").length}
+                  concurrency={data.settings.concurrency}
+                  cpuUsagePercent={data.runtimeStatus.local_runtime?.cpu_usage_percent}
+                  diskIoBytesPerSecond={data.runtimeStatus.local_runtime?.disk_io_bytes_per_second}
+                  engineReady={engineReady}
                 />
               ) : null
             }

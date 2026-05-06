@@ -319,6 +319,10 @@ export interface CutterRuntimeStatus {
   local_clip_count: number;
   ffmpeg_status: "可用" | "不可用";
   ffmpeg_source: "内置" | "环境配置" | "未检测到";
+  local_runtime?: {
+    cpu_usage_percent?: number;
+    disk_io_bytes_per_second?: number;
+  };
   current_user: {
     user_id: string;
     username: string;

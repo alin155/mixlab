@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
+import { formatDuration } from "../../api.ts";
 import {
   cutQueueCurrentPhaseLabel,
   cutQueueJobElapsedMs,
@@ -15,21 +16,15 @@ import {
 import { cutQueueSummary } from "../../state/cut-task-refresh.ts";
 import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
 
-function toneForStatus(status: CutQueueJob["status"]) {
-  if (status === "done") {
-    return "ready" as const;
-  }
+type CutTaskFilter = "all" | CutQueueJob["status"];
 
-  if (status === "running") {
-    return "processing" as const;
-  }
-
-  if (status === "failed") {
-    return "failed" as const;
-  }
-
-  return "queued" as const;
-}
+const statusFilters: Array<{ key: CutTaskFilter; label: string }> = [
+  { key: "all", label: "全部" },
+  { key: "pending", label: "等待中" },
+  { key: "running", label: "剪切中" },
+  { key: "failed", label: "失败" },
+  { key: "done", label: "已完成" }
+];
 
 function labelForStatus(status: CutQueueJob["status"]): string {
   switch (status) {
@@ -44,6 +39,60 @@ function labelForStatus(status: CutQueueJob["status"]): string {
     case "cancelled":
       return "已取消";
   }
+}
+
+function cutModeLabel(mode: CutQueueJob["cut_mode"]): string {
+  switch (mode) {
+    case "copy":
+      return "极速剪切";
+    case "precise":
+      return "精准剪切";
+    case "smart":
+      return "智能剪切";
+  }
+}
+
+function preferredTaskJob(jobs: readonly CutQueueJob[]): CutQueueJob | undefined {
+  return (
+    jobs.find((job) => job.status === "failed") ??
+    jobs.find((job) => job.status === "running") ??
+    jobs.find((job) => job.status === "pending") ??
+    jobs.find((job) => job.status === "done") ??
+    jobs[0]
+  );
+}
+
+function outputOrIssue(job: CutQueueJob, nowMs: number): string {
+  if (job.status === "failed") {
+    return `失败原因：${job.error_message ?? "剪切失败"}`;
+  }
+
+  if (job.status === "done") {
+    return job.output_file ?? "已生成本地素材";
+  }
+
+  if (job.status === "running") {
+    return `${cutQueueCurrentPhaseLabel(job)} · 已耗时 ${formatCutQueueElapsed(cutQueueJobElapsedMs(job, nowMs))}`;
+  }
+
+  if (job.status === "cancelled") {
+    return "已取消";
+  }
+
+  return "等待中";
+}
+
+function shortSelectedText(text: string): string {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (normalized.length <= 80) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 80)}...`;
+}
+
+function taskCountForFilter(summary: ReturnType<typeof cutQueueSummary>, filter: CutTaskFilter): number {
+  return filter === "all" ? summary.total : summary[filter];
 }
 
 export function CutQueuePage({
@@ -70,6 +119,10 @@ export function CutQueuePage({
   const pipelineDetail = cutPipelineDetailLabel(pipelineState);
   const projectTitle = project ? projectDisplayTitle(project) : "";
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [statusFilter, setStatusFilter] = useState<CutTaskFilter>("all");
+  const [selectedJobId, setSelectedJobId] = useState<string | undefined>(() => preferredTaskJob(jobs)?.queue_job_id);
+  const selectedJob = jobs.find((job) => job.queue_job_id === selectedJobId) ?? preferredTaskJob(jobs);
+  const visibleJobs = statusFilter === "all" ? jobs : jobs.filter((job) => job.status === statusFilter);
 
   useEffect(() => {
     if (!jobs.some((job) => job.status === "pending" || job.status === "running")) {
@@ -80,6 +133,14 @@ export function CutQueuePage({
     return () => window.clearInterval(timer);
   }, [jobs]);
 
+  useEffect(() => {
+    if (selectedJobId && jobs.some((job) => job.queue_job_id === selectedJobId)) {
+      return;
+    }
+
+    setSelectedJobId(preferredTaskJob(jobs)?.queue_job_id);
+  }, [jobs, selectedJobId]);
+
   return (
     <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
       <div className="cutter-page-main">
@@ -87,47 +148,27 @@ export function CutQueuePage({
           <div>
             <h1>剪切任务</h1>
             <p>
-              {projectTitle
-                ? "这里只显示当前项目的剪切交付；切换项目后任务列表会同步切换。"
-                : "先选择项目或完成首次剪切，任务会自动归入对应项目。"}
+              {summary.total} 个任务
+              {summary.running > 0 ? ` · ${summary.running} 个剪切中` : ""}
+              {summary.failed > 0 ? ` · ${summary.failed} 个需要处理` : ""}
+              {projectTitle ? ` · ${projectTitle}` : ""}
             </p>
           </div>
-          {onRefresh || onRunNext || autoRefreshEnabled ? (
-            <div className="cutter-button-group">
-              {autoRefreshEnabled ? <span className="cutter-note">自动刷新 · {lastUpdatedLabel || "等待更新"}</span> : null}
-              {onRefresh ? (
-                <button className="cutter-secondary-button" type="button" onClick={onRefresh}>
-                  刷新任务
-                </button>
-              ) : null}
-              {onRunNext ? (
-                <button className="cutter-primary-button" type="button" onClick={onRunNext}>
-                  继续剪切
-                </button>
-              ) : null}
-            </div>
-          ) : (
-            <span className="cutter-note">不阻塞搜索</span>
-          )}
         </header>
 
-        <section className="cutter-queue-summary" aria-label="剪切任务概览">
-          <div>
-            <strong>{summary.pending}</strong>
-            <span>等待中</span>
-          </div>
-          <div>
-            <strong>{summary.running}</strong>
-            <span>剪切中</span>
-          </div>
-          <div>
-            <strong>{summary.done}</strong>
-            <span>已完成</span>
-          </div>
-          <div>
-            <strong>{summary.failed}</strong>
-            <span>失败</span>
-          </div>
+        <section className="cutter-task-tabs" aria-label="剪切任务筛选">
+          {statusFilters.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              className={statusFilter === filter.key ? "is-active" : ""}
+              aria-pressed={statusFilter === filter.key}
+              onClick={() => setStatusFilter(filter.key)}
+            >
+              <span>{filter.label}</span>
+              <strong>{taskCountForFilter(summary, filter.key)}</strong>
+            </button>
+          ))}
         </section>
 
         <section className={`cutter-pipeline-card is-${pipelineState.status}`} aria-label="本机剪切流水线">
@@ -138,43 +179,116 @@ export function CutQueuePage({
           <p>{pipelineDetail}</p>
         </section>
 
-        <div className="cutter-queue-list">
-          {jobs.map((job) => (
-            <StatusRow
-              key={job.queue_job_id}
-              tone={toneForStatus(job.status)}
-              label={labelForStatus(job.status)}
-              detail={[
-                job.title,
-                `当前流程：${cutQueueCurrentPhaseLabel(job)}`,
-                `已耗时：${formatCutQueueElapsed(cutQueueJobElapsedMs(job, nowMs))}`,
-                job.selected_text ? `选中文案：${job.selected_text}` : "",
-                job.status === "failed" && job.error_message ? `失败原因：${job.error_message}` : ""
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-              value={
-                <span className="cutter-row-actions">
-                  {job.progress}%
-                  {job.status === "failed" && onRetryFailed ? (
-                    <button type="button" onClick={() => onRetryFailed(job.queue_job_id)}>
-                      重试
+        <div className="cutter-task-table-wrap">
+          <table className="cutter-task-table">
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>来源</th>
+                <th>时间段</th>
+                <th>选中文案</th>
+                <th>输出 / 问题</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleJobs.map((job) => (
+                <tr
+                  key={job.queue_job_id}
+                  className={`${selectedJob?.queue_job_id === job.queue_job_id ? "is-selected" : ""} is-${job.status}`}
+                  onClick={() => setSelectedJobId(job.queue_job_id)}
+                >
+                  <td>
+                    <span className={`cutter-task-status-chip is-${job.status}`}>{labelForStatus(job.status)}</span>
+                  </td>
+                  <td>
+                    <button
+                      className="cutter-task-source-button"
+                      type="button"
+                      onClick={() => setSelectedJobId(job.queue_job_id)}
+                    >
+                      {job.source_title || job.source_video_id || "未知来源"}
                     </button>
-                  ) : null}
-                </span>
-              }
-            />
-          ))}
+                  </td>
+                  <td>
+                    <span className="cutter-task-time-range">
+                      {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="cutter-task-selected-text">{shortSelectedText(job.selected_text)}</span>
+                  </td>
+                  <td>
+                    <span className={`cutter-task-output is-${job.status}`}>{outputOrIssue(job, nowMs)}</span>
+                  </td>
+                  <td>
+                    <span className="cutter-task-actions">
+                      {job.status === "failed" && onRetryFailed ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRetryFailed(job.queue_job_id);
+                          }}
+                        >
+                          重试
+                        </button>
+                      ) : (
+                        <span>{labelForStatus(job.status)}</span>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {visibleJobs.length === 0 ? <span className="cutter-task-empty">当前筛选没有剪切任务。</span> : null}
         </div>
       </div>
 
-      <InspectorPanel title="任务说明">
-        <div className="cutter-inspector-stack">
-          <span>等待中：任务已经创建，等待本机剪切服务执行。</span>
-          <span>剪切中：正在生成本地片段，并展示当前进度。</span>
-          <span>已完成：片段会进入本地素材库，后续可再次搜索和剪切。</span>
-          <span>失败：可以重试，并保留错误原因方便诊断。</span>
-        </div>
+      <InspectorPanel title="任务详情">
+        {selectedJob ? (
+          <div className="cutter-task-detail">
+            <span className={`cutter-task-status-chip is-${selectedJob.status}`}>{labelForStatus(selectedJob.status)}</span>
+            <dl>
+              <div>
+                <dt>来源素材</dt>
+                <dd>{selectedJob.source_title || selectedJob.source_video_id || "未知来源"}</dd>
+              </div>
+              <div>
+                <dt>时间范围</dt>
+                <dd>
+                  {formatDuration(selectedJob.begin_ms)} - {formatDuration(selectedJob.end_ms)}
+                </dd>
+              </div>
+              <div>
+                <dt>剪切模式</dt>
+                <dd>{cutModeLabel(selectedJob.cut_mode)}</dd>
+              </div>
+              <div>
+                <dt>输出路径</dt>
+                <dd>{selectedJob.output_file ?? "尚未生成"}</dd>
+              </div>
+              {selectedJob.error_message ? (
+                <div>
+                  <dt>错误摘要</dt>
+                  <dd>{selectedJob.error_message}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {selectedJob.status === "failed" && onRetryFailed ? (
+              <button
+                className="cutter-primary-button"
+                type="button"
+                onClick={() => onRetryFailed(selectedJob.queue_job_id)}
+              >
+                重试此任务
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <span>暂无剪切任务</span>
+        )}
       </InspectorPanel>
     </section>
   );

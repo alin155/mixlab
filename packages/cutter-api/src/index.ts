@@ -146,11 +146,91 @@ interface CutterRuntimeStatusPayload {
   local_clip_count: number;
   ffmpeg_status: "可用" | "不可用";
   ffmpeg_source: "内置" | "环境配置" | "未检测到";
+  local_runtime: {
+    cpu_usage_percent: number;
+    disk_io_bytes_per_second?: number;
+  };
   current_user: {
     user_id: string;
     username: string;
     display_name: string;
   };
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function localCpuUsagePercent(): number {
+  const coreCount = Math.max(1, os.cpus().length);
+  const loadAverage = os.loadavg()[0] ?? 0;
+  return clampPercent((loadAverage / coreCount) * 100);
+}
+
+export function parseIostatDiskIoBytesPerSecond(output: string): number | undefined {
+  const lines = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let mbColumnIndexes: number[] = [];
+  let latestBytesPerSecond: number | undefined;
+
+  for (const line of lines) {
+    const columns = line.split(/\s+/);
+    if (columns.includes("MB/s")) {
+      mbColumnIndexes = columns
+        .map((column, index) => (column === "MB/s" ? index : -1))
+        .filter((index) => index >= 0);
+      continue;
+    }
+
+    if (mbColumnIndexes.length === 0 || !/^-?\d/.test(columns[0] ?? "")) {
+      continue;
+    }
+
+    const totalMbPerSecond = mbColumnIndexes.reduce((total, index) => {
+      const value = Number.parseFloat(columns[index] ?? "");
+      return Number.isFinite(value) ? total + Math.max(0, value) : total;
+    }, 0);
+    latestBytesPerSecond = Math.round(totalMbPerSecond * 1024 * 1024);
+  }
+
+  return latestBytesPerSecond;
+}
+
+async function localDiskIoBytesPerSecond(): Promise<number | undefined> {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn("iostat", ["-d", "-w", "1", "-c", "2"]);
+    let settled = false;
+    let output = "";
+
+    const finish = (value: number | undefined) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(undefined);
+    }, 1500);
+
+    child.stdout.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.on("error", () => finish(undefined));
+    child.on("close", () => finish(parseIostatDiskIoBytesPerSecond(output)));
+  });
 }
 
 function optionalTrimmed(value: string | undefined): string | undefined {
@@ -783,6 +863,8 @@ async function runtimeStatusForSession(input: {
     ffmpegStatus = "不可用";
   }
 
+  const diskIoBytesPerSecond = await localDiskIoBytesPerSecond();
+
   return {
     mode: "api",
     mode_label: "真实 Cutter API 模式",
@@ -796,6 +878,12 @@ async function runtimeStatusForSession(input: {
     local_clip_count: localClips.local_clip_count,
     ffmpeg_status: ffmpegStatus,
     ffmpeg_source: ffmpegSource,
+    local_runtime: {
+      cpu_usage_percent: localCpuUsagePercent(),
+      ...(typeof diskIoBytesPerSecond === "number"
+        ? { disk_io_bytes_per_second: diskIoBytesPerSecond }
+        : {})
+    },
     current_user: {
       user_id: input.auth.user.user_id,
       username: input.auth.user.username,

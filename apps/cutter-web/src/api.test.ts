@@ -673,6 +673,10 @@ test("loads cutter runtime status with approved session headers", async () => {
           local_clip_count: 1,
           ffmpeg_status: "可用",
           ffmpeg_source: "内置",
+          local_runtime: {
+            cpu_usage_percent: 27,
+            disk_io_bytes_per_second: 68 * 1024 * 1024
+          },
           current_user: {
             user_id: "CU000001",
             username: "剪辑师A",
@@ -687,6 +691,8 @@ test("loads cutter runtime status with approved session headers", async () => {
 
   assert.equal(status.mode_label, "真实 Cutter API 模式");
   assert.equal(status.current_user.username, "剪辑师A");
+  assert.equal(status.local_runtime?.cpu_usage_percent, 27);
+  assert.equal(status.local_runtime?.disk_io_bytes_per_second, 68 * 1024 * 1024);
   assert.equal(observedDevice, "device-001");
   assert.equal(observedSession, "session-001");
 });

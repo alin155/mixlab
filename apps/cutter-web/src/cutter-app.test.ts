@@ -59,6 +59,7 @@ import {
   shouldRetryPendingLoginError,
   shouldShowCutterToolbar,
   CutterProjectSwitcher,
+  CutterSidebarFooter,
   CutterApp,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
@@ -1059,7 +1060,7 @@ test("local library is independent and exposes local recut materials with orient
   assert.equal(html.includes("可用原素材"), false);
 });
 
-test("cut tasks page renders every task state, summary, and auto-refresh status in Chinese", () => {
+test("cut tasks page renders every task state and summary in Chinese", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
     h(CutQueuePage, {
@@ -1086,11 +1087,8 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
     "已完成",
     "失败",
     "重试",
-    "自动刷新",
-    "刚刚更新",
     "本机剪切运行中",
     "已处理 1 个任务",
-    "继续剪切",
     "失败原因",
     "FFmpeg 输出目录不可写",
     "选中文案"
@@ -1103,12 +1101,49 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
   for (const englishStatus of ["pending", "running", "done", "failed"]) {
     assert.equal(html.includes(`<strong>${englishStatus}</strong>`), false);
   }
-  assert.equal(html.includes(data.queue[0]!.title), true);
+  assert.equal(html.includes(data.queue[0]!.title), false);
   assert.equal(data.queue[0]!.title, "1-现金流项目-现金流管理与风险控制");
   assert.equal(data.queue[0]!.title.includes("00:"), false);
   assert.equal(data.queue[0]!.title.includes(" · "), false);
   assert.equal(data.queue[0]!.title.includes(data.queue[0]!.selected_text), false);
   assert.match(html, /data-page="cut-tasks"/);
+});
+
+test("cut tasks page uses a production table and task detail without internal task names", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue,
+      autoRefreshEnabled: true,
+      lastUpdatedLabel: "刚刚更新",
+      onRefresh: () => undefined,
+      onRunNext: () => undefined,
+      onRetryFailed: () => undefined
+    })
+  );
+
+  for (const text of [
+    "全部",
+    "来源",
+    "时间段",
+    "选中文案",
+    "输出 / 问题",
+    "操作",
+    "任务详情",
+    "来源素材",
+    "时间范围",
+    "剪切模式",
+    "错误摘要",
+    "重试此任务"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+
+  assert.equal(html.includes("<th>任务</th>"), false);
+  assert.equal(html.includes("来源/时间段"), false);
+  assert.equal(html.includes("任务名称"), false);
+  assert.equal(html.includes("任务说明"), false);
+  assert.match(html, /<table[^>]+class="cutter-task-table"/);
 });
 
 test("cut tasks page names the current cutter project context", () => {
@@ -1155,7 +1190,7 @@ test("cut tasks does not render dead retry controls without a retry handler", ()
   assert.equal(html.includes("<button type=\"button\">重试</button>"), false);
 });
 
-test("cut tasks renders optional API refresh and run controls", () => {
+test("cut tasks omits manual refresh and continue controls", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
     h(CutQueuePage, {
@@ -1165,8 +1200,52 @@ test("cut tasks renders optional API refresh and run controls", () => {
     })
   );
 
-  assert.match(html, /刷新任务/);
-  assert.match(html, /继续剪切/);
+  assert.equal(html.includes("刷新"), false);
+  assert.equal(html.includes("继续剪切"), false);
+});
+
+test("sidebar footer renders local engine telemetry and a passive username label", () => {
+  const html = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      username: "Allen",
+      localCount: 18,
+      publicCount: 41,
+      activeTaskCount: 1,
+      concurrency: 2,
+      cpuUsagePercent: 27,
+      diskIoBytesPerSecond: 68 * 1024 * 1024,
+      engineReady: true
+    })
+  );
+
+  for (const text of [
+    "本机引擎",
+    "正常",
+    "并发任务",
+    "1 / 2",
+    "CPU 使用率",
+    "27%",
+    "磁盘 I/O",
+    "68 MB/s",
+    "素材库",
+    "本地 18 / 公共 41",
+    "Allen"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+
+  assert.equal(html.includes("系统日志"), false);
+  assert.equal(html.includes("打开用户数据面板"), false);
+  assert.equal(html.includes("<button"), false);
+  assert.equal(html.includes("›"), false);
+});
+
+test("cutter app does not keep the removed user summary drawer", async () => {
+  const source = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /CutterUserSummaryDrawer/);
+  assert.doesNotMatch(source, /userSummaryPanelOpen/);
+  assert.doesNotMatch(source, /setUserSummaryPanelOpen\(true\)/);
 });
 
 test("settings render mount, workspace, ffmpeg, default mode, concurrency, and Doctor", () => {

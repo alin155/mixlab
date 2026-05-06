@@ -16,7 +16,11 @@ import {
   readUsageMetrics,
   scanSourceVideos
 } from "../../library-fs/src/index.ts";
-import { createCutterApiServer, resolveCutterApiRuntimeConfigFromEnv } from "./index.ts";
+import {
+  createCutterApiServer,
+  parseIostatDiskIoBytesPerSecond,
+  resolveCutterApiRuntimeConfigFromEnv
+} from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-"));
@@ -46,6 +50,17 @@ test("default Cutter cut runner avoids synchronous child processes so API reques
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(source, /\bspawnSync\b/);
+});
+
+test("parses local iostat disk throughput from the newest sample", () => {
+  const bytesPerSecond = parseIostatDiskIoBytesPerSecond(`
+              disk0               disk6
+    KB/t  tps  MB/s     KB/t  tps  MB/s
+   25.35  129  3.19   133.29    4  0.55
+   16.80   10  0.16     0.00    0  0.00
+  `);
+
+  assert.equal(bytesPerSecond, Math.round(0.16 * 1024 * 1024));
 });
 
 async function writeDummyVideo(filePath: string, bytes = "dummy-video-bytes"): Promise<void> {
@@ -551,6 +566,9 @@ test("runtime status requires approved cutter session and reports workspace read
     assert.equal(body.data.current_user.username, "cutter-user");
     assert.match(body.data.workspace_root_label, /mixlab-cutter-runtime-/);
     assert.match(body.data.ffmpeg_status, /可用|不可用/);
+    assert.equal(typeof body.data.local_runtime.cpu_usage_percent, "number");
+    assert.ok(body.data.local_runtime.cpu_usage_percent >= 0);
+    assert.ok(body.data.local_runtime.cpu_usage_percent <= 100);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

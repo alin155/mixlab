@@ -29,6 +29,7 @@ export interface CutQueueJob {
   started_at?: string;
   finished_at?: string;
   error_message?: string;
+  output_file?: string;
 }
 
 export interface CreateQueueJobsInput {
@@ -442,7 +443,8 @@ export function mapApiCutJobsToQueueJobs(
         updated_at: job.updated_at,
         started_at: job.started_at,
         finished_at: job.finished_at,
-        ...(job.error_message ? { error_message: job.error_message } : {})
+        ...(job.error_message ? { error_message: job.error_message } : {}),
+        ...(job.output_file ? { output_file: job.output_file } : {})
       };
     });
 }

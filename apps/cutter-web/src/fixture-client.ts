@@ -381,6 +381,10 @@ const runtimeStatus: CutterRuntimeStatus = {
   local_clip_count: localClips.local_clip_count,
   ffmpeg_status: "可用",
   ffmpeg_source: "内置",
+  local_runtime: {
+    cpu_usage_percent: 27,
+    disk_io_bytes_per_second: 68 * 1024 * 1024
+  },
   current_user: {
     user_id: "fixture",
     username: "演示剪辑师",
