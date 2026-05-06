@@ -12,6 +12,7 @@ test("server script passes cutter workspace root into the API server", async () 
 
   assert.match(script, /workspace_root:\s*config\.workspace_root/);
   assert.match(script, /"\/cutter\/cut-jobs"/);
+  assert.match(script, /"\/cutter\/workspace\/open-export-directory"/);
   assert.match(envExample, /MIXLAB_CUTTER_WORKSPACE_ROOT=/);
 });
 

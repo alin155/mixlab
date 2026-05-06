@@ -125,6 +125,7 @@ export function MaterialLocatorPage({
   onNavigateHit,
   onCutSelection,
   onCancelSelection,
+  onOpenCutOutputDirectory,
   onSetSourceFilter,
   onSetOrientationFilter
 }: {
@@ -151,6 +152,7 @@ export function MaterialLocatorPage({
   onNavigateHit?: (direction: "previous" | "next") => void;
   onCutSelection?: () => void;
   onCancelSelection?: () => void;
+  onOpenCutOutputDirectory?: () => void;
   onSetSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
   onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
 }) {
@@ -487,9 +489,20 @@ export function MaterialLocatorPage({
             </section>
 
             <section className="cutter-locator-queue-panel" aria-label="剪切队列">
-              <a className="cutter-inline-action cutter-queue-top-action" href="#cut-tasks">
-                查看全部任务
-              </a>
+              <div className="cutter-locator-queue-actions">
+                <a className="cutter-inline-action cutter-queue-top-action" href="#cut-tasks">
+                  查看全部任务
+                </a>
+                {onOpenCutOutputDirectory ? (
+                  <button
+                    className="cutter-inline-action cutter-queue-top-action"
+                    type="button"
+                    onClick={onOpenCutOutputDirectory}
+                  >
+                    打开文件目录
+                  </button>
+                ) : null}
+              </div>
               {cutNotice ? (
                 <div className="cutter-locator-queue-notice" role="status">
                   {cutNotice}
@@ -508,6 +521,10 @@ export function MaterialLocatorPage({
                       <span>{queueStatusLabel(job.status)}</span>
                       <strong>{job.title}</strong>
                       <small>{Math.round(job.progress)}%</small>
+                      <small className="cutter-locator-queue-meta">
+                        {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
+                        {job.selected_text ? ` · ${job.selected_text}` : ""}
+                      </small>
                     </div>
                   ))
                 ) : (

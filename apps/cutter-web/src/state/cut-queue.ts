@@ -1,5 +1,9 @@
 import type { CutJob, CutJobCatalog } from "../api.ts";
 import type { CutListItem, CutMode } from "./cut-list.ts";
+import {
+  normalizedMaterialTitlePart,
+  sourceMaterialTitleFromStableName
+} from "./material-naming.ts";
 
 export type CutQueueStatus = "pending" | "running" | "done" | "failed" | "cancelled";
 
@@ -25,6 +29,7 @@ export interface CutQueueJob {
 export interface CreateQueueJobsInput {
   createdAt?: string;
   projectId?: string;
+  projectTitle?: string;
 }
 
 export interface CutJobProjectIndex {
@@ -90,6 +95,35 @@ export function writeCutJobProjectIndex(index: CutJobProjectIndex): void {
   }
 }
 
+function cutSequenceLabel(value: number | undefined, fallback: number): string {
+  const numeric = typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : fallback;
+  return String(numeric);
+}
+
+function cutSequenceFromIdentifier(value: string | undefined, fallback: number): number {
+  const match = /(\d+)(?!.*\d)/.exec(value ?? "");
+  if (!match) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(match[1]!, 10);
+  return parsed > 0 ? parsed : fallback;
+}
+
+export function cutQueueJobTitle(input: {
+  sequence?: number;
+  projectTitle?: string;
+  sourceTitle?: string;
+}): string {
+  return [
+    cutSequenceLabel(input.sequence, 1),
+    normalizedMaterialTitlePart(input.projectTitle, "未归属项目"),
+    sourceMaterialTitleFromStableName(input.sourceTitle)
+  ].join("-");
+}
+
 export function createQueueJobsFromCutList(
   items: readonly CutListItem[],
   input: CreateQueueJobsInput = {}
@@ -98,22 +132,30 @@ export function createQueueJobsFromCutList(
 
   return [...items]
     .sort((left, right) => left.order - right.order)
-    .map((item) => ({
-      queue_job_id: `job-${item.cut_list_item_id}`,
-      cut_list_item_id: item.cut_list_item_id,
-      ...(input.projectId ? { project_id: input.projectId } : {}),
-      source_video_id: item.source_video_id,
-      source_title: item.source_title,
-      title: item.title ?? `${item.source_title} ${item.order}`,
-      begin_ms: item.begin_ms,
-      end_ms: item.end_ms,
-      duration_ms: item.duration_ms,
-      selected_text: item.selected_text,
-      cut_mode: item.cut_mode,
-      status: "pending",
-      progress: 0,
-      created_at: createdAt
-    }));
+    .map((item) => {
+      const sourceTitle = sourceMaterialTitleFromStableName(item.source_title);
+
+      return {
+        queue_job_id: `job-${item.cut_list_item_id}`,
+        cut_list_item_id: item.cut_list_item_id,
+        ...(input.projectId ? { project_id: input.projectId } : {}),
+        source_video_id: item.source_video_id,
+        source_title: sourceTitle,
+        title: cutQueueJobTitle({
+          sequence: item.order,
+          projectTitle: input.projectTitle,
+          sourceTitle
+        }),
+        begin_ms: item.begin_ms,
+        end_ms: item.end_ms,
+        duration_ms: item.duration_ms,
+        selected_text: item.selected_text,
+        cut_mode: item.cut_mode,
+        status: "pending" as const,
+        progress: 0,
+        created_at: createdAt
+      };
+    });
 }
 
 export function rememberCutJobsForProject(
@@ -136,6 +178,20 @@ export function rememberCutJobsForProject(
   return next;
 }
 
+export function removeCutJobsForProject(
+  index: CutJobProjectIndex,
+  projectId: string
+): CutJobProjectIndex {
+  return {
+    jobs: Object.fromEntries(
+      Object.entries(index.jobs).filter((entry) => entry[1] !== projectId)
+    ),
+    clipLists: Object.fromEntries(
+      Object.entries(index.clipLists).filter((entry) => entry[1] !== projectId)
+    )
+  };
+}
+
 export function filterCutQueueJobsByProject(
   jobs: readonly CutQueueJob[],
   projectId?: string
@@ -145,6 +201,18 @@ export function filterCutQueueJobsByProject(
   }
 
   return jobs.filter((job) => job.project_id === projectId);
+}
+
+export function replaceQueueJobWithSubmittedJobs(
+  jobs: readonly CutQueueJob[],
+  optimisticQueueJobId: string,
+  submittedJobs: readonly CutQueueJob[]
+): CutQueueJob[] {
+  const replacementJobs = [...submittedJobs];
+
+  return jobs.flatMap((job) =>
+    job.queue_job_id === optimisticQueueJobId ? replacementJobs : [job]
+  );
 }
 
 export function updateQueueJobStatus(
@@ -181,15 +249,30 @@ function progressForApiStatus(status: CutJob["status"]): number {
 }
 
 export interface MapApiCutJobsInput {
+  projectId?: string;
   projectIndex?: CutJobProjectIndex;
+  projectTitle?: string;
+  projectTitlesById?: Record<string, string>;
 }
 
-function projectIdForApiCutJob(job: CutJob, projectIndex?: CutJobProjectIndex): string | undefined {
-  if (!projectIndex) {
+function projectIdForApiCutJob(job: CutJob, input: MapApiCutJobsInput): string | undefined {
+  if (input.projectId) {
+    return input.projectId;
+  }
+
+  if (!input.projectIndex) {
     return undefined;
   }
 
-  return projectIndex.jobs[job.cut_job_id] ?? projectIndex.clipLists[job.clip_list_id];
+  return input.projectIndex.jobs[job.cut_job_id] ?? input.projectIndex.clipLists[job.clip_list_id];
+}
+
+function projectTitleForApiCutJob(projectId: string | undefined, input: MapApiCutJobsInput): string | undefined {
+  if (projectId && input.projectTitlesById?.[projectId]) {
+    return input.projectTitlesById[projectId];
+  }
+
+  return input.projectTitle;
 }
 
 export function mapApiCutJobsToQueueJobs(
@@ -201,11 +284,11 @@ export function mapApiCutJobsToQueueJobs(
       const updatedCompare = (right.updated_at ?? "").localeCompare(left.updated_at ?? "");
       return updatedCompare || right.cut_job_id.localeCompare(left.cut_job_id);
     })
-    .map((job) => {
+    .map((job, index) => {
       const beginMs = job.begin_ms ?? 0;
       const endMs = job.end_ms ?? beginMs;
-      const sourceTitle = job.source_title ?? "本地剪切任务";
-      const projectId = projectIdForApiCutJob(job, input.projectIndex);
+      const sourceTitle = sourceMaterialTitleFromStableName(job.source_title);
+      const projectId = projectIdForApiCutJob(job, input);
 
       return {
         queue_job_id: job.cut_job_id,
@@ -214,9 +297,11 @@ export function mapApiCutJobsToQueueJobs(
         ...(projectId ? { project_id: projectId } : {}),
         source_video_id: job.source_video_id ?? "",
         source_title: sourceTitle,
-        title: job.export_clip_id
-          ? `${sourceTitle} · ${job.export_clip_id}`
-          : `${sourceTitle} · ${job.cut_job_id}`,
+        title: job.title ?? cutQueueJobTitle({
+          sequence: job.project_clip_order ?? cutSequenceFromIdentifier(job.clip_list_item_id ?? job.cut_job_id, index + 1),
+          projectTitle: job.project_title ?? projectTitleForApiCutJob(projectId, input),
+          sourceTitle
+        }),
         begin_ms: beginMs,
         end_ms: endMs,
         duration_ms: Math.max(0, endMs - beginMs),

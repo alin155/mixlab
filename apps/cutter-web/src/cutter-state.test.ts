@@ -17,6 +17,8 @@ import {
   filterCutQueueJobsByProject,
   mapApiCutJobsToQueueJobs,
   rememberCutJobsForProject,
+  removeCutJobsForProject,
+  replaceQueueJobWithSubmittedJobs,
   updateQueueJobStatus
 } from "./state/cut-queue.ts";
 import {
@@ -57,6 +59,7 @@ import {
   appendCompletedLocalClip,
   localClipFromCutListItem
 } from "./state/local-clip-reuse.ts";
+import { sourceMaterialTitleFromStableName } from "./state/material-naming.ts";
 import {
   CUTTER_APPEARANCE_STORAGE_KEY,
   appearanceModeLabel,
@@ -64,7 +67,10 @@ import {
   writeCutterAppearanceMode
 } from "./state/appearance.ts";
 import {
+  clearCutterCurrentProject,
   createProjectFromFirstCut,
+  createProjectFromSearch,
+  removeCutterProject,
   projectDisplayTitle,
   projectSwitcherLabel,
   readCutterProjects,
@@ -248,6 +254,68 @@ test("material locator groups local reusable materials before public source mate
   assert.equal(sections[0]?.items[0]?.orientation_label, "竖版");
   assert.equal(sections[1]?.items[0]?.source, "public");
   assert.equal(sections[1]?.items[0]?.orientation_label, "横版");
+});
+
+test("material locator searches timestamped local clip transcript segments instead of the whole clip text", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "账面数字",
+    sourceFilter: "local",
+    orientationFilter: "all",
+    localClips: {
+      local_clip_count: 1,
+      clips: [
+        {
+          local_clip_id: "E000001",
+          title: "1-5月6日-1-C2100",
+          source_video_id: "V000039",
+          source_title: "C2100",
+          begin_ms: 0,
+          end_ms: 4200,
+          duration_ms: 4200,
+          selected_text: "现金流，是企业的血液。 不是账面数字。",
+          media_url: "/cutter/local-clips/E000001/media",
+          cover_url: "/cutter/local-clips/E000001/cover",
+          detail_url: "/cutter/local-clips/E000001",
+          subtitles_url: "/cutter/local-clips/E000001/subtitles.srt",
+          width: 1920,
+          height: 1080,
+          relative_path: ".mixlab-library/videos/E000001/source.mp4",
+          transcript_segments: [
+            {
+              segment_id: "E000001-S000001",
+              begin_ms: 0,
+              end_ms: 1600,
+              text: "现金流，是企业的血液。"
+            },
+            {
+              segment_id: "E000001-S000002",
+              begin_ms: 1600,
+              end_ms: 4200,
+              text: "不是账面数字。"
+            }
+          ]
+        }
+      ]
+    } as unknown as LocalClipCatalog,
+    library: {
+      available_video_count: 0,
+      videos: []
+    },
+    search: {
+      query: "账面数字",
+      normalized_query: "账面数字",
+      groups: []
+    }
+  });
+
+  const result = sections[0]?.items[0];
+  assert.equal(result?.cover_url, "/cutter/local-clips/E000001/cover");
+  assert.equal(result?.excerpt, "不是账面数字。");
+  assert.equal(result?.hit_count, 1);
+  assert.deepEqual(
+    result?.segments.map((segment) => [segment.segment_id, segment.begin_ms, segment.end_ms, segment.text]),
+    [["E000001-S000002", 1600, 4200, "不是账面数字。"]]
+  );
 });
 
 test("material locator local material search normalizes punctuation and tolerates ASR errors", () => {
@@ -505,6 +573,50 @@ test("local reusable material becomes a one-span selectable video detail", () =>
   ]);
 });
 
+test("local reusable material detail preserves preprocessed transcript, cover and relative path", () => {
+  const detail = localClipToSourceVideoDetail({
+    local_clip_id: "E000001",
+    title: "1-5月6日-1-C2100",
+    source_video_id: "V000039",
+    source_title: "C2100",
+    begin_ms: 0,
+    end_ms: 4200,
+    duration_ms: 4200,
+    selected_text: "现金流，是企业的血液。 不是账面数字。",
+    media_url: "/cutter/local-clips/E000001/media",
+    cover_url: "/cutter/local-clips/E000001/cover",
+    detail_url: "/cutter/local-clips/E000001",
+    subtitles_url: "/cutter/local-clips/E000001/subtitles.srt",
+    relative_path: ".mixlab-library/videos/E000001/source.mp4",
+    transcript_segments: [
+      {
+        segment_id: "E000001-S000001",
+        begin_ms: 0,
+        end_ms: 1600,
+        text: "现金流，是企业的血液。"
+      },
+      {
+        segment_id: "E000001-S000002",
+        begin_ms: 1600,
+        end_ms: 4200,
+        text: "不是账面数字。"
+      }
+    ]
+  });
+
+  assert.equal(detail.cover_url, "/cutter/local-clips/E000001/cover");
+  assert.equal(detail.subtitles_url, "/cutter/local-clips/E000001/subtitles.srt");
+  assert.equal(detail.relative_path, ".mixlab-library/videos/E000001/source.mp4");
+  assert.equal(detail.transcript.full_text, "现金流，是企业的血液。 不是账面数字。");
+  assert.deepEqual(
+    detail.transcript.segments.map((segment) => [segment.segment_id, segment.begin_ms, segment.end_ms, segment.text]),
+    [
+      ["E000001-S000001", 0, 1600, "现金流，是企业的血液。"],
+      ["E000001-S000002", 1600, 4200, "不是账面数字。"]
+    ]
+  );
+});
+
 test("cut pipeline labels expose Chinese running, completed, failed and idle states", () => {
   assert.equal(cutPipelineStatusLabel(idleCutPipelineState), "本机剪切空闲");
   assert.equal(cutPipelineStatusLabel({ ...idleCutPipelineState, status: "running" }), "本机剪切运行中");
@@ -584,6 +696,16 @@ test("completed cut-list items become local clips for reuse search", () => {
   assert.equal(clip.source_title, "现金流管理与风险控制");
   assert.equal(clip.selected_text?.includes("现金流"), true);
   assert.equal(clip.duration_ms, 11_400);
+
+  const recutClip = localClipFromCutListItem(
+    {
+      ...cut,
+      source_title: "3-旧项目-现金流管理与风险控制",
+      title: "4-新项目-现金流管理与风险控制"
+    },
+    "clip-recut-001"
+  );
+  assert.equal(recutClip.source_title, "现金流管理与风险控制");
 
   const catalog = appendCompletedLocalClip({ local_clip_count: 0, clips: [] }, clip);
   assert.equal(catalog.local_clip_count, 1);
@@ -801,6 +923,18 @@ test("cut-list items submit as traceable clip-list API requests", () => {
   assert.equal(request.items[0]?.selected_text.includes("现金流"), true);
   assert.equal(request.items[0]?.pre_roll_ms, 200);
   assert.equal(request.items[0]?.post_roll_ms, 300);
+
+  const recutRequest = toCreateClipListRequest({
+    libraryId: "lib_main_001",
+    title: "复剪清单",
+    items: [
+      {
+        ...cut,
+        source_title: "3-旧项目-现金流管理与风险控制"
+      }
+    ]
+  });
+  assert.equal(recutRequest.items[0]?.source_title, "现金流管理与风险控制");
 });
 
 test("first cut silently creates a cutter project from the active search query", () => {
@@ -866,6 +1000,33 @@ test("first cut project uses date suffix when the day already has a project", ()
   assert.equal(projectSwitcherLabel(project), "当前项目：5月5日-1");
 });
 
+test("startup search creates an empty cutter project with the query recorded", () => {
+  const existingProject = createProjectFromSearch({
+    query: "现金流",
+    existingProjects: [],
+    now: "2026-05-05T09:00:00.000Z"
+  });
+  const project = createProjectFromSearch({
+    query: "  今天想学管理  ",
+    existingProjects: [existingProject],
+    now: "2026-05-05T10:00:00.000Z"
+  });
+
+  assert.match(project.project_id, /^P20260505-/);
+  assert.equal(project.title, "5月5日-1");
+  assert.equal(project.title_source, "auto");
+  assert.equal(project.clip_count, 0);
+  assert.equal(project.running_count, 0);
+  assert.equal(project.failed_count, 0);
+  assert.deepEqual(project.searches, [
+    {
+      query: "今天想学管理",
+      hit_count: 0,
+      searched_at: "2026-05-05T10:00:00.000Z"
+    }
+  ]);
+});
+
 test("cutter projects persist with newest updated project first", () => {
   installTestWindow();
   const oldProject: CutterProject = {
@@ -894,6 +1055,86 @@ test("cutter projects persist with newest updated project first", () => {
     restored.projects.map((project) => project.title),
     ["今天项目", "昨天项目"]
   );
+});
+
+test("clearing the current cutter project preserves the stored project list", () => {
+  installTestWindow();
+  const project: CutterProject = {
+    project_id: "P20260505-001",
+    title: "今天项目",
+    status: "active",
+    created_at: "2026-05-05T10:00:00.000Z",
+    updated_at: "2026-05-05T10:00:00.000Z",
+    clip_count: 2,
+    running_count: 1,
+    failed_count: 0,
+    searches: []
+  };
+
+  writeCutterProjects([project], project.project_id);
+  clearCutterCurrentProject();
+
+  const restored = readCutterProjects();
+  assert.equal(restored.currentProjectId, undefined);
+  assert.deepEqual(restored.projects, [project]);
+});
+
+test("removing a cutter project clears the current selection only when that project is removed", () => {
+  const oldProject: CutterProject = {
+    project_id: "P20260505-001",
+    title: "5月5日",
+    status: "active",
+    created_at: "2026-05-05T10:00:00.000Z",
+    updated_at: "2026-05-05T10:00:00.000Z",
+    clip_count: 2,
+    running_count: 0,
+    failed_count: 0,
+    searches: []
+  };
+  const selectedProject: CutterProject = {
+    ...oldProject,
+    project_id: "P20260506-001",
+    title: "5月6日",
+    updated_at: "2026-05-06T10:00:00.000Z"
+  };
+
+  const state = removeCutterProject({
+    projects: [oldProject, selectedProject],
+    currentProjectId: selectedProject.project_id
+  }, selectedProject.project_id);
+
+  assert.equal(state.currentProjectId, undefined);
+  assert.deepEqual(state.projects, [oldProject]);
+
+  const preserved = removeCutterProject({
+    projects: [oldProject, selectedProject],
+    currentProjectId: selectedProject.project_id
+  }, oldProject.project_id);
+
+  assert.equal(preserved.currentProjectId, selectedProject.project_id);
+  assert.deepEqual(preserved.projects, [selectedProject]);
+});
+
+test("removing a project from cut job index keeps other project mappings", () => {
+  const cleaned = removeCutJobsForProject({
+    jobs: {
+      "job-1": "P20260505-001",
+      "job-2": "P20260506-001"
+    },
+    clipLists: {
+      "clip-list-1": "P20260505-001",
+      "clip-list-2": "P20260506-001"
+    }
+  }, "P20260505-001");
+
+  assert.deepEqual(cleaned, {
+    jobs: {
+      "job-2": "P20260506-001"
+    },
+    clipLists: {
+      "clip-list-2": "P20260506-001"
+    }
+  });
 });
 
 test("recording a cut updates project metrics and keeps the first cover", () => {
@@ -929,13 +1170,33 @@ test("queue jobs are derived from cut-list items and can change status independe
   ];
 
   const jobs = createQueueJobsFromCutList(list, {
-    createdAt: "2026-05-02T09:00:00.000Z"
+    createdAt: "2026-05-02T09:00:00.000Z",
+    projectTitle: "现金流项目"
   });
 
   assert.equal(jobs.length, 2);
   assert.equal(jobs[0]?.status, "pending");
   assert.equal(jobs[0]?.progress, 0);
+  assert.equal(jobs[0]?.title, "1-现金流项目-现金流管理与风险控制");
+  assert.equal(jobs[0]?.title.includes("第一段"), false);
+  assert.equal(jobs[0]?.title.includes("00:01"), false);
   assert.equal(jobs[1]?.cut_mode, "copy");
+
+  const recutJobs = createQueueJobsFromCutList(
+    [
+      item({
+        cut_list_item_id: "cut-local-reuse",
+        order: 4,
+        source_title: "3-旧项目-现金流管理与风险控制"
+      })
+    ],
+    {
+      createdAt: "2026-05-02T09:05:00.000Z",
+      projectTitle: "新项目"
+    }
+  );
+  assert.equal(recutJobs[0]?.source_title, "现金流管理与风险控制");
+  assert.equal(recutJobs[0]?.title, "4-新项目-现金流管理与风险控制");
 
   const running = updateQueueJobStatus(jobs, jobs[0]!.queue_job_id, {
     status: "running",
@@ -945,6 +1206,12 @@ test("queue jobs are derived from cut-list items and can change status independe
   assert.equal(running[0]?.status, "running");
   assert.equal(running[0]?.progress, 42);
   assert.equal(running[1]?.status, "pending");
+});
+
+test("stable material names expose the source material field for recuts", () => {
+  assert.equal(sourceMaterialTitleFromStableName("1-5月6日-1-C2100"), "C2100");
+  assert.equal(sourceMaterialTitleFromStableName("3-旧项目-现金流管理与风险控制"), "现金流管理与风险控制");
+  assert.equal(sourceMaterialTitleFromStableName("C2100"), "C2100");
 });
 
 test("cut task refresh helpers summarize jobs and refresh only useful cutter routes", () => {
@@ -1012,48 +1279,57 @@ test("local clips refresh only when queue gains completed jobs", () => {
 });
 
 test("API cut jobs map to queue rows with progress and traceability", () => {
-  const jobs = mapApiCutJobsToQueueJobs({
-    job_count: 2,
-    jobs: [
-      {
-        cut_job_id: "CJ20260502-0001",
-        clip_list_id: "CL20260502-0001",
-        clip_list_item_id: "CLI000001",
-        source_video_id: "V000001",
-        source_title: "现金流",
-        begin_ms: 10_000,
-        end_ms: 21_400,
-        selected_text: "现金流不是利润表的影子。",
-        cut_mode: "smart",
-        status: "done",
-        export_clip_id: "E000001",
-        created_at: "2026-05-02T10:00:00Z",
-        updated_at: "2026-05-02T10:01:00Z"
-      },
-      {
-        cut_job_id: "CJ20260502-0002",
-        clip_list_id: "CL20260502-0001",
-        clip_list_item_id: "CLI000002",
-        source_video_id: "V000002",
-        source_title: "组织增长",
-        begin_ms: 1_000,
-        end_ms: 3_000,
-        selected_text: "组织效率决定增长。",
-        cut_mode: "copy",
-        status: "failed",
-        error_message: "ffmpeg failed",
-        created_at: "2026-05-02T10:00:00Z",
-        updated_at: "2026-05-02T10:02:00Z"
-      }
-    ]
-  });
+  const jobs = mapApiCutJobsToQueueJobs(
+    {
+      job_count: 2,
+      jobs: [
+        {
+          cut_job_id: "CJ20260502-0001",
+          clip_list_id: "CL20260502-0001",
+          clip_list_item_id: "CLI000001",
+          source_video_id: "V000001",
+          source_title: "现金流",
+          begin_ms: 10_000,
+          end_ms: 21_400,
+          selected_text: "现金流不是利润表的影子。",
+          cut_mode: "smart",
+          status: "done",
+          export_clip_id: "E000001",
+          created_at: "2026-05-02T10:00:00Z",
+          updated_at: "2026-05-02T10:01:00Z"
+        },
+        {
+          cut_job_id: "CJ20260502-0002",
+          clip_list_id: "CL20260502-0001",
+          clip_list_item_id: "CLI000002",
+          source_video_id: "V000002",
+          source_title: "组织增长",
+          begin_ms: 1_000,
+          end_ms: 3_000,
+          selected_text: "组织效率决定增长。",
+          cut_mode: "copy",
+          status: "failed",
+          error_message: "ffmpeg failed",
+          created_at: "2026-05-02T10:00:00Z",
+          updated_at: "2026-05-02T10:02:00Z"
+        }
+      ]
+    },
+    {
+      projectId: "P-growth",
+      projectTitle: "增长复盘"
+    }
+  );
 
   assert.equal(jobs[0]?.queue_job_id, "CJ20260502-0002");
   assert.equal(jobs[0]?.status, "failed");
+  assert.equal(jobs[0]?.title, "2-增长复盘-组织增长");
+  assert.equal(jobs[0]?.title.includes("组织效率决定增长"), false);
   assert.equal(jobs[0]?.progress, 0);
   assert.equal(jobs[0]?.error_message, "ffmpeg failed");
   assert.equal(jobs[1]?.queue_job_id, "CJ20260502-0001");
   assert.equal(jobs[1]?.status, "done");
+  assert.equal(jobs[1]?.title, "1-增长复盘-现金流");
   assert.equal(jobs[1]?.progress, 100);
   assert.equal(jobs[1]?.duration_ms, 11_400);
 });
@@ -1117,4 +1393,41 @@ test("cut queue jobs can be scoped back to the current cutter project", () => {
   assert.equal(projectIndex.clipLists["CL20260505-0001"], "P-a");
   assert.equal(mappedApiJobs[0]?.clip_list_id, "CL20260505-0001");
   assert.equal(mappedApiJobs[0]?.project_id, "P-a");
+});
+
+test("optimistic queue rows are replaced by submitted API jobs without losing order", () => {
+  const optimistic = createQueueJobsFromCutList(
+    [item({ cut_list_item_id: "cut-optimistic", order: 1, selected_text: "先显示队列" })],
+    {
+      createdAt: "2026-05-05T10:00:00.000Z",
+      projectId: "P-a"
+    }
+  )[0]!;
+  const existing = createQueueJobsFromCutList(
+    [item({ cut_list_item_id: "cut-existing", order: 2, selected_text: "已有任务" })],
+    {
+      createdAt: "2026-05-05T09:00:00.000Z",
+      projectId: "P-a"
+    }
+  )[0]!;
+  const submitted = [
+    {
+      ...optimistic,
+      queue_job_id: "CJ20260505-0001",
+      clip_list_id: "CL20260505-0001"
+    }
+  ];
+
+  const next = replaceQueueJobWithSubmittedJobs(
+    [optimistic, existing],
+    optimistic.queue_job_id,
+    submitted
+  );
+
+  assert.deepEqual(
+    next.map((job) => job.queue_job_id),
+    ["CJ20260505-0001", existing.queue_job_id]
+  );
+  assert.equal(next[0]?.project_id, "P-a");
+  assert.equal(next.some((job) => job.queue_job_id === optimistic.queue_job_id), false);
 });

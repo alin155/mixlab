@@ -1,12 +1,13 @@
 import type { LocalClip, LocalClipCatalog } from "../api.ts";
 import type { CutListItem } from "./cut-list.ts";
+import { sourceMaterialTitleFromStableName } from "./material-naming.ts";
 
 export function localClipFromCutListItem(item: CutListItem, localClipId: string): LocalClip {
   return {
     local_clip_id: localClipId,
     title: item.title ?? `${item.source_title} 片段`,
     source_video_id: item.source_video_id,
-    source_title: item.source_title,
+    source_title: sourceMaterialTitleFromStableName(item.source_title),
     begin_ms: item.begin_ms,
     end_ms: item.end_ms,
     duration_ms: item.duration_ms,

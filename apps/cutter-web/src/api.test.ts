@@ -692,6 +692,74 @@ test("loads cutter runtime status with approved session headers", async () => {
   assert.equal(observedSession, "session-001");
 });
 
+test("opens cutter cut output directory with approved session headers", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/workspace/open-export-directory");
+      assert.equal(init?.method, "POST");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          path: "/Users/allen/Movies/MixLabLocal/export-clips"
+        }
+      });
+    }
+  });
+
+  const opened = await client.openCutOutputDirectory();
+
+  assert.equal(opened.path, "/Users/allen/Movies/MixLabLocal/export-clips");
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
+test("deletes cutter project outputs with approved session headers", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/projects/P20260506-aaa/outputs");
+      assert.equal(init?.method, "DELETE");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          project_id: "P20260506-aaa",
+          removed_export_clips: 1,
+          removed_local_clips: 1,
+          removed_project_outputs: 1,
+          removed_cut_jobs: 1,
+          removed_clip_lists: 1
+        }
+      });
+    }
+  });
+
+  const result = await client.deleteProjectOutputs("P20260506-aaa");
+
+  assert.equal(result.removed_export_clips, 1);
+  assert.equal(result.removed_local_clips, 1);
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
 test("supports cutter login requests and backend-shaped login status", async () => {
   const requests: Array<{ url: string; method: string | undefined; headers: Headers; body: unknown }> = [];
   const client = createCutterApiClient({

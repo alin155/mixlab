@@ -43,9 +43,12 @@ server.listen(config.port, config.host, () => {
           "/cutter/local-clips",
           "/cutter/local-clips/:local_clip_id",
           "/cutter/local-clips/:local_clip_id/media",
+          "/cutter/local-clips/:local_clip_id/cover",
+          "/cutter/local-clips/:local_clip_id/subtitles.srt",
           "/cutter/clip-lists",
           "/cutter/cut-jobs",
           "/cutter/cut-jobs/run-next",
+          "/cutter/workspace/open-export-directory",
           "/cutter/cut-jobs/:cut_job_id/retry"
         ]
       },

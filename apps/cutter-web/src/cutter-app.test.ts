@@ -15,7 +15,10 @@ import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
-import { ProjectHomePage } from "./features/project-home/ProjectHomePage.tsx";
+import {
+  ProjectDeleteDialog,
+  ProjectHomePage
+} from "./features/project-home/ProjectHomePage.tsx";
 import { CutterLoginGate } from "./features/login/CutterLoginGate.tsx";
 import {
   CutterApiError,
@@ -157,7 +160,8 @@ function fixture() {
     })
   ];
   const queue = createQueueJobsFromCutList(cutList, {
-    createdAt: "2026-05-02T10:00:00.000Z"
+    createdAt: "2026-05-02T10:00:00.000Z",
+    projectTitle: "现金流项目"
   });
 
   return {
@@ -294,7 +298,8 @@ test("project home renders search-first startup, recent projects, and project de
     "已剪 1",
     "搜索",
     "项目详情",
-    "进入项目"
+    "进入项目",
+    "删除项目"
   ]) {
     assert.match(html, new RegExp(text));
   }
@@ -306,6 +311,92 @@ test("project home renders search-first startup, recent projects, and project de
   assert.equal(html.includes("最近搜索："), false);
   assert.equal(html.includes("未完成 1 · 已交付 0"), false);
   assert.match(html, /已剪片段<\/dt><dd>1 个/);
+});
+
+test("project home separates selecting a recent project from entering it", () => {
+  const data = fixture();
+  const projects: CutterProject[] = [
+    {
+      project_id: "P20260505-001",
+      title: "5月5日",
+      title_source: "auto",
+      status: "active",
+      created_at: "2026-05-05T10:00:00.000Z",
+      updated_at: "2026-05-05T10:05:00.000Z",
+      clip_count: 3,
+      running_count: 1,
+      failed_count: 0,
+      searches: []
+    },
+    {
+      project_id: "P20260506-001",
+      title: "直播复盘",
+      title_source: "manual",
+      status: "active",
+      created_at: "2026-05-06T10:00:00.000Z",
+      updated_at: "2026-05-06T10:05:00.000Z",
+      clip_count: 1,
+      running_count: 0,
+      failed_count: 0,
+      searches: []
+    }
+  ];
+
+  const html = renderToStaticMarkup(
+    h(ProjectHomePage, {
+      library: data.library,
+      localClips: data.localClips,
+      projects,
+      selectedProjectId: "P20260506-001",
+      onSelectProject: () => undefined,
+      onOpenProject: () => undefined
+    })
+  );
+
+  assert.match(html, /aria-label="选择项目 5月5日"/);
+  assert.match(html, /aria-label="选择项目 直播复盘"/);
+  assert.match(html, /class="cutter-project-card is-selected"/);
+  assert.match(html, /class="cutter-project-card-enter"/);
+  assert.ok(html.indexOf("直播复盘") < html.indexOf("项目详情"));
+  assert.match(html, /项目名<\/dt><dd><button[^>]+>直播复盘<\/button>/);
+});
+
+test("project delete dialog offers removal and output deletion choices", () => {
+  const project: CutterProject = {
+    project_id: "P20260506-001",
+    title: "5月6日",
+    title_source: "auto",
+    status: "active",
+    created_at: "2026-05-06T10:00:00.000Z",
+    updated_at: "2026-05-06T10:05:00.000Z",
+    clip_count: 3,
+    running_count: 0,
+    failed_count: 0,
+    searches: []
+  };
+
+  const html = renderToStaticMarkup(
+    h(ProjectDeleteDialog, {
+      project,
+      mode: "remove",
+      onModeChange: () => undefined,
+      onCancel: () => undefined,
+      onConfirm: () => undefined
+    })
+  );
+
+  for (const text of [
+    "删除项目「5月6日」",
+    "从启动页移除",
+    "不删除剪切视频、本地素材、交付目录",
+    "删除项目及产出",
+    "公共素材库源视频不会被删除",
+    "确认删除"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+  assert.match(html, /checked="" value="remove"/);
+  assert.match(html, /value="delete-with-outputs"/);
 });
 
 test("chrome project switcher exposes project and temporary search actions", () => {
@@ -503,7 +594,8 @@ test("material locator is the main search-select-cut workbench with local result
       onSelectTranscriptSegment: () => undefined,
       onNavigateHit: () => undefined,
       onCutSelection: () => undefined,
-      onCancelSelection: () => undefined
+      onCancelSelection: () => undefined,
+      onOpenCutOutputDirectory: () => undefined
     })
   );
 
@@ -529,11 +621,13 @@ test("material locator is the main search-select-cut workbench with local result
     "剪切这段",
     "已加入剪切任务 · 等待中 1",
     "剪切队列",
-    "查看全部任务"
+    "查看全部任务",
+    "打开文件目录"
   ]) {
     assert.match(html, new RegExp(text));
   }
 
+  assert.ok(html.indexOf("查看全部任务") < html.indexOf("打开文件目录"));
   assert.equal(html.includes("片段篮"), false);
   assert.equal(html.includes("待剪清单"), false);
   assert.equal(html.includes("搜索定位"), false);
@@ -981,6 +1075,11 @@ test("cut tasks page renders every task state, summary, and auto-refresh status 
   for (const englishStatus of ["pending", "running", "done", "failed"]) {
     assert.equal(html.includes(`<strong>${englishStatus}</strong>`), false);
   }
+  assert.equal(html.includes(data.queue[0]!.title), true);
+  assert.equal(data.queue[0]!.title, "1-现金流项目-现金流管理与风险控制");
+  assert.equal(data.queue[0]!.title.includes("00:"), false);
+  assert.equal(data.queue[0]!.title.includes(" · "), false);
+  assert.equal(data.queue[0]!.title.includes(data.queue[0]!.selected_text), false);
   assert.match(html, /data-page="cut-tasks"/);
 });
 
@@ -1366,6 +1465,16 @@ test("cut task refresh is limited to the cut tasks route", () => {
       hasData: true,
       loginGateVisible: false,
       route: "cut-tasks"
+    }),
+    true
+  );
+  assert.equal(
+    shouldRefreshCutQueueForRoute({
+      apiMode: true,
+      hasData: true,
+      loginGateVisible: false,
+      currentProjectId: "P20260505-001",
+      route: "material-locator"
     }),
     true
   );

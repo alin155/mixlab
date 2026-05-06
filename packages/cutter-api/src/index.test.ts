@@ -981,6 +981,9 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     cut_runner: async (input) => {
       await mkdir(path.dirname(input.output_path), { recursive: true });
       await writeFile(input.output_path, "queued-clip-bytes");
+    },
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
     }
   });
 
@@ -999,6 +1002,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
       },
       body: JSON.stringify({
         library_id: "lib_main_001",
+        project_id: "P20260506-aaa",
         title: "现金流清单",
         items: [
           {
@@ -1018,6 +1022,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     assert.equal(clipListResponse.status, 201);
     const clipList = await clipListResponse.json() as any;
     assert.equal(clipList.data.clip_list_id, "CL20260502-0001");
+    assert.equal(clipList.data.project_id, "P20260506-aaa");
 
     const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
       method: "POST",
@@ -1033,6 +1038,9 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     const submitted = await submitResponse.json() as any;
     assert.equal(submitted.data.submitted_count, 1);
     assert.equal(submitted.data.jobs[0].status, "pending");
+    assert.equal(submitted.data.jobs[0].project_id, "P20260506-aaa");
+    assert.equal(submitted.data.jobs[0].project_clip_order, 1);
+    assert.equal(submitted.data.jobs[0].title, "1-现金流清单-01_现金流");
 
     const runResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
       method: "POST",
@@ -1042,15 +1050,116 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     const run = await runResponse.json() as any;
     assert.equal(run.data.status, "done");
     assert.equal(run.data.export_clip_id, "E000001");
+    assert.equal(run.data.output_file, "export-clips/E000001/001-现金流清单-01_现金流.mp4");
 
     const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`, { headers })).json() as any;
     assert.equal(jobs.data.job_count, 1);
     assert.equal(jobs.data.jobs[0].status, "done");
+    assert.equal(jobs.data.jobs[0].project_id, "P20260506-aaa");
+    assert.equal(jobs.data.jobs[0].title, "1-现金流清单-01_现金流");
+
+    const localClips = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
+    assert.equal(localClips.data.clips[0].title, "1-现金流清单-01_现金流");
+    assert.equal(localClips.data.clips[0].cover_url, "/cutter/local-clips/E000001/cover");
+    assert.equal(localClips.data.clips[0].subtitles_url, "/cutter/local-clips/E000001/subtitles.srt");
+    assert.equal(localClips.data.clips[0].relative_path, ".mixlab-library/videos/E000001/source.mp4");
+    assert.equal(localClips.data.clips[0].project_output_file, "projects/现金流清单/001-现金流清单-01_现金流.mp4");
+    assert.deepEqual(
+      localClips.data.clips[0].transcript_segments.map((segment: any) => [
+        segment.segment_id,
+        segment.begin_ms,
+        segment.end_ms,
+        segment.text
+      ]),
+      [["E000001-S000001", 0, 2600, "现金流，是企业的血液。"]]
+    );
+    assert.equal(
+      await fileOrDirExists(path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "source-video.json")),
+      true
+    );
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, "projects", "现金流清单", "001-现金流清单-01_现金流.mp4")), true);
+
+    const cover = await fetch(`${baseUrl}/cutter/local-clips/E000001/cover`);
+    assert.equal(cover.status, 200);
+    assert.equal(await cover.text(), "cover-bytes");
+
+    const subtitles = await fetch(`${baseUrl}/cutter/local-clips/E000001/subtitles.srt`);
+    assert.equal(subtitles.status, 200);
+    assert.match(await subtitles.text(), /00:00:00,000 --> 00:00:02,600/);
+
+    const deletionResponse = await fetch(`${baseUrl}/cutter/projects/P20260506-aaa/outputs`, {
+      method: "DELETE",
+      headers
+    });
+    assert.equal(deletionResponse.status, 200);
+    const deletion = await deletionResponse.json() as any;
+    assert.deepEqual(deletion.data, {
+      project_id: "P20260506-aaa",
+      removed_export_clips: 1,
+      removed_local_clips: 1,
+      removed_project_outputs: 1,
+      removed_cut_jobs: 1,
+      removed_clip_lists: 1
+    });
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, "export-clips", "E000001")), false);
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, ".mixlab-library", "videos", "E000001")), false);
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, "projects", "现金流清单", "001-现金流清单-01_现金流.mp4")), false);
+    const emptyLocalClips = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
+    assert.equal(emptyLocalClips.data.local_clip_count, 0);
 
     const metrics = await readUsageMetrics(libraryRoot);
     assert.equal(metrics.add_to_cut_list_count, 1);
     assert.equal(metrics.cut_submission_count, 1);
     assert.equal(metrics.cut_success_count, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("opens the workspace export clips directory for cutters", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-open-"));
+  const openedPaths: string[] = [];
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    open_path: async (targetPath) => {
+      openedPaths.push(targetPath);
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const anonymous = await fetch(`${baseUrl}/cutter/workspace/open-export-directory`, {
+      method: "POST"
+    });
+    assert.equal(anonymous.status, 401);
+
+    const response = await fetch(`${baseUrl}/cutter/workspace/open-export-directory`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    const expectedPath = path.join(workspaceRoot, "export-clips");
+    assert.equal(body.data.path, expectedPath);
+    assert.deepEqual(openedPaths, [expectedPath]);
+    assert.equal(await fileOrDirExists(expectedPath), true);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

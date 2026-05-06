@@ -75,12 +75,30 @@ export interface LocalClipManifest {
 export interface ExportClipManifest {
   export_clip_id: string;
   library_id: string;
+  project_id?: string;
   source_video_id: string;
+  title?: string;
+  project_title?: string;
+  project_clip_order?: number;
   source_title: string;
   begin_ms: number;
   end_ms: number;
   selected_text: string;
   output_file: string;
+  project_output_file?: string;
+  local_asset_relative_path?: string;
+  source_video_manifest_path?: string;
+  transcript_path?: string;
+  srt_path?: string;
+  keyframes_path?: string;
+  cover_path?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  codec?: string;
+  file_size?: number;
+  content_hash?: string;
+  transcript_segments?: TranscriptSegment[];
   created_at: string;
   cut_mode: CutMode;
 }

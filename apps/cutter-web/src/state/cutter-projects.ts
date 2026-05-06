@@ -203,6 +203,36 @@ export function createProjectFromFirstCut(input: {
   };
 }
 
+export function createProjectFromSearch(input: {
+  query: string;
+  existingProjects?: readonly CutterProject[];
+  now?: string;
+}): CutterProject {
+  const now = input.now ?? new Date().toISOString();
+  const query = input.query.trim();
+
+  return {
+    project_id: projectIdFromDate(now),
+    title: projectAutoTitleFromDate(now, input.existingProjects),
+    title_source: "auto",
+    status: "active",
+    created_at: now,
+    updated_at: now,
+    clip_count: 0,
+    running_count: 0,
+    failed_count: 0,
+    searches: query
+      ? [
+          {
+            query,
+            hit_count: 0,
+            searched_at: now
+          }
+        ]
+      : []
+  };
+}
+
 export function recordProjectCut(
   project: CutterProject,
   input: {
@@ -260,6 +290,15 @@ export function writeCutterProjects(projects: readonly CutterProject[], currentP
   }
 }
 
+export function clearCutterCurrentProject(): void {
+  const storage = safeStorage();
+  if (!storage) {
+    return;
+  }
+
+  storage.removeItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY);
+}
+
 export function upsertCutterProject(
   projects: readonly CutterProject[],
   nextProject: CutterProject
@@ -268,6 +307,22 @@ export function upsertCutterProject(
     nextProject,
     ...projects.filter((project) => project.project_id !== nextProject.project_id)
   ]);
+}
+
+export function removeCutterProject(
+  state: CutterProjectsState,
+  projectId: string
+): CutterProjectsState {
+  const projects = sortProjects(state.projects.filter((project) => project.project_id !== projectId));
+  const currentProjectId =
+    state.currentProjectId && projects.some((project) => project.project_id === state.currentProjectId)
+      ? state.currentProjectId
+      : undefined;
+
+  return {
+    projects,
+    ...(currentProjectId ? { currentProjectId } : {})
+  };
 }
 
 export function projectSwitcherLabel(project: CutterProject | null | undefined): string {

@@ -1,9 +1,18 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
-import type { CutMode } from "../../protocol/src/index.ts";
+import {
+  validateSourceVideoManifest,
+  type CutMode,
+  type SourceVideoManifest,
+  type TranscriptSegment
+} from "../../protocol/src/index.ts";
 import {
   allocateNextExportClipId,
+  buildCanonicalClipTitle,
   buildExportClipArtifactPaths,
+  buildProjectClipOutputFile,
+  sourceTitleForCanonicalClipName,
   writeExportClipManifest
 } from "./export-manifest.ts";
 import type { ClipListManifest, ClipListItem } from "./cut-list.ts";
@@ -16,6 +25,10 @@ export interface CutJobManifest {
   clip_list_id: string;
   clip_list_item_id: string;
   library_id: string;
+  project_id?: string;
+  title?: string;
+  project_title?: string;
+  project_clip_order?: number;
   source_video_id: string;
   source_title: string;
   source_relative_path: string;
@@ -71,6 +84,13 @@ export interface CutJobSourceDetail {
   title: string;
   relative_path: string;
   source_video_file_path: string;
+  duration_ms?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  codec?: string;
+  file_size?: number;
+  transcript_segments?: TranscriptSegment[];
 }
 
 export interface CutRunnerInput {
@@ -83,12 +103,22 @@ export interface CutRunnerInput {
 
 export type CutRunner = (input: CutRunnerInput) => Promise<void> | void;
 
+export interface CoverRunnerInput {
+  source_video_path: string;
+  output_path: string;
+  at_ms: number;
+  width: number;
+}
+
+export type CoverRunner = (input: CoverRunnerInput) => Promise<void> | void;
+
 export interface RunNextCutJobInput {
   workspace_root: string;
   library_root: string;
   now: () => string;
   resolve_source: (job: CutJobManifest) => Promise<CutJobSourceDetail | null> | CutJobSourceDetail | null;
   cut_runner: CutRunner;
+  cover_runner?: CoverRunner;
 }
 
 const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
@@ -170,16 +200,28 @@ function jobFromClipListItem(input: {
   cut_job_id: string;
   clip_list: ClipListManifest;
   item: ClipListItem;
+  project_clip_order: number;
   now: string;
 }): CutJobManifest {
+  const sourceTitle = sourceTitleForCanonicalClipName(input.item.source_title, input.clip_list.title);
+  const title = buildCanonicalClipTitle({
+    project_clip_order: input.project_clip_order,
+    project_title: input.clip_list.title,
+    source_title: sourceTitle
+  });
+
   return {
     schema_version: "1.0",
     cut_job_id: input.cut_job_id,
     clip_list_id: input.clip_list.clip_list_id,
     clip_list_item_id: input.item.item_id,
     library_id: input.clip_list.library_id,
+    ...(input.clip_list.project_id ? { project_id: input.clip_list.project_id } : {}),
     source_video_id: input.item.source_video_id,
-    source_title: input.item.source_title,
+    title,
+    project_title: input.clip_list.title,
+    project_clip_order: input.project_clip_order,
+    source_title: sourceTitle,
     source_relative_path: input.item.source_relative_path,
     start_segment_id: input.item.start_segment_id,
     end_segment_id: input.item.end_segment_id,
@@ -235,11 +277,19 @@ export async function submitClipListToQueue(
     now: input.now,
     count: input.clip_list.items.length
   });
+  const existingProjectOrder = (await readAllCutJobs(input.workspace_root))
+    .filter((job) =>
+      input.clip_list.project_id
+        ? job.project_id === input.clip_list.project_id
+        : job.project_title === input.clip_list.title
+    )
+    .reduce((max, job) => Math.max(max, job.project_clip_order ?? 0), 0);
   const jobs = input.clip_list.items.map((item, index) =>
     jobFromClipListItem({
       cut_job_id: cutJobIds[index] ?? formatCutJobId(dateStampFromIso(input.now), index + 1),
       clip_list: input.clip_list,
       item,
+      project_clip_order: existingProjectOrder + index + 1,
       now: input.now
     })
   );
@@ -320,6 +370,300 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function workspaceRelativePath(workspaceRoot: string, relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/");
+
+  if (
+    normalized.trim() === "" ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
+    throw new Error("workspace artifact path must be workspace-relative");
+  }
+
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.includes("..")) {
+    throw new Error("workspace artifact path must be workspace-relative");
+  }
+
+  return path.join(workspaceRoot, ...parts);
+}
+
+function formatSrtTime(milliseconds: number): string {
+  const safe = Math.max(0, Math.floor(milliseconds));
+  const hours = Math.floor(safe / 3_600_000);
+  const minutes = Math.floor((safe % 3_600_000) / 60_000);
+  const seconds = Math.floor((safe % 60_000) / 1000);
+  const ms = safe % 1000;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
+}
+
+function transcriptTextMetadata(text: string, beginChar: number): {
+  begin_char: number;
+  end_char: number;
+  normalized_begin_char: number;
+  normalized_end_char: number;
+  normalized_text: string;
+} {
+  const normalizedText = text.replace(/\s+/g, "");
+
+  return {
+    begin_char: beginChar,
+    end_char: beginChar + text.length,
+    normalized_begin_char: beginChar,
+    normalized_end_char: beginChar + normalizedText.length,
+    normalized_text: normalizedText
+  };
+}
+
+function fallbackTranscriptSegment(input: {
+  export_clip_id: string;
+  duration_ms: number;
+  selected_text: string;
+}): TranscriptSegment {
+  const text = input.selected_text.trim();
+
+  return {
+    segment_id: `${input.export_clip_id}-S000001`,
+    index: 1,
+    begin_ms: 0,
+    end_ms: input.duration_ms,
+    ...transcriptTextMetadata(text, 0),
+    text,
+    confidence: 1
+  };
+}
+
+function localTranscriptSegments(input: {
+  export_clip_id: string;
+  begin_ms: number;
+  end_ms: number;
+  selected_text: string;
+  source_segments?: TranscriptSegment[];
+}): TranscriptSegment[] {
+  const durationMs = Math.max(0, input.end_ms - input.begin_ms);
+  const sourceSegments = input.source_segments ?? [];
+  const overlapping = sourceSegments.filter(
+    (segment) => segment.end_ms > input.begin_ms && segment.begin_ms < input.end_ms
+  );
+
+  if (overlapping.length === 0) {
+    return [fallbackTranscriptSegment({
+      export_clip_id: input.export_clip_id,
+      duration_ms: durationMs,
+      selected_text: input.selected_text
+    })];
+  }
+
+  let beginChar = 0;
+
+  return overlapping.map((segment, index) => {
+    const text = segment.text.trim();
+    const metadata = transcriptTextMetadata(text, beginChar);
+    beginChar = metadata.end_char + 1;
+
+    return {
+      ...segment,
+      segment_id: `${input.export_clip_id}-S${String(index + 1).padStart(6, "0")}`,
+      index: index + 1,
+      begin_ms: Math.max(0, segment.begin_ms - input.begin_ms),
+      end_ms: Math.min(durationMs, Math.max(0, segment.end_ms - input.begin_ms)),
+      ...metadata,
+      text,
+      confidence: segment.confidence ?? 1
+    };
+  });
+}
+
+function srtFromSegments(segments: readonly TranscriptSegment[]): string {
+  return segments
+    .map((segment, index) => [
+      String(index + 1),
+      `${formatSrtTime(segment.begin_ms)} --> ${formatSrtTime(segment.end_ms)}`,
+      segment.text
+    ].join("\n"))
+    .join("\n\n") + "\n";
+}
+
+async function linkOrCopyFile(sourcePath: string, targetPath: string): Promise<void> {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+
+  try {
+    await link(sourcePath, targetPath);
+  } catch {
+    await copyFile(sourcePath, targetPath);
+  }
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const bytes = await readFile(filePath);
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function localVideoArtifactPath(exportClipId: string, fileName: string): string {
+  return `.mixlab-library/videos/${exportClipId}/${fileName}`;
+}
+
+async function writePlaceholderSvgCover(input: {
+  output_path: string;
+  title: string;
+}): Promise<void> {
+  const title = input.title
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#1f2937"/><text x="32" y="188" fill="#f9fafb" font-family="Arial, sans-serif" font-size="28">${title}</text></svg>\n`;
+
+  await mkdir(path.dirname(input.output_path), { recursive: true });
+  await writeFile(input.output_path, svg, "utf8");
+}
+
+async function writePreprocessedLocalAsset(input: {
+  workspace_root: string;
+  export_clip_id: string;
+  title: string;
+  library_id: string;
+  source_video_id: string;
+  source_title: string;
+  output_media_file_path: string;
+  begin_ms: number;
+  end_ms: number;
+  selected_text: string;
+  created_at: string;
+  source: CutJobSourceDetail;
+  cover_runner?: CoverRunner;
+}): Promise<{
+  local_asset_relative_path: string;
+  source_video_manifest_path: string;
+  transcript_path: string;
+  srt_path: string;
+  keyframes_path: string;
+  cover_path: string;
+  file_size: number;
+  content_hash: string;
+  transcript_segments: TranscriptSegment[];
+  width: number;
+  height: number;
+  fps: number;
+  codec: string;
+}> {
+  const durationMs = Math.max(0, input.end_ms - input.begin_ms);
+  const localAssetRelativePath = localVideoArtifactPath(input.export_clip_id, "source.mp4");
+  const transcriptPath = localVideoArtifactPath(input.export_clip_id, "transcript.json");
+  const srtPath = localVideoArtifactPath(input.export_clip_id, "subtitles.srt");
+  const keyframesPath = localVideoArtifactPath(input.export_clip_id, "keyframes.json");
+  const coverPath = localVideoArtifactPath(input.export_clip_id, input.cover_runner ? "cover.jpg" : "cover.svg");
+  const localMediaPath = workspaceRelativePath(input.workspace_root, localAssetRelativePath);
+  const coverFilePath = workspaceRelativePath(input.workspace_root, coverPath);
+  const transcriptSegments = localTranscriptSegments({
+    export_clip_id: input.export_clip_id,
+    begin_ms: input.begin_ms,
+    end_ms: input.end_ms,
+    selected_text: input.selected_text,
+    source_segments: input.source.transcript_segments
+  });
+  const fullText = transcriptSegments.map((segment) => segment.text).join(" ");
+
+  await linkOrCopyFile(input.output_media_file_path, localMediaPath);
+  await mkdir(path.dirname(workspaceRelativePath(input.workspace_root, transcriptPath)), {
+    recursive: true
+  });
+  await writeFile(
+    workspaceRelativePath(input.workspace_root, transcriptPath),
+    jsonBytes({
+      schema_version: "1.0",
+      source_video_id: input.export_clip_id,
+      provider: "mixlab-local-cut",
+      model: "source-transcript-span",
+      generated_at: input.created_at,
+      duration_ms: durationMs,
+      full_text: fullText,
+      segments: transcriptSegments
+    }),
+    "utf8"
+  );
+  await writeFile(workspaceRelativePath(input.workspace_root, srtPath), srtFromSegments(transcriptSegments), "utf8");
+  await writeFile(
+    workspaceRelativePath(input.workspace_root, keyframesPath),
+    jsonBytes({
+      schema_version: "1.0",
+      keyframes_ms: [0, Math.min(durationMs, 1000)].filter((value, index, values) => index === 0 || value !== values[0])
+    }),
+    "utf8"
+  );
+
+  if (input.cover_runner) {
+    await mkdir(path.dirname(coverFilePath), { recursive: true });
+    await input.cover_runner({
+      source_video_path: input.output_media_file_path,
+      output_path: coverFilePath,
+      at_ms: Math.min(1000, Math.floor(durationMs / 2)),
+      width: 640
+    });
+  } else {
+    await writePlaceholderSvgCover({
+      output_path: coverFilePath,
+      title: input.title
+    });
+  }
+
+  const mediaStat = await stat(input.output_media_file_path);
+  const width = input.source.width ?? 0;
+  const height = input.source.height ?? 0;
+  const fps = input.source.fps ?? 0;
+  const codec = input.source.codec ?? "";
+  const sourceVideoManifest: SourceVideoManifest = {
+    source_video_id: input.export_clip_id,
+    title: input.title,
+    relative_path: localAssetRelativePath,
+    logical_uri: `mixlab-local://export-clips/${input.export_clip_id}`,
+    duration_ms: durationMs,
+    width,
+    height,
+    fps,
+    codec,
+    file_size: mediaStat.size,
+    content_hash: await sha256File(input.output_media_file_path),
+    preprocess_status: "ready",
+    visible_to_cutters: true,
+    transcript_path: transcriptPath,
+    srt_path: srtPath,
+    keyframes_path: keyframesPath,
+    cover_path: coverPath,
+    description: `剪切自 ${input.source_title}`,
+    tags: ["本地剪切素材"]
+  };
+  const validation = validateSourceVideoManifest(sourceVideoManifest);
+
+  if (!validation.ok) {
+    throw new Error(validation.errors.join("; "));
+  }
+
+  const sourceVideoManifestPath = localVideoArtifactPath(input.export_clip_id, "source-video.json");
+  await writeFile(
+    workspaceRelativePath(input.workspace_root, sourceVideoManifestPath),
+    jsonBytes(sourceVideoManifest),
+    "utf8"
+  );
+
+  return {
+    local_asset_relative_path: localAssetRelativePath,
+    source_video_manifest_path: sourceVideoManifestPath,
+    transcript_path: transcriptPath,
+    srt_path: srtPath,
+    keyframes_path: keyframesPath,
+    cover_path: coverPath,
+    file_size: mediaStat.size,
+    content_hash: sourceVideoManifest.content_hash,
+    transcript_segments: transcriptSegments,
+    width,
+    height,
+    fps,
+    codec
+  };
+}
+
 export async function runNextCutJob(
   input: RunNextCutJobInput
 ): Promise<CutJobManifest | null> {
@@ -347,10 +691,23 @@ export async function runNextCutJob(
     }
 
     const exportClipId = await allocateNextExportClipId(input.workspace_root);
+    const projectOutputFile = buildProjectClipOutputFile({
+      project_clip_order: running.project_clip_order,
+      project_title: running.project_title,
+      source_title: running.source_title
+    });
     const exportPaths = buildExportClipArtifactPaths({
       workspace_root: input.workspace_root,
       export_clip_id: exportClipId,
-      selected_text: running.selected_text
+      selected_text: running.selected_text,
+      project_title: running.project_title,
+      project_clip_order: running.project_clip_order,
+      source_title: running.source_title
+    });
+    const title = buildCanonicalClipTitle({
+      project_clip_order: running.project_clip_order,
+      project_title: running.project_title,
+      source_title: running.source_title
     });
 
     await mkdir(path.dirname(exportPaths.media_file_path), { recursive: true });
@@ -361,24 +718,62 @@ export async function runNextCutJob(
       end_ms: running.end_ms,
       cut_mode: running.cut_mode
     });
+    await linkOrCopyFile(
+      exportPaths.media_file_path,
+      workspaceRelativePath(input.workspace_root, projectOutputFile)
+    );
+    const localAsset = await writePreprocessedLocalAsset({
+      workspace_root: input.workspace_root,
+      export_clip_id: exportClipId,
+      title,
+      library_id: running.library_id,
+      source_video_id: running.source_video_id,
+      source_title: running.source_title,
+      output_media_file_path: exportPaths.media_file_path,
+      begin_ms: running.begin_ms,
+      end_ms: running.end_ms,
+      selected_text: running.selected_text,
+      created_at: input.now(),
+      source,
+      cover_runner: input.cover_runner
+    });
 
     await writeExportClipManifest({
       workspace_root: input.workspace_root,
       export_clip_id: exportClipId,
       library_id: running.library_id,
       source_video_id: running.source_video_id,
+      title,
+      project_title: running.project_title,
+      project_id: running.project_id,
+      project_clip_order: running.project_clip_order,
       source_title: running.source_title,
       begin_ms: running.begin_ms,
       end_ms: running.end_ms,
       selected_text: running.selected_text,
       cut_mode: running.cut_mode,
       output_file: exportPaths.output_file,
+      project_output_file: projectOutputFile,
+      local_asset_relative_path: localAsset.local_asset_relative_path,
+      source_video_manifest_path: localAsset.source_video_manifest_path,
+      transcript_path: localAsset.transcript_path,
+      srt_path: localAsset.srt_path,
+      keyframes_path: localAsset.keyframes_path,
+      cover_path: localAsset.cover_path,
+      width: localAsset.width,
+      height: localAsset.height,
+      fps: localAsset.fps,
+      codec: localAsset.codec,
+      file_size: localAsset.file_size,
+      content_hash: localAsset.content_hash,
+      transcript_segments: localAsset.transcript_segments,
       created_at: input.now()
     });
 
     running = {
       ...running,
       status: "done",
+      title,
       export_clip_id: exportClipId,
       output_file: exportPaths.output_file,
       finished_at: input.now(),

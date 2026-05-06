@@ -83,13 +83,23 @@ export interface SearchResponse {
 
 export interface LocalClip {
   local_clip_id: string;
+  project_id?: string;
   title: string;
   source_video_id?: string;
   source_title?: string;
+  relative_path?: string;
   begin_ms?: number;
   end_ms?: number;
   duration_ms?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  codec?: string;
+  file_size?: number;
   selected_text?: string;
+  cover_url?: string;
+  subtitles_url?: string;
+  transcript_segments?: TranscriptSegment[];
   media_url: string;
   detail_url: string;
 }
@@ -136,6 +146,7 @@ export interface ClipList {
   schema_version: string;
   clip_list_id: string;
   library_id: string;
+  project_id?: string;
   title: string;
   item_count: number;
   created_at: string;
@@ -145,6 +156,7 @@ export interface ClipList {
 
 export interface CreateClipListRequest {
   library_id: string;
+  project_id?: string;
   title: string;
   items: CutListItemInput[];
 }
@@ -156,6 +168,10 @@ export interface CutJob {
   clip_list_id: string;
   clip_list_item_id?: string;
   library_id?: string;
+  project_id?: string;
+  title?: string;
+  project_title?: string;
+  project_clip_order?: number;
   source_video_id?: string;
   source_title?: string;
   source_relative_path?: string;
@@ -187,6 +203,19 @@ export interface CutJobCatalog {
 
 export interface SubmitCutJobsRequest {
   clip_list_id: string;
+}
+
+export interface OpenCutOutputDirectoryResult {
+  path: string;
+}
+
+export interface DeleteProjectOutputsResult {
+  project_id: string;
+  removed_export_clips: number;
+  removed_local_clips: number;
+  removed_project_outputs: number;
+  removed_cut_jobs: number;
+  removed_clip_lists: number;
 }
 
 export type CutterUserStatus = "pending" | "approved" | "rejected" | "disabled";
@@ -310,6 +339,8 @@ export interface CutterApiClient {
   listCutJobs(): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
   retryCutJob(cutJobId: string): Promise<CutJob>;
+  openCutOutputDirectory(): Promise<OpenCutOutputDirectoryResult>;
+  deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
 }
 
@@ -488,6 +519,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
           headers: jsonHeaders(input.auth),
           body: JSON.stringify({
             library_id: request.library_id,
+            ...(request.project_id ? { project_id: request.project_id } : {}),
             title: request.title,
             items: request.items
           })
@@ -536,6 +568,28 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/retry`),
         {
           method: "POST",
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    openCutOutputDirectory() {
+      return requestEnvelope<OpenCutOutputDirectoryResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/workspace/open-export-directory"),
+        {
+          method: "POST",
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    deleteProjectOutputs(projectId: string) {
+      return requestEnvelope<DeleteProjectOutputsResult>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/projects/${encodeURIComponent(projectId)}/outputs`),
+        {
+          method: "DELETE",
           headers: protectedHeaders
         }
       );

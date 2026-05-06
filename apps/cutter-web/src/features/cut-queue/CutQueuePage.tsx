@@ -1,5 +1,4 @@
 import { InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
-import { formatDuration } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import {
   cutPipelineDetailLabel,
@@ -131,7 +130,7 @@ export function CutQueuePage({
               tone={toneForStatus(job.status)}
               label={labelForStatus(job.status)}
               detail={[
-                `${job.title} · ${formatDuration(job.begin_ms)} - ${formatDuration(job.end_ms)}`,
+                job.title,
                 job.selected_text ? `选中文案：${job.selected_text}` : "",
                 job.status === "failed" && job.error_message ? `失败原因：${job.error_message}` : ""
               ]

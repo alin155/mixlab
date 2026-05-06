@@ -545,6 +545,7 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         schema_version: "1.0",
         clip_list_id: "CL20260502-0001",
         library_id: request.library_id,
+        ...(request.project_id ? { project_id: request.project_id } : {}),
         title: request.title,
         item_count: request.items.length,
         created_at: "2026-05-02T10:00:00Z",
@@ -629,6 +630,21 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         updated_at: "2026-05-02T10:17:00Z"
       };
     },
+    async openCutOutputDirectory() {
+      return {
+        path: "/fixture-workspace/export-clips"
+      };
+    },
+    async deleteProjectOutputs(projectId: string) {
+      return {
+        project_id: projectId,
+        removed_export_clips: 0,
+        removed_local_clips: 0,
+        removed_project_outputs: 0,
+        removed_cut_jobs: 0,
+        removed_clip_lists: 0
+      };
+    },
     resolveApiUrl(pathOrUrl: string) {
       return pathOrUrl;
     }
@@ -682,7 +698,9 @@ export function resolveLocalClipUrls(client: CutterApiClient, clip: LocalClip): 
   return {
     ...clip,
     media_url: client.resolveApiUrl(clip.media_url),
-    detail_url: client.resolveApiUrl(clip.detail_url)
+    detail_url: client.resolveApiUrl(clip.detail_url),
+    ...(clip.cover_url ? { cover_url: client.resolveApiUrl(clip.cover_url) } : {}),
+    ...(clip.subtitles_url ? { subtitles_url: client.resolveApiUrl(clip.subtitles_url) } : {})
   };
 }
 
