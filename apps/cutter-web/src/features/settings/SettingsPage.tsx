@@ -171,10 +171,9 @@ export function SettingsPage({
                         onSetAppearanceMode(event.currentTarget.value as CutterAppearanceMode)
                       }
                     >
+                      <option value="dark">{appearanceModeLabel("dark")}</option>
+                      <option value="light">{appearanceModeLabel("light")}</option>
                       <option value="system">{appearanceModeLabel("system")}</option>
-                      <option value="default">{appearanceModeLabel("default")}</option>
-                      <option value="night">{appearanceModeLabel("night")}</option>
-                      <option value="comfort">{appearanceModeLabel("comfort")}</option>
                     </select>
                   )
                 }

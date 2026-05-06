@@ -1035,21 +1035,59 @@ test("cut list renders order, range, text, mode, reorder, delete, clear, and sub
 
 test("local library is independent and exposes local recut materials with orientation filters", () => {
   const data = fixture();
+  const projects: CutterProject[] = [
+    {
+      project_id: "P-current",
+      title: "当前项目",
+      title_source: "manual",
+      status: "active",
+      created_at: "2026-05-06T10:00:00.000Z",
+      updated_at: "2026-05-06T10:10:00.000Z",
+      clip_count: 2,
+      running_count: 0,
+      failed_count: 0,
+      searches: []
+    },
+    {
+      project_id: "P-other",
+      title: "历史项目",
+      title_source: "manual",
+      status: "active",
+      created_at: "2026-05-05T10:00:00.000Z",
+      updated_at: "2026-05-05T10:10:00.000Z",
+      clip_count: 1,
+      running_count: 0,
+      failed_count: 0,
+      searches: []
+    }
+  ];
+  const catalog = {
+    local_clip_count: 3,
+    clips: [
+      { ...data.localClips.clips[0]!, local_clip_id: "clip-current-2", title: "2-当前项目-C0017", project_id: "P-current" },
+      { ...data.localClips.clips[1]!, local_clip_id: "clip-other", title: "1-历史项目-C0020", project_id: "P-other" },
+      { ...data.localClips.clips[2]!, local_clip_id: "clip-unassigned", title: "3-未归属-C0030" }
+    ]
+  };
   const html = renderToStaticMarkup(
     h(LocalLibraryPage, {
-      catalog: data.localClips,
-      selectedLocalClipId: "clip-002",
+      catalog,
+      projects,
+      currentProjectId: "P-current",
+      selectedLocalClipId: "clip-current-2",
       onSelectLocalClip: () => undefined
     })
   );
 
-  for (const text of ["本地素材库", "本地可复剪素材", "全部", "横版", "竖版", "素材详情", "复盘方法三步"]) {
+  for (const text of ["本地素材库", "本地可复剪素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017"]) {
     assert.match(html, new RegExp(text));
   }
 
   assert.match(html, /ml-gallery-grid/);
-  assert.match(html, /<video[^>]+src="\/local-clips\/clip-002\.mp4"/);
+  assert.match(html, /<video[^>]+src="\/local-clips\/clip-001\.mp4"/);
   assert.match(html, /aria-pressed="true"/);
+  assert.equal(html.includes("1-历史项目-C0020"), false);
+  assert.equal(html.includes("3-未归属-C0030"), false);
   assert.equal(html.includes("搜索本地素材"), false);
   assert.equal(html.includes("打开视频"), false);
   assert.equal(html.includes("显示文件夹"), false);
@@ -1058,6 +1096,21 @@ test("local library is independent and exposes local recut materials with orient
   assert.equal(html.includes("资源信息"), false);
   assert.equal(html.includes("Local Clip"), false);
   assert.equal(html.includes("可用原素材"), false);
+
+  const allHtml = renderToStaticMarkup(
+    h(LocalLibraryPage, {
+      catalog,
+      projects,
+      currentProjectId: "P-current",
+      viewMode: "all",
+      selectedLocalClipId: "clip-other",
+      onSelectLocalClip: () => undefined
+    })
+  );
+
+  for (const text of ["当前项目", "历史项目", "未归属素材", "1-历史项目-C0020", "3-未归属-C0030"]) {
+    assert.match(allHtml, new RegExp(text));
+  }
 });
 
 test("cut tasks page renders every task state and summary in Chinese", () => {
@@ -1214,7 +1267,9 @@ test("sidebar footer renders local engine telemetry and a passive username label
       concurrency: 2,
       cpuUsagePercent: 27,
       diskIoBytesPerSecond: 68 * 1024 * 1024,
-      engineReady: true
+      engineReady: true,
+      appearanceMode: "dark",
+      onSetAppearanceMode: () => undefined
     })
   );
 
@@ -1229,14 +1284,17 @@ test("sidebar footer renders local engine telemetry and a passive username label
     "68 MB/s",
     "素材库",
     "本地 18 / 公共 41",
-    "Allen"
+    "Allen",
+    "深色",
+    "浅色",
+    "系统"
   ]) {
     assert.match(html, new RegExp(text));
   }
 
+  assert.match(html, /aria-pressed="true"[^>]*>深色/);
   assert.equal(html.includes("系统日志"), false);
   assert.equal(html.includes("打开用户数据面板"), false);
-  assert.equal(html.includes("<button"), false);
   assert.equal(html.includes("›"), false);
 });
 
@@ -1255,7 +1313,7 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
       settings: data.settings,
       runtimeStatus: data.runtimeStatus,
       apiBaseUrl: "http://127.0.0.1:3789",
-      appearanceMode: "system",
+      appearanceMode: "dark",
       defaultCutMode: "precise",
       defaultSourceFilter: "all",
       defaultOrientationFilter: "all",
@@ -1285,10 +1343,9 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
     "横版",
     "竖版",
     "显示模式",
-    "跟随系统",
-    "默认",
-    "深夜",
-    "护眼",
+    "深色",
+    "浅色",
+    "系统",
     "并发数",
     "Doctor",
     "mp3_16k_mono_64k"
@@ -1296,17 +1353,20 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
     assert.match(html, new RegExp(text));
   }
 
+  assert.equal(html.includes("跟随系统"), false);
+  assert.equal(html.includes("深夜"), false);
+  assert.equal(html.includes("护眼"), false);
   assert.match(html, /aria-pressed="true"[^>]*>精准剪切/);
 });
 
 test("cutter app root applies the persisted display mode", () => {
   installTestWindow();
-  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "night");
+  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "light");
 
   const html = renderToStaticMarkup(h(CutterApp));
 
   assert.match(html, /class="cutter-app"/);
-  assert.match(html, /data-appearance-mode="night"/);
+  assert.match(html, /data-appearance-mode="light"/);
 });
 
 test("cutter auth storage creates a stable device id and handles session lifecycle", () => {
@@ -1337,19 +1397,21 @@ test("cutter auth storage creates a stable device id and handles session lifecyc
   assert.equal(readCutterAuthSession(), null);
 });
 
-test("cutter appearance CSS scopes night and comfort modes without filtering media", async () => {
+test("cutter appearance CSS scopes dark light and system modes without filtering media", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
   const appRule = css.match(/\.cutter-app\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
-  const nightRule = css.match(/\.cutter-app\[data-appearance-mode="night"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
-  const comfortRule = css.match(/\.cutter-app\[data-appearance-mode="comfort"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const darkRule = css.match(/\.cutter-app\[data-appearance-mode="dark"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+  const lightRule = css.match(/\.cutter-app\[data-appearance-mode="light"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
   const systemDarkRule = css.match(/@media \(prefers-color-scheme: dark\)\s*{\s*\.cutter-app\[data-appearance-mode="system"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
-  const mediaRules = Array.from(css.matchAll(/\.cutter-app\[data-appearance-mode="(?:night|comfort|system)"\]\s+(?:video|img)[^{]*{(?<body>[^}]+)}/g));
+  const mediaRules = Array.from(css.matchAll(/\.cutter-app\[data-appearance-mode="(?:dark|light|system)"\]\s+(?:video|img)[^{]*{(?<body>[^}]+)}/g));
 
   assert.match(appRule, /background:\s*var\(--ml-color-canvas\)/);
-  assert.match(nightRule, /--ml-color-canvas:\s*#14161a/);
-  assert.match(nightRule, /color-scheme:\s*dark/);
-  assert.match(comfortRule, /--ml-color-canvas:\s*#f6f0e7/);
+  assert.match(darkRule, /--ml-color-canvas:\s*#14161a/);
+  assert.match(darkRule, /color-scheme:\s*dark/);
+  assert.match(lightRule, /--ml-color-canvas:\s*#f6f8fb/);
   assert.match(systemDarkRule, /--ml-color-canvas:\s*#14161a/);
+  assert.equal(css.includes('data-appearance-mode="night"'), false);
+  assert.equal(css.includes('data-appearance-mode="comfort"'), false);
   assert.equal(mediaRules.some((match) => match.groups?.body.includes("filter")), false);
 });
 

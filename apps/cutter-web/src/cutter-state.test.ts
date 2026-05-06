@@ -163,17 +163,25 @@ test("cutter appearance mode persists locally with Chinese labels", () => {
   installTestWindow();
   window.localStorage.clear();
 
-  assert.equal(readCutterAppearanceMode(), "system");
-  assert.equal(appearanceModeLabel("system"), "跟随系统");
-  assert.equal(appearanceModeLabel("default"), "默认");
-  assert.equal(appearanceModeLabel("night"), "深夜");
-  assert.equal(appearanceModeLabel("comfort"), "护眼");
+  assert.equal(readCutterAppearanceMode(), "dark");
+  assert.equal(appearanceModeLabel("dark"), "深色");
+  assert.equal(appearanceModeLabel("light"), "浅色");
+  assert.equal(appearanceModeLabel("system"), "系统");
 
-  writeCutterAppearanceMode("night");
-  assert.equal(readCutterAppearanceMode(), "night");
+  writeCutterAppearanceMode("light");
+  assert.equal(readCutterAppearanceMode(), "light");
+
+  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "default");
+  assert.equal(readCutterAppearanceMode(), "dark");
+
+  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "night");
+  assert.equal(readCutterAppearanceMode(), "dark");
+
+  window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "comfort");
+  assert.equal(readCutterAppearanceMode(), "light");
 
   window.localStorage.setItem(CUTTER_APPEARANCE_STORAGE_KEY, "invalid");
-  assert.equal(readCutterAppearanceMode(), "system");
+  assert.equal(readCutterAppearanceMode(), "dark");
 });
 
 test("orientation filters preserve all videos or keep only landscape and portrait", () => {

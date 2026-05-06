@@ -20,7 +20,10 @@ import {
   type CutterFixtureData
 } from "../fixture-client.ts";
 import { CutQueuePage } from "../features/cut-queue/CutQueuePage.tsx";
-import { LocalLibraryPage } from "../features/local-library/LocalLibraryPage.tsx";
+import {
+  LocalLibraryPage,
+  type LocalLibraryViewMode
+} from "../features/local-library/LocalLibraryPage.tsx";
 import {
   MaterialLocatorPage,
   type MaterialSearchHistoryItem
@@ -111,6 +114,7 @@ import {
 } from "../state/local-clip-reuse.ts";
 import type { VideoOrientationFilter } from "../state/video-orientation.ts";
 import {
+  appearanceModeLabel,
   readCutterAppearanceMode,
   writeCutterAppearanceMode,
   type CutterAppearanceMode
@@ -270,7 +274,9 @@ export function CutterSidebarFooter({
   concurrency,
   cpuUsagePercent,
   diskIoBytesPerSecond,
-  engineReady
+  engineReady,
+  appearanceMode,
+  onSetAppearanceMode
 }: {
   username: string;
   localCount: number;
@@ -280,6 +286,8 @@ export function CutterSidebarFooter({
   cpuUsagePercent?: number;
   diskIoBytesPerSecond?: number;
   engineReady: boolean;
+  appearanceMode: CutterAppearanceMode;
+  onSetAppearanceMode: (mode: CutterAppearanceMode) => void;
 }) {
   const safeConcurrency = Math.max(1, concurrency);
   const cpuLabel =
@@ -315,6 +323,18 @@ export function CutterSidebarFooter({
       </section>
       <div className="cutter-sidebar-user-entry" aria-label="当前用户">
         <strong>{username}</strong>
+        <div className="cutter-sidebar-theme-switch" role="group" aria-label="显示模式">
+          {(["dark", "light", "system"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={appearanceMode === mode}
+              onClick={() => onSetAppearanceMode(mode)}
+            >
+              {appearanceModeLabel(mode)}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -666,6 +686,7 @@ function renderPage(
     globalHitCount: number;
     selectedMaterialKey?: string;
     localLibrarySelectedClipId?: string;
+    localLibraryViewMode: LocalLibraryViewMode;
     recentSearches: readonly MaterialSearchHistoryItem[];
     selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
     selectedDetail: CutterFixtureData["primaryDetail"];
@@ -707,6 +728,7 @@ function renderPage(
     retryFailedCutJob?: (cutJobId: string) => void;
     openCutOutputDirectory: () => void;
     selectLocalClip: (localClipId: string) => void;
+    setLocalLibraryViewMode: (mode: LocalLibraryViewMode) => void;
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
     setCutMode: (mode: CutMode) => void;
   }
@@ -778,7 +800,11 @@ function renderPage(
       <LocalLibraryPage
         catalog={data.localClips}
         query=""
+        projects={viewState.projects}
+        currentProjectId={viewState.currentProjectId}
+        viewMode={viewState.localLibraryViewMode}
         selectedLocalClipId={viewState.localLibrarySelectedClipId}
+        onSetViewMode={handlers.setLocalLibraryViewMode}
         onSelectLocalClip={handlers.selectLocalClip}
       />
     );
@@ -838,6 +864,7 @@ export function CutterApp() {
   );
   const [selectedLocalClipId, setSelectedLocalClipId] = useState<string | undefined>();
   const [localLibrarySelectedClipId, setLocalLibrarySelectedClipId] = useState<string | undefined>();
+  const [localLibraryViewMode, setLocalLibraryViewMode] = useState<LocalLibraryViewMode>("current-project");
   const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>(() =>
     readCutterDefaultSourceFilter()
   );
@@ -1771,6 +1798,7 @@ export function CutterApp() {
     setOrientationFilter: handleSetOrientationFilter,
     setCutMode: handleSetCutMode,
     selectLocalClip: setLocalLibrarySelectedClipId,
+    setLocalLibraryViewMode,
     renameProject: handleRenameProject,
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
@@ -2053,6 +2081,8 @@ export function CutterApp() {
                   cpuUsagePercent={data.runtimeStatus.local_runtime?.cpu_usage_percent}
                   diskIoBytesPerSecond={data.runtimeStatus.local_runtime?.disk_io_bytes_per_second}
                   engineReady={engineReady}
+                  appearanceMode={appearanceMode}
+                  onSetAppearanceMode={handleSetAppearanceMode}
                 />
               ) : null
             }
@@ -2079,6 +2109,7 @@ export function CutterApp() {
                     globalHitCount,
                     selectedMaterialKey,
                     localLibrarySelectedClipId,
+                    localLibraryViewMode,
                     recentSearches:
                       route === "project-home" ? recentMaterialSearches : projectRecentMaterialSearches,
                     selectedSegments: selectedTranscriptSegments,

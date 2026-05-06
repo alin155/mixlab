@@ -1,8 +1,8 @@
-export type CutterAppearanceMode = "system" | "default" | "night" | "comfort";
+export type CutterAppearanceMode = "dark" | "light" | "system";
 
 export const CUTTER_APPEARANCE_STORAGE_KEY = "mixlab:cutter:appearance_mode";
 
-const APPEARANCE_MODES: readonly CutterAppearanceMode[] = ["system", "default", "night", "comfort"];
+const APPEARANCE_MODES: readonly CutterAppearanceMode[] = ["dark", "light", "system"];
 
 function localStorageSafe(): Storage | null {
   if (typeof window === "undefined") {
@@ -22,14 +22,12 @@ export function isCutterAppearanceMode(value: string): value is CutterAppearance
 
 export function appearanceModeLabel(mode: CutterAppearanceMode): string {
   switch (mode) {
+    case "dark":
+      return "深色";
+    case "light":
+      return "浅色";
     case "system":
-      return "跟随系统";
-    case "default":
-      return "默认";
-    case "night":
-      return "深夜";
-    case "comfort":
-      return "护眼";
+      return "系统";
   }
 }
 
@@ -38,9 +36,17 @@ export function readCutterAppearanceMode(): CutterAppearanceMode {
 
   try {
     const stored = storage?.getItem(CUTTER_APPEARANCE_STORAGE_KEY) ?? "";
-    return isCutterAppearanceMode(stored) ? stored : "system";
+    if (isCutterAppearanceMode(stored)) {
+      return stored;
+    }
+
+    if (stored === "comfort") {
+      return "light";
+    }
+
+    return "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
