@@ -30,6 +30,7 @@ import {
   type LocalClipView
 } from "../../library-fs/src/index.ts";
 import {
+  buildProjectClipOutputFile,
   getExportClipDetail,
   deleteProjectOutputs,
   exportClipsDirectory,
@@ -114,6 +115,11 @@ interface CreateClipListRequestBody {
 
 interface SubmitCutJobsRequestBody {
   clip_list_id?: unknown;
+}
+
+interface OpenExportDirectoryRequestBody {
+  project_id?: unknown;
+  project_title?: unknown;
 }
 
 interface CutterLoginRequestBody {
@@ -620,7 +626,7 @@ function requiredNonNegativeInteger(value: unknown, key: string): number {
 
 function parseCutMode(value: unknown): CutMode {
   if (value === undefined || value === null || value === "") {
-    return "smart";
+    return "copy";
   }
 
   if (value === "copy" || value === "smart" || value === "precise") {
@@ -806,6 +812,26 @@ function workspaceRootOrThrow(input: CreateCutterApiServerInput): string {
   return input.workspace_root;
 }
 
+function workspaceRelativePath(workspaceRoot: string, relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/");
+
+  if (
+    normalized.trim() === "" ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
+    throw new Error("workspace path must be relative");
+  }
+
+  const parts = normalized.split("/").filter(Boolean);
+
+  if (parts.includes("..")) {
+    throw new Error("workspace path must be relative");
+  }
+
+  return path.join(workspaceRoot, ...parts);
+}
+
 function toWorkspaceLocalClipPayload(clip: ExportClipView): ExportClipView & {
   detail_url: string;
   media_url: string;
@@ -911,9 +937,45 @@ async function runWorkspaceCutJob(input: {
   });
 }
 
-async function openWorkspaceExportDirectory(input: CreateCutterApiServerInput): Promise<{ path: string }> {
+async function resolveProjectOutputDirectory(input: {
+  workspace_root: string;
+  project_id?: string;
+  project_title?: string;
+}): Promise<string | undefined> {
+  if (input.project_id) {
+    const catalog = await listExportClips({ workspace_root: input.workspace_root });
+    const matchedClip = catalog.clips.find((clip) =>
+      clip.project_id === input.project_id && clip.project_output_file
+    );
+
+    if (matchedClip?.project_output_file) {
+      return path.dirname(workspaceRelativePath(input.workspace_root, matchedClip.project_output_file));
+    }
+  }
+
+  if (input.project_title) {
+    return path.dirname(workspaceRelativePath(input.workspace_root, buildProjectClipOutputFile({
+      project_title: input.project_title,
+      project_clip_order: 1,
+      source_title: "本地素材"
+    })));
+  }
+
+  return undefined;
+}
+
+async function openWorkspaceExportDirectory(
+  input: CreateCutterApiServerInput,
+  body: OpenExportDirectoryRequestBody = {}
+): Promise<{ path: string }> {
   const workspaceRoot = workspaceRootOrThrow(input);
-  const targetPath = exportClipsDirectory(workspaceRoot);
+  const projectId = optionalString(body.project_id, "project_id");
+  const projectTitle = optionalString(body.project_title, "project_title");
+  const targetPath = await resolveProjectOutputDirectory({
+    workspace_root: workspaceRoot,
+    project_id: projectId,
+    project_title: projectTitle
+  }) ?? exportClipsDirectory(workspaceRoot);
   const openPath = input.open_path ?? defaultOpenPath;
 
   await mkdir(targetPath, { recursive: true });
@@ -1308,7 +1370,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
-        writeJson(response, 200, apiResponse(await openWorkspaceExportDirectory(input)));
+        const body = (await readRequestJson(request)) as OpenExportDirectoryRequestBody;
+        writeJson(response, 200, apiResponse(await openWorkspaceExportDirectory(input, body)));
         return;
       }
 

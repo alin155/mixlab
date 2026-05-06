@@ -100,10 +100,20 @@ export function buildFfmpegCutPlan(input: FfmpegCutPlanInput): FfmpegCommandPlan
         input.source_path,
         "-t",
         durationSeconds,
-        "-c",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c:v",
         "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
         "-avoid_negative_ts",
         "make_zero",
+        "-movflags",
+        "+faststart",
         input.output_path
       ]
     };

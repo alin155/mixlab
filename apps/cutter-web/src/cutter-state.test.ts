@@ -780,6 +780,15 @@ test("continuous transcript range becomes one cut-list item", () => {
   );
 });
 
+test("cut-list items default to fast copy cutting when no mode is selected", () => {
+  const cut = createCutListItemFromSegments({
+    sourceVideo,
+    segments: transcriptSegments.slice(0, 1)
+  });
+
+  assert.equal(cut.cut_mode, "copy");
+});
+
 test("transcript selection uses clicked range or search-highlight fallback as one continuous span", () => {
   assert.deepEqual(nextTranscriptSelectionRange({}, "s-002"), {
     startSegmentId: "s-002",
@@ -1177,6 +1186,9 @@ test("queue jobs are derived from cut-list items and can change status independe
   assert.equal(jobs.length, 2);
   assert.equal(jobs[0]?.status, "pending");
   assert.equal(jobs[0]?.progress, 0);
+  assert.equal(jobs[0]?.current_phase, "queue_wait");
+  assert.equal(jobs[0]?.phase_timings?.[0]?.label, "排队等待");
+  assert.equal(jobs[0]?.phase_timings?.[0]?.status, "running");
   assert.equal(jobs[0]?.title, "1-现金流项目-现金流管理与风险控制");
   assert.equal(jobs[0]?.title.includes("第一段"), false);
   assert.equal(jobs[0]?.title.includes("00:01"), false);

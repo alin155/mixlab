@@ -7,6 +7,7 @@ import type {
   CutterRuntimeStatus,
   LocalClip,
   LocalClipCatalog,
+  OpenCutOutputDirectoryRequest,
   SearchResponse,
   SourceLibraryResponse,
   SourceVideoCard,
@@ -345,7 +346,7 @@ const settings: CutterWorkbenchSettings = {
   public_library_mount: "/Volumes/PublicLibrary",
   local_workspace: "/Users/allen/Movies/MixLabLocal",
   ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
-  default_cut_mode: "smart",
+  default_cut_mode: "copy",
   concurrency: 2,
   audio_mode: "mp3_16k_mono_64k",
   doctor: [
@@ -630,9 +631,11 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         updated_at: "2026-05-02T10:17:00Z"
       };
     },
-    async openCutOutputDirectory() {
+    async openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest) {
       return {
-        path: "/fixture-workspace/export-clips"
+        path: request?.project_title
+          ? `/fixture-workspace/projects/${request.project_title}`
+          : "/fixture-workspace/export-clips"
       };
     },
     async deleteProjectOutputs(projectId: string) {

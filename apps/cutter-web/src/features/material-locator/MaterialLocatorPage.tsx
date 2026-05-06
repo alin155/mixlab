@@ -35,6 +35,12 @@ import {
   shouldPauseSelectionPreview
 } from "../../state/transcript-playback.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
+import {
+  cutQueueCurrentPhaseLabel,
+  cutQueueJobElapsedMs,
+  formatCutQueueElapsed
+} from "../../state/cut-queue.ts";
+import type { CutMode } from "../../state/cut-list.ts";
 
 function selectedDurationLabel(segments: readonly TranscriptSegment[]): string {
   const first = segments[0];
@@ -84,16 +90,9 @@ export function materialLocatorDisplayDurationMs(
   return manifestDurationMs;
 }
 
-const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "local", label: "本地素材" },
-  { value: "public", label: "公共原素材" }
-];
-
-const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "landscape", label: "横版" },
-  { value: "portrait", label: "竖版" }
+const cutModeOptions: Array<{ value: CutMode; label: string }> = [
+  { value: "copy", label: "极速剪切" },
+  { value: "precise", label: "精准剪切" }
 ];
 
 export interface MaterialSearchHistoryItem {
@@ -118,6 +117,7 @@ export function MaterialLocatorPage({
   recentSearches = [],
   cutNotice = "",
   queue,
+  cutMode = "copy",
   onSearch,
   onSelectMaterial,
   onSelectTranscriptSegment,
@@ -126,8 +126,7 @@ export function MaterialLocatorPage({
   onCutSelection,
   onCancelSelection,
   onOpenCutOutputDirectory,
-  onSetSourceFilter,
-  onSetOrientationFilter
+  onSetCutMode
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
@@ -145,6 +144,7 @@ export function MaterialLocatorPage({
   recentSearches?: readonly MaterialSearchHistoryItem[];
   cutNotice?: string;
   queue: readonly CutQueueJob[];
+  cutMode?: CutMode;
   onSearch?: (query: string) => void;
   onSelectMaterial?: (result: MaterialLocatorResult) => void;
   onSelectTranscriptSegment?: (segmentId: string) => void;
@@ -153,8 +153,7 @@ export function MaterialLocatorPage({
   onCutSelection?: () => void;
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
-  onSetSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
-  onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
+  onSetCutMode?: (mode: CutMode) => void;
 }) {
   const sections = buildMaterialLocatorSections({
     query,
@@ -198,6 +197,7 @@ export function MaterialLocatorPage({
   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
   const [previewActive, setPreviewActive] = useState(false);
   const [mediaDurationMs, setMediaDurationMs] = useState<number | undefined>();
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const focusedVideoLabel = focusedDetail
     ? [
         focusedDetail.title,
@@ -208,6 +208,15 @@ export function MaterialLocatorPage({
         `命中 ${focusedMaterialHitCount} 处`
       ].join(" · ")
     : "";
+
+  useEffect(() => {
+    if (!queue.some((job) => job.status === "pending" || job.status === "running")) {
+      return;
+    }
+
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [queue]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -400,39 +409,6 @@ export function MaterialLocatorPage({
               <button className="cutter-primary-button" type="submit">
                 搜索
               </button>
-              <details className="cutter-search-options">
-                <summary>选项</summary>
-                <div>
-                  <label className="cutter-filter-select">
-                    <span>素材来源</span>
-                    <select
-                      name="sourceFilter"
-                      value={sourceFilter}
-                      onChange={(event) => onSetSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)}
-                    >
-                      {sourceFilterOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="cutter-filter-select">
-                    <span>视频类型</span>
-                    <select
-                      name="orientationFilter"
-                      value={orientationFilter}
-                      onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
-                    >
-                      {orientationFilterOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </details>
             </form>
           </div>
         </section>
@@ -516,17 +492,28 @@ export function MaterialLocatorPage({
               </div>
               <div className="cutter-locator-queue-list">
                 {recentQueue.length > 0 ? (
-                  recentQueue.map((job) => (
-                    <div className={`cutter-locator-queue-item is-${job.status}`} key={job.queue_job_id}>
-                      <span>{queueStatusLabel(job.status)}</span>
-                      <strong>{job.title}</strong>
-                      <small>{Math.round(job.progress)}%</small>
-                      <small className="cutter-locator-queue-meta">
-                        {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
-                        {job.selected_text ? ` · ${job.selected_text}` : ""}
-                      </small>
-                    </div>
-                  ))
+                  recentQueue.map((job) => {
+                    const phaseLabel = cutQueueCurrentPhaseLabel(job);
+                    const elapsedLabel = formatCutQueueElapsed(cutQueueJobElapsedMs(job, nowMs));
+                    const progress = Math.max(0, Math.min(100, Math.round(job.progress)));
+
+                    return (
+                      <div className={`cutter-locator-queue-item is-${job.status}`} key={job.queue_job_id}>
+                        <span>{queueStatusLabel(job.status)}</span>
+                        <div className="cutter-locator-queue-title">
+                          <strong>{job.title}</strong>
+                          <div className="cutter-locator-task-progress" aria-label={`${phaseLabel} ${progress}%`}>
+                            <span style={{ width: `${progress}%` }} />
+                          </div>
+                          <small>{progress}%</small>
+                        </div>
+                        <small className="cutter-locator-queue-meta">
+                          {phaseLabel} · 已耗时 {elapsedLabel} · {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
+                          {job.selected_text ? ` · ${job.selected_text}` : ""}
+                        </small>
+                      </div>
+                    );
+                  })
                 ) : (
                   <span>暂无剪切任务</span>
                 )}
@@ -606,21 +593,36 @@ export function MaterialLocatorPage({
                     命中 {currentHitOrdinal} / {hitCount} · 已选 {selectedSegments.length} 句
                   </span>
                 </div>
-                <div className="cutter-hit-navigation" aria-label="命中文案切换">
-                  <button
-                    type="button"
-                    disabled={!hasHitNavigation}
-                    onClick={() => onNavigateHit?.("previous")}
-                  >
-                    上一个
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!hasHitNavigation}
-                    onClick={() => onNavigateHit?.("next")}
-                  >
-                    下一个
-                  </button>
+                <div className="cutter-transcript-actions">
+                  <div className="cutter-cut-mode-toggle" role="group" aria-label="剪切模式">
+                    {cutModeOptions.map((option) => (
+                      <button
+                        className={cutMode === option.value ? "is-active" : ""}
+                        type="button"
+                        key={option.value}
+                        aria-pressed={cutMode === option.value}
+                        onClick={() => onSetCutMode?.(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="cutter-hit-navigation" aria-label="命中文案切换">
+                    <button
+                      type="button"
+                      disabled={!hasHitNavigation}
+                      onClick={() => onNavigateHit?.("previous")}
+                    >
+                      上一个
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!hasHitNavigation}
+                      onClick={() => onNavigateHit?.("next")}
+                    >
+                      下一个
+                    </button>
+                  </div>
                 </div>
               </header>
               {focusedDetail ? (

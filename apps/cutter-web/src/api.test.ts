@@ -460,8 +460,7 @@ test("creates local clips through cutter API", async () => {
     start_segment_id: "V000001-S000001",
     end_segment_id: "V000001-S000002",
     pre_roll_ms: 250,
-    post_roll_ms: 400,
-    cut_mode: "copy"
+    post_roll_ms: 400
   });
 
   assert.equal(clip.local_clip_id, "LC000001");
@@ -692,9 +691,10 @@ test("loads cutter runtime status with approved session headers", async () => {
   assert.equal(observedSession, "session-001");
 });
 
-test("opens cutter cut output directory with approved session headers", async () => {
+test("opens cutter project output directory with approved session headers", async () => {
   let observedDevice = "";
   let observedSession = "";
+  let observedBody = {};
   const client = createCutterApiClient({
     base_url: "http://127.0.0.1:3789",
     auth: {
@@ -707,18 +707,26 @@ test("opens cutter cut output directory with approved session headers", async ()
       const headers = new Headers(init?.headers);
       observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
       observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      observedBody = JSON.parse(String(init?.body ?? "{}"));
       return makeJsonResponse({
         schema_version: "1.0",
         data: {
-          path: "/Users/allen/Movies/MixLabLocal/export-clips"
+          path: "/Users/allen/Movies/MixLabLocal/projects/5月6日"
         }
       });
     }
   });
 
-  const opened = await client.openCutOutputDirectory();
+  const opened = await client.openCutOutputDirectory({
+    project_id: "P20260506-aaa",
+    project_title: "5月6日"
+  });
 
-  assert.equal(opened.path, "/Users/allen/Movies/MixLabLocal/export-clips");
+  assert.equal(opened.path, "/Users/allen/Movies/MixLabLocal/projects/5月6日");
+  assert.deepEqual(observedBody, {
+    project_id: "P20260506-aaa",
+    project_title: "5月6日"
+  });
   assert.equal(observedDevice, "device-001");
   assert.equal(observedSession, "session-001");
 });

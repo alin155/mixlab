@@ -71,7 +71,7 @@ export function createCutListItemFromSegments(input: CreateCutListItemInput): Cu
     end_ms: last.end_ms,
     duration_ms: Math.max(0, last.end_ms - first.begin_ms),
     selected_text: segments.map((segment) => segment.text).join(" "),
-    cut_mode: input.cutMode ?? "smart",
+    cut_mode: input.cutMode ?? "copy",
     order: input.order ?? 1,
     title: input.title,
     pre_roll_ms: input.preRollMs ?? 0,

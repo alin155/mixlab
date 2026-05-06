@@ -83,11 +83,14 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
       job.status,
       job.clip_list_item_id,
       job.project_title,
-      job.project_clip_order
+      job.project_clip_order,
+      job.current_phase,
+      job.phase_timings?.[0]?.label,
+      job.phase_timings?.[0]?.status
     ]),
     [
-      ["CJ20260502-0001", "pending", "CLI000001", "现金流混剪", 1],
-      ["CJ20260502-0002", "pending", "CLI000002", "现金流混剪", 2]
+      ["CJ20260502-0001", "pending", "CLI000001", "现金流混剪", 1, "queue_wait", "排队等待", "running"],
+      ["CJ20260502-0002", "pending", "CLI000002", "现金流混剪", 2, "queue_wait", "排队等待", "running"]
     ]
   );
 
@@ -154,6 +157,23 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
   assert.equal(result?.project_clip_order, 1);
   assert.equal(result?.title, "1-现金流混剪-01_现金流");
   assert.equal(result?.output_file, "export-clips/E000001/001-现金流混剪-01_现金流.mp4");
+  assert.equal(result?.current_phase, "write_manifest");
+  assert.deepEqual(
+    result?.phase_timings?.map((phase) => [phase.phase_id, phase.label, phase.status]),
+    [
+      ["queue_wait", "排队等待", "done"],
+      ["resolve_source", "读取源素材", "done"],
+      ["cut_media", "剪切/重编码", "done"],
+      ["write_project_output", "写入交付目录", "done"],
+      ["preprocess_local_asset", "本地素材预处理", "done"],
+      ["generate_cover", "生成封面", "done"],
+      ["write_manifest", "写入清单", "done"]
+    ]
+  );
+  assert.equal(
+    result?.phase_timings?.every((phase) => typeof phase.duration_ms === "number"),
+    true
+  );
   assert.equal(cutCalls.length, 1);
   assert.equal(cutCalls[0]?.begin_ms, 1000);
   assert.equal(cutCalls[0]?.end_ms, 5200);

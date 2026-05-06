@@ -377,6 +377,16 @@ h2 {
   font-size: 13px;
 }
 
+.cutter-local-detail-player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  background: #111827;
+  object-fit: contain;
+}
+
 .cutter-inspector-stack p {
   color: var(--ml-color-text-secondary);
   line-height: 1.55;
@@ -1559,6 +1569,43 @@ button.cutter-inline-action {
   font-size: 12px;
 }
 
+.cutter-transcript-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ml-space-2);
+  align-items: center;
+}
+
+.cutter-cut-mode-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: 2px;
+  background: var(--ml-color-control);
+}
+
+.cutter-cut-mode-toggle button {
+  min-height: 22px;
+  border: 0;
+  border-radius: calc(var(--ml-radius-control) - 2px);
+  padding: 0 9px;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cutter-cut-mode-toggle button.is-active {
+  color: #fff;
+  background: var(--ml-color-accent);
+}
+
 .cutter-hit-navigation {
   display: flex;
   gap: var(--ml-space-2);
@@ -1746,7 +1793,7 @@ button.cutter-inline-action {
 .cutter-locator-queue-item {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) 42px;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   gap: var(--ml-space-2);
   align-items: center;
   min-width: 0;
@@ -1769,6 +1816,30 @@ button.cutter-inline-action {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cutter-locator-queue-title {
+  display: grid;
+  grid-column: 2 / 4;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, 118px) 36px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cutter-locator-task-progress {
+  position: relative;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ml-color-border) 60%, transparent);
+}
+
+.cutter-locator-task-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ml-color-accent);
 }
 
 .cutter-locator-queue-meta {

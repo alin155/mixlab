@@ -18,6 +18,24 @@ import {
 import type { ClipListManifest, ClipListItem } from "./cut-list.ts";
 
 export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
+export type CutJobPhaseId =
+  | "queue_wait"
+  | "resolve_source"
+  | "cut_media"
+  | "write_project_output"
+  | "preprocess_local_asset"
+  | "generate_cover"
+  | "write_manifest";
+export type CutJobPhaseStatus = "pending" | "running" | "done" | "failed";
+
+export interface CutJobPhaseTiming {
+  phase_id: CutJobPhaseId;
+  label: string;
+  status: CutJobPhaseStatus;
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+}
 
 export interface CutJobManifest {
   schema_version: "1.0";
@@ -39,6 +57,8 @@ export interface CutJobManifest {
   selected_text: string;
   cut_mode: CutMode;
   status: CutJobStatus;
+  current_phase?: CutJobPhaseId;
+  phase_timings?: CutJobPhaseTiming[];
   created_at: string;
   updated_at: string;
   started_at?: string;
@@ -121,6 +141,16 @@ export interface RunNextCutJobInput {
   cover_runner?: CoverRunner;
 }
 
+const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
+  { phase_id: "queue_wait", label: "排队等待" },
+  { phase_id: "resolve_source", label: "读取源素材" },
+  { phase_id: "cut_media", label: "剪切/重编码" },
+  { phase_id: "write_project_output", label: "写入交付目录" },
+  { phase_id: "preprocess_local_asset", label: "本地素材预处理" },
+  { phase_id: "generate_cover", label: "生成封面" },
+  { phase_id: "write_manifest", label: "写入清单" }
+];
+
 const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
 
 function cutJobsRoot(workspaceRoot: string): string {
@@ -134,6 +164,112 @@ function cutJobPath(workspaceRoot: string, cutJobId: string): string {
 
 function jsonBytes(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function durationMs(startedAt: string | undefined, finishedAt: string): number | undefined {
+  if (!startedAt) {
+    return undefined;
+  }
+
+  const start = Date.parse(startedAt);
+  const end = Date.parse(finishedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return undefined;
+  }
+
+  return Math.max(0, end - start);
+}
+
+function initialPhaseTimings(createdAt: string): CutJobPhaseTiming[] {
+  return CUT_JOB_PHASES.map((phase, index) => ({
+    ...phase,
+    status: index === 0 ? "running" : "pending",
+    ...(index === 0 ? { started_at: createdAt } : {})
+  }));
+}
+
+function ensurePhaseTimings(job: CutJobManifest): CutJobPhaseTiming[] {
+  if (job.phase_timings?.length === CUT_JOB_PHASES.length) {
+    return job.phase_timings.map((phase) => ({ ...phase }));
+  }
+
+  return initialPhaseTimings(job.created_at);
+}
+
+function updatePhase(
+  phases: CutJobPhaseTiming[],
+  phaseId: CutJobPhaseId,
+  update: Partial<CutJobPhaseTiming>
+): CutJobPhaseTiming[] {
+  return phases.map((phase) =>
+    phase.phase_id === phaseId
+      ? {
+          ...phase,
+          ...update
+        }
+      : phase
+  );
+}
+
+function startPhase(job: CutJobManifest, phaseId: CutJobPhaseId, now: string): CutJobManifest {
+  let phases = ensurePhaseTimings(job);
+  const currentPhaseId = job.current_phase;
+
+  if (currentPhaseId && currentPhaseId !== phaseId) {
+    const currentPhase = phases.find((phase) => phase.phase_id === currentPhaseId);
+    if (currentPhase?.status === "running") {
+      phases = updatePhase(phases, currentPhaseId, {
+        status: "done",
+        finished_at: now,
+        duration_ms: durationMs(currentPhase.started_at, now)
+      });
+    }
+  }
+
+  phases = updatePhase(phases, phaseId, {
+    status: "running",
+    started_at: phases.find((phase) => phase.phase_id === phaseId)?.started_at ?? now,
+    finished_at: undefined,
+    duration_ms: undefined
+  });
+
+  return {
+    ...job,
+    current_phase: phaseId,
+    phase_timings: phases,
+    updated_at: now
+  };
+}
+
+function finishPhase(job: CutJobManifest, phaseId: CutJobPhaseId, now: string): CutJobManifest {
+  const phases = ensurePhaseTimings(job);
+  const phase = phases.find((item) => item.phase_id === phaseId);
+
+  return {
+    ...job,
+    phase_timings: updatePhase(phases, phaseId, {
+      status: "done",
+      finished_at: now,
+      duration_ms: durationMs(phase?.started_at, now)
+    }),
+    updated_at: now
+  };
+}
+
+function failPhase(job: CutJobManifest, phaseId: CutJobPhaseId, now: string): CutJobManifest {
+  const phases = ensurePhaseTimings(job);
+  const phase = phases.find((item) => item.phase_id === phaseId);
+
+  return {
+    ...job,
+    current_phase: phaseId,
+    phase_timings: updatePhase(phases, phaseId, {
+      status: "failed",
+      finished_at: now,
+      duration_ms: durationMs(phase?.started_at, now)
+    }),
+    updated_at: now
+  };
 }
 
 function assertCutJobId(cutJobId: string): void {
@@ -230,6 +366,8 @@ function jobFromClipListItem(input: {
     selected_text: input.item.selected_text,
     cut_mode: input.item.cut_mode,
     status: "pending",
+    current_phase: "queue_wait",
+    phase_timings: initialPhaseTimings(input.now),
     created_at: input.now,
     updated_at: input.now
   };
@@ -346,6 +484,8 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
   const retried: CutJobManifest = {
     ...job,
     status: "pending",
+    current_phase: "queue_wait",
+    phase_timings: initialPhaseTimings(input.now),
     updated_at: input.now,
     started_at: undefined,
     finished_at: undefined,
@@ -533,6 +673,8 @@ async function writePreprocessedLocalAsset(input: {
   created_at: string;
   source: CutJobSourceDetail;
   cover_runner?: CoverRunner;
+  before_cover?: () => Promise<void>;
+  after_cover?: () => Promise<void>;
 }): Promise<{
   local_asset_relative_path: string;
   source_video_manifest_path: string;
@@ -593,6 +735,7 @@ async function writePreprocessedLocalAsset(input: {
     "utf8"
   );
 
+  await input.before_cover?.();
   if (input.cover_runner) {
     await mkdir(path.dirname(coverFilePath), { recursive: true });
     await input.cover_runner({
@@ -607,6 +750,7 @@ async function writePreprocessedLocalAsset(input: {
       title: input.title
     });
   }
+  await input.after_cover?.();
 
   const mediaStat = await stat(input.output_media_file_path);
   const width = input.source.width ?? 0;
@@ -679,12 +823,25 @@ export async function runNextCutJob(
     status: "running",
     started_at: startedAt,
     updated_at: startedAt,
-    error_message: undefined
+    error_message: undefined,
+    current_phase: pending.current_phase ?? "queue_wait",
+    phase_timings: pending.phase_timings ?? initialPhaseTimings(pending.created_at)
   };
-  await writeCutJob(input.workspace_root, running);
 
   try {
-    const source = await input.resolve_source(running);
+    async function runPhase<T>(
+      phaseId: CutJobPhaseId,
+      task: () => Promise<T> | T
+    ): Promise<T> {
+      running = startPhase(running, phaseId, input.now());
+      await writeCutJob(input.workspace_root, running);
+      const result = await task();
+      running = finishPhase(running, phaseId, input.now());
+      await writeCutJob(input.workspace_root, running);
+      return result;
+    }
+
+    const source = await runPhase("resolve_source", async () => input.resolve_source(running));
 
     if (!source) {
       throw new Error("source video not found");
@@ -710,18 +867,26 @@ export async function runNextCutJob(
       source_title: running.source_title
     });
 
-    await mkdir(path.dirname(exportPaths.media_file_path), { recursive: true });
-    await input.cut_runner({
-      source_video_path: source.source_video_file_path,
-      output_path: exportPaths.media_file_path,
-      begin_ms: running.begin_ms,
-      end_ms: running.end_ms,
-      cut_mode: running.cut_mode
+    await runPhase("cut_media", async () => {
+      await mkdir(path.dirname(exportPaths.media_file_path), { recursive: true });
+      await input.cut_runner({
+        source_video_path: source.source_video_file_path,
+        output_path: exportPaths.media_file_path,
+        begin_ms: running.begin_ms,
+        end_ms: running.end_ms,
+        cut_mode: running.cut_mode
+      });
     });
-    await linkOrCopyFile(
-      exportPaths.media_file_path,
-      workspaceRelativePath(input.workspace_root, projectOutputFile)
-    );
+
+    await runPhase("write_project_output", async () => {
+      await linkOrCopyFile(
+        exportPaths.media_file_path,
+        workspaceRelativePath(input.workspace_root, projectOutputFile)
+      );
+    });
+
+    running = startPhase(running, "preprocess_local_asset", input.now());
+    await writeCutJob(input.workspace_root, running);
     const localAsset = await writePreprocessedLocalAsset({
       workspace_root: input.workspace_root,
       export_clip_id: exportClipId,
@@ -735,7 +900,19 @@ export async function runNextCutJob(
       selected_text: running.selected_text,
       created_at: input.now(),
       source,
-      cover_runner: input.cover_runner
+      cover_runner: input.cover_runner,
+      before_cover: async () => {
+        running = finishPhase(running, "preprocess_local_asset", input.now());
+        await writeCutJob(input.workspace_root, running);
+        running = startPhase(running, "generate_cover", input.now());
+        await writeCutJob(input.workspace_root, running);
+      },
+      after_cover: async () => {
+        running = finishPhase(running, "generate_cover", input.now());
+        await writeCutJob(input.workspace_root, running);
+        running = startPhase(running, "write_manifest", input.now());
+        await writeCutJob(input.workspace_root, running);
+      }
     });
 
     await writeExportClipManifest({
@@ -769,6 +946,7 @@ export async function runNextCutJob(
       transcript_segments: localAsset.transcript_segments,
       created_at: input.now()
     });
+    running = finishPhase(running, "write_manifest", input.now());
 
     running = {
       ...running,
@@ -783,6 +961,8 @@ export async function runNextCutJob(
     return running;
   } catch (error) {
     const failedAt = input.now();
+    const failedPhaseId = running.current_phase ?? "queue_wait";
+    running = failPhase(running, failedPhaseId, failedAt);
     const failed: CutJobManifest = {
       ...running,
       status: "failed",

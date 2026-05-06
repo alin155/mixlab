@@ -42,6 +42,7 @@ import {
   serializeCutList,
   toCreateClipListRequest,
   type CutListItem,
+  type CutMode,
   type MoveDirection
 } from "../state/cut-list.ts";
 import {
@@ -528,6 +529,49 @@ function safeLocalStorageSetItem(key: string, value: string): void {
   }
 }
 
+const CUTTER_CUT_MODE_STORAGE_KEY = "mixlab:cutter:default_cut_mode";
+const CUTTER_SOURCE_FILTER_STORAGE_KEY = "mixlab:cutter:default_source_filter";
+const CUTTER_ORIENTATION_FILTER_STORAGE_KEY = "mixlab:cutter:default_orientation_filter";
+
+function readCutterDefaultCutMode(): CutMode {
+  const stored = safeLocalStorageGetItem(CUTTER_CUT_MODE_STORAGE_KEY);
+  return stored === "precise" ? "precise" : "copy";
+}
+
+function writeCutterDefaultCutMode(mode: CutMode): void {
+  safeLocalStorageSetItem(CUTTER_CUT_MODE_STORAGE_KEY, mode === "precise" ? "precise" : "copy");
+}
+
+function normalizeMaterialSearchSourceFilter(filter: string | null): MaterialSearchSourceFilter {
+  return filter === "local" || filter === "public" ? filter : "all";
+}
+
+function normalizeVideoOrientationFilter(filter: string | null): VideoOrientationFilter {
+  return filter === "landscape" || filter === "portrait" ? filter : "all";
+}
+
+function readCutterDefaultSourceFilter(): MaterialSearchSourceFilter {
+  return normalizeMaterialSearchSourceFilter(safeLocalStorageGetItem(CUTTER_SOURCE_FILTER_STORAGE_KEY));
+}
+
+function writeCutterDefaultSourceFilter(filter: MaterialSearchSourceFilter): void {
+  safeLocalStorageSetItem(
+    CUTTER_SOURCE_FILTER_STORAGE_KEY,
+    normalizeMaterialSearchSourceFilter(filter)
+  );
+}
+
+function readCutterDefaultOrientationFilter(): VideoOrientationFilter {
+  return normalizeVideoOrientationFilter(safeLocalStorageGetItem(CUTTER_ORIENTATION_FILTER_STORAGE_KEY));
+}
+
+function writeCutterDefaultOrientationFilter(filter: VideoOrientationFilter): void {
+  safeLocalStorageSetItem(
+    CUTTER_ORIENTATION_FILTER_STORAGE_KEY,
+    normalizeVideoOrientationFilter(filter)
+  );
+}
+
 export function cutterDeviceNameFromNavigator(
   input: { platform?: string; userAgent?: string } | undefined
 ): string {
@@ -578,6 +622,7 @@ function renderPage(
     currentHitSegmentId?: string;
     globalHitCount: number;
     selectedMaterialKey?: string;
+    localLibrarySelectedClipId?: string;
     recentSearches: readonly MaterialSearchHistoryItem[];
     selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
     selectedDetail: CutterFixtureData["primaryDetail"];
@@ -593,6 +638,7 @@ function renderPage(
     cutPipelineState: CutPipelineState;
     apiBaseUrl: string;
     appearanceMode: CutterAppearanceMode;
+    selectedCutMode: CutMode;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -617,7 +663,9 @@ function renderPage(
     runNextJob?: () => void;
     retryFailedCutJob?: (cutJobId: string) => void;
     openCutOutputDirectory: () => void;
+    selectLocalClip: (localClipId: string) => void;
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
+    setCutMode: (mode: CutMode) => void;
   }
 ) {
   if (route === "project-home") {
@@ -628,11 +676,7 @@ function renderPage(
         projects={viewState.projects}
         selectedProjectId={viewState.homeSelectedProjectId}
         queue={queue}
-        sourceFilter={viewState.sourceFilter}
-        orientationFilter={viewState.orientationFilter}
         onSearch={handlers.searchFromProjectHome}
-        onSetSourceFilter={handlers.setSourceFilter}
-        onSetOrientationFilter={handlers.setOrientationFilter}
         onSelectProject={handlers.selectProject}
         onOpenProject={handlers.openProject}
         onRenameProject={handlers.renameProject}
@@ -672,6 +716,7 @@ function renderPage(
         recentSearches={viewState.recentSearches}
         cutNotice={viewState.cutNotice}
         queue={queue}
+        cutMode={viewState.selectedCutMode}
         onSearch={handlers.search}
         onSelectMaterial={handlers.selectMaterial}
         onSelectTranscriptSegment={handlers.selectTranscriptSegment}
@@ -680,14 +725,20 @@ function renderPage(
         onCutSelection={handlers.addSelectedSpan}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
-        onSetSourceFilter={handlers.setSourceFilter}
-        onSetOrientationFilter={handlers.setOrientationFilter}
+        onSetCutMode={handlers.setCutMode}
       />
     );
   }
 
   if (route === "local-library") {
-    return <LocalLibraryPage catalog={data.localClips} query="" />;
+    return (
+      <LocalLibraryPage
+        catalog={data.localClips}
+        query=""
+        selectedLocalClipId={viewState.localLibrarySelectedClipId}
+        onSelectLocalClip={handlers.selectLocalClip}
+      />
+    );
   }
 
   if (route === "cut-tasks") {
@@ -712,7 +763,13 @@ function renderPage(
         runtimeStatus={data.runtimeStatus}
         apiBaseUrl={viewState.apiBaseUrl}
         appearanceMode={viewState.appearanceMode}
+        defaultCutMode={viewState.selectedCutMode}
+        defaultSourceFilter={viewState.sourceFilter}
+        defaultOrientationFilter={viewState.orientationFilter}
         onSetAppearanceMode={handlers.setAppearanceMode}
+        onSetDefaultCutMode={handlers.setCutMode}
+        onSetDefaultSourceFilter={handlers.setSourceFilter}
+        onSetDefaultOrientationFilter={handlers.setOrientationFilter}
       />
     );
   }
@@ -737,8 +794,14 @@ export function CutterApp() {
     sourceDetailContextFromHash(window.location.hash)
   );
   const [selectedLocalClipId, setSelectedLocalClipId] = useState<string | undefined>();
-  const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>("all");
-  const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>("all");
+  const [localLibrarySelectedClipId, setLocalLibrarySelectedClipId] = useState<string | undefined>();
+  const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>(() =>
+    readCutterDefaultSourceFilter()
+  );
+  const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>(() =>
+    readCutterDefaultOrientationFilter()
+  );
+  const [selectedCutMode, setSelectedCutMode] = useState<CutMode>(() => readCutterDefaultCutMode());
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
   const [locatorCurrentHitIndex, setLocatorCurrentHitIndex] = useState(0);
@@ -1424,6 +1487,24 @@ export function CutterApp() {
     writeCutterAppearanceMode(mode);
   };
 
+  const handleSetCutMode = (mode: CutMode) => {
+    const supportedMode = mode === "precise" ? "precise" : "copy";
+    setSelectedCutMode(supportedMode);
+    writeCutterDefaultCutMode(supportedMode);
+  };
+
+  const handleSetSourceFilter = (filter: MaterialSearchSourceFilter) => {
+    const supportedFilter = normalizeMaterialSearchSourceFilter(filter);
+    setSourceFilter(supportedFilter);
+    writeCutterDefaultSourceFilter(supportedFilter);
+  };
+
+  const handleSetOrientationFilter = (filter: VideoOrientationFilter) => {
+    const supportedFilter = normalizeVideoOrientationFilter(filter);
+    setOrientationFilter(supportedFilter);
+    writeCutterDefaultOrientationFilter(supportedFilter);
+  };
+
   function performMaterialSearch(query: string) {
     const nextQuery = query.trim();
     setSearchQuery(nextQuery);
@@ -1468,7 +1549,7 @@ export function CutterApp() {
       const item = createCutListItemFromSegments({
         sourceVideo: selectedDetail,
         segments: selectedTranscriptSegments,
-        cutMode: data.settings.default_cut_mode,
+        cutMode: selectedCutMode,
         order: visibleCutList.length + 1,
         title: `${selectedDetail.title} 片段`
       });
@@ -1643,8 +1724,10 @@ export function CutterApp() {
     cancelTranscriptSelection() {
       setTranscriptSelection({});
     },
-    setSourceFilter,
-    setOrientationFilter,
+    setSourceFilter: handleSetSourceFilter,
+    setOrientationFilter: handleSetOrientationFilter,
+    setCutMode: handleSetCutMode,
+    selectLocalClip: setLocalLibrarySelectedClipId,
     renameProject: handleRenameProject,
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
@@ -1810,8 +1893,11 @@ export function CutterApp() {
       }
 
       try {
-        await client.openCutOutputDirectory();
-        setCutNotice("已打开文件目录");
+        await client.openCutOutputDirectory({
+          ...(currentProjectId ? { project_id: currentProjectId } : {}),
+          ...(currentProject ? { project_title: projectDisplayTitle(currentProject) } : {})
+        });
+        setCutNotice("已打开项目视频目录");
       } catch (openError) {
         setError(openError instanceof Error ? openError.message : "打开文件目录失败");
       }
@@ -1937,6 +2023,7 @@ export function CutterApp() {
                     currentHitSegmentId,
                     globalHitCount,
                     selectedMaterialKey,
+                    localLibrarySelectedClipId,
                     recentSearches:
                       route === "project-home" ? recentMaterialSearches : projectRecentMaterialSearches,
                     selectedSegments: selectedTranscriptSegments,
@@ -1952,7 +2039,8 @@ export function CutterApp() {
                     lastQueueUpdatedLabel,
                     cutPipelineState,
                     apiBaseUrl,
-                    appearanceMode
+                    appearanceMode,
+                    selectedCutMode
                   },
                   handlers
                 )

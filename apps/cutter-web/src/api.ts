@@ -162,6 +162,24 @@ export interface CreateClipListRequest {
 }
 
 export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
+export type CutJobPhaseId =
+  | "queue_wait"
+  | "resolve_source"
+  | "cut_media"
+  | "write_project_output"
+  | "preprocess_local_asset"
+  | "generate_cover"
+  | "write_manifest";
+export type CutJobPhaseStatus = "pending" | "running" | "done" | "failed";
+
+export interface CutJobPhaseTiming {
+  phase_id: CutJobPhaseId;
+  label: string;
+  status: CutJobPhaseStatus;
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+}
 
 export interface CutJob {
   cut_job_id: string;
@@ -182,6 +200,8 @@ export interface CutJob {
   selected_text?: string;
   cut_mode?: CutMode;
   status: CutJobStatus;
+  current_phase?: CutJobPhaseId;
+  phase_timings?: CutJobPhaseTiming[];
   created_at?: string;
   updated_at?: string;
   started_at?: string;
@@ -207,6 +227,11 @@ export interface SubmitCutJobsRequest {
 
 export interface OpenCutOutputDirectoryResult {
   path: string;
+}
+
+export interface OpenCutOutputDirectoryRequest {
+  project_id?: string;
+  project_title?: string;
 }
 
 export interface DeleteProjectOutputsResult {
@@ -339,7 +364,7 @@ export interface CutterApiClient {
   listCutJobs(): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
   retryCutJob(cutJobId: string): Promise<CutJob>;
-  openCutOutputDirectory(): Promise<OpenCutOutputDirectoryResult>;
+  openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
   deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
 }
@@ -503,7 +528,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
             end_segment_id: request.end_segment_id,
             pre_roll_ms: request.pre_roll_ms ?? 0,
             post_roll_ms: request.post_roll_ms ?? 0,
-            cut_mode: request.cut_mode ?? "smart",
+            cut_mode: request.cut_mode ?? "copy",
             ...(request.title ? { title: request.title } : {})
           })
         }
@@ -573,13 +598,14 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    openCutOutputDirectory() {
+    openCutOutputDirectory(request = {}) {
       return requestEnvelope<OpenCutOutputDirectoryResult>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/workspace/open-export-directory"),
         {
           method: "POST",
-          headers: protectedHeaders
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
         }
       );
     },

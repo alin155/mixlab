@@ -1125,7 +1125,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
   }
 });
 
-test("opens the workspace export clips directory for cutters", async () => {
+test("opens the current project output directory for cutters", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-open-"));
@@ -1152,11 +1152,18 @@ test("opens the workspace export clips directory for cutters", async () => {
 
     const response = await fetch(`${baseUrl}/cutter/workspace/open-export-directory`, {
       method: "POST",
-      headers
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        project_id: "P20260506-aaa",
+        project_title: "5月6日"
+      })
     });
     assert.equal(response.status, 200);
     const body = await response.json() as any;
-    const expectedPath = path.join(workspaceRoot, "export-clips");
+    const expectedPath = path.join(workspaceRoot, "projects", "5月6日");
     assert.equal(body.data.path, expectedPath);
     assert.deepEqual(openedPaths, [expectedPath]);
     assert.equal(await fileOrDirExists(expectedPath), true);

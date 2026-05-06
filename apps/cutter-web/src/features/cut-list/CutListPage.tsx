@@ -2,6 +2,18 @@ import { InspectorPanel, SourceTable } from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import type { CutListItem } from "../../state/cut-list.ts";
 
+function cutModeLabel(mode: CutListItem["cut_mode"]): string {
+  if (mode === "copy") {
+    return "极速剪切";
+  }
+
+  if (mode === "precise") {
+    return "精准剪切";
+  }
+
+  return "智能剪切";
+}
+
 export function CutListPage({
   items,
   onMove,
@@ -20,7 +32,7 @@ export function CutListPage({
     item.source_title,
     `${formatDuration(item.begin_ms)} - ${formatDuration(item.end_ms)}`,
     item.selected_text,
-    item.cut_mode,
+    cutModeLabel(item.cut_mode),
     <span className="cutter-row-actions">
       <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "up")}>
         上移
@@ -59,7 +71,7 @@ export function CutListPage({
       <InspectorPanel title="提交设置">
         <div className="cutter-inspector-stack">
           <strong>{items.length} 个待剪片段</strong>
-          <span>默认模式 smart，可在每条任务上覆盖。</span>
+          <span>默认模式为极速剪切，可在每条任务上覆盖。</span>
           <span>提交后进入本地剪切队列，不阻塞搜索和继续选段。</span>
         </div>
       </InspectorPanel>

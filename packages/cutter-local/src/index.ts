@@ -47,6 +47,9 @@ export {
 } from "./project-cleanup.ts";
 export type {
   CutJobCatalog,
+  CutJobPhaseId,
+  CutJobPhaseStatus,
+  CutJobPhaseTiming,
   CutJobManifest,
   CutJobSourceDetail,
   CutJobStatus,

@@ -292,7 +292,6 @@ test("project home renders search-first startup, recent projects, and project de
   for (const text of [
     "开始搜索",
     "搜索文案关键词或粘贴爆款文案",
-    "选项",
     "最近项目",
     "5月5日",
     "已剪 1",
@@ -301,7 +300,7 @@ test("project home renders search-first startup, recent projects, and project de
     "进入项目",
     "删除项目"
   ]) {
-    assert.match(html, new RegExp(text));
+    assert.ok(html.includes(text), text);
   }
 
   assert.match(html, /data-page="project-home"/);
@@ -310,6 +309,9 @@ test("project home renders search-first startup, recent projects, and project de
   assert.equal(html.includes("最近搜索"), false);
   assert.equal(html.includes("最近搜索："), false);
   assert.equal(html.includes("未完成 1 · 已交付 0"), false);
+  assert.equal(html.includes("选项"), false);
+  assert.equal(html.includes("素材来源"), false);
+  assert.equal(html.includes("视频类型"), false);
   assert.match(html, /已剪片段<\/dt><dd>1 个/);
 });
 
@@ -589,13 +591,15 @@ test("material locator is the main search-select-cut workbench with local result
       ],
       cutNotice: "已加入剪切任务 · 等待中 1",
       queue: data.queue,
+      cutMode: "copy",
       onSearch: () => undefined,
       onSelectMaterial: () => undefined,
       onSelectTranscriptSegment: () => undefined,
       onNavigateHit: () => undefined,
       onCutSelection: () => undefined,
       onCancelSelection: () => undefined,
-      onOpenCutOutputDirectory: () => undefined
+      onOpenCutOutputDirectory: () => undefined,
+      onSetCutMode: () => undefined
     })
   );
 
@@ -603,9 +607,6 @@ test("material locator is the main search-select-cut workbench with local result
     "素材定位",
     "开始搜索",
     "搜索文案关键词或粘贴爆款文案",
-    "选项",
-    "素材来源",
-    "视频类型",
     "候选素材",
     "搜索记录 · 2次",
     "老师",
@@ -613,18 +614,19 @@ test("material locator is the main search-select-cut workbench with local result
     "本地素材",
     "公共原素材",
     "横版",
-    "竖版",
     "视频文案",
     "命中 1 / 3",
     "上一个",
     "下一个",
+    "极速剪切",
+    "精准剪切",
     "剪切这段",
     "已加入剪切任务 · 等待中 1",
     "剪切队列",
     "查看全部任务",
     "打开文件目录"
   ]) {
-    assert.match(html, new RegExp(text));
+    assert.ok(html.includes(text), text);
   }
 
   assert.ok(html.indexOf("查看全部任务") < html.indexOf("打开文件目录"));
@@ -632,8 +634,14 @@ test("material locator is the main search-select-cut workbench with local result
   assert.equal(html.includes("待剪清单"), false);
   assert.equal(html.includes("搜索定位"), false);
   assert.equal(html.includes("候选素材 <span>·"), false);
-  assert.ok(html.indexOf("本地素材") < html.indexOf("公共原素材"));
+  const localCandidateSectionIndex = html.indexOf("<h2>本地素材</h2>");
+  const publicCandidateSectionIndex = html.indexOf("<h2>公共原素材</h2>");
+  assert.ok(localCandidateSectionIndex >= 0);
+  assert.ok(publicCandidateSectionIndex >= 0);
+  assert.ok(localCandidateSectionIndex < publicCandidateSectionIndex);
   assert.match(html, /cutter-locator-top-row/);
+  assert.equal(html.includes("流程明细"), false);
+  assert.equal(html.includes("cutter-locator-queue-phases"), false);
   assert.match(html, /cutter-locator-bottom-row/);
   assert.ok(html.indexOf("cutter-locator-command") < html.indexOf("cutter-locator-workbench"));
   assert.ok(html.indexOf("cutter-locator-status") < html.indexOf("cutter-locator-visual"));
@@ -650,29 +658,33 @@ test("material locator is the main search-select-cut workbench with local result
   assert.equal(html.includes("<h1>素材定位</h1>"), false);
   assert.equal(html.includes("完整文案"), false);
   assert.equal(html.includes("自然文案"), false);
+  assert.equal(html.includes("选项"), false);
+  assert.equal(html.includes("素材来源"), false);
+  assert.equal(html.includes("视频类型"), false);
   assert.equal(html.includes("<h2>画面验证</h2>"), false);
   assert.equal(html.includes("横版 · 29:50"), false);
   assert.equal(html.includes("<h2>剪切队列</h2>"), false);
   assert.equal(html.includes("剪切中 0 · 等待 1 · 完成 2 · 失败 0"), false);
   assert.equal(html.includes("cutter-locator-notice"), false);
-  assert.match(html, /现金流管理与风险控制 · 公共原素材 · 横版 · 10:18 · 文案 \d+ 字 · 命中 3 处/);
-  assert.match(html, new RegExp(`文案 ${publicTranscriptLength} 字`));
-  assert.match(html, /\d+ 处命中/);
-  assert.match(html, /cutter-locator-result is-selected/);
+  assert.ok(html.includes(`现金流管理与风险控制 · 公共原素材 · 横版 · 10:18 · 文案 ${publicTranscriptLength} 字 · 命中 3 处`));
+  assert.ok(html.includes(`文案 ${publicTranscriptLength} 字`));
+  assert.ok(html.includes("3 处命中"));
+  assert.ok(html.includes("cutter-locator-result is-selected"));
   assert.equal(html.includes("<em>"), false);
-  assert.match(html, /<select[^>]+name="sourceFilter"/);
-  assert.match(html, /<select[^>]+name="orientationFilter"/);
-  assert.match(html, /data-layout="search-select-cut"/);
-  assert.match(html, /data-page="material-locator"/);
-  assert.match(html, /<video/);
-  assert.match(html, /data-testid="locator-video"/);
-  assert.match(html, /data-testid="preview-selection"/);
-  assert.match(html, /cutter-floating-selection-bar/);
-  assert.match(html, /cutter-compact-selection-bar/);
-  assert.match(html, /已选 \d+ 秒/);
+  assert.equal(html.includes('name="sourceFilter"'), false);
+  assert.equal(html.includes('name="orientationFilter"'), false);
+  assert.ok(html.includes('data-layout="search-select-cut"'));
+  assert.ok(html.includes('data-page="material-locator"'));
+  assert.ok(html.includes("<video"));
+  assert.ok(html.includes('data-testid="locator-video"'));
+  assert.ok(html.includes('data-testid="preview-selection"'));
+  assert.ok(html.includes("cutter-floating-selection-bar"));
+  assert.ok(html.includes("cutter-compact-selection-bar"));
+  assert.ok(html.includes("已选 13 秒"));
   assert.equal(html.includes("已选中一段文案"), false);
-  assert.doesNotMatch(html, /cutter-selection-bar[\s\S]*现金流不是利润表的影子[\s\S]*preview-selection/);
-  assert.match(html, /暂停预览/);
+  assert.ok(html.indexOf("现金流不是利润表的影子") < html.indexOf("cutter-selection-bar"));
+  assert.ok(html.indexOf("cutter-selection-bar") < html.indexOf("preview-selection"));
+  assert.ok(html.includes("暂停预览"));
 });
 
 test("material locator prefers real media duration when browser metadata is available", () => {
@@ -1015,19 +1027,35 @@ test("cut list renders order, range, text, mode, reorder, delete, clear, and sub
   const data = fixture();
   const html = renderToStaticMarkup(h(CutListPage, { items: data.cutList }));
 
-  for (const text of ["待剪清单", "顺序", "时间段", "选中文案", "smart", "上移", "删除", "清空", "提交剪切队列"]) {
+  for (const text of ["待剪清单", "顺序", "时间段", "选中文案", "智能剪切", "上移", "删除", "清空", "提交剪切队列"]) {
     assert.match(html, new RegExp(text));
   }
 });
 
 test("local library is independent and exposes local recut materials with orientation filters", () => {
   const data = fixture();
-  const html = renderToStaticMarkup(h(LocalLibraryPage, { catalog: data.localClips, query: "现金流" }));
+  const html = renderToStaticMarkup(
+    h(LocalLibraryPage, {
+      catalog: data.localClips,
+      selectedLocalClipId: "clip-002",
+      onSelectLocalClip: () => undefined
+    })
+  );
 
-  for (const text of ["本地素材库", "本地可复剪素材", "全部", "横版", "竖版", "未知", "搜索本地素材", "打开视频", "显示文件夹", "再次选段", "来源追踪"]) {
+  for (const text of ["本地素材库", "本地可复剪素材", "全部", "横版", "竖版", "素材详情", "复盘方法三步"]) {
     assert.match(html, new RegExp(text));
   }
 
+  assert.match(html, /ml-gallery-grid/);
+  assert.match(html, /<video[^>]+src="\/local-clips\/clip-002\.mp4"/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.equal(html.includes("搜索本地素材"), false);
+  assert.equal(html.includes("打开视频"), false);
+  assert.equal(html.includes("显示文件夹"), false);
+  assert.equal(html.includes("再次选段"), false);
+  assert.equal(html.includes("来源追踪"), false);
+  assert.equal(html.includes("资源信息"), false);
+  assert.equal(html.includes("Local Clip"), false);
   assert.equal(html.includes("可用原素材"), false);
 });
 
@@ -1110,7 +1138,7 @@ test("cut tasks page names the current cutter project context", () => {
     })
   );
 
-  assert.match(html, /当前项目：现金流/);
+  assert.equal(html.includes("当前项目："), false);
   assert.match(html, /剪切任务/);
 });
 
@@ -1149,6 +1177,9 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
       runtimeStatus: data.runtimeStatus,
       apiBaseUrl: "http://127.0.0.1:3789",
       appearanceMode: "system",
+      defaultCutMode: "precise",
+      defaultSourceFilter: "all",
+      defaultOrientationFilter: "all",
       onSetAppearanceMode: () => undefined
     })
   );
@@ -1165,6 +1196,15 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
     "本地工作区",
     "FFmpeg",
     "默认剪切模式",
+    "极速剪切",
+    "精准剪切",
+    "默认素材来源",
+    "默认视频类型",
+    "全部",
+    "本地素材",
+    "公共原素材",
+    "横版",
+    "竖版",
     "显示模式",
     "跟随系统",
     "默认",
@@ -1176,6 +1216,8 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and D
   ]) {
     assert.match(html, new RegExp(text));
   }
+
+  assert.match(html, /aria-pressed="true"[^>]*>精准剪切/);
 });
 
 test("cutter app root applies the persisted display mode", () => {

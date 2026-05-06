@@ -1,5 +1,11 @@
+import { useEffect, useState } from "react";
 import { InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
-import type { CutQueueJob } from "../../state/cut-queue.ts";
+import {
+  cutQueueCurrentPhaseLabel,
+  cutQueueJobElapsedMs,
+  formatCutQueueElapsed,
+  type CutQueueJob
+} from "../../state/cut-queue.ts";
 import {
   cutPipelineDetailLabel,
   cutPipelineStatusLabel,
@@ -63,13 +69,22 @@ export function CutQueuePage({
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
   const pipelineDetail = cutPipelineDetailLabel(pipelineState);
   const projectTitle = project ? projectDisplayTitle(project) : "";
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!jobs.some((job) => job.status === "pending" || job.status === "running")) {
+      return;
+    }
+
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [jobs]);
 
   return (
     <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
       <div className="cutter-page-main">
         <header className="cutter-page-header">
           <div>
-            <p className="cutter-eyebrow">{projectTitle ? `当前项目：${projectTitle}` : "本地执行"}</p>
             <h1>剪切任务</h1>
             <p>
               {projectTitle
@@ -131,6 +146,8 @@ export function CutQueuePage({
               label={labelForStatus(job.status)}
               detail={[
                 job.title,
+                `当前流程：${cutQueueCurrentPhaseLabel(job)}`,
+                `已耗时：${formatCutQueueElapsed(cutQueueJobElapsedMs(job, nowMs))}`,
                 job.selected_text ? `选中文案：${job.selected_text}` : "",
                 job.status === "failed" && job.error_message ? `失败原因：${job.error_message}` : ""
               ]

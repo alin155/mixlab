@@ -2,8 +2,6 @@ import { useState, type ChangeEvent, type FormEvent } from "react";
 import type { LocalClipCatalog, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
-import type { MaterialSearchSourceFilter } from "../../state/material-locator.ts";
-import type { VideoOrientationFilter } from "../../state/video-orientation.ts";
 
 export type ProjectDeleteMode = "remove" | "delete-with-outputs";
 
@@ -36,18 +34,6 @@ export function projectCompletedClipCount(project: CutterProject, queue: readonl
 
   return projectJobs.filter((job) => job.status === "done").length;
 }
-
-const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "local", label: "本地素材" },
-  { value: "public", label: "公共原素材" }
-];
-
-const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "landscape", label: "横版" },
-  { value: "portrait", label: "竖版" }
-];
 
 export function ProjectDeleteDialog({
   project,
@@ -124,11 +110,7 @@ export function ProjectHomePage({
   projects,
   selectedProjectId,
   queue = [],
-  sourceFilter = "all",
-  orientationFilter = "all",
   onSearch,
-  onSetSourceFilter,
-  onSetOrientationFilter,
   onSelectProject,
   onOpenProject,
   onRenameProject,
@@ -139,11 +121,7 @@ export function ProjectHomePage({
   projects: readonly CutterProject[];
   selectedProjectId?: string;
   queue?: readonly CutQueueJob[];
-  sourceFilter?: MaterialSearchSourceFilter;
-  orientationFilter?: VideoOrientationFilter;
   onSearch?: (query: string) => void;
-  onSetSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
-  onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
   onSelectProject?: (projectId: string) => void;
   onOpenProject?: (projectId: string) => void;
   onRenameProject?: (projectId: string) => void;
@@ -199,39 +177,6 @@ export function ProjectHomePage({
             <button className="cutter-primary-button" type="submit">
               搜索
             </button>
-            <details className="cutter-search-options">
-              <summary>选项</summary>
-              <div>
-                <label className="cutter-filter-select">
-                  <span>素材来源</span>
-                  <select
-                    name="sourceFilter"
-                    value={sourceFilter}
-                    onChange={(event) => onSetSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)}
-                  >
-                    {sourceFilterOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="cutter-filter-select">
-                  <span>视频类型</span>
-                  <select
-                    name="orientationFilter"
-                    value={orientationFilter}
-                    onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
-                  >
-                    {orientationFilterOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </details>
           </form>
         </section>
 

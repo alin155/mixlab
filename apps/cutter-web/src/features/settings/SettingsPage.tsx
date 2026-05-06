@@ -5,19 +5,51 @@ import {
   appearanceModeLabel,
   type CutterAppearanceMode
 } from "../../state/appearance.ts";
+import type { CutMode } from "../../state/cut-list.ts";
+import type { MaterialSearchSourceFilter } from "../../state/material-locator.ts";
+import type { VideoOrientationFilter } from "../../state/video-orientation.ts";
+
+const defaultCutModeOptions: Array<{ value: CutMode; label: string }> = [
+  { value: "copy", label: "极速剪切" },
+  { value: "precise", label: "精准剪切" }
+];
+
+const sourceFilterOptions: Array<{ value: MaterialSearchSourceFilter; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "local", label: "本地素材" },
+  { value: "public", label: "公共原素材" }
+];
+
+const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "landscape", label: "横版" },
+  { value: "portrait", label: "竖版" }
+];
 
 export function SettingsPage({
   settings,
   runtimeStatus,
   apiBaseUrl = "",
   appearanceMode,
-  onSetAppearanceMode
+  defaultCutMode = settings.default_cut_mode,
+  defaultSourceFilter = "all",
+  defaultOrientationFilter = "all",
+  onSetAppearanceMode,
+  onSetDefaultCutMode,
+  onSetDefaultSourceFilter,
+  onSetDefaultOrientationFilter
 }: {
   settings: CutterWorkbenchSettings;
   runtimeStatus?: CutterRuntimeStatus;
   apiBaseUrl?: string;
   appearanceMode: CutterAppearanceMode;
+  defaultCutMode?: CutMode;
+  defaultSourceFilter?: MaterialSearchSourceFilter;
+  defaultOrientationFilter?: VideoOrientationFilter;
   onSetAppearanceMode: (mode: CutterAppearanceMode) => void;
+  onSetDefaultCutMode?: (mode: CutMode) => void;
+  onSetDefaultSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
+  onSetDefaultOrientationFilter?: (filter: VideoOrientationFilter) => void;
 }) {
   const runtimeGroup = runtimeStatus
     ? {
@@ -64,14 +96,69 @@ export function SettingsPage({
               title: "素材与工作区",
               rows: [
                 { label: "公共素材库挂载", value: settings.public_library_mount },
-                { label: "本地工作区", value: settings.local_workspace }
+                { label: "本地工作区", value: settings.local_workspace },
+                {
+                  label: "默认素材来源",
+                  value: (
+                    <select
+                      className="cutter-appearance-select"
+                      name="defaultSourceFilter"
+                      value={defaultSourceFilter}
+                      onChange={(event) =>
+                        onSetDefaultSourceFilter?.(event.currentTarget.value as MaterialSearchSourceFilter)
+                      }
+                    >
+                      {sourceFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )
+                },
+                {
+                  label: "默认视频类型",
+                  value: (
+                    <select
+                      className="cutter-appearance-select"
+                      name="defaultOrientationFilter"
+                      value={defaultOrientationFilter}
+                      onChange={(event) =>
+                        onSetDefaultOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)
+                      }
+                    >
+                      {orientationFilterOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )
+                }
               ]
             },
             {
               title: "剪切运行时",
               rows: [
                 { label: "FFmpeg", value: settings.ffmpeg_path },
-                { label: "默认剪切模式", value: settings.default_cut_mode },
+                {
+                  label: "默认剪切模式",
+                  value: (
+                    <div className="cutter-cut-mode-toggle cutter-settings-cut-mode-toggle" role="group" aria-label="默认剪切模式">
+                      {defaultCutModeOptions.map((option) => (
+                        <button
+                          className={defaultCutMode === option.value ? "is-active" : ""}
+                          type="button"
+                          key={option.value}
+                          aria-pressed={defaultCutMode === option.value}
+                          onClick={() => onSetDefaultCutMode?.(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                },
                 { label: "并发数", value: settings.concurrency },
                 { label: "音频预处理", value: settings.audio_mode },
                 {

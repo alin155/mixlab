@@ -1,4 +1,4 @@
-import type { CutJob, CutJobCatalog } from "../api.ts";
+import type { CutJob, CutJobCatalog, CutJobPhaseId, CutJobPhaseTiming } from "../api.ts";
 import type { CutListItem, CutMode } from "./cut-list.ts";
 import {
   normalizedMaterialTitlePart,
@@ -21,8 +21,13 @@ export interface CutQueueJob {
   selected_text: string;
   cut_mode: CutMode;
   status: CutQueueStatus;
+  current_phase?: CutJobPhaseId;
+  phase_timings?: CutJobPhaseTiming[];
   progress: number;
   created_at: string;
+  updated_at?: string;
+  started_at?: string;
+  finished_at?: string;
   error_message?: string;
 }
 
@@ -38,6 +43,15 @@ export interface CutJobProjectIndex {
 }
 
 export const CUT_JOB_PROJECT_INDEX_STORAGE_KEY = "mixlab.cutter.cutJobProjectIndex";
+export const CUT_QUEUE_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
+  { phase_id: "queue_wait", label: "排队等待" },
+  { phase_id: "resolve_source", label: "读取源素材" },
+  { phase_id: "cut_media", label: "剪切/重编码" },
+  { phase_id: "write_project_output", label: "写入交付目录" },
+  { phase_id: "preprocess_local_asset", label: "本地素材预处理" },
+  { phase_id: "generate_cover", label: "生成封面" },
+  { phase_id: "write_manifest", label: "写入清单" }
+];
 
 export function emptyCutJobProjectIndex(): CutJobProjectIndex {
   return {
@@ -93,6 +107,107 @@ export function writeCutJobProjectIndex(index: CutJobProjectIndex): void {
   } catch {
     // Storage is best-effort; queue rendering can still continue without persistence.
   }
+}
+
+function safeTimestampMs(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+export function initialCutQueuePhaseTimings(createdAt: string): CutJobPhaseTiming[] {
+  return CUT_QUEUE_PHASES.map((phase, index) => ({
+    ...phase,
+    status: index === 0 ? "running" : "pending",
+    ...(index === 0 ? { started_at: createdAt } : {})
+  }));
+}
+
+export function cutQueuePhaseTimeline(job: CutQueueJob): CutJobPhaseTiming[] {
+  if (job.phase_timings?.length) {
+    return job.phase_timings;
+  }
+
+  if (job.status === "done") {
+    return CUT_QUEUE_PHASES.map((phase) => ({
+      ...phase,
+      status: "done"
+    }));
+  }
+
+  if (job.status === "failed") {
+    return CUT_QUEUE_PHASES.map((phase, index) => ({
+      ...phase,
+      status: index === 0 ? "failed" : "pending"
+    }));
+  }
+
+  if (job.status === "running") {
+    return CUT_QUEUE_PHASES.map((phase) => ({
+      ...phase,
+      status: phase.phase_id === "cut_media" ? "running" : phase.phase_id === "queue_wait" ? "done" : "pending",
+      ...(phase.phase_id === "cut_media" ? { started_at: job.started_at ?? job.updated_at ?? job.created_at } : {})
+    }));
+  }
+
+  return initialCutQueuePhaseTimings(job.created_at);
+}
+
+export function cutQueuePhaseStatusLabel(status: CutJobPhaseTiming["status"]): string {
+  switch (status) {
+    case "running":
+      return "进行中";
+    case "done":
+      return "完成";
+    case "failed":
+      return "失败";
+    case "pending":
+      return "等待";
+  }
+}
+
+export function cutQueueCurrentPhaseLabel(job: CutQueueJob): string {
+  if (job.status === "done") {
+    return "已完成";
+  }
+
+  if (job.status === "pending") {
+    return "排队等待";
+  }
+
+  const currentPhaseId = job.current_phase;
+  const currentPhase = cutQueuePhaseTimeline(job).find((phase) => phase.phase_id === currentPhaseId);
+  return currentPhase?.label ?? (job.status === "failed" ? "失败" : "剪切中");
+}
+
+export function cutQueuePhaseElapsedMs(phase: CutJobPhaseTiming, nowMs: number): number {
+  const startedAt = safeTimestampMs(phase.started_at);
+  if (startedAt === undefined) {
+    return 0;
+  }
+
+  const finishedAt = safeTimestampMs(phase.finished_at) ?? nowMs;
+  return Math.max(0, finishedAt - startedAt);
+}
+
+export function cutQueueJobElapsedMs(job: CutQueueJob, nowMs: number): number {
+  const startedAt = safeTimestampMs(job.started_at) ?? safeTimestampMs(job.created_at);
+  if (startedAt === undefined) {
+    return 0;
+  }
+
+  const finishedAt = safeTimestampMs(job.finished_at) ?? nowMs;
+  return Math.max(0, finishedAt - startedAt);
+}
+
+export function formatCutQueueElapsed(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function cutSequenceLabel(value: number | undefined, fallback: number): string {
@@ -152,6 +267,8 @@ export function createQueueJobsFromCutList(
         selected_text: item.selected_text,
         cut_mode: item.cut_mode,
         status: "pending" as const,
+        current_phase: "queue_wait" as const,
+        phase_timings: initialCutQueuePhaseTimings(createdAt),
         progress: 0,
         created_at: createdAt
       };
@@ -236,12 +353,18 @@ export function updateQueueJobStatus(
   );
 }
 
-function progressForApiStatus(status: CutJob["status"]): number {
-  if (status === "done") {
+function progressForApiJob(job: CutJob): number {
+  if (job.status === "done") {
     return 100;
   }
 
-  if (status === "running") {
+  if (job.phase_timings?.length) {
+    const done = job.phase_timings.filter((phase) => phase.status === "done").length;
+    const running = job.phase_timings.some((phase) => phase.status === "running") ? 0.5 : 0;
+    return Math.round(((done + running) / CUT_QUEUE_PHASES.length) * 100);
+  }
+
+  if (job.status === "running") {
     return 50;
   }
 
@@ -256,6 +379,10 @@ export interface MapApiCutJobsInput {
 }
 
 function projectIdForApiCutJob(job: CutJob, input: MapApiCutJobsInput): string | undefined {
+  if (job.project_id) {
+    return job.project_id;
+  }
+
   if (input.projectId) {
     return input.projectId;
   }
@@ -306,10 +433,15 @@ export function mapApiCutJobsToQueueJobs(
         end_ms: endMs,
         duration_ms: Math.max(0, endMs - beginMs),
         selected_text: job.selected_text ?? "",
-        cut_mode: job.cut_mode ?? "smart",
+        cut_mode: job.cut_mode ?? "copy",
         status: job.status,
-        progress: progressForApiStatus(job.status),
+        current_phase: job.current_phase,
+        phase_timings: job.phase_timings,
+        progress: progressForApiJob(job),
         created_at: job.created_at ?? "",
+        updated_at: job.updated_at,
+        started_at: job.started_at,
+        finished_at: job.finished_at,
         ...(job.error_message ? { error_message: job.error_message } : {})
       };
     });
