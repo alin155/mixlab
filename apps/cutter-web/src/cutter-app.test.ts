@@ -76,7 +76,10 @@ import {
 } from "./app/navigation.ts";
 import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList, type CutQueueJob } from "./state/cut-queue.ts";
-import { buildMaterialLocatorSections } from "./state/material-locator.ts";
+import {
+  buildMaterialLocatorSections,
+  localClipToSourceVideoDetail
+} from "./state/material-locator.ts";
 import { CUTTER_APPEARANCE_STORAGE_KEY } from "./state/appearance.ts";
 import type { CutterProject } from "./state/cutter-projects.ts";
 
@@ -894,6 +897,27 @@ test("material locator candidate focus highlights hits without creating a cut se
   assert.equal(html.includes("cutter-floating-selection-bar"), false);
 });
 
+test("material locator auto seek key is stable for recreated local clip details", async () => {
+  const data = fixture();
+  const localClip = data.localClips.clips[0]!;
+  const firstDetail = localClipToSourceVideoDetail(localClip);
+  const recreatedDetail = localClipToSourceVideoDetail(localClip);
+  const firstSegmentId = firstDetail.transcript.segments[0]!.segment_id;
+  const otherSegmentId = `${firstSegmentId}-other`;
+  const materialLocatorModule = (await import("./features/material-locator/MaterialLocatorPage.tsx")) as any;
+
+  assert.notEqual(firstDetail, recreatedDetail);
+  assert.equal(typeof materialLocatorModule.materialLocatorAutoSeekKey, "function");
+  assert.equal(
+    materialLocatorModule.materialLocatorAutoSeekKey(firstDetail, firstSegmentId),
+    materialLocatorModule.materialLocatorAutoSeekKey(recreatedDetail, firstSegmentId)
+  );
+  assert.notEqual(
+    materialLocatorModule.materialLocatorAutoSeekKey(firstDetail, firstSegmentId),
+    materialLocatorModule.materialLocatorAutoSeekKey(firstDetail, otherSegmentId)
+  );
+});
+
 test("material locator floating selection toolbar is compact instead of a blocking overlay", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
   const compactRule = css.match(/\.cutter-compact-selection-bar\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
@@ -906,6 +930,16 @@ test("material locator floating selection toolbar is compact instead of a blocki
   assert.match(anchoredRule, /height:\s*auto/);
   assert.match(anchoredRule, /margin:\s*0/);
   assert.match(responsiveRule, /width:\s*calc\(100vw - 32px\)/);
+});
+
+test("material locator floating selection bar uses theme colors in dark mode", async () => {
+  const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
+  const compactRule = css.match(/\.cutter-compact-selection-bar\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+
+  assert.match(compactRule, /color:\s*var\(--ml-color-text\)/);
+  assert.match(compactRule, /background:\s*var\(--ml-color-surface\)/);
+  assert.match(compactRule, /box-shadow:\s*var\(--ml-shadow-panel\)/);
+  assert.equal(compactRule.includes("rgba(255, 255, 255"), false);
 });
 
 test("material locator keeps search and review areas fixed while transcript scrolls independently", async () => {
@@ -1096,6 +1130,7 @@ test("local library is independent and exposes local recut materials with orient
   assert.equal(html.includes("资源信息"), false);
   assert.equal(html.includes("Local Clip"), false);
   assert.equal(html.includes("可用原素材"), false);
+  assert.equal(html.includes('<span class="ml-tag">本地可复剪素材</span>'), false);
 
   const allHtml = renderToStaticMarkup(
     h(LocalLibraryPage, {
@@ -1405,14 +1440,48 @@ test("cutter appearance CSS scopes dark light and system modes without filtering
   const systemDarkRule = css.match(/@media \(prefers-color-scheme: dark\)\s*{\s*\.cutter-app\[data-appearance-mode="system"\]\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
   const mediaRules = Array.from(css.matchAll(/\.cutter-app\[data-appearance-mode="(?:dark|light|system)"\]\s+(?:video|img)[^{]*{(?<body>[^}]+)}/g));
 
+  assert.match(appRule, /color:\s*var\(--ml-color-text\)/);
   assert.match(appRule, /background:\s*var\(--ml-color-canvas\)/);
   assert.match(darkRule, /--ml-color-canvas:\s*#14161a/);
+  assert.match(darkRule, /--ml-color-text:\s*#b8c0cc/);
+  assert.match(darkRule, /--ml-color-text-secondary:\s*#8f9aaa/);
+  assert.match(darkRule, /--ml-color-text-tertiary:\s*#697382/);
   assert.match(darkRule, /color-scheme:\s*dark/);
   assert.match(lightRule, /--ml-color-canvas:\s*#f6f8fb/);
   assert.match(systemDarkRule, /--ml-color-canvas:\s*#14161a/);
+  assert.match(systemDarkRule, /--ml-color-text:\s*#b8c0cc/);
+  assert.match(systemDarkRule, /--ml-color-text-secondary:\s*#8f9aaa/);
+  assert.match(systemDarkRule, /--ml-color-text-tertiary:\s*#697382/);
+  assert.equal(darkRule.includes("#f2f4f7"), false);
   assert.equal(css.includes('data-appearance-mode="night"'), false);
   assert.equal(css.includes('data-appearance-mode="comfort"'), false);
   assert.equal(mediaRules.some((match) => match.groups?.body.includes("filter")), false);
+});
+
+test("cutter dark theme overrides foundation light surfaces with theme tokens", async () => {
+  const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.cutter-app \.ml-window-chrome\s*{[^}]*background:\s*var\(--ml-color-window\)/s);
+  assert.match(css, /\.cutter-app \.ml-inspector\s*{[^}]*background:\s*var\(--ml-color-surface\)/s);
+  assert.match(css, /\.cutter-app \.ml-sidebar-item\.is-active\s*{[^}]*background:\s*var\(--ml-color-control-active\)/s);
+  assert.match(css, /\.cutter-app \.ml-segmented\s*{[^}]*background:\s*var\(--ml-color-control\)/s);
+  assert.match(css, /\.cutter-app \.ml-tag\s*{[^}]*color:\s*var\(--ml-color-text-secondary\)[^}]*background:\s*var\(--ml-color-control\)/s);
+  assert.match(css, /\.cutter-video-empty\s*{[^}]*background:\s*var\(--ml-color-surface-subtle\)/s);
+  assert.match(css, /\.cutter-natural-transcript p span\.is-highlighted\s*{[^}]*background:\s*var\(--ml-color-hit\)/s);
+  assert.match(css, /\.cutter-locator-result\.is-selected\s*{[^}]*background:\s*var\(--ml-color-control-active\)/s);
+  assert.equal(css.includes("background: #f7f8fa"), false);
+  assert.equal(css.includes("background: #fff4c2"), false);
+  assert.equal(css.includes("background: #dceeff"), false);
+});
+
+test("material locator candidate covers fill their thumbnail slot", async () => {
+  const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
+  const coverRule = css.match(/\.cutter-locator-result img,\s*\.cutter-cover-placeholder\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+
+  assert.match(coverRule, /width:\s*54px/);
+  assert.match(coverRule, /height:\s*54px/);
+  assert.match(coverRule, /object-fit:\s*cover/);
+  assert.equal(coverRule.includes("aspect-ratio"), false);
 });
 
 test("cutter auth storage migrates legacy sessions without user id", () => {

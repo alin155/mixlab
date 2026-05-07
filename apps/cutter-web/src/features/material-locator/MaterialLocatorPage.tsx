@@ -90,6 +90,17 @@ export function materialLocatorDisplayDurationMs(
   return manifestDurationMs;
 }
 
+export function materialLocatorAutoSeekKey(
+  detail: SourceVideoDetail | undefined,
+  activeHitSegmentId: string | undefined
+): string | undefined {
+  if (!detail || !activeHitSegmentId) {
+    return undefined;
+  }
+
+  return [detail.source_video_id, detail.media_url, activeHitSegmentId].join(":");
+}
+
 const cutModeOptions: Array<{ value: CutMode; label: string }> = [
   { value: "copy", label: "极速剪切" },
   { value: "precise", label: "精准剪切" }
@@ -194,6 +205,7 @@ export function MaterialLocatorPage({
   const dragEndRef = useRef<string | null>(null);
   const suppressClickRef = useRef(false);
   const previewEndMsRef = useRef<number | null>(null);
+  const lastAutoSeekKeyRef = useRef<string | undefined>(undefined);
   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
   const [previewActive, setPreviewActive] = useState(false);
   const [mediaDurationMs, setMediaDurationMs] = useState<number | undefined>();
@@ -362,9 +374,17 @@ export function MaterialLocatorPage({
   }, [focusedDetail?.source_video_id, focusedDetail?.media_url, selectedMaterialKey]);
 
   useEffect(() => {
-    if (!activeHitSegmentId || !focusedDetail) {
+    const autoSeekKey = materialLocatorAutoSeekKey(focusedDetail, activeHitSegmentId);
+    if (!activeHitSegmentId || !focusedDetail || !autoSeekKey) {
+      lastAutoSeekKeyRef.current = undefined;
       return;
     }
+
+    if (lastAutoSeekKeyRef.current === autoSeekKey) {
+      return;
+    }
+
+    lastAutoSeekKeyRef.current = autoSeekKey;
 
     const currentHitNode = segmentRefs.current.get(activeHitSegmentId);
     currentHitNode?.scrollIntoView({ block: "center" });

@@ -116,8 +116,7 @@ export function LocalLibraryPage({
       meta: galleryMeta(clip),
       tags: [
         videoOrientationLabel(clip as LocalClipVisualMetadata),
-        projectTitleForClip(clip, projectById),
-        "本地可复剪素材"
+        projectTitleForClip(clip, projectById)
       ],
       description: clip.selected_text,
       selected: clip.local_clip_id === selected?.local_clip_id,
