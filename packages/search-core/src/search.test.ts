@@ -123,6 +123,73 @@ test("search matches long natural text across adjacent transcript segments", () 
   assert.equal(result.groups[0]?.best_excerpt, "现金流，是企业的血液。不是账面数字。");
 });
 
+test("search can anchor a long pasted query when its beginning is not in the transcript", () => {
+  const longIndex = buildTranscriptSearchIndex([
+    {
+      source_video_id: "V000020",
+      title: "平台合伙人课",
+      duration_ms: 3_600_000,
+      segments: [
+        {
+          segment_id: "V000020-S000001",
+          index: 0,
+          begin_ms: 100_000,
+          end_ms: 108_000,
+          begin_char: 0,
+          end_char: 30,
+          normalized_begin_char: 0,
+          normalized_end_char: 27,
+          text: "未来中国将走向一个阶段，叫企业平台化，员工老板创业化。",
+          normalized_text: "未来中国将走向一个阶段叫企业平台化员工老板创业化",
+          confidence: 0.96
+        },
+        {
+          segment_id: "V000020-S000002",
+          index: 1,
+          begin_ms: 108_000,
+          end_ms: 116_000,
+          begin_char: 30,
+          end_char: 62,
+          normalized_begin_char: 27,
+          normalized_end_char: 57,
+          text: "你要防备的是你的同行推出平台合伙人，把你的优质人才卷到他的平台上。",
+          normalized_text: "你要防备的是你的同行推出平台合伙人把你的优质人才卷到他的平台上",
+          confidence: 0.95
+        },
+        {
+          segment_id: "V000020-S000003",
+          index: 2,
+          begin_ms: 116_000,
+          end_ms: 124_000,
+          begin_char: 62,
+          end_char: 95,
+          normalized_begin_char: 57,
+          normalized_end_char: 89,
+          text: "所以我们再提出来叫做企业平台化，员工老板创业化。",
+          normalized_text: "所以我们再提出来叫做企业平台化员工老板创业化",
+          confidence: 0.94
+        }
+      ]
+    }
+  ]);
+
+  const result = searchTranscripts(longIndex, {
+    query:
+      "这段开头来自用户粘贴内容，但在素材转写里已经被剪掉了，还有几句话也没有被识别到。" +
+      "未来中国将走向一个阶段，叫企业平台化，员工老板创业化。你要防备的是你的同行推出平台合伙人，" +
+      "把你的优质人才卷到他的平台上。所以我们再提出来叫做企业平台化，员工老板创业化。",
+    limit: 20
+  });
+
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0]?.source_video_id, "V000020");
+  assert.deepEqual(
+    result.groups[0]?.hit_segments.map((segment) => segment.segment_id),
+    ["V000020-S000001", "V000020-S000002", "V000020-S000003"]
+  );
+  assert.equal(result.groups[0]?.hit_segments[0]?.match_type, "tolerant");
+});
+
 test("search tolerates one ASR-style character error in medium-length original text", () => {
   const result = searchTranscripts(index, {
     query: "现金流是企业的血夜",

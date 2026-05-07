@@ -2104,12 +2104,20 @@ button.cutter-inline-action {
 .cutter-task-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
+  gap: 12px;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid var(--ml-color-separator);
 }
 
-.cutter-task-tabs button {
+.cutter-task-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+}
+
+.cutter-task-tab-list button {
   display: inline-flex;
   gap: 7px;
   align-items: center;
@@ -2123,7 +2131,7 @@ button.cutter-inline-action {
   font-weight: 650;
 }
 
-.cutter-task-tabs button.is-active {
+.cutter-task-tab-list button.is-active {
   border-bottom-color: var(--ml-color-accent);
   color: var(--ml-color-accent);
 }
@@ -2141,6 +2149,11 @@ button.cutter-inline-action {
   background: var(--ml-color-control);
   font-size: 12px;
   line-height: 1;
+}
+
+.cutter-task-directory-action {
+  min-height: 34px;
+  padding-bottom: 8px;
 }
 
 .cutter-task-table-wrap {

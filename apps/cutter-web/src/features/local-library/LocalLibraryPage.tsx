@@ -58,6 +58,43 @@ function projectTitleForClip(
   return project ? projectDisplayTitle(project) : "未归属素材";
 }
 
+function projectRecencyForClip(
+  clip: LocalClip,
+  projectById: ReadonlyMap<string, CutterProject>
+): string {
+  if (!clip.project_id) {
+    return "";
+  }
+
+  const project = projectById.get(clip.project_id);
+  return project?.updated_at || project?.created_at || "";
+}
+
+function sortLocalProjectGroups(
+  groups: readonly [string, LocalClip[]][],
+  projectById: ReadonlyMap<string, CutterProject>
+): [string, LocalClip[]][] {
+  return [...groups].sort((left, right) => {
+    const leftProjectId = left[1][0]?.project_id;
+    const rightProjectId = right[1][0]?.project_id;
+    if (!leftProjectId && rightProjectId) {
+      return 1;
+    }
+    if (leftProjectId && !rightProjectId) {
+      return -1;
+    }
+
+    const recencyDiff = projectRecencyForClip(right[1][0]!, projectById).localeCompare(
+      projectRecencyForClip(left[1][0]!, projectById)
+    );
+    if (recencyDiff !== 0) {
+      return recencyDiff;
+    }
+
+    return left[0].localeCompare(right[0], "zh-Hans-CN");
+  });
+}
+
 export function LocalLibraryPage({
   catalog,
   query = "",
@@ -97,11 +134,14 @@ export function LocalLibraryPage({
     visible[0];
   const grouped =
     viewMode === "all"
-      ? [...visible.reduce<Map<string, LocalClip[]>>((groups, clip) => {
-          const title = projectTitleForClip(clip, projectById);
-          groups.set(title, [...(groups.get(title) ?? []), clip]);
-          return groups;
-        }, new Map()).entries()]
+      ? sortLocalProjectGroups(
+          [...visible.reduce<Map<string, LocalClip[]>>((groups, clip) => {
+            const title = projectTitleForClip(clip, projectById);
+            groups.set(title, [...(groups.get(title) ?? []), clip]);
+            return groups;
+          }, new Map()).entries()],
+          projectById
+        )
       : [];
   const currentProjectTitle =
     currentProjectId && projectById.has(currentProjectId)

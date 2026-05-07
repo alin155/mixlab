@@ -188,6 +188,69 @@ test("searches long natural text across adjacent SQLite transcript segments", as
   );
 });
 
+test("searches SQLite transcripts from a long pasted query with unmatched leading text", async () => {
+  const dbPath = await makeDbPath();
+  const longVideos = [
+    {
+      source_video_id: "V000020",
+      title: "平台合伙人课",
+      duration_ms: 3_600_000,
+      relative_path: "source-videos/平台合伙人.mp4",
+      cover_path: ".mixlab-library/videos/V000020/cover.jpg",
+      segments: [
+        segment({
+          source_video_id: "V000020",
+          index: 0,
+          begin_ms: 100_000,
+          end_ms: 108_000,
+          text: "未来中国将走向一个阶段，叫企业平台化，员工老板创业化。",
+          normalized_text: "未来中国将走向一个阶段叫企业平台化员工老板创业化"
+        }),
+        segment({
+          source_video_id: "V000020",
+          index: 1,
+          begin_ms: 108_000,
+          end_ms: 116_000,
+          text: "你要防备的是你的同行推出平台合伙人，把你的优质人才卷到他的平台上。",
+          normalized_text: "你要防备的是你的同行推出平台合伙人把你的优质人才卷到他的平台上"
+        }),
+        segment({
+          source_video_id: "V000020",
+          index: 2,
+          begin_ms: 116_000,
+          end_ms: 124_000,
+          text: "所以我们再提出来叫做企业平台化，员工老板创业化。",
+          normalized_text: "所以我们再提出来叫做企业平台化员工老板创业化"
+        })
+      ]
+    }
+  ];
+
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    library_id: "lib_main_001",
+    index_version: "v000001",
+    created_at: "2026-05-02T00:00:00Z",
+    videos: longVideos
+  });
+
+  const result = searchSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    query:
+      "这段开头来自用户粘贴内容，但在素材转写里已经被剪掉了，还有几句话也没有被识别到。" +
+      "未来中国将走向一个阶段，叫企业平台化，员工老板创业化。你要防备的是你的同行推出平台合伙人，" +
+      "把你的优质人才卷到他的平台上。所以我们再提出来叫做企业平台化，员工老板创业化。",
+    limit: 20
+  });
+
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0]?.source_video_id, "V000020");
+  assert.deepEqual(
+    result.groups[0]?.hit_segments.map((segment) => segment.segment_id),
+    ["V000020-S000001", "V000020-S000002", "V000020-S000003"]
+  );
+});
+
 test("searches SQLite transcripts with ASR-tolerant original text matching", async () => {
   const dbPath = await makeDbPath();
 

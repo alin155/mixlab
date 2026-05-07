@@ -75,6 +75,12 @@ interface RankedSearchGroup {
   sourceOrder: number;
 }
 
+const LONG_QUERY_ANCHOR_THRESHOLD = 80;
+const LONG_QUERY_MIN_ANCHOR_LENGTH = 14;
+const LONG_QUERY_MAX_ANCHOR_LENGTH = 32;
+const LONG_QUERY_MAX_ANCHORS = 8;
+const LONG_QUERY_MIN_GROUPED_ANCHORS = 2;
+
 function normalizedSegmentSpans(video: TranscriptSearchVideo): {
   text: string;
   spans: NormalizedSegmentSpan[];
@@ -273,6 +279,142 @@ function tolerantMatches(normalizedText: string, normalizedQuery: string): Trans
   return [...candidates.values()].sort((left, right) => right.score - left.score);
 }
 
+function longQueryAnchors(normalizedQuery: string): Array<{
+  text: string;
+  offset: number;
+}> {
+  if (normalizedQuery.length < LONG_QUERY_ANCHOR_THRESHOLD) {
+    return [];
+  }
+
+  const anchorLength = Math.min(
+    LONG_QUERY_MAX_ANCHOR_LENGTH,
+    Math.max(LONG_QUERY_MIN_ANCHOR_LENGTH, Math.floor(normalizedQuery.length / 6))
+  );
+  const maxStart = Math.max(0, normalizedQuery.length - anchorLength);
+  const stride = Math.max(1, Math.ceil(maxStart / Math.max(1, LONG_QUERY_MAX_ANCHORS - 1)));
+  const starts = new Set<number>();
+
+  for (let start = 0; start <= maxStart; start += stride) {
+    starts.add(start);
+  }
+  starts.add(maxStart);
+
+  const seen = new Set<string>();
+  return [...starts]
+    .sort((left, right) => left - right)
+    .map((offset) => ({
+      text: normalizedQuery.slice(offset, offset + anchorLength),
+      offset
+    }))
+    .filter((anchor) => {
+      if (anchor.text.length < LONG_QUERY_MIN_ANCHOR_LENGTH || seen.has(anchor.text)) {
+        return false;
+      }
+
+      seen.add(anchor.text);
+      return true;
+    });
+}
+
+function longQueryAnchorMatches(
+  normalizedText: string,
+  normalizedQuery: string
+): TranscriptMatch[] {
+  const anchors = longQueryAnchors(normalizedQuery);
+  const occurrences: Array<{
+    start: number;
+    end: number;
+    offset: number;
+    text: string;
+  }> = [];
+
+  for (const anchor of anchors) {
+    let cursor = 0;
+    while (cursor <= normalizedText.length - anchor.text.length) {
+      const start = normalizedText.indexOf(anchor.text, cursor);
+      if (start === -1) {
+        break;
+      }
+
+      occurrences.push({
+        start,
+        end: start + anchor.text.length,
+        offset: anchor.offset,
+        text: anchor.text
+      });
+      cursor = start + 1;
+    }
+  }
+
+  if (occurrences.length === 0) {
+    return [];
+  }
+
+  const orderedOccurrences = occurrences.sort((left, right) =>
+    left.offset - right.offset || left.start - right.start
+  );
+  const matches = new Map<string, TranscriptMatch>();
+
+  for (const first of orderedOccurrences) {
+    const group = [first];
+
+    for (const next of orderedOccurrences) {
+      const last = group[group.length - 1]!;
+      if (next.offset <= last.offset || next.start <= last.start) {
+        continue;
+      }
+
+      const queryDelta = next.offset - first.offset;
+      const textDelta = next.start - first.start;
+      const maxDrift = Math.max(10, Math.floor(queryDelta * 0.22));
+      if (Math.abs(queryDelta - textDelta) <= maxDrift) {
+        group.push(next);
+      }
+    }
+
+    if (group.length < LONG_QUERY_MIN_GROUPED_ANCHORS) {
+      continue;
+    }
+
+    const start = group[0]!.start;
+    const end = group[group.length - 1]!.end;
+    const key = `${start}:${end}`;
+    const matchedChars = group.reduce((count, anchor) => count + anchor.text.length, 0);
+    const score = 760_000 + group.length * 5_000 + matchedChars * 100 - start;
+    const previous = matches.get(key);
+
+    if (!previous || score > previous.score) {
+      matches.set(key, {
+        start,
+        end,
+        score,
+        type: "tolerant",
+        editDistance: Math.max(0, normalizedQuery.length - (end - start))
+      });
+    }
+  }
+
+  if (matches.size === 0) {
+    for (const occurrence of orderedOccurrences) {
+      if (occurrence.text.length < LONG_QUERY_MAX_ANCHOR_LENGTH) {
+        continue;
+      }
+
+      const key = `${occurrence.start}:${occurrence.end}`;
+      matches.set(key, {
+        start: occurrence.start,
+        end: occurrence.end,
+        score: 700_000 + occurrence.text.length * 100 - occurrence.start,
+        type: "tolerant",
+        editDistance: normalizedQuery.length - occurrence.text.length
+      });
+    }
+  }
+
+  return [...matches.values()].sort((left, right) => right.score - left.score);
+}
+
 function spansForMatch(
   spans: readonly NormalizedSegmentSpan[],
   match: TranscriptMatch,
@@ -324,6 +466,13 @@ function mergeOverlappingMatches(matches: readonly TranscriptMatch[]): Transcrip
 
 function findVideoMatches(normalizedText: string, normalizedQuery: string): TranscriptMatch[] {
   const exactMatches = allExactMatches(normalizedText, normalizedQuery);
+  if (normalizedQuery.length >= LONG_QUERY_ANCHOR_THRESHOLD) {
+    return mergeOverlappingMatches([
+      ...exactMatches,
+      ...longQueryAnchorMatches(normalizedText, normalizedQuery)
+    ]);
+  }
+
   const fuzzyMatches = tolerantMatches(normalizedText, normalizedQuery);
   return mergeOverlappingMatches([...exactMatches, ...fuzzyMatches]);
 }

@@ -53,6 +53,7 @@ import {
   materialLocatorSearchQueryForHashChange,
   materialFocusFromResult,
   mergeMaterialLocatorReloadData,
+  shouldAutofocusMaterialLocatorResult,
   shouldClearSessionForLoginStatusError,
   shouldPollPendingLogin,
   shouldRefreshCutQueueForRoute,
@@ -818,6 +819,54 @@ test("material locator data reload preserves the active search while focusing a 
   assert.equal(blankSearchMerged.search.groups.length, 0);
 });
 
+test("material locator requests deferred autofocus after async search targets arrive", () => {
+  assert.equal(
+    shouldAutofocusMaterialLocatorResult({
+      route: "material-locator",
+      query: "长文案命中",
+      selectedMaterialKey: undefined,
+      hitTargetCount: 1
+    }),
+    true
+  );
+  assert.equal(
+    shouldAutofocusMaterialLocatorResult({
+      route: "material-locator",
+      query: "长文案命中",
+      selectedMaterialKey: "public:V000033",
+      hitTargetCount: 1
+    }),
+    false
+  );
+  assert.equal(
+    shouldAutofocusMaterialLocatorResult({
+      route: "project-home",
+      query: "长文案命中",
+      selectedMaterialKey: undefined,
+      hitTargetCount: 1
+    }),
+    false
+  );
+  assert.equal(
+    shouldAutofocusMaterialLocatorResult({
+      route: "material-locator",
+      query: "   ",
+      selectedMaterialKey: undefined,
+      hitTargetCount: 1
+    }),
+    false
+  );
+  assert.equal(
+    shouldAutofocusMaterialLocatorResult({
+      route: "material-locator",
+      query: "长文案命中",
+      selectedMaterialKey: undefined,
+      hitTargetCount: 0
+    }),
+    false
+  );
+});
+
 test("material locator clears candidate, video, and transcript focus when no search is active", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
@@ -843,6 +892,56 @@ test("material locator clears candidate, video, and transcript focus when no sea
   assert.equal(html.includes("现金流不是利润表的影子。"), false);
   assert.equal(html.includes("现金流管理与风险控制"), false);
   assert.equal(html.includes("cutter-locator-result is-selected"), false);
+});
+
+test("material locator shows searching state before long text results return", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: data.localClips,
+      search: emptySearchResponse("长文案还在匹配"),
+      query: "长文案还在匹配",
+      sourceFilter: "all",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: undefined,
+      highlightedSegmentIds: [],
+      selectedSegments: [],
+      queue: [],
+      isSearching: true
+    })
+  );
+
+  assert.match(html, /正在匹配文案/);
+  assert.equal(html.includes("没有找到可选素材"), false);
+  assert.equal(html.includes("选择候选素材后，这里用于验证画面。"), false);
+  assert.equal(html.includes("点击候选素材后，这里会定位到命中文案并高亮显示。"), false);
+  assert.equal(html.includes("<video"), false);
+});
+
+test("material locator shows preview loading state after candidates return before focus settles", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: data.localClips,
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "public",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: undefined,
+      highlightedSegmentIds: [],
+      selectedSegments: [],
+      queue: []
+    })
+  );
+
+  assert.match(html, /正在加载预览/);
+  assert.equal(html.includes("没有找到可选素材"), false);
+  assert.equal(html.includes("选择候选素材后，这里用于验证画面。"), false);
+  assert.equal(html.includes("<video"), false);
 });
 
 test("material locator transcript renders as natural text with invisible segment mapping", () => {
@@ -1148,6 +1247,53 @@ test("local library is independent and exposes local recut materials with orient
   }
 });
 
+test("local library groups all materials by newest project first", () => {
+  const data = fixture();
+  const projects: CutterProject[] = [
+    {
+      project_id: "P-old",
+      title: "旧项目",
+      title_source: "manual",
+      status: "active",
+      created_at: "2026-05-01T10:00:00.000Z",
+      updated_at: "2026-05-01T10:10:00.000Z",
+      clip_count: 1,
+      running_count: 0,
+      failed_count: 0,
+      searches: []
+    },
+    {
+      project_id: "P-new",
+      title: "新项目",
+      title_source: "manual",
+      status: "active",
+      created_at: "2026-05-07T10:00:00.000Z",
+      updated_at: "2026-05-07T10:10:00.000Z",
+      clip_count: 1,
+      running_count: 0,
+      failed_count: 0,
+      searches: []
+    }
+  ];
+  const catalog = {
+    local_clip_count: 2,
+    clips: [
+      { ...data.localClips.clips[0]!, local_clip_id: "clip-old", title: "1-旧项目-C0017", project_id: "P-old" },
+      { ...data.localClips.clips[1]!, local_clip_id: "clip-new", title: "9-新项目-C0020", project_id: "P-new" }
+    ]
+  };
+  const html = renderToStaticMarkup(
+    h(LocalLibraryPage, {
+      catalog,
+      projects,
+      currentProjectId: "P-new",
+      viewMode: "all"
+    })
+  );
+
+  assert.ok(html.indexOf("新项目") < html.indexOf("旧项目"));
+});
+
 test("cut tasks page renders every task state and summary in Chinese", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
@@ -1290,6 +1436,19 @@ test("cut tasks omits manual refresh and continue controls", () => {
 
   assert.equal(html.includes("刷新"), false);
   assert.equal(html.includes("继续剪切"), false);
+});
+
+test("cut tasks page exposes a project output directory action near filters", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue,
+      onOpenCutOutputDirectory: () => undefined
+    })
+  );
+
+  assert.match(html, /aria-label="剪切任务筛选"/);
+  assert.match(html, /打开文件目录/);
 });
 
 test("sidebar footer renders local engine telemetry and a passive username label", () => {

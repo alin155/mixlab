@@ -103,7 +103,8 @@ export function CutQueuePage({
   pipelineState = idleCutPipelineState,
   onRefresh,
   onRunNext,
-  onRetryFailed
+  onRetryFailed,
+  onOpenCutOutputDirectory
 }: {
   jobs: readonly CutQueueJob[];
   project?: CutterProject;
@@ -113,6 +114,7 @@ export function CutQueuePage({
   onRefresh?: () => void;
   onRunNext?: () => void;
   onRetryFailed?: (cutJobId: string) => void;
+  onOpenCutOutputDirectory?: () => void;
 }) {
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
@@ -157,18 +159,29 @@ export function CutQueuePage({
         </header>
 
         <section className="cutter-task-tabs" aria-label="剪切任务筛选">
-          {statusFilters.map((filter) => (
+          <div className="cutter-task-tab-list">
+            {statusFilters.map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                className={statusFilter === filter.key ? "is-active" : ""}
+                aria-pressed={statusFilter === filter.key}
+                onClick={() => setStatusFilter(filter.key)}
+              >
+                <span>{filter.label}</span>
+                <strong>{taskCountForFilter(summary, filter.key)}</strong>
+              </button>
+            ))}
+          </div>
+          {onOpenCutOutputDirectory ? (
             <button
-              key={filter.key}
               type="button"
-              className={statusFilter === filter.key ? "is-active" : ""}
-              aria-pressed={statusFilter === filter.key}
-              onClick={() => setStatusFilter(filter.key)}
+              className="cutter-inline-action cutter-task-directory-action"
+              onClick={onOpenCutOutputDirectory}
             >
-              <span>{filter.label}</span>
-              <strong>{taskCountForFilter(summary, filter.key)}</strong>
+              打开文件目录
             </button>
-          ))}
+          ) : null}
         </section>
 
         <section className={`cutter-pipeline-card is-${pipelineState.status}`} aria-label="本机剪切流水线">

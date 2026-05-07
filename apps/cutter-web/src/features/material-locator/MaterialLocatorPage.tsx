@@ -125,6 +125,7 @@ export function MaterialLocatorPage({
   currentHitSegmentId,
   globalHitCount,
   selectedMaterialKey,
+  isSearching = false,
   recentSearches = [],
   cutNotice = "",
   queue,
@@ -152,6 +153,7 @@ export function MaterialLocatorPage({
   currentHitSegmentId?: string;
   globalHitCount?: number;
   selectedMaterialKey?: string;
+  isSearching?: boolean;
   recentSearches?: readonly MaterialSearchHistoryItem[];
   cutNotice?: string;
   queue: readonly CutQueueJob[];
@@ -197,6 +199,7 @@ export function MaterialLocatorPage({
     .flatMap((section) => section.items)
     .find((item) => `${item.source}:${item.id}` === selectedMaterialKey);
   const focusedMaterialHitCount = focusedMaterial?.hit_count ?? highlightedSegmentIds.length;
+  const isPreviewLoading = hasActiveQuery && !isSearching && candidateCount > 0 && !focusedDetail;
   const hasHitNavigation = hitCount > 0;
   const recentQueue = queue.slice(0, 5);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -477,8 +480,14 @@ export function MaterialLocatorPage({
                   </>
                 ) : (
                   <div className="cutter-video-empty">
-                    <strong>先搜索文案</strong>
-                    <span>选择候选素材后，这里用于验证画面。</span>
+                    <strong>{isSearching ? "正在匹配文案" : isPreviewLoading ? "正在加载预览" : "先搜索文案"}</strong>
+                    <span>
+                      {isSearching
+                        ? "长文案需要跨句检索，请稍候。"
+                        : isPreviewLoading
+                          ? "已找到候选素材，正在定位命中文案。"
+                          : "选择候选素材后，这里用于验证画面。"}
+                    </span>
                   </div>
                 )}
               </section>
@@ -553,6 +562,11 @@ export function MaterialLocatorPage({
                   <div className="cutter-empty-state">
                     <strong>先搜索文案</strong>
                     <span>输入关键词或粘贴文案后，系统会列出可选素材。</span>
+                  </div>
+                ) : isSearching && sections.length === 0 ? (
+                  <div className="cutter-empty-state">
+                    <strong>正在匹配文案</strong>
+                    <span>长文案会跨句检索，结果返回前不会判定为无命中。</span>
                   </div>
                 ) : sections.length === 0 ? (
                   <div className="cutter-empty-state">
@@ -669,8 +683,14 @@ export function MaterialLocatorPage({
                 </p>
               ) : (
                 <div className="cutter-transcript-empty">
-                  <strong>先搜索文案</strong>
-                  <span>点击候选素材后，这里会定位到命中文案并高亮显示。</span>
+                  <strong>{isSearching ? "正在匹配文案" : isPreviewLoading ? "正在加载预览" : "先搜索文案"}</strong>
+                  <span>
+                    {isSearching
+                      ? "搜索完成后会自动定位到第一处命中文案。"
+                      : isPreviewLoading
+                        ? "已找到候选素材，正在准备视频与文案高亮。"
+                        : "点击候选素材后，这里会定位到命中文案并高亮显示。"}
+                  </span>
                 </div>
               )}
               {focusedDetail && selectedSegments.length > 0 ? (

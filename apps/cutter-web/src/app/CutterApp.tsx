@@ -489,6 +489,20 @@ export function materialLocatorHitTargets(input: BuildMaterialLocatorSectionsInp
   );
 }
 
+export function shouldAutofocusMaterialLocatorResult(input: {
+  route: CutterRoute;
+  query: string;
+  selectedMaterialKey?: string;
+  hitTargetCount: number;
+}): boolean {
+  return (
+    input.route === "material-locator" &&
+    input.query.trim().length > 0 &&
+    !input.selectedMaterialKey &&
+    input.hitTargetCount > 0
+  );
+}
+
 export function nextMaterialLocatorHitIndex(
   currentIndex: number,
   direction: "previous" | "next",
@@ -685,6 +699,7 @@ function renderPage(
     currentHitSegmentId?: string;
     globalHitCount: number;
     selectedMaterialKey?: string;
+    materialSearchPending: boolean;
     localLibrarySelectedClipId?: string;
     localLibraryViewMode: LocalLibraryViewMode;
     recentSearches: readonly MaterialSearchHistoryItem[];
@@ -778,6 +793,7 @@ function renderPage(
         currentHitSegmentId={viewState.currentHitSegmentId}
         globalHitCount={viewState.globalHitCount}
         selectedMaterialKey={viewState.selectedMaterialKey}
+        isSearching={viewState.materialSearchPending}
         recentSearches={viewState.recentSearches}
         cutNotice={viewState.cutNotice}
         queue={queue}
@@ -821,6 +837,7 @@ function renderPage(
         onRefresh={handlers.refreshQueue}
         onRunNext={handlers.runNextJob}
         onRetryFailed={handlers.retryFailedCutJob}
+        onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
       />
     );
   }
@@ -876,6 +893,11 @@ export function CutterApp() {
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
   const [locatorCurrentHitIndex, setLocatorCurrentHitIndex] = useState(0);
   const [selectedMaterialFocusKey, setSelectedMaterialFocusKey] = useState<string | undefined>();
+  const [materialSearchPending, setMaterialSearchPending] = useState(
+    () =>
+      routeFromHash(window.location.hash) === "material-locator" &&
+      searchQueryFromHash(window.location.hash).trim().length > 0
+  );
   const [recentMaterialSearches, setRecentMaterialSearches] = useState<MaterialSearchHistoryItem[]>([]);
   const [cutNotice, setCutNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
@@ -1283,6 +1305,10 @@ export function CutterApp() {
       setLocatorHighlightedSegmentIds([]);
       setLocatorCurrentHitIndex(0);
       setSelectedMaterialFocusKey(undefined);
+      setMaterialSearchPending(
+        routeFromHash(nextHash) === "material-locator" &&
+          searchQueryFromHash(nextHash).trim().length > 0
+      );
       setCutNotice("");
     };
     window.addEventListener("hashchange", listener);
@@ -1333,6 +1359,22 @@ export function CutterApp() {
   const globalHitCount = locatorHitTargets.length;
 
   useEffect(() => {
+    if (!shouldAutofocusMaterialLocatorResult({
+      route,
+      query: searchQuery,
+      selectedMaterialKey: selectedMaterialFocusKey,
+      hitTargetCount: locatorHitTargets.length
+    })) {
+      return;
+    }
+
+    const firstTarget = locatorHitTargets[0];
+    if (firstTarget) {
+      focusMaterialTarget(firstTarget, 0);
+    }
+  }, [locatorHitTargets, route, searchQuery, selectedMaterialFocusKey]);
+
+  useEffect(() => {
     const query = searchQuery.trim();
     if (!data || loginGateVisible || route !== "material-locator") {
       return;
@@ -1347,11 +1389,13 @@ export function CutterApp() {
             }
           : current
       );
+      setMaterialSearchPending(false);
       clearMaterialLocatorFocus();
       return;
     }
 
     let cancelled = false;
+    setMaterialSearchPending(true);
 
     client
       .searchSourceLibrary(query, 20)
@@ -1380,6 +1424,7 @@ export function CutterApp() {
           } else {
             clearMaterialLocatorFocus();
           }
+          setMaterialSearchPending(false);
           setRecentMaterialSearches((current) =>
             nextMaterialSearchHistory(current, {
               query,
@@ -1407,6 +1452,7 @@ export function CutterApp() {
       })
       .catch((searchError) => {
         if (!cancelled) {
+          setMaterialSearchPending(false);
           setError(searchError instanceof Error ? searchError.message : "搜索结果加载失败");
         }
       });
@@ -1584,6 +1630,7 @@ export function CutterApp() {
     setTranscriptSelection({});
     setLocatorHighlightedSegmentIds([]);
     setLocatorCurrentHitIndex(0);
+    setMaterialSearchPending(Boolean(nextQuery));
     setCutNotice("");
     window.location.hash = searchHash(nextQuery);
   }
@@ -2108,6 +2155,7 @@ export function CutterApp() {
                     currentHitSegmentId,
                     globalHitCount,
                     selectedMaterialKey,
+                    materialSearchPending,
                     localLibrarySelectedClipId,
                     localLibraryViewMode,
                     recentSearches:
