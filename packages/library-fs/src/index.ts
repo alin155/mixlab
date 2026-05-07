@@ -22,7 +22,8 @@ export {
   failPreprocessJob,
   publishReadySourceVideo,
   readAllSourceVideoManifests,
-  readSourceVideoManifest
+  readSourceVideoManifest,
+  updatePreprocessJobStage
 } from "./preprocess-lifecycle.ts";
 export { listCutterVisibleSourceVideos } from "./cutter-catalog.ts";
 export {
@@ -50,7 +51,8 @@ export type {
   CompleteReadyVisualArtifactsInput,
   FailPreprocessJobInput,
   PreprocessJobSummary,
-  PublishReadySourceVideoInput
+  PublishReadySourceVideoInput,
+  UpdatePreprocessJobStageInput
 } from "./preprocess-lifecycle.ts";
 export type {
   CutterVisibleSourceVideoCatalog,
@@ -93,6 +95,7 @@ export interface PublishIndexRequiredSourceVideosInput {
   library_root: string;
   library_id: string;
   now: string;
+  source_video_ids?: string[];
 }
 
 export interface PublishIndexRequiredSourceVideosResult {
@@ -272,8 +275,13 @@ export async function publishIndexRequiredSourceVideos(
   input: PublishIndexRequiredSourceVideosInput
 ): Promise<PublishIndexRequiredSourceVideosResult> {
   const manifests = await readAllSourceVideoManifests(input.library_root);
+  const requestedIds = input.source_video_ids
+    ? new Set(input.source_video_ids)
+    : null;
   const indexRequired = manifests.filter(
-    (manifest) => manifest.preprocess_status === "index-required"
+    (manifest) =>
+      manifest.preprocess_status === "index-required" &&
+      (!requestedIds || requestedIds.has(manifest.source_video_id))
   );
   const completeCandidates = [];
   const skippedSourceVideoIds = [];

@@ -4,6 +4,7 @@ import type { CutterLoginStatusValue } from "../../api.ts";
 export interface CutterLoginGateProps {
   status: CutterLoginStatusValue;
   message?: string;
+  deviceName?: string;
   onApply: (username: string) => Promise<void> | void;
   children: ReactNode;
 }
@@ -24,7 +25,7 @@ function reasonForStatus(status: CutterLoginStatusValue): string {
   return "请输入用户名，提交后由管理员审核。";
 }
 
-export function CutterLoginGate({ status, message, onApply, children }: CutterLoginGateProps) {
+export function CutterLoginGate({ status, message, deviceName, onApply, children }: CutterLoginGateProps) {
   const [username, setUsername] = useState("");
   const [isApplying, setIsApplying] = useState(false);
   const isPending = status === "pending";
@@ -55,6 +56,10 @@ export function CutterLoginGate({ status, message, onApply, children }: CutterLo
       <section className="cutter-login-panel">
         <h1>申请使用剪辑师工作台</h1>
         <p>{message ?? reasonForStatus(status)}</p>
+        <p>
+          身份方式：用户名 + 本机设备令牌。当前设备：{deviceName ?? "剪辑工作站"}。
+          IP 只用于诊断，不作为登录身份。
+        </p>
         <form onSubmit={handleSubmit}>
           <label>
             用户名

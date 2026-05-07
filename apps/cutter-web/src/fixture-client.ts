@@ -4,8 +4,10 @@ import type {
   CutJobCatalog,
   CutJobSubmission,
   CutterApiClient,
+  CutterRuntimeStatus,
   LocalClip,
   LocalClipCatalog,
+  OpenCutOutputDirectoryRequest,
   SearchResponse,
   SourceLibraryResponse,
   SourceVideoCard,
@@ -32,6 +34,11 @@ export interface CutterFixtureData {
   search: SearchResponse;
   localClips: LocalClipCatalog;
   settings: CutterWorkbenchSettings;
+  runtimeStatus: CutterRuntimeStatus;
+}
+
+export interface LoadCutterWorkbenchDataOptions {
+  preferredSourceVideoId?: string;
 }
 
 function cover(seed: string, tint: string): string {
@@ -264,6 +271,7 @@ const search: SearchResponse = {
       hit_count: 3,
       best_excerpt: "现金流不是利润表的影子，它直接决定企业能不能安全穿过周期。",
       hit_segments: primaryDetail.transcript.segments.slice(0, 3),
+      transcript_character_count: primaryDetail.transcript.full_text.replace(/\s+/g, "").length,
       media_url: videos[0]!.media_url,
       cover_url: videos[0]!.cover_url,
       detail_url: videos[0]!.detail_url,
@@ -275,6 +283,7 @@ const search: SearchResponse = {
       duration_ms: videos[1]!.duration_ms,
       hit_count: 1,
       best_excerpt: "直播复盘先看成交曲线，再回到现金流和投放回收周期。",
+      transcript_character_count: "直播复盘先看成交曲线，再回到现金流和投放回收周期。".replace(/\s+/g, "").length,
       hit_segments: [
         {
           segment_id: "l-003",
@@ -337,7 +346,7 @@ const settings: CutterWorkbenchSettings = {
   public_library_mount: "/Volumes/PublicLibrary",
   local_workspace: "/Users/allen/Movies/MixLabLocal",
   ffmpeg_path: "/opt/homebrew/bin/ffmpeg",
-  default_cut_mode: "smart",
+  default_cut_mode: "copy",
   concurrency: 2,
   audio_mode: "mp3_16k_mono_64k",
   doctor: [
@@ -359,6 +368,30 @@ const settings: CutterWorkbenchSettings = {
   ]
 };
 
+const runtimeStatus: CutterRuntimeStatus = {
+  mode: "fixture",
+  mode_label: "界面演示模式",
+  api_ready: true,
+  generated_at: "2026-05-04T10:00:00.000Z",
+  library_id: "fixture",
+  library_root_label: "演示素材库",
+  available_video_count: videos.length,
+  workspace_enabled: true,
+  workspace_root_label: "演示本地工作区",
+  local_clip_count: localClips.local_clip_count,
+  ffmpeg_status: "可用",
+  ffmpeg_source: "内置",
+  local_runtime: {
+    cpu_usage_percent: 27,
+    disk_io_bytes_per_second: 68 * 1024 * 1024
+  },
+  current_user: {
+    user_id: "fixture",
+    username: "演示剪辑师",
+    display_name: "演示剪辑师"
+  }
+};
+
 export function createFixtureCutterData(): CutterFixtureData {
   return {
     library: {
@@ -369,8 +402,25 @@ export function createFixtureCutterData(): CutterFixtureData {
     primaryDetail,
     search,
     localClips,
-    settings
+    settings,
+    runtimeStatus
   };
+}
+
+export function emptySearchResponse(query = ""): SearchResponse {
+  return {
+    query,
+    normalized_query: query.trim().toLowerCase(),
+    groups: []
+  };
+}
+
+function searchGroupText(group: SearchResponse["groups"][number]): string {
+  return [
+    group.title,
+    group.best_excerpt,
+    ...group.hit_segments.map((segment) => segment.text)
+  ].filter(Boolean).join(" ");
 }
 
 export function createFixtureCutterApiClient(): CutterApiClient {
@@ -437,6 +487,9 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         }
       };
     },
+    async getRuntimeStatus() {
+      return data.runtimeStatus;
+    },
     async listSourceLibrary() {
       return data.library;
     },
@@ -446,10 +499,18 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
     async searchSourceLibrary(query: string) {
+      const normalizedQuery = query.trim().toLowerCase();
+      if (!normalizedQuery) {
+        return emptySearchResponse(query);
+      }
+
       return {
         ...data.search,
         query,
-        normalized_query: query.trim().toLowerCase()
+        normalized_query: normalizedQuery,
+        groups: data.search.groups.filter((group) =>
+          searchGroupText(group).toLowerCase().includes(normalizedQuery)
+        )
       };
     },
     async listLocalClips() {
@@ -489,6 +550,7 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         schema_version: "1.0",
         clip_list_id: "CL20260502-0001",
         library_id: request.library_id,
+        ...(request.project_id ? { project_id: request.project_id } : {}),
         title: request.title,
         item_count: request.items.length,
         created_at: "2026-05-02T10:00:00Z",
@@ -563,29 +625,123 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         updated_at: "2026-05-02T10:16:00Z"
       };
     },
+    async retryCutJob(cutJobId: string): Promise<CutJob> {
+      return {
+        cut_job_id: cutJobId,
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000001",
+        status: "pending",
+        created_at: "2026-05-02T10:00:00Z",
+        updated_at: "2026-05-02T10:17:00Z"
+      };
+    },
+    async openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest) {
+      return {
+        path: request?.project_title
+          ? `/fixture-workspace/projects/${request.project_title}`
+          : "/fixture-workspace/export-clips"
+      };
+    },
+    async deleteProjectOutputs(projectId: string) {
+      return {
+        project_id: projectId,
+        removed_export_clips: 0,
+        removed_local_clips: 0,
+        removed_project_outputs: 0,
+        removed_cut_jobs: 0,
+        removed_clip_lists: 0
+      };
+    },
     resolveApiUrl(pathOrUrl: string) {
       return pathOrUrl;
     }
   };
 }
 
-export async function loadCutterWorkbenchData(client: CutterApiClient): Promise<CutterFixtureData> {
-  const [library, localClips] = await Promise.all([
-    client.listSourceLibrary(),
-    client.listLocalClips()
-  ]);
-  const primary = library.videos[0];
+function resolveSourceVideoCardUrls<T extends SourceVideoCard>(
+  client: CutterApiClient,
+  card: T
+): T {
+  return {
+    ...card,
+    media_url: client.resolveApiUrl(card.media_url),
+    cover_url: client.resolveApiUrl(card.cover_url),
+    detail_url: client.resolveApiUrl(card.detail_url),
+    subtitles_url: client.resolveApiUrl(card.subtitles_url)
+  };
+}
 
-  const [primaryDetailResult, searchResult] = await Promise.all([
-    primary ? client.getSourceVideoDetail(primary.source_video_id) : Promise.resolve(primaryDetail),
-    client.searchSourceLibrary("现金流", 20)
+function resolveSourceVideoDetailUrls(
+  client: CutterApiClient,
+  detail: SourceVideoDetail
+): SourceVideoDetail {
+  return resolveSourceVideoCardUrls(client, detail);
+}
+
+function resolveSearchGroupUrls(
+  client: CutterApiClient,
+  group: SearchResponse["groups"][number]
+): SearchResponse["groups"][number] {
+  return {
+    ...group,
+    ...(group.media_url ? { media_url: client.resolveApiUrl(group.media_url) } : {}),
+    ...(group.cover_url ? { cover_url: client.resolveApiUrl(group.cover_url) } : {}),
+    ...(group.detail_url ? { detail_url: client.resolveApiUrl(group.detail_url) } : {}),
+    ...(group.subtitles_url ? { subtitles_url: client.resolveApiUrl(group.subtitles_url) } : {})
+  };
+}
+
+export function resolveSearchResponseUrls(
+  client: CutterApiClient,
+  searchResult: SearchResponse
+): SearchResponse {
+  return {
+    ...searchResult,
+    groups: searchResult.groups.map((group) => resolveSearchGroupUrls(client, group))
+  };
+}
+
+export function resolveLocalClipUrls(client: CutterApiClient, clip: LocalClip): LocalClip {
+  return {
+    ...clip,
+    media_url: client.resolveApiUrl(clip.media_url),
+    detail_url: client.resolveApiUrl(clip.detail_url),
+    ...(clip.cover_url ? { cover_url: client.resolveApiUrl(clip.cover_url) } : {}),
+    ...(clip.subtitles_url ? { subtitles_url: client.resolveApiUrl(clip.subtitles_url) } : {})
+  };
+}
+
+export async function loadCutterWorkbenchData(
+  client: CutterApiClient,
+  options: LoadCutterWorkbenchDataOptions = {}
+): Promise<CutterFixtureData> {
+  const [libraryResult, localClipsResult, runtimeStatusResult] = await Promise.all([
+    client.listSourceLibrary(),
+    client.listLocalClips(),
+    client.getRuntimeStatus()
   ]);
+  const library = {
+    ...libraryResult,
+    videos: libraryResult.videos.map((video) => resolveSourceVideoCardUrls(client, video))
+  };
+  const localClips = {
+    ...localClipsResult,
+    clips: localClipsResult.clips.map((clip) => resolveLocalClipUrls(client, clip))
+  };
+  const primary =
+    libraryResult.videos.find((video) => video.source_video_id === options.preferredSourceVideoId) ??
+    libraryResult.videos[0];
+
+  const primaryDetailResult = primary
+    ? await client.getSourceVideoDetail(primary.source_video_id)
+    : primaryDetail;
 
   return {
     library,
-    primaryDetail: primaryDetailResult,
-    search: searchResult,
+    primaryDetail: resolveSourceVideoDetailUrls(client, primaryDetailResult),
+    search: emptySearchResponse(),
     localClips,
-    settings
+    settings,
+    runtimeStatus: runtimeStatusResult
   };
 }

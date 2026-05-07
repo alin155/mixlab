@@ -3,9 +3,11 @@ import {
   completePreprocessArtifacts,
   failPreprocessJob,
   getFileIdentity,
+  readAllSourceVideoManifests,
   readSourceVideoManifest,
   resolveSourceVideoFilePath,
   scanSourceVideos,
+  updatePreprocessJobStage,
   type ScanSourceVideosResult
 } from "../../library-fs/src/index.ts";
 import type { SourceVideoMediaMetadata } from "../../ffmpeg-core/src/index.ts";
@@ -24,6 +26,7 @@ export interface LibraryTextPreprocessInput {
   source_video_path: string;
   audio_mode?: PreprocessAudioModeId;
   now: string;
+  on_stage?(stage: string): Promise<void> | void;
 }
 
 export interface RunLibraryTextPreprocessWorkerInput {
@@ -33,6 +36,8 @@ export interface RunLibraryTextPreprocessWorkerInput {
   worker_id: string;
   limit?: number;
   audio_mode?: PreprocessAudioModeId;
+  scan_before_claim?: boolean;
+  claim_statuses?: Array<"queued" | "unprocessed">;
   now?: () => string;
   probe_source_video(input: ProbeSourceVideoInput): Promise<SourceVideoMediaMetadata>;
   get_content_hash?(source_video_path: string): Promise<string>;
@@ -89,6 +94,17 @@ function defaultNow(): string {
   return new Date().toISOString();
 }
 
+async function existingScanResult(libraryRoot: string): Promise<ScanSourceVideosResult> {
+  const manifests = await readAllSourceVideoManifests(libraryRoot);
+
+  return {
+    total_video_count: manifests.length,
+    new_video_count: 0,
+    existing_video_count: manifests.length,
+    source_video_ids: manifests.map((manifest) => manifest.source_video_id)
+  };
+}
+
 export async function runLibraryTextPreprocessWorker(
   input: RunLibraryTextPreprocessWorkerInput
 ): Promise<RunLibraryTextPreprocessWorkerResult> {
@@ -97,12 +113,14 @@ export async function runLibraryTextPreprocessWorker(
   const now = input.now ?? defaultNow;
   const getContentHash =
     input.get_content_hash ?? ((filePath: string) => getFileIdentity(filePath));
-  const scanResult = await scanSourceVideos({
-    library_root: input.library_root,
-    library_id: input.library_id,
-    library_name: input.library_name,
-    now: now()
-  });
+  const scanResult = input.scan_before_claim === false
+    ? await existingScanResult(input.library_root)
+    : await scanSourceVideos({
+        library_root: input.library_root,
+        library_id: input.library_id,
+        library_name: input.library_name,
+        now: now()
+      });
   const maxClaimCount = input.limit ?? Number.POSITIVE_INFINITY;
   const items: LibraryTextPreprocessWorkerItem[] = [];
 
@@ -110,7 +128,8 @@ export async function runLibraryTextPreprocessWorker(
     const job = await claimNextPreprocessJob({
       library_root: input.library_root,
       worker_id: input.worker_id,
-      now: now()
+      now: now(),
+      claim_statuses: input.claim_statuses
     });
 
     if (!job) {
@@ -121,6 +140,12 @@ export async function runLibraryTextPreprocessWorker(
     const sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
 
     try {
+      await updatePreprocessJobStage({
+        library_root: input.library_root,
+        source_video_id: job.source_video_id,
+        stage: "probe-media",
+        now: now()
+      });
       const mediaMetadata = await input.probe_source_video({
         source_video_id: job.source_video_id,
         source_video_path: sourceVideoPath
@@ -132,7 +157,15 @@ export async function runLibraryTextPreprocessWorker(
         source_video_id: job.source_video_id,
         source_video_path: sourceVideoPath,
         audio_mode: input.audio_mode,
-        now: now()
+        now: now(),
+        on_stage(stage) {
+          return updatePreprocessJobStage({
+            library_root: input.library_root,
+            source_video_id: job.source_video_id,
+            stage,
+            now: now()
+          });
+        }
       });
 
       await completePreprocessArtifacts({

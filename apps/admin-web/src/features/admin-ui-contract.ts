@@ -21,7 +21,6 @@ export const ADMIN_UI_ROUTES = [
   "dashboard",
   "source-videos",
   "preprocess-jobs",
-  "index-publish",
   "doctor",
   "cutter-users",
   "settings"
@@ -34,9 +33,8 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
     goal: "看全局风险和产能",
     primaryQuestion: "公共素材库现在是否健康，生产是否在推进？",
     controls: [
-      { route: "dashboard", label: "扫描源视频", state: "m9b-api", reason: "M9B 接入扫描接口。" },
-      { route: "dashboard", label: "处理未处理", state: "m9b-api", reason: "M9B 接加入队接口。" },
-      { route: "dashboard", label: "健康诊断", state: "m9b-api", reason: "M9B 接入健康诊断运行接口。" },
+      { route: "dashboard", label: "智能扫描", state: "m9b-api", reason: "扫描素材来源、运行健康诊断并生成下一步建议。" },
+      { route: "dashboard", label: "启动预处理流水线", state: "m9b-api", reason: "智能扫描建议动作。" },
       { route: "dashboard", label: "重试失败", state: "m9b-api", reason: "M9B 接入失败重试接口。" }
     ]
   },
@@ -49,11 +47,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
       { route: "source-videos", label: "搜索原视频", state: "local", reason: "页面内筛选，不写入协议文件。" },
       { route: "source-videos", label: "筛选预处理状态", state: "local", reason: "页面内筛选，不写入协议文件。" },
       { route: "source-videos", label: "查看原视频", state: "local", reason: "页面内选择表格行。" },
-      { route: "source-videos", label: "保存公开说明", state: "m9b-api", reason: "M9B 接入公开说明保存接口。" },
-      { route: "source-videos", label: "扫描新增视频", state: "m9b-api", reason: "M9B 接入扫描接口。" },
-      { route: "source-videos", label: "处理未处理", state: "m9b-api", reason: "M9B 接加入队接口。" },
-      { route: "source-videos", label: "重试失败视频", state: "m9b-api", reason: "M9B 接入失败重试接口。" },
-      { route: "source-videos", label: "查看发布清单", state: "read-only", reason: "M9A 只呈现入口，报告查看器另行实现。" }
+      { route: "source-videos", label: "保存公开说明", state: "m9b-api", reason: "M9B 接入公开说明保存接口。" }
     ]
   },
   "source-detail": {
@@ -67,25 +61,21 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
   },
   "preprocess-jobs": {
     route: "preprocess-jobs",
-    label: "预处理队列",
-    goal: "控制生产队列",
-    primaryQuestion: "长时间预处理是否持续推进，失败视频是否可隔离重试？",
+    label: "预处理",
+    goal: "监控预处理流水线和自动增量发布",
+    primaryQuestion: "长时间预处理是否持续推进，可用视频是否自动发布给剪辑端搜索？",
     controls: [
-      { route: "preprocess-jobs", label: "处理未处理", state: "m9b-api", reason: "M9B 接加入队接口。" },
       { route: "preprocess-jobs", label: "重试失败", state: "m9b-api", reason: "M9B 接入失败重试接口。" },
-      { route: "preprocess-jobs", label: "启动预处理服务", state: "native-boundary", reason: "长期预处理服务由服务端脚本或桌面壳托管。" }
+      { route: "preprocess-jobs", label: "启动预处理流水线", state: "m9b-api", reason: "扫描、入队、预处理并自动发布索引。" },
+      { route: "preprocess-jobs", label: "暂停预处理流水线", state: "m9b-api", reason: "请求当前流水线在安全边界内暂停。" }
     ]
   },
   "index-publish": {
     route: "index-publish",
-    label: "索引与发布",
-    goal: "保证已可用视频可搜索",
-    primaryQuestion: "已可用视频是否已经进入当前可搜索索引？",
-    controls: [
-      { route: "index-publish", label: "发布待索引视频", state: "m9b-api", reason: "M9B 接入索引修复接口。" },
-      { route: "index-publish", label: "校验索引", state: "m9b-api", reason: "M9B 接入健康诊断和索引校验。" },
-      { route: "index-publish", label: "原子切换当前索引", state: "native-boundary", reason: "手动切换当前索引不作为 Web 常规操作暴露。" }
-    ]
+    label: "预处理",
+    goal: "兼容旧索引入口并跳转到预处理",
+    primaryQuestion: "旧索引页面是否被合并到预处理主路径？",
+    controls: []
   },
   doctor: {
     route: "doctor",
@@ -120,10 +110,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
       { route: "settings", label: "移除素材来源", state: "local", reason: "页面内移除非默认素材来源，保存设置后生效。" },
       { route: "settings", label: "选择音频模式", state: "local", reason: "页面内选择预处理音频模式，保存设置后写入管理配置。" },
       { route: "settings", label: "保存设置", state: "m9b-api", reason: "M10 接入素材来源和运行策略保存接口。" },
-      { route: "settings", label: "初始化素材库", state: "m9b-api", reason: "M9B 接入初始化接口。" },
-      { route: "settings", label: "扫描源视频", state: "m9b-api", reason: "M9B 接入扫描接口。" },
-      { route: "settings", label: "测试语音识别配置", state: "m9b-api", reason: "M9B 接入语音识别配置检测。" },
-      { route: "settings", label: "编辑接口密钥", state: "native-boundary", reason: "密钥只通过本地环境或部署环境变量配置。" }
+      { route: "settings", label: "测试语音识别配置", state: "m9b-api", reason: "M9B 接入语音识别配置检测。" }
     ]
   }
 };

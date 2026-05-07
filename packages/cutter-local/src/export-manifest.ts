@@ -10,6 +10,9 @@ export interface BuildExportClipFileNameInput {
   export_clip_id: string;
   selected_text: string;
   extension?: string;
+  project_title?: string;
+  project_clip_order?: number;
+  source_title?: string;
 }
 
 export interface BuildExportClipArtifactPathsInput extends BuildExportClipFileNameInput {
@@ -27,13 +30,31 @@ export interface WriteExportClipManifestInput {
   workspace_root: string;
   export_clip_id: string;
   library_id: string;
+  project_id?: string;
   source_video_id: string;
+  title?: string;
+  project_title?: string;
+  project_clip_order?: number;
   source_title: string;
   begin_ms: number;
   end_ms: number;
   selected_text: string;
   cut_mode: CutMode;
   output_file: string;
+  project_output_file?: string;
+  local_asset_relative_path?: string;
+  source_video_manifest_path?: string;
+  transcript_path?: string;
+  srt_path?: string;
+  keyframes_path?: string;
+  cover_path?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  codec?: string;
+  file_size?: number;
+  content_hash?: string;
+  transcript_segments?: ExportClipManifest["transcript_segments"];
   created_at: string;
 }
 
@@ -43,6 +64,9 @@ export interface ExportClipView extends ExportClipManifest {
   duration_ms: number;
   media_file_path: string;
   manifest_file_path: string;
+  cover_file_path?: string;
+  subtitles_file_path?: string;
+  source_video_manifest_file_path?: string;
 }
 
 export interface ExportClipCatalog {
@@ -61,8 +85,12 @@ export interface GetExportClipDetailInput {
 
 const EXPORT_CLIP_ID_PATTERN = /^E\d{6}$/;
 
-function exportClipsRoot(workspaceRoot: string): string {
+export function exportClipsDirectory(workspaceRoot: string): string {
   return path.join(workspaceRoot, "export-clips");
+}
+
+function exportClipsRoot(workspaceRoot: string): string {
+  return exportClipsDirectory(workspaceRoot);
 }
 
 function jsonBytes(value: unknown): string {
@@ -110,8 +138,95 @@ function cleanFileNameText(text: string): string {
   return safe || "clip";
 }
 
+function cleanTitlePart(text: string | undefined, fallback: string): string {
+  const safe = (text ?? "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, " ")
+    .replace(/[._\-\s,，.。!！?？、:：;；]+$/u, "")
+    .trim();
+
+  return safe || fallback;
+}
+
+function stripKnownVideoExtension(text: string): string {
+  return text.replace(/\.(mp4|mov|m4v|webm|mkv|avi)$/i, "");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function sourceTitleForCanonicalClipName(
+  sourceTitle: string | undefined,
+  projectTitle?: string
+): string {
+  const title = stripKnownVideoExtension(cleanTitlePart(sourceTitle, "本地素材"));
+  const project = cleanTitlePart(projectTitle, "");
+
+  if (project) {
+    const projectMatch = new RegExp(`^\\d+\\s*-\\s*${escapeRegExp(project)}\\s*-\\s*(.+)$`).exec(title);
+    if (projectMatch?.[1]?.trim()) {
+      return stripKnownVideoExtension(cleanTitlePart(projectMatch[1], title));
+    }
+  }
+
+  const parts = title.split(/\s*-\s*/).filter(Boolean);
+  if (parts.length >= 2 && /^\d+$/.test(parts[0] ?? "")) {
+    return stripKnownVideoExtension(cleanTitlePart(parts[parts.length - 1], title));
+  }
+
+  return title;
+}
+
+function sequenceLabel(value: number | undefined, padded: boolean): string {
+  const numeric = Number.isFinite(value) && (value ?? 0) > 0
+    ? Math.floor(value!)
+    : 1;
+
+  return padded ? String(numeric).padStart(3, "0") : String(numeric);
+}
+
+export function buildCanonicalClipTitle(input: {
+  project_clip_order?: number;
+  project_title?: string;
+  source_title?: string;
+  padded_sequence?: boolean;
+}): string {
+  return [
+    sequenceLabel(input.project_clip_order, input.padded_sequence ?? false),
+    cleanTitlePart(input.project_title, "未归属项目"),
+    sourceTitleForCanonicalClipName(input.source_title, input.project_title)
+  ].join("-");
+}
+
+export function buildProjectClipOutputFile(input: {
+  project_clip_order?: number;
+  project_title?: string;
+  source_title?: string;
+  extension?: string;
+}): string {
+  const projectFolder = cleanTitlePart(input.project_title, "未归属项目");
+  const fileName = `${buildCanonicalClipTitle({
+    project_clip_order: input.project_clip_order,
+    project_title: input.project_title,
+    source_title: input.source_title,
+    padded_sequence: true
+  })}${normalizeExtension(input.extension)}`;
+
+  return `projects/${projectFolder}/${fileName}`;
+}
+
 export function buildExportClipFileName(input: BuildExportClipFileNameInput): string {
   assertExportClipId(input.export_clip_id);
+
+  if (input.project_title || input.project_clip_order || input.source_title) {
+    return `${buildCanonicalClipTitle({
+      project_clip_order: input.project_clip_order,
+      project_title: input.project_title,
+      source_title: input.source_title,
+      padded_sequence: true
+    })}${normalizeExtension(input.extension)}`;
+  }
 
   return `${input.export_clip_id}_${cleanFileNameText(input.selected_text)}${normalizeExtension(input.extension)}`;
 }
@@ -181,10 +296,15 @@ function toExportClipView(
   return {
     ...manifest,
     local_clip_id: manifest.export_clip_id,
-    title: cleanFileNameText(manifest.selected_text),
+    title: manifest.title ?? cleanFileNameText(manifest.selected_text),
     duration_ms: manifest.end_ms - manifest.begin_ms,
     media_file_path: safeWorkspaceRelativePath(workspaceRoot, manifest.output_file),
-    manifest_file_path: manifestFilePath
+    manifest_file_path: manifestFilePath,
+    ...(manifest.cover_path ? { cover_file_path: safeWorkspaceRelativePath(workspaceRoot, manifest.cover_path) } : {}),
+    ...(manifest.srt_path ? { subtitles_file_path: safeWorkspaceRelativePath(workspaceRoot, manifest.srt_path) } : {}),
+    ...(manifest.source_video_manifest_path
+      ? { source_video_manifest_file_path: safeWorkspaceRelativePath(workspaceRoot, manifest.source_video_manifest_path) }
+      : {})
   };
 }
 
@@ -196,12 +316,30 @@ export async function writeExportClipManifest(
   const manifest: ExportClipManifest = {
     export_clip_id: input.export_clip_id,
     library_id: input.library_id,
+    ...(input.project_id ? { project_id: input.project_id } : {}),
     source_video_id: input.source_video_id,
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.project_title ? { project_title: input.project_title } : {}),
+    ...(input.project_clip_order ? { project_clip_order: input.project_clip_order } : {}),
     source_title: input.source_title,
     begin_ms: input.begin_ms,
     end_ms: input.end_ms,
     selected_text: input.selected_text,
     output_file: input.output_file.replace(/\\/g, "/"),
+    ...(input.project_output_file ? { project_output_file: input.project_output_file.replace(/\\/g, "/") } : {}),
+    ...(input.local_asset_relative_path ? { local_asset_relative_path: input.local_asset_relative_path.replace(/\\/g, "/") } : {}),
+    ...(input.source_video_manifest_path ? { source_video_manifest_path: input.source_video_manifest_path.replace(/\\/g, "/") } : {}),
+    ...(input.transcript_path ? { transcript_path: input.transcript_path.replace(/\\/g, "/") } : {}),
+    ...(input.srt_path ? { srt_path: input.srt_path.replace(/\\/g, "/") } : {}),
+    ...(input.keyframes_path ? { keyframes_path: input.keyframes_path.replace(/\\/g, "/") } : {}),
+    ...(input.cover_path ? { cover_path: input.cover_path.replace(/\\/g, "/") } : {}),
+    ...(input.width !== undefined ? { width: input.width } : {}),
+    ...(input.height !== undefined ? { height: input.height } : {}),
+    ...(input.fps !== undefined ? { fps: input.fps } : {}),
+    ...(input.codec !== undefined ? { codec: input.codec } : {}),
+    ...(input.file_size !== undefined ? { file_size: input.file_size } : {}),
+    ...(input.content_hash ? { content_hash: input.content_hash } : {}),
+    ...(input.transcript_segments ? { transcript_segments: input.transcript_segments } : {}),
     created_at: input.created_at,
     cut_mode: input.cut_mode
   };

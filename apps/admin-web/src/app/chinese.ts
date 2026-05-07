@@ -21,11 +21,16 @@ export function preprocessStatusLabel(status: AdminPreprocessStatus | string): s
 export function jobStageLabel(stage: string): string {
   const labels: Record<string, string> = {
     "build-keyframes": "生成关键帧",
+    "probe-media": "媒体探测",
     "extract-audio": "提取音频",
+    "upload-audio": "上传音频",
     asr: "语音识别",
+    "write-transcript": "写入文案",
     "publish-ready": "发布可用产物",
     "publish-index": "发布索引",
-    "transcode-preview": "生成预览"
+    "transcode-preview": "生成预览",
+    "queued-by-admin": "等待处理",
+    queued: "等待处理"
   };
 
   return labels[stage] ?? stage;

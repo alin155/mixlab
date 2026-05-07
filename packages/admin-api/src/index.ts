@@ -1,6 +1,11 @@
 import { createReadStream } from "node:fs";
 import { spawnSync } from "node:child_process";
 import {
+  createDashScopeTemporaryFileAudioUploader,
+  createFetchDashScopeHttpClient,
+  type DashScopeAsrModel
+} from "../../asr-core/src/index.ts";
+import {
   mkdir,
   readFile,
   readdir,
@@ -9,23 +14,34 @@ import {
   writeFile
 } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { cpus, freemem, loadavg, networkInterfaces, totalmem } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { runMixlabDoctor } from "../../doctor-core/src/index.ts";
-import { resolveFfmpegRuntime } from "../../ffmpeg-core/src/index.ts";
+import {
+  buildFfmpegCoverImagePlan,
+  buildFfprobeSourceMetadataPlan,
+  parseFfprobeSourceMetadata,
+  resolveFfmpegRuntime
+} from "../../ffmpeg-core/src/index.ts";
 import {
   addAdminSourceFolder,
   approveCutterUser,
+  completeReadyVisualArtifacts,
   disableCutterUser,
+  getFileIdentity,
   listCutterUsers,
   publishIndexRequiredSourceVideos,
   readAdminSettings,
   readAllSourceVideoManifests,
   readUsageMetrics,
   removeAdminSourceFolder,
+  resolveSourceVideoFilePath,
   scanSourceVideos,
   updateAdminSettings,
   updateAdminSourceFolder,
   type AdminSettingsPatch,
+  type AdminRuntimePolicy,
   type AdminSourceFolder,
   type AdminSourceFolderPatch
 } from "../../library-fs/src/index.ts";
@@ -36,6 +52,17 @@ import {
   type SourceVideoManifest,
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
+import {
+  runLibraryTextPreprocessWorker,
+  runSourceVideoTextPreprocess,
+  type RunLibraryTextPreprocessWorkerInput,
+  type RunLibraryTextPreprocessWorkerResult
+} from "../../preprocess-core/src/index.ts";
+import {
+  createPreprocessSupervisor,
+  type PreprocessSupervisorRunner,
+  type PreprocessSupervisorStatus
+} from "./preprocess-supervisor.ts";
 
 export interface CreateAdminApiServerInput {
   library_root: string;
@@ -43,6 +70,17 @@ export interface CreateAdminApiServerInput {
   library_name?: string;
   now?: () => string;
   env?: NodeJS.ProcessEnv;
+  preprocess_runner?: PreprocessSupervisorRunner;
+  ready_publish_media?: ReadyPublishMedia;
+}
+
+export interface ReadyPublishMedia {
+  create_cover(input: {
+    source_path: string;
+    output_path: string;
+    at_ms: number;
+    width: number;
+  }): Promise<void>;
 }
 
 interface LibraryManifest extends LibraryCounts {
@@ -63,8 +101,63 @@ interface PreprocessJobRecord {
   indexed_at?: string;
   index_version?: string;
   failed_at?: string;
+  current_stage?: string;
+  stage_updated_at?: string;
   error_stage?: string;
   error_message?: string;
+}
+
+interface PublicPreprocessSupervisorStatus {
+  state: PreprocessSupervisorStatus["state"];
+  state_label: string;
+  worker_id: string;
+  started_at: string;
+  stopped_at: string;
+  last_error: string;
+  stop_requested: boolean;
+  last_result: {
+    total_claimed_count: number;
+    succeeded_count: number;
+    failed_count: number;
+  } | null;
+}
+
+interface PreprocessJobsResponse {
+  active_count: number;
+  queued_count: number;
+  completed_count: number;
+  failed_count: number;
+  supervisor?: PublicPreprocessSupervisorStatus;
+  jobs: Array<{
+    job_id: string;
+    source_video_id: string;
+    title: string;
+    status: "running" | "queued" | "done" | "failed";
+    status_label: string;
+    stage: string;
+    stage_label: string;
+    progress: number;
+    started_at?: string;
+    completed_at?: string;
+    failed_at?: string;
+    elapsed_ms: number;
+    estimated_remaining_ms: number;
+    estimated_start_at: string;
+    estimated_done_at: string;
+    queue_position: number;
+    log_path: string;
+    retryable: boolean;
+    error_message?: string;
+  }>;
+  observability?: {
+    running_job_id: string;
+    running_source_video_id: string;
+    pipeline_progress_percent: number;
+    estimated_all_done_at: string;
+    estimated_queue_duration_ms: number;
+    throughput_label: string;
+    load_advice: string;
+  };
 }
 
 interface TranscriptArtifact {
@@ -100,6 +193,25 @@ function apiOk<T>(data: T) {
 
 function apiError(errorCode: string, message: string, details?: Record<string, unknown>) {
   return details ? { ok: false, error_code: errorCode, message, details } : { ok: false, error_code: errorCode, message };
+}
+
+function publicPreprocessSupervisorStatus(status: PreprocessSupervisorStatus): PublicPreprocessSupervisorStatus {
+  return {
+    state: status.state,
+    state_label: status.state_label,
+    worker_id: status.worker_id,
+    started_at: status.started_at,
+    stopped_at: status.stopped_at,
+    last_error: status.last_error,
+    stop_requested: status.stop_requested,
+    last_result: status.last_result
+      ? {
+          total_claimed_count: status.last_result.total_claimed_count,
+          succeeded_count: status.last_result.succeeded_count,
+          failed_count: status.last_result.failed_count
+        }
+      : null
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -452,6 +564,14 @@ async function readCurrentIndexVersion(libraryRoot: string): Promise<string> {
   }
 }
 
+async function primarySourceVideosPath(libraryRoot: string): Promise<string> {
+  const settings = await readAdminSettings(libraryRoot);
+  const primaryFolder = settings.source_folders.find((folder) => folder.enabled)
+    ?? settings.source_folders[0];
+
+  return primaryFolder?.path ?? sourceVideosRoot(libraryRoot);
+}
+
 function indexStatus(input: {
   current_version: string;
   ready_video_count: number;
@@ -524,7 +644,7 @@ async function getLibraryStatus(input: CreateAdminApiServerInput) {
     library_id: library?.library_id ?? input.library_id ?? "lib_main_001",
     name: library?.name ?? input.library_name ?? "MixLab 公共素材库",
     root_path: input.library_root,
-    source_videos_path: sourceVideosRoot(input.library_root),
+    source_videos_path: await primarySourceVideosPath(input.library_root),
     mixlab_library_path: mixlabRoot(input.library_root),
     protocol_version: library?.version ?? "1.0",
     ...counts,
@@ -538,6 +658,194 @@ async function getLibraryStatus(input: CreateAdminApiServerInput) {
     current_index_version: currentVersion,
     active_task_label: activeManifest ? `${activeManifest.source_video_id} - processing` : "无正在处理任务",
     updated_at: library?.updated_at ?? now
+  };
+}
+
+type RuntimeLoadStatus = "healthy" | "attention" | "blocked";
+
+interface RuntimeCpuTimesSample {
+  idle_ms: number;
+  total_ms: number;
+}
+
+function runtimeCpuTimesSample(): RuntimeCpuTimesSample {
+  return cpus().reduce<RuntimeCpuTimesSample>(
+    (sample, cpu) => {
+      const totalMs = Object.values(cpu.times).reduce((total, value) => total + value, 0);
+
+      return {
+        idle_ms: sample.idle_ms + cpu.times.idle,
+        total_ms: sample.total_ms + totalMs
+      };
+    },
+    { idle_ms: 0, total_ms: 0 }
+  );
+}
+
+export function runtimeCpuUsagePercentFromSamples(
+  previous: RuntimeCpuTimesSample,
+  current: RuntimeCpuTimesSample
+): number {
+  const totalDelta = current.total_ms - previous.total_ms;
+  const idleDelta = current.idle_ms - previous.idle_ms;
+
+  if (totalDelta <= 0 || idleDelta < 0) {
+    return 0;
+  }
+
+  const busyRatio = 1 - (idleDelta / totalDelta);
+  return Math.min(100, Math.max(0, Math.round(busyRatio * 100)));
+}
+
+async function sampleRuntimeCpuUsagePercent(): Promise<number> {
+  const previous = runtimeCpuTimesSample();
+  await delay(250);
+  return runtimeCpuUsagePercentFromSamples(previous, runtimeCpuTimesSample());
+}
+
+export function runtimeMemoryMetricsFromMacosPressureLevel(input: {
+  total_bytes: number;
+  free_percent: number;
+}): { total_bytes: number; used_bytes: number; available_bytes: number; usage_percent: number } {
+  const freePercent = Math.min(100, Math.max(0, Math.round(input.free_percent)));
+  const availableBytes = Math.round(input.total_bytes * (freePercent / 100));
+  const usedBytes = Math.max(0, input.total_bytes - availableBytes);
+
+  return {
+    total_bytes: input.total_bytes,
+    used_bytes: usedBytes,
+    available_bytes: availableBytes,
+    usage_percent: input.total_bytes > 0 ? Math.round((usedBytes / input.total_bytes) * 100) : 0
+  };
+}
+
+function readMacosMemoryPressureFreePercent(): number | null {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+
+  const result = spawnSync("sysctl", ["-n", "kern.memorystatus_level"], {
+    encoding: "utf8"
+  });
+
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const value = Number.parseInt(result.stdout.trim(), 10);
+  return Number.isInteger(value) ? value : null;
+}
+
+function runtimeMemoryMetrics(): {
+  total_bytes: number;
+  used_bytes: number;
+  available_bytes: number;
+  usage_percent: number;
+} {
+  const memoryTotal = totalmem();
+  const macosFreePercent = readMacosMemoryPressureFreePercent();
+
+  if (macosFreePercent !== null) {
+    return runtimeMemoryMetricsFromMacosPressureLevel({
+      total_bytes: memoryTotal,
+      free_percent: macosFreePercent
+    });
+  }
+
+  const memoryAvailable = freemem();
+  const memoryUsed = Math.max(0, memoryTotal - memoryAvailable);
+
+  return {
+    total_bytes: memoryTotal,
+    used_bytes: memoryUsed,
+    available_bytes: memoryAvailable,
+    usage_percent: memoryTotal > 0 ? Math.round((memoryUsed / memoryTotal) * 100) : 0
+  };
+}
+
+function statusFromPercent(value: number, attentionAt: number, blockedAt: number): RuntimeLoadStatus {
+  if (value >= blockedAt) {
+    return "blocked";
+  }
+
+  if (value >= attentionAt) {
+    return "attention";
+  }
+
+  return "healthy";
+}
+
+function worstRuntimeStatus(statuses: RuntimeLoadStatus[]): RuntimeLoadStatus {
+  if (statuses.includes("blocked")) {
+    return "blocked";
+  }
+
+  if (statuses.includes("attention")) {
+    return "attention";
+  }
+
+  return "healthy";
+}
+
+function activeNetworkInterfaceCount(): number {
+  return Object.values(networkInterfaces()).filter((entries) =>
+    (entries ?? []).some((entry) => !entry.internal)
+  ).length;
+}
+
+async function getRuntimeLoadMetrics(input: CreateAdminApiServerInput) {
+  const now = input.now?.() ?? new Date().toISOString();
+  const loadAverage1m = loadavg()[0] ?? 0;
+  const cpuUsagePercent = await sampleRuntimeCpuUsagePercent();
+  const cpuStatus = statusFromPercent(cpuUsagePercent, 70, 90);
+
+  const memory = runtimeMemoryMetrics();
+  const memoryUsagePercent = memory.usage_percent;
+  const memoryStatus = statusFromPercent(memoryUsagePercent, 75, 90);
+
+  const disk = await diskUsage(input.library_root);
+  const diskUsed = Math.max(0, disk.total - disk.available);
+  const diskUsagePercent = disk.total > 0 ? Math.round((diskUsed / disk.total) * 100) : 0;
+  const diskStatus = statusFromPercent(diskUsagePercent, 80, 92);
+
+  const activeInterfaceCount = activeNetworkInterfaceCount();
+  const networkStatus: RuntimeLoadStatus = activeInterfaceCount > 0 ? "healthy" : "blocked";
+  const serviceStatus: RuntimeLoadStatus = "healthy";
+
+  return {
+    overall_status: worstRuntimeStatus([cpuStatus, memoryStatus, diskStatus, networkStatus, serviceStatus]),
+    cpu: {
+      usage_percent: cpuUsagePercent,
+      load_average_1m: Number(loadAverage1m.toFixed(2)),
+      status: cpuStatus,
+      label: cpuStatus === "healthy" ? "负荷正常" : cpuStatus === "attention" ? "负荷偏高" : "负荷过高"
+    },
+    memory: {
+      total_bytes: memory.total_bytes,
+      used_bytes: memory.used_bytes,
+      available_bytes: memory.available_bytes,
+      usage_percent: memoryUsagePercent,
+      status: memoryStatus,
+      label: memoryStatus === "healthy" ? "内存充足" : memoryStatus === "attention" ? "内存偏紧" : "内存不足"
+    },
+    disk: {
+      total_bytes: disk.total,
+      available_bytes: disk.available,
+      usage_percent: diskUsagePercent,
+      status: diskStatus,
+      label: diskStatus === "healthy" ? "空间充足" : diskStatus === "attention" ? "空间偏紧" : "空间不足"
+    },
+    network: {
+      active_interface_count: activeInterfaceCount,
+      status: networkStatus,
+      label: activeInterfaceCount > 0 ? "网络可用" : "网络不可用"
+    },
+    service: {
+      uptime_seconds: Math.round(process.uptime()),
+      heartbeat_at: now,
+      status: serviceStatus,
+      label: "服务运行中"
+    }
   };
 }
 
@@ -619,11 +927,26 @@ async function getDashboardMetrics(input: CreateAdminApiServerInput) {
     risk: {
       failed_video_count: counts.failed_video_count,
       index_required_video_count: counts.index_required_video_count
-    }
+    },
+    runtime_load: await getRuntimeLoadMetrics(input)
   };
 }
 
 async function pathChecks(libraryRoot: string) {
+  const settings = await readAdminSettings(libraryRoot);
+  const sourceFolderChecks = await Promise.all(settings.source_folders.map(async (folder) => {
+    const exists = await directoryExists(folder.path);
+
+    return {
+      label: `素材来源：${folder.name}`,
+      path: folder.path,
+      status: folder.enabled ? (exists ? "pass" : "fail") : "warn",
+      message: folder.enabled
+        ? (exists ? "素材来源可读" : "素材来源不存在")
+        : "素材来源已停用"
+    };
+  }));
+
   return [
     {
       label: "公共素材库",
@@ -631,12 +954,7 @@ async function pathChecks(libraryRoot: string) {
       status: (await directoryExists(libraryRoot)) ? "pass" : "fail",
       message: (await directoryExists(libraryRoot)) ? "根路径可访问" : "根路径不存在"
     },
-    {
-      label: "source-videos",
-      path: sourceVideosRoot(libraryRoot),
-      status: (await directoryExists(sourceVideosRoot(libraryRoot))) ? "pass" : "fail",
-      message: (await directoryExists(sourceVideosRoot(libraryRoot))) ? "原视频目录可读" : "原视频目录不存在"
-    },
+    ...sourceFolderChecks,
     {
       label: ".mixlab-library",
       path: mixlabRoot(libraryRoot),
@@ -668,7 +986,139 @@ function jobStatusFromManifest(status: PreprocessStatus): "running" | "queued" |
   return "done";
 }
 
+function preprocessJobStatusLabel(status: "running" | "queued" | "done" | "failed"): string {
+  const labels = {
+    running: "正在处理",
+    queued: "等待处理",
+    done: "已完成",
+    failed: "失败可重试"
+  } satisfies Record<"running" | "queued" | "done" | "failed", string>;
+
+  return labels[status];
+}
+
+function preprocessStageLabel(stage: string, status?: "running" | "queued" | "done" | "failed"): string {
+  if (status === "queued") {
+    return "等待处理";
+  }
+
+  const labels: Record<string, string> = {
+    unprocessed: "未处理",
+    queued: "等待处理",
+    "queued-by-admin": "等待处理",
+    "queued-by-pipeline": "等待处理",
+    "probe-media": "媒体探测",
+    processing: "正在处理",
+    "extract-audio": "提取音频",
+    "upload-audio": "上传音频",
+    asr: "语音识别",
+    "write-transcript": "写入文案",
+    "text-preprocess": "文案预处理",
+    "build-keyframes": "生成关键帧",
+    "build-index": "自动发布索引",
+    "publish-ready": "发布可用产物",
+    ready: "已完成",
+    failed: "处理失败"
+  };
+
+  return labels[stage] ?? "正在处理";
+}
+
+function stageProgress(stage: string, status: "running" | "queued" | "done" | "failed"): number {
+  if (status === "done") {
+    return 100;
+  }
+  if (status === "failed" || status === "queued") {
+    return 0;
+  }
+
+  const progressByStage: Record<string, number> = {
+    processing: 15,
+    "probe-media": 18,
+    "extract-audio": 20,
+    "upload-audio": 35,
+    asr: 50,
+    "write-transcript": 70,
+    "text-preprocess": 65,
+    "build-keyframes": 80,
+    "build-index": 90,
+    "publish-ready": 95
+  };
+
+  return progressByStage[stage] ?? 25;
+}
+
+function timestampMs(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isoAt(ms: number | null): string {
+  return ms === null ? "" : new Date(ms).toISOString();
+}
+
+function durationBetweenMs(start: string | undefined, end: string | undefined): number {
+  const startMs = timestampMs(start);
+  const endMs = timestampMs(end);
+
+  if (startMs === null || endMs === null || endMs < startMs) {
+    return 0;
+  }
+
+  return endMs - startMs;
+}
+
+function averageCompletedProcessMs(jobs: Array<PreprocessJobRecord | null>, fallbackMs: number): number {
+  const durations = jobs
+    .map((job) => durationBetweenMs(job?.claimed_at, job?.completed_at ?? job?.indexed_at))
+    .filter((duration) => duration > 0);
+
+  if (durations.length === 0) {
+    return fallbackMs;
+  }
+
+  return Math.round(durations.reduce((total, value) => total + value, 0) / durations.length);
+}
+
+function formatBackendDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function loadAdvice(load: Awaited<ReturnType<typeof getRuntimeLoadMetrics>>): string {
+  if (load.disk.status === "blocked") {
+    return "磁盘空间不足，建议暂停流水线并清理空间。";
+  }
+  if (load.network.status === "blocked") {
+    return "网络不可用，建议暂停流水线并检查语音识别网络。";
+  }
+  if (load.cpu.status === "blocked" || load.memory.status === "blocked") {
+    return "运行负荷过高，建议暂停流水线或降低并发任务数。";
+  }
+  if (load.overall_status === "attention") {
+    return "运行负荷偏高，建议继续观察，必要时降低并发任务数。";
+  }
+
+  return "运行负荷正常，可以继续处理";
+}
+
 function jobStageFromManifest(manifest: SourceVideoManifest, job: PreprocessJobRecord | null): string {
+  if (manifest.preprocess_status === "processing" && job?.current_stage) {
+    return job.current_stage;
+  }
+
   if (job?.error_stage) {
     return job.error_stage;
   }
@@ -688,29 +1138,66 @@ function jobStageFromManifest(manifest: SourceVideoManifest, job: PreprocessJobR
   return manifest.preprocess_status;
 }
 
-async function listPreprocessJobs(libraryRoot: string) {
+async function listPreprocessJobs(input: CreateAdminApiServerInput) {
+  const libraryRoot = input.library_root;
+  const now = input.now?.() ?? new Date().toISOString();
+  const nowMs = Date.parse(now);
+  const settings = await readAdminSettings(libraryRoot);
+  const concurrency = Math.max(1, settings.runtime_policy.concurrent_jobs);
   const manifests = await readAllSourceVideoManifests(libraryRoot);
-  const jobs = [];
+  const jobRecords = await Promise.all(
+    manifests.map((manifest) => readPreprocessJob(libraryRoot, manifest.source_video_id))
+  );
+  const averageProcessMs = averageCompletedProcessMs(
+    jobRecords,
+    manifests.length > 0
+      ? Math.max(60_000, Math.round(
+        manifests.reduce((total, manifest) => total + manifest.duration_ms, 0) / manifests.length
+      ))
+      : 0
+  );
+  const jobs: PreprocessJobsResponse["jobs"] = [];
 
-  for (const manifest of manifests) {
+  for (const [index, manifest] of manifests.entries()) {
     if (manifest.preprocess_status === "unprocessed") {
       continue;
     }
 
-    const job = await readPreprocessJob(libraryRoot, manifest.source_video_id);
+    const job = jobRecords[index] ?? null;
     const status = jobStatusFromManifest(manifest.preprocess_status);
+    const stage = jobStageFromManifest(manifest, job);
+    const completedAt = job?.completed_at ?? job?.indexed_at;
+    const failedAt = job?.failed_at;
+    const elapsedMs = status === "running"
+      ? Math.max(0, nowMs - (timestampMs(job?.claimed_at) ?? nowMs))
+      : status === "done"
+        ? durationBetweenMs(job?.claimed_at, completedAt)
+        : status === "failed"
+          ? durationBetweenMs(job?.claimed_at, failedAt)
+          : 0;
+    const elapsedProgress = averageProcessMs > 0
+      ? Math.min(95, Math.max(5, Math.round((elapsedMs / averageProcessMs) * 100)))
+      : 0;
 
     jobs.push({
       job_id: `J${manifest.source_video_id.slice(1)}`,
       source_video_id: manifest.source_video_id,
       title: manifest.title,
       status,
-      stage: jobStageFromManifest(manifest, job),
-      progress: status === "done" ? 100 : status === "running" ? 50 : 0,
+      status_label: preprocessJobStatusLabel(status),
+      stage,
+      stage_label: preprocessStageLabel(stage, status),
+      progress: status === "running"
+        ? Math.max(stageProgress(stage, status), elapsedProgress)
+        : stageProgress(stage, status),
       started_at: job?.claimed_at,
-      completed_at: job?.completed_at ?? job?.indexed_at,
-      failed_at: job?.failed_at,
-      elapsed_ms: 0,
+      completed_at: completedAt,
+      failed_at: failedAt,
+      elapsed_ms: elapsedMs,
+      estimated_remaining_ms: 0,
+      estimated_start_at: "",
+      estimated_done_at: "",
+      queue_position: 0,
       log_path: `.mixlab-library/logs/${manifest.source_video_id}.log`,
       retryable: status === "failed",
       error_message: job?.error_message
@@ -718,23 +1205,76 @@ async function listPreprocessJobs(libraryRoot: string) {
   }
 
   const ordered = jobs.sort((left, right) => {
-    const leftStatus = STATUS_ORDER.indexOf(
-      (left.status === "running" ? "processing" : left.status === "done" ? "ready" : left.status) as PreprocessStatus
-    );
-    const rightStatus = STATUS_ORDER.indexOf(
-      (right.status === "running" ? "processing" : right.status === "done" ? "ready" : right.status) as PreprocessStatus
-    );
+    const statusToPreprocess = (status: "running" | "queued" | "done" | "failed"): PreprocessStatus =>
+      status === "running" ? "processing" : status === "done" ? "ready" : status;
+    const leftStatus = STATUS_ORDER.indexOf(statusToPreprocess(left.status));
+    const rightStatus = STATUS_ORDER.indexOf(statusToPreprocess(right.status));
 
-    return leftStatus - rightStatus || numericSourceVideoId(right.source_video_id) - numericSourceVideoId(left.source_video_id);
+    if (leftStatus !== rightStatus) {
+      return leftStatus - rightStatus;
+    }
+
+    if (left.status === "queued" && right.status === "queued") {
+      return numericSourceVideoId(left.source_video_id) - numericSourceVideoId(right.source_video_id);
+    }
+
+    return numericSourceVideoId(right.source_video_id) - numericSourceVideoId(left.source_video_id);
   });
+  const runningJobs = ordered.filter((job) => job.status === "running");
+  const queuedJobs = ordered.filter((job) => job.status === "queued");
+  const firstRunningRemaining = runningJobs.length > 0 && averageProcessMs > 0
+    ? Math.max(0, averageProcessMs - runningJobs[0]!.elapsed_ms)
+    : 0;
+  let queueCursorMs = nowMs + firstRunningRemaining;
+
+  for (const [index, job] of queuedJobs.entries()) {
+    const batchIndex = Math.floor(index / concurrency);
+    const startMs = queueCursorMs + batchIndex * averageProcessMs;
+    const doneMs = startMs + averageProcessMs;
+    job.queue_position = index + 1;
+    job.estimated_start_at = isoAt(startMs);
+    job.estimated_done_at = isoAt(doneMs);
+    job.estimated_remaining_ms = Math.max(0, doneMs - nowMs);
+    job.stage_label = "等待处理";
+  }
+
+  for (const job of runningJobs) {
+    job.estimated_remaining_ms = averageProcessMs > 0
+      ? Math.max(0, averageProcessMs - job.elapsed_ms)
+      : 0;
+    job.estimated_start_at = job.started_at ?? "";
+    job.estimated_done_at = job.estimated_remaining_ms > 0
+      ? isoAt(nowMs + job.estimated_remaining_ms)
+      : "";
+  }
+
+  const doneCount = ordered.filter((job) => job.status === "done").length;
+  const failedCount = ordered.filter((job) => job.status === "failed").length;
+  const totalObservableCount = Math.max(1, ordered.length);
+  const runningProgress = runningJobs.reduce((total, job) => total + job.progress / 100, 0);
+  const pipelineProgressPercent = Math.round(((doneCount + runningProgress) / totalObservableCount) * 100);
+  const estimatedQueueDurationMs = firstRunningRemaining + Math.ceil(queuedJobs.length / concurrency) * averageProcessMs;
+  const estimatedAllDoneAt = estimatedQueueDurationMs > 0 ? isoAt(nowMs + estimatedQueueDurationMs) : "";
+  const runtimeLoad = await getRuntimeLoadMetrics(input);
 
   return {
     active_count: ordered.filter((job) => job.status === "running").length,
     queued_count: ordered.filter((job) => job.status === "queued").length,
-    completed_count: ordered.filter((job) => job.status === "done").length,
-    failed_count: ordered.filter((job) => job.status === "failed").length,
-    jobs: ordered
-  };
+    completed_count: doneCount,
+    failed_count: failedCount,
+    jobs: ordered,
+    observability: {
+      running_job_id: runningJobs[0]?.job_id ?? "",
+      running_source_video_id: runningJobs[0]?.source_video_id ?? "",
+      pipeline_progress_percent: pipelineProgressPercent,
+      estimated_all_done_at: estimatedAllDoneAt,
+      estimated_queue_duration_ms: estimatedQueueDurationMs,
+      throughput_label: estimatedQueueDurationMs > 0
+        ? `预计 ${formatBackendDuration(estimatedQueueDurationMs)} 完成当前队列`
+        : "当前没有等待处理的队列",
+      load_advice: loadAdvice(runtimeLoad)
+    }
+  } satisfies PreprocessJobsResponse;
 }
 
 function visibilityDetail(manifest: SourceVideoManifest) {
@@ -900,6 +1440,385 @@ function runtimeVersion(executablePath: string): string {
   return result.status === 0 ? result.stdout.split("\n")[0] ?? "available" : "available";
 }
 
+function optionalTrimmed(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
+function parsePositiveIntegerEnv(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fallback: number
+): number {
+  const raw = optionalTrimmed(env[key]);
+
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${key} 必须是正整数`);
+  }
+
+  return parsed;
+}
+
+function runProcess(executable: string, args: string[]): void {
+  const result = spawnSync(executable, args, {
+    encoding: "utf8"
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`${executable} 执行失败：${result.stderr}`);
+  }
+}
+
+function runProcessForStdout(executable: string, args: string[]): string {
+  const result = spawnSync(executable, args, {
+    encoding: "utf8"
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`${executable} 执行失败：${result.stderr}`);
+  }
+
+  return result.stdout;
+}
+
+function buildReadyPublishKeyframesMs(input: {
+  duration_ms: number;
+  interval_ms?: number;
+  max_count?: number;
+}): number[] {
+  const intervalMs = input.interval_ms ?? 5_000;
+  const maxCount = input.max_count ?? 60;
+  const durationMs = Math.max(0, Math.trunc(input.duration_ms));
+
+  if (durationMs === 0) {
+    return [0];
+  }
+
+  const dense: number[] = [];
+
+  for (let cursor = 0; cursor < durationMs; cursor += intervalMs) {
+    dense.push(cursor);
+  }
+
+  dense.push(durationMs);
+
+  if (dense.length <= maxCount) {
+    return Array.from(new Set(dense));
+  }
+
+  const sampled = new Set<number>();
+
+  for (let index = 0; index < maxCount; index += 1) {
+    sampled.add(Math.round((durationMs * index) / (maxCount - 1)));
+  }
+
+  return Array.from(sampled).sort((left, right) => left - right);
+}
+
+function createDefaultReadyPublishMedia(): ReadyPublishMedia {
+  return {
+    async create_cover(input) {
+      const runtime = resolveFfmpegRuntime();
+      const plan = buildFfmpegCoverImagePlan({
+        source_path: input.source_path,
+        output_path: input.output_path,
+        at_ms: input.at_ms,
+        width: input.width
+      });
+
+      runProcess(runtime.ffmpeg_path, plan.args);
+    }
+  };
+}
+
+async function prepareReadyPublishArtifacts(input: {
+  library_root: string;
+  source_video_ids?: string[];
+  now: string;
+  media: ReadyPublishMedia;
+}): Promise<string[]> {
+  const requestedIds = input.source_video_ids ? new Set(input.source_video_ids) : null;
+  const manifests = await readAllSourceVideoManifests(input.library_root);
+  const indexRequired = manifests.filter(
+    (manifest) =>
+      manifest.preprocess_status === "index-required" &&
+      (!requestedIds || requestedIds.has(manifest.source_video_id))
+  );
+  const preparedSourceVideoIds: string[] = [];
+
+  for (const manifest of indexRequired) {
+    const coverPath = manifest.cover_path.trim()
+      ? manifest.cover_path
+      : `.mixlab-library/videos/${manifest.source_video_id}/cover.jpg`;
+    const absoluteCoverPath = path.join(input.library_root, coverPath);
+
+    if (!(await fileExists(absoluteCoverPath))) {
+      await mkdir(path.dirname(absoluteCoverPath), { recursive: true });
+      const sourcePath = await resolveSourceVideoFilePath(input.library_root, manifest);
+      await input.media.create_cover({
+        source_path: sourcePath,
+        output_path: absoluteCoverPath,
+        at_ms: Math.min(1_000, Math.max(0, manifest.duration_ms - 1)),
+        width: 640
+      });
+    }
+
+    await completeReadyVisualArtifacts({
+      library_root: input.library_root,
+      source_video_id: manifest.source_video_id,
+      cover_path: coverPath,
+      keyframes_ms: buildReadyPublishKeyframesMs({
+        duration_ms: manifest.duration_ms
+      }),
+      now: input.now
+    });
+    preparedSourceVideoIds.push(manifest.source_video_id);
+  }
+
+  return preparedSourceVideoIds;
+}
+
+async function publishReadyPreparedVideos(input: {
+  library_root: string;
+  library_id: string;
+  now: string;
+  media: ReadyPublishMedia;
+  source_video_ids?: string[];
+}) {
+  const preparedSourceVideoIds = await prepareReadyPublishArtifacts({
+    library_root: input.library_root,
+    source_video_ids: input.source_video_ids,
+    now: input.now,
+    media: input.media
+  });
+  const result = await publishIndexRequiredSourceVideos({
+    library_root: input.library_root,
+    library_id: input.library_id,
+    now: input.now,
+    ...(input.source_video_ids ? { source_video_ids: input.source_video_ids } : {})
+  });
+  const publishedCount = result.published_source_video_ids.length;
+  const skippedCount = result.skipped_source_video_ids.length;
+  const message = publishedCount > 0
+    ? `已发布 ${publishedCount} 个原视频，当前可用 ${result.ready_video_count} 个。`
+    : skippedCount > 0
+      ? `没有发布新视频，${skippedCount} 个待发布视频缺少文案、字幕、封面或关键帧产物。`
+      : "没有需要发布的待索引视频。";
+
+  return {
+    ...result,
+    prepared_source_video_ids: preparedSourceVideoIds,
+    published_count: publishedCount,
+    skipped_count: skippedCount,
+    affected_count: publishedCount,
+    message
+  };
+}
+
+function assertRealPreprocessStartReady(env: NodeJS.ProcessEnv): void {
+  if (!optionalTrimmed(env.DASHSCOPE_API_KEY)) {
+    throw new Error("语音识别接口密钥未配置，无法启动真实预处理服务");
+  }
+}
+
+export type AdminPreprocessWorkerCycleInput = Omit<
+  RunLibraryTextPreprocessWorkerInput,
+  "probe_source_video" | "preprocess_source_video" | "get_content_hash"
+>;
+
+export interface RunAdminPreprocessPipelineInput {
+  library_root: string;
+  library_id: string;
+  library_name: string;
+  runtime_policy: AdminRuntimePolicy;
+  limit?: number;
+  now: () => string;
+  media: ReadyPublishMedia;
+  should_stop?: () => boolean;
+  run_worker_cycle(input: AdminPreprocessWorkerCycleInput): Promise<RunLibraryTextPreprocessWorkerResult>;
+}
+
+export interface RunAdminPreprocessPipelineResult extends RunLibraryTextPreprocessWorkerResult {
+  prepared_source_video_ids: string[];
+  published_source_video_ids: string[];
+  skipped_source_video_ids: string[];
+  published_count: number;
+  skipped_count: number;
+}
+
+export async function runAdminPreprocessPipeline(
+  input: RunAdminPreprocessPipelineInput
+): Promise<RunAdminPreprocessPipelineResult> {
+  await initializeLibrary({
+    library_root: input.library_root,
+    library_id: input.library_id,
+    library_name: input.library_name,
+    now: input.now()
+  });
+  const scanResult = await scanSourceVideos({
+    library_root: input.library_root,
+    library_id: input.library_id,
+    library_name: input.library_name,
+    now: input.now()
+  });
+  await transitionManifests({
+    library_root: input.library_root,
+    from: ["unprocessed"],
+    to: "queued",
+    now: input.now(),
+    reason: "queued-by-pipeline"
+  });
+  await writeLibraryManifest({
+    library_root: input.library_root,
+    library_id: input.library_id,
+    library_name: input.library_name,
+    now: input.now()
+  });
+
+  const items: RunLibraryTextPreprocessWorkerResult["items"] = [];
+  const preparedSourceVideoIds: string[] = [];
+  const publishedSourceVideoIds: string[] = [];
+  const skippedSourceVideoIds: string[] = [];
+  let totalClaimedCount = 0;
+  let succeededCount = 0;
+  let failedCount = 0;
+
+  while (input.should_stop?.() !== true) {
+    const cycleResult = await input.run_worker_cycle({
+      library_root: input.library_root,
+      library_id: input.library_id,
+      library_name: input.library_name,
+      worker_id: `admin-worker-${process.pid}`,
+      limit: input.limit ?? input.runtime_policy.concurrent_jobs,
+      audio_mode: input.runtime_policy.audio_mode,
+      now: input.now,
+      scan_before_claim: false,
+      claim_statuses: ["queued"]
+    });
+    totalClaimedCount += cycleResult.total_claimed_count;
+    succeededCount += cycleResult.succeeded_count;
+    failedCount += cycleResult.failed_count;
+    items.push(...cycleResult.items);
+
+    const publishResult = await publishReadyPreparedVideos({
+      library_root: input.library_root,
+      library_id: input.library_id,
+      now: input.now(),
+      media: input.media
+    });
+    preparedSourceVideoIds.push(...publishResult.prepared_source_video_ids);
+    publishedSourceVideoIds.push(...publishResult.published_source_video_ids);
+    skippedSourceVideoIds.push(...publishResult.skipped_source_video_ids);
+
+    if (cycleResult.total_claimed_count === 0) {
+      break;
+    }
+  }
+
+  return {
+    scan_result: scanResult,
+    total_claimed_count: totalClaimedCount,
+    succeeded_count: succeededCount,
+    failed_count: failedCount,
+    items,
+    prepared_source_video_ids: [...new Set(preparedSourceVideoIds)],
+    published_source_video_ids: [...new Set(publishedSourceVideoIds)],
+    skipped_source_video_ids: [...new Set(skippedSourceVideoIds)],
+    published_count: new Set(publishedSourceVideoIds).size,
+    skipped_count: new Set(skippedSourceVideoIds).size
+  };
+}
+
+function createRealPreprocessRunner(input: {
+  library_root: string;
+  library_id: string;
+  library_name: string;
+  env: NodeJS.ProcessEnv;
+  now: () => string;
+  media: ReadyPublishMedia;
+}): PreprocessSupervisorRunner {
+  return {
+    async runOnce(runInput) {
+      assertRealPreprocessStartReady(input.env);
+
+      const runtime = resolveFfmpegRuntime(input.env);
+      const dashscopeHttp = createFetchDashScopeHttpClient();
+      const apiKey = optionalTrimmed(input.env.DASHSCOPE_API_KEY);
+      const asrModel = (optionalTrimmed(input.env.MIXLAB_ASR_MODEL) || "paraformer-v2") as DashScopeAsrModel;
+      const maxPollAttempts = parsePositiveIntegerEnv(input.env, "MIXLAB_ASR_MAX_POLL_ATTEMPTS", 60);
+      const pollIntervalMs = parsePositiveIntegerEnv(input.env, "MIXLAB_ASR_POLL_INTERVAL_MS", 3000);
+      const uploader = createDashScopeTemporaryFileAudioUploader({
+        api_key: apiKey,
+        model: asrModel,
+        http: dashscopeHttp
+      });
+
+      return runAdminPreprocessPipeline({
+        library_root: input.library_root,
+        library_id: input.library_id,
+        library_name: input.library_name,
+        runtime_policy: runInput.runtime_policy,
+        limit: runInput.limit,
+        now: input.now,
+        media: input.media,
+        should_stop: runInput.should_stop,
+        run_worker_cycle(workerInput) {
+          return runLibraryTextPreprocessWorker({
+            ...workerInput,
+            async probe_source_video(probeInput) {
+              const plan = buildFfprobeSourceMetadataPlan({
+                source_path: probeInput.source_video_path
+              });
+
+              return parseFfprobeSourceMetadata(
+                runProcessForStdout(runtime.ffprobe_path, plan.args)
+              );
+            },
+            async get_content_hash(sourceVideoPath) {
+              return getFileIdentity(sourceVideoPath, "stat");
+            },
+            async preprocess_source_video(preprocessInput) {
+              return runSourceVideoTextPreprocess({
+                library_root: preprocessInput.library_root,
+                library_id: preprocessInput.library_id,
+                source_video_id: preprocessInput.source_video_id,
+                source_video_path: preprocessInput.source_video_path,
+                ffmpeg_path: runtime.ffmpeg_path,
+                audio_mode: preprocessInput.audio_mode,
+                now: preprocessInput.now,
+                on_stage: preprocessInput.on_stage,
+                command_runner: {
+                  async run(executable, args) {
+                    runProcess(executable, args);
+                  }
+                },
+                uploader,
+                asr_http: dashscopeHttp,
+                asr: {
+                  api_key: apiKey,
+                  model: asrModel,
+                  max_poll_attempts: maxPollAttempts,
+                  poll_interval_ms: pollIntervalMs,
+                  parameters: {
+                    channel_id: [0],
+                    language_hints: ["zh", "en"],
+                    diarization_enabled: false
+                  }
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+  };
+}
+
 function getRuntimeSettings(env: NodeJS.ProcessEnv) {
   try {
     const runtime = resolveFfmpegRuntime();
@@ -963,9 +1882,14 @@ async function transitionManifests(input: {
   to: PreprocessStatus;
   now: string;
   reason: string;
+  source_video_ids?: string[];
 }): Promise<{ affected_count: number; source_video_ids: string[] }> {
   const manifests = await readAllSourceVideoManifests(input.library_root);
-  const affected = manifests.filter((manifest) => input.from.includes(manifest.preprocess_status));
+  const requestedIds = input.source_video_ids ? new Set(input.source_video_ids) : null;
+  const affected = manifests.filter((manifest) =>
+    input.from.includes(manifest.preprocess_status) &&
+    (!requestedIds || requestedIds.has(manifest.source_video_id))
+  );
 
   for (const manifest of affected) {
     await writeSourceVideoManifest(input.library_root, {
@@ -1004,6 +1928,18 @@ function cleanTags(value: unknown): string[] | undefined {
     .filter(Boolean);
 
   return tags.length > 0 ? tags : undefined;
+}
+
+function parseOptionalPositiveInteger(value: unknown, label: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Number.isInteger(value) || Number(value) <= 0) {
+    throw new Error(`${label}必须是正整数`);
+  }
+
+  return Number(value);
 }
 
 async function readRequestJson(request: IncomingMessage): Promise<unknown> {
@@ -1070,6 +2006,19 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
   const libraryName = input.library_name ?? "MixLab 公共素材库";
   const env = input.env ?? process.env;
   const now = () => input.now?.() ?? new Date().toISOString();
+  const readyPublishMedia = input.ready_publish_media ?? createDefaultReadyPublishMedia();
+  const supervisor = createPreprocessSupervisor({
+    worker_id: `admin-worker-${process.pid}`,
+    now,
+    runner: input.preprocess_runner ?? createRealPreprocessRunner({
+      library_root: input.library_root,
+      library_id: libraryId,
+      library_name: libraryName,
+      env,
+      now,
+      media: readyPublishMedia
+    })
+  });
 
   return createServer(async (request, response) => {
     try {
@@ -1191,7 +2140,41 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/preprocess/jobs") {
-        writeJson(response, 200, apiOk(await listPreprocessJobs(input.library_root)));
+        const jobs = await listPreprocessJobs(input);
+        writeJson(response, 200, apiOk({
+          ...jobs,
+          supervisor: publicPreprocessSupervisorStatus(supervisor.status())
+        }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/admin/preprocess/supervisor/status") {
+        writeJson(response, 200, apiOk(publicPreprocessSupervisorStatus(supervisor.status())));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/preprocess/supervisor/start") {
+        try {
+          const body = requireRequestRecord(await readRequestJson(request));
+          const settings = await readAdminSettings(input.library_root);
+          if (!input.preprocess_runner) {
+            assertRealPreprocessStartReady(env);
+          }
+          writeJson(response, 200, apiOk(publicPreprocessSupervisorStatus(supervisor.start({
+            limit: parseOptionalPositiveInteger(body.limit, "本次限制"),
+            runtime_policy: settings.runtime_policy
+          }))));
+        } catch (error) {
+          writeJson(response, 400, apiError(
+            "invalid_request",
+            error instanceof Error ? error.message : "启动预处理服务失败"
+          ));
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/preprocess/supervisor/stop") {
+        writeJson(response, 200, apiOk(publicPreprocessSupervisorStatus(supervisor.stop())));
         return;
       }
 
@@ -1276,11 +2259,76 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
-      if (request.method === "POST" && url.pathname === "/api/admin/index/repair") {
-        writeJson(response, 200, apiOk(await publishIndexRequiredSourceVideos({
+      const sourceVideoQueueMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/queue$/.exec(url.pathname);
+      if (request.method === "POST" && sourceVideoQueueMatch) {
+        const sourceVideoId = sourceVideoQueueMatch[1] ?? "";
+        const result = await transitionManifests({
+          library_root: input.library_root,
+          from: ["unprocessed"],
+          to: "queued",
+          now: now(),
+          reason: "queued-by-admin",
+          source_video_ids: [sourceVideoId]
+        });
+        await writeLibraryManifest({
           library_root: input.library_root,
           library_id: libraryId,
+          library_name: libraryName,
           now: now()
+        });
+        writeJson(response, 200, apiOk({
+          ...result,
+          message: result.affected_count > 0
+            ? `已将 ${sourceVideoId} 加入预处理队列。`
+            : `${sourceVideoId} 当前状态不能加入预处理队列。`
+        }));
+        return;
+      }
+
+      const sourceVideoRetryMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/retry$/.exec(url.pathname);
+      if (request.method === "POST" && sourceVideoRetryMatch) {
+        const sourceVideoId = sourceVideoRetryMatch[1] ?? "";
+        const result = await transitionManifests({
+          library_root: input.library_root,
+          from: ["failed"],
+          to: "queued",
+          now: now(),
+          reason: "retry-by-admin",
+          source_video_ids: [sourceVideoId]
+        });
+        await writeLibraryManifest({
+          library_root: input.library_root,
+          library_id: libraryId,
+          library_name: libraryName,
+          now: now()
+        });
+        writeJson(response, 200, apiOk({
+          ...result,
+          message: result.affected_count > 0
+            ? `已将 ${sourceVideoId} 重新加入预处理队列。`
+            : `${sourceVideoId} 当前状态不能重试。`
+        }));
+        return;
+      }
+
+      const sourceVideoPublishMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/publish$/.exec(url.pathname);
+      if (request.method === "POST" && sourceVideoPublishMatch) {
+        writeJson(response, 200, apiOk(await publishReadyPreparedVideos({
+          library_root: input.library_root,
+          library_id: libraryId,
+          now: now(),
+          media: readyPublishMedia,
+          source_video_ids: [sourceVideoPublishMatch[1] ?? ""]
+        })));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/index/repair") {
+        writeJson(response, 200, apiOk(await publishReadyPreparedVideos({
+          library_root: input.library_root,
+          library_id: libraryId,
+          now: now(),
+          media: readyPublishMedia
         })));
         return;
       }

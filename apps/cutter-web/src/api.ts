@@ -57,6 +57,8 @@ export interface SourceVideoDetail extends SourceVideoCard {
 
 export interface SearchHitSegment extends TranscriptSegment {
   match_ranges?: Array<[number, number]>;
+  match_id?: string;
+  match_type?: "exact" | "tolerant";
 }
 
 export interface SearchGroup {
@@ -66,6 +68,7 @@ export interface SearchGroup {
   hit_count: number;
   best_excerpt: string;
   hit_segments: SearchHitSegment[];
+  transcript_character_count?: number;
   media_url?: string;
   cover_url?: string;
   detail_url?: string;
@@ -80,13 +83,23 @@ export interface SearchResponse {
 
 export interface LocalClip {
   local_clip_id: string;
+  project_id?: string;
   title: string;
   source_video_id?: string;
   source_title?: string;
+  relative_path?: string;
   begin_ms?: number;
   end_ms?: number;
   duration_ms?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  codec?: string;
+  file_size?: number;
   selected_text?: string;
+  cover_url?: string;
+  subtitles_url?: string;
+  transcript_segments?: TranscriptSegment[];
   media_url: string;
   detail_url: string;
 }
@@ -133,6 +146,7 @@ export interface ClipList {
   schema_version: string;
   clip_list_id: string;
   library_id: string;
+  project_id?: string;
   title: string;
   item_count: number;
   created_at: string;
@@ -142,17 +156,40 @@ export interface ClipList {
 
 export interface CreateClipListRequest {
   library_id: string;
+  project_id?: string;
   title: string;
   items: CutListItemInput[];
 }
 
 export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
+export type CutJobPhaseId =
+  | "queue_wait"
+  | "resolve_source"
+  | "cut_media"
+  | "write_project_output"
+  | "preprocess_local_asset"
+  | "generate_cover"
+  | "write_manifest";
+export type CutJobPhaseStatus = "pending" | "running" | "done" | "failed";
+
+export interface CutJobPhaseTiming {
+  phase_id: CutJobPhaseId;
+  label: string;
+  status: CutJobPhaseStatus;
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+}
 
 export interface CutJob {
   cut_job_id: string;
   clip_list_id: string;
   clip_list_item_id?: string;
   library_id?: string;
+  project_id?: string;
+  title?: string;
+  project_title?: string;
+  project_clip_order?: number;
   source_video_id?: string;
   source_title?: string;
   source_relative_path?: string;
@@ -163,6 +200,8 @@ export interface CutJob {
   selected_text?: string;
   cut_mode?: CutMode;
   status: CutJobStatus;
+  current_phase?: CutJobPhaseId;
+  phase_timings?: CutJobPhaseTiming[];
   created_at?: string;
   updated_at?: string;
   started_at?: string;
@@ -184,6 +223,24 @@ export interface CutJobCatalog {
 
 export interface SubmitCutJobsRequest {
   clip_list_id: string;
+}
+
+export interface OpenCutOutputDirectoryResult {
+  path: string;
+}
+
+export interface OpenCutOutputDirectoryRequest {
+  project_id?: string;
+  project_title?: string;
+}
+
+export interface DeleteProjectOutputsResult {
+  project_id: string;
+  removed_export_clips: number;
+  removed_local_clips: number;
+  removed_project_outputs: number;
+  removed_cut_jobs: number;
+  removed_clip_lists: number;
 }
 
 export type CutterUserStatus = "pending" | "approved" | "rejected" | "disabled";
@@ -249,6 +306,30 @@ export interface CutterLoginStatusFailure {
   message?: string;
 }
 
+export interface CutterRuntimeStatus {
+  mode: "api" | "fixture";
+  mode_label: string;
+  api_ready: boolean;
+  generated_at: string;
+  library_id: string;
+  library_root_label: string;
+  available_video_count: number;
+  workspace_enabled: boolean;
+  workspace_root_label: string;
+  local_clip_count: number;
+  ffmpeg_status: "可用" | "不可用";
+  ffmpeg_source: "内置" | "环境配置" | "未检测到";
+  local_runtime?: {
+    cpu_usage_percent?: number;
+    disk_io_bytes_per_second?: number;
+  };
+  current_user: {
+    user_id: string;
+    username: string;
+    display_name: string;
+  };
+}
+
 export interface CutterAuthHeaders {
   device_id: string;
   session_token: string;
@@ -275,6 +356,7 @@ export class CutterApiError extends Error {
 export interface CutterApiClient {
   requestLogin(input: CutterLoginRequest): Promise<CutterLoginApplication>;
   getLoginStatus(): Promise<CutterLoginStatus>;
+  getRuntimeStatus(): Promise<CutterRuntimeStatus>;
   listSourceLibrary(): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number): Promise<SearchResponse>;
@@ -285,6 +367,9 @@ export interface CutterApiClient {
   submitCutJobs(request: SubmitCutJobsRequest): Promise<CutJobSubmission>;
   listCutJobs(): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
+  retryCutJob(cutJobId: string): Promise<CutJob>;
+  openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
+  deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
 }
 
@@ -370,6 +455,16 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    getRuntimeStatus() {
+      return requestEnvelope<CutterRuntimeStatus>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/runtime-status"),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
     listSourceLibrary() {
       return requestEnvelope<SourceLibraryResponse>(
         fetchImpl,
@@ -437,7 +532,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
             end_segment_id: request.end_segment_id,
             pre_roll_ms: request.pre_roll_ms ?? 0,
             post_roll_ms: request.post_roll_ms ?? 0,
-            cut_mode: request.cut_mode ?? "smart",
+            cut_mode: request.cut_mode ?? "copy",
             ...(request.title ? { title: request.title } : {})
           })
         }
@@ -453,6 +548,7 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
           headers: jsonHeaders(input.auth),
           body: JSON.stringify({
             library_id: request.library_id,
+            ...(request.project_id ? { project_id: request.project_id } : {}),
             title: request.title,
             items: request.items
           })
@@ -495,8 +591,42 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    retryCutJob(cutJobId: string) {
+      return requestEnvelope<CutJob>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/retry`),
+        {
+          method: "POST",
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    openCutOutputDirectory(request = {}) {
+      return requestEnvelope<OpenCutOutputDirectoryResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/workspace/open-export-directory"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    deleteProjectOutputs(projectId: string) {
+      return requestEnvelope<DeleteProjectOutputsResult>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/projects/${encodeURIComponent(projectId)}/outputs`),
+        {
+          method: "DELETE",
+          headers: protectedHeaders
+        }
+      );
+    },
+
     resolveApiUrl(pathOrUrl: string) {
-      if (/^https?:\/\//.test(pathOrUrl)) {
+      if (/^(?:https?:\/\/|data:|blob:)/.test(pathOrUrl)) {
         return pathOrUrl;
       }
 

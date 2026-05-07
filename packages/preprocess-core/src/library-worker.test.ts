@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { addAdminSourceFolder } from "../../library-fs/src/index.ts";
+import { addAdminSourceFolder, scanSourceVideos } from "../../library-fs/src/index.ts";
 import { runLibraryTextPreprocessWorker } from "./library-worker.ts";
 
 async function makeLibraryRoot(): Promise<string> {
@@ -105,6 +105,67 @@ test("scans, claims and completes one text preprocessed source video as index-re
   assert.equal(library.unprocessed_video_count, 1);
 });
 
+test("writes live preprocess stages while a worker handles a claimed video", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
+
+  const result = await runLibraryTextPreprocessWorker({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    worker_id: "worker-a",
+    limit: 1,
+    now: deterministicNow(),
+    async probe_source_video() {
+      const job = await readJson<Record<string, unknown>>(
+        path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "preprocess-job.json")
+      );
+
+      assert.equal(job.current_stage, "probe-media");
+
+      return {
+        duration_ms: 4_000,
+        width: 1280,
+        height: 720,
+        fps: 25,
+        codec: "h264"
+      };
+    },
+    async get_content_hash(sourceVideoPath) {
+      return `sha256:${path.basename(sourceVideoPath)}`;
+    },
+    async preprocess_source_video(input) {
+      await input.on_stage?.("extract-audio");
+      const extractJob = await readJson<Record<string, unknown>>(
+        path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "preprocess-job.json")
+      );
+      assert.equal(extractJob.current_stage, "extract-audio");
+
+      await input.on_stage?.("asr");
+      const asrJob = await readJson<Record<string, unknown>>(
+        path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "preprocess-job.json")
+      );
+      assert.equal(asrJob.current_stage, "asr");
+
+      return {
+        source_video_id: input.source_video_id,
+        audio_path: ".mixlab-library/videos/V000001/asr-audio/audio.mp3",
+        audio_object_key: "temporary/V000001/audio.mp3",
+        audio_file_url: "oss://temporary/V000001/audio.mp3",
+        asr_task_id: "task-v000001",
+        transcription_url: "https://example.com/V000001.json",
+        transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+        srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+        duration_ms: 4_000,
+        segment_count: 1
+      };
+    }
+  });
+
+  assert.equal(result.succeeded_count, 1);
+  assert.equal(result.failed_count, 0);
+});
+
 test("marks failed videos and continues processing later claimed videos", async () => {
   const libraryRoot = await makeLibraryRoot();
   await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
@@ -184,6 +245,78 @@ test("marks failed videos and continues processing later claimed videos", async 
   assert.equal(library.failed_video_count, 1);
   assert.equal(library.processing_video_count, 0);
   assert.equal(library.index_required_video_count, 1);
+});
+
+test("can skip scanning and only consume queued videos for pipeline cycles", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "b.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const firstManifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "source-video.json"
+  );
+  const firstManifest = await readJson<Record<string, unknown>>(firstManifestPath);
+  await writeFile(
+    firstManifestPath,
+    `${JSON.stringify({ ...firstManifest, preprocess_status: "queued" }, null, 2)}\n`
+  );
+
+  const result = await runLibraryTextPreprocessWorker({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    worker_id: "worker-a",
+    limit: 2,
+    scan_before_claim: false,
+    claim_statuses: ["queued"],
+    now: deterministicNow(),
+    async probe_source_video(input) {
+      assert.equal(input.source_video_id, "V000001");
+      return {
+        duration_ms: 4_000,
+        width: 1280,
+        height: 720,
+        fps: 25,
+        codec: "h264"
+      };
+    },
+    async get_content_hash(sourceVideoPath) {
+      return `sha256:${path.basename(sourceVideoPath)}`;
+    },
+    async preprocess_source_video(input) {
+      return {
+        source_video_id: input.source_video_id,
+        audio_path: ".mixlab-library/videos/V000001/asr-audio/audio.mp3",
+        audio_object_key: "temporary/V000001/audio.mp3",
+        audio_file_url: "oss://temporary/V000001/audio.mp3",
+        asr_task_id: "task-v000001",
+        transcription_url: "https://example.com/V000001.json",
+        transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+        srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+        duration_ms: 4_000,
+        segment_count: 1
+      };
+    }
+  });
+
+  assert.equal(result.scan_result.total_video_count, 2);
+  assert.equal(result.scan_result.new_video_count, 0);
+  assert.deepEqual(result.items.map((item) => item.source_video_id), ["V000001"]);
+
+  const secondManifest = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")
+  );
+  assert.equal(secondManifest.preprocess_status, "unprocessed");
 });
 
 test("preprocesses non-default configured source folder files by physical path", async () => {

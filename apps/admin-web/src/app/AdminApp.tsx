@@ -7,6 +7,7 @@ import {
 } from "@mixlab/ui-foundation";
 import {
   createAdminApiClient,
+  createAdminSmartScanReport,
   createFixtureAdminApiClient,
   loadAdminDashboardData,
   type AdminActionResult,
@@ -14,6 +15,7 @@ import {
   type AdminCutterUsersResponse,
   type AdminDashboardData,
   type AdminSettingsConfigUpdate,
+  type AdminSmartScanAction,
   type AdminSourceVideoDetail,
   type AdminSourceVideo,
   type AdminSourceVideoMetadataUpdate
@@ -21,7 +23,6 @@ import {
 import { DashboardPage } from "../features/dashboard/DashboardPage.tsx";
 import { CutterUsersPage } from "../features/cutter-users/CutterUsersPage.tsx";
 import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
-import { IndexPublishPage } from "../features/index-publish/IndexPublishPage.tsx";
 import { PreprocessJobsPage } from "../features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { AdminSourceDetailPage } from "../features/source-detail/AdminSourceDetailPage.tsx";
@@ -33,7 +34,7 @@ import {
   routeToHash,
   type AdminRoute
 } from "./navigation.ts";
-import { chineseDiagnosticText } from "./chinese.ts";
+import { chineseDiagnosticText, indexStatusLabel } from "./chinese.ts";
 
 function createRuntimeClient() {
   const baseUrl = import.meta.env?.VITE_MIXLAB_ADMIN_API_BASE_URL;
@@ -48,14 +49,47 @@ function routeTitle(route: AdminRoute): string {
     dashboard: "仪表盘",
     "source-videos": "原视频管理",
     "source-detail": "原视频详情",
-    "preprocess-jobs": "预处理队列",
-    "index-publish": "索引与发布",
+    "preprocess-jobs": "预处理",
+    "index-publish": "预处理",
     doctor: "健康诊断",
     "cutter-users": "剪辑师用户",
     settings: "设置"
   };
 
   return labels[route];
+}
+
+export const ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS = 2_000;
+
+const ALWAYS_AUTO_REFRESH_ROUTES = new Set<AdminRoute>([
+  "dashboard",
+  "preprocess-jobs"
+]);
+
+const PRODUCTION_AUTO_REFRESH_ROUTES = new Set<AdminRoute>([
+  "source-videos",
+  "source-detail"
+]);
+
+export function shouldAutoRefreshAdminData(route: AdminRoute, data: AdminDashboardData): boolean {
+  if (ALWAYS_AUTO_REFRESH_ROUTES.has(route)) {
+    return true;
+  }
+
+  if (!PRODUCTION_AUTO_REFRESH_ROUTES.has(route)) {
+    return false;
+  }
+
+  return (
+    data.jobs.supervisor.state === "running" ||
+    data.jobs.supervisor.state === "stopping" ||
+    data.jobs.active_count > 0 ||
+    data.jobs.queued_count > 0 ||
+    data.status.processing_video_count > 0 ||
+    data.status.queued_video_count > 0 ||
+    data.status.unprocessed_video_count > 0 ||
+    data.status.index_required_video_count > 0
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,6 +101,13 @@ interface AdminActionHandlers {
   onScanSourceVideos: () => Promise<void>;
   onQueueUnprocessedVideos: () => Promise<void>;
   onRetryFailedVideos: () => Promise<void>;
+  onRunSmartScan: () => Promise<void>;
+  onApplySmartScanPrimaryAction: (action: AdminSmartScanAction) => Promise<void>;
+  onQueueSourceVideo: (sourceVideoId: string) => Promise<void>;
+  onRetrySourceVideo: (sourceVideoId: string) => Promise<void>;
+  onPublishSourceVideo: (sourceVideoId: string) => Promise<void>;
+  onStartPreprocessSupervisor: () => Promise<void>;
+  onStopPreprocessSupervisor: () => Promise<void>;
   onRepairIndex: () => Promise<void>;
   onRunDoctor: () => Promise<void>;
   onTestAsrConfig: () => Promise<void>;
@@ -151,6 +192,54 @@ export function sourceDetailLoadErrorMessage(error: unknown): string {
   return "原视频详情加载失败，请稍后重试。";
 }
 
+export function adminLoadErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "管理端数据加载失败，请稍后重试。";
+  }
+
+  const rawMessage = error.message.trim();
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (normalizedMessage.includes("failed to fetch")) {
+    return "无法连接管理端服务，请检查服务是否启动。";
+  }
+
+  if (normalizedMessage.includes("route not found") || normalizedMessage.includes("not_found")) {
+    return "管理端接口暂不可用，请刷新后重试。";
+  }
+
+  const withoutProtocolPrefix = stripKnownProtocolPrefix(rawMessage);
+  if (containsChinese(withoutProtocolPrefix)) {
+    return withoutProtocolPrefix;
+  }
+
+  return "管理端数据加载失败，请稍后重试。";
+}
+
+export function adminActionErrorMessage(label: string, error: unknown): string {
+  if (!(error instanceof Error)) {
+    return `${label}失败，请稍后重试。`;
+  }
+
+  const rawMessage = error.message.trim();
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (normalizedMessage.includes("failed to fetch")) {
+    return "无法连接管理端服务，请检查服务是否启动。";
+  }
+
+  if (normalizedMessage.includes("route not found") || normalizedMessage.includes("not_found")) {
+    return `${label}失败：管理端接口暂不可用，请刷新后重试。`;
+  }
+
+  const withoutProtocolPrefix = stripKnownProtocolPrefix(rawMessage);
+  if (containsChinese(withoutProtocolPrefix)) {
+    return `${label}失败：${withoutProtocolPrefix}`;
+  }
+
+  return `${label}失败，请稍后重试。`;
+}
+
 function isActionResult(value: unknown): value is AdminActionResult {
   return isRecord(value) && (
     "affected_count" in value ||
@@ -170,6 +259,9 @@ function formatActionNotice(label: string, result: unknown): string {
       typeof result.affected_count === "number" ? `影响 ${result.affected_count} 个视频` : "",
       typeof result.new_video_count === "number" ? `新增 ${result.new_video_count} 个` : "",
       typeof result.existing_video_count === "number" ? `已存在 ${result.existing_video_count} 个` : "",
+      typeof result.published_count === "number" ? `发布 ${result.published_count} 个` : "",
+      typeof result.skipped_count === "number" ? `跳过 ${result.skipped_count} 个` : "",
+      typeof result.ready_video_count === "number" ? `当前可用 ${result.ready_video_count} 个` : "",
       typeof result.passed === "boolean" ? (result.passed ? "检测通过" : "检测未通过") : ""
     ].filter(Boolean);
 
@@ -211,9 +303,9 @@ function renderPage(
     return (
       <SourceVideosPage
         data={data}
-        onScanSourceVideos={actions.onScanSourceVideos}
-        onQueueUnprocessedVideos={actions.onQueueUnprocessedVideos}
-        onRetryFailedVideos={actions.onRetryFailedVideos}
+        onQueueSourceVideo={actions.onQueueSourceVideo}
+        onRetrySourceVideo={actions.onRetrySourceVideo}
+        onPublishSourceVideo={actions.onPublishSourceVideo}
         onUpdateSourceVideoMetadata={actions.onUpdateSourceVideoMetadata}
         onOpenSourceDetail={actions.onOpenSourceDetail}
       />
@@ -257,18 +349,20 @@ function renderPage(
     return (
       <PreprocessJobsPage
         data={data}
-        onQueueUnprocessedVideos={actions.onQueueUnprocessedVideos}
         onRetryFailedVideos={actions.onRetryFailedVideos}
+        onStartPreprocessSupervisor={actions.onStartPreprocessSupervisor}
+        onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
       />
     );
   }
 
   if (route === "index-publish") {
     return (
-      <IndexPublishPage
+      <PreprocessJobsPage
         data={data}
-        onRepairIndex={actions.onRepairIndex}
-        onRunDoctor={actions.onRunDoctor}
+        onRetryFailedVideos={actions.onRetryFailedVideos}
+        onStartPreprocessSupervisor={actions.onStartPreprocessSupervisor}
+        onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
       />
     );
   }
@@ -287,8 +381,6 @@ function renderPage(
     return (
       <SettingsPage
         data={data}
-        onInitializeLibrary={actions.onInitializeLibrary}
-        onScanSourceVideos={actions.onScanSourceVideos}
         onSaveAdminSettings={actions.onSaveAdminSettings}
         onTestAsrConfig={actions.onTestAsrConfig}
       />
@@ -322,10 +414,10 @@ function renderPage(
   return (
     <DashboardPage
       data={data}
-      onScanSourceVideos={actions.onScanSourceVideos}
-      onQueueUnprocessedVideos={actions.onQueueUnprocessedVideos}
       onRetryFailedVideos={actions.onRetryFailedVideos}
-      onRunDoctor={actions.onRunDoctor}
+      onRunSmartScan={actions.onRunSmartScan}
+      onApplySmartScanPrimaryAction={actions.onApplySmartScanPrimaryAction}
+      smartScanReport={createAdminSmartScanReport(data)}
     />
   );
 }
@@ -363,7 +455,7 @@ export function AdminApp() {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "管理端数据加载失败");
+          setError(adminLoadErrorMessage(loadError));
         }
       });
 
@@ -371,6 +463,18 @@ export function AdminApp() {
       cancelled = true;
     };
   }, [client, reloadToken]);
+
+  useEffect(() => {
+    if (!data || !shouldAutoRefreshAdminData(route, data)) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setReloadToken((current) => current + 1);
+    }, ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [data, route]);
 
   useEffect(() => {
     const request = sourceDetailRequestForRoute(route, data, selectedSourceVideoId);
@@ -428,7 +532,7 @@ export function AdminApp() {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setActionError(loadError instanceof Error ? loadError.message : "剪辑师用户加载失败");
+          setActionError(adminActionErrorMessage("剪辑师用户加载", loadError));
         }
       });
 
@@ -447,15 +551,71 @@ export function AdminApp() {
       setReloadToken((current) => current + 1);
     } catch (actionFailure) {
       setActionNotice("");
-      setActionError(actionFailure instanceof Error ? actionFailure.message : `${label}失败`);
+      setActionError(adminActionErrorMessage(label, actionFailure));
+    }
+  };
+
+  const runSmartScan = async () => {
+    setActionError("");
+    setActionNotice("智能扫描中：正在扫描素材来源、运行健康诊断并刷新生产状态...");
+
+    try {
+      await client.scanSourceVideos();
+      await client.runDoctor();
+      const refreshed = await loadAdminDashboardData(client);
+      const report = createAdminSmartScanReport(refreshed);
+      setData(refreshed);
+      setActionNotice(`智能扫描完成：${report.title}`);
+    } catch (failure) {
+      setActionNotice("");
+      setActionError(adminActionErrorMessage("智能扫描", failure));
+    }
+  };
+
+  const applySmartScanPrimaryAction = async (action: AdminSmartScanAction) => {
+    if (action === "queue-unprocessed") {
+      await runAction("加入预处理队列", (api) => api.queueUnprocessedVideos());
+      return;
+    }
+
+    if (action === "start-preprocess") {
+      await runAction("启动预处理流水线", (api) => api.startPreprocessSupervisor());
+      return;
+    }
+
+    if (action === "retry-failed") {
+      await runAction("重试失败视频", (api) => api.retryFailedVideos());
+      return;
+    }
+
+    if (action === "publish-index") {
+      await runAction("发布待索引视频", (api) => api.repairIndex());
+      return;
+    }
+
+    if (action === "run-doctor") {
+      window.location.hash = routeToHash("doctor");
+      await runAction("运行健康诊断", (api) => api.runDoctor());
     }
   };
 
   const actions: AdminActionHandlers = {
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
     onScanSourceVideos: () => runAction("扫描源视频", (api) => api.scanSourceVideos()),
-    onQueueUnprocessedVideos: () => runAction("处理未处理视频", (api) => api.queueUnprocessedVideos()),
+    onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试失败视频", (api) => api.retryFailedVideos()),
+    onRunSmartScan: runSmartScan,
+    onApplySmartScanPrimaryAction: applySmartScanPrimaryAction,
+    onQueueSourceVideo: (sourceVideoId) =>
+      runAction("处理此视频", (api) => api.queueSourceVideo(sourceVideoId)),
+    onRetrySourceVideo: (sourceVideoId) =>
+      runAction("重试此视频", (api) => api.retrySourceVideo(sourceVideoId)),
+    onPublishSourceVideo: (sourceVideoId) =>
+      runAction("发布此视频", (api) => api.publishSourceVideo(sourceVideoId)),
+    onStartPreprocessSupervisor: () =>
+      runAction("启动预处理流水线", (api) => api.startPreprocessSupervisor()),
+    onStopPreprocessSupervisor: () =>
+      runAction("暂停预处理流水线", (api) => api.stopPreprocessSupervisor()),
     onRepairIndex: () => runAction("修复索引", (api) => api.repairIndex()),
     onRunDoctor: () => runAction("运行健康诊断", (api) => api.runDoctor()),
     onTestAsrConfig: () => runAction("测试语音识别配置", (api) => api.testAsrConfig()),
@@ -502,7 +662,10 @@ export function AdminApp() {
 
   return (
     <main className="admin-app" data-admin-web-ready={data ? "true" : "false"}>
-      <MacWindow title={`MixLab V3 - 素材库管理端 / ${routeTitle(route)}`} meta={data?.status.index_status ?? "加载中"}>
+      <MacWindow
+        title={`MixLab V3 - 素材库管理端 / ${routeTitle(route)}`}
+        meta={data ? indexStatusLabel(data.status.index_status) : "加载中"}
+      >
         <div className="admin-shell">
           <Sidebar items={navItems} active={routeTitle(route)} />
           <section className="admin-workspace">

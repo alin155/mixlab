@@ -142,6 +142,12 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.scanSourceVideos();
   await client.queueUnprocessedVideos();
   await client.retryFailedVideos();
+  await client.queueSourceVideo("V000001");
+  await client.retrySourceVideo("V000001");
+  await client.publishSourceVideo("V000001");
+  await client.getPreprocessSupervisorStatus();
+  await client.startPreprocessSupervisor(1);
+  await client.stopPreprocessSupervisor();
   await client.repairIndex();
   await client.runDoctor();
   await client.testAsrConfig();
@@ -166,9 +172,15 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/doctor/report",
       "/api/admin/settings/runtime",
       "/api/admin/library/init",
-      "/api/admin/library/scan",
-      "/api/admin/preprocess/queue-unprocessed",
-      "/api/admin/preprocess/retry-failed",
+    "/api/admin/library/scan",
+    "/api/admin/preprocess/queue-unprocessed",
+    "/api/admin/preprocess/retry-failed",
+    "/api/admin/source-videos/V000001/queue",
+    "/api/admin/source-videos/V000001/retry",
+    "/api/admin/source-videos/V000001/publish",
+    "/api/admin/preprocess/supervisor/status",
+      "/api/admin/preprocess/supervisor/start",
+      "/api/admin/preprocess/supervisor/stop",
       "/api/admin/index/repair",
       "/api/admin/doctor/run",
       "/api/admin/settings/test-asr",
@@ -634,14 +646,27 @@ test("fixture source detail reflects retried jobs and repaired index state", asy
 test("fixture admin actions mutate queue, index, and metadata state", async () => {
   const client = createFixtureAdminApiClient();
 
+  const singleQueued = await client.queueSourceVideo("V000044");
+  assert.equal(singleQueued.affected_count, 1);
+  assert.deepEqual(singleQueued.source_video_ids, ["V000044"]);
+
+  const singleRetried = await client.retrySourceVideo("V000037");
+  assert.equal(singleRetried.affected_count, 1);
+  assert.deepEqual(singleRetried.source_video_ids, ["V000037"]);
+
   const queued = await client.queueUnprocessedVideos();
-  assert.equal(queued.affected_count, 1);
+  assert.equal(queued.affected_count, 0);
 
   const retried = await client.retryFailedVideos();
-  assert.equal(retried.affected_count, 1);
+  assert.equal(retried.affected_count, 0);
+
+  const singlePublished = await client.publishSourceVideo("V000039");
+  assert.equal(singlePublished.published_count, 1);
+  assert.deepEqual(singlePublished.published_source_video_ids, ["V000039"]);
 
   const repaired = await client.repairIndex();
-  assert.equal(repaired.affected_count, 1);
+  assert.equal(repaired.published_count, 0);
+  assert.equal(repaired.skipped_count, 0);
 
   const metadata = await client.updateSourceVideoMetadata("V000042", {
     title: "现金流管理更新",

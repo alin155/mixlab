@@ -186,6 +186,59 @@ test("ready publication writes a searchable SQLite index package", async () => {
   assert.equal(result.groups[0]?.hit_segments[0]?.text, "现金流，是企业的血液。");
 });
 
+test("published cutter search finds long text across segments and tolerates ASR errors", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await completeVideoToIndexRequired({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    duration_ms: 123_000,
+    full_text: "现金流，是企业的血液。不是账面数字。",
+    segments: [
+      segment({
+        source_video_id: "V000001",
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 3600,
+        text: "现金流，是企业的血液。",
+        normalized_text: "现金流是企业的血液"
+      }),
+      segment({
+        source_video_id: "V000001",
+        index: 1,
+        begin_ms: 3600,
+        end_ms: 6200,
+        text: "不是账面数字。",
+        normalized_text: "不是账面数字"
+      })
+    ]
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:20:00Z"
+  });
+
+  const longText = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流是企业的血液不是账面数字",
+    limit: 20
+  });
+  assert.equal(longText.groups[0]?.source_video_id, "V000001");
+  assert.deepEqual(
+    longText.groups[0]?.hit_segments.map((segment) => segment.segment_id),
+    ["V000001-S000001", "V000001-S000002"]
+  );
+
+  const tolerant = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流是企业的血夜",
+    limit: 20
+  });
+  assert.equal(tolerant.groups[0]?.source_video_id, "V000001");
+  assert.equal(tolerant.groups[0]?.hit_segments[0]?.match_type, "tolerant");
+});
+
 test("cutter search follows current index refresh while hidden videos stay absent", async () => {
   const libraryRoot = await prepareLibrary();
 

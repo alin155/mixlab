@@ -1,9 +1,13 @@
 export {
   allocateNextExportClipId,
   buildExportClipArtifactPaths,
+  buildCanonicalClipTitle,
   buildExportClipFileName,
+  buildProjectClipOutputFile,
+  exportClipsDirectory,
   getExportClipDetail,
   listExportClips,
+  sourceTitleForCanonicalClipName,
   writeExportClipManifest
 } from "./export-manifest.ts";
 export type {
@@ -34,19 +38,33 @@ export type {
 export {
   getCutJob,
   listCutJobs,
+  retryCutJob,
   runNextCutJob,
   submitClipListToQueue
 } from "./cut-queue.ts";
+export {
+  deleteProjectOutputs
+} from "./project-cleanup.ts";
 export type {
   CutJobCatalog,
+  CutJobPhaseId,
+  CutJobPhaseStatus,
+  CutJobPhaseTiming,
   CutJobManifest,
   CutJobSourceDetail,
   CutJobStatus,
   CutJobSubmission,
+  CoverRunner,
+  CoverRunnerInput,
   CutRunner,
   CutRunnerInput,
   GetCutJobInput,
   ListCutJobsInput,
+  RetryCutJobInput,
   RunNextCutJobInput,
   SubmitClipListToQueueInput
 } from "./cut-queue.ts";
+export type {
+  DeleteProjectOutputsInput,
+  DeleteProjectOutputsResult
+} from "./project-cleanup.ts";

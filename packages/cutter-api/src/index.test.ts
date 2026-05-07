@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,15 +11,57 @@ import {
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   createCutterLoginApplication,
+  listCutterUsers,
   publishReadySourceVideo,
   readUsageMetrics,
   scanSourceVideos
 } from "../../library-fs/src/index.ts";
-import { createCutterApiServer } from "./index.ts";
+import {
+  createCutterApiServer,
+  parseIostatDiskIoBytesPerSecond,
+  resolveCutterApiRuntimeConfigFromEnv
+} from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-"));
 }
+
+test("cutter API runtime config defaults the local workspace to the user Movies folder", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary"
+  });
+
+  assert.equal(config.library_root, "/Volumes/PublicLibrary");
+  assert.equal(config.workspace_root, path.join(os.homedir(), "Movies", "MixLabLocal"));
+  assert.equal(config.host, "127.0.0.1");
+  assert.equal(config.port, 3789);
+});
+
+test("cutter API runtime config still honors an explicit local workspace path", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary",
+    MIXLAB_CUTTER_WORKSPACE_ROOT: "/Volumes/FastDisk/MixLabLocal"
+  });
+
+  assert.equal(config.workspace_root, "/Volumes/FastDisk/MixLabLocal");
+});
+
+test("default Cutter cut runner avoids synchronous child processes so API requests stay responsive", async () => {
+  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /\bspawnSync\b/);
+});
+
+test("parses local iostat disk throughput from the newest sample", () => {
+  const bytesPerSecond = parseIostatDiskIoBytesPerSecond(`
+              disk0               disk6
+    KB/t  tps  MB/s     KB/t  tps  MB/s
+   25.35  129  3.19   133.29    4  0.55
+   16.80   10  0.16     0.00    0  0.00
+  `);
+
+  assert.equal(bytesPerSecond, Math.round(0.16 * 1024 * 1024));
+});
 
 async function writeDummyVideo(filePath: string, bytes = "dummy-video-bytes"): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -289,6 +331,42 @@ test("cutter auth request-login creates a pending application without auth heade
   });
 });
 
+test("cutter auth request-login records IP and browser as audit data only", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "MixLabTestBrowser/1.0",
+        "X-Forwarded-For": "192.168.31.10, 10.0.0.1"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        device_id: "device-login",
+        device_name: "Mac 剪辑端 · Safari"
+      })
+    });
+
+    assert.equal(response.status, 200);
+    const users = await listCutterUsers(libraryRoot);
+    const device = users.users[0]?.devices[0] as any;
+    assert.equal(users.users[0]?.username, "lisi");
+    assert.equal(device.device_id, "device-login");
+    assert.equal(device.last_ip_address, "192.168.31.10");
+    assert.equal(device.user_agent, "MixLabTestBrowser/1.0");
+
+    const protectedResponse = await fetch(`${baseUrl}/cutter/source-library`, {
+      headers: {
+        "X-MixLab-Device-Id": "device-login",
+        "X-MixLab-Session-Token": "not-approved-yet"
+      }
+    });
+    assert.equal(protectedResponse.status, 401);
+  });
+});
+
 test("cutter auth request-login returns approved device session after admin approval", async () => {
   const libraryRoot = await prepareLibrary();
   const application = await createCutterLoginApplication(libraryRoot, {
@@ -454,6 +532,86 @@ test("cutter source library requires approved session headers", async () => {
   });
 });
 
+test("runtime status requires approved cutter session and reports workspace readiness", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-runtime-"));
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-04T10:00:00.000Z"
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const anonymous = await fetch(`${baseUrl}/cutter/runtime-status`);
+    assert.equal(anonymous.status, 401);
+
+    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.mode_label, "真实 Cutter API 模式");
+    assert.equal(body.data.api_ready, true);
+    assert.equal(body.data.available_video_count, 1);
+    assert.equal(body.data.workspace_enabled, true);
+    assert.equal(body.data.local_clip_count, 0);
+    assert.equal(body.data.current_user.username, "cutter-user");
+    assert.match(body.data.workspace_root_label, /mixlab-cutter-runtime-/);
+    assert.match(body.data.ffmpeg_status, /可用|不可用/);
+    assert.equal(typeof body.data.local_runtime.cpu_usage_percent, "number");
+    assert.ok(body.data.local_runtime.cpu_usage_percent >= 0);
+    assert.ok(body.data.local_runtime.cpu_usage_percent <= 100);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("runtime status remains readable when cutter workspace is not configured", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.workspace_enabled, false);
+    assert.equal(body.data.workspace_root_label, "未启用本地剪切工作区");
+    assert.equal(body.data.local_clip_count, 0);
+  });
+});
+
+test("cut job catalog remains readable when cutter workspace is not configured", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/cut-jobs`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.job_count, 0);
+    assert.deepEqual(body.data.jobs, []);
+  });
+});
+
 test("malformed usage events do not break authenticated source search", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
@@ -585,6 +743,7 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
       ["V000001"]
     );
     assert.equal(search.data.groups[0].cover_url, "/cutter/source-videos/V000001/cover");
+    assert.equal(search.data.groups[0].transcript_character_count, 18);
 
     const hiddenSearch = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}`, {
       headers
@@ -840,6 +999,9 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     cut_runner: async (input) => {
       await mkdir(path.dirname(input.output_path), { recursive: true });
       await writeFile(input.output_path, "queued-clip-bytes");
+    },
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
     }
   });
 
@@ -858,6 +1020,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
       },
       body: JSON.stringify({
         library_id: "lib_main_001",
+        project_id: "P20260506-aaa",
         title: "现金流清单",
         items: [
           {
@@ -877,6 +1040,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     assert.equal(clipListResponse.status, 201);
     const clipList = await clipListResponse.json() as any;
     assert.equal(clipList.data.clip_list_id, "CL20260502-0001");
+    assert.equal(clipList.data.project_id, "P20260506-aaa");
 
     const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
       method: "POST",
@@ -892,6 +1056,9 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     const submitted = await submitResponse.json() as any;
     assert.equal(submitted.data.submitted_count, 1);
     assert.equal(submitted.data.jobs[0].status, "pending");
+    assert.equal(submitted.data.jobs[0].project_id, "P20260506-aaa");
+    assert.equal(submitted.data.jobs[0].project_clip_order, 1);
+    assert.equal(submitted.data.jobs[0].title, "1-现金流清单-01_现金流");
 
     const runResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
       method: "POST",
@@ -901,15 +1068,241 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     const run = await runResponse.json() as any;
     assert.equal(run.data.status, "done");
     assert.equal(run.data.export_clip_id, "E000001");
+    assert.equal(run.data.output_file, "export-clips/E000001/001-现金流清单-01_现金流.mp4");
 
     const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`, { headers })).json() as any;
     assert.equal(jobs.data.job_count, 1);
     assert.equal(jobs.data.jobs[0].status, "done");
+    assert.equal(jobs.data.jobs[0].project_id, "P20260506-aaa");
+    assert.equal(jobs.data.jobs[0].title, "1-现金流清单-01_现金流");
+
+    const localClips = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
+    assert.equal(localClips.data.clips[0].title, "1-现金流清单-01_现金流");
+    assert.equal(localClips.data.clips[0].cover_url, "/cutter/local-clips/E000001/cover");
+    assert.equal(localClips.data.clips[0].subtitles_url, "/cutter/local-clips/E000001/subtitles.srt");
+    assert.equal(localClips.data.clips[0].relative_path, ".mixlab-library/videos/E000001/source.mp4");
+    assert.equal(localClips.data.clips[0].project_output_file, "projects/现金流清单/001-现金流清单-01_现金流.mp4");
+    assert.deepEqual(
+      localClips.data.clips[0].transcript_segments.map((segment: any) => [
+        segment.segment_id,
+        segment.begin_ms,
+        segment.end_ms,
+        segment.text
+      ]),
+      [["E000001-S000001", 0, 2600, "现金流，是企业的血液。"]]
+    );
+    assert.equal(
+      await fileOrDirExists(path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "source-video.json")),
+      true
+    );
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, "projects", "现金流清单", "001-现金流清单-01_现金流.mp4")), true);
+
+    const cover = await fetch(`${baseUrl}/cutter/local-clips/E000001/cover`);
+    assert.equal(cover.status, 200);
+    assert.equal(await cover.text(), "cover-bytes");
+
+    const subtitles = await fetch(`${baseUrl}/cutter/local-clips/E000001/subtitles.srt`);
+    assert.equal(subtitles.status, 200);
+    assert.match(await subtitles.text(), /00:00:00,000 --> 00:00:02,600/);
+
+    const deletionResponse = await fetch(`${baseUrl}/cutter/projects/P20260506-aaa/outputs`, {
+      method: "DELETE",
+      headers
+    });
+    assert.equal(deletionResponse.status, 200);
+    const deletion = await deletionResponse.json() as any;
+    assert.deepEqual(deletion.data, {
+      project_id: "P20260506-aaa",
+      removed_export_clips: 1,
+      removed_local_clips: 1,
+      removed_project_outputs: 1,
+      removed_cut_jobs: 1,
+      removed_clip_lists: 1
+    });
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, "export-clips", "E000001")), false);
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, ".mixlab-library", "videos", "E000001")), false);
+    assert.equal(await fileOrDirExists(path.join(workspaceRoot, "projects", "现金流清单", "001-现金流清单-01_现金流.mp4")), false);
+    const emptyLocalClips = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
+    assert.equal(emptyLocalClips.data.local_clip_count, 0);
 
     const metrics = await readUsageMetrics(libraryRoot);
     assert.equal(metrics.add_to_cut_list_count, 1);
     assert.equal(metrics.cut_submission_count, 1);
     assert.equal(metrics.cut_success_count, 1);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("opens the current project output directory for cutters", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-open-"));
+  const openedPaths: string[] = [];
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    open_path: async (targetPath) => {
+      openedPaths.push(targetPath);
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const anonymous = await fetch(`${baseUrl}/cutter/workspace/open-export-directory`, {
+      method: "POST"
+    });
+    assert.equal(anonymous.status, 401);
+
+    const response = await fetch(`${baseUrl}/cutter/workspace/open-export-directory`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        project_id: "P20260506-aaa",
+        project_title: "5月6日"
+      })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    const expectedPath = path.join(workspaceRoot, "projects", "5月6日");
+    assert.equal(body.data.path, expectedPath);
+    assert.deepEqual(openedPaths, [expectedPath]);
+    assert.equal(await fileOrDirExists(expectedPath), true);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("retries failed workspace cut jobs through protected Cutter API", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-retry-"));
+  let failNextCut = true;
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-04T10:00:00Z",
+    cut_runner: async (input) => {
+      if (failNextCut) {
+        throw new Error("ffmpeg failed");
+      }
+
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "retried-clip-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        library_id: "lib_main_001",
+        title: "现金流重试清单",
+        items: [
+          {
+            source_video_id: "V000001",
+            source_title: "01_现金流.mp4",
+            source_relative_path: "source-videos/01_现金流.mp4",
+            start_segment_id: "V000001-S000001",
+            end_segment_id: "V000001-S000001",
+            begin_ms: 1000,
+            end_ms: 3600,
+            selected_text: "现金流，是企业的血液。",
+            cut_mode: "smart"
+          }
+        ]
+      })
+    });
+    assert.equal(clipListResponse.status, 201);
+
+    const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        clip_list_id: "CL20260504-0001"
+      })
+    });
+    assert.equal(submitResponse.status, 201);
+
+    const failedResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(failedResponse.status, 200);
+    const failed = await failedResponse.json() as any;
+    assert.equal(failed.data.status, "failed");
+    assert.match(failed.data.error_message, /ffmpeg failed/);
+
+    const anonymousRetry = await fetch(`${baseUrl}/cutter/cut-jobs/${failed.data.cut_job_id}/retry`, {
+      method: "POST"
+    });
+    assert.equal(anonymousRetry.status, 401);
+
+    const retryResponse = await fetch(`${baseUrl}/cutter/cut-jobs/${failed.data.cut_job_id}/retry`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(retryResponse.status, 200);
+    const retried = await retryResponse.json() as any;
+    assert.equal(retried.data.status, "pending");
+    assert.equal(retried.data.error_message, undefined);
+
+    failNextCut = false;
+    const doneResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(doneResponse.status, 200);
+    const done = await doneResponse.json() as any;
+    assert.equal(done.data.status, "done");
+
+    const nonFailedRetry = await fetch(`${baseUrl}/cutter/cut-jobs/${failed.data.cut_job_id}/retry`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(nonFailedRetry.status, 409);
+    const nonFailed = await nonFailedRetry.json() as any;
+    assert.match(nonFailed.error.message, /只有失败任务需要重试/);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

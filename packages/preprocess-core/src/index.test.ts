@@ -23,6 +23,7 @@ test("extracts audio, uploads it, runs ASR, and writes transcript artifacts", as
   const commands: Array<{ executable: string; args: string[] }> = [];
   const uploadedFiles: Array<{ local_file_path: string; object_key: string }> = [];
   const sleeps: number[] = [];
+  const stages: string[] = [];
   let queryCount = 0;
 
   await mkdir(path.dirname(sourceVideoPath), { recursive: true });
@@ -37,6 +38,9 @@ test("extracts audio, uploads it, runs ASR, and writes transcript artifacts", as
     audio_format: "mp3",
     oss_object_key_prefix: "mixlab-stage",
     now: "2026-05-02T00:00:00Z",
+    async on_stage(stage) {
+      stages.push(stage);
+    },
     command_runner: {
       async run(executable, args) {
         commands.push({ executable, args });
@@ -159,6 +163,7 @@ test("extracts audio, uploads it, runs ASR, and writes transcript artifacts", as
     segment_count: 1
   });
   assert.deepEqual(sleeps, [1500]);
+  assert.deepEqual(stages, ["extract-audio", "upload-audio", "asr", "write-transcript"]);
   assert.match(
     await readFile(path.join(libraryRoot, result.transcript_path), "utf8"),
     /现金流，是企业的血液。/

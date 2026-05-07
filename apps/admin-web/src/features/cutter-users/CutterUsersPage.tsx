@@ -42,6 +42,32 @@ function statusCount(users: AdminCutterUser[], status: AdminCutterUser["status"]
   return users.filter((user) => user.status === status).length;
 }
 
+function shortDeviceId(deviceId: string): string {
+  if (deviceId.length <= 12) {
+    return deviceId;
+  }
+
+  return `${deviceId.slice(0, 6)}…${deviceId.slice(-4)}`;
+}
+
+function browserAuditLabel(userAgent: string | undefined): string {
+  if (!userAgent) {
+    return "暂无";
+  }
+
+  if (userAgent.includes("Edg/")) {
+    return "Edge";
+  }
+  if (userAgent.includes("Chrome/")) {
+    return "Chrome";
+  }
+  if (userAgent.includes("Safari/")) {
+    return "Safari";
+  }
+
+  return "已记录";
+}
+
 export function CutterUsersPage({
   users,
   metrics,
@@ -75,6 +101,15 @@ export function CutterUsersPage({
             { label: "已停用", value: statusCount(users.users, "disabled"), caption: "登录凭证失效" }
           ]}
         />
+        <section className="admin-list-panel">
+          <div className="admin-user-identity-note">
+            <h2>身份方式</h2>
+            <p>
+              用户名 + 本机设备令牌用于识别剪辑师和设备；审核通过后后端签发会话令牌。
+              IP 仅用于诊断和审计，不作为登录身份。
+            </p>
+          </div>
+        </section>
         {users.users.length === 0 ? (
           <EmptyState title="暂无剪辑师申请" detail="剪辑端提交用户名后会出现在这里等待审核。" />
         ) : (
@@ -119,10 +154,19 @@ export function CutterUsersPage({
           <section>
             <h2>设备明细</h2>
             {users.users.map((user) => (
-              <p className="admin-note" key={user.user_id}>
-                {user.display_name}：{user.devices.length} 台设备，
-                {user.devices.map((device) => `${device.device_name}（${deviceStatusLabel(device.status)}）`).join("、")}
-              </p>
+              <div className="admin-user-device-group" key={user.user_id}>
+                <h3>{user.display_name}</h3>
+                {user.devices.map((device) => (
+                  <p className="admin-note" key={device.device_id}>
+                    {device.device_name}（{deviceStatusLabel(device.status)}）；
+                    设备编号 {shortDeviceId(device.device_id)}；
+                    首次申请 {lastUsedLabel(device.first_seen_at)}；
+                    最近登录 {lastUsedLabel(device.last_login_at)}；
+                    最近 IP {device.last_ip_address || "暂无"}；
+                    浏览器标识 {browserAuditLabel(device.user_agent)}
+                  </p>
+                ))}
+              </div>
             ))}
           </section>
           <section>

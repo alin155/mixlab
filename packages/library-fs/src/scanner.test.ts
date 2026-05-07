@@ -489,3 +489,50 @@ test("rescans multiple configured folders without changing existing source video
   assert.equal(second.relative_path, "src_002/课程A.mp4");
   assert.equal(third.relative_path, "src_002/课程B.mp4");
 });
+
+test("prunes manifests that no longer belong to the current enabled source folders", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const externalSource = path.join(libraryRoot, "external-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "旧素材.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const settings = await readAdminSettings(libraryRoot);
+  await writeAdminSettings(libraryRoot, {
+    ...settings,
+    source_folders: settings.source_folders.map((folder) =>
+      folder.id === "src_default"
+        ? { ...folder, path: externalSource }
+        : folder
+    )
+  });
+  await writeDummyFile(path.join(externalSource, "新素材.mp4"));
+
+  const result = await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+
+  assert.equal(result.total_video_count, 1);
+  assert.deepEqual(result.source_video_ids, ["V000002"]);
+  await assert.rejects(
+    () => readFile(
+      path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"),
+      "utf8"
+    ),
+    /ENOENT/
+  );
+
+  const manifest = await readJson<{ relative_path: string; source_folder_id?: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")
+  );
+  assert.equal(manifest.relative_path, "src_default/新素材.mp4");
+  assert.equal(manifest.source_folder_id, "src_default");
+});

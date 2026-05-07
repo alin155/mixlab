@@ -1,9 +1,11 @@
 import { createReadStream } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import os from "node:os";
 import path from "node:path";
 import {
+  buildFfmpegCoverImagePlan,
   buildFfmpegCutPlan,
   resolveFfmpegRuntime,
   type CutMode
@@ -28,15 +30,20 @@ import {
   type LocalClipView
 } from "../../library-fs/src/index.ts";
 import {
+  buildProjectClipOutputFile,
   getExportClipDetail,
+  deleteProjectOutputs,
+  exportClipsDirectory,
   listClipLists,
   listCutJobs,
   listExportClips,
   readClipList,
+  retryCutJob,
   runNextCutJob,
   submitClipListToQueue,
   writeClipList,
   type ClipListManifest,
+  type CoverRunner,
   type ExportClipView,
   type WriteClipListItemInput
 } from "../../cutter-local/src/index.ts";
@@ -47,6 +54,8 @@ export interface CreateCutterApiServerInput {
   workspace_root?: string;
   now?: () => string;
   cut_runner?: CutterClipCutRunner;
+  cover_runner?: CoverRunner;
+  open_path?: CutterPathOpener;
 }
 
 export interface CutterApiRuntimeConfig extends CreateCutterApiServerInput {
@@ -74,6 +83,7 @@ type ApiSearchGroup = CutterSourceLibrarySearchGroup & ApiSourceVideoUrls;
 
 const SOURCE_VIDEO_ID_PATTERN = /^V\d{6}$/;
 const LOCAL_CLIP_ID_PATTERN = /^(?:LC|E)\d{6}$/;
+const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
 
 export interface CutterClipCutRunnerInput {
   source_video_path: string;
@@ -84,6 +94,7 @@ export interface CutterClipCutRunnerInput {
 }
 
 export type CutterClipCutRunner = (input: CutterClipCutRunnerInput) => Promise<void> | void;
+export type CutterPathOpener = (targetPath: string) => Promise<void> | void;
 
 interface CreateLocalClipRequestBody {
   source_video_id?: unknown;
@@ -97,12 +108,18 @@ interface CreateLocalClipRequestBody {
 
 interface CreateClipListRequestBody {
   library_id?: unknown;
+  project_id?: unknown;
   title?: unknown;
   items?: unknown;
 }
 
 interface SubmitCutJobsRequestBody {
   clip_list_id?: unknown;
+}
+
+interface OpenExportDirectoryRequestBody {
+  project_id?: unknown;
+  project_title?: unknown;
 }
 
 interface CutterLoginRequestBody {
@@ -116,9 +133,113 @@ interface AuthenticatedCutterSession {
   device_id: string;
 }
 
+interface CutterRuntimeStatusPayload {
+  mode: "api";
+  mode_label: string;
+  api_ready: boolean;
+  generated_at: string;
+  library_id: string;
+  library_root_label: string;
+  available_video_count: number;
+  workspace_enabled: boolean;
+  workspace_root_label: string;
+  local_clip_count: number;
+  ffmpeg_status: "可用" | "不可用";
+  ffmpeg_source: "内置" | "环境配置" | "未检测到";
+  local_runtime: {
+    cpu_usage_percent: number;
+    disk_io_bytes_per_second?: number;
+  };
+  current_user: {
+    user_id: string;
+    username: string;
+    display_name: string;
+  };
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function localCpuUsagePercent(): number {
+  const coreCount = Math.max(1, os.cpus().length);
+  const loadAverage = os.loadavg()[0] ?? 0;
+  return clampPercent((loadAverage / coreCount) * 100);
+}
+
+export function parseIostatDiskIoBytesPerSecond(output: string): number | undefined {
+  const lines = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let mbColumnIndexes: number[] = [];
+  let latestBytesPerSecond: number | undefined;
+
+  for (const line of lines) {
+    const columns = line.split(/\s+/);
+    if (columns.includes("MB/s")) {
+      mbColumnIndexes = columns
+        .map((column, index) => (column === "MB/s" ? index : -1))
+        .filter((index) => index >= 0);
+      continue;
+    }
+
+    if (mbColumnIndexes.length === 0 || !/^-?\d/.test(columns[0] ?? "")) {
+      continue;
+    }
+
+    const totalMbPerSecond = mbColumnIndexes.reduce((total, index) => {
+      const value = Number.parseFloat(columns[index] ?? "");
+      return Number.isFinite(value) ? total + Math.max(0, value) : total;
+    }, 0);
+    latestBytesPerSecond = Math.round(totalMbPerSecond * 1024 * 1024);
+  }
+
+  return latestBytesPerSecond;
+}
+
+async function localDiskIoBytesPerSecond(): Promise<number | undefined> {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn("iostat", ["-d", "-w", "1", "-c", "2"]);
+    let settled = false;
+    let output = "";
+
+    const finish = (value: number | undefined) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(undefined);
+    }, 1500);
+
+    child.stdout.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.on("error", () => finish(undefined));
+    child.on("close", () => finish(parseIostatDiskIoBytesPerSecond(output)));
+  });
+}
+
 function optionalTrimmed(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function defaultCutterWorkspaceRoot(): string {
+  return path.join(os.homedir(), "Movies", "MixLabLocal");
 }
 
 export function resolveCutterApiRuntimeConfigFromEnv(
@@ -141,7 +262,7 @@ export function resolveCutterApiRuntimeConfigFromEnv(
 
   return {
     library_root: libraryRoot,
-    workspace_root: optionalTrimmed(env.MIXLAB_CUTTER_WORKSPACE_ROOT),
+    workspace_root: optionalTrimmed(env.MIXLAB_CUTTER_WORKSPACE_ROOT) ?? defaultCutterWorkspaceRoot(),
     host: optionalTrimmed(env.MIXLAB_CUTTER_API_HOST) ?? "127.0.0.1",
     port
   };
@@ -149,7 +270,7 @@ export function resolveCutterApiRuntimeConfigFromEnv(
 
 function setCorsHeaders(response: ServerResponse): void {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,DELETE,OPTIONS");
   response.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type,Range,X-MixLab-Device-Id,X-MixLab-Session-Token"
@@ -270,7 +391,7 @@ function parseSourceVideoRoute(
 
 function parseLocalClipRoute(
   pathname: string
-): { local_clip_id: string; action: "" | "media" } | undefined {
+): { local_clip_id: string; action: "" | "media" | "cover" | "subtitles.srt" } | undefined {
   const match = /^\/cutter\/local-clips\/([^/]+)(?:\/([^/]+))?$/.exec(pathname);
 
   if (!match) {
@@ -284,7 +405,7 @@ function parseLocalClipRoute(
     throw new Error("invalid_local_clip_id");
   }
 
-  if (action !== "" && action !== "media") {
+  if (action !== "" && action !== "media" && action !== "cover" && action !== "subtitles.srt") {
     throw new Error("not_found");
   }
 
@@ -314,6 +435,24 @@ function contentTypeForSourceVideo(filePath: string): string {
   }
 
   return "application/octet-stream";
+}
+
+function contentTypeForImage(filePath: string): string {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === ".svg") {
+    return "image/svg+xml";
+  }
+
+  if (extension === ".png") {
+    return "image/png";
+  }
+
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+
+  return "image/jpeg";
 }
 
 function parseRangeHeader(
@@ -440,6 +579,18 @@ function requiredString(value: unknown, key: string): string {
   return value.trim();
 }
 
+function optionalString(value: unknown, key: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${key} must be a string`);
+  }
+
+  return optionalTrimmed(value);
+}
+
 function requiredChineseString(value: unknown, message: string): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(message);
@@ -454,6 +605,16 @@ function firstHeaderValue(value: string | string[] | undefined): string {
   }
 
   return value?.trim() ?? "";
+}
+
+function requestIpAddress(request: IncomingMessage): string | undefined {
+  const forwardedFor = firstHeaderValue(request.headers["x-forwarded-for"]);
+  const forwardedIp = forwardedFor.split(",")[0]?.trim();
+  if (forwardedIp) {
+    return forwardedIp;
+  }
+
+  return request.socket.remoteAddress?.trim() || undefined;
 }
 
 function currentNow(input: CreateCutterApiServerInput): string {
@@ -545,7 +706,7 @@ function requiredNonNegativeInteger(value: unknown, key: string): number {
 
 function parseCutMode(value: unknown): CutMode {
   if (value === undefined || value === null || value === "") {
-    return "smart";
+    return "copy";
   }
 
   if (value === "copy" || value === "smart" || value === "precise") {
@@ -562,6 +723,52 @@ function formatClipTime(milliseconds: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function runFfmpegAsync(executable: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, {
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    let stderr = "";
+
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      const reason = stderr.trim() || (signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`);
+      reject(new Error(`ffmpeg clip cut failed: ${reason}`));
+    });
+  });
+}
+
+function defaultOpenPath(targetPath: string): Promise<void> {
+  const [command, args] =
+    process.platform === "darwin"
+      ? ["open", [targetPath]]
+      : process.platform === "win32"
+        ? ["explorer", [targetPath]]
+        : ["xdg-open", [targetPath]];
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: "ignore"
+    });
+
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
 async function defaultCutRunner(input: CutterClipCutRunnerInput): Promise<void> {
   const runtime = resolveFfmpegRuntime();
   const plan = buildFfmpegCutPlan({
@@ -571,13 +778,25 @@ async function defaultCutRunner(input: CutterClipCutRunnerInput): Promise<void> 
     end_ms: input.end_ms,
     cut_mode: input.cut_mode
   });
-  const result = spawnSync(runtime.ffmpeg_path, plan.args, {
-    encoding: "utf8"
+
+  await runFfmpegAsync(runtime.ffmpeg_path, plan.args);
+}
+
+async function defaultCoverRunner(input: {
+  source_video_path: string;
+  output_path: string;
+  at_ms: number;
+  width: number;
+}): Promise<void> {
+  const runtime = resolveFfmpegRuntime();
+  const plan = buildFfmpegCoverImagePlan({
+    source_path: input.source_video_path,
+    output_path: input.output_path,
+    at_ms: input.at_ms,
+    width: input.width
   });
 
-  if (result.status !== 0) {
-    throw new Error(`ffmpeg clip cut failed: ${result.stderr}`);
-  }
+  await runFfmpegAsync(runtime.ffmpeg_path, plan.args);
 }
 
 async function loadVisibleDetail(
@@ -614,6 +833,65 @@ async function readLibraryId(libraryRoot: string): Promise<string> {
   return "local-library";
 }
 
+function pathLabel(filePath: string | undefined, fallback: string): string {
+  if (!filePath) {
+    return fallback;
+  }
+
+  return path.basename(filePath) || filePath;
+}
+
+async function runtimeStatusForSession(input: {
+  api_input: CreateCutterApiServerInput;
+  auth: AuthenticatedCutterSession;
+}): Promise<CutterRuntimeStatusPayload> {
+  const library = await listCutterSourceLibrary({
+    library_root: input.api_input.library_root
+  });
+  const localClips = input.api_input.workspace_root
+    ? await listExportClips({ workspace_root: input.api_input.workspace_root })
+    : await listLocalClips({ library_root: input.api_input.library_root });
+
+  let ffmpegStatus: CutterRuntimeStatusPayload["ffmpeg_status"] = "不可用";
+  let ffmpegSource: CutterRuntimeStatusPayload["ffmpeg_source"] = "未检测到";
+
+  try {
+    const runtime = resolveFfmpegRuntime();
+    ffmpegStatus = "可用";
+    ffmpegSource = runtime.source === "env" ? "环境配置" : "内置";
+  } catch {
+    ffmpegStatus = "不可用";
+  }
+
+  const diskIoBytesPerSecond = await localDiskIoBytesPerSecond();
+
+  return {
+    mode: "api",
+    mode_label: "真实 Cutter API 模式",
+    api_ready: true,
+    generated_at: input.api_input.now?.() ?? new Date().toISOString(),
+    library_id: await readLibraryId(input.api_input.library_root),
+    library_root_label: pathLabel(input.api_input.library_root, "公共素材库"),
+    available_video_count: library.available_video_count,
+    workspace_enabled: Boolean(input.api_input.workspace_root),
+    workspace_root_label: pathLabel(input.api_input.workspace_root, "未启用本地剪切工作区"),
+    local_clip_count: localClips.local_clip_count,
+    ffmpeg_status: ffmpegStatus,
+    ffmpeg_source: ffmpegSource,
+    local_runtime: {
+      cpu_usage_percent: localCpuUsagePercent(),
+      ...(typeof diskIoBytesPerSecond === "number"
+        ? { disk_io_bytes_per_second: diskIoBytesPerSecond }
+        : {})
+    },
+    current_user: {
+      user_id: input.auth.user.user_id,
+      username: input.auth.user.username,
+      display_name: input.auth.user.display_name
+    }
+  };
+}
+
 function workspaceRootOrThrow(input: CreateCutterApiServerInput): string {
   if (!input.workspace_root) {
     throw new Error("workspace_root is required for cutter workspace routes");
@@ -622,11 +900,39 @@ function workspaceRootOrThrow(input: CreateCutterApiServerInput): string {
   return input.workspace_root;
 }
 
+function workspaceRelativePath(workspaceRoot: string, relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/");
+
+  if (
+    normalized.trim() === "" ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
+    throw new Error("workspace path must be relative");
+  }
+
+  const parts = normalized.split("/").filter(Boolean);
+
+  if (parts.includes("..")) {
+    throw new Error("workspace path must be relative");
+  }
+
+  return path.join(workspaceRoot, ...parts);
+}
+
 function toWorkspaceLocalClipPayload(clip: ExportClipView): ExportClipView & {
   detail_url: string;
   media_url: string;
+  cover_url?: string;
+  subtitles_url?: string;
+  relative_path: string;
 } {
-  return addLocalClipUrls(clip);
+  return {
+    ...addLocalClipUrls(clip),
+    ...(clip.cover_file_path ? { cover_url: `/cutter/local-clips/${clip.local_clip_id}/cover` } : {}),
+    ...(clip.subtitles_file_path ? { subtitles_url: `/cutter/local-clips/${clip.local_clip_id}/subtitles.srt` } : {}),
+    relative_path: clip.local_asset_relative_path ?? clip.output_file
+  };
 }
 
 function parseClipListItems(value: unknown): WriteClipListItemInput[] {
@@ -662,12 +968,38 @@ async function runWorkspaceCutJob(input: {
   workspace_root: string;
 }): ReturnType<typeof runNextCutJob> {
   const cutRunner = input.api_input.cut_runner ?? defaultCutRunner;
+  const coverRunner = input.api_input.cover_runner ?? (input.api_input.cut_runner ? undefined : defaultCoverRunner);
 
   return runNextCutJob({
     workspace_root: input.workspace_root,
     library_root: input.api_input.library_root,
     now: () => input.api_input.now?.() ?? new Date().toISOString(),
     resolve_source: async (job) => {
+      if (/^E\d{6}$/.test(job.source_video_id)) {
+        const clip = await getExportClipDetail({
+          workspace_root: input.workspace_root,
+          export_clip_id: job.source_video_id
+        });
+
+        if (!clip) {
+          return null;
+        }
+
+        return {
+          source_video_id: clip.export_clip_id,
+          title: clip.title,
+          relative_path: clip.local_asset_relative_path ?? clip.output_file,
+          source_video_file_path: clip.media_file_path,
+          duration_ms: clip.duration_ms,
+          width: clip.width,
+          height: clip.height,
+          fps: clip.fps,
+          codec: clip.codec,
+          file_size: clip.file_size,
+          transcript_segments: clip.transcript_segments
+        };
+      }
+
       const detail = await loadVisibleDetail(input.api_input.library_root, job.source_video_id);
 
       if (!detail) {
@@ -678,11 +1010,66 @@ async function runWorkspaceCutJob(input: {
         source_video_id: detail.source_video_id,
         title: detail.title,
         relative_path: detail.relative_path,
-        source_video_file_path: detail.source_video_file_path
+        source_video_file_path: detail.source_video_file_path,
+        duration_ms: detail.duration_ms,
+        width: detail.width,
+        height: detail.height,
+        fps: detail.fps,
+        codec: detail.codec,
+        file_size: detail.file_size,
+        transcript_segments: detail.transcript.segments
       };
     },
-    cut_runner: cutRunner
+    cut_runner: cutRunner,
+    ...(coverRunner ? { cover_runner: coverRunner } : {})
   });
+}
+
+async function resolveProjectOutputDirectory(input: {
+  workspace_root: string;
+  project_id?: string;
+  project_title?: string;
+}): Promise<string | undefined> {
+  if (input.project_id) {
+    const catalog = await listExportClips({ workspace_root: input.workspace_root });
+    const matchedClip = catalog.clips.find((clip) =>
+      clip.project_id === input.project_id && clip.project_output_file
+    );
+
+    if (matchedClip?.project_output_file) {
+      return path.dirname(workspaceRelativePath(input.workspace_root, matchedClip.project_output_file));
+    }
+  }
+
+  if (input.project_title) {
+    return path.dirname(workspaceRelativePath(input.workspace_root, buildProjectClipOutputFile({
+      project_title: input.project_title,
+      project_clip_order: 1,
+      source_title: "本地素材"
+    })));
+  }
+
+  return undefined;
+}
+
+async function openWorkspaceExportDirectory(
+  input: CreateCutterApiServerInput,
+  body: OpenExportDirectoryRequestBody = {}
+): Promise<{ path: string }> {
+  const workspaceRoot = workspaceRootOrThrow(input);
+  const projectId = optionalString(body.project_id, "project_id");
+  const projectTitle = optionalString(body.project_title, "project_title");
+  const targetPath = await resolveProjectOutputDirectory({
+    workspace_root: workspaceRoot,
+    project_id: projectId,
+    project_title: projectTitle
+  }) ?? exportClipsDirectory(workspaceRoot);
+  const openPath = input.open_path ?? defaultOpenPath;
+
+  await mkdir(targetPath, { recursive: true });
+  await openPath(targetPath);
+
+  return { path: targetPath };
 }
 
 async function createWorkspaceLocalClip(input: {
@@ -772,9 +1159,10 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       if (
         request.method !== "GET" &&
         request.method !== "HEAD" &&
-        request.method !== "POST"
+        request.method !== "POST" &&
+        request.method !== "DELETE"
       ) {
-        writeError(response, 405, "method_not_allowed", "Only GET, HEAD, POST, and OPTIONS are supported");
+        writeError(response, 405, "method_not_allowed", "Only GET, HEAD, POST, DELETE, and OPTIONS are supported");
         return;
       }
 
@@ -789,7 +1177,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             username: requiredChineseString(body.username, "用户名不能为空"),
             device_id: deviceId,
             device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
-            now
+            now,
+            ip_address: requestIpAddress(request),
+            user_agent: firstHeaderValue(request.headers["user-agent"]) || undefined
           });
           const session = application.status === "approved"
             ? await ensureCutterSessionForDevice(input.library_root, {
@@ -971,6 +1361,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const clipList = await writeClipList({
           workspace_root: workspaceRoot,
           library_id: requiredString(body.library_id, "library_id"),
+          project_id: optionalString(body.project_id, "project_id"),
           title: requiredString(body.title, "title"),
           items: parseClipListItems(body.items),
           now: input.now?.() ?? new Date().toISOString()
@@ -1058,6 +1449,88 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/workspace/open-export-directory") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const body = (await readRequestJson(request)) as OpenExportDirectoryRequestBody;
+        writeJson(response, 200, apiResponse(await openWorkspaceExportDirectory(input, body)));
+        return;
+      }
+
+      const cutJobRetryMatch = /^\/cutter\/cut-jobs\/([^/]+)\/retry$/.exec(url.pathname);
+      if (request.method === "POST" && cutJobRetryMatch) {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const cutJobId = cutJobRetryMatch[1] ?? "";
+        if (!CUT_JOB_ID_PATTERN.test(cutJobId)) {
+          writeError(response, 400, "invalid_cut_job_id", "剪切任务编号格式不正确");
+          return;
+        }
+
+        const workspaceRoot = workspaceRootOrThrow(input);
+        try {
+          writeJson(response, 200, apiResponse(await retryCutJob({
+            workspace_root: workspaceRoot,
+            cut_job_id: cutJobId,
+            now: input.now?.() ?? new Date().toISOString()
+          })));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (message === "cut job not found") {
+            writeError(response, 404, "cut_job_not_found", "剪切任务不存在");
+            return;
+          }
+
+          if (message === "only failed cut jobs can be retried") {
+            writeError(response, 409, "cut_job_not_failed", "只有失败任务需要重试");
+            return;
+          }
+
+          throw error;
+        }
+        return;
+      }
+
+      const projectOutputsDeleteMatch = /^\/cutter\/projects\/([^/]+)\/outputs$/.exec(url.pathname);
+      if (request.method === "DELETE" && projectOutputsDeleteMatch) {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const workspaceRoot = workspaceRootOrThrow(input);
+        try {
+          writeJson(response, 200, apiResponse(await deleteProjectOutputs({
+            workspace_root: workspaceRoot,
+            project_id: decodeURIComponent(projectOutputsDeleteMatch[1] ?? "")
+          })));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (message === "project_id must be a safe project identifier") {
+            writeError(response, 400, "invalid_project_id", "项目编号格式不正确");
+            return;
+          }
+
+          throw error;
+        }
+        return;
+      }
+
       if (request.method === "POST") {
         writeError(response, 404, "not_found", "Route not found");
         return;
@@ -1083,6 +1556,24 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           ok: true,
           user: auth.user
         }));
+        return;
+      }
+
+      if (url.pathname === "/cutter/runtime-status") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
+        writeJson(response, 200, apiResponse(await runtimeStatusForSession({
+          api_input: input,
+          auth
+        })));
         return;
       }
 
@@ -1169,6 +1660,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           request,
           response
         }))) {
+          return;
+        }
+
+        if (!input.workspace_root) {
+          writeJson(response, 200, apiResponse({
+            job_count: 0,
+            jobs: []
+          }));
           return;
         }
 
@@ -1263,6 +1762,38 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
+          if (localClipRoute.action === "cover") {
+            if (!clip.cover_file_path) {
+              writeError(response, 404, "local_clip_cover_not_found", "Local clip cover not found");
+              return;
+            }
+
+            await streamFile({
+              request,
+              response,
+              file_path: clip.cover_file_path,
+              content_type: contentTypeForImage(clip.cover_file_path),
+              range_enabled: false
+            });
+            return;
+          }
+
+          if (localClipRoute.action === "subtitles.srt") {
+            if (!clip.subtitles_file_path) {
+              writeError(response, 404, "local_clip_subtitles_not_found", "Local clip subtitles not found");
+              return;
+            }
+
+            await streamFile({
+              request,
+              response,
+              file_path: clip.subtitles_file_path,
+              content_type: "text/plain; charset=utf-8",
+              range_enabled: false
+            });
+            return;
+          }
+
           // Media streams are intentionally not header-gated: browser video elements
           // cannot reliably attach the custom cutter auth headers after an approved
           // page has loaded the URL.
@@ -1291,6 +1822,11 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             ...clip,
             ...localClipUrls(clip.local_clip_id)
           }));
+          return;
+        }
+
+        if (localClipRoute.action !== "media") {
+          writeError(response, 404, "local_clip_artifact_not_found", "Local clip artifact not found");
           return;
         }
 

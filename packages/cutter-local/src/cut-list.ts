@@ -27,6 +27,7 @@ export interface ClipListManifest {
   schema_version: "1.0";
   clip_list_id: string;
   library_id: string;
+  project_id?: string;
   title: string;
   item_count: number;
   created_at: string;
@@ -37,6 +38,7 @@ export interface ClipListManifest {
 export interface WriteClipListInput {
   workspace_root: string;
   library_id: string;
+  project_id?: string;
   title: string;
   items: WriteClipListItemInput[];
   now: string;
@@ -145,6 +147,19 @@ function assertNonEmpty(value: string, field: string): void {
   }
 }
 
+function normalizeProjectId(value: string | undefined): string | undefined {
+  const projectId = value?.trim();
+  if (!projectId) {
+    return undefined;
+  }
+
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(projectId)) {
+    throw new Error("project_id must be a safe project identifier");
+  }
+
+  return projectId;
+}
+
 function assertNonNegativeInteger(value: number, field: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${field} must be a non-negative integer`);
@@ -224,6 +239,7 @@ export async function writeClipList(input: WriteClipListInput): Promise<ClipList
     schema_version: "1.0",
     clip_list_id: clipListId,
     library_id: input.library_id,
+    ...(normalizeProjectId(input.project_id) ? { project_id: normalizeProjectId(input.project_id) } : {}),
     title: input.title.trim(),
     item_count: items.length,
     created_at: input.now,

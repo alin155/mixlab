@@ -21,6 +21,11 @@ export interface GalleryItem {
   meta: string;
   tags?: readonly string[];
   description?: string;
+  href?: string;
+  action_label?: string;
+  selected?: boolean;
+  onSelect?: () => void;
+  select_label?: string;
 }
 
 export type StatusTone = "ready" | "processing" | "queued" | "warning" | "failed";
@@ -57,7 +62,7 @@ export function MacWindow({
   className = ""
 }: {
   title: string;
-  meta?: string;
+  meta?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -79,10 +84,12 @@ export function MacWindow({
 
 export function Sidebar({
   items,
-  active
+  active,
+  footer
 }: {
   items: readonly SidebarItem[];
   active: string;
+  footer?: ReactNode;
 }) {
   return (
     <nav className="ml-sidebar" aria-label="MixLab navigation">
@@ -98,6 +105,7 @@ export function Sidebar({
           <span>{item.label}</span>
         </a>
       ))}
+      {footer ? <div className="ml-sidebar-footer">{footer}</div> : null}
     </nav>
   );
 }
@@ -150,28 +158,53 @@ export function SegmentedControl({
   );
 }
 
+function GalleryCardContent({ item }: { item: GalleryItem }) {
+  return (
+    <>
+      <img src={item.image} alt="" loading="lazy" />
+      <div className="ml-gallery-card-body">
+        <strong className="ml-gallery-title">{item.title}</strong>
+        <span className="ml-gallery-meta">{item.meta}</span>
+        {item.tags?.length ? (
+          <span className="ml-tag-row">
+            {item.tags.map((tag) => (
+              <span className="ml-tag" key={tag}>
+                {tag}
+              </span>
+            ))}
+          </span>
+        ) : null}
+        {item.description ? (
+          <span className="ml-gallery-description">{item.description}</span>
+        ) : null}
+        {item.href ? (
+          <a className="ml-gallery-action" href={item.href}>
+            {item.action_label ?? "查看详情"}
+          </a>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export function GalleryGrid({ items }: { items: readonly GalleryItem[] }) {
   return (
     <div className="ml-gallery-grid">
       {items.map((item) => (
-        <article className="ml-gallery-card" key={item.id}>
-          <img src={item.image} alt="" loading="lazy" />
-          <div className="ml-gallery-card-body">
-            <strong className="ml-gallery-title">{item.title}</strong>
-            <span className="ml-gallery-meta">{item.meta}</span>
-            {item.tags?.length ? (
-              <span className="ml-tag-row">
-                {item.tags.map((tag) => (
-                  <span className="ml-tag" key={tag}>
-                    {tag}
-                  </span>
-                ))}
-              </span>
-            ) : null}
-            {item.description ? (
-              <span className="ml-gallery-description">{item.description}</span>
-            ) : null}
-          </div>
+        <article className={`ml-gallery-card${item.selected ? " is-selected" : ""}`} key={item.id}>
+          {item.onSelect ? (
+            <button
+              className="ml-gallery-select"
+              type="button"
+              aria-label={item.select_label ?? item.title}
+              aria-pressed={item.selected ? "true" : "false"}
+              onClick={item.onSelect}
+            >
+              <GalleryCardContent item={item} />
+            </button>
+          ) : (
+            <GalleryCardContent item={item} />
+          )}
         </article>
       ))}
     </div>

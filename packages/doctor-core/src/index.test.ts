@@ -149,8 +149,11 @@ test("reports library health, incomplete ready artifacts, malformed local clips,
   assert.equal(byId(report, "source-video-manifests").status, "fail");
   assert.match(byId(report, "source-video-manifests").message, /missing-cover/);
   assert.equal(byId(report, "current-index").status, "fail");
-  assert.equal(byId(report, "local-clips").status, "fail");
+  assert.equal(byId(report, "local-clips").status, "warn");
   assert.match(byId(report, "local-clips").message, /LC000001/);
+  assert.deepEqual(byId(report, "local-clips").details, {
+    error_count: 1
+  });
   assert.equal(byId(report, "ffmpeg").status, "pass");
   assert.equal(byId(report, "ffprobe").status, "pass");
   assert.equal(byId(report, "asr-config").status, "pass");
@@ -159,7 +162,8 @@ test("reports library health, incomplete ready artifacts, malformed local clips,
     asr_model: "paraformer-v2"
   });
   assert.equal(JSON.stringify(report).includes("sk-do-not-leak"), false);
-  assert.equal(report.summary.fail >= 3, true);
+  assert.equal(report.summary.warn >= 1, true);
+  assert.equal(report.summary.fail >= 2, true);
 });
 
 test("accepts ready source video manifests from configured source folders", async () => {

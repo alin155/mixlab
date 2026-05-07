@@ -8,10 +8,14 @@ function selectedText(segments: readonly TranscriptSegment[]): string {
 export function SourceDetailPage({
   detail,
   selectedSegments = detail.transcript.segments.slice(1, 4),
+  highlightedSegmentIds = [],
+  onSelectSegment,
   onAddToCutList
 }: {
   detail: SourceVideoDetail;
   selectedSegments?: TranscriptSegment[];
+  highlightedSegmentIds?: readonly string[];
+  onSelectSegment?: (segmentId: string) => void;
   onAddToCutList?: () => void;
 }) {
   const firstSelected = selectedSegments[0];
@@ -49,20 +53,30 @@ export function SourceDetailPage({
           </header>
           <p className="cutter-full-text">{detail.transcript.full_text}</p>
           <div className="cutter-segment-list">
-            {detail.transcript.segments.map((segment) => (
-              <button
-                className={`cutter-segment${
-                  selectedSegments.some((selected) => selected.segment_id === segment.segment_id)
-                    ? " is-selected"
-                    : ""
-                }`}
-                type="button"
-                key={segment.segment_id}
-              >
-                <span>{formatDuration(segment.begin_ms)}</span>
-                <p>{segment.text}</p>
-              </button>
-            ))}
+            {detail.transcript.segments.map((segment) => {
+              const isSelected = selectedSegments.some((selected) => selected.segment_id === segment.segment_id);
+              const isHighlighted = highlightedSegmentIds.includes(segment.segment_id);
+
+              return (
+                <button
+                  className={[
+                    "cutter-segment",
+                    isSelected ? "is-selected" : "",
+                    isHighlighted ? "is-highlighted" : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  type="button"
+                  key={segment.segment_id}
+                  aria-pressed={isSelected}
+                  onClick={() => onSelectSegment?.(segment.segment_id)}
+                >
+                  <span>{formatDuration(segment.begin_ms)}</span>
+                  <p>{segment.text}</p>
+                  <small>选择此句</small>
+                </button>
+              );
+            })}
           </div>
         </section>
       </div>

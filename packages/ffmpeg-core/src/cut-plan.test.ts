@@ -16,7 +16,7 @@ test("formats milliseconds as ffmpeg seconds", () => {
   assert.equal(formatSeconds(90_123), "90.123");
 });
 
-test("builds fast copy cut command with input seeking and stream copy", () => {
+test("builds fast copy cut command with input seeking, video copy, and mp4-safe audio", () => {
   assert.deepEqual(
     buildFfmpegCutPlan({
       source_path: "/source/课程.mp4",
@@ -36,10 +36,20 @@ test("builds fast copy cut command with input seeking and stream copy", () => {
         "/source/课程.mp4",
         "-t",
         "35.000",
-        "-c",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c:v",
         "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
         "-avoid_negative_ts",
         "make_zero",
+        "-movflags",
+        "+faststart",
         "/exports/001.mp4"
       ]
     }

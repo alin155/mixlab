@@ -4,6 +4,7 @@ import type {
   SourceVideoCard,
   TranscriptSegment
 } from "../api.ts";
+import { sourceMaterialTitleFromStableName } from "./material-naming.ts";
 
 export type CutMode = NonNullable<CreateLocalClipRequest["cut_mode"]>;
 
@@ -70,7 +71,7 @@ export function createCutListItemFromSegments(input: CreateCutListItemInput): Cu
     end_ms: last.end_ms,
     duration_ms: Math.max(0, last.end_ms - first.begin_ms),
     selected_text: segments.map((segment) => segment.text).join(" "),
-    cut_mode: input.cutMode ?? "smart",
+    cut_mode: input.cutMode ?? "copy",
     order: input.order ?? 1,
     title: input.title,
     pre_roll_ms: input.preRollMs ?? 0,
@@ -152,6 +153,7 @@ function isPortableRelativePath(value: string): boolean {
 
 export function toCreateClipListRequest(input: {
   libraryId: string;
+  projectId?: string;
   title: string;
   items: readonly CutListItem[];
 }): CreateClipListRequest {
@@ -159,6 +161,7 @@ export function toCreateClipListRequest(input: {
 
   return {
     library_id: input.libraryId,
+    ...(input.projectId ? { project_id: input.projectId } : {}),
     title: input.title,
     items: items.map((item) => {
       if (!isPortableRelativePath(item.source_relative_path)) {
@@ -167,7 +170,7 @@ export function toCreateClipListRequest(input: {
 
       return {
         source_video_id: item.source_video_id,
-        source_title: item.source_title,
+        source_title: sourceMaterialTitleFromStableName(item.source_title),
         source_relative_path: item.source_relative_path.replace(/\\/g, "/"),
         start_segment_id: item.start_segment_id,
         end_segment_id: item.end_segment_id,

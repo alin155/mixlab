@@ -74,15 +74,36 @@ export interface AdminPreprocessJob {
   source_video_id: string;
   title: string;
   status: "running" | "queued" | "done" | "failed";
+  status_label: string;
   stage: string;
+  stage_label: string;
   progress: number;
   started_at?: string;
   completed_at?: string;
   failed_at?: string;
   elapsed_ms: number;
+  estimated_remaining_ms: number;
+  estimated_start_at: string;
+  estimated_done_at: string;
+  queue_position: number;
   log_path: string;
   retryable: boolean;
   error_message?: string;
+}
+
+export interface AdminPreprocessSupervisorStatus {
+  state: "idle" | "running" | "stopping" | "failed";
+  state_label: string;
+  worker_id: string;
+  started_at: string;
+  stopped_at: string;
+  last_error: string;
+  stop_requested: boolean;
+  last_result: {
+    total_claimed_count: number;
+    succeeded_count: number;
+    failed_count: number;
+  } | null;
 }
 
 export interface AdminPreprocessJobsResponse {
@@ -90,6 +111,16 @@ export interface AdminPreprocessJobsResponse {
   queued_count: number;
   completed_count: number;
   failed_count: number;
+  supervisor: AdminPreprocessSupervisorStatus;
+  observability: {
+    running_job_id: string;
+    running_source_video_id: string;
+    pipeline_progress_percent: number;
+    estimated_all_done_at: string;
+    estimated_queue_duration_ms: number;
+    throughput_label: string;
+    load_advice: string;
+  };
   jobs: AdminPreprocessJob[];
 }
 
@@ -227,6 +258,45 @@ export interface AdminDashboardMetrics {
     failed_video_count: number;
     index_required_video_count: number;
   };
+  runtime_load: AdminRuntimeLoadMetrics;
+}
+
+export type AdminRuntimeLoadStatus = "healthy" | "attention" | "blocked";
+
+export interface AdminRuntimeLoadMetrics {
+  overall_status: AdminRuntimeLoadStatus;
+  cpu: {
+    usage_percent: number;
+    load_average_1m: number;
+    status: AdminRuntimeLoadStatus;
+    label: string;
+  };
+  memory: {
+    total_bytes: number;
+    used_bytes: number;
+    available_bytes: number;
+    usage_percent: number;
+    status: AdminRuntimeLoadStatus;
+    label: string;
+  };
+  disk: {
+    total_bytes: number;
+    available_bytes: number;
+    usage_percent: number;
+    status: AdminRuntimeLoadStatus;
+    label: string;
+  };
+  network: {
+    active_interface_count: number;
+    status: AdminRuntimeLoadStatus;
+    label: string;
+  };
+  service: {
+    uptime_seconds: number;
+    heartbeat_at: string;
+    status: AdminRuntimeLoadStatus;
+    label: string;
+  };
 }
 
 export interface AdminArtifactDetail {
@@ -283,6 +353,8 @@ export interface AdminCutterDevice {
   status: "active" | "disabled";
   first_seen_at: string;
   last_login_at: string;
+  last_ip_address?: string;
+  user_agent?: string;
 }
 
 export interface AdminCutterUser {
@@ -320,7 +392,12 @@ export interface AdminActionResult {
   source_video_ids?: string[];
   new_video_count?: number;
   existing_video_count?: number;
+  prepared_source_video_ids?: string[];
   published_source_video_ids?: string[];
+  skipped_source_video_ids?: string[];
+  published_count?: number;
+  skipped_count?: number;
+  ready_video_count?: number;
   passed?: boolean;
   message?: string;
 }
@@ -346,6 +423,176 @@ export interface AdminDashboardData {
   metrics: AdminDashboardMetrics;
 }
 
+export type AdminSmartScanAction =
+  | "none"
+  | "queue-unprocessed"
+  | "start-preprocess"
+  | "retry-failed"
+  | "publish-index"
+  | "run-doctor";
+
+export interface AdminSmartScanSuggestion {
+  key: string;
+  label: string;
+  detail: string;
+  action: AdminSmartScanAction;
+}
+
+export interface AdminSmartScanReport {
+  severity: "healthy" | "attention" | "blocked";
+  title: string;
+  detail: string;
+  primary_action: AdminSmartScanAction;
+  primary_label: string;
+  suggestions: AdminSmartScanSuggestion[];
+}
+
+function smartScanActionLabel(action: AdminSmartScanAction): string {
+  const labels: Record<AdminSmartScanAction, string> = {
+    none: "无需处理",
+    "queue-unprocessed": "加入预处理队列",
+    "start-preprocess": "启动预处理流水线",
+    "retry-failed": "重试失败视频",
+    "publish-index": "发布待索引视频",
+    "run-doctor": "查看健康诊断"
+  };
+
+  return labels[action];
+}
+
+export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmartScanReport {
+  const doctorFailureCount = data.doctor.summary.fail;
+  const runtimeBlocked = data.metrics.runtime_load.overall_status === "blocked";
+  const runtimeAttention = data.metrics.runtime_load.overall_status === "attention";
+  const unprocessedCount = data.status.unprocessed_video_count;
+  const queuedCount = data.jobs.queued_count || data.status.queued_video_count;
+  const activeCount = data.jobs.active_count || data.status.processing_video_count;
+  const failedCount = data.jobs.failed_count || data.status.failed_video_count;
+  const indexRequiredCount = data.status.index_required_video_count;
+  const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
+
+  const suggestions: AdminSmartScanSuggestion[] = [];
+
+  if (runtimeBlocked) {
+    suggestions.push({
+      key: "runtime-load",
+      label: "运行负荷存在阻塞风险，建议降低并发或暂停处理",
+      detail: "CPU、内存、磁盘或网络存在阻塞风险，继续启动更多预处理可能导致失败。建议先查看健康诊断并调整运行策略。",
+      action: "run-doctor"
+    });
+  } else if (runtimeAttention) {
+    suggestions.push({
+      key: "runtime-load",
+      label: "运行负荷偏高，建议观察或降低并发",
+      detail: "系统仍可继续处理，但建议观察 CPU、内存、磁盘和网络状态，必要时降低并发任务数。",
+      action: "none"
+    });
+  }
+
+  if (doctorFailureCount > 0) {
+    suggestions.push({
+      key: "doctor",
+      label: "健康诊断存在需处理项",
+      detail: `发现 ${doctorFailureCount} 个会影响生产的系统问题，建议先进入健康诊断确认。`,
+      action: "run-doctor"
+    });
+  }
+
+  if (failedCount > 0) {
+    suggestions.push({
+      key: "failed",
+      label: "存在失败视频",
+      detail: `${failedCount} 个视频失败可重试，单个视频失败不会阻塞其他队列。`,
+      action: "retry-failed"
+    });
+  }
+
+  if (queuedCount > 0 && !supervisorRunning) {
+    suggestions.push({
+      key: "queued-idle",
+      label: "队列已准备但服务未运行",
+      detail: `${queuedCount} 个视频已排队，启动预处理流水线后会继续提取音频、语音识别、生成产物并自动发布索引。`,
+      action: "start-preprocess"
+    });
+  }
+
+  if (unprocessedCount > 0) {
+    suggestions.push({
+      key: "unprocessed",
+      label: "存在未处理视频",
+      detail: `${unprocessedCount} 个原视频尚未预处理，启动预处理流水线后会扫描素材来源、自动入队并持续生产。`,
+      action: "start-preprocess"
+    });
+  }
+
+  if (indexRequiredCount > 0) {
+    suggestions.push({
+      key: "index",
+      label: "存在待发布索引视频",
+      detail: `${indexRequiredCount} 个视频已完成预处理但尚未进入当前索引，预处理流水线会自动增量发布。`,
+      action: "start-preprocess"
+    });
+  }
+
+  if (activeCount > 0 && supervisorRunning) {
+    suggestions.push({
+      key: "running",
+      label: "预处理服务正在运行",
+      detail: `${activeCount} 个任务正在处理，建议观察当前阶段、耗时和失败信息。`,
+      action: "none"
+    });
+  }
+
+  const primaryAction: AdminSmartScanAction = runtimeBlocked
+    ? "run-doctor"
+    : doctorFailureCount > 0
+    ? "run-doctor"
+    : failedCount > 0
+      ? "retry-failed"
+      : queuedCount > 0 && !supervisorRunning
+        ? "start-preprocess"
+        : unprocessedCount > 0
+          ? "start-preprocess"
+          : indexRequiredCount > 0
+            ? "start-preprocess"
+            : "none";
+
+  const severity: AdminSmartScanReport["severity"] = runtimeBlocked || doctorFailureCount > 0
+    ? "blocked"
+    : primaryAction === "none"
+      ? "healthy"
+      : "attention";
+
+  const title = runtimeBlocked
+    ? "运行负荷存在阻塞风险"
+    : primaryAction === "run-doctor"
+      ? `健康诊断存在 ${doctorFailureCount} 个需处理项`
+    : primaryAction === "retry-failed"
+      ? `有 ${failedCount} 个失败视频可重试`
+      : primaryAction === "start-preprocess"
+        ? queuedCount > 0 && !supervisorRunning
+          ? `${queuedCount} 个视频已排队，但预处理服务未运行`
+          : unprocessedCount > 0
+            ? `发现 ${unprocessedCount} 个视频可进入预处理流水线`
+            : `有 ${indexRequiredCount} 个视频等待自动发布`
+        : supervisorRunning
+          ? "预处理服务正在运行"
+          : "素材库当前无需处理";
+
+  const detail = primaryAction === "none"
+    ? "系统没有发现需要立即执行的生产动作。"
+    : suggestions.find((item) => item.action === primaryAction)?.detail ?? "请按建议执行下一步。";
+
+  return {
+    severity,
+    title,
+    detail,
+    primary_action: primaryAction,
+    primary_label: smartScanActionLabel(primaryAction),
+    suggestions
+  };
+}
+
 export interface AdminApiClient {
   getLibraryStatus(): Promise<AdminLibraryStatus>;
   getPathChecks(): Promise<AdminPathCheck[]>;
@@ -368,6 +615,12 @@ export interface AdminApiClient {
   scanSourceVideos(): Promise<AdminActionResult>;
   queueUnprocessedVideos(): Promise<AdminActionResult>;
   retryFailedVideos(): Promise<AdminActionResult>;
+  queueSourceVideo(sourceVideoId: string): Promise<AdminActionResult>;
+  retrySourceVideo(sourceVideoId: string): Promise<AdminActionResult>;
+  publishSourceVideo(sourceVideoId: string): Promise<AdminActionResult>;
+  getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
+  startPreprocessSupervisor(limit?: number): Promise<AdminPreprocessSupervisorStatus>;
+  stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
   repairIndex(): Promise<AdminActionResult>;
   runDoctor(): Promise<MixlabDoctorReport>;
   testAsrConfig(): Promise<AdminActionResult>;
@@ -567,6 +820,48 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
       sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/queue-unprocessed", "POST"),
     retryFailedVideos: () =>
       sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/retry-failed", "POST"),
+    queueSourceVideo: (sourceVideoId) =>
+      sendJson<AdminActionResult>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/source-videos/${sourceVideoId}/queue`,
+        "POST"
+      ),
+    retrySourceVideo: (sourceVideoId) =>
+      sendJson<AdminActionResult>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/source-videos/${sourceVideoId}/retry`,
+        "POST"
+      ),
+    publishSourceVideo: (sourceVideoId) =>
+      sendJson<AdminActionResult>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/source-videos/${sourceVideoId}/publish`,
+        "POST"
+      ),
+    getPreprocessSupervisorStatus: () =>
+      getJson<AdminPreprocessSupervisorStatus>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/preprocess/supervisor/status"
+      ),
+    startPreprocessSupervisor: (limit) =>
+      sendJson<AdminPreprocessSupervisorStatus>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/preprocess/supervisor/start",
+        "POST",
+        limit ? { limit } : {}
+      ),
+    stopPreprocessSupervisor: () =>
+      sendJson<AdminPreprocessSupervisorStatus>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/preprocess/supervisor/stop",
+        "POST"
+      ),
     repairIndex: () =>
       sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/index/repair", "POST"),
     runDoctor: () =>
@@ -619,10 +914,10 @@ const pathChecks: AdminPathCheck[] = [
     message: "根路径可访问"
   },
   {
-    label: "source-videos",
+    label: "素材来源：默认素材来源",
     path: status.source_videos_path,
     status: "pass",
-    message: "原视频目录可读"
+    message: "素材来源可读"
   },
   {
     label: ".mixlab-library",
@@ -750,16 +1045,36 @@ const jobs: AdminPreprocessJobsResponse = {
   queued_count: 2,
   completed_count: 3,
   failed_count: 1,
+  supervisor: {
+    state: "running",
+    state_label: "运行中",
+    worker_id: "admin-worker-5174",
+    started_at: "2024-05-07 10:24:18",
+    stopped_at: "",
+    last_error: "",
+    stop_requested: false,
+    last_result: {
+      total_claimed_count: 2,
+      succeeded_count: 1,
+      failed_count: 1
+    }
+  },
   jobs: [
     {
       job_id: "J000043",
       source_video_id: "V000043",
       title: "现金流课程片段",
       status: "running",
+      status_label: "正在处理",
       stage: "build-keyframes",
+      stage_label: "生成关键帧",
       progress: 65,
       started_at: "2024-05-07 10:24:18",
       elapsed_ms: 272_000,
+      estimated_remaining_ms: 268_000,
+      estimated_start_at: "2024-05-07 10:24:18",
+      estimated_done_at: "2024-05-07 10:33:18",
+      queue_position: 0,
       log_path: ".mixlab-library/logs/V000043.log",
       retryable: false
     },
@@ -768,9 +1083,15 @@ const jobs: AdminPreprocessJobsResponse = {
       source_video_id: "V000044",
       title: "人工智能商业落地",
       status: "queued",
+      status_label: "等待处理",
       stage: "extract-audio",
+      stage_label: "等待处理",
       progress: 0,
       elapsed_ms: 0,
+      estimated_remaining_ms: 540_000,
+      estimated_start_at: "2024-05-07 10:33:18",
+      estimated_done_at: "2024-05-07 10:42:18",
+      queue_position: 1,
       log_path: ".mixlab-library/logs/V000044.log",
       retryable: false
     },
@@ -779,10 +1100,16 @@ const jobs: AdminPreprocessJobsResponse = {
       source_video_id: "V000037",
       title: "客户筛选与品牌定价",
       status: "failed",
+      status_label: "失败可重试",
       stage: "asr",
+      stage_label: "语音识别",
       progress: 0,
       failed_at: "2024-05-07 10:18:20",
       elapsed_ms: 38_000,
+      estimated_remaining_ms: 0,
+      estimated_start_at: "",
+      estimated_done_at: "",
+      queue_position: 0,
       log_path: ".mixlab-library/logs/V000037.log",
       retryable: true,
       error_message: "DashScope ASR 网络超时"
@@ -792,10 +1119,16 @@ const jobs: AdminPreprocessJobsResponse = {
       source_video_id: "V000042",
       title: "现金流管理与风险控制",
       status: "done",
+      status_label: "已完成",
       stage: "publish-ready",
+      stage_label: "发布可用产物",
       progress: 100,
       completed_at: "2024-05-07 10:23:02",
       elapsed_ms: 468_000,
+      estimated_remaining_ms: 0,
+      estimated_start_at: "",
+      estimated_done_at: "2024-05-07 10:23:02",
+      queue_position: 0,
       log_path: ".mixlab-library/logs/V000042.log",
       retryable: false
     },
@@ -804,14 +1137,29 @@ const jobs: AdminPreprocessJobsResponse = {
       source_video_id: "V000041",
       title: "利润增长的估价优化",
       status: "done",
+      status_label: "已完成",
       stage: "publish-ready",
+      stage_label: "发布可用产物",
       progress: 100,
       completed_at: "2024-05-07 10:25:40",
       elapsed_ms: 655_000,
+      estimated_remaining_ms: 0,
+      estimated_start_at: "",
+      estimated_done_at: "2024-05-07 10:25:40",
+      queue_position: 0,
       log_path: ".mixlab-library/logs/V000041.log",
       retryable: false
     }
-  ]
+  ],
+  observability: {
+    running_job_id: "J000043",
+    running_source_video_id: "V000043",
+    pipeline_progress_percent: 46,
+    estimated_all_done_at: "2024-05-07 10:42:18",
+    estimated_queue_duration_ms: 1_078_000,
+    throughput_label: "预计 17:58 完成当前队列",
+    load_advice: "运行负荷正常，可以继续处理"
+  }
 };
 
 const indexes: AdminIndexVersionsResponse = {
@@ -883,6 +1231,12 @@ const doctorChecks: DoctorCheck[] = [
     label: "状态计数",
     status: "warn",
     message: "index-required 与 ready 边界需发布"
+  },
+  {
+    check_id: "local-clips",
+    label: "Local Clips",
+    status: "warn",
+    message: "LC000001: media file is missing"
   }
 ];
 
@@ -892,7 +1246,7 @@ const doctor: MixlabDoctorReport = {
   library_root: status.root_path,
   summary: {
     pass: 4,
-    warn: 2,
+    warn: 3,
     fail: 0
   },
   checks: doctorChecks
@@ -1030,6 +1384,41 @@ const dashboardMetrics: AdminDashboardMetrics = {
   risk: {
     failed_video_count: status.failed_video_count,
     index_required_video_count: status.index_required_video_count
+  },
+  runtime_load: {
+    overall_status: "healthy",
+    cpu: {
+      usage_percent: 32,
+      load_average_1m: 1.1,
+      status: "healthy",
+      label: "负荷正常"
+    },
+    memory: {
+      total_bytes: 32_000_000_000,
+      used_bytes: 15_400_000_000,
+      available_bytes: 16_600_000_000,
+      usage_percent: 48,
+      status: "healthy",
+      label: "内存充足"
+    },
+    disk: {
+      total_bytes: status.disk_total_bytes,
+      available_bytes: status.disk_available_bytes,
+      usage_percent: 38,
+      status: "healthy",
+      label: "空间充足"
+    },
+    network: {
+      active_interface_count: 2,
+      status: "healthy",
+      label: "网络可用"
+    },
+    service: {
+      uptime_seconds: 7420,
+      heartbeat_at: "2024-05-07 10:26:00",
+      status: "healthy",
+      label: "服务运行中"
+    }
   }
 };
 
@@ -1144,7 +1533,15 @@ function cloneDashboardMetrics(value: AdminDashboardMetrics): AdminDashboardMetr
     transcript: { ...value.transcript },
     production: { ...value.production },
     usage: cloneUsageMetrics(value.usage),
-    risk: { ...value.risk }
+    risk: { ...value.risk },
+    runtime_load: {
+      overall_status: value.runtime_load.overall_status,
+      cpu: { ...value.runtime_load.cpu },
+      memory: { ...value.runtime_load.memory },
+      disk: { ...value.runtime_load.disk },
+      network: { ...value.runtime_load.network },
+      service: { ...value.runtime_load.service }
+    }
   };
 }
 
@@ -1275,11 +1672,19 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     };
   }
 
-  function queueVideos(statuses: AdminPreprocessStatus[], message: string): AdminActionResult {
-    const affected = fixtureSourceVideos.filter((video) => statuses.includes(video.preprocess_status));
+  function queueVideos(
+    statuses: AdminPreprocessStatus[],
+    message: string,
+    sourceVideoId?: string
+  ): AdminActionResult {
+    const affected = fixtureSourceVideos.filter((video) =>
+      statuses.includes(video.preprocess_status) &&
+      (!sourceVideoId || video.source_video_id === sourceVideoId)
+    );
 
     fixtureSourceVideos = fixtureSourceVideos.map((video) =>
-      statuses.includes(video.preprocess_status)
+      statuses.includes(video.preprocess_status) &&
+        (!sourceVideoId || video.source_video_id === sourceVideoId)
         ? {
             ...video,
             preprocess_status: "queued",
@@ -1299,9 +1704,15 @@ export function createFixtureAdminApiClient(): AdminApiClient {
         source_video_id: video.source_video_id,
         title: video.title,
         status: "queued",
+        status_label: "等待处理",
         stage: "extract-audio",
+        stage_label: "等待处理",
         progress: 0,
         elapsed_ms: 0,
+        estimated_remaining_ms: fixtureMetrics.production.average_video_process_ms,
+        estimated_start_at: "",
+        estimated_done_at: "",
+        queue_position: fixtureJobs.jobs.filter((job) => job.status === "queued").length + 1,
         log_path: `.mixlab-library/logs/${video.source_video_id}.log`,
         retryable: false
       };
@@ -1507,6 +1918,12 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     },
     listPreprocessJobs: async () => ({
       ...fixtureJobs,
+      supervisor: {
+        ...fixtureJobs.supervisor,
+        last_result: fixtureJobs.supervisor.last_result
+          ? { ...fixtureJobs.supervisor.last_result }
+          : null
+      },
       jobs: fixtureJobs.jobs.map((job) => ({ ...job }))
     }),
     listIndexVersions: async () => ({
@@ -1541,6 +1958,114 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       queueVideos(["unprocessed"], "已将未处理视频加入预处理队列"),
     retryFailedVideos: async () =>
       queueVideos(["failed"], "已将失败视频重新加入预处理队列"),
+    queueSourceVideo: async (sourceVideoId) =>
+      queueVideos(["unprocessed"], `已将 ${sourceVideoId} 加入预处理队列`, sourceVideoId),
+    retrySourceVideo: async (sourceVideoId) =>
+      queueVideos(["failed"], `已将 ${sourceVideoId} 重新加入预处理队列`, sourceVideoId),
+    getPreprocessSupervisorStatus: async () => ({
+      ...fixtureJobs.supervisor,
+      last_result: fixtureJobs.supervisor.last_result
+        ? { ...fixtureJobs.supervisor.last_result }
+        : null
+    }),
+    startPreprocessSupervisor: async (limit) => {
+      fixtureJobs = {
+        ...fixtureJobs,
+        supervisor: {
+          ...fixtureJobs.supervisor,
+          state: "running",
+          state_label: "运行中",
+          started_at: "2024-05-07 10:45:00",
+          stopped_at: "",
+          stop_requested: false,
+          last_error: "",
+          last_result: limit
+            ? {
+                total_claimed_count: limit,
+                succeeded_count: Math.max(0, limit - 1),
+                failed_count: limit > 1 ? 1 : 0
+              }
+            : fixtureJobs.supervisor.last_result
+        }
+      };
+      return {
+        ...fixtureJobs.supervisor,
+        last_result: fixtureJobs.supervisor.last_result
+          ? { ...fixtureJobs.supervisor.last_result }
+          : null
+      };
+    },
+    stopPreprocessSupervisor: async () => {
+      fixtureJobs = {
+        ...fixtureJobs,
+        supervisor: {
+          ...fixtureJobs.supervisor,
+          state: "idle",
+          state_label: "未运行",
+          stopped_at: "2024-05-07 10:46:00",
+          stop_requested: false
+        }
+      };
+      return {
+        ...fixtureJobs.supervisor,
+        last_result: fixtureJobs.supervisor.last_result
+          ? { ...fixtureJobs.supervisor.last_result }
+          : null
+      };
+    },
+    publishSourceVideo: async (sourceVideoId) => {
+      const affected = fixtureSourceVideos.filter((video) =>
+        video.preprocess_status === "index-required" &&
+        video.source_video_id === sourceVideoId
+      );
+
+      fixtureSourceVideos = fixtureSourceVideos.map((video) =>
+        video.preprocess_status === "index-required" && video.source_video_id === sourceVideoId
+          ? {
+              ...video,
+              preprocess_status: "ready",
+              visible_to_cutters: true,
+              updated_at: "2024-05-07 10:31:00"
+            }
+          : video
+      );
+      if (affected.length > 0) {
+        fixtureIndexes = {
+          current_version: "v000028",
+          versions: [
+            {
+              index_version: "v000028",
+              created_at: "2024-05-07 10:31:00",
+              ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
+              schema_version: "1.0.0",
+              validation_status: "pass",
+              is_current: true,
+              published_by: "admin"
+            },
+            ...fixtureIndexes.versions.map((version) => ({ ...version, is_current: false }))
+          ]
+        };
+        fixtureStatus = {
+          ...fixtureStatus,
+          current_index_version: "v000028",
+          index_status: "ready"
+        };
+      }
+      recount();
+
+      return {
+        affected_count: affected.length,
+        prepared_source_video_ids: affected.map((video) => video.source_video_id),
+        published_source_video_ids: affected.map((video) => video.source_video_id),
+        skipped_source_video_ids: [],
+        published_count: affected.length,
+        skipped_count: 0,
+        ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
+        message: affected.length > 0
+          ? `已发布 ${affected.length} 个原视频，当前可用 ${fixtureStatus.ready_video_count} 个。`
+          : "没有需要发布的待索引视频。"
+      };
+    },
     repairIndex: async () => {
       const affected = fixtureSourceVideos.filter((video) => video.preprocess_status === "index-required");
 
@@ -1578,8 +2103,15 @@ export function createFixtureAdminApiClient(): AdminApiClient {
 
       return {
         affected_count: affected.length,
+        prepared_source_video_ids: affected.map((video) => video.source_video_id),
         published_source_video_ids: affected.map((video) => video.source_video_id),
-        message: "索引修复完成"
+        skipped_source_video_ids: [],
+        published_count: affected.length,
+        skipped_count: 0,
+        ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
+        message: affected.length > 0
+          ? `已发布 ${affected.length} 个原视频，当前可用 ${fixtureStatus.ready_video_count} 个。`
+          : "没有需要发布的待索引视频。"
       };
     },
     runDoctor: async () => fixtureDoctor,

@@ -348,6 +348,7 @@ test("searches only cutter-visible ready transcripts and enriches groups with co
   );
   assert.equal(result.groups[0]?.cover_file_path, path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "cover.jpg"));
   assert.equal(result.groups[0]?.hit_segments[0]?.text, "现金流，是企业的血液。");
+  assert.equal(result.groups[0]?.transcript_character_count, 18);
 
   const hiddenOnly = await searchCutterSourceLibrary({
     library_root: libraryRoot,
@@ -385,4 +386,5 @@ test("falls back to ready transcript artifacts when the current sqlite search in
     ["V000001"]
   );
   assert.equal(result.groups[0]?.hit_segments[0]?.text, "现金流，是企业的血液。");
+  assert.equal(result.groups[0]?.transcript_character_count, 18);
 });

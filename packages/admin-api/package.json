@@ -8,9 +8,12 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@mixlab/asr-core": "0.1.0",
     "@mixlab/doctor-core": "0.1.0",
     "@mixlab/ffmpeg-core": "0.1.0",
     "@mixlab/library-fs": "0.1.0",
+    "@mixlab/oss-core": "0.1.0",
+    "@mixlab/preprocess-core": "0.1.0",
     "@mixlab/protocol": "0.1.0"
   }
 }
