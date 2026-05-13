@@ -72,12 +72,12 @@ fn desktop_log_dir(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 fn desktop_default_workspace_root() -> String {
     let profile = env::var("USERPROFILE")
-        .or_else(|_| {
+        .or_else(|_: env::VarError| {
             let drive = env::var("HOMEDRIVE")?;
             let home_path = env::var("HOMEPATH")?;
-            Ok(format!("{drive}{home_path}"))
+            Ok::<String, env::VarError>(format!("{drive}{home_path}"))
         })
-        .or_else(|_| env::var("HOME"))
+        .or_else(|_: env::VarError| env::var("HOME"))
         .unwrap_or_else(|_| String::from("C:\\Users\\Default"));
 
     path_string(PathBuf::from(profile).join("Videos").join("MixLabLocal"))
