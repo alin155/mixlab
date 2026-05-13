@@ -37,6 +37,14 @@ test("tauri config embeds cutter web dist and Windows exe installer target", asy
   ]);
 });
 
+test("Windows installer icon asset is present for tauri-build", async () => {
+  const icon = await readFile(path.join(appRoot, "src-tauri/icons/icon.ico"));
+
+  assert.equal(icon.readUInt16LE(0), 0);
+  assert.equal(icon.readUInt16LE(2), 1);
+  assert.equal(icon.readUInt16LE(4), 1);
+});
+
 test("tauri capability allows only the cutter api sidecar with config argument", async () => {
   const capability = await readJson("src-tauri/capabilities/default.json");
   const permission = (capability.permissions as unknown[]).find((entry) => {
