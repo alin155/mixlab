@@ -25,7 +25,7 @@ test("cutter desktop package exposes Windows desktop scripts only", async () => 
 test("tauri config embeds cutter web dist and Windows exe installer target", async () => {
   const config = await readJson("src-tauri/tauri.conf.json");
   assert.equal((config.build as Record<string, unknown>).frontendDist, "../../cutter-web/dist");
-  assert.equal((config.build as Record<string, unknown>).beforeBuildCommand, "npm run build:cutter-web");
+  assert.equal((config.build as Record<string, unknown>).beforeBuildCommand, undefined);
 
   const bundle = config.bundle as Record<string, unknown>;
   assert.deepEqual(bundle.targets, ["nsis"]);

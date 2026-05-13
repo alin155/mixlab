@@ -6,7 +6,6 @@
   "build": {
     "beforeDevCommand": "npm run dev:cutter-web",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "npm run build:cutter-web",
     "frontendDist": "../../cutter-web/dist"
   },
   "app": {
