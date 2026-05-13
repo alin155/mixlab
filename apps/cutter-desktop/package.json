@@ -1,0 +1,22 @@
+{
+  "name": "@mixlab/cutter-desktop",
+  "version": "0.18.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "npm run tauri:dev",
+    "build:web": "npm run build:cutter-web",
+    "build:sidecar": "tsx ../../scripts/desktop/build-cutter-sidecar.ts",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build --bundles nsis"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-shell": "^2.3.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.1"
+  }
+}

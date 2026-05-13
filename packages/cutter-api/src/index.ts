@@ -52,6 +52,8 @@ import { createSegmentSpanSelection } from "../../protocol/src/index.ts";
 export interface CreateCutterApiServerInput {
   library_root: string;
   workspace_root?: string;
+  auth_mode?: "reviewed" | "local_trusted";
+  trusted_username?: string;
   now?: () => string;
   cut_runner?: CutterClipCutRunner;
   cover_runner?: CoverRunner;
@@ -621,11 +623,46 @@ function currentNow(input: CreateCutterApiServerInput): string {
   return input.now?.() ?? new Date().toISOString();
 }
 
+function trustedDesktopSession(input: CreateCutterApiServerInput): AuthenticatedCutterSession {
+  const now = currentNow(input);
+  const username = input.trusted_username?.trim() || "Allen";
+
+  return {
+    user: {
+      user_id: "CU-DESKTOP-LOCAL",
+      username,
+      display_name: username,
+      status: "approved",
+      applied_at: now,
+      approved_at: now,
+      rejected_at: "",
+      disabled_at: "",
+      last_login_at: now,
+      last_used_at: now,
+      note: "Windows 桌面端本地可信会话",
+      devices: [
+        {
+          device_id: "desktop-local",
+          device_name: "MixLab Windows Desktop",
+          status: "active",
+          first_seen_at: now,
+          last_login_at: now
+        }
+      ]
+    },
+    device_id: "desktop-local"
+  };
+}
+
 async function requireCutterSession(input: {
   api_input: CreateCutterApiServerInput;
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<AuthenticatedCutterSession | null> {
+  if (input.api_input.auth_mode === "local_trusted") {
+    return trustedDesktopSession(input.api_input);
+  }
+
   const deviceId = firstHeaderValue(input.request.headers["x-mixlab-device-id"]);
   const sessionToken = firstHeaderValue(input.request.headers["x-mixlab-session-token"]);
 
@@ -1171,6 +1208,25 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       if (request.method === "POST" && url.pathname === "/cutter/auth/request-login") {
         try {
           const body = (await readRequestJson(request)) as CutterLoginRequestBody;
+          if (input.auth_mode === "local_trusted") {
+            const auth = trustedDesktopSession(input);
+            const deviceId = typeof body.device_id === "string" && body.device_id.trim()
+              ? body.device_id.trim()
+              : auth.device_id;
+            const now = currentNow(input);
+            writeJson(response, 200, apiResponse({
+              user: auth.user,
+              session: {
+                user_id: auth.user.user_id,
+                device_id: deviceId,
+                session_token: "desktop-local-trusted",
+                created_at: now,
+                last_seen_at: now
+              }
+            }));
+            return;
+          }
+
           const deviceId = requiredChineseString(body.device_id, "设备 ID 不能为空");
           const now = currentNow(input);
           const application = await createCutterLoginApplication(input.library_root, {

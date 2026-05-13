@@ -1,0 +1,56 @@
+name: Cutter Desktop Windows Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cutter-desktop-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build Windows exe
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run desktop packaging tests
+        run: >
+          node --test --import tsx
+          scripts/desktop/windows-runtime.test.ts
+          packages/cutter-api/src/desktop-sidecar.test.ts
+          packages/desktop-runtime/src/index.test.ts
+          apps/cutter-web/src/desktop-bridge.test.ts
+          apps/cutter-desktop/src/tauri-config.test.ts
+
+      - name: Package Windows desktop installer
+        run: npm run package:cutter-desktop:windows
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-cutter-windows-exe
+          path: apps/cutter-desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14

@@ -38,6 +38,11 @@
     "build:cutter-web": "npm run build -w @mixlab/cutter-web",
     "visual:cutter-web": "tsx scripts/visual/check-cutter-web-screenshots.ts",
     "smoke:cutter-api-web": "tsx scripts/smoke/cutter-api-web.ts",
+    "dev:cutter-desktop": "npm run dev -w @mixlab/cutter-desktop",
+    "build:cutter-desktop": "npm run package:cutter-desktop:windows",
+    "package:cutter-desktop:windows": "tsx scripts/desktop/package-windows-desktop.ts",
+    "prepare:cutter-desktop:windows-assets": "tsx scripts/desktop/prepare-windows-runtime-assets.ts",
+    "verify:cutter-desktop:windows-assets": "tsx scripts/desktop/verify-windows-runtime-assets.ts",
     "dev:ui-fixtures": "npm run dev -w @mixlab/ui-fixtures",
     "build:ui-fixtures": "npm run build -w @mixlab/ui-fixtures",
     "visual:ui-foundation": "tsx scripts/visual/check-ui-foundation-screenshots.ts",
@@ -49,10 +54,12 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/node": "^24.9.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@yao-pkg/pkg": "^6.19.0",
+    "esbuild": "^0.28.0",
     "playwright": "^1.56.0",
-    "@types/node": "^24.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

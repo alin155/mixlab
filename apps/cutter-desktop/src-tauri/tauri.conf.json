@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MixLab Cutter",
+  "version": "0.18.1",
+  "identifier": "com.mixlab.cutter",
+  "build": {
+    "beforeDevCommand": "npm run dev:cutter-web",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build:cutter-web",
+    "frontendDist": "../../cutter-web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MixLab Cutter",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1180,
+        "minHeight": 720
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "MixLab",
+    "category": "Productivity",
+    "externalBin": ["binaries/cutter-api-sidecar"],
+    "resources": ["binaries/ffmpeg.exe", "binaries/ffprobe.exe", "resources/default-desktop-config.json"],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installerIcon": null
+      }
+    }
+  }
+}

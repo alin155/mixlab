@@ -34,6 +34,11 @@ import {
   type ProjectDeleteMode
 } from "../features/project-home/ProjectHomePage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
+import {
+  DesktopFirstRunPage,
+  type DesktopSetupDiagnostics,
+  type DesktopSetupStage
+} from "../features/desktop/DesktopFirstRunPage.tsx";
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
 import {
   CUT_LIST_STORAGE_KEY,
@@ -103,6 +108,21 @@ import {
   type CutterRoute
 } from "./navigation.ts";
 import {
+  chooseDesktopDirectory,
+  defaultDesktopWorkspaceRoot,
+  desktopConfigPath,
+  desktopLogDirectory,
+  openDesktopDirectory,
+  readDesktopConfig,
+  resolveDesktopBridgeEnvironment,
+  resolveRuntimeApiBaseUrl,
+  runDesktopDoctor,
+  startDesktopEngine,
+  writeDesktopConfig,
+  type DesktopConfig,
+  type DesktopDoctorResult
+} from "../desktop-bridge.ts";
+import {
   continuousTranscriptSegments,
   nextTranscriptSelectionRange,
   transcriptSelectionRangeFromDrag,
@@ -136,7 +156,9 @@ import {
 } from "../state/cutter-projects.ts";
 
 function getRuntimeApiBaseUrl(): string {
-  return import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? "";
+  return resolveRuntimeApiBaseUrl({
+    vite_api_base_url: import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? ""
+  });
 }
 
 function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | null) {
@@ -155,8 +177,12 @@ function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | n
     : createFixtureCutterApiClient();
 }
 
-export function shouldShowLoginGate(apiMode: boolean, status: CutterLoginStatusValue): boolean {
-  return apiMode && status !== "approved";
+export function shouldShowLoginGate(
+  apiMode: boolean,
+  status: CutterLoginStatusValue,
+  options: { desktopTrusted?: boolean } = {}
+): boolean {
+  return apiMode && !options.desktopTrusted && status !== "approved";
 }
 
 export function shouldRefreshCutQueueForRoute(input: {
@@ -590,6 +616,45 @@ function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
   ];
 }
 
+function defaultDesktopConfig(localWorkspaceRoot = "", logRoot = ""): DesktopConfig {
+  return {
+    api_host: "127.0.0.1",
+    api_port: 3789,
+    public_library_root: "",
+    local_workspace_root: localWorkspaceRoot,
+    ...(logRoot ? { log_root: logRoot } : {})
+  };
+}
+
+function desktopSetupStageForConfig(config: DesktopConfig): DesktopSetupStage {
+  if (!config.public_library_root) {
+    return "choose-public-library";
+  }
+
+  if (!config.local_workspace_root) {
+    return "choose-workspace";
+  }
+
+  return "doctor-ready";
+}
+
+function desktopDiagnosticsForState(input: {
+  stage: DesktopSetupStage;
+  config: DesktopConfig;
+  latestError?: string;
+  logPath?: string;
+}): DesktopSetupDiagnostics {
+  return {
+    stage: input.stage,
+    api_address: `http://${input.config.api_host}:${input.config.api_port}`,
+    log_path: input.logPath || input.config.log_root || (input.config.local_workspace_root ? `${input.config.local_workspace_root}\\logs` : ""),
+    public_library_root: input.config.public_library_root,
+    local_workspace_root: input.config.local_workspace_root,
+    ffmpeg_status: input.config.ffmpeg_path && input.config.ffprobe_path ? "已配置" : "随安装包内置",
+    latest_error_summary: input.latestError
+  };
+}
+
 function safeLocalStorageGetItem(key: string): string | null {
   try {
     return window.localStorage.getItem(key);
@@ -869,7 +934,18 @@ function renderPage(
 }
 
 export function CutterApp() {
-  const apiBaseUrl = useMemo(getRuntimeApiBaseUrl, []);
+  const desktopEnvironment = useMemo(() => resolveDesktopBridgeEnvironment(), []);
+  const isDesktopMode = desktopEnvironment.desktop_available;
+  const detectedApiBaseUrl = useMemo(getRuntimeApiBaseUrl, []);
+  const [desktopStage, setDesktopStage] = useState<DesktopSetupStage>(() =>
+    isDesktopMode ? "loading" : "ready"
+  );
+  const [desktopConfig, setDesktopConfig] = useState<DesktopConfig>(() => defaultDesktopConfig());
+  const [desktopDoctorResult, setDesktopDoctorResult] = useState<DesktopDoctorResult | undefined>();
+  const [desktopDiagnostics, setDesktopDiagnostics] = useState<DesktopSetupDiagnostics | undefined>();
+  const [desktopLogPath, setDesktopLogPath] = useState("");
+  const desktopSetupReady = !isDesktopMode || desktopStage === "ready";
+  const apiBaseUrl = desktopSetupReady ? detectedApiBaseUrl : "";
   const apiMode = Boolean(apiBaseUrl);
   const [route, setRoute] = useState<CutterRoute>(() => routeFromHash(window.location.hash));
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState<string | undefined>(() =>
@@ -936,7 +1012,9 @@ export function CutterApp() {
     () => createRuntimeClient(apiBaseUrl, authSession),
     [apiBaseUrl, authSession]
   );
-  const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus);
+  const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus, {
+    desktopTrusted: isDesktopMode
+  });
   const currentProject = projects.find((project) => project.project_id === currentProjectId);
 
   function commitProjects(nextProjects: readonly CutterProject[], nextProjectId?: string) {
@@ -1070,6 +1148,55 @@ export function CutterApp() {
     setSelectedLocalClipId(undefined);
     setSelectedSourceVideoId(target.material.id);
   }
+
+  useEffect(() => {
+    if (!isDesktopMode) {
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all([
+      readDesktopConfig().catch(() => null),
+      defaultDesktopWorkspaceRoot().catch(() => ""),
+      desktopLogDirectory().catch(() => "")
+    ]).then(([storedConfig, defaultWorkspaceRoot, logRoot]) => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextConfig = {
+        ...(storedConfig ?? defaultDesktopConfig(defaultWorkspaceRoot, logRoot)),
+        ...(storedConfig?.log_root || !logRoot ? {} : { log_root: logRoot })
+      };
+      const nextStage = desktopSetupStageForConfig(nextConfig);
+      setDesktopConfig(nextConfig);
+      setDesktopStage(nextStage);
+      setDesktopLogPath(nextConfig.log_root ?? "");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: nextStage,
+        config: nextConfig,
+        logPath: nextConfig.log_root ?? ""
+      }));
+    }).catch((desktopError) => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextConfig = defaultDesktopConfig();
+      const message = desktopError instanceof Error ? desktopError.message : "桌面配置读取失败";
+      setDesktopConfig(nextConfig);
+      setDesktopStage("choose-public-library");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: "choose-public-library",
+        config: nextConfig,
+        latestError: message
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDesktopMode]);
 
   const handleApplyLogin = useCallback(
     async (username: string) => {
@@ -1621,6 +1748,139 @@ export function CutterApp() {
     writeCutterDefaultOrientationFilter(supportedFilter);
   };
 
+  const commitDesktopConfigDraft = (config: DesktopConfig, stage = desktopSetupStageForConfig(config)) => {
+    setDesktopConfig(config);
+    setDesktopStage(stage);
+    setDesktopDiagnostics(desktopDiagnosticsForState({
+      stage,
+      config,
+      logPath: desktopLogPath
+    }));
+  };
+
+  async function handleChooseDesktopPublicLibrary() {
+    try {
+      const selected = await chooseDesktopDirectory("选择 MixLab 公共素材库");
+      if (!selected) {
+        return;
+      }
+
+      commitDesktopConfigDraft({
+        ...desktopConfig,
+        public_library_root: selected
+      });
+      setDesktopDoctorResult(undefined);
+    } catch (chooseError) {
+      const message = chooseError instanceof Error ? chooseError.message : "选择公共素材库失败";
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: desktopStage,
+        config: desktopConfig,
+        latestError: message,
+        logPath: desktopLogPath
+      }));
+    }
+  }
+
+  async function handleChooseDesktopWorkspace() {
+    try {
+      const selected = await chooseDesktopDirectory("选择本地工作区");
+      if (!selected) {
+        return;
+      }
+
+      commitDesktopConfigDraft({
+        ...desktopConfig,
+        local_workspace_root: selected
+      });
+      setDesktopDoctorResult(undefined);
+    } catch (chooseError) {
+      const message = chooseError instanceof Error ? chooseError.message : "选择本地工作区失败";
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: desktopStage,
+        config: desktopConfig,
+        latestError: message,
+        logPath: desktopLogPath
+      }));
+    }
+  }
+
+  async function handleRunDesktopDoctor() {
+    try {
+      setDesktopStage("doctor-running");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: "doctor-running",
+        config: desktopConfig,
+        logPath: desktopLogPath
+      }));
+      const result = await runDesktopDoctor(desktopConfig);
+      const nextStage: DesktopSetupStage = result.status === "pass" ? "doctor-ready" : "doctor-failed";
+      setDesktopDoctorResult(result);
+      setDesktopStage(nextStage);
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: nextStage,
+        config: desktopConfig,
+        latestError: result.checks.find((check) => check.status === "fail")?.message,
+        logPath: desktopLogPath
+      }));
+    } catch (doctorError) {
+      const message = doctorError instanceof Error ? doctorError.message : "Doctor 检查失败";
+      setDesktopStage("doctor-failed");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: "doctor-failed",
+        config: desktopConfig,
+        latestError: message,
+        logPath: desktopLogPath
+      }));
+    }
+  }
+
+  async function handleStartDesktopEngine() {
+    try {
+      setDesktopStage("engine-starting");
+      const savedConfig = await writeDesktopConfig(desktopConfig);
+      const configPath = await desktopConfigPath();
+      await startDesktopEngine(configPath);
+      setDesktopConfig(savedConfig);
+      setDesktopStage("ready");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: "ready",
+        config: savedConfig,
+        logPath: savedConfig.log_root || desktopLogPath
+      }));
+    } catch (startError) {
+      const message = startError instanceof Error ? startError.message : "本机引擎启动失败";
+      setDesktopStage("doctor-failed");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: "doctor-failed",
+        config: desktopConfig,
+        latestError: message,
+        logPath: desktopLogPath
+      }));
+    }
+  }
+
+  function handleCopyDesktopDiagnostics() {
+    const serialized = JSON.stringify(desktopDiagnostics ?? desktopDiagnosticsForState({
+      stage: desktopStage,
+      config: desktopConfig,
+      logPath: desktopLogPath
+    }), null, 2);
+    void navigator.clipboard?.writeText(serialized).catch(() => undefined);
+  }
+
+  function handleOpenDesktopLogDirectory() {
+    const target = desktopLogPath || desktopConfig.log_root || desktopConfig.local_workspace_root;
+    void openDesktopDirectory(target).catch((openError) => {
+      const message = openError instanceof Error ? openError.message : "打开日志目录失败";
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        stage: desktopStage,
+        config: desktopConfig,
+        latestError: message,
+        logPath: desktopLogPath
+      }));
+    });
+  }
+
   function performMaterialSearch(query: string) {
     const nextQuery = query.trim();
     setSearchQuery(nextQuery);
@@ -2095,6 +2355,24 @@ export function CutterApp() {
     data?.runtimeStatus.current_user.username.trim() ||
     "本机剪辑师";
   const engineReady = Boolean(data?.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用");
+
+  if (isDesktopMode && desktopStage !== "ready") {
+    return (
+      <DesktopFirstRunPage
+        config={desktopConfig}
+        stage={desktopStage}
+        doctorResult={desktopDoctorResult}
+        diagnostics={desktopDiagnostics}
+        onChoosePublicLibrary={handleChooseDesktopPublicLibrary}
+        onChooseLocalWorkspace={handleChooseDesktopWorkspace}
+        onRunDoctor={handleRunDesktopDoctor}
+        onStartEngine={handleStartDesktopEngine}
+        onRetry={handleRunDesktopDoctor}
+        onCopyDiagnostics={handleCopyDesktopDiagnostics}
+        onOpenLogDirectory={handleOpenDesktopLogDirectory}
+      />
+    );
+  }
 
   const workbench = (
     <main

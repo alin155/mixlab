@@ -18,6 +18,7 @@ import {
 } from "../../library-fs/src/index.ts";
 import {
   createCutterApiServer,
+  type CreateCutterApiServerInput,
   parseIostatDiskIoBytesPerSecond,
   resolveCutterApiRuntimeConfigFromEnv
 } from "./index.ts";
@@ -256,9 +257,10 @@ async function prepareLibrary(): Promise<string> {
 
 async function withApiServer<T>(
   libraryRoot: string,
-  fn: (baseUrl: string) => Promise<T>
+  fn: (baseUrl: string) => Promise<T>,
+  input?: Partial<Omit<CreateCutterApiServerInput, "library_root">>
 ): Promise<T> {
-  const server = createCutterApiServer({ library_root: libraryRoot });
+  const server = createCutterApiServer({ library_root: libraryRoot, ...input });
 
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", resolve);
@@ -530,6 +532,40 @@ test("cutter source library requires approved session headers", async () => {
       }
     });
   });
+});
+
+test("desktop local trusted auth exposes cutter endpoints without review headers", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const status = await fetch(`${baseUrl}/cutter/auth/status`);
+    assert.equal(status.status, 200);
+    const statusBody = await status.json() as any;
+    assert.equal(statusBody.data.ok, true);
+    assert.equal(statusBody.data.user.username, "Allen");
+    assert.equal(statusBody.data.user.status, "approved");
+
+    const catalog = await fetch(`${baseUrl}/cutter/source-library`);
+    assert.equal(catalog.status, 200);
+    const catalogBody = await catalog.json() as any;
+    assert.equal(catalogBody.data.available_video_count, 1);
+
+    const login = await fetch(`${baseUrl}/cutter/auth/request-login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "ignored-in-local-trusted-mode",
+        device_id: "desktop-device",
+        device_name: "Windows 桌面端"
+      })
+    });
+    assert.equal(login.status, 200);
+    const loginBody = await login.json() as any;
+    assert.equal(loginBody.data.user.status, "approved");
+    assert.equal(loginBody.data.session.device_id, "desktop-device");
+  }, { auth_mode: "local_trusted" });
 });
 
 test("runtime status requires approved cutter session and reports workspace readiness", async () => {

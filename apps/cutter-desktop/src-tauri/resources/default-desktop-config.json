@@ -1,0 +1,7 @@
+{
+  "api_host": "127.0.0.1",
+  "api_port": 3789,
+  "public_library_root": "",
+  "local_workspace_root": "%USERPROFILE%\\Videos\\MixLabLocal",
+  "log_root": "%APPDATA%\\MixLab Cutter\\logs"
+}

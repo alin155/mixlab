@@ -2417,6 +2417,211 @@ button.cutter-inline-action {
   align-self: stretch;
 }
 
+.cutter-desktop-first-run {
+  min-height: 100vh;
+  padding: 32px;
+  color: var(--ml-color-text);
+  background: var(--ml-color-canvas);
+}
+
+.cutter-desktop-first-run-shell {
+  display: grid;
+  gap: var(--ml-space-5);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.cutter-desktop-first-run-header,
+.cutter-desktop-setup-card,
+.cutter-desktop-check-list,
+.cutter-desktop-diagnostics {
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  background: var(--ml-color-surface);
+}
+
+.cutter-desktop-first-run-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ml-space-5);
+  padding: var(--ml-space-5);
+}
+
+.cutter-desktop-first-run-header h1 {
+  margin: 4px 0 8px;
+  color: var(--ml-color-text);
+  font-size: 28px;
+}
+
+.cutter-desktop-first-run-header p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+}
+
+.cutter-desktop-first-run-header > strong {
+  flex: 0 0 auto;
+  border: 1px solid var(--ml-color-control-border);
+  border-radius: var(--ml-radius-control);
+  padding: 8px 12px;
+  color: var(--ml-color-accent);
+  background: var(--ml-color-control-active);
+}
+
+.cutter-desktop-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ml-space-4);
+}
+
+.cutter-desktop-setup-card {
+  display: grid;
+  gap: var(--ml-space-3);
+  padding: var(--ml-space-4);
+}
+
+.cutter-desktop-setup-card > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--ml-color-accent);
+  background: var(--ml-color-control-active);
+  font-weight: 750;
+}
+
+.cutter-desktop-setup-card h2,
+.cutter-desktop-diagnostics h2 {
+  margin: 0;
+  color: var(--ml-color-text);
+  font-size: 15px;
+}
+
+.cutter-desktop-setup-card p {
+  min-height: 44px;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cutter-desktop-setup-card button,
+.cutter-desktop-diagnostic-actions button {
+  min-height: 32px;
+  border: 1px solid var(--ml-color-control-border);
+  border-radius: var(--ml-radius-control);
+  color: var(--ml-color-text);
+  background: var(--ml-color-control);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cutter-desktop-setup-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.cutter-desktop-first-run-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: var(--ml-space-4);
+}
+
+.cutter-desktop-check-list {
+  display: grid;
+  gap: 0;
+  align-content: start;
+  overflow: hidden;
+}
+
+.cutter-desktop-check-list.is-empty {
+  gap: var(--ml-space-2);
+  padding: var(--ml-space-5);
+}
+
+.cutter-desktop-check-list.is-empty span {
+  color: var(--ml-color-text-secondary);
+}
+
+.cutter-desktop-check {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ml-color-separator);
+}
+
+.cutter-desktop-check:last-child {
+  border-bottom: 0;
+}
+
+.cutter-desktop-check span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-desktop-check.is-pass span {
+  color: var(--ml-color-ready);
+}
+
+.cutter-desktop-check.is-fail span {
+  color: var(--ml-color-failed);
+}
+
+.cutter-desktop-check strong {
+  color: var(--ml-color-text);
+}
+
+.cutter-desktop-check small {
+  grid-column: 2;
+  color: var(--ml-color-text-secondary);
+  line-height: 1.45;
+}
+
+.cutter-desktop-first-run-side {
+  display: grid;
+  align-content: start;
+  gap: var(--ml-space-3);
+}
+
+.cutter-desktop-diagnostics {
+  display: grid;
+  gap: var(--ml-space-3);
+  padding: var(--ml-space-4);
+}
+
+.cutter-desktop-diagnostics dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.cutter-desktop-diagnostics div {
+  display: grid;
+  gap: 3px;
+}
+
+.cutter-desktop-diagnostics dt {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-desktop-diagnostics dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ml-color-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cutter-desktop-diagnostic-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ml-space-2);
+}
+
 @media (max-width: 1180px) {
   body {
     min-width: 320px;
@@ -2460,5 +2665,10 @@ button.cutter-inline-action {
 
   .cutter-compact-selection-bar.is-anchored {
     max-width: calc(100vw - 32px);
+  }
+
+  .cutter-desktop-setup-grid,
+  .cutter-desktop-first-run-body {
+    grid-template-columns: 1fr;
   }
 }

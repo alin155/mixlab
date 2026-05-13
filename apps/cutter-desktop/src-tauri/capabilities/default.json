@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "MixLab Cutter desktop capability for local engine startup, folder selection, and folder reveal.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    "shell:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/cutter-api-sidecar",
+          "sidecar": true,
+          "args": ["--config", { "validator": "^[^\\0]+$" }]
+        }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
+import { DesktopFirstRunPage } from "./features/desktop/DesktopFirstRunPage.tsx";
 import {
   ProjectDeleteDialog,
   ProjectHomePage
@@ -1563,6 +1564,84 @@ test("cutter app root applies the persisted display mode", () => {
   assert.match(html, /data-appearance-mode="light"/);
 });
 
+test("desktop first-run page exposes Windows setup, Doctor, engine, and diagnostics actions", () => {
+  const html = renderToStaticMarkup(
+    h(DesktopFirstRunPage, {
+      config: {
+        api_host: "127.0.0.1",
+        api_port: 3789,
+        public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+        local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+      },
+      stage: "doctor-failed",
+      doctorResult: {
+        status: "fail",
+        checks: [
+          { id: "source_videos", label: "source-videos", status: "pass" },
+          { id: "ready_materials", label: "ready 素材", status: "fail", message: "没有 ready 素材" }
+        ]
+      },
+      diagnostics: {
+        stage: "doctor-failed",
+        api_address: "http://127.0.0.1:3789",
+        public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+        local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
+        ffmpeg_status: "待检测",
+        latest_error_summary: "没有 ready 素材"
+      },
+      onChoosePublicLibrary: () => undefined,
+      onChooseLocalWorkspace: () => undefined,
+      onRunDoctor: () => undefined,
+      onStartEngine: () => undefined,
+      onRetry: () => undefined,
+      onCopyDiagnostics: () => undefined,
+      onOpenLogDirectory: () => undefined
+    })
+  );
+
+  for (const text of [
+    "Windows 桌面版首启",
+    "选择公共素材库",
+    "确认本地工作区",
+    "运行 Doctor",
+    "启动本机引擎",
+    "复制诊断",
+    "打开日志目录",
+    "source-videos",
+    "ready 素材",
+    "没有 ready 素材",
+    "127.0.0.1:3789"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
+});
+
+test("cutter app keeps browser mode out of the desktop first-run gate", () => {
+  installTestWindow();
+  window.localStorage.clear();
+
+  const html = renderToStaticMarkup(h(CutterApp));
+
+  assert.equal(html.includes("Windows 桌面版首启"), false);
+});
+
+test("cutter app renders the desktop first-run gate only inside Tauri", () => {
+  installTestWindow();
+  window.localStorage.clear();
+  Object.defineProperty(globalThis, "__TAURI_INTERNALS__", {
+    configurable: true,
+    value: {}
+  });
+
+  try {
+    const html = renderToStaticMarkup(h(CutterApp));
+    assert.match(html, /Windows 桌面版首启/);
+    assert.equal(html.includes("剪辑师工作台数据"), false);
+  } finally {
+    Reflect.deleteProperty(globalThis, "__TAURI_INTERNALS__");
+  }
+});
+
 test("cutter auth storage creates a stable device id and handles session lifecycle", () => {
   installTestWindow();
   window.localStorage.clear();
@@ -1867,6 +1946,7 @@ test("fixture mode bypasses login and runtime mode requires approved auth", () =
   assert.equal(shouldShowLoginGate(true, "rejected"), true);
   assert.equal(shouldShowLoginGate(true, "disabled"), true);
   assert.equal(shouldShowLoginGate(true, "approved"), false);
+  assert.equal(shouldShowLoginGate(true, "unknown", { desktopTrusted: true }), false);
 });
 
 test("cut task refresh is limited to the cut tasks route", () => {
