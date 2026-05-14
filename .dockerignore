@@ -1,0 +1,11 @@
+.git
+.worktrees
+node_modules
+**/node_modules
+dist
+**/dist
+.env
+.env.*
+.DS_Store
+.codex-context
+.superpowers/brainstorm
