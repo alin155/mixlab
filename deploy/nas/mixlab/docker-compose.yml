@@ -1,0 +1,40 @@
+services:
+  admin-api:
+    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MIXLAB_ADMIN_API_HOST: 0.0.0.0
+      MIXLAB_ADMIN_API_PORT: 3889
+      MIXLAB_ADMIN_LIBRARY_ROOT: /data/PublicLibrary
+      MIXLAB_FFMPEG_PATH: /usr/bin/ffmpeg
+      MIXLAB_FFPROBE_PATH: /usr/bin/ffprobe
+    volumes:
+      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary
+
+  admin-worker:
+    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - admin-api
+    env_file:
+      - .env
+    environment:
+      MIXLAB_ADMIN_LIBRARY_ROOT: /data/PublicLibrary
+      MIXLAB_FFMPEG_PATH: /usr/bin/ffmpeg
+      MIXLAB_FFPROBE_PATH: /usr/bin/ffprobe
+      MIXLAB_WORKER_POLL_INTERVAL_SECONDS: ${MIXLAB_WORKER_POLL_INTERVAL_SECONDS:-60}
+      MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-1}
+      MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-1}
+    volumes:
+      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary
+    command: ["npm", "run", "worker:admin-loop"]
+
+  admin-web:
+    image: ghcr.io/alin155/mixlab-admin-web:${MIXLAB_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - admin-api
+    ports:
+      - "${MIXLAB_ADMIN_WEB_PORT:-8080}:80"
