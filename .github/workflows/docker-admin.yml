@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - codex/m19-docker-images
     paths:
       - ".github/workflows/docker-admin.yml"
       - "apps/admin-web/**"
