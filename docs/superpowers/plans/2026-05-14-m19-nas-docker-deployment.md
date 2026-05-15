@@ -4,7 +4,7 @@
 
 **Goal:** Ship the first NAS Docker deployment path for MixLab management side: NAS runs `admin-web`, `admin-api`, and `admin-worker`; the Windows cutter desktop app keeps using the existing local cutter service. The NAS deployment reads and writes the shared public library at `/data/PublicLibrary` and generates `current.json` inside the managed library index.
 
-**Architecture:** One reusable runtime image for API and worker, one static web image with Nginx reverse proxy, one Docker Compose bundle for the NAS GUI, and one GitHub Actions workflow that publishes private GHCR images.
+**Architecture:** One reusable runtime image for API and worker, one static web image with Nginx reverse proxy, one Docker Compose bundle for the NAS GUI, and one GitHub Actions workflow that publishes public GHCR images for first-phase NAS deployment.
 
 **Tech Stack:** Node 24, npm workspaces, TypeScript, Vite, Nginx, Docker Compose, GitHub Actions, GHCR.
 
