@@ -461,6 +461,20 @@ h2 {
   align-items: center;
 }
 
+.admin-pagination-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ml-space-3);
+  padding: var(--ml-space-3);
+  border: 1px solid var(--ml-color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--ml-radius-panel) var(--ml-radius-panel);
+  color: var(--ml-color-text-secondary);
+  background: var(--ml-color-surface);
+  font-size: 12px;
+}
+
 .admin-table-cover {
   display: block;
   width: 72px;

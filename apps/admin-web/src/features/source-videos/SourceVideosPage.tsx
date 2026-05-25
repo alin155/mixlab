@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   AdminDashboardData,
   AdminPreprocessStatus,
@@ -22,6 +22,8 @@ const statusOptions: Array<{ label: string; value: AdminPreprocessStatus | "all"
   { label: preprocessStatusLabel("index-required"), value: "index-required" }
 ];
 
+const SOURCE_VIDEO_PAGE_SIZE = 100;
+
 export function SourceVideosPage({
   data,
   onQueueSourceVideo,
@@ -42,6 +44,7 @@ export function SourceVideosPage({
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
+  const [pageIndex, setPageIndex] = useState(0);
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState(
     data.source_videos.find((video) => video.source_video_id === "V000042")?.source_video_id ??
     data.source_videos[0]?.source_video_id ??
@@ -68,6 +71,16 @@ export function SourceVideosPage({
       return matchesStatus && (!normalizedQuery || searchableText.includes(normalizedQuery));
     });
   }, [data.source_videos, query, statusFilter]);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [query, statusFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredVideos.length / SOURCE_VIDEO_PAGE_SIZE));
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+  const pageStart = safePageIndex * SOURCE_VIDEO_PAGE_SIZE;
+  const pageVideos = filteredVideos.slice(pageStart, pageStart + SOURCE_VIDEO_PAGE_SIZE);
+  const pageEnd = pageVideos.length ? pageStart + pageVideos.length : 0;
 
   const selected =
     data.source_videos.find((video) => video.source_video_id === selectedSourceVideoId) ??
@@ -104,15 +117,38 @@ export function SourceVideosPage({
           </select>
         </section>
         {filteredVideos.length ? (
-          <SourceVideoTable
-            videos={filteredVideos}
-            selectedSourceVideoId={selected?.source_video_id}
-            onSelect={setSelectedSourceVideoId}
-            onOpenSourceDetail={onOpenSourceDetail}
-            onQueueSourceVideo={onQueueSourceVideo}
-            onRetrySourceVideo={onRetrySourceVideo}
-            onPublishSourceVideo={onPublishSourceVideo}
-          />
+          <>
+            <SourceVideoTable
+              videos={pageVideos}
+              selectedSourceVideoId={selected?.source_video_id}
+              onSelect={setSelectedSourceVideoId}
+              onOpenSourceDetail={onOpenSourceDetail}
+              onQueueSourceVideo={onQueueSourceVideo}
+              onRetrySourceVideo={onRetrySourceVideo}
+              onPublishSourceVideo={onPublishSourceVideo}
+            />
+            <footer className="admin-pagination-row">
+              <span>{`显示 ${pageStart + 1}-${pageEnd} / ${filteredVideos.length}`}</span>
+              <span className="admin-row-actions">
+                <button
+                  className="ml-button"
+                  type="button"
+                  disabled={safePageIndex === 0}
+                  onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+                >
+                  上一页
+                </button>
+                <button
+                  className="ml-button"
+                  type="button"
+                  disabled={safePageIndex >= pageCount - 1}
+                  onClick={() => setPageIndex((current) => Math.min(pageCount - 1, current + 1))}
+                >
+                  下一页
+                </button>
+              </span>
+            </footer>
+          </>
         ) : (
           <EmptyState title="没有匹配的原视频" detail="请调整搜索词或状态筛选。" />
         )}

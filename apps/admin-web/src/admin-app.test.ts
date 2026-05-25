@@ -526,6 +526,30 @@ test("source video page renders a separate Chinese detail control only when supp
   assert.doesNotMatch(withoutDetail, />查看详情<\/button>/);
 });
 
+test("source video page limits initial table rendering for large libraries", async () => {
+  const data = await fixtureData();
+  const template = data.source_videos[0]!;
+  const largeData = {
+    ...data,
+    source_videos: Array.from({ length: 150 }, (_, index) => ({
+      ...template,
+      source_video_id: `V${String(index + 1).padStart(6, "0")}`,
+      title: `视频 ${index + 1}`,
+      file_name: `video-${index + 1}.mp4`
+    }))
+  };
+  const html = renderToStaticMarkup(h(SourceVideosPage, {
+    data: largeData,
+    onOpenSourceDetail: () => {}
+  }));
+  const text = visibleText(html);
+
+  assert.match(text, /显示 1-100 \/ 150/);
+  assert.equal((html.match(/查看详情/g) ?? []).length, 100);
+  assert.match(html, /video-100\.mp4/);
+  assert.doesNotMatch(html, /video-101\.mp4/);
+});
+
 test("AdminApp source detail hash renders Chinese detail loading route", () => {
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
@@ -862,7 +886,7 @@ test("admin data auto refresh stays active while preprocessing can change page s
   assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS <= 3_000, true);
   assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", queuedData), true);
   assert.equal(shouldAutoRefreshAdminData("dashboard", queuedData), true);
-  assert.equal(shouldAutoRefreshAdminData("source-videos", queuedData), true);
+  assert.equal(shouldAutoRefreshAdminData("source-videos", queuedData), false);
   assert.equal(shouldAutoRefreshAdminData("settings", queuedData), false);
   assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", runningData), true);
   assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", idleData), true);
@@ -1038,7 +1062,7 @@ test("settings render runtime and redacted speech recognition key state", async 
     "压缩单声道",
     "无损单声道",
     "已配置，已隐藏",
-    "接口密钥通过本地环境变量或部署环境配置，不在页面中编辑。",
+    "NAS Docker 部署时，在 admin-api 和 admin-worker 两个容器环境变量中填写 DASHSCOPE_API_KEY，保存后重启项目。",
     "V000037 语音识别网络超时"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));

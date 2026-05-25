@@ -67,7 +67,6 @@ const ALWAYS_AUTO_REFRESH_ROUTES = new Set<AdminRoute>([
 ]);
 
 const PRODUCTION_AUTO_REFRESH_ROUTES = new Set<AdminRoute>([
-  "source-videos",
   "source-detail"
 ]);
 

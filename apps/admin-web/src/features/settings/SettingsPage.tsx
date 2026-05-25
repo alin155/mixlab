@@ -266,7 +266,10 @@ export function SettingsPage({
           接口密钥不写入代码、协议清单、日志或诊断报告。管理端只显示配置状态。
         </p>
         <p className="admin-note">
-          接口密钥通过本地环境变量或部署环境配置，不在页面中编辑。
+          NAS Docker 部署时，在 admin-api 和 admin-worker 两个容器环境变量中填写 DASHSCOPE_API_KEY，保存后重启项目。
+        </p>
+        <p className="admin-note">
+          两个容器必须使用同一个值；只配置管理接口时，健康诊断可能通过，但后台预处理仍不能转写。
         </p>
         <section className="admin-action-stack">
           <AdminControlButton
