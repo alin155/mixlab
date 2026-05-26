@@ -2,6 +2,18 @@ name: Cutter Desktop Windows Package
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cutter-desktop-windows.yml"
+      - "apps/cutter-desktop/**"
+      - "apps/cutter-web/**"
+      - "packages/**"
+      - "scripts/desktop/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
 
 permissions:
   contents: read
