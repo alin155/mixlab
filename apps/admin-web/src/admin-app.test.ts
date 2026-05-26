@@ -1062,12 +1062,15 @@ test("settings render runtime and redacted speech recognition key state", async 
     "压缩单声道",
     "无损单声道",
     "已配置，已隐藏",
-    "NAS Docker 部署时，在 admin-api 和 admin-worker 两个容器环境变量中填写 DASHSCOPE_API_KEY，保存后重启项目。",
+    "输入新密钥后保存，留空不会覆盖当前密钥。",
+    "密钥只保存在运行配置中，不进入协议清单、日志、诊断报告或页面回显。",
     "V000037 语音识别网络超时"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
 
+  assert.match(html, /aria-label="阿里云百炼接口密钥"/);
+  assert.match(html, /type="password"/);
   assert.equal(html.includes("sk-"), false);
 
   const withoutHints = {

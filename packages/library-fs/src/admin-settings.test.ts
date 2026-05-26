@@ -5,8 +5,11 @@ import path from "node:path";
 import test from "node:test";
 import {
   addAdminSourceFolder,
+  applyAdminRuntimeSecretsToEnv,
   readAdminSettings,
+  readAdminRuntimeSecrets,
   removeAdminSourceFolder,
+  updateAdminRuntimeSecrets,
   updateAdminRuntimePolicy,
   updateAdminSettings,
   updateAdminSourceFolder,
@@ -307,6 +310,27 @@ test("updates admin settings with source folders and runtime policy", async () =
   const persisted = await readAdminSettings(root);
   assert.equal(persisted.library_name, "课程公共素材库");
   assert.equal(persisted.runtime_policy.concurrent_jobs, 3);
+});
+
+test("persists admin runtime secrets separately from public settings", async () => {
+  const root = await makeRoot();
+  await updateAdminRuntimeSecrets(root, {
+    dashscope_api_key: "  sk-live-secret  "
+  });
+
+  const secrets = await readAdminRuntimeSecrets(root);
+  assert.equal(secrets.dashscope_api_key, "sk-live-secret");
+  const settingsRaw = await readFile(adminSettingsPath(root), "utf8").catch(() => "");
+  assert.equal(settingsRaw.includes("sk-live-secret"), false);
+
+  const env: NodeJS.ProcessEnv = {};
+  await applyAdminRuntimeSecretsToEnv(root, env);
+  assert.equal(env.DASHSCOPE_API_KEY, "sk-live-secret");
+
+  await updateAdminRuntimeSecrets(root, {
+    dashscope_api_key: ""
+  });
+  assert.equal((await readAdminRuntimeSecrets(root)).dashscope_api_key, "");
 });
 
 test("clears source folder scan stats when path changes", async () => {

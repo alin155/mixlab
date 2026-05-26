@@ -72,6 +72,7 @@ export function SettingsPage({
   const [runtimePolicy, setRuntimePolicy] = useState<RuntimePolicy>(() => ({
     ...data.settings.runtime_policy
   }));
+  const [dashscopeApiKey, setDashscopeApiKey] = useState("");
   const toolState = data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理";
 
   useEffect(() => {
@@ -94,12 +95,24 @@ export function SettingsPage({
     setRuntimePolicy((current) => ({ ...current, ...patch }));
   };
 
-  const saveSettings = () => {
-    onSaveAdminSettings?.({
+  const saveSettings = async () => {
+    const nextApiKey = dashscopeApiKey.trim();
+    await onSaveAdminSettings?.({
       library_name: libraryName,
       source_folders: sourceFolders,
-      runtime_policy: runtimePolicy
+      runtime_policy: runtimePolicy,
+      ...(nextApiKey
+        ? {
+            asr: {
+              dashscope_api_key: nextApiKey
+            }
+          }
+        : {})
     });
+
+    if (nextApiKey) {
+      setDashscopeApiKey("");
+    }
   };
 
   return (
@@ -242,6 +255,20 @@ export function SettingsPage({
                 { label: "当前音频模式", value: audioModeLabel(runtimePolicy.audio_mode) },
                 { label: "可选音频模式", value: "压缩单声道 / 无损单声道" },
                 { label: "接口密钥", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
+                {
+                  label: "填写密钥",
+                  value: (
+                    <input
+                      className="admin-text-input"
+                      type="password"
+                      aria-label="阿里云百炼接口密钥"
+                      autoComplete="off"
+                      placeholder="留空保持当前密钥"
+                      value={dashscopeApiKey}
+                      onChange={(event) => setDashscopeApiKey(event.currentTarget.value)}
+                    />
+                  )
+                },
                 { label: "语言提示", value: languageHintsLabel(data.runtime.asr.language_hints) },
                 { label: "对象存储", value: "阿里云百炼临时上传" },
                 { label: "最近失败", value: chineseDiagnosticText(data.runtime.asr.last_failure_reason) }
@@ -266,10 +293,10 @@ export function SettingsPage({
           接口密钥不写入代码、协议清单、日志或诊断报告。管理端只显示配置状态。
         </p>
         <p className="admin-note">
-          NAS Docker 部署时，在 admin-api 和 admin-worker 两个容器环境变量中填写 DASHSCOPE_API_KEY，保存后重启项目。
+          输入新密钥后保存，留空不会覆盖当前密钥。
         </p>
         <p className="admin-note">
-          两个容器必须使用同一个值；只配置管理接口时，健康诊断可能通过，但后台预处理仍不能转写。
+          密钥只保存在运行配置中，不进入协议清单、日志、诊断报告或页面回显。
         </p>
         <section className="admin-action-stack">
           <AdminControlButton

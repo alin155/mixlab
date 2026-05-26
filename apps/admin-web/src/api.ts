@@ -194,10 +194,16 @@ export interface AdminSettingsConfig {
   updated_at: string;
 }
 
+export interface AdminAsrSecretUpdate {
+  dashscope_api_key?: string;
+}
+
 export type AdminSettingsConfigUpdate = Pick<
   AdminSettingsConfig,
   "library_name" | "source_folders" | "runtime_policy"
->;
+> & {
+  asr?: AdminAsrSecretUpdate;
+};
 export type AdminSourceFolderCreate = Omit<AdminSourceFolder, "id">;
 export type AdminSourceFolderUpdate = Partial<Pick<AdminSourceFolder, "name" | "path" | "enabled">>;
 
@@ -1744,6 +1750,10 @@ export function createFixtureAdminApiClient(): AdminApiClient {
   }
 
   function saveFixtureSettings(settingsUpdate: AdminSettingsConfigUpdate): AdminSettingsConfig {
+    if (settingsUpdate.asr?.dashscope_api_key?.trim()) {
+      runtime.asr.dashscope_api_key_configured = true;
+    }
+
     const currentById = new Map(fixtureSettings.source_folders.map((folder) => [folder.id, folder]));
     fixtureSettings = cloneSettings({
       ...fixtureSettings,

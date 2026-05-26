@@ -233,7 +233,10 @@ test("calls admin settings mutation endpoints through the typed client", async (
   await client.saveAdminSettings({
     library_name: "课程公共素材库",
     source_folders: savedSettings.source_folders,
-    runtime_policy: savedSettings.runtime_policy
+    runtime_policy: savedSettings.runtime_policy,
+    asr: {
+      dashscope_api_key: "sk-live-secret"
+    }
   });
   await client.addSourceFolder({
     name: "品牌素材",
@@ -258,7 +261,10 @@ test("calls admin settings mutation endpoints through the typed client", async (
   assert.deepEqual(requests[0]?.body, {
     library_name: "课程公共素材库",
     source_folders: savedSettings.source_folders,
-    runtime_policy: savedSettings.runtime_policy
+    runtime_policy: savedSettings.runtime_policy,
+    asr: {
+      dashscope_api_key: "sk-live-secret"
+    }
   });
   assert.deepEqual(requests[1]?.body, {
     name: "品牌素材",

@@ -26,6 +26,7 @@ import {
 } from "../../ffmpeg-core/src/index.ts";
 import {
   addAdminSourceFolder,
+  applyAdminRuntimeSecretsToEnv,
   approveCutterUser,
   completeReadyVisualArtifacts,
   disableCutterUser,
@@ -38,8 +39,10 @@ import {
   removeAdminSourceFolder,
   resolveSourceVideoFilePath,
   scanSourceVideos,
+  updateAdminRuntimeSecrets,
   updateAdminSettings,
   updateAdminSourceFolder,
+  type AdminRuntimeSecretsPatch,
   type AdminSettingsPatch,
   type AdminRuntimePolicy,
   type AdminSourceFolder,
@@ -226,8 +229,14 @@ function requireRequestRecord(body: unknown): Record<string, unknown> {
   return body;
 }
 
-function adminSettingsPatchFromBody(body: Record<string, unknown>): AdminSettingsPatch {
+interface AdminSettingsMutationPatch {
+  settings_patch: AdminSettingsPatch;
+  runtime_secrets_patch?: AdminRuntimeSecretsPatch;
+}
+
+function adminSettingsPatchFromBody(body: Record<string, unknown>): AdminSettingsMutationPatch {
   const patch: AdminSettingsPatch = {};
+  let runtimeSecretsPatch: AdminRuntimeSecretsPatch | undefined;
 
   if ("library_name" in body) {
     patch.library_name = body.library_name as string;
@@ -247,7 +256,22 @@ function adminSettingsPatchFromBody(body: Record<string, unknown>): AdminSetting
     patch.runtime_policy = body.runtime_policy as unknown as AdminSettingsPatch["runtime_policy"];
   }
 
-  return patch;
+  if ("asr" in body) {
+    if (!isRecord(body.asr)) {
+      throw new Error("语音识别配置必须是对象");
+    }
+
+    if ("dashscope_api_key" in body.asr) {
+      runtimeSecretsPatch = {
+        dashscope_api_key: String(body.asr.dashscope_api_key ?? "")
+      };
+    }
+  }
+
+  return {
+    settings_patch: patch,
+    ...(runtimeSecretsPatch ? { runtime_secrets_patch: runtimeSecretsPatch } : {})
+  };
 }
 
 function adminSourceFolderFromBody(body: Record<string, unknown>): Omit<AdminSourceFolder, "id"> {
@@ -293,6 +317,7 @@ function writeSettingsMutationError(response: ServerResponse, error: unknown): v
     message === "请求内容必须是对象" ||
     message === "素材来源列表必须是数组" ||
     message === "运行策略必须是对象" ||
+    message === "语音识别配置必须是对象" ||
     message.includes("管理员设置文件格式无效") ||
     message.includes("素材来源") ||
     message.includes("预处理产物库") ||
@@ -2019,6 +2044,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       media: readyPublishMedia
     })
   });
+  const refreshRuntimeSecrets = () => applyAdminRuntimeSecretsToEnv(input.library_root, env);
 
   return createServer(async (request, response) => {
     try {
@@ -2047,10 +2073,16 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       if (request.method === "PATCH" && url.pathname === "/api/admin/settings/config") {
         try {
           const body = requireRequestRecord(await readRequestJson(request));
+          const mutation = adminSettingsPatchFromBody(body);
+          const settings = await updateAdminSettings(input.library_root, mutation.settings_patch);
+          if (mutation.runtime_secrets_patch) {
+            await updateAdminRuntimeSecrets(input.library_root, mutation.runtime_secrets_patch);
+            await refreshRuntimeSecrets();
+          }
           writeJson(
             response,
             200,
-            apiOk(await updateAdminSettings(input.library_root, adminSettingsPatchFromBody(body)))
+            apiOk(settings)
           );
         } catch (error) {
           writeSettingsMutationError(response, error);
@@ -2157,6 +2189,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         try {
           const body = requireRequestRecord(await readRequestJson(request));
           const settings = await readAdminSettings(input.library_root);
+          await refreshRuntimeSecrets();
           if (!input.preprocess_runner) {
             assertRealPreprocessStartReady(env);
           }
@@ -2184,6 +2217,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/doctor/report") {
+        await refreshRuntimeSecrets();
         writeJson(response, 200, apiOk(await runMixlabDoctor({
           library_root: input.library_root,
           now: now(),
@@ -2193,6 +2227,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/settings/runtime") {
+        await refreshRuntimeSecrets();
         writeJson(response, 200, apiOk(getRuntimeSettings(env)));
         return;
       }
@@ -2334,6 +2369,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "POST" && url.pathname === "/api/admin/doctor/run") {
+        await refreshRuntimeSecrets();
         writeJson(response, 200, apiOk(await runMixlabDoctor({
           library_root: input.library_root,
           now: now(),
@@ -2343,6 +2379,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "POST" && url.pathname === "/api/admin/settings/test-asr") {
+        await refreshRuntimeSecrets();
         writeJson(response, 200, apiOk({
           passed: Boolean(env.DASHSCOPE_API_KEY?.trim()),
           message: env.DASHSCOPE_API_KEY?.trim()

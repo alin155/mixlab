@@ -38,6 +38,14 @@ export type AdminSettingsPatch = Partial<Pick<AdminSettings, "library_name" | "s
 export type AdminSourceFolderPatch = Partial<Pick<AdminSourceFolder, "name" | "path" | "enabled">>;
 export type AdminRuntimePolicyPatch = Partial<AdminRuntimePolicy>;
 
+export interface AdminRuntimeSecrets {
+  schema_version: "1.0";
+  dashscope_api_key: string;
+  updated_at: string;
+}
+
+export type AdminRuntimeSecretsPatch = Partial<Pick<AdminRuntimeSecrets, "dashscope_api_key">>;
+
 interface NodeError extends Error {
   code?: string;
 }
@@ -48,6 +56,10 @@ function mixlabRoot(libraryRoot: string): string {
 
 function settingsPath(libraryRoot: string): string {
   return path.join(mixlabRoot(libraryRoot), "admin-settings.json");
+}
+
+function runtimeSecretsPath(libraryRoot: string): string {
+  return path.join(mixlabRoot(libraryRoot), "admin-runtime-secrets.json");
 }
 
 function defaultSettings(libraryRoot: string): AdminSettings {
@@ -77,6 +89,14 @@ function defaultSettings(libraryRoot: string): AdminSettings {
       auto_queue_enabled: false,
       auto_publish_index_enabled: true
     },
+    updated_at: ""
+  };
+}
+
+function defaultRuntimeSecrets(): AdminRuntimeSecrets {
+  return {
+    schema_version: "1.0",
+    dashscope_api_key: "",
     updated_at: ""
   };
 }
@@ -233,6 +253,24 @@ function validate(settings: unknown): asserts settings is AdminSettings {
   }
 }
 
+function validateRuntimeSecrets(secrets: unknown): asserts secrets is AdminRuntimeSecrets {
+  if (!isRecord(secrets)) {
+    invalidSettings("运行密钥根对象必须是对象");
+  }
+
+  if (secrets.schema_version !== "1.0") {
+    invalidSettings("运行密钥 schema_version 必须是 1.0");
+  }
+
+  if (typeof secrets.dashscope_api_key !== "string") {
+    invalidSettings("百炼接口密钥必须是字符串");
+  }
+
+  if (typeof secrets.updated_at !== "string") {
+    invalidSettings("运行密钥更新时间必须是字符串");
+  }
+}
+
 function normalizeSourceFolderAfterPathChange(
   previous: AdminSourceFolder,
   next: AdminSourceFolder
@@ -286,6 +324,75 @@ export async function readAdminSettings(libraryRoot: string): Promise<AdminSetti
     }
 
     throw error;
+  }
+}
+
+export async function readAdminRuntimeSecrets(libraryRoot: string): Promise<AdminRuntimeSecrets> {
+  let raw: string;
+
+  try {
+    raw = await readFile(runtimeSecretsPath(libraryRoot), "utf8");
+  } catch (error) {
+    if ((error as NodeError).code === "ENOENT") {
+      return defaultRuntimeSecrets();
+    }
+
+    throw new Error("管理员运行密钥读取失败，请检查文件权限和路径");
+  }
+
+  try {
+    const secrets = JSON.parse(raw) as unknown;
+    validateRuntimeSecrets(secrets);
+    return {
+      ...secrets,
+      dashscope_api_key: secrets.dashscope_api_key.trim()
+    };
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error("管理员运行密钥读取失败：JSON 格式无效");
+    }
+
+    throw error;
+  }
+}
+
+export async function writeAdminRuntimeSecrets(
+  libraryRoot: string,
+  secrets: AdminRuntimeSecrets
+): Promise<AdminRuntimeSecrets> {
+  const next = {
+    ...secrets,
+    dashscope_api_key: secrets.dashscope_api_key.trim(),
+    updated_at: new Date().toISOString()
+  };
+  validateRuntimeSecrets(next);
+  await mkdir(mixlabRoot(libraryRoot), { recursive: true });
+  await writeFile(runtimeSecretsPath(libraryRoot), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return next;
+}
+
+export async function updateAdminRuntimeSecrets(
+  libraryRoot: string,
+  patch: AdminRuntimeSecretsPatch
+): Promise<AdminRuntimeSecrets> {
+  const current = await readAdminRuntimeSecrets(libraryRoot);
+  return writeAdminRuntimeSecrets(libraryRoot, {
+    ...current,
+    dashscope_api_key: patch.dashscope_api_key === undefined
+      ? current.dashscope_api_key
+      : patch.dashscope_api_key
+  });
+}
+
+export async function applyAdminRuntimeSecretsToEnv(
+  libraryRoot: string,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
+  const secrets = await readAdminRuntimeSecrets(libraryRoot);
+  const apiKey = secrets.dashscope_api_key.trim();
+
+  if (apiKey) {
+    env.DASHSCOPE_API_KEY = apiKey;
   }
 }
 

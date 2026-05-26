@@ -56,6 +56,33 @@ async function withServer(
   }
 }
 
+async function withServerEnv(
+  libraryRoot: string,
+  env: NodeJS.ProcessEnv,
+  callback: (baseUrl: string) => Promise<void>
+): Promise<void> {
+  const server = createAdminApiServer({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "测试素材库",
+    now: () => "2026-05-02T12:00:00.000Z",
+    env
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+
+  assert.ok(address && typeof address === "object");
+
+  try {
+    await callback(`http://127.0.0.1:${(address as AddressInfo).port}`);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+}
+
 async function writeTranscriptArtifacts(libraryRoot: string, sourceVideoId: string): Promise<void> {
   const videoDir = path.join(libraryRoot, ".mixlab-library", "videos", sourceVideoId);
   await mkdir(videoDir, { recursive: true });
@@ -424,7 +451,7 @@ test("preprocess jobs expose observable production estimates in Chinese", async 
     assert.equal(response.data.observability.estimated_all_done_at, "2026-05-02T12:25:00.000Z");
     assert.equal(response.data.observability.estimated_queue_duration_ms, 1_500_000);
     assert.match(response.data.observability.throughput_label, /预计 25:00 完成当前队列/);
-    assert.match(response.data.observability.load_advice, /运行负荷正常|负荷/);
+    assert.match(response.data.observability.load_advice, /运行负荷正常|负荷|磁盘空间不足/);
 
     const running = response.data.jobs.find((job: any) => job.source_video_id === "V000001");
     assert.equal(running.status_label, "正在处理");
@@ -805,6 +832,39 @@ test("persists admin settings config through API", async () => {
     assert.equal(persisted.data.library_name, "课程公共素材库");
     assert.equal(persisted.data.source_folders[1].enabled, false);
     assert.equal(persisted.data.runtime_policy.auto_queue_enabled, true);
+  });
+});
+
+test("persists speech recognition key through settings API without echoing the secret", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const env: NodeJS.ProcessEnv = {
+    MIXLAB_ASR_MODEL: "paraformer-v2"
+  };
+
+  await withServerEnv(libraryRoot, env, async (baseUrl) => {
+    const before = await postJson(baseUrl, "/api/admin/settings/test-asr");
+    assert.equal(before.data.passed, false);
+
+    const current = await getJson(baseUrl, "/api/admin/settings/config");
+    const saved = await patchJson(baseUrl, "/api/admin/settings/config", {
+      library_name: current.data.library_name,
+      source_folders: current.data.source_folders,
+      runtime_policy: current.data.runtime_policy,
+      asr: {
+        dashscope_api_key: "  sk-live-secret  "
+      }
+    });
+
+    assert.equal(saved.ok, true);
+    assert.equal(JSON.stringify(saved).includes("sk-live-secret"), false);
+    assert.equal(env.DASHSCOPE_API_KEY, "sk-live-secret");
+
+    const runtime = await getJson(baseUrl, "/api/admin/settings/runtime");
+    assert.equal(runtime.data.asr.dashscope_api_key_configured, true);
+
+    const after = await postJson(baseUrl, "/api/admin/settings/test-asr");
+    assert.equal(after.data.passed, true);
+    assert.equal(JSON.stringify(after).includes("sk-live-secret"), false);
   });
 });
 
