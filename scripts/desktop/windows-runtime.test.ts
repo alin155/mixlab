@@ -200,10 +200,17 @@ test("GitHub Actions workflow packages the Windows desktop installer as a downlo
   );
 
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /push:/);
+  assert.match(workflow, /branches:\s*\n\s*- main/);
   assert.match(workflow, /runs-on:\s*windows-latest/);
-  assert.match(workflow, /actions\/checkout@v4/);
+  assert.match(workflow, /Checkout repository/);
+  assert.match(workflow, /git init \./);
+  assert.match(workflow, /git remote add origin https:\/\/github\.com\/\$\{\{ github\.repository \}\}\.git/);
+  assert.match(workflow, /git fetch --depth 1 origin \$env:GITHUB_SHA/);
+  assert.match(workflow, /git checkout --force FETCH_HEAD/);
   assert.match(workflow, /actions\/setup-node@v4/);
-  assert.match(workflow, /dtolnay\/rust-toolchain@stable/);
+  assert.match(workflow, /rustup toolchain install stable --profile minimal/);
+  assert.match(workflow, /rustup default stable/);
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm run package:cutter-desktop:windows/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
