@@ -4,6 +4,7 @@ import {
   createAdminApiClient,
   createFixtureAdminApiClient,
   loadAdminDashboardData,
+  resolveMediaUrl,
   unwrapAdminResponse,
   type AdminApiEnvelope,
   type AdminSettingsConfig
@@ -364,6 +365,16 @@ test("client resolves admin media URLs against base URL", async () => {
 
   const detail = await client.getSourceVideoDetail("V000001");
   assert.equal(detail.source_video.cover_url, "http://127.0.0.1:4899/api/admin/source-videos/V000001/cover");
+});
+
+test("client preserves same-origin admin media URLs when API base is root-relative", () => {
+  assert.equal(
+    resolveMediaUrl("/", "/api/admin/source-videos/V000001/cover"),
+    "/api/admin/source-videos/V000001/cover"
+  );
+  assert.equal(resolveMediaUrl("/", "covers/V000002.jpg"), "/covers/V000002.jpg");
+  assert.equal(resolveMediaUrl("/", "javascript:alert(1)"), "");
+  assert.equal(resolveMediaUrl("/", "file:///tmp/cover.jpg"), "");
 });
 
 test("client neutralizes unsupported admin media URL schemes", async () => {
