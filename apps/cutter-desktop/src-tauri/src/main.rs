@@ -1,11 +1,28 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     env,
     fs,
+    net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
+    time::Duration,
 };
 use tauri::{AppHandle, Manager};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(windows)]
+const SIDECAR_EXECUTABLE_NAME: &str = "cutter-api-sidecar-x86_64-pc-windows-msvc.exe";
+
+#[cfg(not(windows))]
+const SIDECAR_EXECUTABLE_NAME: &str = "cutter-api-sidecar";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CutterDesktopConfig {
@@ -67,6 +84,131 @@ fn desktop_log_dir(app: AppHandle) -> Result<String, String> {
     let dir = desktop_log_dir_path(&app)?;
     fs::create_dir_all(&dir).map_err(|error| format!("无法创建桌面日志目录：{error}"))?;
     Ok(path_string(dir))
+}
+
+fn tcp_endpoint_is_reachable(host: &str, port: u16) -> bool {
+    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
+        return false;
+    };
+
+    TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_ok()
+}
+
+fn sidecar_path_candidates(app: &AppHandle) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(current_exe) = env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            candidates.push(parent.join(SIDECAR_EXECUTABLE_NAME));
+            candidates.push(parent.join("binaries").join(SIDECAR_EXECUTABLE_NAME));
+            candidates.push(parent.join("resources").join(SIDECAR_EXECUTABLE_NAME));
+        }
+    }
+
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join(SIDECAR_EXECUTABLE_NAME));
+        candidates.push(resource_dir.join("binaries").join(SIDECAR_EXECUTABLE_NAME));
+    }
+
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(
+            current_dir
+                .join("apps")
+                .join("cutter-desktop")
+                .join("src-tauri")
+                .join("binaries")
+                .join(SIDECAR_EXECUTABLE_NAME),
+        );
+        candidates.push(
+            current_dir
+                .join("src-tauri")
+                .join("binaries")
+                .join(SIDECAR_EXECUTABLE_NAME),
+        );
+    }
+
+    candidates
+}
+
+fn resolve_sidecar_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let candidates = sidecar_path_candidates(app);
+    candidates
+        .iter()
+        .find(|candidate| candidate.is_file())
+        .cloned()
+        .ok_or_else(|| {
+            let attempted = candidates
+                .iter()
+                .map(|candidate| candidate.to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join("；");
+            format!("未找到本机引擎 sidecar：{attempted}")
+        })
+}
+
+fn spawn_hidden_process(command: &mut Command) -> Result<(), String> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("无法启动进程：{error}"))
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), String> {
+    if tcp_endpoint_is_reachable("127.0.0.1", 3789) {
+        return Ok(());
+    }
+
+    let sidecar_path = resolve_sidecar_path(&app)?;
+    let mut command = Command::new(&sidecar_path);
+    command.arg("--config").arg(config_path);
+    if let Some(parent) = sidecar_path.parent() {
+        command.current_dir(parent);
+    }
+
+    spawn_hidden_process(&mut command)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_open_directory(path_value: String) -> Result<(), String> {
+    let trimmed = path_value.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let target = PathBuf::from(trimmed);
+    fs::create_dir_all(&target).map_err(|error| format!("无法创建目录：{error}"))?;
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(&target);
+        command
+    };
+
+    #[cfg(windows)]
+    let mut command = {
+        let mut command = Command::new("explorer.exe");
+        command.arg(&target);
+        command
+    };
+
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(&target);
+        command
+    };
+
+    spawn_hidden_process(&mut command)
 }
 
 #[tauri::command]
@@ -314,15 +456,15 @@ fn desktop_run_doctor(config: CutterDesktopConfig) -> DesktopDoctorResult {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             desktop_config_path,
             desktop_log_dir,
             desktop_default_workspace_root,
             desktop_read_config,
             desktop_write_config,
-            desktop_run_doctor
+            desktop_run_doctor,
+            desktop_start_engine,
+            desktop_open_directory
         ])
         .run(tauri::generate_context!())
         .expect("failed to run MixLab Cutter desktop app");

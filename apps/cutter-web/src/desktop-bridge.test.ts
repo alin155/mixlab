@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  openDesktopDirectory,
   resolveDesktopBridgeEnvironment,
   resolveRuntimeApiBaseUrl,
+  startDesktopEngine,
   waitForDesktopEngineReady
 } from "./desktop-bridge.ts";
 
@@ -72,4 +74,45 @@ test("desktop engine readiness fails when health endpoint never responds", async
     }),
     /启动超时/
   );
+});
+
+test("desktop engine startup delegates sidecar spawning to the native desktop host", async () => {
+  const calls: unknown[] = [];
+
+  await startDesktopEngine(String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\cutter-desktop-config.json`, {
+    invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+      calls.push({ command, args });
+      return undefined as T;
+    },
+    wait_for_ready: async () => {}
+  });
+
+  assert.deepEqual(calls, [
+    {
+      command: "desktop_start_engine",
+      args: {
+        configPath: String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\cutter-desktop-config.json`
+      }
+    }
+  ]);
+});
+
+test("desktop directory opening delegates to the native desktop host", async () => {
+  const calls: unknown[] = [];
+
+  await openDesktopDirectory(String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\logs`, {
+    invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+      calls.push({ command, args });
+      return undefined as T;
+    }
+  });
+
+  assert.deepEqual(calls, [
+    {
+      command: "desktop_open_directory",
+      args: {
+        pathValue: String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\logs`
+      }
+    }
+  ]);
 });

@@ -1,6 +1,6 @@
 {
   "name": "@mixlab/cutter-desktop",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "type": "module",
   "private": true,
   "scripts": {
@@ -12,9 +12,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/plugin-dialog": "^2.7.1",
-    "@tauri-apps/plugin-opener": "^2.5.4",
-    "@tauri-apps/plugin-shell": "^2.3.5"
+    "@tauri-apps/plugin-dialog": "^2.7.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.1"

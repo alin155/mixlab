@@ -13,6 +13,7 @@ async function readJson(relativePath: string) {
 test("cutter desktop package exposes Windows desktop scripts only", async () => {
   const packageJson = await readJson("package.json");
   assert.equal(packageJson.name, "@mixlab/cutter-desktop");
+  assert.equal(packageJson.version, "0.18.2");
   assert.deepEqual(Object.keys(packageJson.scripts as Record<string, string>).sort(), [
     "build:sidecar",
     "build:web",
@@ -24,12 +25,18 @@ test("cutter desktop package exposes Windows desktop scripts only", async () => 
 
 test("tauri config embeds cutter web dist and Windows exe installer target", async () => {
   const config = await readJson("src-tauri/tauri.conf.json");
+  assert.equal(config.version, "0.18.2");
   assert.equal((config.build as Record<string, unknown>).frontendDist, "../../cutter-web/dist");
   assert.equal((config.build as Record<string, unknown>).beforeBuildCommand, undefined);
 
   const bundle = config.bundle as Record<string, unknown>;
   assert.deepEqual(bundle.targets, ["nsis"]);
-  assert.deepEqual(bundle.icon, ["icons/icon.ico"]);
+  assert.deepEqual(bundle.icon, [
+    "icons/32x32.png",
+    "icons/128x128.png",
+    "icons/128x128@2x.png",
+    "icons/icon.ico"
+  ]);
   assert.deepEqual(bundle.externalBin, ["binaries/cutter-api-sidecar"]);
   assert.deepEqual(bundle.resources, [
     "binaries/ffmpeg.exe",
@@ -40,6 +47,7 @@ test("tauri config embeds cutter web dist and Windows exe installer target", asy
   const windows = bundle.windows as Record<string, unknown>;
   const nsis = windows.nsis as Record<string, unknown>;
   assert.equal(nsis.installerIcon, "icons/icon.ico");
+  assert.equal(nsis.uninstallerIcon, "icons/icon.ico");
 });
 
 test("Windows installer icon asset is present for tauri-build", async () => {
@@ -50,18 +58,32 @@ test("Windows installer icon asset is present for tauri-build", async () => {
   assert.ok(icon.readUInt16LE(4) >= 4);
 });
 
-test("tauri capability allows only the cutter api sidecar with config argument", async () => {
-  const capability = await readJson("src-tauri/capabilities/default.json");
-  const permission = (capability.permissions as unknown[]).find((entry) => {
-    return typeof entry === "object" && entry !== null && (entry as Record<string, unknown>).identifier === "shell:allow-spawn";
-  }) as Record<string, unknown> | undefined;
+test("Windows app icon png assets are present for executable and shortcut resources", async () => {
+  for (const relativePath of [
+    "src-tauri/icons/32x32.png",
+    "src-tauri/icons/128x128.png",
+    "src-tauri/icons/128x128@2x.png"
+  ]) {
+    const icon = await readFile(path.join(appRoot, relativePath));
+    assert.equal(icon.subarray(1, 4).toString("ascii"), "PNG");
+  }
+});
 
-  assert.ok(permission);
-  assert.deepEqual(permission.allow, [
-    {
-      name: "binaries/cutter-api-sidecar",
-      sidecar: true,
-      args: ["--config", { validator: "^[^\\0]+$" }]
-    }
-  ]);
+test("Windows desktop host is GUI-subsystem and owns sidecar and directory process launches", async () => {
+  const source = await readFile(path.join(appRoot, "src-tauri/src/main.rs"), "utf8");
+
+  assert.match(source, /windows_subsystem\s*=\s*"windows"/);
+  assert.match(source, /CREATE_NO_WINDOW/);
+  assert.match(source, /fn desktop_start_engine/);
+  assert.match(source, /fn desktop_open_directory/);
+  assert.match(source, /desktop_start_engine,\s*\n\s*desktop_open_directory/);
+});
+
+test("tauri capability keeps sidecar and directory launch behind native commands", async () => {
+  const capability = await readJson("src-tauri/capabilities/default.json");
+  assert.deepEqual(capability.permissions, ["core:default", "dialog:default"]);
+
+  const packageJson = await readJson("package.json");
+  assert.equal((packageJson.dependencies as Record<string, string>)["@tauri-apps/plugin-shell"], undefined);
+  assert.equal((packageJson.dependencies as Record<string, string>)["@tauri-apps/plugin-opener"], undefined);
 });

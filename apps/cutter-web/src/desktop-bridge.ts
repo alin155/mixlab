@@ -13,6 +13,16 @@ export interface DesktopConfig {
   ffprobe_path?: string;
 }
 
+export type DesktopNativeInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+
+export interface DesktopNativeCommandOptions {
+  invoke_fn?: DesktopNativeInvoke;
+}
+
+export interface DesktopStartEngineOptions extends DesktopNativeCommandOptions {
+  wait_for_ready?: () => Promise<void>;
+}
+
 export interface DesktopDoctorCheck {
   id: string;
   label: string;
@@ -80,6 +90,10 @@ async function invokeDesktopCommand<T>(command: string, args?: Record<string, un
   return mod.invoke<T>(command, args);
 }
 
+function resolveDesktopInvoke(options?: DesktopNativeCommandOptions): DesktopNativeInvoke {
+  return options?.invoke_fn ?? invokeDesktopCommand;
+}
+
 export async function chooseDesktopDirectory(title: string): Promise<string | null> {
   if (!resolveDesktopBridgeEnvironment().desktop_available) {
     return null;
@@ -119,8 +133,6 @@ export async function runDesktopDoctor(config: DesktopConfig): Promise<DesktopDo
   return invokeDesktopCommand<DesktopDoctorResult>("desktop_run_doctor", { config });
 }
 
-let sidecarChild: { kill: () => Promise<void> } | null = null;
-
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
@@ -158,32 +170,21 @@ export async function waitForDesktopEngineReady(input: {
   throw new Error("本机引擎启动超时：127.0.0.1:3789 未通过健康检查。");
 }
 
-export async function startDesktopEngine(configPath: string): Promise<void> {
-  if (sidecarChild) {
-    await waitForDesktopEngineReady();
-    return;
-  }
-
-  const mod = await import("@tauri-apps/plugin-shell");
-  const command = mod.Command.sidecar("binaries/cutter-api-sidecar", ["--config", configPath]);
-  sidecarChild = await command.spawn();
-  await waitForDesktopEngineReady();
+export async function startDesktopEngine(configPath: string, options: DesktopStartEngineOptions = {}): Promise<void> {
+  const invoke = resolveDesktopInvoke(options);
+  await invoke<void>("desktop_start_engine", { configPath });
+  await (options.wait_for_ready ?? waitForDesktopEngineReady)();
 }
 
 export async function stopDesktopEngine(): Promise<void> {
-  if (!sidecarChild) {
-    return;
-  }
-
-  await sidecarChild.kill();
-  sidecarChild = null;
+  return;
 }
 
-export async function openDesktopDirectory(pathValue: string): Promise<void> {
+export async function openDesktopDirectory(pathValue: string, options: DesktopNativeCommandOptions = {}): Promise<void> {
   if (!pathValue) {
     return;
   }
 
-  const mod = await import("@tauri-apps/plugin-opener");
-  await mod.openPath(pathValue);
+  const invoke = resolveDesktopInvoke(options);
+  await invoke<void>("desktop_open_directory", { pathValue });
 }
