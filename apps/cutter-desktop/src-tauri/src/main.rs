@@ -166,11 +166,28 @@ fn count_ready_materials(value: &Value) -> usize {
     }
 }
 
+fn current_index_ready_material_count(current_json_path: &Path, json: &Value) -> Option<usize> {
+    let current_version = json.get("current_version").and_then(Value::as_str)?;
+    let index_manifest_path = current_json_path
+        .parent()?
+        .join(current_version)
+        .join("index-manifest.json");
+    let manifest = fs::read_to_string(index_manifest_path).ok()?;
+    let manifest_json = serde_json::from_str::<Value>(&manifest).ok()?;
+    manifest_json
+        .get("ready_video_count")
+        .and_then(Value::as_u64)
+        .map(|count| count as usize)
+}
+
 fn check_ready_materials(current_json_path: &Path) -> DesktopDoctorCheck {
     match fs::read_to_string(current_json_path)
         .ok()
         .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-        .map(|json| count_ready_materials(&json))
+        .map(|json| {
+            current_index_ready_material_count(current_json_path, &json)
+                .unwrap_or_else(|| count_ready_materials(&json))
+        })
     {
         Some(count) if count > 0 => DesktopDoctorCheck {
             id: "ready_materials".into(),
@@ -309,4 +326,51 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run MixLab Cutter desktop app");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_library_root(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "mixlab-cutter-desktop-{name}-{}-{nanos}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("create temp library root");
+        root
+    }
+
+    #[test]
+    fn doctor_accepts_m19_current_index_pointer_with_ready_manifest() {
+        let root = temp_library_root("current-index-pointer");
+        let index_root = root
+            .join(".mixlab-library")
+            .join("indexes")
+            .join("source-transcript-index");
+        let version_root = index_root.join("v000001");
+        fs::create_dir_all(&version_root).expect("create index version root");
+        fs::write(
+            index_root.join("current.json"),
+            r#"{"library_id":"lib_main_001","current_version":"v000001"}"#,
+        )
+        .expect("write current pointer");
+        fs::write(
+            version_root.join("index-manifest.json"),
+            r#"{"schema_version":"1.0","ready_video_count":3}"#,
+        )
+        .expect("write index manifest");
+
+        let check = check_ready_materials(&index_root.join("current.json"));
+
+        fs::remove_dir_all(root).ok();
+        assert_eq!(check.status, "pass");
+    }
 }

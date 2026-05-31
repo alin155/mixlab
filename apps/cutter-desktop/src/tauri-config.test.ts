@@ -29,12 +29,17 @@ test("tauri config embeds cutter web dist and Windows exe installer target", asy
 
   const bundle = config.bundle as Record<string, unknown>;
   assert.deepEqual(bundle.targets, ["nsis"]);
+  assert.deepEqual(bundle.icon, ["icons/icon.ico"]);
   assert.deepEqual(bundle.externalBin, ["binaries/cutter-api-sidecar"]);
   assert.deepEqual(bundle.resources, [
     "binaries/ffmpeg.exe",
     "binaries/ffprobe.exe",
     "resources/default-desktop-config.json"
   ]);
+
+  const windows = bundle.windows as Record<string, unknown>;
+  const nsis = windows.nsis as Record<string, unknown>;
+  assert.equal(nsis.installerIcon, "icons/icon.ico");
 });
 
 test("Windows installer icon asset is present for tauri-build", async () => {
@@ -42,7 +47,7 @@ test("Windows installer icon asset is present for tauri-build", async () => {
 
   assert.equal(icon.readUInt16LE(0), 0);
   assert.equal(icon.readUInt16LE(2), 1);
-  assert.equal(icon.readUInt16LE(4), 1);
+  assert.ok(icon.readUInt16LE(4) >= 4);
 });
 
 test("tauri capability allows only the cutter api sidecar with config argument", async () => {

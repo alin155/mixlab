@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
     "publisher": "MixLab",
     "category": "Productivity",
     "externalBin": ["binaries/cutter-api-sidecar"],
@@ -33,7 +34,7 @@
     "windows": {
       "nsis": {
         "displayLanguageSelector": false,
-        "installerIcon": null
+        "installerIcon": "icons/icon.ico"
       }
     }
   }

@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import {
   buildCutterSidecarPlan,
+  readWindowsPeSubsystem,
+  setWindowsPeSubsystemToGui,
   windowsSidecarExecutableName
 } from "./build-cutter-sidecar.ts";
 import {
@@ -35,6 +37,30 @@ test("build sidecar plan targets a Windows x64 executable for Tauri sidecar nami
     pkg_binary: path.join("/repo", "node_modules/.bin", process.platform === "win32" ? "pkg.cmd" : "pkg"),
     pkg_target: "node22-win-x64"
   });
+});
+
+function createMinimalWindowsPe(subsystem: number): Buffer {
+  const buffer = Buffer.alloc(512);
+  const peHeaderOffset = 0x80;
+  buffer.write("MZ", 0, "ascii");
+  buffer.writeUInt32LE(peHeaderOffset, 0x3c);
+  buffer.write("PE\0\0", peHeaderOffset, "ascii");
+  buffer.writeUInt16LE(0x8664, peHeaderOffset + 4);
+  buffer.writeUInt16LE(1, peHeaderOffset + 6);
+  buffer.writeUInt16LE(0xf0, peHeaderOffset + 20);
+  buffer.writeUInt16LE(0x20b, peHeaderOffset + 24);
+  buffer.writeUInt16LE(subsystem, peHeaderOffset + 0x5c);
+  return buffer;
+}
+
+test("sidecar exe is patched to Windows GUI subsystem so it does not open a console window", () => {
+  const exe = createMinimalWindowsPe(3);
+
+  assert.equal(readWindowsPeSubsystem(exe), 3);
+  const result = setWindowsPeSubsystemToGui(exe);
+
+  assert.deepEqual(result, { previous_subsystem: 3, next_subsystem: 2 });
+  assert.equal(readWindowsPeSubsystem(exe), 2);
 });
 
 test("runtime asset verifier reports missing Windows desktop assets", async () => {

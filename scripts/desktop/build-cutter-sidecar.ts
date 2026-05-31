@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,55 @@ export interface CutterSidecarBuildPlan {
 
 export function windowsSidecarExecutableName(): string {
   return "cutter-api-sidecar-x86_64-pc-windows-msvc.exe";
+}
+
+const windowsGuiSubsystem = 2;
+const peSubsystemOffsetFromPeHeader = 0x5c;
+
+export interface WindowsPeSubsystemPatchResult {
+  previous_subsystem: number;
+  next_subsystem: number;
+}
+
+function peHeaderOffset(buffer: Buffer): number {
+  if (buffer.length < 0x40 || buffer.toString("ascii", 0, 2) !== "MZ") {
+    throw new Error("不是有效的 Windows PE 可执行文件：缺少 MZ 头");
+  }
+
+  const offset = buffer.readUInt32LE(0x3c);
+  if (offset < 0 || offset + peSubsystemOffsetFromPeHeader + 2 > buffer.length) {
+    throw new Error("不是有效的 Windows PE 可执行文件：PE 头偏移无效");
+  }
+
+  if (buffer.toString("ascii", offset, offset + 4) !== "PE\0\0") {
+    throw new Error("不是有效的 Windows PE 可执行文件：缺少 PE 签名");
+  }
+
+  return offset;
+}
+
+export function readWindowsPeSubsystem(buffer: Buffer): number {
+  const offset = peHeaderOffset(buffer);
+  return buffer.readUInt16LE(offset + peSubsystemOffsetFromPeHeader);
+}
+
+export function setWindowsPeSubsystemToGui(buffer: Buffer): WindowsPeSubsystemPatchResult {
+  const offset = peHeaderOffset(buffer);
+  const previousSubsystem = buffer.readUInt16LE(offset + peSubsystemOffsetFromPeHeader);
+  buffer.writeUInt16LE(windowsGuiSubsystem, offset + peSubsystemOffsetFromPeHeader);
+  return {
+    previous_subsystem: previousSubsystem,
+    next_subsystem: windowsGuiSubsystem
+  };
+}
+
+async function patchWindowsSidecarToGuiSubsystem(executablePath: string): Promise<WindowsPeSubsystemPatchResult> {
+  const executable = await readFile(executablePath);
+  const result = setWindowsPeSubsystemToGui(executable);
+  if (result.previous_subsystem !== result.next_subsystem) {
+    await writeFile(executablePath, executable);
+  }
+  return result;
 }
 
 export function buildCutterSidecarPlan(repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")): CutterSidecarBuildPlan {
@@ -77,6 +126,10 @@ export async function buildCutterSidecarExecutable(input: {
         plan.executable_output
       ],
       repoRoot
+    );
+    const patchResult = await patchWindowsSidecarToGuiSubsystem(plan.executable_output);
+    console.log(
+      `[M18 Windows Desktop] sidecar PE subsystem: ${patchResult.previous_subsystem} -> ${patchResult.next_subsystem}`
     );
   }
 
