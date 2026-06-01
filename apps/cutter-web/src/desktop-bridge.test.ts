@@ -22,6 +22,12 @@ test("desktop bridge exposes fixed local API address only inside Tauri", () => {
     desktop_available: true,
     api_base_url: "http://127.0.0.1:3789"
   });
+
+  assert.deepEqual(resolveDesktopBridgeEnvironment({ __TAURI__: {} }), {
+    mode: "desktop",
+    desktop_available: true,
+    api_base_url: "http://127.0.0.1:3789"
+  });
 });
 
 test("runtime API base URL keeps web env behavior and overrides only inside desktop", () => {
