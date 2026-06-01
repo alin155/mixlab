@@ -1582,7 +1582,7 @@ test("desktop first-run page exposes Windows setup, Doctor, engine, and diagnost
         ]
       },
       diagnostics: {
-        app_version: "0.18.3",
+        app_version: "0.18.4",
         stage: "doctor-failed",
         api_address: "http://127.0.0.1:3789",
         public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
@@ -1608,7 +1608,7 @@ test("desktop first-run page exposes Windows setup, Doctor, engine, and diagnost
     "启动本机引擎",
     "复制诊断",
     "打开日志目录",
-    "0.18.3",
+    "0.18.4",
     "source-videos",
     "ready 素材",
     "没有 ready 素材",

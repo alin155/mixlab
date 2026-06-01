@@ -104,11 +104,11 @@ test("desktop app version delegates to the native desktop host", async () => {
   const version = await desktopAppVersion({
     invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
       calls.push({ command, args });
-      return "0.18.3" as T;
+      return "0.18.4" as T;
     }
   });
 
-  assert.equal(version, "0.18.3");
+  assert.equal(version, "0.18.4");
   assert.deepEqual(calls, [{ command: "desktop_app_version", args: undefined }]);
 });
 
