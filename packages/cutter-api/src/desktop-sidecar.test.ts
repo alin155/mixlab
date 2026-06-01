@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   buildCutterApiServerInputFromDesktopConfig,
   resolveDesktopSidecarConfigPath,
+  shouldRunDirectSidecar,
   startCutterApiSidecar
 } from "./desktop-sidecar.ts";
 
@@ -62,6 +63,17 @@ test("rejects missing desktop sidecar config path", () => {
   assert.throws(
     () => resolveDesktopSidecarConfigPath({ args: [], env: {} }),
     /MIXLAB_DESKTOP_CONFIG_PATH/
+  );
+});
+
+test("runs direct sidecar entrypoint inside pkg packaged exe", () => {
+  assert.equal(
+    shouldRunDirectSidecar({
+      module_url: "file:///snapshot/mixlab/packages/cutter-api/src/desktop-sidecar.ts",
+      script_path: String.raw`C:\Program Files\MixLab Cutter\cutter-api-sidecar.exe`,
+      is_pkg: true
+    }),
+    true
   );
 });
 

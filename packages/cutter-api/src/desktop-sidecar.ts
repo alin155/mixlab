@@ -190,8 +190,18 @@ export async function startCutterApiSidecar(
   }
 }
 
-function isDirectRun(moduleUrl: string, scriptPath: string | undefined): boolean {
-  return Boolean(scriptPath) && fileURLToPath(moduleUrl) === scriptPath;
+export interface ShouldRunDirectSidecarInput {
+  module_url: string;
+  script_path: string | undefined;
+  is_pkg?: boolean;
+}
+
+export function shouldRunDirectSidecar(input: ShouldRunDirectSidecarInput): boolean {
+  if (input.is_pkg) {
+    return true;
+  }
+
+  return Boolean(input.script_path) && fileURLToPath(input.module_url) === input.script_path;
 }
 
 async function runDirectSidecar(): Promise<void> {
@@ -208,7 +218,11 @@ async function runDirectSidecar(): Promise<void> {
   });
 }
 
-if (isDirectRun(import.meta.url, process.argv[1])) {
+if (shouldRunDirectSidecar({
+  module_url: import.meta.url,
+  script_path: process.argv[1],
+  is_pkg: Boolean((process as typeof process & { pkg?: unknown }).pkg)
+})) {
   void runDirectSidecar().catch(() => {
     process.exitCode = 1;
   });

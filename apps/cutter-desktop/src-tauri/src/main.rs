@@ -146,6 +146,22 @@ fn resolve_sidecar_path(app: &AppHandle) -> Result<PathBuf, String> {
         })
 }
 
+fn resource_file_path(app: &AppHandle, relative_path: &str) -> Option<PathBuf> {
+    let resource_dir = app.path().resource_dir().ok()?;
+    let path = resource_dir.join(relative_path);
+    path.is_file().then_some(path)
+}
+
+fn configure_bundled_runtime_env(app: &AppHandle, command: &mut Command) {
+    if let Some(ffmpeg_path) = resource_file_path(app, "binaries/ffmpeg.exe") {
+        command.env("MIXLAB_FFMPEG_PATH", ffmpeg_path);
+    }
+
+    if let Some(ffprobe_path) = resource_file_path(app, "binaries/ffprobe.exe") {
+        command.env("MIXLAB_FFPROBE_PATH", ffprobe_path);
+    }
+}
+
 fn spawn_hidden_process(command: &mut Command) -> Result<(), String> {
     command
         .stdin(Stdio::null())
@@ -170,6 +186,7 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
     let sidecar_path = resolve_sidecar_path(&app)?;
     let mut command = Command::new(&sidecar_path);
     command.arg("--config").arg(config_path);
+    configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
     }

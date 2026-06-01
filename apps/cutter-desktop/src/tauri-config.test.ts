@@ -13,7 +13,7 @@ async function readJson(relativePath: string) {
 test("cutter desktop package exposes Windows desktop scripts only", async () => {
   const packageJson = await readJson("package.json");
   assert.equal(packageJson.name, "@mixlab/cutter-desktop");
-  assert.equal(packageJson.version, "0.18.2");
+  assert.equal(packageJson.version, "0.18.3");
   assert.deepEqual(Object.keys(packageJson.scripts as Record<string, string>).sort(), [
     "build:sidecar",
     "build:web",
@@ -25,7 +25,7 @@ test("cutter desktop package exposes Windows desktop scripts only", async () => 
 
 test("tauri config embeds cutter web dist and Windows exe installer target", async () => {
   const config = await readJson("src-tauri/tauri.conf.json");
-  assert.equal(config.version, "0.18.2");
+  assert.equal(config.version, "0.18.3");
   assert.equal((config.build as Record<string, unknown>).frontendDist, "../../cutter-web/dist");
   assert.equal((config.build as Record<string, unknown>).beforeBuildCommand, undefined);
 
@@ -74,6 +74,8 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
 
   assert.match(source, /windows_subsystem\s*=\s*"windows"/);
   assert.match(source, /CREATE_NO_WINDOW/);
+  assert.match(source, /MIXLAB_FFMPEG_PATH/);
+  assert.match(source, /MIXLAB_FFPROBE_PATH/);
   assert.match(source, /fn desktop_start_engine/);
   assert.match(source, /fn desktop_open_directory/);
   assert.match(source, /desktop_start_engine,\s*\n\s*desktop_open_directory/);
