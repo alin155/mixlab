@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  desktopAppVersion,
   openDesktopDirectory,
   resolveDesktopBridgeEnvironment,
   resolveRuntimeApiBaseUrl,
@@ -95,6 +96,20 @@ test("desktop engine startup delegates sidecar spawning to the native desktop ho
       }
     }
   ]);
+});
+
+test("desktop app version delegates to the native desktop host", async () => {
+  const calls: unknown[] = [];
+
+  const version = await desktopAppVersion({
+    invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+      calls.push({ command, args });
+      return "0.18.3" as T;
+    }
+  });
+
+  assert.equal(version, "0.18.3");
+  assert.deepEqual(calls, [{ command: "desktop_app_version", args: undefined }]);
 });
 
 test("desktop directory opening delegates to the native desktop host", async () => {

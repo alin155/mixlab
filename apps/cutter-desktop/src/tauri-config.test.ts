@@ -76,6 +76,10 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /CREATE_NO_WINDOW/);
   assert.match(source, /MIXLAB_FFMPEG_PATH/);
   assert.match(source, /MIXLAB_FFPROBE_PATH/);
+  assert.match(source, /fn desktop_app_version/);
+  assert.match(source, /desktop_host_log/);
+  assert.match(source, /GET \/health HTTP\/1\.1/);
+  assert.doesNotMatch(source, /tcp_endpoint_is_reachable/);
   assert.match(source, /fn desktop_start_engine/);
   assert.match(source, /fn desktop_open_directory/);
   assert.match(source, /desktop_start_engine,\s*\n\s*desktop_open_directory/);

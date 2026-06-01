@@ -31,6 +31,7 @@ export interface DesktopSetupDoctorResult {
 }
 
 export interface DesktopSetupDiagnostics {
+  app_version?: string;
   stage: string;
   api_address?: string;
   log_path?: string;
@@ -84,6 +85,7 @@ function Diagnostics({ diagnostics }: { diagnostics?: DesktopSetupDiagnostics })
   }
 
   const rows = [
+    ["应用版本", diagnostics.app_version],
     ["阶段", diagnostics.stage],
     ["API 地址", diagnostics.api_address],
     ["日志路径", diagnostics.log_path],

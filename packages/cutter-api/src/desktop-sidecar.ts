@@ -227,7 +227,14 @@ if (shouldRunDirectSidecar({
   script_path: process.argv[1],
   is_pkg: Boolean((process as typeof process & { pkg?: unknown }).pkg)
 })) {
-  void runDirectSidecar().catch(() => {
+  void runDirectSidecar().catch((error) => {
+    try {
+      process.stderr.write(
+        `${error instanceof Error ? error.stack ?? error.message : String(error)}\n`
+      );
+    } catch {
+      // Packaged GUI executables may not have a writable stderr.
+    }
     process.exitCode = 1;
   });
 }

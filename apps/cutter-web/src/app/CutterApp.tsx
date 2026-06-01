@@ -109,6 +109,7 @@ import {
 } from "./navigation.ts";
 import {
   chooseDesktopDirectory,
+  desktopAppVersion,
   defaultDesktopWorkspaceRoot,
   desktopConfigPath,
   desktopLogDirectory,
@@ -639,12 +640,14 @@ function desktopSetupStageForConfig(config: DesktopConfig): DesktopSetupStage {
 }
 
 function desktopDiagnosticsForState(input: {
+  appVersion?: string;
   stage: DesktopSetupStage;
   config: DesktopConfig;
   latestError?: string;
   logPath?: string;
 }): DesktopSetupDiagnostics {
   return {
+    app_version: input.appVersion,
     stage: input.stage,
     api_address: `http://${input.config.api_host}:${input.config.api_port}`,
     log_path: input.logPath || input.config.log_root || (input.config.local_workspace_root ? `${input.config.local_workspace_root}\\logs` : ""),
@@ -944,6 +947,7 @@ export function CutterApp() {
   const [desktopDoctorResult, setDesktopDoctorResult] = useState<DesktopDoctorResult | undefined>();
   const [desktopDiagnostics, setDesktopDiagnostics] = useState<DesktopSetupDiagnostics | undefined>();
   const [desktopLogPath, setDesktopLogPath] = useState("");
+  const [desktopAppVersionText, setDesktopAppVersionText] = useState("");
   const desktopSetupReady = !isDesktopMode || desktopStage === "ready";
   const apiBaseUrl = desktopSetupReady ? detectedApiBaseUrl : "";
   const apiMode = Boolean(apiBaseUrl);
@@ -1156,14 +1160,16 @@ export function CutterApp() {
 
     let cancelled = false;
     Promise.all([
+      desktopAppVersion().catch(() => ""),
       readDesktopConfig().catch(() => null),
       defaultDesktopWorkspaceRoot().catch(() => ""),
       desktopLogDirectory().catch(() => "")
-    ]).then(([storedConfig, defaultWorkspaceRoot, logRoot]) => {
+    ]).then(([appVersion, storedConfig, defaultWorkspaceRoot, logRoot]) => {
       if (cancelled) {
         return;
       }
 
+      setDesktopAppVersionText(appVersion);
       const nextConfig = {
         ...(storedConfig ?? defaultDesktopConfig(defaultWorkspaceRoot, logRoot)),
         ...(storedConfig?.log_root || !logRoot ? {} : { log_root: logRoot })
@@ -1173,6 +1179,7 @@ export function CutterApp() {
       setDesktopStage(nextStage);
       setDesktopLogPath(nextConfig.log_root ?? "");
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion,
         stage: nextStage,
         config: nextConfig,
         logPath: nextConfig.log_root ?? ""
@@ -1187,6 +1194,7 @@ export function CutterApp() {
       setDesktopConfig(nextConfig);
       setDesktopStage("choose-public-library");
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: "choose-public-library",
         config: nextConfig,
         latestError: message
@@ -1752,6 +1760,7 @@ export function CutterApp() {
     setDesktopConfig(config);
     setDesktopStage(stage);
     setDesktopDiagnostics(desktopDiagnosticsForState({
+      appVersion: desktopAppVersionText,
       stage,
       config,
       logPath: desktopLogPath
@@ -1773,6 +1782,7 @@ export function CutterApp() {
     } catch (chooseError) {
       const message = chooseError instanceof Error ? chooseError.message : "选择公共素材库失败";
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: desktopStage,
         config: desktopConfig,
         latestError: message,
@@ -1796,6 +1806,7 @@ export function CutterApp() {
     } catch (chooseError) {
       const message = chooseError instanceof Error ? chooseError.message : "选择本地工作区失败";
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: desktopStage,
         config: desktopConfig,
         latestError: message,
@@ -1808,6 +1819,7 @@ export function CutterApp() {
     try {
       setDesktopStage("doctor-running");
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: "doctor-running",
         config: desktopConfig,
         logPath: desktopLogPath
@@ -1817,6 +1829,7 @@ export function CutterApp() {
       setDesktopDoctorResult(result);
       setDesktopStage(nextStage);
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: nextStage,
         config: desktopConfig,
         latestError: result.checks.find((check) => check.status === "fail")?.message,
@@ -1826,6 +1839,7 @@ export function CutterApp() {
       const message = doctorError instanceof Error ? doctorError.message : "Doctor 检查失败";
       setDesktopStage("doctor-failed");
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: "doctor-failed",
         config: desktopConfig,
         latestError: message,
@@ -1843,6 +1857,7 @@ export function CutterApp() {
       setDesktopConfig(savedConfig);
       setDesktopStage("ready");
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: "ready",
         config: savedConfig,
         logPath: savedConfig.log_root || desktopLogPath
@@ -1851,6 +1866,7 @@ export function CutterApp() {
       const message = startError instanceof Error ? startError.message : "本机引擎启动失败";
       setDesktopStage("doctor-failed");
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: "doctor-failed",
         config: desktopConfig,
         latestError: message,
@@ -1861,6 +1877,7 @@ export function CutterApp() {
 
   function handleCopyDesktopDiagnostics() {
     const serialized = JSON.stringify(desktopDiagnostics ?? desktopDiagnosticsForState({
+      appVersion: desktopAppVersionText,
       stage: desktopStage,
       config: desktopConfig,
       logPath: desktopLogPath
@@ -1873,6 +1890,7 @@ export function CutterApp() {
     void openDesktopDirectory(target).catch((openError) => {
       const message = openError instanceof Error ? openError.message : "打开日志目录失败";
       setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
         stage: desktopStage,
         config: desktopConfig,
         latestError: message,

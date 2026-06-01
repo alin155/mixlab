@@ -1,14 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{
     env,
     fs,
+    io::{Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
 
@@ -67,6 +68,11 @@ fn desktop_config_path(app: AppHandle) -> Result<String, String> {
     desktop_config_file(&app).map(path_string)
 }
 
+#[tauri::command]
+fn desktop_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 fn desktop_log_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(app_data) = env::var("APPDATA") {
         return Ok(PathBuf::from(app_data).join("MixLab Cutter").join("logs"));
@@ -86,12 +92,63 @@ fn desktop_log_dir(app: AppHandle) -> Result<String, String> {
     Ok(path_string(dir))
 }
 
-fn tcp_endpoint_is_reachable(host: &str, port: u16) -> bool {
+fn desktop_host_log(app: &AppHandle, event: &str, details: Value) {
+    let Ok(dir) = desktop_log_dir_path(app) else {
+        return;
+    };
+    if fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+
+    let at_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    let line = json!({
+        "at_ms": at_ms,
+        "event": event,
+        "details": details
+    });
+
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("desktop-host.ndjson"))
+    {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
+fn tcp_port_accepts_connection(host: &str, port: u16) -> bool {
     let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
         return false;
     };
 
     TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_ok()
+}
+
+fn health_response_is_ready(response: &str) -> bool {
+    (response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200"))
+        && response.contains("\"ok\":true")
+}
+
+fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
+    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
+        return false;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(250)) else {
+        return false;
+    };
+
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+    let request = format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+
+    let mut response = String::new();
+    stream.read_to_string(&mut response).is_ok() && health_response_is_ready(&response)
 }
 
 fn sidecar_path_candidates(app: &AppHandle) -> Vec<PathBuf> {
@@ -177,21 +234,89 @@ fn spawn_hidden_process(command: &mut Command) -> Result<(), String> {
         .map_err(|error| format!("无法启动进程：{error}"))
 }
 
+fn spawn_sidecar_process(app: &AppHandle, command: &mut Command) -> Result<u32, String> {
+    command.stdin(Stdio::null());
+
+    match desktop_log_dir_path(app).and_then(|dir| {
+        fs::create_dir_all(&dir).map_err(|error| format!("无法创建桌面日志目录：{error}"))?;
+        Ok(dir)
+    }) {
+        Ok(dir) => {
+            let stdout = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(dir.join("cutter-api-sidecar.stdout.log"))
+                .map_err(|error| format!("无法创建 sidecar stdout 日志：{error}"))?;
+            let stderr = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(dir.join("cutter-api-sidecar.stderr.log"))
+                .map_err(|error| format!("无法创建 sidecar stderr 日志：{error}"))?;
+            command.stdout(Stdio::from(stdout)).stderr(Stdio::from(stderr));
+        }
+        Err(_) => {
+            command.stdout(Stdio::null()).stderr(Stdio::null());
+        }
+    }
+
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    command
+        .spawn()
+        .map(|child| child.id())
+        .map_err(|error| format!("无法启动进程：{error}"))
+}
+
 #[tauri::command(rename_all = "camelCase")]
 fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), String> {
-    if tcp_endpoint_is_reachable("127.0.0.1", 3789) {
+    desktop_host_log(&app, "engine_start_requested", json!({ "config_path": config_path }));
+
+    if http_health_endpoint_is_ready("127.0.0.1", 3789) {
+        desktop_host_log(&app, "engine_already_ready", json!({ "api_address": "http://127.0.0.1:3789" }));
         return Ok(());
     }
 
-    let sidecar_path = resolve_sidecar_path(&app)?;
+    if tcp_port_accepts_connection("127.0.0.1", 3789) {
+        let message = "127.0.0.1:3789 已被其他进程占用，但 /health 不是 MixLab 本机引擎。请结束占用该端口的进程后重试。";
+        desktop_host_log(&app, "engine_port_occupied", json!({ "error": message }));
+        return Err(message.into());
+    }
+
+    if !Path::new(&config_path).is_file() {
+        let message = format!("桌面配置文件不存在：{config_path}");
+        desktop_host_log(&app, "engine_config_missing", json!({ "error": message }));
+        return Err(message);
+    }
+
+    let sidecar_path = match resolve_sidecar_path(&app) {
+        Ok(path) => path,
+        Err(error) => {
+            desktop_host_log(&app, "engine_sidecar_missing", json!({ "error": error }));
+            return Err(error);
+        }
+    };
     let mut command = Command::new(&sidecar_path);
-    command.arg("--config").arg(config_path);
+    command.arg("--config").arg(&config_path);
     configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
     }
 
-    spawn_hidden_process(&mut command)
+    match spawn_sidecar_process(&app, &mut command) {
+        Ok(pid) => {
+            desktop_host_log(
+                &app,
+                "engine_sidecar_spawned",
+                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path }),
+            );
+            Ok(())
+        }
+        Err(error) => {
+            desktop_host_log(&app, "engine_sidecar_spawn_failed", json!({ "error": error }));
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -475,6 +600,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             desktop_config_path,
+            desktop_app_version,
             desktop_log_dir,
             desktop_default_workspace_root,
             desktop_read_config,

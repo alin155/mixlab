@@ -36,6 +36,7 @@ export interface DesktopDoctorResult {
 }
 
 export interface DesktopDiagnostics {
+  app_version?: string;
   stage: string;
   api_address?: string;
   log_path?: string;
@@ -119,6 +120,11 @@ export async function writeDesktopConfig(config: DesktopConfig): Promise<Desktop
 
 export async function desktopConfigPath(): Promise<string> {
   return invokeDesktopCommand<string>("desktop_config_path");
+}
+
+export async function desktopAppVersion(options: DesktopNativeCommandOptions = {}): Promise<string> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<string>("desktop_app_version");
 }
 
 export async function desktopLogDirectory(): Promise<string> {
