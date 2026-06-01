@@ -159,12 +159,14 @@ fn sidecar_path_candidates(app: &AppHandle) -> Vec<PathBuf> {
             candidates.push(parent.join(SIDECAR_EXECUTABLE_NAME));
             candidates.push(parent.join("binaries").join(SIDECAR_EXECUTABLE_NAME));
             candidates.push(parent.join("resources").join(SIDECAR_EXECUTABLE_NAME));
+            candidates.push(parent.join("resources").join("binaries").join(SIDECAR_EXECUTABLE_NAME));
         }
     }
 
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join(SIDECAR_EXECUTABLE_NAME));
         candidates.push(resource_dir.join("binaries").join(SIDECAR_EXECUTABLE_NAME));
+        candidates.push(resource_dir.join("resources").join("binaries").join(SIDECAR_EXECUTABLE_NAME));
     }
 
     if let Ok(current_dir) = env::current_dir() {
