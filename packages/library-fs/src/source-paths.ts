@@ -40,6 +40,13 @@ export async function resolveSourceVideoFilePath(
     throw new Error("素材来源定位信息不完整");
   }
 
+  if (manifest.source_folder_id === "src_default") {
+    return resolveSourceVideoPath({
+      mount_root: libraryRoot,
+      relative_path: manifest.source_folder_relative_path
+    });
+  }
+
   const settings = await readAdminSettings(libraryRoot);
   const sourceFolder = settings.source_folders.find(
     (folder) => folder.id === manifest.source_folder_id

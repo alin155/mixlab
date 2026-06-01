@@ -181,9 +181,9 @@ function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | n
 export function shouldShowLoginGate(
   apiMode: boolean,
   status: CutterLoginStatusValue,
-  options: { desktopTrusted?: boolean } = {}
+  _options: { desktopTrusted?: boolean } = {}
 ): boolean {
-  return apiMode && !options.desktopTrusted && status !== "approved";
+  return apiMode && status !== "approved";
 }
 
 export function shouldRefreshCutQueueForRoute(input: {

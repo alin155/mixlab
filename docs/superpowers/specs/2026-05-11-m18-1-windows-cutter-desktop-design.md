@@ -17,7 +17,7 @@ The deliverable is a Windows `.exe` installer for a cutter desktop application. 
 3. Shared core: cutter search, playback, cut queue, local workspace, and material handling stay in the existing `apps/cutter-web`, `packages/cutter-api`, and shared packages.
 4. Non-breaking rule: desktop work must not break `dev:cutter-web`, `server:cutter-api`, or `smoke:cutter-api-web`.
 5. Fallback path: if the desktop build has a runtime issue, the web mode remains a usable fallback.
-6. Cutter boundary: the cutter app reads the public library and writes only to the local workspace.
+6. Cutter boundary: the cutter app reads source materials from the public library and writes cut outputs only to the local workspace. The only allowed public-library write from the cutter side is the lightweight cutter login/session record required for admin approval.
 
 ## Explicit Non-Goals
 
@@ -27,7 +27,7 @@ The deliverable is a Windows `.exe` installer for a cutter desktop application. 
 - Startup at login.
 - Tray/background resident mode.
 - Management desktop app.
-- Cutter-side public-library initialization, repair, or mutation.
+- Cutter-side public-library initialization, repair, or source-material mutation.
 - Rewriting `cutter-api` in Rust.
 - Requiring users to run commands.
 
@@ -271,7 +271,7 @@ Each path verifies:
 
 - first-run wizard can select the directory;
 - Doctor reports accurate pass/fail results;
-- public library is not written by the cutter app;
+- source materials and ready artifacts are not mutated by the cutter app; cutter login/session records may be written for admin approval;
 - ready materials appear;
 - search works;
 - video playback works;

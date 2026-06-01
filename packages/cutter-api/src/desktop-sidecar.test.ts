@@ -77,7 +77,7 @@ test("runs direct sidecar entrypoint inside pkg packaged exe", () => {
   );
 });
 
-test("maps desktop config to cutter API server input without mutating public library path", () => {
+test("maps desktop config to reviewed cutter API server input without mutating public library path", () => {
   assert.deepEqual(
     buildCutterApiServerInputFromDesktopConfig({
       api_host: "127.0.0.1",
@@ -89,8 +89,7 @@ test("maps desktop config to cutter API server input without mutating public lib
     }),
     {
       library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
-      workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      auth_mode: "local_trusted"
+      workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
     }
   );
 });
@@ -109,7 +108,7 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
     create_server: (input) => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
-      assert.equal(input.auth_mode, "local_trusted");
+      assert.equal(input.auth_mode, undefined);
       return fakeServer as unknown as Server;
     },
     stdout: stdout.stream

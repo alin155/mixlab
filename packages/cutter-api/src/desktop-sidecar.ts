@@ -89,8 +89,7 @@ export function buildCutterApiServerInputFromDesktopConfig(
 ): CreateCutterApiServerInput {
   return {
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
-    workspace_root: normalizeDesktopPathForStorage(config.local_workspace_root),
-    auth_mode: "local_trusted"
+    workspace_root: normalizeDesktopPathForStorage(config.local_workspace_root)
   };
 }
 

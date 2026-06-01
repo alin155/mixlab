@@ -1948,7 +1948,7 @@ test("fixture mode bypasses login and runtime mode requires approved auth", () =
   assert.equal(shouldShowLoginGate(true, "rejected"), true);
   assert.equal(shouldShowLoginGate(true, "disabled"), true);
   assert.equal(shouldShowLoginGate(true, "approved"), false);
-  assert.equal(shouldShowLoginGate(true, "unknown", { desktopTrusted: true }), false);
+  assert.equal(shouldShowLoginGate(true, "unknown", { desktopTrusted: true }), true);
 });
 
 test("cut task refresh is limited to the cut tasks route", () => {

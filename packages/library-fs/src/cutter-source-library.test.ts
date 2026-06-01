@@ -11,8 +11,10 @@ import {
   getCutterSourceVideoDetail,
   listCutterSourceLibrary,
   publishReadySourceVideo,
+  readAdminSettings,
   scanSourceVideos,
-  searchCutterSourceLibrary
+  searchCutterSourceLibrary,
+  writeAdminSettings
 } from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
@@ -226,6 +228,35 @@ test("lists only ready source videos as cutter library cards with resolved asset
   assert.equal(
     library.videos[0]?.cover_file_path,
     path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "cover.jpg")
+  );
+});
+
+test("resolves default source-videos against the cutter-selected library root", async () => {
+  const libraryRoot = await prepareLibrary();
+  const settings = await readAdminSettings(libraryRoot);
+  await writeAdminSettings(libraryRoot, {
+    ...settings,
+    source_folders: settings.source_folders.map((folder) =>
+      folder.id === "src_default"
+        ? { ...folder, path: "/data/PublicLibrary/source-videos" }
+        : folder
+    )
+  });
+
+  const library = await listCutterSourceLibrary({ library_root: libraryRoot });
+  const detail = await getCutterSourceVideoDetail({
+    library_root: libraryRoot,
+    source_video_id: "V000001"
+  });
+
+  assert.equal(library.available_video_count, 1);
+  assert.equal(
+    library.videos[0]?.source_video_file_path,
+    path.join(libraryRoot, "source-videos", "01_现金流.mp4")
+  );
+  assert.equal(
+    detail?.source_video_file_path,
+    path.join(libraryRoot, "source-videos", "01_现金流.mp4")
   );
 });
 
