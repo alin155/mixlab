@@ -9,7 +9,8 @@ import {
   createCutterApiClient,
   type CutterLoginApplication,
   type CutterLoginStatus,
-  type CutterLoginStatusValue
+  type CutterLoginStatusValue,
+  type CutterRuntimeStatus
 } from "../api.ts";
 import {
   createFixtureCutterApiClient,
@@ -184,6 +185,20 @@ export function shouldShowLoginGate(
   _options: { desktopTrusted?: boolean } = {}
 ): boolean {
   return apiMode && status !== "approved";
+}
+
+export function shouldLoadWorkbenchData(input: {
+  desktopSetupReady: boolean;
+  loginGateVisible: boolean;
+}): boolean {
+  return input.desktopSetupReady && !input.loginGateVisible;
+}
+
+export function shouldClearFixtureDataForRuntime(input: {
+  apiMode: boolean;
+  runtimeMode?: CutterRuntimeStatus["mode"];
+}): boolean {
+  return input.apiMode && input.runtimeMode === "fixture";
 }
 
 export function shouldRefreshCutQueueForRoute(input: {
@@ -1453,7 +1468,12 @@ export function CutterApp() {
   useEffect(() => {
     let cancelled = false;
 
-    if (loginGateVisible) {
+    if (
+      !shouldLoadWorkbenchData({
+        desktopSetupReady,
+        loginGateVisible
+      })
+    ) {
       return;
     }
 
@@ -1475,7 +1495,19 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, loginGateVisible, selectedSourceVideoId]);
+  }, [client, desktopSetupReady, loginGateVisible, selectedSourceVideoId]);
+
+  useEffect(() => {
+    setData((current) =>
+      current &&
+      shouldClearFixtureDataForRuntime({
+        apiMode,
+        runtimeMode: current.runtimeStatus.mode
+      })
+        ? null
+        : current
+    );
+  }, [apiMode]);
 
   const locatorHitTargets = useMemo(
     () =>

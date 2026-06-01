@@ -59,10 +59,12 @@ import {
   shouldPollPendingLogin,
   shouldRefreshCutQueueForRoute,
   shouldRetryPendingLoginError,
+  shouldClearFixtureDataForRuntime,
   shouldShowCutterToolbar,
   CutterProjectSwitcher,
   CutterSidebarFooter,
   CutterApp,
+  shouldLoadWorkbenchData,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
 import {
@@ -1848,6 +1850,54 @@ test("pending login approval polling runs only while API mode is waiting for a s
       apiMode: true,
       authSession: null,
       pendingLogin: null
+    }),
+    false
+  );
+});
+
+test("desktop workbench data waits for setup and login before loading", () => {
+  assert.equal(
+    shouldLoadWorkbenchData({
+      desktopSetupReady: false,
+      loginGateVisible: false
+    }),
+    false
+  );
+  assert.equal(
+    shouldLoadWorkbenchData({
+      desktopSetupReady: true,
+      loginGateVisible: true
+    }),
+    false
+  );
+  assert.equal(
+    shouldLoadWorkbenchData({
+      desktopSetupReady: true,
+      loginGateVisible: false
+    }),
+    true
+  );
+});
+
+test("desktop runtime clears fixture data when the real API becomes available", () => {
+  assert.equal(
+    shouldClearFixtureDataForRuntime({
+      apiMode: true,
+      runtimeMode: "fixture"
+    }),
+    true
+  );
+  assert.equal(
+    shouldClearFixtureDataForRuntime({
+      apiMode: true,
+      runtimeMode: "api"
+    }),
+    false
+  );
+  assert.equal(
+    shouldClearFixtureDataForRuntime({
+      apiMode: false,
+      runtimeMode: "fixture"
     }),
     false
   );
