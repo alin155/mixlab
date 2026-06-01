@@ -48,6 +48,35 @@ test("runtime API base URL keeps web env behavior and overrides only inside desk
   );
 });
 
+test("runtime API base URL uses same-origin cutter engine pages as real API mode", () => {
+  assert.equal(
+    resolveRuntimeApiBaseUrl({
+      vite_api_base_url: "",
+      global_like: {},
+      location_origin: "http://127.0.0.1:3789"
+    }),
+    "http://127.0.0.1:3789"
+  );
+
+  assert.equal(
+    resolveRuntimeApiBaseUrl({
+      vite_api_base_url: "",
+      global_like: {},
+      location_origin: "http://localhost:3789"
+    }),
+    "http://localhost:3789"
+  );
+
+  assert.equal(
+    resolveRuntimeApiBaseUrl({
+      vite_api_base_url: "",
+      global_like: {},
+      location_origin: "http://127.0.0.1:5173"
+    }),
+    ""
+  );
+});
+
 test("desktop engine readiness waits for health endpoint success", async () => {
   const requestedUrls: string[] = [];
   const statuses = [false, true];

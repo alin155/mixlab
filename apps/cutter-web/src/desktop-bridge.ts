@@ -77,9 +77,33 @@ export function resolveDesktopBridgeEnvironment(
 export function resolveRuntimeApiBaseUrl(input: {
   vite_api_base_url?: string;
   global_like?: DesktopBridgeGlobalLike;
+  location_origin?: string;
 }): string {
   const desktop = resolveDesktopBridgeEnvironment(input.global_like);
-  return desktop.desktop_available ? desktop.api_base_url : input.vite_api_base_url ?? "";
+  if (desktop.desktop_available) {
+    return desktop.api_base_url;
+  }
+
+  const sameOriginApiBaseUrl = resolveSameOriginCutterApiBaseUrl(input.location_origin);
+  if (sameOriginApiBaseUrl) {
+    return sameOriginApiBaseUrl;
+  }
+
+  return input.vite_api_base_url ?? "";
+}
+
+function resolveSameOriginCutterApiBaseUrl(locationOrigin = globalThis.location?.origin ?? ""): string {
+  if (!locationOrigin) {
+    return "";
+  }
+
+  try {
+    const url = new URL(locationOrigin);
+    const isLocalHost = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]";
+    return isLocalHost && url.port === "3789" ? url.origin : "";
+  } catch {
+    return "";
+  }
 }
 
 async function invokeDesktopCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
