@@ -95,7 +95,11 @@ export function buildCutterApiServerInputFromDesktopConfig(
 }
 
 function emitSidecarEvent(stdout: Pick<NodeJS.WriteStream, "write">, event: SidecarEvent): void {
-  stdout.write(`${JSON.stringify(event)}\n`);
+  try {
+    stdout.write(`${JSON.stringify(event)}\n`);
+  } catch {
+    // Windows GUI-subsystem packaged executables may not have a writable console stream.
+  }
 }
 
 async function appendSidecarEventLog(config: CutterDesktopConfig, event: SidecarEvent): Promise<void> {

@@ -129,6 +129,44 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
   assert.equal(fakeServer.closed, true);
 });
 
+test("starts cutter API sidecar when packaged GUI stdout is unavailable", async () => {
+  const fakeServer = new FakeServer();
+  const logged: unknown[] = [];
+  const result = await startCutterApiSidecar({
+    config_path: String.raw`C:\MixLab\desktop-config.json`,
+    read_config: async () => ({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`D:\MixLabPublicLibrary`,
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    }),
+    create_server: () => fakeServer as unknown as Server,
+    log_event: (event) => {
+      logged.push(event);
+    },
+    stdout: {
+      write() {
+        throw new Error("stdout unavailable");
+      }
+    }
+  });
+
+  assert.equal(fakeServer.listenHost, "127.0.0.1");
+  assert.equal(fakeServer.listenPort, 3789);
+  assert.deepEqual(logged, [
+    { event: "starting", stage: "sidecar_startup" },
+    { event: "ready", api_address: "http://127.0.0.1:3789" }
+  ]);
+
+  await result.stop();
+  assert.equal(fakeServer.closed, true);
+  assert.deepEqual(logged, [
+    { event: "starting", stage: "sidecar_startup" },
+    { event: "ready", api_address: "http://127.0.0.1:3789" },
+    { event: "stopping" }
+  ]);
+});
+
 test("logs sidecar failure after config has been loaded", async () => {
   const stdout = makeWritable();
   const logged: unknown[] = [];
