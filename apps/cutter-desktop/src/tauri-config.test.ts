@@ -13,7 +13,7 @@ async function readJson(relativePath: string) {
 test("cutter desktop package exposes Windows desktop scripts only", async () => {
   const packageJson = await readJson("package.json");
   assert.equal(packageJson.name, "@mixlab/cutter-desktop");
-  assert.equal(packageJson.version, "0.18.6");
+  assert.equal(packageJson.version, "0.18.7");
   assert.deepEqual(Object.keys(packageJson.scripts as Record<string, string>).sort(), [
     "build:sidecar",
     "build:web",
@@ -25,7 +25,7 @@ test("cutter desktop package exposes Windows desktop scripts only", async () => 
 
 test("tauri config embeds cutter web dist and Windows exe installer target", async () => {
   const config = await readJson("src-tauri/tauri.conf.json");
-  assert.equal(config.version, "0.18.6");
+  assert.equal(config.version, "0.18.7");
   assert.equal((config.build as Record<string, unknown>).frontendDist, "../../cutter-web/dist");
   assert.equal((config.build as Record<string, unknown>).beforeBuildCommand, undefined);
 
@@ -49,6 +49,7 @@ test("tauri config embeds cutter web dist and Windows exe installer target", asy
   const nsis = windows.nsis as Record<string, unknown>;
   assert.equal(nsis.installerIcon, "icons/icon.ico");
   assert.equal(nsis.uninstallerIcon, "icons/icon.ico");
+  assert.equal(nsis.installerHooks, "./windows/installer-hooks.nsh");
 });
 
 test("Windows installer icon asset is present for tauri-build", async () => {
@@ -68,6 +69,15 @@ test("Windows app icon png assets are present for executable and shortcut resour
     const icon = await readFile(path.join(appRoot, relativePath));
     assert.equal(icon.subarray(1, 4).toString("ascii"), "PNG");
   }
+});
+
+test("Windows installer stops old cutter processes before replacing sidecar binaries", async () => {
+  const hooks = await readFile(path.join(appRoot, "src-tauri/windows/installer-hooks.nsh"), "utf8");
+
+  assert.match(hooks, /NSIS_HOOK_PREINSTALL/);
+  assert.match(hooks, /taskkill \/F \/T \/IM "\$\{_PROCESS_NAME\}"/);
+  assert.match(hooks, /!insertmacro _MIXLAB_STOP_PROCESS "MixLab Cutter\.exe"/);
+  assert.match(hooks, /!insertmacro _MIXLAB_STOP_PROCESS "cutter-api-sidecar-x86_64-pc-windows-msvc\.exe"/);
 });
 
 test("Windows desktop host is GUI-subsystem and owns sidecar and directory process launches", async () => {
