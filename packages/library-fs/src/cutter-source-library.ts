@@ -1,8 +1,11 @@
-import { readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   isVideoVisibleToCutters,
   validateSourceVideoManifest,
+  type IndexPackageManifest,
   type SourceVideoManifest,
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
@@ -134,6 +137,31 @@ async function readTranscriptCharacterCount(
   return compactCharacterCount(transcript.full_text);
 }
 
+async function readCurrentIndexPackageManifest(
+  libraryRoot: string
+): Promise<IndexPackageManifest> {
+  const currentPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "indexes",
+    "source-transcript-index",
+    "current.json"
+  );
+  const pointer = JSON.parse(await readFile(currentPath, "utf8")) as {
+    current_version: string;
+  };
+  const manifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "indexes",
+    "source-transcript-index",
+    pointer.current_version,
+    "index-manifest.json"
+  );
+
+  return JSON.parse(await readFile(manifestPath, "utf8")) as IndexPackageManifest;
+}
+
 async function toCutterSourceVideoCard(
   libraryRoot: string,
   manifest: SourceVideoManifest
@@ -153,6 +181,28 @@ async function toCutterSourceVideoCard(
     cover_path: manifest.cover_path,
     cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path)
   };
+}
+
+function isCutterReadyManifestRecord(manifest: SourceVideoManifest): boolean {
+  return isVideoVisibleToCutters(manifest) && validateSourceVideoManifest(manifest).ok;
+}
+
+async function readIndexedReadySourceVideoManifests(
+  libraryRoot: string
+): Promise<SourceVideoManifest[]> {
+  const indexManifest = await readCurrentIndexPackageManifest(libraryRoot);
+  const records = await Promise.all(
+    indexManifest.source_video_ids.map(async (sourceVideoId) => {
+      try {
+        const manifest = await readSourceVideoManifest(libraryRoot, sourceVideoId);
+        return isCutterReadyManifestRecord(manifest) ? manifest : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return records.filter((manifest): manifest is SourceVideoManifest => Boolean(manifest));
 }
 
 async function readVisibleSourceVideoManifests(
@@ -192,8 +242,101 @@ async function resolveCurrentSourceTranscriptIndexFilePath(
     "index.sqlite"
   );
 
-  await stat(indexFilePath);
-  return indexFilePath;
+  return cachedSqliteIndexFilePath(libraryRoot, pointer.current_version, indexFilePath);
+}
+
+function cacheKeyForLibraryRoot(libraryRoot: string): string {
+  return createHash("sha1").update(path.resolve(libraryRoot)).digest("hex");
+}
+
+async function cachedSqliteIndexFilePath(
+  libraryRoot: string,
+  indexVersion: string,
+  sourceIndexFilePath: string
+): Promise<string> {
+  const sourceStat = await stat(sourceIndexFilePath);
+  const cacheDir = path.join(
+    os.tmpdir(),
+    "mixlab-cutter-index-cache",
+    cacheKeyForLibraryRoot(libraryRoot),
+    indexVersion
+  );
+  const cacheFilePath = path.join(cacheDir, "index.sqlite");
+
+  try {
+    const cacheStat = await stat(cacheFilePath);
+
+    if (cacheStat.size === sourceStat.size) {
+      await pruneSqliteIndexCache(path.dirname(cacheDir), indexVersion);
+      return cacheFilePath;
+    }
+  } catch {
+    // Cache miss; copy the immutable index package locally.
+  }
+
+  await mkdir(cacheDir, { recursive: true });
+  const tempFilePath = path.join(
+    cacheDir,
+    `index.sqlite.${process.pid}.${Date.now()}.tmp`
+  );
+
+  try {
+    await copyFile(sourceIndexFilePath, tempFilePath);
+    await rename(tempFilePath, cacheFilePath);
+  } catch (error) {
+    await rm(tempFilePath, { force: true });
+    throw error;
+  }
+
+  await pruneSqliteIndexCache(path.dirname(cacheDir), indexVersion);
+  return cacheFilePath;
+}
+
+async function pruneSqliteIndexCache(
+  libraryCacheRoot: string,
+  currentIndexVersion: string
+): Promise<void> {
+  const maxCachedVersions = 3;
+
+  let entries: Array<{ name: string; mtimeMs: number }> = [];
+  try {
+    const dirents = await readdir(libraryCacheRoot, { withFileTypes: true });
+    entries = await Promise.all(
+      dirents
+        .filter((dirent) => dirent.isDirectory())
+        .map(async (dirent) => {
+          const entryPath = path.join(libraryCacheRoot, dirent.name);
+          try {
+            return {
+              name: dirent.name,
+              mtimeMs: (await stat(entryPath)).mtimeMs
+            };
+          } catch {
+            return {
+              name: dirent.name,
+              mtimeMs: 0
+            };
+          }
+        })
+    );
+  } catch {
+    return;
+  }
+
+  const removable = entries
+    .filter((entry) => entry.name !== currentIndexVersion)
+    .sort((left, right) => right.mtimeMs - left.mtimeMs)
+    .slice(Math.max(0, maxCachedVersions - 1));
+
+  await Promise.all(
+    removable.map(async (entry) => {
+      try {
+        await rm(path.join(libraryCacheRoot, entry.name), { recursive: true, force: true });
+      } catch {
+        // A concurrent search may still be reading this cache on some platforms.
+      }
+    })
+  );
 }
 
 function shouldFallbackToTranscriptArtifactSearch(error: unknown): boolean {
@@ -245,8 +388,16 @@ async function isCutterReadableReadyManifest(
 export async function listCutterSourceLibrary(
   input: ListCutterSourceLibraryInput
 ): Promise<CutterSourceLibraryView> {
+  let readyManifests: SourceVideoManifest[];
+
+  try {
+    readyManifests = await readIndexedReadySourceVideoManifests(input.library_root);
+  } catch {
+    readyManifests = await readVisibleSourceVideoManifests(input.library_root);
+  }
+
   const videos = await Promise.all(
-    (await readVisibleSourceVideoManifests(input.library_root)).map((manifest) =>
+    readyManifests.map((manifest) =>
       toCutterSourceVideoCard(input.library_root, manifest)
     )
   );
@@ -288,16 +439,6 @@ export async function getCutterSourceVideoDetail(
 export async function searchCutterSourceLibrary(
   input: SearchCutterSourceLibraryInput
 ): Promise<CutterSourceLibrarySearchResult> {
-  const visibleManifests = await readVisibleSourceVideoManifests(input.library_root);
-  const cardsBySourceVideoId = new Map<string, CutterSourceVideoCard>();
-  const manifestsBySourceVideoId = new Map<string, SourceVideoManifest>();
-
-  for (const manifest of visibleManifests) {
-    const card = await toCutterSourceVideoCard(input.library_root, manifest);
-    cardsBySourceVideoId.set(manifest.source_video_id, card);
-    manifestsBySourceVideoId.set(manifest.source_video_id, manifest);
-  }
-
   let result: {
     query: string;
     normalized_query: string;
@@ -315,6 +456,7 @@ export async function searchCutterSourceLibrary(
       throw error;
     }
 
+    const visibleManifests = await readVisibleSourceVideoManifests(input.library_root);
     const searchableVideos = [];
 
     for (const manifest of visibleManifests) {
@@ -336,37 +478,32 @@ export async function searchCutterSourceLibrary(
     });
   }
 
-  const transcriptCharacterCounts = new Map(
-    await Promise.all(
-      result.groups.map(async (group) => {
-        const manifest = manifestsBySourceVideoId.get(group.source_video_id);
-        const count = manifest
-          ? await readTranscriptCharacterCount(input.library_root, manifest)
-          : group.hit_segments.reduce((sum, segment) => sum + compactCharacterCount(segment.text), 0);
-
-        return [group.source_video_id, count] as const;
-      })
-    )
-  );
-
   return {
     query: result.query,
     normalized_query: result.normalized_query,
-    groups: result.groups.flatMap((group) => {
-      const card = cardsBySourceVideoId.get(group.source_video_id);
+    groups: (await Promise.all(
+      result.groups.map(async (group) => {
+        try {
+          const manifest = await readSourceVideoManifest(input.library_root, group.source_video_id);
 
-      if (!card) {
-        return [];
-      }
+          if (!(await isCutterReadableReadyManifest(input.library_root, manifest))) {
+            return null;
+          }
 
-      return [{
-        ...group,
-        relative_path: card.relative_path,
-        source_video_file_path: card.source_video_file_path,
-        cover_path: card.cover_path,
-        cover_file_path: card.cover_file_path,
-        transcript_character_count: transcriptCharacterCounts.get(group.source_video_id) ?? 0
-      }];
-    }).slice(0, input.limit)
+          const card = await toCutterSourceVideoCard(input.library_root, manifest);
+
+          return {
+            ...group,
+            relative_path: card.relative_path,
+            source_video_file_path: card.source_video_file_path,
+            cover_path: card.cover_path,
+            cover_file_path: card.cover_file_path,
+            transcript_character_count: await readTranscriptCharacterCount(input.library_root, manifest)
+          };
+        } catch {
+          return null;
+        }
+      })
+    )).filter((group): group is CutterSourceLibrarySearchGroup => Boolean(group)).slice(0, input.limit)
   };
 }

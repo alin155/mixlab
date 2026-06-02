@@ -870,6 +870,57 @@ async function readLibraryId(libraryRoot: string): Promise<string> {
   return "local-library";
 }
 
+async function readReadyVideoCount(libraryRoot: string): Promise<number> {
+  try {
+    const current = JSON.parse(
+      await readFile(
+        path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index", "current.json"),
+        "utf8"
+      )
+    ) as { current_version?: unknown };
+
+    if (typeof current.current_version === "string" && current.current_version.trim()) {
+      const manifest = JSON.parse(
+        await readFile(
+          path.join(
+            libraryRoot,
+            ".mixlab-library",
+            "indexes",
+            "source-transcript-index",
+            current.current_version,
+            "index-manifest.json"
+          ),
+          "utf8"
+        )
+      ) as { ready_video_count?: unknown; source_video_ids?: unknown };
+
+      if (typeof manifest.ready_video_count === "number") {
+        return manifest.ready_video_count;
+      }
+
+      if (Array.isArray(manifest.source_video_ids)) {
+        return manifest.source_video_ids.length;
+      }
+    }
+  } catch {
+    // Fall through to library.json for older or partially built libraries.
+  }
+
+  try {
+    const library = JSON.parse(
+      await readFile(path.join(libraryRoot, ".mixlab-library", "library.json"), "utf8")
+    ) as { ready_video_count?: unknown };
+
+    if (typeof library.ready_video_count === "number") {
+      return library.ready_video_count;
+    }
+  } catch {
+    // A hand-built fixture may not have library.json.
+  }
+
+  return 0;
+}
+
 function pathLabel(filePath: string | undefined, fallback: string): string {
   if (!filePath) {
     return fallback;
@@ -882,9 +933,6 @@ async function runtimeStatusForSession(input: {
   api_input: CreateCutterApiServerInput;
   auth: AuthenticatedCutterSession;
 }): Promise<CutterRuntimeStatusPayload> {
-  const library = await listCutterSourceLibrary({
-    library_root: input.api_input.library_root
-  });
   const localClips = input.api_input.workspace_root
     ? await listExportClips({ workspace_root: input.api_input.workspace_root })
     : await listLocalClips({ library_root: input.api_input.library_root });
@@ -909,7 +957,7 @@ async function runtimeStatusForSession(input: {
     generated_at: input.api_input.now?.() ?? new Date().toISOString(),
     library_id: await readLibraryId(input.api_input.library_root),
     library_root_label: pathLabel(input.api_input.library_root, "公共素材库"),
-    available_video_count: library.available_video_count,
+    available_video_count: await readReadyVideoCount(input.api_input.library_root),
     workspace_enabled: Boolean(input.api_input.workspace_root),
     workspace_root_label: pathLabel(input.api_input.workspace_root, "未启用本地剪切工作区"),
     local_clip_count: localClips.local_clip_count,

@@ -1,44 +1,75 @@
 # Current Task
 
 ## Task Goal
-继续推进 MixLab V3 剪辑端项目层、素材定位、剪切任务与项目内数据收束的产品和工程落地。
+
+完成当前 Mac 到新 Mac 的 Codex 开发接力准备，并保持 MixLab V3 当前 M19/M18 状态可被新设备准确继承。
+
+当前技术焦点：
+
+- 本地 Web 连接 NAS 真实预处理公共素材库。
+- 避免大素材量加载时剪辑端误显示演示数据。
+- 优化 NAS SQLite 索引读取和搜索性能。
+- 保持 Windows 桌面端、Web 调试端、NAS Docker 管理端架构边界清晰。
 
 ## Non-goals
-- 不修改无关业务模块。
-- 不改变管理端既有稳定功能，除非当前任务明确需要。
-- 不改动用户本地素材、公共素材库原视频或已生成媒体资产。
+
+- 不把真实密钥、NAS 密码、阿里云百炼 Key、GitHub Token 写入仓库。
+- 不迁移 Codex 聊天记录本身。
+- 不修改 NAS 公共素材库原视频。
+- 不在迁移准备阶段重新设计注册/审核、自动更新等后续产品功能。
 
 ## Allowed Change Scope
+
+- `.codex-context/`
+- `docs/deployment/`
 - `apps/cutter-web/`
 - `packages/cutter-api/`
-- `docs/`
-- 与当前剪辑端项目层、搜索定位、剪切队列、项目数据归属相关的测试文件。
+- `packages/library-fs/`
+- 与上述改动相关的测试文件。
 
 ## Disallowed Change Scope
-- 未确认的外部素材库数据。
-- 用户本地视频素材。
-- 与当前任务无关的全局配置。
+
+- 用户 NAS 原视频和已生成素材。
+- 真实私密凭据。
+- 与迁移、M19 架构优化无关的全局业务模块。
 
 ## Done When
-- 剪辑端项目层、搜索定位、剪切任务页面行为符合当前讨论结论。
-- 项目内搜索词和剪切任务归属清晰。
-- 核心测试通过。
-- 用户可以在浏览器中测试对应流程。
+
+- 新 Mac 接力文档已提交。
+- 敏感配置模板已提交，真实凭据不入库。
+- `.codex-context` 更新到当前 M19/M18 状态。
+- 当前源码改动已验证、提交并推送到 GitHub。
+- 用户拿到另一台 Mac 的接力操作步骤。
 
 ## Validation
-- `pnpm --filter @mixlab/cutter-web test`
-- 必要时运行相关 API 测试。
-- 浏览器验证 `#project-home`、`#material-locator`、`#cut-tasks`。
+
+优先运行最近改动相关测试：
+
+```bash
+node --test --import tsx packages/library-fs/src/cutter-source-library.test.ts packages/search-sqlite/src/index.test.ts packages/cutter-api/src/index.test.ts
+node --test --import tsx apps/cutter-web/src/api.test.ts apps/cutter-web/src/cutter-app.test.ts
+```
+
+必要时运行：
+
+```bash
+npm run typecheck
+npm test
+```
 
 ## Current Plan
-1. 修复项目切换器“回到启动页”的无项目状态。
-2. 修复从启动页进入素材定位后剪切队列加载当前项目任务。
-3. 优化最近项目卡片：单击选中，卡片内显示“进入项目”，右侧项目详情随选中项目切换。
-4. 优化启动页搜索入口：突出搜索、收起选项、弱化说明文字。
-5. 优化素材定位页剪切队列：任务状态一行展示、更多剪切信息、更稳定的剪切命名规则。
-6. 排查加入剪切任务时 UI 是否被剪切 API 阻塞。
-7. 排查视频显示时长与真实视频时长不匹配、项目已剪片段数与真实数据不符。
-8. 运行测试并交给用户浏览器测试。
+
+1. 补充 `docs/deployment/migration-secrets-template.md`。
+2. 补充 `docs/deployment/new-mac-codex-handoff.md`。
+3. 更新 `.codex-context/PROJECT.md`、`TASK.md`、`HANDOFF.md`、`CHECKPOINT.md`。
+4. 确认未跟踪临时目录不会被误提交。
+5. 运行相关测试。
+6. 提交并推送迁移准备版本。
+7. 向用户给出新 Mac 接力步骤。
 
 ## Progress
-已完成项目层基础保存点提交：`ca2719a chore: checkpoint cutter project handoff`。
+
+- M18 Windows 剪辑端已经形成可安装 exe 路线，修复过黑窗口、桌面图标、sidecar 启动、日志目录等问题。
+- M19 NAS Docker 管理端已经能在 NAS 上运行，管理端可读取和预处理公共素材库。
+- 当前本地 Web 已能连接 NAS 真实预处理公共素材库。
+- 最近架构优化已让剪辑端启动阶段不再强制加载完整公共素材库，搜索改为优先走 SQLite 索引并使用本地缓存。

@@ -1,78 +1,136 @@
 # Handoff
 
 ## Task Goal
-继续推进 MixLab V3 剪辑端项目层、素材定位、剪切任务与项目内数据收束的产品和工程落地。
+
+继续推进 MixLab V3 的 M19 后架构收束与新 Mac Codex 接力。当前目标是让新设备能从 GitHub clone 后，准确继承当前代码、上下文、部署方式和待开发问题。
 
 ## Non-goals
-- 不修改无关业务模块。
-- 不改变管理端既有稳定功能，除非当前任务明确需要。
-- 不改动用户本地素材、公共素材库原视频或已生成媒体资产。
+
+- 不迁移真实密钥、NAS 密码、阿里云百炼 Key、GitHub Token 到 Git。
+- 不迁移旧 Codex 聊天记录本体。
+- 不修改 NAS 原视频或公共素材库媒体产物。
+- 不把 Windows 桌面端问题直接跳到打包阶段；优先在本地 Web/API 验证。
 
 ## Completed
-- 管理端已完成可用的公共素材库、预处理流水线、索引发布、用户审核和健康诊断主流程。
-- 剪辑端已完成登录申请/审核、公共素材库、本地素材库、素材定位、剪切任务、设置等基础页面。
-- 剪辑端素材定位页已形成“搜、选、剪”主工作台：搜索文案、候选素材、视频预览、自然文案、命中跳转、直接剪切。
-- 剪辑端搜索已支持中文标点归一、跨分段长句匹配、ASR 误差容错和全局命中导航。
-- 剪辑端已引入项目层：启动页、最近项目、项目切换器、首次剪切静默创建项目、搜索记录和剪切任务归属。
-- 当前保存点已提交到 Git，提交为 `ca2719a chore: checkpoint cutter project handoff`。
 
-## Modified Files
-- `.codex-context/`：项目接力上下文。
-- `docs/superpowers/plans/2026-05-05-cutter-project-scoped-cut-tasks.md`：项目内剪切任务收束计划。
-- `apps/cutter-web/src/app/CutterApp.tsx`：剪辑端主应用、路由、项目层、项目切换、搜索定位和剪切队列逻辑。
-- `apps/cutter-web/src/features/project-home/ProjectHomePage.tsx`：项目启动页和最近项目交互。
-- `apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx`：素材定位主工作台。
-- `apps/cutter-web/src/features/cut-queue/CutQueuePage.tsx`：剪切任务页面。
-- `apps/cutter-web/src/state/cutter-projects.ts`：项目状态、项目创建、搜索记录、剪切片段归属。
-- `apps/cutter-web/src/state/cut-queue.ts`：剪切队列状态和 API 映射。
-- `packages/cutter-api/src/index.ts`：剪辑端 API。
-- 相关测试文件：`apps/cutter-web/src/cutter-app.test.ts`、`apps/cutter-web/src/cutter-state.test.ts`、`packages/cutter-api/src/index.test.ts`。
+- M18 Windows 剪辑端：
+  - 已建立 exe 打包路径。
+  - 修复过黑窗口、桌面图标、sidecar 资源查找、安装覆盖锁、日志目录等问题。
+  - 当前原则：Web 端先验证业务逻辑，再打包 Windows 桌面端。
+- M19 NAS Docker：
+  - 已形成 NAS Docker 管理端部署方案。
+  - 管理端可在 NAS 上运行，访问入口曾使用 `http://192.168.1.27:18080`。
+  - NAS 公共素材库目录约定为 `MixLab/PublicLibrary`。
+  - 管理端预处理后发布 `.mixlab-library/indexes/source-transcript-index/current.json`。
+- 本地 Web 连接 NAS 真实库：
+  - Cutter API 可通过 `MIXLAB_CUTTER_LIBRARY_ROOT=/Volumes/MixLab/PublicLibrary` 连接 NAS 挂载目录。
+  - 本地 Web 可进入真实 Cutter API 模式。
+  - 当前用户应显示 Allen，不应显示演示剪辑师。
+- 最近架构优化：
+  - 启动页、素材定位页、剪切任务页不再启动时拉完整公共素材库。
+  - `/cutter/runtime-status` 直接读取索引摘要。
+  - `listCutterSourceLibrary()` 优先使用 ready index manifest。
+  - `searchCutterSourceLibrary()` 优先查询 SQLite，再 hydrate 命中素材。
+  - SQLite 索引从 NAS 复制到本机临时缓存后查询。
+  - 本机索引缓存自动清理，只保留当前版本和最近 2 个旧版本。
 
-## Current Problems
-- 用户最新反馈还未完成落地：
-  - 从启动页进入素材定位页后，右侧剪切队列没有加载当前项目任务。
-  - 点击项目切换器“回到启动页”后仍显示旧项目名；启动页应进入无项目状态，搜索应创建新项目。
-  - 最近项目卡片应单击选中并更新右侧项目详情，选中卡片中间显示“进入项目”，而不是单击直接进入。
-  - 启动页搜索入口应更像首页搜索：居中、放大、突出应用 Logo 和搜索框。
-  - 素材定位页的剪切队列需要展示更多剪切信息，并使用更稳定的剪切命名规则，不应只用文案或导出 ID。
-  - 剪切队列状态四项应一排显示。
-  - 用户发现加入剪切任务时切换候选素材像卡住，需要排查是否 UI 等待剪切 API 导致交互阻塞。
-  - 用户标注过视频显示时长与真实视频时长不匹配、项目已剪片段数与真实数据不符，需要后续排查。
+## Current Modified Files Before Migration Commit
 
-## Commands and Results
-- `npm test`：415 个测试通过。
-- `npm run typecheck`：通过。
-- 保存点提交：`ca2719a chore: checkpoint cutter project handoff`。
+- `.gitignore`
+- `.codex-context/PROJECT.md`
+- `.codex-context/TASK.md`
+- `.codex-context/HANDOFF.md`
+- `.codex-context/CHECKPOINT.md`
+- `docs/deployment/migration-secrets-template.md`
+- `docs/deployment/new-mac-codex-handoff.md`
+- `apps/cutter-web/src/api.test.ts`
+- `apps/cutter-web/src/app/CutterApp.tsx`
+- `apps/cutter-web/src/fixture-client.ts`
+- `packages/cutter-api/src/index.ts`
+- `packages/library-fs/src/cutter-source-library.ts`
 
-## Next Step for New Thread
-1. 在 `/Users/allen/Documents/mixlab` 执行 `使用 $context-safe 接力`。
-2. 新线程先读取 `.codex-context/PROJECT.md`、`.codex-context/TASK.md`、`.codex-context/HANDOFF.md`。
-3. 检查 `git status --short` 和当前页面/服务状态。
-4. 先复述当前产品目标、已完成、待完成和下一步，等用户确认。
-5. 用户确认后，优先修复项目层与剪切任务最新反馈：项目队列加载、启动页无项目状态、项目卡片选择/进入、启动页搜索布局、剪切队列信息与命名。
+## Important Local Paths
 
-## Risks and Warnings
-- 接力后如果发现工作区有未提交业务改动，先读 `git diff --stat` 和相关源码，不要用 `git reset --hard`、`git checkout --` 清掉。
-- 不要重新实现已经落地的项目层、素材定位和搜索容错能力；应基于现有代码继续修补最新反馈。
-- 如果 `.codex-context` 与源码冲突，以源码为准；如果文档与测试结果冲突，以测试结果为准。
+- Repo: `/Users/allen/Documents/mixlab`
+- NAS public library mount on current Mac: `/Volumes/MixLab/PublicLibrary`
+- Local cutter workspace: `/Users/allen/Movies/MixLabLocal`
+- Cutter API: `http://127.0.0.1:3789`
+- Cutter Web: `http://127.0.0.1:5173`
+- Admin Web local dev: `http://127.0.0.1:5174`
 
-## Resume Prompt
+## Useful Commands
+
+Start local Cutter API connected to NAS:
+
+```bash
+MIXLAB_CUTTER_LIBRARY_ROOT="/Volumes/MixLab/PublicLibrary" \
+MIXLAB_CUTTER_WORKSPACE_ROOT="$HOME/Movies/MixLabLocal" \
+MIXLAB_CUTTER_API_HOST="127.0.0.1" \
+MIXLAB_CUTTER_API_PORT="3789" \
+npm run server:cutter-api
+```
+
+Start cutter-web:
+
+```bash
+cd apps/cutter-web
+VITE_MIXLAB_CUTTER_API_BASE_URL="http://127.0.0.1:3789" \
+../../node_modules/.bin/vite --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Run targeted verification:
+
+```bash
+node --test --import tsx packages/library-fs/src/cutter-source-library.test.ts packages/search-sqlite/src/index.test.ts packages/cutter-api/src/index.test.ts
+node --test --import tsx apps/cutter-web/src/api.test.ts apps/cutter-web/src/cutter-app.test.ts
+```
+
+## Current Problems / Open Items
+
+- 公共素材库完整图库页首次进入仍可能较慢，因为完整卡片列表仍要 hydrate 大量素材 manifest。
+- 下一步建议做轻量素材卡片索引或分页加载。
+- Windows 桌面端更新机制尚未正式落地；当前还是重新下载安装包。
+- 剪辑师注册/审核新模式还处于产品讨论阶段。
+- 长文案搜索已做过策略优化，但仍应在真实 NAS 索引上持续验证。
+
+## New Mac Resume Prompt
+
 ```markdown
-请使用 $context-safe 接力。
+使用 $context-safe 接力。
 
 如果无法识别 $context-safe，请先阅读：
 - .codex-context/PROJECT.md
 - .codex-context/TASK.md
 - .codex-context/HANDOFF.md
+- .codex-context/CHECKPOINT.md
+- docs/deployment/new-mac-codex-handoff.md
+- docs/deployment/m19-nas-docker.md
+- docs/deployment/migration-secrets-template.md
 
-然后请检查：
+然后检查：
 - 当前项目路径
 - 当前 Git 分支
 - git status --short
+- package.json scripts
+- 当前 M18/M19 状态
 
 先不要改代码。
-请先复述当前任务目标、非目标、已完成、待完成、下一步。
+请先用中文汇总：
+1. 当前项目目标
+2. 已完成阶段
+3. 当前架构
+4. 本地 Web、Windows 桌面端、NAS Docker 的关系
+5. 当前待解决问题
+6. 下一步推荐开发计划
+
 如果文档和代码冲突，以代码为准。
 如果文档和测试结果冲突，以测试结果为准。
-复述完停下来，等我确认。
 ```
+
+## Risks and Warnings
+
+- 不要提交真实凭据。
+- 不要删除或重建 NAS `.mixlab-library`，除非用户明确要求。
+- 不要用 `git reset --hard` 或 `git checkout --` 清理未确认改动。
+- 如果新 Mac 挂载路径不是 `/Volumes/MixLab/PublicLibrary`，用环境变量覆盖，不要硬编码。
+- 如果 Web 端显示演示数据，先检查 API 地址、登录会话、NAS 挂载和 `current.json`，不要先打包 Windows。

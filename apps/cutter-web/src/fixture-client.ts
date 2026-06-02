@@ -39,6 +39,7 @@ export interface CutterFixtureData {
 
 export interface LoadCutterWorkbenchDataOptions {
   preferredSourceVideoId?: string;
+  includeSourceLibrary?: boolean;
 }
 
 function cover(seed: string, tint: string): string {
@@ -715,24 +716,32 @@ export async function loadCutterWorkbenchData(
   client: CutterApiClient,
   options: LoadCutterWorkbenchDataOptions = {}
 ): Promise<CutterFixtureData> {
-  const [libraryResult, localClipsResult, runtimeStatusResult] = await Promise.all([
-    client.listSourceLibrary(),
+  const includeSourceLibrary = options.includeSourceLibrary ?? true;
+  const [localClipsResult, runtimeStatusResult, libraryResult] = await Promise.all([
     client.listLocalClips(),
-    client.getRuntimeStatus()
+    client.getRuntimeStatus(),
+    includeSourceLibrary ? client.listSourceLibrary() : Promise.resolve(undefined)
   ]);
+  const resolvedLibraryResult = libraryResult ?? {
+    library_id: runtimeStatusResult.library_id,
+    available_video_count: runtimeStatusResult.available_video_count,
+    videos: []
+  };
   const library = {
-    ...libraryResult,
-    videos: libraryResult.videos.map((video) => resolveSourceVideoCardUrls(client, video))
+    ...resolvedLibraryResult,
+    videos: resolvedLibraryResult.videos.map((video) => resolveSourceVideoCardUrls(client, video))
   };
   const localClips = {
     ...localClipsResult,
     clips: localClipsResult.clips.map((clip) => resolveLocalClipUrls(client, clip))
   };
   const primary =
-    libraryResult.videos.find((video) => video.source_video_id === options.preferredSourceVideoId) ??
-    libraryResult.videos[0];
+    resolvedLibraryResult.videos.find((video) => video.source_video_id === options.preferredSourceVideoId) ??
+    resolvedLibraryResult.videos[0];
 
-  const primaryDetailResult = primary
+  const primaryDetailResult = options.preferredSourceVideoId
+    ? await client.getSourceVideoDetail(options.preferredSourceVideoId)
+    : primary
     ? await client.getSourceVideoDetail(primary.source_video_id)
     : primaryDetail;
 

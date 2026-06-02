@@ -5,3 +5,10 @@ coverage/
 .env
 .env.local
 .worktrees/
+.codex-context/screenshots/
+.codex-context/screenshots-auth/
+.codex-context/PRIVATE-SECRETS.md
+.superpowers/
+UItest/
+reports/
+docs/deployment/secrets.private.md

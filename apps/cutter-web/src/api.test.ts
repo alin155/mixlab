@@ -423,6 +423,65 @@ test("workbench data loads preferred source video detail when route carries an i
   assert.equal(data.primaryDetail.title, "组织增长");
 });
 
+test("workbench data can defer the full source library for fast startup", async () => {
+  let sourceLibraryRequests = 0;
+  const client = {
+    async listSourceLibrary() {
+      sourceLibraryRequests += 1;
+      throw new Error("source library should be deferred");
+    },
+    async getSourceVideoDetail() {
+      throw new Error("source detail should be deferred when no source is preferred");
+    },
+    async searchSourceLibrary() {
+      return {
+        query: "",
+        normalized_query: "",
+        groups: []
+      };
+    },
+    async listLocalClips() {
+      return {
+        local_clip_count: 0,
+        clips: []
+      };
+    },
+    async getRuntimeStatus() {
+      return {
+        mode: "api",
+        mode_label: "真实 Cutter API 模式",
+        api_ready: true,
+        generated_at: "2026-05-04T10:00:00.000Z",
+        library_id: "lib_main_001",
+        library_root_label: "source-library",
+        available_video_count: 1372,
+        workspace_enabled: true,
+        workspace_root_label: "cutter-workspace",
+        local_clip_count: 0,
+        ffmpeg_status: "可用",
+        ffmpeg_source: "内置",
+        current_user: {
+          user_id: "CU000001",
+          username: "剪辑师A",
+          display_name: "剪辑师A"
+        }
+      };
+    },
+    resolveApiUrl(pathOrUrl: string) {
+      return pathOrUrl;
+    }
+  } as Partial<CutterApiClient> as CutterApiClient;
+
+  const data = await loadCutterWorkbenchData(client, {
+    includeSourceLibrary: false
+  });
+
+  assert.equal(sourceLibraryRequests, 0);
+  assert.equal(data.library.library_id, "lib_main_001");
+  assert.equal(data.library.available_video_count, 1372);
+  assert.deepEqual(data.library.videos, []);
+});
+
 test("creates local clips through cutter API", async () => {
   const client = createCutterApiClient({
     base_url: "http://127.0.0.1:3789",

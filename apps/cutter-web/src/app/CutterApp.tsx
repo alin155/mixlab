@@ -1478,7 +1478,8 @@ export function CutterApp() {
     }
 
     loadCutterWorkbenchData(client, {
-      preferredSourceVideoId: selectedSourceVideoId
+      preferredSourceVideoId: selectedSourceVideoId,
+      includeSourceLibrary: route === "public-library"
     })
       .then((result) => {
         if (!cancelled) {
@@ -1495,7 +1496,7 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, desktopSetupReady, loginGateVisible, selectedSourceVideoId]);
+  }, [client, desktopSetupReady, loginGateVisible, route, selectedSourceVideoId]);
 
   useEffect(() => {
     setData((current) =>
