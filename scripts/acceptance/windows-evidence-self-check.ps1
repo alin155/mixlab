@@ -350,7 +350,7 @@ if (-not (Test-Path -LiteralPath $EvidencePath)) {
 }
 
 $evidenceDir = Split-Path -Parent (Resolve-Path -LiteralPath $EvidencePath)
-$evidence = Get-Content -Raw -LiteralPath $EvidencePath | ConvertFrom-Json -Depth 100
+$evidence = Get-Content -Raw -LiteralPath $EvidencePath | ConvertFrom-Json
 $issues = [System.Collections.Generic.List[string]]::new()
 
 if ($evidence.acceptance_id -ne "ACC-008") {

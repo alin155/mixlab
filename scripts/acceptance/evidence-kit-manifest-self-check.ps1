@@ -47,7 +47,7 @@ if (-not (Test-Path -LiteralPath $manifestPath)) {
 }
 
 $issues = [System.Collections.Generic.List[string]]::new()
-$manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 100
+$manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
 
 if ($manifest.schema_version -ne 1) {
   Add-Issue $issues "MANIFEST.json schema_version must be 1"
