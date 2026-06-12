@@ -35,6 +35,7 @@ const MIN_TANTIVY_CANDIDATE_DOCS: usize = 400;
 const MAX_CANDIDATE_EVALUATION_WINDOW: usize = 400;
 const CANDIDATE_EVALUATION_MULTIPLIER: usize = 8;
 const SHORT_QUERY_CANDIDATE_EVALUATION_MULTIPLIER: usize = 2;
+const MIN_SHORT_QUERY_CANDIDATE_EVALUATION_WINDOW: usize = 80;
 const MAX_SHORT_QUERY_CANDIDATE_EVALUATION_WINDOW: usize = 80;
 const MAX_SUPPLEMENTAL_ANCHOR_CANDIDATES: usize = 8;
 const SUPPLEMENTAL_RECALL_MIN_QUERY_LENGTH: usize = 8;
@@ -1258,9 +1259,11 @@ fn search_candidate_videos(
 
 fn candidate_evaluation_limit(max_groups: usize, query_length: usize) -> usize {
     if query_length < SUPPLEMENTAL_RECALL_MIN_QUERY_LENGTH {
+        let capped_window = MAX_SHORT_QUERY_CANDIDATE_EVALUATION_WINDOW.max(max_groups);
         return max_groups
             .saturating_mul(SHORT_QUERY_CANDIDATE_EVALUATION_MULTIPLIER)
-            .min(MAX_SHORT_QUERY_CANDIDATE_EVALUATION_WINDOW)
+            .max(MIN_SHORT_QUERY_CANDIDATE_EVALUATION_WINDOW)
+            .min(capped_window)
             .max(max_groups);
     }
 
@@ -2508,6 +2511,36 @@ mod tests {
             full_ids
         );
         assert_eq!(full_ids, vec!["V000004", "V000003", "V000002", "V000001"]);
+    }
+
+    #[test]
+    fn short_query_candidate_window_keeps_high_ranked_late_candidates() {
+        let library = prepare_library(&[
+            ("V000001", "一号", "甲乙丙现金流丁", "甲乙丙现金流丁"),
+            ("V000002", "二号", "甲乙现金流丙丁", "甲乙现金流丙丁"),
+            ("V000003", "三号", "甲现金流乙丙丁", "甲现金流乙丙丁"),
+            ("V000004", "四号", "现金流甲乙丙丁", "现金流甲乙丙丁"),
+            ("V000005", "五号", "甲乙丙丁现金流", "甲乙丙丁现金流"),
+        ]);
+        let engine = SearchEngine::new(library.path().to_path_buf(), None);
+        let bundle = engine.ensure_bundle().unwrap();
+        let candidate_video_ids = vec![
+            "V000005".to_string(),
+            "V000001".to_string(),
+            "V000002".to_string(),
+            "V000003".to_string(),
+            "V000004".to_string(),
+        ];
+
+        let groups = search_candidate_videos(&bundle, &candidate_video_ids, "现金流", 2);
+
+        assert_eq!(
+            groups
+                .iter()
+                .map(|group| group.source_video_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["V000004", "V000003"]
+        );
     }
 
     #[test]
