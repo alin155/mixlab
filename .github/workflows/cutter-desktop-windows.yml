@@ -10,7 +10,11 @@ on:
       - "apps/cutter-desktop/**"
       - "apps/cutter-web/**"
       - "packages/**"
+      - "scripts/acceptance/**"
       - "scripts/desktop/**"
+      - "docs/acceptance/evidence/**"
+      - "docs/acceptance/m18-1-windows-cutter-desktop.md"
+      - "docs/acceptance/m18-3-github-actions-windows-package.md"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -57,6 +61,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Run searchd tests
+        run: npm run test:searchd
+
       - name: Run desktop packaging tests
         run: >
           node --test --import tsx
@@ -69,10 +76,42 @@ jobs:
       - name: Package Windows desktop installer
         run: npm run package:cutter-desktop:windows
 
+      - name: Capture installer evidence metadata
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "apps/cutter-desktop/src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
+          if ($null -eq $installer) {
+            throw "No Windows installer .exe was produced"
+          }
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "MIXLAB_WINDOWS_INSTALLER_FILE_NAME=$($installer.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MIXLAB_WINDOWS_INSTALLER_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Package target evidence kit
+        run: npm run package:evidence-kit
+
+      - name: Validate evidence kit manifest
+        run: npm run validate:evidence-kit-manifest
+
+      - name: Validate evidence kit draft metadata
+        run: npm run validate:evidence-kit-drafts
+
+      - name: Run packaged manifest self-check
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\dist\acceptance\mixlab-evidence-kit\evidence-kit-manifest-self-check.ps1 -KitDir .\dist\acceptance\mixlab-evidence-kit
+
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: mixlab-cutter-windows-exe
           path: apps/cutter-desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload target evidence kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-target-evidence-kit
+          path: dist/acceptance/mixlab-evidence-kit
           if-no-files-found: error
           retention-days: 14

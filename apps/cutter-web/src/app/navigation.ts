@@ -14,21 +14,22 @@ export interface CutterNavItem {
 }
 
 export const CUTTER_NAV_ITEMS: CutterNavItem[] = [
-  { route: "material-locator", label: "素材定位", icon: "search" },
-  { route: "cut-tasks", label: "剪切任务", icon: "queue" },
+  { route: "project-home", label: "首页", icon: "home" },
+  { route: "material-locator", label: "素材搜索", icon: "search" },
+  { route: "cut-tasks", label: "剪切任务", icon: "sliders" },
   { route: "local-library", label: "本地素材", icon: "folder" },
-  { route: "public-library", label: "公共素材库", icon: "archive" },
+  { route: "public-library", label: "公共素材库", icon: "database" },
   { route: "settings", label: "设置", icon: "settings" }
 ];
 
 export function routeToHash(route: CutterRoute): string {
-  return `#${route}`;
+  return `#/${route}`;
 }
 
 const SOURCE_VIDEO_HASH_ID_PATTERN = /^(?:V\d{6}|src-\d{3})$/;
 
 export function routeFromHash(hash: string): CutterRoute {
-  const route = hash.replace(/^#/, "").split(/[/?]/)[0];
+  const route = hash.replace(/^#\/?/, "").split(/[/?]/)[0];
   if (!route || route === "project-home") {
     return "project-home";
   }
@@ -45,7 +46,7 @@ export function routeFromHash(hash: string): CutterRoute {
 }
 
 export function sourceVideoIdFromHash(hash: string): string | undefined {
-  const match = /^#?source-detail\/([^/?#]+)/.exec(hash.trim());
+  const match = /^#?\/?source-detail\/([^/?#]+)/.exec(hash.trim());
   const sourceVideoId = match?.[1] ? decodeURIComponent(match[1]) : "";
 
   return SOURCE_VIDEO_HASH_ID_PATTERN.test(sourceVideoId) ? sourceVideoId : undefined;
@@ -67,10 +68,10 @@ export function searchQueryFromHash(hash: string): string {
 export function searchHash(query: string): string {
   const trimmed = query.trim();
   if (!trimmed) {
-    return "#material-locator";
+    return "#/material-locator";
   }
 
-  return `#material-locator?query=${encodeURIComponent(trimmed)}`;
+  return `#/material-locator?query=${encodeURIComponent(trimmed)}`;
 }
 
 export function sourceDetailHash(
@@ -85,7 +86,7 @@ export function sourceDetailHash(
     params.set("segments", options.segmentIds.join(","));
   }
   const query = params.toString();
-  return `#source-detail/${encodeURIComponent(sourceVideoId)}${query ? `?${query}` : ""}`;
+  return `#/source-detail/${encodeURIComponent(sourceVideoId)}${query ? `?${query}` : ""}`;
 }
 
 export function sourceDetailContextFromHash(hash: string): {
@@ -109,11 +110,11 @@ export function sourceDetailContextFromHash(hash: string): {
 
 export function routeTitle(route: CutterRoute): string {
   if (route === "project-home") {
-    return "启动页";
+    return "首页";
   }
   if (route === "source-detail") {
     return "原视频详情";
   }
 
-  return CUTTER_NAV_ITEMS.find((item) => item.route === route)?.label ?? "素材定位";
+  return CUTTER_NAV_ITEMS.find((item) => item.route === route)?.label ?? "素材搜索";
 }

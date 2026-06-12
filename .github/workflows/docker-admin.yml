@@ -11,6 +11,10 @@ on:
       - "apps/admin-api/**"
       - "packages/**"
       - "scripts/**"
+      - "deploy/nas/mixlab/**"
+      - "docs/acceptance/evidence/**"
+      - "docs/deployment/m19-nas-docker.md"
+      - "docs/spec-traceability.md"
       - "docker/**"
       - "package.json"
       - "package-lock.json"
@@ -26,6 +30,46 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run searchd tests
+        run: npm run test:searchd
+
+      - name: Verify evidence tooling
+        run: npm run test:acceptance-evidence
+
+      - name: Audit delivery readiness
+        run: npm run audit:delivery-readiness
+
+      - name: Package evidence kit
+        run: npm run package:evidence-kit
+
+      - name: Validate evidence kit manifest
+        run: npm run validate:evidence-kit-manifest
+
+      - name: Validate evidence kit draft metadata
+        run: npm run validate:evidence-kit-drafts
+
+      - name: Run packaged manifest self-check
+        run: sh dist/acceptance/mixlab-evidence-kit/evidence-kit-manifest-self-check.sh dist/acceptance/mixlab-evidence-kit
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -56,3 +100,11 @@ jobs:
           tags: |
             ghcr.io/alin155/mixlab-admin-web:latest
             ghcr.io/alin155/mixlab-admin-web:${{ github.sha }}
+
+      - name: Upload target evidence kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-target-evidence-kit
+          path: dist/acceptance/mixlab-evidence-kit
+          if-no-files-found: error
+          retention-days: 30

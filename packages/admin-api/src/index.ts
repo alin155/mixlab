@@ -1,5 +1,6 @@
-import { createReadStream } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import {
   createDashScopeTemporaryFileAudioUploader,
   createFetchDashScopeHttpClient,
@@ -7,6 +8,7 @@ import {
 } from "../../asr-core/src/index.ts";
 import {
   mkdir,
+  access,
   readFile,
   readdir,
   stat,
@@ -17,7 +19,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { cpus, freemem, loadavg, networkInterfaces, totalmem } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { runMixlabDoctor } from "../../doctor-core/src/index.ts";
+import { exportMixlabDoctorReport, runMixlabDoctor } from "../../doctor-core/src/index.ts";
 import {
   buildFfmpegCoverImagePlan,
   buildFfprobeSourceMetadataPlan,
@@ -25,6 +27,7 @@ import {
   resolveFfmpegRuntime
 } from "../../ffmpeg-core/src/index.ts";
 import {
+  appendPreprocessJobLog,
   addAdminSourceFolder,
   applyAdminRuntimeSecretsToEnv,
   approveCutterUser,
@@ -33,8 +36,11 @@ import {
   getFileIdentity,
   listCutterUsers,
   publishIndexRequiredSourceVideos,
+  preprocessJobLogPath,
   readAdminSettings,
   readAllSourceVideoManifests,
+  readPreprocessJobLog,
+  readSourceVideoManifest,
   readUsageMetrics,
   removeAdminSourceFolder,
   resolveSourceVideoFilePath,
@@ -49,7 +55,11 @@ import {
   type AdminSourceFolderPatch
 } from "../../library-fs/src/index.ts";
 import {
+  validateIndexCurrentPointer,
+  validateIndexPackageManifest,
   validateSourceVideoManifest,
+  type IndexCurrentPointer,
+  type IndexPackageManifest,
   type LibraryCounts,
   type PreprocessStatus,
   type SourceVideoManifest,
@@ -66,6 +76,7 @@ import {
   type PreprocessSupervisorRunner,
   type PreprocessSupervisorStatus
 } from "./preprocess-supervisor.ts";
+import { readSourceTranscriptSqliteIndexMetadata } from "../../search-sqlite/src/index.ts";
 
 export interface CreateAdminApiServerInput {
   library_root: string;
@@ -149,6 +160,7 @@ interface PreprocessJobsResponse {
     estimated_done_at: string;
     queue_position: number;
     log_path: string;
+    log_url: string;
     retryable: boolean;
     error_message?: string;
   }>;
@@ -182,6 +194,691 @@ const STATUS_ORDER: PreprocessStatus[] = [
   "ready",
   "unprocessed"
 ];
+
+const ADMIN_MANIFEST_CACHE_TTL_MS = 30_000;
+const ADMIN_MANIFEST_READ_CONCURRENCY = 24;
+const ADMIN_FILTERED_SCAN_BATCH_SIZE = ADMIN_MANIFEST_READ_CONCURRENCY * 4;
+const ADMIN_FILTERED_QUERY_SCAN_BATCH_LIMIT = 8;
+const ADMIN_FULL_TRANSCRIPT_METRICS_MAX_MANIFESTS = 100;
+const ADMIN_FULL_DASHBOARD_METRICS_MAX_MANIFESTS = 100;
+const ADMIN_ACTIVE_JOB_SYNC_SCAN_BATCH_LIMIT = 0;
+const ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_BATCH_SIZE = 12;
+const ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_PAUSE_MS = 20;
+const ADMIN_COVER_MAX_BYTES = 10 * 1024 * 1024;
+
+const ADMIN_COVER_CONTENT_TYPES: Record<string, {
+  extension: "jpg" | "png" | "webp";
+  content_type: "image/jpeg" | "image/png" | "image/webp";
+}> = {
+  "image/jpeg": { extension: "jpg", content_type: "image/jpeg" },
+  "image/jpg": { extension: "jpg", content_type: "image/jpeg" },
+  "image/png": { extension: "png", content_type: "image/png" },
+  "image/webp": { extension: "webp", content_type: "image/webp" }
+};
+
+const manifestCache = new Map<string, {
+  expires_at: number;
+  manifests: SourceVideoManifest[];
+  pending?: Promise<SourceVideoManifest[]>;
+}>();
+
+const sourceVideoIdsCache = new Map<string, {
+  expires_at: number;
+  source_video_ids: string[];
+  pending?: Promise<string[]>;
+}>();
+
+const activePreprocessManifestCache = new Map<string, {
+  expires_at: number;
+  manifests: SourceVideoManifest[];
+  pending?: Promise<SourceVideoManifest[]>;
+}>();
+
+function readFreshCachedSourceVideoManifests(libraryRoot: string): SourceVideoManifest[] | null {
+  const cached = manifestCache.get(libraryRoot);
+  return cached && !cached.pending && cached.expires_at > Date.now()
+    ? cached.manifests
+    : null;
+}
+
+async function readCachedSourceVideoManifests(libraryRoot: string): Promise<SourceVideoManifest[]> {
+  const nowMs = Date.now();
+  const cached = manifestCache.get(libraryRoot);
+
+  if (cached?.pending) {
+    return cached.pending;
+  }
+
+  if (cached && cached.expires_at > nowMs) {
+    return cached.manifests;
+  }
+
+  const pending = readAllAdminSourceVideoManifests(libraryRoot)
+    .then((manifests) => {
+      manifestCache.set(libraryRoot, {
+        expires_at: Date.now() + ADMIN_MANIFEST_CACHE_TTL_MS,
+        manifests
+      });
+      return manifests;
+    })
+    .catch((error) => {
+      manifestCache.delete(libraryRoot);
+      throw error;
+    });
+
+  manifestCache.set(libraryRoot, {
+    expires_at: 0,
+    manifests: cached?.manifests ?? [],
+    pending
+  });
+
+  return pending;
+}
+
+async function readSortedSourceVideoIdsFromDisk(libraryRoot: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(videosRoot(libraryRoot), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((sourceVideoId) => /^V\d{6}$/.test(sourceVideoId))
+    .sort((left, right) => numericSourceVideoId(left) - numericSourceVideoId(right));
+}
+
+async function readSortedSourceVideoIds(libraryRoot: string): Promise<string[]> {
+  const nowMs = Date.now();
+  const cached = sourceVideoIdsCache.get(libraryRoot);
+
+  if (cached?.pending) {
+    return cached.pending;
+  }
+
+  if (cached && cached.expires_at > nowMs) {
+    return cached.source_video_ids;
+  }
+
+  const pending = readSortedSourceVideoIdsFromDisk(libraryRoot)
+    .then((sourceVideoIds) => {
+      sourceVideoIdsCache.set(libraryRoot, {
+        expires_at: Date.now() + ADMIN_MANIFEST_CACHE_TTL_MS,
+        source_video_ids: sourceVideoIds
+      });
+      return sourceVideoIds;
+    })
+    .catch((error) => {
+      sourceVideoIdsCache.delete(libraryRoot);
+      throw error;
+    });
+
+  sourceVideoIdsCache.set(libraryRoot, {
+    expires_at: 0,
+    source_video_ids: cached?.source_video_ids ?? [],
+    pending
+  });
+
+  return pending;
+}
+
+async function readAdminSourceVideoManifestsByIds(input: {
+  library_root: string;
+  source_video_ids: string[];
+}): Promise<SourceVideoManifest[]> {
+  const manifests: SourceVideoManifest[] = [];
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < input.source_video_ids.length) {
+      const sourceVideoId = input.source_video_ids[nextIndex];
+      nextIndex += 1;
+
+      if (!sourceVideoId) {
+        continue;
+      }
+
+      try {
+        manifests.push(await readSourceVideoManifest(input.library_root, sourceVideoId));
+      } catch {
+        // Malformed manifests are reported by Doctor; list views skip them.
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({
+      length: Math.min(ADMIN_MANIFEST_READ_CONCURRENCY, input.source_video_ids.length)
+    }, () => worker())
+  );
+
+  return manifests.sort(
+    (left, right) =>
+      numericSourceVideoId(left.source_video_id) - numericSourceVideoId(right.source_video_id)
+  );
+}
+
+async function readAllAdminSourceVideoManifests(libraryRoot: string): Promise<SourceVideoManifest[]> {
+  const sourceVideoIds = await readSortedSourceVideoIds(libraryRoot);
+  return readAdminSourceVideoManifestsByIds({
+    library_root: libraryRoot,
+    source_video_ids: sourceVideoIds
+  });
+}
+
+async function readSourceVideoManifestPage(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+}): Promise<SourceVideoManifest[]> {
+  const sourceVideoIds = (await readSortedSourceVideoIds(input.library_root))
+    .slice(input.offset, input.offset + input.limit);
+
+  return readAdminSourceVideoManifestsByIds({
+    library_root: input.library_root,
+    source_video_ids: sourceVideoIds
+  });
+}
+
+function mergeSourceVideoManifestsById(manifests: SourceVideoManifest[]): SourceVideoManifest[] {
+  const byId = new Map<string, SourceVideoManifest>();
+
+  for (const manifest of manifests) {
+    byId.set(manifest.source_video_id, manifest);
+  }
+
+  return Array.from(byId.values());
+}
+
+const adminSourceVideoStatuses = new Set<PreprocessStatus>([
+  "unprocessed",
+  "queued",
+  "processing",
+  "ready",
+  "failed",
+  "index-required"
+]);
+
+function adminSourceVideoMatchesListFilter(
+  manifest: SourceVideoManifest,
+  filter: {
+    query?: string;
+    status?: PreprocessStatus;
+  }
+): boolean {
+  if (filter.status && manifest.preprocess_status !== filter.status) {
+    return false;
+  }
+
+  const normalizedQuery = filter.query?.trim().toLocaleLowerCase() ?? "";
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const searchableText = [
+    manifest.source_video_id,
+    manifest.title,
+    fileNameFromRelativePath(manifest.relative_path),
+    manifest.relative_path,
+    manifest.description ?? "",
+    manifest.lecturer ?? "",
+    manifest.course ?? "",
+    manifest.category ?? "",
+    ...(manifest.tags ?? [])
+  ].join(" ").toLocaleLowerCase();
+
+  return searchableText.includes(normalizedQuery);
+}
+
+function escapeSqliteLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+function libraryCountForPreprocessStatus(library: LibraryManifest, status: PreprocessStatus): number {
+  switch (status) {
+    case "ready":
+      return library.ready_video_count;
+    case "processing":
+      return library.processing_video_count;
+    case "queued":
+      return library.queued_video_count;
+    case "unprocessed":
+      return library.unprocessed_video_count;
+    case "failed":
+      return library.failed_video_count;
+    case "index-required":
+      return library.index_required_video_count;
+  }
+}
+
+function sourceVideoManifestFromIndexedRow(row: {
+  source_video_id: string;
+  title: string;
+  duration_ms: number;
+  relative_path: string;
+  cover_path: string;
+}): SourceVideoManifest {
+  return {
+    source_video_id: row.source_video_id,
+    title: row.title,
+    relative_path: row.relative_path,
+    logical_uri: `library://source-video/${row.source_video_id}`,
+    duration_ms: row.duration_ms,
+    width: 0,
+    height: 0,
+    fps: 0,
+    codec: "",
+    file_size: 0,
+    content_hash: "",
+    preprocess_status: "ready",
+    visible_to_cutters: true,
+    transcript_path: "",
+    srt_path: "",
+    keyframes_path: "",
+    cover_path: row.cover_path,
+    description: "",
+    tags: [],
+    lecturer: "",
+    course: "",
+    category: ""
+  };
+}
+
+async function readIndexedAdminSourceVideoManifests(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+  query?: string;
+}): Promise<SourceVideoManifest[] | null> {
+  const currentVersion = await readCurrentIndexVersion(input.library_root);
+  if (!currentVersion) {
+    return null;
+  }
+
+  const indexPath = path.join(
+    mixlabRoot(input.library_root),
+    "indexes",
+    "source-transcript-index",
+    currentVersion,
+    "index.sqlite"
+  );
+  let db: DatabaseSync | undefined;
+
+  try {
+    db = new DatabaseSync(`file:${indexPath}?mode=ro&immutable=1`);
+    const normalizedQuery = input.query?.trim() ?? "";
+    const rows = normalizedQuery
+      ? db.prepare(`
+        SELECT source_video_id, title, duration_ms, relative_path, cover_path
+        FROM source_videos
+        WHERE lower(source_video_id) LIKE lower(?) ESCAPE '\\'
+          OR lower(title) LIKE lower(?) ESCAPE '\\'
+          OR lower(relative_path) LIKE lower(?) ESCAPE '\\'
+        ORDER BY position
+        LIMIT ? OFFSET ?
+      `).all(
+        `%${escapeSqliteLike(normalizedQuery)}%`,
+        `%${escapeSqliteLike(normalizedQuery)}%`,
+        `%${escapeSqliteLike(normalizedQuery)}%`,
+        input.limit > 0 ? input.limit : -1,
+        input.offset
+      )
+      : db.prepare(`
+        SELECT source_video_id, title, duration_ms, relative_path, cover_path
+        FROM source_videos
+        ORDER BY position
+        LIMIT ? OFFSET ?
+      `).all(
+        input.limit > 0 ? input.limit : -1,
+        input.offset
+      );
+
+    return (rows as Array<{
+      source_video_id: string;
+      title: string;
+      duration_ms: number;
+      relative_path: string;
+      cover_path: string;
+    }>).map(sourceVideoManifestFromIndexedRow);
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
+}
+
+async function readIndexedAdminSourceVideoIdSet(libraryRoot: string): Promise<Set<string> | null> {
+  const currentVersion = await readCurrentIndexVersion(libraryRoot);
+  if (!currentVersion) {
+    return null;
+  }
+
+  const indexPath = path.join(
+    mixlabRoot(libraryRoot),
+    "indexes",
+    "source-transcript-index",
+    currentVersion,
+    "index.sqlite"
+  );
+  let db: DatabaseSync | undefined;
+
+  try {
+    db = new DatabaseSync(`file:${indexPath}?mode=ro&immutable=1`);
+    const rows = db.prepare("SELECT source_video_id FROM source_videos").all() as Array<{
+      source_video_id: string;
+    }>;
+
+    return new Set(rows.map((row) => row.source_video_id));
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
+}
+
+async function readFilteredAdminSourceVideoManifestPage(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+  query?: string;
+  status?: PreprocessStatus;
+  exclude_indexed_ready?: boolean;
+  max_scan_batches?: number;
+}): Promise<SourceVideoManifest[]> {
+  if (input.limit <= 0) {
+    const fallbackManifests = await readCachedSourceVideoManifests(input.library_root);
+    return fallbackManifests.filter((manifest) =>
+      adminSourceVideoMatchesListFilter(manifest, {
+        query: input.query,
+        status: input.status
+      })
+    );
+  }
+
+  const normalizedQuery = input.query?.trim() ?? "";
+  const library = input.status ? await readLibraryManifest(input.library_root) : null;
+  if (library && input.status && libraryCountForPreprocessStatus(library, input.status) <= input.offset) {
+    return [];
+  }
+
+  let sourceVideoIds = await readSortedSourceVideoIds(input.library_root);
+  if (input.exclude_indexed_ready) {
+    const indexedReadyIds = await readIndexedAdminSourceVideoIdSet(input.library_root);
+    if (indexedReadyIds) {
+      sourceVideoIds = sourceVideoIds.filter((sourceVideoId) => !indexedReadyIds.has(sourceVideoId));
+    }
+  }
+
+  const requestedEnd = input.offset + input.limit;
+  const targetMatchCount = library && input.status && !normalizedQuery
+    ? Math.min(requestedEnd, libraryCountForPreprocessStatus(library, input.status))
+    : requestedEnd;
+  const matched: SourceVideoManifest[] = [];
+
+  for (
+    let start = 0, scannedBatchCount = 0;
+    start < sourceVideoIds.length &&
+      matched.length < targetMatchCount &&
+      (!input.max_scan_batches || scannedBatchCount < input.max_scan_batches);
+    start += ADMIN_FILTERED_SCAN_BATCH_SIZE, scannedBatchCount += 1
+  ) {
+    const manifests = await readAdminSourceVideoManifestsByIds({
+      library_root: input.library_root,
+      source_video_ids: sourceVideoIds.slice(start, start + ADMIN_FILTERED_SCAN_BATCH_SIZE)
+    });
+
+    for (const manifest of manifests) {
+      if (adminSourceVideoMatchesListFilter(manifest, {
+        query: input.query,
+        status: input.status
+      })) {
+        matched.push(manifest);
+      }
+    }
+
+    if (normalizedQuery && matched.length > input.offset) {
+      break;
+    }
+  }
+
+  return matched.slice(input.offset, requestedEnd);
+}
+
+async function readAdminSourceVideoQueryList(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+  query: string;
+}): Promise<SourceVideoManifest[] | null> {
+  if (input.limit <= 0) {
+    return null;
+  }
+
+  const requestedEnd = input.offset + input.limit;
+  const indexedReadyMatches = await readIndexedAdminSourceVideoManifests({
+    library_root: input.library_root,
+    offset: 0,
+    limit: requestedEnd,
+    query: input.query
+  });
+
+  if (!indexedReadyMatches) {
+    return null;
+  }
+
+  const readyPage = indexedReadyMatches.slice(input.offset, requestedEnd);
+  if (readyPage.length > 0) {
+    return readyPage;
+  }
+
+  const remaining = input.limit - readyPage.length;
+  if (remaining <= 0) {
+    return readyPage;
+  }
+
+  const nonReadyOffset = Math.max(0, input.offset - indexedReadyMatches.length);
+  const nonReadyPage = await readFilteredAdminSourceVideoManifestPage({
+    library_root: input.library_root,
+    offset: nonReadyOffset,
+    limit: remaining,
+    query: input.query,
+    exclude_indexed_ready: true,
+    max_scan_batches: ADMIN_FILTERED_QUERY_SCAN_BATCH_LIMIT
+  });
+
+  return [...readyPage, ...nonReadyPage];
+}
+
+async function readAdminSourceVideoList(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+  query?: string;
+  status?: PreprocessStatus;
+}): Promise<SourceVideoManifest[]> {
+  const hasFilter = Boolean(input.query?.trim()) || Boolean(input.status);
+
+  if (!hasFilter) {
+    if (input.limit > 0) {
+      const indexedReadyPage = await readIndexedAdminSourceVideoManifests({
+        library_root: input.library_root,
+        offset: input.offset,
+        limit: input.limit,
+        query: ""
+      });
+
+      if (indexedReadyPage && indexedReadyPage.length > 0) {
+        return indexedReadyPage;
+      }
+
+      return readSourceVideoManifestPage(input);
+    }
+
+    return readCachedSourceVideoManifests(input.library_root);
+  }
+
+  const cachedManifests = readFreshCachedSourceVideoManifests(input.library_root);
+  const manifests = cachedManifests ?? [];
+  const normalizedQuery = input.query?.trim() ?? "";
+  const canUseIndexedReadyList = input.status === "ready";
+
+  if (cachedManifests) {
+    const filtered = manifests.filter((manifest) =>
+      adminSourceVideoMatchesListFilter(manifest, {
+        query: input.query,
+        status: input.status
+      })
+    );
+
+    return input.limit > 0
+      ? filtered.slice(input.offset, input.offset + input.limit)
+      : filtered;
+  }
+
+  if (normalizedQuery && !input.status) {
+    const queryMatches = await readAdminSourceVideoQueryList({
+      library_root: input.library_root,
+      offset: input.offset,
+      limit: input.limit,
+      query: normalizedQuery
+    });
+
+    if (queryMatches) {
+      return queryMatches;
+    }
+  }
+
+  if (canUseIndexedReadyList) {
+    const indexedManifests = await readIndexedAdminSourceVideoManifests({
+      library_root: input.library_root,
+      offset: input.offset,
+      limit: input.limit,
+      query: normalizedQuery
+    });
+
+    if (indexedManifests) {
+      return input.status
+        ? indexedManifests.filter((manifest) => manifest.preprocess_status === input.status)
+        : indexedManifests;
+    }
+  }
+
+  return readFilteredAdminSourceVideoManifestPage({
+    ...input,
+    max_scan_batches: normalizedQuery ? ADMIN_FILTERED_QUERY_SCAN_BATCH_LIMIT : undefined
+  });
+}
+
+function cacheActivePreprocessManifests(libraryRoot: string, manifests: SourceVideoManifest[]): SourceVideoManifest[] {
+  activePreprocessManifestCache.set(libraryRoot, {
+    expires_at: Date.now() + ADMIN_MANIFEST_CACHE_TTL_MS,
+    manifests
+  });
+  return manifests;
+}
+
+async function readActivePreprocessManifestsSlowly(input: {
+  library_root: string;
+  limit: number;
+}): Promise<SourceVideoManifest[]> {
+  const sourceVideoIds = await readSortedSourceVideoIds(input.library_root);
+  const manifests: SourceVideoManifest[] = [];
+
+  for (
+    let start = 0;
+    start < sourceVideoIds.length && manifests.length < input.limit;
+    start += ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_BATCH_SIZE
+  ) {
+    const batch = await readAdminSourceVideoManifestsByIds({
+      library_root: input.library_root,
+      source_video_ids: sourceVideoIds.slice(start, start + ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_BATCH_SIZE)
+    });
+
+    for (const manifest of batch) {
+      if (manifest.preprocess_status === "processing") {
+        manifests.push(manifest);
+      }
+    }
+
+    if (manifests.length < input.limit) {
+      await delay(ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_PAUSE_MS);
+    }
+  }
+
+  return manifests;
+}
+
+function refreshActivePreprocessManifestsInBackground(libraryRoot: string, limit: number): void {
+  const cached = activePreprocessManifestCache.get(libraryRoot);
+  if (cached?.pending) {
+    return;
+  }
+
+  const pending = readActivePreprocessManifestsSlowly({
+    library_root: libraryRoot,
+    limit
+  })
+    .then((manifests) => cacheActivePreprocessManifests(libraryRoot, manifests))
+    .catch(() => {
+      activePreprocessManifestCache.set(libraryRoot, {
+        expires_at: Date.now() + 2_000,
+        manifests: cached?.manifests ?? []
+      });
+      return cached?.manifests ?? [];
+    });
+
+  activePreprocessManifestCache.set(libraryRoot, {
+    expires_at: cached?.expires_at ?? 0,
+    manifests: cached?.manifests ?? [],
+    pending
+  });
+}
+
+async function readActivePreprocessManifestsForJobList(input: {
+  library_root: string;
+  expected_count: number;
+  fallback_limit: number;
+}): Promise<SourceVideoManifest[]> {
+  const limit = Math.min(Math.max(input.expected_count || input.fallback_limit, 1), 500);
+  const cached = activePreprocessManifestCache.get(input.library_root);
+
+  if (input.expected_count <= 0) {
+    activePreprocessManifestCache.delete(input.library_root);
+    return [];
+  }
+
+  if (cached && !cached.pending && cached.expires_at > Date.now()) {
+    return cached.manifests;
+  }
+
+  if (cached?.pending) {
+    return cached.manifests;
+  }
+
+  if (cached && cached.manifests.length > 0) {
+    refreshActivePreprocessManifestsInBackground(input.library_root, limit);
+    return cached.manifests;
+  }
+
+  const quickManifests = ADMIN_ACTIVE_JOB_SYNC_SCAN_BATCH_LIMIT > 0
+    ? await readFilteredAdminSourceVideoManifestPage({
+        library_root: input.library_root,
+        offset: 0,
+        limit,
+        status: "processing",
+        max_scan_batches: ADMIN_ACTIVE_JOB_SYNC_SCAN_BATCH_LIMIT
+      })
+    : [];
+
+  if (quickManifests.length >= input.expected_count) {
+    return cacheActivePreprocessManifests(input.library_root, quickManifests);
+  }
+
+  refreshActivePreprocessManifestsInBackground(input.library_root, limit);
+  return quickManifests;
+}
 
 function jsonBytes(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -411,9 +1108,156 @@ function resolveVideoArtifactPath(input: {
     : null;
 }
 
+function contentTypeForImage(filePath: string): string {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (extension === ".png") {
+    return "image/png";
+  }
+
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+
+  if (extension === ".svg") {
+    return "image/svg+xml";
+  }
+
+  return "image/jpeg";
+}
+
+function dataUrlParts(value: string): {
+  content_type: string;
+  image_base64: string;
+} | null {
+  const match = /^data:([^;,]+);base64,(.*)$/is.exec(value.trim());
+  return match
+    ? {
+        content_type: match[1]?.toLowerCase() ?? "",
+        image_base64: match[2] ?? ""
+      }
+    : null;
+}
+
+function normalizedCoverContentType(value: unknown): {
+  extension: "jpg" | "png" | "webp";
+  content_type: "image/jpeg" | "image/png" | "image/webp";
+} | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return ADMIN_COVER_CONTENT_TYPES[value.trim().toLowerCase()] ?? null;
+}
+
+function assertCoverBytesMatchContentType(bytes: Buffer, contentType: string): void {
+  const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const isPng = bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a;
+  const isWebp = bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+    bytes.subarray(8, 12).toString("ascii") === "WEBP";
+
+  if (
+    (contentType === "image/jpeg" && isJpeg) ||
+    (contentType === "image/png" && isPng) ||
+    (contentType === "image/webp" && isWebp)
+  ) {
+    return;
+  }
+
+  throw new Error("封面图片内容与类型不匹配");
+}
+
+function coverUpdateFromBody(body: unknown): {
+  image_bytes: Buffer;
+  content_type: "image/jpeg" | "image/png" | "image/webp";
+  extension: "jpg" | "png" | "webp";
+} {
+  const record = requireRequestRecord(body);
+  const rawImageBase64 = typeof record.image_base64 === "string"
+    ? record.image_base64
+    : typeof record.data_base64 === "string"
+      ? record.data_base64
+      : typeof record.data_url === "string"
+        ? record.data_url
+        : "";
+  const parsedDataUrl = dataUrlParts(rawImageBase64);
+  const contentType = normalizedCoverContentType(parsedDataUrl?.content_type ?? record.content_type);
+
+  if (!contentType) {
+    throw new Error("封面图片仅支持 JPG、PNG 或 WebP");
+  }
+
+  const normalizedBase64 = (parsedDataUrl?.image_base64 ?? rawImageBase64).replace(/\s/g, "");
+  if (
+    normalizedBase64 === "" ||
+    normalizedBase64.length % 4 === 1 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(normalizedBase64)
+  ) {
+    throw new Error("封面图片内容必须是有效的 base64");
+  }
+
+  const imageBytes = Buffer.from(normalizedBase64, "base64");
+  if (imageBytes.length === 0) {
+    throw new Error("封面图片内容不能为空");
+  }
+
+  if (imageBytes.length > ADMIN_COVER_MAX_BYTES) {
+    throw new Error("封面图片不能超过 10MB");
+  }
+
+  assertCoverBytesMatchContentType(imageBytes, contentType.content_type);
+
+  return {
+    image_bytes: imageBytes,
+    content_type: contentType.content_type,
+    extension: contentType.extension
+  };
+}
+
+async function updateSourceVideoCover(input: {
+  library_root: string;
+  source_video_id: string;
+  body: unknown;
+}): Promise<SourceVideoManifest | null> {
+  let manifest: SourceVideoManifest;
+  try {
+    manifest = await readSourceVideoManifest(input.library_root, input.source_video_id);
+  } catch {
+    return null;
+  }
+
+  const coverUpdate = coverUpdateFromBody(input.body);
+  const coverPath = `.mixlab-library/videos/${input.source_video_id}/cover.${coverUpdate.extension}`;
+  const absoluteCoverPath = path.join(input.library_root, coverPath);
+
+  await mkdir(path.dirname(absoluteCoverPath), { recursive: true });
+  await writeFile(absoluteCoverPath, coverUpdate.image_bytes);
+
+  const updated: SourceVideoManifest = {
+    ...manifest,
+    cover_path: coverPath
+  };
+  await writeSourceVideoManifest(input.library_root, updated);
+  return updated;
+}
+
 function numericSourceVideoId(sourceVideoId: string): number {
   const match = /^V(\d{6})$/.exec(sourceVideoId);
   return match ? Number.parseInt(match[1] ?? "0", 10) : 0;
+}
+
+function sourceVideoIdFromJobId(jobId: string): string | null {
+  const match = /^J(\d{6})$/.exec(jobId);
+  return match ? `V${match[1]}` : null;
 }
 
 function countByStatus(manifests: SourceVideoManifest[]): LibraryCounts {
@@ -454,6 +1298,34 @@ async function directoryExists(filePath: string): Promise<boolean> {
     return (await stat(filePath)).isDirectory();
   } catch {
     return false;
+  }
+}
+
+type PathAccessStatus = "ok" | "missing" | "denied";
+
+async function directoryAccessStatus(filePath: string, mode: number): Promise<PathAccessStatus> {
+  try {
+    if (!(await stat(filePath)).isDirectory()) {
+      return "missing";
+    }
+
+    await access(filePath, mode);
+    return "ok";
+  } catch (error) {
+    return isNotFoundError(error) ? "missing" : "denied";
+  }
+}
+
+async function fileAccessStatus(filePath: string, mode: number): Promise<PathAccessStatus> {
+  try {
+    if (!(await stat(filePath)).isFile()) {
+      return "missing";
+    }
+
+    await access(filePath, mode);
+    return "ok";
+  } catch (error) {
+    return isNotFoundError(error) ? "missing" : "denied";
   }
 }
 
@@ -502,6 +1374,8 @@ async function writeSourceVideoManifest(libraryRoot: string, manifest: SourceVid
     recursive: true
   });
   await writeFile(sourceVideoManifestPath(libraryRoot, manifest.source_video_id), jsonBytes(manifest), "utf8");
+  manifestCache.delete(libraryRoot);
+  sourceVideoIdsCache.delete(libraryRoot);
 }
 
 async function readPreprocessJob(libraryRoot: string, sourceVideoId: string): Promise<PreprocessJobRecord | null> {
@@ -589,6 +1463,74 @@ async function readCurrentIndexVersion(libraryRoot: string): Promise<string> {
   }
 }
 
+async function readCurrentIndexMetadata(libraryRoot: string): Promise<{
+  source_video_count: number;
+  segment_count: number;
+} | null> {
+  const currentVersion = await readCurrentIndexVersion(libraryRoot);
+
+  if (!currentVersion) {
+    return null;
+  }
+
+  try {
+    const metadata = readSourceTranscriptSqliteIndexMetadata(path.join(
+      mixlabRoot(libraryRoot),
+      "indexes",
+      "source-transcript-index",
+      currentVersion,
+      "index.sqlite"
+    ));
+
+    return {
+      source_video_count: metadata.source_video_count,
+      segment_count: metadata.segment_count
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function readTranscriptMetrics(input: {
+  library_root: string;
+  manifests: SourceVideoManifest[];
+}): Promise<{
+  transcript_video_count: number;
+  character_count: number;
+  segment_count: number;
+}> {
+  if (input.manifests.length > ADMIN_FULL_TRANSCRIPT_METRICS_MAX_MANIFESTS) {
+    const indexMetadata = await readCurrentIndexMetadata(input.library_root);
+
+    if (indexMetadata) {
+      return {
+        transcript_video_count: indexMetadata.source_video_count,
+        character_count: 0,
+        segment_count: indexMetadata.segment_count
+      };
+    }
+  }
+
+  let characterCount = 0;
+  let segmentCount = 0;
+  let transcriptVideoCount = 0;
+
+  for (const manifest of input.manifests) {
+    const transcript = await readTranscriptSummary(input.library_root, manifest);
+    if (transcript.segment_count > 0 || transcript.full_text.length > 0) {
+      transcriptVideoCount += 1;
+      characterCount += transcript.character_count;
+      segmentCount += transcript.segment_count;
+    }
+  }
+
+  return {
+    transcript_video_count: transcriptVideoCount,
+    character_count: characterCount,
+    segment_count: segmentCount
+  };
+}
+
 async function primarySourceVideosPath(libraryRoot: string): Promise<string> {
   const settings = await readAdminSettings(libraryRoot);
   const primaryFolder = settings.source_folders.find((folder) => folder.enabled)
@@ -659,7 +1601,7 @@ async function readTranscriptSummary(
 async function getLibraryStatus(input: CreateAdminApiServerInput) {
   const now = input.now?.() ?? new Date().toISOString();
   const library = await readLibraryManifest(input.library_root);
-  const manifests = await readAllSourceVideoManifests(input.library_root);
+  const manifests = library ? [] : await readCachedSourceVideoManifests(input.library_root);
   const counts = library ?? countByStatus(manifests);
   const currentVersion = await readCurrentIndexVersion(input.library_root);
   const disk = await diskUsage(input.library_root);
@@ -681,7 +1623,11 @@ async function getLibraryStatus(input: CreateAdminApiServerInput) {
       index_required_video_count: counts.index_required_video_count
     }),
     current_index_version: currentVersion,
-    active_task_label: activeManifest ? `${activeManifest.source_video_id} - processing` : "无正在处理任务",
+    active_task_label: activeManifest
+      ? `${activeManifest.source_video_id} - processing`
+      : counts.processing_video_count > 0
+        ? `${counts.processing_video_count} 个任务正在处理`
+        : "无正在处理任务",
     updated_at: library?.updated_at ?? now
   };
 }
@@ -877,12 +1823,21 @@ async function getRuntimeLoadMetrics(input: CreateAdminApiServerInput) {
 async function getDashboardMetrics(input: CreateAdminApiServerInput) {
   const now = input.now?.() ?? new Date().toISOString();
   const today = now.slice(0, 10);
-  const manifests = await readAllSourceVideoManifests(input.library_root);
-  const counts = countByStatus(manifests);
+  const library = await readLibraryManifest(input.library_root);
+  const useSummaryMetrics = (library?.video_count ?? 0) > ADMIN_FULL_DASHBOARD_METRICS_MAX_MANIFESTS;
+  const manifests = useSummaryMetrics ? [] : await readCachedSourceVideoManifests(input.library_root);
+  const counts = library && useSummaryMetrics ? library : countByStatus(manifests);
   const currentIndexVersion = await readCurrentIndexVersion(input.library_root);
-  let characterCount = 0;
-  let segmentCount = 0;
-  let transcriptVideoCount = 0;
+  const transcriptMetrics = useSummaryMetrics
+    ? await readCurrentIndexMetadata(input.library_root).then((metadata) => ({
+        transcript_video_count: metadata?.source_video_count ?? counts.ready_video_count,
+        character_count: 0,
+        segment_count: metadata?.segment_count ?? 0
+      }))
+    : await readTranscriptMetrics({
+        library_root: input.library_root,
+        manifests
+      });
   let completedTodayCount = 0;
   let failedTodayCount = 0;
   const processDurations: number[] = [];
@@ -891,13 +1846,6 @@ async function getDashboardMetrics(input: CreateAdminApiServerInput) {
   for (const manifest of manifests) {
     if (manifest.preprocess_status === "queued" || manifest.preprocess_status === "processing") {
       queuedOrRunningCount += 1;
-    }
-
-    const transcript = await readTranscriptSummary(input.library_root, manifest);
-    if (transcript.segment_count > 0 || transcript.full_text.length > 0) {
-      transcriptVideoCount += 1;
-      characterCount += transcript.character_count;
-      segmentCount += transcript.segment_count;
     }
 
     const job = await readPreprocessJob(input.library_root, manifest.source_video_id);
@@ -919,6 +1867,9 @@ async function getDashboardMetrics(input: CreateAdminApiServerInput) {
   const averageVideoProcessMs = processDurations.length > 0
     ? Math.round(processDurations.reduce((total, value) => total + value, 0) / processDurations.length)
     : 0;
+  if (useSummaryMetrics) {
+    queuedOrRunningCount = counts.queued_video_count + counts.processing_video_count;
+  }
   const estimatedQueueDoneAt = averageVideoProcessMs > 0 && queuedOrRunningCount > 0
     ? new Date(Date.parse(now) + queuedOrRunningCount * averageVideoProcessMs).toISOString()
     : "";
@@ -927,19 +1878,27 @@ async function getDashboardMetrics(input: CreateAdminApiServerInput) {
     material: {
       video_count: counts.video_count,
       ready_video_count: counts.ready_video_count,
-      total_duration_ms: manifests.reduce((total, manifest) => total + manifest.duration_ms, 0),
-      ready_duration_ms: manifests
-        .filter((manifest) => manifest.preprocess_status === "ready")
-        .reduce((total, manifest) => total + manifest.duration_ms, 0),
-      unprocessed_duration_ms: manifests
-        .filter((manifest) => manifest.preprocess_status === "unprocessed")
-        .reduce((total, manifest) => total + manifest.duration_ms, 0),
-      total_size_bytes: manifests.reduce((total, manifest) => total + manifest.file_size, 0)
+      total_duration_ms: useSummaryMetrics
+        ? 0
+        : manifests.reduce((total, manifest) => total + manifest.duration_ms, 0),
+      ready_duration_ms: useSummaryMetrics
+        ? 0
+        : manifests
+          .filter((manifest) => manifest.preprocess_status === "ready")
+          .reduce((total, manifest) => total + manifest.duration_ms, 0),
+      unprocessed_duration_ms: useSummaryMetrics
+        ? 0
+        : manifests
+          .filter((manifest) => manifest.preprocess_status === "unprocessed")
+          .reduce((total, manifest) => total + manifest.duration_ms, 0),
+      total_size_bytes: useSummaryMetrics
+        ? 0
+        : manifests.reduce((total, manifest) => total + manifest.file_size, 0)
     },
     transcript: {
-      transcript_video_count: transcriptVideoCount,
-      character_count: characterCount,
-      segment_count: segmentCount,
+      transcript_video_count: transcriptMetrics.transcript_video_count,
+      character_count: transcriptMetrics.character_count,
+      segment_count: transcriptMetrics.segment_count,
       current_index_version: currentIndexVersion
     },
     production: {
@@ -960,37 +1919,56 @@ async function getDashboardMetrics(input: CreateAdminApiServerInput) {
 async function pathChecks(libraryRoot: string) {
   const settings = await readAdminSettings(libraryRoot);
   const sourceFolderChecks = await Promise.all(settings.source_folders.map(async (folder) => {
-    const exists = await directoryExists(folder.path);
+    const accessStatus = await directoryAccessStatus(folder.path, constants.R_OK);
 
     return {
       label: `素材来源：${folder.name}`,
       path: folder.path,
-      status: folder.enabled ? (exists ? "pass" : "fail") : "warn",
+      status: folder.enabled ? (accessStatus === "ok" ? "pass" : "fail") : "warn",
       message: folder.enabled
-        ? (exists ? "素材来源可读" : "素材来源不存在")
+        ? accessStatus === "ok"
+          ? "素材来源可读"
+          : accessStatus === "missing"
+            ? "素材来源不存在"
+            : "素材来源权限不足"
         : "素材来源已停用"
     };
   }));
+  const libraryAccess = await directoryAccessStatus(libraryRoot, constants.R_OK | constants.W_OK);
+  const mixlabAccess = await directoryAccessStatus(mixlabRoot(libraryRoot), constants.R_OK | constants.W_OK);
+  const manifestAccess = await fileAccessStatus(libraryManifestPath(libraryRoot), constants.R_OK | constants.W_OK);
 
   return [
     {
       label: "公共素材库",
       path: libraryRoot,
-      status: (await directoryExists(libraryRoot)) ? "pass" : "fail",
-      message: (await directoryExists(libraryRoot)) ? "根路径可访问" : "根路径不存在"
+      status: libraryAccess === "ok" ? "pass" : "fail",
+      message: libraryAccess === "ok"
+        ? "根路径可读写"
+        : libraryAccess === "missing"
+          ? "根路径不存在"
+          : "根路径权限不足"
     },
     ...sourceFolderChecks,
     {
       label: ".mixlab-library",
       path: mixlabRoot(libraryRoot),
-      status: (await directoryExists(mixlabRoot(libraryRoot))) ? "pass" : "warn",
-      message: (await directoryExists(mixlabRoot(libraryRoot))) ? "协议目录存在" : "尚未初始化协议目录"
+      status: mixlabAccess === "ok" ? "pass" : mixlabAccess === "missing" ? "warn" : "fail",
+      message: mixlabAccess === "ok"
+        ? "协议目录可读写"
+        : mixlabAccess === "missing"
+          ? "尚未初始化协议目录"
+          : "协议目录权限不足"
     },
     {
       label: "library.json",
       path: libraryManifestPath(libraryRoot),
-      status: (await fileExists(libraryManifestPath(libraryRoot))) ? "pass" : "warn",
-      message: (await fileExists(libraryManifestPath(libraryRoot))) ? "library.json 可读" : "library.json 尚未创建"
+      status: manifestAccess === "ok" ? "pass" : manifestAccess === "missing" ? "warn" : "fail",
+      message: manifestAccess === "ok"
+        ? "library.json 可读写"
+        : manifestAccess === "missing"
+          ? "library.json 尚未创建"
+          : "library.json 权限不足"
     }
   ];
 }
@@ -1163,13 +2141,31 @@ function jobStageFromManifest(manifest: SourceVideoManifest, job: PreprocessJobR
   return manifest.preprocess_status;
 }
 
-async function listPreprocessJobs(input: CreateAdminApiServerInput) {
+async function listPreprocessJobs(input: CreateAdminApiServerInput, options: {
+  limit?: number;
+  offset?: number;
+} = {}) {
   const libraryRoot = input.library_root;
   const now = input.now?.() ?? new Date().toISOString();
   const nowMs = Date.parse(now);
   const settings = await readAdminSettings(libraryRoot);
   const concurrency = Math.max(1, settings.runtime_policy.concurrent_jobs);
-  const manifests = await readAllSourceVideoManifests(libraryRoot);
+  const library = options.limit ? await readLibraryManifest(libraryRoot) : null;
+  const pageManifests = options.limit
+    ? await readSourceVideoManifestPage({
+        library_root: libraryRoot,
+        offset: options.offset ?? 0,
+        limit: options.limit
+      })
+    : await readCachedSourceVideoManifests(libraryRoot);
+  const activeManifests = options.limit
+    ? await readActivePreprocessManifestsForJobList({
+        library_root: libraryRoot,
+        expected_count: library?.processing_video_count ?? options.limit,
+        fallback_limit: options.limit
+      })
+    : [];
+  const manifests = mergeSourceVideoManifestsById([...pageManifests, ...activeManifests]);
   const jobRecords = await Promise.all(
     manifests.map((manifest) => readPreprocessJob(libraryRoot, manifest.source_video_id))
   );
@@ -1223,7 +2219,8 @@ async function listPreprocessJobs(input: CreateAdminApiServerInput) {
       estimated_start_at: "",
       estimated_done_at: "",
       queue_position: 0,
-      log_path: `.mixlab-library/logs/${manifest.source_video_id}.log`,
+      log_path: preprocessJobLogPath(manifest.source_video_id),
+      log_url: `/api/admin/preprocess/jobs/J${manifest.source_video_id.slice(1)}/log`,
       retryable: status === "failed",
       error_message: job?.error_message
     });
@@ -1281,12 +2278,22 @@ async function listPreprocessJobs(input: CreateAdminApiServerInput) {
   const estimatedQueueDurationMs = firstRunningRemaining + Math.ceil(queuedJobs.length / concurrency) * averageProcessMs;
   const estimatedAllDoneAt = estimatedQueueDurationMs > 0 ? isoAt(nowMs + estimatedQueueDurationMs) : "";
   const runtimeLoad = await getRuntimeLoadMetrics(input);
+  const queuedCount = library?.queued_video_count ?? queuedJobs.length;
+  const activeCount = library?.processing_video_count ?? runningJobs.length;
+  const failedTotalCount = library?.failed_video_count ?? failedCount;
+  const throughputLabel = estimatedQueueDurationMs > 0
+    ? `预计 ${formatBackendDuration(estimatedQueueDurationMs)} 完成当前队列`
+    : queuedCount > 0
+      ? `${queuedCount} 个视频正在等待处理`
+      : activeCount > 0
+        ? `${activeCount} 个视频正在处理中`
+        : "当前没有等待处理的队列";
 
   return {
-    active_count: ordered.filter((job) => job.status === "running").length,
-    queued_count: ordered.filter((job) => job.status === "queued").length,
+    active_count: activeCount,
+    queued_count: queuedCount,
     completed_count: doneCount,
-    failed_count: failedCount,
+    failed_count: failedTotalCount,
     jobs: ordered,
     observability: {
       running_job_id: runningJobs[0]?.job_id ?? "",
@@ -1294,9 +2301,7 @@ async function listPreprocessJobs(input: CreateAdminApiServerInput) {
       pipeline_progress_percent: pipelineProgressPercent,
       estimated_all_done_at: estimatedAllDoneAt,
       estimated_queue_duration_ms: estimatedQueueDurationMs,
-      throughput_label: estimatedQueueDurationMs > 0
-        ? `预计 ${formatBackendDuration(estimatedQueueDurationMs)} 完成当前队列`
-        : "当前没有等待处理的队列",
+      throughput_label: throughputLabel,
       load_advice: loadAdvice(runtimeLoad)
     }
   } satisfies PreprocessJobsResponse;
@@ -1347,10 +2352,10 @@ async function artifactDetail(input: {
 }
 
 async function getSourceVideoDetail(libraryRoot: string, sourceVideoId: string) {
-  const manifests = await readAllSourceVideoManifests(libraryRoot);
-  const manifest = manifests.find((candidate) => candidate.source_video_id === sourceVideoId);
-
-  if (!manifest) {
+  let manifest: SourceVideoManifest;
+  try {
+    manifest = await readSourceVideoManifest(libraryRoot, sourceVideoId);
+  } catch {
     return null;
   }
 
@@ -1412,10 +2417,131 @@ async function getSourceVideoDetail(libraryRoot: string, sourceVideoId: string) 
   };
 }
 
-async function listIndexVersions(libraryRoot: string) {
+type AdminIndexValidationStatus = "pass" | "warn" | "fail";
+
+function indexValidationStatus(messages: string[]): AdminIndexValidationStatus {
+  return messages.length > 0 ? "fail" : "pass";
+}
+
+function chineseIndexPackageValidationMessage(error: string): string {
+  if (error.includes("index_version must use")) {
+    return "index-manifest.json 版本号格式错误";
+  }
+
+  if (error.includes("ready_video_count")) {
+    return "ready_video_count 与 source_video_ids 数量不一致";
+  }
+
+  if (error.includes("schema_version")) {
+    return "schema_version 缺失";
+  }
+
+  return error;
+}
+
+function chineseCurrentPointerValidationMessage(error: string): string {
+  if (error.includes("current_version must use")) {
+    return "current.json 当前版本格式错误";
+  }
+
+  if (error.includes("does not reference")) {
+    return "current.json 指向不存在的索引版本";
+  }
+
+  return error;
+}
+
+async function readIndexVersionValidation(root: string, indexVersion: string): Promise<{
+  created_at: string;
+  ready_video_count: number;
+  schema_version: string;
+  validation_status: AdminIndexValidationStatus;
+  validation_message: string;
+}> {
+  const versionRoot = path.join(root, indexVersion);
+  const messages: string[] = [];
+  let manifest: Partial<IndexPackageManifest> = {};
+
+  try {
+    manifest = await readJsonFile<IndexPackageManifest>(path.join(versionRoot, "index-manifest.json"));
+    const manifestValidation = validateIndexPackageManifest(manifest as IndexPackageManifest);
+
+    if (!manifestValidation.ok) {
+      messages.push(...manifestValidation.errors.map(chineseIndexPackageValidationMessage));
+    }
+
+    if (manifest.index_version && manifest.index_version !== indexVersion) {
+      messages.push("index-manifest.json 版本号与目录不一致");
+    }
+  } catch {
+    messages.push("index-manifest.json 无法解析");
+  }
+
+  const sqlitePath = path.join(versionRoot, "index.sqlite");
+  if (!(await fileExists(sqlitePath))) {
+    messages.push("index.sqlite 不存在");
+  } else {
+    try {
+      const metadata = readSourceTranscriptSqliteIndexMetadata(sqlitePath);
+
+      if (metadata.index_version !== indexVersion) {
+        messages.push("index.sqlite 元数据版本与目录不一致");
+      }
+
+      if (
+        typeof manifest.ready_video_count === "number" &&
+        metadata.source_video_count !== manifest.ready_video_count
+      ) {
+        messages.push("index.sqlite 视频数量与 index-manifest.json 不一致");
+      }
+    } catch {
+      messages.push("index.sqlite 无法读取");
+    }
+  }
+
+  return {
+    created_at: manifest.created_at ?? "",
+    ready_video_count: manifest.ready_video_count ?? 0,
+    schema_version: manifest.schema_version ?? "",
+    validation_status: indexValidationStatus(messages),
+    validation_message: messages.length > 0 ? messages.join("；") : "索引包校验通过"
+  };
+}
+
+async function readCurrentIndexValidation(root: string, publishedVersions: string[]): Promise<{
+  current_version: string;
+  current_validation_status: AdminIndexValidationStatus;
+  current_validation_message: string;
+}> {
+  let pointer: IndexCurrentPointer;
+
+  try {
+    pointer = await readJsonFile<IndexCurrentPointer>(path.join(root, "current.json"));
+  } catch {
+    return {
+      current_version: "",
+      current_validation_status: publishedVersions.length > 0 ? "fail" : "warn",
+      current_validation_message: publishedVersions.length > 0 ? "current.json 不存在或无法解析" : "暂无当前索引指针"
+    };
+  }
+
+  const validation = validateIndexCurrentPointer(pointer, publishedVersions);
+
+  return {
+    current_version: pointer.current_version,
+    current_validation_status: validation.ok ? "pass" : "fail",
+    current_validation_message: validation.ok
+      ? `current.json 指向 ${pointer.current_version}`
+      : validation.errors.map(chineseCurrentPointerValidationMessage).join("；")
+  };
+}
+
+async function listIndexVersions(
+  libraryRoot: string,
+  options: { limit?: number; offset?: number } = {}
+) {
   const root = path.join(mixlabRoot(libraryRoot), "indexes", "source-transcript-index");
-  const currentVersion = await readCurrentIndexVersion(libraryRoot);
-  const versions = [];
+  const versionNames: string[] = [];
 
   try {
     const entries = await readdir(root, { withFileTypes: true });
@@ -1425,29 +2551,44 @@ async function listIndexVersions(libraryRoot: string) {
         continue;
       }
 
-      let manifest: { created_at?: string; ready_video_count?: number; schema_version?: string } = {};
-      try {
-        manifest = await readJsonFile(path.join(root, entry.name, "index-manifest.json"));
-      } catch {
-        // Surface malformed versions as failed rows.
-      }
-
-      versions.push({
-        index_version: entry.name,
-        created_at: manifest.created_at ?? "",
-        ready_video_count: manifest.ready_video_count ?? 0,
-        schema_version: manifest.schema_version ?? "1.0",
-        validation_status: (await fileExists(path.join(root, entry.name, "index.sqlite"))) ? "pass" : "fail",
-        is_current: entry.name === currentVersion,
-        published_by: "admin"
-      });
+      versionNames.push(entry.name);
     }
   } catch {
     // No index yet.
   }
 
+  const current = await readCurrentIndexValidation(root, versionNames);
+  const sortedVersionNames = versionNames.sort((left, right) => right.localeCompare(left));
+  const offset = Math.max(0, options.offset ?? 0);
+  const limit = Math.max(1, Math.min(options.limit ?? 80, 200));
+  const pageVersionNames = sortedVersionNames.slice(offset, offset + limit);
+
+  if (
+    current.current_version &&
+    sortedVersionNames.includes(current.current_version) &&
+    !pageVersionNames.includes(current.current_version)
+  ) {
+    pageVersionNames.push(current.current_version);
+  }
+
+  const versions = await Promise.all(
+    pageVersionNames.map(async (indexVersion) => ({
+      index_version: indexVersion,
+      ...await readIndexVersionValidation(root, indexVersion),
+      is_current: indexVersion === current.current_version,
+      published_by: "admin"
+    }))
+  );
+
   return {
-    current_version: currentVersion,
+    current_version: current.current_version,
+    current_validation_status: current.current_validation_status,
+    current_validation_message: current.current_validation_message,
+    total_count: sortedVersionNames.length,
+    returned_count: versions.length,
+    offset,
+    limit,
+    has_more: offset + limit < sortedVersionNames.length,
     versions: versions.sort((left, right) => right.index_version.localeCompare(left.index_version))
   };
 }
@@ -1461,12 +2602,20 @@ function runtimeSource(source: string): "bundled" | "custom" | "path" | "missing
 }
 
 function runtimeVersion(executablePath: string): string {
-  const result = spawnSync(executablePath, ["-version"], { encoding: "utf8" });
+  const result = spawnSync(executablePath, ["-version"], {
+    encoding: "utf8",
+    timeout: 250,
+    maxBuffer: 64 * 1024
+  });
   return result.status === 0 ? result.stdout.split("\n")[0] ?? "available" : "available";
 }
 
 function optionalTrimmed(value: string | undefined): string {
   return value?.trim() ?? "";
+}
+
+function preprocessSupervisorIsActive(status: PublicPreprocessSupervisorStatus): boolean {
+  return status.state === "running" || status.state === "stopping";
 }
 
 function parsePositiveIntegerEnv(
@@ -1844,7 +2993,39 @@ function createRealPreprocessRunner(input: {
   };
 }
 
-function getRuntimeSettings(env: NodeJS.ProcessEnv) {
+async function latestAsrFailureReason(libraryRoot: string): Promise<string> {
+  const library = await readLibraryManifest(libraryRoot);
+  if (library && library.video_count > ADMIN_FULL_DASHBOARD_METRICS_MAX_MANIFESTS) {
+    return "";
+  }
+
+  const manifests = await readAllSourceVideoManifests(libraryRoot);
+  const jobs = await Promise.all(
+    manifests.map((manifest) => readPreprocessJob(libraryRoot, manifest.source_video_id))
+  );
+  const failures = jobs
+    .map((job) => job && job.error_stage === "asr" && job.error_message
+      ? {
+          source_video_id: job.source_video_id,
+          message: job.error_message,
+          failed_ms:
+            timestampMs(job.failed_at) ??
+            timestampMs(job.stage_updated_at) ??
+            timestampMs(job.claimed_at) ??
+            0
+        }
+      : null)
+    .filter((item): item is { source_video_id: string; message: string; failed_ms: number } => item !== null)
+    .sort((left, right) => right.failed_ms - left.failed_ms);
+
+  const latest = failures[0];
+  return latest ? `${latest.source_video_id} ${latest.message}` : "";
+}
+
+async function getRuntimeSettings(libraryRoot: string, env: NodeJS.ProcessEnv) {
+  const settings = await readAdminSettings(libraryRoot);
+  const asrFailureReason = await latestAsrFailureReason(libraryRoot);
+
   try {
     const runtime = resolveFfmpegRuntime();
     return {
@@ -1864,12 +3045,12 @@ function getRuntimeSettings(env: NodeJS.ProcessEnv) {
         provider: "dashscope" as const,
         provider_label: "阿里云百炼 / DashScope",
         model: env.MIXLAB_ASR_MODEL || "paraformer-v2",
-        audio_mode: (env.MIXLAB_PREPROCESS_AUDIO_MODE || "mp3_16k_mono_64k") as "mp3_16k_mono_64k",
+        audio_mode: settings.runtime_policy.audio_mode,
         dashscope_api_key_configured: Boolean(env.DASHSCOPE_API_KEY?.trim()),
         language_hints: ["zh"],
         speaker_diarization_enabled: false,
         object_storage_mode: "dashscope-temporary" as const,
-        last_failure_reason: ""
+        last_failure_reason: asrFailureReason
       }
     };
   } catch (error) {
@@ -1890,12 +3071,12 @@ function getRuntimeSettings(env: NodeJS.ProcessEnv) {
         provider: "dashscope" as const,
         provider_label: "阿里云百炼 / DashScope",
         model: env.MIXLAB_ASR_MODEL || "paraformer-v2",
-        audio_mode: (env.MIXLAB_PREPROCESS_AUDIO_MODE || "mp3_16k_mono_64k") as "mp3_16k_mono_64k",
+        audio_mode: settings.runtime_policy.audio_mode,
         dashscope_api_key_configured: Boolean(env.DASHSCOPE_API_KEY?.trim()),
         language_hints: ["zh"],
         speaker_diarization_enabled: false,
         object_storage_mode: "dashscope-temporary" as const,
-        last_failure_reason: ""
+        last_failure_reason: asrFailureReason
       }
     };
   }
@@ -1927,8 +3108,14 @@ async function transitionManifests(input: {
       status: input.to === "queued" ? "queued" : "processing",
       attempt: ((await readPreprocessJob(input.library_root, manifest.source_video_id))?.attempt ?? 0) + 1,
       claimed_at: input.now,
-      worker_id: "admin",
-      ...(input.reason ? { error_stage: input.reason } : {})
+      worker_id: "admin"
+    });
+    await appendPreprocessJobLog({
+      library_root: input.library_root,
+      source_video_id: manifest.source_video_id,
+      now: input.now,
+      stage: input.reason,
+      message: `${manifest.preprocess_status} -> ${input.to}`
     });
   }
 
@@ -1998,9 +3185,12 @@ function writeNoContent(response: ServerResponse): void {
 }
 
 async function writeCover(response: ServerResponse, input: CreateAdminApiServerInput, sourceVideoId: string): Promise<void> {
-  const manifest = (await readAllSourceVideoManifests(input.library_root)).find(
-    (candidate) => candidate.source_video_id === sourceVideoId
-  );
+  let manifest: SourceVideoManifest | null = null;
+  try {
+    manifest = await readSourceVideoManifest(input.library_root, sourceVideoId);
+  } catch {
+    manifest = null;
+  }
 
   if (!manifest?.cover_path) {
     writeJson(response, 404, apiError("not_found", "封面不存在"));
@@ -2021,7 +3211,7 @@ async function writeCover(response: ServerResponse, input: CreateAdminApiServerI
 
   response.writeHead(200, {
     "Access-Control-Allow-Origin": "*",
-    "Content-Type": "image/jpeg"
+    "Content-Type": contentTypeForImage(coverPath)
   });
   createReadStream(coverPath).pipe(response);
 }
@@ -2142,7 +3332,24 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/source-videos") {
-        const manifests = await readAllSourceVideoManifests(input.library_root);
+        const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+        const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
+        const rawQuery = url.searchParams.get("query") ?? "";
+        const rawStatus = url.searchParams.get("status") ?? "";
+        const limit = Number.isFinite(rawLimit) && rawLimit > 0
+          ? Math.min(rawLimit, 500)
+          : 0;
+        const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+        const status = adminSourceVideoStatuses.has(rawStatus as PreprocessStatus)
+          ? rawStatus as PreprocessStatus
+          : undefined;
+        const manifests = await readAdminSourceVideoList({
+          library_root: input.library_root,
+          offset,
+          limit,
+          query: rawQuery,
+          status
+        });
         writeJson(response, 200, apiOk(manifests.map(toAdminSourceVideo)));
         return;
       }
@@ -2166,16 +3373,59 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
+      if (request.method === "PATCH" && coverMatch) {
+        try {
+          const updated = await updateSourceVideoCover({
+            library_root: input.library_root,
+            source_video_id: coverMatch[1] ?? "",
+            body: await readRequestJson(request)
+          });
+
+          if (!updated) {
+            writeJson(response, 404, apiError("not_found", "原视频不存在"));
+            return;
+          }
+
+          writeJson(response, 200, apiOk(toAdminSourceVideo(updated)));
+        } catch (error) {
+          const message = error instanceof SyntaxError ? "请求 JSON 格式无效" : (error as Error).message;
+          writeJson(response, 400, apiError("invalid_request", message));
+        }
+        return;
+      }
+
       if (request.method === "GET" && url.pathname === "/api/admin/cutter-users") {
         writeJson(response, 200, apiOk(await listCutterUsers(input.library_root)));
         return;
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/preprocess/jobs") {
-        const jobs = await listPreprocessJobs(input);
+        const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+        const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
+        const jobs = await listPreprocessJobs(input, {
+          limit: Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined,
+          offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0
+        });
         writeJson(response, 200, apiOk({
           ...jobs,
           supervisor: publicPreprocessSupervisorStatus(supervisor.status())
+        }));
+        return;
+      }
+
+      const preprocessJobLogMatch = /^\/api\/admin\/preprocess\/jobs\/(J\d{6})\/log$/.exec(url.pathname);
+      if (request.method === "GET" && preprocessJobLogMatch) {
+        const jobId = preprocessJobLogMatch[1] ?? "";
+        const sourceVideoId = sourceVideoIdFromJobId(jobId);
+
+        if (!sourceVideoId || !(await getSourceVideoDetail(input.library_root, sourceVideoId))) {
+          writeJson(response, 404, apiError("not_found", "预处理任务不存在"));
+          return;
+        }
+
+        writeJson(response, 200, apiOk({
+          job_id: jobId,
+          ...await readPreprocessJobLog(input.library_root, sourceVideoId)
         }));
         return;
       }
@@ -2212,7 +3462,12 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/index/versions") {
-        writeJson(response, 200, apiOk(await listIndexVersions(input.library_root)));
+        const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+        const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
+        writeJson(response, 200, apiOk(await listIndexVersions(input.library_root, {
+          limit: Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : undefined,
+          offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0
+        })));
         return;
       }
 
@@ -2228,7 +3483,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
 
       if (request.method === "GET" && url.pathname === "/api/admin/settings/runtime") {
         await refreshRuntimeSecrets();
-        writeJson(response, 200, apiOk(getRuntimeSettings(env)));
+        writeJson(response, 200, apiOk(await getRuntimeSettings(input.library_root, env)));
         return;
       }
 
@@ -2294,6 +3549,39 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/api/admin/preprocess/recover-processing") {
+        const supervisorStatus = publicPreprocessSupervisorStatus(supervisor.status());
+        if (preprocessSupervisorIsActive(supervisorStatus)) {
+          writeJson(
+            response,
+            409,
+            apiError("invalid_request", "预处理流水线仍在运行，不能恢复正在处理的任务。")
+          );
+          return;
+        }
+
+        const result = await transitionManifests({
+          library_root: input.library_root,
+          from: ["processing"],
+          to: "queued",
+          now: now(),
+          reason: "recover-processing-by-admin"
+        });
+        await writeLibraryManifest({
+          library_root: input.library_root,
+          library_id: libraryId,
+          library_name: libraryName,
+          now: now()
+        });
+        writeJson(response, 200, apiOk({
+          ...result,
+          message: result.affected_count > 0
+            ? `已恢复 ${result.affected_count} 个停滞中的处理任务。`
+            : "没有需要恢复的处理中任务。"
+        }));
+        return;
+      }
+
       const sourceVideoQueueMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/queue$/.exec(url.pathname);
       if (request.method === "POST" && sourceVideoQueueMatch) {
         const sourceVideoId = sourceVideoQueueMatch[1] ?? "";
@@ -2346,6 +3634,42 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
+      const sourceVideoRecoverProcessingMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/recover-processing$/.exec(url.pathname);
+      if (request.method === "POST" && sourceVideoRecoverProcessingMatch) {
+        const supervisorStatus = publicPreprocessSupervisorStatus(supervisor.status());
+        if (preprocessSupervisorIsActive(supervisorStatus)) {
+          writeJson(
+            response,
+            409,
+            apiError("invalid_request", "预处理流水线仍在运行，不能恢复正在处理的任务。")
+          );
+          return;
+        }
+
+        const sourceVideoId = sourceVideoRecoverProcessingMatch[1] ?? "";
+        const result = await transitionManifests({
+          library_root: input.library_root,
+          from: ["processing"],
+          to: "queued",
+          now: now(),
+          reason: "recover-processing-by-admin",
+          source_video_ids: [sourceVideoId]
+        });
+        await writeLibraryManifest({
+          library_root: input.library_root,
+          library_id: libraryId,
+          library_name: libraryName,
+          now: now()
+        });
+        writeJson(response, 200, apiOk({
+          ...result,
+          message: result.affected_count > 0
+            ? `已将 ${sourceVideoId} 从处理中恢复到预处理队列。`
+            : `${sourceVideoId} 当前状态不能恢复。`
+        }));
+        return;
+      }
+
       const sourceVideoPublishMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/publish$/.exec(url.pathname);
       if (request.method === "POST" && sourceVideoPublishMatch) {
         writeJson(response, 200, apiOk(await publishReadyPreparedVideos({
@@ -2371,6 +3695,16 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       if (request.method === "POST" && url.pathname === "/api/admin/doctor/run") {
         await refreshRuntimeSecrets();
         writeJson(response, 200, apiOk(await runMixlabDoctor({
+          library_root: input.library_root,
+          now: now(),
+          env
+        })));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/doctor/export") {
+        await refreshRuntimeSecrets();
+        writeJson(response, 200, apiOk(await exportMixlabDoctorReport({
           library_root: input.library_root,
           now: now(),
           env
@@ -2448,11 +3782,11 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         const updated: SourceVideoManifest = {
           ...manifest,
           title: cleanOptionalText(body.title) ?? manifest.title,
-          description: cleanOptionalText(body.description),
-          lecturer: cleanOptionalText(body.lecturer),
-          course: cleanOptionalText(body.course),
-          category: cleanOptionalText(body.category),
-          tags: cleanTags(body.tags)
+          description: "description" in body ? cleanOptionalText(body.description) : manifest.description,
+          lecturer: "lecturer" in body ? cleanOptionalText(body.lecturer) : manifest.lecturer,
+          course: "course" in body ? cleanOptionalText(body.course) : manifest.course,
+          category: "category" in body ? cleanOptionalText(body.category) : manifest.category,
+          tags: "tags" in body ? cleanTags(body.tags) : manifest.tags
         };
 
         await writeSourceVideoManifest(input.library_root, updated);

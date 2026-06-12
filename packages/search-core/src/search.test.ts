@@ -67,7 +67,7 @@ test("search ignores punctuation and groups hits by source video", () => {
   assert.equal(result.groups[0]?.source_video_id, "V000001");
   assert.equal(result.groups[0]?.hit_count, 1);
   assert.equal(result.groups[0]?.best_excerpt, "现金流，是企业的血液。");
-  assert.deepEqual(result.groups[0]?.hit_segments[0]?.match_ranges, [[0, 8]]);
+  assert.deepEqual(result.groups[0]?.hit_segments[0]?.match_ranges, [[0, 10]]);
   assert.equal(result.groups[0]?.hit_segments[0]?.match_type, "exact");
 });
 

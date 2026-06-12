@@ -7,6 +7,7 @@
     "dev": "npm run tauri:dev",
     "build:web": "npm run build:cutter-web",
     "build:sidecar": "tsx ../../scripts/desktop/build-cutter-sidecar.ts",
+    "build:searchd": "tsx ../../scripts/desktop/build-searchd-sidecar.ts",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --bundles nsis"
   },

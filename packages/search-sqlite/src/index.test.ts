@@ -129,7 +129,10 @@ test("searches grouped source videos with punctuation-insensitive Chinese matchi
   assert.equal(result.groups[0]?.source_video_id, "V000001");
   assert.equal(result.groups[0]?.hit_count, 1);
   assert.equal(result.groups[0]?.best_excerpt, "现金流，是企业的血液。");
-  assert.deepEqual(result.groups[0]?.hit_segments[0]?.match_ranges, [[0, 8]]);
+  assert.equal(result.groups[0]?.relative_path, "source-videos/现金流.mp4");
+  assert.equal(result.groups[0]?.cover_path, ".mixlab-library/videos/V000001/cover.jpg");
+  assert.equal(result.groups[0]?.transcript_character_count, 18);
+  assert.deepEqual(result.groups[0]?.hit_segments[0]?.match_ranges, [[0, 10]]);
   assert.equal(result.groups[0]?.hit_segments[0]?.match_type, "exact");
 });
 
@@ -161,6 +164,86 @@ test("uses ngram-backed search while preserving single-character query support",
     }).groups.map((group) => group.source_video_id),
     ["V000001"]
   );
+});
+
+test("returns first search page quickly with an opaque cursor for the next batch", async () => {
+  const dbPath = await makeDbPath();
+  const pagedVideos = [
+    videos[0]!,
+    {
+      source_video_id: "V000003",
+      title: "现金流回款课",
+      duration_ms: 1_800_000,
+      relative_path: "source-videos/回款.mp4",
+      cover_path: ".mixlab-library/videos/V000003/cover.jpg",
+      segments: [
+        segment({
+          source_video_id: "V000003",
+          index: 0,
+          begin_ms: 30_000,
+          end_ms: 34_000,
+          text: "现金流回款周期要缩短。",
+          normalized_text: "现金流回款周期要缩短"
+        })
+      ]
+    },
+    {
+      source_video_id: "V000004",
+      title: "现金流预算课",
+      duration_ms: 1_600_000,
+      relative_path: "source-videos/预算.mp4",
+      cover_path: ".mixlab-library/videos/V000004/cover.jpg",
+      segments: [
+        segment({
+          source_video_id: "V000004",
+          index: 0,
+          begin_ms: 40_000,
+          end_ms: 44_000,
+          text: "现金流预算要先于投放。",
+          normalized_text: "现金流预算要先于投放"
+        })
+      ]
+    }
+  ];
+
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    library_id: "lib_main_001",
+    index_version: "v000001",
+    created_at: "2026-05-02T00:00:00Z",
+    videos: pagedVideos
+  });
+
+  const firstPage = searchSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    query: "现金流",
+    limit: 2
+  });
+
+  assert.deepEqual(
+    firstPage.groups.map((group) => group.source_video_id),
+    ["V000001", "V000003"]
+  );
+  assert.equal(firstPage.returned_count, 2);
+  assert.equal(firstPage.limit, 2);
+  assert.equal(firstPage.index_version, "v000001");
+  assert.equal(firstPage.has_more, true);
+  assert.notEqual(firstPage.next_cursor, "");
+  assert.equal(firstPage.search_ms >= 0, true);
+
+  const secondPage = searchSourceTranscriptSqliteIndex({
+    index_file_path: dbPath,
+    query: "现金流",
+    limit: 2,
+    cursor: firstPage.next_cursor
+  });
+
+  assert.deepEqual(
+    secondPage.groups.map((group) => group.source_video_id),
+    ["V000004"]
+  );
+  assert.equal(secondPage.has_more, false);
+  assert.equal(secondPage.next_cursor, "");
 });
 
 test("searches long natural text across adjacent SQLite transcript segments", async () => {

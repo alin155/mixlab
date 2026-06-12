@@ -10,6 +10,11 @@ import {
   windowsSidecarExecutableName
 } from "./build-cutter-sidecar.ts";
 import {
+  buildSearchdSidecarExecutable,
+  buildSearchdSidecarPlan,
+  windowsSearchdExecutableName
+} from "./build-searchd-sidecar.ts";
+import {
   requiredWindowsRuntimeAssets,
   verifyWindowsRuntimeAssets
 } from "./verify-windows-runtime-assets.ts";
@@ -37,6 +42,48 @@ test("build sidecar plan targets a Windows x64 executable for Tauri sidecar nami
     pkg_binary: path.join("/repo", "node_modules/.bin", process.platform === "win32" ? "pkg.cmd" : "pkg"),
     pkg_target: "node22-win-x64"
   });
+});
+
+test("build searchd sidecar plan copies the Windows Rust release binary into Tauri binaries", () => {
+  assert.equal(windowsSearchdExecutableName(), "mixlab-searchd-x86_64-pc-windows-msvc.exe");
+  assert.deepEqual(buildSearchdSidecarPlan("/repo"), {
+    cargo_manifest: path.join("/repo", "packages/searchd/Cargo.toml"),
+    release_binary: path.join("/repo", "packages/searchd/target/release/mixlab-searchd.exe"),
+    executable_output: path.join(
+      "/repo",
+      "apps/cutter-desktop/src-tauri/binaries/mixlab-searchd-x86_64-pc-windows-msvc.exe"
+    )
+  });
+});
+
+test("build searchd sidecar executes cargo release build and copies the executable", async () => {
+  const commands: string[] = [];
+  const directories: string[] = [];
+  const copies: string[] = [];
+
+  await buildSearchdSidecarExecutable({
+    repo_root: "/repo",
+    run_command: async (command, args, cwd) => {
+      commands.push(`${cwd}: ${command} ${args.join(" ")}`);
+    },
+    ensure_directory: async (directoryPath) => {
+      directories.push(directoryPath);
+    },
+    copy_file: async (sourcePath, targetPath) => {
+      copies.push(`${sourcePath} -> ${targetPath}`);
+    }
+  });
+
+  assert.deepEqual(commands, [
+    `/repo: cargo build --manifest-path ${path.join("/repo", "packages/searchd/Cargo.toml")} --release`
+  ]);
+  assert.deepEqual(directories, [path.join("/repo", "apps/cutter-desktop/src-tauri/binaries")]);
+  assert.deepEqual(copies, [
+    `${path.join("/repo", "packages/searchd/target/release/mixlab-searchd.exe")} -> ${path.join(
+      "/repo",
+      "apps/cutter-desktop/src-tauri/binaries/mixlab-searchd-x86_64-pc-windows-msvc.exe"
+    )}`
+  ]);
 });
 
 function createMinimalWindowsPe(subsystem: number): Buffer {
@@ -172,6 +219,12 @@ test("Windows desktop package plan runs the required build steps in order", () =
       cwd: "/repo"
     },
     {
+      label: "build searchd sidecar exe",
+      command: "npm",
+      args: ["run", "build:searchd", "-w", "@mixlab/cutter-desktop"],
+      cwd: "/repo"
+    },
+    {
       label: "prepare Windows runtime assets",
       command: "npm",
       args: ["run", "prepare:cutter-desktop:windows-assets"],
@@ -213,6 +266,7 @@ test("Windows desktop packaging executes all plan steps on Windows", async () =>
   assert.deepEqual(calls, [
     "npm.cmd run build:cutter-web",
     "npm.cmd run build:sidecar -w @mixlab/cutter-desktop",
+    "npm.cmd run build:searchd -w @mixlab/cutter-desktop",
     "npm.cmd run prepare:cutter-desktop:windows-assets",
     "npm.cmd run verify:cutter-desktop:windows-assets",
     "npm.cmd run tauri:build -w @mixlab/cutter-desktop"
@@ -238,6 +292,7 @@ test("GitHub Actions workflow packages the Windows desktop installer as a downlo
   assert.match(workflow, /rustup toolchain install stable --profile minimal/);
   assert.match(workflow, /rustup default stable/);
   assert.match(workflow, /npm ci/);
+  assert.match(workflow, /npm run test:searchd/);
   assert.match(workflow, /npm run package:cutter-desktop:windows/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.match(workflow, /apps\/cutter-desktop\/src-tauri\/target\/release\/bundle\/nsis\/\*.exe/);

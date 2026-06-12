@@ -6,7 +6,10 @@ import {
   normalizeTranscriptText,
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
-import type { TranscriptSearchResult } from "../../search-core/src/index.ts";
+import type {
+  TranscriptSearchGroup,
+  TranscriptSearchResult
+} from "../../search-core/src/index.ts";
 import { searchTranscripts } from "../../search-core/src/index.ts";
 
 export interface SourceTranscriptSqliteVideo {
@@ -44,6 +47,24 @@ export interface SearchSourceTranscriptSqliteIndexInput {
   index_file_path: string;
   query: string;
   limit: number;
+  cursor?: string;
+}
+
+export interface SourceTranscriptSqliteSearchGroup extends TranscriptSearchGroup {
+  relative_path: string;
+  cover_path: string;
+  transcript_character_count: number;
+}
+
+export interface SourceTranscriptSqliteSearchResult extends Omit<TranscriptSearchResult, "groups"> {
+  groups: SourceTranscriptSqliteSearchGroup[];
+  cursor: string;
+  next_cursor: string;
+  has_more: boolean;
+  returned_count: number;
+  limit: number;
+  index_version: string;
+  search_ms: number;
 }
 
 interface SegmentSearchRow {
@@ -63,10 +84,16 @@ interface SourceVideoSearchRow {
   source_video_id: string;
   title: string;
   duration_ms: number;
+  relative_path: string;
+  cover_path: string;
 }
 
 function openDatabase(filePath: string): DatabaseSync {
   return new DatabaseSync(filePath);
+}
+
+function openReadonlyDatabase(filePath: string): DatabaseSync {
+  return new DatabaseSync(`file:${filePath}?mode=ro&immutable=1`);
 }
 
 function ngrams(normalizedText: string): string[] {
@@ -242,10 +269,34 @@ function readMetadataMap(db: DatabaseSync): Map<string, string> {
   return new Map(rows.map((row) => [row.key, row.value]));
 }
 
+const SQLITE_SEARCH_CURSOR_PREFIX = "sqlite:";
+
+function encodeSearchCursor(offset: number): string {
+  return offset > 0 ? `${SQLITE_SEARCH_CURSOR_PREFIX}${offset}` : "";
+}
+
+function decodeSearchCursor(cursor: string | undefined): number {
+  if (!cursor?.trim()) {
+    return 0;
+  }
+
+  const normalized = cursor.trim();
+  const offsetText = normalized.startsWith(SQLITE_SEARCH_CURSOR_PREFIX)
+    ? normalized.slice(SQLITE_SEARCH_CURSOR_PREFIX.length)
+    : normalized;
+  const offset = Number.parseInt(offsetText, 10);
+
+  if (!Number.isInteger(offset) || offset < 0 || String(offset) !== offsetText) {
+    throw new Error("invalid_search_cursor");
+  }
+
+  return offset;
+}
+
 export function readSourceTranscriptSqliteIndexMetadata(
   indexFilePath: string
 ): SourceTranscriptSqliteIndexMetadata {
-  const db = openDatabase(indexFilePath);
+  const db = openReadonlyDatabase(indexFilePath);
 
   try {
     const metadata = readMetadataMap(db);
@@ -307,6 +358,9 @@ function readCandidateVideos(
   source_video_id: string;
   title: string;
   duration_ms: number;
+  relative_path: string;
+  cover_path: string;
+  transcript_character_count: number;
   segments: TranscriptSegment[];
 }> {
   if (sourceVideoIds.length === 0) {
@@ -316,7 +370,7 @@ function readCandidateVideos(
   const placeholders = sourceVideoIds.map(() => "?").join(", ");
   const videoRows = db
     .prepare(`
-      SELECT position, source_video_id, title, duration_ms
+      SELECT position, source_video_id, title, duration_ms, relative_path, cover_path
       FROM source_videos
       WHERE source_video_id IN (${placeholders})
       ORDER BY position ASC
@@ -377,41 +431,90 @@ function readCandidateVideos(
     source_video_id: video.source_video_id,
     title: video.title,
     duration_ms: video.duration_ms,
+    relative_path: video.relative_path,
+    cover_path: video.cover_path,
+    transcript_character_count: compactCharacterCount(
+      (segmentsByVideo.get(video.source_video_id) ?? [])
+        .map((segment) => segment.text)
+        .join("")
+    ),
     segments: segmentsByVideo.get(video.source_video_id) ?? []
   }));
 }
 
+function compactCharacterCount(text: string): number {
+  return text.replace(/\s+/g, "").length;
+}
+
 export function searchSourceTranscriptSqliteIndex(
   input: SearchSourceTranscriptSqliteIndexInput
-): TranscriptSearchResult {
+): SourceTranscriptSqliteSearchResult {
+  const startedAt = performance.now();
   const normalizedQuery = normalizeTranscriptText(input.query);
+  const offset = decodeSearchCursor(input.cursor);
+  const safeLimit = Math.max(1, input.limit);
 
   if (normalizedQuery === "") {
     return {
       query: input.query,
       normalized_query: normalizedQuery,
-      groups: []
+      groups: [],
+      cursor: encodeSearchCursor(offset),
+      next_cursor: "",
+      has_more: false,
+      returned_count: 0,
+      limit: safeLimit,
+      index_version: "",
+      search_ms: Math.max(0, Math.round(performance.now() - startedAt))
     };
   }
 
-  const db = openDatabase(input.index_file_path);
+  const db = openReadonlyDatabase(input.index_file_path);
 
   try {
+    const metadata = readMetadataMap(db);
+    const indexVersion = metadata.get("index_version") ?? "";
+    const searchLimit = offset + safeLimit + 1;
     const candidateIds = candidateSourceVideoIds(
       db,
       normalizedQuery,
-      Math.max(input.limit * 20, input.limit)
+      Math.max(searchLimit * 20, searchLimit)
     );
     const candidateVideos = readCandidateVideos(db, candidateIds);
+    const candidateBySourceVideoId = new Map(
+      candidateVideos.map((video) => [video.source_video_id, video])
+    );
     const result = searchTranscripts({ videos: candidateVideos }, {
       query: input.query,
-      limit: input.limit
+      limit: searchLimit
     });
+    const pageGroups = result.groups.slice(offset, offset + safeLimit).map((group) => {
+      const candidate = candidateBySourceVideoId.get(group.source_video_id);
+
+      return {
+        ...group,
+        relative_path: candidate?.relative_path ?? "",
+        cover_path: candidate?.cover_path ?? "",
+        transcript_character_count:
+          candidate?.transcript_character_count ?? compactCharacterCount(
+            group.hit_segments.map((segment) => segment.text).join("")
+          )
+      };
+    });
+    const hasMore = result.groups.length > offset + safeLimit;
+    const nextOffset = offset + pageGroups.length;
 
     return {
       query: input.query,
       normalized_query: normalizedQuery,
-      groups: result.groups
+      groups: pageGroups,
+      cursor: encodeSearchCursor(offset),
+      next_cursor: hasMore ? encodeSearchCursor(nextOffset) : "",
+      has_more: hasMore,
+      returned_count: pageGroups.length,
+      limit: safeLimit,
+      index_version: indexVersion,
+      search_ms: Math.max(0, Math.round(performance.now() - startedAt))
     };
   } finally {
     db.close();

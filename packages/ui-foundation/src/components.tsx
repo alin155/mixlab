@@ -6,6 +6,13 @@ export interface SidebarItem {
   href?: string;
 }
 
+export interface SidebarBrand {
+  title: string;
+  subtitle: string;
+  mark?: string;
+  href?: string;
+}
+
 export interface ToolbarProps {
   title: string;
   libraryLabel?: string;
@@ -38,21 +45,133 @@ export interface FormGroup {
   }>;
 }
 
-function iconSymbol(icon: string): string {
-  const symbols: Record<string, string> = {
-    archive: "□",
-    search: "⌕",
-    list: "≡",
-    folder: "▣",
-    queue: "○",
-    settings: "⌘",
-    dashboard: "⌂",
-    video: "▤",
-    doctor: "◎",
-    index: "◇"
+function iconSymbol(icon: string): ReactNode {
+  const svgProps = {
+    width: 22,
+    height: 22,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.85,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const
+  };
+  const icons: Record<string, ReactNode> = {
+    archive: (
+      <svg {...svgProps}>
+        <path d="M4 7h16" />
+        <path d="M5 7l1 13h12l1-13" />
+        <path d="M9 11h6" />
+      </svg>
+    ),
+    database: (
+      <svg {...svgProps}>
+        <ellipse cx="12" cy="5.5" rx="7.5" ry="3" />
+        <path d="M4.5 5.5v13c0 1.65 3.35 3 7.5 3s7.5-1.35 7.5-3v-13" />
+        <path d="M4.5 12c0 1.65 3.35 3 7.5 3s7.5-1.35 7.5-3" />
+      </svg>
+    ),
+    search: (
+      <svg {...svgProps}>
+        <circle cx="11" cy="11" r="7" />
+        <path d="M16.5 16.5L21 21" />
+      </svg>
+    ),
+    list: (
+      <svg {...svgProps}>
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 18h.01" />
+      </svg>
+    ),
+    folder: (
+      <svg {...svgProps}>
+        <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h4l2 2h7A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z" />
+      </svg>
+    ),
+    queue: (
+      <svg {...svgProps}>
+        <path d="M6 4v16" />
+        <path d="M18 4v16" />
+        <path d="M4 8h4" />
+        <path d="M4 16h4" />
+        <path d="M16 8h4" />
+        <path d="M16 16h4" />
+        <path d="M9 7h6" />
+        <path d="M9 12h6" />
+        <path d="M9 17h6" />
+      </svg>
+    ),
+    sliders: (
+      <svg {...svgProps}>
+        <path d="M4 7h8" />
+        <path d="M16 7h4" />
+        <circle cx="14" cy="7" r="2" />
+        <path d="M4 12h3" />
+        <path d="M11 12h9" />
+        <circle cx="9" cy="12" r="2" />
+        <path d="M4 17h10" />
+        <path d="M18 17h2" />
+        <circle cx="16" cy="17" r="2" />
+      </svg>
+    ),
+    settings: (
+      <svg {...svgProps}>
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.04.04a2.15 2.15 0 0 1-3.04 3.04l-.04-.04a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.08 1.65V22a2.15 2.15 0 0 1-4.3 0v-.07A1.8 1.8 0 0 0 8.3 20.3a1.8 1.8 0 0 0-2 .36l-.04.04a2.15 2.15 0 0 1-3.04-3.04l.04-.04a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2 14.55v-.1a1.8 1.8 0 0 0 1.63-1.08 1.8 1.8 0 0 0-.36-2l-.04-.04a2.15 2.15 0 0 1 3.04-3.04l.04.04a1.8 1.8 0 0 0 2 .36A1.8 1.8 0 0 0 9.37 7V6a2.15 2.15 0 0 1 4.3 0v1a1.8 1.8 0 0 0 1.08 1.65 1.8 1.8 0 0 0 2-.36l.04-.04a2.15 2.15 0 0 1 3.04 3.04l-.04.04a1.8 1.8 0 0 0-.36 2c.2.5.63.9 1.15 1.06" />
+      </svg>
+    ),
+    users: (
+      <svg {...svgProps}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <circle cx="9.5" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+    home: (
+      <svg {...svgProps}>
+        <path d="M3 11.5L12 4l9 7.5" />
+        <path d="M5.5 10.5V20h13v-9.5" />
+        <path d="M9.5 20v-6h5v6" />
+      </svg>
+    ),
+    dashboard: (
+      <svg {...svgProps}>
+        <path d="M3 11.5L12 4l9 7.5" />
+        <path d="M5.5 10.5V20h13v-9.5" />
+        <path d="M9.5 20v-6h5v6" />
+      </svg>
+    ),
+    video: (
+      <svg {...svgProps}>
+        <rect x="3" y="5" width="18" height="14" rx="2.5" />
+        <path d="M10 9l5 3-5 3z" />
+      </svg>
+    ),
+    doctor: (
+      <svg {...svgProps}>
+        <path d="M20.5 11.5a8.5 8.5 0 1 1-3-6.5" />
+        <path d="M8 12l2.5 2.5L20 5" />
+      </svg>
+    ),
+    index: (
+      <svg {...svgProps}>
+        <path d="M4 7h16" />
+        <path d="M4 12h16" />
+        <path d="M4 17h16" />
+      </svg>
+    )
   };
 
-  return symbols[icon] ?? "•";
+  return icons[icon] ?? (
+    <svg {...svgProps}>
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
 }
 
 export function MacWindow({
@@ -83,16 +202,39 @@ export function MacWindow({
 }
 
 export function Sidebar({
+  brand,
   items,
   active,
   footer
 }: {
+  brand?: SidebarBrand;
   items: readonly SidebarItem[];
   active: string;
   footer?: ReactNode;
 }) {
+  const brandContent = brand ? (
+    <>
+      <span className="ml-sidebar-brand-mark" aria-hidden="true">
+        {brand.mark ?? "ML"}
+      </span>
+      <span>
+        <strong>{brand.title}</strong>
+        <small>{brand.subtitle}</small>
+      </span>
+    </>
+  ) : null;
+
   return (
     <nav className="ml-sidebar" aria-label="MixLab navigation">
+      {brand ? (
+        brand.href ? (
+          <a className="ml-sidebar-brand" href={brand.href}>
+            {brandContent}
+          </a>
+        ) : (
+          <span className="ml-sidebar-brand">{brandContent}</span>
+        )
+      ) : null}
       {items.map((item) => (
         <a
           className={`ml-sidebar-item${item.label === active ? " is-active" : ""}`}

@@ -18,7 +18,6 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { route: "dashboard", label: "仪表盘", icon: "dashboard" },
   { route: "source-videos", label: "原视频管理", icon: "video" },
   { route: "preprocess-jobs", label: "预处理", icon: "queue" },
-  { route: "doctor", label: "健康诊断", icon: "doctor" },
   { route: "cutter-users", label: "剪辑师用户", icon: "users" },
   { route: "settings", label: "设置", icon: "settings" }
 ];

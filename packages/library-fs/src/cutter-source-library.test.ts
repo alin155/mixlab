@@ -10,8 +10,10 @@ import {
   completePreprocessArtifacts,
   getCutterSourceVideoDetail,
   listCutterSourceLibrary,
+  publishIndexRequiredSourceVideos,
   publishReadySourceVideo,
   readAdminSettings,
+  readSourceVideoManifest,
   scanSourceVideos,
   searchCutterSourceLibrary,
   writeAdminSettings
@@ -231,6 +233,40 @@ test("lists only ready source videos as cutter library cards with resolved asset
   );
 });
 
+test("exposes admin-managed public metadata to cutter library list and detail", async () => {
+  const libraryRoot = await prepareLibrary();
+  const manifest = await readSourceVideoManifest(libraryRoot, "V000001");
+  await writeFile(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"),
+    `${JSON.stringify({
+      ...manifest,
+      description: "剪辑端卡片说明",
+      tags: ["现金流", "财务"],
+      lecturer: "李老师",
+      course: "经营课",
+      category: "财务"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  const library = await listCutterSourceLibrary({ library_root: libraryRoot });
+  const detail = await getCutterSourceVideoDetail({
+    library_root: libraryRoot,
+    source_video_id: "V000001"
+  });
+
+  assert.equal(library.videos[0]?.description, "剪辑端卡片说明");
+  assert.deepEqual(library.videos[0]?.tags, ["现金流", "财务"]);
+  assert.equal(library.videos[0]?.lecturer, "李老师");
+  assert.equal(library.videos[0]?.course, "经营课");
+  assert.equal(library.videos[0]?.category, "财务");
+  assert.equal(detail?.description, "剪辑端卡片说明");
+  assert.deepEqual(detail?.tags, ["现金流", "财务"]);
+  assert.equal(detail?.lecturer, "李老师");
+  assert.equal(detail?.course, "经营课");
+  assert.equal(detail?.category, "财务");
+});
+
 test("resolves default source-videos against the cutter-selected library root", async () => {
   const libraryRoot = await prepareLibrary();
   const settings = await readAdminSettings(libraryRoot);
@@ -373,6 +409,12 @@ test("searches only cutter-visible ready transcripts and enriches groups with co
   });
 
   assert.equal(result.normalized_query, "现金流");
+  assert.equal(result.search_mode, "transcript-artifact-fallback");
+  assert.equal(result.index_version, "");
+  assert.equal(result.returned_count, 1);
+  assert.equal(result.has_more, false);
+  assert.equal(result.next_cursor, "");
+  assert.equal(result.search_ms >= 0, true);
   assert.deepEqual(
     result.groups.map((group) => group.source_video_id),
     ["V000001"]
@@ -416,6 +458,49 @@ test("falls back to ready transcript artifacts when the current sqlite search in
     result.groups.map((group) => group.source_video_id),
     ["V000001"]
   );
+  assert.equal(result.search_mode, "transcript-artifact-fallback");
+  assert.equal(result.returned_count, 1);
+  assert.equal(result.has_more, false);
   assert.equal(result.groups[0]?.hit_segments[0]?.text, "现金流，是企业的血液。");
   assert.equal(result.groups[0]?.transcript_character_count, 18);
+});
+
+test("artifact cursor continuation stays on artifact search even when sqlite index exists", async () => {
+  const libraryRoot = await prepareLibrary();
+  await writeReadyArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    full_text: "现金流也会影响组织效率。",
+    segments: [
+      segment({
+        source_video_id: "V000002",
+        index: 0,
+        begin_ms: 2000,
+        end_ms: 5200,
+        text: "现金流也会影响组织效率。",
+        normalized_text: "现金流也会影响组织效率"
+      })
+    ]
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:35:00Z"
+  });
+
+  const result = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流",
+    limit: 1,
+    cursor: "artifact:1"
+  });
+
+  assert.equal(result.search_mode, "transcript-artifact-fallback");
+  assert.equal(result.cursor, "artifact:1");
+  assert.deepEqual(
+    result.groups.map((group) => group.source_video_id),
+    ["V000002"]
+  );
+  assert.equal(result.next_cursor, "");
+  assert.equal(result.has_more, false);
 });

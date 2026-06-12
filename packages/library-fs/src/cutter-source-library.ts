@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Dirent } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,7 +14,11 @@ import {
   searchTranscripts,
   type TranscriptSearchGroup
 } from "../../search-core/src/index.ts";
-import { searchSourceTranscriptSqliteIndex } from "../../search-sqlite/src/index.ts";
+import {
+  searchSourceTranscriptSqliteIndex,
+  type SourceTranscriptSqliteSearchGroup,
+  type SourceTranscriptSqliteSearchResult
+} from "../../search-sqlite/src/index.ts";
 import {
   readAllSourceVideoManifests,
   readSourceVideoManifest
@@ -22,6 +27,8 @@ import { resolveSourceVideoFilePath } from "./source-paths.ts";
 
 export interface ListCutterSourceLibraryInput {
   library_root: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface GetCutterSourceVideoDetailInput {
@@ -33,6 +40,7 @@ export interface SearchCutterSourceLibraryInput {
   library_root: string;
   query: string;
   limit: number;
+  cursor?: string;
 }
 
 export interface CutterSourceVideoCard {
@@ -49,6 +57,11 @@ export interface CutterSourceVideoCard {
   source_video_file_path: string;
   cover_path: string;
   cover_file_path: string;
+  description?: string;
+  tags?: string[];
+  lecturer?: string;
+  course?: string;
+  category?: string;
 }
 
 export interface CutterSourceLibraryView {
@@ -96,6 +109,14 @@ export interface CutterSourceLibrarySearchResult {
   query: string;
   normalized_query: string;
   groups: CutterSourceLibrarySearchGroup[];
+  cursor: string;
+  next_cursor: string;
+  has_more: boolean;
+  returned_count: number;
+  limit: number;
+  index_version: string;
+  search_ms: number;
+  search_mode: "sqlite-index" | "transcript-artifact-fallback" | "searchd";
 }
 
 function artifactFilePath(libraryRoot: string, libraryRelativePath: string): string {
@@ -179,7 +200,38 @@ async function toCutterSourceVideoCard(
     logical_uri: manifest.logical_uri,
     source_video_file_path: await resolveSourceVideoFilePath(libraryRoot, manifest),
     cover_path: manifest.cover_path,
-    cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path)
+    cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path),
+    ...(manifest.description ? { description: manifest.description } : {}),
+    ...(manifest.tags ? { tags: manifest.tags } : {}),
+    ...(manifest.lecturer ? { lecturer: manifest.lecturer } : {}),
+    ...(manifest.course ? { course: manifest.course } : {}),
+    ...(manifest.category ? { category: manifest.category } : {})
+  };
+}
+
+async function toFastCutterSourceVideoCard(
+  libraryRoot: string,
+  manifest: SourceVideoManifest
+): Promise<CutterSourceVideoCard> {
+  return {
+    source_video_id: manifest.source_video_id,
+    title: manifest.title,
+    duration_ms: manifest.duration_ms,
+    width: manifest.width,
+    height: manifest.height,
+    fps: manifest.fps,
+    codec: manifest.codec,
+    file_size: manifest.file_size,
+    relative_path: manifest.relative_path,
+    logical_uri: manifest.logical_uri,
+    source_video_file_path: manifest.relative_path,
+    cover_path: manifest.cover_path,
+    cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path),
+    ...(manifest.description ? { description: manifest.description } : {}),
+    ...(manifest.tags ? { tags: manifest.tags } : {}),
+    ...(manifest.lecturer ? { lecturer: manifest.lecturer } : {}),
+    ...(manifest.course ? { course: manifest.course } : {}),
+    ...(manifest.category ? { category: manifest.category } : {})
   };
 }
 
@@ -188,11 +240,15 @@ function isCutterReadyManifestRecord(manifest: SourceVideoManifest): boolean {
 }
 
 async function readIndexedReadySourceVideoManifests(
-  libraryRoot: string
-): Promise<SourceVideoManifest[]> {
+  libraryRoot: string,
+  options: { limit?: number; offset?: number } = {}
+): Promise<{ available_video_count: number; manifests: SourceVideoManifest[] }> {
   const indexManifest = await readCurrentIndexPackageManifest(libraryRoot);
+  const offset = Math.max(0, options.offset ?? 0);
+  const limit = options.limit && options.limit > 0 ? options.limit : indexManifest.source_video_ids.length;
+  const sourceVideoIds = indexManifest.source_video_ids.slice(offset, offset + limit);
   const records = await Promise.all(
-    indexManifest.source_video_ids.map(async (sourceVideoId) => {
+    sourceVideoIds.map(async (sourceVideoId) => {
       try {
         const manifest = await readSourceVideoManifest(libraryRoot, sourceVideoId);
         return isCutterReadyManifestRecord(manifest) ? manifest : null;
@@ -202,7 +258,10 @@ async function readIndexedReadySourceVideoManifests(
     })
   );
 
-  return records.filter((manifest): manifest is SourceVideoManifest => Boolean(manifest));
+  return {
+    available_video_count: indexManifest.ready_video_count,
+    manifests: records.filter((manifest): manifest is SourceVideoManifest => Boolean(manifest))
+  };
 }
 
 async function readVisibleSourceVideoManifests(
@@ -255,10 +314,13 @@ async function cachedSqliteIndexFilePath(
   sourceIndexFilePath: string
 ): Promise<string> {
   const sourceStat = await stat(sourceIndexFilePath);
-  const cacheDir = path.join(
+  const libraryCacheRoot = path.join(
     os.tmpdir(),
     "mixlab-cutter-index-cache",
-    cacheKeyForLibraryRoot(libraryRoot),
+    cacheKeyForLibraryRoot(libraryRoot)
+  );
+  const cacheDir = path.join(
+    libraryCacheRoot,
     indexVersion
   );
   const cacheFilePath = path.join(cacheDir, "index.sqlite");
@@ -267,29 +329,138 @@ async function cachedSqliteIndexFilePath(
     const cacheStat = await stat(cacheFilePath);
 
     if (cacheStat.size === sourceStat.size) {
-      await pruneSqliteIndexCache(path.dirname(cacheDir), indexVersion);
+      await pruneSqliteIndexCache(libraryCacheRoot, indexVersion);
       return cacheFilePath;
     }
   } catch {
     // Cache miss; copy the immutable index package locally.
   }
 
-  await mkdir(cacheDir, { recursive: true });
+  const warmCacheFilePath = await newestWarmSqliteIndexCacheFilePath(
+    libraryCacheRoot,
+    indexVersion
+  );
+  if (warmCacheFilePath) {
+    void ensureSqliteIndexCached({
+      library_cache_root: libraryCacheRoot,
+      index_version: indexVersion,
+      source_index_file_path: sourceIndexFilePath,
+      cache_dir: cacheDir,
+      cache_file_path: cacheFilePath
+    }).catch(() => {
+      // The next search can retry the refresh; keep the current request fast.
+    });
+    return warmCacheFilePath;
+  }
+
+  return ensureSqliteIndexCached({
+    library_cache_root: libraryCacheRoot,
+    index_version: indexVersion,
+    source_index_file_path: sourceIndexFilePath,
+    cache_dir: cacheDir,
+    cache_file_path: cacheFilePath
+  });
+}
+
+async function newestWarmSqliteIndexCacheFilePath(
+  libraryCacheRoot: string,
+  currentIndexVersion: string
+): Promise<string | null> {
+  let dirents: Dirent<string>[];
+  try {
+    dirents = await readdir(libraryCacheRoot, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const candidates = await Promise.all(
+    dirents
+      .filter((dirent) => dirent.isDirectory() && dirent.name !== currentIndexVersion)
+      .map(async (dirent) => {
+        const cacheFilePath = path.join(libraryCacheRoot, dirent.name, "index.sqlite");
+
+        try {
+          const cacheStat = await stat(cacheFilePath);
+          if (!cacheStat.isFile() || cacheStat.size === 0) {
+            return null;
+          }
+
+          return {
+            cacheFilePath,
+            mtimeMs: cacheStat.mtimeMs
+          };
+        } catch {
+          return null;
+        }
+      })
+  );
+  const newest = candidates
+    .filter((candidate): candidate is { cacheFilePath: string; mtimeMs: number } =>
+      Boolean(candidate)
+    )
+    .sort((left, right) => right.mtimeMs - left.mtimeMs)[0];
+
+  return newest?.cacheFilePath ?? null;
+}
+
+const pendingSqliteIndexCacheCopies = new Map<string, Promise<string>>();
+
+function ensureSqliteIndexCached(input: {
+  library_cache_root: string;
+  index_version: string;
+  source_index_file_path: string;
+  cache_dir: string;
+  cache_file_path: string;
+}): Promise<string> {
+  const pendingKey = `${input.library_cache_root}:${input.index_version}`;
+  const pending = pendingSqliteIndexCacheCopies.get(pendingKey);
+  if (pending) {
+    return pending;
+  }
+
+  const copyPromise = copySqliteIndexToCache(input).finally(() => {
+    pendingSqliteIndexCacheCopies.delete(pendingKey);
+  });
+
+  pendingSqliteIndexCacheCopies.set(pendingKey, copyPromise);
+  return copyPromise;
+}
+
+async function copySqliteIndexToCache(input: {
+  library_cache_root: string;
+  index_version: string;
+  source_index_file_path: string;
+  cache_dir: string;
+  cache_file_path: string;
+}): Promise<string> {
+  await mkdir(input.cache_dir, { recursive: true });
   const tempFilePath = path.join(
-    cacheDir,
+    input.cache_dir,
     `index.sqlite.${process.pid}.${Date.now()}.tmp`
   );
 
   try {
-    await copyFile(sourceIndexFilePath, tempFilePath);
-    await rename(tempFilePath, cacheFilePath);
+    await copyFile(input.source_index_file_path, tempFilePath);
+    await rename(tempFilePath, input.cache_file_path);
   } catch (error) {
     await rm(tempFilePath, { force: true });
     throw error;
   }
 
-  await pruneSqliteIndexCache(path.dirname(cacheDir), indexVersion);
-  return cacheFilePath;
+  await pruneSqliteIndexCache(input.library_cache_root, input.index_version);
+  return input.cache_file_path;
+}
+
+function isSourceTranscriptSqliteSearchGroup(
+  group: TranscriptSearchGroup
+): group is SourceTranscriptSqliteSearchGroup {
+  const candidate = group as Partial<SourceTranscriptSqliteSearchGroup>;
+
+  return (
+    typeof candidate.relative_path === "string" &&
+    typeof candidate.cover_path === "string" &&
+    typeof candidate.transcript_character_count === "number"
+  );
 }
 
 async function pruneSqliteIndexCache(
@@ -345,6 +516,49 @@ function shouldFallbackToTranscriptArtifactSearch(error: unknown): boolean {
   return code === "ENOENT" || code === "ERR_SQLITE_ERROR" || error instanceof SyntaxError;
 }
 
+const ARTIFACT_SEARCH_CURSOR_PREFIX = "artifact:";
+
+type LocalSearchCursorBackend = "none" | "sqlite-index" | "transcript-artifact-fallback" | "unknown";
+
+function localSearchCursorBackend(cursor: string | undefined): LocalSearchCursorBackend {
+  const normalized = cursor?.trim();
+  if (!normalized) {
+    return "none";
+  }
+
+  if (normalized.startsWith("sqlite:")) {
+    return "sqlite-index";
+  }
+
+  if (normalized.startsWith("artifact:")) {
+    return "transcript-artifact-fallback";
+  }
+
+  return "unknown";
+}
+
+function encodeArtifactSearchCursor(offset: number): string {
+  return offset > 0 ? `${ARTIFACT_SEARCH_CURSOR_PREFIX}${offset}` : "";
+}
+
+function decodeArtifactSearchCursor(cursor: string | undefined): number {
+  if (!cursor?.trim()) {
+    return 0;
+  }
+
+  const normalized = cursor.trim();
+  const offsetText = normalized.includes(":")
+    ? normalized.slice(normalized.lastIndexOf(":") + 1)
+    : normalized;
+  const offset = Number.parseInt(offsetText, 10);
+
+  if (!Number.isInteger(offset) || offset < 0 || String(offset) !== offsetText) {
+    throw new Error("invalid_search_cursor");
+  }
+
+  return offset;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     return (await stat(filePath)).isFile();
@@ -389,11 +603,18 @@ export async function listCutterSourceLibrary(
   input: ListCutterSourceLibraryInput
 ): Promise<CutterSourceLibraryView> {
   let readyManifests: SourceVideoManifest[];
+  let availableVideoCount = 0;
 
   try {
-    readyManifests = await readIndexedReadySourceVideoManifests(input.library_root);
+    const indexed = await readIndexedReadySourceVideoManifests(input.library_root, {
+      limit: input.limit,
+      offset: input.offset
+    });
+    readyManifests = indexed.manifests;
+    availableVideoCount = indexed.available_video_count;
   } catch {
     readyManifests = await readVisibleSourceVideoManifests(input.library_root);
+    availableVideoCount = readyManifests.length;
   }
 
   const videos = await Promise.all(
@@ -403,7 +624,7 @@ export async function listCutterSourceLibrary(
   );
 
   return {
-    available_video_count: videos.length,
+    available_video_count: availableVideoCount,
     videos
   };
 }
@@ -439,25 +660,52 @@ export async function getCutterSourceVideoDetail(
 export async function searchCutterSourceLibrary(
   input: SearchCutterSourceLibraryInput
 ): Promise<CutterSourceLibrarySearchResult> {
-  let result: {
-    query: string;
-    normalized_query: string;
-    groups: TranscriptSearchGroup[];
-  };
+  const startedAt = performance.now();
+  let result: SourceTranscriptSqliteSearchResult | (ReturnType<typeof searchTranscripts> & {
+    cursor: string;
+    next_cursor: string;
+    has_more: boolean;
+    returned_count: number;
+    limit: number;
+    index_version: string;
+    search_ms: number;
+  }) | undefined;
+  let searchMode: CutterSourceLibrarySearchResult["search_mode"] = "sqlite-index";
+  const cursorBackend = localSearchCursorBackend(input.cursor);
 
-  try {
-    result = searchSourceTranscriptSqliteIndex({
-      index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root),
-      query: input.query,
-      limit: Math.min(100, Math.max(input.limit * 3, input.limit))
-    });
-  } catch (error) {
-    if (!shouldFallbackToTranscriptArtifactSearch(error)) {
-      throw error;
+  if (cursorBackend !== "transcript-artifact-fallback") {
+    try {
+      result = searchSourceTranscriptSqliteIndex({
+        index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root),
+        query: input.query,
+        limit: input.limit,
+        cursor: input.cursor
+      });
+    } catch (error) {
+      if (cursorBackend === "sqlite-index" || !shouldFallbackToTranscriptArtifactSearch(error)) {
+        throw error;
+      }
+    }
+  }
+
+  if (!result) {
+    if (cursorBackend === "sqlite-index") {
+      throw new Error("invalid_search_cursor");
     }
 
+    searchMode = "transcript-artifact-fallback";
+    const offset = decodeArtifactSearchCursor(input.cursor);
+    const pageLimit = Math.max(1, input.limit);
+    const searchLimit = offset + pageLimit + 1;
     const visibleManifests = await readVisibleSourceVideoManifests(input.library_root);
     const searchableVideos = [];
+    let indexVersion = "";
+
+    try {
+      indexVersion = (await readCurrentIndexPackageManifest(input.library_root)).index_version;
+    } catch {
+      // Older or damaged libraries may not have a current package while fallback is still usable.
+    }
 
     for (const manifest of visibleManifests) {
       const transcript = await readJsonFile<CutterTranscriptArtifact>(
@@ -472,38 +720,78 @@ export async function searchCutterSourceLibrary(
       });
     }
 
-    result = searchTranscripts({ videos: searchableVideos }, {
+    const fallbackResult = searchTranscripts({ videos: searchableVideos }, {
       query: input.query,
-      limit: input.limit
+      limit: searchLimit
     });
+    const pageGroups = fallbackResult.groups.slice(offset, offset + pageLimit);
+    const hasMore = fallbackResult.groups.length > offset + pageLimit;
+
+    result = {
+      ...fallbackResult,
+      groups: pageGroups,
+      cursor: encodeArtifactSearchCursor(offset),
+      next_cursor: hasMore ? encodeArtifactSearchCursor(offset + pageGroups.length) : "",
+      has_more: hasMore,
+      returned_count: pageGroups.length,
+      limit: pageLimit,
+      index_version: indexVersion,
+      search_ms: 0
+    };
   }
+
+  const groups = (await Promise.all(
+    result.groups.map(async (group) => {
+      if (searchMode === "sqlite-index" && isSourceTranscriptSqliteSearchGroup(group)) {
+        return {
+          ...group,
+          relative_path: group.relative_path,
+          source_video_file_path: group.relative_path,
+          cover_path: group.cover_path,
+          cover_file_path: group.cover_path
+            ? artifactFilePath(input.library_root, group.cover_path)
+            : "",
+          transcript_character_count: group.transcript_character_count
+        };
+      }
+
+      try {
+        const manifest = await readSourceVideoManifest(input.library_root, group.source_video_id);
+
+        if (!isCutterReadyManifestRecord(manifest)) {
+          return null;
+        }
+
+        const [card, transcriptCharacterCount] = await Promise.all([
+          toFastCutterSourceVideoCard(input.library_root, manifest),
+          readTranscriptCharacterCount(input.library_root, manifest)
+        ]);
+
+        return {
+          ...group,
+          relative_path: card.relative_path,
+          source_video_file_path: card.source_video_file_path,
+          cover_path: card.cover_path,
+          cover_file_path: card.cover_file_path,
+          transcript_character_count: transcriptCharacterCount
+        };
+      } catch {
+        return null;
+      }
+    })
+  )).filter((group): group is CutterSourceLibrarySearchGroup => Boolean(group));
 
   return {
     query: result.query,
     normalized_query: result.normalized_query,
-    groups: (await Promise.all(
-      result.groups.map(async (group) => {
-        try {
-          const manifest = await readSourceVideoManifest(input.library_root, group.source_video_id);
-
-          if (!(await isCutterReadableReadyManifest(input.library_root, manifest))) {
-            return null;
-          }
-
-          const card = await toCutterSourceVideoCard(input.library_root, manifest);
-
-          return {
-            ...group,
-            relative_path: card.relative_path,
-            source_video_file_path: card.source_video_file_path,
-            cover_path: card.cover_path,
-            cover_file_path: card.cover_file_path,
-            transcript_character_count: await readTranscriptCharacterCount(input.library_root, manifest)
-          };
-        } catch {
-          return null;
-        }
-      })
-    )).filter((group): group is CutterSourceLibrarySearchGroup => Boolean(group)).slice(0, input.limit)
+    groups,
+    cursor: result.cursor,
+    next_cursor: groups.length > 0 ? result.next_cursor : "",
+    has_more: groups.length > 0 && result.has_more,
+    returned_count: groups.length,
+    limit: result.limit,
+    index_version: result.index_version,
+    search_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+    search_mode: searchMode
   };
 }

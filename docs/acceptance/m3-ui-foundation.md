@@ -1,6 +1,7 @@
 # M3 UI Foundation Acceptance Record
 
 Date: 2026-05-02
+Updated: 2026-06-03
 
 ## Scope
 
@@ -22,6 +23,7 @@ Hi-fi references:
 
 - `@mixlab/ui-foundation` with Apple-HIG inspired tokens, layout classes, React primitives, and design-contract validation helpers.
 - Required cutter/admin page lists and forbidden UI pattern guards.
+- First-version product scope guard for allowed capabilities, explicit non-scope capabilities, and written-change-request phrasing.
 - `@mixlab/ui-fixtures` with two visual fixture boards:
   - cutter: public source library, source detail, search/document, cut list, local library, cut queue/settings.
   - admin: dashboard, public library settings, source video management, preprocessing tasks, index publication, Doctor.
@@ -56,7 +58,7 @@ npm run visual:ui-foundation
 Result:
 
 - `npm run typecheck`: passed.
-- `npm test`: passed, 152/152 tests.
+- `npm test`: passed, 598/598 tests.
 - `npm run build:cutter-web`: passed.
 - `npm run build:ui-fixtures`: passed.
 - `npm run visual:ui-foundation`: passed and regenerated both screenshot artifacts.

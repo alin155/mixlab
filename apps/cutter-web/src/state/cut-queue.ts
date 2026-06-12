@@ -250,6 +250,8 @@ export function createQueueJobsFromCutList(
     .sort((left, right) => left.order - right.order)
     .map((item) => {
       const sourceTitle = sourceMaterialTitleFromStableName(item.source_title);
+      const beginMs = Math.max(0, item.begin_ms - (item.pre_roll_ms ?? 0));
+      const endMs = item.end_ms + (item.post_roll_ms ?? 0);
 
       return {
         queue_job_id: `job-${item.cut_list_item_id}`,
@@ -262,9 +264,9 @@ export function createQueueJobsFromCutList(
           projectTitle: input.projectTitle,
           sourceTitle
         }),
-        begin_ms: item.begin_ms,
-        end_ms: item.end_ms,
-        duration_ms: item.duration_ms,
+        begin_ms: beginMs,
+        end_ms: endMs,
+        duration_ms: endMs - beginMs,
         selected_text: item.selected_text,
         cut_mode: item.cut_mode,
         status: "pending" as const,

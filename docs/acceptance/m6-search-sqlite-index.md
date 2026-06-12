@@ -1,6 +1,7 @@
 # M6 Search SQLite Index Acceptance Record
 
 Date: 2026-05-02
+Updated: 2026-06-03
 
 ## Scope
 
@@ -57,6 +58,8 @@ npm run build:ui-fixtures
 npm run visual:ui-foundation
 npm run visual:admin-web
 npm run visual:cutter-web
+npm run smoke:searchd-concurrency
+npm run smoke:searchd-scale
 ```
 
 Result:
@@ -65,7 +68,9 @@ Result:
 - `node --test --import tsx packages/library-fs/src/search-sqlite-integration.test.ts packages/library-fs/src/cutter-source-library.test.ts packages/cutter-api/src/index.test.ts`: passed.
 - `node --test --import tsx packages/library-fs/src/ready-publisher.test.ts`: passed.
 - `npm run typecheck`: passed.
-- `npm test`: passed, 182/182 tests.
+- `npm test`: passed, 598/598 tests.
+- `npm run smoke:searchd-concurrency`: passed; 50 active editors completed search, full transcript detail, transcript selection, cut submission, and local clip creation across 50 public source videos with p95 search 115.4ms, detail 96.8ms, and cut submit 130.6ms against 1,500ms SLAs.
+- `npm run smoke:searchd-scale`: passed; 2,000 indexed source videos / 48,000 transcript segments stayed under SLA with p95 Cutter API search 558.5ms, searchd internal search 118ms, detail 7ms, and direct full-transcript location check 1.5ms search / 2.8ms detail.
 - `npm run build:cutter-web`: passed.
 - `npm run build:admin-web`: passed.
 - `npm run build:ui-fixtures`: passed.
@@ -80,9 +85,10 @@ Result:
 - Search results include only cutter-visible ready videos.
 - Search returns grouped source-video results with original transcript text and normalized match ranges.
 - Hidden `index-required`, unprocessed, processing, queued, or failed videos do not appear in search.
+- 50-editor concurrency smoke stays under the product latency budget for search, full transcript detail, selection, and cut submission.
+- Large-index smoke locates a keyword inside a full transcript from thousands of source materials without leaving the searchd API boundary.
 
 ## Known Remaining Work
 
-- Full `14_验收标准与测试剧本.md` 10-video incremental acceptance remains for stage scripts.
 - The future Go management backend should use the same SQLite schema/contract or document a compatible migration.
 - Full document-reader UI highlight navigation remains a later cutter polish task.

@@ -34,6 +34,12 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
     impact: "不可写时预处理任务无法完成，已处理素材也无法发布。",
     suggestion: "检查磁盘剩余空间、目录权限和移动硬盘写入状态。"
   },
+  "preprocess-logs-writable": {
+    name: "预处理日志目录可写性",
+    purpose: "确认预处理任务日志目录可以创建和写入。",
+    impact: "不可写时管理端无法追踪任务阶段、失败原因和恢复线索。",
+    suggestion: "检查 .mixlab-library/logs 的目录权限和公共素材库所在磁盘状态。"
+  },
   manifest: {
     name: "发布清单",
     purpose: "确认素材库清单和原视频协议文件有效。",
@@ -56,7 +62,13 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
     name: "当前索引",
     purpose: "确认剪辑端搜索使用的当前索引存在且可读取。",
     impact: "当前索引异常时，已可用原视频可能无法被搜索到。",
-    suggestion: "发布待索引视频，或运行索引修复后重新诊断。"
+    suggestion: "发布到剪辑端，或重新运行系统检查。"
+  },
+  "preprocess-logs": {
+    name: "预处理任务日志",
+    purpose: "确认已进入预处理生命周期的视频都有可读任务日志。",
+    impact: "日志缺失时不影响已发布素材搜索，但会削弱失败定位、恢复和审计能力。",
+    suggestion: "对缺失日志的视频重新入队，或确认历史迁移脚本是否保留任务日志。"
   },
   artifacts: {
     name: "视频产物",
@@ -92,7 +104,7 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
     name: "状态计数",
     purpose: "确认素材状态统计与当前索引边界一致。",
     impact: "状态不一致时，剪辑端看到的素材和搜索结果可能不同步。",
-    suggestion: "发布待索引视频，并重新运行健康诊断。"
+    suggestion: "发布到剪辑端，并重新运行系统检查。"
   },
   "local-clips": {
     name: "本地剪辑片段",
@@ -124,9 +136,9 @@ export function DoctorPage({
     <>
       <div className="admin-main-column">
         <AdminPageHeader
-          title="健康诊断"
-          eyebrow="诊断系统问题"
-          action={<AdminControlButton label="重新运行健康诊断" state="m9b-api" reason="M9B 接入健康诊断运行接口。" variant="primary" onClick={onRunDoctor} />}
+          title="系统检查"
+          eyebrow="检查系统状态"
+          action={<AdminControlButton label="重新检查" state="m9b-api" reason="重新检查路径、索引、工具和预处理产物。" variant="primary" onClick={onRunDoctor} />}
         />
         <MetricBand
           items={[
@@ -148,7 +160,7 @@ export function DoctorPage({
         </section>
         <section className="admin-list-section">
           <header className="admin-section-header">
-            <h2>诊断详情</h2>
+            <h2>检查结果</h2>
             <p>每个检查项都说明检查目的、失败影响和处理建议；原始技术信息可导出报告查看。</p>
           </header>
           <GroupedForm
@@ -167,7 +179,7 @@ export function DoctorPage({
           />
         </section>
       </div>
-      <InspectorPanel title="诊断报告">
+      <InspectorPanel title="检查报告">
         <GroupedForm
           groups={[
             {
@@ -183,7 +195,7 @@ export function DoctorPage({
             }
           ]}
         />
-        <AdminControlButton label="导出诊断报告" state="m9b-api" reason="M9B 接入报告导出。" variant="primary" onClick={onExportDoctor} />
+        <AdminControlButton label="导出检查报告" state="m9b-api" reason="导出当前检查结果，便于排障留档。" variant="primary" onClick={onExportDoctor} />
       </InspectorPanel>
     </>
   );

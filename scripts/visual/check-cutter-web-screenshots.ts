@@ -9,12 +9,12 @@ const port = 4294;
 const baseUrl = `http://127.0.0.1:${port}`;
 
 const routes = [
+  ["project-home", "project-home.png"],
+  ["material-locator", "material-locator.png"],
+  ["cut-tasks", "cut-tasks.png"],
+  ["local-library", "local-library.png"],
   ["public-library", "public-library.png"],
   ["source-detail", "source-detail.png"],
-  ["search", "search.png"],
-  ["cut-list", "cut-list.png"],
-  ["local-library", "local-library.png"],
-  ["cut-queue", "cut-queue.png"],
   ["settings", "settings.png"]
 ] as const;
 
@@ -65,6 +65,10 @@ async function requireText(page: Page, text: string): Promise<void> {
   await page.getByText(text, { exact: false }).first().waitFor();
 }
 
+async function requirePlaceholder(page: Page, text: string): Promise<void> {
+  await page.getByPlaceholder(text, { exact: false }).first().waitFor();
+}
+
 async function assertPublicLibraryOnlyShowsReadyMaterial(page: Page): Promise<void> {
   const content = await page.locator("[data-page='public-library']").textContent();
 
@@ -85,6 +89,14 @@ async function assertNoSentenceWaterfall(page: Page): Promise<void> {
   if (count > 0) {
     throw new Error("Search page rendered forbidden sentence-waterfall UI");
   }
+}
+
+function routeHash(route: (typeof routes)[number][0]): string {
+  if (route === "material-locator") {
+    return "#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81";
+  }
+
+  return `#/${route}`;
 }
 
 async function launchChrome(): Promise<Browser> {
@@ -109,17 +121,48 @@ async function captureRoute(
     deviceScaleFactor: 1
   });
 
-  await page.goto(`${baseUrl}/#${route}`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/${routeHash(route)}`, { waitUntil: "networkidle" });
   await page.locator("[data-cutter-web-ready='true']").waitFor();
   await requireCount(page, ".ml-window", 1);
   await requireCount(page, ".ml-sidebar", 1);
-  await requireCount(page, ".ml-toolbar", 1);
+  await requireCount(page, ".cutter-shell", 1);
+  await requireCount(page, ".cutter-workspace", 1);
   await requireCount(page, `[data-page='${route}']`, 1);
+
+  if (route === "project-home") {
+    await requireText(page, "开始搜索");
+    await requirePlaceholder(page, "搜索文案关键词或粘贴爆款文案");
+    await requireText(page, "最近项目");
+    await requireText(page, "项目详情");
+  }
+
+  if (route === "material-locator") {
+    await page.locator("[data-segment-id]").first().click();
+    await requireText(page, "候选素材");
+    await requireCount(page, ".cutter-locator-workbench", 1);
+    await requireText(page, "视频文案");
+    await requireText(page, "剪切这段");
+    await requireText(page, "仅看命中");
+    await assertNoSentenceWaterfall(page);
+  }
+
+  if (route === "cut-tasks") {
+    await requireText(page, "剪切任务");
+    await requireText(page, "本机剪切流水线");
+    await requireText(page, "失败");
+    await requireText(page, "重试");
+  }
+
+  if (route === "local-library") {
+    await requireText(page, "本地素材库");
+    await requireText(page, "本地可复剪素材");
+    await requireText(page, "素材详情");
+  }
 
   if (route === "public-library") {
     await requireCount(page, ".ml-gallery-grid", 1);
     await requireText(page, "可用原素材");
-    await requireText(page, "由管理端配置");
+    await requireText(page, "剪辑端只读浏览");
     await assertPublicLibraryOnlyShowsReadyMaterial(page);
   }
 
@@ -127,29 +170,6 @@ async function captureRoute(
     await requireText(page, "原视频与完整文案");
     await requireText(page, "连续选择");
     await requireCount(page, "video", 1);
-  }
-
-  if (route === "search") {
-    await requireText(page, "按原素材分组");
-    await requireText(page, "上下文文案");
-    await assertNoSentenceWaterfall(page);
-  }
-
-  if (route === "cut-list") {
-    await requireText(page, "提交剪切队列");
-    await requireText(page, "选中文案");
-  }
-
-  if (route === "local-library") {
-    await requireText(page, "本地素材库");
-    await requireText(page, "可复用片段");
-    await requireText(page, "来源追踪");
-  }
-
-  if (route === "cut-queue") {
-    await requireText(page, "不阻塞搜索");
-    await requireText(page, "failed");
-    await requireText(page, "重试");
   }
 
   if (route === "settings") {

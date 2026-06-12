@@ -2,6 +2,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { windowsSidecarExecutableName } from "./build-cutter-sidecar.ts";
+import { windowsSearchdExecutableName } from "./build-searchd-sidecar.ts";
 
 export interface RuntimeAssetVerificationResult {
   status: "pass" | "fail";
@@ -11,6 +12,7 @@ export interface RuntimeAssetVerificationResult {
 export function requiredWindowsRuntimeAssets(repoRoot: string): string[] {
   return [
     path.join(repoRoot, "apps/cutter-desktop/src-tauri/binaries", windowsSidecarExecutableName()),
+    path.join(repoRoot, "apps/cutter-desktop/src-tauri/binaries", windowsSearchdExecutableName()),
     path.join(repoRoot, "apps/cutter-desktop/src-tauri/binaries/ffmpeg.exe"),
     path.join(repoRoot, "apps/cutter-desktop/src-tauri/binaries/ffprobe.exe"),
     path.join(repoRoot, "apps/cutter-desktop/src-tauri/resources/default-desktop-config.json"),

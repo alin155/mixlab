@@ -214,6 +214,88 @@ test("publishes complete index-required videos into a new index package and cutt
   );
 });
 
+test("refreshes library counts once after publishing a complete batch", async () => {
+  const libraryRoot = await makeIndexRequiredLibrary();
+  const coverPathOne = ".mixlab-library/videos/V000001/cover.jpg";
+  const coverPathTwo = ".mixlab-library/videos/V000002/cover.jpg";
+
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:03:00Z"
+  });
+  await writeTextArtifacts(libraryRoot, "V000002");
+  await completePreprocessArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    now: "2026-05-02T00:04:00Z",
+    media: {
+      duration_ms: 4_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      content_hash: "stat:size:456:mtime_ms:789"
+    },
+    artifacts: {
+      transcript_path: ".mixlab-library/videos/V000002/transcript.json",
+      srt_path: ".mixlab-library/videos/V000002/subtitles.srt",
+      keyframes_path: "",
+      cover_path: ""
+    }
+  });
+
+  await writeFile(path.join(libraryRoot, coverPathOne), "fake-jpeg");
+  await writeFile(path.join(libraryRoot, coverPathTwo), "fake-jpeg");
+  await completeReadyVisualArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    cover_path: coverPathOne,
+    keyframes_ms: [0, 2_000, 4_000],
+    now: "2026-05-02T00:05:00Z"
+  });
+  await completeReadyVisualArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    cover_path: coverPathTwo,
+    keyframes_ms: [0, 2_000, 4_000],
+    now: "2026-05-02T00:05:00Z"
+  });
+
+  const result = await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:06:00Z"
+  });
+
+  const library = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "library.json")
+  );
+  const indexManifest = await readJson<Record<string, unknown>>(
+    path.join(
+      libraryRoot,
+      ".mixlab-library",
+      "indexes",
+      "source-transcript-index",
+      "v000001",
+      "index-manifest.json"
+    )
+  );
+  const catalog = await listCutterVisibleSourceVideos({
+    library_root: libraryRoot
+  });
+
+  assert.deepEqual(result.published_source_video_ids, ["V000001", "V000002"]);
+  assert.equal(result.ready_video_count, 2);
+  assert.equal(library.index_required_video_count, 0);
+  assert.equal(library.ready_video_count, 2);
+  assert.deepEqual(indexManifest.source_video_ids, ["V000001", "V000002"]);
+  assert.deepEqual(
+    catalog.videos.map((video) => video.source_video_id),
+    ["V000001", "V000002"]
+  );
+});
+
 test("keeps incomplete index-required videos hidden during ready publishing", async () => {
   const libraryRoot = await makeIndexRequiredLibrary();
 

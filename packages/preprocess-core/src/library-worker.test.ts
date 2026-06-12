@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -7,15 +7,7 @@ import { addAdminSourceFolder, scanSourceVideos } from "../../library-fs/src/ind
 import { runLibraryTextPreprocessWorker } from "./library-worker.ts";
 
 async function makeLibraryRoot(): Promise<string> {
-  const root = await mkdir(path.join(os.tmpdir(), `mixlab-library-worker-${Date.now()}-`), {
-    recursive: true
-  });
-
-  if (!root) {
-    throw new Error("failed to create test library root");
-  }
-
-  return root;
+  return mkdtemp(path.join(os.tmpdir(), "mixlab-library-worker-"));
 }
 
 async function writeDummyVideo(filePath: string): Promise<void> {
@@ -103,6 +95,87 @@ test("scans, claims and completes one text preprocessed source video as index-re
   assert.equal(secondManifest.preprocess_status, "unprocessed");
   assert.equal(library.index_required_video_count, 1);
   assert.equal(library.unprocessed_video_count, 1);
+});
+
+test("throttles library count refresh during multi-item worker batches", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "b.mp4"));
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "c.mp4"));
+
+  const result = await runLibraryTextPreprocessWorker({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    worker_id: "worker-a",
+    limit: 3,
+    count_refresh_interval: 2,
+    now: deterministicNow(),
+    async probe_source_video() {
+      return {
+        duration_ms: 4_000,
+        width: 1280,
+        height: 720,
+        fps: 25,
+        codec: "h264"
+      };
+    },
+    async get_content_hash(sourceVideoPath) {
+      return `sha256:${path.basename(sourceVideoPath)}`;
+    },
+    async preprocess_source_video(input) {
+      if (input.source_video_id === "V000003") {
+        const libraryDuringThirdItem = await readJson<Record<string, unknown>>(
+          path.join(libraryRoot, ".mixlab-library", "library.json")
+        );
+        assert.equal(libraryDuringThirdItem.index_required_video_count, 2);
+      }
+
+      return {
+        source_video_id: input.source_video_id,
+        audio_path: `.mixlab-library/videos/${input.source_video_id}/asr-audio/audio.mp3`,
+        audio_object_key: `temporary/${input.source_video_id}/audio.mp3`,
+        audio_file_url: `oss://temporary/${input.source_video_id}/audio.mp3`,
+        asr_task_id: `task-${input.source_video_id}`,
+        transcription_url: `https://example.com/${input.source_video_id}.json`,
+        transcript_path: `.mixlab-library/videos/${input.source_video_id}/transcript.json`,
+        srt_path: `.mixlab-library/videos/${input.source_video_id}/subtitles.srt`,
+        duration_ms: 4_000,
+        segment_count: 1
+      };
+    }
+  });
+
+  const finalLibrary = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "library.json")
+  );
+
+  assert.equal(result.succeeded_count, 3);
+  assert.equal(result.failed_count, 0);
+  assert.equal(finalLibrary.index_required_video_count, 3);
+  assert.equal(finalLibrary.unprocessed_video_count, 0);
+});
+
+test("rejects invalid library count refresh intervals", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await assert.rejects(
+    () =>
+      runLibraryTextPreprocessWorker({
+        library_root: libraryRoot,
+        library_id: "lib_main_001",
+        library_name: "主素材库",
+        worker_id: "worker-a",
+        count_refresh_interval: 0,
+        async probe_source_video() {
+          throw new Error("should not run");
+        },
+        async preprocess_source_video() {
+          throw new Error("should not run");
+        }
+      }),
+    /count_refresh_interval must be greater than 0/
+  );
 });
 
 test("writes live preprocess stages while a worker handles a claimed video", async () => {

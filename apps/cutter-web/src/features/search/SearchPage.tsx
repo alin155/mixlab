@@ -1,5 +1,5 @@
 import { type FormEvent } from "react";
-import { InspectorPanel, SegmentedControl } from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, type SearchResponse } from "../../api.ts";
 import { sourceDetailHash } from "../../app/navigation.ts";
 
@@ -84,7 +84,7 @@ export function SearchPage({
 
       <InspectorPanel title="搜索规则">
         <div className="cutter-inspector-stack">
-          <SegmentedControl options={["原素材", "标签", "课程"]} active="原素材" />
+          <strong>当前范围：原素材文案</strong>
           <span>搜索命中按原素材聚合，进入详情后阅读完整文案。</span>
           <span>避免句子瀑布流，减少剪辑师从上下文中迷路。</span>
         </div>

@@ -109,6 +109,8 @@ export function diagnosticLabel(label: string): string {
     "Public Library Root": "公共素材库根目录",
     "Source Videos": "原视频目录",
     ".mixlab-library Writable": "预处理产物库可写",
+    "Preprocess Logs Writable": "预处理日志目录可写",
+    "Preprocess Logs": "预处理任务日志",
     "Library Counts": "素材库计数",
     "Source Video Manifests": "原视频发布清单",
     "Current Index": "当前索引",
@@ -118,7 +120,7 @@ export function diagnosticLabel(label: string): string {
     "ASR Config": "语音识别配置",
     ASR: "语音识别",
     "Local Clips": "本地剪辑片段",
-    Doctor: "健康诊断"
+    Doctor: "系统检查"
   };
 
   return labels[label] ?? label;
@@ -128,6 +130,8 @@ const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
   ["Public Library Root", "公共素材库根目录"],
   ["Source Videos", "原视频目录"],
   [".mixlab-library Writable", "预处理产物库可写"],
+  ["Preprocess Logs Writable", "预处理日志目录可写"],
+  ["Preprocess Logs", "预处理任务日志"],
   ["Library Counts", "素材库计数"],
   ["Source Video Manifests", "原视频发布清单"],
   ["Current Index", "当前索引"],
@@ -145,10 +149,16 @@ const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
   ["ASR model", "语音识别模型"],
   ["ASR config", "语音识别配置"],
   ["ASR", "语音识别"],
-  ["Doctor", "健康诊断"],
+  ["Doctor", "系统检查"],
   ["FFprobe", "媒体探测工具"],
   ["FFmpeg", "音视频工具"],
   ["Manifest", "发布清单"],
+  ["index-manifest.json is missing or unreadable", "索引包清单缺失或不可读"],
+  ["index-manifest.json version does not match current.json", "索引包清单版本与当前索引指针不一致"],
+  ["index.sqlite is missing", "索引数据库缺失"],
+  ["index.sqlite is unreadable", "索引数据库不可读"],
+  ["index.sqlite metadata version does not match current.json", "索引数据库版本与当前索引指针不一致"],
+  ["index.sqlite video count does not match index-manifest.json", "索引数据库视频数量与索引包清单不一致"],
   ["manifest.json", "发布清单文件"],
   ["source-video.json", "原视频协议文件"],
   ["library.json is missing or unreadable", "library.json 缺失或不可读"],
@@ -166,6 +176,15 @@ const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
   [".mixlab-library is writable", "预处理产物库可写"],
   [".mixlab-library is not writable", "预处理产物库不可写"],
   [".mixlab-library", "预处理产物库"],
+  ["preprocess log directory is writable", "预处理日志目录可写"],
+  ["preprocess log directory is not writable", "预处理日志目录不可写"],
+  ["preprocess logs are readable", "预处理日志可读"],
+  ["preprocess logs are not readable for", "预处理日志不可读："],
+  ["preprocess logs are not readable", "预处理日志不可读"],
+  ["preprocess logs are missing for", "预处理日志缺失："],
+  ["preprocess log is empty for", "预处理日志为空："],
+  ["no preprocess logs required yet", "暂无需要检查的预处理日志"],
+  ["current index package is valid", "当前索引包校验通过"],
   ["current index is not available yet", "当前索引尚不可用"],
   ["current index is", "当前索引为"],
   ["ffmpeg is available from bundled", "内置音视频工具可用"],
@@ -196,13 +215,25 @@ export function chineseDiagnosticText(text: string): string {
   ).replaceAll("语音识别 网络", "语音识别网络");
 }
 
+export function indexValidationMessageLabel(message: string): string {
+  return chineseDiagnosticText(message)
+    .replace(/当前索引指针 指向 ([^\s]+)/g, "当前索引已发布 $1")
+    .replace(/当前索引指针指向 ([^\s]+)/g, "当前索引已发布 $1")
+    .replace("当前索引指针 不存在或无法解析", "当前索引尚未发布")
+    .replace("当前索引指针 当前版本格式错误", "当前索引版本格式需要修复")
+    .replace("当前索引指针 指向不存在的索引版本", "当前索引发布记录缺失")
+    .replace("暂无当前索引指针", "暂无当前索引");
+}
+
 export function strictChineseDiagnosticText(text: string): string {
   const translated = chineseDiagnosticText(text);
-  const withoutAllowedBusinessIds = translated.replace(/\b[A-Z]{1,4}\d{3,}\b/g, "");
+  const withoutAllowedBusinessIds = translated
+    .replace(/\b[A-Z]{1,4}\d{3,}\b/g, "")
+    .replace(/\bv\d{6}\b/g, "");
   if (/[A-Za-z]/.test(withoutAllowedBusinessIds)) {
     const businessIds = Array.from(new Set(translated.match(/\b[A-Z]{1,4}\d{3,}\b/g) ?? []));
     const prefix = businessIds.length ? `相关对象 ${businessIds.join("、")}；` : "";
-    return `${prefix}原始诊断信息已隐藏，可导出诊断报告查看。`;
+    return `${prefix}原始检查信息已隐藏，可导出检查报告查看。`;
   }
 
   return translated;

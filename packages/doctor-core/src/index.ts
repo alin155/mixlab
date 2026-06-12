@@ -4,14 +4,17 @@ import { resolveFfmpegRuntime } from "../../ffmpeg-core/src/index.ts";
 import { resolveSourceVideoFilePath } from "../../library-fs/src/index.ts";
 import {
   validateIndexCurrentPointer,
+  validateIndexPackageManifest,
   validateLibraryCounts,
   validateLocalClipManifest,
   validateSourceVideoManifest,
   type IndexCurrentPointer,
+  type IndexPackageManifest,
   type LibraryCounts,
   type LocalClipManifest,
   type SourceVideoManifest
 } from "../../protocol/src/index.ts";
+import { readSourceTranscriptSqliteIndexMetadata } from "../../search-sqlite/src/index.ts";
 
 export type DoctorCheckStatus = "pass" | "warn" | "fail";
 
@@ -35,11 +38,21 @@ export interface MixlabDoctorReport {
   checks: DoctorCheck[];
 }
 
+export interface MixlabDoctorExport {
+  file_name: string;
+  relative_path: string;
+  file_path: string;
+  report: MixlabDoctorReport;
+}
+
 export interface RunMixlabDoctorInput {
   library_root: string;
   now: string;
   env?: NodeJS.ProcessEnv;
 }
+
+const DOCTOR_FULL_SCAN_MAX_SOURCE_VIDEOS = 500;
+const DOCTOR_LARGE_LIBRARY_SAMPLE_COUNT = 8;
 
 interface LibraryManifest extends LibraryCounts {
   library_id?: string;
@@ -188,8 +201,11 @@ async function readLibraryManifest(libraryRoot: string): Promise<LibraryManifest
   }
 }
 
-async function checkLibraryCounts(libraryRoot: string): Promise<DoctorCheck> {
-  const manifest = await readLibraryManifest(libraryRoot);
+async function checkLibraryCounts(
+  libraryRoot: string,
+  library?: LibraryManifest | null
+): Promise<DoctorCheck> {
+  const manifest = library === undefined ? await readLibraryManifest(libraryRoot) : library;
 
   if (!manifest) {
     return check("library-counts", "Library Counts", "fail", "library.json is missing or unreadable");
@@ -206,8 +222,50 @@ async function checkLibraryCounts(libraryRoot: string): Promise<DoctorCheck> {
     : check("library-counts", "Library Counts", "fail", validation.message);
 }
 
+function useLargeLibraryDoctorMode(library: LibraryManifest | null): boolean {
+  return (library?.video_count ?? 0) > DOCTOR_FULL_SCAN_MAX_SOURCE_VIDEOS;
+}
+
+function expectedPreprocessLogCount(library: LibraryManifest | null): number {
+  if (!library) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    library.ready_video_count +
+      library.queued_video_count +
+      library.processing_video_count +
+      library.failed_video_count +
+      library.index_required_video_count
+  );
+}
+
+function evenlySample<T>(items: T[], limit: number): T[] {
+  if (items.length <= limit) {
+    return items;
+  }
+
+  if (limit <= 1) {
+    return items.slice(0, 1);
+  }
+
+  const sampled = new Map<number, T>();
+  const lastIndex = items.length - 1;
+
+  for (let index = 0; index < limit; index += 1) {
+    const sourceIndex = Math.round((index * lastIndex) / (limit - 1));
+    sampled.set(sourceIndex, items[sourceIndex]!);
+  }
+
+  return Array.from(sampled.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([, item]) => item);
+}
+
 async function readSourceVideoManifests(input: {
   library_root: string;
+  sample_limit?: number;
 }): Promise<Array<{ source_video_id: string; manifest?: SourceVideoManifest; error?: string }>> {
   const root = path.join(input.library_root, ".mixlab-library", "videos");
   let entries;
@@ -219,12 +277,14 @@ async function readSourceVideoManifests(input: {
   }
 
   const result = [];
+  const sourceVideoEntries = entries
+    .filter((entry) => entry.isDirectory())
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const selectedEntries = input.sample_limit
+    ? evenlySample(sourceVideoEntries, input.sample_limit)
+    : sourceVideoEntries;
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
+  for (const entry of selectedEntries) {
     try {
       result.push({
         source_video_id: entry.name,
@@ -243,9 +303,21 @@ async function readSourceVideoManifests(input: {
   return result;
 }
 
-async function checkSourceVideoManifests(libraryRoot: string): Promise<DoctorCheck> {
-  const records = await readSourceVideoManifests({ library_root: libraryRoot });
+async function checkSourceVideoManifests(
+  libraryRoot: string,
+  library: LibraryManifest | null
+): Promise<DoctorCheck> {
+  const largeLibraryMode = useLargeLibraryDoctorMode(library);
+  const records = await readSourceVideoManifests({
+    library_root: libraryRoot,
+    sample_limit: largeLibraryMode ? DOCTOR_LARGE_LIBRARY_SAMPLE_COUNT : undefined
+  });
+  const totalCount = library?.video_count ?? records.length;
   const errors: string[] = [];
+
+  if (records.length === 0 && totalCount > 0) {
+    errors.push("source video manifest samples are missing");
+  }
 
   for (const record of records) {
     if (!record.manifest) {
@@ -260,50 +332,71 @@ async function checkSourceVideoManifests(libraryRoot: string): Promise<DoctorChe
       errors.push(`${manifest.source_video_id}: ${error}`);
     }
 
-    const sourcePath = await resolveSourceVideoFilePath(libraryRoot, manifest);
+    if (!largeLibraryMode) {
+      const sourcePath = await resolveSourceVideoFilePath(libraryRoot, manifest);
 
-    if (!(await fileExists(sourcePath))) {
-      errors.push(`${manifest.source_video_id}: source video file is missing`);
-    }
+      if (!(await fileExists(sourcePath))) {
+        errors.push(`${manifest.source_video_id}: source video file is missing`);
+      }
 
-    if (manifest.preprocess_status === "ready") {
-      for (const [label, portablePath] of Object.entries({
-        transcript: manifest.transcript_path,
-        srt: manifest.srt_path,
-        keyframes: manifest.keyframes_path,
-        cover: manifest.cover_path
-      })) {
-        try {
-          const artifactPath = resolvePortableLibraryPath(libraryRoot, portablePath);
-          if (!(await fileExists(artifactPath))) {
-            errors.push(`${manifest.source_video_id}: ${label} artifact is missing at ${portablePath}`);
+      if (manifest.preprocess_status === "ready") {
+        for (const [label, portablePath] of Object.entries({
+          transcript: manifest.transcript_path,
+          srt: manifest.srt_path,
+          keyframes: manifest.keyframes_path,
+          cover: manifest.cover_path
+        })) {
+          try {
+            const artifactPath = resolvePortableLibraryPath(libraryRoot, portablePath);
+            if (!(await fileExists(artifactPath))) {
+              errors.push(`${manifest.source_video_id}: ${label} artifact is missing at ${portablePath}`);
+            }
+          } catch (error) {
+            errors.push(`${manifest.source_video_id}: ${label} path is invalid: ${(error as Error).message}`);
           }
-        } catch (error) {
-          errors.push(`${manifest.source_video_id}: ${label} path is invalid: ${(error as Error).message}`);
         }
       }
     }
   }
+
+  const details = largeLibraryMode
+    ? {
+        mode: "sample",
+        checked_count: records.length,
+        total_count: totalCount,
+        sample_limit: DOCTOR_LARGE_LIBRARY_SAMPLE_COUNT,
+        file_existence_check: "skipped"
+      }
+    : undefined;
 
   return errors.length === 0
     ? check(
         "source-video-manifests",
         "Source Video Manifests",
         "pass",
-        `${records.length} source video manifests are valid`
+        largeLibraryMode
+          ? `${records.length} sampled source video manifests are valid in large-library mode`
+          : `${records.length} source video manifests are valid`,
+        details
       )
     : check(
         "source-video-manifests",
         "Source Video Manifests",
         "fail",
         errors.join("; "),
-        { error_count: errors.length }
+        {
+          ...(details ?? {}),
+          error_count: errors.length
+        }
       );
 }
 
-async function checkCurrentIndex(libraryRoot: string): Promise<DoctorCheck> {
-  const library = await readLibraryManifest(libraryRoot);
-  const readyVideoCount = library?.ready_video_count ?? 0;
+async function checkCurrentIndex(
+  libraryRoot: string,
+  library?: LibraryManifest | null
+): Promise<DoctorCheck> {
+  const manifest = library === undefined ? await readLibraryManifest(libraryRoot) : library;
+  const readyVideoCount = manifest?.ready_video_count ?? 0;
   const currentPath = path.join(
     libraryRoot,
     ".mixlab-library",
@@ -333,15 +426,55 @@ async function checkCurrentIndex(libraryRoot: string): Promise<DoctorCheck> {
       pointer.current_version,
       "index-manifest.json"
     );
+    const sqlitePath = path.join(path.dirname(manifestPath), "index.sqlite");
+    const messages: string[] = [];
+    let manifest: IndexPackageManifest | null = null;
 
-    return (await fileExists(manifestPath))
-      ? check("current-index", "Current Index", "pass", `current index is ${pointer.current_version}`)
-      : check(
-          "current-index",
-          "Current Index",
-          "fail",
-          `current index manifest is missing for ${pointer.current_version}`
-        );
+    try {
+      manifest = await readJson<IndexPackageManifest>(manifestPath);
+      const manifestValidation = validateIndexPackageManifest(manifest);
+
+      if (!manifestValidation.ok) {
+        messages.push(...manifestValidation.errors);
+      }
+
+      if (manifest.index_version !== pointer.current_version) {
+        messages.push("index-manifest.json version does not match current.json");
+      }
+    } catch {
+      messages.push("index-manifest.json is missing or unreadable");
+    }
+
+    if (!(await fileExists(sqlitePath))) {
+      messages.push("index.sqlite is missing");
+    } else {
+      try {
+        const metadata = readSourceTranscriptSqliteIndexMetadata(sqlitePath);
+
+        if (metadata.index_version !== pointer.current_version) {
+          messages.push("index.sqlite metadata version does not match current.json");
+        }
+
+        if (
+          manifest &&
+          metadata.source_video_count !== manifest.ready_video_count
+        ) {
+          messages.push("index.sqlite video count does not match index-manifest.json");
+        }
+      } catch {
+        messages.push("index.sqlite is unreadable");
+      }
+    }
+
+    return messages.length === 0
+      ? check("current-index", "Current Index", "pass", "current index package is valid", {
+          current_version: pointer.current_version,
+          ready_video_count: manifest?.ready_video_count ?? 0
+        })
+      : check("current-index", "Current Index", "fail", messages.join("; "), {
+          current_version: pointer.current_version,
+          error_count: messages.length
+        });
   } catch (error) {
     return readyVideoCount > 0
       ? check(
@@ -352,6 +485,115 @@ async function checkCurrentIndex(libraryRoot: string): Promise<DoctorCheck> {
         )
       : check("current-index", "Current Index", "warn", "current index is not available yet");
   }
+}
+
+async function checkPreprocessLogsWritable(libraryRoot: string): Promise<DoctorCheck> {
+  const logsRoot = path.join(libraryRoot, ".mixlab-library", "logs");
+  const probePath = path.join(logsRoot, `.doctor-log-write-test-${process.pid}-${Date.now()}`);
+
+  try {
+    await mkdir(logsRoot, { recursive: true });
+    await writeFile(probePath, "ok", "utf8");
+    await rm(probePath, { force: true });
+    return check(
+      "preprocess-logs-writable",
+      "Preprocess Logs Writable",
+      "pass",
+      "preprocess log directory is writable"
+    );
+  } catch (error) {
+    await rm(probePath, { force: true });
+    return check(
+      "preprocess-logs-writable",
+      "Preprocess Logs Writable",
+      "fail",
+      `preprocess log directory is not writable: ${(error as Error).message}`
+    );
+  }
+}
+
+async function checkPreprocessLogs(
+  libraryRoot: string,
+  library: LibraryManifest | null
+): Promise<DoctorCheck> {
+  const logRoot = path.join(libraryRoot, ".mixlab-library", "logs");
+  const errors: string[] = [];
+  let logFileCount = 0;
+  const largeLibraryMode = useLargeLibraryDoctorMode(library);
+  const expectedLogCount = expectedPreprocessLogCount(library);
+
+  try {
+    const entries = await readdir(logRoot, { withFileTypes: true });
+    logFileCount = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".log")).length;
+  } catch (error) {
+    if (expectedLogCount > 0) {
+      return check(
+        "preprocess-logs",
+        "Preprocess Logs",
+        "warn",
+        `preprocess logs are not readable: ${(error as Error).message}`,
+        {
+          ...(largeLibraryMode ? { mode: "summary" } : {}),
+          expected_log_count: expectedLogCount
+        }
+      );
+    }
+  }
+
+  if (largeLibraryMode) {
+    return check(
+      "preprocess-logs",
+      "Preprocess Logs",
+      "pass",
+      "preprocess log directory is readable in large-library mode",
+      {
+        mode: "summary",
+        log_file_count: logFileCount,
+        expected_log_count: expectedLogCount
+      }
+    );
+  }
+
+  const records = await readSourceVideoManifests({ library_root: libraryRoot });
+  const expected = records.filter((record) =>
+    record.manifest && record.manifest.preprocess_status !== "unprocessed"
+  );
+
+  for (const record of expected) {
+    const sourceVideoId = record.manifest?.source_video_id ?? record.source_video_id;
+    const logPath = path.join(logRoot, `${sourceVideoId}.log`);
+
+    try {
+      const content = await readFile(logPath, "utf8");
+      if (content.trim() === "") {
+        errors.push(`preprocess log is empty for ${sourceVideoId}`);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        errors.push(`preprocess logs are missing for ${sourceVideoId}`);
+      } else {
+        errors.push(`preprocess logs are not readable for ${sourceVideoId}: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  if (expected.length === 0) {
+    return check("preprocess-logs", "Preprocess Logs", "pass", "no preprocess logs required yet", {
+      log_file_count: logFileCount,
+      expected_log_count: 0
+    });
+  }
+
+  return errors.length === 0
+    ? check("preprocess-logs", "Preprocess Logs", "pass", "preprocess logs are readable", {
+        log_file_count: logFileCount,
+        expected_log_count: expected.length
+      })
+    : check("preprocess-logs", "Preprocess Logs", "warn", errors.join("; "), {
+        log_file_count: logFileCount,
+        expected_log_count: expected.length,
+        error_count: errors.length
+      });
 }
 
 async function checkFfmpegRuntime(): Promise<DoctorCheck[]> {
@@ -461,13 +703,16 @@ export async function runMixlabDoctor(
   input: RunMixlabDoctorInput
 ): Promise<MixlabDoctorReport> {
   const checks: DoctorCheck[] = [];
+  const library = await readLibraryManifest(input.library_root);
 
   checks.push(await checkPublicRoot(input.library_root));
   checks.push(await checkSourceVideos(input.library_root));
   checks.push(await checkMixlabLibraryWritable(input.library_root));
-  checks.push(await checkLibraryCounts(input.library_root));
-  checks.push(await checkSourceVideoManifests(input.library_root));
-  checks.push(await checkCurrentIndex(input.library_root));
+  checks.push(await checkPreprocessLogsWritable(input.library_root));
+  checks.push(await checkLibraryCounts(input.library_root, library));
+  checks.push(await checkSourceVideoManifests(input.library_root, library));
+  checks.push(await checkCurrentIndex(input.library_root, library));
+  checks.push(await checkPreprocessLogs(input.library_root, library));
   checks.push(...(await checkFfmpegRuntime()));
   checks.push(checkAsrConfig(input.env ?? process.env));
   checks.push(await checkLocalClips(input.library_root));
@@ -478,5 +723,28 @@ export async function runMixlabDoctor(
     library_root: input.library_root,
     summary: summarize(checks),
     checks
+  };
+}
+
+function safeDoctorTimestamp(value: string): string {
+  return value.replaceAll(/[:\s]/g, "-").replaceAll(/[^A-Za-z0-9_.-]/g, "-");
+}
+
+export async function exportMixlabDoctorReport(
+  input: RunMixlabDoctorInput
+): Promise<MixlabDoctorExport> {
+  const report = await runMixlabDoctor(input);
+  const fileName = `mixlab-doctor-${safeDoctorTimestamp(report.generated_at)}.json`;
+  const relativePath = [".mixlab-library", "exports", "doctor", fileName].join("/");
+  const filePath = path.join(input.library_root, relativePath);
+
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+
+  return {
+    file_name: fileName,
+    relative_path: relativePath,
+    file_path: filePath,
+    report
   };
 }

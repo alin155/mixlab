@@ -7,6 +7,7 @@
 !macro _MIXLAB_STOP_RUNNING_APP
   !insertmacro _MIXLAB_STOP_PROCESS "MixLab Cutter.exe"
   !insertmacro _MIXLAB_STOP_PROCESS "cutter-api-sidecar-x86_64-pc-windows-msvc.exe"
+  !insertmacro _MIXLAB_STOP_PROCESS "mixlab-searchd-x86_64-pc-windows-msvc.exe"
   Sleep 1000
 !macroend
 

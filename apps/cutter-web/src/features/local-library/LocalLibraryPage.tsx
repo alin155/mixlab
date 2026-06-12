@@ -1,4 +1,4 @@
-import { GalleryGrid, InspectorPanel, SegmentedControl } from "@mixlab/ui-foundation";
+import { GalleryGrid, InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, formatFileSize, type LocalClipCatalog } from "../../api.ts";
 import {
   projectDisplayTitle,
@@ -12,8 +12,13 @@ import {
 } from "../../state/video-orientation.ts";
 
 type LocalClipVisualMetadata = LocalClipCatalog["clips"][number] & VideoDimensions;
-type LocalClip = LocalClipCatalog["clips"][number];
+export type LocalClip = LocalClipCatalog["clips"][number];
 export type LocalLibraryViewMode = "current-project" | "all";
+const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
+  { value: "all", label: "全部" },
+  { value: "landscape", label: "横版" },
+  { value: "portrait", label: "竖版" }
+];
 
 const LOCAL_CLIP_FALLBACK_COVER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 180'%3E%3Crect width='320' height='180' fill='%232a2f36'/%3E%3Cpath d='M124 55l78 35-78 35z' fill='%23ffffff' opacity='.9'/%3E%3C/svg%3E";
@@ -100,21 +105,27 @@ export function LocalLibraryPage({
   query = "",
   orientationFilter = "all",
   selectedLocalClipId,
+  actionNotice = "",
   projects = [],
   currentProjectId,
   viewMode = "current-project",
   onSetViewMode,
-  onSelectLocalClip
+  onSetOrientationFilter,
+  onSelectLocalClip,
+  onOpenLocalClipDirectory
 }: {
   catalog: LocalClipCatalog;
   query?: string;
   orientationFilter?: VideoOrientationFilter;
   selectedLocalClipId?: string;
+  actionNotice?: string;
   projects?: readonly CutterProject[];
   currentProjectId?: string;
   viewMode?: LocalLibraryViewMode;
   onSetViewMode?: (mode: LocalLibraryViewMode) => void;
+  onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
   onSelectLocalClip?: (localClipId: string) => void;
+  onOpenLocalClipDirectory?: (localClip: LocalClip) => void;
 }) {
   const projectById = new Map(projects.map((project) => [project.project_id, project]));
   const filtered = query
@@ -198,30 +209,44 @@ export function LocalLibraryPage({
                 </button>
               ))}
             </div>
-            <SegmentedControl options={["全部", "横版", "竖版"]} active="全部" />
+            <div className="cutter-local-view-toggle" role="group" aria-label="本地素材视频类型">
+              {orientationFilterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={orientationFilter === option.value ? "is-active" : ""}
+                  aria-pressed={orientationFilter === option.value}
+                  onClick={() => onSetOrientationFilter?.(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </header>
 
-        {viewMode === "all" ? (
-          <div className="cutter-local-project-groups">
-            {grouped.map(([title, clips]) => (
-              <section className="cutter-local-project-group" key={title}>
-                <header>
-                  <strong>{title}</strong>
-                  <span>{clips.length} 个素材</span>
-                </header>
-                <GalleryGrid items={galleryItems(clips)} />
-              </section>
-            ))}
-          </div>
-        ) : visible.length > 0 ? (
-          <GalleryGrid items={galleryItems(visible)} />
-        ) : (
-          <div className="cutter-local-empty-state">
-            <strong>当前项目暂无本地素材</strong>
-            <span>切换到全部素材，可以查看本机已剪切的其他项目素材。</span>
-          </div>
-        )}
+        <div className="cutter-local-library-scroll">
+          {viewMode === "all" ? (
+            <div className="cutter-local-project-groups">
+              {grouped.map(([title, clips]) => (
+                <section className="cutter-local-project-group" key={title}>
+                  <header>
+                    <strong>{title}</strong>
+                    <span>{clips.length} 个素材</span>
+                  </header>
+                  <GalleryGrid items={galleryItems(clips)} />
+                </section>
+              ))}
+            </div>
+          ) : visible.length > 0 ? (
+            <GalleryGrid items={galleryItems(visible)} />
+          ) : (
+            <div className="cutter-local-empty-state">
+              <strong>当前项目暂无本地素材</strong>
+              <span>切换到全部素材，可以查看本机已剪切的其他项目素材。</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <InspectorPanel title="素材详情">
@@ -242,6 +267,16 @@ export function LocalLibraryPage({
           <span>{selected?.source_title ? `来源 ${selected.source_title}` : ""}</span>
           <span>{selected ? galleryMeta(selected) : ""}</span>
           <p>{selected?.selected_text}</p>
+          {selected && onOpenLocalClipDirectory ? (
+            <button
+              type="button"
+              className="cutter-inline-action"
+              onClick={() => onOpenLocalClipDirectory(selected)}
+            >
+              打开文件目录
+            </button>
+          ) : null}
+          {actionNotice ? <p className="cutter-note">{actionNotice}</p> : null}
         </div>
       </InspectorPanel>
     </section>

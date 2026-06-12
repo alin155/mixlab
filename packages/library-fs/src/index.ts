@@ -11,18 +11,23 @@ import {
 } from "../../protocol/src/index.ts";
 import {
   publishReadySourceVideo,
-  readAllSourceVideoManifests
+  readAllSourceVideoManifests,
+  refreshLibraryCounts
 } from "./preprocess-lifecycle.ts";
 export { scanSourceVideos } from "./scanner.ts";
 export type { ScanSourceVideosInput, ScanSourceVideosResult } from "./scanner.ts";
 export {
+  appendPreprocessJobLog,
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   completeReadyVisualArtifacts,
   failPreprocessJob,
   publishReadySourceVideo,
+  preprocessJobLogPath,
   readAllSourceVideoManifests,
+  readPreprocessJobLog,
   readSourceVideoManifest,
+  refreshLibraryCounts,
   updatePreprocessJobStage
 } from "./preprocess-lifecycle.ts";
 export { listCutterVisibleSourceVideos } from "./cutter-catalog.ts";
@@ -50,6 +55,7 @@ export type {
   CompletePreprocessArtifactsInput,
   CompleteReadyVisualArtifactsInput,
   FailPreprocessJobInput,
+  PreprocessJobLog,
   PreprocessJobSummary,
   PublishReadySourceVideoInput,
   UpdatePreprocessJobStageInput
@@ -357,9 +363,11 @@ export async function publishIndexRequiredSourceVideos(
       library_root: input.library_root,
       source_video_id: sourceVideoId,
       index_version: indexVersion,
-      now: input.now
+      now: input.now,
+      refresh_library_counts: false
     });
   }
+  await refreshLibraryCounts(input.library_root, input.now);
 
   return {
     index_version: indexVersion,

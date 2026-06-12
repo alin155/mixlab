@@ -103,6 +103,34 @@ export interface ExportClipManifest {
   cut_mode: CutMode;
 }
 
+export interface ClipListItem {
+  item_id: string;
+  order: number;
+  source_video_id: string;
+  source_title: string;
+  source_relative_path: string;
+  start_segment_id: string;
+  end_segment_id: string;
+  begin_ms: number;
+  end_ms: number;
+  selected_text: string;
+  cut_mode: CutMode;
+  pre_roll_ms: number;
+  post_roll_ms: number;
+}
+
+export interface ClipListManifest {
+  schema_version: "1.0";
+  clip_list_id: string;
+  library_id: string;
+  project_id?: string;
+  title: string;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+  items: ClipListItem[];
+}
+
 export interface TranscriptSegment {
   segment_id: string;
   index: number;

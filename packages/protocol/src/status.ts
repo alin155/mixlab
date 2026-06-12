@@ -1,4 +1,5 @@
 import type {
+  ClipListManifest,
   CutMode,
   ExportClipManifest,
   LibraryCountValidationResult,
@@ -43,9 +44,15 @@ function validatePositiveOrZeroInteger(value: unknown, field: string, errors: st
   }
 }
 
-function validateCutMode(value: unknown, errors: string[]): void {
+function validatePositiveInteger(value: unknown, field: string, errors: string[]): void {
+  if (!Number.isInteger(value) || (value as number) <= 0) {
+    errors.push(`${field} must be a positive integer`);
+  }
+}
+
+function validateCutMode(value: unknown, errors: string[], field = "cut_mode"): void {
   if (typeof value !== "string" || !CUT_MODES.has(value as CutMode)) {
-    errors.push("cut_mode must be copy, smart, or precise");
+    errors.push(`${field} must be copy, smart, or precise`);
   }
 }
 
@@ -201,6 +208,101 @@ export function validateExportClipManifest(
   }
 
   validateCutMode(manifest.cut_mode, errors);
+
+  return {
+    ok: errors.length === 0,
+    errors
+  };
+}
+
+export function validateClipListManifest(
+  manifest: ClipListManifest
+): ValidationResult {
+  const errors: string[] = [];
+
+  if (manifest.schema_version !== "1.0") {
+    errors.push("schema_version must be 1.0");
+  }
+
+  if (!/^CL\d{8}-\d{4}$/.test(manifest.clip_list_id)) {
+    errors.push("clip_list_id must use CLYYYYMMDD-0001 format");
+  }
+
+  for (const key of [
+    "library_id",
+    "title",
+    "created_at",
+    "updated_at"
+  ] as const) {
+    if (!isNonEmptyString(manifest[key])) {
+      errors.push(`${key} must be a non-empty string`);
+    }
+  }
+
+  if (
+    manifest.project_id !== undefined &&
+    (typeof manifest.project_id !== "string" ||
+      !/^[A-Za-z0-9_-]{1,100}$/.test(manifest.project_id))
+  ) {
+    errors.push("project_id must be a safe project identifier");
+  }
+
+  validatePositiveOrZeroInteger(manifest.item_count, "item_count", errors);
+
+  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
+    errors.push("items must contain at least one cut-list row");
+  } else {
+    if (manifest.item_count !== manifest.items.length) {
+      errors.push("item_count must equal items.length");
+    }
+
+    manifest.items.forEach((item, index) => {
+      const prefix = `items[${index}]`;
+
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        errors.push(`${prefix} must be an object`);
+        return;
+      }
+
+      if (!/^CLI\d{6}$/.test(item.item_id)) {
+        errors.push(`${prefix}.item_id must use CLI000001 format`);
+      }
+
+      validatePositiveInteger(item.order, `${prefix}.order`, errors);
+
+      if (item.order !== index + 1) {
+        errors.push(`${prefix}.order must equal item position`);
+      }
+
+      for (const key of [
+        "source_video_id",
+        "source_title",
+        "source_relative_path",
+        "start_segment_id",
+        "end_segment_id",
+        "selected_text"
+      ] as const) {
+        if (!isNonEmptyString(item[key])) {
+          errors.push(`${prefix}.${key} must be a non-empty string`);
+        }
+      }
+
+      validatePositiveOrZeroInteger(item.begin_ms, `${prefix}.begin_ms`, errors);
+      validatePositiveOrZeroInteger(item.end_ms, `${prefix}.end_ms`, errors);
+      validatePositiveOrZeroInteger(item.pre_roll_ms, `${prefix}.pre_roll_ms`, errors);
+      validatePositiveOrZeroInteger(item.post_roll_ms, `${prefix}.post_roll_ms`, errors);
+
+      if (item.end_ms <= item.begin_ms) {
+        errors.push(`${prefix}.end_ms must be greater than begin_ms`);
+      }
+
+      if (!isPortablePath(item.source_relative_path)) {
+        errors.push(`${prefix}.source_relative_path must be portable`);
+      }
+
+      validateCutMode(item.cut_mode, errors, `${prefix}.cut_mode`);
+    });
+  }
 
   return {
     ok: errors.length === 0,

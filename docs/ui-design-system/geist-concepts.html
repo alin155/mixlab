@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MixLab Geist Concepts</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: #e9e9e9;
+      color: #0a0a0a;
+      font-family: "Geist", "Inter", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+    .frame {
+      width: 1440px;
+      height: 900px;
+      margin: 0 auto 40px;
+      overflow: hidden;
+      position: relative;
+      font-variant-numeric: tabular-nums;
+    }
+    .mono {
+      font-family: "Geist Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .status {
+      align-items: center;
+      display: inline-flex;
+      gap: 7px;
+      white-space: nowrap;
+    }
+    .status::before {
+      border-radius: 999px;
+      content: "";
+      display: block;
+      height: 7px;
+      width: 7px;
+    }
+    .ready::before { background: #0f7b4f; }
+    .attention::before { background: #a35c00; }
+    .danger::before { background: #c02626; }
+    .processing::before { background: #006adc; }
+    .btn {
+      align-items: center;
+      border-radius: 6px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 560;
+      gap: 8px;
+      height: 34px;
+      justify-content: center;
+      padding: 0 13px;
+      white-space: nowrap;
+    }
+    .admin {
+      background: #fafafa;
+      display: grid;
+      grid-template-columns: 238px 1fr;
+    }
+    .admin-sidebar {
+      background: #fff;
+      border-right: 1px solid #e5e5e5;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 14px;
+    }
+    .brand {
+      align-items: center;
+      display: flex;
+      gap: 11px;
+      margin-bottom: 24px;
+      padding: 0 5px;
+    }
+    .brand-mark {
+      align-items: center;
+      background: #0a0a0a;
+      border-radius: 7px;
+      color: #fff;
+      display: flex;
+      font-size: 12px;
+      font-weight: 650;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }
+    .brand-title { font-size: 14px; font-weight: 650; line-height: 18px; }
+    .brand-subtitle { color: #777; font-size: 12px; line-height: 16px; }
+    .nav {
+      display: grid;
+      gap: 5px;
+    }
+    .nav-item {
+      align-items: center;
+      border-radius: 7px;
+      color: #575757;
+      display: flex;
+      font-size: 13px;
+      gap: 10px;
+      height: 34px;
+      padding: 0 10px;
+    }
+    .nav-item.active {
+      background: #f1f1f1;
+      color: #0a0a0a;
+      font-weight: 560;
+    }
+    .admin-sidebar-card {
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      margin-top: auto;
+      padding: 14px;
+    }
+    .admin-sidebar-card span {
+      color: #777;
+      display: block;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .admin-sidebar-card strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+    .admin-main {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      padding: 26px 28px 30px;
+      min-width: 0;
+    }
+    .admin-header {
+      align-items: flex-start;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+    .crumb {
+      color: #777;
+      font-size: 12px;
+      font-weight: 560;
+      margin-bottom: 6px;
+    }
+    .admin-header h1 {
+      font-size: 28px;
+      line-height: 36px;
+      margin: 0;
+    }
+    .admin-header p {
+      color: #666;
+      font-size: 14px;
+      line-height: 22px;
+      margin: 4px 0 0;
+    }
+    .admin-actions {
+      display: flex;
+      gap: 10px;
+      padding-top: 4px;
+    }
+    .btn.secondary {
+      background: #fff;
+      border: 1px solid #dedede;
+      color: #111;
+    }
+    .btn.primary {
+      background: #111;
+      border: 1px solid #111;
+      color: #fff;
+    }
+    .admin-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      min-height: 0;
+    }
+    .admin-left {
+      display: grid;
+      gap: 16px;
+      grid-auto-rows: min-content;
+      min-width: 0;
+    }
+    .callout {
+      align-items: center;
+      background: #fff8ed;
+      border: 1px solid #f1d8b5;
+      border-left: 3px solid #d48718;
+      border-radius: 8px;
+      display: flex;
+      gap: 14px;
+      min-height: 64px;
+      padding: 13px 16px;
+    }
+    .callout strong { display: block; font-size: 14px; margin-bottom: 3px; }
+    .callout span { color: #6e5b3d; font-size: 13px; }
+    .callout .spacer { flex: 1; }
+    .kpis {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    .kpi, .panel, .inspector {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+    }
+    .kpi {
+      min-height: 104px;
+      padding: 14px;
+    }
+    .kpi span {
+      color: #666;
+      display: block;
+      font-size: 12px;
+      line-height: 18px;
+      margin-bottom: 13px;
+    }
+    .kpi strong {
+      display: block;
+      font-size: 25px;
+      line-height: 30px;
+      margin-bottom: 8px;
+    }
+    .kpi small {
+      color: #8a8a8a;
+      font-size: 12px;
+    }
+    .split {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1.05fr .95fr;
+    }
+    .panel {
+      min-height: 178px;
+      overflow: hidden;
+    }
+    .panel-head {
+      align-items: center;
+      border-bottom: 1px solid #ececec;
+      display: flex;
+      justify-content: space-between;
+      padding: 15px 16px;
+    }
+    .panel-head h2 {
+      font-size: 15px;
+      line-height: 22px;
+      margin: 0;
+    }
+    .panel-head span {
+      color: #777;
+      font-size: 12px;
+    }
+    .panel-body {
+      padding: 16px;
+    }
+    .next-title {
+      font-size: 17px;
+      line-height: 25px;
+      margin: 0 0 8px;
+    }
+    .next-copy {
+      color: #666;
+      font-size: 13px;
+      line-height: 21px;
+      margin: 0 0 16px;
+    }
+    .health-row {
+      align-items: flex-start;
+      border-bottom: 1px solid #f0f0f0;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 120px 1fr auto;
+      padding: 12px 0;
+    }
+    .health-row:first-child { padding-top: 0; }
+    .health-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .health-row .label {
+      color: #666;
+      font-size: 12px;
+    }
+    .health-row strong { font-size: 13px; }
+    .health-row p {
+      color: #777;
+      font-size: 12px;
+      line-height: 18px;
+      margin: 3px 0 0;
+    }
+    .queue-row {
+      align-items: center;
+      border-bottom: 1px solid #f0f0f0;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 74px 72px;
+      min-height: 54px;
+    }
+    .queue-row:last-child { border-bottom: 0; }
+    .queue-row strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .queue-row small {
+      color: #777;
+      font-size: 12px;
+    }
+    .bar {
+      background: #eeeeee;
+      border-radius: 999px;
+      height: 6px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .bar i {
+      background: #111;
+      border-radius: inherit;
+      display: block;
+      height: 100%;
+    }
+    .admin-right {
+      display: grid;
+      gap: 16px;
+      grid-auto-rows: min-content;
+      min-width: 0;
+    }
+    .inspector { overflow: hidden; }
+    .kv {
+      display: grid;
+    }
+    .kv-row {
+      border-bottom: 1px solid #eeeeee;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 92px 1fr;
+      padding: 13px 16px;
+    }
+    .kv-row:last-child { border-bottom: 0; }
+    .kv-row dt {
+      color: #777;
+      font-size: 12px;
+    }
+    .kv-row dd {
+      font-size: 13px;
+      font-weight: 560;
+      margin: 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .note {
+      border-top: 1px solid #eeeeee;
+      padding: 14px 16px;
+    }
+    .note strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .note p {
+      color: #666;
+      font-size: 12px;
+      line-height: 18px;
+      margin: 0;
+    }
+
+    .cutter {
+      background: #08090a;
+      color: #f5f5f5;
+      display: grid;
+      grid-template-columns: 228px 1fr;
+    }
+    .cutter-sidebar {
+      background: #0d0f12;
+      border-right: 1px solid #282d36;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 12px;
+    }
+    .cutter .brand-mark { background: #f5f5f5; color: #08090a; }
+    .cutter .brand-subtitle { color: #a1a1aa; }
+    .cutter .nav-item { color: #a1a1aa; }
+    .cutter .nav-item.active {
+      background: #1c2028;
+      color: #fff;
+    }
+    .project-card {
+      border: 1px solid #282d36;
+      border-radius: 8px;
+      margin-top: auto;
+      padding: 12px;
+    }
+    .project-card span {
+      color: #71717a;
+      display: block;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .project-card strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+    .cutter-main {
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      min-width: 0;
+    }
+    .workbench-head {
+      align-items: center;
+      border-bottom: 1px solid #282d36;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 18px;
+    }
+    .workbench-head h1 {
+      font-size: 17px;
+      line-height: 24px;
+      margin: 0;
+    }
+    .workbench-head p {
+      color: #a1a1aa;
+      font-size: 12px;
+      margin: 2px 0 0;
+    }
+    .head-metrics {
+      align-items: center;
+      color: #a1a1aa;
+      display: flex;
+      font-size: 12px;
+      gap: 16px;
+    }
+    .workbench {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 314px minmax(0, 1fr) 350px;
+      min-height: 0;
+      padding: 10px;
+    }
+    .c-panel {
+      background: #111318;
+      border: 1px solid #282d36;
+      border-radius: 8px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .search-panel {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    .search-box {
+      border-bottom: 1px solid #282d36;
+      padding: 14px;
+    }
+    .search-field {
+      align-items: center;
+      background: #0b0d10;
+      border: 1px solid #343b46;
+      border-radius: 8px;
+      display: flex;
+      height: 42px;
+      gap: 10px;
+      padding: 0 12px;
+    }
+    .search-field span { color: #71717a; }
+    .search-field strong {
+      color: #f5f5f5;
+      font-size: 14px;
+      font-weight: 560;
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .chip {
+      background: transparent;
+      border: 1px solid #343b46;
+      border-radius: 999px;
+      color: #a1a1aa;
+      font-size: 12px;
+      height: 28px;
+      padding: 5px 10px;
+    }
+    .chip.active {
+      background: #f5f5f5;
+      border-color: #f5f5f5;
+      color: #08090a;
+    }
+    .result-meta {
+      align-items: center;
+      border-bottom: 1px solid #282d36;
+      color: #a1a1aa;
+      display: flex;
+      font-size: 12px;
+      justify-content: space-between;
+      padding: 10px 14px;
+    }
+    .results {
+      min-height: 0;
+      overflow: hidden;
+      padding: 8px;
+    }
+    .result {
+      align-items: center;
+      border-radius: 7px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 64px 1fr auto;
+      min-height: 72px;
+      padding: 8px;
+    }
+    .result.active {
+      background: #1c2028;
+      outline: 1px solid #3a414d;
+    }
+    .thumb {
+      background:
+        linear-gradient(135deg, rgba(125,178,255,.32), rgba(255,255,255,.08)),
+        #222832;
+      border-radius: 5px;
+      height: 42px;
+      overflow: hidden;
+      position: relative;
+    }
+    .thumb::after {
+      background: rgba(255,255,255,.75);
+      border-radius: 999px;
+      content: "";
+      height: 12px;
+      left: 26px;
+      position: absolute;
+      top: 15px;
+      width: 12px;
+    }
+    .result strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .result small {
+      color: #a1a1aa;
+      display: block;
+      font-size: 12px;
+      line-height: 17px;
+    }
+    .hit {
+      color: #7db2ff;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: right;
+    }
+    .transcript-panel {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+    .transcript-head {
+      align-items: center;
+      border-bottom: 1px solid #282d36;
+      display: flex;
+      justify-content: space-between;
+      padding: 13px 16px;
+    }
+    .transcript-head h2 {
+      font-size: 15px;
+      line-height: 22px;
+      margin: 0;
+    }
+    .transcript-head span {
+      color: #a1a1aa;
+      font-size: 12px;
+    }
+    .transcript {
+      min-height: 0;
+      overflow: hidden;
+      padding: 12px 18px 6px;
+    }
+    .line {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 50px 1fr;
+      padding: 8px 0;
+    }
+    .time {
+      color: #71717a;
+      font-size: 12px;
+      text-align: right;
+    }
+    .line p {
+      color: #d4d4d8;
+      font-size: 14px;
+      line-height: 25px;
+      margin: 0;
+    }
+    .line.active p {
+      background: #132238;
+      border: 1px solid #294569;
+      border-radius: 6px;
+      color: #fff;
+      margin: -5px -8px;
+      padding: 5px 8px;
+    }
+    .selection-bar {
+      align-items: center;
+      background: #0d0f12;
+      border-top: 1px solid #282d36;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 10px 14px;
+    }
+    .selection-bar span {
+      color: #a1a1aa;
+      font-size: 12px;
+      margin-right: auto;
+    }
+    .c-btn {
+      align-items: center;
+      border-radius: 6px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 560;
+      height: 32px;
+      justify-content: center;
+      padding: 0 12px;
+    }
+    .c-btn.ghost {
+      border: 1px solid #343b46;
+      color: #e4e4e7;
+    }
+    .c-btn.primary {
+      background: #f5f5f5;
+      color: #08090a;
+    }
+    .side-panel {
+      display: grid;
+      gap: 10px;
+      grid-template-rows: 202px minmax(0, 1fr) 156px;
+    }
+    .video {
+      background: #0b0d10;
+      border: 1px solid #282d36;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    .video::before {
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.09), rgba(125,178,255,.22), rgba(255,255,255,.06)),
+        linear-gradient(135deg, #20242c, #0c0f14);
+      content: "";
+      inset: 10px 10px 44px;
+      position: absolute;
+    }
+    .video .play {
+      align-items: center;
+      background: rgba(0,0,0,.52);
+      border-radius: 999px;
+      bottom: 56px;
+      display: flex;
+      height: 34px;
+      justify-content: center;
+      left: 24px;
+      position: absolute;
+      width: 34px;
+    }
+    .video .range {
+      background: #232a34;
+      border-radius: 999px;
+      bottom: 22px;
+      height: 7px;
+      left: 20px;
+      overflow: hidden;
+      position: absolute;
+      right: 20px;
+    }
+    .video .range i {
+      background: #f5f5f5;
+      display: block;
+      height: 100%;
+      width: 72%;
+    }
+    .cut-panel {
+      padding: 15px;
+    }
+    .cut-panel h2 {
+      font-size: 15px;
+      margin: 0 0 12px;
+    }
+    .cut-panel dl {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, 1fr);
+      margin: 0 0 16px;
+    }
+    .cut-panel div {
+      background: #171a21;
+      border: 1px solid #282d36;
+      border-radius: 7px;
+      padding: 9px 10px;
+    }
+    .cut-panel dt {
+      color: #71717a;
+      font-size: 11px;
+      margin-bottom: 5px;
+    }
+    .cut-panel dd {
+      font-size: 13px;
+      font-weight: 560;
+      margin: 0;
+    }
+    .cut-panel p {
+      color: #a1a1aa;
+      font-size: 12px;
+      line-height: 19px;
+      margin: 0 0 14px;
+    }
+    .queue {
+      padding: 14px;
+    }
+    .queue h2 {
+      font-size: 14px;
+      margin: 0 0 12px;
+    }
+    .queue-item {
+      background: #171a21;
+      border: 1px solid #282d36;
+      border-radius: 7px;
+      padding: 11px;
+    }
+    .queue-item strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .queue-item span {
+      color: #a1a1aa;
+      display: block;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <section class="frame admin" id="admin-dashboard">
+    <aside class="admin-sidebar">
+      <div class="brand">
+        <div class="brand-mark">ML</div>
+        <div>
+          <div class="brand-title">MixLab Admin</div>
+          <div class="brand-subtitle">公共素材库生产</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item active">⌂ 仪表盘</div>
+        <div class="nav-item">▤ 原视频管理</div>
+        <div class="nav-item">○ 预处理</div>
+        <div class="nav-item">◇ 剪辑师用户</div>
+        <div class="nav-item">⌘ 设置</div>
+      </nav>
+      <div class="admin-sidebar-card">
+        <span>当前发布版本</span>
+        <strong class="mono">v003292</strong>
+        <span>18/50 活跃剪辑师</span>
+      </div>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-header">
+        <div>
+          <div class="crumb">Admin / Dashboard</div>
+          <h1>公共素材库仪表盘</h1>
+          <p>先看到最重要的生产状态，再决定下一步处理动作。</p>
+        </div>
+        <div class="admin-actions">
+          <div class="btn secondary">局部刷新</div>
+          <div class="btn primary">重试失败视频</div>
+        </div>
+      </header>
+      <section class="admin-grid">
+        <div class="admin-left">
+          <div class="callout">
+            <div>
+              <strong>有 260 个失败视频可重试</strong>
+              <span>单个视频失败不会阻塞其他队列，建议先处理可恢复任务。</span>
+            </div>
+            <div class="spacer"></div>
+            <span class="status attention">需要处理</span>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><span>可用视频</span><strong class="mono">3,292</strong><small>占全部 29%</small></div>
+            <div class="kpi"><span>句子片段</span><strong class="mono">412k</strong><small>已发布索引</small></div>
+            <div class="kpi"><span>当前索引</span><strong class="mono">v003292</strong><small>剪辑端可用</small></div>
+            <div class="kpi"><span>失败任务</span><strong class="mono">260</strong><small>可重试处理</small></div>
+            <div class="kpi"><span>活跃剪辑师</span><strong class="mono">18/50</strong><small>最近 20 次搜索</small></div>
+          </div>
+          <div class="split">
+            <article class="panel">
+              <div class="panel-head">
+                <h2>下一步建议</h2>
+                <span class="status attention">待处理</span>
+              </div>
+              <div class="panel-body">
+                <h3 class="next-title">先重试失败视频</h3>
+                <p class="next-copy">260 个视频失败可重试。系统会继续处理其他任务，重试不会影响当前可用素材。</p>
+                <div class="btn primary">重试失败视频</div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-head">
+                <h2>核心链路健康</h2>
+                <span class="status attention">需要观察</span>
+              </div>
+              <div class="panel-body">
+                <div class="health-row">
+                  <div class="label">关键词定位</div>
+                  <div><strong>p95 121ms</strong><p>搜索响应稳定，最近样本正常。</p></div>
+                  <div class="mono">121ms</div>
+                </div>
+                <div class="health-row">
+                  <div class="label">完整文案</div>
+                  <div><strong>412,128 段</strong><p>已发布索引可供剪辑端查询。</p></div>
+                  <div class="mono">100%</div>
+                </div>
+                <div class="health-row">
+                  <div class="label">剪辑容量</div>
+                  <div><strong>18/50</strong><p>当前并发使用量处于安全范围。</p></div>
+                  <div class="mono">36%</div>
+                </div>
+              </div>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-head">
+              <h2>生产队列</h2>
+              <span>局部更新，不刷新整页</span>
+            </div>
+            <div class="panel-body">
+              <div class="queue-row">
+                <div><strong>预处理流水线</strong><small>1 个待恢复 / 7839 队列记录</small></div>
+                <div class="bar"><i style="width: 12%"></i></div>
+                <span class="status attention">未运行</span>
+              </div>
+              <div class="queue-row">
+                <div><strong>索引发布</strong><small>v003292 已发布给剪辑端</small></div>
+                <div class="bar"><i style="width: 100%"></i></div>
+                <span class="status ready">可用</span>
+              </div>
+            </div>
+          </article>
+        </div>
+        <aside class="admin-right">
+          <article class="inspector">
+            <div class="panel-head">
+              <h2>公共库摘要</h2>
+              <span class="status ready">已连接</span>
+            </div>
+            <dl class="kv">
+              <div class="kv-row"><dt>根目录</dt><dd>/Volumes/MixLab/PublicLibrary</dd></div>
+              <div class="kv-row"><dt>已发布版本</dt><dd class="mono">v003292</dd></div>
+              <div class="kv-row"><dt>最近扫描</dt><dd class="mono">06-04 16:57</dd></div>
+              <div class="kv-row"><dt>刷新方式</dt><dd>卡片局部刷新</dd></div>
+            </dl>
+          </article>
+          <article class="inspector">
+            <div class="panel-head"><h2>状态说明</h2><span>用户可读</span></div>
+            <div class="note">
+              <strong>可用状态</strong>
+              <p>剪辑师可以继续搜索和剪切已发布素材。</p>
+            </div>
+            <div class="note">
+              <strong>需要处理</strong>
+              <p>失败任务可重试，不影响当前已发布素材库使用。</p>
+            </div>
+          </article>
+        </aside>
+      </section>
+    </main>
+  </section>
+
+  <section class="frame cutter" id="cutter-search">
+    <aside class="cutter-sidebar">
+      <div class="brand">
+        <div class="brand-mark">ML</div>
+        <div>
+          <div class="brand-title">MixLab Cutter</div>
+          <div class="brand-subtitle">项目化素材剪切</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item">⌂ 首页</div>
+        <div class="nav-item active">⌕ 素材搜索</div>
+        <div class="nav-item">◫ 剪切任务</div>
+        <div class="nav-item">▥ 本地素材</div>
+        <div class="nav-item">▤ 公共素材库</div>
+        <div class="nav-item">⌘ 设置</div>
+      </nav>
+      <div class="project-card">
+        <span>当前项目</span>
+        <strong>财富课程 · 第三章</strong>
+        <span>本地剪辑师 · 已连接</span>
+      </div>
+    </aside>
+    <main class="cutter-main">
+      <header class="workbench-head">
+        <div>
+          <h1>素材搜索</h1>
+          <p>搜索真实 NAS 原素材库，选中一句或一段后创建剪切任务。</p>
+        </div>
+        <div class="head-metrics">
+          <span>已发布素材 <b class="mono">3,305</b></span>
+          <span>命中 <b class="mono">370</b></span>
+          <span class="status ready">已连接</span>
+        </div>
+      </header>
+      <section class="workbench">
+        <aside class="c-panel search-panel">
+          <div class="search-box">
+            <div class="search-field"><span>⌕</span><strong>现金流</strong></div>
+            <div class="chips">
+              <span class="chip active">公共素材</span>
+              <span class="chip">本地素材</span>
+              <span class="chip">已选 1 句</span>
+            </div>
+          </div>
+          <div class="result-meta"><span>候选素材 · 72 条</span><span>按相关度</span></div>
+          <div class="results">
+            <div class="result active">
+              <div class="thumb"></div>
+              <div><strong>ljf20241111_7994</strong><small>文案 2,513 字 · 08:22</small></div>
+              <div class="hit">命中 3</div>
+            </div>
+            <div class="result">
+              <div class="thumb"></div>
+              <div><strong>C0035</strong><small>文案 7,324 字 · 24:28</small></div>
+              <div class="hit">20</div>
+            </div>
+            <div class="result">
+              <div class="thumb"></div>
+              <div><strong>C0319</strong><small>文案 10,475 字 · 31:46</small></div>
+              <div class="hit">7</div>
+            </div>
+            <div class="result">
+              <div class="thumb"></div>
+              <div><strong>040A3314</strong><small>文案 7,495 字 · 24:23</small></div>
+              <div class="hit">12</div>
+            </div>
+            <div class="result">
+              <div class="thumb"></div>
+              <div><strong>C0036</strong><small>文案 9,248 字 · 29:31</small></div>
+              <div class="hit">11</div>
+            </div>
+          </div>
+        </aside>
+        <section class="c-panel transcript-panel">
+          <div class="transcript-head">
+            <div>
+              <h2>ljf20241111_7994</h2>
+              <span>命中 3 处 · 已选 1 句 · 文案 2,513 字</span>
+            </div>
+            <span class="mono">当前 06:58 · 1 / 369</span>
+          </div>
+          <div class="transcript">
+            <div class="line"><div class="time mono">00:11</div><p>那么保险加信托通常被看作是其中两种主要的方法。</p></div>
+            <div class="line"><div class="time mono">00:20</div><p>注意哈，这个是兴业银行的香港私人银行给到用户的科普。</p></div>
+            <div class="line"><div class="time mono">00:25</div><p>我给大家贴一下，先买保险，然后呢受益人定成信托，保单不计信托，这样好处是什么呢？</p></div>
+            <div class="line active"><div class="time mono">06:58</div><p>当然第二个就提前储备，第三个是潜在的养老准备，第四个是现金流的转换。</p></div>
+            <div class="line"><div class="time mono">07:05</div><p>这句话可以作为这一段的剪切起点，后续再根据上下文微调。</p></div>
+            <div class="line"><div class="time mono">07:12</div><p>把现金流转换讲清楚，观众会更容易理解这个案例。</p></div>
+            <div class="line"><div class="time mono">07:19</div><p>如果项目需要更短素材，可以只截取中间这 6 秒。</p></div>
+            <div class="line"><div class="time mono">07:26</div><p>更长版本则保留前后解释，让语义更完整。</p></div>
+          </div>
+          <div class="selection-bar">
+            <span>已选 6 秒 · 06:58-07:05 · 35 字</span>
+            <div class="c-btn ghost">预览选区</div>
+            <div class="c-btn primary">剪切这段</div>
+          </div>
+        </section>
+        <aside class="side-panel">
+          <div class="video c-panel">
+            <div class="play">▶</div>
+            <div class="range"><i></i></div>
+          </div>
+          <section class="cut-panel c-panel">
+            <h2>选区信息</h2>
+            <dl>
+              <div><dt>来源</dt><dd>公共素材</dd></div>
+              <div><dt>时间段</dt><dd class="mono">06:58 - 07:05</dd></div>
+              <div><dt>字数</dt><dd>35 字</dd></div>
+              <div><dt>命中</dt><dd>1 / 369</dd></div>
+            </dl>
+            <p>当前选区语义完整，可直接创建剪切任务。需要更长上下文时，可在文案区拖动扩展。</p>
+            <div class="c-btn primary" style="width: 100%;">创建剪切任务</div>
+          </section>
+          <section class="queue c-panel">
+            <h2>最近剪切任务</h2>
+            <div class="queue-item">
+              <strong>后续搜索结果加载失败，可继续使用当前结果</strong>
+              <span>刚刚 · 财富课程 · 第三章</span>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </section>
+</body>
+</html>

@@ -3,8 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    env,
-    fs,
+    env, fs,
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
@@ -20,10 +19,19 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[cfg(windows)]
-const SIDECAR_EXECUTABLE_NAME: &str = "cutter-api-sidecar-x86_64-pc-windows-msvc.exe";
+const CUTTER_API_SIDECAR_EXECUTABLE_NAME: &str = "cutter-api-sidecar-x86_64-pc-windows-msvc.exe";
 
 #[cfg(not(windows))]
-const SIDECAR_EXECUTABLE_NAME: &str = "cutter-api-sidecar";
+const CUTTER_API_SIDECAR_EXECUTABLE_NAME: &str = "cutter-api-sidecar";
+
+#[cfg(windows)]
+const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd-x86_64-pc-windows-msvc.exe";
+
+#[cfg(not(windows))]
+const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd";
+
+const SEARCHD_HOST: &str = "127.0.0.1";
+const SEARCHD_PORT: u16 = 3799;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CutterDesktopConfig {
@@ -142,7 +150,8 @@ fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
 
     let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
-    let request = format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
+    let request =
+        format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
     if stream.write_all(request.as_bytes()).is_err() {
         return false;
     }
@@ -151,22 +160,32 @@ fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
     stream.read_to_string(&mut response).is_ok() && health_response_is_ready(&response)
 }
 
-fn sidecar_path_candidates(app: &AppHandle) -> Vec<PathBuf> {
+fn bundled_binary_path_candidates(app: &AppHandle, executable_name: &str) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
     if let Ok(current_exe) = env::current_exe() {
         if let Some(parent) = current_exe.parent() {
-            candidates.push(parent.join(SIDECAR_EXECUTABLE_NAME));
-            candidates.push(parent.join("binaries").join(SIDECAR_EXECUTABLE_NAME));
-            candidates.push(parent.join("resources").join(SIDECAR_EXECUTABLE_NAME));
-            candidates.push(parent.join("resources").join("binaries").join(SIDECAR_EXECUTABLE_NAME));
+            candidates.push(parent.join(executable_name));
+            candidates.push(parent.join("binaries").join(executable_name));
+            candidates.push(parent.join("resources").join(executable_name));
+            candidates.push(
+                parent
+                    .join("resources")
+                    .join("binaries")
+                    .join(executable_name),
+            );
         }
     }
 
     if let Ok(resource_dir) = app.path().resource_dir() {
-        candidates.push(resource_dir.join(SIDECAR_EXECUTABLE_NAME));
-        candidates.push(resource_dir.join("binaries").join(SIDECAR_EXECUTABLE_NAME));
-        candidates.push(resource_dir.join("resources").join("binaries").join(SIDECAR_EXECUTABLE_NAME));
+        candidates.push(resource_dir.join(executable_name));
+        candidates.push(resource_dir.join("binaries").join(executable_name));
+        candidates.push(
+            resource_dir
+                .join("resources")
+                .join("binaries")
+                .join(executable_name),
+        );
     }
 
     if let Ok(current_dir) = env::current_dir() {
@@ -176,21 +195,25 @@ fn sidecar_path_candidates(app: &AppHandle) -> Vec<PathBuf> {
                 .join("cutter-desktop")
                 .join("src-tauri")
                 .join("binaries")
-                .join(SIDECAR_EXECUTABLE_NAME),
+                .join(executable_name),
         );
         candidates.push(
             current_dir
                 .join("src-tauri")
                 .join("binaries")
-                .join(SIDECAR_EXECUTABLE_NAME),
+                .join(executable_name),
         );
     }
 
     candidates
 }
 
-fn resolve_sidecar_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let candidates = sidecar_path_candidates(app);
+fn resolve_bundled_binary_path(
+    app: &AppHandle,
+    executable_name: &str,
+    label: &str,
+) -> Result<PathBuf, String> {
+    let candidates = bundled_binary_path_candidates(app, executable_name);
     candidates
         .iter()
         .find(|candidate| candidate.is_file())
@@ -201,8 +224,16 @@ fn resolve_sidecar_path(app: &AppHandle) -> Result<PathBuf, String> {
                 .map(|candidate| candidate.to_string_lossy().to_string())
                 .collect::<Vec<_>>()
                 .join("；");
-            format!("未找到本机引擎 sidecar：{attempted}")
+            format!("未找到{label}：{attempted}")
         })
+}
+
+fn resolve_cutter_api_sidecar_path(app: &AppHandle) -> Result<PathBuf, String> {
+    resolve_bundled_binary_path(app, CUTTER_API_SIDECAR_EXECUTABLE_NAME, "本机引擎 sidecar")
+}
+
+fn resolve_searchd_path(app: &AppHandle) -> Result<PathBuf, String> {
+    resolve_bundled_binary_path(app, SEARCHD_EXECUTABLE_NAME, "本地搜索服务 searchd")
 }
 
 fn resource_file_path(app: &AppHandle, relative_path: &str) -> Option<PathBuf> {
@@ -236,7 +267,11 @@ fn spawn_hidden_process(command: &mut Command) -> Result<(), String> {
         .map_err(|error| format!("无法启动进程：{error}"))
 }
 
-fn spawn_sidecar_process(app: &AppHandle, command: &mut Command) -> Result<u32, String> {
+fn spawn_logged_process(
+    app: &AppHandle,
+    command: &mut Command,
+    log_stem: &str,
+) -> Result<u32, String> {
     command.stdin(Stdio::null());
 
     match desktop_log_dir_path(app).and_then(|dir| {
@@ -247,14 +282,16 @@ fn spawn_sidecar_process(app: &AppHandle, command: &mut Command) -> Result<u32, 
             let stdout = fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(dir.join("cutter-api-sidecar.stdout.log"))
-                .map_err(|error| format!("无法创建 sidecar stdout 日志：{error}"))?;
+                .open(dir.join(format!("{log_stem}.stdout.log")))
+                .map_err(|error| format!("无法创建 {log_stem} stdout 日志：{error}"))?;
             let stderr = fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(dir.join("cutter-api-sidecar.stderr.log"))
-                .map_err(|error| format!("无法创建 sidecar stderr 日志：{error}"))?;
-            command.stdout(Stdio::from(stdout)).stderr(Stdio::from(stderr));
+                .open(dir.join(format!("{log_stem}.stderr.log")))
+                .map_err(|error| format!("无法创建 {log_stem} stderr 日志：{error}"))?;
+            command
+                .stdout(Stdio::from(stdout))
+                .stderr(Stdio::from(stderr));
         }
         Err(_) => {
             command.stdout(Stdio::null()).stderr(Stdio::null());
@@ -270,12 +307,24 @@ fn spawn_sidecar_process(app: &AppHandle, command: &mut Command) -> Result<u32, 
         .map_err(|error| format!("无法启动进程：{error}"))
 }
 
+fn searchd_base_url() -> String {
+    format!("http://{SEARCHD_HOST}:{SEARCHD_PORT}")
+}
+
 #[tauri::command(rename_all = "camelCase")]
 fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), String> {
-    desktop_host_log(&app, "engine_start_requested", json!({ "config_path": config_path }));
+    desktop_host_log(
+        &app,
+        "engine_start_requested",
+        json!({ "config_path": config_path }),
+    );
 
     if http_health_endpoint_is_ready("127.0.0.1", 3789) {
-        desktop_host_log(&app, "engine_already_ready", json!({ "api_address": "http://127.0.0.1:3789" }));
+        desktop_host_log(
+            &app,
+            "engine_already_ready",
+            json!({ "api_address": "http://127.0.0.1:3789" }),
+        );
         return Ok(());
     }
 
@@ -291,7 +340,67 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         return Err(message);
     }
 
-    let sidecar_path = match resolve_sidecar_path(&app) {
+    let config = match read_desktop_config_from_path(Path::new(&config_path)) {
+        Ok(config) => config,
+        Err(error) => {
+            desktop_host_log(&app, "engine_config_invalid", json!({ "error": error }));
+            return Err(error);
+        }
+    };
+
+    if !http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT) {
+        if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
+            let message = format!(
+                "{SEARCHD_HOST}:{SEARCHD_PORT} 已被其他进程占用，但 /health 不是 MixLab 本地搜索服务。请结束占用该端口的进程后重试。"
+            );
+            desktop_host_log(&app, "searchd_port_occupied", json!({ "error": message }));
+            return Err(message);
+        }
+
+        let searchd_path = match resolve_searchd_path(&app) {
+            Ok(path) => path,
+            Err(error) => {
+                desktop_host_log(&app, "searchd_missing", json!({ "error": error }));
+                return Err(error);
+            }
+        };
+        let mut searchd_command = Command::new(&searchd_path);
+        let searchd_cache_root = Path::new(&config.local_workspace_root).join(".mixlab-searchd");
+        searchd_command
+            .arg("--library-root")
+            .arg(&config.public_library_root)
+            .arg("--cache-root")
+            .arg(&searchd_cache_root)
+            .arg("--host")
+            .arg(SEARCHD_HOST)
+            .arg("--port")
+            .arg(SEARCHD_PORT.to_string());
+        if let Some(parent) = searchd_path.parent() {
+            searchd_command.current_dir(parent);
+        }
+
+        match spawn_logged_process(&app, &mut searchd_command, "mixlab-searchd") {
+            Ok(pid) => {
+                desktop_host_log(
+                    &app,
+                    "searchd_spawned",
+                    json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "cache_root": path_string(searchd_cache_root) }),
+                );
+            }
+            Err(error) => {
+                desktop_host_log(&app, "searchd_spawn_failed", json!({ "error": error }));
+                return Err(error);
+            }
+        }
+    } else {
+        desktop_host_log(
+            &app,
+            "searchd_already_ready",
+            json!({ "searchd_base_url": searchd_base_url() }),
+        );
+    }
+
+    let sidecar_path = match resolve_cutter_api_sidecar_path(&app) {
         Ok(path) => path,
         Err(error) => {
             desktop_host_log(&app, "engine_sidecar_missing", json!({ "error": error }));
@@ -300,22 +409,27 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
     };
     let mut command = Command::new(&sidecar_path);
     command.arg("--config").arg(&config_path);
+    command.env("MIXLAB_SEARCHD_BASE_URL", searchd_base_url());
     configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
     }
 
-    match spawn_sidecar_process(&app, &mut command) {
+    match spawn_logged_process(&app, &mut command, "cutter-api-sidecar") {
         Ok(pid) => {
             desktop_host_log(
                 &app,
                 "engine_sidecar_spawned",
-                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path }),
+                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path, "searchd_base_url": searchd_base_url() }),
             );
             Ok(())
         }
         Err(error) => {
-            desktop_host_log(&app, "engine_sidecar_spawn_failed", json!({ "error": error }));
+            desktop_host_log(
+                &app,
+                "engine_sidecar_spawn_failed",
+                json!({ "error": error }),
+            );
             Err(error)
         }
     }
@@ -369,6 +483,12 @@ fn desktop_default_workspace_root() -> String {
     path_string(PathBuf::from(profile).join("Videos").join("MixLabLocal"))
 }
 
+fn read_desktop_config_from_path(path: &Path) -> Result<CutterDesktopConfig, String> {
+    let raw = fs::read_to_string(path).map_err(|error| format!("无法读取桌面配置：{error}"))?;
+    serde_json::from_str::<CutterDesktopConfig>(&raw)
+        .map_err(|error| format!("桌面配置格式无效：{error}"))
+}
+
 #[tauri::command]
 fn desktop_read_config(app: AppHandle) -> Result<Option<CutterDesktopConfig>, String> {
     let path = desktop_config_file(&app)?;
@@ -376,14 +496,14 @@ fn desktop_read_config(app: AppHandle) -> Result<Option<CutterDesktopConfig>, St
         return Ok(None);
     }
 
-    let raw = fs::read_to_string(&path).map_err(|error| format!("无法读取桌面配置：{error}"))?;
-    let config = serde_json::from_str::<CutterDesktopConfig>(&raw)
-        .map_err(|error| format!("桌面配置格式无效：{error}"))?;
-    Ok(Some(config))
+    read_desktop_config_from_path(&path).map(Some)
 }
 
 #[tauri::command]
-fn desktop_write_config(app: AppHandle, config: CutterDesktopConfig) -> Result<CutterDesktopConfig, String> {
+fn desktop_write_config(
+    app: AppHandle,
+    config: CutterDesktopConfig,
+) -> Result<CutterDesktopConfig, String> {
     let path = desktop_config_file(&app)?;
     let raw = serde_json::to_string_pretty(&config)
         .map_err(|error| format!("无法序列化桌面配置：{error}"))?;
@@ -473,8 +593,7 @@ fn check_ready_materials(current_json_path: &Path) -> DesktopDoctorCheck {
         .map(|json| {
             current_index_ready_material_count(current_json_path, &json)
                 .unwrap_or_else(|| count_ready_materials(&json))
-        })
-    {
+        }) {
         Some(count) if count > 0 => DesktopDoctorCheck {
             id: "ready_materials".into(),
             label: "ready 素材".into(),
@@ -548,21 +667,23 @@ fn check_workspace(config: &CutterDesktopConfig) -> Vec<DesktopDoctorCheck> {
         }
     });
 
-    checks.push(if path_is_same_or_child(&config.local_workspace_root, &config.public_library_root) {
-        DesktopDoctorCheck {
-            id: "outside_public_library".into(),
-            label: "不在公共素材库内".into(),
-            status: "fail".into(),
-            message: Some("本地工作区不能放在公共素材库内".into()),
-        }
-    } else {
-        DesktopDoctorCheck {
-            id: "outside_public_library".into(),
-            label: "不在公共素材库内".into(),
-            status: "pass".into(),
-            message: None,
-        }
-    });
+    checks.push(
+        if path_is_same_or_child(&config.local_workspace_root, &config.public_library_root) {
+            DesktopDoctorCheck {
+                id: "outside_public_library".into(),
+                label: "不在公共素材库内".into(),
+                status: "fail".into(),
+                message: Some("本地工作区不能放在公共素材库内".into()),
+            }
+        } else {
+            DesktopDoctorCheck {
+                id: "outside_public_library".into(),
+                label: "不在公共素材库内".into(),
+                status: "pass".into(),
+                message: None,
+            }
+        },
+    );
 
     checks
 }
@@ -577,10 +698,30 @@ fn desktop_run_doctor(config: CutterDesktopConfig) -> DesktopDoctorResult {
         .join("source-transcript-index")
         .join("current.json");
     let mut checks = vec![
-        check_directory("root", "公共素材库目录", public_root, "公共素材库目录不存在或不可读"),
-        check_directory("source_videos", "source-videos", &source_videos, "source-videos 不存在或不可读"),
-        check_directory("mixlab_library", ".mixlab-library", &mixlab_library, ".mixlab-library 不存在或不可读"),
-        check_file("current_index", "current.json", &current_index, "current.json 不存在或不可读"),
+        check_directory(
+            "root",
+            "公共素材库目录",
+            public_root,
+            "公共素材库目录不存在或不可读",
+        ),
+        check_directory(
+            "source_videos",
+            "source-videos",
+            &source_videos,
+            "source-videos 不存在或不可读",
+        ),
+        check_directory(
+            "mixlab_library",
+            ".mixlab-library",
+            &mixlab_library,
+            ".mixlab-library 不存在或不可读",
+        ),
+        check_file(
+            "current_index",
+            "current.json",
+            &current_index,
+            "current.json 不存在或不可读",
+        ),
         check_ready_materials(&current_index),
     ];
     checks.extend(check_workspace(&config));

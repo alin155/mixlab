@@ -53,6 +53,31 @@ test("calls admin API endpoints through the typed client", async () => {
       };
       const data = pathname === "/api/admin/source-videos"
         ? []
+        : pathname === "/api/admin/preprocess/jobs/J000001/log"
+          ? {
+              job_id: "J000001",
+              source_video_id: "V000001",
+              path: ".mixlab-library/logs/V000001.log",
+              file_path: "/Volumes/PublicLibrary/.mixlab-library/logs/V000001.log",
+              exists: true,
+              content: "2026-05-02T11:58:00.000Z\tV000001\tupload-audio\tstage changed to upload-audio"
+            }
+        : pathname === "/api/admin/source-videos/V000001/metadata" ||
+          pathname === "/api/admin/source-videos/V000001/cover"
+          ? sourceVideo
+        : pathname === "/api/admin/doctor/export"
+          ? {
+              file_name: "mixlab-doctor-2026-05-02T12-00-00.000Z.json",
+              relative_path: ".mixlab-library/exports/doctor/mixlab-doctor-2026-05-02T12-00-00.000Z.json",
+              file_path: "/Volumes/PublicLibrary/.mixlab-library/exports/doctor/mixlab-doctor-2026-05-02T12-00-00.000Z.json",
+              report: {
+                schema_version: "1.0",
+                generated_at: "2026-05-02T12:00:00.000Z",
+                library_root: "/Volumes/PublicLibrary",
+                summary: { pass: 1, warn: 0, fail: 0 },
+                checks: []
+              }
+            }
         : pathname === "/api/admin/source-videos/V000001"
           ? {
               source_video: sourceVideo,
@@ -136,6 +161,7 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.approveCutterUser("CU000001");
   await client.disableCutterUser("CU000001");
   await client.listPreprocessJobs();
+  await client.getPreprocessJobLog("J000001");
   await client.listIndexVersions();
   await client.getDoctorReport();
   await client.getRuntimeSettings();
@@ -151,10 +177,16 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.stopPreprocessSupervisor();
   await client.repairIndex();
   await client.runDoctor();
+  await client.exportDoctorReport();
   await client.testAsrConfig();
   await client.updateSourceVideoMetadata("V000001", {
     title: "现金流",
     tags: ["财务"]
+  });
+  await client.updateSourceVideoCover("V000001", {
+    image_base64: "iVBORw0KGgo=",
+    content_type: "image/png",
+    file_name: "cover.png"
   });
 
   assert.deepEqual(
@@ -169,6 +201,7 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/cutter-users/CU000001/approve",
       "/api/admin/cutter-users/CU000001/disable",
       "/api/admin/preprocess/jobs",
+      "/api/admin/preprocess/jobs/J000001/log",
       "/api/admin/index/versions",
       "/api/admin/doctor/report",
       "/api/admin/settings/runtime",
@@ -184,9 +217,15 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/preprocess/supervisor/stop",
       "/api/admin/index/repair",
       "/api/admin/doctor/run",
+      "/api/admin/doctor/export",
       "/api/admin/settings/test-asr",
-      "/api/admin/source-videos/V000001/metadata"
+      "/api/admin/source-videos/V000001/metadata",
+      "/api/admin/source-videos/V000001/cover"
     ]
+  );
+  assert.equal(
+    new URL(requested.find((url) => new URL(url).pathname === "/api/admin/preprocess/jobs") ?? "").search,
+    "?limit=20"
   );
 });
 
@@ -367,6 +406,33 @@ test("client resolves admin media URLs against base URL", async () => {
   assert.equal(detail.source_video.cover_url, "http://127.0.0.1:4899/api/admin/source-videos/V000001/cover");
 });
 
+test("client sends source video query and status filters to the admin API", async () => {
+  const requested: string[] = [];
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async (url) => {
+      requested.push(String(url));
+      return new Response(JSON.stringify({ ok: true, data: [] }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  await client.listSourceVideos({
+    query: "现金流",
+    status: "ready",
+    offset: 100,
+    limit: 50
+  });
+
+  const url = new URL(requested[0]!);
+  assert.equal(url.pathname, "/api/admin/source-videos");
+  assert.equal(url.searchParams.get("query"), "现金流");
+  assert.equal(url.searchParams.get("status"), "ready");
+  assert.equal(url.searchParams.get("offset"), "100");
+  assert.equal(url.searchParams.get("limit"), "50");
+});
+
 test("client preserves same-origin admin media URLs when API base is root-relative", () => {
   assert.equal(
     resolveMediaUrl("/", "/api/admin/source-videos/V000001/cover"),
@@ -511,6 +577,23 @@ test("fixture client separates ready, failed, and index-required counts", async 
   assert.equal(data.status.index_required_video_count, 5);
 });
 
+test("fixture client pages source videos like the runtime API", async () => {
+  const client = createFixtureAdminApiClient();
+  const firstPage = await client.listSourceVideos({ limit: 2 });
+  const secondPage = await client.listSourceVideos({ offset: 2, limit: 2 });
+  const readyCashflow = await client.listSourceVideos({
+    query: "现金流",
+    status: "ready",
+    limit: 20
+  });
+
+  assert.equal(firstPage.length, 2);
+  assert.equal(secondPage.length, 2);
+  assert.notEqual(firstPage[0]?.source_video_id, secondPage[0]?.source_video_id);
+  assert.equal(readyCashflow.every((video) => video.preprocess_status === "ready"), true);
+  assert.equal(readyCashflow.some((video) => video.title.includes("现金流")), true);
+});
+
 test("fixture jobs show failed retry without blocking later success", async () => {
   const jobs = await createFixtureAdminApiClient().listPreprocessJobs();
   const failed = jobs.jobs.find((job) => job.status === "failed");
@@ -645,6 +728,11 @@ test("fixture cutter user approval redacts session token and disable mutates sta
 test("fixture source detail reflects retried jobs and repaired index state", async () => {
   const client = createFixtureAdminApiClient();
 
+  const failedLog = await client.getPreprocessJobLog("J000037");
+  assert.equal(failedLog.source_video_id, "V000037");
+  assert.equal(failedLog.exists, true);
+  assert.match(failedLog.content, /DashScope ASR 网络超时/);
+
   await client.retryFailedVideos();
   const retried = await client.getSourceVideoDetail("V000037");
   assert.equal(retried.source_video.preprocess_status, "queued");
@@ -680,6 +768,7 @@ test("fixture admin actions mutate queue, index, and metadata state", async () =
   const singlePublished = await client.publishSourceVideo("V000039");
   assert.equal(singlePublished.published_count, 1);
   assert.deepEqual(singlePublished.published_source_video_ids, ["V000039"]);
+  assert.equal((await client.listIndexVersions()).current_validation_message, "current.json 指向 v000028");
 
   const repaired = await client.repairIndex();
   assert.equal(repaired.published_count, 0);
@@ -692,6 +781,13 @@ test("fixture admin actions mutate queue, index, and metadata state", async () =
   });
   assert.equal(metadata.title, "现金流管理更新");
   assert.deepEqual(metadata.tags, ["现金流", "风险"]);
+
+  const cover = await client.updateSourceVideoCover("V000042", {
+    image_base64: "iVBORw0KGgo=",
+    content_type: "image/png",
+    file_name: "cover.png"
+  });
+  assert.equal(cover.cover_url, "data:image/png;base64,iVBORw0KGgo=");
 
   const data = await loadAdminDashboardData(client);
   assert.equal(data.source_videos.some((video) => video.preprocess_status === "failed"), false);

@@ -12,6 +12,7 @@ import {
   getCutJob,
   listCutJobs,
   retryCutJob,
+  runCutJob,
   runNextCutJob,
   submitClipListToQueue
 } from "./cut-queue.ts";
@@ -221,6 +222,400 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
     await readFile(path.join(workspaceRoot, "clip-jobs", "CJ20260502-0001.json"), "utf8")
   );
   assert.equal(persisted.status, "done");
+});
+
+test("runs direct cut jobs without persisting every intermediate phase", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-direct-cut-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-direct-library-");
+  const clipList = await makeClipList(workspaceRoot);
+  const submission = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+  const cutJobId = submission.jobs[0]!.cut_job_id;
+  let persistedDuringCut = await getCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: cutJobId
+  });
+
+  const result = await runCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    cut_job_id: cutJobId,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: [
+        {
+          segment_id: "V000001-S000001",
+          index: 1,
+          begin_ms: 1000,
+          end_ms: 2600,
+          begin_char: 0,
+          end_char: 10,
+          normalized_begin_char: 0,
+          normalized_end_char: 10,
+          text: "现金流，是企业的血液。",
+          normalized_text: "现金流，是企业的血液。",
+          confidence: 0.99
+        }
+      ]
+    }),
+    cut_runner: async (input) => {
+      persistedDuringCut = await getCutJob({
+        workspace_root: workspaceRoot,
+        cut_job_id: cutJobId
+      });
+      await writeFile(input.output_path, "direct-clip-bytes");
+    },
+    persist_phase_progress: false
+  });
+
+  assert.equal(persistedDuringCut?.status, "pending");
+  assert.equal(persistedDuringCut?.current_phase, "queue_wait");
+  assert.equal(result?.status, "done");
+  assert.equal(result?.current_phase, "write_manifest");
+  assert.equal(
+    result?.phase_timings?.every((phase) => phase.status === "done" && typeof phase.duration_ms === "number"),
+    true
+  );
+  assert.equal(
+    (await getCutJob({
+      workspace_root: workspaceRoot,
+      cut_job_id: cutJobId
+    }))?.status,
+    "done"
+  );
+});
+
+test("writes exact selected text into local transcript assets for partial segment cuts", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-partial-transcript-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await writeClipList({
+    workspace_root: workspaceRoot,
+    library_id: "lib_main_001",
+    title: "关键词片段",
+    items: [
+      {
+        source_video_id: "V000001",
+        source_title: "01_现金流",
+        source_relative_path: "source-videos/01_现金流.mp4",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: 500,
+        end_ms: 964,
+        selected_text: "现金流",
+        cut_mode: "copy"
+      }
+    ],
+    now: "2026-05-02T10:00:00Z"
+  });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const cutCalls: Array<{ begin_ms: number; end_ms: number }> = [];
+  const result = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: [
+        {
+          segment_id: "V000001-S000001",
+          index: 1,
+          begin_ms: 500,
+          end_ms: 2200,
+          begin_char: 0,
+          end_char: 11,
+          normalized_begin_char: 0,
+          normalized_end_char: 10,
+          text: "现金流，是企业的血液。",
+          normalized_text: "现金流是企业的血液",
+          confidence: 0.99
+        }
+      ]
+    }),
+    cut_runner: async (input) => {
+      cutCalls.push({
+        begin_ms: input.begin_ms,
+        end_ms: input.end_ms
+      });
+      await writeFile(input.output_path, "keyword-clip-bytes");
+    }
+  });
+
+  assert.equal(result?.status, "done");
+  assert.equal(result?.selected_text, "现金流");
+  assert.deepEqual(cutCalls, [{ begin_ms: 500, end_ms: 964 }]);
+
+  const catalog = await listExportClips({ workspace_root: workspaceRoot });
+  assert.equal(catalog.local_clip_count, 1);
+  assert.equal(catalog.clips[0]?.selected_text, "现金流");
+  assert.deepEqual(
+    catalog.clips[0]?.transcript_segments?.map((segment) => [
+      segment.segment_id,
+      segment.begin_ms,
+      segment.end_ms,
+      segment.text
+    ]),
+    [["E000001-S000001", 0, 464, "现金流"]]
+  );
+
+  const localTranscript = JSON.parse(
+    await readFile(path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "transcript.json"), "utf8")
+  );
+  assert.equal(localTranscript.full_text, "现金流");
+  assert.equal(
+    await readFile(path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "subtitles.srt"), "utf8"),
+    "1\n00:00:00,000 --> 00:00:00,464\n现金流\n"
+  );
+});
+
+test("applies pre-roll and post-roll when clip-list rows become cut jobs", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-roll-queue-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await writeClipList({
+    workspace_root: workspaceRoot,
+    library_id: "lib_main_001",
+    title: "带余量片段",
+    items: [
+      {
+        source_video_id: "V000001",
+        source_title: "01_现金流",
+        source_relative_path: "source-videos/01_现金流.mp4",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: 1000,
+        end_ms: 2200,
+        selected_text: "现金流",
+        cut_mode: "copy",
+        pre_roll_ms: 350,
+        post_roll_ms: 450
+      }
+    ],
+    now: "2026-05-02T10:00:00Z"
+  });
+  const submission = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  assert.equal(submission.jobs[0]?.begin_ms, 650);
+  assert.equal(submission.jobs[0]?.end_ms, 2650);
+  assert.equal(submission.jobs[0]?.selected_text, "现金流");
+
+  const cutCalls: Array<{ begin_ms: number; end_ms: number }> = [];
+  const result = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: []
+    }),
+    cut_runner: async (input) => {
+      cutCalls.push({
+        begin_ms: input.begin_ms,
+        end_ms: input.end_ms
+      });
+      await writeFile(input.output_path, "rolled-clip-bytes");
+    }
+  });
+
+  assert.equal(result?.status, "done");
+  assert.equal(result?.begin_ms, 650);
+  assert.equal(result?.end_ms, 2650);
+  assert.equal(result?.selected_text, "现金流");
+  assert.deepEqual(cutCalls, [{ begin_ms: 650, end_ms: 2650 }]);
+});
+
+test("serializes concurrent run-next calls so each pending job is cut once", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-run-next-lock-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeClipList(workspaceRoot);
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  let activeCuts = 0;
+  let maxActiveCuts = 0;
+  const cutJobIds: string[] = [];
+  const runInput = {
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job: { source_video_id: string; source_title: string; source_relative_path: string }) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: []
+    }),
+    cut_runner: async (input: { output_path: string }) => {
+      activeCuts += 1;
+      maxActiveCuts = Math.max(maxActiveCuts, activeCuts);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await writeFile(input.output_path, "clip-bytes");
+      activeCuts -= 1;
+    }
+  };
+
+  const results = await Promise.all(Array.from({ length: 6 }, () => runNextCutJob(runInput)));
+  for (const result of results) {
+    if (result) {
+      cutJobIds.push(result.cut_job_id);
+    }
+  }
+
+  assert.deepEqual(cutJobIds.sort(), ["CJ20260502-0001", "CJ20260502-0002"]);
+  assert.equal(maxActiveCuts, 1);
+  assert.equal(results.filter(Boolean).length, 2);
+  assert.equal((await listExportClips({ workspace_root: workspaceRoot })).local_clip_count, 2);
+  assert.deepEqual(
+    (await listCutJobs({ workspace_root: workspaceRoot })).jobs.map((job) => [job.cut_job_id, job.status]).sort(),
+    [
+      ["CJ20260502-0001", "done"],
+      ["CJ20260502-0002", "done"]
+    ]
+  );
+});
+
+test("serializes concurrent queue submissions so job ids and project order stay unique", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-submit-lock-");
+  const clipLists = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+    writeClipList({
+      workspace_root: workspaceRoot,
+      library_id: "lib_main_001",
+      title: "并发提交项目",
+      items: [
+        {
+          source_video_id: "V000001",
+          source_title: `素材 ${index + 1}`,
+          source_relative_path: `source-videos/${index + 1}.mp4`,
+          start_segment_id: "V000001-S000001",
+          end_segment_id: "V000001-S000001",
+          begin_ms: 1000,
+          end_ms: 2200,
+          selected_text: "现金流",
+          cut_mode: "copy"
+        }
+      ],
+      now: "2026-05-02T10:00:00Z"
+    })
+  ));
+  const submissions = await Promise.all(clipLists.map((clipList) =>
+    submitClipListToQueue({
+      workspace_root: workspaceRoot,
+      clip_list: clipList,
+      now: "2026-05-02T10:01:00Z"
+    })
+  ));
+  const jobs = submissions.flatMap((submission) => submission.jobs);
+
+  assert.deepEqual(
+    jobs.map((job) => job.cut_job_id).sort(),
+    Array.from({ length: 12 }, (_, index) => `CJ20260502-${String(index + 1).padStart(4, "0")}`)
+  );
+  assert.deepEqual(
+    jobs.map((job) => job.project_clip_order).sort((left, right) => (left ?? 0) - (right ?? 0)),
+    Array.from({ length: 12 }, (_, index) => index + 1)
+  );
+  assert.equal((await listCutJobs({ workspace_root: workspaceRoot })).job_count, 12);
+});
+
+test("runs a requested pending cut job without taking the oldest queued job", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-run-specific-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeClipList(workspaceRoot);
+  const submission = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+  const runInput = {
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job: { source_video_id: string; source_title: string; source_relative_path: string }) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: []
+    }),
+    cut_runner: async (input: { output_path: string }) => {
+      await writeFile(input.output_path, "clip-bytes");
+    }
+  };
+
+  const second = await runCutJob({
+    ...runInput,
+    cut_job_id: submission.jobs[1]!.cut_job_id
+  });
+
+  assert.equal(second?.cut_job_id, "CJ20260502-0002");
+  assert.equal(second?.status, "done");
+  assert.equal(
+    (await getCutJob({ workspace_root: workspaceRoot, cut_job_id: "CJ20260502-0001" }))?.status,
+    "pending"
+  );
+
+  const first = await runNextCutJob(runInput);
+  assert.equal(first?.cut_job_id, "CJ20260502-0001");
+  assert.deepEqual(
+    (await listCutJobs({ workspace_root: workspaceRoot })).jobs.map((job) => [job.cut_job_id, job.status]).sort(),
+    [
+      ["CJ20260502-0001", "done"],
+      ["CJ20260502-0002", "done"]
+    ]
+  );
 });
 
 test("deletes only workspace outputs tied to a cutter project id", async () => {

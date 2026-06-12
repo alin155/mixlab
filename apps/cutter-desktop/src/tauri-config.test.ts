@@ -15,6 +15,7 @@ test("cutter desktop package exposes Windows desktop scripts only", async () => 
   assert.equal(packageJson.name, "@mixlab/cutter-desktop");
   assert.equal(packageJson.version, "0.18.10");
   assert.deepEqual(Object.keys(packageJson.scripts as Record<string, string>).sort(), [
+    "build:searchd",
     "build:sidecar",
     "build:web",
     "dev",
@@ -40,9 +41,10 @@ test("tauri config embeds cutter web dist and Windows exe installer target", asy
     "icons/128x128@2x.png",
     "icons/icon.ico"
   ]);
-  assert.deepEqual(bundle.externalBin, ["binaries/cutter-api-sidecar"]);
+  assert.equal(bundle.externalBin, undefined);
   assert.deepEqual(bundle.resources, [
     "binaries/cutter-api-sidecar-x86_64-pc-windows-msvc.exe",
+    "binaries/mixlab-searchd-x86_64-pc-windows-msvc.exe",
     "binaries/ffmpeg.exe",
     "binaries/ffprobe.exe",
     "resources/default-desktop-config.json"
@@ -81,6 +83,7 @@ test("Windows installer stops old cutter processes before replacing sidecar bina
   assert.match(hooks, /taskkill \/F \/T \/IM "\$\{_PROCESS_NAME\}"/);
   assert.match(hooks, /!insertmacro _MIXLAB_STOP_PROCESS "MixLab Cutter\.exe"/);
   assert.match(hooks, /!insertmacro _MIXLAB_STOP_PROCESS "cutter-api-sidecar-x86_64-pc-windows-msvc\.exe"/);
+  assert.match(hooks, /!insertmacro _MIXLAB_STOP_PROCESS "mixlab-searchd-x86_64-pc-windows-msvc\.exe"/);
 });
 
 test("Windows desktop host is GUI-subsystem and owns sidecar and directory process launches", async () => {
@@ -90,11 +93,16 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /CREATE_NO_WINDOW/);
   assert.match(source, /MIXLAB_FFMPEG_PATH/);
   assert.match(source, /MIXLAB_FFPROBE_PATH/);
+  assert.match(source, /MIXLAB_SEARCHD_BASE_URL/);
+  assert.match(source, /SEARCHD_EXECUTABLE_NAME/);
+  assert.match(source, /--cache-root/);
+  assert.match(source, /\.mixlab-searchd/);
+  assert.match(source, /searchd_spawned/);
   assert.match(source, /fn desktop_app_version/);
   assert.match(source, /desktop_host_log/);
   assert.match(source, /GET \/health HTTP\/1\.1/);
   assert.doesNotMatch(source, /tcp_endpoint_is_reachable/);
-  assert.match(source, /parent\.join\("resources"\)\.join\("binaries"\)\.join\(SIDECAR_EXECUTABLE_NAME\)/);
+  assert.match(source, /\.join\("resources"\)[\s\S]*\.join\("binaries"\)[\s\S]*\.join\(executable_name\)/);
   assert.match(source, /fn desktop_start_engine/);
   assert.match(source, /fn desktop_open_directory/);
   assert.match(source, /desktop_start_engine,\s*\n\s*desktop_open_directory/);

@@ -26,6 +26,36 @@ const statusFilters: Array<{ key: CutTaskFilter; label: string }> = [
   { key: "done", label: "已完成" }
 ];
 
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3.75 7.75A2.75 2.75 0 0 1 6.5 5h3.75l2 2.25h5.25A2.75 2.75 0 0 1 20.25 10v6.5A2.75 2.75 0 0 1 17.5 19.25h-11a2.75 2.75 0 0 1-2.75-2.75Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path
+        d="m4.25 10.4 3.35 3.35 8.15-8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.2"
+      />
+    </svg>
+  );
+}
+
 function labelForStatus(status: CutQueueJob["status"]): string {
   switch (status) {
     case "pending":
@@ -62,13 +92,13 @@ function preferredTaskJob(jobs: readonly CutQueueJob[]): CutQueueJob | undefined
   );
 }
 
-function outputOrIssue(job: CutQueueJob, nowMs: number): string {
+function problemForJob(job: CutQueueJob, nowMs: number): string {
   if (job.status === "failed") {
-    return `失败原因：${job.error_message ?? "剪切失败"}`;
+    return job.error_message ?? "剪切失败";
   }
 
   if (job.status === "done") {
-    return job.output_file ?? "已生成本地素材";
+    return "剪切成功";
   }
 
   if (job.status === "running") {
@@ -80,6 +110,21 @@ function outputOrIssue(job: CutQueueJob, nowMs: number): string {
   }
 
   return "等待中";
+}
+
+function actionTextForJob(status: CutQueueJob["status"]): string {
+  switch (status) {
+    case "pending":
+      return "等待剪切";
+    case "running":
+      return "剪切中";
+    case "failed":
+      return "重新剪切";
+    case "cancelled":
+      return "已取消";
+    case "done":
+      return "剪切成功";
+  }
 }
 
 function shortSelectedText(text: string): string {
@@ -179,6 +224,7 @@ export function CutQueuePage({
               className="cutter-inline-action cutter-task-directory-action"
               onClick={onOpenCutOutputDirectory}
             >
+              <FolderIcon />
               打开文件目录
             </button>
           ) : null}
@@ -200,7 +246,7 @@ export function CutQueuePage({
                 <th>来源</th>
                 <th>时间段</th>
                 <th>选中文案</th>
-                <th>输出 / 问题</th>
+                <th>问题</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -232,10 +278,10 @@ export function CutQueuePage({
                     <span className="cutter-task-selected-text">{shortSelectedText(job.selected_text)}</span>
                   </td>
                   <td>
-                    <span className={`cutter-task-output is-${job.status}`}>{outputOrIssue(job, nowMs)}</span>
+                    <span className={`cutter-task-problem is-${job.status}`}>{problemForJob(job, nowMs)}</span>
                   </td>
                   <td>
-                    <span className="cutter-task-actions">
+                    <span className={`cutter-task-actions is-${job.status}`}>
                       {job.status === "failed" && onRetryFailed ? (
                         <button
                           type="button"
@@ -244,10 +290,14 @@ export function CutQueuePage({
                             onRetryFailed(job.queue_job_id);
                           }}
                         >
-                          重试
+                          重新剪切
                         </button>
+                      ) : job.status === "done" ? (
+                        <span className="cutter-task-action-check" role="img" aria-label="剪切成功" title="剪切成功">
+                          <CheckIcon />
+                        </span>
                       ) : (
-                        <span>{labelForStatus(job.status)}</span>
+                        <span>{actionTextForJob(job.status)}</span>
                       )}
                     </span>
                   </td>
@@ -295,7 +345,17 @@ export function CutQueuePage({
                 type="button"
                 onClick={() => onRetryFailed(selectedJob.queue_job_id)}
               >
-                重试此任务
+                重新剪切
+              </button>
+            ) : null}
+            {onOpenCutOutputDirectory ? (
+              <button
+                className="cutter-secondary-button cutter-task-detail-directory"
+                type="button"
+                onClick={onOpenCutOutputDirectory}
+              >
+                <FolderIcon />
+                打开文件目录
               </button>
             ) : null}
           </div>

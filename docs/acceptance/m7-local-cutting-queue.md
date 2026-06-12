@@ -1,6 +1,7 @@
 # M7 Local Cutting Queue Acceptance Record
 
 Date: 2026-05-02
+Updated: 2026-06-03
 
 ## Scope
 
@@ -32,6 +33,7 @@ Traceability IDs:
 
 - New `@mixlab/cutter-local` package.
 - Workspace-local `clip-lists/<clip_list_id>/clip-list.json` persistence.
+- Shared `ClipListManifest` protocol type and `validateClipListManifest` validator now enforce `clip-list.json` schema on write/read, including item ids, ordering, safe source paths, time ranges, cut mode, pre/post roll, and reusable local export sources.
 - Workspace-local `clip-jobs/<cut_job_id>.json` persistence with `pending`, `running`, `done`, `failed`, and `cancelled` status vocabulary.
 - Queue submission from saved cut lists.
 - One-job runner boundary that resolves a ready public source, calls the injected or default FFmpeg runner, and writes one export.
@@ -54,6 +56,7 @@ Traceability IDs:
 
 ```bash
 node --test --import tsx packages/cutter-local/src/*.test.ts
+node --test --import tsx packages/protocol/src/*.test.ts
 node --test --import tsx packages/cutter-api/src/index.test.ts apps/cutter-web/src/api.test.ts
 npm run typecheck
 npm test
@@ -68,10 +71,10 @@ git diff --check
 
 Result:
 
-- `node --test --import tsx packages/cutter-local/src/*.test.ts`: passed, 9/9 tests.
-- `node --test --import tsx packages/cutter-api/src/index.test.ts apps/cutter-web/src/api.test.ts`: passed, 12/12 tests.
+- `node --test --import tsx packages/protocol/src/*.test.ts`: passed, 32/32 tests.
+- `node --test --import tsx packages/cutter-local/src/*.test.ts packages/cutter-api/src/index.test.ts apps/cutter-web/src/api.test.ts`: passed, 76/76 tests.
 - `npm run typecheck`: passed.
-- `npm test`: passed, 194/194 tests.
+- `npm test`: passed, 598/598 tests.
 - `npm run build:cutter-web`: passed.
 - `npm run build:admin-web`: passed.
 - `npm run build:ui-fixtures`: passed.
@@ -84,6 +87,7 @@ Result:
 ## Acceptance Criteria
 
 - Saved cut-list rows preserve segment ids, selected text, source traceability, ordering, and cut mode.
+- Saved and read `clip-list.json` manifests are validated through the shared protocol validator.
 - Queue submission creates stable pending jobs.
 - Running one job writes the output video and `export-clip.json`.
 - Failed jobs persist `failed` status and `error_message` without blocking later pending jobs.

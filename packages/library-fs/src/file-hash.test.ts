@@ -1,20 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { getFileIdentity, hashFileSha256 } from "./file-hash.ts";
 
 async function makeRoot(): Promise<string> {
-  const root = await mkdir(path.join(os.tmpdir(), `mixlab-file-hash-${Date.now()}-`), {
-    recursive: true
-  });
-
-  if (!root) {
-    throw new Error("failed to create test root");
-  }
-
-  return root;
+  return mkdtemp(path.join(os.tmpdir(), "mixlab-file-hash-"));
 }
 
 test("hashes local files with sha256 prefix", async () => {

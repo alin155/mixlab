@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   validateSourceVideoManifest,
@@ -12,6 +12,7 @@ export interface ClaimNextPreprocessJobInput {
   worker_id: string;
   now: string;
   claim_statuses?: Array<"queued" | "unprocessed">;
+  refresh_library_counts?: boolean;
 }
 
 export interface PreprocessJobSummary {
@@ -26,6 +27,7 @@ export interface CompletePreprocessArtifactsInput {
   library_root: string;
   source_video_id: string;
   now: string;
+  refresh_library_counts?: boolean;
   media: {
     duration_ms: number;
     width: number;
@@ -47,6 +49,7 @@ export interface PublishReadySourceVideoInput {
   source_video_id: string;
   index_version: string;
   now: string;
+  refresh_library_counts?: boolean;
 }
 
 export interface FailPreprocessJobInput {
@@ -62,6 +65,15 @@ export interface UpdatePreprocessJobStageInput {
   source_video_id: string;
   stage: string;
   now: string;
+}
+
+export interface PreprocessJobLog {
+  source_video_id: string;
+  path: string;
+  file_path: string;
+  exists: boolean;
+  content: string;
+  record_source: "file" | "preprocess-job" | "source-video";
 }
 
 export interface CompleteReadyVisualArtifactsInput {
@@ -115,6 +127,120 @@ function sourceVideoManifestPath(libraryRoot: string, sourceVideoId: string): st
 
 function preprocessJobPath(libraryRoot: string, sourceVideoId: string): string {
   return path.join(videoDir(libraryRoot, sourceVideoId), "preprocess-job.json");
+}
+
+export function preprocessJobLogPath(sourceVideoId: string): string {
+  return `.mixlab-library/logs/${sourceVideoId}.log`;
+}
+
+function preprocessJobLogFilePath(libraryRoot: string, sourceVideoId: string): string {
+  return path.join(libraryRoot, preprocessJobLogPath(sourceVideoId));
+}
+
+export async function appendPreprocessJobLog(input: {
+  library_root: string;
+  source_video_id: string;
+  now: string;
+  stage: string;
+  message: string;
+}): Promise<void> {
+  const filePath = preprocessJobLogFilePath(input.library_root, input.source_video_id);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await appendFile(
+    filePath,
+    `${input.now}\t${input.source_video_id}\t${input.stage}\t${input.message}\n`,
+    "utf8"
+  );
+}
+
+export async function readPreprocessJobLog(
+  libraryRoot: string,
+  sourceVideoId: string
+): Promise<PreprocessJobLog> {
+  const filePath = preprocessJobLogFilePath(libraryRoot, sourceVideoId);
+  const artifactPath = preprocessJobLogPath(sourceVideoId);
+
+  try {
+    return {
+      source_video_id: sourceVideoId,
+      path: artifactPath,
+      file_path: filePath,
+      exists: true,
+      content: await readFile(filePath, "utf8"),
+      record_source: "file"
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return await buildPreprocessJobRecordSnapshot(libraryRoot, sourceVideoId, artifactPath, filePath);
+}
+
+function safeLogValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  return String(value)
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]")
+    .replace(/([?&](?:Signature|security-token|AccessKeyId|Expires)=)[^&\s]+/gi, "$1[redacted]")
+    .replace(/https?:\/\/\S+/g, "[redacted-url]");
+}
+
+function snapshotLine(label: string, value: unknown): string {
+  return `${label}: ${safeLogValue(value)}`;
+}
+
+async function buildPreprocessJobRecordSnapshot(
+  libraryRoot: string,
+  sourceVideoId: string,
+  artifactPath: string,
+  filePath: string
+): Promise<PreprocessJobLog> {
+  const job = await readExistingJob(libraryRoot, sourceVideoId);
+  let manifest: SourceVideoManifest | undefined;
+
+  try {
+    manifest = await readSourceVideoManifest(libraryRoot, sourceVideoId);
+  } catch {
+    manifest = undefined;
+  }
+
+  const lines = [
+    "# MixLab preprocess task record snapshot",
+    "# Physical task log file is missing; this read-only snapshot is derived from source-video.json and preprocess-job.json.",
+    snapshotLine("source_video_id", sourceVideoId),
+    snapshotLine("log_path", artifactPath),
+    snapshotLine("log_file_exists", false),
+    snapshotLine("record_source", job ? "preprocess-job.json" : "source-video.json"),
+    snapshotLine("title", manifest?.title),
+    snapshotLine("manifest_status", manifest?.preprocess_status),
+    snapshotLine("visible_to_cutters", manifest?.visible_to_cutters),
+    snapshotLine("worker_id", job?.worker_id),
+    snapshotLine("attempt", job?.attempt),
+    snapshotLine("job_status", job?.status),
+    snapshotLine("claimed_at", job?.claimed_at),
+    snapshotLine("current_stage", job?.current_stage),
+    snapshotLine("stage_updated_at", job?.stage_updated_at),
+    snapshotLine("completed_at", job?.completed_at),
+    snapshotLine("indexed_at", job?.indexed_at),
+    snapshotLine("index_version", job?.index_version),
+    snapshotLine("failed_at", job?.failed_at),
+    snapshotLine("error_stage", job?.error_stage),
+    snapshotLine("error_message", job?.error_message)
+  ];
+
+  return {
+    source_video_id: sourceVideoId,
+    path: artifactPath,
+    file_path: filePath,
+    exists: false,
+    content: `${lines.join("\n")}\n`,
+    record_source: job ? "preprocess-job" : "source-video"
+  };
 }
 
 function numericSourceVideoId(sourceVideoId: string): number {
@@ -240,7 +366,7 @@ async function readLibraryMetadata(libraryRoot: string): Promise<LibraryManifest
   }
 }
 
-async function refreshLibraryCounts(libraryRoot: string, now: string): Promise<void> {
+export async function refreshLibraryCounts(libraryRoot: string, now: string): Promise<void> {
   const metadata = await readLibraryMetadata(libraryRoot);
   const manifests = await readAllSourceVideoManifests(libraryRoot);
   const libraryManifest = {
@@ -290,7 +416,16 @@ export async function claimNextPreprocessJob(
     visible_to_cutters: false
   });
   await writePreprocessJob(input.library_root, job);
-  await refreshLibraryCounts(input.library_root, input.now);
+  await appendPreprocessJobLog({
+    library_root: input.library_root,
+    source_video_id: job.source_video_id,
+    now: input.now,
+    stage: "processing",
+    message: `worker ${input.worker_id} claimed attempt ${nextAttempt}`
+  });
+  if (input.refresh_library_counts !== false) {
+    await refreshLibraryCounts(input.library_root, input.now);
+  }
 
   return {
     source_video_id: job.source_video_id,
@@ -336,7 +471,16 @@ export async function completePreprocessArtifacts(
     claimed_at: existingJob?.claimed_at ?? input.now,
     completed_at: input.now
   });
-  await refreshLibraryCounts(input.library_root, input.now);
+  await appendPreprocessJobLog({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    now: input.now,
+    stage: "build-index",
+    message: "text preprocess artifacts completed; waiting for ready publication"
+  });
+  if (input.refresh_library_counts !== false) {
+    await refreshLibraryCounts(input.library_root, input.now);
+  }
 }
 
 export async function updatePreprocessJobStage(
@@ -352,6 +496,13 @@ export async function updatePreprocessJobStage(
     ...existingJob,
     current_stage: input.stage,
     stage_updated_at: input.now
+  });
+  await appendPreprocessJobLog({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    now: input.now,
+    stage: input.stage,
+    message: `stage changed to ${input.stage}`
   });
 }
 
@@ -378,6 +529,13 @@ export async function failPreprocessJob(input: FailPreprocessJobInput): Promise<
     failed_at: input.now,
     error_stage: input.error_stage,
     error_message: input.error_message
+  });
+  await appendPreprocessJobLog({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    now: input.now,
+    stage: input.error_stage,
+    message: `failed: ${input.error_message}`
   });
   await refreshLibraryCounts(input.library_root, input.now);
 }
@@ -428,6 +586,13 @@ export async function completeReadyVisualArtifacts(
     preprocess_status: "index-required",
     visible_to_cutters: false
   });
+  await appendPreprocessJobLog({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    now: input.now,
+    stage: "build-keyframes",
+    message: `ready visual artifacts completed; cover=${input.cover_path}; keyframes=${keyframesPath}`
+  });
   await refreshLibraryCounts(input.library_root, input.now);
 }
 
@@ -470,5 +635,14 @@ export async function publishReadySourceVideo(
     indexed_at: input.now,
     index_version: input.index_version
   });
-  await refreshLibraryCounts(input.library_root, input.now);
+  await appendPreprocessJobLog({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    now: input.now,
+    stage: "publish-ready",
+    message: `published to index ${input.index_version}`
+  });
+  if (input.refresh_library_counts !== false) {
+    await refreshLibraryCounts(input.library_root, input.now);
+  }
 }

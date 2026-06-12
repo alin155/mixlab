@@ -85,11 +85,18 @@ export async function readCutterDesktopConfig(configPath: string): Promise<Cutte
 }
 
 export function buildCutterApiServerInputFromDesktopConfig(
-  config: CutterDesktopConfig
+  config: CutterDesktopConfig,
+  env: Partial<Record<string, string | undefined>> = {}
 ): CreateCutterApiServerInput {
+  const searchdBaseUrl =
+    env.MIXLAB_SEARCHD_BASE_URL?.trim() ||
+    env.MIXLAB_CUTTER_SEARCHD_BASE_URL?.trim() ||
+    "";
+
   return {
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
-    workspace_root: normalizeDesktopPathForStorage(config.local_workspace_root)
+    workspace_root: normalizeDesktopPathForStorage(config.local_workspace_root),
+    ...(searchdBaseUrl ? { searchd_base_url: searchdBaseUrl } : {})
   };
 }
 
@@ -164,7 +171,7 @@ export async function startCutterApiSidecar(
     await writeSidecarEventLogBestEffort(logEvent, startingEvent);
     const env = buildCutterApiEnv(config);
     (input.apply_env ?? ((values) => Object.assign(process.env, values)))(env);
-    const server = createServer(buildCutterApiServerInputFromDesktopConfig(config));
+    const server = createServer(buildCutterApiServerInputFromDesktopConfig(config, input.env ?? process.env));
 
     await listen(server, config.api_port, config.api_host);
     const apiAddress = `http://${config.api_host}:${config.api_port}`;

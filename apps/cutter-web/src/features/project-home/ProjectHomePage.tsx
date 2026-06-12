@@ -1,7 +1,11 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import type { LocalClipCatalog, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
-import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
+import {
+  projectAutoTitleFromDate,
+  projectDisplayTitle,
+  type CutterProject
+} from "../../state/cutter-projects.ts";
 
 export type ProjectDeleteMode = "remove" | "delete-with-outputs";
 
@@ -18,11 +22,28 @@ function formatProjectTime(value: string): string {
   return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function ProjectCover({ project }: { project: CutterProject }) {
-  return project.cover_url ? (
-    <img src={project.cover_url} alt="" />
+function ProjectCover({ project, variant = "card" }: { project: CutterProject; variant?: "card" | "detail" }) {
+  const coverUrl = variant === "detail" ? project.detail_cover_url ?? project.cover_url : project.cover_url;
+
+  return coverUrl ? (
+    <img src={coverUrl} alt="" />
   ) : (
     <span>{project.source_title ?? projectDisplayTitle(project)}</span>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="m20 20-4.2-4.2m2.2-5.3a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
   );
 }
 
@@ -69,7 +90,7 @@ export function ProjectDeleteDialog({
               onChange={handleModeChange}
             />
             <span>
-              <strong>从启动页移除</strong>
+              <strong>从首页移除</strong>
               <small>只移除项目入口和任务归属，不删除剪切视频、本地素材、交付目录。</small>
             </span>
           </label>
@@ -104,6 +125,118 @@ export function ProjectDeleteDialog({
   );
 }
 
+export function ProjectRenameDialog({
+  project,
+  initialTitle,
+  onCancel,
+  onConfirm
+}: {
+  project: CutterProject;
+  initialTitle: string;
+  onCancel: () => void;
+  onConfirm: (projectId: string, title: string) => void;
+}) {
+  const [title, setTitle] = useState(initialTitle);
+  const trimmedTitle = title.trim();
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!trimmedTitle) {
+      return;
+    }
+
+    onConfirm(project.project_id, trimmedTitle);
+  }
+
+  return (
+    <div className="cutter-modal-backdrop" role="presentation">
+      <form
+        className="cutter-project-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="重命名项目"
+        onSubmit={handleSubmit}
+      >
+        <header>
+          <h2>重命名项目</h2>
+          <p>项目名只保存在本机剪辑工作台，用于整理剪切任务和本地素材。</p>
+        </header>
+        <label className="cutter-project-rename-field">
+          <span>项目名</span>
+          <input
+            autoFocus
+            value={title}
+            onChange={(event) => setTitle(event.currentTarget.value)}
+          />
+        </label>
+        <footer>
+          <button className="cutter-secondary-button" type="button" onClick={onCancel}>
+            取消
+          </button>
+          <button className="cutter-primary-button" type="submit" disabled={!trimmedTitle}>
+            保存
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+export function ProjectCreateDialog({
+  initialTitle,
+  onCancel,
+  onConfirm
+}: {
+  initialTitle: string;
+  onCancel: () => void;
+  onConfirm: (title: string) => void;
+}) {
+  const [title, setTitle] = useState(initialTitle);
+  const trimmedTitle = title.trim();
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!trimmedTitle) {
+      return;
+    }
+
+    onConfirm(trimmedTitle);
+  }
+
+  return (
+    <div className="cutter-modal-backdrop" role="presentation">
+      <form
+        className="cutter-project-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="新建项目"
+        onSubmit={handleSubmit}
+      >
+        <header>
+          <h2>新建项目</h2>
+          <p>项目会保存在本机剪辑工作台，用于归档搜索、剪切任务和本地素材。</p>
+        </header>
+        <label className="cutter-project-rename-field">
+          <span>项目名</span>
+          <input
+            autoFocus
+            value={title}
+            onChange={(event) => setTitle(event.currentTarget.value)}
+          />
+        </label>
+        <footer>
+          <button className="cutter-secondary-button" type="button" onClick={onCancel}>
+            取消
+          </button>
+          <button className="cutter-primary-button" type="submit" disabled={!trimmedTitle}>
+            创建
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 export function ProjectHomePage({
   library,
   localClips,
@@ -113,6 +246,8 @@ export function ProjectHomePage({
   onSearch,
   onSelectProject,
   onOpenProject,
+  onOpenProjectDirectory,
+  onCreateProject,
   onRenameProject,
   onDeleteProject
 }: {
@@ -124,14 +259,18 @@ export function ProjectHomePage({
   onSearch?: (query: string) => void;
   onSelectProject?: (projectId: string) => void;
   onOpenProject?: (projectId: string) => void;
+  onOpenProjectDirectory?: (projectId: string) => void;
+  onCreateProject?: (title: string) => void;
   onRenameProject?: (projectId: string) => void;
   onDeleteProject?: (projectId: string, mode: ProjectDeleteMode) => void;
 }) {
   const [deleteTargetProjectId, setDeleteTargetProjectId] = useState<string | undefined>();
   const [deleteMode, setDeleteMode] = useState<ProjectDeleteMode>("remove");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const selectedProject = projects.find((project) => project.project_id === selectedProjectId) ?? projects[0];
   const deleteTargetProject = projects.find((project) => project.project_id === deleteTargetProjectId);
   const selectedProjectClipCount = selectedProject ? projectCompletedClipCount(selectedProject, queue) : 0;
+  const selectedProjectTitle = selectedProject ? projectDisplayTitle(selectedProject) : "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,30 +297,50 @@ export function ProjectHomePage({
     closeDeleteDialog();
   }
 
+  function openCreateDialog() {
+    setCreateDialogOpen(true);
+  }
+
+  function closeCreateDialog() {
+    setCreateDialogOpen(false);
+  }
+
+  function confirmCreateDialog(title: string) {
+    onCreateProject?.(title);
+    closeCreateDialog();
+  }
+
   return (
     <section className="cutter-page cutter-project-home" data-page="project-home">
       <div className="cutter-page-main">
         <section className="cutter-project-hero" aria-label="开始搜索">
           <div>
-            <h1>开始搜索</h1>
+            <p className="cutter-eyebrow">Cutter / Project Home</p>
+            <h1>选择项目，然后开始搜索素材</h1>
+            <p className="cutter-note">根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归档。</p>
           </div>
           <form className="cutter-search-form cutter-project-search-form" onSubmit={handleSubmit}>
             <label className="cutter-search-box">
-              <span>⌕</span>
+              <span className="cutter-search-icon">
+                <SearchIcon />
+              </span>
               <input
                 name="query"
                 aria-label="搜索文案关键词或粘贴爆款文案"
-                placeholder="搜索文案关键词或粘贴爆款文案"
+                placeholder={selectedProjectTitle ? `如「${selectedProjectTitle}」或搜索关键词` : "搜索文案关键词"}
               />
             </label>
             <button className="cutter-primary-button" type="submit">
               搜索
             </button>
+            <button className="cutter-secondary-button" type="button" onClick={openCreateDialog}>
+              新建项目
+            </button>
           </form>
         </section>
 
         <section className="cutter-project-board" aria-label="项目入口">
-          <div>
+          <div className="cutter-project-list-panel">
             <header className="cutter-section-heading">
               <h2>最近项目</h2>
             </header>
@@ -190,6 +349,9 @@ export function ProjectHomePage({
                 projects.map((project) => {
                   const completedClipCount = projectCompletedClipCount(project, queue);
                   const isSelected = project.project_id === selectedProject?.project_id;
+                  const projectTitle = projectDisplayTitle(project);
+                  const projectSourceTitle = project.source_title?.trim();
+                  const pendingCount = project.searches[0]?.hit_count ?? 0;
                   return (
                     <article
                       className={`cutter-project-card${isSelected ? " is-selected" : ""}`}
@@ -205,19 +367,38 @@ export function ProjectHomePage({
                           <ProjectCover project={project} />
                         </div>
                         <div className="cutter-project-card-summary">
-                          <strong>{projectDisplayTitle(project)}</strong>
-                          <span>已剪 {completedClipCount}</span>
-                          <span>搜索 {project.searches.length}</span>
+                          <strong>{projectSourceTitle || projectTitle}</strong>
+                          {projectSourceTitle ? <span>{projectTitle}</span> : null}
+                          {!projectSourceTitle ? (
+                            <span className="cutter-project-card-stats">
+                              <span>已剪 {completedClipCount}</span>
+                              <span>待剪 {pendingCount}</span>
+                            </span>
+                          ) : null}
                         </div>
                       </button>
+                      <span className="cutter-project-card-more" aria-hidden="true">
+                        ...
+                      </span>
                       {isSelected ? (
-                        <button
-                          className="cutter-project-card-enter"
-                          type="button"
-                          onClick={() => onOpenProject?.(project.project_id)}
-                        >
-                          进入项目
-                        </button>
+                        <div className="cutter-project-card-actions">
+                          <button
+                            className="cutter-project-card-enter"
+                            type="button"
+                            onClick={() => onOpenProject?.(project.project_id)}
+                          >
+                            进入项目
+                          </button>
+                          {onOpenProjectDirectory ? (
+                            <button
+                              className="cutter-project-card-directory"
+                              type="button"
+                              onClick={() => onOpenProjectDirectory(project.project_id)}
+                            >
+                              打开文件目录
+                            </button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </article>
                   );
@@ -225,37 +406,29 @@ export function ProjectHomePage({
               ) : (
                 <div className="cutter-empty-state">
                   <strong>还没有剪切项目</strong>
-                  <span>先搜索文案。第一次点击“剪切这段”后，这里会出现项目卡片。</span>
+                  <span>点击“新建项目”后，这里会出现项目卡片。</span>
                 </div>
               )}
             </div>
           </div>
 
           <aside className="cutter-project-detail" aria-label="项目详情">
-            <h2>项目详情</h2>
+            <header className="cutter-project-detail-header">
+              <h2>项目详情</h2>
+              <span className="cutter-project-detail-tools" aria-hidden="true">
+                <span className="cutter-project-detail-tool is-star" />
+                <span className="cutter-project-detail-tool is-more" />
+              </span>
+            </header>
             {selectedProject ? (
               <>
                 <div className="cutter-project-detail-cover">
-                  <ProjectCover project={selectedProject} />
+                  <ProjectCover project={selectedProject} variant="detail" />
                 </div>
                 <dl>
                   <div>
                     <dt>项目名</dt>
-                    <dd>
-                      <button
-                        className="cutter-project-name-edit"
-                        type="button"
-                        onDoubleClick={() => onRenameProject?.(selectedProject.project_id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            onRenameProject?.(selectedProject.project_id);
-                          }
-                        }}
-                        title="双击修改项目名称"
-                      >
-                        {projectDisplayTitle(selectedProject)}
-                      </button>
-                    </dd>
+                    <dd>{projectDisplayTitle(selectedProject)}</dd>
                   </div>
                   <div>
                     <dt>创建时间</dt>
@@ -280,6 +453,22 @@ export function ProjectHomePage({
                   >
                     进入项目
                   </button>
+                  {onOpenProjectDirectory ? (
+                    <button
+                      className="cutter-secondary-button"
+                      type="button"
+                      onClick={() => onOpenProjectDirectory(selectedProject.project_id)}
+                    >
+                      打开文件目录
+                    </button>
+                  ) : null}
+                  <button
+                    className="cutter-secondary-button"
+                    type="button"
+                    onClick={() => onRenameProject?.(selectedProject.project_id)}
+                  >
+                    重命名
+                  </button>
                   <button
                     className="cutter-danger-button"
                     type="button"
@@ -292,8 +481,8 @@ export function ProjectHomePage({
               </>
             ) : (
               <div className="cutter-empty-state">
-                <strong>临时搜索</strong>
-                <span>当前还没有项目。第一次剪切会自动创建。</span>
+                <strong>未选择项目</strong>
+                <span>选择一个项目后再搜索，剪切任务和本地素材会按项目归档。</span>
               </div>
             )}
           </aside>
@@ -306,6 +495,13 @@ export function ProjectHomePage({
           onModeChange={setDeleteMode}
           onCancel={closeDeleteDialog}
           onConfirm={confirmDeleteDialog}
+        />
+      ) : null}
+      {createDialogOpen ? (
+        <ProjectCreateDialog
+          initialTitle={projectAutoTitleFromDate(new Date().toISOString(), projects)}
+          onCancel={closeCreateDialog}
+          onConfirm={confirmCreateDialog}
         />
       ) : null}
     </section>

@@ -23,6 +23,7 @@ export interface CutterProject {
   failed_count: number;
   searches: CutterProjectSearch[];
   cover_url?: string;
+  detail_cover_url?: string;
   source_title?: string;
 }
 
@@ -233,6 +234,71 @@ export function createProjectFromSearch(input: {
   };
 }
 
+export function createEmptyProject(input: {
+  title?: string;
+  existingProjects?: readonly CutterProject[];
+  now?: string;
+} = {}): CutterProject {
+  const now = input.now ?? new Date().toISOString();
+  const manualTitle = input.title?.trim() ?? "";
+
+  return {
+    project_id: projectIdFromDate(now),
+    title: manualTitle || projectAutoTitleFromDate(now, input.existingProjects),
+    title_source: manualTitle ? "manual" : "auto",
+    status: "active",
+    created_at: now,
+    updated_at: now,
+    clip_count: 0,
+    running_count: 0,
+    failed_count: 0,
+    searches: []
+  };
+}
+
+export function projectHomeSearchDraft(input: {
+  query: string;
+  projects: readonly CutterProject[];
+  selectedProjectId?: string;
+  now?: string;
+}): { project: CutterProject; projects: CutterProject[]; created: boolean } | undefined {
+  const query = input.query.trim();
+  if (!query) {
+    return undefined;
+  }
+
+  const selectedProject = input.selectedProjectId
+    ? input.projects.find((project) => project.project_id === input.selectedProjectId)
+    : undefined;
+
+  if (!selectedProject) {
+    const project = createProjectFromSearch({
+      query,
+      existingProjects: input.projects,
+      now: input.now
+    });
+
+    return {
+      project,
+      projects: upsertCutterProject(input.projects, project),
+      created: true
+    };
+  }
+
+  const now = input.now ?? new Date().toISOString();
+  const project = {
+    ...selectedProject,
+    updated_at: now,
+    searches: recordProjectSearch(selectedProject.searches, { query, hitCount: 0 }, now)
+  };
+
+  return {
+    project,
+    projects: upsertCutterProject(input.projects, project),
+    created: false
+  };
+}
+
 export function recordProjectCut(
   project: CutterProject,
   input: {
@@ -326,5 +392,5 @@ export function removeCutterProject(
 }
 
 export function projectSwitcherLabel(project: CutterProject | null | undefined): string {
-  return project ? `当前项目：${projectDisplayTitle(project)}` : "临时搜索";
+  return project ? `当前项目：${projectDisplayTitle(project)}` : "未选择项目";
 }

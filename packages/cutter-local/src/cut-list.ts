@@ -1,6 +1,13 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { CutMode } from "../../protocol/src/index.ts";
+import {
+  validateClipListManifest,
+  type ClipListItem,
+  type ClipListManifest,
+  type CutMode
+} from "../../protocol/src/index.ts";
+
+export type { ClipListItem, ClipListManifest } from "../../protocol/src/index.ts";
 
 export interface WriteClipListItemInput {
   source_video_id: string;
@@ -14,25 +21,6 @@ export interface WriteClipListItemInput {
   cut_mode: CutMode;
   pre_roll_ms?: number;
   post_roll_ms?: number;
-}
-
-export interface ClipListItem extends WriteClipListItemInput {
-  item_id: string;
-  order: number;
-  pre_roll_ms: number;
-  post_roll_ms: number;
-}
-
-export interface ClipListManifest {
-  schema_version: "1.0";
-  clip_list_id: string;
-  library_id: string;
-  project_id?: string;
-  title: string;
-  item_count: number;
-  created_at: string;
-  updated_at: string;
-  items: ClipListItem[];
 }
 
 export interface WriteClipListInput {
@@ -59,7 +47,33 @@ export interface ClipListCatalog {
 }
 
 const CLIP_LIST_ID_PATTERN = /^CL\d{8}-\d{4}$/;
-const CUT_MODES = new Set<CutMode>(["copy", "smart", "precise"]);
+const clipListMutationQueues = new Map<string, Promise<void>>();
+
+async function withWorkspaceClipListMutationLock<T>(
+  workspaceRoot: string,
+  task: () => Promise<T>
+): Promise<T> {
+  const key = path.resolve(workspaceRoot);
+  const previous = clipListMutationQueues.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const chained = previous.catch(() => undefined).then(() => current);
+
+  clipListMutationQueues.set(key, chained);
+  await previous.catch(() => undefined);
+
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+
+    if (clipListMutationQueues.get(key) === chained) {
+      clipListMutationQueues.delete(key);
+    }
+  }
+}
 
 function clipListsRoot(workspaceRoot: string): string {
   return path.join(workspaceRoot, "clip-lists");
@@ -127,20 +141,6 @@ export async function allocateNextClipListId(input: {
   return formatClipListId(dateStamp, maxSequence + 1);
 }
 
-function isPortablePath(value: string): boolean {
-  const normalized = value.replace(/\\/g, "/");
-
-  if (
-    normalized.trim() === "" ||
-    normalized.startsWith("/") ||
-    /^[a-zA-Z]:/.test(normalized)
-  ) {
-    return false;
-  }
-
-  return !normalized.split("/").filter(Boolean).includes("..");
-}
-
 function assertNonEmpty(value: string, field: string): void {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${field} must be a non-empty string`);
@@ -183,14 +183,6 @@ function normalizeClipListItem(
     throw new Error("end_ms must be greater than begin_ms");
   }
 
-  if (!isPortablePath(item.source_relative_path)) {
-    throw new Error("source_relative_path must be portable");
-  }
-
-  if (!CUT_MODES.has(item.cut_mode)) {
-    throw new Error("cut_mode must be copy, smart, or precise");
-  }
-
   const preRollMs = item.pre_roll_ms ?? 0;
   const postRollMs = item.post_roll_ms ?? 0;
   assertNonNegativeInteger(preRollMs, "pre_roll_ms");
@@ -206,53 +198,48 @@ function normalizeClipListItem(
   };
 }
 
-function validateClipList(manifest: ClipListManifest): void {
-  assertClipListId(manifest.clip_list_id);
-  assertNonEmpty(manifest.library_id, "library_id");
-  assertNonEmpty(manifest.title, "title");
-  assertNonEmpty(manifest.created_at, "created_at");
-  assertNonEmpty(manifest.updated_at, "updated_at");
+function assertValidClipList(manifest: ClipListManifest): void {
+  const result = validateClipListManifest(manifest);
 
-  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
-    throw new Error("items must contain at least one cut-list row");
-  }
-
-  if (manifest.item_count !== manifest.items.length) {
-    throw new Error("item_count must equal items.length");
+  if (!result.ok) {
+    throw new Error(result.errors.join("; "));
   }
 }
 
 export async function writeClipList(input: WriteClipListInput): Promise<ClipListManifest> {
-  assertNonEmpty(input.library_id, "library_id");
-  assertNonEmpty(input.title, "title");
+  return withWorkspaceClipListMutationLock(input.workspace_root, async () => {
+    assertNonEmpty(input.library_id, "library_id");
+    assertNonEmpty(input.title, "title");
 
-  if (!Array.isArray(input.items) || input.items.length === 0) {
-    throw new Error("items must contain at least one cut-list row");
-  }
+    if (!Array.isArray(input.items) || input.items.length === 0) {
+      throw new Error("items must contain at least one cut-list row");
+    }
 
-  const clipListId = await allocateNextClipListId({
-    workspace_root: input.workspace_root,
-    now: input.now
+    const clipListId = await allocateNextClipListId({
+      workspace_root: input.workspace_root,
+      now: input.now
+    });
+    const items = input.items.map(normalizeClipListItem);
+    const projectId = normalizeProjectId(input.project_id);
+    const manifest: ClipListManifest = {
+      schema_version: "1.0",
+      clip_list_id: clipListId,
+      library_id: input.library_id,
+      ...(projectId ? { project_id: projectId } : {}),
+      title: input.title.trim(),
+      item_count: items.length,
+      created_at: input.now,
+      updated_at: input.now,
+      items
+    };
+    assertValidClipList(manifest);
+
+    const filePath = clipListManifestPath(input.workspace_root, clipListId);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, jsonBytes(manifest), "utf8");
+
+    return manifest;
   });
-  const items = input.items.map(normalizeClipListItem);
-  const manifest: ClipListManifest = {
-    schema_version: "1.0",
-    clip_list_id: clipListId,
-    library_id: input.library_id,
-    ...(normalizeProjectId(input.project_id) ? { project_id: normalizeProjectId(input.project_id) } : {}),
-    title: input.title.trim(),
-    item_count: items.length,
-    created_at: input.now,
-    updated_at: input.now,
-    items
-  };
-  validateClipList(manifest);
-
-  const filePath = clipListManifestPath(input.workspace_root, clipListId);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, jsonBytes(manifest), "utf8");
-
-  return manifest;
 }
 
 export async function readClipList(
@@ -262,7 +249,7 @@ export async function readClipList(
     const manifest = JSON.parse(
       await readFile(clipListManifestPath(input.workspace_root, input.clip_list_id), "utf8")
     ) as ClipListManifest;
-    validateClipList(manifest);
+    assertValidClipList(manifest);
     return manifest;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {

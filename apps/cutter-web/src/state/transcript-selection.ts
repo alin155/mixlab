@@ -1,12 +1,20 @@
-import type { TranscriptSegment } from "../api.ts";
+import type { SearchHitSegment, TranscriptSegment } from "../api.ts";
 
 export interface TranscriptSelectionRange {
   startSegmentId?: string;
   endSegmentId?: string;
+  startCharOffset?: number;
+  endCharOffset?: number;
 }
 
 export interface TranscriptSelectionOptions extends TranscriptSelectionRange {
   fallbackSegmentIds?: readonly string[];
+}
+
+export interface ContinuousTranscriptSelection {
+  segments: TranscriptSegment[];
+  startCharOffset?: number;
+  endCharOffset?: number;
 }
 
 function firstExistingIndex(
@@ -64,6 +72,36 @@ export function transcriptSelectionRangeFromDrag(
   };
 }
 
+export function transcriptSelectionRangeFromText(
+  startSegmentId: string,
+  startCharOffset: number,
+  endSegmentId: string,
+  endCharOffset: number
+): TranscriptSelectionRange {
+  return {
+    startSegmentId,
+    endSegmentId,
+    startCharOffset,
+    endCharOffset
+  };
+}
+
+export function transcriptSelectionRangeFromHitSegments(
+  hitSegments: readonly SearchHitSegment[]
+): TranscriptSelectionRange {
+  const segments = hitSegments.filter((segment) => segment.segment_id);
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  if (!first || !last) {
+    return {};
+  }
+
+  return {
+    startSegmentId: first.segment_id,
+    endSegmentId: last.segment_id
+  };
+}
+
 export function shouldSuppressTranscriptClickAfterMouseUp(
   startSegmentId: string,
   endSegmentId: string | undefined
@@ -71,21 +109,81 @@ export function shouldSuppressTranscriptClickAfterMouseUp(
   return Boolean(endSegmentId && startSegmentId !== endSegmentId);
 }
 
-export function continuousTranscriptSegments(
+function normalizedCharOffsets(input: {
+  startIndex: number;
+  endIndex: number;
+  startCharOffset?: number;
+  endCharOffset?: number;
+}): Pick<ContinuousTranscriptSelection, "startCharOffset" | "endCharOffset"> {
+  if (
+    typeof input.startCharOffset !== "number" ||
+    typeof input.endCharOffset !== "number"
+  ) {
+    return {};
+  }
+
+  if (input.startIndex < input.endIndex) {
+    return {
+      startCharOffset: input.startCharOffset,
+      endCharOffset: input.endCharOffset
+    };
+  }
+
+  if (input.startIndex > input.endIndex) {
+    return {
+      startCharOffset: input.endCharOffset,
+      endCharOffset: input.startCharOffset
+    };
+  }
+
+  return {
+    startCharOffset: Math.min(input.startCharOffset, input.endCharOffset),
+    endCharOffset: Math.max(input.startCharOffset, input.endCharOffset)
+  };
+}
+
+export function continuousTranscriptSelection(
   segments: readonly TranscriptSegment[],
   options: TranscriptSelectionOptions = {}
-): TranscriptSegment[] {
+): ContinuousTranscriptSelection {
   const explicitIds =
     options.startSegmentId && options.endSegmentId
       ? [options.startSegmentId, options.endSegmentId]
       : undefined;
   const ids = explicitIds ?? options.fallbackSegmentIds;
-  const firstIndex = firstExistingIndex(segments, ids);
-  const lastIndex = lastExistingIndex(segments, ids);
+  const explicitStartIndex = options.startSegmentId
+    ? segments.findIndex((segment) => segment.segment_id === options.startSegmentId)
+    : -1;
+  const explicitEndIndex = options.endSegmentId
+    ? segments.findIndex((segment) => segment.segment_id === options.endSegmentId)
+    : -1;
+  const firstIndex = explicitIds ? explicitStartIndex : firstExistingIndex(segments, ids);
+  const lastIndex = explicitIds ? explicitEndIndex : lastExistingIndex(segments, ids);
 
   if (firstIndex >= 0 && lastIndex >= 0) {
-    return segments.slice(firstIndex, lastIndex + 1);
+    const sliceStart = Math.min(firstIndex, lastIndex);
+    const sliceEnd = Math.max(firstIndex, lastIndex);
+    const offsets = explicitIds
+      ? normalizedCharOffsets({
+          startIndex: firstIndex,
+          endIndex: lastIndex,
+          startCharOffset: options.startCharOffset,
+          endCharOffset: options.endCharOffset
+        })
+      : {};
+
+    return {
+      segments: segments.slice(sliceStart, sliceEnd + 1),
+      ...offsets
+    };
   }
 
-  return [];
+  return { segments: [] };
+}
+
+export function continuousTranscriptSegments(
+  segments: readonly TranscriptSegment[],
+  options: TranscriptSelectionOptions = {}
+): TranscriptSegment[] {
+  return continuousTranscriptSelection(segments, options).segments;
 }

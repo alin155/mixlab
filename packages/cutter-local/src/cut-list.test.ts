@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -63,6 +63,37 @@ test("writes ordered cut-list rows with stable local item ids", async () => {
     )
   );
   assert.equal(persisted.items[0].source_relative_path, "source-videos/01_现金流.mp4");
+});
+
+test("serializes concurrent clip-list id allocation per workspace", async () => {
+  const workspaceRoot = await makeWorkspaceRoot();
+  const lists = await Promise.all(Array.from({ length: 20 }, (_, index) =>
+    writeClipList({
+      workspace_root: workspaceRoot,
+      library_id: "lib_main_001",
+      title: `并发片单 ${index + 1}`,
+      items: [
+        {
+          source_video_id: "V000001",
+          source_title: "01_现金流",
+          source_relative_path: "source-videos/01_现金流.mp4",
+          start_segment_id: "V000001-S000001",
+          end_segment_id: "V000001-S000001",
+          begin_ms: 1000,
+          end_ms: 2200,
+          selected_text: "现金流",
+          cut_mode: "copy"
+        }
+      ],
+      now: "2026-05-02T10:00:00Z"
+    })
+  ));
+
+  assert.deepEqual(
+    lists.map((list) => list.clip_list_id).sort(),
+    Array.from({ length: 20 }, (_, index) => `CL20260502-${String(index + 1).padStart(4, "0")}`)
+  );
+  assert.equal((await listClipLists({ workspace_root: workspaceRoot })).clip_list_count, 20);
 });
 
 test("lists and reads clip lists newest first", async () => {
@@ -143,6 +174,50 @@ test("rejects unsafe source relative paths in cut lists", async () => {
         }
       ],
       now: "2026-05-02T10:00:00Z"
+    }),
+    /source_relative_path must be portable/
+  );
+});
+
+test("rejects malformed persisted clip-list manifests", async () => {
+  const workspaceRoot = await makeWorkspaceRoot();
+  const manifestDirectory = path.join(workspaceRoot, "clip-lists", "CL20260502-0001");
+  await mkdir(manifestDirectory, { recursive: true });
+  await writeFile(
+    path.join(manifestDirectory, "clip-list.json"),
+    `${JSON.stringify({
+      schema_version: "1.0",
+      clip_list_id: "CL20260502-0001",
+      library_id: "lib_main_001",
+      title: "坏片单",
+      item_count: 1,
+      created_at: "2026-05-02T10:00:00Z",
+      updated_at: "2026-05-02T10:00:00Z",
+      items: [
+        {
+          item_id: "CLI000001",
+          order: 1,
+          source_video_id: "V000001",
+          source_title: "01_现金流",
+          source_relative_path: "/absolute/source.mp4",
+          start_segment_id: "V000001-S000001",
+          end_segment_id: "V000001-S000001",
+          begin_ms: 1000,
+          end_ms: 2000,
+          selected_text: "现金流",
+          cut_mode: "smart",
+          pre_roll_ms: 0,
+          post_roll_ms: 0
+        }
+      ]
+    })}\n`,
+    "utf8"
+  );
+
+  await assert.rejects(
+    readClipList({
+      workspace_root: workspaceRoot,
+      clip_list_id: "CL20260502-0001"
     }),
     /source_relative_path must be portable/
   );

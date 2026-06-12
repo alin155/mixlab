@@ -1,0 +1,137 @@
+name: Target Evidence Kit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/acceptance-evidence-kit.yml"
+      - "scripts/acceptance/**"
+      - "scripts/smoke/cutter-api-web.ts"
+      - "scripts/smoke/searchd-concurrency.ts"
+      - "scripts/smoke/searchd-nas-rehearsal.ts"
+      - "scripts/smoke/searchd-scale.ts"
+      - "packages/searchd/**"
+      - "docs/acceptance/artifacts/local-web-sanity.json"
+      - "docs/acceptance/artifacts/real-nas-50-editor-report.json"
+      - "docs/acceptance/evidence/**"
+      - "docs/acceptance/local-web-real-nas.md"
+      - "docs/acceptance/m3-ui-foundation.md"
+      - "docs/acceptance/m4-cutter-workbench.md"
+      - "docs/acceptance/m5-admin-console.md"
+      - "docs/acceptance/m6-search-sqlite-index.md"
+      - "docs/acceptance/m8-cutter-workspace-ui-binding.md"
+      - "docs/acceptance/m18-1-windows-cutter-desktop.md"
+      - "docs/acceptance/m18-3-github-actions-windows-package.md"
+      - "docs/deployment/m19-nas-docker.md"
+      - "docs/spec-traceability.md"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package target evidence kit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run searchd tests
+        run: npm run test:searchd
+
+      - name: Verify evidence tooling
+        run: npm run test:acceptance-evidence
+
+      - name: Audit delivery readiness
+        run: npm run audit:delivery-readiness
+
+      - name: Check committed local source-machine evidence completeness
+        run: |
+          local_evidence_count=0
+          [ -f docs/acceptance/local-web-real-nas.md ] && local_evidence_count=$((local_evidence_count + 1))
+          [ -f docs/acceptance/artifacts/local-web-sanity.json ] && local_evidence_count=$((local_evidence_count + 1))
+          [ -f docs/acceptance/artifacts/real-nas-50-editor-report.json ] && local_evidence_count=$((local_evidence_count + 1))
+          if [ "$local_evidence_count" -ne 0 ] && [ "$local_evidence_count" -ne 3 ]; then
+            echo "Committed local source-machine evidence must include local-web-real-nas.md, local-web-sanity.json, and real-nas-50-editor-report.json together."
+            exit 1
+          fi
+          if [ "$local_evidence_count" -eq 0 ]; then
+            echo "No committed local source-machine evidence found; skipping local source-machine gates."
+          fi
+
+      - name: Validate committed local web sanity report
+        run: |
+          if [ -f docs/acceptance/artifacts/local-web-sanity.json ]; then
+            npm run validate:local-web-sanity-report -- docs/acceptance/artifacts/local-web-sanity.json
+          else
+            echo "No committed local web sanity report found; skipping local web report validation."
+          fi
+
+      - name: Check committed local real NAS acceptance record sync
+        run: |
+          if [ -f docs/acceptance/local-web-real-nas.md ] && [ -f docs/acceptance/artifacts/local-web-sanity.json ] && [ -f docs/acceptance/artifacts/real-nas-50-editor-report.json ]; then
+            npm run sync:local-real-nas-record
+            git diff --exit-code -- docs/acceptance/local-web-real-nas.md
+          else
+            echo "No complete committed local source-machine evidence found; skipping local record sync check."
+          fi
+
+      - name: Audit committed local real NAS phase evidence
+        run: |
+          if [ -f docs/acceptance/local-web-real-nas.md ] && [ -f docs/acceptance/artifacts/local-web-sanity.json ] && [ -f docs/acceptance/artifacts/real-nas-50-editor-report.json ]; then
+            npm run audit:local-real-nas-phase
+          else
+            echo "No complete committed local source-machine evidence found; skipping local phase audit."
+          fi
+
+      - name: Package evidence kit
+        run: npm run package:evidence-kit
+
+      - name: Validate evidence kit manifest
+        run: npm run validate:evidence-kit-manifest
+
+      - name: Validate evidence kit draft metadata
+        run: npm run validate:evidence-kit-drafts
+
+      - name: Run packaged manifest self-check
+        run: sh dist/acceptance/mixlab-evidence-kit/evidence-kit-manifest-self-check.sh dist/acceptance/mixlab-evidence-kit
+
+      - name: Validate committed final target evidence
+        run: |
+          if [ -f docs/acceptance/evidence/windows-acc-008.json ] || [ -f docs/acceptance/evidence/nas-acc-009.json ]; then
+            npm run audit:target-evidence-readiness -- docs/acceptance/evidence/windows-acc-008.json docs/acceptance/evidence/nas-acc-009.json
+            npm run validate:target-evidence -- docs/acceptance/evidence/windows-acc-008.json docs/acceptance/evidence/nas-acc-009.json
+          else
+            echo "No committed final target evidence JSON found; skipping final target gate."
+          fi
+
+      - name: Upload target evidence kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-target-evidence-kit
+          path: dist/acceptance/mixlab-evidence-kit
+          if-no-files-found: error
+          retention-days: 30

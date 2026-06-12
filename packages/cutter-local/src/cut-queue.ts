@@ -1,5 +1,5 @@
-import { copyFile, link, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { copyFile, link, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import {
   validateSourceVideoManifest,
@@ -139,6 +139,11 @@ export interface RunNextCutJobInput {
   resolve_source: (job: CutJobManifest) => Promise<CutJobSourceDetail | null> | CutJobSourceDetail | null;
   cut_runner: CutRunner;
   cover_runner?: CoverRunner;
+  persist_phase_progress?: boolean;
+}
+
+export interface RunCutJobInput extends RunNextCutJobInput {
+  cut_job_id: string;
 }
 
 const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
@@ -152,6 +157,60 @@ const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
 ];
 
 const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
+const workspaceRunNextLocks = new Map<string, Promise<void>>();
+const workspaceQueueMutationLocks = new Map<string, Promise<void>>();
+
+async function withWorkspaceRunNextLock<T>(
+  workspaceRoot: string,
+  task: () => Promise<T>
+): Promise<T> {
+  const key = path.resolve(workspaceRoot);
+  const previous = workspaceRunNextLocks.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const chained = previous.catch(() => undefined).then(() => current);
+
+  workspaceRunNextLocks.set(key, chained);
+  await previous.catch(() => undefined);
+
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+
+    if (workspaceRunNextLocks.get(key) === chained) {
+      workspaceRunNextLocks.delete(key);
+    }
+  }
+}
+
+async function withWorkspaceQueueMutationLock<T>(
+  workspaceRoot: string,
+  task: () => Promise<T>
+): Promise<T> {
+  const key = path.resolve(workspaceRoot);
+  const previous = workspaceQueueMutationLocks.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const chained = previous.catch(() => undefined).then(() => current);
+
+  workspaceQueueMutationLocks.set(key, chained);
+  await previous.catch(() => undefined);
+
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+
+    if (workspaceQueueMutationLocks.get(key) === chained) {
+      workspaceQueueMutationLocks.delete(key);
+    }
+  }
+}
 
 function cutJobsRoot(workspaceRoot: string): string {
   return path.join(workspaceRoot, "clip-jobs");
@@ -340,6 +399,8 @@ function jobFromClipListItem(input: {
   now: string;
 }): CutJobManifest {
   const sourceTitle = sourceTitleForCanonicalClipName(input.item.source_title, input.clip_list.title);
+  const beginMs = Math.max(0, input.item.begin_ms - input.item.pre_roll_ms);
+  const endMs = input.item.end_ms + input.item.post_roll_ms;
   const title = buildCanonicalClipTitle({
     project_clip_order: input.project_clip_order,
     project_title: input.clip_list.title,
@@ -361,8 +422,8 @@ function jobFromClipListItem(input: {
     source_relative_path: input.item.source_relative_path,
     start_segment_id: input.item.start_segment_id,
     end_segment_id: input.item.end_segment_id,
-    begin_ms: input.item.begin_ms,
-    end_ms: input.item.end_ms,
+    begin_ms: beginMs,
+    end_ms: endMs,
     selected_text: input.item.selected_text,
     cut_mode: input.item.cut_mode,
     status: "pending",
@@ -376,7 +437,9 @@ function jobFromClipListItem(input: {
 async function writeCutJob(workspaceRoot: string, job: CutJobManifest): Promise<void> {
   const filePath = cutJobPath(workspaceRoot, job.cut_job_id);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, jsonBytes(job), "utf8");
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(tempPath, jsonBytes(job), "utf8");
+  await rename(tempPath, filePath);
 }
 
 async function readAllCutJobs(workspaceRoot: string): Promise<CutJobManifest[]> {
@@ -410,36 +473,38 @@ async function readAllCutJobs(workspaceRoot: string): Promise<CutJobManifest[]> 
 export async function submitClipListToQueue(
   input: SubmitClipListToQueueInput
 ): Promise<CutJobSubmission> {
-  const cutJobIds = await allocateNextCutJobIds({
-    workspace_root: input.workspace_root,
-    now: input.now,
-    count: input.clip_list.items.length
+  return withWorkspaceQueueMutationLock(input.workspace_root, async () => {
+    const cutJobIds = await allocateNextCutJobIds({
+      workspace_root: input.workspace_root,
+      now: input.now,
+      count: input.clip_list.items.length
+    });
+    const existingProjectOrder = (await readAllCutJobs(input.workspace_root))
+      .filter((job) =>
+        input.clip_list.project_id
+          ? job.project_id === input.clip_list.project_id
+          : job.project_title === input.clip_list.title
+      )
+      .reduce((max, job) => Math.max(max, job.project_clip_order ?? 0), 0);
+    const jobs = input.clip_list.items.map((item, index) =>
+      jobFromClipListItem({
+        cut_job_id: cutJobIds[index] ?? formatCutJobId(dateStampFromIso(input.now), index + 1),
+        clip_list: input.clip_list,
+        item,
+        project_clip_order: existingProjectOrder + index + 1,
+        now: input.now
+      })
+    );
+
+    for (const job of jobs) {
+      await writeCutJob(input.workspace_root, job);
+    }
+
+    return {
+      submitted_count: jobs.length,
+      jobs
+    };
   });
-  const existingProjectOrder = (await readAllCutJobs(input.workspace_root))
-    .filter((job) =>
-      input.clip_list.project_id
-        ? job.project_id === input.clip_list.project_id
-        : job.project_title === input.clip_list.title
-    )
-    .reduce((max, job) => Math.max(max, job.project_clip_order ?? 0), 0);
-  const jobs = input.clip_list.items.map((item, index) =>
-    jobFromClipListItem({
-      cut_job_id: cutJobIds[index] ?? formatCutJobId(dateStampFromIso(input.now), index + 1),
-      clip_list: input.clip_list,
-      item,
-      project_clip_order: existingProjectOrder + index + 1,
-      now: input.now
-    })
-  );
-
-  for (const job of jobs) {
-    await writeCutJob(input.workspace_root, job);
-  }
-
-  return {
-    submitted_count: jobs.length,
-    jobs
-  };
 }
 
 export async function getCutJob(input: GetCutJobInput): Promise<CutJobManifest | null> {
@@ -588,7 +653,15 @@ function localTranscriptSegments(input: {
     (segment) => segment.end_ms > input.begin_ms && segment.begin_ms < input.end_ms
   );
 
-  if (overlapping.length === 0) {
+  const first = overlapping[0];
+  const last = overlapping[overlapping.length - 1];
+  const clipsInsideSourceSegment = Boolean(
+    first &&
+    last &&
+    (input.begin_ms > first.begin_ms || input.end_ms < last.end_ms)
+  );
+
+  if (overlapping.length === 0 || clipsInsideSourceSegment) {
     return [fallbackTranscriptSegment({
       export_clip_id: input.export_clip_id,
       duration_ms: durationMs,
@@ -811,11 +884,46 @@ async function writePreprocessedLocalAsset(input: {
 export async function runNextCutJob(
   input: RunNextCutJobInput
 ): Promise<CutJobManifest | null> {
+  return withWorkspaceRunNextLock(input.workspace_root, () => runNextCutJobUnlocked(input));
+}
+
+export async function runCutJob(
+  input: RunCutJobInput
+): Promise<CutJobManifest | null> {
+  assertCutJobId(input.cut_job_id);
+  return withWorkspaceRunNextLock(input.workspace_root, () => runCutJobUnlocked(input));
+}
+
+async function runNextCutJobUnlocked(
+  input: RunNextCutJobInput
+): Promise<CutJobManifest | null> {
   const pending = oldestPendingJob(await readAllCutJobs(input.workspace_root));
 
   if (!pending) {
     return null;
   }
+
+  return runPendingCutJobUnlocked(input, pending);
+}
+
+async function runCutJobUnlocked(
+  input: RunCutJobInput
+): Promise<CutJobManifest | null> {
+  const pending = (await readAllCutJobs(input.workspace_root))
+    .find((job) => job.cut_job_id === input.cut_job_id && job.status === "pending") ?? null;
+
+  if (!pending) {
+    return null;
+  }
+
+  return runPendingCutJobUnlocked(input, pending);
+}
+
+async function runPendingCutJobUnlocked(
+  input: RunNextCutJobInput,
+  pending: CutJobManifest
+): Promise<CutJobManifest> {
+  const persistPhaseProgress = input.persist_phase_progress ?? true;
 
   const startedAt = input.now();
   let running: CutJobManifest = {
@@ -834,10 +942,14 @@ export async function runNextCutJob(
       task: () => Promise<T> | T
     ): Promise<T> {
       running = startPhase(running, phaseId, input.now());
-      await writeCutJob(input.workspace_root, running);
+      if (persistPhaseProgress) {
+        await writeCutJob(input.workspace_root, running);
+      }
       const result = await task();
       running = finishPhase(running, phaseId, input.now());
-      await writeCutJob(input.workspace_root, running);
+      if (persistPhaseProgress) {
+        await writeCutJob(input.workspace_root, running);
+      }
       return result;
     }
 
@@ -903,15 +1015,23 @@ export async function runNextCutJob(
       cover_runner: input.cover_runner,
       before_cover: async () => {
         running = finishPhase(running, "preprocess_local_asset", input.now());
-        await writeCutJob(input.workspace_root, running);
+        if (persistPhaseProgress) {
+          await writeCutJob(input.workspace_root, running);
+        }
         running = startPhase(running, "generate_cover", input.now());
-        await writeCutJob(input.workspace_root, running);
+        if (persistPhaseProgress) {
+          await writeCutJob(input.workspace_root, running);
+        }
       },
       after_cover: async () => {
         running = finishPhase(running, "generate_cover", input.now());
-        await writeCutJob(input.workspace_root, running);
+        if (persistPhaseProgress) {
+          await writeCutJob(input.workspace_root, running);
+        }
         running = startPhase(running, "write_manifest", input.now());
-        await writeCutJob(input.workspace_root, running);
+        if (persistPhaseProgress) {
+          await writeCutJob(input.workspace_root, running);
+        }
       }
     });
 

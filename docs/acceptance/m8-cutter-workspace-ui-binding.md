@@ -1,6 +1,7 @@
 # M8 Cutter Workspace UI Binding Acceptance Record
 
 Date: 2026-05-02
+Updated: 2026-06-03
 
 ## Scope
 
@@ -37,6 +38,7 @@ Traceability IDs:
 - In API mode, cut-list submit calls `/cutter/clip-lists` and `/cutter/cut-jobs`.
 - In API mode, queue page refreshes from `/cutter/cut-jobs`.
 - In API mode, run-next calls `/cutter/cut-jobs/run-next`, then refreshes queue and local library.
+- Current smoke coverage proves the API-mode UI can search public transcript text, select a range, export a local clip, refresh reusable local material, and keep cutter writes inside the local workspace.
 - Fixture mode remains deterministic for visual review and screenshots.
 
 ## Explicitly Not Implemented In M8
@@ -53,6 +55,8 @@ Traceability IDs:
 node --test --import tsx apps/cutter-web/src/cutter-state.test.ts apps/cutter-web/src/cutter-app.test.ts apps/cutter-web/src/api.test.ts packages/cutter-api/src/index.test.ts
 npm run typecheck
 npm test
+npm run smoke:cutter-api-web
+npm run smoke:searchd-concurrency
 npm run build:cutter-web
 npm run build:admin-web
 npm run build:ui-fixtures
@@ -66,7 +70,9 @@ Result:
 
 - `node --test --import tsx apps/cutter-web/src/cutter-state.test.ts apps/cutter-web/src/cutter-app.test.ts apps/cutter-web/src/api.test.ts packages/cutter-api/src/index.test.ts`: passed, 26/26 tests.
 - `npm run typecheck`: passed.
-- `npm test`: passed, 197/197 tests.
+- `npm test`: passed, 598/598 tests.
+- `npm run smoke:cutter-api-web`: passed; searchd-backed public search/detail/media, UI selection/export, local workspace writes, and public-library non-write boundary verified.
+- `npm run smoke:searchd-concurrency`: passed; 50 active editors completed search/detail/selection/cut/local-clip creation under the p95 latency SLA.
 - `npm run build:cutter-web`: passed.
 - `npm run build:admin-web`: passed.
 - `npm run build:ui-fixtures`: passed.
@@ -82,6 +88,7 @@ Result:
 - Submit uses real M7 API routes in API mode.
 - Queue page reads real M7 job states in API mode.
 - Running one job refreshes local reusable clips.
+- Smoke coverage proves the first-version search, full transcript, selection, local cut, and reusable export loop against a real Cutter API session.
 - Fixture mode still renders the complete Apple-HIG cutter workbench for visual acceptance.
 
 ## Known Remaining Work

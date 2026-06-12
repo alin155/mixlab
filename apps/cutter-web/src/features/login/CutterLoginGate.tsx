@@ -57,8 +57,7 @@ export function CutterLoginGate({ status, message, deviceName, onApply, children
         <h1>申请使用剪辑师工作台</h1>
         <p>{message ?? reasonForStatus(status)}</p>
         <p>
-          身份方式：用户名 + 本机设备令牌。当前设备：{deviceName ?? "剪辑工作站"}。
-          IP 只用于诊断，不作为登录身份。
+          身份方式：用户名 + 本机设备。当前设备：{deviceName ?? "剪辑工作站"}。管理员审核后即可进入。
         </p>
         <form onSubmit={handleSubmit}>
           <label>

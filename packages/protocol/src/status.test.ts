@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isVideoVisibleToCutters,
+  validateClipListManifest,
   validateExportClipManifest,
   validateLibraryCounts,
   validateLocalClipManifest,
   validateSourceVideoManifest,
+  type ClipListManifest,
   type LibraryCounts,
   type PreprocessStatus,
   type SourceVideoManifest
@@ -233,4 +235,99 @@ test("validates export clip manifests", () => {
   assert.match(invalid.errors.join("\n"), /output_file must be portable/);
   assert.match(invalid.errors.join("\n"), /end_ms must be greater than begin_ms/);
   assert.match(invalid.errors.join("\n"), /cut_mode must be copy, smart, or precise/);
+});
+
+test("validates clip-list manifests", () => {
+  const valid: ClipListManifest = {
+    schema_version: "1.0",
+    clip_list_id: "CL20260502-0001",
+    library_id: "lib_main_001",
+    project_id: "project-001",
+    title: "现金流混剪",
+    item_count: 2,
+    created_at: "2026-05-02T08:00:00Z",
+    updated_at: "2026-05-02T08:00:00Z",
+    items: [
+      {
+        item_id: "CLI000001",
+        order: 1,
+        source_video_id: "V000001",
+        source_title: "老板现金流课程",
+        source_relative_path: "source-videos/C0018.mp4",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000002",
+        begin_ms: 10_000,
+        end_ms: 45_000,
+        selected_text: "现金流是企业的血液。",
+        cut_mode: "smart",
+        pre_roll_ms: 250,
+        post_roll_ms: 400
+      },
+      {
+        item_id: "CLI000002",
+        order: 2,
+        source_video_id: "E000001",
+        source_title: "本地素材 E000001",
+        source_relative_path: ".mixlab-library/videos/E000001.mp4",
+        start_segment_id: "E000001-S000001",
+        end_segment_id: "E000001-S000001",
+        begin_ms: 0,
+        end_ms: 12_000,
+        selected_text: "复用本地片段。",
+        cut_mode: "copy",
+        pre_roll_ms: 0,
+        post_roll_ms: 0
+      }
+    ]
+  };
+
+  assert.deepEqual(validateClipListManifest(valid), {
+    ok: true,
+    errors: []
+  });
+
+  const invalid: ClipListManifest = {
+    ...valid,
+    schema_version: "2.0" as never,
+    clip_list_id: "bad",
+    library_id: "",
+    project_id: "../bad",
+    title: "",
+    item_count: 4,
+    created_at: "",
+    updated_at: "",
+    items: [
+      {
+        ...valid.items[0]!,
+        item_id: "bad",
+        order: 3,
+        source_title: "",
+        source_relative_path: "../source.mp4",
+        begin_ms: 45_000,
+        end_ms: 10_000,
+        selected_text: "",
+        cut_mode: "turbo" as never,
+        pre_roll_ms: -1
+      }
+    ]
+  };
+
+  const result = validateClipListManifest(invalid);
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /schema_version must be 1.0/);
+  assert.match(result.errors.join("\n"), /clip_list_id must use CLYYYYMMDD-0001 format/);
+  assert.match(result.errors.join("\n"), /project_id must be a safe project identifier/);
+  assert.match(result.errors.join("\n"), /item_count must equal items.length/);
+  assert.match(result.errors.join("\n"), /items\[0\]\.item_id must use CLI000001 format/);
+  assert.match(result.errors.join("\n"), /items\[0\]\.source_relative_path must be portable/);
+  assert.match(result.errors.join("\n"), /items\[0\]\.end_ms must be greater than begin_ms/);
+  assert.match(result.errors.join("\n"), /items\[0\]\.cut_mode must be copy, smart, or precise/);
+
+  const malformedItem = validateClipListManifest({
+    ...valid,
+    item_count: 1,
+    items: [null as never]
+  });
+  assert.equal(malformedItem.ok, false);
+  assert.match(malformedItem.errors.join("\n"), /items\[0\] must be an object/);
 });

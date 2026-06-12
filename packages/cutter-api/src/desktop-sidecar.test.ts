@@ -94,6 +94,27 @@ test("maps desktop config to reviewed cutter API server input without mutating p
   );
 });
 
+test("maps desktop searchd env to cutter API server input", () => {
+  assert.deepEqual(
+    buildCutterApiServerInputFromDesktopConfig(
+      {
+        api_host: "127.0.0.1",
+        api_port: 3789,
+        public_library_root: String.raw`D:\MixLabPublicLibrary`,
+        local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+      },
+      {
+        MIXLAB_SEARCHD_BASE_URL: " http://127.0.0.1:3799 "
+      }
+    ),
+    {
+      library_root: String.raw`D:\MixLabPublicLibrary`,
+      workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
+      searchd_base_url: "http://127.0.0.1:3799"
+    }
+  );
+});
+
 test("starts cutter API sidecar and emits lifecycle events", async () => {
   const stdout = makeWritable();
   const fakeServer = new FakeServer();
@@ -109,7 +130,11 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
       assert.equal(input.auth_mode, undefined);
+      assert.equal(input.searchd_base_url, "http://127.0.0.1:3799");
       return fakeServer as unknown as Server;
+    },
+    env: {
+      MIXLAB_SEARCHD_BASE_URL: "http://127.0.0.1:3799"
     },
     stdout: stdout.stream
   });

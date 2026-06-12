@@ -26,10 +26,43 @@ const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: st
   { value: "portrait", label: "竖版" }
 ];
 
+type SettingsDoctorCheck = CutterWorkbenchSettings["doctor"][number];
+
+function settingsDoctorLabel(check: SettingsDoctorCheck): string {
+  if (check.label.includes("公共素材库")) {
+    return "公共素材库";
+  }
+
+  if (check.label.includes("本地工作区")) {
+    return "本地工作区";
+  }
+
+  if (check.label.includes("FFmpeg")) {
+    return "剪切工具";
+  }
+
+  return check.label;
+}
+
+function settingsDoctorDetail(check: SettingsDoctorCheck): string {
+  if (check.label.includes("公共素材库")) {
+    return check.status === "pass" ? "可以读取已发布素材" : "请确认公共素材库目录可用";
+  }
+
+  if (check.label.includes("本地工作区")) {
+    return check.status === "pass" ? "可以保存剪切任务和本地素材" : "请确认本地工作区可写";
+  }
+
+  if (check.label.includes("FFmpeg")) {
+    return check.status === "pass" ? "剪切工具可用" : "请确认剪切工具可用";
+  }
+
+  return check.message;
+}
+
 export function SettingsPage({
   settings,
   runtimeStatus,
-  apiBaseUrl = "",
   appearanceMode,
   defaultCutMode = settings.default_cut_mode,
   defaultSourceFilter = "all",
@@ -41,7 +74,6 @@ export function SettingsPage({
 }: {
   settings: CutterWorkbenchSettings;
   runtimeStatus?: CutterRuntimeStatus;
-  apiBaseUrl?: string;
   appearanceMode: CutterAppearanceMode;
   defaultCutMode?: CutMode;
   defaultSourceFilter?: MaterialSearchSourceFilter;
@@ -52,11 +84,10 @@ export function SettingsPage({
   onSetDefaultOrientationFilter?: (filter: VideoOrientationFilter) => void;
 }) {
   const runtimeGroup = runtimeStatus
-    ? {
-        title: "真实模式联调状态",
+      ? {
+        title: "服务状态",
         rows: [
-          { label: "运行模式", value: runtimeStatus.mode_label },
-          { label: "API 地址", value: apiBaseUrl || "未连接真实 API" },
+          { label: "连接", value: runtimeStatus.api_ready ? "可用" : "不可用" },
           {
             label: "当前剪辑师",
             value: runtimeStatus.current_user.display_name || runtimeStatus.current_user.username
@@ -67,14 +98,14 @@ export function SettingsPage({
             value: runtimeStatus.workspace_enabled ? runtimeStatus.workspace_root_label : "未启用"
           },
           { label: "本地素材数", value: `${runtimeStatus.local_clip_count}` },
-          { label: "FFmpeg", value: `${runtimeStatus.ffmpeg_status} · ${runtimeStatus.ffmpeg_source}` }
+          { label: "剪切工具", value: runtimeStatus.ffmpeg_status }
         ]
       }
     : {
-        title: "真实模式联调状态",
+        title: "服务状态",
         rows: [
-          { label: "运行模式", value: "界面演示模式" },
-          { label: "API 地址", value: "未连接真实 API" }
+          { label: "连接", value: "未连接" },
+          { label: "素材库", value: "待连接" }
         ]
       };
 
@@ -85,7 +116,7 @@ export function SettingsPage({
           <div>
             <p className="cutter-eyebrow">运行环境</p>
             <h1>设置</h1>
-            <p>剪辑端本地路径、FFmpeg、默认剪切模式和 Doctor 检查。</p>
+            <p>管理本地工作区、默认剪切方式和界面显示。</p>
           </div>
         </header>
 
@@ -95,7 +126,7 @@ export function SettingsPage({
             {
               title: "素材与工作区",
               rows: [
-                { label: "公共素材库挂载", value: settings.public_library_mount },
+                { label: "公共素材库", value: settings.public_library_mount },
                 { label: "本地工作区", value: settings.local_workspace },
                 {
                   label: "默认素材来源",
@@ -138,9 +169,9 @@ export function SettingsPage({
               ]
             },
             {
-              title: "剪切运行时",
+              title: "剪切偏好",
               rows: [
-                { label: "FFmpeg", value: settings.ffmpeg_path },
+                { label: "剪切工具路径", value: settings.ffmpeg_path },
                 {
                   label: "默认剪切模式",
                   value: (
@@ -159,8 +190,8 @@ export function SettingsPage({
                     </div>
                   )
                 },
-                { label: "并发数", value: settings.concurrency },
-                { label: "音频预处理", value: settings.audio_mode },
+                { label: "同时剪切数", value: settings.concurrency },
+                { label: "音频处理", value: settings.audio_mode },
                 {
                   label: "显示模式",
                   value: (
@@ -183,14 +214,14 @@ export function SettingsPage({
         />
       </div>
 
-      <InspectorPanel title="Doctor">
+      <InspectorPanel title="环境检查">
         <div className="cutter-settings-doctor">
           {settings.doctor.map((check) => (
             <StatusRow
               key={check.label}
               tone={check.status === "pass" ? "ready" : check.status === "warn" ? "warning" : "failed"}
-              label={check.label}
-              detail={check.message}
+              label={settingsDoctorLabel(check)}
+              detail={settingsDoctorDetail(check)}
             />
           ))}
         </div>

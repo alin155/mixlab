@@ -1,0 +1,1208 @@
+{
+  "ok": true,
+  "errors": [],
+  "endpoints": [
+    {
+      "label": "admin web",
+      "url": "http://127.0.0.1:5176/",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "cutter web",
+      "url": "http://127.0.0.1:5177/",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "admin api",
+      "url": "http://127.0.0.1:3889/api/admin/library/status",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "cutter api",
+      "url": "http://127.0.0.1:3789/health",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "searchd",
+      "url": "http://127.0.0.1:3790/health",
+      "ok": true,
+      "status": 200
+    }
+  ],
+  "admin_dashboard": {
+    "url": "http://127.0.0.1:5176/#/dashboard",
+    "title": "MixLab 素材库管理端",
+    "visible_labels": [
+      "公共素材库生产总览",
+      "核心链路健康",
+      "关键词定位",
+      "完整文案",
+      "选段剪切",
+      "50 人容量",
+      "搜索 p95",
+      "本地搜索覆盖",
+      "搜索失败",
+      "素材规模",
+      "活跃剪辑师"
+    ],
+    "write_action_labels": [
+      "重试失败视频"
+    ],
+    "disabled_write_action_labels": [],
+    "active_cutter_capacity_label": "18/50 活跃剪辑师",
+    "active_cutter_count": 18,
+    "cutter_capacity": 50,
+    "current_index_version": "v003210",
+    "search_p95_ms": 197,
+    "local_search_coverage_percent": 100,
+    "search_failure_count": 0,
+    "body_sample": "MixLab V3 - 素材库管理端 / 仪表盘 待发布 ⌂ 仪表盘 ▤ 原视频管理 ○ 预处理 • 剪辑师用户 ⌘ 设置 当前索引 v003210 18/50 活跃剪辑师 MixLab V3 - 公共素材库控制台 /Volumes/MixLab/PublicLibrary 可搜索 3211 个视频 健康 公共素材库生产总览 仪表盘 扫描新增素材 公共库根目录 /Volumes/MixLab/PublicLibrary 当前索引 v003210 发布状态 待发布 最近更新 2026-06-04T13:49:33.291Z 可搜索总时长 0h 总时长 0h 可用视频 3211 占全部 28% 句子片段 406,750 3210 个视频有文案 当前索引 v003210 协议 失败任务 260 可重试处理 活跃剪辑师 18/50 最近 20 次搜索 · p95 197ms · 本地搜索 100% 下一步建议 有 260 个失败视频可重试 260 个视频失败可重试，单个视频失败不会阻塞其他队列。 重试失败视频 存在失败视频 260 个视频失败可重试，单个视频失败不会阻塞其他队列。 存在停滞中的处理任务 2 个视频仍标记为处理中，但预处理服务未运行。建议先恢复到队列，再启动流水线。 队列已准备但服务未运行 7919 个视频已排队，启动预处理后会继续提取音频、语音识别、生成产物并自动发布索引。 存在待发布索引视频 2 个视频已完成预处理但尚未进入当前索引，预处理流水线会自动增量发布。 核心链路健康 搜索到剪切可用，仍需观察 本地搜索 100% · p95 197ms · 18/50 剪辑师 链路需观察 关键词定位 p95 197ms 最近 20 次搜索 · 本地搜索 100% · 搜索服务正常覆盖 完整文案 406,750 段 3211 个可用视频 · 当前索引 v003210 · 待发布 2 选段剪切 99% 成功 102 次加入待剪 · 102/103 个任务完成 · 本地复用 0 50 人容量 18/50 还可承载 32 位剪辑师 生产吞吐 当前公共素材库从原视频到可搜索索引的流转状态。 可用 3211 处理中 2 队列中 7919 待处理 0 失败 260 生产健康 影响剪辑端搜索可靠性的关键状态。 预处理流水线 未运行 2 正在处理 / 7919 队列中 索引发布 v003210 2 个视频等待自动增量发布 系统检查 通过 通过 0 / 警告 0 / 失败 0 系统负荷 正常 运行负荷正常，可以继续处理 素材规模 原视频总时长 00:00 可用总时长 00:00 未处理时长 00:00 原视频容量 0 B 文案与索引 文案视频 3210 文案总字数 0 文案段落 406750 当前索引 v003210 预处理产能 今日完成 0 今日失败 0 平均耗时 00:00 预计完成 暂无估算 剪辑端使用 搜索请求 1667 命中搜索 1649 搜索 p95 197ms 本地搜索覆盖 100% 补充读取 0 搜索失败 0 加入待剪 102 活跃剪辑师 18 剪辑端转化 搜索命中率 99% 1649 / 1667 次搜索命中 文案选区率 0% 1 次从命中进入文案选区 加入待剪率 100% 102 次选区进入待剪清单 · 选区样本 1 次 · 样本缺口 101 剪切成功率 99% 102 / 103 个剪切任务完成 50 人容量 18/50 还可承载 32 位剪辑师 风险摘要 处理失败 260 待发布索引 2 空搜索 18 搜索失败 0 剪切失败 0 系统负荷 当前状态 正常 处理建议 运行负荷正常，可以继续处理 预计完成 暂无估算 服务状态 未运行 磁盘空间 6.58 TB 可用 / 31.84 TB 最近任务 V001440 C0018 · 语音识别 · 已用时 72:07:10 95% V000019 C0156 · text-preprocess · 阿里云百炼语音识别 task 3b279eb3-6549-42ac-bfdd-b0d174886eb5 failed: SUCCESS_WITH_NO_VALID_FRAGMENT 失败可重试 V000018 C0155 · text-preprocess · 阿里云百炼语音识别 task a63755b7-81b8-4643-92ea-60aaee777bdb failed: SUCCESS_WITH_NO_VALID_FRAGMENT 失败可重试 V000017 C0154 · text-preprocess · 阿里云百炼语音识别 task 3f15ba86-765e-4af3-a669-3faab796f86e failed: SUCCESS_WITH_NO_VALID_FRAG"
+  },
+  "searchd_index": {
+    "url": "http://127.0.0.1:3790/health",
+    "ok": true,
+    "admin_current_index_version": "v003210",
+    "index_version": "v003210",
+    "source_video_count": 3210,
+    "segment_count": 406750,
+    "matched_admin_current_index": true
+  },
+  "admin_real_nas_matrix": {
+    "admin_api_base_url": "http://127.0.0.1:3889/",
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "source_videos_path": "/data/PublicLibrary/source-videos",
+    "video_count": 11394,
+    "ready_video_count": 3211,
+    "queued_video_count": 7919,
+    "processing_video_count": 2,
+    "failed_video_count": 260,
+    "index_required_video_count": 2,
+    "current_index_version": "v003210",
+    "settings_source_folder_count": 1,
+    "enabled_source_folder_count": 1,
+    "settings_include_real_nas_path": true,
+    "source_ready_sample_count": 5,
+    "source_ready_detail_id": "V000001",
+    "source_ready_detail_ms": 47,
+    "source_ready_detail_visible_to_cutters": true,
+    "source_ready_detail_transcript_segment_count": 78,
+    "source_ready_detail_transcript_char_count": 2481,
+    "source_ready_detail_index_version": "v000001",
+    "runtime_settings_ms": 60,
+    "runtime_ffmpeg_available": true,
+    "runtime_ffprobe_available": true,
+    "runtime_asr_key_configured": true,
+    "preprocess_job_count": 13,
+    "preprocess_active_count": 2,
+    "preprocess_queued_count": 7919,
+    "preprocess_failed_count": 260,
+    "preprocess_supervisor_state": "idle",
+    "index_version_count": 80,
+    "index_current_version": "v003210",
+    "cutter_user_count": 19,
+    "source_video_list": {
+      "page_size": 50,
+      "first_page_count": 50,
+      "second_page_count": 50,
+      "first_page_first_id": "V000001",
+      "second_page_first_id": "V000056",
+      "pages_are_distinct": true,
+      "first_page_ms": 596,
+      "second_page_ms": 500,
+      "ready_filter_count": 50,
+      "ready_filter_all_ready": true,
+      "ready_filter_ms": 41,
+      "query": "房产",
+      "query_result_count": 3,
+      "query_first_id": "V000001",
+      "query_first_matches": true,
+      "query_filter_ms": 74
+    },
+    "source_video_web": {
+      "url": "http://127.0.0.1:5176/#/source-videos",
+      "source_path_text": "素材来源 /data/PublicLibrary/source-videos 全部原视频 11394 可搜索 3211 预处理状态 3211 可用 / 7919 队列 / 260 失败 搜索可见 3211 个对剪辑师可见 总时长 00:00 已载入 20 / 11394",
+      "source_path_visible": true,
+      "first_page_first_id": "V000001",
+      "first_page_first_id_visible": true,
+      "loaded_count_before": 20,
+      "total_count_before": 11394,
+      "load_more_button_label": "继续加载 20 条",
+      "load_more_clicked": true,
+      "loaded_count_after": 40,
+      "total_count_after": 11394,
+      "loaded_count_increased": true,
+      "query": "房产",
+      "query_result_id": "V000001",
+      "query_response_observed": true,
+      "query_result_visible": true,
+      "query_result_count_text": "显示 1-3 / 已返回 3 上一页 下一页",
+      "query_result_matches_api": true,
+      "ready_filter_selected_value": "ready",
+      "ready_filter_response_observed": true,
+      "ready_filter_result_count_text": "显示 1-20 / 已返回 20 · 已载入 20 / 全部 11394 上一页 下一页 继续加载 20 条",
+      "ready_filter_visible_status_count": 20,
+      "ready_filter_all_visible_rows_ready": true
+    },
+    "preprocess_web": {
+      "url": "http://127.0.0.1:5176/#/preprocess-jobs",
+      "current_index_version": "v003210",
+      "current_index_visible": true,
+      "source_video_count": 11394,
+      "source_video_count_visible": true,
+      "active_count": 2,
+      "active_count_visible": true,
+      "queued_count": 7919,
+      "queued_count_visible": true,
+      "failed_count": 260,
+      "failed_count_visible": true,
+      "index_required_video_count": 2,
+      "index_required_visible": true,
+      "production_status_title": "2 个处理中任务需要恢复",
+      "production_status_visible": true,
+      "public_library_root_visible": true,
+      "visible_job_id": "J001440",
+      "visible_job_id_observed": true,
+      "log_job_id": "J001440",
+      "log_record_source": "preprocess-job",
+      "log_content_char_count": 606,
+      "log_path_visible": true,
+      "log_content_visible": true,
+      "log_snapshot_visible": false
+    },
+    "cutter_users_web": {
+      "url": "http://127.0.0.1:5176/#/cutter-users",
+      "api_user_count": 19,
+      "api_approved_count": 18,
+      "api_pending_count": 1,
+      "api_first_user_id": "CU000001",
+      "api_first_display_name": "Allen",
+      "api_first_status_label": "已通过",
+      "api_first_device_name": "Windows 剪辑端 · Edge",
+      "approved_count_visible": true,
+      "pending_count_visible": true,
+      "first_user_visible": true,
+      "first_device_visible": false,
+      "identity_note_visible": false,
+      "device_detail_visible": false,
+      "disable_action_visible": true,
+      "approve_action_visible": true,
+      "usage_metrics_labels_visible": [
+        "活跃剪辑师",
+        "搜索次数",
+        "搜索失败",
+        "选段次数",
+        "剪切成功"
+      ]
+    },
+    "web_routes": [
+      {
+        "route": "source-videos",
+        "url": "http://127.0.0.1:5176/#/source-videos",
+        "required_labels": [
+          "公共素材资产清单",
+          "素材来源",
+          "已载入",
+          "预处理状态",
+          "搜索可见",
+          "继续加载"
+        ],
+        "visible_labels": [
+          "公共素材资产清单",
+          "素材来源",
+          "已载入",
+          "预处理状态",
+          "搜索可见",
+          "继续加载"
+        ],
+        "disabled_write_action_labels": []
+      },
+      {
+        "route": "preprocess-jobs",
+        "url": "http://127.0.0.1:5176/#/preprocess-jobs",
+        "required_labels": [
+          "预处理流水线与索引发布",
+          "生产状态",
+          "扫描素材",
+          "生成文案",
+          "当前索引",
+          "队列中",
+          "任务队列",
+          "处理控制"
+        ],
+        "visible_labels": [
+          "预处理流水线与索引发布",
+          "生产状态",
+          "扫描素材",
+          "生成文案",
+          "当前索引",
+          "队列中",
+          "任务队列",
+          "处理控制"
+        ],
+        "disabled_write_action_labels": []
+      },
+      {
+        "route": "doctor",
+        "url": "http://127.0.0.1:5176/#/doctor",
+        "required_labels": [
+          "系统检查",
+          "检查结果",
+          "检查报告",
+          "通过",
+          "失败"
+        ],
+        "visible_labels": [
+          "系统检查",
+          "检查结果",
+          "检查报告",
+          "通过",
+          "失败"
+        ],
+        "disabled_write_action_labels": []
+      },
+      {
+        "route": "cutter-users",
+        "url": "http://127.0.0.1:5176/#/cutter-users",
+        "required_labels": [
+          "登录申请与使用统计",
+          "剪辑师用户",
+          "活跃剪辑师",
+          "搜索失败",
+          "剪切成功"
+        ],
+        "visible_labels": [
+          "登录申请与使用统计",
+          "剪辑师用户",
+          "活跃剪辑师",
+          "搜索失败",
+          "剪切成功"
+        ],
+        "disabled_write_action_labels": []
+      },
+      {
+        "route": "settings",
+        "url": "http://127.0.0.1:5176/#/settings",
+        "required_labels": [
+          "素材来源与预处理设置",
+          "素材库基本信息",
+          "预处理设置",
+          "语音识别",
+          "密钥状态"
+        ],
+        "visible_labels": [
+          "素材来源与预处理设置",
+          "素材库基本信息",
+          "预处理设置",
+          "语音识别",
+          "密钥状态"
+        ],
+        "disabled_write_action_labels": []
+      }
+    ],
+    "read_only_actions_skipped": [
+      "queue-unprocessed",
+      "retry-failed",
+      "recover-processing",
+      "start-supervisor",
+      "stop-supervisor",
+      "doctor-run",
+      "settings-save"
+    ]
+  },
+  "cutter_search_matrix": {
+    "cutter_api_base_url": "http://127.0.0.1:3789/",
+    "query_count": 6,
+    "max_search_ms": 73,
+    "all_queries_used_searchd": true,
+    "matched_searchd_index": true,
+    "queries": [
+      {
+        "query": "现金流",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v003210",
+        "search_mode": "searchd",
+        "search_ms": 73,
+        "first_source_video_id": "V000733",
+        "first_hit_count": 20,
+        "first_segment_id": "V000733-S000044",
+        "first_segment_begin_ms": 253300,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "利润",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v003210",
+        "search_mode": "searchd",
+        "search_ms": 34,
+        "first_source_video_id": "V002588",
+        "first_hit_count": 16,
+        "first_segment_id": "V002588-S000001",
+        "first_segment_begin_ms": 20,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "客户",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v003210",
+        "search_mode": "searchd",
+        "search_ms": 25,
+        "first_source_video_id": "V002922",
+        "first_hit_count": 8,
+        "first_segment_id": "V002922-S000012",
+        "first_segment_begin_ms": 87181,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "增长",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v003210",
+        "search_mode": "searchd",
+        "search_ms": 20,
+        "first_source_video_id": "V000233",
+        "first_hit_count": 6,
+        "first_segment_id": "V000233-S000003",
+        "first_segment_begin_ms": 7520,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "AI",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v003210",
+        "search_mode": "searchd",
+        "search_ms": 32,
+        "first_source_video_id": "V001100",
+        "first_hit_count": 11,
+        "first_segment_id": "V001100-S000039",
+        "first_segment_begin_ms": 238830,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "品牌",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v003210",
+        "search_mode": "searchd",
+        "search_ms": 9,
+        "first_source_video_id": "V001111",
+        "first_hit_count": 1,
+        "first_segment_id": "V001111-S000022",
+        "first_segment_begin_ms": 110609,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      }
+    ]
+  },
+  "cutter_auth": {
+    "cutter_api_base_url": "http://127.0.0.1:3789/",
+    "auth_mode_url": "http://127.0.0.1:3789/cutter/auth/mode",
+    "auth_mode": "local_trusted",
+    "local_trusted": true,
+    "trusted_username": "本机剪辑师",
+    "material_locator_url": "http://127.0.0.1:5177/#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+    "fresh_context_workbench_ready": true,
+    "login_gate_visible_after_ready": false,
+    "manual_apply_used": false,
+    "visible_username": "本机剪辑师"
+  },
+  "cutter_public_library_web": {
+    "cutter_api_base_url": "http://127.0.0.1:3789/",
+    "url": "http://127.0.0.1:5177/#public-library",
+    "api_available_video_count": 3211,
+    "api_returned_count": 20,
+    "api_first_source_video_id": "V000001",
+    "api_first_title": "1.房产置换与资产优化",
+    "web_api_response_observed": true,
+    "available_count_visible": true,
+    "first_title_visible": true,
+    "public_source_label_visible": true,
+    "load_more_button_visible": true,
+    "loaded_count_before": 20,
+    "loaded_count_after": 40,
+    "load_more_clicked": true,
+    "loaded_count_increased": true,
+    "selected_inspector_title": "1.房产置换与资产优化"
+  },
+  "layout": {
+    "admin_source_videos_url": "http://127.0.0.1:5176/#/source-videos",
+    "cutter_material_locator_url": "http://127.0.0.1:5177/#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+    "viewport_width": 1440,
+    "viewport_height": 960,
+    "admin_statusbar": {
+      "selector": ".admin-console-statusbar",
+      "client_width": 920,
+      "scroll_width": 920,
+      "horizontal_overflow": false
+    },
+    "admin_statusbar_item_overflow_count": 0,
+    "cutter_workbench": {
+      "selector": ".cutter-locator-workbench",
+      "client_width": 1260,
+      "scroll_width": 1260,
+      "horizontal_overflow": false
+    },
+    "cutter_body": {
+      "selector": "body",
+      "client_width": 1440,
+      "scroll_width": 1440,
+      "horizontal_overflow": false
+    },
+    "admin_route_layouts": [
+      {
+        "app": "admin",
+        "route": "source-videos",
+        "url": "http://127.0.0.1:5176/#/source-videos",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "公共素材资产清单",
+          "素材来源",
+          "已载入",
+          "预处理状态",
+          "搜索可见",
+          "继续加载"
+        ],
+        "visible_labels": [
+          "公共素材资产清单",
+          "素材来源",
+          "已载入",
+          "预处理状态",
+          "搜索可见",
+          "继续加载"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 922,
+          "scroll_width": 922,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "preprocess-jobs",
+        "url": "http://127.0.0.1:5176/#/preprocess-jobs",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "预处理流水线与索引发布",
+          "生产状态",
+          "扫描素材",
+          "生成文案",
+          "当前索引",
+          "队列中",
+          "任务队列",
+          "处理控制"
+        ],
+        "visible_labels": [
+          "预处理流水线与索引发布",
+          "生产状态",
+          "扫描素材",
+          "生成文案",
+          "当前索引",
+          "队列中",
+          "任务队列",
+          "处理控制"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 922,
+          "scroll_width": 922,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "doctor",
+        "url": "http://127.0.0.1:5176/#/doctor",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "系统检查",
+          "检查结果",
+          "检查报告",
+          "通过",
+          "失败"
+        ],
+        "visible_labels": [
+          "系统检查",
+          "检查结果",
+          "检查报告",
+          "通过",
+          "失败"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 922,
+          "scroll_width": 922,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "cutter-users",
+        "url": "http://127.0.0.1:5176/#/cutter-users",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "登录申请与使用统计",
+          "剪辑师用户",
+          "活跃剪辑师",
+          "搜索失败",
+          "剪切成功"
+        ],
+        "visible_labels": [
+          "登录申请与使用统计",
+          "剪辑师用户",
+          "活跃剪辑师",
+          "搜索失败",
+          "剪切成功"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 922,
+          "scroll_width": 922,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "settings",
+        "url": "http://127.0.0.1:5176/#/settings",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "素材来源与预处理设置",
+          "素材库基本信息",
+          "预处理设置",
+          "语音识别",
+          "密钥状态"
+        ],
+        "visible_labels": [
+          "素材来源与预处理设置",
+          "素材库基本信息",
+          "预处理设置",
+          "语音识别",
+          "密钥状态"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 922,
+          "scroll_width": 922,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "source-videos",
+        "url": "http://127.0.0.1:5176/#/source-videos",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "公共素材资产清单",
+          "素材来源",
+          "已载入",
+          "预处理状态",
+          "搜索可见",
+          "继续加载"
+        ],
+        "visible_labels": [
+          "公共素材资产清单",
+          "素材来源",
+          "已载入",
+          "预处理状态",
+          "搜索可见",
+          "继续加载"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "preprocess-jobs",
+        "url": "http://127.0.0.1:5176/#/preprocess-jobs",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "预处理流水线与索引发布",
+          "生产状态",
+          "扫描素材",
+          "生成文案",
+          "当前索引",
+          "队列中",
+          "任务队列",
+          "处理控制"
+        ],
+        "visible_labels": [
+          "预处理流水线与索引发布",
+          "生产状态",
+          "扫描素材",
+          "生成文案",
+          "当前索引",
+          "队列中",
+          "任务队列",
+          "处理控制"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "doctor",
+        "url": "http://127.0.0.1:5176/#/doctor",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "系统检查",
+          "检查结果",
+          "检查报告",
+          "通过",
+          "失败"
+        ],
+        "visible_labels": [
+          "系统检查",
+          "检查结果",
+          "检查报告",
+          "通过",
+          "失败"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "cutter-users",
+        "url": "http://127.0.0.1:5176/#/cutter-users",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "登录申请与使用统计",
+          "剪辑师用户",
+          "活跃剪辑师",
+          "搜索失败",
+          "剪切成功"
+        ],
+        "visible_labels": [
+          "登录申请与使用统计",
+          "剪辑师用户",
+          "活跃剪辑师",
+          "搜索失败",
+          "剪切成功"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "admin",
+        "route": "settings",
+        "url": "http://127.0.0.1:5176/#/settings",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "素材来源与预处理设置",
+          "素材库基本信息",
+          "预处理设置",
+          "语音识别",
+          "密钥状态"
+        ],
+        "visible_labels": [
+          "素材来源与预处理设置",
+          "素材库基本信息",
+          "预处理设置",
+          "语音识别",
+          "密钥状态"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": ".admin-main-column",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      }
+    ],
+    "cutter_route_layouts": [
+      {
+        "app": "cutter",
+        "route": "material-locator",
+        "url": "http://127.0.0.1:5177/#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "素材库",
+          "搜索",
+          "连接",
+          "公共原素材",
+          "视频文案",
+          "选中当前命中"
+        ],
+        "visible_labels": [
+          "素材库",
+          "搜索",
+          "连接",
+          "公共原素材",
+          "视频文案",
+          "选中当前命中"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='material-locator']",
+          "client_width": 1260,
+          "scroll_width": 1260,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "cut-tasks",
+        "url": "http://127.0.0.1:5177/#cut-tasks",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "剪切任务",
+          "本机剪切流水线"
+        ],
+        "visible_labels": [
+          "剪切任务",
+          "本机剪切流水线"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='cut-tasks']",
+          "client_width": 1164,
+          "scroll_width": 1164,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "local-library",
+        "url": "http://127.0.0.1:5177/#local-library",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "本地素材库",
+          "本地可复剪素材"
+        ],
+        "visible_labels": [
+          "本地素材库",
+          "本地可复剪素材"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='local-library']",
+          "client_width": 1164,
+          "scroll_width": 1164,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "public-library",
+        "url": "http://127.0.0.1:5177/#public-library",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "公共素材库",
+          "可用原素材"
+        ],
+        "visible_labels": [
+          "公共素材库",
+          "可用原素材"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='public-library']",
+          "client_width": 1164,
+          "scroll_width": 1164,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "settings",
+        "url": "http://127.0.0.1:5177/#settings",
+        "viewport_label": "desktop",
+        "viewport_width": 1440,
+        "viewport_height": 960,
+        "required_labels": [
+          "运行环境",
+          "设置",
+          "公共素材库"
+        ],
+        "visible_labels": [
+          "运行环境",
+          "设置",
+          "公共素材库"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1440,
+          "scroll_width": 1440,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='settings']",
+          "client_width": 1164,
+          "scroll_width": 1164,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "material-locator",
+        "url": "http://127.0.0.1:5177/#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "素材库",
+          "搜索",
+          "连接",
+          "公共原素材",
+          "视频文案",
+          "选中当前命中"
+        ],
+        "visible_labels": [
+          "素材库",
+          "搜索",
+          "连接",
+          "公共原素材",
+          "视频文案",
+          "选中当前命中"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='material-locator']",
+          "client_width": 998,
+          "scroll_width": 998,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "cut-tasks",
+        "url": "http://127.0.0.1:5177/#cut-tasks",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "剪切任务",
+          "本机剪切流水线"
+        ],
+        "visible_labels": [
+          "剪切任务",
+          "本机剪切流水线"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='cut-tasks']",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "local-library",
+        "url": "http://127.0.0.1:5177/#local-library",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "本地素材库",
+          "本地可复剪素材"
+        ],
+        "visible_labels": [
+          "本地素材库",
+          "本地可复剪素材"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='local-library']",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "public-library",
+        "url": "http://127.0.0.1:5177/#public-library",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "公共素材库",
+          "可用原素材"
+        ],
+        "visible_labels": [
+          "公共素材库",
+          "可用原素材"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='public-library']",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      },
+      {
+        "app": "cutter",
+        "route": "settings",
+        "url": "http://127.0.0.1:5177/#settings",
+        "viewport_label": "compact",
+        "viewport_width": 1024,
+        "viewport_height": 768,
+        "required_labels": [
+          "运行环境",
+          "设置",
+          "公共素材库"
+        ],
+        "visible_labels": [
+          "运行环境",
+          "设置",
+          "公共素材库"
+        ],
+        "disabled_write_action_labels": [],
+        "body": {
+          "selector": "body",
+          "client_width": 1024,
+          "scroll_width": 1024,
+          "horizontal_overflow": false
+        },
+        "page": {
+          "selector": "[data-page='settings']",
+          "client_width": 958,
+          "scroll_width": 958,
+          "horizontal_overflow": false
+        }
+      }
+    ]
+  },
+  "material_locator": {
+    "url": "http://127.0.0.1:5177/#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+    "query": "现金流",
+    "default_selected_material_section": "⌄ 公共原素材（102）",
+    "candidate_count": 102,
+    "search_status_text": "素材库 已发布 3210 条 搜索 素材更新中 结果 已返回 连接 已连接",
+    "search_index_version": "",
+    "transcript_header": "视频文案 当前 06:58 · 定位 1 / 425 · 本片命中 3 处 · 已选 2 句 · 文案 2,513字 上一个 下一个 选中当前命中 极速剪切 精准剪切",
+    "current_hit_time_ms": "418803",
+    "current_hit_time_ms_value": 418803,
+    "current_hit_segment_id": "V000303-S000071",
+    "global_hit_position": 1,
+    "global_hit_count": 425,
+    "current_video_hit_count": 3,
+    "selected_sentence_count": 2,
+    "full_transcript_char_count": 2513
+  },
+  "material_locator_closed_loop": {
+    "selection_method": "transcript-drag",
+    "selected_text": "当然第二个就强制储蓄，第三个是潜在的养老金准备，第四个是现金流的转换。 保险可以转换现金流吗？",
+    "selection_proof_text": "来源 公共原素材 时间段 06:58 - 07:06 字数 47 字 命中 1/425",
+    "selected_text_char_count": 47,
+    "selected_sentence_count": 2,
+    "selected_text_segment_count": 2,
+    "selected_text_is_broader_than_query": true,
+    "cut_notice": "剪切完成 · 本地素材已更新 1",
+    "local_library_contains_selection": true,
+    "local_library_page_url": "http://127.0.0.1:5177/#local-library",
+    "local_library_view_mode": "all",
+    "local_library_visible_clip_count": 101,
+    "local_library_visible_count_label": "101 条当前视图素材",
+    "local_library_clip_title": "1-6月4日-ljf20241111_7994",
+    "local_library_source_title": "ljf20241111_7994",
+    "local_library_clip_title_visible": true,
+    "local_library_source_title_visible": true,
+    "local_library_selected_text_visible": true,
+    "first_result_section": "⌄ 公共原素材（109）",
+    "second_result_section": "",
+    "local_clip_id": "E000101",
+    "local_clip_media_file_path": "/Users/huaqihang/Movies/MixLabLocal/export-clips/E000101/001-6月4日-ljf20241111_7994.mp4",
+    "local_clip_manifest_file_path": "/Users/huaqihang/Movies/MixLabLocal/export-clips/E000101/export-clip.json",
+    "local_clip_media_file_exists": true,
+    "local_clip_media_file_size_bytes": 50876992,
+    "local_clip_manifest_file_exists": true,
+    "local_clip_manifest_file_size_bytes": 2189,
+    "cut_job_id": "CJ20260604-0061",
+    "cut_job_status": "done",
+    "cut_job_export_clip_id": "E000101",
+    "cut_job_output_file": "export-clips/E000101/001-6月4日-ljf20241111_7994.mp4",
+    "cut_job_contains_selection": true,
+    "cut_tasks_page_contains_selection": true,
+    "cut_tasks_page_contains_output": true,
+    "cut_tasks_page_shows_done": true,
+    "cut_tasks_page_url": "http://127.0.0.1:5177/#cut-tasks",
+    "cut_tasks_page_visible_status_label": "已完成",
+    "cut_tasks_page_visible_output_file": "export-clips/E000101/001-6月4日-ljf20241111_7994.mp4",
+    "cut_tasks_page_source_title": "ljf20241111_7994",
+    "cut_tasks_page_source_title_visible": true,
+    "cut_tasks_page_time_range_label": "06:58 - 07:06",
+    "cut_tasks_page_time_range_visible": true,
+    "public_library_root": "/Volumes/MixLab/PublicLibrary",
+    "local_output_is_outside_public_library": true,
+    "public_library_write_detected": false
+  }
+}

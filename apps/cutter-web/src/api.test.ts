@@ -143,6 +143,43 @@ test("loads source library, source detail, and search through cutter API", async
   assert.equal(clips.clips[0]?.local_clip_id, "LC000001");
 });
 
+test("source search client can request the next cursor batch", async () => {
+  let requestedUrl = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async (url) => {
+      requestedUrl = String(url);
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          query: "现金流",
+          normalized_query: "现金流",
+          cursor: "sqlite:10",
+          next_cursor: "",
+          has_more: false,
+          returned_count: 0,
+          limit: 10,
+          index_version: "v000027",
+          search_ms: 3,
+          search_mode: "sqlite-index",
+          groups: []
+        }
+      });
+    }
+  });
+
+  const result = await client.searchSourceLibrary("现金流", 10, { cursor: "sqlite:10" });
+
+  assert.equal(
+    requestedUrl,
+    "http://127.0.0.1:3789/cutter/source-search?query=%E7%8E%B0%E9%87%91%E6%B5%81&limit=10&cursor=sqlite%3A10"
+  );
+  assert.equal(result.cursor, "sqlite:10");
+  assert.equal(result.index_version, "v000027");
+  assert.equal(result.search_ms, 3);
+  assert.equal(result.search_mode, "sqlite-index");
+});
+
 test("workbench data resolves Cutter API media URLs before rendering", async () => {
   let searchRequestCount = 0;
   const client = {
@@ -253,8 +290,8 @@ test("workbench data resolves Cutter API media URLs before rendering", async () 
 
   assert.equal(data.library.videos[0]?.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
   assert.equal(data.library.videos[0]?.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
-  assert.equal(data.primaryDetail.cover_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/cover");
-  assert.equal(data.primaryDetail.media_url, "http://127.0.0.1:3789/cutter/source-videos/V000001/media");
+  assert.equal(data.primaryDetail.cover_url, "http://127.0.0.1:3789/fixture-media/cashflow-cover.png");
+  assert.equal(data.primaryDetail.media_url, "http://127.0.0.1:3789/fixture-media/cashflow.mp4");
   assert.deepEqual(data.search, { query: "", normalized_query: "", groups: [] });
   assert.equal(searchRequestCount, 0);
   assert.equal(data.localClips.clips[0]?.media_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001/media");
@@ -269,11 +306,31 @@ test("fixture search does not reuse the default cashflow results for blank or un
     normalized_query: "",
     groups: []
   });
-  assert.deepEqual(await client.searchSourceLibrary("素材定位", 20), {
-    query: "素材定位",
-    normalized_query: "素材定位",
-    groups: []
-  });
+  const unmatched = await client.searchSourceLibrary("素材定位", 20);
+  assert.equal(unmatched.query, "素材定位");
+  assert.equal(unmatched.normalized_query, "素材定位");
+  assert.deepEqual(unmatched.groups, []);
+  assert.equal(unmatched.has_more, false);
+  assert.equal(unmatched.next_cursor, "");
+  assert.equal(unmatched.search_mode, "sqlite-index");
+
+  const firstPage = await client.searchSourceLibrary("现金流", 1);
+  assert.equal(firstPage.groups.length, 1);
+  assert.equal(firstPage.has_more, true);
+  assert.equal(firstPage.next_cursor, "sqlite:1");
+  const nextPage = await client.searchSourceLibrary("现金流", 1, { cursor: "sqlite:1" });
+  assert.equal(nextPage.cursor, "sqlite:1");
+  assert.notEqual(nextPage.groups[0]?.source_video_id, firstPage.groups[0]?.source_video_id);
+  const legacyCursorPage = await client.searchSourceLibrary("现金流", 1, { cursor: "1" });
+  assert.equal(legacyCursorPage.cursor, "sqlite:1");
+  await assert.rejects(
+    () => client.searchSourceLibrary("现金流", 1, { cursor: "searchd:1" }),
+    /invalid_search_cursor/
+  );
+  await assert.rejects(
+    () => client.searchSourceLibrary("现金流", 1, { cursor: "sqlite:bad" }),
+    /invalid_search_cursor/
+  );
 });
 
 test("runtime search results resolve media URLs before rendering", () => {
@@ -325,6 +382,35 @@ test("runtime local clip refresh resolves media URLs before rendering", () => {
 
   assert.equal(clip.media_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001/media");
   assert.equal(clip.detail_url, "http://127.0.0.1:3789/cutter/local-clips/LC000001");
+});
+
+test("fixture local clip creation preserves precise transcript selections", async () => {
+  const client = createFixtureCutterApiClient();
+  const clip = await client.createLocalClip({
+    source_video_id: "src-001",
+    start_segment_id: "s-064",
+    end_segment_id: "s-064",
+    begin_ms: 737_000,
+    end_ms: 740_000,
+    selected_text: "现金流",
+    pre_roll_ms: 200,
+    post_roll_ms: 300,
+    cut_mode: "copy"
+  });
+
+  assert.equal(clip.local_clip_id, "clip-src-001-s-064-s-064");
+  assert.equal(clip.begin_ms, 736_800);
+  assert.equal(clip.end_ms, 740_300);
+  assert.equal(clip.duration_ms, 3_500);
+  assert.equal(clip.selected_text, "现金流");
+  assert.deepEqual(
+    clip.transcript_segments?.map((segment) => [
+      segment.begin_ms,
+      segment.end_ms,
+      segment.text
+    ]),
+    [[200, 3_200, "现金流"]]
+  );
 });
 
 test("workbench data loads preferred source video detail when route carries an id", async () => {
@@ -492,6 +578,9 @@ test("creates local clips through cutter API", async () => {
         source_video_id: "V000001",
         start_segment_id: "V000001-S000001",
         end_segment_id: "V000001-S000002",
+        begin_ms: 1250,
+        end_ms: 2200,
+        selected_text: "现金流",
         pre_roll_ms: 250,
         post_roll_ms: 400,
         cut_mode: "copy"
@@ -518,6 +607,9 @@ test("creates local clips through cutter API", async () => {
     source_video_id: "V000001",
     start_segment_id: "V000001-S000001",
     end_segment_id: "V000001-S000002",
+    begin_ms: 1250,
+    end_ms: 2200,
+    selected_text: "现金流",
     pre_roll_ms: 250,
     post_roll_ms: 400
   });
@@ -849,6 +941,17 @@ test("supports cutter login requests and backend-shaped login status", async () 
         body: init?.body ? JSON.parse(String(init.body)) : undefined
       });
 
+      if (String(url).endsWith("/cutter/auth/mode")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            auth_mode: "local_trusted",
+            local_trusted: true,
+            trusted_username: "本机剪辑师"
+          }
+        });
+      }
+
       if (String(url).endsWith("/cutter/auth/request-login")) {
         return makeJsonResponse(
           {
@@ -924,6 +1027,7 @@ test("supports cutter login requests and backend-shaped login status", async () 
     }
   });
 
+  const mode = await client.getAuthMode();
   const application = await client.requestLogin({
     username: "小王",
     device_id: "device-001",
@@ -931,6 +1035,11 @@ test("supports cutter login requests and backend-shaped login status", async () 
   });
   const status = await client.getLoginStatus();
 
+  assert.deepEqual(mode, {
+    auth_mode: "local_trusted",
+    local_trusted: true,
+    trusted_username: "本机剪辑师"
+  });
   assert.equal(application.user.status, "approved");
   assert.equal(application.user.user_id, "CU000001");
   assert.equal(application.user.devices[0]?.device_id, "device-001");
@@ -940,17 +1049,19 @@ test("supports cutter login requests and backend-shaped login status", async () 
   assert.equal(status.user?.devices[0]?.device_id, "device-001");
   assert.equal("recordUsageEvent" in client, false);
   assert.deepEqual(requests.map((request) => [request.url, request.method]), [
+    ["http://127.0.0.1:3789/cutter/auth/mode", undefined],
     ["http://127.0.0.1:3789/cutter/auth/request-login", "POST"],
     ["http://127.0.0.1:3789/cutter/auth/status", undefined]
   ]);
-  assert.deepEqual(requests[0]?.body, {
+  assert.deepEqual(requests[1]?.body, {
     username: "小王",
     device_id: "device-001",
     device_name: "MacBook Pro"
   });
   assert.equal(requests[0]?.headers.get("x-mixlab-device-id"), null);
-  assert.equal(requests[1]?.headers.get("x-mixlab-device-id"), "device-001");
-  assert.equal(requests[1]?.headers.get("x-mixlab-session-token"), "session-001");
+  assert.equal(requests[1]?.headers.get("x-mixlab-device-id"), null);
+  assert.equal(requests[2]?.headers.get("x-mixlab-device-id"), "device-001");
+  assert.equal(requests[2]?.headers.get("x-mixlab-session-token"), "session-001");
 });
 
 test("attaches cutter auth headers to protected data and control requests", async () => {

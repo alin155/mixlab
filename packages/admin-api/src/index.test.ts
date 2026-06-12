@@ -1,19 +1,37 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
-import { appendUsageEvent, createCutterLoginApplication } from "../../library-fs/src/index.ts";
+import {
+  appendPreprocessJobLog,
+  appendUsageEvent,
+  createCutterLoginApplication
+} from "../../library-fs/src/index.ts";
 import { runLibraryTextPreprocessWorker } from "../../preprocess-core/src/index.ts";
 import type { SourceVideoManifest } from "../../protocol/src/index.ts";
+import { writeSourceTranscriptSqliteIndex } from "../../search-sqlite/src/index.ts";
 import * as adminApiModule from "./index.ts";
 import { createAdminApiServer, runAdminPreprocessPipeline } from "./index.ts";
 import type { PreprocessSupervisorRunner } from "./preprocess-supervisor.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "mixlab-admin-api-"));
+}
+
+async function fileOrDirExists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 async function withServer(
@@ -195,7 +213,39 @@ test("initializes, scans, and reports a public library dashboard", async () => {
   await writeFile(path.join(libraryRoot, "source-videos", "cashflow.mp4"), "video");
 
   await withServer(libraryRoot, async (baseUrl) => {
-    assert.equal((await postJson(baseUrl, "/api/admin/library/init")).ok, true);
+    const initialized = await postJson(baseUrl, "/api/admin/library/init");
+    assert.equal(initialized.ok, true);
+    assert.equal(initialized.data.library_id, "lib_main_001");
+    assert.equal(initialized.data.name, "测试素材库");
+    assert.equal(initialized.data.version, "1.0");
+    assert.equal(initialized.data.video_count, 0);
+    assert.equal(await fileOrDirExists(libraryRoot), true);
+    assert.equal(await fileOrDirExists(path.join(libraryRoot, "source-videos")), true);
+    assert.equal(await fileOrDirExists(path.join(libraryRoot, ".mixlab-library", "videos")), true);
+    assert.equal(
+      await fileOrDirExists(path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index")),
+      true
+    );
+    const libraryManifest = JSON.parse(
+      await readFile(path.join(libraryRoot, ".mixlab-library", "library.json"), "utf8")
+    ) as any;
+    assert.equal(libraryManifest.library_id, "lib_main_001");
+    assert.equal(libraryManifest.name, "测试素材库");
+
+    const settings = await getJson(baseUrl, "/api/admin/settings/config");
+    assert.equal(settings.data.source_folders[0].path, path.join(libraryRoot, "source-videos"));
+
+    const checksAfterInit = await getJson(baseUrl, "/api/admin/library/path-checks");
+    assert.deepEqual(
+      checksAfterInit.data.map((item: { label: string; status: string }) => [item.label, item.status]),
+      [
+        ["公共素材库", "pass"],
+        ["素材来源：默认素材来源", "pass"],
+        [".mixlab-library", "pass"],
+        ["library.json", "pass"]
+      ]
+    );
+
     const scan = await postJson(baseUrl, "/api/admin/library/scan");
     assert.equal(scan.data.new_video_count, 1);
 
@@ -210,6 +260,9 @@ test("initializes, scans, and reports a public library dashboard", async () => {
     assert.equal(videos.data[0].preprocess_status, "unprocessed");
     assert.equal(videos.data[0].visible_to_cutters, false);
 
+    const checksAfterScan = await getJson(baseUrl, "/api/admin/library/path-checks");
+    assert.equal(checksAfterScan.data.every((item: { status: string }) => item.status === "pass"), true);
+
     const metrics = await getJson(baseUrl, "/api/admin/dashboard/metrics");
     assert.equal(metrics.ok, true);
     assert.equal(typeof metrics.data.runtime_load.cpu.usage_percent, "number");
@@ -219,6 +272,263 @@ test("initializes, scans, and reports a public library dashboard", async () => {
     assert.equal(typeof metrics.data.runtime_load.network.active_interface_count, "number");
     assert.equal(metrics.data.runtime_load.service.heartbeat_at, "2026-05-02T12:00:00.000Z");
     assert.ok(["healthy", "attention", "blocked"].includes(metrics.data.runtime_load.overall_status));
+  });
+});
+
+test("exports doctor report JSON through the admin API", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await mkdir(path.join(libraryRoot, "source-videos"), { recursive: true });
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const exported = await postJson(baseUrl, "/api/admin/doctor/export");
+
+    assert.equal(exported.ok, true);
+    assert.equal(exported.data.file_name, "mixlab-doctor-2026-05-02T12-00-00.000Z.json");
+    assert.equal(
+      exported.data.relative_path,
+      `.mixlab-library/exports/doctor/${exported.data.file_name}`
+    );
+    assert.equal(await fileOrDirExists(exported.data.file_path), true);
+    assert.equal(exported.data.report.generated_at, "2026-05-02T12:00:00.000Z");
+
+    const exportedJson = await readFile(exported.data.file_path, "utf8");
+    assert.equal(exportedJson.includes("sk-test-secret"), false);
+    assert.deepEqual(JSON.parse(exportedJson), exported.data.report);
+  });
+});
+
+test("source video list filters query and status before paginating", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000001",
+    title: "普通经营课",
+    relative_path: "普通经营课.mp4",
+    preprocess_status: "ready"
+  }));
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000002",
+    title: "现金流未处理",
+    relative_path: "现金流未处理.mp4",
+    preprocess_status: "unprocessed",
+    visible_to_cutters: false
+  }));
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000003",
+    title: "现金流管理课",
+    relative_path: "经营课/现金流管理课.mp4",
+    preprocess_status: "ready",
+    tags: ["财务"]
+  }));
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const firstPage = await getJson(baseUrl, "/api/admin/source-videos?limit=1");
+    const filtered = await getJson(baseUrl, "/api/admin/source-videos?query=%E7%8E%B0%E9%87%91%E6%B5%81&status=ready&limit=1");
+    const secondFilteredPage = await getJson(baseUrl, "/api/admin/source-videos?query=%E7%8E%B0%E9%87%91%E6%B5%81&status=ready&offset=1&limit=1");
+
+    assert.equal(firstPage.data[0].source_video_id, "V000001");
+    assert.equal(filtered.data.length, 1);
+    assert.equal(filtered.data[0].source_video_id, "V000003");
+    assert.equal(secondFilteredPage.data.length, 0);
+  });
+});
+
+test("source video query can return ready rows from the current transcript index without manifests", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const indexRoot = path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index");
+  const indexVersion = "v000001";
+  await mkdir(path.join(indexRoot, indexVersion), { recursive: true });
+  await writeFile(
+    path.join(indexRoot, "current.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      current_version: indexVersion,
+      updated_at: "2026-05-02T10:00:05.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: path.join(indexRoot, indexVersion, "index.sqlite"),
+    library_id: "lib_main_001",
+    index_version: indexVersion,
+    created_at: "2026-05-02T10:00:05.000Z",
+    videos: [
+      {
+        source_video_id: "V000108",
+        title: "C0327",
+        duration_ms: 2_012_000,
+        relative_path: "王牧笛/2024年素材/3.2广州-交付课/C0327.MP4",
+        cover_path: ".mixlab-library/videos/V000108/cover.jpg",
+        segments: []
+      }
+    ]
+  });
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const filtered = await getJson(baseUrl, "/api/admin/source-videos?query=C0327&limit=100");
+
+    assert.equal(filtered.ok, true);
+    assert.equal(filtered.data.length, 1);
+    assert.equal(filtered.data[0].source_video_id, "V000108");
+    assert.equal(filtered.data[0].title, "C0327");
+    assert.equal(filtered.data[0].preprocess_status, "ready");
+    assert.equal(filtered.data[0].file_size, 0);
+  });
+});
+
+test("source video ready status can page from the current transcript index without manifests", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const indexRoot = path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index");
+  const indexVersion = "v000001";
+  await mkdir(path.join(indexRoot, indexVersion), { recursive: true });
+  await writeFile(
+    path.join(indexRoot, "current.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      current_version: indexVersion,
+      updated_at: "2026-05-02T10:00:05.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: path.join(indexRoot, indexVersion, "index.sqlite"),
+    library_id: "lib_main_001",
+    index_version: indexVersion,
+    created_at: "2026-05-02T10:00:05.000Z",
+    videos: [
+      {
+        source_video_id: "V000001",
+        title: "已发布素材一",
+        duration_ms: 120_000,
+        relative_path: "ready-1.mp4",
+        cover_path: ".mixlab-library/videos/V000001/cover.jpg",
+        segments: []
+      },
+      {
+        source_video_id: "V000002",
+        title: "已发布素材二",
+        duration_ms: 180_000,
+        relative_path: "ready-2.mp4",
+        cover_path: ".mixlab-library/videos/V000002/cover.jpg",
+        segments: []
+      }
+    ]
+  });
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const firstReady = await getJson(baseUrl, "/api/admin/source-videos?status=ready&limit=1");
+    const secondReady = await getJson(baseUrl, "/api/admin/source-videos?status=ready&offset=1&limit=1");
+
+    assert.equal(firstReady.ok, true);
+    assert.equal(firstReady.data[0].source_video_id, "V000001");
+    assert.equal(firstReady.data[0].preprocess_status, "ready");
+    assert.equal(secondReady.data[0].source_video_id, "V000002");
+  });
+});
+
+test("source video non-ready filters skip indexed ready ids before reading manifests", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const indexRoot = path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index");
+  const indexVersion = "v000001";
+  await mkdir(path.join(indexRoot, indexVersion), { recursive: true });
+  await mkdir(path.join(libraryRoot, ".mixlab-library", "videos", "V000001"), { recursive: true });
+  await mkdir(path.join(libraryRoot, ".mixlab-library", "videos", "V000002"), { recursive: true });
+  await writeFile(
+    path.join(indexRoot, "current.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      current_version: indexVersion,
+      updated_at: "2026-05-02T10:00:05.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: path.join(indexRoot, indexVersion, "index.sqlite"),
+    library_id: "lib_main_001",
+    index_version: indexVersion,
+    created_at: "2026-05-02T10:00:05.000Z",
+    videos: [
+      {
+        source_video_id: "V000001",
+        title: "已发布素材一",
+        duration_ms: 120_000,
+        relative_path: "ready-1.mp4",
+        cover_path: ".mixlab-library/videos/V000001/cover.jpg",
+        segments: []
+      },
+      {
+        source_video_id: "V000002",
+        title: "已发布素材二",
+        duration_ms: 180_000,
+        relative_path: "ready-2.mp4",
+        cover_path: ".mixlab-library/videos/V000002/cover.jpg",
+        segments: []
+      }
+    ]
+  });
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000003",
+    title: "等待预处理素材",
+    relative_path: "queued-video.mp4",
+    preprocess_status: "queued",
+    visible_to_cutters: false
+  }));
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const queued = await getJson(baseUrl, "/api/admin/source-videos?status=queued&limit=1");
+
+    assert.equal(queued.ok, true);
+    assert.equal(queued.data.length, 1);
+    assert.equal(queued.data[0].source_video_id, "V000003");
+    assert.equal(queued.data[0].preprocess_status, "queued");
+  });
+});
+
+test("source video query fills ready index results with matching non-ready manifests", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const indexRoot = path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index");
+  const indexVersion = "v000001";
+  await mkdir(path.join(indexRoot, indexVersion), { recursive: true });
+  await mkdir(path.join(libraryRoot, ".mixlab-library", "videos", "V000001"), { recursive: true });
+  await writeFile(
+    path.join(indexRoot, "current.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      current_version: indexVersion,
+      updated_at: "2026-05-02T10:00:05.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: path.join(indexRoot, indexVersion, "index.sqlite"),
+    library_id: "lib_main_001",
+    index_version: indexVersion,
+    created_at: "2026-05-02T10:00:05.000Z",
+    videos: [
+      {
+        source_video_id: "V000001",
+        title: "已发布素材",
+        duration_ms: 120_000,
+        relative_path: "ready-video.mp4",
+        cover_path: ".mixlab-library/videos/V000001/cover.jpg",
+        segments: []
+      }
+    ]
+  });
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000002",
+    title: "C0326",
+    relative_path: "queued/C0326.MP4",
+    preprocess_status: "queued",
+    visible_to_cutters: false
+  }));
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const filtered = await getJson(baseUrl, "/api/admin/source-videos?query=C0326&limit=10");
+
+    assert.equal(filtered.ok, true);
+    assert.equal(filtered.data.length, 1);
+    assert.equal(filtered.data[0].source_video_id, "V000002");
+    assert.equal(filtered.data[0].preprocess_status, "queued");
   });
 });
 
@@ -424,6 +734,13 @@ test("preprocess jobs expose observable production estimates in Chinese", async 
     stage_updated_at: "2026-05-02T11:58:00.000Z",
     error_stage: "asr"
   });
+  await appendPreprocessJobLog({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    now: "2026-05-02T11:58:00.000Z",
+    stage: "upload-audio",
+    message: "stage changed to upload-audio"
+  });
   await writeJob("V000002", {
     worker_id: "admin-worker-test",
     status: "queued",
@@ -460,7 +777,17 @@ test("preprocess jobs expose observable production estimates in Chinese", async 
     assert.equal(running.elapsed_ms, 300_000);
     assert.equal(running.estimated_remaining_ms, 300_000);
     assert.equal(running.estimated_done_at, "2026-05-02T12:05:00.000Z");
+    assert.equal(running.log_path, ".mixlab-library/logs/V000001.log");
+    assert.equal(running.log_url, "/api/admin/preprocess/jobs/J000001/log");
     assert.ok(running.progress >= 35);
+
+    const log = await getJson(baseUrl, running.log_url);
+    assert.equal(log.ok, true);
+    assert.equal(log.data.job_id, "J000001");
+    assert.equal(log.data.source_video_id, "V000001");
+    assert.equal(log.data.exists, true);
+    assert.equal(log.data.path, ".mixlab-library/logs/V000001.log");
+    assert.match(log.data.content, /upload-audio\tstage changed to upload-audio/);
 
     const queued = response.data.jobs.find((job: any) => job.source_video_id === "V000002");
     assert.equal(queued.status_label, "等待处理");
@@ -468,6 +795,132 @@ test("preprocess jobs expose observable production estimates in Chinese", async 
     assert.equal(queued.queue_position, 1);
     assert.equal(queued.estimated_start_at, "2026-05-02T12:05:00.000Z");
     assert.equal(queued.estimated_done_at, "2026-05-02T12:15:00.000Z");
+  });
+});
+
+test("preprocess job log endpoint falls back to a real task record snapshot", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000001",
+    title: "历史预处理任务",
+    preprocess_status: "processing",
+    visible_to_cutters: false
+  }));
+  await writeFile(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "preprocess-job.json"),
+    `${JSON.stringify({
+      source_video_id: "V000001",
+      worker_id: "worker-a",
+      status: "processing",
+      attempt: 1,
+      claimed_at: "2026-05-02T11:55:00.000Z",
+      current_stage: "asr",
+      stage_updated_at: "2026-05-02T11:58:00.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const log = await getJson(baseUrl, "/api/admin/preprocess/jobs/J000001/log");
+
+    assert.equal(log.ok, true);
+    assert.equal(log.data.job_id, "J000001");
+    assert.equal(log.data.source_video_id, "V000001");
+    assert.equal(log.data.exists, false);
+    assert.equal(log.data.record_source, "preprocess-job");
+    assert.equal(log.data.path, ".mixlab-library/logs/V000001.log");
+    assert.match(log.data.content, /MixLab preprocess task record snapshot/);
+    assert.match(log.data.content, /title: 历史预处理任务/);
+    assert.match(log.data.content, /manifest_status: processing/);
+    assert.match(log.data.content, /current_stage: asr/);
+  });
+});
+
+test("preprocess jobs eventually include processing videos outside the requested manifest page", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  for (let index = 1; index <= 8; index += 1) {
+    const sourceVideoId = `V${String(index).padStart(6, "0")}`;
+    await writeManifest(libraryRoot, sourceVideoManifest({
+      source_video_id: sourceVideoId,
+      title: sourceVideoId === "V000008" ? "分页外停滞任务" : `普通视频 ${index}`,
+      preprocess_status: sourceVideoId === "V000008" ? "processing" : "queued",
+      visible_to_cutters: false
+    }));
+  }
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const first = await getJson(baseUrl, "/api/admin/preprocess/jobs?limit=5");
+    assert.equal(first.ok, true);
+
+    let running: any | undefined;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const response = await getJson(baseUrl, "/api/admin/preprocess/jobs?limit=5");
+      running = response.data.jobs.find((job: any) => job.source_video_id === "V000008");
+      if (running) {
+        break;
+      }
+    }
+
+    assert.ok(running);
+    assert.equal(running.title, "分页外停滞任务");
+    assert.equal(running.status, "running");
+    assert.equal(running.status_label, "正在处理");
+  });
+});
+
+test("preprocess jobs warm far processing rows in the background without blocking the first page", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  for (let index = 1; index <= 150; index += 1) {
+    const sourceVideoId = `V${String(index).padStart(6, "0")}`;
+    await writeManifest(libraryRoot, sourceVideoManifest({
+      source_video_id: sourceVideoId,
+      title: sourceVideoId === "V000150" ? "远端停滞任务" : `普通视频 ${index}`,
+      preprocess_status: sourceVideoId === "V000150" ? "processing" : "queued",
+      visible_to_cutters: false
+    }));
+  }
+  await mkdir(path.join(libraryRoot, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    path.join(libraryRoot, ".mixlab-library", "library.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      name: "测试素材库",
+      version: "1.0",
+      created_at: "2026-05-02T12:00:00.000Z",
+      updated_at: "2026-05-02T12:00:00.000Z",
+      video_count: 150,
+      ready_video_count: 0,
+      processing_video_count: 1,
+      queued_video_count: 149,
+      unprocessed_video_count: 0,
+      failed_video_count: 0,
+      index_required_video_count: 0
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const first = await getJson(baseUrl, "/api/admin/preprocess/jobs?limit=5");
+    assert.equal(first.ok, true);
+    assert.equal(first.data.active_count, 1);
+
+    let warmed: any | undefined;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const response = await getJson(baseUrl, "/api/admin/preprocess/jobs?limit=5");
+      warmed = response.data.jobs.find((job: any) => job.source_video_id === "V000150");
+      if (warmed) {
+        break;
+      }
+    }
+
+    assert.ok(warmed);
+    assert.equal(warmed.title, "远端停滞任务");
+    assert.equal(warmed.status, "running");
   });
 });
 
@@ -689,6 +1142,20 @@ test("queues unprocessed videos and lets admin edit public source metadata", asy
     });
     assert.equal(metadata.data.title, "现金流管理");
     assert.deepEqual(metadata.data.tags, ["现金流", "财务"]);
+    assert.equal(metadata.data.description, "剪辑端卡片说明");
+    assert.equal(metadata.data.lecturer, "李老师");
+    assert.equal(metadata.data.course, "经营课");
+    assert.equal(metadata.data.category, "财务");
+
+    const renamed = await patchJson(baseUrl, "/api/admin/source-videos/V000001/metadata", {
+      title: "现金流管理新版"
+    });
+    assert.equal(renamed.data.title, "现金流管理新版");
+    assert.deepEqual(renamed.data.tags, ["现金流", "财务"]);
+    assert.equal(renamed.data.description, "剪辑端卡片说明");
+    assert.equal(renamed.data.lecturer, "李老师");
+    assert.equal(renamed.data.course, "经营课");
+    assert.equal(renamed.data.category, "财务");
 
     const manifest = JSON.parse(
       await readFile(
@@ -697,8 +1164,24 @@ test("queues unprocessed videos and lets admin edit public source metadata", asy
       )
     );
     assert.equal(manifest.preprocess_status, "queued");
-    assert.equal(manifest.title, "现金流管理");
+    assert.equal(manifest.title, "现金流管理新版");
+    assert.deepEqual(manifest.tags, ["现金流", "财务"]);
+    assert.equal(manifest.description, "剪辑端卡片说明");
+    assert.equal(manifest.lecturer, "李老师");
+    assert.equal(manifest.course, "经营课");
+    assert.equal(manifest.category, "财务");
     assert.equal(manifest.visible_to_cutters, false);
+
+    const list = await getJson(baseUrl, "/api/admin/source-videos?limit=1");
+    assert.equal(list.data[0].title, "现金流管理新版");
+    assert.deepEqual(list.data[0].tags, ["现金流", "财务"]);
+    assert.equal(list.data[0].description, "剪辑端卡片说明");
+
+    const detail = await getJson(baseUrl, "/api/admin/source-videos/V000001");
+    assert.equal(detail.data.source_video.title, "现金流管理新版");
+    assert.equal(detail.data.source_video.lecturer, "李老师");
+    assert.equal(detail.data.source_video.course, "经营课");
+    assert.equal(detail.data.source_video.category, "财务");
   });
 });
 
@@ -716,6 +1199,18 @@ test("queues and retries a single source video without mutating unrelated rows",
     preprocess_status: "failed",
     visible_to_cutters: false
   }));
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000003",
+    title: "停滞视频",
+    preprocess_status: "processing",
+    visible_to_cutters: false
+  }));
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000004",
+    title: "另一个停滞视频",
+    preprocess_status: "processing",
+    visible_to_cutters: false
+  }));
 
   await withServer(libraryRoot, async (baseUrl) => {
     const queued = await postJson(baseUrl, "/api/admin/source-videos/V000001/queue");
@@ -728,10 +1223,33 @@ test("queues and retries a single source video without mutating unrelated rows",
     assert.deepEqual(retry.data.source_video_ids, ["V000002"]);
     assert.equal(retry.data.affected_count, 1);
 
+    const recoveredSingle = await postJson(baseUrl, "/api/admin/source-videos/V000003/recover-processing");
+    assert.equal(recoveredSingle.ok, true);
+    assert.deepEqual(recoveredSingle.data.source_video_ids, ["V000003"]);
+    assert.equal(recoveredSingle.data.affected_count, 1);
+
+    const recoveredBulk = await postJson(baseUrl, "/api/admin/preprocess/recover-processing");
+    assert.equal(recoveredBulk.ok, true);
+    assert.deepEqual(recoveredBulk.data.source_video_ids, ["V000004"]);
+    assert.equal(recoveredBulk.data.affected_count, 1);
+
     const first = await getJson(baseUrl, "/api/admin/source-videos/V000001");
     const second = await getJson(baseUrl, "/api/admin/source-videos/V000002");
+    const third = await getJson(baseUrl, "/api/admin/source-videos/V000003");
+    const fourth = await getJson(baseUrl, "/api/admin/source-videos/V000004");
     assert.equal(first.data.preprocess.status, "queued");
     assert.equal(second.data.preprocess.status, "queued");
+    assert.equal(third.data.preprocess.status, "queued");
+    assert.equal(fourth.data.preprocess.status, "queued");
+
+    const firstLog = await getJson(baseUrl, "/api/admin/preprocess/jobs/J000001/log");
+    const secondLog = await getJson(baseUrl, "/api/admin/preprocess/jobs/J000002/log");
+    const thirdLog = await getJson(baseUrl, "/api/admin/preprocess/jobs/J000003/log");
+    const fourthLog = await getJson(baseUrl, "/api/admin/preprocess/jobs/J000004/log");
+    assert.match(firstLog.data.content, /queued-by-admin\tunprocessed -> queued/);
+    assert.match(secondLog.data.content, /retry-by-admin\tfailed -> queued/);
+    assert.match(thirdLog.data.content, /recover-processing-by-admin\tprocessing -> queued/);
+    assert.match(fourthLog.data.content, /recover-processing-by-admin\tprocessing -> queued/);
   });
 });
 
@@ -766,6 +1284,13 @@ test("admin index publish prepares missing cover and keyframes before publishing
       assert.equal(detail.data.visibility.visible_to_cutters, true);
       assert.equal(detail.data.artifacts.cover.exists, true);
       assert.equal(detail.data.artifacts.keyframes.exists, true);
+
+      const versions = await getJson(baseUrl, "/api/admin/index/versions");
+      assert.equal(versions.data.current_version, published.data.index_version);
+      assert.equal(versions.data.current_validation_status, "pass");
+      assert.match(versions.data.current_validation_message, /current\.json 指向 v000001/);
+      assert.equal(versions.data.versions[0].validation_status, "pass");
+      assert.equal(versions.data.versions[0].validation_message, "索引包校验通过");
     },
     undefined,
     {
@@ -775,6 +1300,123 @@ test("admin index publish prepares missing cover and keyframes before publishing
       }
     }
   );
+});
+
+test("admin index versions expose current pointer and package validation details", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const indexRoot = path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index");
+
+  await mkdir(path.join(indexRoot, "v000001"), { recursive: true });
+  await writeFile(
+    path.join(indexRoot, "v000001", "index-manifest.json"),
+    `${JSON.stringify({
+      index_version: "v000001",
+      library_id: "lib_main_001",
+      created_at: "2026-05-02T10:00:00.000Z",
+      ready_video_count: 2,
+      source_video_ids: ["V000001"],
+      schema_version: ""
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  await mkdir(path.join(indexRoot, "v000002"), { recursive: true });
+  await writeFile(
+    path.join(indexRoot, "v000002", "index-manifest.json"),
+    `${JSON.stringify({
+      index_version: "v000002",
+      library_id: "lib_main_001",
+      created_at: "2026-05-02T10:05:00.000Z",
+      ready_video_count: 0,
+      source_video_ids: [],
+      schema_version: "1.0"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await writeSourceTranscriptSqliteIndex({
+    index_file_path: path.join(indexRoot, "v000002", "index.sqlite"),
+    library_id: "lib_main_001",
+    index_version: "v000002",
+    created_at: "2026-05-02T10:05:00.000Z",
+    videos: []
+  });
+
+  await writeFile(
+    path.join(indexRoot, "current.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      current_version: "v000003",
+      updated_at: "2026-05-02T10:06:00.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const response = await getJson(baseUrl, "/api/admin/index/versions");
+
+    assert.equal(response.ok, true);
+    assert.equal(response.data.current_version, "v000003");
+    assert.equal(response.data.current_validation_status, "fail");
+    assert.match(response.data.current_validation_message, /current\.json 指向不存在的索引版本/);
+
+    const broken = response.data.versions.find((version: any) => version.index_version === "v000001");
+    assert.equal(broken.validation_status, "fail");
+    assert.match(broken.validation_message, /ready_video_count 与 source_video_ids 数量不一致/);
+    assert.match(broken.validation_message, /schema_version 缺失/);
+    assert.match(broken.validation_message, /index\.sqlite 不存在/);
+
+    const valid = response.data.versions.find((version: any) => version.index_version === "v000002");
+    assert.equal(valid.validation_status, "pass");
+    assert.equal(valid.validation_message, "索引包校验通过");
+    assert.equal(valid.ready_video_count, 0);
+  });
+});
+
+test("admin index versions default to recent packages while keeping current visible", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const indexRoot = path.join(libraryRoot, ".mixlab-library", "indexes", "source-transcript-index");
+
+  for (let index = 1; index <= 85; index += 1) {
+    const indexVersion = `v${String(index).padStart(6, "0")}`;
+    await mkdir(path.join(indexRoot, indexVersion), { recursive: true });
+    await writeFile(
+      path.join(indexRoot, indexVersion, "index-manifest.json"),
+      `${JSON.stringify({
+        index_version: indexVersion,
+        library_id: "lib_main_001",
+        created_at: "2026-05-02T10:00:00.000Z",
+        ready_video_count: 0,
+        source_video_ids: [],
+        schema_version: "1.0"
+      }, null, 2)}\n`,
+      "utf8"
+    );
+  }
+  await writeFile(
+    path.join(indexRoot, "current.json"),
+    `${JSON.stringify({
+      library_id: "lib_main_001",
+      current_version: "v000001",
+      updated_at: "2026-05-02T10:06:00.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const response = await getJson(baseUrl, "/api/admin/index/versions");
+
+    assert.equal(response.ok, true);
+    assert.equal(response.data.total_count, 85);
+    assert.equal(response.data.limit, 80);
+    assert.equal(response.data.has_more, true);
+    assert.equal(response.data.versions.length, 81);
+    assert(response.data.versions.some((version: any) => version.index_version === "v000085"));
+    assert(response.data.versions.some((version: any) => version.index_version === "v000001"));
+    assert.equal(
+      response.data.versions.find((version: any) => version.index_version === "v000001").is_current,
+      true
+    );
+  });
 });
 
 test("returns admin settings config with the default source folder", async () => {
@@ -865,6 +1507,74 @@ test("persists speech recognition key through settings API without echoing the s
     const after = await postJson(baseUrl, "/api/admin/settings/test-asr");
     assert.equal(after.data.passed, true);
     assert.equal(JSON.stringify(after).includes("sk-live-secret"), false);
+  });
+});
+
+test("runtime settings reflect saved ASR audio mode and latest ASR failure", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  for (const manifest of [
+    sourceVideoManifest({
+      source_video_id: "V000001",
+      title: "较早 ASR 失败",
+      preprocess_status: "failed",
+      visible_to_cutters: false
+    }),
+    sourceVideoManifest({
+      source_video_id: "V000002",
+      title: "最新 ASR 失败",
+      preprocess_status: "failed",
+      visible_to_cutters: false
+    }),
+    sourceVideoManifest({
+      source_video_id: "V000003",
+      title: "非 ASR 失败",
+      preprocess_status: "failed",
+      visible_to_cutters: false
+    })
+  ]) {
+    await writeManifest(libraryRoot, manifest);
+  }
+
+  const writeJob = async (sourceVideoId: string, job: Record<string, unknown>) => {
+    await mkdir(path.join(libraryRoot, ".mixlab-library", "videos", sourceVideoId), { recursive: true });
+    await writeFile(
+      path.join(libraryRoot, ".mixlab-library", "videos", sourceVideoId, "preprocess-job.json"),
+      `${JSON.stringify({ source_video_id: sourceVideoId, attempt: 1, status: "failed", ...job }, null, 2)}\n`,
+      "utf8"
+    );
+  };
+  await writeJob("V000001", {
+    failed_at: "2026-05-02T10:00:00.000Z",
+    error_stage: "asr",
+    error_message: "DashScope ASR 排队超时"
+  });
+  await writeJob("V000002", {
+    failed_at: "2026-05-02T11:00:00.000Z",
+    error_stage: "asr",
+    error_message: "DashScope ASR 网络超时"
+  });
+  await writeJob("V000003", {
+    failed_at: "2026-05-02T12:00:00.000Z",
+    error_stage: "ffmpeg",
+    error_message: "FFmpeg 失败"
+  });
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const current = await getJson(baseUrl, "/api/admin/settings/config");
+    const saved = await patchJson(baseUrl, "/api/admin/settings/config", {
+      library_name: current.data.library_name,
+      source_folders: current.data.source_folders,
+      runtime_policy: {
+        ...current.data.runtime_policy,
+        audio_mode: "wav_16k_mono_pcm_s16le"
+      }
+    });
+    assert.equal(saved.ok, true);
+
+    const runtime = await getJson(baseUrl, "/api/admin/settings/runtime");
+    assert.equal(runtime.data.asr.audio_mode, "wav_16k_mono_pcm_s16le");
+    assert.equal(runtime.data.asr.last_failure_reason, "V000002 DashScope ASR 网络超时");
   });
 });
 
@@ -1065,7 +1775,21 @@ test("returns expanded dashboard transcript production and usage metrics", async
     event_type: "search",
     occurred_at: "2026-05-02T11:00:00.000Z",
     query: "现金流",
+    search_mode: "searchd",
+    search_elapsed_ms: 37,
     result_status: "success"
+  });
+  await appendUsageEvent(libraryRoot, {
+    user_id: "CU000001",
+    username: "zhangsan",
+    device_id: "device-a",
+    event_type: "search",
+    occurred_at: "2026-05-02T11:00:05.000Z",
+    query: "现金流",
+    search_mode: "searchd",
+    search_page_type: "cursor",
+    search_elapsed_ms: 120,
+    result_status: "failure"
   });
   await appendUsageEvent(libraryRoot, {
     user_id: "CU000001",
@@ -1095,7 +1819,12 @@ test("returns expanded dashboard transcript production and usage metrics", async
     assert.equal(metrics.data.transcript.current_index_version, "v000001");
     assert.equal(metrics.data.production.completed_today_count, 1);
     assert.equal(metrics.data.production.average_video_process_ms, 5000);
+    assert.equal(metrics.data.usage.search_request_count, 1);
     assert.equal(metrics.data.usage.search_hit_count, 1);
+    assert.equal(metrics.data.usage.search_failure_count, 1);
+    assert.equal(metrics.data.usage.search_latency_p95_ms, 37);
+    assert.equal(metrics.data.usage.searchd_search_count, 1);
+    assert.equal(metrics.data.usage.fallback_search_count, 0);
     assert.equal(metrics.data.usage.add_to_cut_list_count, 1);
     assert.equal(metrics.data.usage.reuse_local_clip_count, 1);
   });
@@ -1228,5 +1957,69 @@ test("admin cover endpoint resolves relative and library cover paths", async () 
     assert.equal(Buffer.compare(Buffer.from(await relative.arrayBuffer()), relativeCoverBytes), 0);
     assert.equal(library.status, 200);
     assert.equal(Buffer.compare(Buffer.from(await library.arrayBuffer()), libraryCoverBytes), 0);
+  });
+});
+
+test("admin can replace a source video cover and serve its real image type", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const pngCoverBytes = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+    "base64"
+  );
+
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000001",
+    cover_path: ".mixlab-library/videos/V000001/cover.jpg"
+  }));
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const updated = await patchJson(baseUrl, "/api/admin/source-videos/V000001/cover", {
+      image_base64: pngCoverBytes.toString("base64"),
+      content_type: "image/png",
+      file_name: "cashflow.png"
+    });
+
+    assert.equal(updated.ok, true);
+    assert.equal(updated.data.cover_url, "/api/admin/source-videos/V000001/cover");
+
+    const manifest = JSON.parse(
+      await readFile(
+        path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"),
+        "utf8"
+      )
+    );
+    assert.equal(manifest.cover_path, ".mixlab-library/videos/V000001/cover.png");
+    assert.equal(
+      Buffer.compare(
+        await readFile(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "cover.png")),
+        pngCoverBytes
+      ),
+      0
+    );
+
+    const cover = await fetch(`${baseUrl}/api/admin/source-videos/V000001/cover`);
+    assert.equal(cover.status, 200);
+    assert.equal(cover.headers.get("content-type"), "image/png");
+    assert.equal(Buffer.compare(Buffer.from(await cover.arrayBuffer()), pngCoverBytes), 0);
+  });
+});
+
+test("admin rejects cover uploads with mismatched image content", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeManifest(libraryRoot, sourceVideoManifest({
+    source_video_id: "V000001",
+    cover_path: ".mixlab-library/videos/V000001/cover.jpg"
+  }));
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const rejected = await patchJson(baseUrl, "/api/admin/source-videos/V000001/cover", {
+      image_base64: Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString("base64"),
+      content_type: "image/png"
+    });
+
+    assert.equal(rejected.ok, false);
+    assert.equal(rejected.error_code, "invalid_request");
+    assert.match(rejected.message, /内容与类型不匹配/);
   });
 });

@@ -190,6 +190,8 @@ const workerId =
 const audioMode = parsePreprocessAudioMode();
 const fileIdentityMode = parseFileIdentityMode();
 const limit = parsePositiveIntegerEnv("MIXLAB_PREPROCESS_WORKER_LIMIT");
+const countRefreshInterval =
+  parsePositiveIntegerEnv("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL") ?? 25;
 const maxPollAttempts = parsePositiveIntegerEnvWithDefault("MIXLAB_ASR_MAX_POLL_ATTEMPTS", 60);
 const pollIntervalMs = parsePositiveIntegerEnvWithDefault("MIXLAB_ASR_POLL_INTERVAL_MS", 3000);
 const asrModel = optionalTrimmed(process.env.MIXLAB_ASR_MODEL) ?? "paraformer-v2";
@@ -208,6 +210,7 @@ console.log(
       library_name: libraryName,
       worker_id: workerId,
       limit: limit ?? null,
+      count_refresh_interval: countRefreshInterval,
       audio_mode: audioMode.id,
       file_identity_mode: fileIdentityMode,
       asr_model: asrModel,
@@ -225,6 +228,7 @@ const result = await runLibraryTextPreprocessWorker({
   library_name: libraryName,
   worker_id: workerId,
   ...(limit ? { limit } : {}),
+  count_refresh_interval: countRefreshInterval,
   audio_mode: audioMode.id,
   async probe_source_video(input) {
     const plan = buildFfprobeSourceMetadataPlan({

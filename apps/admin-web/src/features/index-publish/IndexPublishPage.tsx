@@ -4,7 +4,7 @@ import {
   SourceTable
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
-import { validationStatusLabel } from "../../app/chinese.ts";
+import { indexValidationMessageLabel, validationStatusLabel } from "../../app/chinese.ts";
 import { AdminControlButton, AdminPageHeader, IndexTable, MetricBand } from "../shared.tsx";
 
 export function IndexPublishPage({
@@ -19,6 +19,7 @@ export function IndexPublishPage({
   onRunDoctor?: () => void;
 }) {
   const current = data.indexes.versions.find((version) => version.is_current);
+  const currentValidationMessage = indexValidationMessageLabel(data.indexes.current_validation_message);
   const indexRequiredVideos = data.source_videos.filter(
     (video) => video.preprocess_status === "index-required"
   );
@@ -38,8 +39,8 @@ export function IndexPublishPage({
           ]}
         />
         <section className="admin-action-row">
-          <AdminControlButton label="发布待索引视频" state="m9b-api" reason="M9B 接入索引修复接口。" variant="primary" onClick={onRepairIndex} />
-          <AdminControlButton label="校验索引" state="m9b-api" reason="M9B 接入健康诊断和索引校验。" onClick={onRunDoctor} />
+          <AdminControlButton label="发布到剪辑端" state="m9b-api" reason="发布完成预处理但尚未进入搜索索引的视频。" variant="primary" onClick={onRepairIndex} />
+          <AdminControlButton label="校验索引" state="m9b-api" reason="运行系统检查并校验当前索引。" onClick={onRunDoctor} />
         </section>
         <section className="admin-list-section">
           <header className="admin-section-header">
@@ -55,9 +56,9 @@ export function IndexPublishPage({
                 "待发布索引",
                 video.visible_to_cutters ? "已可见" : "未可见",
                 <AdminControlButton
-                  label="发布此视频"
+                  label="发布到剪辑端"
                   state="m9b-api"
-                  reason="只发布这一条待索引视频，发布前会补齐封面和关键帧。"
+                  reason="发布当前待索引视频，发布前会补齐封面和关键帧。"
                   onClick={() => onPublishSourceVideo?.(video.source_video_id)}
                   key={`${video.source_video_id}-publish`}
                 />
@@ -76,9 +77,11 @@ export function IndexPublishPage({
               title: current?.index_version ?? "current",
               rows: [
                 { label: "当前索引", value: data.indexes.current_version },
+                { label: "当前索引状态", value: currentValidationMessage },
                 { label: "已可用数量", value: current?.ready_video_count ?? 0 },
                 { label: "协议版本", value: current?.schema_version ?? "-" },
                 { label: "校验", value: current ? validationStatusLabel(current.validation_status) : "需处理" },
+                { label: "校验说明", value: current ? indexValidationMessageLabel(current.validation_message) : currentValidationMessage },
                 { label: "发布人", value: current?.published_by ?? "-" }
               ]
             }

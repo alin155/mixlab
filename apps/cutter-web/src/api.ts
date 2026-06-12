@@ -79,6 +79,14 @@ export interface SearchResponse {
   query: string;
   normalized_query: string;
   groups: SearchGroup[];
+  cursor?: string;
+  next_cursor?: string;
+  has_more?: boolean;
+  returned_count?: number;
+  limit?: number;
+  index_version?: string;
+  search_ms?: number;
+  search_mode?: "sqlite-index" | "transcript-artifact-fallback" | "searchd";
 }
 
 export interface LocalClip {
@@ -113,6 +121,9 @@ export interface CreateLocalClipRequest {
   source_video_id: string;
   start_segment_id: string;
   end_segment_id: string;
+  begin_ms?: number;
+  end_ms?: number;
+  selected_text?: string;
   pre_roll_ms?: number;
   post_roll_ms?: number;
   cut_mode?: "copy" | "smart" | "precise";
@@ -288,6 +299,14 @@ export interface CutterLoginApplication {
   session?: CutterSessionRecord;
 }
 
+export type CutterAuthMode = "reviewed" | "local_trusted";
+
+export interface CutterAuthModeStatus {
+  auth_mode: CutterAuthMode;
+  local_trusted: boolean;
+  trusted_username: string;
+}
+
 export type CutterLoginStatus =
   | {
       ok: true;
@@ -313,15 +332,29 @@ export interface CutterRuntimeStatus {
   generated_at: string;
   library_id: string;
   library_root_label: string;
+  library_root_path?: string;
   available_video_count: number;
   workspace_enabled: boolean;
   workspace_root_label: string;
+  workspace_root_path?: string;
   local_clip_count: number;
   ffmpeg_status: "可用" | "不可用";
   ffmpeg_source: "内置" | "环境配置" | "未检测到";
   local_runtime?: {
     cpu_usage_percent?: number;
     disk_io_bytes_per_second?: number;
+  };
+  search_backend?: {
+    mode: "searchd" | "sqlite-index" | "transcript-artifact-fallback";
+    preferred_mode: "searchd" | "sqlite-index" | "transcript-artifact-fallback";
+    label: string;
+    healthy: boolean;
+    degraded: boolean;
+    index_version: string;
+    source_video_count: number;
+    segment_count: number;
+    response_ms?: number;
+    message: string;
   };
   current_user: {
     user_id: string;
@@ -355,11 +388,12 @@ export class CutterApiError extends Error {
 
 export interface CutterApiClient {
   requestLogin(input: CutterLoginRequest): Promise<CutterLoginApplication>;
+  getAuthMode(): Promise<CutterAuthModeStatus>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(): Promise<CutterRuntimeStatus>;
-  listSourceLibrary(): Promise<SourceLibraryResponse>;
+  listSourceLibrary(options?: { limit?: number; offset?: number }): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
-  searchSourceLibrary(query: string, limit?: number): Promise<SearchResponse>;
+  searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string }): Promise<SearchResponse>;
   listLocalClips(): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
   createLocalClip(request: CreateLocalClipRequest): Promise<LocalClip>;
@@ -445,6 +479,13 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    getAuthMode() {
+      return requestEnvelope<CutterAuthModeStatus>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/mode")
+      );
+    },
+
     getLoginStatus() {
       return requestEnvelope<CutterLoginStatus>(
         fetchImpl,
@@ -465,10 +506,18 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    listSourceLibrary() {
+    listSourceLibrary(options) {
+      const params = new URLSearchParams();
+      if (options?.limit) {
+        params.set("limit", String(options.limit));
+      }
+      if (options?.offset) {
+        params.set("offset", String(options.offset));
+      }
+      const query = params.toString();
       return requestEnvelope<SourceLibraryResponse>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/source-library"),
+        appendPath(input.base_url, `/cutter/source-library${query ? `?${query}` : ""}`),
         {
           headers: protectedHeaders
         }
@@ -485,11 +534,14 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    searchSourceLibrary(query: string, limit = 20) {
+    searchSourceLibrary(query: string, limit = 20, options = {}) {
       const params = new URLSearchParams({
         query,
         limit: String(limit)
       });
+      if (options.cursor) {
+        params.set("cursor", options.cursor);
+      }
       return requestEnvelope<SearchResponse>(
         fetchImpl,
         appendPath(input.base_url, `/cutter/source-search?${params.toString()}`),
@@ -530,6 +582,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
             source_video_id: request.source_video_id,
             start_segment_id: request.start_segment_id,
             end_segment_id: request.end_segment_id,
+            ...(typeof request.begin_ms === "number" ? { begin_ms: request.begin_ms } : {}),
+            ...(typeof request.end_ms === "number" ? { end_ms: request.end_ms } : {}),
+            ...(request.selected_text ? { selected_text: request.selected_text } : {}),
             pre_roll_ms: request.pre_roll_ms ?? 0,
             post_roll_ms: request.post_roll_ms ?? 0,
             cut_mode: request.cut_mode ?? "copy",

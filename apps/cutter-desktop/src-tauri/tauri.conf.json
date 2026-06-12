@@ -30,9 +30,9 @@
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
     "publisher": "MixLab",
     "category": "Productivity",
-    "externalBin": ["binaries/cutter-api-sidecar"],
     "resources": [
       "binaries/cutter-api-sidecar-x86_64-pc-windows-msvc.exe",
+      "binaries/mixlab-searchd-x86_64-pc-windows-msvc.exe",
       "binaries/ffmpeg.exe",
       "binaries/ffprobe.exe",
       "resources/default-desktop-config.json"

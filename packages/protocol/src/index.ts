@@ -3,6 +3,8 @@ export type {
   IndexPackageManifest,
   LibraryCounts,
   LibraryCountValidationResult,
+  ClipListItem,
+  ClipListManifest,
   CutMode,
   ExportClipManifest,
   LocalClipManifest,
@@ -18,6 +20,7 @@ export type {
 export { PREPROCESS_STATUSES } from "./types.ts";
 export {
   isVideoVisibleToCutters,
+  validateClipListManifest,
   validateExportClipManifest,
   validateLibraryCounts,
   validateLocalClipManifest,

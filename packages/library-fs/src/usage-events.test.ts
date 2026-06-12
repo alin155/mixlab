@@ -49,6 +49,8 @@ test("aggregates search, selection, cut success, active users, and per-user coun
     baseEvent({
       event_type: "search",
       query: " 现金流 ",
+      search_mode: "searchd",
+      search_elapsed_ms: 23,
       result_status: "success"
     })
   );
@@ -82,6 +84,23 @@ test("aggregates search, selection, cut success, active users, and per-user coun
 
   assert.equal(metrics.search_request_count, 1);
   assert.equal(metrics.search_hit_count, 1);
+  assert.equal(metrics.search_failure_count, 0);
+  assert.equal(metrics.search_latency_p50_ms, 23);
+  assert.equal(metrics.search_latency_p95_ms, 23);
+  assert.equal(metrics.search_latency_max_ms, 23);
+  assert.equal(metrics.searchd_search_count, 1);
+  assert.equal(metrics.sqlite_index_search_count, 0);
+  assert.equal(metrics.fallback_search_count, 0);
+  assert.equal(metrics.search_backend_unknown_count, 0);
+  assert.equal(metrics.core_search_request_count, 1);
+  assert.equal(metrics.core_search_failure_count, 0);
+  assert.equal(metrics.core_search_latency_p50_ms, 23);
+  assert.equal(metrics.core_search_latency_p95_ms, 23);
+  assert.equal(metrics.core_search_latency_max_ms, 23);
+  assert.equal(metrics.core_searchd_search_count, 1);
+  assert.equal(metrics.core_sqlite_index_search_count, 0);
+  assert.equal(metrics.core_fallback_search_count, 0);
+  assert.equal(metrics.core_search_backend_unknown_count, 0);
   assert.equal(metrics.transcript_selection_count, 1);
   assert.equal(metrics.cut_submission_count, 1);
   assert.equal(metrics.cut_success_count, 1);
@@ -93,6 +112,7 @@ test("aggregates search, selection, cut success, active users, and per-user coun
       user_id: "CU000001",
       username: "小王",
       search_request_count: 1,
+      search_failure_count: 0,
       add_to_cut_list_count: 0,
       transcript_selection_count: 1,
       cut_submission_count: 1,
@@ -104,6 +124,154 @@ test("aggregates search, selection, cut success, active users, and per-user coun
   ]);
 });
 
+test("core search metrics use a recent first-page window", async () => {
+  const root = await makeRoot();
+
+  await Promise.all(
+    Array.from({ length: 25 }, (_, index) =>
+      appendUsageEvent(
+        root,
+        baseEvent({
+          event_type: "search",
+          user_id: `CU${String(index).padStart(6, "0")}`,
+          username: `用户${index}`,
+          device_id: `device-${index}`,
+          occurred_at: `2026-05-03T10:${String(index).padStart(2, "0")}:00.000Z`,
+          query: "现金流",
+          search_mode: index < 5 ? "transcript-artifact-fallback" : "searchd",
+          search_elapsed_ms: index < 5 ? 7_000 : 20 + index,
+          result_status: "success"
+        })
+      )
+    )
+  );
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      occurred_at: "2026-05-03T10:30:00.000Z",
+      query: "现金流",
+      search_mode: "searchd",
+      search_page_type: "cursor",
+      search_elapsed_ms: 9_000,
+      result_status: "success"
+    })
+  );
+
+  const metrics = await readUsageMetrics(root);
+
+  assert.equal(metrics.search_request_count, 25);
+  assert.equal(metrics.search_latency_p95_ms, 7000);
+  assert.equal(metrics.fallback_search_count, 5);
+  assert.equal(metrics.core_search_request_count, 20);
+  assert.equal(metrics.core_search_latency_p95_ms, 43);
+  assert.equal(metrics.core_searchd_search_count, 20);
+  assert.equal(metrics.core_fallback_search_count, 0);
+});
+
+test("cursor search pages do not inflate user search funnel metrics", async () => {
+  const root = await makeRoot();
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      search_mode: "searchd",
+      search_page_type: "first",
+      search_elapsed_ms: 12,
+      result_status: "success"
+    })
+  );
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      search_mode: "searchd",
+      search_page_type: "cursor",
+      search_elapsed_ms: 80,
+      result_status: "success",
+      occurred_at: "2026-05-03T10:01:00.000Z"
+    })
+  );
+
+  const metrics = await readUsageMetrics(root);
+
+  assert.equal(metrics.search_request_count, 1);
+  assert.equal(metrics.search_hit_count, 1);
+  assert.equal(metrics.search_empty_count, 0);
+  assert.equal(metrics.search_failure_count, 0);
+  assert.equal(metrics.search_latency_p50_ms, 12);
+  assert.equal(metrics.search_latency_p95_ms, 12);
+  assert.equal(metrics.search_latency_max_ms, 12);
+  assert.equal(metrics.searchd_search_count, 1);
+  assert.equal(metrics.active_user_count, 1);
+  assert.deepEqual(metrics.recent_keywords, ["现金流"]);
+  assert.equal(metrics.users[0]?.search_request_count, 1);
+  assert.equal(metrics.users[0]?.last_used_at, "2026-05-03T10:01:00.000Z");
+});
+
+test("failed cursor searches are observable without inflating first-page funnel metrics", async () => {
+  const root = await makeRoot();
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      search_mode: "searchd",
+      search_page_type: "cursor",
+      search_elapsed_ms: 120,
+      result_status: "failure",
+      occurred_at: "2026-05-03T10:01:00.000Z"
+    })
+  );
+
+  const metrics = await readUsageMetrics(root);
+
+  assert.equal(metrics.search_request_count, 0);
+  assert.equal(metrics.search_hit_count, 0);
+  assert.equal(metrics.search_empty_count, 0);
+  assert.equal(metrics.search_failure_count, 1);
+  assert.equal(metrics.search_latency_p50_ms, 0);
+  assert.equal(metrics.searchd_search_count, 0);
+  assert.equal(metrics.active_user_count, 1);
+  assert.deepEqual(metrics.recent_keywords, []);
+  assert.equal(metrics.users[0]?.search_request_count, 0);
+  assert.equal(metrics.users[0]?.search_failure_count, 1);
+  assert.equal(metrics.users[0]?.last_used_at, "2026-05-03T10:01:00.000Z");
+});
+
+test("recent keywords keep append order when search timestamps are equal", async () => {
+  const root = await makeRoot();
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      search_mode: "transcript-artifact-fallback",
+      result_status: "success",
+      occurred_at: "2026-05-03T10:00:00.000Z"
+    })
+  );
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "组织效率",
+      search_mode: "transcript-artifact-fallback",
+      result_status: "empty",
+      occurred_at: "2026-05-03T10:00:00.000Z"
+    })
+  );
+
+  const metrics = await readUsageMetrics(root);
+
+  assert.deepEqual(metrics.recent_keywords, ["组织效率", "现金流"]);
+});
+
 test("missing usage event store returns zero metrics and empty arrays", async () => {
   const metrics = await readUsageMetrics(await makeRoot());
 
@@ -111,6 +279,23 @@ test("missing usage event store returns zero metrics and empty arrays", async ()
     search_request_count: 0,
     search_hit_count: 0,
     search_empty_count: 0,
+    search_failure_count: 0,
+    search_latency_p50_ms: 0,
+    search_latency_p95_ms: 0,
+    search_latency_max_ms: 0,
+    searchd_search_count: 0,
+    sqlite_index_search_count: 0,
+    fallback_search_count: 0,
+    search_backend_unknown_count: 0,
+    core_search_request_count: 0,
+    core_search_failure_count: 0,
+    core_search_latency_p50_ms: 0,
+    core_search_latency_p95_ms: 0,
+    core_search_latency_max_ms: 0,
+    core_searchd_search_count: 0,
+    core_sqlite_index_search_count: 0,
+    core_fallback_search_count: 0,
+    core_search_backend_unknown_count: 0,
     source_detail_view_count: 0,
     transcript_selection_count: 0,
     add_to_cut_list_count: 0,
@@ -205,7 +390,40 @@ test("invalid usage event input throws Chinese validation error", async () => {
         root,
         baseEvent({
           event_type: "search",
+          search_elapsed_ms: 1.5
+        })
+      ),
+    /使用事件数据无效/
+  );
+  await assert.rejects(
+    () =>
+      appendUsageEvent(
+        root,
+        baseEvent({
+          event_type: "search",
           result_status: "unknown" as "success"
+        })
+      ),
+    /使用事件数据无效/
+  );
+  await assert.rejects(
+    () =>
+      appendUsageEvent(
+        root,
+        baseEvent({
+          event_type: "search",
+          search_mode: "unknown" as "searchd"
+        })
+      ),
+    /使用事件数据无效/
+  );
+  await assert.rejects(
+    () =>
+      appendUsageEvent(
+        root,
+        baseEvent({
+          event_type: "search",
+          search_page_type: "middle" as "first"
         })
       ),
     /使用事件数据无效/
@@ -226,6 +444,12 @@ test("concurrent appends preserve all events", async () => {
           device_id: `device-${index}`,
           occurred_at: `2026-05-03T10:${String(index).padStart(2, "0")}:00.000Z`,
           query: `关键词${index}`,
+          search_mode: index % 3 === 0
+            ? "searchd"
+            : index % 3 === 1
+              ? "sqlite-index"
+              : "transcript-artifact-fallback",
+          search_elapsed_ms: index + 1,
           result_status: index % 2 === 0 ? "success" : "empty"
         })
       )
@@ -239,6 +463,19 @@ test("concurrent appends preserve all events", async () => {
   assert.equal(metrics.search_request_count, 30);
   assert.equal(metrics.search_hit_count, 15);
   assert.equal(metrics.search_empty_count, 15);
+  assert.equal(metrics.search_failure_count, 0);
+  assert.equal(metrics.search_latency_p50_ms, 15);
+  assert.equal(metrics.search_latency_p95_ms, 29);
+  assert.equal(metrics.search_latency_max_ms, 30);
+  assert.equal(metrics.searchd_search_count, 10);
+  assert.equal(metrics.sqlite_index_search_count, 10);
+  assert.equal(metrics.fallback_search_count, 10);
+  assert.equal(metrics.search_backend_unknown_count, 0);
+  assert.equal(metrics.core_search_request_count, 20);
+  assert.equal(metrics.core_search_latency_p95_ms, 29);
+  assert.equal(metrics.core_searchd_search_count, 6);
+  assert.equal(metrics.core_sqlite_index_search_count, 7);
+  assert.equal(metrics.core_fallback_search_count, 7);
   assert.equal(metrics.active_user_count, 30);
   assert.equal(metrics.recent_keywords.length, 8);
 });
@@ -313,12 +550,14 @@ test("aggregates all event categories and ranks keywords and source videos", asy
   assert.equal(metrics.search_request_count, 3);
   assert.equal(metrics.search_hit_count, 2);
   assert.equal(metrics.search_empty_count, 1);
+  assert.equal(metrics.search_failure_count, 0);
   assert.equal(metrics.source_detail_view_count, 1);
   assert.equal(metrics.add_to_cut_list_count, 1);
   assert.equal(metrics.cut_submission_count, 1);
   assert.equal(metrics.cut_failure_count, 1);
   assert.equal(metrics.local_clip_count, 1);
   assert.equal(metrics.reuse_local_clip_count, 1);
+  assert.equal(metrics.search_backend_unknown_count, 3);
   assert.deepEqual(metrics.recent_keywords, ["现金流", "组织能力"]);
   assert.deepEqual(metrics.most_used_source_video_ids, ["V000002", "V000001"]);
   const firstUser = metrics.users.find((user) => user.user_id === "CU000001");

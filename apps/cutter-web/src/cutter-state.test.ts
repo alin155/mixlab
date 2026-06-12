@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { LocalClipCatalog, SearchResponse, SourceLibraryResponse, SourceVideoCard, TranscriptSegment } from "./api.ts";
+import type { LocalClipCatalog, SearchHitSegment, SearchResponse, SourceLibraryResponse, SourceVideoCard, TranscriptSegment } from "./api.ts";
 import {
   clearCutList,
   createCutListItemFromSegments,
@@ -35,10 +35,13 @@ import {
 } from "./state/cut-pipeline.ts";
 import * as cutListModule from "./state/cut-list.ts";
 import {
+  continuousTranscriptSelection,
   continuousTranscriptSegments,
   nextTranscriptSelectionRange,
   shouldSuppressTranscriptClickAfterMouseUp,
-  transcriptSelectionRangeFromDrag
+  transcriptSelectionRangeFromHitSegments,
+  transcriptSelectionRangeFromDrag,
+  transcriptSelectionRangeFromText
 } from "./state/transcript-selection.ts";
 import {
   previewStartSeconds,
@@ -68,8 +71,10 @@ import {
 } from "./state/appearance.ts";
 import {
   clearCutterCurrentProject,
+  createEmptyProject,
   createProjectFromFirstCut,
   createProjectFromSearch,
+  projectHomeSearchDraft,
   removeCutterProject,
   projectDisplayTitle,
   projectSwitcherLabel,
@@ -202,7 +207,7 @@ test("orientation filters preserve all videos or keep only landscape and portrai
   assert.deepEqual(idsFor("portrait"), ["portrait"]);
 });
 
-test("material locator groups local reusable materials before public source materials", () => {
+test("material locator groups public source materials before local reusable materials", () => {
   const sections = buildMaterialLocatorSections({
     query: "现金流",
     sourceFilter: "all",
@@ -256,12 +261,12 @@ test("material locator groups local reusable materials before public source mate
     }
   });
 
-  assert.deepEqual(sections.map((section) => section.label), ["本地素材", "公共原素材"]);
-  assert.equal(sections[0]?.items[0]?.source, "local");
-  assert.equal(sections[0]?.items[0]?.title, "现金流短片开场");
-  assert.equal(sections[0]?.items[0]?.orientation_label, "竖版");
-  assert.equal(sections[1]?.items[0]?.source, "public");
-  assert.equal(sections[1]?.items[0]?.orientation_label, "横版");
+  assert.deepEqual(sections.map((section) => section.label), ["公共原素材", "本地素材"]);
+  assert.equal(sections[0]?.items[0]?.source, "public");
+  assert.equal(sections[0]?.items[0]?.orientation_label, "横版");
+  assert.equal(sections[1]?.items[0]?.source, "local");
+  assert.equal(sections[1]?.items[0]?.title, "现金流短片开场");
+  assert.equal(sections[1]?.items[0]?.orientation_label, "竖版");
 });
 
 test("material locator searches timestamped local clip transcript segments instead of the whole clip text", () => {
@@ -324,6 +329,54 @@ test("material locator searches timestamped local clip transcript segments inste
     result?.segments.map((segment) => [segment.segment_id, segment.begin_ms, segment.end_ms, segment.text]),
     [["E000001-S000002", 1600, 4200, "不是账面数字。"]]
   );
+});
+
+test("material locator counts repeated local transcript matches instead of matched segments", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "现金流",
+    sourceFilter: "local",
+    orientationFilter: "all",
+    localClips: {
+      local_clip_count: 1,
+      clips: [
+        {
+          local_clip_id: "clip-repeat",
+          title: "复用素材",
+          source_video_id: "src-001",
+          source_title: "现金流管理与风险控制",
+          begin_ms: 0,
+          end_ms: 4000,
+          duration_ms: 4000,
+          selected_text: "现金流看回款，现金流看周转。",
+          media_url: "/local-clips/clip-repeat.mp4",
+          detail_url: "/cutter/local-clips/clip-repeat",
+          transcript_segments: [
+            {
+              segment_id: "clip-repeat-S000001",
+              begin_ms: 0,
+              end_ms: 4000,
+              text: "现金流看回款，现金流看周转。"
+            }
+          ]
+        }
+      ]
+    } as unknown as LocalClipCatalog,
+    library: {
+      available_video_count: 0,
+      videos: []
+    },
+    search: {
+      query: "现金流",
+      normalized_query: "现金流",
+      groups: []
+    }
+  });
+
+  const result = sections[0]?.items[0];
+  assert.equal(result?.hit_count, 2);
+  assert.equal(result?.segments.length, 2);
+  assert.deepEqual(result?.segments.map((segment) => segment.match_id), ["M000001", "M000002"]);
+  assert.deepEqual(result?.segments.map((segment) => segment.match_ranges), [[[0, 3]], [[7, 10]]]);
 });
 
 test("material locator local material search normalizes punctuation and tolerates ASR errors", () => {
@@ -704,6 +757,23 @@ test("completed cut-list items become local clips for reuse search", () => {
   assert.equal(clip.source_title, "现金流管理与风险控制");
   assert.equal(clip.selected_text?.includes("现金流"), true);
   assert.equal(clip.duration_ms, 11_400);
+  assert.deepEqual(
+    clip.transcript_segments?.map((segment) => [segment.begin_ms, segment.end_ms, segment.text]),
+    [[0, 11_400, cut.selected_text]]
+  );
+
+  const clipWithRoll = localClipFromCutListItem({
+    ...cut,
+    pre_roll_ms: 300,
+    post_roll_ms: 450
+  }, "clip-finished-roll");
+  assert.equal(clipWithRoll.begin_ms, Math.max(0, cut.begin_ms - 300));
+  assert.equal(clipWithRoll.end_ms, cut.end_ms + 450);
+  assert.equal(clipWithRoll.duration_ms, 12_150);
+  assert.deepEqual(
+    clipWithRoll.transcript_segments?.map((segment) => [segment.begin_ms, segment.end_ms, segment.text]),
+    [[300, 11_700, cut.selected_text]]
+  );
 
   const recutClip = localClipFromCutListItem(
     {
@@ -744,8 +814,8 @@ test("completed cut-list items become local clips for reuse search", () => {
     }
   });
 
-  assert.deepEqual(sections.map((section) => section.label), ["本地素材", "公共原素材"]);
-  assert.equal(sections[0]?.items[0]?.id, "clip-finished-001");
+  assert.deepEqual(sections.map((section) => section.label), ["公共原素材", "本地素材"]);
+  assert.equal(sections[1]?.items[0]?.id, "clip-finished-001");
 });
 
 function item(overrides: Partial<CutListItem>): CutListItem {
@@ -761,7 +831,9 @@ function item(overrides: Partial<CutListItem>): CutListItem {
     duration_ms: overrides.duration_ms ?? 2_000,
     selected_text: overrides.selected_text ?? "片段",
     cut_mode: overrides.cut_mode ?? "smart",
-    order: overrides.order ?? 1
+    order: overrides.order ?? 1,
+    pre_roll_ms: overrides.pre_roll_ms ?? 0,
+    post_roll_ms: overrides.post_roll_ms ?? 0
   };
 }
 
@@ -786,6 +858,25 @@ test("continuous transcript range becomes one cut-list item", () => {
     cut.selected_text,
     "现金流不是利润表的影子。 它直接决定企业能不能安全穿过周期。 所以第一步要看回款节奏。"
   );
+});
+
+test("partial transcript text selection becomes one precise cut-list item", () => {
+  const cut = createCutListItemFromSegments({
+    sourceVideo,
+    segments: transcriptSegments.slice(0, 2),
+    startCharOffset: 3,
+    endCharOffset: 7,
+    cutMode: "precise",
+    order: 2
+  });
+
+  assert.equal(cut.start_segment_id, "s-001");
+  assert.equal(cut.end_segment_id, "s-002");
+  assert.equal(cut.begin_ms, 11_300);
+  assert.equal(cut.end_ms, 17_753);
+  assert.equal(cut.duration_ms, 6_453);
+  assert.equal(cut.selected_text, "不是利润表的影子。它直接决定企业");
+  assert.equal(cut.cut_list_item_id, "cut-src-001-s-001-s-002-3-7");
 });
 
 test("cut-list items default to fast copy cutting when no mode is selected", () => {
@@ -831,6 +922,40 @@ test("transcript selection uses clicked range or search-highlight fallback as on
     continuousTranscriptSegments(transcriptSegments).map((segment) => segment.segment_id),
     []
   );
+});
+
+test("native transcript text selections normalize reversed endpoints with character offsets", () => {
+  const reversed = transcriptSelectionRangeFromText("s-003", 5, "s-001", 3);
+  const selection = continuousTranscriptSelection(transcriptSegments, reversed);
+
+  assert.deepEqual(selection.segments.map((segment) => segment.segment_id), ["s-001", "s-002", "s-003"]);
+  assert.equal(selection.startCharOffset, 3);
+  assert.equal(selection.endCharOffset, 5);
+});
+
+test("search hit segments become a sentence-context default transcript selection", () => {
+  const hitSegments: SearchHitSegment[] = [
+    {
+      ...transcriptSegments[1]!,
+      match_id: "hit-natural-1",
+      match_ranges: [[4, 7], [10, 13]]
+    },
+    {
+      ...transcriptSegments[2]!,
+      match_id: "hit-natural-1",
+      match_ranges: [[1, 5]]
+    }
+  ];
+  const selectionRange = transcriptSelectionRangeFromHitSegments(hitSegments);
+  const selection = continuousTranscriptSelection(transcriptSegments, selectionRange);
+
+  assert.deepEqual(selectionRange, {
+    startSegmentId: "s-002",
+    endSegmentId: "s-003"
+  });
+  assert.deepEqual(selection.segments.map((segment) => segment.segment_id), ["s-002", "s-003"]);
+  assert.equal(selection.startCharOffset, undefined);
+  assert.equal(selection.endCharOffset, undefined);
 });
 
 test("dragged transcript endpoints resolve to one continuous selectable range", () => {
@@ -905,6 +1030,9 @@ test("cut-list items submit as local clip requests without public source mutatio
     source_video_id: "src-001",
     start_segment_id: "s-001",
     end_segment_id: "s-002",
+    begin_ms: 10_000,
+    end_ms: 21_400,
+    selected_text: "现金流不是利润表的影子。 它直接决定企业能不能安全穿过周期。",
     pre_roll_ms: 0,
     post_roll_ms: 0,
     cut_mode: "smart",
@@ -1013,7 +1141,7 @@ test("first cut project uses date suffix when the day already has a project", ()
   });
 
   assert.equal(project.title, "5月5日-1");
-  assert.equal(projectSwitcherLabel(null), "临时搜索");
+  assert.equal(projectSwitcherLabel(null), "未选择项目");
   assert.equal(projectSwitcherLabel(project), "当前项目：5月5日-1");
 });
 
@@ -1042,6 +1170,69 @@ test("startup search creates an empty cutter project with the query recorded", (
       searched_at: "2026-05-05T10:00:00.000Z"
     }
   ]);
+});
+
+test("project home search reuses the selected project before creating a new one", () => {
+  const selectedProject = createProjectFromSearch({
+    query: "旧搜索",
+    existingProjects: [],
+    now: "2026-05-05T09:00:00.000Z"
+  });
+  const otherProject = createProjectFromSearch({
+    query: "其他",
+    existingProjects: [selectedProject],
+    now: "2026-05-04T09:00:00.000Z"
+  });
+
+  const reused = projectHomeSearchDraft({
+    query: "  现金流  ",
+    projects: [selectedProject, otherProject],
+    selectedProjectId: selectedProject.project_id,
+    now: "2026-05-05T10:00:00.000Z"
+  });
+
+  assert.equal(reused?.created, false);
+  assert.equal(reused?.project.project_id, selectedProject.project_id);
+  assert.equal(reused?.projects.length, 2);
+  assert.deepEqual(reused?.project.searches[0], {
+    query: "现金流",
+    hit_count: 0,
+    searched_at: "2026-05-05T10:00:00.000Z"
+  });
+
+  const created = projectHomeSearchDraft({
+    query: "新项目",
+    projects: [selectedProject],
+    selectedProjectId: "missing-project",
+    now: "2026-05-06T10:00:00.000Z"
+  });
+
+  assert.equal(created?.created, true);
+  assert.notEqual(created?.project.project_id, selectedProject.project_id);
+  assert.equal(created?.projects.length, 2);
+});
+
+test("empty cutter projects can be created before searching", () => {
+  const existingProject = createProjectFromSearch({
+    query: "旧项目",
+    now: "2026-05-06T09:00:00.000Z"
+  });
+  const manual = createEmptyProject({
+    title: "直播切条",
+    existingProjects: [existingProject],
+    now: "2026-05-06T10:00:00.000Z"
+  });
+  const automatic = createEmptyProject({
+    existingProjects: [existingProject, manual],
+    now: "2026-05-06T11:00:00.000Z"
+  });
+
+  assert.equal(manual.title, "直播切条");
+  assert.equal(manual.title_source, "manual");
+  assert.equal(manual.clip_count, 0);
+  assert.equal(manual.searches.length, 0);
+  assert.equal(automatic.title_source, "auto");
+  assert.match(automatic.title, /5月6日/);
 });
 
 test("cutter projects persist with newest updated project first", () => {
@@ -1182,7 +1373,7 @@ test("recording a cut updates project metrics and keeps the first cover", () => 
 
 test("queue jobs are derived from cut-list items and can change status independently", () => {
   const list = [
-    item({ cut_list_item_id: "cut-a", order: 1, selected_text: "第一段" }),
+    item({ cut_list_item_id: "cut-a", order: 1, selected_text: "第一段", pre_roll_ms: 300, post_roll_ms: 450 }),
     item({ cut_list_item_id: "cut-b", order: 2, selected_text: "第二段", cut_mode: "copy" })
   ];
 
@@ -1200,6 +1391,9 @@ test("queue jobs are derived from cut-list items and can change status independe
   assert.equal(jobs[0]?.title, "1-现金流项目-现金流管理与风险控制");
   assert.equal(jobs[0]?.title.includes("第一段"), false);
   assert.equal(jobs[0]?.title.includes("00:01"), false);
+  assert.equal(jobs[0]?.begin_ms, 700);
+  assert.equal(jobs[0]?.end_ms, 3_450);
+  assert.equal(jobs[0]?.duration_ms, 2_750);
   assert.equal(jobs[1]?.cut_mode, "copy");
 
   const recutJobs = createQueueJobsFromCutList(

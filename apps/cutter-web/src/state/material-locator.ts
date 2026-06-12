@@ -11,6 +11,7 @@ import type {
 } from "../api.ts";
 import {
   normalizeTranscriptSearchQuery,
+  searchTranscripts,
   transcriptTextMatchesQuery
 } from "@mixlab/search-core";
 import {
@@ -20,6 +21,7 @@ import {
   type VideoOrientation,
   type VideoOrientationFilter
 } from "./video-orientation.ts";
+import type { TranscriptSegment as IndexedTranscriptSegment } from "@mixlab/protocol";
 
 export type MaterialSearchSourceFilter = "all" | "local" | "public";
 
@@ -116,6 +118,59 @@ function matchedLocalClipSegments(clip: LocalClip, query: string): SearchHitSegm
   return segments.filter((segment) => transcriptTextMatchesQuery(segment.text, normalizedQuery));
 }
 
+function indexedLocalClipSegments(segments: readonly TranscriptSegment[]): IndexedTranscriptSegment[] {
+  let originalCursor = 0;
+  let normalizedCursor = 0;
+
+  return segments.map((segment, index) => {
+    const originalLength = Array.from(segment.text).length;
+    const normalizedText = normalizedMaterialSearchQuery(segment.text);
+    const normalizedLength = Array.from(normalizedText).length;
+    const indexedSegment: IndexedTranscriptSegment = {
+      segment_id: segment.segment_id,
+      index,
+      begin_ms: segment.begin_ms,
+      end_ms: segment.end_ms,
+      begin_char: originalCursor,
+      end_char: originalCursor + originalLength,
+      normalized_begin_char: normalizedCursor,
+      normalized_end_char: normalizedCursor + normalizedLength,
+      text: segment.text,
+      normalized_text: normalizedText,
+      confidence: 1
+    };
+
+    originalCursor += originalLength;
+    normalizedCursor += normalizedLength;
+
+    return indexedSegment;
+  });
+}
+
+function localClipTranscriptSearchGroup(
+  clip: LocalClip,
+  query: string,
+  segments: readonly TranscriptSegment[],
+  durationMs: number
+): SearchGroup | undefined {
+  const normalizedQuery = normalizedMaterialSearchQuery(query);
+  if (!normalizedQuery || segments.length === 0) {
+    return undefined;
+  }
+
+  return searchTranscripts({
+    videos: [{
+      source_video_id: clip.local_clip_id,
+      title: clip.title,
+      duration_ms: durationMs,
+      segments: indexedLocalClipSegments(segments)
+    }]
+  }, {
+    query,
+    limit: 1
+  }).groups[0];
+}
+
 function compactCharacterCount(text: string): number {
   return text.replace(/\s+/g, "").length;
 }
@@ -185,10 +240,11 @@ function publicResultFromGroup(
 function localResultFromClip(clip: LocalClip, query: string): MaterialLocatorResult {
   const visual = clip as LocalClipVisualMetadata;
   const allSegments = localClipSegments(clip);
-  const matchedSegments = matchedLocalClipSegments(clip, query);
+  const durationMs = clip.duration_ms ?? Math.max(0, ...allSegments.map((segment) => segment.end_ms));
+  const searchGroup = localClipTranscriptSearchGroup(clip, query, allSegments, durationMs);
+  const matchedSegments = searchGroup?.hit_segments ?? matchedLocalClipSegments(clip, query);
   const segments = matchedSegments.length > 0 ? matchedSegments : allSegments;
   const excerpt = segments.map((segment) => segment.text).join(" ");
-  const durationMs = clip.duration_ms ?? Math.max(0, ...allSegments.map((segment) => segment.end_ms));
 
   return {
     id: clip.local_clip_id,
@@ -196,7 +252,7 @@ function localResultFromClip(clip: LocalClip, query: string): MaterialLocatorRes
     title: clip.title,
     source_title: clip.source_title ?? "本地素材",
     duration_ms: durationMs,
-    hit_count: segments.length,
+    hit_count: searchGroup?.hit_count ?? segments.length,
     transcript_character_count: segmentCharacterCount(allSegments),
     excerpt,
     media_url: clip.media_url,
@@ -229,23 +285,6 @@ export function buildMaterialLocatorSections(
   );
   const sections: MaterialLocatorSection[] = [];
 
-  if (input.sourceFilter === "all" || input.sourceFilter === "local") {
-    const localItems = input.localClips.clips
-      .filter(hasUsableLocalTranscript)
-      .filter((clip) => textIncludesQuery(localClipSearchText(clip), input.query))
-      .map((clip) => localResultFromClip(clip, input.query))
-      .filter((item) => item.segments.length > 0)
-      .filter((item) => resultMatchesOrientationFilter(item, input.orientationFilter));
-
-    if (localItems.length > 0) {
-      sections.push({
-        key: "local",
-        label: "本地素材",
-        items: localItems
-      });
-    }
-  }
-
   if (input.sourceFilter === "all" || input.sourceFilter === "public") {
     const normalizedSearchResponseQuery = normalizedMaterialSearchQuery(
       input.search.normalized_query || input.search.query
@@ -261,6 +300,23 @@ export function buildMaterialLocatorSections(
         key: "public",
         label: "公共原素材",
         items: publicItems
+      });
+    }
+  }
+
+  if (input.sourceFilter === "all" || input.sourceFilter === "local") {
+    const localItems = input.localClips.clips
+      .filter(hasUsableLocalTranscript)
+      .filter((clip) => textIncludesQuery(localClipSearchText(clip), input.query))
+      .map((clip) => localResultFromClip(clip, input.query))
+      .filter((item) => item.segments.length > 0)
+      .filter((item) => resultMatchesOrientationFilter(item, input.orientationFilter));
+
+    if (localItems.length > 0) {
+      sections.push({
+        key: "local",
+        label: "本地素材",
+        items: localItems
       });
     }
   }

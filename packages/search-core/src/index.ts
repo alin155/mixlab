@@ -57,6 +57,7 @@ export function normalizeTranscriptSearchQuery(text: string): string {
 interface NormalizedSegmentSpan {
   segment: TranscriptSegment;
   normalized_text: string;
+  normalized_original_offsets: number[];
   start: number;
   end: number;
 }
@@ -93,6 +94,7 @@ function normalizedSegmentSpans(video: TranscriptSearchVideo): {
     return {
       segment,
       normalized_text,
+      normalized_original_offsets: normalizedOriginalOffsets(segment.text),
       start,
       end: cursor
     };
@@ -102,6 +104,41 @@ function normalizedSegmentSpans(video: TranscriptSearchVideo): {
     text: spans.map((span) => span.normalized_text).join(""),
     spans
   };
+}
+
+function normalizedOriginalOffsets(text: string): number[] {
+  const offsets: number[] = [];
+
+  for (const [index, char] of Array.from(text).entries()) {
+    for (const _normalizedChar of Array.from(normalizeTranscriptText(char))) {
+      offsets.push(index);
+    }
+  }
+
+  return offsets;
+}
+
+function textCharacterCount(text: string): number {
+  return Array.from(text).length;
+}
+
+function originalMatchRange(
+  span: NormalizedSegmentSpan,
+  normalizedStart: number,
+  normalizedEndExclusive: number
+): [number, number] | undefined {
+  if (normalizedEndExclusive <= normalizedStart) {
+    return undefined;
+  }
+
+  const textLength = textCharacterCount(span.segment.text);
+  const start = span.normalized_original_offsets[normalizedStart] ?? Math.min(normalizedStart, textLength);
+  const lastMatchedChar =
+    span.normalized_original_offsets[normalizedEndExclusive - 1] ??
+    Math.min(normalizedEndExclusive - 1, Math.max(0, textLength - 1));
+  const end = Math.min(textLength, lastMatchedChar + 1);
+
+  return end > start ? [start, end] : undefined;
 }
 
 function maxErrorsForQueryLength(length: number): number {
@@ -429,17 +466,14 @@ function spansForMatch(
 
     const rangeStart = Math.max(0, match.start - span.start);
     const rangeEndExclusive = Math.min(span.normalized_text.length, match.end - span.start);
-    const match_ranges =
-      rangeEndExclusive > rangeStart
-        ? [[rangeStart, rangeEndExclusive - 1] as [number, number]]
-        : [];
+    const matchRange = originalMatchRange(span, rangeStart, rangeEndExclusive);
 
     return [{
       segment_id: span.segment.segment_id,
       begin_ms: span.segment.begin_ms,
       end_ms: span.segment.end_ms,
       text: span.segment.text,
-      match_ranges,
+      match_ranges: matchRange ? [matchRange] : [],
       match_id: matchId,
       match_type: match.type
     }];

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { TranscriptSegment } from "../../protocol/src/index.ts";
 import { readSourceTranscriptSqliteIndexMetadata } from "../../search-sqlite/src/index.ts";
 import {
@@ -135,6 +136,24 @@ async function prepareLibrary(): Promise<string> {
   return libraryRoot;
 }
 
+async function waitForSearchResult(
+  input: Parameters<typeof searchCutterSourceLibrary>[0],
+  predicate: (result: Awaited<ReturnType<typeof searchCutterSourceLibrary>>) => boolean
+): Promise<Awaited<ReturnType<typeof searchCutterSourceLibrary>>> {
+  let lastResult: Awaited<ReturnType<typeof searchCutterSourceLibrary>> | undefined;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    lastResult = await searchCutterSourceLibrary(input);
+    if (predicate(lastResult)) {
+      return lastResult;
+    }
+
+    await sleep(25);
+  }
+
+  assert.fail(`search result did not refresh: ${JSON.stringify(lastResult)}`);
+}
+
 test("ready publication writes a searchable SQLite index package", async () => {
   const libraryRoot = await prepareLibrary();
 
@@ -183,7 +202,64 @@ test("ready publication writes a searchable SQLite index package", async () => {
     result.groups.map((group) => group.source_video_id),
     ["V000001"]
   );
+  assert.equal(result.search_mode, "sqlite-index");
+  assert.equal(result.index_version, "v000001");
+  assert.equal(result.returned_count, 1);
+  assert.equal(result.has_more, false);
+  assert.equal(result.search_ms >= 0, true);
   assert.equal(result.groups[0]?.hit_segments[0]?.text, "现金流，是企业的血液。");
+});
+
+test("published cutter search returns first-page cards from the SQLite index without manifest artifacts", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await completeVideoToIndexRequired({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    duration_ms: 123_000,
+    full_text: "现金流，是企业的血液。不是账面数字。",
+    segments: [
+      segment({
+        source_video_id: "V000001",
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 3600,
+        text: "现金流，是企业的血液。",
+        normalized_text: "现金流是企业的血液"
+      }),
+      segment({
+        source_video_id: "V000001",
+        index: 1,
+        begin_ms: 3600,
+        end_ms: 6200,
+        text: "不是账面数字。",
+        normalized_text: "不是账面数字"
+      })
+    ]
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:20:00Z"
+  });
+
+  await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"));
+  await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "transcript.json"));
+
+  const result = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流",
+    limit: 20
+  });
+
+  assert.equal(result.search_mode, "sqlite-index");
+  assert.deepEqual(
+    result.groups.map((group) => group.source_video_id),
+    ["V000001"]
+  );
+  assert.equal(result.groups[0]?.relative_path, "01_现金流.mp4");
+  assert.equal(result.groups[0]?.cover_path, ".mixlab-library/videos/V000001/cover.jpg");
+  assert.equal(result.groups[0]?.transcript_character_count, 18);
 });
 
 test("published cutter search finds long text across segments and tolerates ASR errors", async () => {
@@ -239,7 +315,7 @@ test("published cutter search finds long text across segments and tolerates ASR 
   assert.equal(tolerant.groups[0]?.hit_segments[0]?.match_type, "tolerant");
 });
 
-test("cutter search follows current index refresh while hidden videos stay absent", async () => {
+test("cutter search keeps a warm index available while refreshing current index cache", async () => {
   const libraryRoot = await prepareLibrary();
 
   await completeVideoToIndexRequired({
@@ -311,11 +387,23 @@ test("cutter search follows current index refresh while hidden videos stay absen
     }
   );
 
-  const refreshed = await searchCutterSourceLibrary({
+  const firstAfterPublish = await searchCutterSourceLibrary({
     library_root: libraryRoot,
     query: "组织效率",
     limit: 20
   });
+
+  assert.equal(firstAfterPublish.index_version, "v000001");
+  assert.deepEqual(firstAfterPublish.groups, []);
+
+  const refreshed = await waitForSearchResult(
+    {
+      library_root: libraryRoot,
+      query: "组织效率",
+      limit: 20
+    },
+    (result) => result.index_version === "v000002" && result.groups.length === 1
+  );
 
   assert.deepEqual(
     refreshed.groups.map((group) => group.source_video_id),

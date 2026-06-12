@@ -1,4 +1,4 @@
-import { InspectorPanel, SegmentedControl } from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, type SourceVideoDetail, type TranscriptSegment } from "../../api.ts";
 
 function selectedText(segments: readonly TranscriptSegment[]): string {
@@ -24,6 +24,8 @@ export function SourceDetailPage({
     firstSelected && lastSelected
       ? `${formatDuration(firstSelected.begin_ms)} - ${formatDuration(lastSelected.end_ms)}`
       : "未选择";
+  const selectionTitle = selectedSegments.length > 0 ? `${detail.title} 片段` : "未选择片段";
+  const canAddSelection = selectedSegments.length > 0 && Boolean(onAddToCutList);
   const videoSource = detail.media_url.startsWith("/fixture-media/") ? undefined : detail.media_url;
 
   return (
@@ -35,7 +37,6 @@ export function SourceDetailPage({
             <h1>原视频与完整文案</h1>
             <p>{detail.title}</p>
           </div>
-          <SegmentedControl options={["播放器", "完整文案", "关键帧"]} active="完整文案" />
         </header>
 
         <section className="cutter-video-panel">
@@ -84,13 +85,18 @@ export function SourceDetailPage({
       <InspectorPanel
         title="连续选择"
         action={
-          <button className="cutter-primary-button" type="button" onClick={onAddToCutList}>
+          <button
+            className="cutter-primary-button"
+            type="button"
+            disabled={!canAddSelection}
+            onClick={canAddSelection ? onAddToCutList : undefined}
+          >
             加入待剪清单
           </button>
         }
       >
         <div className="cutter-inspector-stack">
-          <strong>现金流短片开场</strong>
+          <strong>{selectionTitle}</strong>
           <span>{selectedRange}</span>
           <p>{selectedText(selectedSegments)}</p>
           <span>一次连续选择只生成一个待剪片段。</span>

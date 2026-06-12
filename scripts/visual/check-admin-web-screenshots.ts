@@ -12,7 +12,6 @@ const routes = [
   ["dashboard", "dashboard.png"],
   ["source-videos", "source-videos.png"],
   ["preprocess-jobs", "preprocess-jobs.png"],
-  ["index-publish", "index-publish.png"],
   ["doctor", "doctor.png"],
   ["cutter-users", "cutter-users.png"],
   ["settings", "settings.png"]
@@ -113,10 +112,21 @@ async function captureRoute(
   await assertNoSecret(page);
 
   if (route === "dashboard") {
-    await requireText(page, "全局风险和产能");
+    await requireText(page, "仪表盘");
+    await requireText(page, "公共素材库生产总览");
+    await requireText(page, "智能扫描");
+    await requireText(page, "核心链路健康");
+    await requireText(page, "关键词定位");
+    await requireText(page, "完整文案");
+    await requireText(page, "选段剪切");
+    await requireText(page, "活跃剪辑师");
+    await requireText(page, "剪辑端转化");
+    await requireText(page, "搜索命中率");
+    await requireText(page, "搜索 p95");
+    await requireText(page, "本地搜索覆盖");
     await requireText(page, "素材规模");
     await requireText(page, "风险摘要");
-    await requireText(page, "处理未处理");
+    await requireText(page, "生产吞吐");
   }
 
   if (route === "source-videos") {
@@ -125,14 +135,11 @@ async function captureRoute(
   }
 
   if (route === "preprocess-jobs") {
-    await requireText(page, "预处理队列");
+    await requireText(page, "预处理");
+    await requireText(page, "预处理流水线与索引发布");
     await requireText(page, "未处理原视频");
-    await requireText(page, "启动预处理服务");
-  }
-
-  if (route === "index-publish") {
-    await requireText(page, "索引与发布");
-    await requireText(page, "发布待索引视频");
+    await requireText(page, "启动预处理流水线");
+    await requireText(page, "任务队列");
   }
 
   if (route === "doctor") {

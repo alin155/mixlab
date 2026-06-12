@@ -5,6 +5,7 @@ import {
   getFileIdentity,
   readAllSourceVideoManifests,
   readSourceVideoManifest,
+  refreshLibraryCounts,
   resolveSourceVideoFilePath,
   scanSourceVideos,
   updatePreprocessJobStage,
@@ -38,6 +39,7 @@ export interface RunLibraryTextPreprocessWorkerInput {
   audio_mode?: PreprocessAudioModeId;
   scan_before_claim?: boolean;
   claim_statuses?: Array<"queued" | "unprocessed">;
+  count_refresh_interval?: number;
   now?: () => string;
   probe_source_video(input: ProbeSourceVideoInput): Promise<SourceVideoMediaMetadata>;
   get_content_hash?(source_video_path: string): Promise<string>;
@@ -82,6 +84,16 @@ function assertValidLimit(limit: number | undefined): void {
   }
 }
 
+function assertValidCountRefreshInterval(interval: number | undefined): void {
+  if (interval === undefined) {
+    return;
+  }
+
+  if (!Number.isInteger(interval) || interval <= 0) {
+    throw new Error("count_refresh_interval must be greater than 0");
+  }
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -109,10 +121,12 @@ export async function runLibraryTextPreprocessWorker(
   input: RunLibraryTextPreprocessWorkerInput
 ): Promise<RunLibraryTextPreprocessWorkerResult> {
   assertValidLimit(input.limit);
+  assertValidCountRefreshInterval(input.count_refresh_interval);
 
   const now = input.now ?? defaultNow;
   const getContentHash =
     input.get_content_hash ?? ((filePath: string) => getFileIdentity(filePath));
+  const countRefreshInterval = input.count_refresh_interval ?? 25;
   const scanResult = input.scan_before_claim === false
     ? await existingScanResult(input.library_root)
     : await scanSourceVideos({
@@ -123,23 +137,42 @@ export async function runLibraryTextPreprocessWorker(
       });
   const maxClaimCount = input.limit ?? Number.POSITIVE_INFINITY;
   const items: LibraryTextPreprocessWorkerItem[] = [];
+  let claimedSinceCountRefresh = 0;
+  let pendingCountRefresh = false;
+
+  async function refreshCountsIfNeeded(force = false): Promise<void> {
+    if (!pendingCountRefresh) {
+      return;
+    }
+    if (!force && claimedSinceCountRefresh < countRefreshInterval) {
+      return;
+    }
+
+    await refreshLibraryCounts(input.library_root, now());
+    claimedSinceCountRefresh = 0;
+    pendingCountRefresh = false;
+  }
 
   while (items.length < maxClaimCount) {
     const job = await claimNextPreprocessJob({
       library_root: input.library_root,
       worker_id: input.worker_id,
       now: now(),
-      claim_statuses: input.claim_statuses
+      claim_statuses: input.claim_statuses,
+      refresh_library_counts: false
     });
 
     if (!job) {
       break;
     }
 
-    const manifest = await readSourceVideoManifest(input.library_root, job.source_video_id);
-    const sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
+    claimedSinceCountRefresh += 1;
+    pendingCountRefresh = true;
+    let sourceVideoPath = "";
 
     try {
+      const manifest = await readSourceVideoManifest(input.library_root, job.source_video_id);
+      sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
       await updatePreprocessJobStage({
         library_root: input.library_root,
         source_video_id: job.source_video_id,
@@ -172,6 +205,7 @@ export async function runLibraryTextPreprocessWorker(
         library_root: input.library_root,
         source_video_id: job.source_video_id,
         now: now(),
+        refresh_library_counts: false,
         media: {
           ...mediaMetadata,
           content_hash: contentHash
@@ -190,6 +224,7 @@ export async function runLibraryTextPreprocessWorker(
         source_video_path: sourceVideoPath,
         result: textPreprocess
       });
+      await refreshCountsIfNeeded();
     } catch (error) {
       const message = errorMessage(error);
 
@@ -200,6 +235,8 @@ export async function runLibraryTextPreprocessWorker(
         error_stage: "text-preprocess",
         error_message: message
       });
+      claimedSinceCountRefresh = 0;
+      pendingCountRefresh = false;
       items.push({
         status: "failed",
         source_video_id: job.source_video_id,
@@ -208,6 +245,7 @@ export async function runLibraryTextPreprocessWorker(
       });
     }
   }
+  await refreshCountsIfNeeded(true);
 
   const succeededCount = items.filter((item) => item.status === "succeeded").length;
 

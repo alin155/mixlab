@@ -6,6 +6,7 @@ import {
 import { useEffect, useState } from "react";
 import type {
   AdminDashboardData,
+  AdminPathCheck,
   AdminSettingsConfigUpdate,
   AdminSourceFolder
 } from "../../api.ts";
@@ -13,9 +14,7 @@ import {
   asrModelLabel,
   asrProviderLabel,
   audioModeLabel,
-  booleanLabel,
   chineseDiagnosticText,
-  languageHintsLabel,
   runtimeSourceLabel
 } from "../../app/chinese.ts";
 import {
@@ -25,6 +24,40 @@ import {
 import { AdminControlButton, AdminPageHeader } from "../shared.tsx";
 
 type RuntimePolicy = AdminSettingsConfigUpdate["runtime_policy"];
+
+const FIRST_RUN_CHECK_LABELS = new Set([
+  ".mixlab-library",
+  "library.json",
+  "manifest.json"
+]);
+
+function isFirstRunProtocolCheck(check: AdminPathCheck): boolean {
+  return (
+    check.status !== "pass" &&
+    (
+      FIRST_RUN_CHECK_LABELS.has(check.label) ||
+      check.path.endsWith("/.mixlab-library") ||
+      check.path.endsWith("/.mixlab-library/library.json")
+    )
+  );
+}
+
+export function adminFirstRunInitializationChecks(data: AdminDashboardData): AdminPathCheck[] {
+  return data.path_checks.filter(isFirstRunProtocolCheck);
+}
+
+function settingsPathCheckLabel(check: AdminPathCheck): string {
+  const label = chineseDiagnosticText(check.label);
+
+  if (label === "预处理产物库") {
+    return "处理结果目录";
+  }
+  if (label === "预处理产物库可写") {
+    return "处理结果目录可写";
+  }
+
+  return label;
+}
 
 function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
   let maxSuffix = BigInt(sourceFolders.length);
@@ -59,10 +92,12 @@ function defaultNewSourceFolder(data: AdminDashboardData, sourceFolders: AdminSo
 export function SettingsPage({
   data,
   onSaveAdminSettings,
+  onInitializeLibrary,
   onTestAsrConfig
 }: {
   data: AdminDashboardData;
   onSaveAdminSettings?: (settings: AdminSettingsConfigUpdate) => void | Promise<void>;
+  onInitializeLibrary?: () => void | Promise<void>;
   onTestAsrConfig?: () => void;
 }) {
   const [libraryName, setLibraryName] = useState(data.settings.library_name);
@@ -74,6 +109,7 @@ export function SettingsPage({
   }));
   const [dashscopeApiKey, setDashscopeApiKey] = useState("");
   const toolState = data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理";
+  const initializationChecks = adminFirstRunInitializationChecks(data);
 
   useEffect(() => {
     setLibraryName(data.settings.library_name);
@@ -118,9 +154,9 @@ export function SettingsPage({
   return (
     <>
       <div className="admin-main-column">
-        <AdminPageHeader
-          title="设置"
-          eyebrow="素材来源与运行策略"
+	        <AdminPageHeader
+	          title="设置"
+	          eyebrow="素材来源与预处理设置"
           action={(
             <AdminControlButton
               label="新增素材来源"
@@ -142,14 +178,6 @@ export function SettingsPage({
                 onChange={(event) => setLibraryName(event.currentTarget.value)}
               />
             </span>
-          </div>
-          <div className="ml-form-row">
-            <span className="ml-form-label">素材库编号</span>
-            <span>{data.status.library_id}</span>
-          </div>
-          <div className="ml-form-row">
-            <span className="ml-form-label">协议版本</span>
-            <span>{data.status.protocol_version}</span>
           </div>
         </section>
         <section className="ml-form-group">
@@ -200,22 +228,15 @@ export function SettingsPage({
             ))}
           </div>
         </section>
-        <GroupedForm
-          groups={[
-            {
-              title: "预处理产物库",
-              rows: [
-                { label: "存储模式", value: runtimeSourceLabel(data.settings.artifact_library.mode) },
-                { label: "产物路径", value: data.settings.artifact_library.path },
-                { label: "是否需要迁移", value: booleanLabel(data.settings.artifact_library.migration_required) }
-              ]
-            },
-            {
-              title: "运行策略",
-              rows: [
-                {
-                  label: "并发任务数",
-                  value: (
+	        <GroupedForm
+	          groups={[
+	            {
+	              title: "预处理设置",
+	              rows: [
+	                { label: "产物路径", value: data.settings.artifact_library.path },
+	                {
+	                  label: "并发任务数",
+	                  value: (
                     <input
                       className="admin-number-input"
                       aria-label="并发任务数"
@@ -243,21 +264,20 @@ export function SettingsPage({
                       <option value="wav_16k_mono_pcm_s16le">无损单声道</option>
                     </select>
                   )
-                },
-                { label: "音视频工具", value: `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}` }
-              ]
-            },
-            {
-              title: "语音识别配置",
-              rows: [
-                { label: "供应商", value: asrProviderLabel(data.runtime.asr.provider) },
-                { label: "模型", value: asrModelLabel(data.runtime.asr.model) },
-                { label: "当前音频模式", value: audioModeLabel(runtimePolicy.audio_mode) },
-                { label: "可选音频模式", value: "压缩单声道 / 无损单声道" },
-                { label: "接口密钥", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
-                {
-                  label: "填写密钥",
-                  value: (
+	                },
+	                { label: "音视频工具", value: `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}` }
+	              ]
+	            },
+	            {
+	              title: "语音识别",
+	              rows: [
+	                { label: "供应商", value: asrProviderLabel(data.runtime.asr.provider) },
+	                { label: "模型", value: asrModelLabel(data.runtime.asr.model) },
+	                { label: "当前音频", value: audioModeLabel(runtimePolicy.audio_mode) },
+	                { label: "密钥状态", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
+	                {
+	                  label: "填写密钥",
+	                  value: (
                     <input
                       className="admin-text-input"
                       type="password"
@@ -266,48 +286,62 @@ export function SettingsPage({
                       placeholder="留空保持当前密钥"
                       value={dashscopeApiKey}
                       onChange={(event) => setDashscopeApiKey(event.currentTarget.value)}
-                    />
-                  )
-                },
-                { label: "语言提示", value: languageHintsLabel(data.runtime.asr.language_hints) },
-                { label: "对象存储", value: "阿里云百炼临时上传" },
-                { label: "最近失败", value: chineseDiagnosticText(data.runtime.asr.last_failure_reason) }
-              ]
-            }
-          ]}
-        />
-      </div>
-      <InspectorPanel title="路径与权限校验">
+	                    />
+	                  )
+	                }
+	              ]
+	            }
+	          ]}
+	        />
+	      </div>
+	      <InspectorPanel title="系统状态">
+        {initializationChecks.length ? (
+          <section className="admin-first-run-panel" aria-label="素材库初始化修复">
+	            <header>
+	              <span>初始化</span>
+	              <strong>素材库目录待创建</strong>
+	              <p>发现公共素材库文件缺失或不可写，初始化后再刷新系统状态。</p>
+	            </header>
+            <div className="admin-first-run-issues">
+              {initializationChecks.map((item) => (
+                <span key={`${item.label}-${item.path}`}>
+                  {chineseDiagnosticText(item.label)}
+                </span>
+              ))}
+            </div>
+            <AdminControlButton
+              label="初始化素材库"
+              state="m9b-api"
+              reason="创建 source-videos、.mixlab-library、索引目录和 library.json。"
+              variant="primary"
+              onClick={onInitializeLibrary}
+            />
+          </section>
+        ) : null}
         <section className="admin-list-panel">
           {data.path_checks.map((item) => (
-            <StatusRow
-              tone={adminStatusTone(item.status)}
-              label={chineseDiagnosticText(item.label)}
-              detail={`${item.path} · ${chineseDiagnosticText(item.message)}`}
-              value={item.status === "pass" ? "通过" : "处理"}
+	            <StatusRow
+	              tone={adminStatusTone(item.status)}
+	              label={settingsPathCheckLabel(item)}
+	              detail={`${item.path} · ${chineseDiagnosticText(item.message)}`}
+	              value={item.status === "pass" ? "通过" : "处理"}
               key={item.label}
             />
           ))}
-        </section>
-        <p className="admin-note">
-          接口密钥不写入代码、协议清单、日志或诊断报告。管理端只显示配置状态。
-        </p>
-        <p className="admin-note">
-          输入新密钥后保存，留空不会覆盖当前密钥。
-        </p>
-        <p className="admin-note">
-          密钥只保存在运行配置中，不进入协议清单、日志、诊断报告或页面回显。
-        </p>
+	        </section>
+	        <p className="admin-note">
+	          新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。
+	        </p>
         <section className="admin-action-stack">
-          <AdminControlButton
-            label="保存设置"
-            state="m9b-api"
-            reason="M10 保存素材来源和运行策略。"
-            variant="primary"
+	          <AdminControlButton
+	            label="保存设置"
+	            state="m9b-api"
+	            reason="保存素材来源和预处理参数。"
+	            variant="primary"
             onClick={onSaveAdminSettings ? saveSettings : undefined}
           />
-          <AdminControlButton label="测试语音识别配置" state="m9b-api" reason="M9B 接入语音识别配置检测。" onClick={onTestAsrConfig} />
-        </section>
+	          <AdminControlButton label="检查语音识别" state="m9b-api" reason="检查当前语音识别配置是否可用。" onClick={onTestAsrConfig} />
+	        </section>
       </InspectorPanel>
     </>
   );

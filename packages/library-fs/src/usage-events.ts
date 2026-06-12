@@ -15,6 +15,8 @@ export type MixlabUsageEventType =
   | "reuse_local_clip";
 
 export type MixlabUsageResultStatus = "success" | "empty" | "failure";
+export type MixlabUsageSearchMode = "searchd" | "sqlite-index" | "transcript-artifact-fallback";
+export type MixlabUsageSearchPageType = "first" | "cursor";
 
 export interface MixlabUsageEvent {
   event_id?: string;
@@ -26,6 +28,9 @@ export interface MixlabUsageEvent {
   source_video_id?: string;
   cut_job_id?: string;
   query?: string;
+  search_mode?: MixlabUsageSearchMode;
+  search_page_type?: MixlabUsageSearchPageType;
+  search_elapsed_ms?: number;
   selected_duration_ms?: number;
   result_status?: MixlabUsageResultStatus;
 }
@@ -34,6 +39,7 @@ export interface UserUsageMetrics {
   user_id: string;
   username: string;
   search_request_count: number;
+  search_failure_count: number;
   add_to_cut_list_count: number;
   transcript_selection_count: number;
   cut_submission_count: number;
@@ -47,6 +53,23 @@ export interface UsageMetrics {
   search_request_count: number;
   search_hit_count: number;
   search_empty_count: number;
+  search_failure_count: number;
+  search_latency_p50_ms: number;
+  search_latency_p95_ms: number;
+  search_latency_max_ms: number;
+  searchd_search_count: number;
+  sqlite_index_search_count: number;
+  fallback_search_count: number;
+  search_backend_unknown_count: number;
+  core_search_request_count: number;
+  core_search_failure_count: number;
+  core_search_latency_p50_ms: number;
+  core_search_latency_p95_ms: number;
+  core_search_latency_max_ms: number;
+  core_searchd_search_count: number;
+  core_sqlite_index_search_count: number;
+  core_fallback_search_count: number;
+  core_search_backend_unknown_count: number;
   source_detail_view_count: number;
   transcript_selection_count: number;
   add_to_cut_list_count: number;
@@ -73,10 +96,20 @@ const EVENT_TYPES = new Set<MixlabUsageEventType>([
   "create_local_clip",
   "reuse_local_clip"
 ]);
+const CORE_SEARCH_SAMPLE_LIMIT = 20;
 const RESULT_STATUSES = new Set<MixlabUsageResultStatus>([
   "success",
   "empty",
   "failure"
+]);
+const SEARCH_MODES = new Set<MixlabUsageSearchMode>([
+  "searchd",
+  "sqlite-index",
+  "transcript-artifact-fallback"
+]);
+const SEARCH_PAGE_TYPES = new Set<MixlabUsageSearchPageType>([
+  "first",
+  "cursor"
 ]);
 const eventMutationQueues = new Map<string, Promise<void>>();
 
@@ -89,6 +122,23 @@ function emptyMetrics(): UsageMetrics {
     search_request_count: 0,
     search_hit_count: 0,
     search_empty_count: 0,
+    search_failure_count: 0,
+    search_latency_p50_ms: 0,
+    search_latency_p95_ms: 0,
+    search_latency_max_ms: 0,
+    searchd_search_count: 0,
+    sqlite_index_search_count: 0,
+    fallback_search_count: 0,
+    search_backend_unknown_count: 0,
+    core_search_request_count: 0,
+    core_search_failure_count: 0,
+    core_search_latency_p50_ms: 0,
+    core_search_latency_p95_ms: 0,
+    core_search_latency_max_ms: 0,
+    core_searchd_search_count: 0,
+    core_sqlite_index_search_count: 0,
+    core_fallback_search_count: 0,
+    core_search_backend_unknown_count: 0,
     source_detail_view_count: 0,
     transcript_selection_count: 0,
     add_to_cut_list_count: 0,
@@ -155,6 +205,20 @@ function validateUsageEvent(
   const sourceVideoId = trimOptionalString(value.source_video_id, "source_video_id");
   const cutJobId = trimOptionalString(value.cut_job_id, "cut_job_id");
   const query = trimOptionalString(value.query, "query");
+  const searchMode = trimOptionalString(value.search_mode, "search_mode");
+  if (
+    searchMode !== undefined &&
+    !SEARCH_MODES.has(searchMode as MixlabUsageSearchMode)
+  ) {
+    throw new Error("使用事件数据无效：search_mode 不合法");
+  }
+  const searchPageType = trimOptionalString(value.search_page_type, "search_page_type");
+  if (
+    searchPageType !== undefined &&
+    !SEARCH_PAGE_TYPES.has(searchPageType as MixlabUsageSearchPageType)
+  ) {
+    throw new Error("使用事件数据无效：search_page_type 不合法");
+  }
   const resultStatus = trimOptionalString(value.result_status, "result_status");
   if (
     resultStatus !== undefined &&
@@ -174,6 +238,17 @@ function validateUsageEvent(
     }
   }
 
+  const searchElapsedMs = value.search_elapsed_ms;
+  if (searchElapsedMs !== undefined) {
+    if (
+      typeof searchElapsedMs !== "number" ||
+      !Number.isInteger(searchElapsedMs) ||
+      searchElapsedMs < 0
+    ) {
+      throw new Error("使用事件数据无效：search_elapsed_ms 必须是非负整数");
+    }
+  }
+
   const event: MixlabUsageEvent = {
     event_id: eventId,
     user_id: userId,
@@ -190,6 +265,15 @@ function validateUsageEvent(
   }
   if (query !== undefined) {
     event.query = query;
+  }
+  if (searchMode !== undefined) {
+    event.search_mode = searchMode as MixlabUsageSearchMode;
+  }
+  if (searchPageType !== undefined) {
+    event.search_page_type = searchPageType as MixlabUsageSearchPageType;
+  }
+  if (searchElapsedMs !== undefined) {
+    event.search_elapsed_ms = searchElapsedMs;
   }
   if (selectedDurationMs !== undefined) {
     event.selected_duration_ms = selectedDurationMs;
@@ -282,6 +366,7 @@ function getOrCreateUserMetrics(
     user_id: event.user_id,
     username: event.username,
     search_request_count: 0,
+    search_failure_count: 0,
     add_to_cut_list_count: 0,
     transcript_selection_count: 0,
     cut_submission_count: 0,
@@ -304,13 +389,56 @@ function incrementSourceVideoCount(
   sourceVideoCounts.set(sourceVideoId, (sourceVideoCounts.get(sourceVideoId) ?? 0) + 1);
 }
 
+function percentile(values: number[], rank: number): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((rank / 100) * sorted.length) - 1));
+  return sorted[index] ?? 0;
+}
+
+function aggregateCoreSearchWindow(metrics: UsageMetrics, events: MixlabUsageEvent[]): void {
+  const coreSearchEvents = events
+    .filter((event) => event.event_type === "search" && event.search_page_type !== "cursor")
+    .sort((left, right) => left.occurred_at.localeCompare(right.occurred_at))
+    .slice(-CORE_SEARCH_SAMPLE_LIMIT);
+  const latencyMs: number[] = [];
+
+  for (const event of coreSearchEvents) {
+    if (event.result_status === "failure") {
+      metrics.core_search_failure_count += 1;
+    }
+
+    metrics.core_search_request_count += 1;
+    if (typeof event.search_elapsed_ms === "number") {
+      latencyMs.push(event.search_elapsed_ms);
+    }
+    if (event.search_mode === "searchd") {
+      metrics.core_searchd_search_count += 1;
+    } else if (event.search_mode === "sqlite-index") {
+      metrics.core_sqlite_index_search_count += 1;
+    } else if (event.search_mode === "transcript-artifact-fallback") {
+      metrics.core_fallback_search_count += 1;
+    } else {
+      metrics.core_search_backend_unknown_count += 1;
+    }
+  }
+
+  metrics.core_search_latency_p50_ms = percentile(latencyMs, 50);
+  metrics.core_search_latency_p95_ms = percentile(latencyMs, 95);
+  metrics.core_search_latency_max_ms = latencyMs.length > 0 ? Math.max(...latencyMs) : 0;
+}
+
 function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
   const metrics = emptyMetrics();
   const users = new Map<string, UserUsageMetrics>();
-  const keywordByKey = new Map<string, { keyword: string; occurred_at: string }>();
+  const keywordByKey = new Map<string, { keyword: string; occurred_at: string; sequence: number }>();
   const sourceVideoCounts = new Map<string, number>();
+  const searchLatencyMs: number[] = [];
 
-  for (const event of events) {
+  for (const [sequence, event] of events.entries()) {
     const user = getOrCreateUserMetrics(users, event);
     if (event.occurred_at > user.last_used_at) {
       user.last_used_at = event.occurred_at;
@@ -319,8 +447,28 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
 
     switch (event.event_type) {
       case "search":
+        if (event.result_status === "failure") {
+          metrics.search_failure_count += 1;
+          user.search_failure_count += 1;
+        }
+        if (event.search_page_type === "cursor") {
+          break;
+        }
+
         metrics.search_request_count += 1;
         user.search_request_count += 1;
+        if (typeof event.search_elapsed_ms === "number") {
+          searchLatencyMs.push(event.search_elapsed_ms);
+        }
+        if (event.search_mode === "searchd") {
+          metrics.searchd_search_count += 1;
+        } else if (event.search_mode === "sqlite-index") {
+          metrics.sqlite_index_search_count += 1;
+        } else if (event.search_mode === "transcript-artifact-fallback") {
+          metrics.fallback_search_count += 1;
+        } else {
+          metrics.search_backend_unknown_count += 1;
+        }
         if (event.result_status === "success") {
           metrics.search_hit_count += 1;
         } else if (event.result_status === "empty") {
@@ -329,10 +477,15 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
         if (event.query) {
           const key = event.query.toLocaleLowerCase();
           const existing = keywordByKey.get(key);
-          if (!existing || event.occurred_at > existing.occurred_at) {
+          if (
+            !existing ||
+            event.occurred_at > existing.occurred_at ||
+            (event.occurred_at === existing.occurred_at && sequence > existing.sequence)
+          ) {
             keywordByKey.set(key, {
               keyword: event.query,
-              occurred_at: event.occurred_at
+              occurred_at: event.occurred_at,
+              sequence
             });
           }
         }
@@ -373,8 +526,15 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
   }
 
   metrics.active_user_count = users.size;
+  metrics.search_latency_p50_ms = percentile(searchLatencyMs, 50);
+  metrics.search_latency_p95_ms = percentile(searchLatencyMs, 95);
+  metrics.search_latency_max_ms = searchLatencyMs.length > 0 ? Math.max(...searchLatencyMs) : 0;
+  aggregateCoreSearchWindow(metrics, events);
   metrics.recent_keywords = [...keywordByKey.values()]
-    .sort((left, right) => right.occurred_at.localeCompare(left.occurred_at))
+    .sort((left, right) => {
+      const occurredOrder = right.occurred_at.localeCompare(left.occurred_at);
+      return occurredOrder === 0 ? right.sequence - left.sequence : occurredOrder;
+    })
     .slice(0, 8)
     .map((entry) => entry.keyword);
   metrics.most_used_source_video_ids = [...sourceVideoCounts.entries()]

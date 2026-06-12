@@ -51,6 +51,12 @@ export function createWindowsDesktopPackagePlan(
       cwd: repoRoot
     },
     {
+      label: "build searchd sidecar exe",
+      command: "npm",
+      args: ["run", "build:searchd", "-w", "@mixlab/cutter-desktop"],
+      cwd: repoRoot
+    },
+    {
       label: "prepare Windows runtime assets",
       command: "npm",
       args: ["run", "prepare:cutter-desktop:windows-assets"],

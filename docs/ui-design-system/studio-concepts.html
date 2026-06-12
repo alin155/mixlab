@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MixLab Studio Concepts</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #d9d9d9; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .frame {
+      height: 900px;
+      margin: 0 auto 40px;
+      overflow: hidden;
+      position: relative;
+      width: 1440px;
+    }
+    .mono {
+      font-family: "SF Mono", "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .dot {
+      align-items: center;
+      display: inline-flex;
+      gap: 7px;
+      white-space: nowrap;
+    }
+    .dot::before {
+      border-radius: 99px;
+      content: "";
+      height: 6px;
+      width: 6px;
+    }
+    .dot.ok::before { background: #0c8f55; }
+    .dot.warn::before { background: #b76b09; }
+    .dot.bad::before { background: #d12f2f; }
+    .dot.run::before { background: #2563eb; }
+
+    .admin {
+      background: #fbfbfb;
+      color: #101010;
+      display: grid;
+      grid-template-columns: 224px 1fr;
+    }
+    .a-side {
+      background: #fff;
+      border-right: 1px solid #e8e8e8;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 12px;
+    }
+    .brand {
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      margin: 0 6px 26px;
+    }
+    .mark {
+      align-items: center;
+      background: #111;
+      border-radius: 8px;
+      color: #fff;
+      display: flex;
+      font-size: 12px;
+      font-weight: 700;
+      height: 31px;
+      justify-content: center;
+      width: 31px;
+    }
+    .brand strong {
+      display: block;
+      font-size: 13px;
+      line-height: 17px;
+    }
+    .brand span {
+      color: #7a7a7a;
+      display: block;
+      font-size: 12px;
+      line-height: 16px;
+    }
+    .nav {
+      display: grid;
+      gap: 3px;
+    }
+    .nav div {
+      align-items: center;
+      border-radius: 7px;
+      color: #666;
+      display: flex;
+      font-size: 13px;
+      height: 33px;
+      gap: 10px;
+      padding: 0 10px;
+    }
+    .nav .active {
+      background: #f1f1f1;
+      color: #111;
+      font-weight: 600;
+    }
+    .side-bottom {
+      border-top: 1px solid #eee;
+      margin-top: auto;
+      padding: 14px 8px 0;
+    }
+    .side-bottom label {
+      color: #888;
+      display: block;
+      font-size: 11px;
+      margin-bottom: 7px;
+    }
+    .side-bottom strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    .side-bottom span {
+      color: #777;
+      font-size: 12px;
+    }
+    .a-main {
+      min-width: 0;
+      padding: 24px 28px 28px;
+    }
+    .a-head {
+      align-items: flex-end;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .a-head .crumb {
+      color: #888;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .a-head h1 {
+      font-size: 28px;
+      line-height: 34px;
+      margin: 0;
+    }
+    .a-head p {
+      color: #666;
+      font-size: 14px;
+      line-height: 21px;
+      margin: 5px 0 0;
+    }
+    .a-actions {
+      display: flex;
+      gap: 9px;
+    }
+    .btn {
+      align-items: center;
+      border-radius: 7px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 600;
+      height: 34px;
+      padding: 0 13px;
+    }
+    .btn.light {
+      background: #fff;
+      border: 1px solid #ddd;
+      color: #111;
+    }
+    .btn.dark {
+      background: #111;
+      border: 1px solid #111;
+      color: #fff;
+    }
+    .a-layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) 330px;
+    }
+    .a-primary {
+      display: grid;
+      gap: 16px;
+    }
+    .metric-strip {
+      background: #fff;
+      border: 1px solid #e7e7e7;
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      min-height: 96px;
+    }
+    .metric {
+      border-right: 1px solid #eee;
+      padding: 16px 17px;
+    }
+    .metric:last-child { border-right: 0; }
+    .metric label {
+      color: #777;
+      display: block;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 24px;
+      line-height: 29px;
+      margin-bottom: 6px;
+    }
+    .metric span {
+      color: #888;
+      font-size: 12px;
+    }
+    .task-surface {
+      background: #fff;
+      border: 1px solid #e7e7e7;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .surface-head {
+      align-items: center;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      padding: 15px 17px;
+    }
+    .surface-head h2 {
+      font-size: 15px;
+      line-height: 21px;
+      margin: 0;
+    }
+    .surface-head span {
+      color: #777;
+      font-size: 12px;
+    }
+    .task-row {
+      align-items: center;
+      border-bottom: 1px solid #f0f0f0;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 12px 1.5fr .8fr .7fr 120px;
+      min-height: 72px;
+      padding: 0 17px;
+    }
+    .task-row:last-child { border-bottom: 0; }
+    .priority {
+      border-radius: 99px;
+      height: 8px;
+      width: 8px;
+    }
+    .priority.warn { background: #b76b09; }
+    .priority.ok { background: #0c8f55; }
+    .priority.run { background: #2563eb; }
+    .entity strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    .entity span, .muted {
+      color: #777;
+      font-size: 12px;
+      line-height: 18px;
+    }
+    .value strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+    .mini-action {
+      background: #f6f6f6;
+      border: 1px solid #e3e3e3;
+      border-radius: 7px;
+      color: #111;
+      font-size: 12px;
+      font-weight: 600;
+      height: 30px;
+      padding-top: 6px;
+      text-align: center;
+    }
+    .a-inspector {
+      display: grid;
+      gap: 16px;
+      grid-auto-rows: min-content;
+    }
+    .inspector {
+      background: #fff;
+      border: 1px solid #e7e7e7;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .hero-stat {
+      padding: 18px;
+    }
+    .hero-stat label {
+      color: #777;
+      display: block;
+      font-size: 12px;
+      margin-bottom: 9px;
+    }
+    .hero-stat strong {
+      display: block;
+      font-size: 32px;
+      line-height: 38px;
+      margin-bottom: 8px;
+    }
+    .hero-stat p {
+      color: #666;
+      font-size: 13px;
+      line-height: 20px;
+      margin: 0;
+    }
+    .kv-row {
+      border-top: 1px solid #eee;
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      padding: 13px 16px;
+    }
+    .kv-row dt {
+      color: #777;
+      font-size: 12px;
+    }
+    .kv-row dd {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cutter {
+      background: #08090b;
+      color: #f4f4f5;
+      display: grid;
+      grid-template-columns: 224px 1fr;
+    }
+    .c-side {
+      background: #0c0d10;
+      border-right: 1px solid #262a32;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 12px;
+    }
+    .c-side .mark {
+      background: #f4f4f5;
+      color: #08090b;
+    }
+    .c-side .brand span { color: #898d96; }
+    .c-side .nav div { color: #a1a1aa; }
+    .c-side .nav .active {
+      background: #1a1d24;
+      color: #fff;
+    }
+    .c-side .side-bottom {
+      border-top-color: #262a32;
+    }
+    .c-side .side-bottom label,
+    .c-side .side-bottom span {
+      color: #7b808a;
+    }
+    .c-main {
+      display: grid;
+      grid-template-rows: 54px 1fr;
+      min-width: 0;
+    }
+    .c-head {
+      align-items: center;
+      border-bottom: 1px solid #262a32;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 18px;
+    }
+    .c-head h1 {
+      font-size: 16px;
+      line-height: 21px;
+      margin: 0 0 2px;
+    }
+    .c-head p {
+      color: #8f949e;
+      font-size: 12px;
+      margin: 0;
+    }
+    .c-head-meta {
+      align-items: center;
+      color: #9ba0aa;
+      display: flex;
+      font-size: 12px;
+      gap: 16px;
+    }
+    .c-work {
+      display: grid;
+      gap: 1px;
+      grid-template-columns: 344px minmax(0, 1fr) 374px;
+      min-height: 0;
+      background: #262a32;
+    }
+    .c-col {
+      background: #101216;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .search-col {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    .command {
+      padding: 14px;
+    }
+    .search-input {
+      align-items: center;
+      background: #08090b;
+      border: 1px solid #303641;
+      border-radius: 9px;
+      display: flex;
+      height: 42px;
+      gap: 10px;
+      padding: 0 12px;
+    }
+    .search-input span {
+      color: #737884;
+      font-size: 13px;
+    }
+    .search-input strong {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .scope {
+      display: flex;
+      gap: 6px;
+      margin-top: 11px;
+    }
+    .scope div {
+      border: 1px solid #303641;
+      border-radius: 7px;
+      color: #9ba0aa;
+      font-size: 12px;
+      height: 28px;
+      padding: 6px 10px 0;
+    }
+    .scope .active {
+      background: #f4f4f5;
+      border-color: #f4f4f5;
+      color: #08090b;
+      font-weight: 600;
+    }
+    .list-head {
+      align-items: center;
+      border-bottom: 1px solid #262a32;
+      border-top: 1px solid #262a32;
+      color: #8f949e;
+      display: flex;
+      font-size: 12px;
+      justify-content: space-between;
+      padding: 10px 14px;
+    }
+    .candidate-list {
+      overflow: hidden;
+      padding: 6px;
+    }
+    .candidate {
+      align-items: center;
+      border-radius: 9px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 70px 1fr 34px;
+      min-height: 72px;
+      padding: 7px 8px;
+    }
+    .candidate.active {
+      background: #1a1d24;
+      outline: 1px solid #343b48;
+    }
+    .poster {
+      background:
+        radial-gradient(circle at 28% 35%, rgba(255,255,255,.85) 0 8px, transparent 9px),
+        linear-gradient(135deg, #353f4f, #151a22 55%, #2b3444);
+      border-radius: 6px;
+      height: 44px;
+      position: relative;
+    }
+    .poster::before {
+      background: linear-gradient(90deg, rgba(125,170,255,.75), rgba(255,255,255,.15));
+      bottom: 7px;
+      content: "";
+      height: 4px;
+      left: 8px;
+      position: absolute;
+      right: 8px;
+    }
+    .candidate strong {
+      display: block;
+      font-size: 13px;
+      line-height: 18px;
+      margin-bottom: 3px;
+    }
+    .candidate small {
+      color: #9ba0aa;
+      display: block;
+      font-size: 12px;
+      line-height: 17px;
+    }
+    .candidate .hits {
+      color: #b8d4ff;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: right;
+    }
+    .transcript-col {
+      display: grid;
+      grid-template-rows: 58px 1fr 48px;
+    }
+    .clip-head {
+      align-items: center;
+      border-bottom: 1px solid #262a32;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 18px;
+    }
+    .clip-head strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .clip-head span {
+      color: #8f949e;
+      font-size: 12px;
+    }
+    .clip-head .mono {
+      color: #c8ccd4;
+      font-size: 12px;
+    }
+    .transcript {
+      overflow: hidden;
+      padding: 16px 22px 10px;
+    }
+    .line {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 48px 1fr;
+      padding: 7px 0;
+    }
+    .time {
+      color: #6f737d;
+      font-size: 12px;
+      line-height: 24px;
+      text-align: right;
+    }
+    .line p {
+      color: #d6d8de;
+      font-size: 14px;
+      line-height: 24px;
+      margin: 0;
+    }
+    .line.selected p {
+      background: #16253a;
+      border-left: 2px solid #dfeaff;
+      border-radius: 7px;
+      color: #fff;
+      margin: -5px -8px;
+      padding: 5px 9px 5px 10px;
+    }
+    .selection {
+      align-items: center;
+      background: #0d0f13;
+      border-top: 1px solid #262a32;
+      display: flex;
+      gap: 10px;
+      padding: 0 14px;
+    }
+    .selection span {
+      color: #9ba0aa;
+      font-size: 12px;
+      margin-right: auto;
+    }
+    .cbtn {
+      align-items: center;
+      border-radius: 7px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 700;
+      height: 32px;
+      justify-content: center;
+      padding: 0 12px;
+    }
+    .cbtn.ghost {
+      border: 1px solid #343b48;
+      color: #e7e9ee;
+    }
+    .cbtn.primary {
+      background: #f4f4f5;
+      color: #08090b;
+    }
+    .inspect-col {
+      background: #0d0f13;
+      display: grid;
+      gap: 1px;
+      grid-template-rows: 250px 1fr 160px;
+    }
+    .video-stage {
+      background: #08090b;
+      padding: 14px;
+    }
+    .video-frame {
+      background:
+        radial-gradient(circle at 72% 33%, rgba(245,245,245,.2), transparent 16%),
+        linear-gradient(120deg, rgba(198,214,239,.32), rgba(90,110,143,.18) 37%, rgba(8,9,11,.1)),
+        #18202a;
+      border-radius: 8px;
+      height: 174px;
+      overflow: hidden;
+      position: relative;
+    }
+    .video-frame::before {
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0));
+      content: "";
+      inset: 0;
+      position: absolute;
+    }
+    .speaker {
+      background: #1b2430;
+      border-radius: 999px 999px 18px 18px;
+      bottom: 16px;
+      height: 76px;
+      left: 52px;
+      position: absolute;
+      width: 54px;
+    }
+    .speaker::before {
+      background: #d8dde8;
+      border-radius: 999px;
+      content: "";
+      height: 26px;
+      left: 14px;
+      position: absolute;
+      top: -19px;
+      width: 26px;
+    }
+    .timeline {
+      align-items: center;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 44px 1fr 44px;
+      margin-top: 13px;
+    }
+    .timeline span {
+      color: #8f949e;
+      font-size: 12px;
+    }
+    .track {
+      background: #252a33;
+      border-radius: 99px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .track i {
+      background: #f4f4f5;
+      display: block;
+      height: 100%;
+      width: 72%;
+    }
+    .cut-info {
+      background: #101216;
+      border-top: 1px solid #262a32;
+      padding: 17px 16px;
+    }
+    .cut-info h2 {
+      font-size: 15px;
+      margin: 0 0 14px;
+    }
+    .cut-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, 1fr);
+      margin-bottom: 15px;
+    }
+    .cut-grid div {
+      background: #171a20;
+      border: 1px solid #262a32;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .cut-grid label {
+      color: #777d88;
+      display: block;
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+    .cut-grid strong {
+      display: block;
+      font-size: 13px;
+    }
+    .cut-info p {
+      color: #a1a1aa;
+      font-size: 12px;
+      line-height: 19px;
+      margin: 0 0 14px;
+    }
+    .recent {
+      background: #101216;
+      border-top: 1px solid #262a32;
+      padding: 15px 16px;
+    }
+    .recent h2 {
+      font-size: 14px;
+      margin: 0 0 12px;
+    }
+    .recent .item {
+      background: #171a20;
+      border: 1px solid #262a32;
+      border-radius: 8px;
+      padding: 11px;
+    }
+    .recent strong {
+      display: block;
+      font-size: 13px;
+      line-height: 18px;
+      margin-bottom: 5px;
+    }
+    .recent span {
+      color: #8f949e;
+      display: block;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <section class="frame admin" id="admin-studio">
+    <aside class="a-side">
+      <div class="brand">
+        <div class="mark">ML</div>
+        <div>
+          <strong>MixLab Admin</strong>
+          <span>公共素材库生产</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="active">⌂ 仪表盘</div>
+        <div>▤ 原视频管理</div>
+        <div>○ 预处理</div>
+        <div>◇ 剪辑师用户</div>
+        <div>⌘ 设置</div>
+      </nav>
+      <div class="side-bottom">
+        <label>已发布索引</label>
+        <strong class="mono">v003292</strong>
+        <span>18/50 活跃剪辑师</span>
+      </div>
+    </aside>
+    <main class="a-main">
+      <header class="a-head">
+        <div>
+          <div class="crumb">Admin / Operations</div>
+          <h1>公共素材库生产台</h1>
+          <p>把需要处理的队列、公共库状态和剪辑端可用性放在同一屏。</p>
+        </div>
+        <div class="a-actions">
+          <div class="btn light">局部刷新</div>
+          <div class="btn dark">处理失败任务</div>
+        </div>
+      </header>
+      <section class="a-layout">
+        <div class="a-primary">
+          <div class="metric-strip">
+            <div class="metric"><label>可用视频</label><strong class="mono">3,292</strong><span>已发布给剪辑端</span></div>
+            <div class="metric"><label>文案片段</label><strong class="mono">412k</strong><span>可被搜索定位</span></div>
+            <div class="metric"><label>失败任务</label><strong class="mono">260</strong><span>可批量重试</span></div>
+            <div class="metric"><label>搜索响应</label><strong class="mono">121ms</strong><span>p95 最近样本</span></div>
+            <div class="metric"><label>剪辑容量</label><strong class="mono">18/50</strong><span>团队使用中</span></div>
+          </div>
+          <article class="task-surface">
+            <div class="surface-head">
+              <h2>今日优先处理</h2>
+              <span>按影响剪辑端使用排序</span>
+            </div>
+            <div class="task-row">
+              <div class="priority warn"></div>
+              <div class="entity"><strong>重试失败视频</strong><span>260 个视频可恢复处理，不影响当前已发布素材。</span></div>
+              <div class="value"><strong>260 项</strong><span class="muted">建议先处理</span></div>
+              <div class="dot warn">需要处理</div>
+              <div class="mini-action">开始处理</div>
+            </div>
+            <div class="task-row">
+              <div class="priority run"></div>
+              <div class="entity"><strong>补齐预处理队列</strong><span>1 个待恢复，队列记录已保留。</span></div>
+              <div class="value"><strong>1 项</strong><span class="muted">等待恢复</span></div>
+              <div class="dot warn">未运行</div>
+              <div class="mini-action">查看队列</div>
+            </div>
+            <div class="task-row">
+              <div class="priority ok"></div>
+              <div class="entity"><strong>发布索引</strong><span>当前版本已可被剪辑端搜索。</span></div>
+              <div class="value"><strong class="mono">v003292</strong><span class="muted">最新发布</span></div>
+              <div class="dot ok">可用</div>
+              <div class="mini-action">查看详情</div>
+            </div>
+            <div class="task-row">
+              <div class="priority ok"></div>
+              <div class="entity"><strong>剪辑端访问</strong><span>最近搜索与剪切链路可用，容量仍充足。</span></div>
+              <div class="value"><strong>18/50</strong><span class="muted">活跃席位</span></div>
+              <div class="dot ok">正常</div>
+              <div class="mini-action">用户列表</div>
+            </div>
+          </article>
+          <article class="task-surface">
+            <div class="surface-head">
+              <h2>最近生产事件</h2>
+              <span>只更新这一块，不刷新整页</span>
+            </div>
+            <div class="task-row">
+              <div class="priority warn"></div>
+              <div class="entity"><strong>部分原视频处理失败</strong><span>失败任务已进入可重试队列。</span></div>
+              <div class="value"><strong>06-04 16:57</strong><span class="muted">最近扫描</span></div>
+              <div class="dot warn">需要处理</div>
+              <div class="mini-action">查看失败</div>
+            </div>
+            <div class="task-row">
+              <div class="priority ok"></div>
+              <div class="entity"><strong>公共素材索引可用</strong><span>剪辑师可以继续搜索已发布素材。</span></div>
+              <div class="value"><strong>3,292</strong><span class="muted">可用视频</span></div>
+              <div class="dot ok">可用</div>
+              <div class="mini-action">打开素材</div>
+            </div>
+          </article>
+        </div>
+        <aside class="a-inspector">
+          <article class="inspector">
+            <div class="hero-stat">
+              <label>公共库状态</label>
+              <strong>可用</strong>
+              <p>当前问题集中在失败任务重试，不影响剪辑师使用已发布素材。</p>
+            </div>
+            <dl>
+              <div class="kv-row"><dt>根目录</dt><dd>/Volumes/MixLab/PublicLibrary</dd></div>
+              <div class="kv-row"><dt>索引版本</dt><dd class="mono">v003292</dd></div>
+              <div class="kv-row"><dt>最近扫描</dt><dd class="mono">06-04 16:57</dd></div>
+            </dl>
+          </article>
+          <article class="inspector">
+            <div class="hero-stat">
+              <label>下一步</label>
+              <strong>处理失败任务</strong>
+              <p>用一个明确动作替代多个维护按钮，降低管理端操作复杂度。</p>
+            </div>
+          </article>
+        </aside>
+      </section>
+    </main>
+  </section>
+
+  <section class="frame cutter" id="cutter-studio">
+    <aside class="c-side">
+      <div class="brand">
+        <div class="mark">ML</div>
+        <div>
+          <strong>MixLab Cutter</strong>
+          <span>项目化素材剪切</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <div>⌂ 首页</div>
+        <div class="active">⌕ 素材搜索</div>
+        <div>◫ 剪切任务</div>
+        <div>▥ 本地素材</div>
+        <div>▤ 公共素材库</div>
+        <div>⌘ 设置</div>
+      </nav>
+      <div class="side-bottom">
+        <label>当前项目</label>
+        <strong>财富课程 · 第三章</strong>
+        <span>本地剪辑师 · 已连接</span>
+      </div>
+    </aside>
+    <main class="c-main">
+      <header class="c-head">
+        <div>
+          <h1>素材搜索</h1>
+          <p>搜索真实 NAS 原素材，选择一句或一段后创建剪切任务。</p>
+        </div>
+        <div class="c-head-meta">
+          <span>已发布素材 <b class="mono">3,305</b></span>
+          <span>命中 <b class="mono">370</b></span>
+          <span class="dot ok">已连接</span>
+        </div>
+      </header>
+      <section class="c-work">
+        <aside class="c-col search-col">
+          <div class="command">
+            <div class="search-input"><span>⌕</span><strong>现金流</strong></div>
+            <div class="scope">
+              <div class="active">公共素材</div>
+              <div>本地素材</div>
+              <div>已选 1 句</div>
+            </div>
+          </div>
+          <div class="list-head"><span>候选素材 · 72 条</span><span>按相关度</span></div>
+          <div class="candidate-list">
+            <div class="candidate active"><div class="poster"></div><div><strong>ljf20241111_7994</strong><small>文案 2,513 字 · 08:22</small></div><div class="hits">3</div></div>
+            <div class="candidate"><div class="poster"></div><div><strong>C0035</strong><small>文案 7,324 字 · 24:28</small></div><div class="hits">20</div></div>
+            <div class="candidate"><div class="poster"></div><div><strong>C0319</strong><small>文案 10,475 字 · 31:46</small></div><div class="hits">7</div></div>
+            <div class="candidate"><div class="poster"></div><div><strong>040A3314</strong><small>文案 7,495 字 · 24:23</small></div><div class="hits">12</div></div>
+            <div class="candidate"><div class="poster"></div><div><strong>C0036</strong><small>文案 9,248 字 · 29:31</small></div><div class="hits">11</div></div>
+            <div class="candidate"><div class="poster"></div><div><strong>040A3314(1)</strong><small>文案 7,495 字 · 24:23</small></div><div class="hits">12</div></div>
+          </div>
+        </aside>
+        <section class="c-col transcript-col">
+          <div class="clip-head">
+            <div><strong>ljf20241111_7994</strong><span>命中 3 处 · 文案 2,513 字</span></div>
+            <div class="mono">06:58 · 1 / 369</div>
+          </div>
+          <div class="transcript">
+            <div class="line"><div class="time mono">00:11</div><p>那么保险加信托通常被看作是其中两种主要的方法。</p></div>
+            <div class="line"><div class="time mono">00:20</div><p>注意哈，这个是兴业银行的香港私人银行给到用户的科普。</p></div>
+            <div class="line"><div class="time mono">00:25</div><p>我给大家贴一下，先买保险，然后呢受益人定成信托，保单不计信托，这样好处是什么呢？</p></div>
+            <div class="line"><div class="time mono">06:58</div><p>当然第二个就提前储备，第三个是潜在的养老准备，第四个是现金流的转换。</p></div>
+            <div class="line selected"><div class="time mono">07:05</div><p>这句话可以作为这一段的剪切起点，后续再根据上下文微调。</p></div>
+            <div class="line"><div class="time mono">07:12</div><p>把现金流转换讲清楚，观众会更容易理解这个案例。</p></div>
+            <div class="line"><div class="time mono">07:19</div><p>如果项目需要更短素材，可以只截取中间这 6 秒。</p></div>
+            <div class="line"><div class="time mono">07:26</div><p>更长版本则保留前后解释，让语义更完整。</p></div>
+            <div class="line"><div class="time mono">07:33</div><p>当前素材的上下文足够完整，适合作为教学案例。</p></div>
+          </div>
+          <div class="selection">
+            <span>已选 6 秒 · 06:58-07:05 · 35 字</span>
+            <div class="cbtn ghost">预览选区</div>
+            <div class="cbtn primary">剪切这段</div>
+          </div>
+        </section>
+        <aside class="inspect-col">
+          <section class="video-stage">
+            <div class="video-frame"><div class="speaker"></div></div>
+            <div class="timeline"><span class="mono">06:58</span><div class="track"><i></i></div><span class="mono">08:22</span></div>
+          </section>
+          <section class="cut-info">
+            <h2>选区信息</h2>
+            <div class="cut-grid">
+              <div><label>来源</label><strong>公共素材</strong></div>
+              <div><label>时间段</label><strong class="mono">06:58 - 07:05</strong></div>
+              <div><label>字数</label><strong>35 字</strong></div>
+              <div><label>命中</label><strong>1 / 369</strong></div>
+            </div>
+            <p>当前选区语义完整，可直接创建剪切任务；需要更长上下文时在文案区拖动扩展。</p>
+            <div class="cbtn primary" style="width: 100%;">创建剪切任务</div>
+          </section>
+          <section class="recent">
+            <h2>最近剪切任务</h2>
+            <div class="item">
+              <strong>后续搜索结果加载失败，可继续使用当前结果</strong>
+              <span>刚刚 · 财富课程 · 第三章</span>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </section>
+</body>
+</html>

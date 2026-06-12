@@ -7,31 +7,40 @@ import {
 import {
   CutterApiError,
   createCutterApiClient,
+  type CutterAuthModeStatus,
   type CutterLoginApplication,
   type CutterLoginStatus,
   type CutterLoginStatusValue,
-  type CutterRuntimeStatus
+  type CutterRuntimeStatus,
+  type SearchGroup,
+  type SearchResponse,
+  type SourceVideoCard
 } from "../api.ts";
 import {
   createFixtureCutterApiClient,
   emptySearchResponse,
   loadCutterWorkbenchData,
   resolveLocalClipUrls,
+  resolveSourceVideoCardUrls,
+  resolveSourceVideoDetailUrls,
   resolveSearchResponseUrls,
   type CutterFixtureData
 } from "../fixture-client.ts";
 import { CutQueuePage } from "../features/cut-queue/CutQueuePage.tsx";
 import {
   LocalLibraryPage,
+  type LocalClip,
   type LocalLibraryViewMode
 } from "../features/local-library/LocalLibraryPage.tsx";
 import {
   MaterialLocatorPage,
+  type MaterialLocatorSearchStatus,
   type MaterialSearchHistoryItem
 } from "../features/material-locator/MaterialLocatorPage.tsx";
 import { PublicLibraryPage } from "../features/public-library/PublicLibraryPage.tsx";
 import {
   ProjectHomePage,
+  ProjectRenameDialog,
   type ProjectDeleteMode
 } from "../features/project-home/ProjectHomePage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
@@ -108,6 +117,28 @@ import {
   sourceVideoIdFromHash,
   type CutterRoute
 } from "./navigation.ts";
+
+const CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT = 20;
+const MATERIAL_SEARCH_FIRST_BATCH_LIMIT = 10;
+const MATERIAL_SEARCH_BACKGROUND_BATCH_LIMIT = 40;
+const DEFAULT_LOCAL_CUTTER_API_BASE_URL = "http://127.0.0.1:3789/";
+
+function mergeSourceVideoCards(
+  current: readonly SourceVideoCard[],
+  next: readonly SourceVideoCard[]
+): SourceVideoCard[] {
+  const byId = new Map<string, SourceVideoCard>();
+
+  for (const video of current) {
+    byId.set(video.source_video_id, video);
+  }
+
+  for (const video of next) {
+    byId.set(video.source_video_id, video);
+  }
+
+  return Array.from(byId.values());
+}
 import {
   chooseDesktopDirectory,
   desktopAppVersion,
@@ -125,9 +156,12 @@ import {
   type DesktopDoctorResult
 } from "../desktop-bridge.ts";
 import {
+  continuousTranscriptSelection,
   continuousTranscriptSegments,
   nextTranscriptSelectionRange,
+  transcriptSelectionRangeFromHitSegments,
   transcriptSelectionRangeFromDrag,
+  transcriptSelectionRangeFromText,
   type TranscriptSelectionRange
 } from "../state/transcript-selection.ts";
 import {
@@ -136,18 +170,17 @@ import {
 } from "../state/local-clip-reuse.ts";
 import type { VideoOrientationFilter } from "../state/video-orientation.ts";
 import {
-  appearanceModeLabel,
   readCutterAppearanceMode,
   writeCutterAppearanceMode,
   type CutterAppearanceMode
 } from "../state/appearance.ts";
 import {
   clearCutterCurrentProject,
+  createEmptyProject,
   createProjectFromFirstCut,
-  createProjectFromSearch,
   projectDisplayTitle,
+  projectHomeSearchDraft,
   projectSwitcherLabel,
-  projectTitleFromFirstCut,
   readCutterProjects,
   recordProjectCut,
   recordProjectSearch,
@@ -157,9 +190,28 @@ import {
   type CutterProject
 } from "../state/cutter-projects.ts";
 
-function getRuntimeApiBaseUrl(): string {
+export function resolveCutterRuntimeApiBaseUrl(input: {
+  viteApiBaseUrl?: string;
+  useFixtureData?: boolean;
+  globalLike?: Parameters<typeof resolveRuntimeApiBaseUrl>[0]["global_like"];
+  locationOrigin?: string;
+}): string {
+  if (input.useFixtureData) {
+    return "";
+  }
+
+  const configured = input.viteApiBaseUrl?.trim();
   return resolveRuntimeApiBaseUrl({
-    vite_api_base_url: import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL ?? ""
+    vite_api_base_url: configured || DEFAULT_LOCAL_CUTTER_API_BASE_URL,
+    global_like: input.globalLike,
+    location_origin: input.locationOrigin
+  });
+}
+
+function getRuntimeApiBaseUrl(): string {
+  return resolveCutterRuntimeApiBaseUrl({
+    viteApiBaseUrl: import.meta.env?.VITE_MIXLAB_CUTTER_API_BASE_URL,
+    useFixtureData: import.meta.env?.VITE_MIXLAB_USE_FIXTURE_DATA === "true"
   });
 }
 
@@ -185,6 +237,17 @@ export function shouldShowLoginGate(
   _options: { desktopTrusted?: boolean } = {}
 ): boolean {
   return apiMode && status !== "approved";
+}
+
+export function initialCutterLoginStatus(input: {
+  apiMode: boolean;
+  authSession: CutterAuthSession | null;
+}): CutterLoginStatusValue {
+  if (!input.apiMode) {
+    return "approved";
+  }
+
+  return input.authSession ? "approved" : "unknown";
 }
 
 export function shouldLoadWorkbenchData(input: {
@@ -217,6 +280,21 @@ export function shouldRefreshCutQueueForRoute(input: {
   );
 }
 
+export function projectIdForWorkbenchRoute(input: {
+  route: CutterRoute;
+  currentProjectId?: string;
+  homeSelectedProjectId?: string;
+  projectIds: readonly string[];
+}): string | undefined {
+  if (input.route === "project-home" || input.currentProjectId) {
+    return input.currentProjectId;
+  }
+
+  return input.homeSelectedProjectId && input.projectIds.includes(input.homeSelectedProjectId)
+    ? input.homeSelectedProjectId
+    : undefined;
+}
+
 export function shouldShowCutterToolbar(route: CutterRoute): boolean {
   return false;
 }
@@ -232,6 +310,18 @@ export function materialLocatorSearchQueryForHashChange(input: {
 
   const queryFromHash = searchQueryFromHash(input.hash).trim();
   return queryFromHash || input.currentSearchQuery;
+}
+
+export function shouldStartMaterialSearchForHashChange(input: {
+  hash: string;
+  currentSearchQuery: string;
+  nextSearchQuery: string;
+}): boolean {
+  return (
+    routeFromHash(input.hash) === "material-locator" &&
+    input.nextSearchQuery.trim().length > 0 &&
+    normalizeLocatorQuery(input.nextSearchQuery) !== normalizeLocatorQuery(input.currentSearchQuery)
+  );
 }
 
 export function loginStatusFromApplication(application: CutterLoginApplication): CutterLoginStatusValue {
@@ -295,17 +385,22 @@ export function shouldPollPendingLogin(input: {
   return input.apiMode && !input.authSession && Boolean(input.pendingLogin);
 }
 
-function formatSidebarDiskIo(bytesPerSecond?: number): string {
-  if (typeof bytesPerSecond !== "number" || !Number.isFinite(bytesPerSecond)) {
-    return "--";
-  }
-
-  const mbPerSecond = bytesPerSecond / 1024 / 1024;
-  if (mbPerSecond >= 10) {
-    return `${Math.round(mbPerSecond)} MB/s`;
-  }
-
-  return `${mbPerSecond.toFixed(1)} MB/s`;
+export function shouldAutoApplyLocalTrustedLogin(input: {
+  apiMode: boolean;
+  authModeStatus: CutterAuthModeStatus | null;
+  authSession: CutterAuthSession | null;
+  pendingLogin: CutterPendingLogin | null;
+  loginStatus: CutterLoginStatusValue;
+  alreadyAttempted: boolean;
+}): boolean {
+  return (
+    input.apiMode &&
+    input.authModeStatus?.local_trusted === true &&
+    !input.authSession &&
+    !input.pendingLogin &&
+    input.loginStatus === "unknown" &&
+    !input.alreadyAttempted
+  );
 }
 
 export function CutterSidebarFooter({
@@ -313,70 +408,88 @@ export function CutterSidebarFooter({
   localCount,
   publicCount,
   activeTaskCount,
-  concurrency,
-  cpuUsagePercent,
-  diskIoBytesPerSecond,
   engineReady,
-  appearanceMode,
-  onSetAppearanceMode
+  currentProjectLabel = "未选择",
+  libraryCountOrder = "local-first",
+  cacheBytes
 }: {
   username: string;
   localCount: number;
   publicCount: number;
   activeTaskCount: number;
-  concurrency: number;
-  cpuUsagePercent?: number;
-  diskIoBytesPerSecond?: number;
   engineReady: boolean;
-  appearanceMode: CutterAppearanceMode;
-  onSetAppearanceMode: (mode: CutterAppearanceMode) => void;
+  currentProjectLabel?: string;
+  libraryCountOrder?: "local-first" | "public-first";
+  cacheBytes?: number;
 }) {
-  const safeConcurrency = Math.max(1, concurrency);
-  const cpuLabel =
-    typeof cpuUsagePercent === "number" && Number.isFinite(cpuUsagePercent)
-      ? `${Math.max(0, Math.min(100, Math.round(cpuUsagePercent)))}%`
-      : "--";
+  const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
+  const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
+  const libraryCountLabel =
+    libraryCountOrder === "public-first"
+      ? `公共 ${publicCount} / 本地 ${localCount}`
+      : `本地 ${publicCount} / 公共 ${localCount}`;
+  const displayCacheBytes = cacheBytes ?? localCacheBytes;
+  const cacheLabel = formatCutterCacheSize(displayCacheBytes);
+
+  useEffect(() => {
+    if (typeof cacheBytes === "number") {
+      setLocalCacheBytes(cacheBytes);
+    }
+  }, [cacheBytes]);
+
+  function handleClearCache() {
+    clearCutterLocalCache();
+    setLocalCacheBytes(0);
+    setCacheMenuOpen(false);
+  }
 
   return (
-    <div className="cutter-sidebar-footer" aria-label="本机引擎状态">
+    <div className="cutter-sidebar-footer" aria-label="剪辑端状态">
       <section className="cutter-sidebar-engine-card">
         <div>
-          <span>本机引擎</span>
-          <strong className={engineReady ? "is-ready" : "is-failed"}>
-            {engineReady ? "正常" : "异常"}
-          </strong>
-        </div>
-        <div>
-          <span>并发任务</span>
-          <strong>{activeTaskCount} / {safeConcurrency}</strong>
-        </div>
-        <div>
-          <span>CPU 使用率</span>
-          <strong>{cpuLabel}</strong>
-        </div>
-        <div>
-          <span>磁盘 I/O</span>
-          <strong>{formatSidebarDiskIo(diskIoBytesPerSecond)}</strong>
+          <span>当前项目</span>
+          <strong title={currentProjectLabel}>{currentProjectLabel}</strong>
         </div>
         <div>
           <span>素材库</span>
-          <strong>本地 {localCount} / 公共 {publicCount}</strong>
+          <strong>{libraryCountLabel}</strong>
+        </div>
+        <div>
+          <span>剪切任务</span>
+          <strong>{activeTaskCount > 0 ? `${activeTaskCount} 个处理中` : "空闲"}</strong>
+        </div>
+        <div>
+          <span>本机服务</span>
+          <strong className={engineReady ? "is-ready" : "is-failed"}>
+            {engineReady ? "正常" : "需检查"}
+          </strong>
         </div>
       </section>
       <div className="cutter-sidebar-user-entry" aria-label="当前用户">
-        <strong>{username}</strong>
-        <div className="cutter-sidebar-theme-switch" role="group" aria-label="显示模式">
-          {(["dark", "light", "system"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              aria-pressed={appearanceMode === mode}
-              onClick={() => onSetAppearanceMode(mode)}
-            >
-              {appearanceModeLabel(mode)}
+        <span className="cutter-sidebar-user-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <circle cx="12" cy="8.5" r="3.2" />
+            <path d="M5.8 19.5a6.8 6.8 0 0 1 12.4 0" />
+          </svg>
+        </span>
+        <strong title={username}>{username}</strong>
+        <button
+          type="button"
+          className="cutter-sidebar-cache-button"
+          aria-haspopup="menu"
+          aria-expanded={cacheMenuOpen}
+          onClick={() => setCacheMenuOpen((open) => !open)}
+        >
+          <span>缓存</span>
+          <strong>{cacheLabel}</strong>
+        </button>
+        {cacheMenuOpen ? (
+          <div className="cutter-sidebar-cache-menu" role="menu" aria-label="缓存操作">
+            <button type="button" role="menuitem" onClick={handleClearCache}>
+              清除本地缓存
             </button>
-          ))}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -385,12 +498,10 @@ export function CutterSidebarFooter({
 export function CutterProjectSwitcher({
   project,
   onReturnHome,
-  onStartTemporarySearch,
   onRenameProject
 }: {
   project?: CutterProject;
   onReturnHome?: () => void;
-  onStartTemporarySearch?: () => void;
   onRenameProject?: () => void;
 }) {
   const menuRef = useRef<HTMLDetailsElement>(null);
@@ -409,18 +520,9 @@ export function CutterProjectSwitcher({
             onReturnHome?.();
           }}
         >
-          回到启动页
+          回到首页
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            closeMenu();
-            onStartTemporarySearch?.();
-          }}
-        >
-          新建搜索
-        </button>
-        <a href="#cut-tasks" onClick={closeMenu}>查看项目剪切任务</a>
+        <a href="#/cut-tasks" onClick={closeMenu}>查看项目剪切任务</a>
         {project ? (
           <>
             <button
@@ -499,6 +601,7 @@ export interface MaterialLocatorHitTarget {
   material: MaterialLocatorResult;
   segmentId: string;
   highlightedSegmentIds: string[];
+  hitSegments: MaterialLocatorResult["segments"];
 }
 
 export function materialKeyFromResult(result: MaterialLocatorResult): string {
@@ -525,10 +628,29 @@ export function materialLocatorHitTargets(input: BuildMaterialLocatorSectionsInp
         materialKey: materialKeyFromResult(material),
         material,
         segmentId: segments[0]?.segment_id ?? "",
-        highlightedSegmentIds: segments.map((segment) => segment.segment_id)
+        highlightedSegmentIds: segments.map((segment) => segment.segment_id),
+        hitSegments: segments
       }))
     )
   );
+}
+
+export function initialMaterialLocatorHitTargetIndex(
+  targets: readonly MaterialLocatorHitTarget[],
+  sourceFilter: MaterialSearchSourceFilter
+): number {
+  if (targets.length === 0) {
+    return -1;
+  }
+
+  if (sourceFilter !== "local") {
+    const publicIndex = targets.findIndex((target) => target.material.source === "public");
+    if (publicIndex >= 0) {
+      return publicIndex;
+    }
+  }
+
+  return 0;
 }
 
 export function shouldAutofocusMaterialLocatorResult(input: {
@@ -572,6 +694,185 @@ export function nextMaterialSearchHistory(
     { query, hitCount: next.hitCount },
     ...current.filter((item) => item.query !== query)
   ].slice(0, 6);
+}
+
+function searchGroupIdentity(group: SearchGroup): string {
+  return group.source_video_id;
+}
+
+function searchSegmentIdentity(segment: SearchGroup["hit_segments"][number]): string {
+  return [
+    segment.match_id ?? "",
+    segment.segment_id,
+    segment.begin_ms,
+    segment.end_ms,
+    segment.text
+  ].join("|");
+}
+
+function mergeSearchGroup(current: SearchGroup, next: SearchGroup): SearchGroup {
+  const segments = [...current.hit_segments];
+  const seen = new Set(segments.map(searchSegmentIdentity));
+
+  for (const segment of next.hit_segments) {
+    const key = searchSegmentIdentity(segment);
+    if (!seen.has(key)) {
+      seen.add(key);
+      segments.push(segment);
+    }
+  }
+
+  return {
+    ...current,
+    ...next,
+    best_excerpt: current.best_excerpt || next.best_excerpt,
+    hit_segments: segments,
+    hit_count: Math.max(current.hit_count, next.hit_count, segments.length),
+    transcript_character_count:
+      next.transcript_character_count ?? current.transcript_character_count
+  };
+}
+
+export function mergeMaterialSearchResponses(
+  current: SearchResponse,
+  next: SearchResponse
+): SearchResponse {
+  const currentQuery = normalizeLocatorQuery(current.normalized_query || current.query);
+  const nextQuery = normalizeLocatorQuery(next.normalized_query || next.query);
+
+  if (!currentQuery || currentQuery !== nextQuery) {
+    return next;
+  }
+
+  const groupsById = new Map<string, SearchGroup>();
+  const order: string[] = [];
+
+  for (const group of current.groups) {
+    const key = searchGroupIdentity(group);
+    if (!groupsById.has(key)) {
+      order.push(key);
+      groupsById.set(key, group);
+    }
+  }
+
+  for (const group of next.groups) {
+    const key = searchGroupIdentity(group);
+    const existing = groupsById.get(key);
+    if (existing) {
+      groupsById.set(key, mergeSearchGroup(existing, group));
+    } else {
+      order.push(key);
+      groupsById.set(key, group);
+    }
+  }
+
+  const groups = order
+    .map((key) => groupsById.get(key))
+    .filter((group): group is SearchGroup => Boolean(group));
+
+  return {
+    ...current,
+    ...next,
+    query: current.query || next.query,
+    normalized_query: current.normalized_query || next.normalized_query,
+    groups,
+    returned_count: groups.length,
+    search_ms:
+      typeof current.search_ms === "number" || typeof next.search_ms === "number"
+        ? Math.max(0, (current.search_ms ?? 0) + (next.search_ms ?? 0))
+        : undefined,
+    index_version: next.index_version || current.index_version,
+    search_mode: next.search_mode || current.search_mode
+  };
+}
+
+export function materialSearchHitCount(search: SearchResponse): number {
+  return search.groups.reduce((sum, group) => sum + group.hit_count, 0);
+}
+
+export function materialSearchFailureFeedback(input: {
+  hasFirstPage: boolean;
+  error: unknown;
+}): { notice: string; error: string } {
+  if (input.hasFirstPage) {
+    return {
+      notice: "后续搜索结果加载失败，可继续使用首批结果",
+      error: ""
+    };
+  }
+
+  return {
+    notice: "",
+    error: input.error instanceof Error ? input.error.message : "搜索结果加载失败"
+  };
+}
+
+export function materialSearchStatusLabels(input: {
+  pending: boolean;
+  search?: SearchResponse;
+  runtimeSearchBackend?: CutterRuntimeStatus["search_backend"];
+  availableVideoCount?: number;
+  fallbackLabel: string;
+  elapsedMs?: number;
+}): MaterialLocatorSearchStatus {
+  const search = input.search;
+  const backend = input.runtimeSearchBackend;
+  const backendSourceCount =
+    typeof backend?.source_video_count === "number" && Number.isFinite(backend.source_video_count)
+      ? Math.max(0, Math.round(backend.source_video_count))
+      : undefined;
+  const availableVideoCount =
+    typeof input.availableVideoCount === "number" && Number.isFinite(input.availableVideoCount)
+      ? Math.max(0, Math.round(input.availableVideoCount))
+      : undefined;
+  const searchIndexSyncing =
+    Boolean(backend?.healthy) &&
+    !backend?.degraded &&
+    backendSourceCount !== undefined &&
+    availableVideoCount !== undefined &&
+    backendSourceCount > 0 &&
+    availableVideoCount > 0 &&
+    backendSourceCount !== availableVideoCount;
+  const degraded =
+    search?.search_mode === "transcript-artifact-fallback" ||
+    backend?.mode === "transcript-artifact-fallback" ||
+    Boolean(backend?.degraded);
+  const visibleSourceCount = backendSourceCount ?? availableVideoCount;
+  const indexLabel = degraded
+    ? "部分素材可用"
+    : typeof visibleSourceCount === "number"
+      ? `已发布 ${visibleSourceCount} 条`
+      : "可用";
+  const syncLabel = searchIndexSyncing
+    ? "素材更新中"
+    : input.pending
+    ? search && search.groups.length > 0
+      ? "继续匹配"
+      : "正在匹配"
+    : degraded
+      ? "部分结果可用"
+      : "可搜索";
+  const searchLatency =
+    search && search.groups.length > 0 && typeof search.search_ms === "number"
+      ? search.search_ms
+      : typeof input.elapsedMs === "number"
+        ? input.elapsedMs
+        : search?.search_ms ?? backend?.response_ms;
+
+  return {
+    indexLabel,
+    syncLabel,
+    searchLatencyLabel: input.pending && !search?.groups.length
+      ? "匹配中"
+      : search && search.groups.length > 0
+        ? "已返回"
+        : typeof searchLatency === "number"
+          ? "就绪"
+          : input.fallbackLabel === "Fixture"
+            ? "演示数据"
+            : input.fallbackLabel,
+    nasLabel: degraded ? "部分结果可用" : "已连接"
+  };
 }
 
 function normalizeLocatorQuery(query: string): string {
@@ -627,7 +928,7 @@ function defaultCutListForData(data: CutterFixtureData): CutListItem[] {
       segments: selectedSegments,
       cutMode: data.settings.default_cut_mode,
       order: 1,
-      title: "现金流短片开场"
+      title: `${data.primaryDetail.title} 片段`
     })
   ];
 }
@@ -692,6 +993,86 @@ function safeLocalStorageSetItem(key: string, value: string): void {
 const CUTTER_CUT_MODE_STORAGE_KEY = "mixlab:cutter:default_cut_mode";
 const CUTTER_SOURCE_FILTER_STORAGE_KEY = "mixlab:cutter:default_source_filter";
 const CUTTER_ORIENTATION_FILTER_STORAGE_KEY = "mixlab:cutter:default_orientation_filter";
+const CUTTER_CACHE_STORAGE_PREFIXES = ["mixlab:cutter:", "mixlab.cutter."] as const;
+const CUTTER_PRESERVED_STORAGE_KEYS = new Set([
+  "mixlab:cutter:auth_session",
+  "mixlab:cutter:device_id",
+  "mixlab:cutter:pending_login"
+]);
+
+export interface CutterLocalCacheSnapshot {
+  bytes: number;
+  keys: string[];
+}
+
+function localStorageSafe(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function isCutterCacheStorageKey(key: string): boolean {
+  return CUTTER_CACHE_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
+    !CUTTER_PRESERVED_STORAGE_KEYS.has(key);
+}
+
+export function formatCutterCacheSize(bytes: number): string {
+  if (bytes <= 0) {
+    return "0 KB";
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+export function cutterLocalCacheSnapshot(storage: Storage | null = localStorageSafe()): CutterLocalCacheSnapshot {
+  if (!storage) {
+    return { bytes: 0, keys: [] };
+  }
+
+  const keys: string[] = [];
+  let bytes = 0;
+
+  try {
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key || !isCutterCacheStorageKey(key)) {
+        continue;
+      }
+
+      const value = storage.getItem(key) ?? "";
+      keys.push(key);
+      bytes += (key.length + value.length) * 2;
+    }
+  } catch {
+    return { bytes: 0, keys: [] };
+  }
+
+  return { bytes, keys };
+}
+
+export function clearCutterLocalCache(storage: Storage | null = localStorageSafe()): CutterLocalCacheSnapshot {
+  const snapshot = cutterLocalCacheSnapshot(storage);
+
+  if (!storage) {
+    return snapshot;
+  }
+
+  for (const key of snapshot.keys) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      // Ignore storage cleanup failures; cache clearing is best-effort.
+    }
+  }
+
+  return snapshot;
+}
 
 function readCutterDefaultCutMode(): CutMode {
   const stored = safeLocalStorageGetItem(CUTTER_CUT_MODE_STORAGE_KEY);
@@ -711,7 +1092,8 @@ function normalizeVideoOrientationFilter(filter: string | null): VideoOrientatio
 }
 
 function readCutterDefaultSourceFilter(): MaterialSearchSourceFilter {
-  return normalizeMaterialSearchSourceFilter(safeLocalStorageGetItem(CUTTER_SOURCE_FILTER_STORAGE_KEY));
+  const stored = safeLocalStorageGetItem(CUTTER_SOURCE_FILTER_STORAGE_KEY);
+  return stored ? normalizeMaterialSearchSourceFilter(stored) : "public";
 }
 
 function writeCutterDefaultSourceFilter(filter: MaterialSearchSourceFilter): void {
@@ -787,13 +1169,20 @@ function renderPage(
     localLibraryViewMode: LocalLibraryViewMode;
     recentSearches: readonly MaterialSearchHistoryItem[];
     selectedSegments: ReturnType<typeof continuousTranscriptSegments>;
+    selectedStartCharOffset?: number;
+    selectedEndCharOffset?: number;
+    highlightedHitSegments: MaterialLocatorResult["segments"];
     selectedDetail: CutterFixtureData["primaryDetail"];
+    searchStatus: MaterialLocatorSearchStatus;
     projects: readonly CutterProject[];
     currentProject?: CutterProject;
     currentProjectId?: string;
     homeSelectedProjectId?: string;
     sourceFilter: MaterialSearchSourceFilter;
     orientationFilter: VideoOrientationFilter;
+    publicLibraryOrientationFilter: VideoOrientationFilter;
+    publicLibrarySelectedSourceVideoId?: string;
+    sourceLibraryLoadingMore: boolean;
     cutNotice: string;
     autoRefreshCutJobs: boolean;
     lastQueueUpdatedLabel: string;
@@ -809,12 +1198,23 @@ function renderPage(
     selectMaterial: (result: MaterialLocatorResult) => void;
     selectTranscriptSegment: (segmentId: string) => void;
     selectTranscriptRange: (startSegmentId: string, endSegmentId: string) => void;
+    selectTranscriptTextRange: (
+      startSegmentId: string,
+      startCharOffset: number,
+      endSegmentId: string,
+      endCharOffset: number
+    ) => void;
     navigateHit: (direction: "previous" | "next") => void;
     cancelTranscriptSelection: () => void;
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
+    setPublicLibraryOrientationFilter: (filter: VideoOrientationFilter) => void;
+    selectPublicSourceVideo: (sourceVideoId: string) => void;
+    loadMoreSourceLibrary: () => void;
     selectProject: (projectId: string) => void;
     openProject: (projectId: string) => void;
+    openProjectDirectory: (projectId: string) => void;
+    createProject: (title: string) => void;
     renameProject: (projectId?: string) => void;
     deleteProject: (projectId: string, mode: ProjectDeleteMode) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
@@ -825,6 +1225,7 @@ function renderPage(
     runNextJob?: () => void;
     retryFailedCutJob?: (cutJobId: string) => void;
     openCutOutputDirectory: () => void;
+    openLocalClipDirectory: (localClip: LocalClip) => void;
     selectLocalClip: (localClipId: string) => void;
     setLocalLibraryViewMode: (mode: LocalLibraryViewMode) => void;
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
@@ -842,6 +1243,8 @@ function renderPage(
         onSearch={handlers.searchFromProjectHome}
         onSelectProject={handlers.selectProject}
         onOpenProject={handlers.openProject}
+        onOpenProjectDirectory={handlers.openProjectDirectory}
+        onCreateProject={handlers.createProject}
         onRenameProject={handlers.renameProject}
         onDeleteProject={handlers.deleteProject}
       />
@@ -871,7 +1274,10 @@ function renderPage(
         orientationFilter={viewState.orientationFilter}
         selectedDetail={viewState.selectedDetail}
         selectedSegments={viewState.selectedSegments}
+        selectedStartCharOffset={viewState.selectedStartCharOffset}
+        selectedEndCharOffset={viewState.selectedEndCharOffset}
         highlightedSegmentIds={viewState.highlightedSegmentIds}
+        highlightedHitSegments={viewState.highlightedHitSegments}
         currentHitIndex={viewState.currentHitIndex}
         currentHitSegmentId={viewState.currentHitSegmentId}
         globalHitCount={viewState.globalHitCount}
@@ -879,12 +1285,13 @@ function renderPage(
         isSearching={viewState.materialSearchPending}
         recentSearches={viewState.recentSearches}
         cutNotice={viewState.cutNotice}
+        searchStatus={viewState.searchStatus}
         queue={queue}
         cutMode={viewState.selectedCutMode}
         onSearch={handlers.search}
         onSelectMaterial={handlers.selectMaterial}
-        onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
+        onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
         onNavigateHit={handlers.navigateHit}
         onCutSelection={handlers.addSelectedSpan}
         onCancelSelection={handlers.cancelTranscriptSelection}
@@ -902,9 +1309,13 @@ function renderPage(
         projects={viewState.projects}
         currentProjectId={viewState.currentProjectId}
         viewMode={viewState.localLibraryViewMode}
+        orientationFilter={viewState.orientationFilter}
         selectedLocalClipId={viewState.localLibrarySelectedClipId}
+        actionNotice={viewState.cutNotice}
         onSetViewMode={handlers.setLocalLibraryViewMode}
+        onSetOrientationFilter={handlers.setOrientationFilter}
         onSelectLocalClip={handlers.selectLocalClip}
+        onOpenLocalClipDirectory={handlers.openLocalClipDirectory}
       />
     );
   }
@@ -930,7 +1341,6 @@ function renderPage(
       <SettingsPage
         settings={data.settings}
         runtimeStatus={data.runtimeStatus}
-        apiBaseUrl={viewState.apiBaseUrl}
         appearanceMode={viewState.appearanceMode}
         defaultCutMode={viewState.selectedCutMode}
         defaultSourceFilter={viewState.sourceFilter}
@@ -946,7 +1356,14 @@ function renderPage(
   return (
     <PublicLibraryPage
       library={data.library}
-      selectedSourceVideoId={data.primaryDetail.source_video_id}
+      selectedSourceVideoId={viewState.publicLibrarySelectedSourceVideoId}
+      orientationFilter={viewState.publicLibraryOrientationFilter}
+      runtimeStatus={data.runtimeStatus}
+      isLoadingMore={viewState.sourceLibraryLoadingMore}
+      hasMore={data.library.videos.length < data.library.available_video_count}
+      onSetOrientationFilter={handlers.setPublicLibraryOrientationFilter}
+      onSelectSourceVideo={handlers.selectPublicSourceVideo}
+      onLoadMore={handlers.loadMoreSourceLibrary}
     />
   );
 }
@@ -983,6 +1400,10 @@ export function CutterApp() {
   const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>(() =>
     readCutterDefaultOrientationFilter()
   );
+  const [publicLibraryOrientationFilter, setPublicLibraryOrientationFilter] =
+    useState<VideoOrientationFilter>("all");
+  const [publicLibrarySelectedSourceVideoId, setPublicLibrarySelectedSourceVideoId] =
+    useState<string | undefined>();
   const [selectedCutMode, setSelectedCutMode] = useState<CutMode>(() => readCutterDefaultCutMode());
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
@@ -993,7 +1414,12 @@ export function CutterApp() {
       routeFromHash(window.location.hash) === "material-locator" &&
       searchQueryFromHash(window.location.hash).trim().length > 0
   );
+  const [materialSearchRevision, setMaterialSearchRevision] = useState(0);
+  const [lastMaterialSearchDurationMs, setLastMaterialSearchDurationMs] = useState<number | undefined>();
   const [recentMaterialSearches, setRecentMaterialSearches] = useState<MaterialSearchHistoryItem[]>([]);
+  const materialSearchRequestIdRef = useRef(0);
+  const focusedSourceDetailRequestIdRef = useRef(0);
+  const didAutoApplyLocalTrustedLoginRef = useRef(false);
   const [cutNotice, setCutNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
@@ -1005,12 +1431,16 @@ export function CutterApp() {
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(() =>
     routeFromHash(window.location.hash) === "project-home" ? undefined : initialProjectsState.currentProjectId
   );
+  const projectsRef = useRef<CutterProject[]>(projects);
+  const currentProjectIdRef = useRef<string | undefined>(currentProjectId);
   const [homeSelectedProjectId, setHomeSelectedProjectId] = useState<string | undefined>(
     () => initialProjectsState.currentProjectId
   );
+  const [renameTargetProjectId, setRenameTargetProjectId] = useState<string | undefined>();
   const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
   const cutPipelineRunningRef = useRef(false);
   const [data, setData] = useState<CutterFixtureData | null>(null);
+  const dataRef = useRef<CutterFixtureData | null>(data);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
     deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
   );
@@ -1018,10 +1448,14 @@ export function CutterApp() {
   const [pendingLogin, setPendingLogin] = useState<CutterPendingLogin | null>(() =>
     apiMode ? readCutterPendingLogin() : null
   );
-  const [loginStatus, setLoginStatus] = useState<CutterLoginStatusValue>(() => apiMode ? "unknown" : "approved");
+  const [loginStatus, setLoginStatus] = useState<CutterLoginStatusValue>(() =>
+    initialCutterLoginStatus({ apiMode, authSession })
+  );
   const [loginMessage, setLoginMessage] = useState("");
+  const [authModeStatus, setAuthModeStatus] = useState<CutterAuthModeStatus | null>(null);
   const [loginPollTick, setLoginPollTick] = useState(0);
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
+  const [sourceLibraryLoadingMore, setSourceLibraryLoadingMore] = useState(false);
   const [cutJobProjectIndex, setCutJobProjectIndex] = useState<CutJobProjectIndex>(() =>
     readCutJobProjectIndex()
   );
@@ -1035,9 +1469,17 @@ export function CutterApp() {
     desktopTrusted: isDesktopMode
   });
   const currentProject = projects.find((project) => project.project_id === currentProjectId);
+  const sidebarProject =
+    currentProject ?? projects.find((project) => project.project_id === homeSelectedProjectId);
+  const renameTargetProject = projects.find((project) => project.project_id === renameTargetProjectId);
+  projectsRef.current = projects;
+  currentProjectIdRef.current = currentProjectId;
+  dataRef.current = data;
 
   function commitProjects(nextProjects: readonly CutterProject[], nextProjectId?: string) {
     const sortedProjects = [...nextProjects].sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+    projectsRef.current = sortedProjects;
+    currentProjectIdRef.current = nextProjectId;
     setProjects(sortedProjects);
     setCurrentProjectId(nextProjectId);
     setHomeSelectedProjectId((current) =>
@@ -1080,6 +1522,7 @@ export function CutterApp() {
   }
 
   function clearCurrentProjectSelection() {
+    currentProjectIdRef.current = undefined;
     setCurrentProjectId(undefined);
     setHomeSelectedProjectId((current) =>
       current && projects.some((project) => project.project_id === current)
@@ -1110,22 +1553,6 @@ export function CutterApp() {
     };
   }
 
-  function startTemporarySearch() {
-    clearCurrentProjectSelection();
-    setSearchQuery("");
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            search: emptySearchResponse()
-          }
-        : current
-    );
-    clearMaterialLocatorFocus();
-    setCutNotice("");
-    window.location.hash = routeToHash("material-locator");
-  }
-
   function returnToProjectHome() {
     clearCurrentProjectSelection();
     setSearchQuery("");
@@ -1151,8 +1578,38 @@ export function CutterApp() {
     setLocatorCurrentHitIndex(0);
   }
 
+  function loadFocusedSourceVideoDetail(sourceVideoId: string) {
+    const requestId = focusedSourceDetailRequestIdRef.current + 1;
+    focusedSourceDetailRequestIdRef.current = requestId;
+
+    void client.getSourceVideoDetail(sourceVideoId)
+      .then((detail) => {
+        if (focusedSourceDetailRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        const resolvedDetail = resolveSourceVideoDetailUrls(client, detail);
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                primaryDetail: resolvedDetail
+              }
+            : current
+        );
+        setError("");
+      })
+      .catch((detailError) => {
+        if (focusedSourceDetailRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setError(detailError instanceof Error ? detailError.message : "原视频完整文案加载失败");
+      });
+  }
+
   function focusMaterialTarget(target: MaterialLocatorHitTarget, globalHitIndex: number) {
-    setTranscriptSelection({});
+    setTranscriptSelection(transcriptSelectionRangeFromHitSegments(target.hitSegments));
     setLocatorHighlightedSegmentIds(target.highlightedSegmentIds);
     setLocatorCurrentHitIndex(globalHitIndex);
     setSelectedMaterialFocusKey(target.materialKey);
@@ -1166,6 +1623,9 @@ export function CutterApp() {
 
     setSelectedLocalClipId(undefined);
     setSelectedSourceVideoId(target.material.id);
+    if (dataRef.current?.primaryDetail.source_video_id !== target.material.id) {
+      loadFocusedSourceVideoDetail(target.material.id);
+    }
   }
 
   useEffect(() => {
@@ -1264,6 +1724,57 @@ export function CutterApp() {
     },
     [apiBaseUrl]
   );
+
+  useEffect(() => {
+    if (!apiMode) {
+      setAuthModeStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    createCutterApiClient({ base_url: apiBaseUrl })
+      .getAuthMode()
+      .then((status) => {
+        if (!cancelled) {
+          setAuthModeStatus(status);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAuthModeStatus({
+            auth_mode: "reviewed",
+            local_trusted: false,
+            trusted_username: ""
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, apiMode]);
+
+  useEffect(() => {
+    if (
+      !shouldAutoApplyLocalTrustedLogin({
+        apiMode,
+        authModeStatus,
+        authSession,
+        pendingLogin,
+        loginStatus,
+        alreadyAttempted: didAutoApplyLocalTrustedLoginRef.current
+      })
+    ) {
+      return;
+    }
+
+    didAutoApplyLocalTrustedLoginRef.current = true;
+    setLoginMessage("正在进入本机剪辑师工作台。");
+    void handleApplyLogin(authModeStatus?.trusted_username?.trim() || "本机剪辑师").catch((loginError) => {
+      setLoginMessage(loginMessageForAuthError(loginError));
+      didAutoApplyLocalTrustedLoginRef.current = false;
+    });
+  }, [apiMode, authModeStatus, authSession, handleApplyLogin, loginStatus, pendingLogin]);
 
   useEffect(() => {
     if (!apiMode) {
@@ -1441,29 +1952,41 @@ export function CutterApp() {
   useEffect(() => {
     const listener = () => {
       const nextHash = window.location.hash;
-      setRoute(routeFromHash(nextHash));
+      const nextRoute = routeFromHash(nextHash);
+      const nextSearchQuery = materialLocatorSearchQueryForHashChange({
+        hash: nextHash,
+        currentSearchQuery: searchQuery
+      });
+      const nextProjectId = projectIdForWorkbenchRoute({
+        route: nextRoute,
+        currentProjectId: currentProjectIdRef.current,
+        homeSelectedProjectId,
+        projectIds: projectsRef.current.map((project) => project.project_id)
+      });
+      if (nextProjectId && nextProjectId !== currentProjectIdRef.current) {
+        currentProjectIdRef.current = nextProjectId;
+        setCurrentProjectId(nextProjectId);
+        writeCutterProjects(projectsRef.current, nextProjectId);
+      }
+      setRoute(nextRoute);
       setSelectedSourceVideoId(sourceVideoIdFromHash(nextHash));
       setSelectedLocalClipId(undefined);
-      setSearchQuery((current) =>
-        materialLocatorSearchQueryForHashChange({
-          hash: nextHash,
-          currentSearchQuery: current
-        })
-      );
+      setSearchQuery(nextSearchQuery);
       setSourceDetailContext(sourceDetailContextFromHash(nextHash));
       setTranscriptSelection({});
       setLocatorHighlightedSegmentIds([]);
       setLocatorCurrentHitIndex(0);
       setSelectedMaterialFocusKey(undefined);
-      setMaterialSearchPending(
-        routeFromHash(nextHash) === "material-locator" &&
-          searchQueryFromHash(nextHash).trim().length > 0
-      );
+      setMaterialSearchPending(shouldStartMaterialSearchForHashChange({
+        hash: nextHash,
+        currentSearchQuery: searchQuery,
+        nextSearchQuery
+      }));
       setCutNotice("");
     };
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
-  }, []);
+  }, [homeSelectedProjectId, searchQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1479,7 +2002,8 @@ export function CutterApp() {
 
     loadCutterWorkbenchData(client, {
       preferredSourceVideoId: selectedSourceVideoId,
-      includeSourceLibrary: route === "public-library"
+      includeSourceLibrary: route === "public-library",
+      sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT
     })
       .then((result) => {
         if (!cancelled) {
@@ -1536,11 +2060,12 @@ export function CutterApp() {
       return;
     }
 
-    const firstTarget = locatorHitTargets[0];
-    if (firstTarget) {
-      focusMaterialTarget(firstTarget, 0);
+    const targetIndex = initialMaterialLocatorHitTargetIndex(locatorHitTargets, sourceFilter);
+    const target = targetIndex >= 0 ? locatorHitTargets[targetIndex] : undefined;
+    if (target) {
+      focusMaterialTarget(target, targetIndex);
     }
-  }, [locatorHitTargets, route, searchQuery, selectedMaterialFocusKey]);
+  }, [locatorHitTargets, route, searchQuery, selectedMaterialFocusKey, sourceFilter]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -1558,77 +2083,170 @@ export function CutterApp() {
           : current
       );
       setMaterialSearchPending(false);
+      setLastMaterialSearchDurationMs(undefined);
       clearMaterialLocatorFocus();
       return;
     }
 
     let cancelled = false;
+    const requestId = materialSearchRequestIdRef.current + 1;
+    const startedAtMs = Date.now();
+    materialSearchRequestIdRef.current = requestId;
     setMaterialSearchPending(true);
+    const timeout = window.setTimeout(() => {
+      if (!cancelled && materialSearchRequestIdRef.current === requestId) {
+        setMaterialSearchPending(false);
+        setError("搜索响应较慢，请缩短关键词或稍后重试。");
+      }
+    }, 12_000);
+    const requestProjectId = currentProjectIdRef.current;
 
-    client
-      .searchSourceLibrary(query, 20)
-      .then((searchResult) => {
-        if (!cancelled) {
-          const resolvedSearch = resolveSearchResponseUrls(client, searchResult);
+    const rememberSearch = (searchResult: SearchResponse) => {
+      const hitCount = materialSearchHitCount(searchResult);
+      setRecentMaterialSearches((current) =>
+        nextMaterialSearchHistory(current, {
+          query,
+          hitCount
+        })
+      );
+      const project = requestProjectId
+        ? projectsRef.current.find((candidate) => candidate.project_id === requestProjectId)
+        : undefined;
+      if (project) {
+        const timestamp = new Date().toISOString();
+        const updatedProject = {
+          ...project,
+          updated_at: timestamp,
+          searches: recordProjectSearch(
+            project.searches,
+            {
+              query,
+              hitCount
+            },
+            timestamp
+          )
+        };
+        commitProjects(upsertCutterProject(projectsRef.current, updatedProject), updatedProject.project_id);
+      }
+    };
+
+    const runPagedSearch = async () => {
+      let hasFirstPage = false;
+      let mergedSearch: SearchResponse | undefined;
+
+      try {
+        const firstPage = resolveSearchResponseUrls(
+          client,
+          await client.searchSourceLibrary(query, MATERIAL_SEARCH_FIRST_BATCH_LIMIT)
+        );
+        if (cancelled || materialSearchRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        window.clearTimeout(timeout);
+        hasFirstPage = true;
+        mergedSearch = firstPage;
+        setLastMaterialSearchDurationMs(firstPage.search_ms ?? Math.max(0, Date.now() - startedAtMs));
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                search: firstPage
+              }
+            : current
+        );
+        const latestData = dataRef.current;
+        const hitTargets = latestData
+          ? materialLocatorHitTargets({
+              query,
+              sourceFilter,
+              orientationFilter,
+              localClips: latestData.localClips,
+              library: latestData.library,
+              search: firstPage
+            })
+          : [];
+        const targetIndex = initialMaterialLocatorHitTargetIndex(hitTargets, sourceFilter);
+        const target = targetIndex >= 0 ? hitTargets[targetIndex] : undefined;
+
+        if (target) {
+          focusMaterialTarget(target, targetIndex);
+        } else {
+          clearMaterialLocatorFocus();
+        }
+        rememberSearch(firstPage);
+        setError("");
+
+        let nextCursor = firstPage.next_cursor;
+        while (
+          nextCursor &&
+          mergedSearch.has_more &&
+          !cancelled &&
+          materialSearchRequestIdRef.current === requestId
+        ) {
+          const page = resolveSearchResponseUrls(
+            client,
+            await client.searchSourceLibrary(query, MATERIAL_SEARCH_BACKGROUND_BATCH_LIMIT, {
+              cursor: nextCursor
+            })
+          );
+          if (cancelled || materialSearchRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          const nextMergedSearch = mergeMaterialSearchResponses(mergedSearch, page);
+          mergedSearch = nextMergedSearch;
+          nextCursor = nextMergedSearch.next_cursor;
+          setLastMaterialSearchDurationMs(Math.max(0, Date.now() - startedAtMs));
           setData((current) =>
             current
               ? {
                   ...current,
-                  search: resolvedSearch
+                  search: nextMergedSearch
                 }
               : current
           );
-          const firstTarget = materialLocatorHitTargets({
-            query,
-            sourceFilter,
-            orientationFilter,
-            localClips: data.localClips,
-            library: data.library,
-            search: resolvedSearch
-          })[0];
+          rememberSearch(nextMergedSearch);
+        }
+      } catch (searchError) {
+        if (!cancelled && materialSearchRequestIdRef.current === requestId) {
+          window.clearTimeout(timeout);
+          setLastMaterialSearchDurationMs(Math.max(0, Date.now() - startedAtMs));
+          const feedback = materialSearchFailureFeedback({
+            hasFirstPage,
+            error: searchError
+          });
+          if (feedback.notice) {
+            setCutNotice(feedback.notice);
+          }
+          if (feedback.error) {
+            setError(feedback.error);
+          }
+        }
+      } finally {
+        if (!cancelled && materialSearchRequestIdRef.current === requestId) {
+          window.clearTimeout(timeout);
+          setMaterialSearchPending(false);
+        }
+      }
+    };
 
-          if (firstTarget) {
-            focusMaterialTarget(firstTarget, 0);
-          } else {
-            clearMaterialLocatorFocus();
-          }
-          setMaterialSearchPending(false);
-          setRecentMaterialSearches((current) =>
-            nextMaterialSearchHistory(current, {
-              query,
-              hitCount: resolvedSearch.groups.reduce((sum, group) => sum + group.hit_count, 0)
-            })
-          );
-          if (currentProject) {
-            const hitCount = resolvedSearch.groups.reduce((sum, group) => sum + group.hit_count, 0);
-            const updatedProject = {
-              ...currentProject,
-              updated_at: new Date().toISOString(),
-              searches: recordProjectSearch(
-                currentProject.searches,
-                {
-                  query,
-                  hitCount
-                },
-                new Date().toISOString()
-              )
-            };
-            commitProjects(upsertCutterProject(projects, updatedProject), updatedProject.project_id);
-          }
-          setError("");
-        }
-      })
-      .catch((searchError) => {
-        if (!cancelled) {
-          setMaterialSearchPending(false);
-          setError(searchError instanceof Error ? searchError.message : "搜索结果加载失败");
-        }
-      });
+    void runPagedSearch();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
-  }, [client, Boolean(data), loginGateVisible, orientationFilter, route, searchQuery, sourceFilter]);
+  }, [
+    client,
+    Boolean(data),
+    loginGateVisible,
+    materialSearchRevision,
+    orientationFilter,
+    route,
+    searchQuery,
+    sourceFilter
+  ]);
 
   useEffect(() => {
     if (!shouldRefreshCutQueueForRoute({
@@ -1715,7 +2333,9 @@ export function CutterApp() {
             projectTitle: currentProject ? projectDisplayTitle(currentProject) : undefined
           })
         );
-  const visibleQueue = filterCutQueueJobsByProject(allVisibleQueue, currentProjectId);
+  const visibleQueue = currentProjectId
+    ? filterCutQueueJobsByProject(allVisibleQueue, currentProjectId)
+    : allVisibleQueue;
   const pageQueue = route === "project-home" ? allVisibleQueue : visibleQueue;
   const projectRecentMaterialSearches =
     currentProject?.searches.map((search) => ({
@@ -1730,12 +2350,25 @@ export function CutterApp() {
     currentLocatorHitTarget && currentLocatorHitTarget.materialKey === selectedMaterialKey
       ? currentLocatorHitTarget.segmentId
       : highlightedSegmentIds[0];
-  const selectedTranscriptSegments = selectedDetail
-    ? continuousTranscriptSegments(selectedDetail.transcript.segments, {
+  const highlightedHitSegments =
+    currentLocatorHitTarget && currentLocatorHitTarget.materialKey === selectedMaterialKey
+      ? currentLocatorHitTarget.hitSegments
+      : [];
+  const selectedTranscriptSelection = selectedDetail
+    ? continuousTranscriptSelection(selectedDetail.transcript.segments, {
         ...transcriptSelection,
         fallbackSegmentIds: route === "source-detail" ? highlightedSegmentIds : []
       })
-    : [];
+    : { segments: [] };
+  const selectedTranscriptSegments = selectedTranscriptSelection.segments;
+  const materialSearchStatus = materialSearchStatusLabels({
+    pending: materialSearchPending,
+    search: data?.search,
+    runtimeSearchBackend: data?.runtimeStatus.search_backend,
+    availableVideoCount: data?.library.available_video_count ?? data?.runtimeStatus.available_video_count,
+    elapsedMs: lastMaterialSearchDurationMs,
+    fallbackLabel: data?.runtimeStatus.api_ready ? "就绪" : "Fixture"
+  });
 
   const runRealCutPipeline = useCallback(async () => {
     if (!apiMode || loginGateVisible || cutPipelineRunningRef.current) {
@@ -1788,6 +2421,49 @@ export function CutterApp() {
     setOrientationFilter(supportedFilter);
     writeCutterDefaultOrientationFilter(supportedFilter);
   };
+
+  const handleSetPublicLibraryOrientationFilter = (filter: VideoOrientationFilter) => {
+    setPublicLibraryOrientationFilter(normalizeVideoOrientationFilter(filter));
+  };
+
+  const handleLoadMoreSourceLibrary = useCallback(async () => {
+    const currentData = dataRef.current;
+    if (!currentData || sourceLibraryLoadingMore) {
+      return;
+    }
+
+    const offset = currentData.library.videos.length;
+    if (offset >= currentData.library.available_video_count) {
+      return;
+    }
+
+    setSourceLibraryLoadingMore(true);
+    try {
+      const nextPage = await client.listSourceLibrary({
+        limit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
+        offset
+      });
+      const nextVideos = nextPage.videos.map((video) => resolveSourceVideoCardUrls(client, video));
+
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              library: {
+                ...current.library,
+                ...nextPage,
+                videos: mergeSourceVideoCards(current.library.videos, nextVideos)
+              }
+            }
+          : current
+      );
+      setError("");
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "公共素材继续加载失败");
+    } finally {
+      setSourceLibraryLoadingMore(false);
+    }
+  }, [client, sourceLibraryLoadingMore]);
 
   const commitDesktopConfigDraft = (config: DesktopConfig, stage = desktopSetupStageForConfig(config)) => {
     setDesktopConfig(config);
@@ -1935,6 +2611,7 @@ export function CutterApp() {
   function performMaterialSearch(query: string) {
     const nextQuery = query.trim();
     setSearchQuery(nextQuery);
+    setMaterialSearchRevision((current) => current + 1);
     setSelectedSourceVideoId(undefined);
     setSelectedLocalClipId(undefined);
     setSelectedMaterialFocusKey(undefined);
@@ -1942,6 +2619,7 @@ export function CutterApp() {
     setLocatorHighlightedSegmentIds([]);
     setLocatorCurrentHitIndex(0);
     setMaterialSearchPending(Boolean(nextQuery));
+    setLastMaterialSearchDurationMs(undefined);
     setCutNotice("");
     window.location.hash = searchHash(nextQuery);
   }
@@ -1949,11 +2627,14 @@ export function CutterApp() {
   function startProjectHomeSearch(query: string) {
     const nextQuery = query.trim();
     if (nextQuery) {
-      const project = createProjectFromSearch({
+      const draft = projectHomeSearchDraft({
         query: nextQuery,
-        existingProjects: projects
+        projects,
+        selectedProjectId: homeSelectedProjectId
       });
-      commitProjects(upsertCutterProject(projects, project), project.project_id);
+      if (draft) {
+        commitProjects(draft.projects, draft.project.project_id);
+      }
     } else {
       clearCurrentProjectSelection();
     }
@@ -1979,7 +2660,9 @@ export function CutterApp() {
         segments: selectedTranscriptSegments,
         cutMode: selectedCutMode,
         order: visibleCutList.length + 1,
-        title: `${selectedDetail.title} 片段`
+        title: `${selectedDetail.title} 片段`,
+        startCharOffset: selectedTranscriptSelection.startCharOffset,
+        endCharOffset: selectedTranscriptSelection.endCharOffset
       });
       const projectDraft = projectDraftForCut(item);
       const clipListTitle = projectDraft.project.title;
@@ -2113,6 +2796,33 @@ export function CutterApp() {
 
       window.location.hash = routeToHash("material-locator");
     },
+    openProjectDirectory: async (projectId: string) => {
+      if (!apiMode) {
+        setCutNotice("请先连接本机剪辑服务，再打开项目文件目录");
+        return;
+      }
+
+      const project = projects.find((item) => item.project_id === projectId);
+
+      try {
+        await client.openCutOutputDirectory({
+          project_id: projectId,
+          ...(project ? { project_title: projectDisplayTitle(project) } : {})
+        });
+        setCutNotice("已打开项目文件目录");
+      } catch (openError) {
+        setError(openError instanceof Error ? openError.message : "打开项目文件目录失败");
+      }
+    },
+    createProject(title: string) {
+      const project = createEmptyProject({
+        title,
+        existingProjects: projects
+      });
+      commitProjects(upsertCutterProject(projects, project), project.project_id);
+      setCutNotice(`已新建项目：${projectDisplayTitle(project)}`);
+      window.location.hash = routeToHash("material-locator");
+    },
     deleteProject: handleDeleteProject,
     selectMaterial(result: MaterialLocatorResult) {
       const materialKey = materialKeyFromResult(result);
@@ -2129,7 +2839,8 @@ export function CutterApp() {
           materialKey,
           material: result,
           segmentId: materialFocusFromResult(result).currentSegmentId ?? "",
-          highlightedSegmentIds: materialFocusFromResult(result).highlightedSegmentIds
+          highlightedSegmentIds: materialFocusFromResult(result).highlightedSegmentIds,
+          hitSegments: materialHitSegmentGroups(result)[0] ?? []
         },
         0
       );
@@ -2149,11 +2860,27 @@ export function CutterApp() {
     selectTranscriptRange(startSegmentId: string, endSegmentId: string) {
       setTranscriptSelection(transcriptSelectionRangeFromDrag(startSegmentId, endSegmentId));
     },
+    selectTranscriptTextRange(
+      startSegmentId: string,
+      startCharOffset: number,
+      endSegmentId: string,
+      endCharOffset: number
+    ) {
+      setTranscriptSelection(transcriptSelectionRangeFromText(
+        startSegmentId,
+        startCharOffset,
+        endSegmentId,
+        endCharOffset
+      ));
+    },
     cancelTranscriptSelection() {
       setTranscriptSelection({});
     },
     setSourceFilter: handleSetSourceFilter,
     setOrientationFilter: handleSetOrientationFilter,
+    setPublicLibraryOrientationFilter: handleSetPublicLibraryOrientationFilter,
+    selectPublicSourceVideo: setPublicLibrarySelectedSourceVideoId,
+    loadMoreSourceLibrary: handleLoadMoreSourceLibrary,
     setCutMode: handleSetCutMode,
     selectLocalClip: setLocalLibrarySelectedClipId,
     setLocalLibraryViewMode,
@@ -2317,7 +3044,7 @@ export function CutterApp() {
     },
     openCutOutputDirectory: async () => {
       if (!apiMode) {
-        setCutNotice("真实 Cutter API 模式下可打开文件目录");
+        setCutNotice("请先连接本机剪辑服务，再打开文件目录");
         return;
       }
 
@@ -2331,32 +3058,64 @@ export function CutterApp() {
         setError(openError instanceof Error ? openError.message : "打开文件目录失败");
       }
     },
+    openLocalClipDirectory: async (localClip: LocalClip) => {
+      if (!apiMode) {
+        setCutNotice("请先连接本机剪辑服务，再打开本地素材目录");
+        return;
+      }
+
+      const project = localClip.project_id
+        ? projects.find((item) => item.project_id === localClip.project_id)
+        : undefined;
+
+      try {
+        await client.openCutOutputDirectory({
+          ...(localClip.project_id ? { project_id: localClip.project_id } : {}),
+          ...(project ? { project_title: projectDisplayTitle(project) } : {})
+        });
+        setCutNotice(localClip.project_id ? "已打开本地素材所属项目目录" : "已打开本地素材目录");
+      } catch (openError) {
+        setError(openError instanceof Error ? openError.message : "打开本地素材目录失败");
+      }
+    },
     setAppearanceMode: handleSetAppearanceMode
   };
 
   function handleRenameProject(projectId?: string) {
-    const targetProject = projectId
-      ? projects.find((project) => project.project_id === projectId)
-      : currentProject;
-    if (!targetProject) {
+    const targetProjectId = projectId ?? currentProject?.project_id;
+    if (!targetProjectId) {
       return;
     }
 
-    const nextTitle = window.prompt("重命名当前项目", projectDisplayTitle(targetProject))?.trim();
-    if (!nextTitle) {
+    setRenameTargetProjectId(targetProjectId);
+  }
+
+  function handleCloseRenameProject() {
+    setRenameTargetProjectId(undefined);
+  }
+
+  function handleConfirmRenameProject(projectId: string, title: string) {
+    const targetProject = projects.find((project) => project.project_id === projectId);
+    const nextTitle = title.trim();
+    if (!targetProject || !nextTitle) {
+      return;
+    }
+
+    const previousTitle = projectDisplayTitle(targetProject);
+    if (nextTitle === previousTitle) {
+      setRenameTargetProjectId(undefined);
       return;
     }
 
     const updatedProject = {
       ...targetProject,
-      title: projectTitleFromFirstCut({
-        query: nextTitle,
-        selectedText: targetProject.title
-      }),
+      title: nextTitle,
       title_source: "manual" as const,
       updated_at: new Date().toISOString()
     };
-    commitProjects(upsertCutterProject(projects, updatedProject), updatedProject.project_id);
+    commitProjects(upsertCutterProject(projects, updatedProject), currentProjectId);
+    setCutNotice(`已重命名项目：${nextTitle}`);
+    setRenameTargetProjectId(undefined);
   }
 
   function removeProjectFromFrontend(projectId: string, title: string) {
@@ -2429,6 +3188,7 @@ export function CutterApp() {
     <main
       className="cutter-app"
       data-appearance-mode={appearanceMode}
+      data-cutter-route={route}
       data-cutter-web-ready={data ? "true" : "false"}
     >
       <MacWindow
@@ -2437,13 +3197,18 @@ export function CutterApp() {
           <CutterProjectSwitcher
             project={route === "project-home" ? undefined : currentProject}
             onReturnHome={returnToProjectHome}
-            onStartTemporarySearch={startTemporarySearch}
             onRenameProject={handleRenameProject}
           />
         }
       >
         <div className="cutter-shell">
           <Sidebar
+            brand={{
+              title: "MixLab Cutter",
+              subtitle: "项目化素材剪切",
+              mark: "ML",
+              href: routeToHash("project-home")
+            }}
             items={navItems}
             active={routeTitle(route)}
             footer={
@@ -2453,12 +3218,13 @@ export function CutterApp() {
                   localCount={data.localClips.local_clip_count}
                   publicCount={data.library.available_video_count}
                   activeTaskCount={allVisibleQueue.filter((job) => job.status === "running").length}
-                  concurrency={data.settings.concurrency}
-                  cpuUsagePercent={data.runtimeStatus.local_runtime?.cpu_usage_percent}
-                  diskIoBytesPerSecond={data.runtimeStatus.local_runtime?.disk_io_bytes_per_second}
                   engineReady={engineReady}
-                  appearanceMode={appearanceMode}
-                  onSetAppearanceMode={handleSetAppearanceMode}
+                  currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
+                  libraryCountOrder={
+                    route === "project-home" || route === "material-locator"
+                      ? "local-first"
+                      : "public-first"
+                  }
                 />
               ) : null
             }
@@ -2480,6 +3246,7 @@ export function CutterApp() {
                   {
                     searchQuery,
                     highlightedSegmentIds,
+                    highlightedHitSegments,
                     currentHitIndex: locatorCurrentHitIndex,
                     currentHitSegmentId,
                     globalHitCount,
@@ -2490,13 +3257,19 @@ export function CutterApp() {
                     recentSearches:
                       route === "project-home" ? recentMaterialSearches : projectRecentMaterialSearches,
                     selectedSegments: selectedTranscriptSegments,
+                    selectedStartCharOffset: selectedTranscriptSelection.startCharOffset,
+                    selectedEndCharOffset: selectedTranscriptSelection.endCharOffset,
                     selectedDetail: selectedDetail ?? data.primaryDetail,
+                    searchStatus: materialSearchStatus,
                     projects,
                     currentProject,
                     currentProjectId,
                     homeSelectedProjectId,
                     sourceFilter,
                     orientationFilter,
+                    publicLibraryOrientationFilter,
+                    publicLibrarySelectedSourceVideoId,
+                    sourceLibraryLoadingMore,
                     cutNotice,
                     autoRefreshCutJobs,
                     lastQueueUpdatedLabel,
@@ -2516,6 +3289,15 @@ export function CutterApp() {
           </section>
         </div>
       </MacWindow>
+      {renameTargetProject ? (
+        <ProjectRenameDialog
+          key={renameTargetProject.project_id}
+          project={renameTargetProject}
+          initialTitle={projectDisplayTitle(renameTargetProject)}
+          onCancel={handleCloseRenameProject}
+          onConfirm={handleConfirmRenameProject}
+        />
+      ) : null}
     </main>
   );
 

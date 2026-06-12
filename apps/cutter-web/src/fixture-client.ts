@@ -11,7 +11,8 @@ import type {
   SearchResponse,
   SourceLibraryResponse,
   SourceVideoCard,
-  SourceVideoDetail
+  SourceVideoDetail,
+  CreateLocalClipRequest
 } from "./api.ts";
 
 export interface CutterWorkbenchSettings {
@@ -40,6 +41,7 @@ export interface CutterFixtureData {
 export interface LoadCutterWorkbenchDataOptions {
   preferredSourceVideoId?: string;
   includeSourceLibrary?: boolean;
+  sourceLibraryLimit?: number;
 }
 
 function cover(seed: string, tint: string): string {
@@ -47,11 +49,114 @@ function cover(seed: string, tint: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+const cashflowPosterUrl = "/fixture-media/cashflow-cover.png";
+
+const cashflowTranscriptSegments = [
+  {
+    segment_id: "s-061",
+    begin_ms: 705_000,
+    end_ms: 718_000,
+    text: "我们先看这个月的整体数据，整体流量环比上升了 18%，但利润没有同步增长。"
+  },
+  {
+    segment_id: "s-062",
+    begin_ms: 718_000,
+    end_ms: 727_000,
+    text: "原因其实很简单，投放费用增加了，但回收周期变长了，这直接影响到我们的现金流。"
+  },
+  {
+    segment_id: "s-063",
+    begin_ms: 727_000,
+    end_ms: 737_000,
+    text: "很多团队只看利润，而忽略了现金流的健康度，结果账上赚了钱，实际却缺钱用。"
+  },
+  {
+    segment_id: "s-064",
+    begin_ms: 737_000,
+    end_ms: 748_000,
+    text: "现金流的本质，是在正确的时间点，有足够的现金去支持业务的持续运转。"
+  },
+  {
+    segment_id: "s-065",
+    begin_ms: 748_000,
+    end_ms: 756_000,
+    text: "我们做直播带货，最核心的指标除了 GMV，还有一个就是投放回收周期。"
+  },
+  {
+    segment_id: "s-066",
+    begin_ms: 756_000,
+    end_ms: 765_000,
+    text: "如果回收周期过长，哪怕最终能赚钱，过程中的现金流也会非常紧张，甚至断裂。"
+  },
+  {
+    segment_id: "s-067",
+    begin_ms: 765_000,
+    end_ms: 774_000,
+    text: "所以我们要控制的不是单日 ROI，而是整体的现金流节奏和回收周期。"
+  },
+  {
+    segment_id: "s-068",
+    begin_ms: 774_000,
+    end_ms: 783_000,
+    text: "建议大家把回收周期控制在 7 天以内，这样现金流压力会小很多。"
+  },
+  {
+    segment_id: "s-069",
+    begin_ms: 783_000,
+    end_ms: 790_000,
+    text: "具体怎么做？第一，缩短发货周期，减少用户等待时间。"
+  },
+  {
+    segment_id: "s-070",
+    begin_ms: 790_000,
+    end_ms: 798_000,
+    text: "第二，优化投放结构，把更多预算放在高转化的计划上。"
+  },
+  {
+    segment_id: "s-071",
+    begin_ms: 798_000,
+    end_ms: 807_000,
+    text: "第三，建立稳定的复购和私域，把现金流的来源从单次交易变成持续收入。"
+  },
+  {
+    segment_id: "s-072",
+    begin_ms: 807_000,
+    end_ms: 816_000,
+    text: "我们来看一个案例，这个团队通过优化投放和供应链，把回收周期从 14 天缩短到 6 天。"
+  },
+  {
+    segment_id: "s-073",
+    begin_ms: 816_000,
+    end_ms: 825_000,
+    text: "现金流改善后，他们可以更快地加大投放，形成正向循环，业绩自然就起来了。"
+  },
+  {
+    segment_id: "s-074",
+    begin_ms: 825_000,
+    end_ms: 835_000,
+    text: "总结一下，现金流管理的核心就是：回得快、花得准、控得住。"
+  },
+  {
+    segment_id: "s-075",
+    begin_ms: 835_000,
+    end_ms: 845_000,
+    text: "只要把回收周期跑通，现金流健康了，利润只是时间问题。"
+  },
+  {
+    segment_id: "s-076",
+    begin_ms: 845_000,
+    end_ms: 858_000,
+    text: "下面我们进入互动答疑环节，大家的问题我会一一解答。"
+  }
+] satisfies SourceVideoDetail["transcript"]["segments"];
+
+const cashflowTranscriptText = cashflowTranscriptSegments.map((segment) => segment.text).join("");
+
 const videos: SourceVideoCard[] = [
   {
     source_video_id: "src-001",
-    title: "现金流管理与风险控制",
-    duration_ms: 618_000,
+    title: "直播复盘：从流量到现金流健康度",
+    duration_ms: 1_935_000,
     width: 1920,
     height: 1080,
     fps: 25,
@@ -65,7 +170,7 @@ const videos: SourceVideoCard[] = [
     lecturer: "林老师",
     publish_status: "ready",
     media_url: "/fixture-media/cashflow.mp4",
-    cover_url: cover("Cashflow", "6c8fb6"),
+    cover_url: cashflowPosterUrl,
     detail_url: "/cutter/source-videos/src-001",
     subtitles_url: "/fixture-subtitles/src-001.vtt"
   },
@@ -79,7 +184,7 @@ const videos: SourceVideoCard[] = [
     codec: "h265",
     file_size: 8_120_000_000,
     relative_path: "增长课/私域直播复盘方法.mp4",
-    description: "管理端维护封面、标签和简介；剪辑端只读浏览和选段。",
+    description: "管理端维护封面、标签和简介；剪辑端用于浏览和选段。",
     tags: ["私域", "直播复盘", "增长"],
     category: "增长课",
     course: "内容增长实战",
@@ -221,45 +326,68 @@ const videos: SourceVideoCard[] = [
 const primaryDetail: SourceVideoDetail = {
   ...videos[0]!,
   transcript: {
-    full_text:
-      "现金流不是利润表的影子。它直接决定企业能不能安全穿过周期。很多企业看起来增长很快，但回款节奏一乱，组织就会被现金压力拖住。所以第一步要看回款节奏，第二步才看利润结构。现金流短片开场可以从这个判断开始。",
-    segments: [
-      {
-        segment_id: "s-001",
-        begin_ms: 8_400,
-        end_ms: 12_200,
-        text: "现金流不是利润表的影子。"
-      },
-      {
-        segment_id: "s-002",
-        begin_ms: 12_200,
-        end_ms: 17_400,
-        text: "它直接决定企业能不能安全穿过周期。"
-      },
-      {
-        segment_id: "s-003",
-        begin_ms: 17_400,
-        end_ms: 24_800,
-        text: "很多企业看起来增长很快，但回款节奏一乱，组织就会被现金压力拖住。"
-      },
-      {
-        segment_id: "s-004",
-        begin_ms: 24_800,
-        end_ms: 31_000,
-        text: "所以第一步要看回款节奏，第二步才看利润结构。"
-      },
-      {
-        segment_id: "s-005",
-        begin_ms: 31_000,
-        end_ms: 36_200,
-        text: "现金流短片开场可以从这个判断开始。"
-      }
-    ]
+    full_text: cashflowTranscriptText,
+    segments: cashflowTranscriptSegments
   },
   keyframes: {
-    keyframes_ms: [8_400, 12_200, 17_400, 24_800, 31_000]
+    keyframes_ms: cashflowTranscriptSegments.map((segment) => segment.begin_ms)
   }
 };
+
+function fixtureSegmentsForRequest(request: CreateLocalClipRequest): SourceVideoDetail["transcript"]["segments"] {
+  const segments = primaryDetail.transcript.segments;
+  const startIndex = segments.findIndex((segment) => segment.segment_id === request.start_segment_id);
+  const endIndex = segments.findIndex((segment) => segment.segment_id === request.end_segment_id);
+
+  if (startIndex < 0 || endIndex < 0) {
+    return [];
+  }
+
+  const [from, to] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+  return segments.slice(from, to + 1);
+}
+
+function fixtureLocalClipFromRequest(request: CreateLocalClipRequest): LocalClip {
+  const segments = fixtureSegmentsForRequest(request);
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  const selectionBeginMs = typeof request.begin_ms === "number"
+    ? request.begin_ms
+    : first?.begin_ms ?? 0;
+  const selectionEndMs = typeof request.end_ms === "number"
+    ? request.end_ms
+    : last?.end_ms ?? selectionBeginMs;
+  const beginMs = Math.max(0, selectionBeginMs - (request.pre_roll_ms ?? 0));
+  const endMs = Math.max(beginMs, selectionEndMs + (request.post_roll_ms ?? 0));
+  const selectionOffsetBeginMs = Math.max(0, selectionBeginMs - beginMs);
+  const selectionOffsetEndMs = Math.min(endMs - beginMs, Math.max(selectionOffsetBeginMs, selectionEndMs - beginMs));
+  const selectedText = request.selected_text?.trim() ||
+    segments.map((segment) => segment.text).join(" ");
+  const localClipId = `clip-${request.source_video_id}-${request.start_segment_id}-${request.end_segment_id}`;
+
+  return {
+    local_clip_id: localClipId,
+    title: request.title ?? "新剪切片段",
+    source_video_id: request.source_video_id,
+    source_title: primaryDetail.title,
+    begin_ms: beginMs,
+    end_ms: endMs,
+    duration_ms: endMs - beginMs,
+    selected_text: selectedText,
+    transcript_segments: selectedText
+      ? [
+          {
+            segment_id: `${localClipId}-S000001`,
+            begin_ms: selectionOffsetBeginMs,
+            end_ms: selectionOffsetEndMs,
+            text: selectedText
+          }
+        ]
+      : [],
+    media_url: "/local-clips/new.mp4",
+    detail_url: "/cutter/local-clips/new"
+  };
+}
 
 const search: SearchResponse = {
   query: "现金流",
@@ -267,16 +395,67 @@ const search: SearchResponse = {
   groups: [
     {
       source_video_id: "src-001",
-      title: "现金流管理与风险控制",
+      title: "直播复盘：从流量到现金流健康度",
       duration_ms: videos[0]!.duration_ms,
-      hit_count: 3,
-      best_excerpt: "现金流不是利润表的影子，它直接决定企业能不能安全穿过周期。",
-      hit_segments: primaryDetail.transcript.segments.slice(0, 3),
+      hit_count: 8,
+      best_excerpt: "现金流的本质，是在正确的时间点，有足够的现金去支持业务的持续运转。",
+      hit_segments: primaryDetail.transcript.segments
+        .filter((segment) => segment.text.includes("现金流"))
+        .map((segment, index) => ({
+          ...segment,
+          match_id: `cashflow-${String(index + 1).padStart(3, "0")}`
+        })),
       transcript_character_count: primaryDetail.transcript.full_text.replace(/\s+/g, "").length,
       media_url: videos[0]!.media_url,
       cover_url: videos[0]!.cover_url,
       detail_url: videos[0]!.detail_url,
       subtitles_url: videos[0]!.subtitles_url
+    },
+    {
+      source_video_id: "src-004",
+      title: "投放复盘：ROI 与现金流管理实战",
+      duration_ms: videos[3]!.duration_ms,
+      hit_count: 4,
+      best_excerpt: "投放不是只看 ROI，还要看现金流压力和回款节奏。",
+      transcript_character_count: 14_575,
+      hit_segments: [
+        {
+          segment_id: "team-021",
+          begin_ms: 47_000,
+          end_ms: 54_400,
+          text: "投放不是只看 ROI，还要看现金流压力和回款节奏。"
+        },
+        {
+          segment_id: "team-022",
+          begin_ms: 54_400,
+          end_ms: 61_200,
+          text: "现金流越稳定，团队越敢在正确的时候加预算。"
+        }
+      ],
+      media_url: videos[3]!.media_url,
+      cover_url: videos[3]!.cover_url,
+      detail_url: videos[3]!.detail_url,
+      subtitles_url: videos[3]!.subtitles_url
+    },
+    {
+      source_video_id: "src-007",
+      title: "组织成本控制与现金流案例",
+      duration_ms: videos[6]!.duration_ms,
+      hit_count: 3,
+      best_excerpt: "成本控制的目标不是少花钱，而是让现金流支撑更长的经营周期。",
+      transcript_character_count: 19_032,
+      hit_segments: [
+        {
+          segment_id: "cost-014",
+          begin_ms: 91_000,
+          end_ms: 99_800,
+          text: "成本控制的目标不是少花钱，而是让现金流支撑更长的经营周期。"
+        }
+      ],
+      media_url: videos[6]!.media_url,
+      cover_url: videos[6]!.cover_url,
+      detail_url: videos[6]!.detail_url,
+      subtitles_url: videos[6]!.subtitles_url
     },
     {
       source_video_id: "src-002",
@@ -297,6 +476,26 @@ const search: SearchResponse = {
       cover_url: videos[1]!.cover_url,
       detail_url: videos[1]!.detail_url,
       subtitles_url: videos[1]!.subtitles_url
+    },
+    {
+      source_video_id: "src-005",
+      title: "企业运营与现金流管理实战",
+      duration_ms: videos[4]!.duration_ms,
+      hit_count: 2,
+      best_excerpt: "运营动作最终要回到现金流，否则增长只是账面热闹。",
+      transcript_character_count: 22_114,
+      hit_segments: [
+        {
+          segment_id: "ops-031",
+          begin_ms: 128_000,
+          end_ms: 135_000,
+          text: "运营动作最终要回到现金流，否则增长只是账面热闹。"
+        }
+      ],
+      media_url: videos[4]!.media_url,
+      cover_url: videos[4]!.cover_url,
+      detail_url: videos[4]!.detail_url,
+      subtitles_url: videos[4]!.subtitles_url
     }
   ]
 };
@@ -306,13 +505,17 @@ const localClips: LocalClipCatalog = {
   clips: [
     {
       local_clip_id: "clip-001",
-      title: "现金流短片开场",
+      title: "直播复盘：从流量到现金流健康度",
       source_video_id: "src-001",
-      source_title: "现金流管理与风险控制",
-      begin_ms: 12_200,
-      end_ms: 31_000,
-      duration_ms: 18_800,
-      selected_text: "它直接决定企业能不能安全穿过周期。很多企业看起来增长很快...",
+      source_title: "直播复盘：从流量到现金流健康度",
+      begin_ms: 748_280,
+      end_ms: 766_280,
+      duration_ms: 1_935_000,
+      width: 1920,
+      height: 1080,
+      selected_text: cashflowTranscriptSegments.slice(4, 9).map((segment) => segment.text).join(""),
+      transcript_segments: cashflowTranscriptSegments,
+      cover_url: videos[0]!.cover_url,
       media_url: "/local-clips/clip-001.mp4",
       detail_url: "/cutter/local-clips/clip-001"
     },
@@ -386,6 +589,18 @@ const runtimeStatus: CutterRuntimeStatus = {
     cpu_usage_percent: 27,
     disk_io_bytes_per_second: 68 * 1024 * 1024
   },
+  search_backend: {
+    mode: "sqlite-index",
+    preferred_mode: "sqlite-index",
+    label: "本地索引",
+    healthy: true,
+    degraded: false,
+    index_version: "fixture",
+    source_video_count: videos.length,
+    segment_count: cashflowTranscriptSegments.length,
+    response_ms: 4,
+    message: "Fixture SQLite 搜索索引可用"
+  },
   current_user: {
     user_id: "fixture",
     username: "演示剪辑师",
@@ -424,6 +639,27 @@ function searchGroupText(group: SearchResponse["groups"][number]): string {
   ].filter(Boolean).join(" ");
 }
 
+function fixtureSearchCursor(offset: number): string {
+  return offset > 0 ? `sqlite:${offset}` : "";
+}
+
+function fixtureSearchOffset(cursor?: string): number {
+  const normalized = cursor?.trim();
+  if (!normalized) {
+    return 0;
+  }
+
+  const offsetText = normalized.startsWith("sqlite:")
+    ? normalized.slice("sqlite:".length)
+    : normalized;
+  const offset = Number.parseInt(offsetText, 10);
+  if (!Number.isInteger(offset) || offset < 0 || String(offset) !== offsetText) {
+    throw new Error("invalid_search_cursor");
+  }
+
+  return offset;
+}
+
 export function createFixtureCutterApiClient(): CutterApiClient {
   const data = createFixtureCutterData();
 
@@ -459,6 +695,13 @@ export function createFixtureCutterApiClient(): CutterApiClient {
           created_at: "2026-05-02T10:00:00Z",
           last_seen_at: "2026-05-02T10:00:00Z"
         }
+      };
+    },
+    async getAuthMode() {
+      return {
+        auth_mode: "reviewed",
+        local_trusted: false,
+        trusted_username: ""
       };
     },
     async getLoginStatus() {
@@ -499,19 +742,33 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         ? data.primaryDetail
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
-    async searchSourceLibrary(query: string) {
+    async searchSourceLibrary(query: string, limit = 20, options: { cursor?: string } = {}) {
       const normalizedQuery = query.trim().toLowerCase();
       if (!normalizedQuery) {
         return emptySearchResponse(query);
       }
 
+      const filteredGroups = data.search.groups.filter((group) =>
+        searchGroupText(group).toLowerCase().includes(normalizedQuery)
+      );
+      const offset = fixtureSearchOffset(options.cursor);
+      const groups = filteredGroups.slice(offset, offset + limit);
       return {
         ...data.search,
         query,
         normalized_query: normalizedQuery,
-        groups: data.search.groups.filter((group) =>
-          searchGroupText(group).toLowerCase().includes(normalizedQuery)
-        )
+        groups,
+        cursor: fixtureSearchCursor(offset),
+        next_cursor:
+          offset + limit < filteredGroups.length
+            ? fixtureSearchCursor(offset + limit)
+            : "",
+        has_more: offset + limit < filteredGroups.length,
+        returned_count: groups.length,
+        limit,
+        index_version: "fixture",
+        search_ms: 1,
+        search_mode: "sqlite-index"
       };
     },
     async listLocalClips() {
@@ -521,30 +778,7 @@ export function createFixtureCutterApiClient(): CutterApiClient {
       return data.localClips.clips.find((clip) => clip.local_clip_id === localClipId) ?? data.localClips.clips[0]!;
     },
     async createLocalClip(request) {
-      return {
-        local_clip_id: `clip-${request.source_video_id}-${request.start_segment_id}-${request.end_segment_id}`,
-        title: request.title ?? "新剪切片段",
-        source_video_id: request.source_video_id,
-        source_title: data.primaryDetail.title,
-        begin_ms: data.primaryDetail.transcript.segments.find((segment) => segment.segment_id === request.start_segment_id)
-          ?.begin_ms,
-        end_ms: data.primaryDetail.transcript.segments.find((segment) => segment.segment_id === request.end_segment_id)
-          ?.end_ms,
-        selected_text: data.primaryDetail.transcript.segments
-          .filter(
-            (segment) =>
-              segment.begin_ms >=
-                (data.primaryDetail.transcript.segments.find((candidate) => candidate.segment_id === request.start_segment_id)
-                  ?.begin_ms ?? 0) &&
-              segment.end_ms <=
-                (data.primaryDetail.transcript.segments.find((candidate) => candidate.segment_id === request.end_segment_id)
-                  ?.end_ms ?? Number.MAX_SAFE_INTEGER)
-          )
-          .map((segment) => segment.text)
-          .join(" "),
-        media_url: "/local-clips/new.mp4",
-        detail_url: "/cutter/local-clips/new"
-      };
+      return fixtureLocalClipFromRequest(request);
     },
     async createClipList(request): Promise<ClipList> {
       return {
@@ -659,20 +893,28 @@ export function createFixtureCutterApiClient(): CutterApiClient {
   };
 }
 
-function resolveSourceVideoCardUrls<T extends SourceVideoCard>(
+function resolveClientApiUrl(client: CutterApiClient, pathOrUrl: string): string {
+  if (/^(?:https?:\/\/|data:|blob:)/.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+
+  return client.resolveApiUrl(pathOrUrl);
+}
+
+export function resolveSourceVideoCardUrls<T extends SourceVideoCard>(
   client: CutterApiClient,
   card: T
 ): T {
   return {
     ...card,
-    media_url: client.resolveApiUrl(card.media_url),
-    cover_url: client.resolveApiUrl(card.cover_url),
-    detail_url: client.resolveApiUrl(card.detail_url),
-    subtitles_url: client.resolveApiUrl(card.subtitles_url)
+    media_url: resolveClientApiUrl(client, card.media_url),
+    cover_url: resolveClientApiUrl(client, card.cover_url),
+    detail_url: resolveClientApiUrl(client, card.detail_url),
+    subtitles_url: resolveClientApiUrl(client, card.subtitles_url)
   };
 }
 
-function resolveSourceVideoDetailUrls(
+export function resolveSourceVideoDetailUrls(
   client: CutterApiClient,
   detail: SourceVideoDetail
 ): SourceVideoDetail {
@@ -685,10 +927,10 @@ function resolveSearchGroupUrls(
 ): SearchResponse["groups"][number] {
   return {
     ...group,
-    ...(group.media_url ? { media_url: client.resolveApiUrl(group.media_url) } : {}),
-    ...(group.cover_url ? { cover_url: client.resolveApiUrl(group.cover_url) } : {}),
-    ...(group.detail_url ? { detail_url: client.resolveApiUrl(group.detail_url) } : {}),
-    ...(group.subtitles_url ? { subtitles_url: client.resolveApiUrl(group.subtitles_url) } : {})
+    ...(group.media_url ? { media_url: resolveClientApiUrl(client, group.media_url) } : {}),
+    ...(group.cover_url ? { cover_url: resolveClientApiUrl(client, group.cover_url) } : {}),
+    ...(group.detail_url ? { detail_url: resolveClientApiUrl(client, group.detail_url) } : {}),
+    ...(group.subtitles_url ? { subtitles_url: resolveClientApiUrl(client, group.subtitles_url) } : {})
   };
 }
 
@@ -705,10 +947,35 @@ export function resolveSearchResponseUrls(
 export function resolveLocalClipUrls(client: CutterApiClient, clip: LocalClip): LocalClip {
   return {
     ...clip,
-    media_url: client.resolveApiUrl(clip.media_url),
-    detail_url: client.resolveApiUrl(clip.detail_url),
-    ...(clip.cover_url ? { cover_url: client.resolveApiUrl(clip.cover_url) } : {}),
-    ...(clip.subtitles_url ? { subtitles_url: client.resolveApiUrl(clip.subtitles_url) } : {})
+    media_url: resolveClientApiUrl(client, clip.media_url),
+    detail_url: resolveClientApiUrl(client, clip.detail_url),
+    ...(clip.cover_url ? { cover_url: resolveClientApiUrl(client, clip.cover_url) } : {}),
+    ...(clip.subtitles_url ? { subtitles_url: resolveClientApiUrl(client, clip.subtitles_url) } : {})
+  };
+}
+
+function settingsFromRuntimeStatus(runtimeStatusResult: CutterRuntimeStatus): CutterWorkbenchSettings {
+  if (runtimeStatusResult.mode !== "api") {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    public_library_mount:
+      runtimeStatusResult.library_root_path?.trim() ||
+      runtimeStatusResult.library_root_label ||
+      settings.public_library_mount,
+    local_workspace:
+      runtimeStatusResult.workspace_root_path?.trim() ||
+      (runtimeStatusResult.workspace_enabled
+        ? runtimeStatusResult.workspace_root_label
+        : "未启用本地工作区"),
+    ffmpeg_path:
+      runtimeStatusResult.ffmpeg_source === "环境配置"
+        ? "系统环境配置"
+        : runtimeStatusResult.ffmpeg_source === "内置"
+          ? "内置剪切工具"
+          : "未检测到"
   };
 }
 
@@ -720,7 +987,9 @@ export async function loadCutterWorkbenchData(
   const [localClipsResult, runtimeStatusResult, libraryResult] = await Promise.all([
     client.listLocalClips(),
     client.getRuntimeStatus(),
-    includeSourceLibrary ? client.listSourceLibrary() : Promise.resolve(undefined)
+    includeSourceLibrary
+      ? client.listSourceLibrary({ limit: options.sourceLibraryLimit })
+      : Promise.resolve(undefined)
   ]);
   const resolvedLibraryResult = libraryResult ?? {
     library_id: runtimeStatusResult.library_id,
@@ -735,14 +1004,8 @@ export async function loadCutterWorkbenchData(
     ...localClipsResult,
     clips: localClipsResult.clips.map((clip) => resolveLocalClipUrls(client, clip))
   };
-  const primary =
-    resolvedLibraryResult.videos.find((video) => video.source_video_id === options.preferredSourceVideoId) ??
-    resolvedLibraryResult.videos[0];
-
   const primaryDetailResult = options.preferredSourceVideoId
     ? await client.getSourceVideoDetail(options.preferredSourceVideoId)
-    : primary
-    ? await client.getSourceVideoDetail(primary.source_video_id)
     : primaryDetail;
 
   return {
@@ -750,7 +1013,7 @@ export async function loadCutterWorkbenchData(
     primaryDetail: resolveSourceVideoDetailUrls(client, primaryDetailResult),
     search: emptySearchResponse(),
     localClips,
-    settings,
+    settings: settingsFromRuntimeStatus(runtimeStatusResult),
     runtimeStatus: runtimeStatusResult
   };
 }
