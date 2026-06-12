@@ -27,6 +27,11 @@ export const OPTIONAL_LOCAL_SOURCE_REPORTS = [
   }
 ] as const;
 
+async function copyShellScript(sourcePath: string, destinationPath: string): Promise<void> {
+  const script = await readFile(sourcePath, "utf8");
+  await writeFile(destinationPath, script.replace(/\r\n?/g, "\n"), "utf8");
+}
+
 const LOCAL_SOURCE_REPORTS_README = `# Local Source-Machine Evidence
 
 This folder is included only when source-machine reports or the local Web acceptance record already exist in the repository workspace during \`npm run package:evidence-kit\`.
@@ -444,7 +449,7 @@ export async function packageAcceptanceEvidenceKit(outputDir = EVIDENCE_KIT_DIR)
     "scripts/acceptance/evidence-kit-manifest-self-check.ps1",
     path.join(outputDir, "evidence-kit-manifest-self-check.ps1")
   );
-  await copyFile(
+  await copyShellScript(
     "scripts/acceptance/evidence-kit-manifest-self-check.sh",
     path.join(outputDir, "evidence-kit-manifest-self-check.sh")
   );
@@ -462,15 +467,15 @@ export async function packageAcceptanceEvidenceKit(outputDir = EVIDENCE_KIT_DIR)
     "scripts/acceptance/windows-evidence-self-check.ps1",
     path.join(windowsDir, "windows-evidence-self-check.ps1")
   );
-  await copyFile(
+  await copyShellScript(
     "scripts/acceptance/nas-acc-009-collector.sh",
     path.join(nasDir, "nas-acc-009-collector.sh")
   );
-  await copyFile(
+  await copyShellScript(
     "scripts/acceptance/nas-evidence-self-check.sh",
     path.join(nasDir, "nas-evidence-self-check.sh")
   );
-  await copyFile(
+  await copyShellScript(
     "scripts/acceptance/nas-50-editor-report-self-check.sh",
     path.join(nasDir, "nas-50-editor-report-self-check.sh")
   );

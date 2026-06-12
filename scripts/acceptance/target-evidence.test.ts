@@ -43,6 +43,10 @@ const MINIMAL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   "base64"
 );
+
+function normalizeLf(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
 const MINIMAL_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 const TEST_COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_TEST_COMMIT_SHA = "fedcba9876543210fedcba9876543210fedcba98";
@@ -1894,6 +1898,14 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.equal(manifestFiles.get("evidence-kit-manifest-self-check.sh")?.executable, true);
     assert.equal(manifestFiles.get("evidence-kit-manifest-self-check.ps1")?.executable, false);
     assert.equal(manifestFiles.get("nas/captures/50-editor-report.json")?.executable, false);
+    for (const shellScriptPath of [
+      rootManifestShellSelfCheck,
+      nasCollector,
+      nasSelfCheck,
+      nasReportSelfCheck
+    ]) {
+      assert.equal(readFileSync(shellScriptPath, "utf8").includes("\r\n"), false);
+    }
     for (const report of optionalLocalReports) {
       assert.equal(
         readFileSync(path.join(outputDir, ...report.kit_path.split("/")), "utf8"),
@@ -1937,7 +1949,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     );
     assert.equal(
       readFileSync(rootManifestShellSelfCheck, "utf8"),
-      readFileSync("scripts/acceptance/evidence-kit-manifest-self-check.sh", "utf8")
+      normalizeLf(readFileSync("scripts/acceptance/evidence-kit-manifest-self-check.sh", "utf8"))
     );
     assert.match(readFileSync(rootManifestPowerShellSelfCheck, "utf8"), /Get-FileHash/);
     assert.match(readFileSync(rootManifestShellSelfCheck, "utf8"), /sha256 does not match the packaged file/);
@@ -2185,7 +2197,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(windowsCapturesReadme, /success-diagnostics\.txt/);
     assert.match(readFileSync(nasCollector, "utf8"), /admin-worker-loop-started/);
     const nasSelfCheckScript = readFileSync(nasSelfCheck, "utf8");
-    assert.equal(nasSelfCheckScript, readFileSync("scripts/acceptance/nas-evidence-self-check.sh", "utf8"));
+    assert.equal(nasSelfCheckScript, normalizeLf(readFileSync("scripts/acceptance/nas-evidence-self-check.sh", "utf8")));
     assert.match(nasSelfCheckScript, /ACC-009 target-side self-check/);
     assert.match(nasSelfCheckScript, /MIN_SCREENSHOT_WIDTH/);
     assert.match(nasSelfCheckScript, /SCREENSHOT_EVIDENCE_FIELDS/);
@@ -2193,7 +2205,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(nasSelfCheckScript, /50-editor report status must be passed/);
     assert.match(nasSelfCheckScript, /searchd_health_source_video_count must equal indexed_source_video_count/);
     const nasReportSelfCheckScript = readFileSync(nasReportSelfCheck, "utf8");
-    assert.equal(nasReportSelfCheckScript, readFileSync("scripts/acceptance/nas-50-editor-report-self-check.sh", "utf8"));
+    assert.equal(nasReportSelfCheckScript, normalizeLf(readFileSync("scripts/acceptance/nas-50-editor-report-self-check.sh", "utf8")));
     assert.match(nasReportSelfCheckScript, /ACC-009 50-editor report self-check/);
     assert.match(nasReportSelfCheckScript, /search_result_text_sha256 must equal sha256\(search_query\)/);
     assert.match(nasReportSelfCheckScript, /local_clip_relative_path must be a workspace-relative portable path/);
