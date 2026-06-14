@@ -114,7 +114,7 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
   }
 };
 
-function doctorExplanation(checkId: string, label: string): DoctorExplanation {
+export function doctorExplanation(checkId: string, label: string): DoctorExplanation {
   return DOCTOR_EXPLANATIONS[checkId] ?? {
     name: "技术检查项",
     purpose: "技术检查项用于确认系统运行条件。",

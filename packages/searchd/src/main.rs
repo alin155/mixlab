@@ -48,6 +48,7 @@ const LONG_QUERY_MIN_GROUPED_ANCHORS: usize = 2;
 #[derive(Debug, Clone)]
 struct SearchdConfig {
     library_root: PathBuf,
+    release_root: Option<PathBuf>,
     cache_root: Option<PathBuf>,
     host: String,
     port: u16,
@@ -58,6 +59,9 @@ impl SearchdConfig {
         let mut library_root = optional_env("MIXLAB_SEARCHD_LIBRARY_ROOT")
             .or_else(|| optional_env("MIXLAB_CUTTER_LIBRARY_ROOT"))
             .or_else(|| optional_env("MIXLAB_PREPROCESS_LIBRARY_ROOT"))
+            .map(PathBuf::from);
+        let mut release_root = optional_env("MIXLAB_SEARCHD_RELEASE_ROOT")
+            .or_else(|| optional_env("MIXLAB_CUTTER_RELEASE_CACHE_ROOT"))
             .map(PathBuf::from);
         let mut cache_root = optional_env("MIXLAB_SEARCHD_CACHE_ROOT").map(PathBuf::from);
         let mut host =
@@ -85,6 +89,13 @@ impl SearchdConfig {
                         .get(index)
                         .ok_or_else(|| anyhow!("--host requires a value"))?
                         .to_string();
+                }
+                "--release-root" => {
+                    index += 1;
+                    let value = args
+                        .get(index)
+                        .ok_or_else(|| anyhow!("--release-root requires a value"))?;
+                    release_root = Some(PathBuf::from(value));
                 }
                 "--cache-root" => {
                     index += 1;
@@ -117,6 +128,7 @@ impl SearchdConfig {
 
         Ok(Self {
             library_root,
+            release_root,
             cache_root,
             host,
             port,
@@ -144,8 +156,8 @@ fn parse_port(value: &str) -> Result<u16> {
 fn print_help() {
     println!(
         "mixlab-searchd --library-root <path> [--host 127.0.0.1] [--port 3799]\n\
-         Optional: --cache-root <local-path>\n\
-         Env: MIXLAB_SEARCHD_LIBRARY_ROOT, MIXLAB_SEARCHD_CACHE_ROOT, MIXLAB_SEARCHD_HOST, MIXLAB_SEARCHD_PORT"
+         Optional: --release-root <local-release-cache-root> --cache-root <local-path>\n\
+         Env: MIXLAB_SEARCHD_LIBRARY_ROOT, MIXLAB_SEARCHD_RELEASE_ROOT, MIXLAB_SEARCHD_CACHE_ROOT, MIXLAB_SEARCHD_HOST, MIXLAB_SEARCHD_PORT"
     );
 }
 
@@ -217,6 +229,7 @@ impl IntoResponse for ApiError {
 struct HealthResponse {
     ok: bool,
     library_root: String,
+    release_root: String,
     cache_root: String,
     index_version: String,
     source_video_count: usize,
@@ -305,6 +318,17 @@ struct CurrentPointer {
     current_version: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct CurrentReleasePointer {
+    current_version: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CutterReleaseManifest {
+    source_index_version: String,
+    search_index_path: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct IndexMetadata {
     index_version: String,
@@ -383,15 +407,26 @@ impl IndexBundle {
 
 struct SearchEngine {
     library_root: PathBuf,
+    release_root: Option<PathBuf>,
     cache_root: Option<PathBuf>,
     bundle: Arc<RwLock<Option<Arc<IndexBundle>>>>,
     refreshing_version: Arc<RwLock<Option<String>>>,
 }
 
 impl SearchEngine {
+    #[cfg(test)]
     fn new(library_root: PathBuf, cache_root: Option<PathBuf>) -> Self {
+        Self::new_with_release_root(library_root, None, cache_root)
+    }
+
+    fn new_with_release_root(
+        library_root: PathBuf,
+        release_root: Option<PathBuf>,
+        cache_root: Option<PathBuf>,
+    ) -> Self {
         Self {
             library_root,
+            release_root,
             cache_root,
             bundle: Arc::new(RwLock::new(None)),
             refreshing_version: Arc::new(RwLock::new(None)),
@@ -403,6 +438,11 @@ impl SearchEngine {
         Ok(HealthResponse {
             ok: true,
             library_root: self.library_root.to_string_lossy().to_string(),
+            release_root: self
+                .release_root
+                .as_ref()
+                .map(|path| path.to_string_lossy().to_string())
+                .unwrap_or_default(),
             cache_root: self
                 .cache_root
                 .as_ref()
@@ -473,7 +513,7 @@ impl SearchEngine {
     }
 
     fn ensure_bundle(&self) -> Result<Arc<IndexBundle>> {
-        let current = resolve_current_index(&self.library_root)?;
+        let current = resolve_current_index(&self.library_root, self.release_root.as_deref())?;
 
         {
             let guard = self
@@ -549,12 +589,17 @@ impl SearchEngine {
     }
 }
 
+#[derive(Debug)]
 struct CurrentIndex {
     current_version: String,
     index_file_path: PathBuf,
 }
 
-fn resolve_current_index(library_root: &Path) -> Result<CurrentIndex> {
+fn resolve_current_index(library_root: &Path, release_root: Option<&Path>) -> Result<CurrentIndex> {
+    if let Some(release_root) = release_root {
+        return resolve_current_release_index(release_root);
+    }
+
     let current_path = library_root
         .join(".mixlab-library")
         .join("indexes")
@@ -590,12 +635,86 @@ fn resolve_current_index(library_root: &Path) -> Result<CurrentIndex> {
     })
 }
 
+fn resolve_current_release_index(release_root: &Path) -> Result<CurrentIndex> {
+    let current_path = release_root
+        .join(".mixlab-library")
+        .join("current-release.json");
+    let pointer = fs::read_to_string(&current_path).with_context(|| {
+        format!(
+            "failed to read current release pointer: {}",
+            current_path.display()
+        )
+    })?;
+    let pointer: CurrentReleasePointer = serde_json::from_str(&pointer).with_context(|| {
+        format!(
+            "failed to parse current release pointer: {}",
+            current_path.display()
+        )
+    })?;
+    if !is_safe_index_version(&pointer.current_version) {
+        return Err(anyhow!(
+            "invalid current release version: {}",
+            pointer.current_version
+        ));
+    }
+
+    let release_dir = release_root
+        .join(".mixlab-library")
+        .join("releases")
+        .join(&pointer.current_version);
+    let manifest_path = release_dir.join("release.json");
+    let manifest = fs::read_to_string(&manifest_path).with_context(|| {
+        format!(
+            "failed to read release manifest: {}",
+            manifest_path.display()
+        )
+    })?;
+    let manifest: CutterReleaseManifest = serde_json::from_str(&manifest).with_context(|| {
+        format!(
+            "failed to parse release manifest: {}",
+            manifest_path.display()
+        )
+    })?;
+    if !is_safe_index_version(&manifest.source_index_version) {
+        return Err(anyhow!(
+            "invalid release source index version: {}",
+            manifest.source_index_version
+        ));
+    }
+    let search_index_path = manifest
+        .search_index_path
+        .unwrap_or_else(|| "search-index/source-transcript-index".to_string());
+    if !is_safe_relative_path(&search_index_path) {
+        return Err(anyhow!(
+            "invalid release search index path: {search_index_path}"
+        ));
+    }
+
+    Ok(CurrentIndex {
+        index_file_path: release_dir
+            .join(search_index_path)
+            .join(&manifest.source_index_version)
+            .join("index.sqlite"),
+        current_version: manifest.source_index_version,
+    })
+}
+
 fn is_safe_index_version(version: &str) -> bool {
     version.len() == 7
         && version.starts_with('v')
         && version[1..]
             .chars()
             .all(|character| character.is_ascii_digit())
+}
+
+fn is_safe_relative_path(value: &str) -> bool {
+    !value.trim().is_empty()
+        && !value.starts_with('/')
+        && !value.contains('\\')
+        && !value
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        && !value.chars().any(|character| character == ':')
 }
 
 fn load_index_bundle(
@@ -2094,8 +2213,9 @@ fn app(engine: Arc<SearchEngine>) -> Router {
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = SearchdConfig::from_env_and_args()?;
-    let engine = Arc::new(SearchEngine::new(
+    let engine = Arc::new(SearchEngine::new_with_release_root(
         config.library_root.clone(),
+        config.release_root.clone(),
         config.cache_root.clone(),
     ));
     let address = format!("{}:{}", config.host, config.port)
@@ -2109,6 +2229,7 @@ async fn main() -> Result<()> {
             "event": "mixlab_searchd_started",
             "url": format!("http://{address}"),
             "library_root": config.library_root,
+            "release_root": config.release_root,
             "cache_root": config.cache_root,
             "endpoints": ["/health", "/source-search", "/source-videos/{source_video_id}/detail"]
         })
@@ -2573,6 +2694,41 @@ mod tests {
     }
 
     #[test]
+    fn search_can_load_index_from_local_release_cache_instead_of_library_current() {
+        let library = prepare_library(&[("V000001", "一号", "现金流第一句。", "现金流第一句")]);
+        write_index_package(
+            library.path(),
+            "v000002",
+            &[(
+                "V000002",
+                "二号",
+                vec![("组织效率决定增长。", "组织效率决定增长")],
+            )],
+        );
+        let release = TempDir::new().unwrap();
+        write_release_cache_from_library(library.path(), release.path(), "v000001");
+
+        let engine = SearchEngine::new_with_release_root(
+            library.path().to_path_buf(),
+            Some(release.path().to_path_buf()),
+            None,
+        );
+
+        let result = engine.search("现金流", 10, None).unwrap();
+        assert_eq!(result.index_version, "v000001");
+        assert_eq!(result.returned_count, 1);
+        assert_eq!(result.groups[0].source_video_id, "V000001");
+
+        let library_current_result = engine.search("组织效率", 10, None).unwrap();
+        assert_eq!(library_current_result.index_version, "v000001");
+        assert_eq!(library_current_result.returned_count, 0);
+
+        let health = engine.health().unwrap();
+        assert_eq!(health.release_root, release.path().to_string_lossy());
+        assert_eq!(health.index_version, "v000001");
+    }
+
+    #[test]
     fn search_uses_hot_bundle_while_refreshing_changed_current_index() {
         let library = prepare_library(&[("V000001", "一号", "现金流第一句。", "现金流第一句")]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
@@ -2796,5 +2952,58 @@ mod tests {
                     .unwrap();
             }
         }
+    }
+
+    fn write_release_cache_from_library(
+        library_root: &Path,
+        release_root: &Path,
+        release_version: &str,
+    ) {
+        let source_index_root = library_root
+            .join(".mixlab-library")
+            .join("indexes")
+            .join("source-transcript-index")
+            .join(release_version);
+        let release_dir = release_root
+            .join(".mixlab-library")
+            .join("releases")
+            .join(release_version);
+        let release_index_dir = release_dir
+            .join("search-index")
+            .join("source-transcript-index")
+            .join(release_version);
+
+        fs::create_dir_all(&release_index_dir).unwrap();
+        fs::copy(
+            source_index_root.join("index.sqlite"),
+            release_index_dir.join("index.sqlite"),
+        )
+        .unwrap();
+        fs::write(
+            release_dir.join("release.json"),
+            format!(
+                r#"{{
+  "schema_version": "1.0",
+  "release_version": "{release_version}",
+  "library_id": "lib_main_001",
+  "generated_at": "2026-06-02T00:00:00Z",
+  "ready_video_count": 1,
+  "source_index_version": "{release_version}",
+  "catalog_path": "catalog.sqlite",
+  "source_path_map_path": "source-path-map.json",
+  "search_index_path": "search-index/source-transcript-index",
+  "thumbnails_path": "thumbnails",
+  "transcript_pack_path": "transcript-pack"
+}}"#
+            ),
+        )
+        .unwrap();
+        fs::write(
+            release_root.join(".mixlab-library").join("current-release.json"),
+            format!(
+                r#"{{"schema_version":"1.0","library_id":"lib_main_001","current_version":"{release_version}","updated_at":"2026-06-02T00:00:00Z","manifest_path":".mixlab-library/releases/{release_version}/release.json"}}"#
+            ),
+        )
+        .unwrap();
     }
 }

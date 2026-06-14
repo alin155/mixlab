@@ -151,6 +151,7 @@ export function SourceVideosPage({
   const resultCountLabel = serverFiltered ? "已返回" : "当前筛选";
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
   const processingIsStale = data.status.processing_video_count > 0 && !supervisorRunning;
+  const activeStatusTotal = statusCountFromDashboard(data, statusFilter);
 
   const selected =
     data.source_videos.find((video) => video.source_video_id === selectedSourceVideoId) ??
@@ -178,16 +179,6 @@ export function SourceVideosPage({
           <AdminPageHeader
             title="原视频管理"
             eyebrow="公共素材资产清单"
-            action={
-              <span className="ml-search admin-source-search">
-                ⌕
-                <input
-                  value={query}
-                  placeholder="搜索文件名 / 标签 / 相对路径"
-                  onChange={(event) => updateQuery(event.currentTarget.value)}
-                />
-              </span>
-            }
           />
           <div className="admin-console-statusbar" aria-label="原视频库状态">
             <span>
@@ -220,29 +211,30 @@ export function SourceVideosPage({
             </span>
           </div>
         </section>
-        <section className="admin-source-filter-bar" aria-label="筛选预处理状态">
-          {statusOptions.map((option) => (
-            <button
-              className={`admin-filter-chip${statusFilter === option.value ? " is-active" : ""}`}
-              type="button"
-              aria-pressed={statusFilter === option.value ? "true" : "false"}
-              onClick={() => updateStatusFilter(option.value)}
-              key={option.value}
+        <section className="admin-source-filter-bar admin-source-filter-card" aria-label="筛选预处理状态">
+          <div className="admin-source-select-wrap">
+            <select
+              className="admin-select admin-filter-select"
+              value={statusFilter}
+              aria-label="筛选预处理状态"
+              onChange={(event) => updateStatusFilter(event.currentTarget.value as AdminPreprocessStatus | "all")}
             >
-              <span>{statusFilterLabel(option, processingIsStale)}</span>
-              <strong>{statusCountFromDashboard(data, option.value)}</strong>
-            </button>
-          ))}
-          <select
-            className="admin-select admin-filter-select"
-            value={statusFilter}
-            aria-label="筛选预处理状态"
-            onChange={(event) => updateStatusFilter(event.currentTarget.value as AdminPreprocessStatus | "all")}
-          >
-            {statusOptions.map((option) => (
-              <option value={option.value} key={option.value}>{statusFilterLabel(option, processingIsStale)}</option>
-            ))}
-          </select>
+              {statusOptions.map((option) => (
+                <option value={option.value} key={option.value}>{statusFilterLabel(option, processingIsStale)}</option>
+              ))}
+            </select>
+          </div>
+          <span className="ml-search admin-source-search">
+            ⌕
+            <input
+              value={query}
+              placeholder="搜索文件名 / 标签 / 相对路径"
+              onChange={(event) => updateQuery(event.currentTarget.value)}
+            />
+          </span>
+          <span className="admin-source-filter-count">
+            共 {totalSourceVideoCount} 个视频 · 当前状态 {activeStatusTotal} · 已载入 {loadedSourceVideoCount}
+          </span>
         </section>
         {isLoadingInitial ? (
           <EmptyState title="正在读取首批原视频" detail="页面已载入，首批 20 条素材正在加载。" />

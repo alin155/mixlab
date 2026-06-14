@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,6 +11,7 @@ import {
 import {
   getCutJob,
   listCutJobs,
+  readCutTempCacheStatus,
   retryCutJob,
   runCutJob,
   runNextCutJob,
@@ -32,6 +33,14 @@ async function fileOrDirExists(filePath: string): Promise<boolean> {
 
     throw error;
   }
+}
+
+async function writeLibrarySource(libraryRoot: string, relativePath: string): Promise<string> {
+  const sourcePath = path.join(libraryRoot, relativePath);
+
+  await mkdir(path.dirname(sourcePath), { recursive: true });
+  await writeFile(sourcePath, `source:${relativePath}`);
+  return sourcePath;
 }
 
 async function makeClipList(workspaceRoot: string) {
@@ -104,7 +113,7 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -164,6 +173,7 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
     [
       ["queue_wait", "排队等待", "done"],
       ["resolve_source", "读取源素材", "done"],
+      ["preflight_source", "剪切前检查", "done"],
       ["cut_media", "剪切/重编码", "done"],
       ["write_project_output", "写入交付目录", "done"],
       ["preprocess_local_asset", "本地素材预处理", "done"],
@@ -248,7 +258,7 @@ test("runs direct cut jobs without persisting every intermediate phase", async (
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -298,6 +308,68 @@ test("runs direct cut jobs without persisting every intermediate phase", async (
   );
 });
 
+test("cuts through workspace temp cache and removes temporary media after success", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-cut-temp-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await writeClipList({
+    workspace_root: workspaceRoot,
+    library_id: "lib_main_001",
+    title: "临时区剪切",
+    items: [
+      {
+        source_video_id: "V000001",
+        source_title: "01_现金流",
+        source_relative_path: "source-videos/01_现金流.mp4",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: 1000,
+        end_ms: 2200,
+        selected_text: "现金流",
+        cut_mode: "copy"
+      }
+    ],
+    now: "2026-05-02T10:00:00Z"
+  });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  let runnerOutputPath = "";
+  const result = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: []
+    }),
+    cut_runner: async (input) => {
+      runnerOutputPath = input.output_path;
+      await writeFile(input.output_path, "temp-clip-bytes");
+    }
+  });
+
+  assert.equal(result?.status, "done");
+  assert.match(runnerOutputPath, /cache[/\\]cut-temp[/\\]CJ20260502-0001-E000001-/);
+  assert.equal(await fileOrDirExists(runnerOutputPath), false);
+  assert.equal(
+    await readFile(path.join(workspaceRoot, "export-clips", "E000001", "001-临时区剪切-01_现金流.mp4"), "utf8"),
+    "temp-clip-bytes"
+  );
+  assert.equal((await readCutTempCacheStatus({ workspace_root: workspaceRoot })).file_count, 0);
+});
+
 test("writes exact selected text into local transcript assets for partial segment cuts", async () => {
   const workspaceRoot = await makeRoot("mixlab-cutter-local-partial-transcript-");
   const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
@@ -335,7 +407,7 @@ test("writes exact selected text into local transcript assets for partial segmen
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -437,7 +509,7 @@ test("applies pre-roll and post-roll when clip-list rows become cut jobs", async
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -483,7 +555,7 @@ test("serializes concurrent run-next calls so each pending job is cut once", asy
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -581,7 +653,7 @@ test("runs a requested pending cut job without taking the oldest queued job", as
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -677,7 +749,7 @@ test("deletes only workspace outputs tied to a cutter project id", async () => {
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
       duration_ms: 40_000,
       width: 1920,
       height: 1080,
@@ -803,7 +875,7 @@ test("marks failed jobs with error message and continues to later pending jobs",
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path)
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path)
     }),
     cut_runner: async () => {
       throw new Error("ffmpeg failed");
@@ -821,7 +893,7 @@ test("marks failed jobs with error message and continues to later pending jobs",
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path)
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path)
     }),
     cut_runner: async (input) => {
       await writeFile(input.output_path, "second-clip-bytes");
@@ -835,6 +907,32 @@ test("marks failed jobs with error message and continues to later pending jobs",
     (await listCutJobs({ workspace_root: workspaceRoot })).jobs.map((job) => job.status),
     ["done", "failed"]
   );
+});
+
+test("marks missing source videos with an actionable cutter error", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-missing-source-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeClipList(workspaceRoot);
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const failed = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async () => null,
+    cut_runner: async () => {
+      throw new Error("should not cut without a source video");
+    }
+  });
+
+  assert.equal(failed?.status, "failed");
+  assert.match(failed?.error_message ?? "", /源视频不可读/);
+  assert.match(failed?.error_message ?? "", /source-videos/);
+  assert.match(failed?.error_message ?? "", /PublicLibrary/);
 });
 
 test("retries failed cut jobs by returning them to pending", async () => {
@@ -855,7 +953,7 @@ test("retries failed cut jobs by returning them to pending", async () => {
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
-      source_video_file_path: path.join(libraryRoot, job.source_relative_path)
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path)
     }),
     cut_runner: async () => {
       throw new Error("ffmpeg failed");

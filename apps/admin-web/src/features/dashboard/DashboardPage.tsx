@@ -525,8 +525,15 @@ export function DashboardPage({
         </section>
         <section className="admin-kpi-grid" aria-label="关键生产指标">
           {[
-            { label: "可搜索总时长", value: hoursLabel(data.metrics.material.ready_duration_ms), detail: `总时长 ${hoursLabel(data.metrics.material.total_duration_ms)}` },
+            { label: "素材总数", value: data.status.video_count, detail: `原视频总时长 ${hoursLabel(data.metrics.material.total_duration_ms)}` },
             { label: "可用视频", value: data.status.ready_video_count, detail: `占全部 ${readyRatio}%` },
+            {
+              label: supervisorRunning || data.status.processing_video_count === 0 ? "处理中" : "待恢复",
+              value: data.status.processing_video_count,
+              detail: supervisorRunning ? "正在生成产物" : "预处理服务未运行"
+            },
+            { label: "处理失败", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "可重试处理" : "当前无阻塞" },
+            { label: "可搜索总时长", value: hoursLabel(data.metrics.material.ready_duration_ms), detail: `总时长 ${hoursLabel(data.metrics.material.total_duration_ms)}` },
             { label: "句子片段", value: data.metrics.transcript.segment_count.toLocaleString("zh-CN"), detail: `${data.metrics.transcript.transcript_video_count} 个视频有文案` },
             { label: "当前索引", value: data.indexes.current_version, detail: currentIndex ? `协议 ${currentIndex.schema_version}` : "暂无版本详情" },
             { label: "失败任务", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "可重试处理" : "当前无阻塞" },
@@ -542,6 +549,74 @@ export function DashboardPage({
               <p>{item.detail}</p>
             </article>
           ))}
+        </section>
+        <section className="admin-reference-dashboard-row" aria-label="管理端生产状态">
+          <article className="admin-console-panel admin-preprocess-progress-card" aria-label="预处理进度">
+            <header className="admin-section-header">
+              <div>
+                <h2>预处理进度</h2>
+                <p>已处理 {data.status.ready_video_count} / {data.status.video_count}，队列中 {data.status.queued_video_count}，失败 {data.status.failed_video_count}</p>
+              </div>
+              <div className="admin-action-row">
+                <AdminControlButton
+                  label="局部刷新"
+                  state={dashboardWriteState}
+                  reason="刷新当前仪表盘数据。"
+                  onClick={onRunSmartScan}
+                />
+                {data.status.failed_video_count > 0 ? (
+                  <AdminControlButton
+                    label="重试失败视频"
+                    state={dashboardWriteState}
+                    reason="将失败视频重新加入预处理队列。"
+                    variant="primary"
+                    onClick={onRetryFailedVideos}
+                  />
+                ) : null}
+              </div>
+            </header>
+            <div className="admin-reference-progress">
+              <div className="admin-reference-progress-track" aria-hidden="true">
+                <i style={{ width: `${Math.min(100, Math.max(0, readyRatio))}%` }} />
+              </div>
+              <div className="admin-reference-progress-meta">
+                <span>可用素材数 <strong>{data.status.ready_video_count}</strong></span>
+                <strong>{readyRatio}%</strong>
+              </div>
+            </div>
+          </article>
+          <article className="admin-console-panel admin-library-status-card" aria-label="素材库状态">
+            <header className="admin-section-header">
+              <div>
+                <h2>素材库状态</h2>
+                <p>索引、路径和发布状态是剪辑端能否搜索的核心依据。</p>
+              </div>
+              <AdminControlButton
+                label="扫描素材库"
+                state={dashboardWriteState}
+                reason="扫描素材来源、检查系统状态并生成下一步建议。"
+                onClick={onRunSmartScan}
+              />
+            </header>
+            <dl className="admin-library-status-grid">
+              <div>
+                <dt>素材库路径</dt>
+                <dd>{data.status.root_path}</dd>
+              </div>
+              <div>
+                <dt>索引版本</dt>
+                <dd>{data.indexes.current_version || "暂无索引"}</dd>
+              </div>
+              <div>
+                <dt>可用素材数</dt>
+                <dd>{data.status.ready_video_count}</dd>
+              </div>
+              <div>
+                <dt>索引发布时间</dt>
+                <dd>{currentIndex ? compactDateTimeLabel(currentIndex.created_at) : "暂无发布"}</dd>
+              </div>
+            </dl>
+          </article>
         </section>
         <section className="admin-dashboard-split" aria-label="下一步与核心链路">
           <section className={`admin-smart-scan-card is-${report.severity}`} aria-label="下一步建议">
@@ -709,7 +784,7 @@ export function DashboardPage({
         </section>
         <DiskUsage data={data} />
         <section className="admin-list-panel admin-recent-jobs-panel">
-          <h2>最近任务</h2>
+          <h2>最近活动</h2>
           {data.jobs.jobs.slice(0, 4).map((job) => (
             <StatusRow
               tone={adminStatusTone(job.status)}

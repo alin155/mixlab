@@ -201,6 +201,7 @@ const ADMIN_FILTERED_SCAN_BATCH_SIZE = ADMIN_MANIFEST_READ_CONCURRENCY * 4;
 const ADMIN_FILTERED_QUERY_SCAN_BATCH_LIMIT = 8;
 const ADMIN_FULL_TRANSCRIPT_METRICS_MAX_MANIFESTS = 100;
 const ADMIN_FULL_DASHBOARD_METRICS_MAX_MANIFESTS = 100;
+const ADMIN_SOURCE_VIDEO_PAGE_SCAN_AHEAD = 200;
 const ADMIN_ACTIVE_JOB_SYNC_SCAN_BATCH_LIMIT = 0;
 const ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_BATCH_SIZE = 12;
 const ADMIN_ACTIVE_JOB_BACKGROUND_SCAN_PAUSE_MS = 20;
@@ -228,11 +229,33 @@ const sourceVideoIdsCache = new Map<string, {
   pending?: Promise<string[]>;
 }>();
 
+const sourceVideoPageCache = new Map<string, {
+  expires_at: number;
+  manifests: SourceVideoManifest[];
+  pending?: Promise<SourceVideoManifest[]>;
+}>();
+
 const activePreprocessManifestCache = new Map<string, {
   expires_at: number;
   manifests: SourceVideoManifest[];
   pending?: Promise<SourceVideoManifest[]>;
 }>();
+
+function sourceVideoPageCacheKey(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+}): string {
+  return `${input.library_root}\0${input.offset}\0${input.limit}`;
+}
+
+function clearAdminSourceVideoPageCache(libraryRoot: string): void {
+  for (const key of sourceVideoPageCache.keys()) {
+    if (key.startsWith(`${libraryRoot}\0`)) {
+      sourceVideoPageCache.delete(key);
+    }
+  }
+}
 
 function readFreshCachedSourceVideoManifests(libraryRoot: string): SourceVideoManifest[] | null {
   const cached = manifestCache.get(libraryRoot);
@@ -380,6 +403,82 @@ async function readSourceVideoManifestPage(input: {
     library_root: input.library_root,
     source_video_ids: sourceVideoIds
   });
+}
+
+function sourceVideoIdFromOrdinal(ordinal: number): string {
+  return `V${String(ordinal).padStart(6, "0")}`;
+}
+
+async function readSourceVideoManifestPageFromLibraryCount(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+}): Promise<SourceVideoManifest[] | null> {
+  const library = await readLibraryManifest(input.library_root);
+  const videoCount = Math.max(0, Math.floor(library?.video_count ?? 0));
+  if (input.limit <= 0 || videoCount <= 0 || input.offset >= videoCount) {
+    return null;
+  }
+
+  const manifests: SourceVideoManifest[] = [];
+  let ordinal = input.offset + 1;
+  const maxOrdinal = Math.min(videoCount, input.offset + input.limit + ADMIN_SOURCE_VIDEO_PAGE_SCAN_AHEAD);
+
+  while (ordinal <= maxOrdinal && manifests.length < input.limit) {
+    const batchEnd = Math.min(maxOrdinal, ordinal + ADMIN_MANIFEST_READ_CONCURRENCY - 1);
+    const ids = Array.from(
+      { length: batchEnd - ordinal + 1 },
+      (_, index) => sourceVideoIdFromOrdinal(ordinal + index)
+    );
+    manifests.push(...await readAdminSourceVideoManifestsByIds({
+      library_root: input.library_root,
+      source_video_ids: ids
+    }));
+    ordinal = batchEnd + 1;
+  }
+
+  return manifests.slice(0, input.limit);
+}
+
+async function readDefaultAdminSourceVideoManifestPage(input: {
+  library_root: string;
+  offset: number;
+  limit: number;
+}): Promise<SourceVideoManifest[]> {
+  const key = sourceVideoPageCacheKey(input);
+  const cached = sourceVideoPageCache.get(key);
+
+  if (cached?.pending) {
+    return cached.pending;
+  }
+
+  if (cached && cached.expires_at > Date.now()) {
+    return cached.manifests;
+  }
+
+  const pending = (async () => {
+    const countedManifestPage = await readSourceVideoManifestPageFromLibraryCount(input);
+    const manifests = countedManifestPage && countedManifestPage.length > 0
+      ? countedManifestPage
+      : await readSourceVideoManifestPage(input);
+
+    sourceVideoPageCache.set(key, {
+      expires_at: Date.now() + ADMIN_MANIFEST_CACHE_TTL_MS,
+      manifests
+    });
+    return manifests;
+  })().catch((error) => {
+    sourceVideoPageCache.delete(key);
+    throw error;
+  });
+
+  sourceVideoPageCache.set(key, {
+    expires_at: 0,
+    manifests: cached?.manifests ?? [],
+    pending
+  });
+
+  return pending;
 }
 
 function mergeSourceVideoManifestsById(manifests: SourceVideoManifest[]): SourceVideoManifest[] {
@@ -702,6 +801,12 @@ async function readAdminSourceVideoList(input: {
 
   if (!hasFilter) {
     if (input.limit > 0) {
+      const manifestPage = await readDefaultAdminSourceVideoManifestPage(input);
+
+      if (manifestPage.length > 0) {
+        return manifestPage;
+      }
+
       const indexedReadyPage = await readIndexedAdminSourceVideoManifests({
         library_root: input.library_root,
         offset: input.offset,
@@ -709,11 +814,7 @@ async function readAdminSourceVideoList(input: {
         query: ""
       });
 
-      if (indexedReadyPage && indexedReadyPage.length > 0) {
-        return indexedReadyPage;
-      }
-
-      return readSourceVideoManifestPage(input);
+      return indexedReadyPage ?? [];
     }
 
     return readCachedSourceVideoManifests(input.library_root);
@@ -3386,6 +3487,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
             return;
           }
 
+          clearAdminSourceVideoPageCache(input.library_root);
           writeJson(response, 200, apiOk(toAdminSourceVideo(updated)));
         } catch (error) {
           const message = error instanceof SyntaxError ? "请求 JSON 格式无效" : (error as Error).message;
@@ -3488,12 +3590,14 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "POST" && url.pathname === "/api/admin/library/init") {
-        writeJson(response, 200, apiOk(await initializeLibrary({
+        const result = await initializeLibrary({
           library_root: input.library_root,
           library_id: libraryId,
           library_name: libraryName,
           now: now()
-        })));
+        });
+        clearAdminSourceVideoPageCache(input.library_root);
+        writeJson(response, 200, apiOk(result));
         return;
       }
 
@@ -3504,12 +3608,14 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
-        writeJson(response, 200, apiOk(await scanSourceVideos({
+        const result = await scanSourceVideos({
           library_root: input.library_root,
           library_id: libraryId,
           library_name: libraryName,
           now: now()
-        })));
+        });
+        clearAdminSourceVideoPageCache(input.library_root);
+        writeJson(response, 200, apiOk(result));
         return;
       }
 
@@ -3527,6 +3633,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk(result));
         return;
       }
@@ -3545,6 +3652,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk(result));
         return;
       }
@@ -3573,6 +3681,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk({
           ...result,
           message: result.affected_count > 0
@@ -3599,6 +3708,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk({
           ...result,
           message: result.affected_count > 0
@@ -3625,6 +3735,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk({
           ...result,
           message: result.affected_count > 0
@@ -3661,6 +3772,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           library_name: libraryName,
           now: now()
         });
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk({
           ...result,
           message: result.affected_count > 0
@@ -3672,23 +3784,27 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
 
       const sourceVideoPublishMatch = /^\/api\/admin\/source-videos\/(V\d{6})\/publish$/.exec(url.pathname);
       if (request.method === "POST" && sourceVideoPublishMatch) {
-        writeJson(response, 200, apiOk(await publishReadyPreparedVideos({
+        const result = await publishReadyPreparedVideos({
           library_root: input.library_root,
           library_id: libraryId,
           now: now(),
           media: readyPublishMedia,
           source_video_ids: [sourceVideoPublishMatch[1] ?? ""]
-        })));
+        });
+        clearAdminSourceVideoPageCache(input.library_root);
+        writeJson(response, 200, apiOk(result));
         return;
       }
 
       if (request.method === "POST" && url.pathname === "/api/admin/index/repair") {
-        writeJson(response, 200, apiOk(await publishReadyPreparedVideos({
+        const result = await publishReadyPreparedVideos({
           library_root: input.library_root,
           library_id: libraryId,
           now: now(),
           media: readyPublishMedia
-        })));
+        });
+        clearAdminSourceVideoPageCache(input.library_root);
+        writeJson(response, 200, apiOk(result));
         return;
       }
 
@@ -3790,6 +3906,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         };
 
         await writeSourceVideoManifest(input.library_root, updated);
+        clearAdminSourceVideoPageCache(input.library_root);
         writeJson(response, 200, apiOk(toAdminSourceVideo(updated)));
         return;
       }

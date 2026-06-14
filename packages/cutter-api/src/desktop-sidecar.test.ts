@@ -89,7 +89,8 @@ test("maps desktop config to reviewed cutter API server input without mutating p
     }),
     {
       library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
-      workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+      workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
+      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`
     }
   );
 });
@@ -110,6 +111,7 @@ test("maps desktop searchd env to cutter API server input", () => {
     {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
+      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
       searchd_base_url: "http://127.0.0.1:3799"
     }
   );
@@ -129,6 +131,7 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
     create_server: (input) => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
+      assert.equal(input.release_cache_root, String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`);
       assert.equal(input.auth_mode, undefined);
       assert.equal(input.searchd_base_url, "http://127.0.0.1:3799");
       return fakeServer as unknown as Server;

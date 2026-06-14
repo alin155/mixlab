@@ -959,6 +959,12 @@ function settingsFromRuntimeStatus(runtimeStatusResult: CutterRuntimeStatus): Cu
     return settings;
   }
 
+  const sourcePreflight = runtimeStatusResult.source_video_preflight;
+  const thumbnailManifestCount = runtimeStatusResult.local_cache?.thumbnail_cache_manifest_entry_count ?? 0;
+  const thumbnailChecksumCount = runtimeStatusResult.local_cache?.thumbnail_cache_checksum_entry_count ?? 0;
+  const cutTempSize = runtimeStatusResult.local_cache?.cut_temp_cache.size_bytes ?? 0;
+  const cutTempMax = runtimeStatusResult.local_cache?.cut_temp_cache.max_bytes ?? 0;
+
   return {
     ...settings,
     public_library_mount:
@@ -975,7 +981,45 @@ function settingsFromRuntimeStatus(runtimeStatusResult: CutterRuntimeStatus): Cu
         ? "系统环境配置"
         : runtimeStatusResult.ffmpeg_source === "内置"
           ? "内置剪切工具"
-          : "未检测到"
+          : "未检测到",
+    doctor: [
+      {
+        label: "公共素材库挂载",
+        status: runtimeStatusResult.available_video_count > 0 ? "pass" : "warn",
+        message: runtimeStatusResult.release_cache?.message || "等待素材库状态"
+      },
+      {
+        label: "源视频预检",
+        status: sourcePreflight?.status === "ready"
+          ? "pass"
+          : sourcePreflight?.status === "blocked"
+            ? "fail"
+            : "warn",
+        message: sourcePreflight
+          ? `${sourcePreflight.message}，媒体探测 ${sourcePreflight.probe_readable_count ?? 0}/${sourcePreflight.probe_count ?? 0}`
+          : "等待源视频可读性检查"
+      },
+      {
+        label: "缩略图缓存",
+        status: thumbnailManifestCount === thumbnailChecksumCount ? "pass" : "warn",
+        message: `缩略图索引 ${thumbnailChecksumCount}/${thumbnailManifestCount}`
+      },
+      {
+        label: "剪切临时区",
+        status: cutTempMax === 0 || cutTempSize <= cutTempMax ? "pass" : "warn",
+        message: cutTempMax > 0 ? "剪切临时文件容量正常" : "等待剪切临时区状态"
+      },
+      {
+        label: "本地工作区",
+        status: runtimeStatusResult.workspace_enabled ? "pass" : "warn",
+        message: runtimeStatusResult.workspace_enabled ? "可以保存剪切任务和本地素材" : "未启用本地工作区"
+      },
+      {
+        label: "FFmpeg",
+        status: runtimeStatusResult.ffmpeg_status === "可用" ? "pass" : "fail",
+        message: runtimeStatusResult.ffmpeg_status === "可用" ? "剪切工具可用" : "剪切工具不可用"
+      }
+    ]
   };
 }
 

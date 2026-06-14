@@ -89,6 +89,12 @@ export function isWindowsUncPath(pathValue: string): boolean {
   return /^\\\\[^\\]+\\[^\\]+/.test(toBackslashes(pathValue));
 }
 
+function joinDesktopPath(root: string, child: string): string {
+  return isWindowsUncPath(root) || hasWindowsDrivePrefix(root)
+    ? path.win32.join(root, child)
+    : path.join(root, child);
+}
+
 export function defaultWindowsWorkspaceRoot(env: Partial<Record<string, string | undefined>> = {}): string {
   const userProfile = env.USERPROFILE?.trim();
   if (userProfile) {
@@ -204,11 +210,14 @@ export async function validateLocalWorkspaceCandidate(
 }
 
 export function buildCutterApiEnv(config: CutterDesktopConfig): Record<string, string> {
+  const workspaceRoot = normalizeDesktopPathForStorage(config.local_workspace_root);
+
   return {
     MIXLAB_CUTTER_API_HOST: config.api_host,
     MIXLAB_CUTTER_API_PORT: String(config.api_port),
     MIXLAB_CUTTER_LIBRARY_ROOT: normalizeDesktopPathForStorage(config.public_library_root),
-    MIXLAB_CUTTER_WORKSPACE_ROOT: normalizeDesktopPathForStorage(config.local_workspace_root),
+    MIXLAB_CUTTER_WORKSPACE_ROOT: workspaceRoot,
+    MIXLAB_CUTTER_RELEASE_CACHE_ROOT: joinDesktopPath(workspaceRoot, "cache"),
     ...(config.log_root ? { MIXLAB_DESKTOP_LOG_DIR: normalizeDesktopPathForStorage(config.log_root) } : {}),
     ...(config.ffmpeg_path ? { MIXLAB_FFMPEG_PATH: normalizeDesktopPathForStorage(config.ffmpeg_path) } : {}),
     ...(config.ffprobe_path ? { MIXLAB_FFPROBE_PATH: normalizeDesktopPathForStorage(config.ffprobe_path) } : {})

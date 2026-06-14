@@ -1,4 +1,4 @@
-import { copyFile, link, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import {
@@ -21,6 +21,7 @@ export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelle
 export type CutJobPhaseId =
   | "queue_wait"
   | "resolve_source"
+  | "preflight_source"
   | "cut_media"
   | "write_project_output"
   | "preprocess_local_asset"
@@ -140,6 +141,7 @@ export interface RunNextCutJobInput {
   cut_runner: CutRunner;
   cover_runner?: CoverRunner;
   persist_phase_progress?: boolean;
+  cut_temp_max_bytes?: number;
 }
 
 export interface RunCutJobInput extends RunNextCutJobInput {
@@ -149,6 +151,7 @@ export interface RunCutJobInput extends RunNextCutJobInput {
 const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
   { phase_id: "queue_wait", label: "排队等待" },
   { phase_id: "resolve_source", label: "读取源素材" },
+  { phase_id: "preflight_source", label: "剪切前检查" },
   { phase_id: "cut_media", label: "剪切/重编码" },
   { phase_id: "write_project_output", label: "写入交付目录" },
   { phase_id: "preprocess_local_asset", label: "本地素材预处理" },
@@ -157,6 +160,7 @@ const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
 ];
 
 const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
+const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const workspaceRunNextLocks = new Map<string, Promise<void>>();
 const workspaceQueueMutationLocks = new Map<string, Promise<void>>();
 
@@ -219,6 +223,142 @@ function cutJobsRoot(workspaceRoot: string): string {
 function cutJobPath(workspaceRoot: string, cutJobId: string): string {
   assertCutJobId(cutJobId);
   return path.join(cutJobsRoot(workspaceRoot), `${cutJobId}.json`);
+}
+
+function workspaceCacheRoot(workspaceRoot: string): string {
+  return path.join(workspaceRoot, "cache");
+}
+
+function cutTempRoot(workspaceRoot: string): string {
+  return path.join(workspaceCacheRoot(workspaceRoot), "cut-temp");
+}
+
+function normalizeCacheMaxBytes(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value ?? Number.NaN) || (value ?? 0) <= 0) {
+    return fallback;
+  }
+
+  return Math.max(128 * 1024 * 1024, Math.floor(value!));
+}
+
+function cutTempMaxBytes(value: number | undefined): number {
+  return normalizeCacheMaxBytes(value, DEFAULT_CUT_TEMP_MAX_BYTES);
+}
+
+function cutTempOutputPath(input: {
+  workspace_root: string;
+  cut_job_id: string;
+  export_clip_id: string;
+}): string {
+  assertCutJobId(input.cut_job_id);
+  return path.join(
+    cutTempRoot(input.workspace_root),
+    `${input.cut_job_id}-${input.export_clip_id}-${randomUUID()}.mp4`
+  );
+}
+
+async function readDirectFileEntries(root: string): Promise<Array<{
+  file_path: string;
+  size: number;
+  mtime_ms: number;
+}>> {
+  let entries;
+
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry) => {
+        const filePath = path.join(root, entry.name);
+        try {
+          const fileStat = await stat(filePath);
+          return {
+            file_path: filePath,
+            size: fileStat.size,
+            mtime_ms: fileStat.mtimeMs
+          };
+        } catch {
+          return null;
+        }
+      })
+  );
+
+  return files.filter((file): file is {
+    file_path: string;
+    size: number;
+    mtime_ms: number;
+  } => Boolean(file));
+}
+
+async function pruneDirectFileCache(input: {
+  root: string;
+  max_bytes: number;
+  keep_paths?: string[];
+}): Promise<string[]> {
+  const keep = new Set((input.keep_paths ?? []).map((filePath) => path.resolve(filePath)));
+  const entries = await readDirectFileEntries(input.root);
+  let totalBytes = entries.reduce((total, entry) => total + entry.size, 0);
+  const pruned: string[] = [];
+
+  for (const entry of entries
+    .filter((item) => !keep.has(path.resolve(item.file_path)))
+    .sort((left, right) => left.mtime_ms - right.mtime_ms)) {
+    if (totalBytes <= input.max_bytes) {
+      break;
+    }
+
+    try {
+      await rm(entry.file_path, { force: true });
+      totalBytes -= entry.size;
+      pruned.push(entry.file_path);
+    } catch {
+      // A concurrent process may still be writing or moving this temp file.
+    }
+  }
+
+  return pruned;
+}
+
+async function directFileCacheSize(root: string): Promise<number> {
+  return (await readDirectFileEntries(root)).reduce((total, entry) => total + entry.size, 0);
+}
+
+async function moveOrCopyFile(sourcePath: string, targetPath: string): Promise<void> {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+
+  try {
+    await rename(sourcePath, targetPath);
+  } catch {
+    await copyFile(sourcePath, targetPath);
+    await rm(sourcePath, { force: true });
+  }
+}
+
+export interface CutTempCacheStatus {
+  cache_root_path: string;
+  max_bytes: number;
+  size_bytes: number;
+  file_count: number;
+}
+
+export async function readCutTempCacheStatus(input: {
+  workspace_root: string;
+  max_bytes?: number;
+}): Promise<CutTempCacheStatus> {
+  const root = cutTempRoot(input.workspace_root);
+  const entries = await readDirectFileEntries(root);
+
+  return {
+    cache_root_path: root,
+    max_bytes: cutTempMaxBytes(input.max_bytes),
+    size_bytes: entries.reduce((total, entry) => total + entry.size, 0),
+    file_count: entries.length
+  };
 }
 
 function jsonBytes(value: unknown): string {
@@ -329,6 +469,44 @@ function failPhase(job: CutJobManifest, phaseId: CutJobPhaseId, now: string): Cu
     }),
     updated_at: now
   };
+}
+
+async function assertCutJobPreflight(input: {
+  job: CutJobManifest;
+  source: CutJobSourceDetail;
+}): Promise<void> {
+  if (!input.source.source_video_file_path.trim()) {
+    throw new Error("源视频不可读：源视频路径为空");
+  }
+
+  const sourceStat = await stat(input.source.source_video_file_path).catch((error) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`源视频不可读：找不到源视频文件 ${input.source.source_video_file_path}`);
+    }
+
+    throw error;
+  });
+
+  if (!sourceStat.isFile()) {
+    throw new Error(`源视频不可读：源路径不是视频文件 ${input.source.source_video_file_path}`);
+  }
+
+  if (!Number.isFinite(input.job.begin_ms) || !Number.isFinite(input.job.end_ms)) {
+    throw new Error("剪切时间段非法：开始和结束时间必须是有效数字");
+  }
+
+  if (input.job.begin_ms < 0) {
+    throw new Error("剪切时间段非法：开始时间不能小于 0");
+  }
+
+  if (input.job.end_ms <= input.job.begin_ms) {
+    throw new Error("剪切时间段非法：结束时间必须大于开始时间");
+  }
+
+  const sourceDurationMs = input.source.duration_ms ?? 0;
+  if (sourceDurationMs > 0 && input.job.end_ms > sourceDurationMs + 2_000) {
+    throw new Error("剪切时间段非法：结束时间超过源视频时长");
+  }
 }
 
 function assertCutJobId(cutJobId: string): void {
@@ -956,8 +1134,15 @@ async function runPendingCutJobUnlocked(
     const source = await runPhase("resolve_source", async () => input.resolve_source(running));
 
     if (!source) {
-      throw new Error("source video not found");
+      throw new Error("源视频不可读：请确认 Windows 已连接公共素材库的 source-videos 目录，并且公共素材库根目录选择的是 PublicLibrary 根目录");
     }
+
+    await runPhase("preflight_source", async () => {
+      await assertCutJobPreflight({
+        job: running,
+        source
+      });
+    });
 
     const exportClipId = await allocateNextExportClipId(input.workspace_root);
     const projectOutputFile = buildProjectClipOutputFile({
@@ -980,14 +1165,29 @@ async function runPendingCutJobUnlocked(
     });
 
     await runPhase("cut_media", async () => {
-      await mkdir(path.dirname(exportPaths.media_file_path), { recursive: true });
-      await input.cut_runner({
-        source_video_path: source.source_video_file_path,
-        output_path: exportPaths.media_file_path,
-        begin_ms: running.begin_ms,
-        end_ms: running.end_ms,
-        cut_mode: running.cut_mode
+      const tempOutputPath = cutTempOutputPath({
+        workspace_root: input.workspace_root,
+        cut_job_id: running.cut_job_id,
+        export_clip_id: exportClipId
       });
+
+      await mkdir(path.dirname(tempOutputPath), { recursive: true });
+      try {
+        await input.cut_runner({
+          source_video_path: source.source_video_file_path,
+          output_path: tempOutputPath,
+          begin_ms: running.begin_ms,
+          end_ms: running.end_ms,
+          cut_mode: running.cut_mode
+        });
+        await moveOrCopyFile(tempOutputPath, exportPaths.media_file_path);
+      } finally {
+        await rm(tempOutputPath, { force: true });
+        await pruneDirectFileCache({
+          root: cutTempRoot(input.workspace_root),
+          max_bytes: cutTempMaxBytes(input.cut_temp_max_bytes)
+        });
+      }
     });
 
     await runPhase("write_project_output", async () => {

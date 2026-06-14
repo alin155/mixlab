@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildCutterApiEnv,
+  isWindowsUncPath,
   normalizeDesktopPathForStorage,
   type CutterDesktopConfig
 } from "../../desktop-runtime/src/index.ts";
@@ -93,9 +94,15 @@ export function buildCutterApiServerInputFromDesktopConfig(
     env.MIXLAB_CUTTER_SEARCHD_BASE_URL?.trim() ||
     "";
 
+  const workspaceRoot = normalizeDesktopPathForStorage(config.local_workspace_root);
+  const releaseCacheRoot = isWindowsUncPath(workspaceRoot) || /^[a-zA-Z]:[\\/]/.test(workspaceRoot)
+    ? path.win32.join(workspaceRoot, "cache")
+    : path.join(workspaceRoot, "cache");
+
   return {
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
-    workspace_root: normalizeDesktopPathForStorage(config.local_workspace_root),
+    workspace_root: workspaceRoot,
+    release_cache_root: releaseCacheRoot,
     ...(searchdBaseUrl ? { searchd_base_url: searchdBaseUrl } : {})
   };
 }

@@ -23,21 +23,29 @@ import {
   readAllSourceVideoManifests,
   readSourceVideoManifest
 } from "./preprocess-lifecycle.ts";
+import {
+  currentCutterReleaseSearchIndexFilePath,
+  getCutterReleaseSourceVideoDetail,
+  listCutterReleaseCatalog
+} from "./cutter-release.ts";
 import { resolveSourceVideoFilePath } from "./source-paths.ts";
 
 export interface ListCutterSourceLibraryInput {
   library_root: string;
+  release_root?: string;
   limit?: number;
   offset?: number;
 }
 
 export interface GetCutterSourceVideoDetailInput {
   library_root: string;
+  release_root?: string;
   source_video_id: string;
 }
 
 export interface SearchCutterSourceLibraryInput {
   library_root: string;
+  release_root?: string;
   query: string;
   limit: number;
   cursor?: string;
@@ -280,8 +288,13 @@ async function readVisibleSourceVideoManifests(
 }
 
 async function resolveCurrentSourceTranscriptIndexFilePath(
-  libraryRoot: string
+  libraryRoot: string,
+  releaseRoot?: string
 ): Promise<string> {
+  if (releaseRoot) {
+    return currentCutterReleaseSearchIndexFilePath({ release_root: releaseRoot });
+  }
+
   const currentPath = path.join(
     libraryRoot,
     ".mixlab-library",
@@ -602,6 +615,16 @@ async function isCutterReadableReadyManifest(
 export async function listCutterSourceLibrary(
   input: ListCutterSourceLibraryInput
 ): Promise<CutterSourceLibraryView> {
+  try {
+    return await listCutterReleaseCatalog(input);
+  } catch (error) {
+    if (input.release_root) {
+      throw error;
+    }
+
+    // Older libraries and damaged release snapshots can still use the manifest/index path.
+  }
+
   let readyManifests: SourceVideoManifest[];
   let availableVideoCount = 0;
 
@@ -632,6 +655,22 @@ export async function listCutterSourceLibrary(
 export async function getCutterSourceVideoDetail(
   input: GetCutterSourceVideoDetailInput
 ): Promise<CutterSourceVideoDetail | null> {
+  if (input.release_root) {
+    try {
+      return await getCutterReleaseSourceVideoDetail({
+        library_root: input.library_root,
+        release_root: input.release_root,
+        source_video_id: input.source_video_id
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   const manifest = await readSourceVideoManifest(input.library_root, input.source_video_id);
 
   if (!(await isCutterReadableReadyManifest(input.library_root, manifest))) {
@@ -676,12 +715,16 @@ export async function searchCutterSourceLibrary(
   if (cursorBackend !== "transcript-artifact-fallback") {
     try {
       result = searchSourceTranscriptSqliteIndex({
-        index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root),
+        index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root, input.release_root),
         query: input.query,
         limit: input.limit,
         cursor: input.cursor
       });
     } catch (error) {
+      if (input.release_root) {
+        throw new Error("local_release_search_index_unavailable");
+      }
+
       if (cursorBackend === "sqlite-index" || !shouldFallbackToTranscriptArtifactSearch(error)) {
         throw error;
       }

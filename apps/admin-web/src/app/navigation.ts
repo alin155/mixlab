@@ -36,7 +36,8 @@ const ROUTES = new Set<AdminRoute>([
 const ROUTE_ALIASES: Record<string, AdminRoute> = {
   "library-settings": "settings",
   "index-health": "preprocess-jobs",
-  "index-publish": "preprocess-jobs"
+  "index-publish": "preprocess-jobs",
+  doctor: "settings"
 };
 
 export function routeFromHash(hash: string): AdminRoute {

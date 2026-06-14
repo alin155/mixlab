@@ -47,6 +47,7 @@ export const CUT_JOB_PROJECT_INDEX_STORAGE_KEY = "mixlab.cutter.cutJobProjectInd
 export const CUT_QUEUE_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
   { phase_id: "queue_wait", label: "排队等待" },
   { phase_id: "resolve_source", label: "读取源素材" },
+  { phase_id: "preflight_source", label: "剪切前检查" },
   { phase_id: "cut_media", label: "剪切/重编码" },
   { phase_id: "write_project_output", label: "写入交付目录" },
   { phase_id: "preprocess_local_asset", label: "本地素材预处理" },
@@ -149,7 +150,13 @@ export function cutQueuePhaseTimeline(job: CutQueueJob): CutJobPhaseTiming[] {
   if (job.status === "running") {
     return CUT_QUEUE_PHASES.map((phase) => ({
       ...phase,
-      status: phase.phase_id === "cut_media" ? "running" : phase.phase_id === "queue_wait" ? "done" : "pending",
+      status: phase.phase_id === "cut_media"
+        ? "running"
+        : phase.phase_id === "queue_wait" ||
+            phase.phase_id === "resolve_source" ||
+            phase.phase_id === "preflight_source"
+          ? "done"
+          : "pending",
       ...(phase.phase_id === "cut_media" ? { started_at: job.started_at ?? job.updated_at ?? job.created_at } : {})
     }));
   }

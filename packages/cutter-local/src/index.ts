@@ -38,6 +38,7 @@ export type {
 export {
   getCutJob,
   listCutJobs,
+  readCutTempCacheStatus,
   retryCutJob,
   runCutJob,
   runNextCutJob,
@@ -55,6 +56,7 @@ export type {
   CutJobSourceDetail,
   CutJobStatus,
   CutJobSubmission,
+  CutTempCacheStatus,
   CoverRunner,
   CoverRunnerInput,
   CutRunner,

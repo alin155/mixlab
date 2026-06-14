@@ -14,6 +14,7 @@ import {
   readAllSourceVideoManifests,
   refreshLibraryCounts
 } from "./preprocess-lifecycle.ts";
+import { publishCutterRelease as publishCutterReleaseSnapshot } from "./cutter-release.ts";
 export { scanSourceVideos } from "./scanner.ts";
 export type { ScanSourceVideosInput, ScanSourceVideosResult } from "./scanner.ts";
 export {
@@ -36,6 +37,15 @@ export {
   listCutterSourceLibrary,
   searchCutterSourceLibrary
 } from "./cutter-source-library.ts";
+export {
+  listCutterReleaseCatalog,
+  publishCutterRelease,
+  readCurrentCutterRelease
+} from "./cutter-release.ts";
+export {
+  readLocalCutterReleaseCacheStatus,
+  syncCutterReleaseCache
+} from "./cutter-release-cache.ts";
 export {
   allocateNextLocalClipId,
   buildLocalClipArtifactPaths,
@@ -76,6 +86,17 @@ export type {
   ListCutterSourceLibraryInput,
   SearchCutterSourceLibraryInput
 } from "./cutter-source-library.ts";
+export type {
+  CutterReleaseCurrentPointer,
+  CutterReleaseManifest,
+  CutterReleaseSourcePathMap,
+  PublishCutterReleaseInput
+} from "./cutter-release.ts";
+export type {
+  CutterReleaseCacheStatus,
+  SyncCutterReleaseCacheInput,
+  SyncCutterReleaseCacheResult
+} from "./cutter-release-cache.ts";
 export type {
   BuildLocalClipArtifactPathsInput,
   GetLocalClipDetailInput,
@@ -315,22 +336,30 @@ export async function publishIndexRequiredSourceVideos(
     completeCandidates.map((manifest) => manifest.source_video_id)
   );
   const nextReadyIds = sortSourceVideoIds([...alreadyReadyIds, ...publishedSourceVideoIds]);
-
-  if (publishedSourceVideoIds.length === 0) {
-    return {
-      index_version: "",
-      published_source_video_ids: [],
-      ready_video_count: alreadyReadyIds.length,
-      skipped_source_video_ids: sortSourceVideoIds(skippedSourceVideoIds)
-    };
-  }
-
   let currentVersion: string | undefined;
 
   try {
     currentVersion = (await readCurrentIndexPointer(input.library_root)).current_version;
   } catch {
     currentVersion = undefined;
+  }
+
+  if (publishedSourceVideoIds.length === 0) {
+    if (currentVersion && alreadyReadyIds.length > 0) {
+      await publishCutterReleaseSnapshot({
+        library_root: input.library_root,
+        library_id: input.library_id,
+        release_version: currentVersion,
+        now: input.now
+      });
+    }
+
+    return {
+      index_version: "",
+      published_source_video_ids: [],
+      ready_video_count: alreadyReadyIds.length,
+      skipped_source_video_ids: sortSourceVideoIds(skippedSourceVideoIds)
+    };
   }
 
   const indexVersion = nextIndexVersion(currentVersion);
@@ -368,6 +397,12 @@ export async function publishIndexRequiredSourceVideos(
     });
   }
   await refreshLibraryCounts(input.library_root, input.now);
+  await publishCutterReleaseSnapshot({
+    library_root: input.library_root,
+    library_id: input.library_id,
+    release_version: indexVersion,
+    now: input.now
+  });
 
   return {
     index_version: indexVersion,

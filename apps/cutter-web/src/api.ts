@@ -176,6 +176,7 @@ export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelle
 export type CutJobPhaseId =
   | "queue_wait"
   | "resolve_source"
+  | "preflight_source"
   | "cut_media"
   | "write_project_output"
   | "preprocess_local_asset"
@@ -354,6 +355,63 @@ export interface CutterRuntimeStatus {
     source_video_count: number;
     segment_count: number;
     response_ms?: number;
+    message: string;
+  };
+  release_cache?: {
+    enabled: boolean;
+    ready: boolean;
+    sync_status: "ready" | "syncing" | "unavailable" | "failed";
+    active_release_version: string;
+    source_release_version: string;
+    search_index_version?: string;
+    ready_video_count: number;
+    cached_release_versions?: string[];
+    cached_release_count?: number;
+    max_cached_releases?: number;
+    cache_size_bytes?: number;
+    cache_root_path: string;
+    catalog_file_path: string;
+    message: string;
+  };
+  local_cache?: {
+    cache_root_path: string;
+    thumbnail_cache_root_path: string;
+    thumbnail_cache_manifest_path?: string;
+    thumbnail_cache_size_bytes: number;
+    thumbnail_cache_max_bytes: number;
+    thumbnail_cache_manifest_entry_count?: number;
+    thumbnail_cache_checksum_entry_count?: number;
+    cut_temp_cache: {
+      cache_root_path: string;
+      max_bytes: number;
+      size_bytes: number;
+      file_count: number;
+    };
+  };
+  source_video_preflight?: {
+    status: "ready" | "checking" | "blocked" | "unavailable";
+    checked_count: number;
+    readable_count: number;
+    probe_count?: number;
+    probe_readable_count?: number;
+    sample_count: number;
+    samples: Array<{
+      source_video_id: string;
+      title: string;
+      source_video_file_path: string;
+      readable: boolean;
+      file_size?: number;
+      media_probe?: {
+        checked: boolean;
+        ok: boolean;
+        duration_ms?: number;
+        width?: number;
+        height?: number;
+        codec?: string;
+        reason: string;
+      };
+      reason: string;
+    }>;
     message: string;
   };
   current_user: {

@@ -1,13 +1,17 @@
-import { createReadStream } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import { spawn } from "node:child_process";
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildFfprobeSourceMetadataPlan,
   buildFfmpegCoverImagePlan,
   buildFfmpegCutPlan,
+  parseFfprobeSourceMetadata,
   resolveFfmpegRuntime,
+  type SourceVideoMediaMetadata,
   type CutMode
 } from "../../ffmpeg-core/src/index.ts";
 import {
@@ -21,9 +25,12 @@ import {
   listCutterSourceLibrary,
   listLocalClips,
   searchCutterSourceLibrary,
+  readLocalCutterReleaseCacheStatus,
+  syncCutterReleaseCache,
   writeLocalClipManifest,
   validateCutterSession,
   type CutterUserRecord,
+  type CutterReleaseCacheStatus,
   type CutterSourceLibrarySearchGroup,
   type CutterSourceLibrarySearchResult,
   type CutterSourceVideoCard,
@@ -37,6 +44,7 @@ import {
   exportClipsDirectory,
   listClipLists,
   listCutJobs,
+  readCutTempCacheStatus,
   listExportClips,
   readClipList,
   retryCutJob,
@@ -49,6 +57,7 @@ import {
   type CoverRunner,
   type ExportClipView,
   type RunNextCutJobInput,
+  type CutTempCacheStatus,
   type WriteClipListItemInput
 } from "../../cutter-local/src/index.ts";
 import {
@@ -60,6 +69,11 @@ import {
 export interface CreateCutterApiServerInput {
   library_root: string;
   workspace_root?: string;
+  release_cache_root?: string;
+  release_cache_max_releases?: number;
+  thumbnail_cache_max_bytes?: number;
+  cut_temp_max_bytes?: number;
+  release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
   searchd_timeout_ms?: number;
@@ -70,6 +84,7 @@ export interface CreateCutterApiServerInput {
   now?: () => string;
   cut_runner?: CutterClipCutRunner;
   cover_runner?: CoverRunner;
+  source_video_probe_runner?: CutterSourceVideoProbeRunner;
   open_path?: CutterPathOpener;
 }
 
@@ -112,6 +127,9 @@ export interface CutterClipCutRunnerInput {
 
 export type CutterClipCutRunner = (input: CutterClipCutRunnerInput) => Promise<void> | void;
 export type CutterPathOpener = (targetPath: string) => Promise<void> | void;
+export type CutterSourceVideoProbeRunner = (
+  input: { source_video_path: string; timeout_ms: number }
+) => Promise<SourceVideoMediaMetadata>;
 
 export type CutterUsageEventRecorder = (
   libraryRoot: string,
@@ -189,11 +207,74 @@ interface CutterRuntimeStatusPayload {
     disk_io_bytes_per_second?: number;
   };
   search_backend: CutterSearchBackendStatus;
+  release_cache: CutterReleaseCacheRuntimeStatus;
+  local_cache: CutterLocalCacheRuntimeStatus;
+  source_video_preflight: CutterSourceVideoPreflightStatus;
   current_user: {
     user_id: string;
     username: string;
     display_name: string;
   };
+}
+
+interface CutterLocalCacheRuntimeStatus {
+  cache_root_path: string;
+  thumbnail_cache_root_path: string;
+  thumbnail_cache_manifest_path: string;
+  thumbnail_cache_size_bytes: number;
+  thumbnail_cache_max_bytes: number;
+  thumbnail_cache_manifest_entry_count: number;
+  thumbnail_cache_checksum_entry_count: number;
+  cut_temp_cache: CutTempCacheStatus;
+}
+
+interface CutterSourceVideoMediaProbe {
+  checked: boolean;
+  ok: boolean;
+  duration_ms?: number;
+  width?: number;
+  height?: number;
+  codec?: string;
+  reason: string;
+}
+
+interface CutterSourceVideoPreflightSample {
+  source_video_id: string;
+  title: string;
+  source_video_file_path: string;
+  readable: boolean;
+  file_size?: number;
+  media_probe: CutterSourceVideoMediaProbe;
+  reason: string;
+}
+
+interface CutterSourceVideoPreflightStatus {
+  status: "ready" | "checking" | "blocked" | "unavailable";
+  checked_count: number;
+  readable_count: number;
+  probe_count: number;
+  probe_readable_count: number;
+  sample_count: number;
+  samples: CutterSourceVideoPreflightSample[];
+  message: string;
+}
+
+interface CutterReleaseCacheRuntimeStatus {
+  enabled: boolean;
+  ready: boolean;
+  sync_status: "ready" | "syncing" | "unavailable" | "failed";
+  active_release_version: string;
+  source_release_version: string;
+  search_index_version: string;
+  ready_video_count: number;
+  cached_release_versions: string[];
+  cached_release_count: number;
+  max_cached_releases: number;
+  cache_size_bytes: number;
+  pruned_release_versions: string[];
+  cache_root_path: string;
+  catalog_file_path: string;
+  message: string;
 }
 
 interface CutterSearchBackendStatus {
@@ -207,6 +288,20 @@ interface CutterSearchBackendStatus {
   segment_count: number;
   response_ms?: number;
   message: string;
+}
+
+function delayedFallback<T>(promise: Promise<T>, milliseconds: number, fallback: T): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const guardedPromise = promise.catch(() => fallback);
+  const delayed = new Promise<T>((resolve) => {
+    timeout = setTimeout(() => resolve(fallback), Math.max(50, milliseconds));
+  });
+
+  return Promise.race([guardedPromise, delayed]).finally(() => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
 }
 
 function clampPercent(value: number): number {
@@ -339,6 +434,197 @@ function defaultCutterWorkspaceRoot(): string {
   return path.join(os.homedir(), "Movies", "MixLabLocal");
 }
 
+function defaultCutterReleaseCacheRoot(env: NodeJS.ProcessEnv = process.env): string {
+  const localAppData = optionalTrimmed(env.LOCALAPPDATA);
+
+  if (localAppData) {
+    return path.join(localAppData, "MixLab Cutter", "cache");
+  }
+
+  return path.join(defaultCutterWorkspaceRoot(), "cache");
+}
+
+const DEFAULT_THUMBNAIL_CACHE_MAX_BYTES = 512 * 1024 * 1024;
+const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
+const SOURCE_PREFLIGHT_SAMPLE_COUNT = 3;
+const SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS = 1_500;
+const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
+
+interface ThumbnailCacheManifestEntry {
+  source_video_id: string;
+  source_file_path: string;
+  source_size: number;
+  source_mtime_ms: number;
+  cache_file_name: string;
+  cache_size: number;
+  checksum_sha256: string;
+  cached_at: string;
+}
+
+interface ThumbnailCacheManifest {
+  schema_version: "1.0";
+  generated_at: string;
+  entries: Record<string, ThumbnailCacheManifestEntry>;
+}
+
+function normalizeByteLimit(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value ?? Number.NaN) || (value ?? 0) <= 0) {
+    return fallback;
+  }
+
+  return Math.max(64 * 1024 * 1024, Math.floor(value!));
+}
+
+function localCacheRootForInput(input: CreateCutterApiServerInput): string {
+  return (
+    releaseCacheRootForInput(input) ??
+    path.join(input.workspace_root ?? defaultCutterWorkspaceRoot(), "cache")
+  );
+}
+
+function thumbnailCacheMaxBytes(input: CreateCutterApiServerInput): number {
+  return normalizeByteLimit(input.thumbnail_cache_max_bytes, DEFAULT_THUMBNAIL_CACHE_MAX_BYTES);
+}
+
+function cutTempMaxBytes(input: CreateCutterApiServerInput): number {
+  return normalizeByteLimit(input.cut_temp_max_bytes, DEFAULT_CUT_TEMP_MAX_BYTES);
+}
+
+function thumbnailCacheRoot(input: CreateCutterApiServerInput): string {
+  return path.join(localCacheRootForInput(input), "source-thumbnails");
+}
+
+function thumbnailCacheManifestPath(root: string): string {
+  return path.join(root, THUMBNAIL_CACHE_MANIFEST_FILE_NAME);
+}
+
+function emptyThumbnailCacheManifest(): ThumbnailCacheManifest {
+  return {
+    schema_version: "1.0",
+    generated_at: new Date(0).toISOString(),
+    entries: {}
+  };
+}
+
+function isThumbnailCacheManifestFile(fileName: string): boolean {
+  return fileName === THUMBNAIL_CACHE_MANIFEST_FILE_NAME;
+}
+
+async function readThumbnailCacheManifest(root: string): Promise<ThumbnailCacheManifest> {
+  try {
+    const parsed = JSON.parse(await readFile(thumbnailCacheManifestPath(root), "utf8")) as Partial<ThumbnailCacheManifest>;
+    if (parsed.schema_version !== "1.0" || !parsed.entries || typeof parsed.entries !== "object") {
+      return emptyThumbnailCacheManifest();
+    }
+
+    return {
+      schema_version: "1.0",
+      generated_at: typeof parsed.generated_at === "string" ? parsed.generated_at : new Date(0).toISOString(),
+      entries: parsed.entries as Record<string, ThumbnailCacheManifestEntry>
+    };
+  } catch {
+    return emptyThumbnailCacheManifest();
+  }
+}
+
+async function writeThumbnailCacheManifest(root: string, manifest: ThumbnailCacheManifest): Promise<void> {
+  await mkdir(root, { recursive: true });
+  const nextManifest: ThumbnailCacheManifest = {
+    schema_version: "1.0",
+    generated_at: new Date().toISOString(),
+    entries: manifest.entries
+  };
+  const manifestPath = thumbnailCacheManifestPath(root);
+  const tempPath = `${manifestPath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(nextManifest, null, 2)}\n`);
+  await rename(tempPath, manifestPath);
+}
+
+async function fileSha256(filePath: string): Promise<string> {
+  return createHash("sha256").update(await readFile(filePath)).digest("hex");
+}
+
+function thumbnailManifestEntryMatchesSource(input: {
+  entry: ThumbnailCacheManifestEntry | undefined;
+  source_video_id: string;
+  source_file_path: string;
+  source_size: number;
+  source_mtime_ms: number;
+  cache_file_name: string;
+  cache_size: number;
+}): boolean {
+  const entry = input.entry;
+  if (!entry) {
+    return false;
+  }
+
+  return (
+    entry.source_video_id === input.source_video_id &&
+    entry.source_file_path === input.source_file_path &&
+    entry.source_size === input.source_size &&
+    Math.floor(entry.source_mtime_ms) === Math.floor(input.source_mtime_ms) &&
+    entry.cache_file_name === input.cache_file_name &&
+    entry.cache_size === input.cache_size &&
+    typeof entry.checksum_sha256 === "string" &&
+    entry.checksum_sha256.length === 64
+  );
+}
+
+async function upsertThumbnailCacheManifestEntry(input: {
+  root: string;
+  source_video_id: string;
+  source_file_path: string;
+  source_size: number;
+  source_mtime_ms: number;
+  cache_file_name: string;
+  cache_file_path: string;
+  cache_size: number;
+}): Promise<void> {
+  const manifest = await readThumbnailCacheManifest(input.root);
+  manifest.entries[input.cache_file_name] = {
+    source_video_id: input.source_video_id,
+    source_file_path: input.source_file_path,
+    source_size: input.source_size,
+    source_mtime_ms: input.source_mtime_ms,
+    cache_file_name: input.cache_file_name,
+    cache_size: input.cache_size,
+    checksum_sha256: await fileSha256(input.cache_file_path),
+    cached_at: new Date().toISOString()
+  };
+  await writeThumbnailCacheManifest(input.root, manifest);
+}
+
+async function compactThumbnailCacheManifest(root: string): Promise<ThumbnailCacheManifest> {
+  const manifest = await readThumbnailCacheManifest(root);
+  const entries = await readDirectFileCacheEntries(root);
+  const existingFileNames = new Set(entries.map((entry) => path.basename(entry.file_path)));
+  const compactedEntries = Object.fromEntries(
+    Object.entries(manifest.entries).filter(([fileName]) => existingFileNames.has(fileName))
+  );
+
+  if (Object.keys(compactedEntries).length !== Object.keys(manifest.entries).length) {
+    const compactedManifest: ThumbnailCacheManifest = {
+      schema_version: "1.0",
+      generated_at: manifest.generated_at,
+      entries: compactedEntries
+    };
+    await writeThumbnailCacheManifest(root, compactedManifest);
+    return compactedManifest;
+  }
+
+  return manifest;
+}
+
+function optionalPositiveInteger(value: string | undefined): number | undefined {
+  const trimmed = optionalTrimmed(value);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export function resolveCutterApiRuntimeConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): CutterApiRuntimeConfig {
@@ -367,6 +653,16 @@ export function resolveCutterApiRuntimeConfigFromEnv(
   return {
     library_root: libraryRoot,
     workspace_root: optionalTrimmed(env.MIXLAB_CUTTER_WORKSPACE_ROOT) ?? defaultCutterWorkspaceRoot(),
+    release_cache_root:
+      optionalTrimmed(env.MIXLAB_CUTTER_RELEASE_CACHE_ROOT) ??
+      defaultCutterReleaseCacheRoot(env),
+    release_cache_max_releases: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_RELEASE_CACHE_MAX_RELEASES
+    ),
+    thumbnail_cache_max_bytes: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_THUMBNAIL_CACHE_MAX_BYTES
+    ),
+    cut_temp_max_bytes: optionalPositiveInteger(env.MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES),
     searchd_base_url:
       optionalTrimmed(env.MIXLAB_SEARCHD_BASE_URL) ??
       optionalTrimmed(env.MIXLAB_CUTTER_SEARCHD_BASE_URL),
@@ -400,6 +696,15 @@ function writeNoContent(response: ServerResponse): void {
   setCorsHeaders(response);
   response.writeHead(204);
   response.end();
+}
+
+function writeText(response: ServerResponse, statusCode: number, body: string): void {
+  setCorsHeaders(response);
+  response.writeHead(statusCode, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body)
+  });
+  response.end(body);
 }
 
 function writeError(
@@ -1088,8 +1393,10 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     }
   }
 
+  const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
   return searchCutterSourceLibrary({
     library_root: input.api_input.library_root,
+    ...(releaseRoot ? { release_root: releaseRoot } : {}),
     query: input.query,
     limit: input.limit,
     cursor: input.cursor
@@ -1276,6 +1583,224 @@ async function streamFile(input: {
     "Content-Length": fileStat.size
   });
   createReadStream(input.file_path).pipe(input.response);
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    return (await stat(filePath)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function fileIsReadable(filePath: string): Promise<{
+  readable: boolean;
+  reason: string;
+  file_size?: number;
+}> {
+  if (!filePath.trim()) {
+    return {
+      readable: false,
+      reason: "源视频路径为空"
+    };
+  }
+
+  try {
+    const fileStat = await stat(filePath);
+    if (!fileStat.isFile()) {
+      return {
+        readable: false,
+        reason: "路径不是文件"
+      };
+    }
+
+    await access(filePath, constants.R_OK);
+    return {
+      readable: true,
+      reason: "可读取",
+      file_size: fileStat.size
+    };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return {
+      readable: false,
+      reason: code === "ENOENT"
+        ? "文件不存在"
+        : code === "EACCES" || code === "EPERM"
+          ? "没有读取权限"
+          : (error as Error).message || "读取失败"
+    };
+  }
+}
+
+async function readDirectFileCacheEntries(root: string): Promise<Array<{
+  file_path: string;
+  size: number;
+  mtime_ms: number;
+}>> {
+  let entries;
+
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && !isThumbnailCacheManifestFile(entry.name))
+      .map(async (entry) => {
+        const filePath = path.join(root, entry.name);
+        try {
+          const fileStat = await stat(filePath);
+          return {
+            file_path: filePath,
+            size: fileStat.size,
+            mtime_ms: fileStat.mtimeMs
+          };
+        } catch {
+          return null;
+        }
+      })
+  );
+
+  return files.filter((file): file is {
+    file_path: string;
+    size: number;
+    mtime_ms: number;
+  } => Boolean(file));
+}
+
+async function directFileCacheSize(root: string): Promise<number> {
+  return (await readDirectFileCacheEntries(root)).reduce((total, entry) => total + entry.size, 0);
+}
+
+async function pruneDirectFileCache(input: {
+  root: string;
+  max_bytes: number;
+  keep_path?: string;
+}): Promise<void> {
+  const keepPath = input.keep_path ? path.resolve(input.keep_path) : "";
+  const entries = await readDirectFileCacheEntries(input.root);
+  let totalBytes = entries.reduce((total, entry) => total + entry.size, 0);
+
+  for (const entry of entries
+    .filter((item) => path.resolve(item.file_path) !== keepPath)
+    .sort((left, right) => left.mtime_ms - right.mtime_ms)) {
+    if (totalBytes <= input.max_bytes) {
+      break;
+    }
+
+    try {
+      await rm(entry.file_path, { force: true });
+      totalBytes -= entry.size;
+    } catch {
+      // Cache pruning is best-effort; a concurrent request may be reading it.
+    }
+  }
+}
+
+function thumbnailCacheFileName(input: {
+  source_video_id: string;
+  source_file_path: string;
+  source_size: number;
+  source_mtime_ms: number;
+}): string {
+  const extension = path.extname(input.source_file_path).toLowerCase() || ".jpg";
+  const safeExtension = /^\.[a-z0-9]{1,12}$/i.test(extension) ? extension : ".jpg";
+  const hash = createHash("sha1")
+    .update(input.source_video_id)
+    .update("\0")
+    .update(input.source_file_path)
+    .update("\0")
+    .update(String(input.source_size))
+    .update("\0")
+    .update(String(Math.floor(input.source_mtime_ms)))
+    .digest("hex")
+    .slice(0, 16);
+
+  return `${input.source_video_id}-${hash}${safeExtension}`;
+}
+
+async function cachedThumbnailFilePath(input: {
+  api_input: CreateCutterApiServerInput;
+  source_video_id: string;
+  source_file_path: string;
+}): Promise<string> {
+  const sourceStat = await stat(input.source_file_path);
+  if (!sourceStat.isFile()) {
+    return input.source_file_path;
+  }
+
+  const cacheRoot = thumbnailCacheRoot(input.api_input);
+  const cacheFileName = thumbnailCacheFileName({
+    source_video_id: input.source_video_id,
+    source_file_path: input.source_file_path,
+    source_size: sourceStat.size,
+    source_mtime_ms: sourceStat.mtimeMs
+  });
+  const cacheFilePath = path.join(cacheRoot, cacheFileName);
+
+  try {
+    const cacheStat = await stat(cacheFilePath);
+    if (cacheStat.isFile() && cacheStat.size === sourceStat.size) {
+      const manifest = await readThumbnailCacheManifest(cacheRoot);
+      if (!thumbnailManifestEntryMatchesSource({
+        entry: manifest.entries[cacheFileName],
+        source_video_id: input.source_video_id,
+        source_file_path: input.source_file_path,
+        source_size: sourceStat.size,
+        source_mtime_ms: sourceStat.mtimeMs,
+        cache_file_name: cacheFileName,
+        cache_size: cacheStat.size
+      })) {
+        void upsertThumbnailCacheManifestEntry({
+          root: cacheRoot,
+          source_video_id: input.source_video_id,
+          source_file_path: input.source_file_path,
+          source_size: sourceStat.size,
+          source_mtime_ms: sourceStat.mtimeMs,
+          cache_file_name: cacheFileName,
+          cache_file_path: cacheFilePath,
+          cache_size: cacheStat.size
+        }).catch(() => undefined);
+      }
+      const now = new Date();
+      void utimes(cacheFilePath, now, now).catch(() => undefined);
+      return cacheFilePath;
+    }
+  } catch {
+    // Cache miss; copy below.
+  }
+
+  await mkdir(cacheRoot, { recursive: true });
+  const tempPath = `${cacheFilePath}.${process.pid}.${Date.now()}.tmp`;
+
+  try {
+    await copyFile(input.source_file_path, tempPath);
+    await rename(tempPath, cacheFilePath);
+    const cachedStat = await stat(cacheFilePath);
+    await upsertThumbnailCacheManifestEntry({
+      root: cacheRoot,
+      source_video_id: input.source_video_id,
+      source_file_path: input.source_file_path,
+      source_size: sourceStat.size,
+      source_mtime_ms: sourceStat.mtimeMs,
+      cache_file_name: cacheFileName,
+      cache_file_path: cacheFilePath,
+      cache_size: cachedStat.size
+    });
+    await pruneDirectFileCache({
+      root: cacheRoot,
+      max_bytes: thumbnailCacheMaxBytes(input.api_input),
+      keep_path: cacheFilePath
+    });
+    void compactThumbnailCacheManifest(cacheRoot).catch(() => undefined);
+    return cacheFilePath;
+  } catch {
+    await rm(tempPath, { force: true });
+    return input.source_file_path;
+  }
 }
 
 async function readRequestJson(request: IncomingMessage): Promise<unknown> {
@@ -1531,6 +2056,64 @@ function runFfmpegAsync(executable: string, args: string[]): Promise<void> {
   });
 }
 
+function runProcessForStdoutAsync(input: {
+  executable: string;
+  args: string[];
+  timeout_ms: number;
+  failure_label: string;
+}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(input.executable, input.args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`${input.failure_label} timed out after ${input.timeout_ms}ms`));
+    }, Math.max(250, input.timeout_ms));
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (code, signal) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timeout);
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+
+      const reason = stderr.trim() || (signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`);
+      reject(new Error(`${input.failure_label} failed: ${reason}`));
+    });
+  });
+}
+
 function defaultOpenPath(targetPath: string): Promise<void> {
   const [command, args] =
     process.platform === "darwin"
@@ -1583,6 +2166,39 @@ async function defaultCoverRunner(input: {
   await runFfmpegAsync(runtime.ffmpeg_path, plan.args);
 }
 
+async function defaultSourceVideoProbeRunner(input: {
+  source_video_path: string;
+  timeout_ms: number;
+}): Promise<SourceVideoMediaMetadata> {
+  const runtime = resolveFfmpegRuntime();
+  const plan = buildFfprobeSourceMetadataPlan({
+    source_path: input.source_video_path
+  });
+  const runProbe = async (executable: string) => runProcessForStdoutAsync({
+    executable,
+    args: plan.args,
+    timeout_ms: input.timeout_ms,
+    failure_label: "ffprobe source video preflight"
+  });
+
+  let stdout: string;
+  try {
+    stdout = await runProbe(runtime.ffprobe_path);
+  } catch (error) {
+    if (runtime.source === "env") {
+      throw error;
+    }
+
+    try {
+      stdout = await runProbe("ffprobe");
+    } catch {
+      throw error;
+    }
+  }
+
+  return parseFfprobeSourceMetadata(stdout);
+}
+
 const VISIBLE_DETAIL_CACHE_TTL_MS = 10_000;
 
 interface VisibleDetailCacheEntry {
@@ -1614,8 +2230,10 @@ async function loadVisibleDetailUncached(
   }
 
   try {
+    const releaseRoot = await releaseRootForFastLibraryRead(input);
     return await getCutterSourceVideoDetail({
       library_root: input.library_root,
+      ...(releaseRoot ? { release_root: releaseRoot } : {}),
       source_video_id: sourceVideoId
     });
   } catch (error) {
@@ -1819,7 +2437,8 @@ async function readSqliteSearchBackendStatus(input: {
 }
 
 async function readSearchBackendStatus(
-  input: CreateCutterApiServerInput
+  input: CreateCutterApiServerInput,
+  fallbackSourceVideoCount: number
 ): Promise<CutterSearchBackendStatus> {
   const searchdBaseUrl = optionalTrimmed(input.searchd_base_url);
 
@@ -1831,17 +2450,37 @@ async function readSearchBackendStatus(
         searchd_timeout_ms: input.searchd_timeout_ms
       });
     } catch {
-      return readSqliteSearchBackendStatus({
-        library_root: input.library_root,
+      return {
+        mode: "searchd",
         preferred_mode: "searchd",
-        degraded_reason: "本地 searchd 未响应，搜索会降级到可用的本地索引或文案兜底"
-      });
+        label: "本地 searchd（启动中）",
+        healthy: false,
+        degraded: true,
+        index_version: "",
+        source_video_count: fallbackSourceVideoCount,
+        segment_count: 0,
+        message: "本地搜索服务正在启动或缓存索引，素材搜索会稍后自动恢复"
+      };
     }
   }
 
-  return readSqliteSearchBackendStatus({
-    library_root: input.library_root
-  });
+  return delayedFallback(
+    readSqliteSearchBackendStatus({
+      library_root: input.library_root
+    }),
+    Math.max(250, input.searchd_timeout_ms ?? 800),
+    {
+      mode: "transcript-artifact-fallback",
+      preferred_mode: "sqlite-index",
+      label: "文案兜底（状态读取中）",
+      healthy: false,
+      degraded: true,
+      index_version: "",
+      source_video_count: fallbackSourceVideoCount,
+      segment_count: 0,
+      message: "搜索索引状态读取较慢，工作台先进入可用状态"
+    }
+  );
 }
 
 function pathLabel(filePath: string | undefined, fallback: string): string {
@@ -1850,6 +2489,302 @@ function pathLabel(filePath: string | undefined, fallback: string): string {
   }
 
   return path.basename(filePath) || filePath;
+}
+
+function releaseCacheRootForInput(input: CreateCutterApiServerInput): string | undefined {
+  return input.release_cache_root?.trim() || undefined;
+}
+
+function releaseSyncTimeoutMs(input: CreateCutterApiServerInput): number {
+  return Math.max(150, input.release_sync_timeout_ms ?? 450);
+}
+
+function releaseCacheMaxReleases(input: CreateCutterApiServerInput): number | undefined {
+  if (
+    typeof input.release_cache_max_releases !== "number" ||
+    !Number.isFinite(input.release_cache_max_releases)
+  ) {
+    return undefined;
+  }
+
+  return Math.max(1, Math.floor(input.release_cache_max_releases));
+}
+
+function releaseCacheRuntimeStatusFromLocal(
+  status: CutterReleaseCacheStatus,
+  syncStatus: CutterReleaseCacheRuntimeStatus["sync_status"],
+  sourceReleaseVersion = ""
+): CutterReleaseCacheRuntimeStatus {
+  return {
+    enabled: true,
+    ready: status.cache_ready,
+    sync_status: status.cache_ready ? syncStatus : "unavailable",
+    active_release_version: status.active_release_version,
+    source_release_version: sourceReleaseVersion,
+    search_index_version: status.search_index_version,
+    ready_video_count: status.ready_video_count,
+    cached_release_versions: status.cached_release_versions,
+    cached_release_count: status.cached_release_count,
+    max_cached_releases: status.max_cached_releases,
+    cache_size_bytes: status.cache_size_bytes,
+    pruned_release_versions: [],
+    cache_root_path: status.cache_root,
+    catalog_file_path: status.catalog_file_path,
+    message: status.message
+  };
+}
+
+function disabledReleaseCacheRuntimeStatus(): CutterReleaseCacheRuntimeStatus {
+  return {
+    enabled: false,
+    ready: false,
+    sync_status: "unavailable",
+    active_release_version: "",
+    source_release_version: "",
+    search_index_version: "",
+    ready_video_count: 0,
+    cached_release_versions: [],
+    cached_release_count: 0,
+    max_cached_releases: 0,
+    cache_size_bytes: 0,
+    pruned_release_versions: [],
+    cache_root_path: "",
+    catalog_file_path: "",
+    message: "本机 Release 缓存未启用"
+  };
+}
+
+async function syncCutterReleaseCacheBestEffort(
+  input: CreateCutterApiServerInput
+): Promise<CutterReleaseCacheRuntimeStatus> {
+  const cacheRoot = releaseCacheRootForInput(input);
+  if (!cacheRoot) {
+    return disabledReleaseCacheRuntimeStatus();
+  }
+  const syncPromise = syncCutterReleaseCache({
+    source_library_root: input.library_root,
+    cache_root: cacheRoot,
+    max_cached_releases: releaseCacheMaxReleases(input)
+  })
+    .then((result): CutterReleaseCacheRuntimeStatus => ({
+      enabled: true,
+      ready: result.cache_ready,
+      sync_status: result.cache_ready ? "ready" : "unavailable",
+      active_release_version: result.active_release_version,
+      source_release_version: result.source_release_version,
+      search_index_version: result.search_index_version,
+      ready_video_count: result.ready_video_count,
+      cached_release_versions: result.cached_release_versions,
+      cached_release_count: result.cached_release_count,
+      max_cached_releases: result.max_cached_releases,
+      cache_size_bytes: result.cache_size_bytes,
+      pruned_release_versions: result.pruned_release_versions,
+      cache_root_path: result.cache_root,
+      catalog_file_path: result.catalog_file_path,
+      message: result.message
+    }))
+    .catch(async () =>
+      releaseCacheRuntimeStatusFromLocal(
+        await readLocalCutterReleaseCacheStatus({
+          cache_root: cacheRoot,
+          max_cached_releases: releaseCacheMaxReleases(input)
+        }),
+        "failed"
+      )
+    );
+
+  const fallback = await readLocalCutterReleaseCacheStatus({
+    cache_root: cacheRoot,
+    max_cached_releases: releaseCacheMaxReleases(input)
+  });
+
+  return delayedFallback(
+    syncPromise,
+    releaseSyncTimeoutMs(input),
+    releaseCacheRuntimeStatusFromLocal(
+      fallback,
+      fallback.cache_ready ? "syncing" : "unavailable"
+    )
+  );
+}
+
+async function releaseRootForFastLibraryRead(
+  input: CreateCutterApiServerInput
+): Promise<string | undefined> {
+  const cacheRoot = releaseCacheRootForInput(input);
+  if (!cacheRoot) {
+    return undefined;
+  }
+  const status = await syncCutterReleaseCacheBestEffort(input);
+  return status.ready ? cacheRoot : undefined;
+}
+
+function checkingSourceVideoPreflightStatus(): CutterSourceVideoPreflightStatus {
+  return {
+    status: "checking",
+    checked_count: 0,
+    readable_count: 0,
+    probe_count: 0,
+    probe_readable_count: 0,
+    sample_count: SOURCE_PREFLIGHT_SAMPLE_COUNT,
+    samples: [],
+    message: "源视频可读性正在后台检查"
+  };
+}
+
+async function probeSourceVideoMedia(input: {
+  api_input: CreateCutterApiServerInput;
+  source_video_file_path: string;
+}): Promise<CutterSourceVideoMediaProbe> {
+  const runner = input.api_input.source_video_probe_runner ?? defaultSourceVideoProbeRunner;
+
+  try {
+    const metadata = await runner({
+      source_video_path: input.source_video_file_path,
+      timeout_ms: SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS
+    });
+
+    if (metadata.duration_ms <= 0 || metadata.width <= 0 || metadata.height <= 0) {
+      return {
+        checked: true,
+        ok: false,
+        duration_ms: metadata.duration_ms,
+        width: metadata.width,
+        height: metadata.height,
+        codec: metadata.codec,
+        reason: "媒体流信息不完整"
+      };
+    }
+
+    return {
+      checked: true,
+      ok: true,
+      duration_ms: metadata.duration_ms,
+      width: metadata.width,
+      height: metadata.height,
+      codec: metadata.codec,
+      reason: "FFprobe 可解析"
+    };
+  } catch (error) {
+    return {
+      checked: true,
+      ok: false,
+      reason: (error as Error).message || "FFprobe 检测失败"
+    };
+  }
+}
+
+async function readSourceVideoPreflightStatusUncached(
+  input: CreateCutterApiServerInput
+): Promise<CutterSourceVideoPreflightStatus> {
+  const releaseRoot = await releaseRootForFastLibraryRead(input);
+  const library = await listCutterSourceLibrary({
+    library_root: input.library_root,
+    ...(releaseRoot ? { release_root: releaseRoot } : {}),
+    limit: SOURCE_PREFLIGHT_SAMPLE_COUNT,
+    offset: 0
+  });
+
+  if (library.videos.length === 0) {
+    return {
+      status: "unavailable",
+      checked_count: 0,
+      readable_count: 0,
+      probe_count: 0,
+      probe_readable_count: 0,
+      sample_count: SOURCE_PREFLIGHT_SAMPLE_COUNT,
+      samples: [],
+      message: "暂无可预检的源视频"
+    };
+  }
+
+  const samples = await Promise.all(
+    library.videos.map(async (video): Promise<CutterSourceVideoPreflightSample> => {
+      const readable = await fileIsReadable(video.source_video_file_path);
+      const mediaProbe = readable.readable
+        ? await probeSourceVideoMedia({
+            api_input: input,
+            source_video_file_path: video.source_video_file_path
+          })
+        : {
+            checked: false,
+            ok: false,
+            reason: "文件不可读，未执行 FFprobe"
+          };
+
+      return {
+        source_video_id: video.source_video_id,
+        title: video.title,
+        source_video_file_path: video.source_video_file_path,
+        readable: readable.readable,
+        ...(typeof readable.file_size === "number" ? { file_size: readable.file_size } : {}),
+        media_probe: mediaProbe,
+        reason: readable.reason
+      };
+    })
+  );
+  const readableCount = samples.filter((sample) => sample.readable).length;
+  const probeCount = samples.filter((sample) => sample.media_probe.checked).length;
+  const probeReadableCount = samples.filter((sample) => sample.media_probe.ok).length;
+  const hasUnreadableFile = readableCount !== samples.length;
+  const hasProbeFailure = probeReadableCount !== probeCount || probeCount !== samples.length;
+
+  return {
+    status: !hasUnreadableFile && !hasProbeFailure ? "ready" : "blocked",
+    checked_count: samples.length,
+    readable_count: readableCount,
+    probe_count: probeCount,
+    probe_readable_count: probeReadableCount,
+    sample_count: SOURCE_PREFLIGHT_SAMPLE_COUNT,
+    samples,
+    message: !hasUnreadableFile && !hasProbeFailure
+      ? "源视频样本可读取并可被 FFprobe 解析，剪切前置检查通过"
+      : hasUnreadableFile
+        ? "部分源视频样本不可读取，请检查公共素材库路径映射或 Windows 共享挂载"
+        : "部分源视频样本无法被 FFprobe 解析，请检查视频文件完整性或编码"
+  };
+}
+
+async function readSourceVideoPreflightStatus(
+  input: CreateCutterApiServerInput
+): Promise<CutterSourceVideoPreflightStatus> {
+  return delayedFallback(
+    readSourceVideoPreflightStatusUncached(input),
+    Math.max(250, input.searchd_timeout_ms ?? 800),
+    checkingSourceVideoPreflightStatus()
+  );
+}
+
+async function readLocalCacheRuntimeStatus(
+  input: CreateCutterApiServerInput
+): Promise<CutterLocalCacheRuntimeStatus> {
+  const cacheRoot = localCacheRootForInput(input);
+  const thumbnailRoot = thumbnailCacheRoot(input);
+  const thumbnailManifest = await compactThumbnailCacheManifest(thumbnailRoot);
+  const cutTempStatus = input.workspace_root
+    ? await readCutTempCacheStatus({
+        workspace_root: input.workspace_root,
+        max_bytes: cutTempMaxBytes(input)
+      })
+    : {
+        cache_root_path: path.join(cacheRoot, "cut-temp"),
+        max_bytes: cutTempMaxBytes(input),
+        size_bytes: 0,
+        file_count: 0
+      };
+
+  return {
+    cache_root_path: cacheRoot,
+    thumbnail_cache_root_path: thumbnailRoot,
+    thumbnail_cache_manifest_path: thumbnailCacheManifestPath(thumbnailRoot),
+    thumbnail_cache_size_bytes: await directFileCacheSize(thumbnailRoot),
+    thumbnail_cache_max_bytes: thumbnailCacheMaxBytes(input),
+    thumbnail_cache_manifest_entry_count: Object.keys(thumbnailManifest.entries).length,
+    thumbnail_cache_checksum_entry_count: Object.values(thumbnailManifest.entries).filter((entry) =>
+      typeof entry.checksum_sha256 === "string" && entry.checksum_sha256.length === 64
+    ).length,
+    cut_temp_cache: cutTempStatus
+  };
 }
 
 async function runtimeStatusForSession(input: {
@@ -1872,16 +2807,37 @@ async function runtimeStatusForSession(input: {
   }
 
   const diskIoBytesPerSecond = cachedLocalDiskIoBytesPerSecond();
+  const statusIoTimeoutMs = Math.max(250, input.api_input.searchd_timeout_ms ?? 800);
+  const availableVideoCount = await delayedFallback(
+    readReadyVideoCount(input.api_input.library_root),
+    statusIoTimeoutMs,
+    0
+  );
+  const libraryId = await delayedFallback(
+    readLibraryId(input.api_input.library_root),
+    statusIoTimeoutMs,
+    "lib_main_001"
+  );
+  const [searchBackend, releaseCache, localCache, sourceVideoPreflight] = await Promise.all([
+    readSearchBackendStatus(input.api_input, availableVideoCount),
+    syncCutterReleaseCacheBestEffort(input.api_input),
+    readLocalCacheRuntimeStatus(input.api_input),
+    readSourceVideoPreflightStatus(input.api_input)
+  ]);
+  const effectiveAvailableVideoCount =
+    releaseCache.ready && releaseCache.ready_video_count > 0
+      ? releaseCache.ready_video_count
+      : availableVideoCount;
 
   return {
     mode: "api",
     mode_label: "真实 Cutter API 模式",
     api_ready: true,
     generated_at: input.api_input.now?.() ?? new Date().toISOString(),
-    library_id: await readLibraryId(input.api_input.library_root),
+    library_id: libraryId,
     library_root_label: pathLabel(input.api_input.library_root, "公共素材库"),
     library_root_path: input.api_input.library_root,
-    available_video_count: await readReadyVideoCount(input.api_input.library_root),
+    available_video_count: effectiveAvailableVideoCount,
     workspace_enabled: Boolean(input.api_input.workspace_root),
     workspace_root_label: pathLabel(input.api_input.workspace_root, "未启用本地剪切工作区"),
     workspace_root_path: input.api_input.workspace_root ?? "",
@@ -1894,7 +2850,10 @@ async function runtimeStatusForSession(input: {
         ? { disk_io_bytes_per_second: diskIoBytesPerSecond }
         : {})
     },
-    search_backend: await readSearchBackendStatus(input.api_input),
+    search_backend: searchBackend,
+    release_cache: releaseCache,
+    local_cache: localCache,
+    source_video_preflight: sourceVideoPreflight,
     current_user: {
       user_id: input.auth.user.user_id,
       username: input.auth.user.username,
@@ -2132,6 +3091,7 @@ async function runWorkspaceCutJob(input: {
       return cutJobSourceFromDetail(detail);
     },
     cut_runner: cutRunner,
+    cut_temp_max_bytes: cutTempMaxBytes(input.api_input),
     persist_phase_progress: input.persist_phase_progress,
     ...(coverRunner ? { cover_runner: coverRunner } : {})
   };
@@ -2790,8 +3750,10 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
         const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
+        const releaseRoot = await releaseRootForFastLibraryRead(input);
         const library = await listCutterSourceLibrary({
           library_root: input.library_root,
+          ...(releaseRoot ? { release_root: releaseRoot } : {}),
           limit: Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined,
           offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0
         });
@@ -3138,17 +4100,37 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         }
 
         if (route.action === "cover") {
+          const sourceCoverFilePath = optionalLibraryRelativeFilePath(
+            input.library_root,
+            detail.cover_path
+          );
+          const coverFilePath = await fileExists(detail.cover_file_path)
+            ? detail.cover_file_path
+            : sourceCoverFilePath;
+          if (!coverFilePath) {
+            writeError(response, 404, "source_video_cover_not_found", "Source video cover not found");
+            return;
+          }
+          const cachedCoverFilePath = await cachedThumbnailFilePath({
+            api_input: input,
+            source_video_id: detail.source_video_id,
+            source_file_path: coverFilePath
+          });
           await streamFile({
             request,
             response,
-            file_path: detail.cover_file_path,
-            content_type: contentTypeForImage(detail.cover_file_path),
+            file_path: cachedCoverFilePath,
+            content_type: contentTypeForImage(cachedCoverFilePath),
             range_enabled: false
           });
           return;
         }
 
         if (route.action === "subtitles.srt") {
+          if (!(await fileExists(detail.srt_file_path))) {
+            writeText(response, 200, detail.srt);
+            return;
+          }
           await streamFile({
             request,
             response,

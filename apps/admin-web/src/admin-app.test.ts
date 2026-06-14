@@ -1675,7 +1675,7 @@ test("shared admin UI primitives expose control states and empty state language"
   assert.match(html, /对剪辑师可见/);
 });
 
-test("M9B UI shell orchestrates Admin API mutations without duplicating toolbar actions", () => {
+test("M9B UI shell orchestrates Admin API mutations without duplicating shell actions", () => {
   const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
 
   assert.equal(source.includes("runAction("), true);
@@ -1687,11 +1687,12 @@ test("M9B UI shell orchestrates Admin API mutations without duplicating toolbar 
   assert.equal(source.includes("loadAdminPreprocessRouteData"), true);
   assert.equal(source.includes("onOpenPreprocessJobLog"), true);
   assert.equal(source.includes('actions={["扫描源视频", "处理", "Doctor"]}'), false);
-  assert.equal(source.includes("actions={[]}"), true);
-  assert.equal(source.includes("root_path ??"), true);
+  assert.equal(source.includes("UnifiedToolbar"), false);
+  assert.equal(source.includes("AdminTopbar"), true);
+  assert.equal(source.includes("admin-topbar-status"), true);
   assert.equal(source.includes("admin-sidebar-runtime-line"), true);
-  assert.equal(source.includes("<span>公共库</span>"), true);
-  assert.equal(source.includes("<span>Doctor</span>"), true);
+  assert.equal(source.includes("<span>素材库</span>"), true);
+  assert.equal(source.includes("<span>系统状态</span>"), true);
   assert.equal(source.includes("<small>{data.metrics.usage.active_user_count}/50 活跃剪辑师</small>"), false);
   assert.equal(source.includes("library-settings"), false);
   assert.match(readFileSync(resolve("apps/admin-web/src/features/settings/SettingsPage.tsx"), "utf8"), /useEffect/);

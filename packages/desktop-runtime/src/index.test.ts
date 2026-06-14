@@ -154,6 +154,7 @@ test("builds cutter API environment from desktop config", () => {
       MIXLAB_CUTTER_API_PORT: "3789",
       MIXLAB_CUTTER_LIBRARY_ROOT: String.raw`D:\MixLabPublicLibrary`,
       MIXLAB_CUTTER_WORKSPACE_ROOT: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
+      MIXLAB_CUTTER_RELEASE_CACHE_ROOT: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
       MIXLAB_DESKTOP_LOG_DIR: String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\logs`,
       MIXLAB_FFMPEG_PATH: String.raw`C:\Program Files\MixLab Cutter\bin\ffmpeg.exe`,
       MIXLAB_FFPROBE_PATH: String.raw`C:\Program Files\MixLab Cutter\bin\ffprobe.exe`

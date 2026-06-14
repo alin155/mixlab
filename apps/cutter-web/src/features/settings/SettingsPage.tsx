@@ -28,6 +28,39 @@ const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: st
 
 type SettingsDoctorCheck = CutterWorkbenchSettings["doctor"][number];
 
+function compactFileSize(bytes: number | undefined): string {
+  if (!Number.isFinite(bytes ?? Number.NaN) || (bytes ?? 0) <= 0) {
+    return "0 B";
+  }
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes!;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value >= 10 || unitIndex === 0 ? Math.round(value) : value.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function sourcePreflightLabel(status?: CutterRuntimeStatus["source_video_preflight"]): string {
+  if (!status) {
+    return "待检查";
+  }
+
+  if (status.status === "ready") {
+    return `${status.readable_count}/${status.checked_count} 可读`;
+  }
+
+  if (status.status === "blocked") {
+    return `${status.readable_count}/${status.checked_count} 可读，需处理`;
+  }
+
+  return status.status === "checking" ? "检查中" : "不可用";
+}
+
 function settingsDoctorLabel(check: SettingsDoctorCheck): string {
   if (check.label.includes("公共素材库")) {
     return "公共素材库";
@@ -35,6 +68,10 @@ function settingsDoctorLabel(check: SettingsDoctorCheck): string {
 
   if (check.label.includes("本地工作区")) {
     return "本地工作区";
+  }
+
+  if (check.label.includes("源视频预检")) {
+    return "源视频预检";
   }
 
   if (check.label.includes("FFmpeg")) {
@@ -51,6 +88,10 @@ function settingsDoctorDetail(check: SettingsDoctorCheck): string {
 
   if (check.label.includes("本地工作区")) {
     return check.status === "pass" ? "可以保存剪切任务和本地素材" : "请确认本地工作区可写";
+  }
+
+  if (check.label.includes("源视频预检")) {
+    return check.message;
   }
 
   if (check.label.includes("FFmpeg")) {
@@ -84,7 +125,7 @@ export function SettingsPage({
   onSetDefaultOrientationFilter?: (filter: VideoOrientationFilter) => void;
 }) {
   const runtimeGroup = runtimeStatus
-      ? {
+    ? {
         title: "服务状态",
         rows: [
           { label: "连接", value: runtimeStatus.api_ready ? "可用" : "不可用" },
@@ -98,6 +139,32 @@ export function SettingsPage({
             value: runtimeStatus.workspace_enabled ? runtimeStatus.workspace_root_label : "未启用"
           },
           { label: "本地素材数", value: `${runtimeStatus.local_clip_count}` },
+          {
+            label: "当前 Release",
+            value: runtimeStatus.release_cache?.active_release_version || "同步中"
+          },
+          {
+            label: "Release 缓存",
+            value: runtimeStatus.release_cache?.ready ? "本机可用" : "待同步"
+          },
+          {
+            label: "源视频预检",
+            value: sourcePreflightLabel(runtimeStatus.source_video_preflight)
+          },
+          {
+            label: "缩略图缓存",
+            value: compactFileSize(runtimeStatus.local_cache?.thumbnail_cache_size_bytes)
+          },
+          {
+            label: "缩略图索引",
+            value: runtimeStatus.local_cache
+              ? `${runtimeStatus.local_cache.thumbnail_cache_checksum_entry_count ?? 0}/${runtimeStatus.local_cache.thumbnail_cache_manifest_entry_count ?? 0}`
+              : "0/0"
+          },
+          {
+            label: "剪切临时区",
+            value: compactFileSize(runtimeStatus.local_cache?.cut_temp_cache.size_bytes)
+          },
           { label: "剪切工具", value: runtimeStatus.ffmpeg_status }
         ]
       }

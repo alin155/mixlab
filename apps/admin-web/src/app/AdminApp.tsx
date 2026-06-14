@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   InspectorPanel,
-  MacWindow,
-  Sidebar,
-  UnifiedToolbar
+  Sidebar
 } from "@mixlab/ui-foundation";
 import {
   createAdminApiClient,
@@ -42,7 +40,7 @@ import {
   routeToHash,
   type AdminRoute
 } from "./navigation.ts";
-import { chineseDiagnosticText, indexStatusLabel } from "./chinese.ts";
+import { chineseDiagnosticText } from "./chinese.ts";
 
 const DEFAULT_LOCAL_ADMIN_API_BASE_URL = "http://127.0.0.1:3889/";
 
@@ -86,6 +84,86 @@ function routeTitle(route: AdminRoute): string {
   };
 
   return labels[route];
+}
+
+function adminDoctorSummaryLabel(data: AdminDashboardData): string {
+  if (data.doctor.summary.fail > 0) {
+    return `${data.doctor.summary.fail} 项需处理`;
+  }
+
+  if (data.doctor.summary.warn > 0) {
+    return `${data.doctor.summary.warn} 项需关注`;
+  }
+
+  return "正常";
+}
+
+function adminPreprocessRuntimeLabel(data: AdminDashboardData): string {
+  if (data.jobs.supervisor.state === "running") {
+    return "运行中";
+  }
+
+  if (data.jobs.supervisor.state === "stopping") {
+    return "停止中";
+  }
+
+  if (data.jobs.active_count > 0 || data.status.processing_video_count > 0) {
+    return "有任务待恢复";
+  }
+
+  return "空闲";
+}
+
+function AdminTopbar({ data }: { data: AdminDashboardData | null }) {
+  return (
+    <header className="admin-topbar">
+      <a className="admin-topbar-brand" href={routeToHash("dashboard")}>
+        <span className="admin-topbar-mark">ML</span>
+        <span>
+          <strong>MixLab Admin</strong>
+          <small>公共素材库管理</small>
+        </span>
+      </a>
+      <div className="admin-topbar-status" aria-label="管理端状态">
+        <span>
+          <small>素材库</small>
+          <strong>{data?.settings.library_name || data?.status.name || "公共素材库"}</strong>
+        </span>
+        <span>
+          <small>当前索引</small>
+          <strong>{data?.indexes.current_version || data?.status.current_index_version || "待发布"}</strong>
+        </span>
+        <span>
+          <small>系统状态</small>
+          <strong>{data ? adminDoctorSummaryLabel(data) : "加载中"}</strong>
+        </span>
+        <span className="admin-topbar-avatar" aria-label="管理员">管</span>
+      </div>
+    </header>
+  );
+}
+
+function AdminSidebarStatus({ data }: { data: AdminDashboardData }) {
+  return (
+    <div className="admin-sidebar-footer">
+      <div className="admin-sidebar-runtime-line">
+        <span>素材库</span>
+        <strong>{data.status.root_path ? "已挂载" : "待配置"}</strong>
+      </div>
+      <div className="admin-sidebar-runtime-line">
+        <span>当前索引</span>
+        <strong>{data.indexes.current_version || "暂无索引"}</strong>
+      </div>
+      <div className="admin-sidebar-runtime-line">
+        <span>预处理</span>
+        <strong>{adminPreprocessRuntimeLabel(data)}</strong>
+      </div>
+      <div className="admin-sidebar-runtime-line">
+        <span>系统状态</span>
+        <strong>{adminDoctorSummaryLabel(data)}</strong>
+      </div>
+    </div>
+  );
 }
 
 export const ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS = 10_000;
@@ -625,6 +703,8 @@ function renderPage(
         onSaveAdminSettings={actions.onSaveAdminSettings}
         onInitializeLibrary={actions.onInitializeLibrary}
         onTestAsrConfig={actions.onTestAsrConfig}
+        onRunDoctor={actions.onRunDoctor}
+        onExportDoctor={actions.onExportDoctor}
       />
     );
   }
@@ -1380,53 +1460,21 @@ export function AdminApp() {
 
   return (
     <main className="admin-app" data-admin-web-ready={data ? "true" : "false"}>
-      <MacWindow
-        title={`MixLab V3 - 素材库管理端 / ${routeTitle(route)}`}
-        meta={data ? indexStatusLabel(data.status.index_status) : "加载中"}
-      >
+      <section className="admin-frame" aria-label="MixLab 管理端">
+        <AdminTopbar data={data} />
         <div className="admin-shell">
           <Sidebar
             brand={{
-              title: "MixLab Admin",
-              subtitle: "公共素材库生产",
+              title: "MixLab",
+              subtitle: "素材库管理端",
               mark: "ML",
               href: routeToHash("dashboard")
             }}
             items={navItems}
             active={routeTitle(route)}
-            footer={
-              data ? (
-                <div className="admin-sidebar-footer">
-                  <div className="admin-sidebar-runtime-line">
-                    <span>公共库</span>
-                    <strong>{data.status.root_path ? "已挂载" : "待配置"}</strong>
-                  </div>
-                  <div className="admin-sidebar-runtime-line">
-                    <span>索引</span>
-                    <strong>{data.indexes.current_version || "暂无索引"}</strong>
-                  </div>
-                  <div className="admin-sidebar-runtime-line">
-                    <span>Doctor</span>
-                    <strong>
-                      {data.doctor.summary.fail > 0
-                        ? `${data.doctor.summary.fail} 失败`
-                        : data.doctor.summary.warn > 0
-                          ? `${data.doctor.summary.warn} 警告`
-                          : "通过"}
-                    </strong>
-                  </div>
-                </div>
-              ) : null
-            }
+            footer={data ? <AdminSidebarStatus data={data} /> : null}
           />
           <section className="admin-workspace">
-            <UnifiedToolbar
-              title="MixLab V3 - 公共素材库控制台"
-              libraryLabel={data?.status.root_path ?? "公共素材库"}
-              availableCountLabel={data ? `可搜索 ${data.status.ready_video_count} 个视频` : undefined}
-              healthLabel={data?.doctor.summary.fail ? "需处理" : "健康"}
-              actions={[]}
-            />
             {actionNotice || actionError ? (
               <div className={`admin-action-notice${actionError ? " is-error" : ""}`} role="status">
                 {actionError || actionNotice}
@@ -1464,14 +1512,14 @@ export function AdminApp() {
                   }
                 )
               ) : (
-                <InspectorPanel title="加载中">
+                <InspectorPanel title={routeTitle(route)}>
                   <p>正在读取素材库管理端数据</p>
                 </InspectorPanel>
               )}
             </section>
           </section>
         </div>
-      </MacWindow>
+      </section>
     </main>
   );
 }

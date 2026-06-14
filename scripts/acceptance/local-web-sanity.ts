@@ -2,6 +2,9 @@ import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium, type Browser } from "playwright";
 
+const LOCAL_WEB_SEARCH_P95_SLA_MS = 1_000;
+const LOCAL_WEB_LOCAL_SEARCH_COVERAGE_MIN_PERCENT = 80;
+
 export interface LocalWebSanityOptions {
   adminWebUrl?: string;
   adminApiBaseUrl?: string;
@@ -1354,15 +1357,23 @@ export function validateAdminDashboardSanityState(state: AdminDashboardSanitySta
   ) {
     errors.push("admin dashboard active_cutter_count must not exceed cutter_capacity");
   }
-  if (!Number.isFinite(state.search_p95_ms) || state.search_p95_ms <= 0) {
-    errors.push("admin dashboard search_p95_ms must be a positive millisecond number");
+  if (
+    !Number.isFinite(state.search_p95_ms) ||
+    state.search_p95_ms <= 0 ||
+    state.search_p95_ms > LOCAL_WEB_SEARCH_P95_SLA_MS
+  ) {
+    errors.push(
+      `admin dashboard search_p95_ms must be <= ${LOCAL_WEB_SEARCH_P95_SLA_MS} and a positive millisecond number`
+    );
   }
   if (
     !Number.isFinite(state.local_search_coverage_percent) ||
-    state.local_search_coverage_percent < 0 ||
+    state.local_search_coverage_percent < LOCAL_WEB_LOCAL_SEARCH_COVERAGE_MIN_PERCENT ||
     state.local_search_coverage_percent > 100
   ) {
-    errors.push("admin dashboard local_search_coverage_percent must be a percentage from 0 to 100");
+    errors.push(
+      `admin dashboard local_search_coverage_percent must be >= ${LOCAL_WEB_LOCAL_SEARCH_COVERAGE_MIN_PERCENT} and no higher than 100`
+    );
   }
   if (!Number.isInteger(state.search_failure_count) || state.search_failure_count < 0) {
     errors.push("admin dashboard search_failure_count must be a non-negative integer");
@@ -2095,7 +2106,9 @@ export function validateMaterialLocatorClosedLoopState(state: MaterialLocatorClo
     errors.push("local library page must show the generated local clip source title");
   }
   if (!state.local_library_selected_text_visible) {
-    errors.push("local library page must show the selected transcript text in the clip details");
+    errors.push(
+      "local library page must show the selected transcript text in the clip details before auditing local reusable materials before public materials"
+    );
   }
   const resultSections = [state.first_result_section, state.second_result_section].join("\n");
   if (!resultSections.includes("公共原素材")) {

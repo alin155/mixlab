@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -36,6 +36,7 @@ test("cutter API runtime config defaults the local workspace to the user Movies 
 
   assert.equal(config.library_root, "/Volumes/PublicLibrary");
   assert.equal(config.workspace_root, path.join(os.homedir(), "Movies", "MixLabLocal"));
+  assert.equal(config.release_cache_root, path.join(os.homedir(), "Movies", "MixLabLocal", "cache"));
   assert.equal(config.host, "127.0.0.1");
   assert.equal(config.port, 3789);
 });
@@ -47,6 +48,21 @@ test("cutter API runtime config still honors an explicit local workspace path", 
   });
 
   assert.equal(config.workspace_root, "/Volumes/FastDisk/MixLabLocal");
+});
+
+test("cutter API runtime config honors an explicit release cache path", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary",
+    MIXLAB_CUTTER_RELEASE_CACHE_ROOT: "/Volumes/FastDisk/MixLabCache",
+    MIXLAB_CUTTER_RELEASE_CACHE_MAX_RELEASES: "3",
+    MIXLAB_CUTTER_THUMBNAIL_CACHE_MAX_BYTES: "123456789",
+    MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES: "987654321"
+  });
+
+  assert.equal(config.release_cache_root, "/Volumes/FastDisk/MixLabCache");
+  assert.equal(config.release_cache_max_releases, 3);
+  assert.equal(config.thumbnail_cache_max_bytes, 123456789);
+  assert.equal(config.cut_temp_max_bytes, 987654321);
 });
 
 test("cutter API runtime config can enable local searchd", () => {
@@ -704,6 +720,15 @@ test("runtime status requires approved cutter session and reports workspace read
   const server = createCutterApiServer({
     library_root: libraryRoot,
     workspace_root: workspaceRoot,
+    release_cache_root: path.join(workspaceRoot, "cache"),
+    release_sync_timeout_ms: 5_000,
+    source_video_probe_runner: async () => ({
+      duration_ms: 12_000,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    }),
     now: () => "2026-05-04T10:00:00.000Z"
   });
 
@@ -737,6 +762,18 @@ test("runtime status requires approved cutter session and reports workspace read
     assert.equal(typeof body.data.local_runtime.cpu_usage_percent, "number");
     assert.ok(body.data.local_runtime.cpu_usage_percent >= 0);
     assert.ok(body.data.local_runtime.cpu_usage_percent <= 100);
+    assert.equal(body.data.release_cache.enabled, true);
+    assert.equal(body.data.release_cache.max_cached_releases, 2);
+    assert.equal(typeof body.data.release_cache.cache_size_bytes, "number");
+    assert.equal(body.data.local_cache.cache_root_path, path.join(workspaceRoot, "cache"));
+    assert.equal(body.data.local_cache.cut_temp_cache.file_count, 0);
+    assert.equal(body.data.source_video_preflight.status, "ready");
+    assert.equal(body.data.source_video_preflight.readable_count, 1);
+    assert.equal(body.data.source_video_preflight.probe_count, 1);
+    assert.equal(body.data.source_video_preflight.probe_readable_count, 1);
+    assert.equal(body.data.source_video_preflight.samples[0].reason, "可读取");
+    assert.equal(body.data.source_video_preflight.samples[0].media_probe.ok, true);
+    assert.equal(body.data.source_video_preflight.samples[0].media_probe.codec, "h264");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
@@ -782,6 +819,65 @@ test("runtime status reports local searchd health when configured", async () => 
         assert.equal(body.data.search_backend.source_video_count, 42);
         assert.equal(body.data.search_backend.segment_count, 2048);
         assert.equal(typeof body.data.search_backend.response_ms, "number");
+      }, {
+        searchd_base_url: searchdBaseUrl
+      });
+
+      assert.equal(searchdRequests.length, 1);
+      assert.equal(new URL(searchdRequests[0]!).pathname, "/health");
+    }
+  );
+});
+
+test("runtime status blocks source video preflight when media probing fails", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.source_video_preflight.status, "blocked");
+    assert.equal(body.data.source_video_preflight.readable_count, 1);
+    assert.equal(body.data.source_video_preflight.probe_count, 1);
+    assert.equal(body.data.source_video_preflight.probe_readable_count, 0);
+    assert.equal(body.data.source_video_preflight.samples[0].readable, true);
+    assert.equal(body.data.source_video_preflight.samples[0].media_probe.ok, false);
+    assert.match(body.data.source_video_preflight.samples[0].media_probe.reason, /probe failed/);
+  }, {
+    source_video_probe_runner: async () => {
+      throw new Error("probe failed");
+    }
+  });
+});
+
+test("runtime status degrades immediately when local searchd is unavailable", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    () => ({
+      status: 503,
+      body: {
+        error: {
+          code: "searchd_starting",
+          message: "searchd is starting"
+        }
+      }
+    }),
+    async (searchdBaseUrl, searchdRequests) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+        assert.equal(response.status, 200);
+        const body = await response.json() as any;
+
+        assert.equal(body.data.search_backend.mode, "searchd");
+        assert.equal(body.data.search_backend.preferred_mode, "searchd");
+        assert.equal(body.data.search_backend.healthy, false);
+        assert.equal(body.data.search_backend.degraded, true);
+        assert.equal(body.data.search_backend.source_video_count, 1);
+        assert.match(body.data.search_backend.message, /正在启动|自动恢复/);
       }, {
         searchd_base_url: searchdBaseUrl
       });
@@ -1005,6 +1101,58 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
     assert.deepEqual(metrics.recent_keywords, ["组织效率", "现金流"]);
     assert.equal(metrics.users[0].user_id, "CU000001");
     assert.equal(metrics.users[0].username, "cutter-user");
+  });
+});
+
+test("source library reads from local release cache after syncing the current release", async () => {
+  const libraryRoot = await prepareLibrary();
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-release-cache-"));
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:35:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const firstResponse = await fetch(`${baseUrl}/cutter/source-library?limit=10`, {
+      headers
+    });
+    assert.equal(firstResponse.status, 200);
+    const first = await firstResponse.json() as any;
+
+    assert.equal(first.data.available_video_count, 2);
+    assert.deepEqual(
+      first.data.videos.map((video: any) => video.source_video_id),
+      ["V000001", "V000002"]
+    );
+    assert.equal(
+      (await stat(path.join(cacheRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite")))
+        .isFile(),
+      true
+    );
+
+    await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"));
+
+    const cachedResponse = await fetch(`${baseUrl}/cutter/source-library?limit=10`, {
+      headers
+    });
+    assert.equal(cachedResponse.status, 200);
+    const cached = await cachedResponse.json() as any;
+
+    assert.equal(cached.data.available_video_count, 2);
+    assert.deepEqual(
+      cached.data.videos.map((video: any) => video.source_video_id),
+      ["V000001", "V000002"]
+    );
+    assert.equal(
+      cached.data.videos[0].source_video_file_path,
+      path.join(libraryRoot, "source-videos", "01_现金流.mp4")
+    );
+  }, {
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 5_000
   });
 });
 
@@ -1447,6 +1595,7 @@ test("workspace local clip creation reuses recently loaded source detail", async
 
 test("streams cover, subtitles, and source media with range support", async () => {
   const libraryRoot = await prepareLibrary();
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-cover-cache-"));
   const pngCoverBytes = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
     "base64"
@@ -1468,6 +1617,18 @@ test("streams cover, subtitles, and source media with range support", async () =
     assert.equal(coverResponse.status, 200);
     assert.equal(coverResponse.headers.get("content-type"), "image/png");
     assert.equal(Buffer.compare(Buffer.from(await coverResponse.arrayBuffer()), pngCoverBytes), 0);
+    const thumbnailCacheRoot = path.join(cacheRoot, "source-thumbnails");
+    const cachedCover = await readdir(thumbnailCacheRoot);
+    const cachedCoverFiles = cachedCover.filter((fileName) => fileName.endsWith(".png"));
+    assert.equal(cachedCoverFiles.length, 1);
+    assert.match(cachedCoverFiles[0] ?? "", /^V000001-[a-f0-9]{16}\.png$/);
+    const thumbnailManifest = JSON.parse(
+      await readFile(path.join(thumbnailCacheRoot, ".manifest.json"), "utf8")
+    ) as any;
+    const manifestEntry = thumbnailManifest.entries[cachedCoverFiles[0] ?? ""];
+    assert.equal(manifestEntry.source_video_id, "V000001");
+    assert.equal(manifestEntry.cache_size, pngCoverBytes.length);
+    assert.match(manifestEntry.checksum_sha256, /^[a-f0-9]{64}$/);
 
     const srtResponse = await fetch(`${baseUrl}/cutter/source-videos/V000001/subtitles.srt`);
     assert.equal(srtResponse.status, 200);
@@ -1483,6 +1644,8 @@ test("streams cover, subtitles, and source media with range support", async () =
     assert.equal(rangeResponse.headers.get("accept-ranges"), "bytes");
     assert.equal(rangeResponse.headers.get("content-range"), "bytes 0-4/17");
     assert.equal(await rangeResponse.text(), "dummy");
+  }, {
+    release_cache_root: cacheRoot
   });
 });
 

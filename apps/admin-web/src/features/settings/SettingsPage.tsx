@@ -15,13 +15,15 @@ import {
   asrProviderLabel,
   audioModeLabel,
   chineseDiagnosticText,
-  runtimeSourceLabel
+  runtimeSourceLabel,
+  strictChineseDiagnosticText
 } from "../../app/chinese.ts";
 import {
   adminStatusTone,
   redactConfiguredSecret
 } from "../../app/view-model.ts";
-import { AdminControlButton, AdminPageHeader } from "../shared.tsx";
+import { doctorExplanation } from "../doctor/DoctorPage.tsx";
+import { AdminControlButton, AdminPageHeader, MetricBand } from "../shared.tsx";
 
 type RuntimePolicy = AdminSettingsConfigUpdate["runtime_policy"];
 
@@ -93,12 +95,16 @@ export function SettingsPage({
   data,
   onSaveAdminSettings,
   onInitializeLibrary,
-  onTestAsrConfig
+  onTestAsrConfig,
+  onRunDoctor,
+  onExportDoctor
 }: {
   data: AdminDashboardData;
   onSaveAdminSettings?: (settings: AdminSettingsConfigUpdate) => void | Promise<void>;
   onInitializeLibrary?: () => void | Promise<void>;
   onTestAsrConfig?: () => void;
+  onRunDoctor?: () => void;
+  onExportDoctor?: () => void;
 }) {
   const [libraryName, setLibraryName] = useState(data.settings.library_name);
   const [sourceFolders, setSourceFolders] = useState<AdminSourceFolder[]>(() =>
@@ -293,6 +299,50 @@ export function SettingsPage({
 	            }
 	          ]}
 	        />
+        <section className="admin-settings-diagnostics">
+          <header className="admin-section-header admin-section-header-row">
+            <div>
+              <h2>系统诊断</h2>
+              <p>检查素材库路径、索引、预处理产物和本机工具状态。</p>
+            </div>
+            <AdminControlButton
+              label="重新检查"
+              state="m9b-api"
+              reason="重新检查路径、索引、工具和预处理产物。"
+              variant="primary"
+              onClick={onRunDoctor}
+            />
+          </header>
+          <MetricBand
+            items={[
+              { label: "通过", value: data.doctor.summary.pass, caption: "检查通过" },
+              { label: "警告", value: data.doctor.summary.warn, caption: "需要关注" },
+              { label: "失败", value: data.doctor.summary.fail, caption: "需要处理" }
+            ]}
+          />
+          <section className="admin-list-panel admin-settings-doctor-list">
+            {data.doctor.checks.map((item) => {
+              const explanation = doctorExplanation(item.check_id, item.label);
+              return (
+                <StatusRow
+                  tone={adminStatusTone(item.status)}
+                  label={explanation.name}
+                  detail={strictChineseDiagnosticText(item.message)}
+                  value={item.status === "pass" ? "通过" : item.status === "warn" ? "需关注" : "需处理"}
+                  key={item.check_id}
+                />
+              );
+            })}
+          </section>
+          <div className="admin-action-row">
+            <AdminControlButton
+              label="导出检查报告"
+              state="m9b-api"
+              reason="导出当前检查结果，便于排障留档。"
+              onClick={onExportDoctor}
+            />
+          </div>
+        </section>
 	      </div>
 	      <InspectorPanel title="系统状态">
         {initializationChecks.length ? (

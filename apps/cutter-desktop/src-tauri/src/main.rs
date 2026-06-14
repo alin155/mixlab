@@ -6,7 +6,7 @@ use std::{
     env, fs,
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::{Command, Stdio},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -366,9 +366,12 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         };
         let mut searchd_command = Command::new(&searchd_path);
         let searchd_cache_root = Path::new(&config.local_workspace_root).join(".mixlab-searchd");
+        let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
         searchd_command
             .arg("--library-root")
             .arg(&config.public_library_root)
+            .arg("--release-root")
+            .arg(&release_cache_root)
             .arg("--cache-root")
             .arg(&searchd_cache_root)
             .arg("--host")
@@ -384,7 +387,7 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
                 desktop_host_log(
                     &app,
                     "searchd_spawned",
-                    json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "cache_root": path_string(searchd_cache_root) }),
+                    json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "release_root": path_string(release_cache_root), "cache_root": path_string(searchd_cache_root) }),
                 );
             }
             Err(error) => {
@@ -615,6 +618,123 @@ fn check_ready_materials(current_json_path: &Path) -> DesktopDoctorCheck {
     }
 }
 
+fn read_json_file(path: &Path, label: &str) -> Result<Value, String> {
+    let raw =
+        fs::read_to_string(path).map_err(|error| format!("{label} 不存在或不可读：{error}"))?;
+    serde_json::from_str::<Value>(&raw).map_err(|error| format!("{label} 无法解析：{error}"))
+}
+
+fn current_index_manifest_path(current_json_path: &Path) -> Result<PathBuf, String> {
+    let current = read_json_file(current_json_path, "current.json")?;
+    let current_version = current
+        .get("current_version")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|version| !version.is_empty())
+        .ok_or_else(|| "current.json 缺少 current_version".to_string())?;
+    let index_root = current_json_path
+        .parent()
+        .ok_or_else(|| "current.json 路径缺少索引目录".to_string())?;
+
+    Ok(index_root.join(current_version).join("index-manifest.json"))
+}
+
+fn first_index_source_video_id(index_manifest: &Value) -> Option<String> {
+    index_manifest
+        .get("source_video_ids")
+        .and_then(Value::as_array)
+        .and_then(|ids| ids.iter().find_map(Value::as_str))
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(String::from)
+}
+
+fn source_video_relative_path(source_manifest: &Value) -> Option<&str> {
+    source_manifest
+        .get("source_folder_relative_path")
+        .and_then(Value::as_str)
+        .or_else(|| source_manifest.get("relative_path").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|relative_path| !relative_path.is_empty())
+}
+
+fn resolve_safe_source_video_path(
+    source_videos_root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    let relative = Path::new(&normalized);
+
+    if normalized.is_empty() || relative.is_absolute() {
+        return Err(format!("源视频相对路径非法：{relative_path}"));
+    }
+
+    let mut resolved = source_videos_root.to_path_buf();
+    for component in relative.components() {
+        match component {
+            Component::Normal(part) => resolved.push(part),
+            Component::CurDir => {}
+            _ => return Err(format!("源视频相对路径非法：{relative_path}")),
+        }
+    }
+
+    Ok(resolved)
+}
+
+fn sample_source_video_path(
+    public_root: &Path,
+    current_json_path: &Path,
+) -> Result<PathBuf, String> {
+    let index_manifest_path = current_index_manifest_path(current_json_path)?;
+    let index_manifest = read_json_file(&index_manifest_path, "index-manifest.json")?;
+    let source_video_id = first_index_source_video_id(&index_manifest)
+        .ok_or_else(|| "index-manifest.json 缺少可抽样的 source_video_ids".to_string())?;
+    let source_manifest_path = public_root
+        .join(".mixlab-library")
+        .join("videos")
+        .join(&source_video_id)
+        .join("source-video.json");
+    let source_manifest = read_json_file(&source_manifest_path, "source-video.json")?;
+    let relative_path = source_video_relative_path(&source_manifest)
+        .ok_or_else(|| format!("抽样素材 {source_video_id} 缺少源视频相对路径"))?;
+
+    resolve_safe_source_video_path(&public_root.join("source-videos"), relative_path)
+}
+
+fn check_sample_source_video(public_root: &Path, current_json_path: &Path) -> DesktopDoctorCheck {
+    match sample_source_video_path(public_root, current_json_path) {
+        Ok(source_path) => match fs::metadata(&source_path) {
+            Ok(metadata) if metadata.is_file() => DesktopDoctorCheck {
+                id: "sample_source_video".into(),
+                label: "抽样源视频".into(),
+                status: "pass".into(),
+                message: None,
+            },
+            Ok(_) => DesktopDoctorCheck {
+                id: "sample_source_video".into(),
+                label: "抽样源视频".into(),
+                status: "fail".into(),
+                message: Some(format!("抽样源视频不是文件：{}", source_path.display())),
+            },
+            Err(error) => DesktopDoctorCheck {
+                id: "sample_source_video".into(),
+                label: "抽样源视频".into(),
+                status: "fail".into(),
+                message: Some(format!(
+                    "抽样源视频不可读：{}。请确认 Windows 选择的是 PublicLibrary 根目录，并且 source-videos 已共享可读。{error}",
+                    source_path.display()
+                )),
+            },
+        },
+        Err(message) => DesktopDoctorCheck {
+            id: "sample_source_video".into(),
+            label: "抽样源视频".into(),
+            status: "fail".into(),
+            message: Some(message),
+        },
+    }
+}
+
 fn normalized_for_compare(path: &str) -> String {
     path.replace('/', "\\")
         .trim_end_matches('\\')
@@ -723,6 +843,7 @@ fn desktop_run_doctor(config: CutterDesktopConfig) -> DesktopDoctorResult {
             "current.json 不存在或不可读",
         ),
         check_ready_materials(&current_index),
+        check_sample_source_video(public_root, &current_index),
     ];
     checks.extend(check_workspace(&config));
 
@@ -800,5 +921,84 @@ mod tests {
 
         fs::remove_dir_all(root).ok();
         assert_eq!(check.status, "pass");
+    }
+
+    #[test]
+    fn doctor_accepts_sample_source_video_from_current_index() {
+        let root = temp_library_root("sample-source-video");
+        let index_root = root
+            .join(".mixlab-library")
+            .join("indexes")
+            .join("source-transcript-index");
+        let version_root = index_root.join("v000001");
+        let source_manifest_root = root.join(".mixlab-library").join("videos").join("V000001");
+        let source_file = root
+            .join("source-videos")
+            .join("王牧笛")
+            .join("1.房产置换与资产优化.mp4");
+
+        fs::create_dir_all(&version_root).expect("create index version root");
+        fs::create_dir_all(&source_manifest_root).expect("create source manifest root");
+        fs::create_dir_all(source_file.parent().expect("source file parent"))
+            .expect("create source file parent");
+        fs::write(
+            index_root.join("current.json"),
+            r#"{"library_id":"lib_main_001","current_version":"v000001"}"#,
+        )
+        .expect("write current pointer");
+        fs::write(
+            version_root.join("index-manifest.json"),
+            r#"{"schema_version":"1.0","ready_video_count":1,"source_video_ids":["V000001"]}"#,
+        )
+        .expect("write index manifest");
+        fs::write(
+            source_manifest_root.join("source-video.json"),
+            r#"{"source_video_id":"V000001","source_folder_relative_path":"王牧笛/1.房产置换与资产优化.mp4"}"#,
+        )
+        .expect("write source manifest");
+        fs::write(&source_file, b"video").expect("write source video");
+
+        let check = check_sample_source_video(&root, &index_root.join("current.json"));
+
+        fs::remove_dir_all(root).ok();
+        assert_eq!(check.status, "pass");
+    }
+
+    #[test]
+    fn doctor_reports_missing_sample_source_video() {
+        let root = temp_library_root("missing-sample-source-video");
+        let index_root = root
+            .join(".mixlab-library")
+            .join("indexes")
+            .join("source-transcript-index");
+        let version_root = index_root.join("v000001");
+        let source_manifest_root = root.join(".mixlab-library").join("videos").join("V000001");
+
+        fs::create_dir_all(&version_root).expect("create index version root");
+        fs::create_dir_all(&source_manifest_root).expect("create source manifest root");
+        fs::write(
+            index_root.join("current.json"),
+            r#"{"library_id":"lib_main_001","current_version":"v000001"}"#,
+        )
+        .expect("write current pointer");
+        fs::write(
+            version_root.join("index-manifest.json"),
+            r#"{"schema_version":"1.0","ready_video_count":1,"source_video_ids":["V000001"]}"#,
+        )
+        .expect("write index manifest");
+        fs::write(
+            source_manifest_root.join("source-video.json"),
+            r#"{"source_video_id":"V000001","source_folder_relative_path":"missing.mp4"}"#,
+        )
+        .expect("write source manifest");
+
+        let check = check_sample_source_video(&root, &index_root.join("current.json"));
+
+        fs::remove_dir_all(root).ok();
+        assert_eq!(check.status, "fail");
+        assert!(check
+            .message
+            .unwrap_or_default()
+            .contains("抽样源视频不可读"));
     }
 }

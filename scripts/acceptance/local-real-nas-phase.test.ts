@@ -381,6 +381,11 @@ function completeLocalWebReport(overrides: Record<string, unknown> = {}): Record
       available_count_visible: true,
       first_title_visible: true,
       public_source_label_visible: true,
+      load_more_button_visible: true,
+      loaded_count_before: 100,
+      loaded_count_after: 200,
+      load_more_clicked: true,
+      loaded_count_increased: true,
       selected_inspector_title: "1.房产置换与资产优化"
     },
     layout: {
@@ -415,7 +420,7 @@ function completeLocalWebReport(overrides: Record<string, unknown> = {}): Record
       query: "现金流",
       default_selected_material_section: "⌄ 公共原素材（111）",
       candidate_count: 147,
-      search_status_text: "本地 searchd v002701 已同步 搜索服务 454ms NAS 只读",
+      search_status_text: "素材库 已发布 2701 条 搜索 本地 searchd v002701 已同步 连接 已连接 搜索服务 454ms NAS 只读",
       search_index_version: "v002701",
       transcript_header: "视频文案 当前 06:58 · 定位 37 / 471 · 本片命中 3 处 · 已选 1 句 · 文案 2,513字 上一个 下一个 极速剪切 精准剪切",
       current_hit_time_ms: "418803",
@@ -707,7 +712,7 @@ test("local real NAS phase audit accepts complete saved source-machine evidence"
   await withPhaseFixture({}, async (paths) => {
     const report = await auditLocalRealNasPhaseArtifacts(paths);
 
-    assert.equal(report.ok, true);
+    assert.equal(report.ok, true, report.errors.join("\n"));
     assert.deepEqual(report.errors, []);
     assert.equal(report.local_web?.index_version, "v002701");
     assert.equal(report.local_web?.source_video_count, 2701);
@@ -810,7 +815,7 @@ test("local Web record sync rewrites volatile evidence from the saved sanity rep
     assert.match(before.errors.join("\n"), /acceptance record must include local web transcript segment count: 391709/);
 
     const sync = await syncLocalWebRealNasRecord(paths);
-    assert.equal(sync.ok, true);
+    assert.equal(sync.ok, true, sync.errors.join("\n"));
     assert.equal(sync.changed, true);
     assert.match(sync.replacements.join("\n"), /Searchd health/);
     assert.match(sync.replacements.join("\n"), /Expected cut feedback/);

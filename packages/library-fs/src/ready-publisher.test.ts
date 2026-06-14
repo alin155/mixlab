@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,8 +8,11 @@ import {
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   completeReadyVisualArtifacts,
+  listCutterSourceLibrary,
   listCutterVisibleSourceVideos,
+  publishCutterRelease,
   publishIndexRequiredSourceVideos,
+  readCurrentCutterRelease,
   readCurrentIndexPointer,
   resolveCurrentSourceTranscriptIndexFilePath,
   scanSourceVideos
@@ -186,6 +189,7 @@ test("publishes complete index-required videos into a new index package and cutt
   const catalog = await listCutterVisibleSourceVideos({
     library_root: libraryRoot
   });
+  const release = await readCurrentCutterRelease(libraryRoot);
 
   assert.deepEqual(indexManifest.source_video_ids, ["V000001"]);
   assert.deepEqual(
@@ -207,11 +211,151 @@ test("publishes complete index-required videos into a new index package and cutt
     catalog.videos.map((video) => video.source_video_id),
     ["V000001"]
   );
+  assert.equal(release.release_version, "v000001");
+  assert.equal(release.ready_video_count, 1);
+  assert.equal(release.source_index_version, "v000001");
+  assert.equal(
+    (await stat(path.join(libraryRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite")))
+      .isFile(),
+    true
+  );
+  assert.equal(
+    (await stat(path.join(libraryRoot, ".mixlab-library", "current-release.json"))).isFile(),
+    true
+  );
+  await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"));
+  const releaseBackedLibrary = await listCutterSourceLibrary({
+    library_root: libraryRoot
+  });
+  assert.deepEqual(
+    releaseBackedLibrary.videos.map((video) => video.source_video_id),
+    ["V000001"]
+  );
+  assert.equal(
+    releaseBackedLibrary.videos[0]?.source_video_file_path,
+    path.join(libraryRoot, "source-videos", "a.mp4")
+  );
   assert.equal(
     (await stat(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "cover.jpg")))
       .isFile(),
     true
   );
+});
+
+test("rebuilds a cutter release from an existing current index without reprocessing", async () => {
+  const libraryRoot = await makeIndexRequiredLibrary();
+  const coverPath = ".mixlab-library/videos/V000001/cover.jpg";
+
+  await writeFile(path.join(libraryRoot, coverPath), "fake-jpeg");
+  await completeReadyVisualArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    cover_path: coverPath,
+    keyframes_ms: [0, 2_000, 4_000],
+    now: "2026-05-02T00:03:00Z"
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:04:00Z"
+  });
+  await rm(path.join(libraryRoot, ".mixlab-library", "current-release.json"), { force: true });
+  await rm(path.join(libraryRoot, ".mixlab-library", "releases"), { recursive: true, force: true });
+
+  const result = await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:05:00Z"
+  });
+  const release = await readCurrentCutterRelease(libraryRoot);
+  const library = await listCutterSourceLibrary({ library_root: libraryRoot });
+
+  assert.deepEqual(result, {
+    index_version: "",
+    published_source_video_ids: [],
+    ready_video_count: 1,
+    skipped_source_video_ids: []
+  });
+  assert.equal(release.release_version, "v000001");
+  assert.deepEqual(
+    library.videos.map((video) => video.source_video_id),
+    ["V000001"]
+  );
+});
+
+test("rebuilding a specific cutter release reads that index version, not moving current", async () => {
+  const libraryRoot = await makeIndexRequiredLibrary();
+  const coverPathOne = ".mixlab-library/videos/V000001/cover.jpg";
+  const coverPathTwo = ".mixlab-library/videos/V000002/cover.jpg";
+
+  await writeFile(path.join(libraryRoot, coverPathOne), "fake-jpeg-one");
+  await completeReadyVisualArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    cover_path: coverPathOne,
+    keyframes_ms: [0, 2_000, 4_000],
+    now: "2026-05-02T00:03:00Z"
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:04:00Z"
+  });
+
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:05:00Z"
+  });
+  await writeTextArtifacts(libraryRoot, "V000002");
+  await completePreprocessArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    now: "2026-05-02T00:06:00Z",
+    media: {
+      duration_ms: 4_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      content_hash: "stat:size:456:mtime_ms:789"
+    },
+    artifacts: {
+      transcript_path: ".mixlab-library/videos/V000002/transcript.json",
+      srt_path: ".mixlab-library/videos/V000002/subtitles.srt",
+      keyframes_path: ".mixlab-library/videos/V000002/keyframes.json",
+      cover_path: coverPathTwo
+    }
+  });
+  await writeFile(path.join(libraryRoot, coverPathTwo), "fake-jpeg-two");
+  await completeReadyVisualArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    cover_path: coverPathTwo,
+    keyframes_ms: [0, 2_000, 4_000],
+    now: "2026-05-02T00:07:00Z"
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:08:00Z"
+  });
+
+  await rm(path.join(libraryRoot, ".mixlab-library", "releases", "v000001"), {
+    recursive: true,
+    force: true
+  });
+  const release = await publishCutterRelease({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    release_version: "v000001",
+    now: "2026-05-02T00:09:00Z"
+  });
+
+  assert.equal((await readCurrentIndexPointer(libraryRoot)).current_version, "v000002");
+  assert.equal(release.release_version, "v000001");
+  assert.equal(release.source_index_version, "v000001");
+  assert.equal(release.ready_video_count, 1);
 });
 
 test("refreshes library counts once after publishing a complete batch", async () => {

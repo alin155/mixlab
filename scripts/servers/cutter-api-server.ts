@@ -21,6 +21,7 @@ if (config.workspace_root) {
 const server = createCutterApiServer({
   library_root: config.library_root,
   workspace_root: config.workspace_root,
+  release_cache_root: config.release_cache_root,
   searchd_base_url: config.searchd_base_url,
   auth_mode: config.auth_mode,
   trusted_user_id: config.trusted_user_id,
@@ -35,6 +36,7 @@ server.listen(config.port, config.host, () => {
         url: `http://${config.host}:${config.port}`,
         library_root: config.library_root,
         workspace_root: config.workspace_root,
+        release_cache_root: config.release_cache_root,
         searchd_base_url: config.searchd_base_url ?? "",
         auth_mode: config.auth_mode ?? "reviewed",
         endpoints: [
