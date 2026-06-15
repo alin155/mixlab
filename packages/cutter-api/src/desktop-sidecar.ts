@@ -103,6 +103,8 @@ export function buildCutterApiServerInputFromDesktopConfig(
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
     workspace_root: workspaceRoot,
     release_cache_root: releaseCacheRoot,
+    auth_mode: "local_trusted",
+    trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师",
     ...(searchdBaseUrl ? { searchd_base_url: searchdBaseUrl } : {})
   };
 }
