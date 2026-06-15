@@ -61,6 +61,7 @@ import {
   cutterLocalCacheSnapshot,
   cutterDeviceNameFromNavigator,
   formatCutterCacheSize,
+  hasCompleteDesktopConfig,
   loginGateStatusFromApplication,
   loginMessageForAuthError,
   loginStatusFromApplication,
@@ -2980,6 +2981,38 @@ test("desktop first-run page exposes Windows setup, Doctor, engine, and diagnost
   ]) {
     assert.match(html, new RegExp(text));
   }
+});
+
+test("desktop setup treats a saved public library and workspace as complete", () => {
+  assert.equal(
+    hasCompleteDesktopConfig({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    }),
+    true
+  );
+
+  assert.equal(
+    hasCompleteDesktopConfig({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: "",
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    }),
+    false
+  );
+
+  assert.equal(
+    hasCompleteDesktopConfig({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+      local_workspace_root: ""
+    }),
+    false
+  );
 });
 
 test("cutter app keeps browser mode out of the desktop first-run gate", () => {

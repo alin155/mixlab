@@ -969,6 +969,10 @@ function desktopSetupStageForConfig(config: DesktopConfig): DesktopSetupStage {
   return "doctor-ready";
 }
 
+export function hasCompleteDesktopConfig(config: DesktopConfig | null | undefined): boolean {
+  return Boolean(config?.public_library_root?.trim() && config.local_workspace_root?.trim());
+}
+
 function desktopDiagnosticsForState(input: {
   appVersion?: string;
   stage: DesktopSetupStage;
@@ -1318,6 +1322,7 @@ export function CutterApp() {
   const [desktopDiagnostics, setDesktopDiagnostics] = useState<DesktopSetupDiagnostics | undefined>();
   const [desktopLogPath, setDesktopLogPath] = useState("");
   const [desktopAppVersionText, setDesktopAppVersionText] = useState("");
+  const [desktopAutoStarting, setDesktopAutoStarting] = useState(false);
   const desktopSetupReady = !isDesktopMode || desktopStage === "ready";
   const apiBaseUrl = desktopSetupReady ? detectedApiBaseUrl : "";
   const apiMode = Boolean(apiBaseUrl);
@@ -1589,8 +1594,55 @@ export function CutterApp() {
       };
       const nextStage = desktopSetupStageForConfig(nextConfig);
       setDesktopConfig(nextConfig);
-      setDesktopStage(nextStage);
       setDesktopLogPath(nextConfig.log_root ?? "");
+
+      if (storedConfig && hasCompleteDesktopConfig(nextConfig)) {
+        setDesktopAutoStarting(true);
+        setDesktopStage("engine-starting");
+        setDesktopDiagnostics(desktopDiagnosticsForState({
+          appVersion,
+          stage: "engine-starting",
+          config: nextConfig,
+          logPath: nextConfig.log_root ?? ""
+        }));
+
+        void desktopConfigPath()
+          .then((configPath) => startDesktopEngine(configPath))
+          .then(() => {
+            if (cancelled) {
+              return;
+            }
+
+            setDesktopAutoStarting(false);
+            setDesktopStage("ready");
+            setDesktopDiagnostics(desktopDiagnosticsForState({
+              appVersion,
+              stage: "ready",
+              config: nextConfig,
+              logPath: nextConfig.log_root ?? ""
+            }));
+          })
+          .catch((startError) => {
+            if (cancelled) {
+              return;
+            }
+
+            const message = startError instanceof Error ? startError.message : "本机引擎自动启动失败";
+            setDesktopAutoStarting(false);
+            setDesktopStage("doctor-failed");
+            setDesktopDiagnostics(desktopDiagnosticsForState({
+              appVersion,
+              stage: "doctor-failed",
+              config: nextConfig,
+              latestError: message,
+              logPath: nextConfig.log_root ?? ""
+            }));
+          });
+        return;
+      }
+
+      setDesktopAutoStarting(false);
+      setDesktopStage(nextStage);
       setDesktopDiagnostics(desktopDiagnosticsForState({
         appVersion,
         stage: nextStage,
@@ -1605,6 +1657,7 @@ export function CutterApp() {
       const nextConfig = defaultDesktopConfig();
       const message = desktopError instanceof Error ? desktopError.message : "桌面配置读取失败";
       setDesktopConfig(nextConfig);
+      setDesktopAutoStarting(false);
       setDesktopStage("choose-public-library");
       setDesktopDiagnostics(desktopDiagnosticsForState({
         appVersion: desktopAppVersionText,
@@ -2497,6 +2550,7 @@ export function CutterApp() {
 
   async function handleStartDesktopEngine() {
     try {
+      setDesktopAutoStarting(false);
       setDesktopStage("engine-starting");
       const savedConfig = await writeDesktopConfig(desktopConfig);
       const configPath = await desktopConfigPath();
@@ -2511,6 +2565,7 @@ export function CutterApp() {
       }));
     } catch (startError) {
       const message = startError instanceof Error ? startError.message : "本机引擎启动失败";
+      setDesktopAutoStarting(false);
       setDesktopStage("doctor-failed");
       setDesktopDiagnostics(desktopDiagnosticsForState({
         appVersion: desktopAppVersionText,
@@ -3106,6 +3161,22 @@ export function CutterApp() {
   const runtimeCacheBytes = cutterRuntimeCacheBytes(data?.runtimeStatus);
 
   if (isDesktopMode && desktopStage !== "ready") {
+    if (desktopAutoStarting && desktopStage === "engine-starting") {
+      return (
+        <main className="cutter-app" data-appearance-mode={appearanceMode}>
+          <MacWindow title="MixLab Cutter" meta="Windows 桌面端">
+            <section className="cutter-workspace">
+              <section className="cutter-content">
+                <InspectorPanel title="启动中">
+                  <p>正在启动本机剪切引擎，完成后会直接进入工作台。</p>
+                </InspectorPanel>
+              </section>
+            </section>
+          </MacWindow>
+        </main>
+      );
+    }
+
     return (
       <DesktopFirstRunPage
         config={desktopConfig}
