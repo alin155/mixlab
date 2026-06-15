@@ -8,7 +8,8 @@ use std::{
     net::{SocketAddr, TcpStream},
     path::{Component, Path, PathBuf},
     process::{Command, Stdio},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager};
 
@@ -32,6 +33,9 @@ const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd";
 
 const SEARCHD_HOST: &str = "127.0.0.1";
 const SEARCHD_PORT: u16 = 3799;
+const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
+const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
+const SEARCHD_API_TIMEOUT_MS: &str = "20000";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CutterDesktopConfig {
@@ -140,16 +144,21 @@ fn health_response_is_ready(response: &str) -> bool {
         && response.contains("\"ok\":true")
 }
 
-fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
+fn http_health_endpoint_is_ready_with_timeouts(
+    host: &str,
+    port: u16,
+    connect_timeout: Duration,
+    io_timeout: Duration,
+) -> bool {
     let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
         return false;
     };
-    let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(250)) else {
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, connect_timeout) else {
         return false;
     };
 
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-    let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+    let _ = stream.set_read_timeout(Some(io_timeout));
+    let _ = stream.set_write_timeout(Some(io_timeout));
     let request =
         format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
     if stream.write_all(request.as_bytes()).is_err() {
@@ -158,6 +167,55 @@ fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
 
     let mut response = String::new();
     stream.read_to_string(&mut response).is_ok() && health_response_is_ready(&response)
+}
+
+fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
+    http_health_endpoint_is_ready_with_timeouts(
+        host,
+        port,
+        Duration::from_millis(250),
+        Duration::from_millis(500),
+    )
+}
+
+fn wait_for_health_endpoint(
+    app: &AppHandle,
+    event_prefix: &str,
+    host: &str,
+    port: u16,
+    timeout: Duration,
+    io_timeout: Duration,
+) -> bool {
+    let started = Instant::now();
+    let mut attempt = 0_u32;
+
+    loop {
+        attempt += 1;
+        if http_health_endpoint_is_ready_with_timeouts(
+            host,
+            port,
+            Duration::from_millis(500),
+            io_timeout,
+        ) {
+            desktop_host_log(
+                app,
+                &format!("{event_prefix}_ready"),
+                json!({ "attempt": attempt, "elapsed_ms": started.elapsed().as_millis() }),
+            );
+            return true;
+        }
+
+        if started.elapsed() >= timeout {
+            desktop_host_log(
+                app,
+                &format!("{event_prefix}_ready_timeout"),
+                json!({ "attempt": attempt, "elapsed_ms": started.elapsed().as_millis() }),
+            );
+            return false;
+        }
+
+        thread::sleep(Duration::from_millis(500));
+    }
 }
 
 fn bundled_binary_path_candidates(app: &AppHandle, executable_name: &str) -> Vec<PathBuf> {
@@ -348,51 +406,53 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         }
     };
 
-    if !http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT) {
+    let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
+    if !searchd_is_ready {
         if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
-            let message = format!(
-                "{SEARCHD_HOST}:{SEARCHD_PORT} 已被其他进程占用，但 /health 不是 MixLab 本地搜索服务。请结束占用该端口的进程后重试。"
+            desktop_host_log(
+                &app,
+                "searchd_port_accepts_connection",
+                json!({ "searchd_base_url": searchd_base_url(), "message": "端口已打开但健康检查尚未完成，按本地搜索服务预热中处理" }),
             );
-            desktop_host_log(&app, "searchd_port_occupied", json!({ "error": message }));
-            return Err(message);
-        }
-
-        let searchd_path = match resolve_searchd_path(&app) {
-            Ok(path) => path,
-            Err(error) => {
-                desktop_host_log(&app, "searchd_missing", json!({ "error": error }));
-                return Err(error);
+        } else {
+            let searchd_path = match resolve_searchd_path(&app) {
+                Ok(path) => path,
+                Err(error) => {
+                    desktop_host_log(&app, "searchd_missing", json!({ "error": error }));
+                    return Err(error);
+                }
+            };
+            let mut searchd_command = Command::new(&searchd_path);
+            let searchd_cache_root =
+                Path::new(&config.local_workspace_root).join(".mixlab-searchd");
+            let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
+            searchd_command
+                .arg("--library-root")
+                .arg(&config.public_library_root)
+                .arg("--release-root")
+                .arg(&release_cache_root)
+                .arg("--cache-root")
+                .arg(&searchd_cache_root)
+                .arg("--host")
+                .arg(SEARCHD_HOST)
+                .arg("--port")
+                .arg(SEARCHD_PORT.to_string());
+            if let Some(parent) = searchd_path.parent() {
+                searchd_command.current_dir(parent);
             }
-        };
-        let mut searchd_command = Command::new(&searchd_path);
-        let searchd_cache_root = Path::new(&config.local_workspace_root).join(".mixlab-searchd");
-        let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
-        searchd_command
-            .arg("--library-root")
-            .arg(&config.public_library_root)
-            .arg("--release-root")
-            .arg(&release_cache_root)
-            .arg("--cache-root")
-            .arg(&searchd_cache_root)
-            .arg("--host")
-            .arg(SEARCHD_HOST)
-            .arg("--port")
-            .arg(SEARCHD_PORT.to_string());
-        if let Some(parent) = searchd_path.parent() {
-            searchd_command.current_dir(parent);
-        }
 
-        match spawn_logged_process(&app, &mut searchd_command, "mixlab-searchd") {
-            Ok(pid) => {
-                desktop_host_log(
-                    &app,
-                    "searchd_spawned",
-                    json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "release_root": path_string(release_cache_root), "cache_root": path_string(searchd_cache_root) }),
-                );
-            }
-            Err(error) => {
-                desktop_host_log(&app, "searchd_spawn_failed", json!({ "error": error }));
-                return Err(error);
+            match spawn_logged_process(&app, &mut searchd_command, "mixlab-searchd") {
+                Ok(pid) => {
+                    desktop_host_log(
+                        &app,
+                        "searchd_spawned",
+                        json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "release_root": path_string(release_cache_root), "cache_root": path_string(searchd_cache_root) }),
+                    );
+                }
+                Err(error) => {
+                    desktop_host_log(&app, "searchd_spawn_failed", json!({ "error": error }));
+                    return Err(error);
+                }
             }
         }
     } else {
@@ -400,6 +460,16 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
             &app,
             "searchd_already_ready",
             json!({ "searchd_base_url": searchd_base_url() }),
+        );
+    }
+    if !searchd_is_ready {
+        searchd_is_ready = wait_for_health_endpoint(
+            &app,
+            "searchd",
+            SEARCHD_HOST,
+            SEARCHD_PORT,
+            Duration::from_millis(SEARCHD_READY_TIMEOUT_MS),
+            Duration::from_millis(SEARCHD_HEALTH_READ_TIMEOUT_MS),
         );
     }
 
@@ -413,6 +483,7 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
     let mut command = Command::new(&sidecar_path);
     command.arg("--config").arg(&config_path);
     command.env("MIXLAB_SEARCHD_BASE_URL", searchd_base_url());
+    command.env("MIXLAB_SEARCHD_TIMEOUT_MS", SEARCHD_API_TIMEOUT_MS);
     configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
@@ -423,7 +494,7 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
             desktop_host_log(
                 &app,
                 "engine_sidecar_spawned",
-                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path, "searchd_base_url": searchd_base_url() }),
+                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path, "searchd_base_url": searchd_base_url(), "searchd_ready": searchd_is_ready, "searchd_timeout_ms": SEARCHD_API_TIMEOUT_MS }),
             );
             Ok(())
         }

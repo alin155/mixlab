@@ -10,7 +10,7 @@ import {
 } from "../../desktop-runtime/src/index.ts";
 import { createCutterApiServer, type CreateCutterApiServerInput } from "./index.ts";
 
-const DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS = 5_000;
+const DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS = 20_000;
 
 export interface ResolveDesktopSidecarConfigPathInput {
   args?: readonly string[];

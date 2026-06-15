@@ -117,7 +117,7 @@ test("maps desktop searchd env to cutter API server input", () => {
       auth_mode: "local_trusted",
       trusted_username: "本机剪辑师",
       searchd_base_url: "http://127.0.0.1:3799",
-      searchd_timeout_ms: 5000
+      searchd_timeout_ms: 20000
     }
   );
 });
@@ -180,7 +180,7 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
       assert.equal(input.auth_mode, "local_trusted");
       assert.equal(input.trusted_username, "本机剪辑师");
       assert.equal(input.searchd_base_url, "http://127.0.0.1:3799");
-      assert.equal(input.searchd_timeout_ms, 5000);
+      assert.equal(input.searchd_timeout_ms, 20000);
       return fakeServer as unknown as Server;
     },
     env: {
