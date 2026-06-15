@@ -12042,3 +12042,37 @@ body,
     grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr) minmax(220px, 0.85fr);
   }
 }
+
+/* Desktop shell containment: the app frame owns the viewport, while only dense
+   panes scroll internally. Keep project details usable at smaller window sizes. */
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-detail {
+  display: grid;
+  grid-template-rows: auto minmax(132px, auto) minmax(0, auto) auto;
+  align-content: start;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-detail-cover {
+  max-height: clamp(132px, 21vh, 220px);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-detail dl {
+  min-height: 0;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-detail-controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 12px;
+  padding-top: 10px;
+  padding-bottom: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.88) 22%),
+    rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+}
