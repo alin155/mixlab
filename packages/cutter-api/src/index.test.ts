@@ -841,6 +841,47 @@ test("runtime status reports local searchd health when configured", async () => 
   );
 });
 
+test("runtime status reports searchd warming without blocking startup", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    () => ({
+      body: {
+        schema_version: "1.0",
+        data: {
+          ok: true,
+          ready: false,
+          status: "warming",
+          library_root: libraryRoot,
+          cache_root: "/tmp/mixlab-searchd",
+          index_version: "tantivy-v000001",
+          source_video_count: 0,
+          segment_count: 0
+        }
+      }
+    }),
+    async (searchdBaseUrl, searchdRequests) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+        assert.equal(response.status, 200);
+        const body = await response.json() as any;
+
+        assert.equal(body.data.search_backend.mode, "searchd");
+        assert.equal(body.data.search_backend.healthy, false);
+        assert.equal(body.data.search_backend.degraded, true);
+        assert.equal(body.data.search_backend.index_version, "tantivy-v000001");
+        assert.match(body.data.search_backend.message, /预热|SQLite/);
+      }, {
+        searchd_base_url: searchdBaseUrl
+      });
+
+      assert.equal(searchdRequests.length, 1);
+      assert.equal(new URL(searchdRequests[0]!).pathname, "/health");
+    }
+  );
+});
+
 test("runtime status blocks source video preflight when media probing fails", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

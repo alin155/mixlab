@@ -1218,6 +1218,10 @@ function booleanField(record: Record<string, unknown>, key: string, fallback = f
   return typeof value === "boolean" ? value : fallback;
 }
 
+function searchdInteractiveTimeoutMs(searchdTimeoutMs: number | undefined): number {
+  return Math.max(250, Math.min(searchdTimeoutMs ?? 1500, 1500));
+}
+
 function normalizeSearchdBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, "");
 }
@@ -1472,17 +1476,21 @@ async function readSearchdBackendStatus(input: {
       throw new Error("searchd_unavailable");
     }
 
+    const ready = booleanField(record, "ready", true);
+
     return {
       mode: "searchd",
       preferred_mode: "searchd",
-      label: "本地 searchd",
-      healthy: true,
-      degraded: false,
+      label: ready ? "本地 searchd" : "本地 searchd（索引预热中）",
+      healthy: ready,
+      degraded: !ready,
       index_version: stringField(record, "index_version"),
       source_video_count: Math.max(0, Math.round(numberField(record, "source_video_count"))),
       segment_count: Math.max(0, Math.round(numberField(record, "segment_count"))),
       response_ms: Math.max(0, Date.now() - startedAt),
-      message: "本地 Tantivy 搜索索引可用"
+      message: ready
+        ? "本地 Tantivy 搜索索引可用"
+        : "本地 Tantivy 搜索索引正在预热，首批搜索会临时使用本地 SQLite 索引"
     };
   } finally {
     clearTimeout(timeout);
@@ -1536,7 +1544,7 @@ async function searchCutterSourceLibraryViaSearchd(input: {
   const startedAt = Date.now();
   const fetchImpl = input.searchd_fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.max(250, input.searchd_timeout_ms ?? 1500));
+  const timeout = setTimeout(() => controller.abort(), searchdInteractiveTimeoutMs(input.searchd_timeout_ms));
 
   try {
     const response = await fetchImpl(searchdSourceSearchUrl({
@@ -1660,7 +1668,7 @@ async function searchCutterSourceVideoTranscriptDetailViaSearchd(input: {
 
   const fetchImpl = input.api_input.searchd_fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.max(250, input.api_input.searchd_timeout_ms ?? 1500));
+  const timeout = setTimeout(() => controller.abort(), searchdInteractiveTimeoutMs(input.api_input.searchd_timeout_ms));
 
   try {
     const response = await fetchImpl(searchdSourceVideoDetailUrl({
@@ -1708,7 +1716,7 @@ async function searchCutterSourceVideoDetailViaSearchd(input: {
 
   const fetchImpl = input.api_input.searchd_fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.max(250, input.api_input.searchd_timeout_ms ?? 1500));
+  const timeout = setTimeout(() => controller.abort(), searchdInteractiveTimeoutMs(input.api_input.searchd_timeout_ms));
 
   try {
     const response = await fetchImpl(searchdSourceVideoDetailUrl({

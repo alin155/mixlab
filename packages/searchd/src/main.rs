@@ -208,6 +208,14 @@ impl ApiError {
             message: message.into(),
         }
     }
+
+    fn service_unavailable(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            code,
+            message: message.into(),
+        }
+    }
 }
 
 impl IntoResponse for ApiError {
@@ -228,6 +236,8 @@ impl IntoResponse for ApiError {
 #[derive(Debug, Serialize)]
 struct HealthResponse {
     ok: bool,
+    ready: bool,
+    status: &'static str,
     library_root: String,
     release_root: String,
     cache_root: String,
@@ -434,9 +444,20 @@ impl SearchEngine {
     }
 
     fn health(&self) -> Result<HealthResponse> {
-        let bundle = self.ensure_bundle()?;
+        let current = resolve_current_index(&self.library_root, self.release_root.as_deref())?;
+        let bundle = self.current_bundle_for_version(&current.current_version)?;
+        if bundle.is_none() {
+            self.refresh_bundle_in_background(current.clone());
+        }
+        let bundle_ref = bundle.as_deref();
         Ok(HealthResponse {
             ok: true,
+            ready: bundle_ref.is_some(),
+            status: if bundle_ref.is_some() {
+                "ready"
+            } else {
+                "warming"
+            },
             library_root: self.library_root.to_string_lossy().to_string(),
             release_root: self
                 .release_root
@@ -448,9 +469,15 @@ impl SearchEngine {
                 .as_ref()
                 .map(|path| path.to_string_lossy().to_string())
                 .unwrap_or_default(),
-            index_version: bundle.reported_index_version(),
-            source_video_count: bundle.metadata.source_video_count,
-            segment_count: bundle.metadata.segment_count,
+            index_version: bundle_ref
+                .map(|bundle| bundle.reported_index_version())
+                .unwrap_or(current.current_version),
+            source_video_count: bundle_ref
+                .map(|bundle| bundle.metadata.source_video_count)
+                .unwrap_or_default(),
+            segment_count: bundle_ref
+                .map(|bundle| bundle.metadata.segment_count)
+                .unwrap_or_default(),
         })
     }
 
@@ -540,6 +567,10 @@ impl SearchEngine {
             }
         }
 
+        if self.is_refreshing_version(&current.current_version) {
+            return Err(anyhow!("searchd_index_warming"));
+        }
+
         let bundle = Arc::new(load_index_bundle(
             &current.index_file_path,
             &current.current_version,
@@ -547,6 +578,38 @@ impl SearchEngine {
         )?);
         *guard = Some(Arc::clone(&bundle));
         Ok(bundle)
+    }
+
+    fn prewarm_current_index(&self) -> Result<()> {
+        let current = resolve_current_index(&self.library_root, self.release_root.as_deref())?;
+        if self
+            .current_bundle_for_version(&current.current_version)?
+            .is_none()
+        {
+            self.refresh_bundle_in_background(current);
+        }
+        Ok(())
+    }
+
+    fn current_bundle_for_version(
+        &self,
+        current_version: &str,
+    ) -> Result<Option<Arc<IndexBundle>>> {
+        let guard = self
+            .bundle
+            .read()
+            .map_err(|_| anyhow!("search index lock is poisoned"))?;
+        Ok(guard
+            .as_ref()
+            .filter(|bundle| bundle.current_version == current_version)
+            .map(Arc::clone))
+    }
+
+    fn is_refreshing_version(&self, current_version: &str) -> bool {
+        self.refreshing_version
+            .read()
+            .map(|guard| guard.as_deref() == Some(current_version))
+            .unwrap_or(false)
     }
 
     fn refresh_bundle_in_background(&self, current: CurrentIndex) {
@@ -589,7 +652,7 @@ impl SearchEngine {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct CurrentIndex {
     current_version: String,
     index_file_path: PathBuf,
@@ -2156,16 +2219,26 @@ async fn source_search_handler(
         ));
     }
 
-    let data = state
-        .engine
-        .search(&query.query, limit, query.cursor.as_deref())
-        .map_err(|error| {
-            if error.to_string().contains("invalid_search_cursor") {
-                ApiError::bad_request("invalid_search_cursor", "搜索分页游标格式不正确")
-            } else {
-                ApiError::internal(error.to_string())
-            }
-        })?;
+    let engine = Arc::clone(&state.engine);
+    let query_text = query.query;
+    let cursor = query.cursor;
+    let data =
+        tokio::task::spawn_blocking(move || engine.search(&query_text, limit, cursor.as_deref()))
+            .await
+            .map_err(|error| ApiError::internal(error.to_string()))?
+            .map_err(|error| {
+                let message = error.to_string();
+                if message.contains("invalid_search_cursor") {
+                    ApiError::bad_request("invalid_search_cursor", "搜索分页游标格式不正确")
+                } else if message.contains("searchd_index_warming") {
+                    ApiError::service_unavailable(
+                        "searchd_index_warming",
+                        "search index is warming up",
+                    )
+                } else {
+                    ApiError::internal(message)
+                }
+            })?;
 
     Ok(Json(ApiEnvelope {
         schema_version: "1.0",
@@ -2177,14 +2250,18 @@ async fn source_video_detail_handler(
     State(state): State<AppState>,
     AxumPath(source_video_id): AxumPath<String>,
 ) -> Result<Json<ApiEnvelope<SourceVideoDetailResponse>>, ApiError> {
-    let data = state
-        .engine
-        .source_video_detail(&source_video_id)
+    let engine = Arc::clone(&state.engine);
+    let data = tokio::task::spawn_blocking(move || engine.source_video_detail(&source_video_id))
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?
         .map_err(|error| {
-            if error.to_string().contains("invalid_source_video_id") {
+            let message = error.to_string();
+            if message.contains("invalid_source_video_id") {
                 ApiError::bad_request("invalid_source_video_id", "source_video_id 格式不正确")
+            } else if message.contains("searchd_index_warming") {
+                ApiError::service_unavailable("searchd_index_warming", "search index is warming up")
             } else {
-                ApiError::internal(error.to_string())
+                ApiError::internal(message)
             }
         })?
         .ok_or_else(|| ApiError {
@@ -2218,6 +2295,15 @@ async fn main() -> Result<()> {
         config.release_root.clone(),
         config.cache_root.clone(),
     ));
+    if let Err(error) = engine.prewarm_current_index() {
+        eprintln!(
+            "{}",
+            serde_json::json!({
+                "event": "mixlab_searchd_prewarm_failed",
+                "error": error.to_string()
+            })
+        );
+    }
     let address = format!("{}:{}", config.host, config.port)
         .parse::<SocketAddr>()
         .with_context(|| format!("invalid listen address {}:{}", config.host, config.port))?;
@@ -2726,6 +2812,21 @@ mod tests {
         let health = engine.health().unwrap();
         assert_eq!(health.release_root, release.path().to_string_lossy());
         assert_eq!(health.index_version, "v000001");
+    }
+
+    #[test]
+    fn health_starts_background_warmup_without_loading_index_inline() {
+        let library = prepare_library(&[("V000001", "一号", "现金流第一句。", "现金流第一句")]);
+        let engine = SearchEngine::new(library.path().to_path_buf(), None);
+
+        let health = engine.health().unwrap();
+
+        assert!(health.ok);
+        assert!(!health.ready);
+        assert_eq!(health.status, "warming");
+        assert_eq!(health.index_version, "v000001");
+        assert_eq!(health.source_video_count, 0);
+        assert_eq!(health.segment_count, 0);
     }
 
     #[test]
