@@ -2163,7 +2163,8 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
 
   assert.match(ordinaryContentRule, /overflow:\s*hidden/);
   assert.match(materialContentRule, /overflow:\s*hidden/);
-  assert.match(taskTableRule, /overflow:\s*auto/);
+  assert.match(taskTableRule, /overflow-x:\s*hidden/);
+  assert.match(taskTableRule, /overflow-y:\s*auto/);
   assert.match(taskTableRule, /overscroll-behavior:\s*contain/);
   assert.match(galleryAlignRule, /align-content:\s*start/);
   assert.match(scrollPaneRule, /overflow:\s*auto/);
@@ -2638,9 +2639,9 @@ test("cut tasks table keeps selected text and problem cells to one line with sem
   assert.match(headerRule, /position:\s*sticky/);
   assert.match(headerRule, /z-index:\s*5/);
   assert.match(headerRule, /background:\s*#f8fafc/);
-  assert.match(sourceColumnRule, /width:\s*132px/);
-  assert.match(selectedTextColumnRule, /width:\s*270px/);
-  assert.match(problemColumnRule, /width:\s*150px/);
+  assert.match(sourceColumnRule, /width:\s*17%/);
+  assert.match(selectedTextColumnRule, /width:\s*auto/);
+  assert.match(problemColumnRule, /width:\s*17%/);
   assert.match(pendingStatusRule, /color:\s*#b45309/);
   assert.match(runningStatusRule, /color:\s*#1d4ed8/);
   assert.match(doneStatusRule, /color:\s*#12805c/);

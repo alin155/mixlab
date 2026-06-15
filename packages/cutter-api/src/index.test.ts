@@ -70,10 +70,12 @@ test("cutter API runtime config honors an explicit release cache path", () => {
 test("cutter API runtime config can enable local searchd", () => {
   const config = resolveCutterApiRuntimeConfigFromEnv({
     MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary",
-    MIXLAB_SEARCHD_BASE_URL: " http://127.0.0.1:3799 "
+    MIXLAB_SEARCHD_BASE_URL: " http://127.0.0.1:3799 ",
+    MIXLAB_SEARCHD_TIMEOUT_MS: " 4500 "
   });
 
   assert.equal(config.searchd_base_url, "http://127.0.0.1:3799");
+  assert.equal(config.searchd_timeout_ms, 4500);
 });
 
 test("cutter API runtime config can enable local trusted auth for web rehearsals", () => {

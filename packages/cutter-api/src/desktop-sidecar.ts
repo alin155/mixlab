@@ -10,6 +10,8 @@ import {
 } from "../../desktop-runtime/src/index.ts";
 import { createCutterApiServer, type CreateCutterApiServerInput } from "./index.ts";
 
+const DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS = 5_000;
+
 export interface ResolveDesktopSidecarConfigPathInput {
   args?: readonly string[];
   env?: Partial<Record<string, string | undefined>>;
@@ -98,6 +100,9 @@ export function buildCutterApiServerInputFromDesktopConfig(
   const releaseCacheRoot = isWindowsUncPath(workspaceRoot) || /^[a-zA-Z]:[\\/]/.test(workspaceRoot)
     ? path.win32.join(workspaceRoot, "cache")
     : path.join(workspaceRoot, "cache");
+  const searchdTimeoutMs = optionalPositiveInteger(
+    env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
+  ) ?? DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS;
 
   return {
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
@@ -105,8 +110,23 @@ export function buildCutterApiServerInputFromDesktopConfig(
     release_cache_root: releaseCacheRoot,
     auth_mode: "local_trusted",
     trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师",
-    ...(searchdBaseUrl ? { searchd_base_url: searchdBaseUrl } : {})
+    ...(searchdBaseUrl
+      ? {
+          searchd_base_url: searchdBaseUrl,
+          searchd_timeout_ms: searchdTimeoutMs
+        }
+      : {})
   };
+}
+
+function optionalPositiveInteger(value: string | undefined): number | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function emitSidecarEvent(stdout: Pick<NodeJS.WriteStream, "write">, event: SidecarEvent): void {

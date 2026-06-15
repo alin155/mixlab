@@ -116,9 +116,27 @@ test("maps desktop searchd env to cutter API server input", () => {
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
       auth_mode: "local_trusted",
       trusted_username: "本机剪辑师",
-      searchd_base_url: "http://127.0.0.1:3799"
+      searchd_base_url: "http://127.0.0.1:3799",
+      searchd_timeout_ms: 5000
     }
   );
+});
+
+test("maps desktop searchd timeout env to cutter API server input", () => {
+  const input = buildCutterApiServerInputFromDesktopConfig(
+    {
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`D:\MixLabPublicLibrary`,
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    },
+    {
+      MIXLAB_SEARCHD_BASE_URL: "http://127.0.0.1:3799",
+      MIXLAB_SEARCHD_TIMEOUT_MS: " 7500 "
+    }
+  );
+
+  assert.equal(input.searchd_timeout_ms, 7500);
 });
 
 test("maps desktop trusted username env to cutter API server input", () => {
@@ -162,6 +180,7 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
       assert.equal(input.auth_mode, "local_trusted");
       assert.equal(input.trusted_username, "本机剪辑师");
       assert.equal(input.searchd_base_url, "http://127.0.0.1:3799");
+      assert.equal(input.searchd_timeout_ms, 5000);
       return fakeServer as unknown as Server;
     },
     env: {

@@ -1042,6 +1042,9 @@ export function resolveCutterApiRuntimeConfigFromEnv(
     searchd_base_url:
       optionalTrimmed(env.MIXLAB_SEARCHD_BASE_URL) ??
       optionalTrimmed(env.MIXLAB_CUTTER_SEARCHD_BASE_URL),
+    searchd_timeout_ms: optionalPositiveInteger(
+      env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
+    ),
     host: optionalTrimmed(env.MIXLAB_CUTTER_API_HOST) ?? "127.0.0.1",
     port,
     ...(authMode ? { auth_mode: authMode } : {}),

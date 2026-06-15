@@ -11798,3 +11798,247 @@ body {
   font-size: 13px;
   line-height: 19px;
 }
+
+/* Desktop viewport containment.
+   The Windows desktop shell adds native chrome around the WebView, so the app
+   cannot rely on fixed page widths. Keep the app shell locked to the viewport
+   and let only intentional content regions scroll vertically. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.cutter-app,
+.cutter-app > .ml-window,
+.cutter-shell,
+.cutter-workspace,
+.cutter-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cutter-app {
+  height: 100vh;
+}
+
+.cutter-app > .ml-window,
+.cutter-shell {
+  height: 100%;
+}
+
+.cutter-page,
+.cutter-page-main,
+.cutter-project-home,
+.cutter-project-home .cutter-page-main,
+.cutter-material-locator,
+.cutter-material-locator .cutter-page-main,
+.cutter-cut-queue,
+.cutter-local-library,
+.cutter-public-library,
+.cutter-cache-management,
+.cutter-settings {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.cutter-project-grid,
+.cutter-public-library-scroll,
+.cutter-local-library-scroll,
+.cutter-task-table-wrap,
+.cutter-cache-panels,
+.cutter-app .ml-inspector-body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cutter-app * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.32) transparent;
+}
+
+.cutter-app *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cutter-app *::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.32);
+}
+
+.cutter-app *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-content {
+  overflow: hidden;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-hero {
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1fr);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-search-form {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  margin-left: 0;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-board {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, clamp(320px, 31%, 400px));
+  width: 100%;
+  margin-left: 0;
+  overflow: hidden;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-list-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  align-content: start;
+  padding-right: 4px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-card {
+  width: 100%;
+  aspect-ratio: 262 / 220;
+  height: auto;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-card:nth-of-type(3) {
+  transform: none;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-detail {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-material-locator .cutter-page-main {
+  grid-template-columns: minmax(190px, 0.72fr) minmax(0, 1.55fr) minmax(260px, 0.95fr);
+  overflow: hidden;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-command {
+  width: auto;
+  max-width: 100%;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-search-form {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-management {
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 330px);
+  overflow: hidden;
+}
+
+.cutter-cache-panels {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td {
+  min-width: 0;
+  padding-right: clamp(7px, 0.9vw, 14px);
+  padding-left: clamp(7px, 0.9vw, 14px);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th:nth-child(1),
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td:nth-child(1) {
+  width: clamp(66px, 10%, 84px);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th:nth-child(2),
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td:nth-child(2) {
+  width: 17%;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th:nth-child(3),
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td:nth-child(3) {
+  width: 15%;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th:nth-child(4),
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td:nth-child(4) {
+  width: auto;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th:nth-child(5),
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td:nth-child(5) {
+  width: 17%;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table th:nth-child(6),
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-task-table td:nth-child(6) {
+  width: clamp(64px, 10%, 82px);
+}
+
+@media (max-width: 1320px) {
+  .cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-content {
+    padding: 34px 30px 28px;
+  }
+
+  .cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-search-form {
+    margin-top: 0;
+  }
+
+  .cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-board {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 330px);
+  }
+
+  .cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-material-locator .cutter-page-main {
+    grid-template-columns: minmax(180px, 0.65fr) minmax(0, 1.4fr) minmax(240px, 0.9fr);
+  }
+}
+
+@media (max-width: 1180px) {
+  .cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-project-board,
+  .cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-management {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-material-locator .cutter-page-main {
+    grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr) minmax(220px, 0.85fr);
+  }
+}
