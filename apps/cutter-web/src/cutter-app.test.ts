@@ -22,6 +22,7 @@ import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
+import { CacheManagementPage } from "./features/cache-management/CacheManagementPage.tsx";
 import { DesktopFirstRunPage } from "./features/desktop/DesktopFirstRunPage.tsx";
 import {
   ProjectCreateDialog,
@@ -56,6 +57,7 @@ import {
   cutNoticeForCompletedLocalClips,
   cutNoticeForPipelineResult,
   cutNoticeForSubmittedJobs,
+  cutterRuntimeCacheBytes,
   cutterLocalCacheSnapshot,
   cutterDeviceNameFromNavigator,
   formatCutterCacheSize,
@@ -249,15 +251,17 @@ test("source detail hash keeps route and selected source video id separate", () 
 test("cutter navigation puts project home above material search", () => {
   assert.deepEqual(
     CUTTER_NAV_ITEMS.map((item) => item.label),
-    ["首页", "素材搜索", "剪切任务", "本地素材", "公共素材库", "设置"]
+    ["首页", "素材搜索", "剪切任务", "本地素材", "公共素材库", "缓存管理", "设置"]
   );
   assert.equal(routeFromHash(""), "project-home");
   assert.equal(routeFromHash("#project-home"), "project-home");
   assert.equal(routeFromHash("#/project-home"), "project-home");
   assert.equal(routeFromHash("#public-library"), "public-library");
   assert.equal(routeFromHash("#/public-library"), "public-library");
+  assert.equal(routeFromHash("#/cache-management"), "cache-management");
   assert.equal(routeTitle("project-home"), "首页");
   assert.equal(routeTitle("material-locator"), "素材搜索");
+  assert.equal(routeTitle("cache-management"), "缓存管理");
 
   const labels = CUTTER_NAV_ITEMS.map((item) => item.label).join(" / ");
   for (const oldLabel of ["原视频详情", "搜索与文案", "待剪清单", "剪切队列"]) {
@@ -2807,6 +2811,36 @@ test("cutter app does not keep the removed user summary drawer", async () => {
   assert.doesNotMatch(source, /CutterUserSummaryDrawer/);
   assert.doesNotMatch(source, /userSummaryPanelOpen/);
   assert.doesNotMatch(source, /setUserSummaryPanelOpen\(true\)/);
+});
+
+test("cache management page exposes runtime cache and test results", () => {
+  installTestWindow();
+  window.localStorage.setItem("mixlab:cutter:default_source_filter", "public");
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CacheManagementPage, {
+      runtimeStatus: data.runtimeStatus
+    })
+  );
+
+  assert.equal(cutterRuntimeCacheBytes(data.runtimeStatus), 918 * 1024 * 1024);
+  for (const text of [
+    "缓存管理",
+    "运行缓存",
+    "918 MB",
+    "Release 缓存",
+    "搜索索引",
+    "缩略图缓存",
+    "原视频缓存",
+    "剪切临时区",
+    "源视频预检",
+    "测试结果",
+    "缓存明细",
+    "清除界面缓存",
+    "Fixture release 缓存已就绪"
+  ]) {
+    assert.match(html, new RegExp(text));
+  }
 });
 
 test("settings render mount, workspace, ffmpeg, default mode, concurrency, and system check", () => {

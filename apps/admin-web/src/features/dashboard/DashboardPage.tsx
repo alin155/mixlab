@@ -66,6 +66,26 @@ function hoursLabel(ms: number): string {
   return `${Math.round(ms / 3_600_000)}h`;
 }
 
+function optionalHoursLabel(ms: number): string {
+  return ms > 0 ? hoursLabel(ms) : "未统计";
+}
+
+function optionalDurationLabel(ms: number): string {
+  return ms > 0 ? formatAdminDuration(ms) : "未统计";
+}
+
+function optionalFileSizeLabel(bytes: number): string {
+  return bytes > 0 ? formatAdminFileSize(bytes) : "未统计";
+}
+
+function optionalCountLabel(value: number): string {
+  return value > 0 ? value.toLocaleString("zh-CN") : "未统计";
+}
+
+function optionalAverageDurationLabel(ms: number): string {
+  return ms > 0 ? formatAdminDuration(ms) : "暂无样本";
+}
+
 function percentLabel(value: number): string {
   return `${Math.round(value)}%`;
 }
@@ -233,10 +253,11 @@ export function adminCorePathHealth(data: AdminDashboardData): AdminCorePathHeal
 
   const transcriptTone: AdminCorePathTone =
     data.status.ready_video_count <= 0 ||
-    data.metrics.transcript.segment_count <= 0 ||
     !data.indexes.current_version
       ? "blocked"
-      : data.status.index_status !== "ready" || data.status.index_required_video_count > 0
+      : data.metrics.transcript.segment_count <= 0 ||
+        data.status.index_status !== "ready" ||
+        data.status.index_required_video_count > 0
         ? "attention"
         : "healthy";
 
@@ -266,7 +287,9 @@ export function adminCorePathHealth(data: AdminDashboardData): AdminCorePathHeal
     },
     {
       label: "完整文案",
-      value: `${data.metrics.transcript.segment_count.toLocaleString("zh-CN")} 段`,
+      value: data.metrics.transcript.segment_count > 0
+        ? `${data.metrics.transcript.segment_count.toLocaleString("zh-CN")} 段`
+        : "未统计",
       detail: `${data.status.ready_video_count} 个可用视频 · 当前索引 ${data.indexes.current_version || "暂无"} · 待发布 ${data.status.index_required_video_count}`,
       tone: transcriptTone
     },
@@ -488,7 +511,7 @@ export function DashboardPage({
           <AdminPageHeader
             title="公共素材库仪表盘"
             eyebrow="Admin / Dashboard"
-            description="让管理员先判断“剪辑团队现在能不能用”，再看到一个最重要的下一步。"
+            description={`让管理员先判断“剪辑团队现在能不能用”。当前连接真实素材库：${data.status.root_path}`}
             action={
               <section className="admin-action-row" aria-label="仪表盘操作">
                 <AdminControlButton
@@ -525,7 +548,7 @@ export function DashboardPage({
         </section>
         <section className="admin-kpi-grid" aria-label="关键生产指标">
           {[
-            { label: "素材总数", value: data.status.video_count, detail: `原视频总时长 ${hoursLabel(data.metrics.material.total_duration_ms)}` },
+            { label: "素材总数", value: data.status.video_count, detail: `原视频总时长 ${optionalHoursLabel(data.metrics.material.total_duration_ms)}` },
             { label: "可用视频", value: data.status.ready_video_count, detail: `占全部 ${readyRatio}%` },
             {
               label: supervisorRunning || data.status.processing_video_count === 0 ? "处理中" : "待恢复",
@@ -533,8 +556,8 @@ export function DashboardPage({
               detail: supervisorRunning ? "正在生成产物" : "预处理服务未运行"
             },
             { label: "处理失败", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "可重试处理" : "当前无阻塞" },
-            { label: "可搜索总时长", value: hoursLabel(data.metrics.material.ready_duration_ms), detail: `总时长 ${hoursLabel(data.metrics.material.total_duration_ms)}` },
-            { label: "句子片段", value: data.metrics.transcript.segment_count.toLocaleString("zh-CN"), detail: `${data.metrics.transcript.transcript_video_count} 个视频有文案` },
+            { label: "可搜索总时长", value: optionalHoursLabel(data.metrics.material.ready_duration_ms), detail: `总时长 ${optionalHoursLabel(data.metrics.material.total_duration_ms)}` },
+            { label: "句子片段", value: optionalCountLabel(data.metrics.transcript.segment_count), detail: `${data.metrics.transcript.transcript_video_count} 个视频有文案` },
             { label: "当前索引", value: data.indexes.current_version, detail: currentIndex ? `协议 ${currentIndex.schema_version}` : "暂无版本详情" },
             { label: "失败任务", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "可重试处理" : "当前无阻塞" },
             {
@@ -708,18 +731,18 @@ export function DashboardPage({
           <DashboardPanel
             title="素材规模"
             rows={[
-              { label: "原视频总时长", value: formatAdminDuration(data.metrics.material.total_duration_ms) },
-              { label: "可用总时长", value: formatAdminDuration(data.metrics.material.ready_duration_ms) },
-              { label: "未处理时长", value: formatAdminDuration(data.metrics.material.unprocessed_duration_ms) },
-              { label: "原视频容量", value: formatAdminFileSize(data.metrics.material.total_size_bytes) }
+              { label: "原视频总时长", value: optionalDurationLabel(data.metrics.material.total_duration_ms) },
+              { label: "可用总时长", value: optionalDurationLabel(data.metrics.material.ready_duration_ms) },
+              { label: "未处理时长", value: optionalDurationLabel(data.metrics.material.unprocessed_duration_ms) },
+              { label: "原视频容量", value: optionalFileSizeLabel(data.metrics.material.total_size_bytes) }
             ]}
           />
           <DashboardPanel
             title="文案与索引"
             rows={[
               { label: "文案视频", value: data.metrics.transcript.transcript_video_count },
-              { label: "文案总字数", value: data.metrics.transcript.character_count },
-              { label: "文案段落", value: data.metrics.transcript.segment_count },
+              { label: "文案总字数", value: optionalCountLabel(data.metrics.transcript.character_count) },
+              { label: "文案段落", value: optionalCountLabel(data.metrics.transcript.segment_count) },
               { label: "当前索引", value: data.metrics.transcript.current_index_version }
             ]}
           />
@@ -728,7 +751,7 @@ export function DashboardPage({
             rows={[
               { label: "今日完成", value: data.metrics.production.completed_today_count },
               { label: "今日失败", value: data.metrics.production.failed_today_count },
-              { label: "平均耗时", value: formatAdminDuration(data.metrics.production.average_video_process_ms) },
+              { label: "平均耗时", value: optionalAverageDurationLabel(data.metrics.production.average_video_process_ms) },
               { label: "预计完成", value: compactDateTimeLabel(data.metrics.production.estimated_queue_done_at) }
             ]}
           />

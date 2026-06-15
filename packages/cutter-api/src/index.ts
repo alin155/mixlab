@@ -1,7 +1,7 @@
 import { constants, createReadStream } from "node:fs";
 import { spawn } from "node:child_process";
 import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -73,6 +73,7 @@ export interface CreateCutterApiServerInput {
   release_cache_max_releases?: number;
   thumbnail_cache_max_bytes?: number;
   cut_temp_max_bytes?: number;
+  source_video_cache_max_bytes?: number;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
@@ -225,7 +226,18 @@ interface CutterLocalCacheRuntimeStatus {
   thumbnail_cache_max_bytes: number;
   thumbnail_cache_manifest_entry_count: number;
   thumbnail_cache_checksum_entry_count: number;
+  source_video_cache: CutterSourceVideoCacheStatus;
   cut_temp_cache: CutTempCacheStatus;
+}
+
+interface CutterSourceVideoCacheStatus {
+  cache_root_path: string;
+  max_bytes: number;
+  size_bytes: number;
+  file_count: number;
+  cached_video_count: number;
+  active_prefetch_count: number;
+  last_error?: string;
 }
 
 interface CutterSourceVideoMediaProbe {
@@ -446,6 +458,7 @@ function defaultCutterReleaseCacheRoot(env: NodeJS.ProcessEnv = process.env): st
 
 const DEFAULT_THUMBNAIL_CACHE_MAX_BYTES = 512 * 1024 * 1024;
 const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
+const DEFAULT_SOURCE_VIDEO_CACHE_MAX_BYTES = 100 * 1024 * 1024 * 1024;
 const SOURCE_PREFLIGHT_SAMPLE_COUNT = 3;
 const SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS = 1_500;
 const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
@@ -465,6 +478,23 @@ interface ThumbnailCacheManifest {
   schema_version: "1.0";
   generated_at: string;
   entries: Record<string, ThumbnailCacheManifestEntry>;
+}
+
+interface SourceVideoCacheManifestEntry {
+  source_video_id: string;
+  source_video_file_path: string;
+  source_size: number;
+  source_mtime_ms?: number;
+  cache_file_name: string;
+  cache_size: number;
+  cached_at: string;
+  last_accessed_at: string;
+}
+
+interface SourceVideoCacheManifest {
+  schema_version: "1.0";
+  generated_at: string;
+  entries: Record<string, SourceVideoCacheManifestEntry>;
 }
 
 function normalizeByteLimit(value: number | undefined, fallback: number): number {
@@ -490,15 +520,35 @@ function cutTempMaxBytes(input: CreateCutterApiServerInput): number {
   return normalizeByteLimit(input.cut_temp_max_bytes, DEFAULT_CUT_TEMP_MAX_BYTES);
 }
 
+function sourceVideoCacheMaxBytes(input: CreateCutterApiServerInput): number {
+  return normalizeByteLimit(input.source_video_cache_max_bytes, DEFAULT_SOURCE_VIDEO_CACHE_MAX_BYTES);
+}
+
 function thumbnailCacheRoot(input: CreateCutterApiServerInput): string {
   return path.join(localCacheRootForInput(input), "source-thumbnails");
+}
+
+function sourceVideoCacheRoot(input: CreateCutterApiServerInput): string {
+  return path.join(localCacheRootForInput(input), "source-videos");
 }
 
 function thumbnailCacheManifestPath(root: string): string {
   return path.join(root, THUMBNAIL_CACHE_MANIFEST_FILE_NAME);
 }
 
+function sourceVideoCacheManifestPath(root: string): string {
+  return path.join(root, THUMBNAIL_CACHE_MANIFEST_FILE_NAME);
+}
+
 function emptyThumbnailCacheManifest(): ThumbnailCacheManifest {
+  return {
+    schema_version: "1.0",
+    generated_at: new Date(0).toISOString(),
+    entries: {}
+  };
+}
+
+function emptySourceVideoCacheManifest(): SourceVideoCacheManifest {
   return {
     schema_version: "1.0",
     generated_at: new Date(0).toISOString(),
@@ -527,6 +577,23 @@ async function readThumbnailCacheManifest(root: string): Promise<ThumbnailCacheM
   }
 }
 
+async function readSourceVideoCacheManifest(root: string): Promise<SourceVideoCacheManifest> {
+  try {
+    const parsed = JSON.parse(await readFile(sourceVideoCacheManifestPath(root), "utf8")) as Partial<SourceVideoCacheManifest>;
+    if (parsed.schema_version !== "1.0" || !parsed.entries || typeof parsed.entries !== "object") {
+      return emptySourceVideoCacheManifest();
+    }
+
+    return {
+      schema_version: "1.0",
+      generated_at: typeof parsed.generated_at === "string" ? parsed.generated_at : new Date(0).toISOString(),
+      entries: parsed.entries as Record<string, SourceVideoCacheManifestEntry>
+    };
+  } catch {
+    return emptySourceVideoCacheManifest();
+  }
+}
+
 async function writeThumbnailCacheManifest(root: string, manifest: ThumbnailCacheManifest): Promise<void> {
   await mkdir(root, { recursive: true });
   const nextManifest: ThumbnailCacheManifest = {
@@ -535,6 +602,19 @@ async function writeThumbnailCacheManifest(root: string, manifest: ThumbnailCach
     entries: manifest.entries
   };
   const manifestPath = thumbnailCacheManifestPath(root);
+  const tempPath = `${manifestPath}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(nextManifest, null, 2)}\n`);
+  await rename(tempPath, manifestPath);
+}
+
+async function writeSourceVideoCacheManifest(root: string, manifest: SourceVideoCacheManifest): Promise<void> {
+  await mkdir(root, { recursive: true });
+  const nextManifest: SourceVideoCacheManifest = {
+    schema_version: "1.0",
+    generated_at: new Date().toISOString(),
+    entries: manifest.entries
+  };
+  const manifestPath = sourceVideoCacheManifestPath(root);
   const tempPath = `${manifestPath}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tempPath, `${JSON.stringify(nextManifest, null, 2)}\n`);
   await rename(tempPath, manifestPath);
@@ -615,6 +695,299 @@ async function compactThumbnailCacheManifest(root: string): Promise<ThumbnailCac
   return manifest;
 }
 
+const activeSourceVideoPrefetches = new Map<string, Promise<void>>();
+const sourceVideoCacheLastErrors = new Map<string, string>();
+
+function sourceVideoCacheFileName(input: {
+  source_video_id: string;
+  source_video_file_path: string;
+  source_size: number;
+  source_mtime_ms?: number;
+}): string {
+  const extension = path.extname(input.source_video_file_path).toLowerCase() || ".mp4";
+  const safeExtension = /^\.[a-z0-9]{1,12}$/i.test(extension) ? extension : ".mp4";
+  const hash = createHash("sha1")
+    .update(input.source_video_id)
+    .update("\0")
+    .update(input.source_video_file_path)
+    .update("\0")
+    .update(String(input.source_size))
+    .update("\0")
+    .update(String(Math.floor(input.source_mtime_ms ?? 0)))
+    .digest("hex")
+    .slice(0, 16);
+
+  return `${input.source_video_id}-${hash}${safeExtension}`;
+}
+
+function sourceVideoCacheEntryMatches(input: {
+  entry: SourceVideoCacheManifestEntry | undefined;
+  source_video_id: string;
+  source_video_file_path: string;
+  source_size?: number;
+}): boolean {
+  const entry = input.entry;
+  if (!entry) {
+    return false;
+  }
+
+  return (
+    entry.source_video_id === input.source_video_id &&
+    entry.source_video_file_path === input.source_video_file_path &&
+    (!Number.isFinite(input.source_size ?? Number.NaN) || entry.source_size === input.source_size)
+  );
+}
+
+async function compactSourceVideoCacheManifest(root: string): Promise<SourceVideoCacheManifest> {
+  const manifest = await readSourceVideoCacheManifest(root);
+  const entries = await readDirectFileCacheEntries(root);
+  const existingFileNames = new Set(entries.map((entry) => path.basename(entry.file_path)));
+  const compactedEntries = Object.fromEntries(
+    Object.entries(manifest.entries).filter(([, entry]) => existingFileNames.has(entry.cache_file_name))
+  );
+
+  if (Object.keys(compactedEntries).length !== Object.keys(manifest.entries).length) {
+    const compactedManifest: SourceVideoCacheManifest = {
+      schema_version: "1.0",
+      generated_at: manifest.generated_at,
+      entries: compactedEntries
+    };
+    await writeSourceVideoCacheManifest(root, compactedManifest);
+    return compactedManifest;
+  }
+
+  return manifest;
+}
+
+async function pruneSourceVideoCache(input: {
+  root: string;
+  max_bytes: number;
+  keep_source_video_id?: string;
+}): Promise<void> {
+  const manifest = await compactSourceVideoCacheManifest(input.root);
+  const fileEntries = await readDirectFileCacheEntries(input.root);
+  const fileSizes = new Map(fileEntries.map((entry) => [path.basename(entry.file_path), entry.size]));
+  let totalBytes = fileEntries.reduce((total, entry) => total + entry.size, 0);
+  const nextEntries = { ...manifest.entries };
+
+  for (const entry of Object.values(manifest.entries)
+    .filter((item) => item.source_video_id !== input.keep_source_video_id)
+    .sort((left, right) =>
+      Date.parse(left.last_accessed_at || left.cached_at) - Date.parse(right.last_accessed_at || right.cached_at)
+    )) {
+    if (totalBytes <= input.max_bytes) {
+      break;
+    }
+
+    const cacheFilePath = path.join(input.root, entry.cache_file_name);
+    try {
+      await rm(cacheFilePath, { force: true });
+      totalBytes -= fileSizes.get(entry.cache_file_name) ?? entry.cache_size;
+      delete nextEntries[entry.source_video_id];
+    } catch {
+      // A concurrent cut or stream may still be using the cached source file.
+    }
+  }
+
+  if (Object.keys(nextEntries).length !== Object.keys(manifest.entries).length) {
+    await writeSourceVideoCacheManifest(input.root, {
+      schema_version: "1.0",
+      generated_at: manifest.generated_at,
+      entries: nextEntries
+    });
+  }
+}
+
+async function cachedSourceVideoPath(input: {
+  api_input: CreateCutterApiServerInput;
+  source_video_id: string;
+  source_video_file_path: string;
+  file_size?: number;
+}): Promise<string | undefined> {
+  const root = sourceVideoCacheRoot(input.api_input);
+  const manifest = await compactSourceVideoCacheManifest(root);
+  const entry = manifest.entries[input.source_video_id];
+
+  if (!sourceVideoCacheEntryMatches({
+    entry,
+    source_video_id: input.source_video_id,
+    source_video_file_path: input.source_video_file_path,
+    source_size: input.file_size
+  })) {
+    return undefined;
+  }
+
+  const cacheFilePath = path.join(root, entry!.cache_file_name);
+  const cacheStat = await stat(cacheFilePath).catch(() => null);
+  if (!cacheStat?.isFile() || cacheStat.size !== entry!.cache_size) {
+    return undefined;
+  }
+
+  manifest.entries[input.source_video_id] = {
+    ...entry!,
+    last_accessed_at: new Date().toISOString()
+  };
+  void writeSourceVideoCacheManifest(root, manifest).catch(() => undefined);
+  void utimes(cacheFilePath, new Date(), new Date()).catch(() => undefined);
+
+  return cacheFilePath;
+}
+
+async function prefetchSourceVideo(input: {
+  api_input: CreateCutterApiServerInput;
+  source_video_id: string;
+  source_video_file_path: string;
+  file_size?: number;
+}): Promise<void> {
+  if (/^E\d{6}$/.test(input.source_video_id)) {
+    return;
+  }
+
+  const root = sourceVideoCacheRoot(input.api_input);
+  const maxBytes = sourceVideoCacheMaxBytes(input.api_input);
+  const sourceStat = await stat(input.source_video_file_path);
+  if (!sourceStat.isFile()) {
+    throw new Error("source video path is not a file");
+  }
+
+  if (sourceStat.size > maxBytes) {
+    throw new Error(`source video is larger than source cache limit: ${sourceStat.size} > ${maxBytes}`);
+  }
+
+  const existing = await cachedSourceVideoPath({
+    api_input: input.api_input,
+    source_video_id: input.source_video_id,
+    source_video_file_path: input.source_video_file_path,
+    file_size: input.file_size ?? sourceStat.size
+  });
+  if (existing) {
+    return;
+  }
+
+  const cacheFileName = sourceVideoCacheFileName({
+    source_video_id: input.source_video_id,
+    source_video_file_path: input.source_video_file_path,
+    source_size: sourceStat.size,
+    source_mtime_ms: sourceStat.mtimeMs
+  });
+  const cacheFilePath = path.join(root, cacheFileName);
+  const lockKey = `${root}\0${input.source_video_id}\0${cacheFileName}`;
+  const active = activeSourceVideoPrefetches.get(lockKey);
+  if (active) {
+    await active;
+    return;
+  }
+
+  const promise = (async () => {
+    await mkdir(root, { recursive: true });
+    const tempPath = `${cacheFilePath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+    try {
+      await copyFile(input.source_video_file_path, tempPath);
+      const tempStat = await stat(tempPath);
+      if (!tempStat.isFile() || tempStat.size !== sourceStat.size) {
+        throw new Error("source video cache copy did not match source size");
+      }
+
+      await rename(tempPath, cacheFilePath);
+      const now = new Date().toISOString();
+      const manifest = await readSourceVideoCacheManifest(root);
+      const previous = manifest.entries[input.source_video_id];
+      if (previous && previous.cache_file_name !== cacheFileName) {
+        void rm(path.join(root, previous.cache_file_name), { force: true }).catch(() => undefined);
+      }
+      manifest.entries[input.source_video_id] = {
+        source_video_id: input.source_video_id,
+        source_video_file_path: input.source_video_file_path,
+        source_size: sourceStat.size,
+        source_mtime_ms: sourceStat.mtimeMs,
+        cache_file_name: cacheFileName,
+        cache_size: tempStat.size,
+        cached_at: now,
+        last_accessed_at: now
+      };
+      await writeSourceVideoCacheManifest(root, manifest);
+      await pruneSourceVideoCache({
+        root,
+        max_bytes: maxBytes,
+        keep_source_video_id: input.source_video_id
+      });
+      sourceVideoCacheLastErrors.delete(root);
+    } catch (error) {
+      await rm(tempPath, { force: true });
+      sourceVideoCacheLastErrors.set(root, (error as Error).message || "source video cache failed");
+      throw error;
+    }
+  })();
+
+  activeSourceVideoPrefetches.set(lockKey, promise);
+  try {
+    await promise;
+  } finally {
+    activeSourceVideoPrefetches.delete(lockKey);
+  }
+}
+
+function prefetchSourceVideoBestEffort(input: {
+  api_input: CreateCutterApiServerInput;
+  source_video_id: string;
+  source_video_file_path: string;
+  file_size?: number;
+}): void {
+  void prefetchSourceVideo(input).catch(() => undefined);
+}
+
+async function sourceDetailWithLocalSourceCache<T extends {
+  source_video_id: string;
+  source_video_file_path: string;
+  file_size?: number;
+}>(apiInput: CreateCutterApiServerInput, source: T): Promise<T> {
+  if (/^E\d{6}$/.test(source.source_video_id)) {
+    return source;
+  }
+
+  const cachedPath = await cachedSourceVideoPath({
+    api_input: apiInput,
+    source_video_id: source.source_video_id,
+    source_video_file_path: source.source_video_file_path,
+    file_size: source.file_size
+  });
+
+  if (cachedPath) {
+    return {
+      ...source,
+      source_video_file_path: cachedPath
+    };
+  }
+
+  prefetchSourceVideoBestEffort({
+    api_input: apiInput,
+    source_video_id: source.source_video_id,
+    source_video_file_path: source.source_video_file_path,
+    file_size: source.file_size
+  });
+  return source;
+}
+
+async function readSourceVideoCacheStatus(input: CreateCutterApiServerInput): Promise<CutterSourceVideoCacheStatus> {
+  const root = sourceVideoCacheRoot(input);
+  const manifest = await compactSourceVideoCacheManifest(root);
+  const entries = await readDirectFileCacheEntries(root);
+  const activePrefix = `${root}\0`;
+  const lastError = sourceVideoCacheLastErrors.get(root);
+
+  return {
+    cache_root_path: root,
+    max_bytes: sourceVideoCacheMaxBytes(input),
+    size_bytes: entries.reduce((total, entry) => total + entry.size, 0),
+    file_count: entries.length,
+    cached_video_count: Object.keys(manifest.entries).length,
+    active_prefetch_count: [...activeSourceVideoPrefetches.keys()].filter((key) =>
+      key.startsWith(activePrefix)
+    ).length,
+    ...(lastError ? { last_error: lastError } : {})
+  };
+}
+
 function optionalPositiveInteger(value: string | undefined): number | undefined {
   const trimmed = optionalTrimmed(value);
   if (!trimmed) {
@@ -663,6 +1036,9 @@ export function resolveCutterApiRuntimeConfigFromEnv(
       env.MIXLAB_CUTTER_THUMBNAIL_CACHE_MAX_BYTES
     ),
     cut_temp_max_bytes: optionalPositiveInteger(env.MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES),
+    source_video_cache_max_bytes: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_MAX_BYTES
+    ),
     searchd_base_url:
       optionalTrimmed(env.MIXLAB_SEARCHD_BASE_URL) ??
       optionalTrimmed(env.MIXLAB_CUTTER_SEARCHD_BASE_URL),
@@ -2035,6 +2411,7 @@ function formatClipTime(milliseconds: number): string {
 function runFfmpegAsync(executable: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
+      windowsHide: true,
       stdio: ["ignore", "ignore", "pipe"]
     });
     let stderr = "";
@@ -2064,6 +2441,7 @@ function runProcessForStdoutAsync(input: {
 }): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(input.executable, input.args, {
+      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -2125,6 +2503,7 @@ function defaultOpenPath(targetPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       detached: true,
+      windowsHide: true,
       stdio: "ignore"
     });
 
@@ -2761,6 +3140,7 @@ async function readLocalCacheRuntimeStatus(
   const cacheRoot = localCacheRootForInput(input);
   const thumbnailRoot = thumbnailCacheRoot(input);
   const thumbnailManifest = await compactThumbnailCacheManifest(thumbnailRoot);
+  const sourceVideoCacheStatus = await readSourceVideoCacheStatus(input);
   const cutTempStatus = input.workspace_root
     ? await readCutTempCacheStatus({
         workspace_root: input.workspace_root,
@@ -2783,6 +3163,7 @@ async function readLocalCacheRuntimeStatus(
     thumbnail_cache_checksum_entry_count: Object.values(thumbnailManifest.entries).filter((entry) =>
       typeof entry.checksum_sha256 === "string" && entry.checksum_sha256.length === 64
     ).length,
+    source_video_cache: sourceVideoCacheStatus,
     cut_temp_cache: cutTempStatus
   };
 }
@@ -3079,7 +3460,7 @@ async function runWorkspaceCutJob(input: {
 
       const cachedSource = input.resolved_sources?.get(job.source_video_id);
       if (cachedSource) {
-        return cachedSource;
+        return await sourceDetailWithLocalSourceCache(input.api_input, cachedSource);
       }
 
       const detail = await loadVisibleDetail(input.api_input, job.source_video_id);
@@ -3088,7 +3469,7 @@ async function runWorkspaceCutJob(input: {
         return null;
       }
 
-      return cutJobSourceFromDetail(detail);
+      return cutJobSourceFromDetail(await sourceDetailWithLocalSourceCache(input.api_input, detail));
     },
     cut_runner: cutRunner,
     cut_temp_max_bytes: cutTempMaxBytes(input.api_input),
@@ -3425,10 +3806,11 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           local_clip_id: localClipId
         });
         const cutRunner = input.cut_runner ?? defaultCutRunner;
+        const cutSource = await sourceDetailWithLocalSourceCache(input, detail);
 
         await mkdir(path.dirname(clipPaths.media_file_path), { recursive: true });
         await cutRunner({
-          source_video_path: detail.source_video_file_path,
+          source_video_path: cutSource.source_video_file_path,
           output_path: clipPaths.media_file_path,
           begin_ms: selection.begin_ms,
           end_ms: selection.end_ms,
@@ -4069,6 +4451,12 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
+          prefetchSourceVideoBestEffort({
+            api_input: input,
+            source_video_id: detail.source_video_id,
+            source_video_file_path: detail.source_video_file_path,
+            file_size: detail.file_size
+          });
           writeJson(response, 200, apiResponse(addSourceVideoUrls(detail) as ApiSourceVideoDetail));
           await recordCutterUsageEventBestEffort({
             api_input: input,
@@ -4089,10 +4477,11 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         // Media, covers, and subtitles are allowed without custom auth headers so
         // authenticated pages can hand URLs to native video/img/subtitle loaders.
         if (route.action === "media") {
+          const mediaDetail = await sourceDetailWithLocalSourceCache(input, detail);
           await streamFile({
             request,
             response,
-            file_path: detail.source_video_file_path,
+            file_path: mediaDetail.source_video_file_path,
             content_type: contentTypeForSourceVideo(detail.source_video_file_path),
             range_enabled: true
           });

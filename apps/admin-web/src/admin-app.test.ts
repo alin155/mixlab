@@ -326,6 +326,55 @@ test("dashboard renders restrained library status", async () => {
   assert.doesNotMatch(queuedIdleHtml, /data-control-state="read-only"/);
 });
 
+test("dashboard labels unavailable large-library aggregates instead of fake zeroes", async () => {
+  const data = await fixtureData();
+  const largeLibraryData = {
+    ...data,
+    status: {
+      ...data.status,
+      root_path: "/Volumes/MixLab/PublicLibrary",
+      video_count: 11394,
+      ready_video_count: 8355
+    },
+    metrics: {
+      ...data.metrics,
+      material: {
+        ...data.metrics.material,
+        video_count: 11394,
+        ready_video_count: 8355,
+        total_duration_ms: 0,
+        ready_duration_ms: 0,
+        unprocessed_duration_ms: 0,
+        total_size_bytes: 0
+      },
+      transcript: {
+        ...data.metrics.transcript,
+        transcript_video_count: 8355,
+        character_count: 0,
+        segment_count: 732022,
+        current_index_version: "v008355"
+      },
+      production: {
+        ...data.metrics.production,
+        average_video_process_ms: 0,
+        estimated_queue_done_at: ""
+      }
+    }
+  };
+  const text = visibleText(renderToStaticMarkup(h(DashboardPage, { data: largeLibraryData })));
+
+  assert.match(text, /当前连接真实素材库：\/Volumes\/MixLab\/PublicLibrary/);
+  assert.match(text, /可搜索总时长 未统计/);
+  assert.match(text, /原视频总时长 未统计/);
+  assert.match(text, /原视频容量 未统计/);
+  assert.match(text, /文案总字数 未统计/);
+  assert.match(text, /平均耗时 暂无样本/);
+  assert.doesNotMatch(text, /可搜索总时长 0h/);
+  assert.doesNotMatch(text, /原视频总时长 00:00/);
+  assert.doesNotMatch(text, /原视频容量 0 B/);
+  assert.doesNotMatch(text, /文案总字数 0/);
+});
+
 test("dashboard core path health summarizes search, transcript, cut, and 50-seat readiness", async () => {
   const data = await fixtureData();
   const health = adminCorePathHealth(data);

@@ -5,6 +5,7 @@ export type CutterRoute =
   | "local-library"
   | "public-library"
   | "source-detail"
+  | "cache-management"
   | "settings";
 
 export interface CutterNavItem {
@@ -19,6 +20,7 @@ export const CUTTER_NAV_ITEMS: CutterNavItem[] = [
   { route: "cut-tasks", label: "剪切任务", icon: "sliders" },
   { route: "local-library", label: "本地素材", icon: "folder" },
   { route: "public-library", label: "公共素材库", icon: "database" },
+  { route: "cache-management", label: "缓存管理", icon: "index" },
   { route: "settings", label: "设置", icon: "settings" }
 ];
 

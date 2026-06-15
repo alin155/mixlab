@@ -381,6 +381,15 @@ export interface CutterRuntimeStatus {
     thumbnail_cache_max_bytes: number;
     thumbnail_cache_manifest_entry_count?: number;
     thumbnail_cache_checksum_entry_count?: number;
+    source_video_cache?: {
+      cache_root_path: string;
+      max_bytes: number;
+      size_bytes: number;
+      file_count: number;
+      cached_video_count: number;
+      active_prefetch_count: number;
+      last_error?: string;
+    };
     cut_temp_cache: {
       cache_root_path: string;
       max_bytes: number;

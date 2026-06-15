@@ -49,6 +49,7 @@ import {
   type DesktopSetupDiagnostics,
   type DesktopSetupStage
 } from "../features/desktop/DesktopFirstRunPage.tsx";
+import { CacheManagementPage } from "../features/cache-management/CacheManagementPage.tsx";
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
 import {
   CUT_LIST_STORAGE_KEY,
@@ -107,6 +108,12 @@ import {
   type CutPipelineState
 } from "../state/cut-pipeline.ts";
 import {
+  clearCutterLocalCache,
+  cutterLocalCacheSnapshot,
+  cutterRuntimeCacheBytes,
+  formatCutterCacheSize
+} from "../state/cutter-cache.ts";
+import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
   routeTitle,
@@ -117,6 +124,13 @@ import {
   sourceVideoIdFromHash,
   type CutterRoute
 } from "./navigation.ts";
+
+export {
+  clearCutterLocalCache,
+  cutterLocalCacheSnapshot,
+  cutterRuntimeCacheBytes,
+  formatCutterCacheSize
+} from "../state/cutter-cache.ts";
 
 const CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT = 20;
 const MATERIAL_SEARCH_FIRST_BATCH_LIMIT = 10;
@@ -486,7 +500,7 @@ export function CutterSidebarFooter({
         {cacheMenuOpen ? (
           <div className="cutter-sidebar-cache-menu" role="menu" aria-label="缓存操作">
             <button type="button" role="menuitem" onClick={handleClearCache}>
-              清除本地缓存
+              清除界面缓存
             </button>
           </div>
         ) : null}
@@ -993,86 +1007,6 @@ function safeLocalStorageSetItem(key: string, value: string): void {
 const CUTTER_CUT_MODE_STORAGE_KEY = "mixlab:cutter:default_cut_mode";
 const CUTTER_SOURCE_FILTER_STORAGE_KEY = "mixlab:cutter:default_source_filter";
 const CUTTER_ORIENTATION_FILTER_STORAGE_KEY = "mixlab:cutter:default_orientation_filter";
-const CUTTER_CACHE_STORAGE_PREFIXES = ["mixlab:cutter:", "mixlab.cutter."] as const;
-const CUTTER_PRESERVED_STORAGE_KEYS = new Set([
-  "mixlab:cutter:auth_session",
-  "mixlab:cutter:device_id",
-  "mixlab:cutter:pending_login"
-]);
-
-export interface CutterLocalCacheSnapshot {
-  bytes: number;
-  keys: string[];
-}
-
-function localStorageSafe(): Storage | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function isCutterCacheStorageKey(key: string): boolean {
-  return CUTTER_CACHE_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
-    !CUTTER_PRESERVED_STORAGE_KEYS.has(key);
-}
-
-export function formatCutterCacheSize(bytes: number): string {
-  if (bytes <= 0) {
-    return "0 KB";
-  }
-
-  if (bytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  }
-
-  return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
-}
-
-export function cutterLocalCacheSnapshot(storage: Storage | null = localStorageSafe()): CutterLocalCacheSnapshot {
-  if (!storage) {
-    return { bytes: 0, keys: [] };
-  }
-
-  const keys: string[] = [];
-  let bytes = 0;
-
-  try {
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index);
-      if (!key || !isCutterCacheStorageKey(key)) {
-        continue;
-      }
-
-      const value = storage.getItem(key) ?? "";
-      keys.push(key);
-      bytes += (key.length + value.length) * 2;
-    }
-  } catch {
-    return { bytes: 0, keys: [] };
-  }
-
-  return { bytes, keys };
-}
-
-export function clearCutterLocalCache(storage: Storage | null = localStorageSafe()): CutterLocalCacheSnapshot {
-  const snapshot = cutterLocalCacheSnapshot(storage);
-
-  if (!storage) {
-    return snapshot;
-  }
-
-  for (const key of snapshot.keys) {
-    try {
-      storage.removeItem(key);
-    } catch {
-      // Ignore storage cleanup failures; cache clearing is best-effort.
-    }
-  }
-
-  return snapshot;
-}
 
 function readCutterDefaultCutMode(): CutMode {
   const stored = safeLocalStorageGetItem(CUTTER_CUT_MODE_STORAGE_KEY);
@@ -1351,6 +1285,10 @@ function renderPage(
         onSetDefaultOrientationFilter={handlers.setOrientationFilter}
       />
     );
+  }
+
+  if (route === "cache-management") {
+    return <CacheManagementPage runtimeStatus={data.runtimeStatus} />;
   }
 
   return (
@@ -3165,6 +3103,7 @@ export function CutterApp() {
     data?.runtimeStatus.current_user.username.trim() ||
     "本机剪辑师";
   const engineReady = Boolean(data?.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用");
+  const runtimeCacheBytes = cutterRuntimeCacheBytes(data?.runtimeStatus);
 
   if (isDesktopMode && desktopStage !== "ready") {
     return (
@@ -3220,6 +3159,7 @@ export function CutterApp() {
                   activeTaskCount={allVisibleQueue.filter((job) => job.status === "running").length}
                   engineReady={engineReady}
                   currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
+                  cacheBytes={runtimeCacheBytes}
                   libraryCountOrder={
                     route === "project-home" || route === "material-locator"
                       ? "local-first"

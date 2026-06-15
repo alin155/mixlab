@@ -11331,6 +11331,7 @@ body {
 .cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-cut-queue,
 .cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .cutter-local-library,
 .cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .cutter-public-library,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-management,
 .cutter-app[data-cutter-web-ready][data-cutter-route="settings"] .cutter-settings {
   height: 100%;
   max-height: 100%;
@@ -11342,6 +11343,7 @@ body {
 .cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-cut-queue .cutter-page-main,
 .cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .cutter-local-library .cutter-page-main,
 .cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .cutter-public-library .cutter-page-main,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-management .cutter-page-main,
 .cutter-app[data-cutter-web-ready][data-cutter-route="settings"] .cutter-settings .cutter-page-main {
   height: 100%;
   min-height: 0;
@@ -11393,6 +11395,7 @@ body {
 .cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .ml-inspector,
 .cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .ml-inspector,
 .cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .ml-inspector,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .ml-inspector,
 .cutter-app[data-cutter-web-ready][data-cutter-route="settings"] .ml-inspector {
   max-height: 100%;
   min-height: 0;
@@ -11402,6 +11405,7 @@ body {
 .cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .ml-inspector-body,
 .cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .ml-inspector-body,
 .cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .ml-inspector-body,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .ml-inspector-body,
 .cutter-app[data-cutter-web-ready][data-cutter-route="settings"] .ml-inspector-body {
   min-height: 0;
   overflow: auto;
@@ -11461,4 +11465,336 @@ body {
   color: #667085;
   background: #f2f4f7;
   border-color: rgba(102, 112, 133, 0.14);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-content {
+  overflow: hidden;
+  padding: 20px 44px 34px 46px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-management {
+  display: grid;
+  grid-template-columns: minmax(0, 900px) 330px;
+  gap: 30px;
+  width: 1260px;
+  max-width: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-management .cutter-page-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-header {
+  min-height: 76px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-header h1 {
+  margin: 0;
+  color: #101828;
+  font-size: 30px;
+  font-weight: 780;
+  line-height: 40px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cache-management"] .cutter-cache-header p {
+  margin: 10px 0 0;
+  color: #667085;
+  font-size: 15px;
+  font-weight: 440;
+  line-height: 23px;
+}
+
+.cutter-cache-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.cutter-cache-status.is-ready {
+  color: #12805c;
+  background: #e8f7ef;
+}
+
+.cutter-cache-status.is-syncing {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.cutter-cache-status.is-warning {
+  color: #b45309;
+  background: #fff7ed;
+}
+
+.cutter-cache-status.is-failed {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.cutter-cache-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.cutter-cache-stat,
+.cutter-cache-panel,
+.cutter-cache-inspector {
+  overflow: hidden;
+  border: 1px solid rgba(118, 134, 159, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 52px rgba(83, 103, 132, 0.08);
+}
+
+.cutter-cache-stat {
+  display: grid;
+  gap: 10px;
+  min-height: 128px;
+  padding: 16px;
+}
+
+.cutter-cache-stat div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.cutter-cache-stat span,
+.cutter-cache-panel header p,
+.cutter-cache-detail-list dt,
+.cutter-cache-detail-list span,
+.cutter-cache-check-list p,
+.cutter-cache-inspector h3,
+.cutter-cache-inspector p {
+  color: #667085;
+}
+
+.cutter-cache-stat strong {
+  color: #101828;
+  font-size: 22px;
+  font-weight: 780;
+  line-height: 28px;
+}
+
+.cutter-cache-stat p {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cutter-cache-meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(118, 134, 159, 0.12);
+}
+
+.cutter-cache-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #1f6fff;
+}
+
+.cutter-cache-meter span.is-ready {
+  background: #12b76a;
+}
+
+.cutter-cache-meter span.is-syncing {
+  background: #1f6fff;
+}
+
+.cutter-cache-meter span.is-warning {
+  background: #f59e0b;
+}
+
+.cutter-cache-meter span.is-failed {
+  background: #ef4444;
+}
+
+.cutter-cache-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.cutter-cache-panel {
+  align-self: start;
+}
+
+.cutter-cache-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(118, 134, 159, 0.1);
+  padding: 0 18px;
+}
+
+.cutter-cache-panel h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 16px;
+  font-weight: 760;
+  line-height: 24px;
+}
+
+.cutter-cache-panel header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cutter-cache-detail-panel header button {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #1d4ed8;
+  background: rgba(31, 111, 255, 0.08);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.cutter-cache-check-list {
+  display: grid;
+  gap: 0;
+}
+
+.cutter-cache-check-list > div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 112px) minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 68px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(118, 134, 159, 0.08);
+}
+
+.cutter-cache-check-list > div:last-child {
+  border-bottom: 0;
+}
+
+.cutter-cache-check-list strong {
+  color: #101828;
+  font-size: 14px;
+  font-weight: 740;
+}
+
+.cutter-cache-check-list p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cutter-cache-detail-list {
+  margin: 0;
+}
+
+.cutter-cache-detail-list div {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 58px;
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(118, 134, 159, 0.08);
+}
+
+.cutter-cache-detail-list div:last-child {
+  border-bottom: 0;
+}
+
+.cutter-cache-detail-list dt {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.cutter-cache-detail-list dd {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+}
+
+.cutter-cache-detail-list strong,
+.cutter-cache-detail-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-cache-detail-list strong {
+  color: #101828;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.cutter-cache-detail-list span {
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.cutter-cache-inspector {
+  max-height: 100%;
+  min-height: 0;
+}
+
+.cutter-cache-inspector .ml-inspector-body {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  overflow: auto;
+}
+
+.cutter-cache-inspector section {
+  display: grid;
+  gap: 6px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid rgba(118, 134, 159, 0.08);
+}
+
+.cutter-cache-inspector section:last-child {
+  border-bottom: 0;
+}
+
+.cutter-cache-inspector h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 18px;
+}
+
+.cutter-cache-inspector p {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 19px;
 }

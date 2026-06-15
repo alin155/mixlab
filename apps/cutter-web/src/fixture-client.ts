@@ -601,6 +601,55 @@ const runtimeStatus: CutterRuntimeStatus = {
     response_ms: 4,
     message: "Fixture SQLite 搜索索引可用"
   },
+  release_cache: {
+    enabled: true,
+    ready: true,
+    sync_status: "ready",
+    active_release_version: "fixture-release",
+    source_release_version: "fixture-release",
+    search_index_version: "fixture",
+    ready_video_count: videos.length,
+    cached_release_versions: ["fixture-release"],
+    cached_release_count: 1,
+    max_cached_releases: 3,
+    cache_size_bytes: 184 * 1024 * 1024,
+    cache_root_path: "/tmp/mixlab-fixture/release-cache",
+    catalog_file_path: "/tmp/mixlab-fixture/release-cache/current/catalog.sqlite",
+    message: "Fixture release 缓存已就绪"
+  },
+  local_cache: {
+    cache_root_path: "/tmp/mixlab-fixture/local-cache",
+    thumbnail_cache_root_path: "/tmp/mixlab-fixture/local-cache/thumbnails",
+    thumbnail_cache_manifest_path: "/tmp/mixlab-fixture/local-cache/thumbnails/manifest.json",
+    thumbnail_cache_size_bytes: 32 * 1024 * 1024,
+    thumbnail_cache_max_bytes: 1024 * 1024 * 1024,
+    thumbnail_cache_manifest_entry_count: videos.length,
+    thumbnail_cache_checksum_entry_count: videos.length,
+    source_video_cache: {
+      cache_root_path: "/tmp/mixlab-fixture/local-cache/source-videos",
+      max_bytes: 100 * 1024 * 1024 * 1024,
+      size_bytes: 684 * 1024 * 1024,
+      file_count: 2,
+      cached_video_count: 2,
+      active_prefetch_count: 0
+    },
+    cut_temp_cache: {
+      cache_root_path: "/tmp/mixlab-fixture/local-cache/cut-temp",
+      max_bytes: 5 * 1024 * 1024 * 1024,
+      size_bytes: 18 * 1024 * 1024,
+      file_count: 2
+    }
+  },
+  source_video_preflight: {
+    status: "ready",
+    checked_count: videos.length,
+    readable_count: videos.length,
+    probe_count: 3,
+    probe_readable_count: 3,
+    sample_count: 0,
+    samples: [],
+    message: "Fixture 源视频预检通过"
+  },
   current_user: {
     user_id: "fixture",
     username: "演示剪辑师",

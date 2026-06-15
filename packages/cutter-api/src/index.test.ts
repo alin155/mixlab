@@ -56,13 +56,15 @@ test("cutter API runtime config honors an explicit release cache path", () => {
     MIXLAB_CUTTER_RELEASE_CACHE_ROOT: "/Volumes/FastDisk/MixLabCache",
     MIXLAB_CUTTER_RELEASE_CACHE_MAX_RELEASES: "3",
     MIXLAB_CUTTER_THUMBNAIL_CACHE_MAX_BYTES: "123456789",
-    MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES: "987654321"
+    MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES: "987654321",
+    MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_MAX_BYTES: "456789123"
   });
 
   assert.equal(config.release_cache_root, "/Volumes/FastDisk/MixLabCache");
   assert.equal(config.release_cache_max_releases, 3);
   assert.equal(config.thumbnail_cache_max_bytes, 123456789);
   assert.equal(config.cut_temp_max_bytes, 987654321);
+  assert.equal(config.source_video_cache_max_bytes, 456789123);
 });
 
 test("cutter API runtime config can enable local searchd", () => {
@@ -112,6 +114,12 @@ test("default Cutter cut runner avoids synchronous child processes so API reques
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(source, /\bspawnSync\b/);
+});
+
+test("cutter runtime child processes stay hidden on Windows", async () => {
+  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+
+  assert.ok((source.match(/windowsHide:\s*true/g) ?? []).length >= 3);
 });
 
 test("parses local iostat disk throughput from the newest sample", () => {
@@ -766,6 +774,8 @@ test("runtime status requires approved cutter session and reports workspace read
     assert.equal(body.data.release_cache.max_cached_releases, 2);
     assert.equal(typeof body.data.release_cache.cache_size_bytes, "number");
     assert.equal(body.data.local_cache.cache_root_path, path.join(workspaceRoot, "cache"));
+    assert.equal(body.data.local_cache.source_video_cache.cache_root_path, path.join(workspaceRoot, "cache", "source-videos"));
+    assert.equal(body.data.local_cache.source_video_cache.cached_video_count, 0);
     assert.equal(body.data.local_cache.cut_temp_cache.file_count, 0);
     assert.equal(body.data.source_video_preflight.status, "ready");
     assert.equal(body.data.source_video_preflight.readable_count, 1);
@@ -1591,6 +1601,77 @@ test("workspace local clip creation reuses recently loaded source detail", async
       );
     }
   );
+});
+
+test("source video cache warms from detail view and cuts from local cached source", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-source-cache-workspace-"));
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-source-cache-"));
+  const cutSourcePaths: string[] = [];
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const detail = await fetch(`${baseUrl}/cutter/source-videos/V000001`, { headers });
+    assert.equal(detail.status, 200);
+
+    let runtimeStatus: any;
+    const deadline = Date.now() + 1_000;
+    do {
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      runtimeStatus = await response.json() as any;
+      if (runtimeStatus.data.local_cache.source_video_cache.cached_video_count >= 1) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    } while (Date.now() < deadline);
+
+    assert.equal(runtimeStatus.data.local_cache.source_video_cache.cached_video_count, 1);
+    assert.equal(
+      runtimeStatus.data.local_cache.source_video_cache.cache_root_path,
+      path.join(cacheRoot, "source-videos")
+    );
+
+    const create = await fetch(`${baseUrl}/cutter/local-clips`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_id: "V000001",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: 1200,
+        end_ms: 1800,
+        selected_text: "现金流",
+        cut_mode: "copy"
+      })
+    });
+    assert.equal(create.status, 201);
+
+    assert.equal(cutSourcePaths.length, 1);
+    assert.equal(path.dirname(cutSourcePaths[0]!), path.join(cacheRoot, "source-videos"));
+    assert.match(path.basename(cutSourcePaths[0]!), /^V000001-[a-f0-9]{16}\.mp4$/);
+    assert.notEqual(cutSourcePaths[0], path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+  }, {
+    workspace_root: workspaceRoot,
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 5_000,
+    source_video_cache_max_bytes: 64 * 1024 * 1024,
+    source_video_probe_runner: async () => ({
+      duration_ms: 12_000,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    }),
+    cut_runner: async (input) => {
+      cutSourcePaths.push(input.source_video_path);
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "source-cache-cut");
+    }
+  });
 });
 
 test("streams cover, subtitles, and source media with range support", async () => {
