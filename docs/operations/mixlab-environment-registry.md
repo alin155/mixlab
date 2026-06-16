@@ -29,7 +29,7 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2` 到共享目录，等待 Windows 侧重新启动加载。
+- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前共享目录已发布 `0.1.3`，新增 `launch_app_probe` 自动启动剪辑端并等待本机 API 的能力。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
   - `127.0.0.1:5176`：管理端 Web。
@@ -186,7 +186,7 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前版本 | `0.1.2` |
+| 当前版本 | `0.1.3` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -200,10 +200,12 @@ Windows 日志默认目录：
 2026-06-16 当前共享发布记录：
 
 ```text
-0.1.2 705ba69 27621048922 e9d49ee410efde5dbafb7385b093dda5116140c4ef1e79657af4be9a264f5cce
+0.1.3 6b3585b 27622972522 3909fa0239486785033610924e7b3999c108d94038188ad5377cc896c0df0192
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
+
+`0.1.3` 修复内容：新增 `launch_app_probe` 套件。Runner 可以定位并启动已安装的 `MixLab Cutter.exe`，等待 Windows 本机 `http://127.0.0.1:3789/health` 就绪，再运行剪辑端 API 探测。报告会记录候选安装路径、是否启动应用、进程 ID、API 等待耗时和探测结果。
 
 Runner 启动后会把报告写入：
 
