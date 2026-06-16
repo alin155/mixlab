@@ -83,6 +83,7 @@ export interface CreateCutterApiServerInput {
   release_cache_status_reader?: (input: {
     cache_root: string;
     max_cached_releases?: number;
+    include_cache_size?: boolean;
   }) => Promise<CutterReleaseCacheStatus>;
   release_cache_sync_runner?: (
     input: SyncCutterReleaseCacheInput
@@ -3007,7 +3008,8 @@ function syncCutterReleaseCacheRuntimeStatusUncached(
   return syncRunner({
     source_library_root: input.library_root,
     cache_root: cacheRoot,
-    max_cached_releases: releaseCacheMaxReleases(input)
+    max_cached_releases: releaseCacheMaxReleases(input),
+    include_cache_size: false
   })
     .then((result): CutterReleaseCacheRuntimeStatus => ({
       enabled: true,
@@ -3030,7 +3032,8 @@ function syncCutterReleaseCacheRuntimeStatusUncached(
       releaseCacheRuntimeStatusFromLocal(
         await statusReader({
           cache_root: cacheRoot,
-          max_cached_releases: releaseCacheMaxReleases(input)
+          max_cached_releases: releaseCacheMaxReleases(input),
+          include_cache_size: false
         }),
         "failed"
       )
@@ -3063,7 +3066,9 @@ async function syncCutterReleaseCacheBestEffort(
     cache.promise = syncCutterReleaseCacheRuntimeStatusUncached(input)
       .then((status) => {
         cache.status = status;
-        cache.expires_at_ms = Date.now() + RELEASE_CACHE_STATUS_CACHE_TTL_MS;
+        cache.expires_at_ms = Date.now() + (
+          status.cache_size_bytes > 0 ? RELEASE_CACHE_STATUS_CACHE_TTL_MS : 5_000
+        );
         return status;
       })
       .catch((error): CutterReleaseCacheRuntimeStatus => {

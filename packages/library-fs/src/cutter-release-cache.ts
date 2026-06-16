@@ -9,6 +9,7 @@ export interface SyncCutterReleaseCacheInput {
   source_library_root: string;
   cache_root: string;
   max_cached_releases?: number;
+  include_cache_size?: boolean;
 }
 
 export interface CutterReleaseCacheStatus {
@@ -46,6 +47,7 @@ const cacheSizeByRoot = new Map<string, {
   value: number;
   expires_at_ms: number;
 }>();
+const pendingCacheSizeByRoot = new Map<string, Promise<number>>();
 
 function mixlabRoot(root: string): string {
   return path.join(root, ".mixlab-library");
@@ -174,6 +176,39 @@ async function localCacheSizeBytes(root: string): Promise<number> {
     expires_at_ms: now + CACHE_SIZE_TTL_MS
   });
   return value;
+}
+
+function refreshLocalCacheSizeBytes(root: string): void {
+  const cacheKey = path.resolve(root);
+  if (pendingCacheSizeByRoot.has(cacheKey)) {
+    return;
+  }
+
+  const pending = directorySizeBytes(mixlabRoot(root))
+    .then((value) => {
+      cacheSizeByRoot.set(cacheKey, {
+        value,
+        expires_at_ms: Date.now() + CACHE_SIZE_TTL_MS
+      });
+      return value;
+    })
+    .finally(() => {
+      pendingCacheSizeByRoot.delete(cacheKey);
+    });
+
+  pendingCacheSizeByRoot.set(cacheKey, pending);
+}
+
+function localCacheSizeBytesBestEffort(root: string): number {
+  const cacheKey = path.resolve(root);
+  const cached = cacheSizeByRoot.get(cacheKey);
+  const now = Date.now();
+
+  if (!cached || cached.expires_at_ms <= now) {
+    refreshLocalCacheSizeBytes(root);
+  }
+
+  return cached?.value ?? 0;
 }
 
 function invalidateLocalCacheSize(root: string): void {
@@ -338,7 +373,8 @@ async function syncCutterReleaseCacheOnce(
 
   const status = await readLocalCutterReleaseCacheStatus({
     cache_root: input.cache_root,
-    max_cached_releases: maxCachedReleases
+    max_cached_releases: maxCachedReleases,
+    include_cache_size: input.include_cache_size
   });
 
   return {
@@ -353,11 +389,14 @@ async function syncCutterReleaseCacheOnce(
 export async function readLocalCutterReleaseCacheStatus(input: {
   cache_root: string;
   max_cached_releases?: number;
+  include_cache_size?: boolean;
 }): Promise<CutterReleaseCacheStatus> {
   const maxCachedReleases = normalizeMaxCachedReleases(input.max_cached_releases);
   const cachedReleaseVersions = (await listCachedReleaseDirectories(input.cache_root))
     .map((release) => release.release_version);
-  const cacheSizeBytes = await localCacheSizeBytes(input.cache_root);
+  const cacheSizeBytes = input.include_cache_size === false
+    ? localCacheSizeBytesBestEffort(input.cache_root)
+    : await localCacheSizeBytes(input.cache_root);
 
   try {
     const pointer = await readCurrentPointer(input.cache_root);
