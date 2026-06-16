@@ -461,6 +461,8 @@ const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const DEFAULT_SOURCE_VIDEO_CACHE_MAX_BYTES = 100 * 1024 * 1024 * 1024;
 const SOURCE_PREFLIGHT_SAMPLE_COUNT = 3;
 const SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS = 1_500;
+const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
+const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
 const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
 
 interface ThumbnailCacheManifestEntry {
@@ -3022,6 +3024,17 @@ function checkingSourceVideoPreflightStatus(): CutterSourceVideoPreflightStatus 
   };
 }
 
+interface SourceVideoPreflightCacheEntry {
+  expires_at_ms: number;
+  status?: CutterSourceVideoPreflightStatus;
+  promise?: Promise<CutterSourceVideoPreflightStatus>;
+}
+
+const sourceVideoPreflightCacheByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  SourceVideoPreflightCacheEntry
+>();
+
 async function probeSourceVideoMedia(input: {
   api_input: CreateCutterApiServerInput;
   source_video_file_path: string;
@@ -3138,10 +3151,48 @@ async function readSourceVideoPreflightStatusUncached(
 async function readSourceVideoPreflightStatus(
   input: CreateCutterApiServerInput
 ): Promise<CutterSourceVideoPreflightStatus> {
+  const nowMs = Date.now();
+  let cache = sourceVideoPreflightCacheByInput.get(input);
+
+  if (!cache) {
+    cache = {
+      expires_at_ms: 0
+    };
+    sourceVideoPreflightCacheByInput.set(input, cache);
+  }
+
+  if (cache.status && cache.expires_at_ms > nowMs) {
+    return cache.status;
+  }
+
+  if (!cache.promise) {
+    cache.promise = readSourceVideoPreflightStatusUncached(input)
+      .then((status) => {
+        cache.status = status;
+        cache.expires_at_ms = Date.now() + SOURCE_PREFLIGHT_CACHE_TTL_MS;
+        return status;
+      })
+      .catch((error): CutterSourceVideoPreflightStatus => {
+        const fallback = cache.status ?? checkingSourceVideoPreflightStatus();
+        cache.status = {
+          ...fallback,
+          status: fallback.status === "ready" ? "checking" : fallback.status,
+          message: `源视频可读性后台检查失败：${(error as Error).message || "未知错误"}`
+        };
+        cache.expires_at_ms = Date.now() + Math.min(30_000, SOURCE_PREFLIGHT_CACHE_TTL_MS);
+        return cache.status;
+      })
+      .finally(() => {
+        if (cache) {
+          delete cache.promise;
+        }
+      });
+  }
+
   return delayedFallback(
-    readSourceVideoPreflightStatusUncached(input),
-    Math.max(250, input.searchd_timeout_ms ?? 800),
-    checkingSourceVideoPreflightStatus()
+    cache.promise,
+    SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS,
+    cache.status ?? checkingSourceVideoPreflightStatus()
   );
 }
 

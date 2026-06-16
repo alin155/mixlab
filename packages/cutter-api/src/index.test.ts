@@ -800,6 +800,66 @@ test("runtime status requires approved cutter session and reports workspace read
   }
 });
 
+test("runtime status keeps source video preflight in the background when probing is slow", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  let probeCalls = 0;
+  let resolveProbe!: (metadata: {
+    duration_ms: number;
+    width: number;
+    height: number;
+    fps: number;
+    codec: string;
+  }) => void;
+  const probePromise = new Promise<{
+    duration_ms: number;
+    width: number;
+    height: number;
+    fps: number;
+    codec: string;
+  }>((resolve) => {
+    resolveProbe = resolve;
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const startedAt = Date.now();
+    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(firstResponse.status, 200);
+    const firstBody = await firstResponse.json() as any;
+
+    assert.equal(firstBody.data.source_video_preflight.status, "checking");
+    assert.ok(Date.now() - startedAt < 1_000);
+
+    resolveProbe({
+      duration_ms: 3600,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    });
+
+    let latestBody = firstBody;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      latestBody = await response.json() as any;
+      if (latestBody.data.source_video_preflight.status === "ready") {
+        break;
+      }
+    }
+
+    assert.equal(latestBody.data.source_video_preflight.status, "ready");
+    assert.equal(latestBody.data.source_video_preflight.probe_readable_count, 1);
+    assert.equal(probeCalls, 1);
+  }, {
+    source_video_probe_runner: async () => {
+      probeCalls += 1;
+      return probePromise;
+    }
+  });
+});
+
 test("runtime status reports local searchd health when configured", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
