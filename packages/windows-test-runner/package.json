@@ -1,0 +1,15 @@
+{
+  "name": "@mixlab/windows-test-runner",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "node --test --import tsx src/*.test.ts"
+  }
+}

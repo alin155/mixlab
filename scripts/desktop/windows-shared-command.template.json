@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "command_id": "manual-20260615-0001",
+  "action": "smoke_test",
+  "payload": {
+    "note": "Allowed actions: ping, collect_logs, capture_screenshot, stop_app, launch_app, install_latest, install_latest_and_smoke, smoke_test"
+  }
+}

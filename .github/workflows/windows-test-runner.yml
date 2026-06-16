@@ -1,0 +1,75 @@
+name: Windows Test Runner Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "codex/**"
+    paths:
+      - ".github/workflows/windows-test-runner.yml"
+      - "packages/windows-test-runner/**"
+      - "scripts/desktop/package-windows-test-runner.ts"
+      - "scripts/desktop/windows-test-runner-package.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-test-runner-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build Windows Test Runner exe
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        shell: pwsh
+        run: |
+          git init .
+          git remote add origin https://github.com/${{ github.repository }}.git
+          git fetch --depth 1 origin $env:GITHUB_SHA
+          git checkout --force FETCH_HEAD
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run Windows Test Runner tests
+        run: npm run test:windows-test-runner
+
+      - name: Package Windows Test Runner
+        run: npm run package:windows-test-runner
+
+      - name: Capture Runner evidence metadata
+        shell: pwsh
+        run: |
+          $runner = Get-Item -LiteralPath "dist/windows-test-runner/MixLabWindowsTestRunner.exe"
+          $hash = (Get-FileHash -LiteralPath $runner.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "MIXLAB_WINDOWS_TEST_RUNNER_FILE_NAME=$($runner.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "MIXLAB_WINDOWS_TEST_RUNNER_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Runner SHA-256: $hash"
+
+      - name: Upload Windows Test Runner
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-windows-test-runner
+          path: |
+            dist/windows-test-runner/MixLabWindowsTestRunner.exe
+            dist/windows-test-runner/latest.json
+          if-no-files-found: error
+          retention-days: 14
