@@ -29,7 +29,7 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前共享目录已发布 `0.1.3`，新增 `launch_app_probe` 自动启动剪辑端并等待本机 API 的能力。
+- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前共享目录已发布 `0.1.4`，新增并增强 `launch_app_probe` 自动启动剪辑端并等待本机 API 的能力。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
   - `127.0.0.1:5176`：管理端 Web。
@@ -44,7 +44,7 @@
 | 主仓库 | `/Users/huaqihang/Documents/mixlab` |
 | 当前工作分支 | 以 `git status -sb` 实时输出为准 |
 | Mac 共享交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
-| Windows 映射盘示例 | `P:\MixLabWindowsBuilds` |
+| Windows 映射盘示例 | `P:\MixLabWindowsBuilds`；2026-06-16 Runner 当前观察值为 `O:\MixLabWindowsBuilds` |
 | Windows 共享 UNC 示例 | `\\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds` |
 | Windows Runner 启动脚本 | `/Users/huaqihang/Public/MixLabWindowsBuilds/start-windows-test-runner.cmd` |
 | Windows Runner 可执行文件 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
@@ -186,7 +186,7 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前版本 | `0.1.3` |
+| 当前版本 | `0.1.4` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -200,12 +200,14 @@ Windows 日志默认目录：
 2026-06-16 当前共享发布记录：
 
 ```text
-0.1.3 6b3585b 27622972522 3909fa0239486785033610924e7b3999c108d94038188ad5377cc896c0df0192
+0.1.4 e259e88 27630710508 080c2c18d7c2e34dbc9c039010814ca918c988e96f5eb030132162dd62d40071
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
 
 `0.1.3` 修复内容：新增 `launch_app_probe` 套件。Runner 可以定位并启动已安装的 `MixLab Cutter.exe`，等待 Windows 本机 `http://127.0.0.1:3789/health` 就绪，再运行剪辑端 API 探测。报告会记录候选安装路径、是否启动应用、进程 ID、API 等待耗时和探测结果。
+
+`0.1.4` 修复内容：增强 `launch_app_probe` 的安装路径发现能力。Runner 会扫描 `%LOCALAPPDATA%`、`%LOCALAPPDATA%\Programs`、`Program Files` 等常见父目录，并匹配 `MixLab Cutter.exe` / `mixlab-cutter*.exe`，避免只依赖固定安装路径。
 
 Runner 启动后会把报告写入：
 
