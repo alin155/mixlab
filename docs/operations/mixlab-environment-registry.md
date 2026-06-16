@@ -29,7 +29,7 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机曾确认运行 `0.1.5`；共享目录已发布 `0.1.7`，下次重启 Runner 后应显示 `0.1.7`。`0.1.5` 支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志，`0.1.6` 修复 source-library `data.videos` 验收误判，`0.1.7` 新增备用端口 `launch_runner` 并锁定包版本与运行时版本一致。
+- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机曾确认运行 `0.1.7`；共享目录已发布 `0.1.8`，下次重启 Runner 后应显示 `0.1.8`。`0.1.5` 支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志，`0.1.6` 修复 source-library `data.videos` 验收误判，`0.1.7` 新增备用端口 `launch_runner` 并锁定包版本与运行时版本一致，`0.1.8` 新增非破坏性 Windows 应用验收套件：`app_runtime_smoke`、`real_data_smoke`、`cache_smoke`、`windows_acceptance`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -188,8 +188,8 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.7` |
-| 当前实机运行版本 | 以 `curl --noproxy '*' http://192.168.1.20:3799/version` 为准，2026-06-16 曾观察为 `0.1.5`，下次重启 Runner 后应为 `0.1.7` |
+| 当前共享版本 | `0.1.8` |
+| 当前实机运行版本 | 以 `curl --noproxy '*' http://192.168.1.20:3799/version` 为准，2026-06-16 曾观察为 `0.1.7`，下次重启 Runner 后应为 `0.1.8` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -203,7 +203,7 @@ Windows 日志默认目录：
 2026-06-16 当前共享发布记录：
 
 ```text
-0.1.7 17901a4 27639797641 67022eec6af3bfe6faf1c8fd34cc5c7cb36e735d6c0310490a9de9f1d2d7ce39
+0.1.8 9e845db 27642780157 7ccfe864484aa13c1b853c668f135e33c433fafff880eb9529962c204c463f3f
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -217,6 +217,8 @@ Windows 日志默认目录：
 `0.1.6` 修复内容：启动脚本不再使用 `pushd` 映射 UNC 共享目录，避免产生一串残留盘符；`probe_api` 正确识别真实 API 的 `schema_version/data/videos` 和 `available_video_count`，不再把公共素材库 `20 / 7950` 误判为空。
 
 `0.1.7` 修复内容：新增 `launch_runner` run suite。当前 Runner 可以从共享目录启动新版 Runner 到备用端口，例如 `3800`，并验证新版 Runner 的 `/version`；同时新增版本同步测试，避免 `package.json` 版本与运行时 `/version` 不一致。启动脚本支持可选端口参数，例如 `start-windows-test-runner.cmd 3800`。
+
+`0.1.8` 修复内容：新增非破坏性 Windows 应用验收 suites：`app_runtime_smoke`、`real_data_smoke`、`cache_smoke`、`windows_acceptance`。这些 suites 通过 Windows 本机 sidecar API 验证真实数据、搜索、完整文案、剪切任务可读和缓存分类可观测；`windows_acceptance` 不创建剪切任务、不写本地工作区。
 
 Runner 启动后会把报告写入：
 
