@@ -1,4 +1,4 @@
-export type RunnerSuite = "probe_api" | "launch_app_probe" | "launch_runner" | "cutter_api_smoke";
+export type RunnerSuite = "probe_api" | "launch_app_probe" | "launch_runner";
 
 export type RunnerStatus =
   | "queued"
@@ -16,7 +16,6 @@ export type FailureCategory =
   | "api_health_timeout"
   | "api_auth_failure"
   | "real_data_unavailable"
-  | "api_smoke_failure"
   | "runner_launch_failure"
   | "runner_ready_timeout"
   | "unknown";
@@ -117,60 +116,6 @@ export interface LaunchRunnerReport {
   ready_error?: string;
 }
 
-export interface CutterSmokeCheck {
-  id: string;
-  path: string;
-  ok: boolean;
-  status_code: number | null;
-  elapsed_ms: number;
-  error?: string;
-}
-
-export interface CutterApiSmokeReport {
-  api_base_url: string;
-  query_candidates: string[];
-  checks: CutterSmokeCheck[];
-  runtime?: {
-    available_video_count?: number;
-    auth_mode?: string;
-    release_cache_ready?: boolean;
-    release_cache_sync_status?: string;
-    release_cache_size_bytes?: number;
-    source_video_cache_size_bytes?: number;
-    source_video_cache_file_count?: number;
-    source_video_preflight_status?: string;
-    source_video_preflight_readable_count?: number;
-  };
-  source_library?: {
-    available_video_count: number;
-    returned_count: number;
-    first_source_video_id?: string;
-    first_title?: string;
-  };
-  search?: {
-    query: string;
-    groups_count: number;
-    hit_count: number;
-    search_ms?: number;
-    search_mode?: string;
-    source_video_id?: string;
-    title?: string;
-  };
-  detail?: {
-    source_video_id: string;
-    title?: string;
-    transcript_character_count: number;
-    segment_count: number;
-  };
-  cut_jobs?: {
-    job_count: number;
-    failed_count: number;
-    running_count: number;
-    pending_count: number;
-    done_count: number;
-  };
-}
-
 export interface RunReport {
   schema_version: "1.0";
   run_id: string;
@@ -189,7 +134,6 @@ export interface RunReport {
   probe_api?: ProbeApiReport;
   launch_app_probe?: LaunchAppProbeReport;
   launch_runner?: LaunchRunnerReport;
-  cutter_api_smoke?: CutterApiSmokeReport;
 }
 
 export interface RunRecord extends RunReport {

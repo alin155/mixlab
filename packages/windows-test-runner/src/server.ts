@@ -29,8 +29,7 @@ function isRunRequest(value: unknown): value is RunRequest {
   const candidate = value as Record<string, unknown>;
   return candidate.suite === "probe_api"
     || candidate.suite === "launch_app_probe"
-    || candidate.suite === "launch_runner"
-    || candidate.suite === "cutter_api_smoke";
+    || candidate.suite === "launch_runner";
 }
 
 export function createWindowsTestRunnerServer(config: RunnerConfig): {
@@ -69,7 +68,7 @@ export function createWindowsTestRunnerServer(config: RunnerConfig): {
         if (!isRunRequest(body)) {
           writeJson(response, 400, {
             ok: false,
-            error: "Unsupported or invalid run request. Supported suites: probe_api, launch_app_probe, launch_runner, cutter_api_smoke."
+            error: "Unsupported or invalid run request. Supported suites: probe_api, launch_app_probe, launch_runner."
           });
           return;
         }

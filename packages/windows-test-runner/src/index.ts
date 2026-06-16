@@ -6,7 +6,6 @@ export { createWindowsTestRunnerServer } from "./server.ts";
 export { RunStore } from "./run-store.ts";
 export type {
   ApiProbeResult,
-  CutterApiSmokeReport,
   FailureCategory,
   LaunchRunnerReport,
   ProbeApiReport,
