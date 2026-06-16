@@ -259,7 +259,7 @@ test("launch_app_probe discovers a nested MixLab Cutter executable", async () =>
       body: JSON.stringify({
         suite: "launch_app_probe",
         options: {
-          app_args: ["-e", "setTimeout(() => {}, 250)"],
+          app_args: ["-e", ""],
           force_launch: true,
           api_ready_timeout_ms: 1000
         }
