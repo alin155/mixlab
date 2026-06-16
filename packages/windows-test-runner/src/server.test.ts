@@ -28,6 +28,24 @@ async function close(server: Server): Promise<void> {
   await once(server, "close");
 }
 
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function rmRoot(root: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(150 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 function createMockCutterApi(): Server {
   return createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -140,7 +158,7 @@ test("runner exposes health, version, status, and a passing probe_api run", asyn
     if (runner) {
       await close(runner.server);
     }
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
 
@@ -172,7 +190,7 @@ test("probe_api run fails with api_health_timeout when the cutter API is unavail
     assert.equal(report.failure_category, "api_health_timeout");
   } finally {
     await close(runner.server);
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
 
@@ -227,7 +245,7 @@ test("launch_app_probe starts an app candidate and runs cutter API probes", asyn
     if (runner) {
       await close(runner.server);
     }
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
 
@@ -292,7 +310,7 @@ test("launch_app_probe discovers a nested MixLab Cutter executable", async () =>
     if (runner) {
       await close(runner.server);
     }
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
 
@@ -333,7 +351,7 @@ test("launch_app_probe reports app_executable_not_found for missing app paths", 
     assert.equal(report.launch_app_probe.candidates[0].exists, false);
   } finally {
     await close(runner.server);
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
 
@@ -383,7 +401,7 @@ test("runner keeps HTTP reports available when the shared report directory canno
     if (runner) {
       await close(runner.server);
     }
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
 
@@ -405,6 +423,6 @@ test("runner rejects unsupported run suites", async () => {
     assert.match(body.error, /Supported suites/);
   } finally {
     await close(runner.server);
-    await rm(root, { recursive: true, force: true });
+    await rmRoot(root);
   }
 });
