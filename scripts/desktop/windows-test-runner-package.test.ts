@@ -58,6 +58,17 @@ test("root package exposes Windows Test Runner lifecycle scripts", async () => {
   assert.equal(packageJson.scripts["package:windows-test-runner"], "tsx scripts/desktop/package-windows-test-runner.ts");
 });
 
+test("Windows Test Runner launcher does not map UNC shares with pushd", async () => {
+  const launcher = await readFile(
+    path.join(process.cwd(), "scripts/desktop/start-windows-test-runner.cmd"),
+    "utf8"
+  );
+
+  assert.match(launcher, /set "SHARE_ROOT=%~dp0"/);
+  assert.doesNotMatch(launcher, /\bpushd\b/i);
+  assert.doesNotMatch(launcher, /\bpopd\b/i);
+});
+
 test("default Windows Test Runner shared root follows the existing handoff folder", () => {
   assert.equal(defaultWindowsBuildShareRoot(), "/Users/huaqihang/Public/MixLabWindowsBuilds");
 });

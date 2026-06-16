@@ -29,7 +29,8 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机正在运行 `0.1.4`；共享目录已发布 `0.1.5`，用于支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志。
+- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机已确认运行 `0.1.5`；`0.1.5` 支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志。
+- 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
@@ -45,14 +46,14 @@
 | 主仓库 | `/Users/huaqihang/Documents/mixlab` |
 | 当前工作分支 | 以 `git status -sb` 实时输出为准 |
 | Mac 共享交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
-| Windows 映射盘示例 | `P:\MixLabWindowsBuilds`；2026-06-16 Runner 当前观察值为 `O:\MixLabWindowsBuilds` |
+| Windows 映射盘示例 | `P:\MixLabWindowsBuilds`；如果从 UNC 直接启动旧脚本，Windows 可能残留临时映射盘，后续脚本不应依赖具体盘符 |
 | Windows 共享 UNC 示例 | `\\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds` |
 | Windows Runner 启动脚本 | `/Users/huaqihang/Public/MixLabWindowsBuilds/start-windows-test-runner.cmd` |
 | Windows Runner 可执行文件 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 
 注意：
 
-- Windows CMD 不支持把 UNC 路径直接作为当前目录。启动脚本必须用 `pushd` 或映射盘进入共享目录。
+- Windows CMD 不支持把 UNC 路径直接作为当前目录。Runner 启动脚本不能再使用 `pushd` 自动映射盘符，应直接基于 `%~dp0` 读写共享目录绝对路径。
 - 共享目录名在 Windows 上可能显示为中文公共文件夹路径，也可能被映射为盘符。脚本和测试报告必须记录最终解析到的 `share_root`。
 
 ## 端口总表
@@ -188,7 +189,7 @@ Windows 日志默认目录：
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
 | 当前共享版本 | `0.1.5` |
-| 当前实机运行版本 | 以 `curl --noproxy '*' http://192.168.1.20:3799/version` 为准，2026-06-16 当前观察为 `0.1.4` |
+| 当前实机运行版本 | 以 `curl --noproxy '*' http://192.168.1.20:3799/version` 为准，2026-06-16 当前观察为 `0.1.5` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |

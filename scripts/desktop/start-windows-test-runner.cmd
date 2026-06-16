@@ -3,14 +3,8 @@ setlocal EnableExtensions
 
 echo Starting MixLab Windows Test Runner...
 
-pushd "%~dp0" >nul 2>nul
-if errorlevel 1 (
-  echo Failed to enter the shared folder. Open the shared folder in Explorer and run this file again.
-  pause
-  exit /b 1
-)
-
-set "SHARE_ROOT=%CD%"
+set "SHARE_ROOT=%~dp0"
+if "%SHARE_ROOT:~-1%"=="\" set "SHARE_ROOT=%SHARE_ROOT:~0,-1%"
 set "RUNNER_SOURCE=%SHARE_ROOT%\runner\MixLabWindowsTestRunner.exe"
 set "RUNNER_MANIFEST=%SHARE_ROOT%\runner\latest.json"
 set "LOCAL_RUNNER_DIR=%LOCALAPPDATA%\MixLab\TestRunner"
@@ -24,7 +18,6 @@ if not exist "%RUNNER_SOURCE%" (
   echo Missing runner executable:
   echo %RUNNER_SOURCE%
   pause
-  popd >nul
   exit /b 1
 )
 
@@ -33,7 +26,6 @@ if errorlevel 1 (
   echo Failed to create local runner folder:
   echo %LOCAL_RUNNER_DIR%
   pause
-  popd >nul
   exit /b 1
 )
 
@@ -41,7 +33,6 @@ copy /Y "%RUNNER_SOURCE%" "%LOCAL_RUNNER%" >nul
 if errorlevel 1 (
   echo Failed to copy runner to local cache.
   pause
-  popd >nul
   exit /b 1
 )
 
@@ -64,7 +55,6 @@ echo The runner will now start in this window. Keep this window open while Codex
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT='%SHARE_ROOT%'; $env:MIXLAB_WINDOWS_BUILDS_ROOT='%SHARE_ROOT%'; $env:MIXLAB_WINDOWS_TEST_RUNNER_HOST='0.0.0.0'; $env:MIXLAB_WINDOWS_TEST_RUNNER_PORT='3799'; & '%LOCAL_RUNNER%' 2>&1 | Tee-Object -FilePath '%BOOT_LOG%' -Append; exit $LASTEXITCODE"
 
-popd >nul
 echo.
 echo Runner exited with code %ERRORLEVEL%.
 pause

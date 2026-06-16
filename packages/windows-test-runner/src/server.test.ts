@@ -64,8 +64,11 @@ function createMockCutterApi(): Server {
     }
     if (url.pathname === "/cutter/source-library") {
       response.end(JSON.stringify({
-        total: 1,
-        items: [{ source_video_id: "C0001", title: "测试素材" }]
+        schema_version: "1.0",
+        data: {
+          available_video_count: 1,
+          videos: [{ source_video_id: "C0001", title: "测试素材" }]
+        }
       }));
       return;
     }

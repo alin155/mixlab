@@ -27,12 +27,15 @@ function hasNonEmptySourceLibrary(body: unknown): boolean {
   if (!body || typeof body !== "object") {
     return false;
   }
-  const value = body as Record<string, unknown>;
+  const root = body as Record<string, unknown>;
+  const value = root.data && typeof root.data === "object"
+    ? root.data as Record<string, unknown>
+    : root;
   const items = value.items ?? value.videos ?? value.source_videos;
   if (Array.isArray(items)) {
     return items.length > 0;
   }
-  const total = value.total ?? value.total_count ?? value.count;
+  const total = value.total ?? value.total_count ?? value.count ?? value.available_video_count;
   return typeof total === "number" && total > 0;
 }
 

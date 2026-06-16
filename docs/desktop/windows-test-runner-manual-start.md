@@ -62,6 +62,12 @@ start-windows-test-runner.cmd
 logs\runner\bootstrap.log
 ```
 
+## 关于多出来的共享盘符
+
+旧版启动脚本曾用 `pushd` 进入 UNC 共享目录。Windows 会把 UNC 路径临时映射成盘符；如果脚本被中断或 Runner 自替换失败，可能留下多个指向同一个共享目录的盘符。
+
+新版脚本直接使用 `%~dp0` 绝对路径复制 Runner，不再用 `pushd`，后续启动不应再新增这类盘符。已有残留盘符不要在 Runner 正在运行时急着删除，避免影响当前报告写入；完成测试后再只清理指向 `MixLabWindowsBuilds` 的多余映射。
+
 ## 为什么不是旧 agent/watchdog
 
 旧方案是 Mac 写共享 JSON，Windows PowerShell 轮询文件，再由 watchdog 猜测脚本是否卡住。这个链路本身不稳定，已经影响真正的应用测试。
