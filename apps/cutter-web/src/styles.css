@@ -11868,23 +11868,14 @@ body,
   overscroll-behavior: contain;
 }
 
-.cutter-app * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.32) transparent;
+.cutter-app[data-cutter-web-ready] * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.cutter-app *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.cutter-app *::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(100, 116, 139, 0.32);
-}
-
-.cutter-app *::-webkit-scrollbar-track {
-  background: transparent;
+.cutter-app[data-cutter-web-ready] *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .cutter-app[data-cutter-web-ready][data-cutter-route="project-home"] .cutter-content {
