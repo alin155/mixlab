@@ -1,0 +1,624 @@
+import { runLaunchAppProbe } from "./launch-app-probe.ts";
+import type {
+  ApiProbeResult,
+  AppRuntimeSmokeReport,
+  CacheSmokeReport,
+  CutJobsSmokeSummary,
+  FailureCategory,
+  RealDataSmokeReport,
+  RuntimeCacheBucketSummary,
+  RuntimeStatusSmokeSummary,
+  SearchSmokeSummary,
+  SourceLibrarySmokeSummary,
+  SourceVideoDetailSmokeSummary,
+  WindowsAcceptanceReport
+} from "../types.ts";
+
+interface SmokeResult<TReport> {
+  report: TReport;
+  passed: boolean;
+  failure_category?: FailureCategory;
+  failure_message?: string;
+}
+
+interface JsonRequestResult {
+  check: ApiProbeResult;
+  body: unknown;
+}
+
+const DEFAULT_QUERIES = ["第一场", "现金流", "中国", "2026"];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function dataRecord(body: unknown): Record<string, unknown> {
+  if (!isRecord(body)) {
+    return {};
+  }
+  return isRecord(body.data) ? body.data : body;
+}
+
+function getString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function getNumber(record: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function getBoolean(record: Record<string, unknown>, keys: string[]): boolean | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function getArray(record: Record<string, unknown>, keys: string[]): unknown[] {
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+  return [];
+}
+
+function readStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+  const strings = value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim());
+  return strings.length > 0 ? strings : fallback;
+}
+
+function readPositiveNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function buildUrl(baseUrl: string, pathName: string): string {
+  return new URL(pathName, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString();
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text.slice(0, 1000);
+  }
+}
+
+async function requestJson(input: {
+  id: string;
+  path: string;
+  baseUrl: string;
+  timeoutMs: number;
+  includeBody?: boolean;
+}): Promise<JsonRequestResult> {
+  const url = buildUrl(input.baseUrl, input.path);
+  const started = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    const body = await readResponseBody(response);
+    const check: ApiProbeResult = {
+      id: input.id,
+      path: input.path,
+      url,
+      ok: response.ok,
+      status_code: response.status,
+      elapsed_ms: Date.now() - started
+    };
+    if (input.includeBody !== false) {
+      check.body = body;
+    }
+    return { check, body };
+  } catch (error) {
+    return {
+      check: {
+        id: input.id,
+        path: input.path,
+        url,
+        ok: false,
+        status_code: null,
+        elapsed_ms: Date.now() - started,
+        error: error instanceof Error ? error.message : String(error)
+      },
+      body: null
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sourceLibrarySummary(body: unknown, elapsedMs: number): SourceLibrarySmokeSummary {
+  const data = dataRecord(body);
+  const videos = getArray(data, ["videos", "items", "source_videos"]);
+  const firstVideo = isRecord(videos[0]) ? videos[0] : {};
+  const availableVideoCount = getNumber(data, [
+    "available_video_count",
+    "total",
+    "total_count",
+    "count"
+  ]) ?? videos.length;
+
+  return {
+    library_id: getString(data, ["library_id"]),
+    available_video_count: availableVideoCount,
+    returned_count: videos.length,
+    first_source_video_id: getString(firstVideo, ["source_video_id", "id"]),
+    first_title: getString(firstVideo, ["title", "name"]),
+    elapsed_ms: elapsedMs
+  };
+}
+
+function cacheBucketSummary(record: Record<string, unknown> | undefined, sizeKeys: string[]): RuntimeCacheBucketSummary | undefined {
+  if (!record) {
+    return undefined;
+  }
+  return {
+    cache_root_path: getString(record, ["cache_root_path", "root_path", "path"]),
+    size_bytes: getNumber(record, sizeKeys),
+    file_count: getNumber(record, ["file_count", "entry_count", "cached_release_count"]),
+    cached_video_count: getNumber(record, ["cached_video_count"]),
+    max_bytes: getNumber(record, ["max_bytes", "cache_max_bytes"]),
+    last_error: getString(record, ["last_error", "error"])
+  };
+}
+
+function runtimeStatusSummary(body: unknown, elapsedMs: number): RuntimeStatusSmokeSummary {
+  const data = dataRecord(body);
+  const releaseCache = isRecord(data.release_cache) ? data.release_cache : undefined;
+  const localCache = isRecord(data.local_cache) ? data.local_cache : undefined;
+  const sourceVideoCache = localCache && isRecord(localCache.source_video_cache)
+    ? localCache.source_video_cache
+    : undefined;
+  const cutTempCache = localCache && isRecord(localCache.cut_temp_cache)
+    ? localCache.cut_temp_cache
+    : undefined;
+
+  const thumbnailCacheRecord = localCache
+    ? {
+        cache_root_path: localCache.thumbnail_cache_root_path,
+        size_bytes: localCache.thumbnail_cache_size_bytes,
+        max_bytes: localCache.thumbnail_cache_max_bytes,
+        file_count: localCache.thumbnail_cache_manifest_entry_count
+      }
+    : undefined;
+
+  return {
+    mode: getString(data, ["mode"]),
+    mode_label: getString(data, ["mode_label"]),
+    api_ready: getBoolean(data, ["api_ready"]),
+    auth_mode: getString(data, ["auth_mode"]),
+    library_id: getString(data, ["library_id"]),
+    library_root_label: getString(data, ["library_root_label"]),
+    library_root_path: getString(data, ["library_root_path"]),
+    available_video_count: getNumber(data, ["available_video_count"]),
+    workspace_enabled: getBoolean(data, ["workspace_enabled"]),
+    workspace_root_label: getString(data, ["workspace_root_label"]),
+    workspace_root_path: getString(data, ["workspace_root_path"]),
+    ffmpeg_status: getString(data, ["ffmpeg_status"]),
+    ffmpeg_source: getString(data, ["ffmpeg_source"]),
+    release_cache: cacheBucketSummary(releaseCache, ["size_bytes", "cache_size_bytes"]),
+    thumbnail_cache: cacheBucketSummary(thumbnailCacheRecord, ["size_bytes", "thumbnail_cache_size_bytes"]),
+    source_video_cache: cacheBucketSummary(sourceVideoCache, ["size_bytes", "cache_size_bytes"]),
+    cut_temp_cache: cacheBucketSummary(cutTempCache, ["size_bytes", "cache_size_bytes"]),
+    source_video_preflight: data.source_video_preflight,
+    elapsed_ms: elapsedMs
+  };
+}
+
+function searchSummary(query: string, body: unknown, elapsedMs: number): SearchSmokeSummary {
+  const data = dataRecord(body);
+  const groups = getArray(data, ["groups"]);
+  const firstGroup = isRecord(groups[0]) ? groups[0] : {};
+  let totalHitCount = 0;
+  for (const group of groups) {
+    if (isRecord(group)) {
+      totalHitCount += getNumber(group, ["hit_count"]) ?? 0;
+    }
+  }
+
+  return {
+    query,
+    elapsed_ms: elapsedMs,
+    returned_group_count: groups.length,
+    total_hit_count: totalHitCount,
+    search_ms: getNumber(data, ["search_ms"]),
+    search_mode: getString(data, ["search_mode"]),
+    first_source_video_id: getString(firstGroup, ["source_video_id", "id"]),
+    first_title: getString(firstGroup, ["title", "name"]),
+    first_detail_url: getString(firstGroup, ["detail_url"])
+  };
+}
+
+function sourceVideoDetailSummary(sourceVideoId: string, body: unknown, elapsedMs: number): SourceVideoDetailSmokeSummary {
+  const data = dataRecord(body);
+  const transcript = isRecord(data.transcript) ? data.transcript : {};
+  const segments = getArray(transcript, ["segments"]);
+  const fullText = getString(transcript, ["full_text"]) ?? "";
+  let segmentTextLength = 0;
+  for (const segment of segments) {
+    if (isRecord(segment)) {
+      segmentTextLength += (getString(segment, ["text"]) ?? "").length;
+    }
+  }
+
+  return {
+    source_video_id: getString(data, ["source_video_id", "id"]) ?? sourceVideoId,
+    title: getString(data, ["title", "name"]),
+    elapsed_ms: elapsedMs,
+    transcript_character_count: fullText.length > 0 ? fullText.length : segmentTextLength,
+    transcript_segment_count: segments.length
+  };
+}
+
+function cutJobsSummary(body: unknown, elapsedMs: number): CutJobsSmokeSummary {
+  const data = dataRecord(body);
+  const jobs = getArray(data, ["jobs", "items"]);
+  let pendingCount = 0;
+  let runningCount = 0;
+  let doneCount = 0;
+  let failedCount = 0;
+  let cancelledCount = 0;
+  for (const job of jobs) {
+    if (!isRecord(job)) {
+      continue;
+    }
+    const status = getString(job, ["status"]);
+    if (status === "pending") {
+      pendingCount += 1;
+    } else if (status === "running") {
+      runningCount += 1;
+    } else if (status === "done") {
+      doneCount += 1;
+    } else if (status === "failed") {
+      failedCount += 1;
+    } else if (status === "cancelled") {
+      cancelledCount += 1;
+    }
+  }
+
+  return {
+    elapsed_ms: elapsedMs,
+    job_count: getNumber(data, ["job_count", "total", "total_count", "count"]) ?? jobs.length,
+    pending_count: pendingCount,
+    running_count: runningCount,
+    done_count: doneCount,
+    failed_count: failedCount,
+    cancelled_count: cancelledCount
+  };
+}
+
+function observedCacheBuckets(runtime: RuntimeStatusSmokeSummary | undefined): RuntimeCacheBucketSummary[] {
+  if (!runtime) {
+    return [];
+  }
+  return [
+    runtime.release_cache,
+    runtime.thumbnail_cache,
+    runtime.source_video_cache,
+    runtime.cut_temp_cache
+  ].filter((bucket): bucket is RuntimeCacheBucketSummary => Boolean(bucket));
+}
+
+export async function runAppRuntimeSmoke(input: {
+  apiBaseUrl: string;
+  options?: Record<string, unknown>;
+  onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
+}): Promise<SmokeResult<AppRuntimeSmokeReport>> {
+  const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
+  const maxLibraryElapsedMs = readPositiveNumber(input.options?.public_library_max_elapsed_ms, 1000);
+  const launch = await runLaunchAppProbe({
+    apiBaseUrl: input.apiBaseUrl,
+    options: input.options,
+    onEvent: input.onEvent
+  });
+  const checks: ApiProbeResult[] = [];
+  const report: AppRuntimeSmokeReport = {
+    api_base_url: input.apiBaseUrl,
+    launch_app_probe: launch.report,
+    checks,
+    public_library_max_elapsed_ms: maxLibraryElapsedMs
+  };
+
+  if (!launch.passed) {
+    return {
+      report,
+      passed: false,
+      failure_category: launch.failure_category,
+      failure_message: launch.failure_message
+    };
+  }
+
+  await input.onEvent?.("app_runtime_auth", "Checking desktop auth mode.");
+  const auth = await requestJson({
+    id: "auth_mode",
+    path: "/cutter/auth/mode",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(auth.check);
+  const authData = dataRecord(auth.body);
+  const authMode = getString(authData, ["auth_mode", "mode"]);
+  const localTrusted = getBoolean(authData, ["local_trusted"]) === true || authMode === "local_trusted";
+  report.auth_mode = authMode;
+  report.local_trusted = localTrusted;
+  if (!auth.check.ok || !localTrusted) {
+    return {
+      report,
+      passed: false,
+      failure_category: "api_auth_failure",
+      failure_message: auth.check.error ?? `Auth mode is ${authMode ?? "unknown"}, expected local_trusted.`
+    };
+  }
+
+  await input.onEvent?.("app_runtime_status", "Reading cutter runtime status.");
+  const runtime = await requestJson({
+    id: "runtime_status",
+    path: "/cutter/runtime-status",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(runtime.check);
+  report.runtime_status = runtimeStatusSummary(runtime.body, runtime.check.elapsed_ms);
+  if (!runtime.check.ok) {
+    return {
+      report,
+      passed: false,
+      failure_category: "real_data_unavailable",
+      failure_message: runtime.check.error ?? `Runtime status failed with status ${runtime.check.status_code ?? "n/a"}.`
+    };
+  }
+
+  await input.onEvent?.("app_runtime_source_library", "Reading public source library first page.");
+  const library = await requestJson({
+    id: "source_library_first_page",
+    path: "/cutter/source-library?limit=20",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(library.check);
+  report.source_library = sourceLibrarySummary(library.body, library.check.elapsed_ms);
+  if (!library.check.ok || report.source_library.available_video_count <= 0 || report.source_library.returned_count <= 0) {
+    return {
+      report,
+      passed: false,
+      failure_category: "real_data_unavailable",
+      failure_message: library.check.error ?? "Source library did not return visible real data."
+    };
+  }
+  if (library.check.elapsed_ms > maxLibraryElapsedMs) {
+    return {
+      report,
+      passed: false,
+      failure_category: "public_library_slow",
+      failure_message: `Source library first page took ${library.check.elapsed_ms}ms, over ${maxLibraryElapsedMs}ms.`
+    };
+  }
+
+  return { report, passed: true };
+}
+
+export async function runRealDataSmoke(input: {
+  apiBaseUrl: string;
+  options?: Record<string, unknown>;
+  onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
+}): Promise<SmokeResult<RealDataSmokeReport>> {
+  const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
+  const limit = readPositiveNumber(input.options?.search_limit, 10);
+  const queries = readStringArray(input.options?.queries, DEFAULT_QUERIES);
+  const checks: ApiProbeResult[] = [];
+  const report: RealDataSmokeReport = {
+    api_base_url: input.apiBaseUrl,
+    queries,
+    checks,
+    searches: []
+  };
+
+  await input.onEvent?.("real_data_source_library", "Reading public source library.");
+  const library = await requestJson({
+    id: "source_library_first_page",
+    path: "/cutter/source-library?limit=20",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(library.check);
+  report.source_library = sourceLibrarySummary(library.body, library.check.elapsed_ms);
+  if (!library.check.ok || report.source_library.available_video_count <= 0 || report.source_library.returned_count <= 0) {
+    return {
+      report,
+      passed: false,
+      failure_category: "real_data_unavailable",
+      failure_message: library.check.error ?? "Source library did not return visible real data."
+    };
+  }
+
+  for (const query of queries) {
+    await input.onEvent?.("real_data_search", `Searching public source library: ${query}`);
+    const search = await requestJson({
+      id: `search_${query}`,
+      path: `/cutter/source-search?query=${encodeURIComponent(query)}&limit=${limit}`,
+      baseUrl: input.apiBaseUrl,
+      timeoutMs
+    });
+    checks.push(search.check);
+    const summary = searchSummary(query, search.body, search.check.elapsed_ms);
+    report.searches.push(summary);
+    if (search.check.ok && summary.returned_group_count > 0 && summary.first_source_video_id) {
+      report.selected_search = summary;
+      break;
+    }
+  }
+
+  if (!report.selected_search?.first_source_video_id) {
+    return {
+      report,
+      passed: false,
+      failure_category: "search_failure",
+      failure_message: `No search result returned for queries: ${queries.join(", ")}.`
+    };
+  }
+
+  const selectedSourceVideoId = report.selected_search.first_source_video_id;
+  const detailPath = report.selected_search.first_detail_url ?? `/cutter/source-videos/${encodeURIComponent(selectedSourceVideoId)}`;
+  await input.onEvent?.("real_data_detail", "Reading selected source video full transcript.", {
+    source_video_id: selectedSourceVideoId
+  });
+  const detail = await requestJson({
+    id: "source_video_detail",
+    path: detailPath,
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    includeBody: false
+  });
+  checks.push(detail.check);
+  report.selected_detail = sourceVideoDetailSummary(selectedSourceVideoId, detail.body, detail.check.elapsed_ms);
+  if (!detail.check.ok || report.selected_detail.transcript_character_count <= 0 || report.selected_detail.transcript_segment_count <= 0) {
+    return {
+      report,
+      passed: false,
+      failure_category: "transcript_failure",
+      failure_message: detail.check.error ?? "Selected source video detail did not expose a full transcript."
+    };
+  }
+
+  await input.onEvent?.("real_data_cut_jobs", "Reading cut job queue.");
+  const cutJobs = await requestJson({
+    id: "cut_jobs",
+    path: "/cutter/cut-jobs",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(cutJobs.check);
+  report.cut_jobs = cutJobsSummary(cutJobs.body, cutJobs.check.elapsed_ms);
+  if (!cutJobs.check.ok) {
+    return {
+      report,
+      passed: false,
+      failure_category: "real_data_unavailable",
+      failure_message: cutJobs.check.error ?? `Cut jobs request failed with status ${cutJobs.check.status_code ?? "n/a"}.`
+    };
+  }
+
+  return { report, passed: true };
+}
+
+export async function runCacheSmoke(input: {
+  apiBaseUrl: string;
+  options?: Record<string, unknown>;
+  onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
+}): Promise<SmokeResult<CacheSmokeReport>> {
+  const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
+  const checks: ApiProbeResult[] = [];
+  const report: CacheSmokeReport = {
+    api_base_url: input.apiBaseUrl,
+    checks,
+    total_observed_cache_size_bytes: 0,
+    observed_cache_bucket_count: 0
+  };
+
+  await input.onEvent?.("cache_runtime_status", "Reading cache status from cutter runtime.");
+  const runtime = await requestJson({
+    id: "runtime_status",
+    path: "/cutter/runtime-status",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(runtime.check);
+  report.runtime_status = runtimeStatusSummary(runtime.body, runtime.check.elapsed_ms);
+  const buckets = observedCacheBuckets(report.runtime_status);
+  report.observed_cache_bucket_count = buckets.length;
+  let totalSize = 0;
+  for (const bucket of buckets) {
+    totalSize += bucket.size_bytes ?? 0;
+  }
+  report.total_observed_cache_size_bytes = totalSize;
+
+  if (!runtime.check.ok) {
+    return {
+      report,
+      passed: false,
+      failure_category: "real_data_unavailable",
+      failure_message: runtime.check.error ?? `Runtime status failed with status ${runtime.check.status_code ?? "n/a"}.`
+    };
+  }
+  if (report.observed_cache_bucket_count === 0) {
+    return {
+      report,
+      passed: false,
+      failure_category: "cache_not_growing",
+      failure_message: "Runtime status did not expose release/local cache buckets."
+    };
+  }
+
+  return { report, passed: true };
+}
+
+export async function runWindowsAcceptance(input: {
+  apiBaseUrl: string;
+  options?: Record<string, unknown>;
+  onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
+}): Promise<SmokeResult<WindowsAcceptanceReport>> {
+  const report: WindowsAcceptanceReport = {
+    api_base_url: input.apiBaseUrl
+  };
+
+  const appRuntime = await runAppRuntimeSmoke(input);
+  report.app_runtime_smoke = appRuntime.report;
+  if (!appRuntime.passed) {
+    return {
+      report,
+      passed: false,
+      failure_category: appRuntime.failure_category,
+      failure_message: appRuntime.failure_message
+    };
+  }
+
+  const realData = await runRealDataSmoke(input);
+  report.real_data_smoke = realData.report;
+  if (!realData.passed) {
+    return {
+      report,
+      passed: false,
+      failure_category: realData.failure_category,
+      failure_message: realData.failure_message
+    };
+  }
+
+  const cache = await runCacheSmoke(input);
+  report.cache_smoke = cache.report;
+  if (!cache.passed) {
+    return {
+      report,
+      passed: false,
+      failure_category: cache.failure_category,
+      failure_message: cache.failure_message
+    };
+  }
+
+  return { report, passed: true };
+}

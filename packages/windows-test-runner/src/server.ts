@@ -3,6 +3,16 @@ import { readRunReport, serializeRunReport } from "./report.ts";
 import { RunStore } from "./run-store.ts";
 import type { RunnerConfig, RunRequest } from "./types.ts";
 
+const SUPPORTED_SUITES = [
+  "probe_api",
+  "launch_app_probe",
+  "launch_runner",
+  "app_runtime_smoke",
+  "real_data_smoke",
+  "cache_smoke",
+  "windows_acceptance"
+] as const;
+
 function writeJson(response: ServerResponse, statusCode: number, value: unknown): void {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
@@ -27,9 +37,7 @@ function isRunRequest(value: unknown): value is RunRequest {
     return false;
   }
   const candidate = value as Record<string, unknown>;
-  return candidate.suite === "probe_api"
-    || candidate.suite === "launch_app_probe"
-    || candidate.suite === "launch_runner";
+  return SUPPORTED_SUITES.some((suite) => candidate.suite === suite);
 }
 
 export function createWindowsTestRunnerServer(config: RunnerConfig): {
@@ -68,7 +76,7 @@ export function createWindowsTestRunnerServer(config: RunnerConfig): {
         if (!isRunRequest(body)) {
           writeJson(response, 400, {
             ok: false,
-            error: "Unsupported or invalid run request. Supported suites: probe_api, launch_app_probe, launch_runner."
+            error: `Unsupported or invalid run request. Supported suites: ${SUPPORTED_SUITES.join(", ")}.`
           });
           return;
         }

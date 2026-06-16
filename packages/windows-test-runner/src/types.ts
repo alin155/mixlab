@@ -1,4 +1,11 @@
-export type RunnerSuite = "probe_api" | "launch_app_probe" | "launch_runner";
+export type RunnerSuite =
+  | "probe_api"
+  | "launch_app_probe"
+  | "launch_runner"
+  | "app_runtime_smoke"
+  | "real_data_smoke"
+  | "cache_smoke"
+  | "windows_acceptance";
 
 export type RunnerStatus =
   | "queued"
@@ -16,6 +23,10 @@ export type FailureCategory =
   | "api_health_timeout"
   | "api_auth_failure"
   | "real_data_unavailable"
+  | "public_library_slow"
+  | "search_failure"
+  | "transcript_failure"
+  | "cache_not_growing"
   | "runner_launch_failure"
   | "runner_ready_timeout"
   | "unknown";
@@ -116,6 +127,113 @@ export interface LaunchRunnerReport {
   ready_error?: string;
 }
 
+export interface SourceLibrarySmokeSummary {
+  library_id?: string;
+  available_video_count: number;
+  returned_count: number;
+  first_source_video_id?: string;
+  first_title?: string;
+  elapsed_ms: number;
+}
+
+export interface RuntimeCacheBucketSummary {
+  cache_root_path?: string;
+  size_bytes?: number;
+  file_count?: number;
+  cached_video_count?: number;
+  max_bytes?: number;
+  last_error?: string;
+}
+
+export interface RuntimeStatusSmokeSummary {
+  mode?: string;
+  mode_label?: string;
+  api_ready?: boolean;
+  auth_mode?: string;
+  library_id?: string;
+  library_root_label?: string;
+  library_root_path?: string;
+  available_video_count?: number;
+  workspace_enabled?: boolean;
+  workspace_root_label?: string;
+  workspace_root_path?: string;
+  ffmpeg_status?: string;
+  ffmpeg_source?: string;
+  release_cache?: RuntimeCacheBucketSummary;
+  thumbnail_cache?: RuntimeCacheBucketSummary;
+  source_video_cache?: RuntimeCacheBucketSummary;
+  cut_temp_cache?: RuntimeCacheBucketSummary;
+  source_video_preflight?: unknown;
+  elapsed_ms: number;
+}
+
+export interface AppRuntimeSmokeReport {
+  api_base_url: string;
+  launch_app_probe: LaunchAppProbeReport;
+  checks: ApiProbeResult[];
+  auth_mode?: string;
+  local_trusted?: boolean;
+  runtime_status?: RuntimeStatusSmokeSummary;
+  source_library?: SourceLibrarySmokeSummary;
+  public_library_max_elapsed_ms: number;
+}
+
+export interface SearchSmokeSummary {
+  query: string;
+  elapsed_ms: number;
+  returned_group_count: number;
+  total_hit_count: number;
+  search_ms?: number;
+  search_mode?: string;
+  first_source_video_id?: string;
+  first_title?: string;
+  first_detail_url?: string;
+}
+
+export interface SourceVideoDetailSmokeSummary {
+  source_video_id: string;
+  title?: string;
+  elapsed_ms: number;
+  transcript_character_count: number;
+  transcript_segment_count: number;
+}
+
+export interface CutJobsSmokeSummary {
+  elapsed_ms: number;
+  job_count: number;
+  pending_count: number;
+  running_count: number;
+  done_count: number;
+  failed_count: number;
+  cancelled_count: number;
+}
+
+export interface RealDataSmokeReport {
+  api_base_url: string;
+  queries: string[];
+  checks: ApiProbeResult[];
+  source_library?: SourceLibrarySmokeSummary;
+  searches: SearchSmokeSummary[];
+  selected_search?: SearchSmokeSummary;
+  selected_detail?: SourceVideoDetailSmokeSummary;
+  cut_jobs?: CutJobsSmokeSummary;
+}
+
+export interface CacheSmokeReport {
+  api_base_url: string;
+  checks: ApiProbeResult[];
+  runtime_status?: RuntimeStatusSmokeSummary;
+  total_observed_cache_size_bytes: number;
+  observed_cache_bucket_count: number;
+}
+
+export interface WindowsAcceptanceReport {
+  api_base_url: string;
+  app_runtime_smoke?: AppRuntimeSmokeReport;
+  real_data_smoke?: RealDataSmokeReport;
+  cache_smoke?: CacheSmokeReport;
+}
+
 export interface RunReport {
   schema_version: "1.0";
   run_id: string;
@@ -134,6 +252,10 @@ export interface RunReport {
   probe_api?: ProbeApiReport;
   launch_app_probe?: LaunchAppProbeReport;
   launch_runner?: LaunchRunnerReport;
+  app_runtime_smoke?: AppRuntimeSmokeReport;
+  real_data_smoke?: RealDataSmokeReport;
+  cache_smoke?: CacheSmokeReport;
+  windows_acceptance?: WindowsAcceptanceReport;
 }
 
 export interface RunRecord extends RunReport {

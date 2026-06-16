@@ -11,6 +11,12 @@ import {
 import { runLaunchAppProbe } from "./actions/launch-app-probe.ts";
 import { runLaunchRunner } from "./actions/launch-runner.ts";
 import { runProbeApi } from "./actions/probe-api.ts";
+import {
+  runAppRuntimeSmoke,
+  runCacheSmoke,
+  runRealDataSmoke,
+  runWindowsAcceptance
+} from "./actions/windows-app-acceptance.ts";
 import type {
   RunRecord,
   RunnerConfig,
@@ -173,6 +179,61 @@ export class RunStore {
           record.failure_category = result.failure_category;
           record.failure_message = result.failure_message;
           throw new Error(result.failure_message ?? "launch_runner failed");
+        }
+      } else if (record.suite === "app_runtime_smoke") {
+        const result = await runAppRuntimeSmoke({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.app_runtime_smoke = result.report;
+        record.launch_app_probe = result.report.launch_app_probe;
+        record.probe_api = result.report.launch_app_probe.probe_api;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "app_runtime_smoke failed");
+        }
+      } else if (record.suite === "real_data_smoke") {
+        const result = await runRealDataSmoke({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.real_data_smoke = result.report;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "real_data_smoke failed");
+        }
+      } else if (record.suite === "cache_smoke") {
+        const result = await runCacheSmoke({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.cache_smoke = result.report;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "cache_smoke failed");
+        }
+      } else if (record.suite === "windows_acceptance") {
+        const result = await runWindowsAcceptance({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.windows_acceptance = result.report;
+        record.app_runtime_smoke = result.report.app_runtime_smoke;
+        record.launch_app_probe = result.report.app_runtime_smoke?.launch_app_probe;
+        record.probe_api = result.report.app_runtime_smoke?.launch_app_probe.probe_api;
+        record.real_data_smoke = result.report.real_data_smoke;
+        record.cache_smoke = result.report.cache_smoke;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "windows_acceptance failed");
         }
       }
 

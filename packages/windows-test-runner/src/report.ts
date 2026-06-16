@@ -138,6 +138,60 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- Ready error: ${record.launch_runner.ready_error}`);
     }
   }
+  if (record.app_runtime_smoke) {
+    lines.push("", "## App Runtime Smoke", "");
+    lines.push(`- Auth mode: ${record.app_runtime_smoke.auth_mode ?? "n/a"}`);
+    lines.push(`- Local trusted: ${record.app_runtime_smoke.local_trusted ?? "n/a"}`);
+    if (record.app_runtime_smoke.runtime_status) {
+      const runtime = record.app_runtime_smoke.runtime_status;
+      lines.push(`- Runtime status: ${runtime.elapsed_ms}ms`);
+      lines.push(`- Available videos: ${runtime.available_video_count ?? "n/a"}`);
+      lines.push(`- Workspace enabled: ${runtime.workspace_enabled ?? "n/a"}`);
+      lines.push(`- FFmpeg: ${runtime.ffmpeg_status ?? "n/a"} (${runtime.ffmpeg_source ?? "n/a"})`);
+    }
+    if (record.app_runtime_smoke.source_library) {
+      const library = record.app_runtime_smoke.source_library;
+      lines.push(`- Source library: ${library.returned_count} / ${library.available_video_count}, ${library.elapsed_ms}ms`);
+      lines.push(`- First source: ${library.first_source_video_id ?? "n/a"} ${library.first_title ?? ""}`.trim());
+    }
+  }
+  if (record.real_data_smoke) {
+    lines.push("", "## Real Data Smoke", "");
+    if (record.real_data_smoke.source_library) {
+      const library = record.real_data_smoke.source_library;
+      lines.push(`- Source library: ${library.returned_count} / ${library.available_video_count}, ${library.elapsed_ms}ms`);
+    }
+    for (const search of record.real_data_smoke.searches) {
+      lines.push(`- Search "${search.query}": ${search.returned_group_count} groups, ${search.total_hit_count} hits, ${search.elapsed_ms}ms`);
+    }
+    if (record.real_data_smoke.selected_detail) {
+      const detail = record.real_data_smoke.selected_detail;
+      lines.push(`- Selected detail: ${detail.source_video_id}, transcript ${detail.transcript_character_count} chars / ${detail.transcript_segment_count} segments, ${detail.elapsed_ms}ms`);
+    }
+    if (record.real_data_smoke.cut_jobs) {
+      const jobs = record.real_data_smoke.cut_jobs;
+      lines.push(`- Cut jobs: total ${jobs.job_count}, pending ${jobs.pending_count}, running ${jobs.running_count}, done ${jobs.done_count}, failed ${jobs.failed_count}, ${jobs.elapsed_ms}ms`);
+    }
+  }
+  if (record.cache_smoke) {
+    lines.push("", "## Cache Smoke", "");
+    lines.push(`- Observed buckets: ${record.cache_smoke.observed_cache_bucket_count}`);
+    lines.push(`- Total observed cache size: ${record.cache_smoke.total_observed_cache_size_bytes} bytes`);
+    const runtime = record.cache_smoke.runtime_status;
+    if (runtime) {
+      lines.push(`- Release cache: ${runtime.release_cache?.size_bytes ?? "n/a"} bytes @ ${runtime.release_cache?.cache_root_path ?? "n/a"}`);
+      lines.push(`- Thumbnail cache: ${runtime.thumbnail_cache?.size_bytes ?? "n/a"} bytes @ ${runtime.thumbnail_cache?.cache_root_path ?? "n/a"}`);
+      lines.push(`- Source video cache: ${runtime.source_video_cache?.size_bytes ?? "n/a"} bytes @ ${runtime.source_video_cache?.cache_root_path ?? "n/a"}`);
+      lines.push(`- Cut temp cache: ${runtime.cut_temp_cache?.size_bytes ?? "n/a"} bytes @ ${runtime.cut_temp_cache?.cache_root_path ?? "n/a"}`);
+    }
+  }
+  if (record.windows_acceptance) {
+    lines.push("", "## Windows Acceptance", "");
+    lines.push(`- API base URL: ${record.windows_acceptance.api_base_url}`);
+    lines.push(`- App runtime: ${record.windows_acceptance.app_runtime_smoke ? "included" : "missing"}`);
+    lines.push(`- Real data: ${record.windows_acceptance.real_data_smoke ? "included" : "missing"}`);
+    lines.push(`- Cache: ${record.windows_acceptance.cache_smoke ? "included" : "missing"}`);
+  }
 
   return `${lines.join("\n")}\n`;
 }
@@ -160,7 +214,11 @@ export function serializeRunReport(record: RunRecord): RunReport {
     report_write_error: record.report_write_error,
     probe_api: record.probe_api,
     launch_app_probe: record.launch_app_probe,
-    launch_runner: record.launch_runner
+    launch_runner: record.launch_runner,
+    app_runtime_smoke: record.app_runtime_smoke,
+    real_data_smoke: record.real_data_smoke,
+    cache_smoke: record.cache_smoke,
+    windows_acceptance: record.windows_acceptance
   };
 }
 

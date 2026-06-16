@@ -67,15 +67,121 @@ function createMockCutterApi(): Server {
       return;
     }
     if (url.pathname === "/cutter/runtime-status") {
-      response.end(JSON.stringify({ ok: true, release_version: "v000001" }));
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          mode: "api",
+          mode_label: "真实 Cutter API 模式",
+          api_ready: true,
+          auth_mode: "local_trusted",
+          library_id: "lib-main",
+          library_root_label: "source-library",
+          available_video_count: 1,
+          workspace_enabled: true,
+          workspace_root_label: "workspace",
+          ffmpeg_status: "可用",
+          ffmpeg_source: "内置",
+          release_cache: {
+            cache_root_path: "C:\\MixLab\\release-cache",
+            cache_size_bytes: 2048,
+            cached_release_count: 1
+          },
+          local_cache: {
+            cache_root_path: "C:\\MixLab\\local-cache",
+            thumbnail_cache_root_path: "C:\\MixLab\\local-cache\\thumbnails",
+            thumbnail_cache_size_bytes: 1024,
+            thumbnail_cache_max_bytes: 1024 * 1024,
+            thumbnail_cache_manifest_entry_count: 1,
+            source_video_cache: {
+              cache_root_path: "C:\\MixLab\\local-cache\\source-videos",
+              size_bytes: 4096,
+              cached_video_count: 1
+            },
+            cut_temp_cache: {
+              cache_root_path: "C:\\MixLab\\local-cache\\cut-temp",
+              size_bytes: 512
+            }
+          },
+          source_video_preflight: {
+            status: "pass",
+            sample_source_video_id: "C0001"
+          }
+        }
+      }));
       return;
     }
     if (url.pathname === "/cutter/source-library") {
       response.end(JSON.stringify({
         schema_version: "1.0",
         data: {
+          library_id: "lib-main",
           available_video_count: 1,
-          videos: [{ source_video_id: "C0001", title: "测试素材" }]
+          videos: [{
+            source_video_id: "C0001",
+            title: "测试素材",
+            duration_ms: 60_000,
+            detail_url: "/cutter/source-videos/C0001"
+          }]
+        }
+      }));
+      return;
+    }
+    if (url.pathname === "/cutter/source-search") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          query: url.searchParams.get("query") ?? "",
+          normalized_query: url.searchParams.get("query") ?? "",
+          search_ms: 7,
+          search_mode: "searchd",
+          groups: [{
+            source_video_id: "C0001",
+            title: "测试素材",
+            hit_count: 2,
+            detail_url: "/cutter/source-videos/C0001",
+            hit_segments: [{
+              segment_id: "S0001",
+              begin_ms: 0,
+              end_ms: 3000,
+              text: "第一场公开课讲现金流。"
+            }]
+          }]
+        }
+      }));
+      return;
+    }
+    if (url.pathname === "/cutter/source-videos/C0001") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          source_video_id: "C0001",
+          title: "测试素材",
+          duration_ms: 60_000,
+          transcript: {
+            full_text: "第一场公开课讲现金流。",
+            segments: [{
+              segment_id: "S0001",
+              begin_ms: 0,
+              end_ms: 3000,
+              text: "第一场公开课讲现金流。"
+            }]
+          },
+          keyframes: {
+            keyframes_ms: []
+          }
+        }
+      }));
+      return;
+    }
+    if (url.pathname === "/cutter/cut-jobs") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          job_count: 2,
+          jobs: [
+            { cut_job_id: "CJ0001", status: "done" },
+            { cut_job_id: "CJ0002", status: "failed" }
+          ]
         }
       }));
       return;
@@ -258,6 +364,88 @@ test("runner exposes health, version, status, and a passing probe_api run", asyn
     await stat(path.join(root, "reports", created.run.run_id, "summary.md"));
     const timelineText = await readFile(path.join(root, "reports", created.run.run_id, "timeline.ndjson"), "utf8");
     assert.match(timelineText, /"stage":"starting"/);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
+test("runner supports planned non-destructive Windows app acceptance suites", async () => {
+  const root = await tempRoot();
+  const api = createMockCutterApi();
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    for (const suite of ["app_runtime_smoke", "real_data_smoke", "cache_smoke", "windows_acceptance"]) {
+      const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ suite })
+      });
+      assert.equal(createResponse.status, 202);
+      const created = await createResponse.json() as { run: RunSummary };
+      const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+      assert.equal(finished.status, "passed");
+
+      const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as Record<string, unknown>;
+      assert.equal(report.status, "passed");
+      assert.ok(report[suite]);
+    }
+
+    const acceptanceResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ suite: "windows_acceptance" })
+    });
+    assert.equal(acceptanceResponse.status, 202);
+    const created = await acceptanceResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      windows_acceptance: {
+        app_runtime_smoke: {
+          local_trusted: boolean;
+          source_library: { available_video_count: number; returned_count: number };
+        };
+        real_data_smoke: {
+          selected_detail: {
+            transcript_character_count: number;
+            transcript_segment_count: number;
+          };
+          cut_jobs: {
+            job_count: number;
+            done_count: number;
+            failed_count: number;
+          };
+        };
+        cache_smoke: {
+          observed_cache_bucket_count: number;
+          total_observed_cache_size_bytes: number;
+        };
+      };
+    };
+    assert.equal(report.windows_acceptance.app_runtime_smoke.local_trusted, true);
+    assert.equal(report.windows_acceptance.app_runtime_smoke.source_library.available_video_count, 1);
+    assert.equal(report.windows_acceptance.app_runtime_smoke.source_library.returned_count, 1);
+    assert.equal(report.windows_acceptance.real_data_smoke.selected_detail.transcript_character_count, "第一场公开课讲现金流。".length);
+    assert.equal(report.windows_acceptance.real_data_smoke.selected_detail.transcript_segment_count, 1);
+    assert.equal(report.windows_acceptance.real_data_smoke.cut_jobs.job_count, 2);
+    assert.equal(report.windows_acceptance.real_data_smoke.cut_jobs.done_count, 1);
+    assert.equal(report.windows_acceptance.real_data_smoke.cut_jobs.failed_count, 1);
+    assert.equal(report.windows_acceptance.cache_smoke.observed_cache_bucket_count, 4);
+    assert.equal(report.windows_acceptance.cache_smoke.total_observed_cache_size_bytes, 7680);
   } finally {
     await close(api);
     if (runner) {
