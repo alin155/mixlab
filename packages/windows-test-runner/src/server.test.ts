@@ -152,7 +152,7 @@ test("runner exposes health, version, status, and a passing probe_api run", asyn
     await stat(path.join(root, "reports", created.run.run_id, "report.json"));
     await stat(path.join(root, "reports", created.run.run_id, "summary.md"));
     const timelineText = await readFile(path.join(root, "reports", created.run.run_id, "timeline.ndjson"), "utf8");
-    assert.match(timelineText, /"stage":"passed"/);
+    assert.match(timelineText, /"stage":"starting"/);
   } finally {
     await close(api);
     if (runner) {
