@@ -3458,14 +3458,17 @@ async function runtimeStatusForSession(input: {
   });
 
   const diskIoBytesPerSecond = timeSync("local_runtime", () => cachedLocalDiskIoBytesPerSecond());
+  const releaseCache = await timeAsync("release_cache", () => syncCutterReleaseCacheBestEffort(input.api_input));
   const statusIoTimeoutMs = Math.max(250, input.api_input.searchd_timeout_ms ?? 800);
-  const availableVideoCount = await timeAsync("available_video_count", () =>
-    delayedFallback(
-      readReadyVideoCount(input.api_input.library_root),
-      statusIoTimeoutMs,
-      0
-    )
-  );
+  const availableVideoCount = releaseCache.ready && releaseCache.ready_video_count > 0
+    ? timeSync("available_video_count", () => releaseCache.ready_video_count)
+    : await timeAsync("available_video_count", () =>
+        delayedFallback(
+          readReadyVideoCount(input.api_input.library_root),
+          statusIoTimeoutMs,
+          0
+        )
+      );
   const libraryId = await timeAsync("library_id", () =>
     delayedFallback(
       readLibraryId(input.api_input.library_root),
@@ -3473,9 +3476,8 @@ async function runtimeStatusForSession(input: {
       "lib_main_001"
     )
   );
-  const [searchBackend, releaseCache, localCache, sourceVideoPreflight] = await Promise.all([
+  const [searchBackend, localCache, sourceVideoPreflight] = await Promise.all([
     timeAsync("search_backend", () => readSearchBackendStatus(input.api_input, availableVideoCount)),
-    timeAsync("release_cache", () => syncCutterReleaseCacheBestEffort(input.api_input)),
     timeAsync("local_cache", () => readLocalCacheRuntimeStatusBestEffort(input.api_input)),
     timeAsync("source_video_preflight", () => readSourceVideoPreflightStatus(input.api_input))
   ]);
