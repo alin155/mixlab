@@ -1,4 +1,4 @@
-export type RunnerSuite = "probe_api" | "launch_app_probe";
+export type RunnerSuite = "probe_api" | "launch_app_probe" | "launch_runner";
 
 export type RunnerStatus =
   | "queued"
@@ -16,6 +16,8 @@ export type FailureCategory =
   | "api_health_timeout"
   | "api_auth_failure"
   | "real_data_unavailable"
+  | "runner_launch_failure"
+  | "runner_ready_timeout"
   | "unknown";
 
 export interface RunnerConfig {
@@ -94,6 +96,26 @@ export interface LaunchAppProbeReport {
   probe_api?: ProbeApiReport;
 }
 
+export interface LaunchRunnerReport {
+  requested_port: number;
+  host: string;
+  health_url: string;
+  version_url: string;
+  already_ready: boolean;
+  ready: boolean;
+  ready_elapsed_ms: number;
+  expected_runner_version?: string;
+  observed_runner_version?: string;
+  shared_manifest_path: string;
+  shared_manifest_version?: string;
+  source_runner_path: string;
+  local_runner_path: string;
+  copied_runner: boolean;
+  child_pid?: number;
+  launch_error?: string;
+  ready_error?: string;
+}
+
 export interface RunReport {
   schema_version: "1.0";
   run_id: string;
@@ -111,6 +133,7 @@ export interface RunReport {
   report_write_error?: string;
   probe_api?: ProbeApiReport;
   launch_app_probe?: LaunchAppProbeReport;
+  launch_runner?: LaunchRunnerReport;
 }
 
 export interface RunRecord extends RunReport {

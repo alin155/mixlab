@@ -7,6 +7,7 @@ export { RunStore } from "./run-store.ts";
 export type {
   ApiProbeResult,
   FailureCategory,
+  LaunchRunnerReport,
   ProbeApiReport,
   RunnerConfig,
   RunnerStatus,

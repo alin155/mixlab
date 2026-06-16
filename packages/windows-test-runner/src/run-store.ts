@@ -9,6 +9,7 @@ import {
   writeRunReport
 } from "./report.ts";
 import { runLaunchAppProbe } from "./actions/launch-app-probe.ts";
+import { runLaunchRunner } from "./actions/launch-runner.ts";
 import { runProbeApi } from "./actions/probe-api.ts";
 import type {
   RunRecord,
@@ -160,6 +161,18 @@ export class RunStore {
           record.failure_category = result.failure_category;
           record.failure_message = result.failure_message;
           throw new Error(result.failure_message ?? "launch_app_probe failed");
+        }
+      } else if (record.suite === "launch_runner") {
+        const result = await runLaunchRunner({
+          config: this.config,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.launch_runner = result.report;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "launch_runner failed");
         }
       }
 

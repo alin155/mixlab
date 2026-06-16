@@ -118,6 +118,26 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- ${candidate.exists ? "found" : "missing"}: ${candidate.path}`);
     }
   }
+  if (record.launch_runner) {
+    lines.push("", "## Launch Runner", "");
+    lines.push(`- Requested port: ${record.launch_runner.requested_port}`);
+    lines.push(`- Expected Runner: ${record.launch_runner.expected_runner_version ?? "n/a"}`);
+    lines.push(`- Observed Runner: ${record.launch_runner.observed_runner_version ?? "n/a"}`);
+    lines.push(`- Already ready: ${record.launch_runner.already_ready}`);
+    lines.push(`- Ready: ${record.launch_runner.ready}`);
+    lines.push(`- Ready elapsed: ${record.launch_runner.ready_elapsed_ms}ms`);
+    lines.push(`- Source Runner: ${record.launch_runner.source_runner_path}`);
+    lines.push(`- Local Runner: ${record.launch_runner.local_runner_path}`);
+    if (record.launch_runner.child_pid) {
+      lines.push(`- Child PID: ${record.launch_runner.child_pid}`);
+    }
+    if (record.launch_runner.launch_error) {
+      lines.push(`- Launch error: ${record.launch_runner.launch_error}`);
+    }
+    if (record.launch_runner.ready_error) {
+      lines.push(`- Ready error: ${record.launch_runner.ready_error}`);
+    }
+  }
 
   return `${lines.join("\n")}\n`;
 }
@@ -139,7 +159,8 @@ export function serializeRunReport(record: RunRecord): RunReport {
     summary_path: record.summary_path,
     report_write_error: record.report_write_error,
     probe_api: record.probe_api,
-    launch_app_probe: record.launch_app_probe
+    launch_app_probe: record.launch_app_probe,
+    launch_runner: record.launch_runner
   };
 }
 

@@ -59,7 +59,19 @@ start-windows-test-runner.cmd
 如果 `http://127.0.0.1:3799/health` 无法访问，查看共享目录里的启动日志：
 
 ```text
-logs\runner\bootstrap.log
+logs\runner\bootstrap-3799.log
+```
+
+如果需要临时启动到备用端口，可以在 CMD 中运行：
+
+```text
+start-windows-test-runner.cmd 3800
+```
+
+对应健康检查地址是：
+
+```text
+http://127.0.0.1:3800/health
 ```
 
 ## 关于多出来的共享盘符

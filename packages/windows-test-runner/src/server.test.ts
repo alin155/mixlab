@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { once } from "node:events";
+import { RUNNER_VERSION } from "./config.ts";
 import { createWindowsTestRunnerServer } from "./server.ts";
 import type { RunnerConfig, RunnerStatus, RunSummary } from "./types.ts";
 
@@ -26,6 +27,13 @@ async function close(server: Server): Promise<void> {
   }
   server.close();
   await once(server, "close");
+}
+
+async function freePort(): Promise<number> {
+  const server = createServer();
+  const baseUrl = await listen(server);
+  await close(server);
+  return Number(new URL(baseUrl).port);
 }
 
 function sleep(milliseconds: number): Promise<void> {
@@ -87,6 +95,100 @@ function runnerConfig(input: { reportsRoot: string; cutterApiBaseUrl: string }):
     runner_version: "test"
   };
 }
+
+test("runtime Runner version matches package version", async () => {
+  const packageJson = JSON.parse(await readFile(
+    path.join(process.cwd(), "package.json"),
+    "utf8"
+  )) as { version: string };
+
+  assert.equal(RUNNER_VERSION, packageJson.version);
+});
+
+test("launch_runner starts a backup Runner process on a requested port", async () => {
+  const root = await tempRoot();
+  const backupPort = await freePort();
+  const fakeRunnerScript = path.join(root, "fake-runner.mjs");
+  const reportsRoot = path.join(root, "reports");
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  let childPid: number | undefined;
+  try {
+    await writeFile(fakeRunnerScript, `
+      import { createServer } from "node:http";
+      const port = Number(process.env.MIXLAB_WINDOWS_TEST_RUNNER_PORT);
+      const server = createServer((request, response) => {
+        response.setHeader("content-type", "application/json; charset=utf-8");
+        if (request.url === "/version") {
+          response.end(JSON.stringify({ runner_version: "backup-test" }));
+          return;
+        }
+        if (request.url === "/health") {
+          response.end(JSON.stringify({ ok: true, runner_version: "backup-test" }));
+          return;
+        }
+        response.statusCode = 404;
+        response.end(JSON.stringify({ ok: false }));
+      });
+      server.listen(port, "127.0.0.1");
+    `, "utf8");
+
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot,
+      cutterApiBaseUrl: "http://127.0.0.1:9"
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "launch_runner",
+        options: {
+          port: backupPort,
+          runner_path: process.execPath,
+          runner_args: [fakeRunnerScript],
+          copy_runner: false,
+          version_expected: "backup-test",
+          timeout_ms: 5000
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      status: string;
+      launch_runner: {
+        requested_port: number;
+        observed_runner_version?: string;
+        ready: boolean;
+        copied_runner: boolean;
+        child_pid?: number;
+      };
+    };
+    assert.equal(report.status, "passed");
+    assert.equal(report.launch_runner.ready, true);
+    assert.equal(report.launch_runner.requested_port, backupPort);
+    assert.equal(report.launch_runner.observed_runner_version, "backup-test");
+    assert.equal(report.launch_runner.copied_runner, false);
+    childPid = report.launch_runner.child_pid;
+  } finally {
+    if (childPid) {
+      try {
+        process.kill(childPid);
+      } catch {
+        // The fake backup process may already have exited.
+      }
+    }
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
 
 async function waitForRun(baseUrl: string, runId: string): Promise<Record<string, unknown>> {
   const terminal = new Set<RunnerStatus>(["passed", "failed", "cancelled"]);

@@ -54,6 +54,23 @@ and:
 }
 ```
 
+and:
+
+```json
+{
+  "suite": "launch_runner",
+  "options": {
+    "port": 3800,
+    "version_expected": "0.1.7"
+  }
+}
+```
+
+`launch_runner` starts a second Runner from `<share_root>/runner/MixLabWindowsTestRunner.exe`
+on a backup port and verifies `http://127.0.0.1:<port>/version`. This is the
+foundation for safe future self-upgrades: bring up the new Runner on a side port,
+verify it, then move traffic back to the primary port.
+
 Reports are written to:
 
 ```text

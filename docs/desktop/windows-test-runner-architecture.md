@@ -15,6 +15,8 @@ MixLab 需要一个长期运行的 Windows Test Runner，而不是继续维护�
 - 共享文件夹只保存安装包、Runner 包、报告、截图、日志和其他证据。
 - Runner 内部用状态机执行安装、启动、API 检查、截图、缓存检查、搜索和剪切验证。
 - 前期由用户手动双击一次启动脚本；后续再做 Runner 自启动和自更新。
+- Runner 自更新不再依赖旧 agent/watchdog。先由当前 Runner 通过 `launch_runner`
+  在备用端口启动新版 Runner，验证通过后再切回主端口。
 
 ## 非目标
 
@@ -80,6 +82,20 @@ POST /runner/restart
   "suite": "probe_api"
 }
 ```
+
+```json
+{
+  "suite": "launch_runner",
+  "options": {
+    "port": 3800,
+    "version_expected": "0.1.7"
+  }
+}
+```
+
+`launch_runner` 的职责是从共享目录 `runner/MixLabWindowsTestRunner.exe`
+复制/启动一份 Runner 到备用端口，并验证 `/version`。它是 Runner 自升级的基础能力，
+不使用共享文件夹轮询命令。
 
 ## 共享文件夹职责
 

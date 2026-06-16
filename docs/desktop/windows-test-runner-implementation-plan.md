@@ -222,10 +222,19 @@ cache: passed/failed/not_changed
 
 减少 Windows 端人工操作，但不回到旧 agent/watchdog。
 
+### 当前进度
+
+- 已新增 `launch_runner` run suite：当前 Runner 可以启动共享目录里的新版 Runner
+  到备用端口，例如 `3800`，并验证新版 Runner 的 `/version`。
+- 已新增版本同步测试：`packages/windows-test-runner/package.json` 的版本必须和运行时
+  `/version` 暴露的版本一致。
+- 后续的完整自更新应基于 `launch_runner`，而不是通过 `launch_app_probe` 执行任意
+  PowerShell 命令。
+
 ### 工作项
 
 1. Runner 注册当前用户开机自启动。
-2. Runner 提供 `/runner/update`。
+2. Runner 提供备用端口启动新版 Runner 的 `launch_runner` run suite。
 3. 共享目录提供：
 
    ```text
@@ -233,8 +242,9 @@ cache: passed/failed/not_changed
    runner/MixLabWindowsTestRunner.exe
    ```
 
-4. Runner 自己完成更新下载、替换和重启。
-5. 更新失败回滚到上一版。
+4. Runner 提供 `/runner/update` 或等价 run suite，完成主端口切换。
+5. Runner 自己完成更新下载、替换和重启。
+6. 更新失败回滚到上一版。
 
 ### 验收
 

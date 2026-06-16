@@ -65,6 +65,8 @@ test("Windows Test Runner launcher does not map UNC shares with pushd", async ()
   );
 
   assert.match(launcher, /set "SHARE_ROOT=%~dp0"/);
+  assert.match(launcher, /set "MIXLAB_WINDOWS_TEST_RUNNER_PORT=%~1"/);
+  assert.match(launcher, /bootstrap-%MIXLAB_WINDOWS_TEST_RUNNER_PORT%\.log/);
   assert.doesNotMatch(launcher, /\bpushd\b/i);
   assert.doesNotMatch(launcher, /\bpopd\b/i);
 });
