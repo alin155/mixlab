@@ -28,10 +28,13 @@
 
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
+- Windows 当前局域网 IP 观察值：`192.168.1.20`。
+- 2026-06-16，Mac 侧已通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`，`runner_version: 0.1.1`。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
   - `127.0.0.1:5176`：管理端 Web。
-- 需要确认：Windows 机器的局域网 IP。Codex 远程调用 Runner 必须使用这个 IP。
+- Windows IP 可能因 DHCP 变化而改变。Codex 远程调用 Runner 前，应重新验证 `http://<Windows-LAN-IP>:3799/health`。
+- Mac 当前 shell 可能设置了 `http_proxy=http://127.0.0.1:1087`。访问局域网 Runner 时必须绕过代理，例如使用 `curl --noproxy '*'`。
 - 需要确认：当前正式 NAS 公共素材库根目录。代码和文档里存在多个候选路径，实际测试必须以当前启动环境变量和 Doctor 结果为准。
 
 ## 仓库与共享目录
@@ -60,7 +63,7 @@
 | 3889 | Mac 或 NAS 容器内部 | 管理端 API | 本机调试默认 `http://127.0.0.1:3889`。 |
 | 3789 | Mac 或 Windows | 剪辑端 API / Desktop sidecar | Web 调试和 Windows 桌面端都使用这个 API 端口，但 `127.0.0.1` 视角不同。 |
 | 3790 | Mac 或 Windows | searchd | 剪辑端搜索服务。 |
-| 3799 | Windows | Windows Test Runner | Windows 本机健康检查：`http://127.0.0.1:3799/health`。Mac 调用时必须使用 Windows LAN IP。 |
+| 3799 | Windows | Windows Test Runner | Windows 本机健康检查：`http://127.0.0.1:3799/health`。Mac 当前远程调用地址：`http://192.168.1.20:3799`，如 DHCP 变化需重验。 |
 | 8898 | Mac | 管理端静态视觉参考 | 只作为设计参考页，不是正式产品运行时。 |
 | 5173 | Tauri dev | Cutter Web devUrl | `apps/cutter-desktop/src-tauri/tauri.conf.json` 的开发模式地址。 |
 
@@ -191,6 +194,7 @@ Windows 日志默认目录：
 | 默认 host | `0.0.0.0` |
 | 默认 port | `3799` |
 | Windows 本机健康检查 | `http://127.0.0.1:3799/health` |
+| Mac 远程健康检查 | `http://192.168.1.20:3799/health` |
 | 共享 bootstrap 日志 | `/Users/huaqihang/Public/MixLabWindowsBuilds/logs/runner/bootstrap.log` |
 
 2026-06-16 当前共享发布记录：
@@ -205,13 +209,17 @@ Runner 启动后会把报告写入：
 P:\MixLabWindowsBuilds\reports
 ```
 
-如果 Codex 要从 Mac 调用 Runner，必须先确认 Windows 局域网 IP：
+如果 Codex 要从 Mac 调用 Runner，必须先确认 Windows 局域网 IP。当前观察到的地址：
 
 ```text
-http://<Windows-LAN-IP>:3799/health
+http://192.168.1.20:3799/health
 ```
 
-不能在 Mac 上用 `http://127.0.0.1:3799/health` 判断 Windows Runner 是否在线。
+不能在 Mac 上用 `http://127.0.0.1:3799/health` 判断 Windows Runner 是否在线。Mac 当前环境可能带有 HTTP 代理，访问局域网 Runner 时应绕过代理：
+
+```sh
+curl --noproxy '*' http://192.168.1.20:3799/health
+```
 
 ## 公共素材库与 NAS
 
@@ -317,6 +325,7 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 
 - 把 Mac 的 `127.0.0.1` 当成 Windows 的 `127.0.0.1`。
 - 把 Windows 本机 `http://127.0.0.1:3799/health` 正常，误解为 Mac 已能远程调用 Runner。
+- Mac shell 带代理时直接 `curl http://192.168.1.20:3799/health`，请求可能被代理拦截；局域网 Runner 调试用 `--noproxy '*'`。
 - Vite 自动换端口，但测试仍按旧端口打开。
 - 管理端和剪辑端指向不同公共素材库根目录。
 - Searchd 端口、release root 和 Cutter API 读取的 release root 不一致。
