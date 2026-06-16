@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -223,6 +223,71 @@ test("launch_app_probe starts an app candidate and runs cutter API probes", asyn
     assert.equal(report.launch_app_probe.api_ready, true);
     assert.equal(report.launch_app_probe.candidates[0].exists, true);
   } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("launch_app_probe discovers a nested MixLab Cutter executable", async () => {
+  const root = await tempRoot();
+  const previousSearchRoot = process.env.MIXLAB_CUTTER_APP_SEARCH_ROOT;
+  const nestedDir = path.join(root, "vendor", "mixlab-cutter");
+  const nestedAppPath = path.join(nestedDir, "MixLab Cutter.exe");
+  const api = createMockCutterApi();
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    await mkdir(nestedDir, { recursive: true });
+    await copyFile(process.execPath, nestedAppPath);
+    await chmod(nestedAppPath, 0o755);
+    process.env.MIXLAB_CUTTER_APP_SEARCH_ROOT = root;
+
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "launch_app_probe",
+        options: {
+          app_args: ["-e", "setTimeout(() => {}, 250)"],
+          force_launch: true,
+          api_ready_timeout_ms: 1000
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      status: string;
+      launch_app_probe: {
+        app_executable_path: string;
+        candidates: Array<{ path: string; exists: boolean }>;
+      };
+    };
+    assert.equal(report.status, "passed");
+    assert.equal(report.launch_app_probe.app_executable_path, nestedAppPath);
+    assert.ok(report.launch_app_probe.candidates.some((candidate) => (
+      candidate.path === nestedAppPath && candidate.exists
+    )));
+  } finally {
+    if (previousSearchRoot === undefined) {
+      delete process.env.MIXLAB_CUTTER_APP_SEARCH_ROOT;
+    } else {
+      process.env.MIXLAB_CUTTER_APP_SEARCH_ROOT = previousSearchRoot;
+    }
     await close(api);
     if (runner) {
       await close(runner.server);

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runProbeApi } from "./probe-api.ts";
@@ -111,7 +111,14 @@ function pushCandidate(candidates: string[], candidate: string | undefined): voi
   candidates.push(candidate);
 }
 
-function defaultAppCandidates(options: LaunchAppProbeOptions): string[] {
+function pushParent(parents: string[], parent: string | undefined): void {
+  if (!parent || parents.includes(parent)) {
+    return;
+  }
+  parents.push(parent);
+}
+
+function defaultStaticAppCandidates(options: LaunchAppProbeOptions): string[] {
   const candidates: string[] = [];
   pushCandidate(candidates, options.app_path);
   pushCandidate(candidates, process.env.MIXLAB_CUTTER_APP_PATH);
@@ -122,16 +129,80 @@ function defaultAppCandidates(options: LaunchAppProbeOptions): string[] {
   const programFilesX86 = process.env["PROGRAMFILES(X86)"];
 
   pushCandidate(candidates, localAppData ? path.join(localAppData, "Programs", "MixLab Cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, localAppData ? path.join(localAppData, "Programs", "mixlab-cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, localAppData ? path.join(localAppData, "Programs", "com.mixlab.cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, localAppData ? path.join(localAppData, "MixLab Cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, localAppData ? path.join(localAppData, "mixlab-cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, userProfile ? path.join(userProfile, "AppData", "Local", "Programs", "MixLab Cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, userProfile ? path.join(userProfile, "AppData", "Local", "Programs", "mixlab-cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, programFiles ? path.join(programFiles, "MixLab Cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, programFiles ? path.join(programFiles, "mixlab-cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, programFilesX86 ? path.join(programFilesX86, "MixLab Cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, programFilesX86 ? path.join(programFilesX86, "mixlab-cutter", "MixLab Cutter.exe") : undefined);
 
   if (process.platform !== "win32") {
     pushCandidate(candidates, path.join(os.tmpdir(), "MixLab Cutter.exe"));
   }
 
   return candidates;
+}
+
+function defaultSearchParents(): string[] {
+  const parents: string[] = [];
+  const localAppData = process.env.LOCALAPPDATA;
+  const userProfile = process.env.USERPROFILE;
+  const programFiles = process.env.PROGRAMFILES;
+  const programFilesX86 = process.env["PROGRAMFILES(X86)"];
+
+  pushParent(parents, process.env.MIXLAB_CUTTER_APP_SEARCH_ROOT);
+  pushParent(parents, localAppData ? path.join(localAppData, "Programs") : undefined);
+  pushParent(parents, localAppData);
+  pushParent(parents, userProfile ? path.join(userProfile, "AppData", "Local", "Programs") : undefined);
+  pushParent(parents, programFiles);
+  pushParent(parents, programFilesX86);
+
+  return parents;
+}
+
+function looksLikeMixLabCutterExe(fileName: string): boolean {
+  const normalized = fileName.toLowerCase().replace(/[\s_-]+/g, "");
+  return fileName.toLowerCase().endsWith(".exe")
+    && normalized.includes("mixlab")
+    && normalized.includes("cutter");
+}
+
+async function discoverExecutableCandidates(root: string, maxDepth: number): Promise<string[]> {
+  const discovered: string[] = [];
+  async function visit(current: string, depth: number): Promise<void> {
+    if (depth > maxDepth) {
+      return;
+    }
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isFile() && looksLikeMixLabCutterExe(entry.name)) {
+        discovered.push(entryPath);
+      } else if (entry.isDirectory()) {
+        const normalizedDir = entry.name.toLowerCase().replace(/[\s_-]+/g, "");
+        if (
+          depth === 0
+          || normalizedDir.includes("mixlab")
+          || normalizedDir.includes("cutter")
+          || normalizedDir.includes("tauri")
+          || normalizedDir.includes("programs")
+        ) {
+          await visit(entryPath, depth + 1);
+        }
+      }
+    }
+  }
+  await visit(root, 0);
+  return discovered;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -147,8 +218,18 @@ async function findAppExecutable(options: LaunchAppProbeOptions): Promise<{
   appPath?: string;
   candidates: LaunchAppCandidate[];
 }> {
+  const candidatePaths: string[] = [];
+  for (const candidate of defaultStaticAppCandidates(options)) {
+    pushCandidate(candidatePaths, candidate);
+  }
+  for (const parent of defaultSearchParents()) {
+    for (const candidate of await discoverExecutableCandidates(parent, 4)) {
+      pushCandidate(candidatePaths, candidate);
+    }
+  }
+
   const candidates: LaunchAppCandidate[] = [];
-  for (const candidate of defaultAppCandidates(options)) {
+  for (const candidate of candidatePaths) {
     const exists = await pathExists(candidate);
     candidates.push({ path: candidate, exists });
     if (exists) {
