@@ -82,7 +82,7 @@ export function buildWindowsTestRunnerPackagePlan(
   const distDir = path.join(repoRoot, "dist", "windows-test-runner");
   const sharedRunnerDir = path.join(shareRoot, "runner");
   return {
-    source_entry: path.join(repoRoot, "packages/windows-test-runner/src/index.ts"),
+    source_entry: path.join(repoRoot, "packages/windows-test-runner/src/cli.ts"),
     bundled_entry: path.join(distDir, "mixlab-windows-test-runner.bundle.mjs"),
     dist_dir: distDir,
     executable_output: path.join(distDir, windowsTestRunnerExecutableName()),

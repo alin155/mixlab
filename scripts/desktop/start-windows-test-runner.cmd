@@ -15,6 +15,8 @@ set "RUNNER_SOURCE=%SHARE_ROOT%\runner\MixLabWindowsTestRunner.exe"
 set "RUNNER_MANIFEST=%SHARE_ROOT%\runner\latest.json"
 set "LOCAL_RUNNER_DIR=%LOCALAPPDATA%\MixLab\TestRunner"
 set "LOCAL_RUNNER=%LOCAL_RUNNER_DIR%\MixLabWindowsTestRunner.exe"
+set "RUNNER_LOG_DIR=%SHARE_ROOT%\logs\runner"
+set "BOOT_LOG=%RUNNER_LOG_DIR%\bootstrap.log"
 
 echo Share root: %SHARE_ROOT%
 
@@ -47,6 +49,8 @@ if exist "%RUNNER_MANIFEST%" copy /Y "%RUNNER_MANIFEST%" "%LOCAL_RUNNER_DIR%\lat
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -LiteralPath '%LOCAL_RUNNER%' -ErrorAction SilentlyContinue" >nul 2>nul
 
+if not exist "%RUNNER_LOG_DIR%" mkdir "%RUNNER_LOG_DIR%"
+
 set "MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT=%SHARE_ROOT%"
 set "MIXLAB_WINDOWS_BUILDS_ROOT=%SHARE_ROOT%"
 set "MIXLAB_WINDOWS_TEST_RUNNER_HOST=0.0.0.0"
@@ -54,12 +58,13 @@ set "MIXLAB_WINDOWS_TEST_RUNNER_PORT=3799"
 
 echo Local runner: %LOCAL_RUNNER%
 echo Health URL: http://127.0.0.1:3799/health
+echo Bootstrap log: %BOOT_LOG%
 echo.
-echo A new runner window will open. Keep it open while Codex runs Windows tests.
+echo The runner will now start in this window. Keep this window open while Codex runs Windows tests.
 
-start "MixLab Windows Test Runner" "%LOCAL_RUNNER%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT='%SHARE_ROOT%'; $env:MIXLAB_WINDOWS_BUILDS_ROOT='%SHARE_ROOT%'; $env:MIXLAB_WINDOWS_TEST_RUNNER_HOST='0.0.0.0'; $env:MIXLAB_WINDOWS_TEST_RUNNER_PORT='3799'; & '%LOCAL_RUNNER%' 2>&1 | Tee-Object -FilePath '%BOOT_LOG%' -Append; exit $LASTEXITCODE"
 
 popd >nul
 echo.
-echo If the health URL returns ok=true, tell Codex: Runner started.
+echo Runner exited with code %ERRORLEVEL%.
 pause

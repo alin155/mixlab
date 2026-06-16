@@ -18,7 +18,7 @@ test("Windows Test Runner package plan targets a standalone Windows exe and shar
   assert.equal(pkgCommandForPlatform("/repo", "win32"), path.join("/repo", "node_modules/.bin/pkg.cmd"));
   assert.equal(pkgCommandForPlatform("/repo", "darwin"), path.join("/repo", "node_modules/.bin/pkg"));
   assert.deepEqual(buildWindowsTestRunnerPackagePlan("/repo", "/share", "win32"), {
-    source_entry: path.join("/repo", "packages/windows-test-runner/src/index.ts"),
+    source_entry: path.join("/repo", "packages/windows-test-runner/src/cli.ts"),
     bundled_entry: path.join("/repo", "dist/windows-test-runner/mixlab-windows-test-runner.bundle.mjs"),
     dist_dir: path.join("/repo", "dist/windows-test-runner"),
     executable_output: path.join("/repo", "dist/windows-test-runner/MixLabWindowsTestRunner.exe"),
@@ -83,7 +83,12 @@ test("skip-package bundle self-check does not publish an incomplete shared manif
   );
   await writeFile(
     path.join(repoRoot, "packages/windows-test-runner/src/index.ts"),
-    "console.log('runner self-check');\n",
+    "export function startWindowsTestRunner() { console.log('runner self-check'); }\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(repoRoot, "packages/windows-test-runner/src/cli.ts"),
+    "import { startWindowsTestRunner } from './index.ts'; startWindowsTestRunner();\n",
     "utf8"
   );
 

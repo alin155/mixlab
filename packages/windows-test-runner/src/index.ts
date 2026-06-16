@@ -21,6 +21,11 @@ export type {
 export function startWindowsTestRunner(): ReturnType<typeof createWindowsTestRunnerServer> {
   const config = resolveRunnerConfig();
   const runner = createWindowsTestRunnerServer(config);
+  runner.server.on("error", (error) => {
+    console.error("MixLab Windows Test Runner failed to start.");
+    console.error(error);
+    process.exitCode = 1;
+  });
   runner.server.listen(config.port, config.host, () => {
     console.log("MixLab Windows Test Runner started.");
     console.log(JSON.stringify({
@@ -32,8 +37,4 @@ export function startWindowsTestRunner(): ReturnType<typeof createWindowsTestRun
     }, null, 2));
   });
   return runner;
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  startWindowsTestRunner();
 }

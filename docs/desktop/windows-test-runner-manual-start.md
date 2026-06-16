@@ -30,7 +30,7 @@
    %LOCALAPPDATA%\MixLab\TestRunner\
    ```
 
-4. 启动后会打开一个 `MixLab Windows Test Runner` 窗口。这个窗口先不要关闭。
+4. Runner 会在当前 CMD 窗口前台运行。这个窗口先不要关闭。
 
 5. 在 Windows 浏览器访问：
 
@@ -55,6 +55,12 @@ start-windows-test-runner.cmd
 ```
 
 如果 Windows 弹出安全提醒，选择“运行”。启动脚本会复制到本机缓存再运行，后续会减少这类网络来源弹窗。
+
+如果 `http://127.0.0.1:3799/health` 无法访问，查看共享目录里的启动日志：
+
+```text
+logs\runner\bootstrap.log
+```
 
 ## 为什么不是旧 agent/watchdog
 

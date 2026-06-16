@@ -48,3 +48,6 @@ Reports are written to:
 ```text
 <share_root>/reports/<run_id>/
 ```
+
+The packaged Windows executable uses `src/cli.ts` as its entry point. `src/index.ts`
+is library code for tests and imports.
