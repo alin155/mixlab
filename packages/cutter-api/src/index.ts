@@ -226,6 +226,9 @@ interface CutterRuntimeStatusPayload {
     username: string;
     display_name: string;
   };
+  diagnostics?: {
+    runtime_timings_ms: Record<string, number>;
+  };
 }
 
 interface CutterLocalCacheRuntimeStatus {
@@ -475,6 +478,8 @@ const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
 const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
 const RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS = 200;
 const RELEASE_CACHE_STATUS_CACHE_TTL_MS = 60_000;
+const LOCAL_CACHE_STATUS_INLINE_TIMEOUT_MS = 150;
+const LOCAL_CACHE_STATUS_CACHE_TTL_MS = 30_000;
 const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
 
 interface ThumbnailCacheManifestEntry {
@@ -3325,47 +3330,160 @@ async function readLocalCacheRuntimeStatus(
   };
 }
 
+function checkingLocalCacheRuntimeStatus(input: CreateCutterApiServerInput): CutterLocalCacheRuntimeStatus {
+  const cacheRoot = localCacheRootForInput(input);
+  const thumbnailRoot = thumbnailCacheRoot(input);
+  return {
+    cache_root_path: cacheRoot,
+    thumbnail_cache_root_path: thumbnailRoot,
+    thumbnail_cache_manifest_path: thumbnailCacheManifestPath(thumbnailRoot),
+    thumbnail_cache_size_bytes: 0,
+    thumbnail_cache_max_bytes: thumbnailCacheMaxBytes(input),
+    thumbnail_cache_manifest_entry_count: 0,
+    thumbnail_cache_checksum_entry_count: 0,
+    source_video_cache: {
+      cache_root_path: sourceVideoCacheRoot(input),
+      max_bytes: sourceVideoCacheMaxBytes(input),
+      size_bytes: 0,
+      file_count: 0,
+      cached_video_count: 0,
+      active_prefetch_count: [...activeSourceVideoPrefetches.keys()].filter((key) =>
+        key.startsWith(`${sourceVideoCacheRoot(input)}\0`)
+      ).length
+    },
+    cut_temp_cache: {
+      cache_root_path: input.workspace_root
+        ? path.join(input.workspace_root, "cache", "cut-temp")
+        : path.join(cacheRoot, "cut-temp"),
+      max_bytes: cutTempMaxBytes(input),
+      size_bytes: 0,
+      file_count: 0
+    }
+  };
+}
+
+interface LocalCacheRuntimeStatusCacheEntry {
+  expires_at_ms: number;
+  status?: CutterLocalCacheRuntimeStatus;
+  promise?: Promise<CutterLocalCacheRuntimeStatus>;
+}
+
+const localCacheRuntimeStatusByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  LocalCacheRuntimeStatusCacheEntry
+>();
+
+async function readLocalCacheRuntimeStatusBestEffort(
+  input: CreateCutterApiServerInput
+): Promise<CutterLocalCacheRuntimeStatus> {
+  const nowMs = Date.now();
+  let cache = localCacheRuntimeStatusByInput.get(input);
+
+  if (!cache) {
+    cache = {
+      expires_at_ms: 0
+    };
+    localCacheRuntimeStatusByInput.set(input, cache);
+  }
+
+  if (cache.status && cache.expires_at_ms > nowMs) {
+    return cache.status;
+  }
+
+  if (!cache.promise) {
+    cache.promise = readLocalCacheRuntimeStatus(input)
+      .then((status) => {
+        cache.status = status;
+        cache.expires_at_ms = Date.now() + LOCAL_CACHE_STATUS_CACHE_TTL_MS;
+        return status;
+      })
+      .catch(() => {
+        const fallback = cache.status ?? checkingLocalCacheRuntimeStatus(input);
+        cache.status = fallback;
+        cache.expires_at_ms = Date.now() + Math.min(5_000, LOCAL_CACHE_STATUS_CACHE_TTL_MS);
+        return fallback;
+      })
+      .finally(() => {
+        if (cache) {
+          delete cache.promise;
+        }
+      });
+  }
+
+  return delayedFallback(
+    cache.promise,
+    LOCAL_CACHE_STATUS_INLINE_TIMEOUT_MS,
+    cache.status ?? checkingLocalCacheRuntimeStatus(input)
+  );
+}
+
 async function runtimeStatusForSession(input: {
   api_input: CreateCutterApiServerInput;
   auth: AuthenticatedCutterSession;
 }): Promise<CutterRuntimeStatusPayload> {
+  const timings: Record<string, number> = {};
+  const totalStartedAt = Date.now();
+  const timeAsync = async <T>(key: string, task: () => Promise<T>): Promise<T> => {
+    const startedAt = Date.now();
+    try {
+      return await task();
+    } finally {
+      timings[key] = Date.now() - startedAt;
+    }
+  };
+  const timeSync = <T>(key: string, task: () => T): T => {
+    const startedAt = Date.now();
+    try {
+      return task();
+    } finally {
+      timings[key] = Date.now() - startedAt;
+    }
+  };
+
   const localClips = input.api_input.workspace_root
-    ? await listExportClips({ workspace_root: input.api_input.workspace_root })
-    : await listLocalClips({ library_root: input.api_input.library_root });
+    ? await timeAsync("local_clips", () => listExportClips({ workspace_root: input.api_input.workspace_root! }))
+    : await timeAsync("local_clips", () => listLocalClips({ library_root: input.api_input.library_root }));
 
   let ffmpegStatus: CutterRuntimeStatusPayload["ffmpeg_status"] = "不可用";
   let ffmpegSource: CutterRuntimeStatusPayload["ffmpeg_source"] = "未检测到";
 
-  try {
-    const runtime = resolveFfmpegRuntime();
-    ffmpegStatus = "可用";
-    ffmpegSource = runtime.source === "env" ? "环境配置" : "内置";
-  } catch {
-    ffmpegStatus = "不可用";
-  }
+  timeSync("ffmpeg_runtime", () => {
+    try {
+      const runtime = resolveFfmpegRuntime();
+      ffmpegStatus = "可用";
+      ffmpegSource = runtime.source === "env" ? "环境配置" : "内置";
+    } catch {
+      ffmpegStatus = "不可用";
+    }
+  });
 
-  const diskIoBytesPerSecond = cachedLocalDiskIoBytesPerSecond();
+  const diskIoBytesPerSecond = timeSync("local_runtime", () => cachedLocalDiskIoBytesPerSecond());
   const statusIoTimeoutMs = Math.max(250, input.api_input.searchd_timeout_ms ?? 800);
-  const availableVideoCount = await delayedFallback(
-    readReadyVideoCount(input.api_input.library_root),
-    statusIoTimeoutMs,
-    0
+  const availableVideoCount = await timeAsync("available_video_count", () =>
+    delayedFallback(
+      readReadyVideoCount(input.api_input.library_root),
+      statusIoTimeoutMs,
+      0
+    )
   );
-  const libraryId = await delayedFallback(
-    readLibraryId(input.api_input.library_root),
-    statusIoTimeoutMs,
-    "lib_main_001"
+  const libraryId = await timeAsync("library_id", () =>
+    delayedFallback(
+      readLibraryId(input.api_input.library_root),
+      statusIoTimeoutMs,
+      "lib_main_001"
+    )
   );
   const [searchBackend, releaseCache, localCache, sourceVideoPreflight] = await Promise.all([
-    readSearchBackendStatus(input.api_input, availableVideoCount),
-    syncCutterReleaseCacheBestEffort(input.api_input),
-    readLocalCacheRuntimeStatus(input.api_input),
-    readSourceVideoPreflightStatus(input.api_input)
+    timeAsync("search_backend", () => readSearchBackendStatus(input.api_input, availableVideoCount)),
+    timeAsync("release_cache", () => syncCutterReleaseCacheBestEffort(input.api_input)),
+    timeAsync("local_cache", () => readLocalCacheRuntimeStatusBestEffort(input.api_input)),
+    timeAsync("source_video_preflight", () => readSourceVideoPreflightStatus(input.api_input))
   ]);
   const effectiveAvailableVideoCount =
     releaseCache.ready && releaseCache.ready_video_count > 0
       ? releaseCache.ready_video_count
       : availableVideoCount;
+  timings.total = Date.now() - totalStartedAt;
 
   return {
     mode: "api",
@@ -3396,6 +3514,9 @@ async function runtimeStatusForSession(input: {
       user_id: input.auth.user.user_id,
       username: input.auth.user.username,
       display_name: input.auth.user.display_name
+    },
+    diagnostics: {
+      runtime_timings_ms: timings
     }
   };
 }
