@@ -6,6 +6,7 @@ const ALLOWED_ACTIONS = new Set([
   "ping",
   "collect_logs",
   "probe_api",
+  "start_test_runner",
   "capture_screenshot",
   "stop_app",
   "launch_app",

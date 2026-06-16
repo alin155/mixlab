@@ -37,7 +37,7 @@ test("Windows shared agent is supervised by a stable watchdog", () => {
   assert.match(watchdogScript, /Stop-AgentProcess/);
   assert.match(watchdogScript, /Stop-ExistingSharedAgentProcesses/);
   assert.match(agentScript, /MIXLAB_AGENT_WATCHDOG/);
-  assert.match(agentScript, /AgentVersion = "0\.3\.5"/);
+  assert.match(agentScript, /AgentVersion = "0\.3\.6"/);
   assert.match(agentScript, /Read-TextFile/);
   assert.match(agentScript, /FileShare\]::ReadWrite/);
   assert.match(agentScript, /smoke_wait_health/);
@@ -65,6 +65,7 @@ test("Windows shared test agent only exposes whitelisted actions", () => {
     "ping",
     "collect_logs",
     "probe_api",
+    "start_test_runner",
     "capture_screenshot",
     "stop_app",
     "launch_app",
@@ -80,6 +81,14 @@ test("Windows shared test agent only exposes whitelisted actions", () => {
 
   assert.doesNotMatch(agentScript, /Invoke-Expression|iex|Start-Job/);
   assert.match(agentScript, /Unsupported action/);
+  assert.match(agentScript, /Resolve-LatestWindowsTestRunner/);
+  assert.match(agentScript, /runner", "latest\.json"/);
+  assert.match(agentScript, /Copy-RunnerToLocalCache/);
+  assert.match(agentScript, /runner_copy_to_local_cache/);
+  assert.match(agentScript, /Runner SHA-256 mismatch/);
+  assert.match(agentScript, /Wait-WindowsTestRunnerHealth/);
+  assert.match(agentScript, /MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT/);
+  assert.match(agentScript, /MIXLAB_WINDOWS_TEST_RUNNER_PORT/);
 });
 
 test("Windows shared test agent supports current and future release manifests", () => {
@@ -112,6 +121,7 @@ test("Mac-side command issuer writes the same control file contract", () => {
   assert.match(issuerScript, /commands/);
   assert.match(issuerScript, /cutter-command\.json/);
   assert.match(issuerScript, /install_latest_and_smoke/);
+  assert.match(issuerScript, /start_test_runner/);
   assert.match(issuerScript, /restart_watchdog/);
   assert.match(issuerScript, /--payload-json/);
 });

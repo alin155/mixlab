@@ -110,6 +110,10 @@ MixLabWindowsBuilds/
 │   └── agent/windows-shared-test-agent.ndjson
 ├── releases/
 │   └── latest.json
+├── runner/
+│   ├── MixLabWindowsTestRunner.exe
+│   ├── latest.json
+│   └── LATEST.txt
 ├── results/
 │   └── runs/<command_id>/
 │       ├── result.json
@@ -178,6 +182,7 @@ control/cutter-command.json
 - `ping`：测试代理能否读写共享文件夹。
 - `collect_logs`：收集 MixLab Cutter 日志和配置候选文件。
 - `probe_api`：不启动应用，只探测当前 `127.0.0.1:3789` API，并回传 `/health`、`/cutter/auth/mode`、`/cutter/runtime-status`、`/cutter/source-library?limit=20` 等结果。
+- `start_test_runner`：读取 `runner/latest.json`，把 `MixLabWindowsTestRunner.exe` 复制到 Windows 本机临时目录，校验 SHA-256，启动本机 Runner，并等待 `http://127.0.0.1:3799/health` 可用。这个动作只用于把自动化控制面切换到长期 Windows Test Runner。
 - `capture_screenshot`：截取 Windows 主屏幕。
 - `stop_app`：停止 MixLab Cutter、cutter-api-sidecar、mixlab-searchd。
 - `launch_app`：启动 MixLab Cutter，并等待 `http://127.0.0.1:3789/health` 可用。
@@ -253,8 +258,9 @@ results/runs/<command_id>/diagnostics/
 这个代理不会执行共享文件夹里的任意命令。它只会执行代码里写死的白名单动作：
 
 ```text
-ping / collect_logs / probe_api / capture_screenshot / stop_app / launch_app /
-install_latest / install_latest_and_smoke / smoke_test / restart_agent / restart_watchdog
+ping / collect_logs / probe_api / start_test_runner / capture_screenshot /
+stop_app / launch_app / install_latest / install_latest_and_smoke /
+smoke_test / restart_agent / restart_watchdog
 ```
 
 这是为了避免共享文件夹被误写或被其他程序写入后，Windows 端执行危险命令。

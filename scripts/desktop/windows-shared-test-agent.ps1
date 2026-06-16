@@ -31,7 +31,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
-$AgentVersion = "0.3.5"
+$AgentVersion = "0.3.6"
 $ApiBaseUrl = "http://127.0.0.1:3789"
 $script:ExitAfterCurrentPoll = $false
 $script:VolatileTelemetrySuspendUntilUtc = [DateTime]::MinValue
@@ -1073,6 +1073,176 @@ function Copy-InstallerToLocalCache {
   return $localInstallerPath
 }
 
+function Resolve-LatestWindowsTestRunner {
+  $manifestPath = Join-SharePath -Parts @("runner", "latest.json")
+  if (-not (Test-Path -LiteralPath $manifestPath)) {
+    throw "No runner/latest.json found under $ShareRoot"
+  }
+
+  $manifest = Read-JsonFile -Path $manifestPath
+  $runnerFile = "MixLabWindowsTestRunner.exe"
+  if ($manifest.PSObject.Properties.Name -contains "executable_file" -and -not [string]::IsNullOrWhiteSpace([string]$manifest.executable_file)) {
+    $runnerFile = [string]$manifest.executable_file
+  }
+
+  $runnerPath = if ([IO.Path]::IsPathRooted($runnerFile)) {
+    $runnerFile
+  } else {
+    Join-Path (Split-Path -Parent $manifestPath) $runnerFile
+  }
+
+  $port = 3799
+  if ($manifest.PSObject.Properties.Name -contains "default_port" -and [int]$manifest.default_port -gt 0) {
+    $port = [int]$manifest.default_port
+  }
+
+  return @{
+    source = "runner/latest.json"
+    runner_path = $runnerPath
+    sha256 = [string]$manifest.sha256
+    version = [string]$manifest.version
+    built_at = [string]$manifest.built_at
+    port = $port
+  }
+}
+
+function Copy-RunnerToLocalCache {
+  param([object]$Runner)
+
+  $runnerName = Split-Path -Leaf $Runner.runner_path
+  if ([string]::IsNullOrWhiteSpace($runnerName)) {
+    $runnerName = "MixLabWindowsTestRunner.exe"
+  }
+
+  $sha = ""
+  if ($Runner.ContainsKey("sha256")) {
+    $sha = [string]$Runner.sha256
+  }
+  if (-not [string]::IsNullOrWhiteSpace($sha) -and $sha.Length -ge 8) {
+    $runnerName = [IO.Path]::GetFileNameWithoutExtension($runnerName) + "-" + $sha.Substring(0, 8) + [IO.Path]::GetExtension($runnerName)
+  }
+
+  $runnerDir = Join-Path (Get-AgentLocalCacheRoot) "runner"
+  Ensure-Directory -Path $runnerDir
+  $localRunnerPath = Join-Path $runnerDir $runnerName
+
+  Copy-FileWithHeartbeat -Source $Runner.runner_path -Destination $localRunnerPath -Stage "runner_copy_to_local_cache"
+  try {
+    Unblock-File -LiteralPath $localRunnerPath -ErrorAction SilentlyContinue
+  } catch {
+    Write-AgentEvent -Event "runner_unblock_failed" -Details @{
+      path = $localRunnerPath
+      error = $_.Exception.Message
+    }
+  }
+
+  return $localRunnerPath
+}
+
+function Stop-MixLabWindowsTestRunnerProcesses {
+  $stopped = @()
+  $processes = @(Get-Process -Name "MixLabWindowsTestRunner" -ErrorAction SilentlyContinue)
+  foreach ($process in $processes) {
+    try {
+      $stopped += @{ name = $process.ProcessName; id = $process.Id }
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    } catch {
+      $stopped += @{ name = $process.ProcessName; id = $process.Id; error = $_.Exception.Message }
+    }
+  }
+  return $stopped
+}
+
+function Wait-WindowsTestRunnerHealth {
+  param(
+    [int]$TimeoutSeconds = 15,
+    [int]$Port = 3799
+  )
+
+  $url = "http://127.0.0.1:$Port/health"
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $lastError = ""
+  do {
+    Write-AgentHeartbeat | Out-Null
+    Write-AgentCheckpoint -Stage "runner_health_probe" -Details @{ url = $url }
+    try {
+      $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2
+      if ($response.StatusCode -eq 200 -and $response.Content -match '"ok"\s*:\s*true') {
+        return @{ ready = $true; url = $url; status_code = $response.StatusCode; content = $response.Content }
+      }
+    } catch {
+      $lastError = $_.Exception.Message
+    }
+    Start-Sleep -Milliseconds 500
+  } while ((Get-Date) -lt $deadline)
+
+  return @{ ready = $false; url = $url; error = $lastError }
+}
+
+function Start-WindowsTestRunner {
+  param([object]$Payload)
+
+  $runner = Resolve-LatestWindowsTestRunner
+  $port = [int]$runner.port
+  if ($Payload -and $Payload.PSObject.Properties.Name -contains "port" -and [int]$Payload.port -gt 0) {
+    $port = [int]$Payload.port
+  }
+
+  if ($Payload -and $Payload.PSObject.Properties.Name -contains "stop_existing" -and $Payload.stop_existing) {
+    Write-AgentCheckpoint -Stage "runner_stop_existing"
+    $stopped = Stop-MixLabWindowsTestRunnerProcesses
+  } else {
+    $stopped = @()
+    $existingHealth = Wait-WindowsTestRunnerHealth -TimeoutSeconds 1 -Port $port
+    if ($existingHealth.ready) {
+      return @{
+        reused_existing = $true
+        runner = $runner
+        health = $existingHealth
+        stopped_processes = $stopped
+      }
+    }
+  }
+
+  Write-AgentCheckpoint -Stage "runner_copy_start" -Details $runner
+  $localRunnerPath = Copy-RunnerToLocalCache -Runner $runner
+  $actualSha = Get-Sha256WithHeartbeat -Path $localRunnerPath -Stage "runner_sha256"
+  if (-not [string]::IsNullOrWhiteSpace([string]$runner.sha256) -and $actualSha.ToLowerInvariant() -ne ([string]$runner.sha256).ToLowerInvariant()) {
+    throw "Runner SHA-256 mismatch. expected=$($runner.sha256) actual=$actualSha path=$localRunnerPath"
+  }
+
+  $previousShareRoot = [Environment]::GetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT", "Process")
+  $previousBuildsRoot = [Environment]::GetEnvironmentVariable("MIXLAB_WINDOWS_BUILDS_ROOT", "Process")
+  $previousHost = [Environment]::GetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_HOST", "Process")
+  $previousPort = [Environment]::GetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_PORT", "Process")
+  try {
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT", $ShareRoot, "Process")
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_BUILDS_ROOT", $ShareRoot, "Process")
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_HOST", "0.0.0.0", "Process")
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_PORT", [string]$port, "Process")
+
+    Write-AgentCheckpoint -Stage "runner_start_process" -Details @{ exe = $localRunnerPath; port = $port }
+    $process = Start-Process -FilePath $localRunnerPath -WindowStyle Hidden -PassThru
+  } finally {
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT", $previousShareRoot, "Process")
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_BUILDS_ROOT", $previousBuildsRoot, "Process")
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_HOST", $previousHost, "Process")
+    [Environment]::SetEnvironmentVariable("MIXLAB_WINDOWS_TEST_RUNNER_PORT", $previousPort, "Process")
+  }
+
+  $health = Wait-WindowsTestRunnerHealth -TimeoutSeconds 20 -Port $port
+  return @{
+    reused_existing = $false
+    runner = $runner
+    local_runner_path = $localRunnerPath
+    sha256 = $actualSha
+    pid = $process.Id
+    port = $port
+    stopped_processes = $stopped
+    health = $health
+  }
+}
+
 function Wait-ProcessWithHeartbeat {
   param(
     [object]$Process,
@@ -1410,6 +1580,9 @@ function Invoke-AgentCommand {
     "probe_api" {
       return Invoke-ApiProbe -Payload $Payload
     }
+    "start_test_runner" {
+      return Start-WindowsTestRunner -Payload $Payload
+    }
     "capture_screenshot" {
       return Capture-Screenshot -RunDir $RunDir
     }
@@ -1439,7 +1612,7 @@ function Invoke-AgentCommand {
       return Restart-WatchdogProcess
     }
     default {
-      throw "Unsupported action '$Action'. Allowed actions: ping, collect_logs, probe_api, capture_screenshot, stop_app, launch_app, install_latest, install_latest_and_smoke, smoke_test, restart_agent, restart_watchdog."
+      throw "Unsupported action '$Action'. Allowed actions: ping, collect_logs, probe_api, start_test_runner, capture_screenshot, stop_app, launch_app, install_latest, install_latest_and_smoke, smoke_test, restart_agent, restart_watchdog."
     }
   }
 }
