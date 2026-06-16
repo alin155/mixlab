@@ -4,102 +4,62 @@
 
 ## 目标
 
-把现有临时共享文件夹测试代理升级为长期 Windows Test Runner。
+把 Windows 自动测试从旧共享文件夹 agent/watchdog 切换到长期 Windows Test Runner。
 
 最终效果：
 
-- Windows 端常驻 Runner。
-- Codex/macOS 可通过 HTTP 直接下发测试。
-- 共享目录只做安装包、日志、截图和报告交换。
+- Windows 端运行 `MixLabWindowsTestRunner.exe`。
+- Codex/macOS 通过 HTTP 直接下发测试。
+- 共享目录只做安装包、Runner 包、日志、截图和报告交换。
 - 每次测试都有结构化报告。
 - Windows 端应用安装、启动、API、搜索、剪切、缓存、UI 截图可以自动验证。
 
-## 当前不继续做的事
+## 已停止维护的旧路径
 
-- 不继续在 `windows-shared-test-agent.ps1` 里扩展复杂业务测试。
-- 不继续让 `windows-shared-agent-watchdog.ps1` 判断安装、剪切、搜索是否卡死。
-- 不继续把共享目录 JSON 轮询做成正式任务队列。
-- 不再把每次失败都当成孤立 bug 打补丁。
+以下旧路径不再作为正式方案存在：
 
-## 目录规划
+- `windows-shared-test-agent.ps1`
+- `windows-shared-agent-watchdog.ps1`
+- `start-windows-shared-test-agent.cmd`
+- `control/cutter-command.json`
+- `control/commands/*.json`
+- `npm run control:windows-shared-agent`
 
-新增：
+原因：
 
-```text
-packages/windows-test-runner/
-├── package.json
-├── tsconfig.json
-├── src/
-│   ├── index.ts
-│   ├── server.ts
-│   ├── config.ts
-│   ├── run-store.ts
-│   ├── report.ts
-│   ├── actions/
-│   │   ├── probe-api.ts
-│   │   ├── install-latest.ts
-│   │   ├── launch-app.ts
-│   │   ├── smoke.ts
-│   │   └── collect-logs.ts
-│   ├── windows/
-│   │   ├── processes.ts
-│   │   ├── installer.ts
-│   │   ├── screenshot.ts
-│   │   └── paths.ts
-│   └── types.ts
-└── README.md
-```
+- SMB 文件轮询和命令覆盖容易出现缓存、锁、延迟和权限问题。
+- watchdog 会误判安装、启动、扫描等慢步骤。
+- PowerShell agent 不适合继续承载状态机、并发队列、HTTP API、报告模型和自更新。
 
-保留：
+## 当前阶段：人工启动 Runner
+
+在 Runner 自启动完成前，Windows 端由用户手动启动一次：
 
 ```text
-scripts/desktop/windows-shared-test-agent.ps1
-scripts/desktop/windows-shared-agent-watchdog.ps1
+\\192.168.1.21\MixLabWindowsBuilds\start-windows-test-runner.cmd
 ```
 
-保留原因：作为安装 Runner 或 Runner 故障恢复的应急通道。
+脚本会：
+
+1. 找到共享目录里的 `runner/MixLabWindowsTestRunner.exe`。
+2. 复制到 Windows 本机缓存：
+
+   ```text
+   %LOCALAPPDATA%\MixLab\TestRunner\
+   ```
+
+3. 复制 `runner/latest.json`。
+4. 尝试执行 `Unblock-File`，避免网络来源安全提示。
+5. 设置 Runner 环境变量。
+6. 启动本机缓存里的 Runner。
+
+这不是 agent，不轮询共享命令，也不执行测试动作。它只是前期人工 bootstrap。
 
 ## Phase 1：Runner v0 控制面
 
 ### 目标
 
-先建立稳定 HTTP Runner，不碰复杂安装和 UI 测试。
-
-### 打包边界
-
-Runner 的源码、单元测试和轻量 bundle 可以在 Mac/Codex 侧完成；正式 Windows `.exe` 必须在 Windows 构建机上完成。
-
-原因：
-
-- Mac 侧 `pkg` 生成 Windows exe 不稳定，已经出现过底层 `spawn Unknown system error -86`。
-- Runner 是长期测试基础设施，不能依赖不确定的跨平台打包行为。
-- 与剪辑端 Windows 安装包保持一致，统一由 Windows/GitHub Actions 产出正式 Windows 可执行文件。
-
-当前约定：
-
-```text
-Mac/Codex:
-  npm run package:windows-test-runner -- --skip-package
-
-Windows/GitHub Actions:
-  npm run package:windows-test-runner
-```
-
-`--skip-package` 只用于本机 bundle/manifest 自检，不会发布到共享目录，避免 Windows 端读取到没有 exe 和 SHA-256 的半成品 manifest。
-
-正式产物：
-
-```text
-dist/windows-test-runner/MixLabWindowsTestRunner.exe
-dist/windows-test-runner/latest.json
-```
-
-共享目录发布位：
-
-```text
-/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe
-/Users/huaqihang/Public/MixLabWindowsBuilds/runner/latest.json
-```
+建立稳定 HTTP Runner，不碰复杂安装和 UI 测试。
 
 ### 工作项
 
@@ -138,11 +98,11 @@ dist/windows-test-runner/latest.json
 
 ### 验收
 
-- Mac/Codex 可以直接访问 `http://<windows-ip>:3799/health`。
+- Mac/Codex 可以访问 `http://<windows-ip>:3799/health`。
 - Mac/Codex 可以发起一次 `probe_api` run。
 - 不依赖共享目录 command JSON。
 - 失败报告能区分 Runner 不通和应用 API 不通。
-- GitHub Actions `Windows Test Runner Package` 能产出 `mixlab-windows-test-runner` artifact。
+- GitHub Actions 能产出 `mixlab-windows-test-runner` artifact。
 
 ## Phase 2：安装和启动
 
@@ -173,14 +133,7 @@ Runner 自己完成安装最新包、启动应用、等待 API ready。
 ### 验收
 
 - 一次 HTTP run 可以完成 `install_latest + launch_app`。
-- 报告包含：
-
-   - installer_path
-   - installer_sha256
-   - install_elapsed_ms
-   - installer_exit_code
-   - app_pid
-   - api_ready_elapsed_ms
+- 报告包含安装器路径、SHA-256、安装耗时、退出码、app PID、API ready 耗时。
 
 ## Phase 3：真实应用 Smoke
 
@@ -224,15 +177,15 @@ Runner 自己完成安装最新包、启动应用、等待 API ready。
 
 ### 验收
 
-- 报告明确显示：
+报告明确显示：
 
-   ```text
-   public_library: passed/failed/slow
-   search: passed/failed/slow
-   transcript: passed/failed/slow
-   cut: passed/failed
-   cache: passed/failed/not_changed
-   ```
+```text
+public_library: passed/failed/slow
+search: passed/failed/slow
+transcript: passed/failed/slow
+cut: passed/failed
+cache: passed/failed/not_changed
+```
 
 ## Phase 4：UI 桌面体验检查
 
@@ -261,25 +214,17 @@ Runner 自己完成安装最新包、启动应用、等待 API ready。
 ### 验收
 
 - 每个页面都有截图。
-- 报告中能看到 UI 失败分类：
-
-   ```text
-   ui_first_run_unexpected
-   ui_scrollbar_unexpected
-   ui_loading_stuck
-   ui_blank_page
-   ui_layout_overflow
-   ```
+- 报告中能看到 UI 失败分类。
 
 ## Phase 5：Runner 自启动和自更新
 
 ### 目标
 
-减少 Windows 端人工操作。
+减少 Windows 端人工操作，但不回到旧 agent/watchdog。
 
 ### 工作项
 
-1. Runner 注册开机自启动。
+1. Runner 注册当前用户开机自启动。
 2. Runner 提供 `/runner/update`。
 3. 共享目录提供：
 
@@ -288,12 +233,7 @@ Runner 自己完成安装最新包、启动应用、等待 API ready。
    runner/MixLabWindowsTestRunner.exe
    ```
 
-4. 极简 watchdog 只负责：
-
-   - Runner 未运行则启动
-   - Runner 崩溃则重启
-   - Runner 更新后重启
-
+4. Runner 自己完成更新下载、替换和重启。
 5. 更新失败回滚到上一版。
 
 ### 验收
@@ -304,15 +244,13 @@ Runner 自己完成安装最新包、启动应用、等待 API ready。
 
 ## 第一批实施范围
 
-第一批只做 Phase 1。
+第一批只做 Phase 1 + 人工 bootstrap。
 
 原因：
 
 - 先把长期控制面打稳。
 - 不再继续扩大旧代理。
 - 先验证 HTTP Runner 是否能替代共享目录命令。
-
-第一批完成后再做 Phase 2。
 
 ## 第一批验收命令
 
@@ -333,11 +271,27 @@ curl -X POST http://<windows-ip>:3799/runs \
 /Users/huaqihang/Public/MixLabWindowsBuilds/reports/<run_id>/
 ```
 
-## 旧代理的短期保留策略
+## 用户前期需要做什么
 
-在 Runner v0 没有完成前，旧共享代理只做两件事：
+1. 在 Windows 打开共享目录：
 
-1. 启动或恢复 Windows Runner。
-2. 收集 Runner 故障时的基础日志。
+   ```text
+   \\192.168.1.21\MixLabWindowsBuilds
+   ```
 
-不再向旧代理添加新的应用测试能力。
+2. 双击：
+
+   ```text
+   start-windows-test-runner.cmd
+   ```
+
+3. 看到 Runner 窗口后保持它打开。
+4. 在 Windows 浏览器访问：
+
+   ```text
+   http://127.0.0.1:3799/health
+   ```
+
+5. 如果返回 `ok: true`，告诉 Codex：`Runner 已启动`。
+
+之后 Codex 通过 HTTP Runner 继续测试，不再要求你启动旧 agent/watchdog。

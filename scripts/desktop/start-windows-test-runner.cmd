@@ -1,0 +1,65 @@
+@echo off
+setlocal EnableExtensions
+
+echo Starting MixLab Windows Test Runner...
+
+pushd "%~dp0" >nul 2>nul
+if errorlevel 1 (
+  echo Failed to enter the shared folder. Open the shared folder in Explorer and run this file again.
+  pause
+  exit /b 1
+)
+
+set "SHARE_ROOT=%CD%"
+set "RUNNER_SOURCE=%SHARE_ROOT%\runner\MixLabWindowsTestRunner.exe"
+set "RUNNER_MANIFEST=%SHARE_ROOT%\runner\latest.json"
+set "LOCAL_RUNNER_DIR=%LOCALAPPDATA%\MixLab\TestRunner"
+set "LOCAL_RUNNER=%LOCAL_RUNNER_DIR%\MixLabWindowsTestRunner.exe"
+
+echo Share root: %SHARE_ROOT%
+
+if not exist "%RUNNER_SOURCE%" (
+  echo Missing runner executable:
+  echo %RUNNER_SOURCE%
+  pause
+  popd >nul
+  exit /b 1
+)
+
+if not exist "%LOCAL_RUNNER_DIR%" mkdir "%LOCAL_RUNNER_DIR%"
+if errorlevel 1 (
+  echo Failed to create local runner folder:
+  echo %LOCAL_RUNNER_DIR%
+  pause
+  popd >nul
+  exit /b 1
+)
+
+copy /Y "%RUNNER_SOURCE%" "%LOCAL_RUNNER%" >nul
+if errorlevel 1 (
+  echo Failed to copy runner to local cache.
+  pause
+  popd >nul
+  exit /b 1
+)
+
+if exist "%RUNNER_MANIFEST%" copy /Y "%RUNNER_MANIFEST%" "%LOCAL_RUNNER_DIR%\latest.json" >nul
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -LiteralPath '%LOCAL_RUNNER%' -ErrorAction SilentlyContinue" >nul 2>nul
+
+set "MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT=%SHARE_ROOT%"
+set "MIXLAB_WINDOWS_BUILDS_ROOT=%SHARE_ROOT%"
+set "MIXLAB_WINDOWS_TEST_RUNNER_HOST=0.0.0.0"
+set "MIXLAB_WINDOWS_TEST_RUNNER_PORT=3799"
+
+echo Local runner: %LOCAL_RUNNER%
+echo Health URL: http://127.0.0.1:3799/health
+echo.
+echo A new runner window will open. Keep it open while Codex runs Windows tests.
+
+start "MixLab Windows Test Runner" "%LOCAL_RUNNER%"
+
+popd >nul
+echo.
+echo If the health URL returns ok=true, tell Codex: Runner started.
+pause
