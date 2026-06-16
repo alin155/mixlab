@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runProbeApi } from "./probe-api.ts";
 import type {
+  DesktopDiagnosticFile,
+  DesktopDiagnosticsReport,
   FailureCategory,
   LaunchAppCandidate,
   LaunchAppProbeReport
@@ -127,6 +129,8 @@ function defaultStaticAppCandidates(options: LaunchAppProbeOptions): string[] {
   const userProfile = process.env.USERPROFILE;
   const programFiles = process.env.PROGRAMFILES;
   const programFilesX86 = process.env["PROGRAMFILES(X86)"];
+  const appData = process.env.APPDATA;
+  const programData = process.env.ProgramData ?? process.env.PROGRAMDATA;
 
   pushCandidate(candidates, localAppData ? path.join(localAppData, "Programs", "MixLab Cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, localAppData ? path.join(localAppData, "Programs", "mixlab-cutter", "MixLab Cutter.exe") : undefined);
@@ -139,6 +143,9 @@ function defaultStaticAppCandidates(options: LaunchAppProbeOptions): string[] {
   pushCandidate(candidates, programFiles ? path.join(programFiles, "mixlab-cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, programFilesX86 ? path.join(programFilesX86, "MixLab Cutter", "MixLab Cutter.exe") : undefined);
   pushCandidate(candidates, programFilesX86 ? path.join(programFilesX86, "mixlab-cutter", "MixLab Cutter.exe") : undefined);
+  pushCandidate(candidates, userProfile ? path.join(userProfile, "Desktop", "MixLab Cutter.lnk") : undefined);
+  pushCandidate(candidates, appData ? path.join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "MixLab Cutter.lnk") : undefined);
+  pushCandidate(candidates, programData ? path.join(programData, "Microsoft", "Windows", "Start Menu", "Programs", "MixLab Cutter.lnk") : undefined);
 
   if (process.platform !== "win32") {
     pushCandidate(candidates, path.join(os.tmpdir(), "MixLab Cutter.exe"));
@@ -212,6 +219,100 @@ async function pathExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isWindowsShortcut(filePath: string): boolean {
+  return filePath.toLowerCase().endsWith(".lnk");
+}
+
+function desktopDiagnosticCandidatePaths(): string[] {
+  const candidates: string[] = [];
+  const appData = process.env.APPDATA;
+  const localAppData = process.env.LOCALAPPDATA;
+
+  function push(candidate: string | undefined): void {
+    if (candidate && !candidates.includes(candidate)) {
+      candidates.push(candidate);
+    }
+  }
+
+  push(appData ? path.join(appData, "MixLab Cutter", "logs", "desktop-host.ndjson") : undefined);
+  push(appData ? path.join(appData, "MixLab Cutter", "logs", "cutter-api-sidecar.stdout.log") : undefined);
+  push(appData ? path.join(appData, "MixLab Cutter", "logs", "cutter-api-sidecar.stderr.log") : undefined);
+  push(appData ? path.join(appData, "MixLab Cutter", "logs", "mixlab-searchd.stdout.log") : undefined);
+  push(appData ? path.join(appData, "MixLab Cutter", "logs", "mixlab-searchd.stderr.log") : undefined);
+  push(appData ? path.join(appData, "MixLab Cutter", "cutter-desktop-config.json") : undefined);
+  push(appData ? path.join(appData, "com.mixlab.cutter", "cutter-desktop-config.json") : undefined);
+  push(localAppData ? path.join(localAppData, "MixLab Cutter", "cutter-desktop-config.json") : undefined);
+
+  return candidates;
+}
+
+async function readDiagnosticFile(filePath: string): Promise<DesktopDiagnosticFile> {
+  try {
+    const metadata = await stat(filePath);
+    if (!metadata.isFile()) {
+      return {
+        path: filePath,
+        exists: false,
+        error: "path exists but is not a file"
+      };
+    }
+    const raw = await readFile(filePath, "utf8");
+    return {
+      path: filePath,
+      exists: true,
+      size_bytes: metadata.size,
+      tail: raw.slice(-20_000)
+    };
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
+    return {
+      path: filePath,
+      exists: false,
+      ...(code && code !== "ENOENT" ? { error: error instanceof Error ? error.message : String(error) } : {})
+    };
+  }
+}
+
+async function collectDesktopDiagnostics(): Promise<DesktopDiagnosticsReport> {
+  return {
+    collected_at: new Date().toISOString(),
+    appdata: process.env.APPDATA,
+    localappdata: process.env.LOCALAPPDATA,
+    userprofile: process.env.USERPROFILE,
+    files: await Promise.all(desktopDiagnosticCandidatePaths().map(readDiagnosticFile))
+  };
+}
+
+function launchLocatedApp(appPath: string, appArgs: string[] | undefined): {
+  child: ReturnType<typeof spawn>;
+  launch_method: "direct" | "windows_shortcut";
+  shortcut_path?: string;
+  executable_path: string;
+} {
+  if (process.platform === "win32" && isWindowsShortcut(appPath)) {
+    return {
+      child: spawn("cmd.exe", ["/c", "start", "", appPath, ...(appArgs ?? [])], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true
+      }),
+      launch_method: "windows_shortcut",
+      shortcut_path: appPath,
+      executable_path: "cmd.exe"
+    };
+  }
+
+  return {
+    child: spawn(appPath, appArgs ?? [], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false
+    }),
+    launch_method: "direct",
+    executable_path: appPath
+  };
 }
 
 async function findAppExecutable(options: LaunchAppProbeOptions): Promise<{
@@ -298,16 +399,16 @@ export async function runLaunchAppProbe(input: {
   });
 
   try {
-    const child = spawn(located.appPath, options.app_args ?? [], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: false
-    });
-    child.unref();
+    const launched = launchLocatedApp(located.appPath, options.app_args);
+    launched.child.unref();
     report.app_started = true;
-    report.app_pid = child.pid;
+    report.app_pid = launched.child.pid;
+    report.app_launch_method = launched.launch_method;
+    report.app_executable_path = launched.executable_path;
+    report.app_shortcut_path = launched.shortcut_path;
   } catch (error) {
     report.launch_error = error instanceof Error ? error.message : String(error);
+    report.desktop_diagnostics = await collectDesktopDiagnostics();
     return {
       report,
       passed: false,
@@ -328,6 +429,7 @@ export async function runLaunchAppProbe(input: {
   report.health_error = health.error;
 
   if (!health.ok) {
+    report.desktop_diagnostics = await collectDesktopDiagnostics();
     return {
       report,
       passed: false,

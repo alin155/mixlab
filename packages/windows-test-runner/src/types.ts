@@ -60,6 +60,22 @@ export interface LaunchAppCandidate {
   exists: boolean;
 }
 
+export interface DesktopDiagnosticFile {
+  path: string;
+  exists: boolean;
+  size_bytes?: number;
+  tail?: string;
+  error?: string;
+}
+
+export interface DesktopDiagnosticsReport {
+  collected_at: string;
+  appdata?: string;
+  localappdata?: string;
+  userprofile?: string;
+  files: DesktopDiagnosticFile[];
+}
+
 export interface LaunchAppProbeReport {
   api_base_url: string;
   api_ready_before_launch: boolean;
@@ -67,11 +83,14 @@ export interface LaunchAppProbeReport {
   api_ready_elapsed_ms: number;
   app_started: boolean;
   app_executable_path?: string;
+  app_launch_method?: "direct" | "windows_shortcut";
+  app_shortcut_path?: string;
   app_pid?: number;
   launch_error?: string;
   health_status_code?: number | null;
   health_error?: string;
   candidates: LaunchAppCandidate[];
+  desktop_diagnostics?: DesktopDiagnosticsReport;
   probe_api?: ProbeApiReport;
 }
 

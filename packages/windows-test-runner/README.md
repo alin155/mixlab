@@ -43,6 +43,17 @@ Phase 1 supports:
 }
 ```
 
+and:
+
+```json
+{
+  "suite": "launch_app_probe",
+  "options": {
+    "api_ready_timeout_ms": 60000
+  }
+}
+```
+
 Reports are written to:
 
 ```text

@@ -355,6 +355,67 @@ test("launch_app_probe reports app_executable_not_found for missing app paths", 
   }
 });
 
+test("launch_app_probe attaches desktop diagnostics when API readiness times out", async () => {
+  const root = await tempRoot();
+  const previousAppData = process.env.APPDATA;
+  const appDataRoot = path.join(root, "AppData", "Roaming");
+  const logDir = path.join(appDataRoot, "MixLab Cutter", "logs");
+  await mkdir(logDir, { recursive: true });
+  await writeFile(
+    path.join(logDir, "desktop-host.ndjson"),
+    `${JSON.stringify({ event: "engine_sidecar_missing", details: { error: "missing sidecar" } })}\n`,
+    "utf8"
+  );
+
+  const runner = createWindowsTestRunnerServer(runnerConfig({
+    reportsRoot: path.join(root, "reports"),
+    cutterApiBaseUrl: "http://127.0.0.1:9"
+  }));
+  try {
+    process.env.APPDATA = appDataRoot;
+    const runnerBaseUrl = await listen(runner.server);
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "launch_app_probe",
+        options: {
+          app_path: process.execPath,
+          app_args: ["-e", ""],
+          force_launch: true,
+          api_ready_timeout_ms: 100
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "failed");
+    assert.equal(finished.failure_category, "api_health_timeout");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      launch_app_probe: {
+        desktop_diagnostics?: {
+          files: Array<{ path: string; exists: boolean; tail?: string }>;
+        };
+      };
+    };
+    const desktopHostLog = report.launch_app_probe.desktop_diagnostics?.files.find((file) => (
+      file.path.endsWith(path.join("MixLab Cutter", "logs", "desktop-host.ndjson"))
+    ));
+    assert.equal(desktopHostLog?.exists, true);
+    assert.match(desktopHostLog?.tail ?? "", /engine_sidecar_missing/);
+  } finally {
+    if (previousAppData === undefined) {
+      delete process.env.APPDATA;
+    } else {
+      process.env.APPDATA = previousAppData;
+    }
+    await close(runner.server);
+    await rmRoot(root);
+  }
+});
+
 test("runner keeps HTTP reports available when the shared report directory cannot be written", async () => {
   const root = await tempRoot();
   const api = createMockCutterApi();

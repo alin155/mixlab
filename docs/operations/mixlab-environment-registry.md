@@ -29,7 +29,8 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前共享目录已发布 `0.1.4`，新增并增强 `launch_app_probe` 自动启动剪辑端并等待本机 API 的能力。
+- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机正在运行 `0.1.4`；源码已准备 `0.1.5`，用于支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志。
+- 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
   - `127.0.0.1:5176`：管理端 Web。
@@ -208,6 +209,8 @@ Windows 日志默认目录：
 `0.1.3` 修复内容：新增 `launch_app_probe` 套件。Runner 可以定位并启动已安装的 `MixLab Cutter.exe`，等待 Windows 本机 `http://127.0.0.1:3789/health` 就绪，再运行剪辑端 API 探测。报告会记录候选安装路径、是否启动应用、进程 ID、API 等待耗时和探测结果。
 
 `0.1.4` 修复内容：增强 `launch_app_probe` 的安装路径发现能力。Runner 会扫描 `%LOCALAPPDATA%`、`%LOCALAPPDATA%\Programs`、`Program Files` 等常见父目录，并匹配 `MixLab Cutter.exe` / `mixlab-cutter*.exe`，避免只依赖固定安装路径。
+
+`0.1.5` 源码修复内容：`launch_app_probe` 支持从桌面或开始菜单 `.lnk` 快捷方式启动 `MixLab Cutter`；当 `127.0.0.1:3789/health` 超时时，报告会带回 `%APPDATA%\MixLab Cutter\logs` 下的 `desktop-host.ndjson`、sidecar stdout/stderr 和 searchd stdout/stderr 尾部内容，减少人工截图式调试。
 
 Runner 启动后会把报告写入：
 

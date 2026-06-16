@@ -32,7 +32,7 @@ const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd-x86_64-pc-windows-msvc.exe
 const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd";
 
 const SEARCHD_HOST: &str = "127.0.0.1";
-const SEARCHD_PORT: u16 = 3799;
+const SEARCHD_PORT: u16 = 3790;
 const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
 const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
 const SEARCHD_API_TIMEOUT_MS: &str = "20000";
