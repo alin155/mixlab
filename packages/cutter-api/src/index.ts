@@ -31,6 +31,8 @@ import {
   validateCutterSession,
   type CutterUserRecord,
   type CutterReleaseCacheStatus,
+  type SyncCutterReleaseCacheInput,
+  type SyncCutterReleaseCacheResult,
   type CutterSourceLibrarySearchGroup,
   type CutterSourceLibrarySearchResult,
   type CutterSourceVideoCard,
@@ -78,6 +80,13 @@ export interface CreateCutterApiServerInput {
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
   searchd_timeout_ms?: number;
+  release_cache_status_reader?: (input: {
+    cache_root: string;
+    max_cached_releases?: number;
+  }) => Promise<CutterReleaseCacheStatus>;
+  release_cache_sync_runner?: (
+    input: SyncCutterReleaseCacheInput
+  ) => Promise<SyncCutterReleaseCacheResult>;
   usage_event_recorder?: CutterUsageEventRecorder;
   auth_mode?: "reviewed" | "local_trusted";
   trusted_user_id?: string;
@@ -463,6 +472,8 @@ const SOURCE_PREFLIGHT_SAMPLE_COUNT = 3;
 const SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS = 1_500;
 const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
 const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
+const RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS = 200;
+const RELEASE_CACHE_STATUS_CACHE_TTL_MS = 60_000;
 const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
 
 interface ThumbnailCacheManifestEntry {
@@ -2946,14 +2957,54 @@ function disabledReleaseCacheRuntimeStatus(): CutterReleaseCacheRuntimeStatus {
   };
 }
 
-async function syncCutterReleaseCacheBestEffort(
+function refreshingReleaseCacheRuntimeStatus(
+  input: CreateCutterApiServerInput,
+  cacheRoot: string,
+  previous?: CutterReleaseCacheRuntimeStatus
+): CutterReleaseCacheRuntimeStatus {
+  return {
+    enabled: true,
+    ready: previous?.ready ?? false,
+    sync_status: "syncing",
+    active_release_version: previous?.active_release_version ?? "",
+    source_release_version: previous?.source_release_version ?? "",
+    search_index_version: previous?.search_index_version ?? "",
+    ready_video_count: previous?.ready_video_count ?? 0,
+    cached_release_versions: previous?.cached_release_versions ?? [],
+    cached_release_count: previous?.cached_release_count ?? 0,
+    max_cached_releases: previous?.max_cached_releases ?? releaseCacheMaxReleases(input) ?? 2,
+    cache_size_bytes: previous?.cache_size_bytes ?? 0,
+    pruned_release_versions: [],
+    cache_root_path: cacheRoot,
+    catalog_file_path: previous?.catalog_file_path ?? "",
+    message: previous?.ready
+      ? "本机 Release 缓存状态正在后台刷新"
+      : "本机 Release 缓存正在后台准备"
+  };
+}
+
+interface ReleaseCacheRuntimeCacheEntry {
+  expires_at_ms: number;
+  status?: CutterReleaseCacheRuntimeStatus;
+  promise?: Promise<CutterReleaseCacheRuntimeStatus>;
+}
+
+const releaseCacheRuntimeStatusByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  ReleaseCacheRuntimeCacheEntry
+>();
+
+function syncCutterReleaseCacheRuntimeStatusUncached(
   input: CreateCutterApiServerInput
 ): Promise<CutterReleaseCacheRuntimeStatus> {
   const cacheRoot = releaseCacheRootForInput(input);
   if (!cacheRoot) {
-    return disabledReleaseCacheRuntimeStatus();
+    return Promise.resolve(disabledReleaseCacheRuntimeStatus());
   }
-  const syncPromise = syncCutterReleaseCache({
+  const syncRunner = input.release_cache_sync_runner ?? syncCutterReleaseCache;
+  const statusReader = input.release_cache_status_reader ?? readLocalCutterReleaseCacheStatus;
+
+  return syncRunner({
     source_library_root: input.library_root,
     cache_root: cacheRoot,
     max_cached_releases: releaseCacheMaxReleases(input)
@@ -2977,26 +3028,65 @@ async function syncCutterReleaseCacheBestEffort(
     }))
     .catch(async () =>
       releaseCacheRuntimeStatusFromLocal(
-        await readLocalCutterReleaseCacheStatus({
+        await statusReader({
           cache_root: cacheRoot,
           max_cached_releases: releaseCacheMaxReleases(input)
         }),
         "failed"
       )
     );
+}
 
-  const fallback = await readLocalCutterReleaseCacheStatus({
-    cache_root: cacheRoot,
-    max_cached_releases: releaseCacheMaxReleases(input)
-  });
+async function syncCutterReleaseCacheBestEffort(
+  input: CreateCutterApiServerInput
+): Promise<CutterReleaseCacheRuntimeStatus> {
+  const cacheRoot = releaseCacheRootForInput(input);
+  if (!cacheRoot) {
+    return disabledReleaseCacheRuntimeStatus();
+  }
+
+  const nowMs = Date.now();
+  let cache = releaseCacheRuntimeStatusByInput.get(input);
+
+  if (!cache) {
+    cache = {
+      expires_at_ms: 0
+    };
+    releaseCacheRuntimeStatusByInput.set(input, cache);
+  }
+
+  if (cache.status && cache.expires_at_ms > nowMs) {
+    return cache.status;
+  }
+
+  if (!cache.promise) {
+    cache.promise = syncCutterReleaseCacheRuntimeStatusUncached(input)
+      .then((status) => {
+        cache.status = status;
+        cache.expires_at_ms = Date.now() + RELEASE_CACHE_STATUS_CACHE_TTL_MS;
+        return status;
+      })
+      .catch((error): CutterReleaseCacheRuntimeStatus => {
+        const fallback = refreshingReleaseCacheRuntimeStatus(input, cacheRoot, cache.status);
+        cache.status = {
+          ...fallback,
+          sync_status: "failed",
+          message: `本机 Release 缓存后台刷新失败：${(error as Error).message || "未知错误"}`
+        };
+        cache.expires_at_ms = Date.now() + Math.min(30_000, RELEASE_CACHE_STATUS_CACHE_TTL_MS);
+        return cache.status;
+      })
+      .finally(() => {
+        if (cache) {
+          delete cache.promise;
+        }
+      });
+  }
 
   return delayedFallback(
-    syncPromise,
-    releaseSyncTimeoutMs(input),
-    releaseCacheRuntimeStatusFromLocal(
-      fallback,
-      fallback.cache_ready ? "syncing" : "unavailable"
-    )
+    cache.promise,
+    Math.min(releaseSyncTimeoutMs(input), RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS),
+    refreshingReleaseCacheRuntimeStatus(input, cacheRoot, cache.status)
   );
 }
 

@@ -860,6 +860,77 @@ test("runtime status keeps source video preflight in the background when probing
   });
 });
 
+test("runtime status keeps release cache refresh in the background when scanning cache is slow", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const cacheRoot = path.join(libraryRoot, "slow-cache");
+  let syncCalls = 0;
+  let resolveSync!: () => void;
+  const syncGate = new Promise<void>((resolve) => {
+    resolveSync = resolve;
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const startedAt = Date.now();
+    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(firstResponse.status, 200);
+    const firstBody = await firstResponse.json() as any;
+
+    assert.equal(firstBody.data.release_cache.enabled, true);
+    assert.equal(firstBody.data.release_cache.ready, false);
+    assert.equal(firstBody.data.release_cache.sync_status, "syncing");
+    assert.ok(Date.now() - startedAt < 1_000);
+
+    resolveSync();
+
+    let latestBody = firstBody;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      latestBody = await response.json() as any;
+      if (latestBody.data.release_cache.ready) {
+        break;
+      }
+    }
+
+    assert.equal(latestBody.data.release_cache.ready, true);
+    assert.equal(latestBody.data.release_cache.sync_status, "ready");
+    assert.equal(latestBody.data.release_cache.cache_size_bytes, 123456);
+    assert.equal(latestBody.data.release_cache.ready_video_count, 2);
+    assert.equal(syncCalls, 1);
+  }, {
+    release_cache_root: cacheRoot,
+    release_cache_sync_runner: async (input) => {
+      syncCalls += 1;
+      await syncGate;
+      return {
+        cache_root: input.cache_root,
+        cache_ready: true,
+        active_release_version: "v000001",
+        source_release_version: "v000001",
+        search_index_version: "idx-v000001",
+        ready_video_count: 2,
+        cached_release_versions: ["v000001"],
+        cached_release_count: 1,
+        max_cached_releases: 2,
+        cache_size_bytes: 123456,
+        catalog_file_path: path.join(input.cache_root, ".mixlab-library", "releases", "v000001", "catalog.sqlite"),
+        copied: false,
+        pruned_release_versions: [],
+        message: "本机 Release 已是最新"
+      };
+    },
+    source_video_probe_runner: async () => ({
+      duration_ms: 3600,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    })
+  });
+});
+
 test("runtime status reports local searchd health when configured", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
