@@ -88,7 +88,7 @@ POST /runner/restart
   "suite": "launch_runner",
   "options": {
     "port": 3800,
-    "version_expected": "0.1.7"
+    "version_expected": "0.1.8"
   }
 }
 ```
@@ -96,6 +96,21 @@ POST /runner/restart
 `launch_runner` 的职责是从共享目录 `runner/MixLabWindowsTestRunner.exe`
 复制/启动一份 Runner 到备用端口，并验证 `/version`。它是 Runner 自升级的基础能力，
 不使用共享文件夹轮询命令。
+
+非破坏性真实链路 smoke：
+
+```json
+{
+  "suite": "cutter_api_smoke",
+  "options": {
+    "queries": ["第一场", "现金流"],
+    "source_limit": 20
+  }
+}
+```
+
+该套件验证 runtime/cache 摘要、公共素材库首屏、关键词搜索、选中素材完整文案加载、
+剪切任务队列可读性，不创建剪切任务。
 
 ## 共享文件夹职责
 

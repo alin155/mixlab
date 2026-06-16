@@ -8,6 +8,7 @@ import {
   timelinePath,
   writeRunReport
 } from "./report.ts";
+import { runCutterApiSmoke } from "./actions/cutter-api-smoke.ts";
 import { runLaunchAppProbe } from "./actions/launch-app-probe.ts";
 import { runLaunchRunner } from "./actions/launch-runner.ts";
 import { runProbeApi } from "./actions/probe-api.ts";
@@ -173,6 +174,18 @@ export class RunStore {
           record.failure_category = result.failure_category;
           record.failure_message = result.failure_message;
           throw new Error(result.failure_message ?? "launch_runner failed");
+        }
+      } else if (record.suite === "cutter_api_smoke") {
+        const result = await runCutterApiSmoke({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.cutter_api_smoke = result.report;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "cutter_api_smoke failed");
         }
       }
 

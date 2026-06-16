@@ -58,10 +58,26 @@ and:
 
 ```json
 {
+  "suite": "cutter_api_smoke",
+  "options": {
+    "queries": ["第一场", "现金流"],
+    "source_limit": 20
+  }
+}
+```
+
+`cutter_api_smoke` is a non-destructive real-data smoke test. It checks runtime
+and cache summary, public source-library first page, keyword search, selected
+source detail with full transcript, and cut-job queue readability.
+
+and:
+
+```json
+{
   "suite": "launch_runner",
   "options": {
     "port": 3800,
-    "version_expected": "0.1.7"
+    "version_expected": "0.1.8"
   }
 }
 ```

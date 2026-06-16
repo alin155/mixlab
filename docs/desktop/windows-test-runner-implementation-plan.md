@@ -228,6 +228,8 @@ cache: passed/failed/not_changed
   到备用端口，例如 `3800`，并验证新版 Runner 的 `/version`。
 - 已新增版本同步测试：`packages/windows-test-runner/package.json` 的版本必须和运行时
   `/version` 暴露的版本一致。
+- 已新增 `cutter_api_smoke` run suite：非破坏性验证 runtime/cache、公共素材库首屏、
+  关键词搜索、选中素材完整文案详情、剪切任务队列可读性。
 - 后续的完整自更新应基于 `launch_runner`，而不是通过 `launch_app_probe` 执行任意
   PowerShell 命令。
 

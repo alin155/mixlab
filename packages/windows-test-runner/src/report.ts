@@ -138,6 +138,31 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- Ready error: ${record.launch_runner.ready_error}`);
     }
   }
+  if (record.cutter_api_smoke) {
+    lines.push("", "## Cutter API Smoke", "");
+    if (record.cutter_api_smoke.runtime) {
+      lines.push(`- Runtime videos: ${record.cutter_api_smoke.runtime.available_video_count ?? "n/a"}`);
+      lines.push(`- Release cache: ${record.cutter_api_smoke.runtime.release_cache_sync_status ?? "n/a"}`);
+      lines.push(`- Source video cache bytes: ${record.cutter_api_smoke.runtime.source_video_cache_size_bytes ?? "n/a"}`);
+    }
+    if (record.cutter_api_smoke.source_library) {
+      lines.push(`- Source library: ${record.cutter_api_smoke.source_library.returned_count}/${record.cutter_api_smoke.source_library.available_video_count}`);
+    }
+    if (record.cutter_api_smoke.search) {
+      lines.push(`- Search: ${record.cutter_api_smoke.search.query}, ${record.cutter_api_smoke.search.groups_count} groups, ${record.cutter_api_smoke.search.hit_count} hits`);
+    }
+    if (record.cutter_api_smoke.detail) {
+      lines.push(`- Detail: ${record.cutter_api_smoke.detail.source_video_id}, ${record.cutter_api_smoke.detail.segment_count} segments, ${record.cutter_api_smoke.detail.transcript_character_count} chars`);
+    }
+    if (record.cutter_api_smoke.cut_jobs) {
+      lines.push(`- Cut jobs: ${record.cutter_api_smoke.cut_jobs.job_count}, failed ${record.cutter_api_smoke.cut_jobs.failed_count}`);
+    }
+    lines.push("", "### Smoke Checks", "");
+    for (const check of record.cutter_api_smoke.checks) {
+      const status = check.ok ? "passed" : "failed";
+      lines.push(`- ${check.id}: ${status}, ${check.elapsed_ms}ms, status ${check.status_code ?? "n/a"}`);
+    }
+  }
 
   return `${lines.join("\n")}\n`;
 }
@@ -160,7 +185,8 @@ export function serializeRunReport(record: RunRecord): RunReport {
     report_write_error: record.report_write_error,
     probe_api: record.probe_api,
     launch_app_probe: record.launch_app_probe,
-    launch_runner: record.launch_runner
+    launch_runner: record.launch_runner,
+    cutter_api_smoke: record.cutter_api_smoke
   };
 }
 

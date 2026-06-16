@@ -67,7 +67,28 @@ function createMockCutterApi(): Server {
       return;
     }
     if (url.pathname === "/cutter/runtime-status") {
-      response.end(JSON.stringify({ ok: true, release_version: "v000001" }));
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          api_ready: true,
+          available_video_count: 1,
+          release_cache: {
+            ready: true,
+            sync_status: "ready",
+            cache_size_bytes: 1024
+          },
+          local_cache: {
+            source_video_cache: {
+              size_bytes: 2048,
+              file_count: 1
+            }
+          },
+          source_video_preflight: {
+            status: "ready",
+            readable_count: 1
+          }
+        }
+      }));
       return;
     }
     if (url.pathname === "/cutter/source-library") {
@@ -76,6 +97,66 @@ function createMockCutterApi(): Server {
         data: {
           available_video_count: 1,
           videos: [{ source_video_id: "C0001", title: "测试素材" }]
+        }
+      }));
+      return;
+    }
+    if (url.pathname === "/cutter/source-search") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          query: url.searchParams.get("query") ?? "",
+          normalized_query: url.searchParams.get("query") ?? "",
+          search_ms: 7,
+          search_mode: "sqlite-index",
+          groups: [
+            {
+              source_video_id: "C0001",
+              title: "测试素材",
+              hit_count: 2,
+              best_excerpt: "第一场公开课",
+              hit_segments: [
+                { segment_id: "C0001-S0001", begin_ms: 1000, end_ms: 2500, text: "第一场公开课" }
+              ]
+            }
+          ]
+        }
+      }));
+      return;
+    }
+    if (url.pathname === "/cutter/source-videos/C0001") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          source_video_id: "C0001",
+          title: "测试素材",
+          duration_ms: 10000,
+          media_url: "/cutter/source-videos/C0001/media",
+          cover_url: "/cutter/source-videos/C0001/cover",
+          detail_url: "/cutter/source-videos/C0001",
+          subtitles_url: "/cutter/source-videos/C0001/subtitles.srt",
+          transcript: {
+            full_text: "第一场公开课，测试文案。",
+            segments: [
+              { segment_id: "C0001-S0001", begin_ms: 1000, end_ms: 2500, text: "第一场公开课" }
+            ]
+          },
+          keyframes: {
+            keyframes_ms: []
+          }
+        }
+      }));
+      return;
+    }
+    if (url.pathname === "/cutter/cut-jobs") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          job_count: 2,
+          jobs: [
+            { cut_job_id: "CJ0001", status: "done" },
+            { cut_job_id: "CJ0002", status: "failed" }
+          ]
         }
       }));
       return;
@@ -258,6 +339,91 @@ test("runner exposes health, version, status, and a passing probe_api run", asyn
     await stat(path.join(root, "reports", created.run.run_id, "summary.md"));
     const timelineText = await readFile(path.join(root, "reports", created.run.run_id, "timeline.ndjson"), "utf8");
     assert.match(timelineText, /"stage":"starting"/);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
+test("cutter_api_smoke validates search, detail, cache, and cut queue shape", async () => {
+  const root = await tempRoot();
+  const api = createMockCutterApi();
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "cutter_api_smoke",
+        options: {
+          queries: ["第一场"],
+          source_limit: 20
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      status: string;
+      cutter_api_smoke: {
+        runtime?: {
+          available_video_count?: number;
+          release_cache_ready?: boolean;
+          source_video_cache_size_bytes?: number;
+        };
+        source_library?: {
+          available_video_count: number;
+          returned_count: number;
+        };
+        search?: {
+          query: string;
+          groups_count: number;
+          source_video_id?: string;
+        };
+        detail?: {
+          source_video_id: string;
+          transcript_character_count: number;
+          segment_count: number;
+        };
+        cut_jobs?: {
+          job_count: number;
+          failed_count: number;
+          done_count: number;
+        };
+        checks: Array<{ id: string; ok: boolean }>;
+      };
+    };
+    assert.equal(report.status, "passed");
+    assert.equal(report.cutter_api_smoke.runtime?.available_video_count, 1);
+    assert.equal(report.cutter_api_smoke.runtime?.release_cache_ready, true);
+    assert.equal(report.cutter_api_smoke.runtime?.source_video_cache_size_bytes, 2048);
+    assert.equal(report.cutter_api_smoke.source_library?.returned_count, 1);
+    assert.equal(report.cutter_api_smoke.search?.source_video_id, "C0001");
+    assert.equal(report.cutter_api_smoke.detail?.source_video_id, "C0001");
+    assert.equal(report.cutter_api_smoke.detail?.segment_count, 1);
+    assert.equal(report.cutter_api_smoke.cut_jobs?.failed_count, 1);
+    assert.deepEqual(report.cutter_api_smoke.checks.map((check) => [check.id, check.ok]), [
+      ["runtime_status", true],
+      ["source_library", true],
+      ["source_search:第一场", true],
+      ["source_video_detail", true],
+      ["cut_jobs", true]
+    ]);
   } finally {
     await close(api);
     if (runner) {
