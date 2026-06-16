@@ -157,6 +157,17 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 | Windows 包脚本 | `npm run package:cutter-desktop:windows` |
 | 安装包交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
 
+2026-06-16 当前最新共享安装包：
+
+```text
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-1c4c1e2.exe
+version: 0.18.10
+commit: 1c4c1e2
+github_run_id: 27643546919
+sha256: 125dd9f94faf3b215bee88dd8890c59a74f3c6b714893497bac3d2643a917fa3
+included_fix: cutter runtime-status prefers local release cache ready_video_count before reading NAS index count
+```
+
 桌面端内置资源：
 
 - `cutter-api-sidecar-x86_64-pc-windows-msvc.exe`
