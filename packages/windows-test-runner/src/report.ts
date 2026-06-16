@@ -95,6 +95,29 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- ${probe.id}: ${status}, ${probe.elapsed_ms}ms, status ${probe.status_code ?? "n/a"}`);
     }
   }
+  if (record.launch_app_probe) {
+    lines.push("", "## Launch App Probe", "");
+    lines.push(`- API ready before launch: ${record.launch_app_probe.api_ready_before_launch}`);
+    lines.push(`- API ready: ${record.launch_app_probe.api_ready}`);
+    lines.push(`- API ready elapsed: ${record.launch_app_probe.api_ready_elapsed_ms}ms`);
+    lines.push(`- App started: ${record.launch_app_probe.app_started}`);
+    if (record.launch_app_probe.app_executable_path) {
+      lines.push(`- App executable: ${record.launch_app_probe.app_executable_path}`);
+    }
+    if (record.launch_app_probe.app_pid) {
+      lines.push(`- App PID: ${record.launch_app_probe.app_pid}`);
+    }
+    if (record.launch_app_probe.launch_error) {
+      lines.push(`- Launch error: ${record.launch_app_probe.launch_error}`);
+    }
+    if (record.launch_app_probe.health_error) {
+      lines.push(`- Health error: ${record.launch_app_probe.health_error}`);
+    }
+    lines.push("", "### App Candidates", "");
+    for (const candidate of record.launch_app_probe.candidates) {
+      lines.push(`- ${candidate.exists ? "found" : "missing"}: ${candidate.path}`);
+    }
+  }
 
   return `${lines.join("\n")}\n`;
 }
@@ -115,7 +138,8 @@ export function serializeRunReport(record: RunRecord): RunReport {
     timeline_path: record.timeline_path,
     summary_path: record.summary_path,
     report_write_error: record.report_write_error,
-    probe_api: record.probe_api
+    probe_api: record.probe_api,
+    launch_app_probe: record.launch_app_probe
   };
 }
 

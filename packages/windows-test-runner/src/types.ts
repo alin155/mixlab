@@ -1,4 +1,4 @@
-export type RunnerSuite = "probe_api";
+export type RunnerSuite = "probe_api" | "launch_app_probe";
 
 export type RunnerStatus =
   | "queued"
@@ -11,6 +11,7 @@ export type RunnerStatus =
 
 export type FailureCategory =
   | "runner_unreachable"
+  | "app_executable_not_found"
   | "app_launch_failure"
   | "api_health_timeout"
   | "api_auth_failure"
@@ -54,6 +55,26 @@ export interface ProbeApiReport {
   probes: ApiProbeResult[];
 }
 
+export interface LaunchAppCandidate {
+  path: string;
+  exists: boolean;
+}
+
+export interface LaunchAppProbeReport {
+  api_base_url: string;
+  api_ready_before_launch: boolean;
+  api_ready: boolean;
+  api_ready_elapsed_ms: number;
+  app_started: boolean;
+  app_executable_path?: string;
+  app_pid?: number;
+  launch_error?: string;
+  health_status_code?: number | null;
+  health_error?: string;
+  candidates: LaunchAppCandidate[];
+  probe_api?: ProbeApiReport;
+}
+
 export interface RunReport {
   schema_version: "1.0";
   run_id: string;
@@ -70,6 +91,7 @@ export interface RunReport {
   summary_path: string;
   report_write_error?: string;
   probe_api?: ProbeApiReport;
+  launch_app_probe?: LaunchAppProbeReport;
 }
 
 export interface RunRecord extends RunReport {

@@ -8,6 +8,7 @@ import {
   timelinePath,
   writeRunReport
 } from "./report.ts";
+import { runLaunchAppProbe } from "./actions/launch-app-probe.ts";
 import { runProbeApi } from "./actions/probe-api.ts";
 import type {
   RunRecord,
@@ -83,6 +84,24 @@ export class RunStore {
     };
   }
 
+  private async addTimeline(record: RunRecord, stage: string, message: string, details?: unknown): Promise<void> {
+    record.updated_at = nowIso();
+    const event: TimelineEvent = {
+      at: record.updated_at,
+      stage,
+      message,
+      details
+    };
+    record.timeline.push(event);
+    try {
+      await appendTimelineEvent(record.report_dir, event);
+    } catch (error) {
+      record.report_write_error = error instanceof Error ? error.message : String(error);
+      console.error("MixLab Windows Test Runner failed to write timeline.");
+      console.error(error);
+    }
+  }
+
   private async setStatus(record: RunRecord, status: RunnerStatus, message: string, details?: unknown): Promise<void> {
     record.status = status;
     record.updated_at = nowIso();
@@ -128,6 +147,19 @@ export class RunStore {
           record.failure_category = result.failure_category;
           record.failure_message = result.failure_message;
           throw new Error(result.failure_message ?? "probe_api failed");
+        }
+      } else if (record.suite === "launch_app_probe") {
+        const result = await runLaunchAppProbe({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.launch_app_probe = result.report;
+        record.probe_api = result.report.probe_api;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "launch_app_probe failed");
         }
       }
 

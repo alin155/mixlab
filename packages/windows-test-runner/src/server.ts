@@ -27,7 +27,7 @@ function isRunRequest(value: unknown): value is RunRequest {
     return false;
   }
   const candidate = value as Record<string, unknown>;
-  return candidate.suite === "probe_api";
+  return candidate.suite === "probe_api" || candidate.suite === "launch_app_probe";
 }
 
 export function createWindowsTestRunnerServer(config: RunnerConfig): {
@@ -66,7 +66,7 @@ export function createWindowsTestRunnerServer(config: RunnerConfig): {
         if (!isRunRequest(body)) {
           writeJson(response, 400, {
             ok: false,
-            error: "Unsupported or invalid run request. Phase 1 supports suite=probe_api."
+            error: "Unsupported or invalid run request. Supported suites: probe_api, launch_app_probe."
           });
           return;
         }

@@ -176,6 +176,102 @@ test("probe_api run fails with api_health_timeout when the cutter API is unavail
   }
 });
 
+test("launch_app_probe starts an app candidate and runs cutter API probes", async () => {
+  const root = await tempRoot();
+  const api = createMockCutterApi();
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "launch_app_probe",
+        options: {
+          app_path: process.execPath,
+          app_args: ["-e", "setTimeout(() => {}, 250)"],
+          force_launch: true,
+          api_ready_timeout_ms: 1000
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      status: string;
+      launch_app_probe: {
+        app_started: boolean;
+        app_executable_path: string;
+        api_ready: boolean;
+        candidates: Array<{ path: string; exists: boolean }>;
+      };
+    };
+    assert.equal(report.status, "passed");
+    assert.equal(report.launch_app_probe.app_started, true);
+    assert.equal(report.launch_app_probe.app_executable_path, process.execPath);
+    assert.equal(report.launch_app_probe.api_ready, true);
+    assert.equal(report.launch_app_probe.candidates[0].exists, true);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("launch_app_probe reports app_executable_not_found for missing app paths", async () => {
+  const root = await tempRoot();
+  const missingAppPath = path.join(root, "missing", "MixLab Cutter.exe");
+  const runner = createWindowsTestRunnerServer(runnerConfig({
+    reportsRoot: path.join(root, "reports"),
+    cutterApiBaseUrl: "http://127.0.0.1:9"
+  }));
+  try {
+    const runnerBaseUrl = await listen(runner.server);
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "launch_app_probe",
+        options: {
+          app_path: missingAppPath,
+          api_ready_timeout_ms: 100
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "failed");
+    assert.equal(finished.failure_category, "app_executable_not_found");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      status: string;
+      launch_app_probe: {
+        candidates: Array<{ path: string; exists: boolean }>;
+      };
+    };
+    assert.equal(report.status, "failed");
+    assert.equal(report.launch_app_probe.candidates[0].path, missingAppPath);
+    assert.equal(report.launch_app_probe.candidates[0].exists, false);
+  } finally {
+    await close(runner.server);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("runner keeps HTTP reports available when the shared report directory cannot be written", async () => {
   const root = await tempRoot();
   const api = createMockCutterApi();
@@ -241,7 +337,7 @@ test("runner rejects unsupported run suites", async () => {
     });
     assert.equal(response.status, 400);
     const body = await response.json() as { error: string };
-    assert.match(body.error, /Phase 1/);
+    assert.match(body.error, /Supported suites/);
   } finally {
     await close(runner.server);
     await rm(root, { recursive: true, force: true });
