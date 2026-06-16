@@ -29,7 +29,7 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机正在运行 `0.1.4`；源码已准备 `0.1.5`，用于支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志。
+- 2026-06-16，Mac 侧曾通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。随后旧 Runner `0.1.1` 因共享报告写入 `EBADF` 崩溃，已发布修复版 `0.1.2`。当前 Windows 实机正在运行 `0.1.4`；共享目录已发布 `0.1.5`，用于支持 `.lnk` 快捷方式启动和 API 超时时自动采集桌面端日志。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
@@ -187,7 +187,8 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前版本 | `0.1.4` |
+| 当前共享版本 | `0.1.5` |
+| 当前实机运行版本 | 以 `curl --noproxy '*' http://192.168.1.20:3799/version` 为准，2026-06-16 当前观察为 `0.1.4` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -201,7 +202,7 @@ Windows 日志默认目录：
 2026-06-16 当前共享发布记录：
 
 ```text
-0.1.4 e259e88 27630710508 080c2c18d7c2e34dbc9c039010814ca918c988e96f5eb030132162dd62d40071
+0.1.5 be51c68 27633701135 e646f030efd9e1853de058e3092b03c36c58ba673ba9169d1720bcefad91a30d
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -210,7 +211,7 @@ Windows 日志默认目录：
 
 `0.1.4` 修复内容：增强 `launch_app_probe` 的安装路径发现能力。Runner 会扫描 `%LOCALAPPDATA%`、`%LOCALAPPDATA%\Programs`、`Program Files` 等常见父目录，并匹配 `MixLab Cutter.exe` / `mixlab-cutter*.exe`，避免只依赖固定安装路径。
 
-`0.1.5` 源码修复内容：`launch_app_probe` 支持从桌面或开始菜单 `.lnk` 快捷方式启动 `MixLab Cutter`；当 `127.0.0.1:3789/health` 超时时，报告会带回 `%APPDATA%\MixLab Cutter\logs` 下的 `desktop-host.ndjson`、sidecar stdout/stderr 和 searchd stdout/stderr 尾部内容，减少人工截图式调试。
+`0.1.5` 修复内容：`launch_app_probe` 支持从桌面或开始菜单 `.lnk` 快捷方式启动 `MixLab Cutter`；当 `127.0.0.1:3789/health` 超时时，报告会带回 `%APPDATA%\MixLab Cutter\logs` 下的 `desktop-host.ndjson`、sidecar stdout/stderr 和 searchd stdout/stderr 尾部内容，减少人工截图式调试。
 
 Runner 启动后会把报告写入：
 
