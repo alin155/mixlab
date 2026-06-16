@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -172,6 +172,56 @@ test("probe_api run fails with api_health_timeout when the cutter API is unavail
     assert.equal(report.failure_category, "api_health_timeout");
   } finally {
     await close(runner.server);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runner keeps HTTP reports available when the shared report directory cannot be written", async () => {
+  const root = await tempRoot();
+  const api = createMockCutterApi();
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    const blockedReportsRoot = path.join(root, "reports-blocker");
+    await writeFile(blockedReportsRoot, "not a directory", "utf8");
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: blockedReportsRoot,
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ suite: "probe_api" })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const reportResponse = await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`);
+    assert.equal(reportResponse.status, 200);
+    const report = await reportResponse.json() as {
+      status: string;
+      report_write_error?: string;
+      probe_api: { probes: Array<{ id: string; ok: boolean }> };
+    };
+    assert.equal(report.status, "passed");
+    assert.match(report.report_write_error ?? "", /ENOTDIR|not a directory|Failed to/i);
+    assert.deepEqual(report.probe_api.probes.map((probe) => [probe.id, probe.ok]), [
+      ["health", true],
+      ["auth_mode", true],
+      ["runtime_status", true],
+      ["source_library_first_page", true]
+    ]);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
     await rm(root, { recursive: true, force: true });
   }
 });

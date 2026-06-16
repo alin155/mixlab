@@ -1,6 +1,45 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { RunRecord, TimelineEvent } from "./types.ts";
+import type { RunRecord, RunReport, TimelineEvent } from "./types.ts";
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function messageFromError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function writeTextWithRetry(filePath: string, text: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, text, "utf8");
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(75 * (attempt + 1));
+    }
+  }
+  throw new Error(`Failed to write ${filePath}: ${messageFromError(lastError)}`);
+}
+
+async function appendTextWithRetry(filePath: string, text: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await mkdir(path.dirname(filePath), { recursive: true });
+      const existing = await readFile(filePath, "utf8").catch(() => "");
+      await writeFile(filePath, `${existing}${text}`, "utf8");
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(75 * (attempt + 1));
+    }
+  }
+  throw new Error(`Failed to append ${filePath}: ${messageFromError(lastError)}`);
+}
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -23,11 +62,7 @@ export function summaryPath(reportDir: string): string {
 }
 
 export async function appendTimelineEvent(reportDir: string, event: TimelineEvent): Promise<void> {
-  await mkdir(reportDir, { recursive: true });
-  await writeFile(timelinePath(reportDir), `${JSON.stringify(event)}\n`, {
-    encoding: "utf8",
-    flag: "a"
-  });
+  await appendTextWithRetry(timelinePath(reportDir), `${JSON.stringify(event)}\n`);
 }
 
 function writeSummary(record: RunRecord): string {
@@ -50,6 +85,9 @@ function writeSummary(record: RunRecord): string {
   if (record.failure_message) {
     lines.push(`- Failure message: ${record.failure_message}`);
   }
+  if (record.report_write_error) {
+    lines.push(`- Report write error: ${record.report_write_error}`);
+  }
   if (record.probe_api) {
     lines.push("", "## API Probes", "");
     for (const probe of record.probe_api.probes) {
@@ -61,9 +99,8 @@ function writeSummary(record: RunRecord): string {
   return `${lines.join("\n")}\n`;
 }
 
-export async function writeRunReport(record: RunRecord): Promise<void> {
-  await mkdir(record.report_dir, { recursive: true });
-  const reportText = `${JSON.stringify({
+export function serializeRunReport(record: RunRecord): RunReport {
+  return {
     schema_version: record.schema_version,
     run_id: record.run_id,
     suite: record.suite,
@@ -77,10 +114,15 @@ export async function writeRunReport(record: RunRecord): Promise<void> {
     report_dir: record.report_dir,
     timeline_path: record.timeline_path,
     summary_path: record.summary_path,
+    report_write_error: record.report_write_error,
     probe_api: record.probe_api
-  }, null, 2)}\n`;
-  await writeFile(reportPath(record.report_dir), reportText, "utf8");
-  await writeFile(summaryPath(record.report_dir), writeSummary(record), "utf8");
+  };
+}
+
+export async function writeRunReport(record: RunRecord): Promise<void> {
+  const reportText = `${JSON.stringify(serializeRunReport(record), null, 2)}\n`;
+  await writeTextWithRetry(reportPath(record.report_dir), reportText);
+  await writeTextWithRetry(summaryPath(record.report_dir), writeSummary(record));
 }
 
 export async function readRunReport(reportDir: string): Promise<unknown | null> {

@@ -93,7 +93,23 @@ export class RunStore {
       details
     };
     record.timeline.push(event);
-    await appendTimelineEvent(record.report_dir, event);
+    try {
+      await appendTimelineEvent(record.report_dir, event);
+    } catch (error) {
+      record.report_write_error = error instanceof Error ? error.message : String(error);
+      console.error("MixLab Windows Test Runner failed to write timeline.");
+      console.error(error);
+    }
+  }
+
+  private async tryWriteRunReport(record: RunRecord): Promise<void> {
+    try {
+      await writeRunReport(record);
+    } catch (error) {
+      record.report_write_error = error instanceof Error ? error.message : String(error);
+      console.error("MixLab Windows Test Runner failed to write report.");
+      console.error(error);
+    }
   }
 
   private async executeRun(record: RunRecord): Promise<void> {
@@ -119,9 +135,9 @@ export class RunStore {
       record.finished_at = nowIso();
       record.status = "passed";
       record.updated_at = record.finished_at;
-      await writeRunReport(record);
+      await this.tryWriteRunReport(record);
       await this.setStatus(record, "passed", "Run passed.");
-      await writeRunReport(record);
+      await this.tryWriteRunReport(record);
     } catch (error) {
       record.failure_category ??= "unknown";
       record.failure_message ??= error instanceof Error ? error.message : String(error);
@@ -129,9 +145,9 @@ export class RunStore {
       record.finished_at = nowIso();
       record.status = "failed";
       record.updated_at = record.finished_at;
-      await writeRunReport(record);
+      await this.tryWriteRunReport(record);
       await this.setStatus(record, "failed", record.failure_message);
-      await writeRunReport(record);
+      await this.tryWriteRunReport(record);
     }
   }
 }

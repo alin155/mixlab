@@ -68,6 +68,7 @@ export interface RunReport {
   report_dir: string;
   timeline_path: string;
   summary_path: string;
+  report_write_error?: string;
   probe_api?: ProbeApiReport;
 }
 

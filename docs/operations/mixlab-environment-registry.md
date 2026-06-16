@@ -29,7 +29,7 @@
 - 2026-06-16，用户确认 Windows 本机打开 `http://127.0.0.1:3799/health` 已正常显示启动。
 - Mac 当前局域网 IP 观察值：`192.168.1.21`，接口：`en1`。
 - Windows 当前局域网 IP 观察值：`192.168.1.20`。
-- 2026-06-16，Mac 侧已通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`，`runner_version: 0.1.1`。
+- 2026-06-16，Mac 侧已通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 Windows Test Runner 可访问，返回 `ok: true`。已知旧运行版本为 `0.1.1`，下一版发布目标为 `0.1.2`。
 - Mac 当前观察到的监听端口：
   - `127.0.0.1:3889`：管理端 API。
   - `127.0.0.1:5176`：管理端 Web。
@@ -186,7 +186,7 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前版本 | `0.1.1` |
+| 当前版本 | `0.1.2` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -200,7 +200,7 @@ Windows 日志默认目录：
 2026-06-16 当前共享发布记录：
 
 ```text
-0.1.1 da7eb44 27616731331
+0.1.2 待发布
 ```
 
 Runner 启动后会把报告写入：

@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { readRunReport } from "./report.ts";
+import { readRunReport, serializeRunReport } from "./report.ts";
 import { RunStore } from "./run-store.ts";
 import type { RunnerConfig, RunRequest } from "./types.ts";
 
@@ -87,6 +87,10 @@ export function createWindowsTestRunnerServer(config: RunnerConfig): {
         }
         if (runMatch[2] === "report") {
           const report = await readRunReport(run.report_dir);
+          if (!report && (run.status === "passed" || run.status === "failed" || run.status === "cancelled")) {
+            writeJson(response, 200, serializeRunReport(run));
+            return;
+          }
           writeJson(response, report ? 200 : 202, report ?? {
             ok: false,
             status: run.status,
