@@ -85,6 +85,16 @@ export interface CreateCutterApiServerInput {
     max_cached_releases?: number;
     include_cache_size?: boolean;
   }) => Promise<CutterReleaseCacheStatus>;
+  search_index_warmup_runner?: (input: {
+    library_root: string;
+    release_root: string;
+    query: string;
+    limit: number;
+  }) => Promise<{
+    index_version: string;
+    returned_count: number;
+    search_ms: number;
+  }>;
   release_cache_sync_runner?: (
     input: SyncCutterReleaseCacheInput
   ) => Promise<SyncCutterReleaseCacheResult>;
@@ -228,7 +238,19 @@ interface CutterRuntimeStatusPayload {
   };
   diagnostics?: {
     runtime_timings_ms: Record<string, number>;
+    search_index_warmup?: SearchIndexWarmupStatus;
   };
+}
+
+interface SearchIndexWarmupStatus {
+  status: "idle" | "warming" | "ready" | "failed";
+  release_version: string;
+  query: string;
+  index_version: string;
+  returned_count: number;
+  search_ms: number;
+  warmed_at: string;
+  error?: string;
 }
 
 interface CutterLocalCacheRuntimeStatus {
@@ -478,6 +500,7 @@ const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
 const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
 const RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS = 200;
 const RELEASE_CACHE_STATUS_CACHE_TTL_MS = 60_000;
+const SEARCH_INDEX_WARMUP_QUERY = "第一场";
 const LOCAL_CACHE_STATUS_INLINE_TIMEOUT_MS = 150;
 const LOCAL_CACHE_STATUS_CACHE_TTL_MS = 30_000;
 const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
@@ -3000,6 +3023,112 @@ const releaseCacheRuntimeStatusByInput = new WeakMap<
   ReleaseCacheRuntimeCacheEntry
 >();
 
+interface SearchIndexWarmupCacheEntry {
+  release_version: string;
+  status: SearchIndexWarmupStatus;
+  promise?: Promise<void>;
+}
+
+const searchIndexWarmupByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  SearchIndexWarmupCacheEntry
+>();
+
+function idleSearchIndexWarmupStatus(): SearchIndexWarmupStatus {
+  return {
+    status: "idle",
+    release_version: "",
+    query: SEARCH_INDEX_WARMUP_QUERY,
+    index_version: "",
+    returned_count: 0,
+    search_ms: 0,
+    warmed_at: ""
+  };
+}
+
+function readSearchIndexWarmupStatus(input: CreateCutterApiServerInput): SearchIndexWarmupStatus {
+  return searchIndexWarmupByInput.get(input)?.status ?? idleSearchIndexWarmupStatus();
+}
+
+function scheduleSearchIndexWarmup(
+  input: CreateCutterApiServerInput,
+  status: CutterReleaseCacheRuntimeStatus
+): void {
+  const releaseRoot = releaseCacheRootForInput(input);
+  if (!releaseRoot || !status.ready || !status.active_release_version) {
+    return;
+  }
+
+  const current = searchIndexWarmupByInput.get(input);
+  if (
+    current?.release_version === status.active_release_version &&
+    (current.promise || current.status.status === "ready")
+  ) {
+    return;
+  }
+
+  const startedAt = input.now?.() ?? new Date().toISOString();
+  const entry: SearchIndexWarmupCacheEntry = {
+    release_version: status.active_release_version,
+    status: {
+      status: "warming",
+      release_version: status.active_release_version,
+      query: SEARCH_INDEX_WARMUP_QUERY,
+      index_version: status.search_index_version,
+      returned_count: 0,
+      search_ms: 0,
+      warmed_at: startedAt
+    }
+  };
+  searchIndexWarmupByInput.set(input, entry);
+
+  const runner = input.search_index_warmup_runner ?? ((warmupInput) =>
+    searchCutterSourceLibrary({
+      library_root: warmupInput.library_root,
+      release_root: warmupInput.release_root,
+      query: warmupInput.query,
+      limit: warmupInput.limit
+    }).then((result) => ({
+      index_version: result.index_version,
+      returned_count: result.returned_count,
+      search_ms: result.search_ms
+    }))
+  );
+
+  entry.promise = runner({
+    library_root: input.library_root,
+    release_root: releaseRoot,
+    query: SEARCH_INDEX_WARMUP_QUERY,
+    limit: 1
+  })
+    .then((result) => {
+      entry.status = {
+        status: "ready",
+        release_version: status.active_release_version,
+        query: SEARCH_INDEX_WARMUP_QUERY,
+        index_version: result.index_version || status.search_index_version,
+        returned_count: result.returned_count,
+        search_ms: result.search_ms,
+        warmed_at: input.now?.() ?? new Date().toISOString()
+      };
+    })
+    .catch((error) => {
+      entry.status = {
+        status: "failed",
+        release_version: status.active_release_version,
+        query: SEARCH_INDEX_WARMUP_QUERY,
+        index_version: status.search_index_version,
+        returned_count: 0,
+        search_ms: 0,
+        warmed_at: input.now?.() ?? new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error)
+      };
+    })
+    .finally(() => {
+      delete entry.promise;
+    });
+}
+
 function syncCutterReleaseCacheRuntimeStatusUncached(
   input: CreateCutterApiServerInput
 ): Promise<CutterReleaseCacheRuntimeStatus> {
@@ -3064,6 +3193,7 @@ async function syncCutterReleaseCacheBestEffort(
   }
 
   if (cache.status && cache.expires_at_ms > nowMs) {
+    scheduleSearchIndexWarmup(input, cache.status);
     return cache.status;
   }
 
@@ -3074,6 +3204,7 @@ async function syncCutterReleaseCacheBestEffort(
         cache.expires_at_ms = Date.now() + (
           status.cache_size_bytes > 0 ? RELEASE_CACHE_STATUS_CACHE_TTL_MS : 5_000
         );
+        scheduleSearchIndexWarmup(input, status);
         return status;
       })
       .catch((error): CutterReleaseCacheRuntimeStatus => {
@@ -3093,11 +3224,13 @@ async function syncCutterReleaseCacheBestEffort(
       });
   }
 
-  return delayedFallback(
+  const status = await delayedFallback(
     cache.promise,
     Math.min(releaseSyncTimeoutMs(input), RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS),
     refreshingReleaseCacheRuntimeStatus(input, cacheRoot, cache.status)
   );
+  scheduleSearchIndexWarmup(input, status);
+  return status;
 }
 
 async function releaseRootForFastLibraryRead(
@@ -3518,7 +3651,8 @@ async function runtimeStatusForSession(input: {
       display_name: input.auth.user.display_name
     },
     diagnostics: {
-      runtime_timings_ms: timings
+      runtime_timings_ms: timings,
+      search_index_warmup: readSearchIndexWarmupStatus(input.api_input)
     }
   };
 }

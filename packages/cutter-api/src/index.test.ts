@@ -931,6 +931,104 @@ test("runtime status keeps release cache refresh in the background when scanning
   });
 });
 
+test("runtime status warms the release search index once the cache is ready", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const cacheRoot = path.join(libraryRoot, "warm-cache");
+  const warmupCalls: Array<{
+    library_root: string;
+    release_root: string;
+    query: string;
+    limit: number;
+  }> = [];
+  let resolveWarmup!: (result: {
+    index_version: string;
+    returned_count: number;
+    search_ms: number;
+  }) => void;
+  const warmupPromise = new Promise<{
+    index_version: string;
+    returned_count: number;
+    search_ms: number;
+  }>((resolve) => {
+    resolveWarmup = resolve;
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(firstResponse.status, 200);
+    const firstBody = await firstResponse.json() as any;
+
+    assert.equal(firstBody.data.release_cache.ready, true);
+    assert.equal(firstBody.data.diagnostics.search_index_warmup.status, "warming");
+    assert.equal(firstBody.data.diagnostics.search_index_warmup.release_version, "v000002");
+    assert.equal(firstBody.data.diagnostics.search_index_warmup.query, "第一场");
+    assert.equal(warmupCalls.length, 1);
+    assert.deepEqual(warmupCalls[0], {
+      library_root: libraryRoot,
+      release_root: cacheRoot,
+      query: "第一场",
+      limit: 1
+    });
+
+    const secondResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(secondResponse.status, 200);
+    assert.equal(warmupCalls.length, 1);
+
+    resolveWarmup({
+      index_version: "idx-v000002",
+      returned_count: 1,
+      search_ms: 321
+    });
+
+    let latestBody = firstBody;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      latestBody = await response.json() as any;
+      if (latestBody.data.diagnostics.search_index_warmup.status === "ready") {
+        break;
+      }
+    }
+
+    assert.equal(latestBody.data.diagnostics.search_index_warmup.status, "ready");
+    assert.equal(latestBody.data.diagnostics.search_index_warmup.index_version, "idx-v000002");
+    assert.equal(latestBody.data.diagnostics.search_index_warmup.returned_count, 1);
+    assert.equal(latestBody.data.diagnostics.search_index_warmup.search_ms, 321);
+    assert.equal(warmupCalls.length, 1);
+  }, {
+    release_cache_root: cacheRoot,
+    release_cache_sync_runner: async (input) => ({
+      cache_root: input.cache_root,
+      cache_ready: true,
+      active_release_version: "v000002",
+      source_release_version: "v000002",
+      search_index_version: "idx-v000002",
+      ready_video_count: 2,
+      cached_release_versions: ["v000002"],
+      cached_release_count: 1,
+      max_cached_releases: 2,
+      cache_size_bytes: 654321,
+      catalog_file_path: path.join(input.cache_root, ".mixlab-library", "releases", "v000002", "catalog.sqlite"),
+      copied: false,
+      pruned_release_versions: [],
+      message: "本机 Release 已是最新"
+    }),
+    search_index_warmup_runner: async (input) => {
+      warmupCalls.push(input);
+      return warmupPromise;
+    },
+    source_video_probe_runner: async () => ({
+      duration_ms: 3600,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    })
+  });
+});
+
 test("runtime status reports local searchd health when configured", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
