@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { LocalClipCatalog, SearchHitSegment, SearchResponse, SourceLibraryResponse, SourceVideoCard, TranscriptSegment } from "./api.ts";
+import type { CutJob, LocalClipCatalog, SearchHitSegment, SearchResponse, SourceLibraryResponse, SourceVideoCard, TranscriptSegment } from "./api.ts";
 import {
   clearCutList,
   createCutListItemFromSegments,
@@ -741,6 +741,42 @@ test("cut pipeline runs pending jobs sequentially and refreshes local clips afte
   assert.equal(queueRefreshes, 2);
   assert.equal(localRefreshes, 1);
   assert.deepEqual(states, ["本机剪切运行中", "本机剪切运行中", "本机剪切运行中", "本机剪切已完成"]);
+});
+
+test("cut pipeline refreshes queue while a long running job is still active", async () => {
+  let queueRefreshes = 0;
+  let resolver: ((job: CutJob) => void) | undefined;
+
+  const jobPromise = new Promise<CutJob>((resolve) => {
+    resolver = resolve;
+  });
+
+  const pipelinePromise = runCutPipeline({
+    runNextCutJob: async () => jobPromise,
+    refreshQueueJobs: async () => {
+      queueRefreshes += 1;
+    },
+    refreshLocalClips: async () => undefined,
+    maxIterations: 1,
+    activeRefreshIntervalMs: 5
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 18));
+  assert.equal(queueRefreshes > 0, true);
+
+  resolver?.({
+    cut_job_id: "CJ20260504-0003",
+    clip_list_id: "CL20260504-0001",
+    status: "done",
+    source_video_id: "V000001",
+    begin_ms: 1000,
+    end_ms: 2000,
+    export_clip_id: "E000002"
+  });
+
+  const result = await pipelinePromise;
+  assert.equal(result.status, "completed");
+  assert.equal(result.done_count, 1);
 });
 
 test("completed cut-list items become local clips for reuse search", () => {

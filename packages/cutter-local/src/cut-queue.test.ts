@@ -172,7 +172,7 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
     result?.phase_timings?.map((phase) => [phase.phase_id, phase.label, phase.status]),
     [
       ["queue_wait", "排队等待", "done"],
-      ["resolve_source", "读取源素材", "done"],
+      ["resolve_source", "准备源素材", "done"],
       ["preflight_source", "剪切前检查", "done"],
       ["cut_media", "剪切/重编码", "done"],
       ["write_project_output", "写入交付目录", "done"],

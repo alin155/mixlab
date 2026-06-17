@@ -150,7 +150,7 @@ export interface RunCutJobInput extends RunNextCutJobInput {
 
 const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
   { phase_id: "queue_wait", label: "排队等待" },
-  { phase_id: "resolve_source", label: "读取源素材" },
+  { phase_id: "resolve_source", label: "准备源素材" },
   { phase_id: "preflight_source", label: "剪切前检查" },
   { phase_id: "cut_media", label: "剪切/重编码" },
   { phase_id: "write_project_output", label: "写入交付目录" },

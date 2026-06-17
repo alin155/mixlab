@@ -17,6 +17,7 @@ export interface RunCutPipelineInput {
   refreshLocalClips: () => Promise<void>;
   onState?: (state: CutPipelineState) => void;
   maxIterations?: number;
+  activeRefreshIntervalMs?: number;
 }
 
 export const idleCutPipelineState: CutPipelineState = {
@@ -47,7 +48,7 @@ export function cutPipelineDetailLabel(state: CutPipelineState): string {
   }
 
   if (state.status === "running") {
-    return `已处理 ${state.processed_count} 个任务，正在继续检查等待任务。`;
+    return `已处理 ${state.processed_count} 个任务，正在缓存或剪切当前任务。`;
   }
 
   if (state.status === "failed") {
@@ -76,6 +77,7 @@ export async function runCutPipeline(
   input: RunCutPipelineInput
 ): Promise<CutPipelineState> {
   const maxIterations = input.maxIterations ?? Number.POSITIVE_INFINITY;
+  const activeRefreshIntervalMs = input.activeRefreshIntervalMs ?? 0;
   let processedCount = 0;
   let doneCount = 0;
   let failedCount = 0;
@@ -88,7 +90,37 @@ export async function runCutPipeline(
 
   try {
     for (let index = 0; index < maxIterations; index += 1) {
-      const job = await input.runNextCutJob();
+      let refreshInFlight = false;
+      const activeRefreshTimer = activeRefreshIntervalMs > 0
+        ? setInterval(() => {
+            if (refreshInFlight) {
+              return;
+            }
+
+            refreshInFlight = true;
+            void input.refreshQueueJobs()
+              .then(() => {
+                input.onState?.(runningState({
+                  processed_count: processedCount,
+                  done_count: doneCount,
+                  failed_count: failedCount
+                }));
+              })
+              .catch(() => undefined)
+              .finally(() => {
+                refreshInFlight = false;
+              });
+          }, activeRefreshIntervalMs)
+        : undefined;
+
+      let job: CutJob | null;
+      try {
+        job = await input.runNextCutJob();
+      } finally {
+        if (activeRefreshTimer) {
+          clearInterval(activeRefreshTimer);
+        }
+      }
 
       if (!job) {
         break;

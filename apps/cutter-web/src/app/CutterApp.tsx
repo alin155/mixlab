@@ -2372,7 +2372,8 @@ export function CutterApp() {
         runNextCutJob: () => client.runNextCutJob(),
         refreshQueueJobs,
         refreshLocalClips,
-        onState: setCutPipelineState
+        onState: setCutPipelineState,
+        activeRefreshIntervalMs: 1000
       });
       const notice = cutNoticeForPipelineResult(result);
       if (notice) {
