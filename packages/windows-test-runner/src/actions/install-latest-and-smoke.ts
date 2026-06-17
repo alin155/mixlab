@@ -66,6 +66,10 @@ function tail(text: string, maxLength = 4000): string | undefined {
   return text.length > maxLength ? text.slice(-maxLength) : text;
 }
 
+function powershellQuoted(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 function runProcess(input: {
   command: string;
   args: string[];
@@ -261,7 +265,13 @@ export async function runInstallLatestAndSmoke(input: {
     await input.onEvent?.("unblock_installer", "Removing Windows downloaded-file marker if present.");
     report.unblocked_installer = await runProcess({
       command: "powershell.exe",
-      args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Unblock-File -LiteralPath $args[0]", installerLocalPath],
+      args: [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        `Unblock-File -LiteralPath ${powershellQuoted(installerLocalPath)}`
+      ],
       timeoutMs: 30_000,
       allowNonZero: true
     });
