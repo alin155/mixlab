@@ -33,6 +33,8 @@
 - 2026-06-17，用户确认 Windows Test Runner 已启动 `0.1.8`；Mac 侧通过 `curl --noproxy '*' http://192.168.1.20:3799/version` 验证 `runner_version: 0.1.8`。
 - 2026-06-17，Windows Test Runner `windows_acceptance-20260617T011228Z-c52dfc21` 通过。报告路径：`\\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\reports\windows_acceptance-20260617T011228Z-c52dfc21\report.json`。关键结果：`auth_mode=local_trusted`，公共素材库首屏 `/cutter/source-library?limit=20` 为 `5-8ms`、`20 / 7950`，完整文案详情 `16ms`、`27408` 字、`783` 段，缓存可观测总量 `1776807388` bytes，release cache `1109828367` bytes，source video cache `666539381` bytes。剩余性能观察：`searchd` 仍处于预热降级状态，搜索 `第一场` 走 `sqlite-index`，耗时约 `1864ms`。
 - 2026-06-17，Mac 真实 release cache 验证新增 Cutter API 后台搜索索引预热：临时 API 使用 `/Volumes/MixLab/PublicLibrary` 与 `/Users/huaqihang/Movies/MixLabLocal/cache`，`/cutter/runtime-status` 约 `932ms` 返回并完成 `第一场` 预热，随后 `/cutter/source-search?query=第一场&limit=10` 约 `371ms`、top `V000790`。独立 index 压测中 `第一场` 冷搜约 `1699ms`，预热后约 `340ms`，搜索排序保持不变。
+- 2026-06-17，Windows Test Runner `0.1.9` 通过备用本机端口 `3801` 安装并验收剪辑端安装包 `b440fc3`。报告路径：`\\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\reports\install_latest_and_smoke-20260617T034725Z-4d3584b7\report.json`。关键结果：安装包先复制到 Windows 本机临时目录，SHA-256 `528cf61698c8cbb86a096386abd1be022b024fc745c314e1f33ad59b16b65e8b` 校验一致，静默安装退出码 `0`，安装耗时 `7146ms`，安装后 `windows_acceptance` 通过，`auth_mode=local_trusted`，公共素材库首屏 `20 / 7950`，完整文案 `27408` 字 / `783` 段，缓存可观测总量 `2172998260` bytes。观察：Mac 侧无法直接访问 `192.168.1.20:3801`，但 Windows 本机 `127.0.0.1:3801` 可用；后续仍应以 `3799` 作为正式长期 Runner 入口。
+- 2026-06-17，Windows Test Runner 共享目录已发布 `0.1.10`，修复 `install_latest_and_smoke` 中 `Unblock-File` 本机安装包路径参数问题。共享记录：`0.1.10 90325fb 27664604593 ac06b4bc90e51e96902d1ffb308a8ffcae744ff21af0e1fe8caf5f6670996d74`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -160,15 +162,16 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 | Windows 包脚本 | `npm run package:cutter-desktop:windows` |
 | 安装包交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
 
-2026-06-16 当前最新共享安装包：
+2026-06-17 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-1c4c1e2.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-b440fc3.exe
 version: 0.18.10
-commit: 1c4c1e2
-github_run_id: 27643546919
-sha256: 125dd9f94faf3b215bee88dd8890c59a74f3c6b714893497bac3d2643a917fa3
-included_fix: cutter runtime-status prefers local release cache ready_video_count before reading NAS index count
+commit: b440fc3
+github_run_id: 27661433704
+sha256: 528cf61698c8cbb86a096386abd1be022b024fc745c314e1f33ad59b16b65e8b
+included_fix: cutter API warms the release search index after cache ready
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260617T034725Z-4d3584b7/report.json
 ```
 
 桌面端内置资源：
@@ -202,8 +205,8 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.8` |
-| 当前实机运行版本 | `0.1.8`，2026-06-17 通过 `curl --noproxy '*' http://192.168.1.20:3799/version` 验证 |
+| 当前共享版本 | `0.1.10` |
+| 当前实机运行版本 | `0.1.8` on `3799`，2026-06-17 通过 `curl --noproxy '*' http://192.168.1.20:3799/version` 验证；`0.1.9` 曾由 `0.1.8` 启动在 Windows 本机 `127.0.0.1:3801` 完成安装验收，但 Mac 侧不能直接访问 `192.168.1.20:3801` |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -214,10 +217,10 @@ Windows 日志默认目录：
 | Mac 远程健康检查 | `http://192.168.1.20:3799/health` |
 | 共享 bootstrap 日志 | `/Users/huaqihang/Public/MixLabWindowsBuilds/logs/runner/bootstrap-<port>.log`，默认 `bootstrap-3799.log` |
 
-2026-06-16 当前共享发布记录：
+2026-06-17 当前共享发布记录：
 
 ```text
-0.1.8 9e845db 27642780157 7ccfe864484aa13c1b853c668f135e33c433fafff880eb9529962c204c463f3f
+0.1.10 90325fb 27664604593 ac06b4bc90e51e96902d1ffb308a8ffcae744ff21af0e1fe8caf5f6670996d74
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -233,6 +236,10 @@ Windows 日志默认目录：
 `0.1.7` 修复内容：新增 `launch_runner` run suite。当前 Runner 可以从共享目录启动新版 Runner 到备用端口，例如 `3800`，并验证新版 Runner 的 `/version`；同时新增版本同步测试，避免 `package.json` 版本与运行时 `/version` 不一致。启动脚本支持可选端口参数，例如 `start-windows-test-runner.cmd 3800`。
 
 `0.1.8` 修复内容：新增非破坏性 Windows 应用验收 suites：`app_runtime_smoke`、`real_data_smoke`、`cache_smoke`、`windows_acceptance`。这些 suites 通过 Windows 本机 sidecar API 验证真实数据、搜索、完整文案、剪切任务可读和缓存分类可观测；`windows_acceptance` 不创建剪切任务、不写本地工作区。
+
+`0.1.9` 修复内容：新增 `install_latest_and_smoke` suite。Runner 会从共享目录选择最新 `MixLab Cutter` 安装包，复制到 Windows 本机临时目录，校验 SHA-256，关闭旧桌面端/sidecar/searchd 进程，静默安装，然后执行 `windows_acceptance`。
+
+`0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
 
 Runner 启动后会把报告写入：
 
