@@ -1029,8 +1029,10 @@ fn build_persistent_tantivy_index(
     }
     fs::create_dir_all(&build_dir)?;
 
-    let index = Index::create_in_dir(&build_dir, schema)?;
-    index_documents(&index, fields, segments, videos)?;
+    {
+        let index = Index::create_in_dir(&build_dir, schema)?;
+        index_documents(&index, fields, segments, videos)?;
+    }
     write_cache_metadata(&build_dir, expected)?;
 
     if final_dir.exists() {
