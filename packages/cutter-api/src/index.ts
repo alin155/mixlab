@@ -2124,6 +2124,34 @@ async function directFileCacheSize(root: string): Promise<number> {
   return (await readDirectFileCacheEntries(root)).reduce((total, entry) => total + entry.size, 0);
 }
 
+async function recursiveFileCacheSize(root: string): Promise<number> {
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  const sizes = await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = path.join(root, entry.name);
+      if (entry.isDirectory()) {
+        return recursiveFileCacheSize(entryPath);
+      }
+      if (!entry.isFile()) {
+        return 0;
+      }
+
+      try {
+        return (await stat(entryPath)).size;
+      } catch {
+        return 0;
+      }
+    })
+  );
+  return sizes.reduce((total, size) => total + size, 0);
+}
+
 async function pruneDirectFileCache(input: {
   root: string;
   max_bytes: number;
@@ -3471,7 +3499,7 @@ async function readLocalCacheRuntimeStatus(
   return {
     cache_root_path: cacheRoot,
     searchd_cache_root_path: searchdCacheRoot(input),
-    searchd_cache_size_bytes: await directFileCacheSize(searchdCacheRoot(input)),
+    searchd_cache_size_bytes: await recursiveFileCacheSize(searchdCacheRoot(input)),
     thumbnail_cache_root_path: thumbnailRoot,
     thumbnail_cache_manifest_path: thumbnailCacheManifestPath(thumbnailRoot),
     thumbnail_cache_size_bytes: await directFileCacheSize(thumbnailRoot),

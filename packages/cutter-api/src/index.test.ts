@@ -726,6 +726,9 @@ test("runtime status requires approved cutter session and reports workspace read
   const libraryRoot = await prepareLibrary();
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-runtime-"));
   const headers = await createApprovedAuthHeaders(libraryRoot);
+  const searchdCacheRoot = path.join(workspaceRoot, "cache", "searchd", "tantivy", "v000001");
+  await mkdir(searchdCacheRoot, { recursive: true });
+  await writeFile(path.join(searchdCacheRoot, "segment.idx"), Buffer.alloc(123));
 
   const server = createCutterApiServer({
     library_root: libraryRoot,
@@ -776,6 +779,7 @@ test("runtime status requires approved cutter session and reports workspace read
     assert.equal(body.data.release_cache.max_cached_releases, 2);
     assert.equal(typeof body.data.release_cache.cache_size_bytes, "number");
     assert.equal(body.data.local_cache.cache_root_path, path.join(workspaceRoot, "cache"));
+    assert.equal(body.data.local_cache.searchd_cache_size_bytes, 123);
     assert.equal(body.data.local_cache.source_video_cache.cache_root_path, path.join(workspaceRoot, "cache", "source-videos"));
     assert.equal(body.data.local_cache.source_video_cache.cached_video_count, 0);
     assert.equal(body.data.local_cache.cut_temp_cache.file_count, 0);
