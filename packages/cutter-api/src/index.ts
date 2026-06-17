@@ -1023,6 +1023,58 @@ async function sourceDetailWithLocalSourceCache<T extends {
   return source;
 }
 
+async function sourceDetailWithLocalSourceForCut<T extends {
+  source_video_id: string;
+  source_video_file_path: string;
+  file_size?: number;
+}>(apiInput: CreateCutterApiServerInput, source: T): Promise<T> {
+  if (/^E\d{6}$/.test(source.source_video_id)) {
+    return source;
+  }
+
+  const cachedPath = await cachedSourceVideoPath({
+    api_input: apiInput,
+    source_video_id: source.source_video_id,
+    source_video_file_path: source.source_video_file_path,
+    file_size: source.file_size
+  });
+
+  if (cachedPath) {
+    return {
+      ...source,
+      source_video_file_path: cachedPath
+    };
+  }
+
+  try {
+    await prefetchSourceVideo({
+      api_input: apiInput,
+      source_video_id: source.source_video_id,
+      source_video_file_path: source.source_video_file_path,
+      file_size: source.file_size
+    });
+    const readyPath = await cachedSourceVideoPath({
+      api_input: apiInput,
+      source_video_id: source.source_video_id,
+      source_video_file_path: source.source_video_file_path,
+      file_size: source.file_size
+    });
+
+    if (readyPath) {
+      return {
+        ...source,
+        source_video_file_path: readyPath
+      };
+    }
+  } catch (error) {
+    const root = sourceVideoCacheRoot(apiInput);
+    const message = error instanceof Error ? error.message : "source video cache before cut failed";
+    sourceVideoCacheLastErrors.set(root, `剪切前缓存源视频失败，已降级读取原素材：${message}`);
+  }
+
+  return source;
+}
+
 async function readSourceVideoCacheStatus(input: CreateCutterApiServerInput): Promise<CutterSourceVideoCacheStatus> {
   const root = sourceVideoCacheRoot(input);
   const manifest = await compactSourceVideoCacheManifest(root);
@@ -3926,7 +3978,7 @@ async function runWorkspaceCutJob(input: {
 
       const cachedSource = input.resolved_sources?.get(job.source_video_id);
       if (cachedSource) {
-        return await sourceDetailWithLocalSourceCache(input.api_input, cachedSource);
+        return await sourceDetailWithLocalSourceForCut(input.api_input, cachedSource);
       }
 
       const detail = await loadVisibleDetail(input.api_input, job.source_video_id);
@@ -3935,7 +3987,7 @@ async function runWorkspaceCutJob(input: {
         return null;
       }
 
-      return cutJobSourceFromDetail(await sourceDetailWithLocalSourceCache(input.api_input, detail));
+      return cutJobSourceFromDetail(await sourceDetailWithLocalSourceForCut(input.api_input, detail));
     },
     cut_runner: cutRunner,
     cut_temp_max_bytes: cutTempMaxBytes(input.api_input),
@@ -4272,7 +4324,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           local_clip_id: localClipId
         });
         const cutRunner = input.cut_runner ?? defaultCutRunner;
-        const cutSource = await sourceDetailWithLocalSourceCache(input, detail);
+        const cutSource = await sourceDetailWithLocalSourceForCut(input, detail);
 
         await mkdir(path.dirname(clipPaths.media_file_path), { recursive: true });
         await cutRunner({

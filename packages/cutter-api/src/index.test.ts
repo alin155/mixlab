@@ -2367,7 +2367,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-queue-"));
-  const cutOutputs: Array<{ begin_ms: number; end_ms: number }> = [];
+  const cutOutputs: Array<{ source_video_path: string; begin_ms: number; end_ms: number }> = [];
 
   const server = createCutterApiServer({
     library_root: libraryRoot,
@@ -2375,6 +2375,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     now: () => "2026-05-02T10:00:00Z",
     cut_runner: async (input) => {
       cutOutputs.push({
+        source_video_path: input.source_video_path,
         begin_ms: input.begin_ms,
         end_ms: input.end_ms
       });
@@ -2457,7 +2458,13 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     assert.equal(run.data.output_file, "export-clips/E000001/001-现金流清单-01_现金流.mp4");
     assert.equal(run.data.begin_ms, 750);
     assert.equal(run.data.end_ms, 4000);
-    assert.deepEqual(cutOutputs, [{ begin_ms: 750, end_ms: 4000 }]);
+    assert.equal(cutOutputs.length, 1);
+    assert.deepEqual(
+      cutOutputs.map(({ begin_ms, end_ms }) => ({ begin_ms, end_ms })),
+      [{ begin_ms: 750, end_ms: 4000 }]
+    );
+    assert.equal(path.dirname(cutOutputs[0]!.source_video_path), path.join(workspaceRoot, "cache", "source-videos"));
+    assert.match(path.basename(cutOutputs[0]!.source_video_path), /^V000001-[a-f0-9]{16}\.mp4$/);
 
     const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`, { headers })).json() as any;
     assert.equal(jobs.data.job_count, 1);
@@ -2553,10 +2560,14 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     assert.equal(reuseRun.data.export_clip_id, "E000002");
     assert.equal(reuseRun.data.begin_ms, 250);
     assert.equal(reuseRun.data.end_ms, 700);
-    assert.deepEqual(cutOutputs, [
-      { begin_ms: 750, end_ms: 4000 },
-      { begin_ms: 250, end_ms: 700 }
-    ]);
+    assert.deepEqual(
+      cutOutputs.map(({ begin_ms, end_ms }) => ({ begin_ms, end_ms })),
+      [
+        { begin_ms: 750, end_ms: 4000 },
+        { begin_ms: 250, end_ms: 700 }
+      ]
+    );
+    assert.match(cutOutputs[1]!.source_video_path, /export-clips\/E000001\/001-现金流清单-01_现金流\.mp4$/);
 
     const reusedLocalClips = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
     assert.equal(reusedLocalClips.data.local_clip_count, 2);
