@@ -103,6 +103,9 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /\.mixlab-searchd/);
   assert.match(source, /searchd_spawned/);
   assert.match(source, /current_api_has_searchd_backend/);
+  assert.match(source, /fn spawn_searchd/);
+  assert.match(source, /searchd_unhealthy_restart/);
+  assert.match(source, /stop_windows_process_tree\(SEARCHD_EXECUTABLE_NAME\)/);
   assert.match(source, /searchd_ready/);
   assert.match(source, /engine_existing_without_searchd/);
   assert.match(source, /stop_windows_process_tree\(CUTTER_API_SIDECAR_EXECUTABLE_NAME\)/);

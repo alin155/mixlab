@@ -244,6 +244,8 @@ struct HealthResponse {
     index_version: String,
     source_video_count: usize,
     segment_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_refresh_error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -421,6 +423,7 @@ struct SearchEngine {
     cache_root: Option<PathBuf>,
     bundle: Arc<RwLock<Option<Arc<IndexBundle>>>>,
     refreshing_version: Arc<RwLock<Option<String>>>,
+    last_refresh_error: Arc<RwLock<Option<String>>>,
 }
 
 impl SearchEngine {
@@ -440,6 +443,7 @@ impl SearchEngine {
             cache_root,
             bundle: Arc::new(RwLock::new(None)),
             refreshing_version: Arc::new(RwLock::new(None)),
+            last_refresh_error: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -478,6 +482,11 @@ impl SearchEngine {
             segment_count: bundle_ref
                 .map(|bundle| bundle.metadata.segment_count)
                 .unwrap_or_default(),
+            last_refresh_error: self
+                .last_refresh_error
+                .read()
+                .ok()
+                .and_then(|guard| guard.clone()),
         })
     }
 
@@ -627,6 +636,7 @@ impl SearchEngine {
 
         let bundle_lock = Arc::clone(&self.bundle);
         let refreshing_version = Arc::clone(&self.refreshing_version);
+        let last_refresh_error = Arc::clone(&self.last_refresh_error);
         let cache_root = self.cache_root.clone();
 
         thread::spawn(move || {
@@ -637,9 +647,28 @@ impl SearchEngine {
             )
             .map(Arc::new);
 
-            if let Ok(bundle) = loaded {
-                if let Ok(mut guard) = bundle_lock.write() {
-                    *guard = Some(bundle);
+            match loaded {
+                Ok(bundle) => {
+                    if let Ok(mut guard) = bundle_lock.write() {
+                        *guard = Some(bundle);
+                    }
+                    if let Ok(mut guard) = last_refresh_error.write() {
+                        *guard = None;
+                    }
+                }
+                Err(error) => {
+                    let error_message = error.to_string();
+                    eprintln!(
+                        "{}",
+                        serde_json::json!({
+                            "event": "mixlab_searchd_refresh_failed",
+                            "index_version": refresh_version,
+                            "error": error_message,
+                        })
+                    );
+                    if let Ok(mut guard) = last_refresh_error.write() {
+                        *guard = Some(error_message);
+                    }
                 }
             }
 
@@ -2827,6 +2856,7 @@ mod tests {
         assert_eq!(health.index_version, "v000001");
         assert_eq!(health.source_video_count, 0);
         assert_eq!(health.segment_count, 0);
+        assert_eq!(health.last_refresh_error, None);
     }
 
     #[test]

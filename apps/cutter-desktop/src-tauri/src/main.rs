@@ -438,75 +438,98 @@ fn searchd_base_url() -> String {
     format!("http://{SEARCHD_HOST}:{SEARCHD_PORT}")
 }
 
-fn ensure_searchd_started(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
-    let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
-    if !searchd_is_ready {
-        if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
+fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), String> {
+    let searchd_path = match resolve_searchd_path(app) {
+        Ok(path) => path,
+        Err(error) => {
+            desktop_host_log(app, "searchd_missing", json!({ "error": error }));
+            return Err(error);
+        }
+    };
+    let mut searchd_command = Command::new(&searchd_path);
+    let searchd_cache_root = Path::new(&config.local_workspace_root).join(".mixlab-searchd");
+    let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
+    searchd_command
+        .arg("--library-root")
+        .arg(&config.public_library_root)
+        .arg("--release-root")
+        .arg(&release_cache_root)
+        .arg("--cache-root")
+        .arg(&searchd_cache_root)
+        .arg("--host")
+        .arg(SEARCHD_HOST)
+        .arg("--port")
+        .arg(SEARCHD_PORT.to_string());
+    if let Some(parent) = searchd_path.parent() {
+        searchd_command.current_dir(parent);
+    }
+
+    match spawn_logged_process(app, &mut searchd_command, "mixlab-searchd") {
+        Ok(pid) => {
             desktop_host_log(
                 app,
-                "searchd_port_accepts_connection",
-                json!({ "searchd_base_url": searchd_base_url(), "message": "端口已打开但健康检查尚未完成，按本地搜索服务预热中处理" }),
+                "searchd_spawned",
+                json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "release_root": path_string(release_cache_root), "cache_root": path_string(searchd_cache_root) }),
             );
-        } else {
-            let searchd_path = match resolve_searchd_path(app) {
-                Ok(path) => path,
-                Err(error) => {
-                    desktop_host_log(app, "searchd_missing", json!({ "error": error }));
-                    return Err(error);
-                }
-            };
-            let mut searchd_command = Command::new(&searchd_path);
-            let searchd_cache_root =
-                Path::new(&config.local_workspace_root).join(".mixlab-searchd");
-            let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
-            searchd_command
-                .arg("--library-root")
-                .arg(&config.public_library_root)
-                .arg("--release-root")
-                .arg(&release_cache_root)
-                .arg("--cache-root")
-                .arg(&searchd_cache_root)
-                .arg("--host")
-                .arg(SEARCHD_HOST)
-                .arg("--port")
-                .arg(SEARCHD_PORT.to_string());
-            if let Some(parent) = searchd_path.parent() {
-                searchd_command.current_dir(parent);
-            }
-
-            match spawn_logged_process(app, &mut searchd_command, "mixlab-searchd") {
-                Ok(pid) => {
-                    desktop_host_log(
-                        app,
-                        "searchd_spawned",
-                        json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "release_root": path_string(release_cache_root), "cache_root": path_string(searchd_cache_root) }),
-                    );
-                }
-                Err(error) => {
-                    desktop_host_log(app, "searchd_spawn_failed", json!({ "error": error }));
-                    return Err(error);
-                }
-            }
+            Ok(())
         }
-    } else {
+        Err(error) => {
+            desktop_host_log(app, "searchd_spawn_failed", json!({ "error": error }));
+            Err(error)
+        }
+    }
+}
+
+fn wait_for_searchd_ready(app: &AppHandle) -> bool {
+    wait_for_health_endpoint(
+        app,
+        "searchd",
+        SEARCHD_HOST,
+        SEARCHD_PORT,
+        Duration::from_millis(SEARCHD_READY_TIMEOUT_MS),
+        Duration::from_millis(SEARCHD_HEALTH_READ_TIMEOUT_MS),
+    )
+}
+
+fn ensure_searchd_started(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
+    let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
+    if searchd_is_ready {
         desktop_host_log(
             app,
             "searchd_already_ready",
             json!({ "searchd_base_url": searchd_base_url() }),
         );
+        return Ok(true);
     }
-    if !searchd_is_ready {
-        searchd_is_ready = wait_for_health_endpoint(
+
+    if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
+        desktop_host_log(
             app,
-            "searchd",
-            SEARCHD_HOST,
-            SEARCHD_PORT,
-            Duration::from_millis(SEARCHD_READY_TIMEOUT_MS),
-            Duration::from_millis(SEARCHD_HEALTH_READ_TIMEOUT_MS),
+            "searchd_port_accepts_connection",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "端口已打开但健康检查尚未完成，按本地搜索服务预热中处理" }),
+        );
+        searchd_is_ready = wait_for_searchd_ready(app);
+        if searchd_is_ready {
+            return Ok(true);
+        }
+
+        desktop_host_log(
+            app,
+            "searchd_unhealthy_restart",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "本地搜索服务长时间未完成预热，准备重启 searchd" }),
+        );
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(800));
+    } else {
+        desktop_host_log(
+            app,
+            "searchd_port_closed",
+            json!({ "searchd_base_url": searchd_base_url() }),
         );
     }
 
-    Ok(searchd_is_ready)
+    spawn_searchd(app, config)?;
+    Ok(wait_for_searchd_ready(app))
 }
 
 #[tauri::command(rename_all = "camelCase")]
