@@ -57,6 +57,7 @@ export function cutterRuntimeCacheBytes(runtimeStatus?: CutterRuntimeStatus): nu
 
   return (
     (runtimeStatus.release_cache?.cache_size_bytes ?? 0) +
+    (runtimeStatus.local_cache?.searchd_cache_size_bytes ?? 0) +
     (runtimeStatus.local_cache?.thumbnail_cache_size_bytes ?? 0) +
     (runtimeStatus.local_cache?.source_video_cache?.size_bytes ?? 0) +
     (runtimeStatus.local_cache?.cut_temp_cache.size_bytes ?? 0)

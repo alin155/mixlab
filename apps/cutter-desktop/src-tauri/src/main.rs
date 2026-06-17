@@ -447,8 +447,8 @@ fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), St
         }
     };
     let mut searchd_command = Command::new(&searchd_path);
-    let searchd_cache_root = Path::new(&config.local_workspace_root).join(".mixlab-searchd");
     let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
+    let searchd_cache_root = release_cache_root.join("searchd");
     searchd_command
         .arg("--library-root")
         .arg(&config.public_library_root)

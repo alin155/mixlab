@@ -104,8 +104,13 @@ function cacheDetailRows(
       label: "搜索索引",
       value: search?.index_version || release?.search_index_version || "待生成",
       hint: search
-        ? `${search.source_video_count} 条视频 · ${search.segment_count.toLocaleString("zh-CN")} 段 · ${search.response_ms ?? "-"}ms`
+        ? `${search.source_video_count} 条视频 · ${search.segment_count.toLocaleString("zh-CN")} 段 · ${search.response_ms ?? "-"}ms${search.last_error ? ` · ${search.last_error}` : ""}`
         : undefined
+    },
+    {
+      label: "搜索索引缓存",
+      value: formatCutterCacheSize(local?.searchd_cache_size_bytes ?? 0),
+      hint: local?.searchd_cache_root_path
     },
     {
       label: "缩略图缓存",
@@ -209,7 +214,7 @@ export function CacheManagementPage({
           <CacheStatCard
             title="运行缓存"
             value={formatCutterCacheSize(totalRuntimeCacheBytes)}
-            detail="Release、缩略图、原视频和剪切临时区合计"
+            detail="Release、搜索索引、缩略图、原视频和剪切临时区合计"
           />
           <CacheStatCard
             title="Release"
@@ -220,6 +225,12 @@ export function CacheManagementPage({
               release?.max_cached_releases
             )}
             tone={releaseState.tone}
+          />
+          <CacheStatCard
+            title="搜索索引"
+            value={formatCutterCacheSize(local?.searchd_cache_size_bytes ?? 0)}
+            detail={runtimeStatus?.search_backend?.label || "等待搜索服务"}
+            tone={runtimeStatus?.search_backend?.last_error ? "warning" : searchState.tone}
           />
           <CacheStatCard
             title="缩略图"
@@ -327,6 +338,10 @@ export function CacheManagementPage({
           <section>
             <h3>Release</h3>
             <p>{release?.cache_root_path || "未启用"}</p>
+          </section>
+          <section>
+            <h3>搜索索引</h3>
+            <p>{local?.searchd_cache_root_path || "未启用"}</p>
           </section>
           <section>
             <h3>缩略图</h3>

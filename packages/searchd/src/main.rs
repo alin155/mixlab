@@ -865,6 +865,10 @@ fn cached_sqlite_index_path(
         return Ok(source_index_file_path.to_path_buf());
     };
 
+    if !should_copy_sqlite_index_to_cache(source_index_file_path) {
+        return Ok(source_index_file_path.to_path_buf());
+    }
+
     let source_metadata = fs::metadata(source_index_file_path).with_context(|| {
         format!(
             "failed to stat sqlite index: {}",
@@ -913,6 +917,18 @@ fn cached_sqlite_index_path(
     }
 
     Ok(cache_file_path)
+}
+
+fn should_copy_sqlite_index_to_cache(source_index_file_path: &Path) -> bool {
+    if std::env::var("MIXLAB_SEARCHD_CACHE_SQLITE")
+        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    let raw_path = source_index_file_path.to_string_lossy();
+    raw_path.starts_with(r"\\") || raw_path.starts_with("//")
 }
 
 fn expected_cache_metadata(current_version: &str, metadata: &IndexMetadata) -> SearchCacheMetadata {
@@ -2793,11 +2809,7 @@ mod tests {
         let first = first_engine.search("现金流", 10, None).unwrap();
         assert_eq!(first.returned_count, 2);
 
-        assert!(cache_root
-            .join("sqlite")
-            .join("v000001")
-            .join("index.sqlite")
-            .is_file());
+        assert!(!cache_root.join("sqlite").exists());
         let cache_dir = cache_root.join("tantivy").join("v000001");
         assert!(cache_dir.join("meta.json").is_file());
         assert!(cache_dir.join("mixlab-searchd-cache.json").is_file());
@@ -2806,6 +2818,19 @@ mod tests {
         let restarted = restarted_engine.search("现金流", 10, None).unwrap();
         assert_eq!(restarted.returned_count, 2);
         assert_eq!(restarted.groups[0].source_video_id, "V000001");
+    }
+
+    #[test]
+    fn sqlite_index_copy_is_reserved_for_network_or_explicit_cache_paths() {
+        assert!(!should_copy_sqlite_index_to_cache(Path::new(
+            "/Users/huaqihang/Movies/MixLabLocal/cache/.mixlab-library/releases/v000001/search-index/source-transcript-index/v000001/index.sqlite"
+        )));
+        assert!(should_copy_sqlite_index_to_cache(Path::new(
+            r"\\192.168.1.21\MixLab\PublicLibrary\.mixlab-library\indexes\source-transcript-index\v000001\index.sqlite"
+        )));
+        assert!(should_copy_sqlite_index_to_cache(Path::new(
+            "//192.168.1.21/MixLab/PublicLibrary/.mixlab-library/indexes/source-transcript-index/v000001/index.sqlite"
+        )));
     }
 
     #[test]

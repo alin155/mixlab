@@ -1111,6 +1111,46 @@ test("runtime status reports searchd warming without blocking startup", async ()
   );
 });
 
+test("runtime status reports searchd refresh errors when available", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    () => ({
+      body: {
+        schema_version: "1.0",
+        data: {
+          ok: true,
+          ready: false,
+          status: "error",
+          library_root: libraryRoot,
+          cache_root: "/tmp/mixlab-searchd",
+          index_version: "tantivy-v000001",
+          source_video_count: 0,
+          segment_count: 0,
+          last_refresh_error: "failed to open sqlite index"
+        }
+      }
+    }),
+    async (searchdBaseUrl) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+        assert.equal(response.status, 200);
+        const body = await response.json() as any;
+
+        assert.equal(body.data.search_backend.mode, "searchd");
+        assert.equal(body.data.search_backend.healthy, false);
+        assert.equal(body.data.search_backend.degraded, true);
+        assert.equal(body.data.search_backend.last_error, "failed to open sqlite index");
+        assert.match(body.data.search_backend.label, /索引异常/);
+        assert.match(body.data.search_backend.message, /failed to open sqlite index/);
+      }, {
+        searchd_base_url: searchdBaseUrl
+      });
+    }
+  );
+});
+
 test("runtime status blocks source video preflight when media probing fails", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

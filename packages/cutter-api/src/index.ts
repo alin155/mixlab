@@ -255,6 +255,8 @@ interface SearchIndexWarmupStatus {
 
 interface CutterLocalCacheRuntimeStatus {
   cache_root_path: string;
+  searchd_cache_root_path: string;
+  searchd_cache_size_bytes: number;
   thumbnail_cache_root_path: string;
   thumbnail_cache_manifest_path: string;
   thumbnail_cache_size_bytes: number;
@@ -335,6 +337,7 @@ interface CutterSearchBackendStatus {
   segment_count: number;
   response_ms?: number;
   message: string;
+  last_error?: string;
 }
 
 function delayedFallback<T>(promise: Promise<T>, milliseconds: number, fallback: T): Promise<T> {
@@ -572,6 +575,10 @@ function thumbnailCacheRoot(input: CreateCutterApiServerInput): string {
 
 function sourceVideoCacheRoot(input: CreateCutterApiServerInput): string {
   return path.join(localCacheRootForInput(input), "source-videos");
+}
+
+function searchdCacheRoot(input: CreateCutterApiServerInput): string {
+  return path.join(localCacheRootForInput(input), "searchd");
 }
 
 function thumbnailCacheManifestPath(root: string): string {
@@ -1519,11 +1526,12 @@ async function readSearchdBackendStatus(input: {
     }
 
     const ready = booleanField(record, "ready", true);
+    const lastError = stringField(record, "last_refresh_error");
 
     return {
       mode: "searchd",
       preferred_mode: "searchd",
-      label: ready ? "本地 searchd" : "本地 searchd（索引预热中）",
+      label: ready ? "本地 searchd" : lastError ? "本地 searchd（索引异常）" : "本地 searchd（索引预热中）",
       healthy: ready,
       degraded: !ready,
       index_version: stringField(record, "index_version"),
@@ -1532,7 +1540,10 @@ async function readSearchdBackendStatus(input: {
       response_ms: Math.max(0, Date.now() - startedAt),
       message: ready
         ? "本地 Tantivy 搜索索引可用"
-        : "本地 Tantivy 搜索索引正在预热，首批搜索会临时使用本地 SQLite 索引"
+        : lastError
+          ? `本地 Tantivy 搜索索引加载失败：${lastError}`
+          : "本地 Tantivy 搜索索引正在预热，首批搜索会临时使用本地 SQLite 索引",
+      ...(lastError ? { last_error: lastError } : {})
     };
   } finally {
     clearTimeout(timeout);
@@ -3450,6 +3461,8 @@ async function readLocalCacheRuntimeStatus(
 
   return {
     cache_root_path: cacheRoot,
+    searchd_cache_root_path: searchdCacheRoot(input),
+    searchd_cache_size_bytes: await directFileCacheSize(searchdCacheRoot(input)),
     thumbnail_cache_root_path: thumbnailRoot,
     thumbnail_cache_manifest_path: thumbnailCacheManifestPath(thumbnailRoot),
     thumbnail_cache_size_bytes: await directFileCacheSize(thumbnailRoot),
@@ -3468,6 +3481,8 @@ function checkingLocalCacheRuntimeStatus(input: CreateCutterApiServerInput): Cut
   const thumbnailRoot = thumbnailCacheRoot(input);
   return {
     cache_root_path: cacheRoot,
+    searchd_cache_root_path: searchdCacheRoot(input),
+    searchd_cache_size_bytes: 0,
     thumbnail_cache_root_path: thumbnailRoot,
     thumbnail_cache_manifest_path: thumbnailCacheManifestPath(thumbnailRoot),
     thumbnail_cache_size_bytes: 0,

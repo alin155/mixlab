@@ -356,6 +356,7 @@ export interface CutterRuntimeStatus {
     segment_count: number;
     response_ms?: number;
     message: string;
+    last_error?: string;
   };
   release_cache?: {
     enabled: boolean;
@@ -375,6 +376,8 @@ export interface CutterRuntimeStatus {
   };
   local_cache?: {
     cache_root_path: string;
+    searchd_cache_root_path?: string;
+    searchd_cache_size_bytes?: number;
     thumbnail_cache_root_path: string;
     thumbnail_cache_manifest_path?: string;
     thumbnail_cache_size_bytes: number;
