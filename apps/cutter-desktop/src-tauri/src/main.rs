@@ -178,6 +178,75 @@ fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
     )
 }
 
+fn http_get_json_with_timeouts(
+    host: &str,
+    port: u16,
+    path: &str,
+    connect_timeout: Duration,
+    io_timeout: Duration,
+) -> Option<Value> {
+    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
+        return None;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, connect_timeout) else {
+        return None;
+    };
+
+    let _ = stream.set_read_timeout(Some(io_timeout));
+    let _ = stream.set_write_timeout(Some(io_timeout));
+    let request =
+        format!("GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).is_err() {
+        return None;
+    }
+
+    let mut response = String::new();
+    if stream.read_to_string(&mut response).is_err()
+        || !(response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200"))
+    {
+        return None;
+    }
+
+    let body = response
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .unwrap_or(response.as_str());
+    serde_json::from_str::<Value>(body).ok()
+}
+
+fn current_api_has_searchd_backend(host: &str, port: u16) -> bool {
+    let Some(payload) = http_get_json_with_timeouts(
+        host,
+        port,
+        "/cutter/runtime-status",
+        Duration::from_millis(500),
+        Duration::from_millis(2_500),
+    ) else {
+        return false;
+    };
+
+    let search_backend = payload
+        .get("data")
+        .and_then(|data| data.get("search_backend"));
+    let mode = search_backend
+        .and_then(|backend| backend.get("mode"))
+        .and_then(Value::as_str);
+
+    mode == Some("searchd")
+}
+
+#[cfg(windows)]
+fn stop_windows_process_tree(process_name: &str) {
+    let mut command = Command::new("taskkill.exe");
+    command.arg("/F").arg("/T").arg("/IM").arg(process_name);
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command.creation_flags(CREATE_NO_WINDOW);
+    let _ = command.status();
+}
+
+#[cfg(not(windows))]
+fn stop_windows_process_tree(_process_name: &str) {}
+
 fn wait_for_health_endpoint(
     app: &AppHandle,
     event_prefix: &str,
@@ -369,56 +438,20 @@ fn searchd_base_url() -> String {
     format!("http://{SEARCHD_HOST}:{SEARCHD_PORT}")
 }
 
-#[tauri::command(rename_all = "camelCase")]
-fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), String> {
-    desktop_host_log(
-        &app,
-        "engine_start_requested",
-        json!({ "config_path": config_path }),
-    );
-
-    if http_health_endpoint_is_ready("127.0.0.1", 3789) {
-        desktop_host_log(
-            &app,
-            "engine_already_ready",
-            json!({ "api_address": "http://127.0.0.1:3789" }),
-        );
-        return Ok(());
-    }
-
-    if tcp_port_accepts_connection("127.0.0.1", 3789) {
-        let message = "127.0.0.1:3789 已被其他进程占用，但 /health 不是 MixLab 本机引擎。请结束占用该端口的进程后重试。";
-        desktop_host_log(&app, "engine_port_occupied", json!({ "error": message }));
-        return Err(message.into());
-    }
-
-    if !Path::new(&config_path).is_file() {
-        let message = format!("桌面配置文件不存在：{config_path}");
-        desktop_host_log(&app, "engine_config_missing", json!({ "error": message }));
-        return Err(message);
-    }
-
-    let config = match read_desktop_config_from_path(Path::new(&config_path)) {
-        Ok(config) => config,
-        Err(error) => {
-            desktop_host_log(&app, "engine_config_invalid", json!({ "error": error }));
-            return Err(error);
-        }
-    };
-
+fn ensure_searchd_started(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
     let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
     if !searchd_is_ready {
         if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
             desktop_host_log(
-                &app,
+                app,
                 "searchd_port_accepts_connection",
                 json!({ "searchd_base_url": searchd_base_url(), "message": "端口已打开但健康检查尚未完成，按本地搜索服务预热中处理" }),
             );
         } else {
-            let searchd_path = match resolve_searchd_path(&app) {
+            let searchd_path = match resolve_searchd_path(app) {
                 Ok(path) => path,
                 Err(error) => {
-                    desktop_host_log(&app, "searchd_missing", json!({ "error": error }));
+                    desktop_host_log(app, "searchd_missing", json!({ "error": error }));
                     return Err(error);
                 }
             };
@@ -441,30 +474,30 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
                 searchd_command.current_dir(parent);
             }
 
-            match spawn_logged_process(&app, &mut searchd_command, "mixlab-searchd") {
+            match spawn_logged_process(app, &mut searchd_command, "mixlab-searchd") {
                 Ok(pid) => {
                     desktop_host_log(
-                        &app,
+                        app,
                         "searchd_spawned",
                         json!({ "pid": pid, "searchd_path": path_string(searchd_path), "library_root": config.public_library_root, "release_root": path_string(release_cache_root), "cache_root": path_string(searchd_cache_root) }),
                     );
                 }
                 Err(error) => {
-                    desktop_host_log(&app, "searchd_spawn_failed", json!({ "error": error }));
+                    desktop_host_log(app, "searchd_spawn_failed", json!({ "error": error }));
                     return Err(error);
                 }
             }
         }
     } else {
         desktop_host_log(
-            &app,
+            app,
             "searchd_already_ready",
             json!({ "searchd_base_url": searchd_base_url() }),
         );
     }
     if !searchd_is_ready {
         searchd_is_ready = wait_for_health_endpoint(
-            &app,
+            app,
             "searchd",
             SEARCHD_HOST,
             SEARCHD_PORT,
@@ -472,6 +505,64 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
             Duration::from_millis(SEARCHD_HEALTH_READ_TIMEOUT_MS),
         );
     }
+
+    Ok(searchd_is_ready)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), String> {
+    desktop_host_log(
+        &app,
+        "engine_start_requested",
+        json!({ "config_path": config_path }),
+    );
+
+    if !Path::new(&config_path).is_file() {
+        let message = format!("桌面配置文件不存在：{config_path}");
+        desktop_host_log(&app, "engine_config_missing", json!({ "error": message }));
+        return Err(message);
+    }
+
+    let config = match read_desktop_config_from_path(Path::new(&config_path)) {
+        Ok(config) => config,
+        Err(error) => {
+            desktop_host_log(&app, "engine_config_invalid", json!({ "error": error }));
+            return Err(error);
+        }
+    };
+
+    if http_health_endpoint_is_ready("127.0.0.1", 3789) {
+        if current_api_has_searchd_backend("127.0.0.1", 3789) {
+            let searchd_is_ready = ensure_searchd_started(&app, &config)?;
+            desktop_host_log(
+                &app,
+                "engine_already_ready",
+                json!({
+                    "api_address": "http://127.0.0.1:3789",
+                    "searchd_base_url": searchd_base_url(),
+                    "searchd_ready": searchd_is_ready,
+                }),
+            );
+            return Ok(());
+        }
+
+        desktop_host_log(
+            &app,
+            "engine_existing_without_searchd",
+            json!({ "api_address": "http://127.0.0.1:3789", "message": "检测到旧本机引擎未接入 searchd，准备重启本机引擎" }),
+        );
+        stop_windows_process_tree(CUTTER_API_SIDECAR_EXECUTABLE_NAME);
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(800));
+    }
+
+    if tcp_port_accepts_connection("127.0.0.1", 3789) {
+        let message = "127.0.0.1:3789 已被其他进程占用，但 /health 不是 MixLab 本机引擎。请结束占用该端口的进程后重试。";
+        desktop_host_log(&app, "engine_port_occupied", json!({ "error": message }));
+        return Err(message.into());
+    }
+
+    let searchd_is_ready = ensure_searchd_started(&app, &config)?;
 
     let sidecar_path = match resolve_cutter_api_sidecar_path(&app) {
         Ok(path) => path,

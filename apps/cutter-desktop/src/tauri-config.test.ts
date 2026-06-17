@@ -102,9 +102,14 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /--cache-root/);
   assert.match(source, /\.mixlab-searchd/);
   assert.match(source, /searchd_spawned/);
+  assert.match(source, /current_api_has_searchd_backend/);
+  assert.match(source, /searchd_ready/);
+  assert.match(source, /engine_existing_without_searchd/);
+  assert.match(source, /stop_windows_process_tree\(CUTTER_API_SIDECAR_EXECUTABLE_NAME\)/);
   assert.match(source, /fn desktop_app_version/);
   assert.match(source, /desktop_host_log/);
   assert.match(source, /GET \/health HTTP\/1\.1/);
+  assert.match(source, /GET \{path\} HTTP\/1\.1/);
   assert.doesNotMatch(source, /tcp_endpoint_is_reachable/);
   assert.match(source, /\.join\("resources"\)[\s\S]*\.join\("binaries"\)[\s\S]*\.join\(executable_name\)/);
   assert.match(source, /fn desktop_start_engine/);
