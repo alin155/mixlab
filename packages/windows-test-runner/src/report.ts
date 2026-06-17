@@ -138,6 +138,19 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- Ready error: ${record.launch_runner.ready_error}`);
     }
   }
+  if (record.install_latest_and_smoke) {
+    lines.push("", "## Install Latest And Smoke", "");
+    lines.push(`- Installer source: ${record.install_latest_and_smoke.installer_source_path}`);
+    lines.push(`- Local installer: ${record.install_latest_and_smoke.installer_local_path}`);
+    lines.push(`- Copied installer: ${record.install_latest_and_smoke.copied_installer}`);
+    lines.push(`- Expected SHA-256: ${record.install_latest_and_smoke.expected_sha256 ?? "n/a"}`);
+    lines.push(`- Actual SHA-256: ${record.install_latest_and_smoke.actual_sha256 ?? "n/a"}`);
+    lines.push(`- Install exit code: ${record.install_latest_and_smoke.install_exit_code ?? "n/a"}`);
+    lines.push(`- Install elapsed: ${record.install_latest_and_smoke.install_elapsed_ms}ms`);
+    if (record.install_latest_and_smoke.installer_error) {
+      lines.push(`- Installer error: ${record.install_latest_and_smoke.installer_error}`);
+    }
+  }
   if (record.app_runtime_smoke) {
     lines.push("", "## App Runtime Smoke", "");
     lines.push(`- Auth mode: ${record.app_runtime_smoke.auth_mode ?? "n/a"}`);
@@ -215,6 +228,7 @@ export function serializeRunReport(record: RunRecord): RunReport {
     probe_api: record.probe_api,
     launch_app_probe: record.launch_app_probe,
     launch_runner: record.launch_runner,
+    install_latest_and_smoke: record.install_latest_and_smoke,
     app_runtime_smoke: record.app_runtime_smoke,
     real_data_smoke: record.real_data_smoke,
     cache_smoke: record.cache_smoke,

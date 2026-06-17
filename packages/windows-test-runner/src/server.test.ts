@@ -770,7 +770,7 @@ test("runner rejects unsupported run suites", async () => {
     const response = await fetch(`${runnerBaseUrl}/runs`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ suite: "install_latest_and_smoke" })
+      body: JSON.stringify({ suite: "not_a_real_suite" })
     });
     assert.equal(response.status, 400);
     const body = await response.json() as { error: string };

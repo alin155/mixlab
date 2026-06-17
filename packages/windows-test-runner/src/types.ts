@@ -5,7 +5,8 @@ export type RunnerSuite =
   | "app_runtime_smoke"
   | "real_data_smoke"
   | "cache_smoke"
-  | "windows_acceptance";
+  | "windows_acceptance"
+  | "install_latest_and_smoke";
 
 export type RunnerStatus =
   | "queued"
@@ -29,6 +30,9 @@ export type FailureCategory =
   | "cache_not_growing"
   | "runner_launch_failure"
   | "runner_ready_timeout"
+  | "installer_missing"
+  | "installer_hash_mismatch"
+  | "installer_failed"
   | "unknown";
 
 export interface RunnerConfig {
@@ -234,6 +238,32 @@ export interface WindowsAcceptanceReport {
   cache_smoke?: CacheSmokeReport;
 }
 
+export interface ProcessExitSummary {
+  command: string;
+  args: string[];
+  exit_code: number | null;
+  elapsed_ms: number;
+  stdout_tail?: string;
+  stderr_tail?: string;
+  error?: string;
+}
+
+export interface InstallLatestAndSmokeReport {
+  installer_source_path: string;
+  installer_local_path: string;
+  expected_sha256?: string;
+  actual_sha256?: string;
+  copied_installer: boolean;
+  unblocked_installer?: ProcessExitSummary;
+  stopped_processes: ProcessExitSummary[];
+  install_exit_code: number | null;
+  install_elapsed_ms: number;
+  installer_stdout_tail?: string;
+  installer_stderr_tail?: string;
+  installer_error?: string;
+  windows_acceptance?: WindowsAcceptanceReport;
+}
+
 export interface RunReport {
   schema_version: "1.0";
   run_id: string;
@@ -256,6 +286,7 @@ export interface RunReport {
   real_data_smoke?: RealDataSmokeReport;
   cache_smoke?: CacheSmokeReport;
   windows_acceptance?: WindowsAcceptanceReport;
+  install_latest_and_smoke?: InstallLatestAndSmokeReport;
 }
 
 export interface RunRecord extends RunReport {
