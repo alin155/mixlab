@@ -36,7 +36,8 @@
 - 2026-06-17，Mac 真实 release cache 验证新增 Cutter API 后台搜索索引预热：临时 API 使用 `/Volumes/MixLab/PublicLibrary` 与 `/Users/huaqihang/Movies/MixLabLocal/cache`，`/cutter/runtime-status` 约 `932ms` 返回并完成 `第一场` 预热，随后 `/cutter/source-search?query=第一场&limit=10` 约 `371ms`、top `V000790`。独立 index 压测中 `第一场` 冷搜约 `1699ms`，预热后约 `340ms`，搜索排序保持不变。
 - 2026-06-17，Windows Test Runner `0.1.9` 通过备用本机端口 `3801` 安装并验收剪辑端安装包 `b440fc3`。报告路径：`\\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\reports\install_latest_and_smoke-20260617T034725Z-4d3584b7\report.json`。关键结果：安装包先复制到 Windows 本机临时目录，SHA-256 `528cf61698c8cbb86a096386abd1be022b024fc745c314e1f33ad59b16b65e8b` 校验一致，静默安装退出码 `0`，安装耗时 `7146ms`，安装后 `windows_acceptance` 通过，`auth_mode=local_trusted`，公共素材库首屏 `20 / 7950`，完整文案 `27408` 字 / `783` 段，缓存可观测总量 `2172998260` bytes。观察：Mac 侧无法直接访问 `192.168.1.20:3801`，但 Windows 本机 `127.0.0.1:3801` 可用；后续仍应以 `3799` 作为正式长期 Runner 入口。
 - 2026-06-17，Windows Test Runner 共享目录已发布 `0.1.10`，修复 `install_latest_and_smoke` 中 `Unblock-File` 本机安装包路径参数问题。共享记录：`0.1.10 90325fb 27664604593 ac06b4bc90e51e96902d1ffb308a8ffcae744ff21af0e1fe8caf5f6670996d74`。
-- 2026-06-17，剪辑端 Windows 包 `4737a5a` 已通过 `install_latest_and_smoke-20260617T225212Z-830c67eb` 安装验收，安装退出码 `0`，安装耗时 `6915ms`。安装后立即验收时 searchd 仍在预热，搜索 `第一场` 约 `811ms`；延迟验收 `windows_acceptance-20260617T225407Z-ea788abb` 通过，公共素材首屏 `9ms`、搜索 `第一场` `14ms`、完整文案详情 `5ms`、剪切任务列表 `7ms`，`searchd` 健康且 `searchd_cache_size_bytes=646312829`。
+- 2026-06-17，剪辑端 Windows 包 `970bd5f` 已通过 `install_latest_and_smoke-20260617T232240Z-50d96b1c` 安装验收，安装退出码 `0`，安装耗时 `6926ms`。该包把公共原素材剪切链路改为“剪切前优先准备本机 source video cache，缓存失败才降级读取原素材”，以避免 FFmpeg 直接压 NAS 原视频；首次剪某条未缓存视频时会增加一次源视频复制成本。
+- 2026-06-17，剪辑端 Windows 包 `9b885f8` 已通过 `install_latest_and_smoke-20260617T235248Z-ebafe2bf` 安装验收，安装退出码 `0`，安装耗时 `6871ms`。安装后立即验收时 searchd 仍在预热，搜索 `第一场` 约 `916ms` 且走 `sqlite-index`；延迟验收 `windows_acceptance-20260617T235415Z-07fca8f3` 通过，公共素材首屏 `9ms`、搜索 `第一场` `10ms` 且走 `searchd`、完整文案详情 `6ms`、剪切任务列表 `2ms`，source video cache 当前约 `27.6GB / 3` 条源视频。该包新增长剪切运行期间每秒刷新队列，并将 `resolve_source` 阶段显示为“准备源素材”，避免首次缓存源视频时页面看起来像卡死。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -167,14 +168,14 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-17 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-4737a5a.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-9b885f8.exe
 version: 0.18.10
-commit: 4737a5a
-github_run_id: 27724207991
-sha256: 2bbd7541deaced8c751e7f5a201f22943f87625b2f251d9d4c97aa9cf7ec373b
-included_fix: searchd cache uses LocalAppData, persistent Tantivy cache survives Windows rename, nested searchd cache size is counted recursively
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260617T225212Z-830c67eb/report.json
-delayed_windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260617T225407Z-ea788abb/report.json
+commit: 9b885f8
+github_run_id: 27726703371
+sha256: c637861dc8753773a6a62afafacb66e481247276697edfdef00a9cac262d5ce2
+included_fix: cut queue refreshes while long source-cache/cut jobs are running; source cache is prepared before FFmpeg cuts public original videos
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260617T235248Z-ebafe2bf/report.json
+delayed_windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260617T235415Z-07fca8f3/report.json
 ```
 
 桌面端内置资源：
