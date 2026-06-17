@@ -94,13 +94,14 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /MIXLAB_FFMPEG_PATH/);
   assert.match(source, /MIXLAB_FFPROBE_PATH/);
   assert.match(source, /MIXLAB_SEARCHD_BASE_URL/);
+  assert.match(source, /MIXLAB_CUTTER_SEARCHD_CACHE_ROOT/);
   assert.match(source, /const SEARCHD_PORT: u16 = 3790;/);
   assert.match(source, /MIXLAB_SEARCHD_TIMEOUT_MS/);
   assert.match(source, /SEARCHD_API_TIMEOUT_MS/);
   assert.match(source, /wait_for_health_endpoint/);
   assert.match(source, /SEARCHD_EXECUTABLE_NAME/);
   assert.match(source, /--cache-root/);
-  assert.match(source, /release_cache_root\.join\("searchd"\)/);
+  assert.match(source, /desktop_searchd_cache_dir_path/);
   assert.match(source, /searchd_spawned/);
   assert.match(source, /current_api_has_searchd_backend/);
   assert.match(source, /fn spawn_searchd/);

@@ -921,7 +921,12 @@ fn cached_sqlite_index_path(
 
 fn should_copy_sqlite_index_to_cache(source_index_file_path: &Path) -> bool {
     if std::env::var("MIXLAB_SEARCHD_CACHE_SQLITE")
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
         .unwrap_or(false)
     {
         return true;
@@ -1041,6 +1046,17 @@ fn build_persistent_tantivy_index(
     Ok(Index::open_in_dir(&final_dir)?)
 }
 
+fn build_in_memory_tantivy_index(
+    schema: Schema,
+    fields: SearchFields,
+    segments: &[SegmentRecord],
+    videos: &[VideoRecord],
+) -> Result<Index> {
+    let index = Index::create_in_ram(schema);
+    index_documents(&index, fields, segments, videos)?;
+    Ok(index)
+}
+
 fn open_or_build_tantivy_index(
     schema: Schema,
     fields: SearchFields,
@@ -1051,9 +1067,7 @@ fn open_or_build_tantivy_index(
     cache_root: Option<&Path>,
 ) -> Result<Index> {
     let Some(cache_root) = cache_root else {
-        let index = Index::create_in_ram(schema);
-        index_documents(&index, fields, segments, videos)?;
-        return Ok(index);
+        return build_in_memory_tantivy_index(schema, fields, segments, videos);
     };
 
     let expected = expected_cache_metadata(current_version, metadata);
@@ -1064,15 +1078,35 @@ fn open_or_build_tantivy_index(
         }
     }
 
-    build_persistent_tantivy_index(
-        schema,
+    match build_persistent_tantivy_index(
+        schema.clone(),
         fields,
         segments,
         videos,
         current_version,
         cache_root,
         &expected,
-    )
+    ) {
+        Ok(index) => Ok(index),
+        Err(error) => {
+            eprintln!(
+                "{}",
+                serde_json::json!({
+                    "event": "mixlab_searchd_persistent_cache_failed",
+                    "index_version": current_version,
+                    "cache_root": cache_root,
+                    "error": error.to_string(),
+                    "fallback": "in_memory_tantivy"
+                })
+            );
+            build_in_memory_tantivy_index(schema, fields, segments, videos).with_context(|| {
+                format!(
+                    "persistent tantivy cache failed at {}; in-memory fallback also failed",
+                    cache_root.display()
+                )
+            })
+        }
+    }
 }
 
 fn read_metadata(connection: &Connection) -> Result<IndexMetadata> {
@@ -2818,6 +2852,26 @@ mod tests {
         let restarted = restarted_engine.search("现金流", 10, None).unwrap();
         assert_eq!(restarted.returned_count, 2);
         assert_eq!(restarted.groups[0].source_video_id, "V000001");
+    }
+
+    #[test]
+    fn persistent_cache_failure_falls_back_to_in_memory_index() {
+        let library = prepare_library(&[
+            ("V000001", "一号", "现金流第一句。", "现金流第一句"),
+            ("V000002", "二号", "现金流第二句。", "现金流第二句"),
+        ]);
+        let cache = TempDir::new().unwrap();
+        fs::write(cache.path().join("tantivy"), "not a directory").unwrap();
+
+        let engine = SearchEngine::new(
+            library.path().to_path_buf(),
+            Some(cache.path().to_path_buf()),
+        );
+        let result = engine.search("现金流", 10, None).unwrap();
+
+        assert_eq!(result.returned_count, 2);
+        assert_eq!(result.search_mode, "searchd");
+        assert_eq!(result.groups[0].source_video_id, "V000001");
     }
 
     #[test]

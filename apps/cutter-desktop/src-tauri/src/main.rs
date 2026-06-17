@@ -97,6 +97,21 @@ fn desktop_log_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("logs"))
 }
 
+fn desktop_searchd_cache_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+        return Ok(PathBuf::from(local_app_data)
+            .join("MixLab Cutter")
+            .join("cache")
+            .join("searchd"));
+    }
+
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("无法定位本地搜索索引缓存目录：{error}"))?;
+    Ok(dir.join("cache").join("searchd"))
+}
+
 #[tauri::command]
 fn desktop_log_dir(app: AppHandle) -> Result<String, String> {
     let dir = desktop_log_dir_path(&app)?;
@@ -448,7 +463,9 @@ fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), St
     };
     let mut searchd_command = Command::new(&searchd_path);
     let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
-    let searchd_cache_root = release_cache_root.join("searchd");
+    let searchd_cache_root = desktop_searchd_cache_dir_path(app)?;
+    fs::create_dir_all(&searchd_cache_root)
+        .map_err(|error| format!("无法创建本地搜索索引缓存目录：{error}"))?;
     searchd_command
         .arg("--library-root")
         .arg(&config.public_library_root)
@@ -595,9 +612,11 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         }
     };
     let mut command = Command::new(&sidecar_path);
+    let searchd_cache_root = desktop_searchd_cache_dir_path(&app)?;
     command.arg("--config").arg(&config_path);
     command.env("MIXLAB_SEARCHD_BASE_URL", searchd_base_url());
     command.env("MIXLAB_SEARCHD_TIMEOUT_MS", SEARCHD_API_TIMEOUT_MS);
+    command.env("MIXLAB_CUTTER_SEARCHD_CACHE_ROOT", &searchd_cache_root);
     configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
@@ -608,7 +627,7 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
             desktop_host_log(
                 &app,
                 "engine_sidecar_spawned",
-                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path, "searchd_base_url": searchd_base_url(), "searchd_ready": searchd_is_ready, "searchd_timeout_ms": SEARCHD_API_TIMEOUT_MS }),
+                json!({ "pid": pid, "sidecar_path": path_string(sidecar_path), "config_path": config_path, "searchd_base_url": searchd_base_url(), "searchd_ready": searchd_is_ready, "searchd_timeout_ms": SEARCHD_API_TIMEOUT_MS, "searchd_cache_root": path_string(searchd_cache_root) }),
             );
             Ok(())
         }

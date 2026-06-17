@@ -76,6 +76,7 @@ export interface CreateCutterApiServerInput {
   thumbnail_cache_max_bytes?: number;
   cut_temp_max_bytes?: number;
   source_video_cache_max_bytes?: number;
+  searchd_cache_root?: string;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
@@ -578,6 +579,11 @@ function sourceVideoCacheRoot(input: CreateCutterApiServerInput): string {
 }
 
 function searchdCacheRoot(input: CreateCutterApiServerInput): string {
+  const explicitRoot = input.searchd_cache_root?.trim();
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+
   return path.join(localCacheRootForInput(input), "searchd");
 }
 
@@ -1091,6 +1097,9 @@ export function resolveCutterApiRuntimeConfigFromEnv(
     searchd_base_url:
       optionalTrimmed(env.MIXLAB_SEARCHD_BASE_URL) ??
       optionalTrimmed(env.MIXLAB_CUTTER_SEARCHD_BASE_URL),
+    searchd_cache_root:
+      optionalTrimmed(env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT) ??
+      optionalTrimmed(env.MIXLAB_SEARCHD_CACHE_ROOT),
     searchd_timeout_ms: optionalPositiveInteger(
       env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
     ),

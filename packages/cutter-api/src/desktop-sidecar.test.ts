@@ -107,7 +107,8 @@ test("maps desktop searchd env to cutter API server input", () => {
         local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
       },
       {
-        MIXLAB_SEARCHD_BASE_URL: " http://127.0.0.1:3799 "
+        MIXLAB_SEARCHD_BASE_URL: " http://127.0.0.1:3799 ",
+        MIXLAB_CUTTER_SEARCHD_CACHE_ROOT: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`
       }
     ),
     {
@@ -116,6 +117,7 @@ test("maps desktop searchd env to cutter API server input", () => {
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
       auth_mode: "local_trusted",
       trusted_username: "本机剪辑师",
+      searchd_cache_root: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`,
       searchd_base_url: "http://127.0.0.1:3799",
       searchd_timeout_ms: 20000
     }

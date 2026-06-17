@@ -95,6 +95,8 @@ export function buildCutterApiServerInputFromDesktopConfig(
     env.MIXLAB_SEARCHD_BASE_URL?.trim() ||
     env.MIXLAB_CUTTER_SEARCHD_BASE_URL?.trim() ||
     "";
+  const searchdCacheRoot =
+    env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT?.trim() || env.MIXLAB_SEARCHD_CACHE_ROOT?.trim() || "";
 
   const workspaceRoot = normalizeDesktopPathForStorage(config.local_workspace_root);
   const releaseCacheRoot = isWindowsUncPath(workspaceRoot) || /^[a-zA-Z]:[\\/]/.test(workspaceRoot)
@@ -110,6 +112,7 @@ export function buildCutterApiServerInputFromDesktopConfig(
     release_cache_root: releaseCacheRoot,
     auth_mode: "local_trusted",
     trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师",
+    ...(searchdCacheRoot ? { searchd_cache_root: normalizeDesktopPathForStorage(searchdCacheRoot) } : {}),
     ...(searchdBaseUrl
       ? {
           searchd_base_url: searchdBaseUrl,
