@@ -3,17 +3,99 @@ import test from "node:test";
 import { Fragment, createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  AppShell,
+  Badge,
+  Button,
+  Card,
   GalleryGrid,
   GroupedForm,
   InspectorPanel,
+  MIXLAB_UI_FOUNDATION_V1_COMPONENTS,
   MacWindow,
   MediaPanel,
+  SearchBox,
   Sidebar,
   SourceTable,
   StatusRow,
+  Table,
   UnifiedToolbar
 } from "./components.tsx";
 import { validateNoForbiddenUiPatterns } from "./design-contract.ts";
+
+test("defines the stable UI Foundation v1 component set", () => {
+  assert.deepEqual(MIXLAB_UI_FOUNDATION_V1_COMPONENTS, [
+    "tokens",
+    "AppShell",
+    "Sidebar",
+    "Button",
+    "SearchBox",
+    "Card",
+    "Table",
+    "Badge",
+    "InspectorPanel"
+  ]);
+});
+
+test("renders v1 shell without legacy window chrome", () => {
+  const html = renderToStaticMarkup(
+    h(AppShell, {
+      activeKey: "home",
+      brand: { title: "MixLab Cutter", subtitle: "Project material cutting" },
+      items: [
+        { key: "home", label: "Home", icon: "home", href: "#/project-home" },
+        { key: "search", label: "Material Search", icon: "search", href: "#/material-locator" }
+      ],
+      sidebarFooter: h("div", null, "status"),
+      children: h("div", null, "workspace")
+    })
+  );
+
+  assert.match(html, /class="ml-app-shell"/);
+  assert.match(html, /class="ml-workbench"/);
+  assert.doesNotMatch(html, /ml-window-chrome/);
+});
+
+test("renders v1 controls and panels", () => {
+  const html = renderToStaticMarkup(
+    h(
+      "div",
+      null,
+      h(Button, { variant: "primary" }, "Search"),
+      h(SearchBox, { placeholder: "Search transcript", buttonLabel: "Search" }),
+      h(Badge, { tone: "running", children: "Running" }),
+      h(Card, { title: "Recent project", subtitle: "2 cuts", children: "content" }),
+      h(InspectorPanel, { title: "Details", subtitle: "Selected item", children: "metadata" })
+    )
+  );
+
+  assert.match(html, /ml-button--primary/);
+  assert.match(html, /ml-search-box/);
+  assert.match(html, /ml-badge is-info/);
+  assert.match(html, /ml-card/);
+  assert.match(html, /ml-inspector-subtitle/);
+});
+
+test("renders v1 table with sticky header and semantic rows", () => {
+  type Row = { id: string; status: string; source: string };
+  const RowTable = Table<Row>;
+
+  const html = renderToStaticMarkup(
+    h(RowTable, {
+      columns: [
+        { id: "status", header: "Status", accessor: "status" },
+        { id: "source", header: "Source", accessor: "source" }
+      ],
+      rows: [{ id: "1", status: "Done", source: "C0510" }],
+      getRowKey: (row: { id: string }) => row.id,
+      selectedRowKey: "1",
+      stickyHeader: true
+    })
+  );
+
+  assert.match(html, /ml-table-wrap has-sticky-header/);
+  assert.match(html, /class="is-selected"/);
+  assert.match(html, /C0510/);
+});
 
 test("renders macOS window chrome with title and traffic lights", () => {
   const html = renderToStaticMarkup(

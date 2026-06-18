@@ -1,16 +1,158 @@
-import type { ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  FormEvent,
+  InputHTMLAttributes,
+  MouseEventHandler,
+  ReactNode
+} from "react";
+
+export const MIXLAB_UI_FOUNDATION_V1_COMPONENTS = [
+  "tokens",
+  "AppShell",
+  "Sidebar",
+  "Button",
+  "SearchBox",
+  "Card",
+  "Table",
+  "Badge",
+  "InspectorPanel"
+] as const;
+
+export type MixlabUiFoundationV1Component =
+  (typeof MIXLAB_UI_FOUNDATION_V1_COMPONENTS)[number];
+
+export type BadgeTone =
+  | "neutral"
+  | "accent"
+  | "info"
+  | "success"
+  | "warning"
+  | "danger"
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "cancelled"
+  | "ready"
+  | "processing"
+  | "queued";
+
+export type StatusTone =
+  | "ready"
+  | "processing"
+  | "queued"
+  | "warning"
+  | "failed"
+  | "pending"
+  | "running"
+  | "done"
+  | "cancelled";
 
 export interface SidebarItem {
+  key?: string;
   label: string;
-  icon: string;
+  icon?: string | ReactNode;
   href?: string;
+  badge?: ReactNode;
+  disabled?: boolean;
+  ariaLabel?: string;
+  onClick?: MouseEventHandler<HTMLElement>;
 }
 
 export interface SidebarBrand {
   title: string;
   subtitle: string;
-  mark?: string;
+  mark?: string | ReactNode;
   href?: string;
+}
+
+export interface SidebarProps {
+  brand?: SidebarBrand;
+  items: readonly SidebarItem[];
+  active?: string;
+  activeKey?: string;
+  footer?: ReactNode;
+  className?: string;
+  ariaLabel?: string;
+}
+
+export interface AppShellProps {
+  brand?: SidebarBrand;
+  items: readonly SidebarItem[];
+  active?: string;
+  activeKey?: string;
+  sidebarFooter?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  workbenchClassName?: string;
+  ariaLabel?: string;
+}
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  size?: "sm" | "md" | "lg";
+  leadingIcon?: ReactNode;
+  trailingIcon?: ReactNode;
+}
+
+export interface SearchBoxProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "type" | "onSubmit"> {
+  buttonLabel?: string;
+  hideButton?: boolean;
+  inputClassName?: string;
+  onSubmit?: (value: string) => void;
+  onValueChange?: (value: string) => void;
+}
+
+export interface CardProps {
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  footer?: ReactNode;
+  children?: ReactNode;
+  selected?: boolean;
+  className?: string;
+  bodyClassName?: string;
+}
+
+export interface TableColumn<Row> {
+  id: string;
+  header: ReactNode;
+  accessor?: keyof Row;
+  render?: (row: Row, index: number) => ReactNode;
+  align?: "left" | "center" | "right";
+  width?: CSSProperties["width"];
+  className?: string;
+  headerClassName?: string;
+}
+
+export interface TableProps<Row> {
+  columns: readonly TableColumn<Row>[];
+  rows: readonly Row[];
+  getRowKey?: (row: Row, index: number) => string | number;
+  onRowClick?: (row: Row, index: number) => void;
+  selectedRowKey?: string | number;
+  empty?: ReactNode;
+  stickyHeader?: boolean;
+  density?: "compact" | "normal";
+  className?: string;
+}
+
+export interface BadgeProps {
+  tone?: BadgeTone;
+  children: ReactNode;
+  className?: string;
+}
+
+export interface InspectorPanelProps {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+  bodyClassName?: string;
 }
 
 export interface ToolbarProps {
@@ -35,14 +177,16 @@ export interface GalleryItem {
   select_label?: string;
 }
 
-export type StatusTone = "ready" | "processing" | "queued" | "warning" | "failed";
-
 export interface FormGroup {
   title: string;
   rows: Array<{
     label: string;
     value: ReactNode;
   }>;
+}
+
+function cx(...values: Array<string | false | null | undefined>): string {
+  return values.filter(Boolean).join(" ");
 }
 
 function iconSymbol(icon: string): ReactNode {
@@ -174,6 +318,342 @@ function iconSymbol(icon: string): ReactNode {
   );
 }
 
+function renderIcon(icon: string | ReactNode | undefined): ReactNode {
+  if (!icon) {
+    return null;
+  }
+
+  return typeof icon === "string" ? iconSymbol(icon) : icon;
+}
+
+function badgeToneClass(tone: BadgeTone): string {
+  const aliases: Record<string, BadgeTone> = {
+    ready: "success",
+    done: "success",
+    processing: "info",
+    running: "info",
+    queued: "neutral",
+    pending: "warning",
+    failed: "danger",
+    cancelled: "neutral"
+  };
+
+  return `is-${aliases[tone] ?? tone}`;
+}
+
+export function AppShell({
+  brand,
+  items,
+  active,
+  activeKey,
+  sidebarFooter,
+  children,
+  className = "",
+  workbenchClassName = "",
+  ariaLabel
+}: AppShellProps) {
+  return (
+    <section className={cx("ml-app-shell", className)}>
+      <Sidebar
+        brand={brand}
+        items={items}
+        active={active}
+        activeKey={activeKey}
+        footer={sidebarFooter}
+        ariaLabel={ariaLabel}
+      />
+      <main className={cx("ml-workbench", workbenchClassName)}>{children}</main>
+    </section>
+  );
+}
+
+export function Sidebar({
+  brand,
+  items,
+  active,
+  activeKey,
+  footer,
+  className = "",
+  ariaLabel = "MixLab navigation"
+}: SidebarProps) {
+  const brandContent = brand ? (
+    <>
+      <span className="ml-sidebar-brand-mark" aria-hidden="true">
+        {brand.mark ?? "ML"}
+      </span>
+      <span className="ml-sidebar-brand-copy">
+        <strong>{brand.title}</strong>
+        <small>{brand.subtitle}</small>
+      </span>
+    </>
+  ) : null;
+
+  return (
+    <nav className={cx("ml-sidebar", className)} aria-label={ariaLabel}>
+      {brand ? (
+        brand.href ? (
+          <a className="ml-sidebar-brand" href={brand.href}>
+            {brandContent}
+          </a>
+        ) : (
+          <span className="ml-sidebar-brand">{brandContent}</span>
+        )
+      ) : null}
+      <div className="ml-sidebar-nav">
+        {items.map((item) => {
+          const itemKey = item.key ?? item.label;
+          const isActive = activeKey
+            ? itemKey === activeKey
+            : active
+              ? itemKey === active || item.label === active
+              : false;
+          const content = (
+            <>
+              {item.icon ? (
+                <span className="ml-sidebar-icon" aria-hidden="true">
+                  {renderIcon(item.icon)}
+                </span>
+              ) : null}
+              <span className="ml-sidebar-item-label">{item.label}</span>
+              {item.badge ? <span className="ml-sidebar-item-badge">{item.badge}</span> : null}
+            </>
+          );
+          const classNameForItem = cx("ml-sidebar-item", isActive && "is-active");
+
+          return item.href ? (
+            <a
+              aria-current={isActive ? "page" : undefined}
+              aria-disabled={item.disabled ? "true" : undefined}
+              aria-label={item.ariaLabel}
+              className={classNameForItem}
+              href={item.disabled ? undefined : item.href}
+              key={itemKey}
+              onClick={item.onClick as MouseEventHandler<HTMLAnchorElement> | undefined}
+            >
+              {content}
+            </a>
+          ) : (
+            <button
+              aria-pressed={isActive ? "true" : undefined}
+              aria-label={item.ariaLabel}
+              className={classNameForItem}
+              disabled={item.disabled}
+              key={itemKey}
+              onClick={item.onClick as MouseEventHandler<HTMLButtonElement> | undefined}
+              type="button"
+            >
+              {content}
+            </button>
+          );
+        })}
+      </div>
+      {footer ? <div className="ml-sidebar-footer">{footer}</div> : null}
+    </nav>
+  );
+}
+
+export function Button({
+  variant = "secondary",
+  size = "md",
+  leadingIcon,
+  trailingIcon,
+  children,
+  className = "",
+  type = "button",
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      {...props}
+      className={cx("ml-button", `ml-button--${variant}`, `ml-button--${size}`, className)}
+      type={type}
+    >
+      {leadingIcon ? <span className="ml-button-icon" aria-hidden="true">{leadingIcon}</span> : null}
+      <span className="ml-button-label">{children}</span>
+      {trailingIcon ? <span className="ml-button-icon" aria-hidden="true">{trailingIcon}</span> : null}
+    </button>
+  );
+}
+
+export function SearchBox({
+  buttonLabel = "Search",
+  hideButton = false,
+  className = "",
+  inputClassName = "",
+  onSubmit,
+  onValueChange,
+  onChange,
+  name = "query",
+  disabled,
+  ...inputProps
+}: SearchBoxProps) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!onSubmit) {
+      return;
+    }
+
+    event.preventDefault();
+    const input = event.currentTarget.elements.namedItem(name);
+    onSubmit(input instanceof HTMLInputElement ? input.value : String(inputProps.value ?? ""));
+  }
+
+  return (
+    <form className={cx("ml-search-box", className)} role="search" onSubmit={handleSubmit}>
+      <input
+        {...inputProps}
+        className={cx("ml-search-box-input", inputClassName)}
+        disabled={disabled}
+        name={name}
+        onChange={(event) => {
+          onChange?.(event);
+          onValueChange?.(event.currentTarget.value);
+        }}
+        type="search"
+      />
+      {hideButton ? null : (
+        <Button disabled={disabled} size="sm" type="submit" variant="primary">
+          {buttonLabel}
+        </Button>
+      )}
+    </form>
+  );
+}
+
+export function Card({
+  title,
+  subtitle,
+  actions,
+  footer,
+  children,
+  selected = false,
+  className = "",
+  bodyClassName = ""
+}: CardProps) {
+  const hasHeader = title || subtitle || actions;
+
+  return (
+    <section className={cx("ml-card", selected && "is-selected", className)}>
+      {hasHeader ? (
+        <header className="ml-card-header">
+          <div className="ml-card-heading">
+            {title ? <h2 className="ml-card-title">{title}</h2> : null}
+            {subtitle ? <p className="ml-card-subtitle">{subtitle}</p> : null}
+          </div>
+          {actions ? <div className="ml-card-actions">{actions}</div> : null}
+        </header>
+      ) : null}
+      {children ? <div className={cx("ml-card-body", bodyClassName)}>{children}</div> : null}
+      {footer ? <footer className="ml-card-footer">{footer}</footer> : null}
+    </section>
+  );
+}
+
+export function Table<Row>({
+  columns,
+  rows,
+  getRowKey,
+  onRowClick,
+  selectedRowKey,
+  empty,
+  stickyHeader = false,
+  density = "normal",
+  className = ""
+}: TableProps<Row>) {
+  return (
+    <div
+      className={cx(
+        "ml-table-wrap",
+        stickyHeader && "has-sticky-header",
+        `is-${density}`,
+        className
+      )}
+    >
+      <table className="ml-table">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th
+                className={cx(column.headerClassName, column.align && `is-${column.align}`)}
+                key={column.id}
+                style={column.width ? { width: column.width } : undefined}
+              >
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="ml-table-empty" colSpan={columns.length}>
+                {empty ?? "No data"}
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, rowIndex) => {
+              const rowKey = getRowKey?.(row, rowIndex) ?? rowIndex;
+              const isSelected = selectedRowKey !== undefined && selectedRowKey === rowKey;
+
+              return (
+                <tr
+                  className={cx(onRowClick && "is-clickable", isSelected && "is-selected")}
+                  key={rowKey}
+                  onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
+                >
+                  {columns.map((column) => {
+                    const value = column.render
+                      ? column.render(row, rowIndex)
+                      : column.accessor
+                        ? (row[column.accessor] as ReactNode)
+                        : null;
+
+                    return (
+                      <td
+                        className={cx(column.className, column.align && `is-${column.align}`)}
+                        key={column.id}
+                      >
+                        {value}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function Badge({ tone = "neutral", children, className = "" }: BadgeProps) {
+  return <span className={cx("ml-badge", badgeToneClass(tone), className)}>{children}</span>;
+}
+
+export function InspectorPanel({
+  title,
+  subtitle,
+  action,
+  children,
+  footer,
+  className = "",
+  bodyClassName = ""
+}: InspectorPanelProps) {
+  return (
+    <aside className={cx("ml-inspector", className)}>
+      <header className="ml-inspector-header">
+        <div className="ml-inspector-heading">
+          <h2 className="ml-inspector-title">{title}</h2>
+          {subtitle ? <p className="ml-inspector-subtitle">{subtitle}</p> : null}
+        </div>
+        {action ? <div className="ml-inspector-action">{action}</div> : null}
+      </header>
+      <div className={cx("ml-inspector-body", bodyClassName)}>{children}</div>
+      {footer ? <footer className="ml-inspector-footer">{footer}</footer> : null}
+    </aside>
+  );
+}
+
 export function MacWindow({
   title,
   meta,
@@ -186,7 +666,7 @@ export function MacWindow({
   className?: string;
 }) {
   return (
-    <section className={`ml-window ${className}`.trim()}>
+    <section className={cx("ml-window", className)}>
       <header className="ml-window-chrome">
         <span className="ml-traffic-lights" aria-hidden="true">
           <span className="ml-traffic-light is-close" />
@@ -198,57 +678,6 @@ export function MacWindow({
       </header>
       {children}
     </section>
-  );
-}
-
-export function Sidebar({
-  brand,
-  items,
-  active,
-  footer
-}: {
-  brand?: SidebarBrand;
-  items: readonly SidebarItem[];
-  active: string;
-  footer?: ReactNode;
-}) {
-  const brandContent = brand ? (
-    <>
-      <span className="ml-sidebar-brand-mark" aria-hidden="true">
-        {brand.mark ?? "ML"}
-      </span>
-      <span>
-        <strong>{brand.title}</strong>
-        <small>{brand.subtitle}</small>
-      </span>
-    </>
-  ) : null;
-
-  return (
-    <nav className="ml-sidebar" aria-label="MixLab navigation">
-      {brand ? (
-        brand.href ? (
-          <a className="ml-sidebar-brand" href={brand.href}>
-            {brandContent}
-          </a>
-        ) : (
-          <span className="ml-sidebar-brand">{brandContent}</span>
-        )
-      ) : null}
-      {items.map((item) => (
-        <a
-          className={`ml-sidebar-item${item.label === active ? " is-active" : ""}`}
-          href={item.href}
-          key={item.label}
-        >
-          <span className="ml-sidebar-icon" aria-hidden="true">
-            {iconSymbol(item.icon)}
-          </span>
-          <span>{item.label}</span>
-        </a>
-      ))}
-      {footer ? <div className="ml-sidebar-footer">{footer}</div> : null}
-    </nav>
   );
 }
 
@@ -265,9 +694,7 @@ export function UnifiedToolbar({
       <span className="ml-toolbar-controls">
         <span className="ml-select">{libraryLabel}</span>
         {actions.map((action) => (
-          <button className="ml-button" type="button" key={action}>
-            {action}
-          </button>
+          <Button key={action}>{action}</Button>
         ))}
       </span>
       <span className="ml-toolbar-controls">
@@ -289,7 +716,7 @@ export function SegmentedControl({
     <span className="ml-segmented">
       {options.map((option) => (
         <button
-          className={`ml-segmented-item${option === active ? " is-active" : ""}`}
+          className={cx("ml-segmented-item", option === active && "is-active")}
           type="button"
           key={option}
         >
@@ -333,7 +760,7 @@ export function GalleryGrid({ items }: { items: readonly GalleryItem[] }) {
   return (
     <div className="ml-gallery-grid">
       {items.map((item) => (
-        <article className={`ml-gallery-card${item.selected ? " is-selected" : ""}`} key={item.id}>
+        <article className={cx("ml-gallery-card", item.selected && "is-selected")} key={item.id}>
           {item.onSelect ? (
             <button
               className="ml-gallery-select"
@@ -382,26 +809,6 @@ export function SourceTable({
   );
 }
 
-export function InspectorPanel({
-  title,
-  action,
-  children
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <aside className="ml-inspector">
-      <header className="ml-inspector-header">
-        <h2 className="ml-inspector-title">{title}</h2>
-        {action}
-      </header>
-      <div className="ml-inspector-body">{children}</div>
-    </aside>
-  );
-}
-
 export function GroupedForm({ groups }: { groups: readonly FormGroup[] }) {
   return (
     <div className="ml-grouped-form">
@@ -432,7 +839,7 @@ export function StatusRow({
   value?: ReactNode;
 }) {
   return (
-    <div className={`ml-status-row is-${tone}`}>
+    <div className={cx("ml-status-row", `is-${tone}`)}>
       <span className="ml-status-dot" aria-hidden="true" />
       <strong>{label}</strong>
       <span>{detail}</span>

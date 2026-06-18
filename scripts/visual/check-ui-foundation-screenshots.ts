@@ -74,9 +74,17 @@ async function requireAbsent(page: Page, text: string): Promise<void> {
   }
 }
 
+async function requireSelectorAbsent(page: Page, selector: string): Promise<void> {
+  const count = await page.locator(selector).count();
+
+  if (count !== 0) {
+    throw new Error(`Expected ${selector} to be absent, got ${count}`);
+  }
+}
+
 async function captureFixture(
   browser: Browser,
-  route: "cutter" | "admin",
+  route: "v1-cutter" | "v1-admin",
   fileName: string
 ): Promise<void> {
   const page = await browser.newPage({
@@ -89,20 +97,23 @@ async function captureFixture(
 
   await page.goto(`${baseUrl}/#/${route}`, { waitUntil: "networkidle" });
   await page.locator("[data-ml-fixture-ready='true']").waitFor();
-  await requireCount(page, ".ml-window", 6);
-  await requireCount(page, ".ml-sidebar", 6);
-  await requireCount(page, ".ml-toolbar", 6);
+  await requireSelectorAbsent(page, ".ml-window");
+  await requireSelectorAbsent(page, ".ml-window-chrome");
+  await requireCount(page, ".ml-app-shell", 1);
+  await requireCount(page, ".ml-sidebar", 1);
+  await requireCount(page, ".ml-workbench", 1);
+  await requireCount(page, ".ml-card", 3);
+  await requireCount(page, ".ml-badge", 3);
+  await requireCount(page, ".ml-inspector", 1);
 
-  if (route === "cutter") {
-    await requireCount(page, ".ml-gallery-grid", 2);
-    await requireCount(page, ".ml-media-panel", 2);
-    await requireCount(page, ".ml-inspector", 4);
+  if (route === "v1-cutter") {
+    await requireCount(page, ".ml-search-box", 1);
+    await requireCount(page, ".fixture-v1-material", 4);
+    await requireCount(page, ".fixture-v1-transcript", 1);
     await requireAbsent(page, "sentence-waterfall");
   } else {
-    await requireCount(page, ".ml-source-table", 2);
-    await requireCount(page, ".ml-status-row", 8);
-    await requireCount(page, ".ml-grouped-form", 4);
-    await page.getByText("导出诊断 JSON").waitFor();
+    await requireCount(page, ".ml-table", 1);
+    await page.getByText("公共素材库仪表盘").waitFor();
   }
 
   await page.screenshot({
@@ -121,8 +132,8 @@ async function main(): Promise<void> {
   try {
     await waitForServer(baseUrl);
     browser = await launchChrome();
-    await captureFixture(browser, "cutter", "cutter-fixture.png");
-    await captureFixture(browser, "admin", "admin-fixture.png");
+    await captureFixture(browser, "v1-cutter", "cutter-fixture.png");
+    await captureFixture(browser, "v1-admin", "admin-fixture.png");
   } finally {
     await browser?.close();
     server.kill("SIGTERM");

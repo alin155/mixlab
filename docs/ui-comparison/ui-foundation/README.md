@@ -1,4 +1,6 @@
-# MixLab UI Foundation 对比实验
+# MixLab UI Foundation 对比实验归档
+
+> 状态：已归档。隔离实验应用 `apps/ui-foundation-lab` 已删除，真实落地方向已迁移到 `packages/ui-foundation`。
 
 ## 目标
 
@@ -10,9 +12,9 @@
 - 页面业务结构保持当前 MixLab 的信息架构和主要工作流。
 - 控件、卡片、表格、状态、字体、间距、圆角、阴影由统一组件层管理。
 
-## 边界
+## 原实验边界
 
-本实验只在以下目录内实现：
+本实验曾只在以下目录内实现：
 
 - `apps/ui-foundation-lab`
 - `docs/ui-comparison/ui-foundation`
@@ -24,16 +26,14 @@
 - `apps/cutter-desktop`
 - `packages/ui-foundation`
 
-## 生命周期
+## 生命周期结果
 
-`apps/ui-foundation-lab` 只是验证 UI Foundation 方向的临时脚手架。
+`apps/ui-foundation-lab` 只是验证 UI Foundation 方向的临时脚手架。真实 `packages/ui-foundation v1` 开始落地后：
 
-当真正的 `packages/ui-foundation v1` 稳定后：
-
-- 删除 `apps/ui-foundation-lab`。
-- 删除已被否定的 `apps/antd-ui-lab`。
+- 已删除 `apps/ui-foundation-lab`。
+- 已删除已被否定的 `apps/antd-ui-lab`。
 - 不把两个隔离三端实验 app 继续维护成长期项目。
-- 保留必要的结论文档和 checkpoint 记录即可。
+- 只保留必要的结论文档和 checkpoint 记录。
 
 ## 不是从零重构业务布局
 
@@ -85,18 +85,7 @@
 
 ## 对比入口
 
-开发预览：
-
-```bash
-npm run dev -w @mixlab/ui-foundation-lab
-```
-
-入口：
-
-- `http://127.0.0.1:5190/#/comparison`
-- `http://127.0.0.1:5190/#/admin/dashboard`
-- `http://127.0.0.1:5190/#/cutter-web/material-locator`
-- `http://127.0.0.1:5190/#/cutter-desktop/material-locator`
+这些隔离预览入口已经停用。后续 UI 验证以真实三端路由和 `packages/ui-foundation` 为准。
 
 ## 评估重点
 

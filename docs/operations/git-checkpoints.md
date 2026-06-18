@@ -36,13 +36,13 @@ git reset --hard <tag-or-commit>
 | Order | Tag | Purpose | Scope | Verification |
 | --- | --- | --- | --- | --- |
 | 001 | `checkpoint/ui-foundation-pre-v1-migration` | UI Foundation v1 migration baseline before touching production三端 | Current source/docs baseline, AntD comparison lab, UI Foundation isolated lab, environment records | `npm run build -w @mixlab/ui-foundation-lab` |
+| 002 | `checkpoint/ui-foundation-v1-package` | Real UI Foundation v1 component package baseline | `packages/ui-foundation` v1 components, v1 fixture screenshots, deleted isolated UI labs, package-lock cleanup | `node --test --import tsx packages/ui-foundation/src/*.test.ts`; `npm run typecheck`; `npm run build:admin-web`; `npm run build:cutter-web`; `npm run build:ui-fixtures`; `npm run visual:ui-foundation` |
+| 003 | `checkpoint/ui-foundation-lab-cleanup` | Isolated comparison labs removed after real package started | Deleted `apps/antd-ui-lab` and `apps/ui-foundation-lab`; archived comparison README files | same as 002 |
 
 ## Planned Migration Checkpoints
 
 | Order | Planned tag | Batch |
 | --- | --- | --- |
-| 002 | `checkpoint/ui-foundation-v1-package` | Build real `packages/ui-foundation v1` component and token layer |
-| 003 | `checkpoint/ui-foundation-lab-cleanup` | Delete temporary `apps/antd-ui-lab` and `apps/ui-foundation-lab` after the real package is stable |
 | 004 | `checkpoint/ui-foundation-shell-migration` | Migrate shared shell/sidebar/workspace and remove outer app frame in production surfaces |
 | 005 | `checkpoint/ui-foundation-low-risk-pages` | Migrate settings, cache, users, preprocess, and library pages |
 | 006 | `checkpoint/ui-foundation-cut-tasks` | Migrate cut task tables, detail panels, and status/action semantics |

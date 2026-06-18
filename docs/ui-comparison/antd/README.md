@@ -1,11 +1,13 @@
-# MixLab Ant Design UI Lab
+# MixLab Ant Design UI Lab 归档
+
+> 状态：已归档。Ant Design 作为三端 UI 接管方案已被否定，隔离实验应用 `apps/antd-ui-lab` 已删除。
 
 This is an isolated UI comparison lab for evaluating Ant Design across MixLab's three UI surfaces.
 
-## Boundary
+## Historical Boundary
 
-- App package: `@mixlab/antd-ui-lab`
-- App path: `apps/antd-ui-lab`
+- App package: `@mixlab/antd-ui-lab` (deleted)
+- App path: `apps/antd-ui-lab` (deleted)
 - Dev URL: `http://127.0.0.1:5188/`
 - Preview URL: `http://127.0.0.1:5189/`
 - App title: `MixLab AntD UI Lab`
@@ -15,7 +17,7 @@ This lab must not import production UI components or mutate NAS data, projects, 
 
 ## Architecture Boundary
 
-The lab is now organized as an independent Ant Design application rather than a visual patch over the existing MixLab UI.
+The lab was organized as an independent Ant Design application rather than a visual patch over the existing MixLab UI.
 
 - App kernel: `apps/antd-ui-lab/src/app/`
   - `AntdLabRoot.tsx`: AntD `ConfigProvider` and route surface selection.
@@ -70,13 +72,15 @@ Design rationale belongs in this README, screenshots, or later evaluation notes,
 
 ## Verification
 
-Commands run:
+Historical commands that were run before archival:
 
 ```sh
 npm install -w @mixlab/antd-ui-lab
 npm run build -w @mixlab/antd-ui-lab
 npm run dev -w @mixlab/antd-ui-lab
 ```
+
+Do not run these commands in the current workspace. The app package has been deleted.
 
 Browser checks were run with Playwright against `http://127.0.0.1:5188/`.
 

@@ -210,3 +210,163 @@ p {
     height: auto;
   }
 }
+
+.fixture-v1-page {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  min-height: 100vh;
+  padding: 26px 28px;
+  background: var(--ml-color-surface);
+}
+
+.fixture-v1-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 520px);
+  gap: 20px;
+  align-items: end;
+}
+
+.fixture-v1-header h1 {
+  margin-top: 6px;
+  font-size: 28px;
+  line-height: 36px;
+}
+
+.fixture-v1-eyebrow {
+  color: var(--ml-color-text-tertiary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.fixture-v1-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  gap: 16px;
+  min-width: 0;
+  align-items: start;
+}
+
+.fixture-v1-list {
+  display: grid;
+  gap: 8px;
+}
+
+.fixture-v1-material {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: var(--ml-radius-panel);
+  padding: 8px;
+  color: var(--ml-color-text);
+  background: transparent;
+  text-align: left;
+}
+
+.fixture-v1-material.is-selected {
+  background: var(--ml-color-selected);
+}
+
+.fixture-v1-material span:last-child {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.fixture-v1-thumb {
+  grid-row: span 2;
+  width: 64px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  background:
+    linear-gradient(130deg, rgba(20, 115, 230, 0.24), transparent),
+    var(--ml-color-surface-muted);
+}
+
+.fixture-v1-transcript {
+  display: grid;
+  gap: 10px;
+  line-height: 24px;
+}
+
+.fixture-v1-transcript p {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
+  color: var(--ml-color-text);
+  font-size: 14px;
+}
+
+.fixture-v1-transcript time {
+  color: var(--ml-color-text-tertiary);
+  font-family: var(--ml-font-mono);
+  font-size: 12px;
+}
+
+.fixture-v1-selected-text {
+  color: var(--ml-color-text-secondary);
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.fixture-v1-sidebar-card .ml-card-body {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.fixture-v1-sidebar-row,
+.fixture-v1-detail-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.fixture-v1-sidebar-row span,
+.fixture-v1-detail-list span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.fixture-v1-sidebar-row strong,
+.fixture-v1-detail-list strong {
+  font-size: 12px;
+}
+
+.fixture-v1-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.fixture-v1-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.fixture-v1-metrics .ml-card-body {
+  display: grid;
+  gap: 4px;
+}
+
+.fixture-v1-metrics strong {
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.fixture-v1-metrics span {
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+}
+
+.fixture-v1-detail-list {
+  gap: 12px 16px;
+}
+
+[data-surface="v1-admin"] .fixture-v1-layout {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
