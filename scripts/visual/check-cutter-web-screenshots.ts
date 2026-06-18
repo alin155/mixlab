@@ -73,6 +73,21 @@ async function requireNoElements(page: Page, selector: string): Promise<void> {
   }
 }
 
+async function requireAnyCount(
+  page: Page,
+  selectors: readonly string[],
+  minCount: number
+): Promise<void> {
+  const counts = await Promise.all(selectors.map(async (selector) => page.locator(selector).count()));
+  if (counts.some((count) => count >= minCount)) {
+    return;
+  }
+
+  throw new Error(
+    `Expected one of ${selectors.join(", ")} count >= ${minCount}, got ${counts.join(", ")}`
+  );
+}
+
 async function requireText(page: Page, text: string): Promise<void> {
   await page.getByText(text, { exact: false }).first().waitFor();
 }
@@ -167,13 +182,14 @@ async function captureRoute(
   }
 
   if (route === "local-library") {
+    await requireAnyCount(page, [".cutter-library-grid", ".cutter-local-empty-state"], 1);
     await requireText(page, "本地素材库");
     await requireText(page, "本地可复剪素材");
     await requireText(page, "素材详情");
   }
 
   if (route === "public-library") {
-    await requireCount(page, ".ml-gallery-grid", 1);
+    await requireCount(page, ".cutter-library-grid", 1);
     await requireText(page, "可用原素材");
     await requireText(page, "浏览管理端已经发布到剪辑端的原视频");
     await assertPublicLibraryOnlyShowsReadyMaterial(page);

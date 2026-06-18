@@ -1,4 +1,4 @@
-import { InspectorPanel, SourceTable } from "@mixlab/ui-foundation";
+import { InspectorPanel, Table, type TableColumn } from "@mixlab/ui-foundation";
 import { useState } from "react";
 import type {
   AdminCutterUser,
@@ -92,6 +92,57 @@ export function CutterUsersPage({
   const usersById = new Map(users.users.map((user) => [user.user_id, user]));
   const [disableTargetUserId, setDisableTargetUserId] = useState("");
   const disableTargetUser = users.users.find((user) => user.user_id === disableTargetUserId);
+  const columns: Array<TableColumn<AdminCutterUser>> = [
+    { id: "user", header: "用户", accessor: "display_name" },
+    { id: "status", header: "状态", render: (user) => userStatusLabel(user.status) },
+    { id: "devices", header: "设备", render: (user) => `${user.devices.length} 台` },
+    {
+      id: "searches",
+      header: "搜索次数",
+      render: (user) => userMetricFor(user.user_id, metrics)?.search_request_count ?? 0,
+      align: "right"
+    },
+    {
+      id: "searchFailures",
+      header: "搜索失败",
+      render: (user) => userMetricFor(user.user_id, metrics)?.search_failure_count ?? 0,
+      align: "right"
+    },
+    {
+      id: "cutSuccess",
+      header: "剪切成功",
+      render: (user) => userMetricFor(user.user_id, metrics)?.cut_success_count ?? 0,
+      align: "right"
+    },
+    {
+      id: "lastUsed",
+      header: "最近使用",
+      render: (user) => lastUsedLabel(user.last_used_at || userMetricFor(user.user_id, metrics)?.last_used_at || "")
+    },
+    {
+      id: "actions",
+      header: "操作",
+      render: (user) =>
+        user.status === "pending" ? (
+          <AdminControlButton
+            label="通过申请"
+            state="m9b-api"
+            reason="允许该用户名和设备进入剪辑师工作台。"
+            variant="primary"
+            onClick={onApprove ? () => onApprove(user.user_id) : undefined}
+          />
+        ) : user.status === "approved" ? (
+          <AdminControlButton
+            label="停用用户"
+            state="m9b-api"
+            reason="停用后该剪辑师现有登录凭证会失效。"
+            onClick={onDisable ? () => setDisableTargetUserId(user.user_id) : undefined}
+          />
+        ) : (
+          "无需操作"
+        )
+    }
+  ];
 
   const confirmDisableUser = () => {
     if (!disableTargetUser) {
@@ -127,38 +178,11 @@ export function CutterUsersPage({
           <EmptyState title="暂无剪辑师申请" detail="剪辑端提交用户名后会出现在这里等待审核。" />
         ) : (
           <section className="admin-list-panel">
-            <SourceTable
-              columns={["用户", "状态", "设备", "搜索次数", "搜索失败", "剪切成功", "最近使用", "操作"]}
-              rows={users.users.map((user) => {
-                const metric = userMetricFor(user.user_id, metrics);
-                return [
-                  user.display_name,
-                  userStatusLabel(user.status),
-                  `${user.devices.length} 台`,
-                  metric?.search_request_count ?? 0,
-                  metric?.search_failure_count ?? 0,
-                  metric?.cut_success_count ?? 0,
-                  lastUsedLabel(user.last_used_at || metric?.last_used_at || ""),
-                  user.status === "pending" ? (
-                    <AdminControlButton
-                      label="通过申请"
-                      state="m9b-api"
-                      reason="允许该用户名和设备进入剪辑师工作台。"
-                      variant="primary"
-                      onClick={onApprove ? () => onApprove(user.user_id) : undefined}
-                    />
-                  ) : user.status === "approved" ? (
-                    <AdminControlButton
-                      label="停用用户"
-                      state="m9b-api"
-                      reason="停用后该剪辑师现有登录凭证会失效。"
-                      onClick={onDisable ? () => setDisableTargetUserId(user.user_id) : undefined}
-                    />
-                  ) : (
-                    "无需操作"
-                  )
-                ];
-              })}
+            <Table
+              columns={columns}
+              rows={users.users}
+              getRowKey={(user) => user.user_id}
+              stickyHeader
             />
           </section>
         )}

@@ -1,7 +1,4 @@
-import {
-  GroupedForm,
-  InspectorPanel
-} from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import type { AdminSourceVideoDetail } from "../../api.ts";
 import {
   booleanLabel,
@@ -13,7 +10,7 @@ import {
   formatAdminDuration,
   formatAdminFileSize
 } from "../../app/view-model.ts";
-import { AdminPageHeader } from "../shared.tsx";
+import { AdminInfoGroups, AdminPageHeader } from "../shared.tsx";
 
 function textOrEmpty(value: string, emptyLabel = "未记录"): string {
   return value.trim() ? value : emptyLabel;
@@ -42,7 +39,7 @@ export function AdminSourceDetailPage({ detail }: { detail: AdminSourceVideoDeta
         {video.cover_url ? (
           <img className="admin-inspector-cover" src={video.cover_url} alt="" />
         ) : null}
-        <GroupedForm
+        <AdminInfoGroups
           groups={[
             {
               title: "基本信息",
@@ -126,7 +123,7 @@ export function AdminSourceDetailPage({ detail }: { detail: AdminSourceVideoDeta
         />
       </div>
       <InspectorPanel title="剪辑师可见状态">
-        <GroupedForm
+        <AdminInfoGroups
           groups={[
             {
               title: "剪辑师可见",

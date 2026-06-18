@@ -1,4 +1,4 @@
-import { InspectorPanel, SourceTable } from "@mixlab/ui-foundation";
+import { InspectorPanel, Table, type TableColumn } from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import type { CutListItem } from "../../state/cut-list.ts";
 
@@ -27,24 +27,35 @@ export function CutListPage({
   onClear?: () => void;
   onSubmit?: () => void;
 }) {
-  const rows = items.map((item) => [
-    item.order,
-    item.source_title,
-    `${formatDuration(item.begin_ms)} - ${formatDuration(item.end_ms)}`,
-    item.selected_text,
-    cutModeLabel(item.cut_mode),
-    <span className="cutter-row-actions">
-      <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "up")}>
-        上移
-      </button>
-      <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "down")}>
-        下移
-      </button>
-      <button type="button" onClick={() => onRemove?.(item.cut_list_item_id)}>
-        删除
-      </button>
-    </span>
-  ]);
+  const columns: Array<TableColumn<CutListItem>> = [
+    { id: "order", header: "顺序", accessor: "order", width: 72 },
+    { id: "source", header: "来源", accessor: "source_title" },
+    {
+      id: "time",
+      header: "时间段",
+      render: (item) => `${formatDuration(item.begin_ms)} - ${formatDuration(item.end_ms)}`
+    },
+    { id: "text", header: "选中文案", accessor: "selected_text" },
+    { id: "mode", header: "模式", render: (item) => cutModeLabel(item.cut_mode), width: 112 },
+    {
+      id: "actions",
+      header: "操作",
+      width: 180,
+      render: (item) => (
+        <span className="cutter-row-actions">
+          <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "up")}>
+            上移
+          </button>
+          <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "down")}>
+            下移
+          </button>
+          <button type="button" onClick={() => onRemove?.(item.cut_list_item_id)}>
+            删除
+          </button>
+        </span>
+      )
+    }
+  ];
 
   return (
     <section className="cutter-page cutter-cut-list" data-page="cut-list">
@@ -65,7 +76,12 @@ export function CutListPage({
           </div>
         </header>
 
-        <SourceTable columns={["顺序", "来源", "时间段", "选中文案", "模式", "操作"]} rows={rows} />
+        <Table
+          columns={columns}
+          rows={items}
+          getRowKey={(item) => item.cut_list_item_id}
+          stickyHeader
+        />
       </div>
 
       <InspectorPanel title="提交设置">

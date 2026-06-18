@@ -2,8 +2,6 @@ import "@mixlab/ui-foundation/tokens.css";
 import "@mixlab/ui-foundation/layout.css";
 import "./styles.css";
 import { createRoot } from "react-dom/client";
-import { AdminFixture } from "./AdminFixture.tsx";
-import { CutterFixture } from "./CutterFixture.tsx";
 import { V1AdminFixture, V1CutterFixture } from "./V1Fixture.tsx";
 
 const root = document.querySelector<HTMLDivElement>("#root");
@@ -18,10 +16,9 @@ function FixtureApp() {
 
   return (
     <div data-ml-fixture-ready="true" data-surface={surface}>
-      {surface === "admin" ? <AdminFixture /> : null}
-      {surface === "cutter" ? <CutterFixture /> : null}
       {surface === "v1-admin" ? <V1AdminFixture /> : null}
       {surface === "v1-cutter" ? <V1CutterFixture /> : null}
+      {surface !== "v1-admin" && surface !== "v1-cutter" ? <V1CutterFixture /> : null}
     </div>
   );
 }

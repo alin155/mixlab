@@ -1,8 +1,4 @@
-import {
-  GroupedForm,
-  InspectorPanel,
-  StatusRow
-} from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import { useEffect, useState } from "react";
 import type {
   AdminDashboardData,
@@ -23,7 +19,13 @@ import {
   redactConfiguredSecret
 } from "../../app/view-model.ts";
 import { doctorExplanation } from "../doctor/DoctorPage.tsx";
-import { AdminControlButton, AdminPageHeader, MetricBand } from "../shared.tsx";
+import {
+  AdminControlButton,
+  AdminInfoGroups,
+  AdminPageHeader,
+  AdminStatusLine,
+  MetricBand
+} from "../shared.tsx";
 
 type RuntimePolicy = AdminSettingsConfigUpdate["runtime_policy"];
 
@@ -234,7 +236,7 @@ export function SettingsPage({
             ))}
           </div>
         </section>
-	        <GroupedForm
+	        <AdminInfoGroups
 	          groups={[
 	            {
 	              title: "预处理设置",
@@ -324,7 +326,7 @@ export function SettingsPage({
             {data.doctor.checks.map((item) => {
               const explanation = doctorExplanation(item.check_id, item.label);
               return (
-                <StatusRow
+                <AdminStatusLine
                   tone={adminStatusTone(item.status)}
                   label={explanation.name}
                   detail={strictChineseDiagnosticText(item.message)}
@@ -370,7 +372,7 @@ export function SettingsPage({
         ) : null}
         <section className="admin-list-panel">
           {data.path_checks.map((item) => (
-	            <StatusRow
+	            <AdminStatusLine
 	              tone={adminStatusTone(item.status)}
 	              label={settingsPathCheckLabel(item)}
 	              detail={`${item.path} · ${chineseDiagnosticText(item.message)}`}

@@ -1,11 +1,11 @@
 import {
-  GroupedForm,
   InspectorPanel,
-  SourceTable
+  Table,
+  type TableColumn
 } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
 import { indexValidationMessageLabel, validationStatusLabel } from "../../app/chinese.ts";
-import { AdminControlButton, AdminPageHeader, IndexTable, MetricBand } from "../shared.tsx";
+import { AdminControlButton, AdminInfoGroups, AdminPageHeader, IndexTable, MetricBand } from "../shared.tsx";
 
 export function IndexPublishPage({
   data,
@@ -23,6 +23,28 @@ export function IndexPublishPage({
   const indexRequiredVideos = data.source_videos.filter(
     (video) => video.preprocess_status === "index-required"
   );
+  const indexRequiredColumns: Array<TableColumn<(typeof indexRequiredVideos)[number]>> = [
+    { id: "id", header: "ID", accessor: "source_video_id" },
+    { id: "file", header: "文件名", accessor: "file_name" },
+    { id: "status", header: "状态", render: () => "待发布索引" },
+    {
+      id: "visibility",
+      header: "可见性",
+      render: (video) => video.visible_to_cutters ? "已可见" : "未可见"
+    },
+    {
+      id: "actions",
+      header: "操作",
+      render: (video) => (
+        <AdminControlButton
+          label="发布到剪辑端"
+          state="m9b-api"
+          reason="发布当前待索引视频，发布前会补齐封面和关键帧。"
+          onClick={() => onPublishSourceVideo?.(video.source_video_id)}
+        />
+      )
+    }
+  ];
 
   return (
     <>
@@ -48,21 +70,11 @@ export function IndexPublishPage({
             <p>发布前会自动生成封面和关键帧；发布成功后剪辑端才可搜索和进入详情。</p>
           </header>
           {indexRequiredVideos.length ? (
-            <SourceTable
-              columns={["ID", "文件名", "状态", "可见性", "操作"]}
-              rows={indexRequiredVideos.map((video) => [
-                video.source_video_id,
-                video.file_name,
-                "待发布索引",
-                video.visible_to_cutters ? "已可见" : "未可见",
-                <AdminControlButton
-                  label="发布到剪辑端"
-                  state="m9b-api"
-                  reason="发布当前待索引视频，发布前会补齐封面和关键帧。"
-                  onClick={() => onPublishSourceVideo?.(video.source_video_id)}
-                  key={`${video.source_video_id}-publish`}
-                />
-              ])}
+            <Table
+              columns={indexRequiredColumns}
+              rows={indexRequiredVideos}
+              getRowKey={(video) => video.source_video_id}
+              stickyHeader
             />
           ) : (
             <p className="admin-note">没有待发布索引的视频。</p>
@@ -71,7 +83,7 @@ export function IndexPublishPage({
         <IndexTable versions={data.indexes.versions} />
       </div>
       <InspectorPanel title="版本详情">
-        <GroupedForm
+        <AdminInfoGroups
           groups={[
             {
               title: current?.index_version ?? "current",

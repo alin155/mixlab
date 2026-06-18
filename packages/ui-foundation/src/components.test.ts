@@ -1,26 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Fragment, createElement as h } from "react";
+import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import * as foundation from "./components.tsx";
 import {
   AppShell,
   Badge,
   Button,
   Card,
-  GalleryGrid,
-  GroupedForm,
   InspectorPanel,
   MIXLAB_UI_FOUNDATION_V1_COMPONENTS,
-  MacWindow,
-  MediaPanel,
   SearchBox,
   Sidebar,
-  SourceTable,
-  StatusRow,
-  Table,
-  UnifiedToolbar
+  Table
 } from "./components.tsx";
-import { validateNoForbiddenUiPatterns } from "./design-contract.ts";
 
 test("defines the stable UI Foundation v1 component set", () => {
   assert.deepEqual(MIXLAB_UI_FOUNDATION_V1_COMPONENTS, [
@@ -34,6 +27,22 @@ test("defines the stable UI Foundation v1 component set", () => {
     "Badge",
     "InspectorPanel"
   ]);
+});
+
+test("does not export legacy experiment components", () => {
+  for (const exportName of [
+    "MacWindow",
+    "UnifiedToolbar",
+    "SegmentedControl",
+    "GalleryGrid",
+    "SourceTable",
+    "GroupedForm",
+    "StatusRow",
+    "MediaPanel",
+    "PageBoard"
+  ]) {
+    assert.equal(Object.hasOwn(foundation, exportName), false, `${exportName} must stay out of v1`);
+  }
 });
 
 test("renders v1 shell without legacy window chrome", () => {
@@ -97,16 +106,6 @@ test("renders v1 table with sticky header and semantic rows", () => {
   assert.match(html, /C0510/);
 });
 
-test("renders macOS window chrome with title and traffic lights", () => {
-  const html = renderToStaticMarkup(
-    h(MacWindow, { title: "MixLab V3", children: h("p", null, "content") })
-  );
-
-  assert.match(html, /class="ml-window/);
-  assert.match(html, /class="ml-traffic-lights"/);
-  assert.match(html, /MixLab V3/);
-});
-
 test("renders sidebar with page labels and active item", () => {
   const html = renderToStaticMarkup(
     h(Sidebar, {
@@ -124,75 +123,4 @@ test("renders sidebar with page labels and active item", () => {
   assert.match(html, /is-active/);
   assert.match(html, /ml-sidebar-footer/);
   assert.match(html, /剪辑师 Allen/);
-});
-
-test("renders unified toolbar with library selector, actions, and health", () => {
-  const html = renderToStaticMarkup(
-    h(UnifiedToolbar, {
-      title: "MixLab V3 - 剪辑师工作台",
-      libraryLabel: "默认公共库",
-      availableCountLabel: "可用原素材 120个",
-      healthLabel: "健康",
-      actions: ["扫描", "处理", "Doctor"]
-    })
-  );
-
-  assert.match(html, /ml-toolbar/);
-  assert.match(html, /默认公共库/);
-  assert.match(html, /Doctor/);
-  assert.match(html, /健康/);
-});
-
-test("renders gallery grid for cutter public source browsing", () => {
-  const html = renderToStaticMarkup(
-    h(GalleryGrid, {
-      items: [
-        {
-          id: "V000001",
-          title: "现金流管理与风险控制",
-          image: "/cover.jpg",
-          meta: "56:14",
-          tags: ["财务", "风险"],
-          description: "企业现金流管理课程片段"
-        }
-      ]
-    })
-  );
-
-  assert.match(html, /ml-gallery-grid/);
-  assert.doesNotMatch(html, /ml-source-table/);
-});
-
-test("renders admin source table and supporting primitives", () => {
-  const html = renderToStaticMarkup(
-    h(
-      Fragment,
-      null,
-      h(SourceTable, {
-        columns: ["ID", "封面", "状态"],
-        rows: [["P000001", "现金流.mp4", "Ready"]]
-      }),
-      h(InspectorPanel, { title: "片段信息", children: "详情" }),
-      h(GroupedForm, {
-        groups: [
-          {
-            title: "路径与配置",
-            rows: [
-              { label: "公共素材库", value: "/Volumes/PublicLibrary" },
-              { label: "FFmpeg", value: "就绪" }
-            ]
-          }
-        ]
-      }),
-      h(StatusRow, { tone: "ready", label: "Manifest", detail: "通过", value: "ready" }),
-      h(MediaPanel, { title: "视频预览", image: "/cover.jpg" })
-    )
-  );
-
-  assert.match(html, /ml-source-table/);
-  assert.match(html, /ml-inspector/);
-  assert.match(html, /ml-grouped-form/);
-  assert.match(html, /ml-status-row/);
-  assert.match(html, /ml-media-panel/);
-  assert.equal(validateNoForbiddenUiPatterns(html).ok, true);
 });

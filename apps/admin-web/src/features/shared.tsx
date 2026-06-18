@@ -1,10 +1,13 @@
 import {
-  GroupedForm,
+  Badge,
+  Card,
   InspectorPanel,
-  SourceTable,
-  StatusRow
+  Table,
+  type BadgeTone,
+  type StatusTone,
+  type TableColumn
 } from "@mixlab/ui-foundation";
-import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   AdminDashboardData,
   AdminIndexVersion,
@@ -27,6 +30,69 @@ import {
   validationStatusLabel
 } from "../app/chinese.ts";
 import type { AdminControlState } from "./admin-ui-contract.ts";
+
+export interface AdminInfoGroup {
+  title: string;
+  rows: Array<{
+    label: string;
+    value: ReactNode;
+  }>;
+}
+
+export function AdminInfoGroups({ groups }: { groups: readonly AdminInfoGroup[] }) {
+  return (
+    <div className="admin-info-groups">
+      {groups.map((group) => (
+        <Card title={group.title} className="admin-info-group" key={group.title}>
+          <dl className="admin-info-list">
+            {group.rows.map((row) => (
+              <div className="admin-info-row" key={row.label}>
+                <dt>{row.label}</dt>
+                <dd>{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function badgeToneForStatus(tone: StatusTone): BadgeTone {
+  const tones: Record<StatusTone, BadgeTone> = {
+    ready: "success",
+    done: "success",
+    processing: "info",
+    running: "info",
+    queued: "neutral",
+    pending: "warning",
+    warning: "warning",
+    failed: "danger",
+    cancelled: "neutral"
+  };
+
+  return tones[tone];
+}
+
+export function AdminStatusLine({
+  tone,
+  label,
+  detail,
+  value
+}: {
+  tone: StatusTone;
+  label: string;
+  detail: ReactNode;
+  value?: ReactNode;
+}) {
+  return (
+    <div className="admin-status-line">
+      <Badge tone={badgeToneForStatus(tone)}>{label}</Badge>
+      <span className="admin-status-line-detail">{detail}</span>
+      {value ? <span className="admin-status-line-value">{value}</span> : null}
+    </div>
+  );
+}
 
 export function AdminPageHeader({
   title,
@@ -146,11 +212,7 @@ export function SourceVideoTable({
   onOpenSourceDetail?: (sourceVideoId: string) => void;
 }) {
   const hasActions = Boolean(onOpenSourceDetail);
-  const columns = hasActions
-    ? ["封面", "标题", "时长", "相对路径", "字幕状态", "预处理状态", "搜索可见", "发布版本", "操作"]
-    : ["封面", "标题", "时长", "相对路径", "字幕状态", "预处理状态", "搜索可见", "发布版本"];
-
-  const subtitleStatus = (status: AdminPreprocessStatus) => {
+  function subtitleStatus(status: AdminPreprocessStatus) {
     if (status === "ready" || status === "index-required") {
       return "已生成";
     }
@@ -164,9 +226,9 @@ export function SourceVideoTable({
     }
 
     return "等待";
-  };
+  }
 
-  const publishVersion = (video: AdminSourceVideo) => {
+  function publishVersion(video: AdminSourceVideo) {
     if (video.preprocess_status === "ready") {
       return currentIndexVersion || "当前索引";
     }
@@ -176,52 +238,75 @@ export function SourceVideoTable({
     }
 
     return "-";
-  };
+  }
+
   const preprocessDisplayLabel = (status: AdminPreprocessStatus) =>
     status === "processing" && processingIsStale
       ? "待恢复"
       : preprocessStatusLabel(status);
+  const columns: Array<TableColumn<AdminSourceVideo>> = [
+    {
+      id: "cover",
+      header: "封面",
+      width: 96,
+      render: (video) => <img className="admin-table-cover" src={video.cover_url} alt="" />
+    },
+    {
+      id: "title",
+      header: "标题",
+      render: (video) => (
+        <button
+          className={`admin-source-title-button${video.source_video_id === selectedSourceVideoId ? " is-selected" : ""}`}
+          type="button"
+          onClick={() => onSelect?.(video.source_video_id)}
+        >
+          <strong>{video.title || video.file_name}</strong>
+          <span>{video.source_video_id} · {video.file_name}</span>
+        </button>
+      )
+    },
+    { id: "duration", header: "时长", render: (video) => formatAdminDuration(video.duration_ms) },
+    { id: "path", header: "相对路径", accessor: "relative_path" },
+    { id: "subtitle", header: "字幕状态", render: (video) => subtitleStatus(video.preprocess_status) },
+    {
+      id: "status",
+      header: "预处理状态",
+      render: (video) => (
+        <span className={`admin-status-badge is-${adminStatusTone(video.preprocess_status)}`}>
+          {preprocessDisplayLabel(video.preprocess_status)}
+        </span>
+      )
+    },
+    {
+      id: "visible",
+      header: "搜索可见",
+      render: (video) => booleanLabel(video.visible_to_cutters)
+    },
+    { id: "version", header: "发布版本", render: publishVersion }
+  ];
+
+  if (hasActions) {
+    columns.push({
+      id: "actions",
+      header: "操作",
+      render: (video) => (
+        <button
+          className="admin-link-button"
+          type="button"
+          onClick={() => onOpenSourceDetail?.(video.source_video_id)}
+        >
+          查看详情
+        </button>
+      )
+    });
+  }
 
   return (
-    <SourceTable
+    <Table
       columns={columns}
-      rows={videos.map((video) => {
-        const cells: Array<string | ReactElement> = [
-          <img className="admin-table-cover" src={video.cover_url} alt="" key={`${video.source_video_id}-cover`} />,
-          <button
-            className={`admin-source-title-button${video.source_video_id === selectedSourceVideoId ? " is-selected" : ""}`}
-            type="button"
-            onClick={() => onSelect?.(video.source_video_id)}
-            key={`${video.source_video_id}-select`}
-          >
-            <strong>{video.title || video.file_name}</strong>
-            <span>{video.source_video_id} · {video.file_name}</span>
-          </button>,
-          formatAdminDuration(video.duration_ms),
-          video.relative_path,
-          subtitleStatus(video.preprocess_status),
-          <span className={`admin-status-badge is-${adminStatusTone(video.preprocess_status)}`} key={`${video.source_video_id}-status`}>
-            {preprocessDisplayLabel(video.preprocess_status)}
-          </span>,
-          booleanLabel(video.visible_to_cutters),
-          publishVersion(video)
-        ];
-
-        if (hasActions) {
-          cells.push(
-            <button
-              className="admin-link-button"
-              type="button"
-              onClick={() => onOpenSourceDetail?.(video.source_video_id)}
-              key={`${video.source_video_id}-detail`}
-            >
-              查看详情
-            </button>
-          );
-        }
-
-        return cells;
-      })}
+      rows={videos}
+      getRowKey={(video) => video.source_video_id}
+      stickyHeader
     />
   );
 }
@@ -443,7 +528,7 @@ export function JobRows({
               : `${job.title} · ${job.stage_label || jobStageLabel(job.stage)} · 已完成`;
 
         return (
-          <StatusRow
+          <AdminStatusLine
             tone={adminStatusTone(job.status)}
             label={job.job_id}
             detail={detail}
@@ -470,18 +555,34 @@ export function JobRows({
 }
 
 export function IndexTable({ versions }: { versions: AdminIndexVersion[] }) {
+  const columns: Array<TableColumn<AdminIndexVersion>> = [
+    { id: "version", header: "版本", accessor: "index_version" },
+    { id: "created", header: "创建时间", accessor: "created_at" },
+    { id: "ready", header: "已可用数量", accessor: "ready_video_count" },
+    { id: "schema", header: "协议版本", accessor: "schema_version" },
+    {
+      id: "validation",
+      header: "校验",
+      render: (version) => validationStatusLabel(version.validation_status)
+    },
+    {
+      id: "message",
+      header: "校验说明",
+      render: (version) => indexValidationMessageLabel(version.validation_message)
+    },
+    {
+      id: "current",
+      header: "当前状态",
+      render: (version) => version.is_current ? "当前索引指向" : "历史版本"
+    }
+  ];
+
   return (
-    <SourceTable
-      columns={["版本", "创建时间", "已可用数量", "协议版本", "校验", "校验说明", "当前状态"]}
-      rows={versions.map((version) => [
-        version.index_version,
-        version.created_at,
-        version.ready_video_count,
-        version.schema_version,
-        validationStatusLabel(version.validation_status),
-        indexValidationMessageLabel(version.validation_message),
-        version.is_current ? "当前索引指向" : "历史版本"
-      ])}
+    <Table
+      columns={columns}
+      rows={versions}
+      getRowKey={(version) => version.index_version}
+      stickyHeader
     />
   );
 }
@@ -507,7 +608,7 @@ export function JobSummaryForm({ data }: { data: AdminDashboardData }) {
   const active = data.jobs.jobs.find((job) => job.status === "running");
 
   return (
-    <GroupedForm
+    <AdminInfoGroups
       groups={[
         {
           title: "当前任务",

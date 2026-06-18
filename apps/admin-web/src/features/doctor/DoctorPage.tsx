@@ -1,12 +1,14 @@
-import {
-  GroupedForm,
-  InspectorPanel,
-  StatusRow
-} from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import type { AdminDashboardData } from "../../api.ts";
 import { strictChineseDiagnosticText } from "../../app/chinese.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
-import { AdminControlButton, AdminPageHeader, MetricBand } from "../shared.tsx";
+import {
+  AdminControlButton,
+  AdminInfoGroups,
+  AdminPageHeader,
+  AdminStatusLine,
+  MetricBand
+} from "../shared.tsx";
 
 interface DoctorExplanation {
   name: string;
@@ -149,7 +151,7 @@ export function DoctorPage({
         />
         <section className="admin-list-panel">
           {data.doctor.checks.map((item) => (
-            <StatusRow
+            <AdminStatusLine
               tone={adminStatusTone(item.status)}
               label={doctorExplanation(item.check_id, item.label).name}
               detail={`${doctorExplanation(item.check_id, item.label).name} · ${strictChineseDiagnosticText(item.message)}`}
@@ -163,7 +165,7 @@ export function DoctorPage({
             <h2>检查结果</h2>
             <p>每个检查项都说明检查目的、失败影响和处理建议；原始技术信息可导出报告查看。</p>
           </header>
-          <GroupedForm
+          <AdminInfoGroups
             groups={data.doctor.checks.map((item) => {
               const explanation = doctorExplanation(item.check_id, item.label);
               return {
@@ -180,7 +182,7 @@ export function DoctorPage({
         </section>
       </div>
       <InspectorPanel title="检查报告">
-        <GroupedForm
+        <AdminInfoGroups
           groups={[
             {
               title: "报告",

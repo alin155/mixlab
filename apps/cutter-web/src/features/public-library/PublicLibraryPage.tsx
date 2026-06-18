@@ -1,4 +1,4 @@
-import { GalleryGrid, InspectorPanel } from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import {
   formatDuration,
   formatFileSize,
@@ -12,6 +12,7 @@ import {
   videoOrientationLabel,
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
+import { LibraryGallery } from "../library-gallery.tsx";
 
 const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
   { value: "all", label: "全部" },
@@ -101,7 +102,7 @@ export function PublicLibraryPage({
 
         <div className="cutter-public-library-scroll">
           {filtered.length > 0 ? (
-            <GalleryGrid
+            <LibraryGallery
               items={filtered.map((video) => ({
                 id: video.source_video_id,
                 title: video.title,
@@ -113,11 +114,11 @@ export function PublicLibraryPage({
                 ...(onSelectSourceVideo
                   ? {
                       onSelect: () => onSelectSourceVideo(video.source_video_id),
-                      select_label: `查看原素材 ${video.title}`
+                      selectLabel: `查看原素材 ${video.title}`
                     }
                   : {
                       href: sourceDetailHash(video.source_video_id),
-                      action_label: "查看详情"
+                      actionLabel: "查看详情"
                     })
               }))}
             />

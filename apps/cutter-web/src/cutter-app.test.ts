@@ -740,10 +740,10 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.equal(html.includes("搜索索引"), false);
   assert.equal(html.includes("索引已同步"), false);
   assert.match(html, /href="#\/source-detail\/src-001"/);
-  assert.match(html, /ml-gallery-select/);
+  assert.match(html, /cutter-library-card-button/);
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /cutter-public-library-scroll/);
-  assert.match(html, /ml-gallery-grid/);
+  assert.match(html, /cutter-library-grid/);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
   assert.equal(html.includes("编辑元数据"), false);
@@ -2149,16 +2149,16 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
     /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table-wrap\s*{(?<body>[^}]+)}/g
   );
   const galleryAlignRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library-scroll \.ml-gallery-grid,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.cutter-public-library-scroll > \.ml-gallery-grid\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library-scroll \.cutter-library-grid,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.cutter-public-library-scroll > \.cutter-library-grid\s*{(?<body>[^}]+)}/g
   );
   const scrollPaneRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library-scroll,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.cutter-public-library-scroll,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="settings"\] \.ml-grouped-form\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library-scroll,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.cutter-public-library-scroll,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="settings"\] \.cutter-info-groups\s*{(?<body>[^}]+)}/g
   );
   const localGridRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library \.ml-gallery-grid\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library \.cutter-library-grid,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.cutter-public-library \.cutter-library-grid\s*{(?<body>[^}]+)}/g
   );
   const publicGridRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.ml-gallery-grid\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="local-library"\] \.cutter-local-library \.cutter-library-grid,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="public-library"\] \.cutter-public-library \.cutter-library-grid\s*{(?<body>[^}]+)}/g
   );
 
   assert.match(ordinaryContentRule, /overflow:\s*hidden/);
@@ -2374,7 +2374,7 @@ test("local library is independent and exposes local recut materials with orient
   }
 
 		  assert.match(html, /cutter-local-library-scroll/);
-		  assert.match(html, /ml-gallery-grid/);
+			  assert.match(html, /cutter-library-grid/);
 	  assert.match(html, /<video[^>]+src="\/local-clips\/clip-001\.mp4"/);
 	  assert.match(html, /aria-pressed="true"/);
 	  assert.match(html, /aria-label="本地素材视频类型"/);

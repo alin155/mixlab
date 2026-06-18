@@ -1,4 +1,4 @@
-import { GalleryGrid, InspectorPanel } from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, formatFileSize, type LocalClipCatalog } from "../../api.ts";
 import {
   projectDisplayTitle,
@@ -10,6 +10,7 @@ import {
   type VideoDimensions,
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
+import { LibraryGallery } from "../library-gallery.tsx";
 
 type LocalClipVisualMetadata = LocalClipCatalog["clips"][number] & VideoDimensions;
 export type LocalClip = LocalClipCatalog["clips"][number];
@@ -174,7 +175,7 @@ export function LocalLibraryPage({
       ...(onSelectLocalClip
         ? {
             onSelect: () => onSelectLocalClip(clip.local_clip_id),
-            select_label: `查看素材 ${clip.title}`
+            selectLabel: `查看素材 ${clip.title}`
           }
         : {})
     }));
@@ -234,12 +235,12 @@ export function LocalLibraryPage({
                     <strong>{title}</strong>
                     <span>{clips.length} 个素材</span>
                   </header>
-                  <GalleryGrid items={galleryItems(clips)} />
+                  <LibraryGallery items={galleryItems(clips)} />
                 </section>
               ))}
             </div>
           ) : visible.length > 0 ? (
-            <GalleryGrid items={galleryItems(visible)} />
+            <LibraryGallery items={galleryItems(visible)} />
           ) : (
             <div className="cutter-local-empty-state">
               <strong>当前项目暂无本地素材</strong>

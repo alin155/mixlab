@@ -1,4 +1,5 @@
-import { GroupedForm, InspectorPanel, StatusRow } from "@mixlab/ui-foundation";
+import { Badge, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
+import type { ReactNode } from "react";
 import type { CutterRuntimeStatus } from "../../api.ts";
 import type { CutterWorkbenchSettings } from "../../fixture-client.ts";
 import {
@@ -27,6 +28,36 @@ const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: st
 ];
 
 type SettingsDoctorCheck = CutterWorkbenchSettings["doctor"][number];
+type CutterInfoGroup = {
+  title: string;
+  rows: Array<{
+    label: string;
+    value: ReactNode;
+  }>;
+};
+
+function CutterInfoGroups({ groups }: { groups: readonly CutterInfoGroup[] }) {
+  return (
+    <div className="cutter-info-groups">
+      {groups.map((group) => (
+        <Card title={group.title} className="cutter-info-group" key={group.title}>
+          <dl className="cutter-info-list">
+            {group.rows.map((row) => (
+              <div className="cutter-info-row" key={row.label}>
+                <dt>{row.label}</dt>
+                <dd>{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function doctorTone(status: SettingsDoctorCheck["status"]): BadgeTone {
+  return status === "pass" ? "success" : status === "warn" ? "warning" : "danger";
+}
 
 function compactFileSize(bytes: number | undefined): string {
   if (!Number.isFinite(bytes ?? Number.NaN) || (bytes ?? 0) <= 0) {
@@ -187,7 +218,7 @@ export function SettingsPage({
           </div>
         </header>
 
-        <GroupedForm
+        <CutterInfoGroups
           groups={[
             runtimeGroup,
             {
@@ -284,12 +315,12 @@ export function SettingsPage({
       <InspectorPanel title="环境检查">
         <div className="cutter-settings-doctor">
           {settings.doctor.map((check) => (
-            <StatusRow
+            <div className="cutter-settings-doctor-row"
               key={check.label}
-              tone={check.status === "pass" ? "ready" : check.status === "warn" ? "warning" : "failed"}
-              label={settingsDoctorLabel(check)}
-              detail={settingsDoctorDetail(check)}
-            />
+            >
+              <Badge tone={doctorTone(check.status)}>{settingsDoctorLabel(check)}</Badge>
+              <span>{settingsDoctorDetail(check)}</span>
+            </div>
           ))}
         </div>
       </InspectorPanel>

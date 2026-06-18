@@ -1,7 +1,7 @@
 import {
-  GroupedForm,
   InspectorPanel,
-  SourceTable
+  Table,
+  type TableColumn
 } from "@mixlab/ui-foundation";
 import type {
   AdminDashboardData,
@@ -15,7 +15,14 @@ import {
   strictChineseDiagnosticText
 } from "../../app/chinese.ts";
 import { formatAdminDuration } from "../../app/view-model.ts";
-import { AdminControlButton, AdminPageHeader, EmptyState, IndexTable, MetricBand } from "../shared.tsx";
+import {
+  AdminControlButton,
+  AdminInfoGroups,
+  AdminPageHeader,
+  EmptyState,
+  IndexTable,
+  MetricBand
+} from "../shared.tsx";
 
 function productionStatus(data: AdminDashboardData): { title: string; detail: string; tone: "healthy" | "attention" | "blocked" } {
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
@@ -234,6 +241,47 @@ export function PreprocessJobsPage({
 
     return <span className="admin-row-actions">{actions}</span>;
   };
+  const jobColumns: Array<TableColumn<AdminPreprocessJob>> = [
+    { id: "job", header: "任务", accessor: "job_id" },
+    {
+      id: "source",
+      header: "原视频",
+      render: (job) => `${job.source_video_id} · ${job.title}`
+    },
+    { id: "stage", header: "阶段", render: jobStageText },
+    {
+      id: "queue",
+      header: "排队",
+      render: (job, index) =>
+        job.status === "queued" ? `排队第 ${job.queue_position || index + 1} 位` : "-"
+    },
+    {
+      id: "progress",
+      header: "进度",
+      render: (job) => (
+        <span className="admin-progress-cell">
+          <meter min={0} max={100} value={job.progress}>{job.progress}%</meter>
+          <strong>{jobProgressText(job)}</strong>
+        </span>
+      )
+    },
+    {
+      id: "duration",
+      header: "耗时",
+      render: (job) => job.elapsed_ms > 0 ? formatAdminDuration(job.elapsed_ms) : "-"
+    },
+    {
+      id: "start",
+      header: "预计开始",
+      render: (job) => job.estimated_start_at ? timeLabel(job.estimated_start_at) : "-"
+    },
+    {
+      id: "done",
+      header: "预计完成",
+      render: (job) => job.estimated_done_at ? timeLabel(job.estimated_done_at) : "暂无估算"
+    },
+    { id: "actions", header: "操作", render: jobActions }
+  ];
 
   return (
     <>
@@ -342,22 +390,11 @@ export function PreprocessJobsPage({
           {isLoadingJobs ? (
             <EmptyState title="任务明细后台同步中" detail="队列统计已显示，明细回来后会自动补上。" />
           ) : compactJobs.length ? (
-            <SourceTable
-              columns={["任务", "原视频", "阶段", "排队", "进度", "耗时", "预计开始", "预计完成", "操作"]}
-              rows={compactJobs.map((job, index) => [
-                job.job_id,
-                `${job.source_video_id} · ${job.title}`,
-                jobStageText(job),
-                job.status === "queued" ? `排队第 ${job.queue_position || index + 1} 位` : "-",
-                <span className="admin-progress-cell" key={`${job.job_id}-progress`}>
-                  <meter min={0} max={100} value={job.progress}>{job.progress}%</meter>
-                  <strong>{jobProgressText(job)}</strong>
-                </span>,
-                job.elapsed_ms > 0 ? formatAdminDuration(job.elapsed_ms) : "-",
-                job.estimated_start_at ? timeLabel(job.estimated_start_at) : "-",
-                job.estimated_done_at ? timeLabel(job.estimated_done_at) : "暂无估算",
-                jobActions(job)
-              ])}
+            <Table
+              columns={jobColumns}
+              rows={compactJobs}
+              getRowKey={(job) => job.job_id}
+              stickyHeader
             />
           ) : (
             <EmptyState title="暂无预处理任务" detail="当前没有正在处理、排队或失败的视频。" />
@@ -401,7 +438,7 @@ export function PreprocessJobsPage({
           ) : null}
           <IndexTable versions={data.indexes.versions} />
         </section>
-        <GroupedForm
+        <AdminInfoGroups
           groups={[{
             title: "素材来源",
             rows: data.settings.source_folders.map((folder) => ({
@@ -426,7 +463,7 @@ export function PreprocessJobsPage({
         />
       </div>
       <InspectorPanel title="处理控制">
-        <GroupedForm
+        <AdminInfoGroups
           groups={[
             {
               title: "状态摘要",

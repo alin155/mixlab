@@ -1,7 +1,4 @@
-import {
-  InspectorPanel,
-  StatusRow
-} from "@mixlab/ui-foundation";
+import { InspectorPanel } from "@mixlab/ui-foundation";
 import type { AdminDashboardData, AdminPreprocessJob, UsageMetrics } from "../../api.ts";
 import {
   createAdminSmartScanReport,
@@ -20,6 +17,7 @@ import {
 } from "../../app/view-model.ts";
 import {
   AdminControlButton,
+  AdminStatusLine,
   AdminPageHeader,
   CountStrip,
   DiskUsage
@@ -809,7 +807,7 @@ export function DashboardPage({
         <section className="admin-list-panel admin-recent-jobs-panel">
           <h2>最近活动</h2>
           {data.jobs.jobs.slice(0, 4).map((job) => (
-            <StatusRow
+            <AdminStatusLine
               tone={adminStatusTone(job.status)}
               label={job.source_video_id}
               detail={recentJobDetail(job, queuedPositionByJobId.get(job.job_id) ?? 1, averageProcessMs, supervisorRunning)}
@@ -829,7 +827,7 @@ export function DashboardPage({
         <section className="admin-list-panel admin-warning-panel" aria-label="最近预警">
           <h2>最近预警</h2>
           {warningRows.length ? warningRows.map((row) => (
-            <StatusRow
+            <AdminStatusLine
               tone={row.tone === "blocked" ? "failed" : row.tone === "attention" ? "warning" : "ready"}
               label={row.label}
               detail={row.detail}
@@ -837,7 +835,7 @@ export function DashboardPage({
               key={row.label}
             />
           )) : (
-            <StatusRow tone="ready" label="暂无预警" detail="系统没有发现需要立即处理的风险。" value="正常" />
+            <AdminStatusLine tone="ready" label="暂无预警" detail="系统没有发现需要立即处理的风险。" value="正常" />
           )}
         </section>
       </div>

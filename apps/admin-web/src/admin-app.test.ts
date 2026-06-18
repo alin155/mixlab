@@ -877,11 +877,15 @@ test("source video table keeps ID selection separate from detail navigation", as
     currentIndexVersion: data.indexes.current_version,
     onSelect: (sourceVideoId) => calls.push(`选择:${sourceVideoId}`),
     onOpenSourceDetail: (sourceVideoId) => calls.push(`详情:${sourceVideoId}`)
-  }) as { props: { columns: string[]; rows: Array<unknown[]> } };
-  const idButton = table.props.rows[0][1] as { props: { children: Array<{ props: { children: string } }>; onClick: () => void } };
-  const detailButton = table.props.rows[0].at(-1) as { props: { children: string; onClick: () => void } };
+  }) as { props: { columns: Array<{ header: string; render?: (row: unknown) => unknown }>; rows: unknown[] } };
+  const row = table.props.rows[0];
+  const idButton = table.props.columns[1].render?.(row) as { props: { children: Array<{ props: { children: string } }>; onClick: () => void } };
+  const detailButton = table.props.columns.at(-1)?.render?.(row) as { props: { children: string; onClick: () => void } };
 
-  assert.deepEqual(table.props.columns, ["封面", "标题", "时长", "相对路径", "字幕状态", "预处理状态", "搜索可见", "发布版本", "操作"]);
+  assert.deepEqual(
+    table.props.columns.map((column) => column.header),
+    ["封面", "标题", "时长", "相对路径", "字幕状态", "预处理状态", "搜索可见", "发布版本", "操作"]
+  );
   const idLabel = idButton.props.children[1]?.props.children;
   assert.equal(Array.isArray(idLabel) ? idLabel.join("") : idLabel, "V000042 · 现金流管理与风险控制.mp4");
   assert.equal(detailButton.props.children, "查看详情");

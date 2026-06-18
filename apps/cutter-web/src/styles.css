@@ -12172,3 +12172,192 @@ body,
 .cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row small {
   color: var(--ml-color-text);
 }
+
+/* UI Foundation v1 page migration: business media grids compose shared Card and Badge. */
+.cutter-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .cutter-local-library .cutter-library-grid,
+.cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .cutter-public-library .cutter-library-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .cutter-local-library-scroll .cutter-library-grid,
+.cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .cutter-public-library-scroll > .cutter-library-grid {
+  align-content: start;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="local-library"] .cutter-local-library-scroll,
+.cutter-app[data-cutter-web-ready][data-cutter-route="public-library"] .cutter-public-library-scroll,
+.cutter-app[data-cutter-web-ready][data-cutter-route="settings"] .cutter-info-groups {
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.cutter-library-card {
+  overflow: hidden;
+}
+
+.cutter-library-card > .ml-card-body,
+.cutter-library-card-body,
+.cutter-library-card-button {
+  display: grid;
+  min-width: 0;
+}
+
+.cutter-library-card > .ml-card-body,
+.cutter-library-card-body {
+  padding: 0;
+}
+
+.cutter-library-card-button {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.cutter-library-card-button:focus-visible {
+  outline: 2px solid var(--ml-color-accent);
+  outline-offset: -2px;
+}
+
+.cutter-library-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--ml-color-surface-muted);
+}
+
+.cutter-library-card-copy {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+}
+
+.cutter-library-card-copy strong,
+.cutter-library-card-copy span,
+.cutter-library-card-copy p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cutter-library-card-copy strong {
+  color: var(--ml-color-text);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cutter-library-card-copy span {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cutter-library-card-copy p {
+  display: -webkit-box;
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cutter-library-card-copy a {
+  width: fit-content;
+  color: var(--ml-color-accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cutter-library-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cutter-info-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.cutter-info-group .ml-card-body {
+  padding: 0;
+}
+
+.cutter-info-list {
+  margin: 0;
+}
+
+.cutter-info-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ml-color-border) 56%, transparent);
+}
+
+.cutter-info-row:last-child {
+  border-bottom: 0;
+}
+
+.cutter-info-row dt,
+.cutter-info-row dd {
+  min-width: 0;
+}
+
+.cutter-info-row dt {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cutter-info-row dd {
+  margin: 0;
+  color: var(--ml-color-text);
+  font-size: 13px;
+}
+
+.cutter-settings-doctor {
+  display: grid;
+  gap: 8px;
+}
+
+.cutter-settings-doctor-row {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 38px;
+}
+
+.cutter-settings-doctor-row > span:last-child {
+  min-width: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+}
+
+.cutter-cut-list .ml-table-wrap {
+  min-height: 0;
+}
+
+.cutter-cut-list .ml-table td:nth-child(4) {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
