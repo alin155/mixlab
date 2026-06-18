@@ -504,7 +504,7 @@ const DEFAULT_SOURCE_VIDEO_CACHE_MAX_BYTES = 100 * 1024 * 1024 * 1024;
 const DEFAULT_SOURCE_VIDEO_CACHE_CUT_WAIT_MS = 1_500;
 const SOURCE_PREFLIGHT_SAMPLE_COUNT = 3;
 const SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS = 1_500;
-const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
+const SOURCE_PREFLIGHT_BACKGROUND_DELAY_MS = 500;
 const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
 const RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS = 200;
 const RELEASE_CACHE_STATUS_CACHE_TTL_MS = 60_000;
@@ -3602,7 +3602,11 @@ async function readSourceVideoPreflightStatus(
   }
 
   if (!cache.promise) {
-    cache.promise = readSourceVideoPreflightStatusUncached(input)
+    cache.promise = new Promise<CutterSourceVideoPreflightStatus>((resolve, reject) => {
+      setTimeout(() => {
+        readSourceVideoPreflightStatusUncached(input).then(resolve, reject);
+      }, SOURCE_PREFLIGHT_BACKGROUND_DELAY_MS);
+    })
       .then((status) => {
         cache.status = status;
         cache.expires_at_ms = Date.now() + SOURCE_PREFLIGHT_CACHE_TTL_MS;
@@ -3625,11 +3629,7 @@ async function readSourceVideoPreflightStatus(
       });
   }
 
-  return delayedFallback(
-    cache.promise,
-    SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS,
-    cache.status ?? checkingSourceVideoPreflightStatus()
-  );
+  return cache.status ?? checkingSourceVideoPreflightStatus();
 }
 
 async function readLocalCacheRuntimeStatus(

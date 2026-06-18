@@ -785,13 +785,26 @@ test("runtime status requires approved cutter session and reports workspace read
     assert.equal(body.data.local_cache.source_video_cache.cache_root_path, path.join(workspaceRoot, "cache", "source-videos"));
     assert.equal(body.data.local_cache.source_video_cache.cached_video_count, 0);
     assert.equal(body.data.local_cache.cut_temp_cache.file_count, 0);
-    assert.equal(body.data.source_video_preflight.status, "ready");
-    assert.equal(body.data.source_video_preflight.readable_count, 1);
-    assert.equal(body.data.source_video_preflight.probe_count, 1);
-    assert.equal(body.data.source_video_preflight.probe_readable_count, 1);
-    assert.equal(body.data.source_video_preflight.samples[0].reason, "可读取");
-    assert.equal(body.data.source_video_preflight.samples[0].media_probe.ok, true);
-    assert.equal(body.data.source_video_preflight.samples[0].media_probe.codec, "h264");
+    assert.equal(body.data.source_video_preflight.status, "checking");
+
+    let latestBody = body;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const latestResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(latestResponse.status, 200);
+      latestBody = await latestResponse.json() as any;
+      if (latestBody.data.source_video_preflight.status === "ready") {
+        break;
+      }
+    }
+
+    assert.equal(latestBody.data.source_video_preflight.status, "ready");
+    assert.equal(latestBody.data.source_video_preflight.readable_count, 1);
+    assert.equal(latestBody.data.source_video_preflight.probe_count, 1);
+    assert.equal(latestBody.data.source_video_preflight.probe_readable_count, 1);
+    assert.equal(latestBody.data.source_video_preflight.samples[0].reason, "可读取");
+    assert.equal(latestBody.data.source_video_preflight.samples[0].media_probe.ok, true);
+    assert.equal(latestBody.data.source_video_preflight.samples[0].media_probe.codec, "h264");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
@@ -845,8 +858,8 @@ test("runtime status keeps source video preflight in the background when probing
     });
 
     let latestBody = firstBody;
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
       const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
       assert.equal(response.status, 200);
       latestBody = await response.json() as any;
@@ -1211,9 +1224,23 @@ test("runtime status blocks source video preflight when media probing fails", as
   const headers = await createApprovedAuthHeaders(libraryRoot);
 
   await withApiServer(libraryRoot, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-    assert.equal(response.status, 200);
-    const body = await response.json() as any;
+    const startedAt = Date.now();
+    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(firstResponse.status, 200);
+    let body = await firstResponse.json() as any;
+
+    assert.equal(body.data.source_video_preflight.status, "checking");
+    assert.ok(Date.now() - startedAt < 1_000);
+
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      body = await response.json() as any;
+      if (body.data.source_video_preflight.status === "blocked") {
+        break;
+      }
+    }
 
     assert.equal(body.data.source_video_preflight.status, "blocked");
     assert.equal(body.data.source_video_preflight.readable_count, 1);
