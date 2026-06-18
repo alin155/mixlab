@@ -1921,35 +1921,41 @@ test("workspace local clip creation reuses recently loaded source detail", async
   );
 });
 
-test("source video cache warms from detail view and cuts from local cached source", async () => {
+test("cuts from local source video cache when a valid cached source exists", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-source-cache-workspace-"));
   const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-source-cache-"));
+  const originalSourcePath = path.join(libraryRoot, "source-videos", "01_现金流.mp4");
+  const sourceStat = await stat(originalSourcePath);
+  const sourceCacheRoot = path.join(cacheRoot, "source-videos");
+  const cacheFileName = "V000001-cached.mp4";
+  const cacheFilePath = path.join(sourceCacheRoot, cacheFileName);
   const cutSourcePaths: string[] = [];
 
-  await withApiServer(libraryRoot, async (baseUrl) => {
-    const detail = await fetch(`${baseUrl}/cutter/source-videos/V000001`, { headers });
-    assert.equal(detail.status, 200);
-
-    let runtimeStatus: any;
-    const deadline = Date.now() + 1_000;
-    do {
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-      assert.equal(response.status, 200);
-      runtimeStatus = await response.json() as any;
-      if (runtimeStatus.data.local_cache.source_video_cache.cached_video_count >= 1) {
-        break;
+  await mkdir(sourceCacheRoot, { recursive: true });
+  await copyFile(originalSourcePath, cacheFilePath);
+  await writeFile(
+    path.join(sourceCacheRoot, ".manifest.json"),
+    `${JSON.stringify({
+      schema_version: "1.0",
+      generated_at: new Date().toISOString(),
+      entries: {
+        V000001: {
+          source_video_id: "V000001",
+          source_video_file_path: originalSourcePath,
+          source_size: sourceStat.size,
+          source_mtime_ms: sourceStat.mtimeMs,
+          cache_file_name: cacheFileName,
+          cache_size: sourceStat.size,
+          cached_at: new Date().toISOString(),
+          last_accessed_at: new Date().toISOString()
+        }
       }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    } while (Date.now() < deadline);
+    }, null, 2)}\n`
+  );
 
-    assert.equal(runtimeStatus.data.local_cache.source_video_cache.cached_video_count, 1);
-    assert.equal(
-      runtimeStatus.data.local_cache.source_video_cache.cache_root_path,
-      path.join(cacheRoot, "source-videos")
-    );
-
+  await withApiServer(libraryRoot, async (baseUrl) => {
     const create = await fetch(`${baseUrl}/cutter/local-clips`, {
       method: "POST",
       headers: {
@@ -1969,9 +1975,8 @@ test("source video cache warms from detail view and cuts from local cached sourc
     assert.equal(create.status, 201);
 
     assert.equal(cutSourcePaths.length, 1);
-    assert.equal(path.dirname(cutSourcePaths[0]!), path.join(cacheRoot, "source-videos"));
-    assert.match(path.basename(cutSourcePaths[0]!), /^V000001-[a-f0-9]{16}\.mp4$/);
-    assert.notEqual(cutSourcePaths[0], path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+    assert.equal(cutSourcePaths[0], cacheFilePath);
+    assert.notEqual(cutSourcePaths[0], originalSourcePath);
   }, {
     workspace_root: workspaceRoot,
     release_cache_root: cacheRoot,
@@ -1992,13 +1997,14 @@ test("source video cache warms from detail view and cuts from local cached sourc
   });
 });
 
-test("cuts from original source while source video cache is still warming", async () => {
+test("cuts from original source before starting cold source video cache warmup", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-cache-fallback-workspace-"));
   const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-cache-fallback-"));
   const originalSourcePath = path.join(libraryRoot, "source-videos", "01_现金流.mp4");
   const cutSourcePaths: string[] = [];
+  let copyHasStarted = false;
   let releaseCopy!: () => void;
   let copyStarted!: () => void;
   const copyStartedSignal = new Promise<void>((resolve) => {
@@ -2052,6 +2058,7 @@ test("cuts from original source while source video cache is still warming", asyn
     source_video_cache_cut_wait_ms: 1,
     source_video_cache_max_bytes: 64 * 1024 * 1024,
     source_video_cache_copy_file: async (sourcePath, outputPath) => {
+      copyHasStarted = true;
       copyStarted();
       await releaseCopySignal;
       await copyFile(sourcePath, outputPath);
@@ -2064,6 +2071,7 @@ test("cuts from original source while source video cache is still warming", asyn
       codec: "h264"
     }),
     cut_runner: async (input) => {
+      assert.equal(copyHasStarted, false);
       cutSourcePaths.push(input.source_video_path);
       await mkdir(path.dirname(input.output_path), { recursive: true });
       await writeFile(input.output_path, "fallback-cut");
@@ -2544,8 +2552,21 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
       cutOutputs.map(({ begin_ms, end_ms }) => ({ begin_ms, end_ms })),
       [{ begin_ms: 750, end_ms: 4000 }]
     );
-    assert.equal(path.dirname(cutOutputs[0]!.source_video_path), path.join(workspaceRoot, "cache", "source-videos"));
-    assert.match(path.basename(cutOutputs[0]!.source_video_path), /^V000001-[a-f0-9]{16}\.mp4$/);
+    assert.equal(cutOutputs[0]!.source_video_path, path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+
+    let runtimeStatus: any;
+    const cacheDeadline = Date.now() + 1_000;
+    do {
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      runtimeStatus = await response.json() as any;
+      if (runtimeStatus.data.local_cache.source_video_cache.cached_video_count >= 1) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    } while (Date.now() < cacheDeadline);
+
+    assert.equal(runtimeStatus.data.local_cache.source_video_cache.cached_video_count, 1);
 
     const jobs = await (await fetch(`${baseUrl}/cutter/cut-jobs`, { headers })).json() as any;
     assert.equal(jobs.data.job_count, 1);

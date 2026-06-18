@@ -787,6 +787,20 @@ function sourceVideoCacheFileName(input: {
   return `${input.source_video_id}-${hash}${safeExtension}`;
 }
 
+function activeSourceVideoPrefetch(input: {
+  api_input: CreateCutterApiServerInput;
+  source_video_id: string;
+}): Promise<void> | undefined {
+  const prefix = `${sourceVideoCacheRoot(input.api_input)}\0${input.source_video_id}\0`;
+  for (const [key, promise] of activeSourceVideoPrefetches.entries()) {
+    if (key.startsWith(prefix)) {
+      return promise;
+    }
+  }
+
+  return undefined;
+}
+
 function sourceVideoCacheEntryMatches(input: {
   entry: SourceVideoCacheManifestEntry | undefined;
   source_video_id: string;
@@ -1035,12 +1049,6 @@ async function sourceDetailWithLocalSourceCache<T extends {
     };
   }
 
-  prefetchSourceVideoBestEffort({
-    api_input: apiInput,
-    source_video_id: source.source_video_id,
-    source_video_file_path: source.source_video_file_path,
-    file_size: source.file_size
-  });
   return source;
 }
 
@@ -1067,32 +1075,28 @@ async function sourceDetailWithLocalSourceForCut<T extends {
     };
   }
 
-  const waitMs = sourceVideoCacheCutWaitMs(apiInput);
-  const prefetchPromise = prefetchSourceVideo({
+  const prefetchPromise = activeSourceVideoPrefetch({
     api_input: apiInput,
-    source_video_id: source.source_video_id,
-    source_video_file_path: source.source_video_file_path,
-    file_size: source.file_size
+    source_video_id: source.source_video_id
   });
 
-  void prefetchPromise.catch(() => undefined);
-
   try {
-    if (waitMs > 0) {
+    const waitMs = sourceVideoCacheCutWaitMs(apiInput);
+    if (prefetchPromise && waitMs > 0) {
       await Promise.race([prefetchPromise, delay(waitMs)]);
-    }
-    const readyPath = await cachedSourceVideoPath({
-      api_input: apiInput,
-      source_video_id: source.source_video_id,
-      source_video_file_path: source.source_video_file_path,
-      file_size: source.file_size
-    });
+      const readyPath = await cachedSourceVideoPath({
+        api_input: apiInput,
+        source_video_id: source.source_video_id,
+        source_video_file_path: source.source_video_file_path,
+        file_size: source.file_size
+      });
 
-    if (readyPath) {
-      return {
-        ...source,
-        source_video_file_path: readyPath
-      };
+      if (readyPath) {
+        return {
+          ...source,
+          source_video_file_path: readyPath
+        };
+      }
     }
   } catch (error) {
     const root = sourceVideoCacheRoot(apiInput);
@@ -3976,6 +3980,7 @@ async function runWorkspaceCutJob(input: {
 }): ReturnType<typeof runNextCutJob> {
   const cutRunner = input.api_input.cut_runner ?? defaultCutRunner;
   const coverRunner = input.api_input.cover_runner ?? (input.api_input.cut_runner ? undefined : defaultCoverRunner);
+  let sourceToPrefetchAfterCut: CutJobSourceDetail | undefined;
 
   const runInput: RunNextCutJobInput = {
     workspace_root: input.workspace_root,
@@ -4009,7 +4014,11 @@ async function runWorkspaceCutJob(input: {
 
       const cachedSource = input.resolved_sources?.get(job.source_video_id);
       if (cachedSource) {
-        return await sourceDetailWithLocalSourceForCut(input.api_input, cachedSource);
+        const cutSource = await sourceDetailWithLocalSourceForCut(input.api_input, cachedSource);
+        if (cutSource.source_video_file_path === cachedSource.source_video_file_path) {
+          sourceToPrefetchAfterCut = cachedSource;
+        }
+        return cutSource;
       }
 
       const detail = await loadVisibleDetail(input.api_input, job.source_video_id);
@@ -4018,9 +4027,26 @@ async function runWorkspaceCutJob(input: {
         return null;
       }
 
-      return cutJobSourceFromDetail(await sourceDetailWithLocalSourceForCut(input.api_input, detail));
+      const source = cutJobSourceFromDetail(detail);
+      const cutSource = await sourceDetailWithLocalSourceForCut(input.api_input, source);
+      if (cutSource.source_video_file_path === source.source_video_file_path) {
+        sourceToPrefetchAfterCut = source;
+      }
+      return cutSource;
     },
-    cut_runner: cutRunner,
+    cut_runner: async (runnerInput) => {
+      await cutRunner(runnerInput);
+      const source = sourceToPrefetchAfterCut;
+      sourceToPrefetchAfterCut = undefined;
+      if (source) {
+        prefetchSourceVideoBestEffort({
+          api_input: input.api_input,
+          source_video_id: source.source_video_id,
+          source_video_file_path: source.source_video_file_path,
+          file_size: source.file_size
+        });
+      }
+    },
     cut_temp_max_bytes: cutTempMaxBytes(input.api_input),
     persist_phase_progress: input.persist_phase_progress,
     ...(coverRunner ? { cover_runner: coverRunner } : {})
@@ -4356,6 +4382,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         });
         const cutRunner = input.cut_runner ?? defaultCutRunner;
         const cutSource = await sourceDetailWithLocalSourceForCut(input, detail);
+        const shouldPrefetchAfterCut = cutSource.source_video_file_path === detail.source_video_file_path;
 
         await mkdir(path.dirname(clipPaths.media_file_path), { recursive: true });
         await cutRunner({
@@ -4365,6 +4392,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           end_ms: selection.end_ms,
           cut_mode: cutMode
         });
+        if (shouldPrefetchAfterCut) {
+          prefetchSourceVideoBestEffort({
+            api_input: input,
+            source_video_id: detail.source_video_id,
+            source_video_file_path: detail.source_video_file_path,
+            file_size: detail.file_size
+          });
+        }
 
         const manifest = await writeLocalClipManifest({
           library_root: input.library_root,
@@ -5000,12 +5035,6 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
-          prefetchSourceVideoBestEffort({
-            api_input: input,
-            source_video_id: detail.source_video_id,
-            source_video_file_path: detail.source_video_file_path,
-            file_size: detail.file_size
-          });
           writeJson(response, 200, apiResponse(addSourceVideoUrls(detail) as ApiSourceVideoDetail));
           await recordCutterUsageEventBestEffort({
             api_input: input,
