@@ -24,6 +24,17 @@
 - `apps/cutter-desktop`
 - `packages/ui-foundation`
 
+## 生命周期
+
+`apps/ui-foundation-lab` 只是验证 UI Foundation 方向的临时脚手架。
+
+当真正的 `packages/ui-foundation v1` 稳定后：
+
+- 删除 `apps/ui-foundation-lab`。
+- 删除已被否定的 `apps/antd-ui-lab`。
+- 不把两个隔离三端实验 app 继续维护成长期项目。
+- 保留必要的结论文档和 checkpoint 记录即可。
+
 ## 不是从零重构业务布局
 
 这条路线不是重新发明 MixLab 的产品结构，而是做 UI 系统标准化。

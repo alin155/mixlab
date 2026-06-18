@@ -9,6 +9,7 @@ This file tracks rollback checkpoints for larger MixLab delivery batches.
 - Keep each migration batch small enough to verify and revert independently.
 - Do not mix UI migration, auth changes, runtime/cache changes, and Windows packaging changes in one checkpoint unless the batch explicitly requires it.
 - Prefer reverting to a tag or branch created from a tag instead of manually undoing files.
+- Treat isolated UI comparison apps as temporary scaffolding. After `packages/ui-foundation v1` becomes stable, delete `apps/antd-ui-lab` and `apps/ui-foundation-lab` instead of maintaining them as product code.
 
 ## Restore Commands
 
@@ -41,7 +42,8 @@ git reset --hard <tag-or-commit>
 | Order | Planned tag | Batch |
 | --- | --- | --- |
 | 002 | `checkpoint/ui-foundation-v1-package` | Build real `packages/ui-foundation v1` component and token layer |
-| 003 | `checkpoint/ui-foundation-shell-migration` | Migrate shared shell/sidebar/workspace and remove outer app frame in production surfaces |
-| 004 | `checkpoint/ui-foundation-low-risk-pages` | Migrate settings, cache, users, preprocess, and library pages |
-| 005 | `checkpoint/ui-foundation-cut-tasks` | Migrate cut task tables, detail panels, and status/action semantics |
-| 006 | `checkpoint/ui-foundation-material-search` | Migrate material search workbench, transcript panel, and floating cut action |
+| 003 | `checkpoint/ui-foundation-lab-cleanup` | Delete temporary `apps/antd-ui-lab` and `apps/ui-foundation-lab` after the real package is stable |
+| 004 | `checkpoint/ui-foundation-shell-migration` | Migrate shared shell/sidebar/workspace and remove outer app frame in production surfaces |
+| 005 | `checkpoint/ui-foundation-low-risk-pages` | Migrate settings, cache, users, preprocess, and library pages |
+| 006 | `checkpoint/ui-foundation-cut-tasks` | Migrate cut task tables, detail panels, and status/action semantics |
+| 007 | `checkpoint/ui-foundation-material-search` | Migrate material search workbench, transcript panel, and floating cut action |
