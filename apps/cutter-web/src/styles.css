@@ -12361,3 +12361,304 @@ body,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* UI Foundation v1 cut task migration. Page CSS owns only layout, density and
+   workflow-specific truncation; controls come from shared components. */
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-cut-queue {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 330px);
+  gap: 24px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-cut-queue .cutter-page-main {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 16px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-page-header {
+  min-height: 68px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-page-header h1 {
+  font-size: 28px;
+  line-height: 36px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-page-header p {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-card,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-pipeline-card,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-table,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .ml-inspector {
+  border-color: color-mix(in srgb, var(--ml-color-border) 62%, transparent);
+  background: color-mix(in srgb, var(--ml-color-surface) 86%, transparent);
+  box-shadow: 0 10px 28px rgba(83, 103, 132, 0.045);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-card-body {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-list {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-button.ml-button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-button .ml-button-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-button strong {
+  display: inline-flex;
+  min-width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0 6px;
+  color: var(--ml-color-text);
+  background: var(--ml-color-control);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-filter-button.is-active strong {
+  color: var(--ml-color-accent);
+  background: var(--ml-color-surface);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-directory-action {
+  flex: 0 0 auto;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-directory-action svg,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail-directory svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-pipeline-card .ml-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  padding: 12px 16px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-pipeline-card .ml-card-body > div {
+  display: flex;
+  min-width: 0;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-pipeline-card span,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-pipeline-card p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-pipeline-card strong {
+  color: var(--ml-color-text);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-table.ml-table-wrap {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-table .ml-table {
+  table-layout: fixed;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-table .ml-table th,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-table .ml-table td {
+  min-width: 0;
+  padding-right: clamp(7px, 0.85vw, 13px);
+  padding-left: clamp(7px, 0.85vw, 13px);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-table .ml-table th {
+  z-index: 5;
+  color: var(--ml-color-text-secondary);
+  background: var(--ml-color-surface);
+  text-align: center;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-source-button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  color: var(--ml-color-text);
+  background: transparent;
+  font: inherit;
+  font-weight: 720;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-time-range,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-selected-text,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-time-range {
+  color: var(--ml-color-text-secondary);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-selected-text {
+  color: var(--ml-color-text);
+  text-align: left;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem {
+  font-weight: 680;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem.is-done {
+  color: var(--ml-color-ready);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem.is-failed {
+  color: var(--ml-color-failed);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem.is-running {
+  color: var(--ml-color-processing);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem.is-pending {
+  color: var(--ml-color-warning);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-problem.is-cancelled {
+  color: var(--ml-color-queued);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-actions {
+  display: inline-flex;
+  min-width: 64px;
+  align-items: center;
+  justify-content: center;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-actions .ml-button--sm {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-actions.is-running {
+  color: var(--ml-color-processing);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-actions.is-done {
+  color: var(--ml-color-ready);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-action-check {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--ml-color-ready);
+  background: var(--ml-color-ready-soft);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-action-check svg {
+  width: 15px;
+  height: 15px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-empty {
+  color: var(--ml-color-text-tertiary);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail-status.ml-badge {
+  width: 100%;
+  min-height: 34px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dl {
+  display: grid;
+  margin: 0;
+  padding: 0;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dl div {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--ml-color-border) 56%, transparent);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dl div:last-child {
+  border-bottom: 0;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dt,
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dd {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dt {
+  color: var(--ml-color-text-secondary);
+  font-weight: 650;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="cut-tasks"] .cutter-queue-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ml-color-text);
+}

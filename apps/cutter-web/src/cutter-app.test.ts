@@ -2550,8 +2550,11 @@ test("cut tasks page uses a production table and task detail without internal ta
   assert.equal(html.includes("来源/时间段"), false);
   assert.equal(html.includes("任务名称"), false);
   assert.equal(html.includes("任务说明"), false);
-  assert.match(html, /<table[^>]+class="cutter-task-table"/);
-  assert.match(html, /class="cutter-task-action-check" role="img" aria-label="剪切成功"/);
+  assert.match(html, /class="ml-table-wrap has-sticky-header is-compact cutter-queue-table"/);
+  assert.match(html, /<table class="ml-table"/);
+  assert.match(html, /class="ml-badge is-success"/);
+  assert.match(html, /class="ml-badge is-danger"/);
+  assert.match(html, /class="cutter-queue-action-check" role="img" aria-label="剪切成功"/);
 });
 
 test("cut tasks page names the current cutter project context", () => {
@@ -2603,49 +2606,41 @@ test("cut tasks table keeps selected text and problem cells to one line with sem
   const lastRule = (pattern: RegExp) =>
     Array.from(css.matchAll(pattern)).map((match) => match.groups?.body ?? "").at(-1) ?? "";
   const textRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-selected-text,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-problem\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-time-range,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-selected-text,\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-problem\s*{(?<body>[^}]+)}/g
   );
   const headerRule = Array.from(
-    css.matchAll(/\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table th\s*{(?<body>[^}]+)}/g)
+    css.matchAll(/\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-table \.ml-table th\s*{(?<body>[^}]+)}/g)
   )
     .map((match) => match.groups?.body ?? "")
     .join("\n");
-  const sourceColumnRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table th:nth-child\(2\),\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table td:nth-child\(2\)\s*{(?<body>[^}]+)}/g
-  );
-  const selectedTextColumnRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table th:nth-child\(4\),\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table td:nth-child\(4\)\s*{(?<body>[^}]+)}/g
-  );
-  const problemColumnRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table th:nth-child\(5\),\s*\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-task-table td:nth-child\(5\)\s*{(?<body>[^}]+)}/g
-  );
   const pendingStatusRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route\] \.cutter-task-status-chip\.is-pending\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-problem\.is-pending\s*{(?<body>[^}]+)}/g
   );
   const runningStatusRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route\] \.cutter-task-status-chip\.is-running\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-problem\.is-running\s*{(?<body>[^}]+)}/g
   );
   const doneStatusRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route\] \.cutter-task-status-chip\.is-done\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-problem\.is-done\s*{(?<body>[^}]+)}/g
   );
   const failedStatusRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route\] \.cutter-task-status-chip\.is-failed\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-problem\.is-failed\s*{(?<body>[^}]+)}/g
+  );
+  const tableRule = lastRule(
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="cut-tasks"\] \.cutter-queue-table\.ml-table-wrap\s*{(?<body>[^}]+)}/g
   );
 
   assert.match(textRule, /overflow:\s*hidden/);
   assert.match(textRule, /text-overflow:\s*ellipsis/);
   assert.match(textRule, /white-space:\s*nowrap/);
+  assert.match(tableRule, /overflow-y:\s*auto/);
+  assert.match(tableRule, /scrollbar-gutter:\s*stable/);
   assert.match(headerRule, /text-align:\s*center/);
-  assert.match(headerRule, /position:\s*sticky/);
   assert.match(headerRule, /z-index:\s*5/);
-  assert.match(headerRule, /background:\s*#f8fafc/);
-  assert.match(sourceColumnRule, /width:\s*17%/);
-  assert.match(selectedTextColumnRule, /width:\s*auto/);
-  assert.match(problemColumnRule, /width:\s*17%/);
-  assert.match(pendingStatusRule, /color:\s*#b45309/);
-  assert.match(runningStatusRule, /color:\s*#1d4ed8/);
-  assert.match(doneStatusRule, /color:\s*#12805c/);
-  assert.match(failedStatusRule, /color:\s*#dc2626/);
+  assert.match(headerRule, /background:\s*var\(--ml-color-surface\)/);
+  assert.match(pendingStatusRule, /color:\s*var\(--ml-color-warning\)/);
+  assert.match(runningStatusRule, /color:\s*var\(--ml-color-processing\)/);
+  assert.match(doneStatusRule, /color:\s*var\(--ml-color-ready\)/);
+  assert.match(failedStatusRule, /color:\s*var\(--ml-color-failed\)/);
 });
 
 test("cut tasks omits manual refresh and continue controls", () => {
@@ -2671,10 +2666,10 @@ test("cut tasks page exposes a project output directory action near filters", ()
     })
   );
 
-  assert.match(html, /aria-label="剪切任务筛选"/);
   assert.match(html, /打开文件目录/);
-  assert.match(html, /class="cutter-secondary-button cutter-task-detail-directory"/);
-  assert.doesNotMatch(html, /class="cutter-primary-button cutter-task-detail-directory"/);
+  assert.match(html, /class="ml-button ml-button--secondary ml-button--md cutter-queue-directory-action"/);
+  assert.match(html, /class="ml-button ml-button--secondary ml-button--md cutter-queue-detail-directory"/);
+  assert.doesNotMatch(html, /class="ml-button ml-button--primary ml-button--md cutter-queue-detail-directory"/);
 });
 
 test("sidebar footer renders a simple cutter status summary", () => {

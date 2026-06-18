@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { InspectorPanel } from "@mixlab/ui-foundation";
+import {
+  Badge,
+  Button,
+  Card,
+  InspectorPanel,
+  Table,
+  type BadgeTone,
+  type TableColumn
+} from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import {
   cutQueueCurrentPhaseLabel,
@@ -54,6 +62,21 @@ function CheckIcon() {
       />
     </svg>
   );
+}
+
+function statusTone(status: CutQueueJob["status"]): BadgeTone {
+  switch (status) {
+    case "pending":
+      return "pending";
+    case "running":
+      return "running";
+    case "done":
+      return "done";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+  }
 }
 
 function labelForStatus(status: CutQueueJob["status"]): string {
@@ -170,6 +193,85 @@ export function CutQueuePage({
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(() => preferredTaskJob(jobs)?.queue_job_id);
   const selectedJob = jobs.find((job) => job.queue_job_id === selectedJobId) ?? preferredTaskJob(jobs);
   const visibleJobs = statusFilter === "all" ? jobs : jobs.filter((job) => job.status === statusFilter);
+  const taskColumns: Array<TableColumn<CutQueueJob>> = [
+    {
+      id: "status",
+      header: "状态",
+      width: "86px",
+      align: "center",
+      render: (job) => <Badge tone={statusTone(job.status)}>{labelForStatus(job.status)}</Badge>
+    },
+    {
+      id: "source",
+      header: "来源",
+      width: "17%",
+      render: (job) => (
+        <button
+          className="cutter-queue-source-button"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelectedJobId(job.queue_job_id);
+          }}
+        >
+          {job.source_title || job.source_video_id || "未知来源"}
+        </button>
+      )
+    },
+    {
+      id: "time",
+      header: "时间段",
+      width: "15%",
+      align: "center",
+      render: (job) => (
+        <span className="cutter-queue-time-range">
+          {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
+        </span>
+      )
+    },
+    {
+      id: "text",
+      header: "选中文案",
+      render: (job) => <span className="cutter-queue-selected-text">{shortSelectedText(job.selected_text)}</span>
+    },
+    {
+      id: "problem",
+      header: "问题",
+      width: "17%",
+      align: "center",
+      render: (job) => (
+        <span className={`cutter-queue-problem is-${job.status}`}>{problemForJob(job, nowMs)}</span>
+      )
+    },
+    {
+      id: "action",
+      header: "操作",
+      width: "92px",
+      align: "center",
+      render: (job) => (
+        <span className={`cutter-queue-actions is-${job.status}`}>
+          {job.status === "failed" && onRetryFailed ? (
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRetryFailed(job.queue_job_id);
+              }}
+            >
+              重新剪切
+            </Button>
+          ) : job.status === "done" ? (
+            <span className="cutter-queue-action-check" role="img" aria-label="剪切成功" title="剪切成功">
+              <CheckIcon />
+            </span>
+          ) : (
+            <span>{actionTextForJob(job.status)}</span>
+          )}
+        </span>
+      )
+    }
+  ];
 
   useEffect(() => {
     if (!jobs.some((job) => job.status === "pending" || job.status === "running")) {
@@ -203,116 +305,60 @@ export function CutQueuePage({
           </div>
         </header>
 
-        <section className="cutter-task-tabs" aria-label="剪切任务筛选">
-          <div className="cutter-task-tab-list">
+        <Card className="cutter-queue-filter-card" bodyClassName="cutter-queue-filter-card-body">
+          <div className="cutter-queue-filter-list">
             {statusFilters.map((filter) => (
-              <button
+              <Button
                 key={filter.key}
-                type="button"
-                className={statusFilter === filter.key ? "is-active" : ""}
+                className={`cutter-queue-filter-button${statusFilter === filter.key ? " is-active" : ""}`}
                 aria-pressed={statusFilter === filter.key}
                 onClick={() => setStatusFilter(filter.key)}
+                variant={statusFilter === filter.key ? "secondary" : "ghost"}
               >
                 <span>{filter.label}</span>
                 <strong>{taskCountForFilter(summary, filter.key)}</strong>
-              </button>
+              </Button>
             ))}
           </div>
           {onOpenCutOutputDirectory ? (
-            <button
-              type="button"
-              className="cutter-inline-action cutter-task-directory-action"
+            <Button
+              className="cutter-queue-directory-action"
+              leadingIcon={<FolderIcon />}
               onClick={onOpenCutOutputDirectory}
+              variant="secondary"
             >
-              <FolderIcon />
               打开文件目录
-            </button>
+            </Button>
           ) : null}
-        </section>
+        </Card>
 
-        <section className={`cutter-pipeline-card is-${pipelineState.status}`} aria-label="本机剪切流水线">
+        <Card className={`cutter-queue-pipeline-card is-${pipelineState.status}`}>
           <div>
             <span>本机剪切流水线</span>
             <strong>{pipelineStatus}</strong>
           </div>
           <p>{pipelineDetail}</p>
-        </section>
+        </Card>
 
-        <div className="cutter-task-table-wrap">
-          <table className="cutter-task-table">
-            <thead>
-              <tr>
-                <th>状态</th>
-                <th>来源</th>
-                <th>时间段</th>
-                <th>选中文案</th>
-                <th>问题</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleJobs.map((job) => (
-                <tr
-                  key={job.queue_job_id}
-                  className={`${selectedJob?.queue_job_id === job.queue_job_id ? "is-selected" : ""} is-${job.status}`}
-                  onClick={() => setSelectedJobId(job.queue_job_id)}
-                >
-                  <td>
-                    <span className={`cutter-task-status-chip is-${job.status}`}>{labelForStatus(job.status)}</span>
-                  </td>
-                  <td>
-                    <button
-                      className="cutter-task-source-button"
-                      type="button"
-                      onClick={() => setSelectedJobId(job.queue_job_id)}
-                    >
-                      {job.source_title || job.source_video_id || "未知来源"}
-                    </button>
-                  </td>
-                  <td>
-                    <span className="cutter-task-time-range">
-                      {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="cutter-task-selected-text">{shortSelectedText(job.selected_text)}</span>
-                  </td>
-                  <td>
-                    <span className={`cutter-task-problem is-${job.status}`}>{problemForJob(job, nowMs)}</span>
-                  </td>
-                  <td>
-                    <span className={`cutter-task-actions is-${job.status}`}>
-                      {job.status === "failed" && onRetryFailed ? (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onRetryFailed(job.queue_job_id);
-                          }}
-                        >
-                          重新剪切
-                        </button>
-                      ) : job.status === "done" ? (
-                        <span className="cutter-task-action-check" role="img" aria-label="剪切成功" title="剪切成功">
-                          <CheckIcon />
-                        </span>
-                      ) : (
-                        <span>{actionTextForJob(job.status)}</span>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {visibleJobs.length === 0 ? <span className="cutter-task-empty">当前筛选没有剪切任务。</span> : null}
-        </div>
+        <Table<CutQueueJob>
+          className="cutter-queue-table"
+          columns={taskColumns}
+          density="compact"
+          empty={<span className="cutter-queue-empty">当前筛选没有剪切任务。</span>}
+          getRowKey={(job) => job.queue_job_id}
+          onRowClick={(job) => setSelectedJobId(job.queue_job_id)}
+          rows={visibleJobs}
+          selectedRowKey={selectedJob?.queue_job_id}
+          stickyHeader
+        />
       </div>
 
       <InspectorPanel title="任务详情">
         {selectedJob ? (
-          <div className="cutter-task-detail">
-            <span className={`cutter-task-status-chip is-${selectedJob.status}`}>{labelForStatus(selectedJob.status)}</span>
+          <div className="cutter-queue-detail">
+            <Badge className="cutter-queue-detail-status" tone={statusTone(selectedJob.status)}>
+              {labelForStatus(selectedJob.status)}
+            </Badge>
             <dl>
               <div>
                 <dt>来源素材</dt>
@@ -340,23 +386,19 @@ export function CutQueuePage({
               ) : null}
             </dl>
             {selectedJob.status === "failed" && onRetryFailed ? (
-              <button
-                className="cutter-primary-button"
-                type="button"
-                onClick={() => onRetryFailed(selectedJob.queue_job_id)}
-              >
+              <Button onClick={() => onRetryFailed(selectedJob.queue_job_id)} variant="primary">
                 重新剪切
-              </button>
+              </Button>
             ) : null}
             {onOpenCutOutputDirectory ? (
-              <button
-                className="cutter-secondary-button cutter-task-detail-directory"
-                type="button"
+              <Button
+                className="cutter-queue-detail-directory"
+                leadingIcon={<FolderIcon />}
                 onClick={onOpenCutOutputDirectory}
+                variant="secondary"
               >
-                <FolderIcon />
                 打开文件目录
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : (
