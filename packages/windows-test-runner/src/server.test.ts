@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { once } from "node:events";
 import { RUNNER_VERSION } from "./config.ts";
+import { startStartupRun, parseStartupRunRequest } from "./startup-run.ts";
 import { createWindowsTestRunnerServer } from "./server.ts";
 import type { RunnerConfig, RunnerStatus, RunSummary } from "./types.ts";
 
@@ -265,6 +266,46 @@ test("runtime Runner version matches package version", async () => {
   )) as { version: string };
 
   assert.equal(RUNNER_VERSION, packageJson.version);
+});
+
+test("startup run request creates a report pointer for firewall-hidden backup runners", async () => {
+  const root = await tempRoot();
+  const config = runnerConfig({
+    reportsRoot: path.join(root, "reports"),
+    cutterApiBaseUrl: "http://127.0.0.1:1"
+  });
+  const runner = createWindowsTestRunnerServer(runnerConfig({
+    reportsRoot: path.join(root, "reports"),
+    cutterApiBaseUrl: "http://127.0.0.1:1"
+  }));
+  try {
+    const request = parseStartupRunRequest(JSON.stringify({
+      suite: "probe_api",
+      options: { timeout_ms: 1 }
+    }));
+    assert.equal(request?.suite, "probe_api");
+    const record = startStartupRun({
+      config,
+      store: runner.store,
+      request: request!
+    });
+    const pointerPath = path.join(root, "reports", "startup-run-latest.json");
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await sleep(50);
+      const pointer = JSON.parse(await readFile(pointerPath, "utf8")) as Record<string, unknown>;
+      if (pointer.status === "failed") {
+        assert.equal(pointer.run_id, record.run_id);
+        assert.equal(pointer.suite, "probe_api");
+        assert.equal(pointer.failure_category, "api_health_timeout");
+        assert.equal(typeof pointer.report_path, "string");
+        return;
+      }
+    }
+    assert.fail("startup run pointer was not updated with terminal status");
+  } finally {
+    await close(runner.server);
+    await rmRoot(root);
+  }
 });
 
 test("launch_runner starts a backup Runner process on a requested port", async () => {
