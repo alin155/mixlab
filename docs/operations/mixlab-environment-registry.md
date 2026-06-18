@@ -42,6 +42,8 @@
 - 2026-06-18，剪辑端 Windows 包 `521e977` 已通过 `install_latest_and_smoke-20260618T022050Z-c27f0dee` 安装验收，安装退出码 `0`，安装耗时 `6909ms`，安装包 SHA-256 `0a5641251e526af16dfa064192e97bcd82ebf07a94c454029d76c74bd6bbf990`。该包修复首次剪未缓存公共原素材时的自我 I/O 竞争：打开详情不再立即全量搬运源视频，冷剪不会在 FFmpeg 剪切前/剪切中启动整条源视频缓存复制，剪切成功后再后台预热 source video cache；已存在本机源视频缓存时仍优先本机剪切。对照真实剪切报告：修复前 `real_cut_smoke-20260618T013114Z-349782be` 的 `run-next` 为 `29945ms`、`cut_media` 为 `27718ms`；修复后 `real_cut_smoke-20260618T023159Z-f15e410b` 的 `run-next` 为 `1265ms`、`cut_media` 为 `1069ms`。
 - 2026-06-18，剪辑端 Windows 包 `521e977` 补充完成综合性能验收。`windows_acceptance-20260618T024258Z-e94142c0` 通过：公共素材首屏 `8ms`，真实数据首屏 `4ms`，搜索 `第一场` `12ms`，完整文案详情 `6ms`，剪切任务列表 `2ms`，缓存可观测总量 `28,670,929,262` bytes，其中 source video cache `27,559,860,594` bytes / `3` 条。补充 probe 显示 `runtime-status` 为 `84ms / 9ms / 8ms`。重复真实剪切 `real_cut_smoke-20260618T024837Z-3e57a5bd` 通过：`run-next 475ms`，`resolve_source 2ms`，`cut_media 258ms`。验收报告：`docs/acceptance/m18-4-windows-cutter-performance.md`。
 - 2026-06-18，剪辑端 Windows 包 `afc3bd3` 已通过最终性能验收，安装包 SHA-256 `da77a3173e5e5e23b913a6d6894535923002afcabfd84c24b97731e18772a464`。该包在 `521e977` 的源视频缓存 I/O 竞争修复基础上，把 `runtime-status` 的 source-video sample preflight 完全后台化：首个状态请求不再等待 SMB/FFprobe 样本检查，而是返回 `checking` 并异步刷新。`install_latest_and_smoke-20260618T040158Z-9fadf567` 通过：安装退出码 `0`，安装耗时 `6909ms`，首个 `runtime-status` `571ms`，source preflight timing `0ms`，公共素材首屏 `3ms`。延迟验收 `windows_acceptance-20260618T040332Z-561db02f` 通过：runtime `67ms`，公共素材 `8ms`，搜索 `第一场` `13ms` 且走 `searchd`，完整文案详情 `36ms`，剪切任务列表 `3ms`。真实剪切 `real_cut_smoke-20260618T040514Z-5ea69e8c` 通过：`run-next 1282ms`，`resolve_source 2ms`，`preflight_source 33ms`，`cut_media 1059ms`。当前 shared latest 已更新为 `afc3bd3`。
+- 2026-06-18，剪辑端 Windows 包 `c8b910f` 已完成共享目录交付并通过注册/登录模式安装验收。安装包 SHA-256 `ef58213b62de859c0bec891f78a08b7cbea55de5902a13139ac32356ac092f35`，GitHub Actions run `27759746635`。`install_latest_and_smoke-20260618T133201Z-59f3f677` 通过：安装退出码 `0`，安装耗时 `6995ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`34ms`。安装后即时验收处于冷启动窗口：搜索 `第一场` `827ms`、走 `sqlite-index`，完整文案详情 `1941ms`。延迟验收 `windows_acceptance-20260618T133409Z-bf9bb147` 通过：runtime `96ms`，公共素材首屏 `38ms`，搜索 `第一场` `55ms` 且走 `searchd`，完整文案详情 `39ms`，剪切任务列表 `24ms`，缓存可观测总量 `28,673,740,332` bytes，其中 source video cache `27,559,860,594` bytes / `3` 条。当前 shared latest 已更新为 `c8b910f`。
+- 2026-06-18，用户已将 Windows Test Runner 主入口 `3799` 启动为 `0.1.13`，Mac 侧通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证 `runner_version=0.1.13`。主入口注册/登录模式验收 `windows_acceptance-20260618T135736Z-54057e18` 通过：`auth_mode=reviewed`，`local_trusted=false`，runtime `1191ms`，公共素材首屏 `45ms`，搜索 `第一场` `39ms` 且走 `searchd`，完整文案详情 `22ms`，剪切任务列表 `19ms`，缓存可观测总量 `28,673,740,332` bytes。真实剪切 `real_cut_smoke-20260618T140015Z-7e2ec390` 通过：`run-next 1381ms`，`resolve_source 2ms`，`preflight_source 40ms`，`cut_media 1137ms`，输出 `export-clips/E000009/001-Windows验收剪切-20260618140015-C0629.mp4`。报告内未发现 session token 泄漏。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -174,15 +176,14 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-18 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-afc3bd3.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-c8b910f.exe
 version: 0.18.10
-commit: afc3bd3
-github_run_id: 27735367426
-sha256: da77a3173e5e5e23b913a6d6894535923002afcabfd84c24b97731e18772a464
-included_fix: avoid source-video cache prefetch contention during cuts; keep runtime-status source preflight fully backgrounded
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T040158Z-9fadf567/report.json
-real_cut_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260618T040514Z-5ea69e8c/report.json
-windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T040332Z-561db02f/report.json
+commit: c8b910f
+github_run_id: 27759746635
+sha256: ef58213b62de859c0bec891f78a08b7cbea55de5902a13139ac32356ac092f35
+included_fix: add password registration/login for admin and cutter; package latest desktop auth/runtime fixes
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T133201Z-59f3f677/report.json
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T133409Z-bf9bb147/report.json
 acceptance_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/m18-4-windows-cutter-performance.md
 ```
 
@@ -219,8 +220,8 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.12` |
-| 当前实机运行版本 | `0.1.10` on `3799`，2026-06-17 通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 验证 |
+| 当前共享版本 | `0.1.13` |
+| 当前实机运行版本 | `0.1.13` on `3799`，2026-06-18 通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证。 |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -234,7 +235,7 @@ Windows 日志默认目录：
 2026-06-18 当前共享发布记录：
 
 ```text
-0.1.12 aad1710 27730684227 44a4688c0c8341f0eaaa8d900725f53e59840b73e51f16944cd9e5d33accbaa8
+0.1.13 58eec2d 27762136217 d3aa3766c2f5daa9a4901ccf10b89bf0e56ba2aee96c2309aee32a9f2a5c861c
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -254,6 +255,8 @@ Windows 日志默认目录：
 `0.1.9` 修复内容：新增 `install_latest_and_smoke` suite。Runner 会从共享目录选择最新 `MixLab Cutter` 安装包，复制到 Windows 本机临时目录，校验 SHA-256，关闭旧桌面端/sidecar/searchd 进程，静默安装，然后执行 `windows_acceptance`。
 
 `0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
+
+`0.1.13` 修复内容：Windows acceptance 支持正式 `reviewed` 注册/登录模式。验收请求可以通过 `options.auth_headers` 或 `install_latest_and_smoke.acceptance_options.auth_headers` 传入 `X-MixLab-Device-Id` 与 `X-MixLab-Session-Token`，用于访问受保护的 runtime/source-library/search/detail/cut-jobs/cache 接口；磁盘报告不记录 session token。
 
 Runner 启动后会把报告写入：
 
