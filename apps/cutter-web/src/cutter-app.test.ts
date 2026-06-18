@@ -2815,6 +2815,16 @@ test("cutter app does not keep the removed user summary drawer", async () => {
   assert.doesNotMatch(source, /setUserSummaryPanelOpen\(true\)/);
 });
 
+test("cutter production shell uses UI Foundation AppShell instead of MacWindow", async () => {
+  const source = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /AppShell/);
+  assert.doesNotMatch(source, /MacWindow/);
+  assert.doesNotMatch(source, /className="cutter-shell"/);
+  assert.match(source, /className="cutter-shell-v1"/);
+  assert.match(source, /workbenchClassName=\{`cutter-workspace/);
+});
+
 test("cache management page exposes runtime cache and test results", () => {
   installTestWindow();
   window.localStorage.setItem("mixlab:cutter:default_source_filter", "public");
@@ -3099,7 +3109,10 @@ test("cutter appearance CSS scopes dark light and system modes without filtering
 test("cutter dark theme overrides foundation light surfaces with theme tokens", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
 
-  assert.match(css, /\.cutter-app \.ml-window-chrome\s*{[^}]*display:\s*none/s);
+  assert.match(css, /\.cutter-app \.cutter-shell-v1\s*{[^}]*height:\s*100vh/s);
+  assert.match(css, /\.cutter-app \.ml-workbench\.cutter-workspace\s*{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.cutter-app \.cutter-content\s*{[^}]*overflow-y:\s*auto/s);
+  assert.match(css, /\.cutter-app \.cutter-workspace\.is-content-locked \.cutter-content\s*{[^}]*overflow:\s*hidden/s);
   assert.match(css, /\.cutter-app \.ml-inspector\s*{[^}]*background:\s*var\(--ml-color-surface\)/s);
   assert.match(css, /\.cutter-app \.ml-sidebar-item\.is-active,[\s\S]*?background:\s*var\(--ml-color-control-active\)/s);
   assert.match(css, /\.cutter-material-locator \.cutter-locator-result\.is-selected\s*{[^}]*background:\s*var\(--ml-color-selected\)/s);

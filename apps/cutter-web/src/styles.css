@@ -12092,3 +12092,83 @@ body,
     rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(8px);
 }
+
+/* UI Foundation shell migration: production cutter uses AppShell directly.
+   Keep the native/browser window as the only outer frame. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cutter-app {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.cutter-app .cutter-shell-v1 {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.9), transparent 34%),
+    linear-gradient(135deg, #dfeafa 0%, #eef6ff 42%, #dbe8f7 100%);
+}
+
+.cutter-app .cutter-shell-v1 > .ml-sidebar {
+  position: relative;
+  inset: auto;
+  width: var(--ml-sidebar-width);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cutter-app .ml-workbench.cutter-workspace {
+  display: block;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ml-color-window);
+}
+
+.cutter-app .cutter-content {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cutter-app .cutter-workspace.is-content-locked .cutter-content {
+  overflow: hidden;
+}
+
+.cutter-app .cutter-shell-v1 > .ml-sidebar .ml-sidebar-footer {
+  min-width: 0;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-table {
+  color: var(--ml-color-text);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-head,
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row {
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  border-color: rgba(118, 134, 159, 0.08);
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row strong,
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row small {
+  color: var(--ml-color-text);
+}

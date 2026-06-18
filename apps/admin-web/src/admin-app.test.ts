@@ -1737,6 +1737,11 @@ test("M9B UI shell orchestrates Admin API mutations without duplicating shell ac
   assert.equal(source.includes("onOpenPreprocessJobLog"), true);
   assert.equal(source.includes('actions={["扫描源视频", "处理", "Doctor"]}'), false);
   assert.equal(source.includes("UnifiedToolbar"), false);
+  assert.equal(source.includes("AppShell"), true);
+  assert.equal(source.includes("admin-shell-v1"), true);
+  assert.equal(source.includes("admin-workbench-v1"), true);
+  assert.equal(source.includes("admin-frame"), false);
+  assert.equal(source.includes("admin-shell\""), false);
   assert.equal(source.includes("AdminTopbar"), true);
   assert.equal(source.includes("admin-topbar-status"), true);
   assert.equal(source.includes("admin-sidebar-runtime-line"), true);
@@ -1745,6 +1750,14 @@ test("M9B UI shell orchestrates Admin API mutations without duplicating shell ac
   assert.equal(source.includes("<small>{data.metrics.usage.active_user_count}/50 活跃剪辑师</small>"), false);
   assert.equal(source.includes("library-settings"), false);
   assert.match(readFileSync(resolve("apps/admin-web/src/features/settings/SettingsPage.tsx"), "utf8"), /useEffect/);
+});
+
+test("admin production shell has explicit UI Foundation scroll ownership", () => {
+  const css = readFileSync(resolve("apps/admin-web/src/styles.css"), "utf8");
+
+  assert.match(css, /\.admin-app \.admin-shell-v1\s*{[^}]*height:\s*100vh/s);
+  assert.match(css, /\.admin-app \.admin-workbench-v1\s*{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.admin-app \.admin-content-split\s*{[^}]*overflow:\s*auto/s);
 });
 
 test("source video management keeps write actions contextual", async () => {

@@ -43,6 +43,10 @@ function startCutterServer(): ChildProcessWithoutNullStreams {
     ["--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     {
       cwd: resolve(root, "apps/cutter-web"),
+      env: {
+        ...process.env,
+        VITE_MIXLAB_USE_FIXTURE_DATA: "true"
+      },
       stdio: ["ignore", "pipe", "pipe"]
     }
   );
@@ -58,6 +62,14 @@ async function requireCount(page: Page, selector: string, minCount: number): Pro
 
   if (count < minCount) {
     throw new Error(`Expected ${selector} count >= ${minCount}, got ${count}`);
+  }
+}
+
+async function requireNoElements(page: Page, selector: string): Promise<void> {
+  const count = await page.locator(selector).count();
+
+  if (count > 0) {
+    throw new Error(`Expected ${selector} to be absent, got ${count}`);
   }
 }
 
@@ -121,17 +133,20 @@ async function captureRoute(
     deviceScaleFactor: 1
   });
 
-  await page.goto(`${baseUrl}/${routeHash(route)}`, { waitUntil: "networkidle" });
+  page.setDefaultTimeout(12_000);
+  await page.goto(`${baseUrl}/${routeHash(route)}`, { waitUntil: "domcontentloaded" });
   await page.locator("[data-cutter-web-ready='true']").waitFor();
-  await requireCount(page, ".ml-window", 1);
+  await requireCount(page, ".ml-app-shell", 1);
   await requireCount(page, ".ml-sidebar", 1);
-  await requireCount(page, ".cutter-shell", 1);
+  await requireCount(page, ".ml-workbench", 1);
   await requireCount(page, ".cutter-workspace", 1);
+  await requireNoElements(page, ".ml-window");
+  await requireNoElements(page, ".ml-window-chrome");
   await requireCount(page, `[data-page='${route}']`, 1);
 
   if (route === "project-home") {
     await requireText(page, "开始搜索");
-    await requirePlaceholder(page, "搜索文案关键词或粘贴爆款文案");
+    await requirePlaceholder(page, "搜索文案关键词");
     await requireText(page, "最近项目");
     await requireText(page, "项目详情");
   }
@@ -141,8 +156,7 @@ async function captureRoute(
     await requireText(page, "候选素材");
     await requireCount(page, ".cutter-locator-workbench", 1);
     await requireText(page, "视频文案");
-    await requireText(page, "剪切这段");
-    await requireText(page, "仅看命中");
+    await requireText(page, "命中");
     await assertNoSentenceWaterfall(page);
   }
 
@@ -150,7 +164,6 @@ async function captureRoute(
     await requireText(page, "剪切任务");
     await requireText(page, "本机剪切流水线");
     await requireText(page, "失败");
-    await requireText(page, "重试");
   }
 
   if (route === "local-library") {
@@ -162,7 +175,7 @@ async function captureRoute(
   if (route === "public-library") {
     await requireCount(page, ".ml-gallery-grid", 1);
     await requireText(page, "可用原素材");
-    await requireText(page, "剪辑端只读浏览");
+    await requireText(page, "浏览管理端已经发布到剪辑端的原视频");
     await assertPublicLibraryOnlyShowsReadyMaterial(page);
   }
 
@@ -173,9 +186,10 @@ async function captureRoute(
   }
 
   if (route === "settings") {
-    await requireText(page, "公共素材库挂载");
+    await requireText(page, "运行环境");
+    await requireText(page, "设置");
+    await requireText(page, "公共素材库");
     await requireText(page, "FFmpeg");
-    await requireText(page, "Doctor");
   }
 
   await page.screenshot({

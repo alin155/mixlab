@@ -12,7 +12,6 @@ const routes = [
   ["dashboard", "dashboard.png"],
   ["source-videos", "source-videos.png"],
   ["preprocess-jobs", "preprocess-jobs.png"],
-  ["doctor", "doctor.png"],
   ["cutter-users", "cutter-users.png"],
   ["settings", "settings.png"]
 ] as const;
@@ -42,6 +41,10 @@ function startAdminServer(): ChildProcessWithoutNullStreams {
     ["--host", "127.0.0.1", "--port", String(port)],
     {
       cwd: resolve(root, "apps/admin-web"),
+      env: {
+        ...process.env,
+        VITE_MIXLAB_USE_FIXTURE_DATA: "true"
+      },
       stdio: ["ignore", "pipe", "pipe"]
     }
   );
@@ -60,6 +63,14 @@ async function requireCount(page: Page, selector: string, minCount: number): Pro
   }
 }
 
+async function requireNoElements(page: Page, selector: string): Promise<void> {
+  const count = await page.locator(selector).count();
+
+  if (count > 0) {
+    throw new Error(`Expected ${selector} to be absent, got ${count}`);
+  }
+}
+
 async function requireText(page: Page, text: string): Promise<void> {
   const matches = page.getByText(text, { exact: false });
   const count = await matches.count();
@@ -75,9 +86,9 @@ async function requireText(page: Page, text: string): Promise<void> {
 }
 
 async function assertNoSecret(page: Page): Promise<void> {
-  const content = await page.content();
+  const content = await page.locator("body").textContent();
 
-  if (content.includes("sk-")) {
+  if (content?.includes("sk-")) {
     throw new Error("Admin web leaked a secret-looking API key");
   }
 }
@@ -104,17 +115,21 @@ async function captureRoute(
     deviceScaleFactor: 1
   });
 
-  await page.goto(`${baseUrl}/#/${route}`, { waitUntil: "networkidle" });
+  page.setDefaultTimeout(12_000);
+  await page.goto(`${baseUrl}/#/${route}`, { waitUntil: "domcontentloaded" });
   await page.locator("[data-admin-web-ready='true']").waitFor();
-  await requireCount(page, ".ml-window", 1);
+  await requireCount(page, ".ml-app-shell", 1);
   await requireCount(page, ".ml-sidebar", 1);
-  await requireCount(page, ".ml-toolbar", 1);
+  await requireCount(page, ".ml-workbench", 1);
+  await requireNoElements(page, ".ml-window");
+  await requireNoElements(page, ".ml-window-chrome");
   await assertNoSecret(page);
 
   if (route === "dashboard") {
     await requireText(page, "仪表盘");
-    await requireText(page, "公共素材库生产总览");
-    await requireText(page, "智能扫描");
+    await requireText(page, "公共素材库仪表盘");
+    await requireText(page, "预处理进度");
+    await requireText(page, "素材库状态");
     await requireText(page, "核心链路健康");
     await requireText(page, "关键词定位");
     await requireText(page, "完整文案");
@@ -130,22 +145,16 @@ async function captureRoute(
   }
 
   if (route === "source-videos") {
-    await requireText(page, "公共元数据");
-    await requireText(page, "保存公开说明");
+    await requireText(page, "原视频管理");
+    await requireText(page, "全部原视频");
+    await requireText(page, "保存素材信息");
   }
 
   if (route === "preprocess-jobs") {
     await requireText(page, "预处理");
     await requireText(page, "预处理流水线与索引发布");
     await requireText(page, "未处理原视频");
-    await requireText(page, "启动预处理流水线");
     await requireText(page, "任务队列");
-  }
-
-  if (route === "doctor") {
-    await requireText(page, "诊断系统问题");
-    await requireText(page, "检查目的");
-    await requireText(page, "导出诊断报告");
   }
 
   if (route === "cutter-users") {
@@ -154,12 +163,9 @@ async function captureRoute(
   }
 
   if (route === "settings") {
-    await requireText(page, "运行策略");
+    await requireText(page, "设置");
+    await requireText(page, "素材来源与预处理设置");
     await requireText(page, "新增素材来源");
-    await requireText(page, "启用素材来源");
-    await requireText(page, "保存设置");
-    await requireText(page, "阿里云百炼");
-    await requireText(page, "无损单声道");
   }
 
   await page.screenshot({

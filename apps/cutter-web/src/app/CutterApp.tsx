@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AppShell,
   InspectorPanel,
-  MacWindow,
-  Sidebar
 } from "@mixlab/ui-foundation";
 import {
   CutterApiError,
@@ -116,7 +115,6 @@ import {
 import {
   CUTTER_NAV_ITEMS,
   routeFromHash,
-  routeTitle,
   routeToHash,
   searchHash,
   searchQueryFromHash,
@@ -2361,6 +2359,7 @@ export function CutterApp() {
   }, [globalHitCount]);
 
   const navItems = CUTTER_NAV_ITEMS.map((item) => ({
+    key: item.route,
     label: item.label,
     icon: item.icon,
     href: routeToHash(item.route)
@@ -3224,15 +3223,25 @@ export function CutterApp() {
     if (desktopAutoStarting && desktopStage === "engine-starting") {
       return (
         <main className="cutter-app" data-appearance-mode={appearanceMode}>
-          <MacWindow title="MixLab Cutter" meta="Windows 桌面端">
-            <section className="cutter-workspace">
-              <section className="cutter-content">
-                <InspectorPanel title="启动中">
-                  <p>正在启动本机剪切引擎，完成后会直接进入工作台。</p>
-                </InspectorPanel>
-              </section>
+          <AppShell
+            ariaLabel="MixLab 剪辑端导航"
+            brand={{
+              title: "MixLab Cutter",
+              subtitle: "项目化素材剪切",
+              mark: "ML",
+              href: routeToHash("project-home")
+            }}
+            items={navItems}
+            activeKey={route}
+            className="cutter-shell-v1"
+            workbenchClassName="cutter-workspace"
+          >
+            <section className="cutter-content">
+              <InspectorPanel title="启动中">
+                <p>正在启动本机剪切引擎，完成后会直接进入工作台。</p>
+              </InspectorPanel>
             </section>
-          </MacWindow>
+          </AppShell>
         </main>
       );
     }
@@ -3261,105 +3270,92 @@ export function CutterApp() {
       data-cutter-route={route}
       data-cutter-web-ready={data ? "true" : "false"}
     >
-      <MacWindow
-        title={`MixLab V3 - 剪辑师工作台 / ${routeTitle(route)}`}
-        meta={
-          <CutterProjectSwitcher
-            project={route === "project-home" ? undefined : currentProject}
-            onReturnHome={returnToProjectHome}
-            onRenameProject={handleRenameProject}
-          />
+      <AppShell
+        ariaLabel="MixLab 剪辑端导航"
+        brand={{
+          title: "MixLab Cutter",
+          subtitle: "项目化素材剪切",
+          mark: "ML",
+          href: routeToHash("project-home")
+        }}
+        items={navItems}
+        activeKey={route}
+        sidebarFooter={
+          data ? (
+            <CutterSidebarFooter
+              username={cutterUsername}
+              localCount={data.localClips.local_clip_count}
+              publicCount={data.library.available_video_count}
+              activeTaskCount={allVisibleQueue.filter((job) => job.status === "running").length}
+              engineReady={engineReady}
+              currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
+              cacheBytes={runtimeCacheBytes}
+              libraryCountOrder={
+                route === "project-home" || route === "material-locator"
+                  ? "local-first"
+                  : "public-first"
+              }
+            />
+          ) : null
         }
+        className="cutter-shell-v1"
+        workbenchClassName={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
       >
-        <div className="cutter-shell">
-          <Sidebar
-            brand={{
-              title: "MixLab Cutter",
-              subtitle: "项目化素材剪切",
-              mark: "ML",
-              href: routeToHash("project-home")
-            }}
-            items={navItems}
-            active={routeTitle(route)}
-            footer={
-              data ? (
-                <CutterSidebarFooter
-                  username={cutterUsername}
-                  localCount={data.localClips.local_clip_count}
-                  publicCount={data.library.available_video_count}
-                  activeTaskCount={allVisibleQueue.filter((job) => job.status === "running").length}
-                  engineReady={engineReady}
-                  currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
-                  cacheBytes={runtimeCacheBytes}
-                  libraryCountOrder={
-                    route === "project-home" || route === "material-locator"
-                      ? "local-first"
-                      : "public-first"
-                  }
-                />
-              ) : null
-            }
-          />
-          <section
-            className={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
-          >
-            <section className="cutter-content">
-              {error ? (
-                <InspectorPanel title="加载失败">
-                  <p>{error}</p>
-                </InspectorPanel>
-              ) : data ? (
-                renderPage(
-                  route,
-                  data,
-                  visibleCutList,
-                  pageQueue,
-                  {
-                    searchQuery,
-                    highlightedSegmentIds,
-                    highlightedHitSegments,
-                    currentHitIndex: locatorCurrentHitIndex,
-                    currentHitSegmentId,
-                    globalHitCount,
-                    selectedMaterialKey,
-                    materialSearchPending,
-                    localLibrarySelectedClipId,
-                    localLibraryViewMode,
-                    recentSearches:
-                      route === "project-home" ? recentMaterialSearches : projectRecentMaterialSearches,
-                    selectedSegments: selectedTranscriptSegments,
-                    selectedStartCharOffset: selectedTranscriptSelection.startCharOffset,
-                    selectedEndCharOffset: selectedTranscriptSelection.endCharOffset,
-                    selectedDetail: selectedDetail ?? data.primaryDetail,
-                    searchStatus: materialSearchStatus,
-                    projects,
-                    currentProject,
-                    currentProjectId,
-                    homeSelectedProjectId,
-                    sourceFilter,
-                    orientationFilter,
-                    publicLibraryOrientationFilter,
-                    publicLibrarySelectedSourceVideoId,
-                    sourceLibraryLoadingMore,
-                    cutNotice,
-                    autoRefreshCutJobs,
-                    lastQueueUpdatedLabel,
-                    cutPipelineState,
-                    apiBaseUrl,
-                    appearanceMode,
-                    selectedCutMode
-                  },
-                  handlers
-                )
-              ) : (
-                <InspectorPanel title="加载中">
-                  <p>正在读取剪辑师工作台数据</p>
-                </InspectorPanel>
-              )}
-            </section>
-          </section>
-        </div>
-      </MacWindow>
+        <section className="cutter-content">
+          {error ? (
+            <InspectorPanel title="加载失败">
+              <p>{error}</p>
+            </InspectorPanel>
+          ) : data ? (
+            renderPage(
+              route,
+              data,
+              visibleCutList,
+              pageQueue,
+              {
+                searchQuery,
+                highlightedSegmentIds,
+                highlightedHitSegments,
+                currentHitIndex: locatorCurrentHitIndex,
+                currentHitSegmentId,
+                globalHitCount,
+                selectedMaterialKey,
+                materialSearchPending,
+                localLibrarySelectedClipId,
+                localLibraryViewMode,
+                recentSearches:
+                  route === "project-home" ? recentMaterialSearches : projectRecentMaterialSearches,
+                selectedSegments: selectedTranscriptSegments,
+                selectedStartCharOffset: selectedTranscriptSelection.startCharOffset,
+                selectedEndCharOffset: selectedTranscriptSelection.endCharOffset,
+                selectedDetail: selectedDetail ?? data.primaryDetail,
+                searchStatus: materialSearchStatus,
+                projects,
+                currentProject,
+                currentProjectId,
+                homeSelectedProjectId,
+                sourceFilter,
+                orientationFilter,
+                publicLibraryOrientationFilter,
+                publicLibrarySelectedSourceVideoId,
+                sourceLibraryLoadingMore,
+                cutNotice,
+                autoRefreshCutJobs,
+                lastQueueUpdatedLabel,
+                cutPipelineState,
+                apiBaseUrl,
+                appearanceMode,
+                selectedCutMode
+              },
+              handlers
+            )
+          ) : (
+            <InspectorPanel title="加载中">
+              <p>正在读取剪辑师工作台数据</p>
+            </InspectorPanel>
+          )}
+        </section>
+      </AppShell>
       {renameTargetProject ? (
         <ProjectRenameDialog
           key={renameTargetProject.project_id}

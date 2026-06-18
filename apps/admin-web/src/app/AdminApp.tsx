@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AppShell,
   InspectorPanel,
-  Sidebar
 } from "@mixlab/ui-foundation";
 import {
   createAdminApiClient,
@@ -1589,6 +1589,7 @@ export function AdminApp() {
   };
 
   const navItems = ADMIN_NAV_ITEMS.map((item) => ({
+    key: item.route,
     label: item.label,
     icon: item.icon,
     href: routeToHash(item.route)
@@ -1608,66 +1609,66 @@ export function AdminApp() {
 
   return (
     <main className="admin-app" data-admin-web-ready={data ? "true" : "false"}>
-      <section className="admin-frame" aria-label="MixLab 管理端">
+      <AppShell
+        ariaLabel="MixLab 管理端导航"
+        brand={{
+          title: "MixLab",
+          subtitle: "素材库管理端",
+          mark: "ML",
+          href: routeToHash("dashboard")
+        }}
+        items={navItems}
+        activeKey={route}
+        sidebarFooter={data ? <AdminSidebarStatus data={data} /> : null}
+        className="admin-shell-v1"
+        workbenchClassName="admin-workbench-v1"
+      >
         <AdminTopbar data={data} authSession={adminAuthSession} onLogout={handleAdminLogout} />
-        <div className="admin-shell">
-          <Sidebar
-            brand={{
-              title: "MixLab",
-              subtitle: "素材库管理端",
-              mark: "ML",
-              href: routeToHash("dashboard")
-            }}
-            items={navItems}
-            active={routeTitle(route)}
-            footer={data ? <AdminSidebarStatus data={data} /> : null}
-          />
-          <section className="admin-workspace">
-            {actionNotice || actionError ? (
-              <div className={`admin-action-notice${actionError ? " is-error" : ""}`} role="status">
-                {actionError || actionNotice}
-              </div>
-            ) : null}
-            <section className={`admin-content-split admin-route-${route}`}>
-              {error ? (
-                <InspectorPanel title="加载失败">
-                  <p>{error}</p>
-                </InspectorPanel>
-              ) : data ? (
-                renderPage(
-                  route,
-                  data,
-                  actions,
-                  {
-                    detail: sourceDetailForRequest(
-                      sourceDetail,
-                      sourceDetailRequestForRoute(route, data, selectedSourceVideoId)
-                    ),
-                    loading: sourceDetailLoading,
-                    error: sourceDetailError
-                  },
-                  cutterUsers,
-                  {
-                    sourceVideos: sourceVideosLoading,
-                    sourceVideosMore: sourceVideosLoadingMore,
-                    sourceVideosHasMore,
-                    preprocessJobs: preprocessJobsLoading
-                  },
-                  {
-                    loading: preprocessJobLogLoading,
-                    error: preprocessJobLogError,
-                    log: selectedPreprocessJobLog
-                  }
-                )
-              ) : (
-                <InspectorPanel title={routeTitle(route)}>
-                  <p>正在读取素材库管理端数据</p>
-                </InspectorPanel>
-              )}
-            </section>
+        <section className="admin-workspace">
+          {actionNotice || actionError ? (
+            <div className={`admin-action-notice${actionError ? " is-error" : ""}`} role="status">
+              {actionError || actionNotice}
+            </div>
+          ) : null}
+          <section className={`admin-content-split admin-route-${route}`}>
+            {error ? (
+              <InspectorPanel title="加载失败">
+                <p>{error}</p>
+              </InspectorPanel>
+            ) : data ? (
+              renderPage(
+                route,
+                data,
+                actions,
+                {
+                  detail: sourceDetailForRequest(
+                    sourceDetail,
+                    sourceDetailRequestForRoute(route, data, selectedSourceVideoId)
+                  ),
+                  loading: sourceDetailLoading,
+                  error: sourceDetailError
+                },
+                cutterUsers,
+                {
+                  sourceVideos: sourceVideosLoading,
+                  sourceVideosMore: sourceVideosLoadingMore,
+                  sourceVideosHasMore,
+                  preprocessJobs: preprocessJobsLoading
+                },
+                {
+                  loading: preprocessJobLogLoading,
+                  error: preprocessJobLogError,
+                  log: selectedPreprocessJobLog
+                }
+              )
+            ) : (
+              <InspectorPanel title={routeTitle(route)}>
+                <p>正在读取素材库管理端数据</p>
+              </InspectorPanel>
+            )}
           </section>
-        </div>
-      </section>
+        </section>
+      </AppShell>
     </main>
   );
 }
