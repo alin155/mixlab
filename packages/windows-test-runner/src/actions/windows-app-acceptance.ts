@@ -28,6 +28,11 @@ interface JsonRequestResult {
   body: unknown;
 }
 
+interface CutterAuthHeaders {
+  device_id: string;
+  session_token: string;
+}
+
 const DEFAULT_QUERIES = ["第一场", "现金流", "中国", "2026"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -95,6 +100,31 @@ function readPositiveNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+function readAuthHeaders(options: Record<string, unknown> | undefined): CutterAuthHeaders | undefined {
+  const auth = options?.auth_headers;
+  if (!isRecord(auth)) {
+    return undefined;
+  }
+  const deviceId = getString(auth, ["device_id", "deviceId"]);
+  const sessionToken = getString(auth, ["session_token", "sessionToken"]);
+  if (!deviceId || !sessionToken) {
+    return undefined;
+  }
+  return {
+    device_id: deviceId,
+    session_token: sessionToken
+  };
+}
+
+function authHeaderRecord(auth: CutterAuthHeaders | undefined): Record<string, string> {
+  return auth
+    ? {
+        "X-MixLab-Device-Id": auth.device_id,
+        "X-MixLab-Session-Token": auth.session_token
+      }
+    : {};
+}
+
 function buildUrl(baseUrl: string, pathName: string): string {
   return new URL(pathName, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString();
 }
@@ -119,17 +149,20 @@ async function requestJson(input: {
   includeBody?: boolean;
   method?: "GET" | "POST";
   body?: unknown;
+  auth?: CutterAuthHeaders;
 }): Promise<JsonRequestResult> {
   const url = buildUrl(input.baseUrl, input.path);
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
+  const headers = {
+    ...authHeaderRecord(input.auth),
+    ...(input.body === undefined ? {} : { "content-type": "application/json" })
+  };
   try {
     const response = await fetch(url, {
       method: input.method ?? "GET",
-      headers: input.body === undefined ? undefined : {
-        "content-type": "application/json"
-      },
+      headers: Object.keys(headers).length === 0 ? undefined : headers,
       body: input.body === undefined ? undefined : JSON.stringify(input.body),
       signal: controller.signal
     });
@@ -379,9 +412,13 @@ export async function runAppRuntimeSmoke(input: {
 }): Promise<SmokeResult<AppRuntimeSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const maxLibraryElapsedMs = readPositiveNumber(input.options?.public_library_max_elapsed_ms, 1000);
+  const authHeaders = readAuthHeaders(input.options);
   const launch = await runLaunchAppProbe({
     apiBaseUrl: input.apiBaseUrl,
-    options: input.options,
+    options: {
+      ...input.options,
+      skip_api_probe: true
+    },
     onEvent: input.onEvent
   });
   const checks: ApiProbeResult[] = [];
@@ -414,12 +451,28 @@ export async function runAppRuntimeSmoke(input: {
   const localTrusted = getBoolean(authData, ["local_trusted"]) === true || authMode === "local_trusted";
   report.auth_mode = authMode;
   report.local_trusted = localTrusted;
-  if (!auth.check.ok || !localTrusted) {
+  if (!auth.check.ok) {
     return {
       report,
       passed: false,
       failure_category: "api_auth_failure",
-      failure_message: auth.check.error ?? `Auth mode is ${authMode ?? "unknown"}, expected local_trusted.`
+      failure_message: auth.check.error ?? `Auth mode probe failed with status ${auth.check.status_code ?? "n/a"}.`
+    };
+  }
+  if (!localTrusted && authMode !== "reviewed") {
+    return {
+      report,
+      passed: false,
+      failure_category: "api_auth_failure",
+      failure_message: `Auth mode is ${authMode ?? "unknown"}, expected local_trusted or reviewed.`
+    };
+  }
+  if (!localTrusted && !authHeaders) {
+    return {
+      report,
+      passed: false,
+      failure_category: "api_auth_failure",
+      failure_message: "Reviewed auth requires options.auth_headers with device_id and session_token."
     };
   }
 
@@ -428,7 +481,8 @@ export async function runAppRuntimeSmoke(input: {
     id: "runtime_status",
     path: "/cutter/runtime-status",
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(runtime.check);
   report.runtime_status = runtimeStatusSummary(runtime.body, runtime.check.elapsed_ms);
@@ -446,7 +500,8 @@ export async function runAppRuntimeSmoke(input: {
     id: "source_library_first_page",
     path: "/cutter/source-library?limit=20",
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(library.check);
   report.source_library = sourceLibrarySummary(library.body, library.check.elapsed_ms);
@@ -478,6 +533,7 @@ export async function runRealDataSmoke(input: {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const limit = readPositiveNumber(input.options?.search_limit, 10);
   const queries = readStringArray(input.options?.queries, DEFAULT_QUERIES);
+  const authHeaders = readAuthHeaders(input.options);
   const checks: ApiProbeResult[] = [];
   const report: RealDataSmokeReport = {
     api_base_url: input.apiBaseUrl,
@@ -491,7 +547,8 @@ export async function runRealDataSmoke(input: {
     id: "source_library_first_page",
     path: "/cutter/source-library?limit=20",
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(library.check);
   report.source_library = sourceLibrarySummary(library.body, library.check.elapsed_ms);
@@ -510,7 +567,8 @@ export async function runRealDataSmoke(input: {
       id: `search_${query}`,
       path: `/cutter/source-search?query=${encodeURIComponent(query)}&limit=${limit}`,
       baseUrl: input.apiBaseUrl,
-      timeoutMs
+      timeoutMs,
+      auth: authHeaders
     });
     checks.push(search.check);
     const summary = searchSummary(query, search.body, search.check.elapsed_ms);
@@ -540,7 +598,8 @@ export async function runRealDataSmoke(input: {
     path: detailPath,
     baseUrl: input.apiBaseUrl,
     timeoutMs,
-    includeBody: false
+    includeBody: false,
+    auth: authHeaders
   });
   checks.push(detail.check);
   report.selected_detail = sourceVideoDetailSummary(selectedSourceVideoId, detail.body, detail.check.elapsed_ms);
@@ -558,7 +617,8 @@ export async function runRealDataSmoke(input: {
     id: "cut_jobs",
     path: "/cutter/cut-jobs",
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(cutJobs.check);
   report.cut_jobs = cutJobsSummary(cutJobs.body, cutJobs.check.elapsed_ms);
@@ -580,6 +640,7 @@ export async function runCacheSmoke(input: {
   onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
 }): Promise<SmokeResult<CacheSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
+  const authHeaders = readAuthHeaders(input.options);
   const checks: ApiProbeResult[] = [];
   const report: CacheSmokeReport = {
     api_base_url: input.apiBaseUrl,
@@ -593,7 +654,8 @@ export async function runCacheSmoke(input: {
     id: "runtime_status",
     path: "/cutter/runtime-status",
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(runtime.check);
   report.runtime_status = runtimeStatusSummary(runtime.body, runtime.check.elapsed_ms);
@@ -632,6 +694,7 @@ export async function runRealCutSmoke(input: {
 }): Promise<SmokeResult<RealCutSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const cutTimeoutMs = readPositiveNumber(input.options?.cut_timeout_ms, 180_000);
+  const authHeaders = readAuthHeaders(input.options);
   const query = typeof input.options?.query === "string" && input.options.query.trim()
     ? input.options.query.trim()
     : "第一场";
@@ -673,7 +736,8 @@ export async function runRealCutSmoke(input: {
     id: "cut_jobs_before",
     path: "/cutter/cut-jobs",
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(queueBefore.check);
   const queueBeforeSummary = cutJobsSummary(queueBefore.body, queueBefore.check.elapsed_ms);
@@ -700,7 +764,8 @@ export async function runRealCutSmoke(input: {
     id: "real_cut_search",
     path: `/cutter/source-search?query=${encodeURIComponent(query)}&limit=10`,
     baseUrl: input.apiBaseUrl,
-    timeoutMs
+    timeoutMs,
+    auth: authHeaders
   });
   checks.push(search.check);
   const searchInfo = searchSummary(query, search.body, search.check.elapsed_ms);
@@ -724,7 +789,8 @@ export async function runRealCutSmoke(input: {
     path: detailPath,
     baseUrl: input.apiBaseUrl,
     timeoutMs,
-    includeBody: false
+    includeBody: false,
+    auth: authHeaders
   });
   checks.push(detail.check);
   if (!detail.check.ok) {
@@ -782,6 +848,7 @@ export async function runRealCutSmoke(input: {
     baseUrl: input.apiBaseUrl,
     timeoutMs,
     method: "POST",
+    auth: authHeaders,
     body: {
       library_id: runtime.report.runtime_status?.library_id ?? "lib_main_001",
       project_id: projectId,
@@ -823,6 +890,7 @@ export async function runRealCutSmoke(input: {
     baseUrl: input.apiBaseUrl,
     timeoutMs,
     method: "POST",
+    auth: authHeaders,
     body: { clip_list_id: clipListId }
   });
   checks.push(submit.check);
@@ -848,7 +916,8 @@ export async function runRealCutSmoke(input: {
     path: "/cutter/cut-jobs/run-next",
     baseUrl: input.apiBaseUrl,
     timeoutMs: cutTimeoutMs,
-    method: "POST"
+    method: "POST",
+    auth: authHeaders
   });
   checks.push(runNext.check);
   const runData = runNextSummary(runNext.body);

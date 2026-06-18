@@ -67,7 +67,21 @@ async function readMockRequestBody(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
 }
 
-function createMockCutterApi(): Server {
+function createMockCutterApi(input: {
+  authMode?: "local_trusted" | "reviewed";
+  deviceId?: string;
+  sessionToken?: string;
+} = {}): Server {
+  const authMode = input.authMode ?? "local_trusted";
+  const deviceId = input.deviceId ?? "acceptance-device";
+  const sessionToken = input.sessionToken ?? "acceptance-session";
+  function isAuthenticated(request: IncomingMessage): boolean {
+    return (
+      request.headers["x-mixlab-device-id"] === deviceId &&
+      request.headers["x-mixlab-session-token"] === sessionToken
+    );
+  }
+
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     response.setHeader("content-type", "application/json; charset=utf-8");
@@ -76,7 +90,17 @@ function createMockCutterApi(): Server {
       return;
     }
     if (url.pathname === "/cutter/auth/mode") {
-      response.end(JSON.stringify({ auth_mode: "local_trusted", local_trusted: true }));
+      response.end(JSON.stringify({ auth_mode: authMode, local_trusted: authMode === "local_trusted" }));
+      return;
+    }
+    if (authMode === "reviewed" && !isAuthenticated(request)) {
+      response.statusCode = 401;
+      response.end(JSON.stringify({
+        error: {
+          code: "login_required",
+          message: "请先登录剪辑工作台"
+        }
+      }));
       return;
     }
     if (url.pathname === "/cutter/runtime-status") {
@@ -86,7 +110,7 @@ function createMockCutterApi(): Server {
           mode: "api",
           mode_label: "真实 Cutter API 模式",
           api_ready: true,
-          auth_mode: "local_trusted",
+          auth_mode: authMode,
           library_id: "lib-main",
           library_root_label: "source-library",
           available_video_count: 1,
@@ -545,6 +569,72 @@ test("runner supports planned non-destructive Windows app acceptance suites", as
     assert.equal(report.windows_acceptance.real_data_smoke.cut_jobs.failed_count, 1);
     assert.equal(report.windows_acceptance.cache_smoke.observed_cache_bucket_count, 4);
     assert.equal(report.windows_acceptance.cache_smoke.total_observed_cache_size_bytes, 7680);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
+test("windows acceptance supports reviewed auth with supplied cutter session headers", async () => {
+  const root = await tempRoot();
+  const deviceId = "acceptance-device";
+  const sessionToken = "acceptance-session";
+  const api = createMockCutterApi({
+    authMode: "reviewed",
+    deviceId,
+    sessionToken
+  });
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "windows_acceptance",
+        options: {
+          auth_headers: {
+            device_id: deviceId,
+            session_token: sessionToken
+          }
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      windows_acceptance: {
+        app_runtime_smoke: {
+          auth_mode: string;
+          local_trusted: boolean;
+          source_library: { available_video_count: number; returned_count: number };
+        };
+        real_data_smoke: {
+          selected_detail: {
+            transcript_segment_count: number;
+          };
+        };
+      };
+    };
+    assert.equal(report.windows_acceptance.app_runtime_smoke.auth_mode, "reviewed");
+    assert.equal(report.windows_acceptance.app_runtime_smoke.local_trusted, false);
+    assert.equal(report.windows_acceptance.app_runtime_smoke.source_library.available_video_count, 1);
+    assert.equal(report.windows_acceptance.app_runtime_smoke.source_library.returned_count, 1);
+    assert.equal(report.windows_acceptance.real_data_smoke.selected_detail.transcript_segment_count, 1);
   } finally {
     await close(api);
     if (runner) {

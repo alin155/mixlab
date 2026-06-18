@@ -17,6 +17,7 @@ interface LaunchAppProbeOptions {
   api_ready_timeout_ms?: number;
   api_probe_timeout_ms?: number;
   force_launch?: boolean;
+  skip_api_probe?: boolean;
 }
 
 function sleep(milliseconds: number): Promise<void> {
@@ -44,7 +45,8 @@ function readOptions(value: Record<string, unknown> | undefined): LaunchAppProbe
     app_args: readStringArray(value?.app_args),
     api_ready_timeout_ms: readPositiveNumber(value?.api_ready_timeout_ms),
     api_probe_timeout_ms: readPositiveNumber(value?.api_probe_timeout_ms),
-    force_launch: value?.force_launch === true
+    force_launch: value?.force_launch === true,
+    skip_api_probe: value?.skip_api_probe === true
   };
 }
 
@@ -368,6 +370,9 @@ export async function runLaunchAppProbe(input: {
   if (initialHealth.ok && !options.force_launch) {
     await input.onEvent?.("api_already_ready", "Cutter API is already ready before app launch.");
     report.api_ready = true;
+    if (options.skip_api_probe) {
+      return { report, passed: true };
+    }
     const probeResult = await runProbeApi({
       apiBaseUrl: input.apiBaseUrl,
       timeoutMs: options.api_probe_timeout_ms
@@ -439,6 +444,9 @@ export async function runLaunchAppProbe(input: {
   }
 
   await input.onEvent?.("probing_api", "Running cutter API smoke probes.");
+  if (options.skip_api_probe) {
+    return { report, passed: true };
+  }
   const probeResult = await runProbeApi({
     apiBaseUrl: input.apiBaseUrl,
     timeoutMs: options.api_probe_timeout_ms

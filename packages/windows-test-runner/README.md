@@ -100,6 +100,22 @@ Phase 2 adds non-destructive Windows desktop acceptance suites:
 }
 ```
 
+For packaged builds that run the Cutter API in reviewed login mode, pass an
+approved cutter session so protected real-data checks do not fall back to the
+old local-trusted assumption:
+
+```json
+{
+  "suite": "windows_acceptance",
+  "options": {
+    "auth_headers": {
+      "device_id": "approved-device-id",
+      "session_token": "approved-session-token"
+    }
+  }
+}
+```
+
 `windows_acceptance` runs the non-destructive application checks in order:
 runtime, real data, then cache. It does not create cut jobs or write local
 workspace output.
