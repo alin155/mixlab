@@ -38,6 +38,7 @@
 - 2026-06-17，Windows Test Runner 共享目录已发布 `0.1.10`，修复 `install_latest_and_smoke` 中 `Unblock-File` 本机安装包路径参数问题。共享记录：`0.1.10 90325fb 27664604593 ac06b4bc90e51e96902d1ffb308a8ffcae744ff21af0e1fe8caf5f6670996d74`。
 - 2026-06-17，剪辑端 Windows 包 `970bd5f` 已通过 `install_latest_and_smoke-20260617T232240Z-50d96b1c` 安装验收，安装退出码 `0`，安装耗时 `6926ms`。该包把公共原素材剪切链路改为“剪切前优先准备本机 source video cache，缓存失败才降级读取原素材”，以避免 FFmpeg 直接压 NAS 原视频；首次剪某条未缓存视频时会增加一次源视频复制成本。
 - 2026-06-17，剪辑端 Windows 包 `9b885f8` 已通过 `install_latest_and_smoke-20260617T235248Z-ebafe2bf` 安装验收，安装退出码 `0`，安装耗时 `6871ms`。安装后立即验收时 searchd 仍在预热，搜索 `第一场` 约 `916ms` 且走 `sqlite-index`；延迟验收 `windows_acceptance-20260617T235415Z-07fca8f3` 通过，公共素材首屏 `9ms`、搜索 `第一场` `10ms` 且走 `searchd`、完整文案详情 `6ms`、剪切任务列表 `2ms`，source video cache 当前约 `27.6GB / 3` 条源视频。该包新增长剪切运行期间每秒刷新队列，并将 `resolve_source` 阶段显示为“准备源素材”，避免首次缓存源视频时页面看起来像卡死。
+- 2026-06-18，剪辑端 Windows 包 `11794ce` 已通过 `install_latest_and_smoke-20260618T003257Z-236509f3` 安装验收，安装退出码 `0`，安装耗时 `6987ms`，安装包 SHA-256 `b3031d7b5bc60dae16e12aac3ef777a6537f963e74bb6e3383897b6847da0640`。该包把“剪切前等待完整 source video cache”改为“最多短等待 1500ms，缓存未就绪则本次降级读取原素材，同时后台继续预热缓存”，避免首次剪未缓存大视频时被整条 NAS 视频复制阻塞。安装后即时验收公共素材首屏 `9ms`、完整文案详情 `10ms`、剪切任务列表 `3ms`、缓存可观测总量约 `27.6GB`；即时搜索仍可能处于 searchd 预热窗口。延迟验收 `windows_acceptance-20260618T003509Z-21940a6a` 通过，公共素材首屏 `10ms`、搜索 `第一场` `15ms` 且走 `searchd`、完整文案详情 `6ms`、剪切任务列表 `8ms`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -165,17 +166,17 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 | Windows 包脚本 | `npm run package:cutter-desktop:windows` |
 | 安装包交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
 
-2026-06-17 当前最新已验收共享安装包：
+2026-06-18 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-9b885f8.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-11794ce.exe
 version: 0.18.10
-commit: 9b885f8
-github_run_id: 27726703371
-sha256: c637861dc8753773a6a62afafacb66e481247276697edfdef00a9cac262d5ce2
-included_fix: cut queue refreshes while long source-cache/cut jobs are running; source cache is prepared before FFmpeg cuts public original videos
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260617T235248Z-ebafe2bf/report.json
-delayed_windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260617T235415Z-07fca8f3/report.json
+commit: 11794ce
+github_run_id: 27728090352
+sha256: b3031d7b5bc60dae16e12aac3ef777a6537f963e74bb6e3383897b6847da0640
+included_fix: source video cache before cut is now short-wait plus background warmup plus NAS fallback, avoiding first-cut blocking on full source copy
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T003257Z-236509f3/report.json
+delayed_windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T003509Z-21940a6a/report.json
 ```
 
 桌面端内置资源：
