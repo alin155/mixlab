@@ -3432,13 +3432,44 @@ async function syncCutterReleaseCacheBestEffort(
       });
   }
 
+  const pendingSync = cache.promise;
+  const localFallback = await localReleaseCacheRuntimeStatusFallback(input, cacheRoot, cache.status);
   const status = await delayedFallback(
-    cache.promise,
+    pendingSync,
     Math.min(releaseSyncTimeoutMs(input), RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS),
-    refreshingReleaseCacheRuntimeStatus(input, cacheRoot, cache.status)
+    localFallback
   );
   scheduleSearchIndexWarmup(input, status);
   return status;
+}
+
+async function localReleaseCacheRuntimeStatusFallback(
+  input: CreateCutterApiServerInput,
+  cacheRoot: string,
+  previous?: CutterReleaseCacheRuntimeStatus
+): Promise<CutterReleaseCacheRuntimeStatus> {
+  const statusReader = input.release_cache_status_reader ?? readLocalCutterReleaseCacheStatus;
+
+  try {
+    const localStatus = await statusReader({
+      cache_root: cacheRoot,
+      max_cached_releases: releaseCacheMaxReleases(input),
+      include_cache_size: false
+    });
+
+    if (localStatus.cache_ready) {
+      return releaseCacheRuntimeStatusFromLocal(
+        localStatus,
+        previous?.sync_status === "failed" ? "failed" : "syncing",
+        previous?.source_release_version
+      );
+    }
+  } catch {
+    // Keep startup resilient: if the local cache status read fails, fall back to
+    // the existing background-refresh state and let the sync promise finish.
+  }
+
+  return refreshingReleaseCacheRuntimeStatus(input, cacheRoot, previous);
 }
 
 async function releaseRootForFastLibraryRead(

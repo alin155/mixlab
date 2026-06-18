@@ -1094,9 +1094,25 @@ test("runtime status warms the release search index once the cache is ready", as
     resolveWarmup = resolve;
   });
 
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:35:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/source-library?limit=10`, { headers });
+    assert.equal(response.status, 200);
+  }, {
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 5_000
+  });
+
   await withApiServer(libraryRoot, async (baseUrl) => {
     const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-    assert.equal(firstResponse.status, 200);
+    if (firstResponse.status !== 200) {
+      assert.fail(await firstResponse.text());
+    }
     const firstBody = await firstResponse.json() as any;
 
     assert.equal(firstBody.data.release_cache.ready, true);
@@ -1629,6 +1645,52 @@ test("source library reads from local release cache after syncing the current re
   }, {
     release_cache_root: cacheRoot,
     release_sync_timeout_ms: 5_000
+  });
+});
+
+test("source library uses existing local release cache while background sync is still pending", async () => {
+  const libraryRoot = await prepareLibrary();
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-release-cache-pending-"));
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:35:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/source-library?limit=10`, { headers });
+    assert.equal(response.status, 200);
+  }, {
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 5_000
+  });
+
+  await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"));
+
+  let syncCalls = 0;
+  const neverSynced = new Promise<never>(() => {});
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const startedAt = Date.now();
+    const response = await fetch(`${baseUrl}/cutter/source-library?limit=10`, { headers });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.ok(Date.now() - startedAt < 1_000);
+    assert.equal(syncCalls, 1);
+    assert.equal(body.data.available_video_count, 2);
+    assert.deepEqual(
+      body.data.videos.map((video: any) => video.source_video_id),
+      ["V000001", "V000002"]
+    );
+  }, {
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 150,
+    release_cache_sync_runner: async () => {
+      syncCalls += 1;
+      return neverSynced;
+    }
   });
 });
 
