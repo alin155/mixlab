@@ -88,6 +88,7 @@ export interface CreateCutterApiServerInput {
     max_cached_releases?: number;
     include_cache_size?: boolean;
   }) => Promise<CutterReleaseCacheStatus>;
+  library_id_reader?: (library_root: string) => Promise<string>;
   search_index_warmup_runner?: (input: {
     library_root: string;
     release_root: string;
@@ -507,6 +508,8 @@ const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
 const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
 const RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS = 200;
 const RELEASE_CACHE_STATUS_CACHE_TTL_MS = 60_000;
+const LIBRARY_ID_INLINE_TIMEOUT_MS = 200;
+const LIBRARY_ID_CACHE_TTL_MS = 60_000;
 const SEARCH_INDEX_WARMUP_QUERY = "第一场";
 const LOCAL_CACHE_STATUS_INLINE_TIMEOUT_MS = 150;
 const LOCAL_CACHE_STATUS_CACHE_TTL_MS = 30_000;
@@ -2865,20 +2868,85 @@ async function loadReadableTranscriptDetail(
   return loadVisibleDetail(input, sourceVideoId);
 }
 
-async function readLibraryId(libraryRoot: string): Promise<string> {
+async function readLibraryId(
+  libraryRoot: string,
+  reader?: (library_root: string) => Promise<string>
+): Promise<string> {
   try {
-    const library = JSON.parse(
-      await readFile(path.join(libraryRoot, ".mixlab-library", "library.json"), "utf8")
-    ) as { library_id?: unknown };
+    const libraryId = reader
+      ? await reader(libraryRoot)
+      : (JSON.parse(
+          await readFile(path.join(libraryRoot, ".mixlab-library", "library.json"), "utf8")
+        ) as { library_id?: unknown }).library_id;
 
-    if (typeof library.library_id === "string" && library.library_id.trim()) {
-      return library.library_id.trim();
+    if (typeof libraryId === "string" && libraryId.trim()) {
+      return libraryId.trim();
     }
   } catch {
     // A hand-built fixture may not have library.json; keep the local bridge usable.
   }
 
   return "local-library";
+}
+
+interface LibraryIdRuntimeCacheEntry {
+  expires_at_ms: number;
+  value?: string;
+  promise?: Promise<string>;
+}
+
+const libraryIdRuntimeCacheByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  LibraryIdRuntimeCacheEntry
+>();
+
+function readLibraryIdFromInput(input: CreateCutterApiServerInput): Promise<string> {
+  return readLibraryId(input.library_root, input.library_id_reader);
+}
+
+async function readLibraryIdBestEffort(
+  input: CreateCutterApiServerInput,
+  fallback = "lib_main_001"
+): Promise<string> {
+  const nowMs = Date.now();
+  let cache = libraryIdRuntimeCacheByInput.get(input);
+
+  if (!cache) {
+    cache = {
+      expires_at_ms: 0
+    };
+    libraryIdRuntimeCacheByInput.set(input, cache);
+  }
+
+  if (cache.value && cache.expires_at_ms > nowMs) {
+    return cache.value;
+  }
+
+  if (!cache.promise) {
+    cache.promise = readLibraryIdFromInput(input)
+      .then((value) => {
+        cache.value = value;
+        cache.expires_at_ms = Date.now() + LIBRARY_ID_CACHE_TTL_MS;
+        return value;
+      })
+      .catch(() => {
+        const value = cache.value ?? fallback;
+        cache.value = value;
+        cache.expires_at_ms = Date.now() + Math.min(5_000, LIBRARY_ID_CACHE_TTL_MS);
+        return value;
+      })
+      .finally(() => {
+        if (cache) {
+          delete cache.promise;
+        }
+      });
+  }
+
+  return delayedFallback(
+    cache.promise,
+    LIBRARY_ID_INLINE_TIMEOUT_MS,
+    cache.value ?? fallback
+  );
 }
 
 async function readReadyVideoCount(libraryRoot: string): Promise<number> {
@@ -3742,11 +3810,7 @@ async function runtimeStatusForSession(input: {
         )
       );
   const libraryId = await timeAsync("library_id", () =>
-    delayedFallback(
-      readLibraryId(input.api_input.library_root),
-      statusIoTimeoutMs,
-      "lib_main_001"
-    )
+    readLibraryIdBestEffort(input.api_input)
   );
   const [searchBackend, localCache, sourceVideoPreflight] = await Promise.all([
     timeAsync("search_backend", () => readSearchBackendStatus(input.api_input, availableVideoCount)),
@@ -4129,7 +4193,7 @@ async function createWorkspaceLocalClip(input: {
   const createdAt = input.api_input.now?.() ?? new Date().toISOString();
   const clipList = await writeClipList({
     workspace_root: workspaceRoot,
-    library_id: await readLibraryId(input.api_input.library_root),
+    library_id: await readLibraryIdFromInput(input.api_input),
     title:
       typeof input.body.title === "string" && input.body.title.trim()
         ? input.body.title.trim()
@@ -4728,7 +4792,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           response,
           200,
           apiResponse({
-            library_id: await readLibraryId(input.library_root),
+            library_id: await readLibraryIdBestEffort(input),
             ...library,
             videos
           })

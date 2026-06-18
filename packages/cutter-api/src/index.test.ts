@@ -937,6 +937,55 @@ test("runtime status keeps release cache refresh in the background when scanning
   });
 });
 
+test("runtime status keeps library metadata reads in the background when they are slow", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  let libraryIdCalls = 0;
+  let resolveLibraryId!: () => void;
+  const libraryIdGate = new Promise<void>((resolve) => {
+    resolveLibraryId = resolve;
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const startedAt = Date.now();
+    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(firstResponse.status, 200);
+    const firstBody = await firstResponse.json() as any;
+
+    assert.equal(firstBody.data.library_id, "lib_main_001");
+    assert.ok(Date.now() - startedAt < 1_000);
+
+    resolveLibraryId();
+
+    let latestBody = firstBody;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      latestBody = await response.json() as any;
+      if (latestBody.data.library_id === "slow-lib") {
+        break;
+      }
+    }
+
+    assert.equal(latestBody.data.library_id, "slow-lib");
+    assert.equal(libraryIdCalls, 1);
+  }, {
+    library_id_reader: async () => {
+      libraryIdCalls += 1;
+      await libraryIdGate;
+      return "slow-lib";
+    },
+    source_video_probe_runner: async () => ({
+      duration_ms: 3600,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    })
+  });
+});
+
 test("runtime status warms the release search index once the cache is ready", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

@@ -1,6 +1,6 @@
 # MixLab 环境登记表
 
-更新时间：2026-06-16
+更新时间：2026-06-18
 
 本文件记录 MixLab 管理端、剪辑端、Windows 桌面端、Windows Test Runner、共享文件夹、NAS 公共素材库和本机缓存的约定环境。后续开发、测试、打包、调试前必须先确认这里的环境视角，避免把不同机器上的 `127.0.0.1`、不同端口、不同素材根目录混在一起。
 
@@ -40,6 +40,7 @@
 - 2026-06-17，剪辑端 Windows 包 `9b885f8` 已通过 `install_latest_and_smoke-20260617T235248Z-ebafe2bf` 安装验收，安装退出码 `0`，安装耗时 `6871ms`。安装后立即验收时 searchd 仍在预热，搜索 `第一场` 约 `916ms` 且走 `sqlite-index`；延迟验收 `windows_acceptance-20260617T235415Z-07fca8f3` 通过，公共素材首屏 `9ms`、搜索 `第一场` `10ms` 且走 `searchd`、完整文案详情 `6ms`、剪切任务列表 `2ms`，source video cache 当前约 `27.6GB / 3` 条源视频。该包新增长剪切运行期间每秒刷新队列，并将 `resolve_source` 阶段显示为“准备源素材”，避免首次缓存源视频时页面看起来像卡死。
 - 2026-06-18，剪辑端 Windows 包 `11794ce` 已通过 `install_latest_and_smoke-20260618T003257Z-236509f3` 安装验收，安装退出码 `0`，安装耗时 `6987ms`，安装包 SHA-256 `b3031d7b5bc60dae16e12aac3ef777a6537f963e74bb6e3383897b6847da0640`。该包把“剪切前等待完整 source video cache”改为“最多短等待 1500ms，缓存未就绪则本次降级读取原素材，同时后台继续预热缓存”，避免首次剪未缓存大视频时被整条 NAS 视频复制阻塞。安装后即时验收公共素材首屏 `9ms`、完整文案详情 `10ms`、剪切任务列表 `3ms`、缓存可观测总量约 `27.6GB`；即时搜索仍可能处于 searchd 预热窗口。延迟验收 `windows_acceptance-20260618T003509Z-21940a6a` 通过，公共素材首屏 `10ms`、搜索 `第一场` `15ms` 且走 `searchd`、完整文案详情 `6ms`、剪切任务列表 `8ms`。
 - 2026-06-18，剪辑端 Windows 包 `521e977` 已通过 `install_latest_and_smoke-20260618T022050Z-c27f0dee` 安装验收，安装退出码 `0`，安装耗时 `6909ms`，安装包 SHA-256 `0a5641251e526af16dfa064192e97bcd82ebf07a94c454029d76c74bd6bbf990`。该包修复首次剪未缓存公共原素材时的自我 I/O 竞争：打开详情不再立即全量搬运源视频，冷剪不会在 FFmpeg 剪切前/剪切中启动整条源视频缓存复制，剪切成功后再后台预热 source video cache；已存在本机源视频缓存时仍优先本机剪切。对照真实剪切报告：修复前 `real_cut_smoke-20260618T013114Z-349782be` 的 `run-next` 为 `29945ms`、`cut_media` 为 `27718ms`；修复后 `real_cut_smoke-20260618T023159Z-f15e410b` 的 `run-next` 为 `1265ms`、`cut_media` 为 `1069ms`。
+- 2026-06-18，剪辑端 Windows 包 `521e977` 补充完成综合性能验收。`windows_acceptance-20260618T024258Z-e94142c0` 通过：公共素材首屏 `8ms`，真实数据首屏 `4ms`，搜索 `第一场` `12ms`，完整文案详情 `6ms`，剪切任务列表 `2ms`，缓存可观测总量 `28,670,929,262` bytes，其中 source video cache `27,559,860,594` bytes / `3` 条。补充 probe 显示 `runtime-status` 为 `84ms / 9ms / 8ms`。重复真实剪切 `real_cut_smoke-20260618T024837Z-3e57a5bd` 通过：`run-next 475ms`，`resolve_source 2ms`，`cut_media 258ms`。验收报告：`docs/acceptance/m18-4-windows-cutter-performance.md`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -178,6 +179,9 @@ sha256: 0a5641251e526af16dfa064192e97bcd82ebf07a94c454029d76c74bd6bbf990
 included_fix: avoid source-video cache prefetch contention during first cut; cold cuts no longer copy the full source video before/during FFmpeg
 install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T022050Z-c27f0dee/report.json
 real_cut_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260618T023159Z-f15e410b/report.json
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T024258Z-e94142c0/report.json
+repeat_real_cut_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260618T024837Z-3e57a5bd/report.json
+acceptance_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/m18-4-windows-cutter-performance.md
 ```
 
 桌面端内置资源：
