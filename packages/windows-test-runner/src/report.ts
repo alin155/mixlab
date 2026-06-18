@@ -198,6 +198,25 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- Cut temp cache: ${runtime.cut_temp_cache?.size_bytes ?? "n/a"} bytes @ ${runtime.cut_temp_cache?.cache_root_path ?? "n/a"}`);
     }
   }
+  if (record.real_cut_smoke) {
+    lines.push("", "## Real Cut Smoke", "");
+    lines.push(`- Query: ${record.real_cut_smoke.query}`);
+    lines.push(`- Source: ${record.real_cut_smoke.selected_source_video_id ?? "n/a"} ${record.real_cut_smoke.selected_title ?? ""}`.trim());
+    lines.push(`- Segment: ${record.real_cut_smoke.selected_segment_id ?? "n/a"}`);
+    lines.push(`- Range: ${record.real_cut_smoke.begin_ms ?? "n/a"} - ${record.real_cut_smoke.end_ms ?? "n/a"} ms (${record.real_cut_smoke.selected_duration_ms ?? "n/a"} ms)`);
+    lines.push(`- Cut mode: ${record.real_cut_smoke.cut_mode}`);
+    lines.push(`- Project: ${record.real_cut_smoke.project_id ?? "n/a"} ${record.real_cut_smoke.project_title ?? ""}`.trim());
+    lines.push(`- Clip list: ${record.real_cut_smoke.clip_list_id ?? "n/a"}`);
+    lines.push(`- Cut job: ${record.real_cut_smoke.cut_job_id ?? "n/a"}`);
+    lines.push(`- Run-next: ${record.real_cut_smoke.run_next_status ?? "n/a"}, ${record.real_cut_smoke.run_next_elapsed_ms ?? "n/a"}ms`);
+    lines.push(`- Export: ${record.real_cut_smoke.export_clip_id ?? "n/a"} ${record.real_cut_smoke.output_file ?? ""}`.trim());
+    if (record.real_cut_smoke.phase_timings?.length) {
+      lines.push("- Phases:");
+      for (const phase of record.real_cut_smoke.phase_timings) {
+        lines.push(`  - ${phase.phase_id ?? "phase"} ${phase.label ?? ""}: ${phase.status ?? "n/a"}, ${phase.duration_ms ?? "n/a"}ms`);
+      }
+    }
+  }
   if (record.windows_acceptance) {
     lines.push("", "## Windows Acceptance", "");
     lines.push(`- API base URL: ${record.windows_acceptance.api_base_url}`);
@@ -232,6 +251,7 @@ export function serializeRunReport(record: RunRecord): RunReport {
     app_runtime_smoke: record.app_runtime_smoke,
     real_data_smoke: record.real_data_smoke,
     cache_smoke: record.cache_smoke,
+    real_cut_smoke: record.real_cut_smoke,
     windows_acceptance: record.windows_acceptance
   };
 }

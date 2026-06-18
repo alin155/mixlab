@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server } from "node:http";
 import { chmod, copyFile, mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -54,8 +54,19 @@ async function rmRoot(root: string): Promise<void> {
   throw lastError;
 }
 
+async function readMockRequestBody(request: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  if (chunks.length === 0) {
+    return {};
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+}
+
 function createMockCutterApi(): Server {
-  return createServer((request, response) => {
+  return createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     response.setHeader("content-type", "application/json; charset=utf-8");
     if (url.pathname === "/health") {
@@ -173,7 +184,52 @@ function createMockCutterApi(): Server {
       }));
       return;
     }
-    if (url.pathname === "/cutter/cut-jobs") {
+    if (request.method === "POST" && url.pathname === "/cutter/clip-lists") {
+      await readMockRequestBody(request);
+      response.statusCode = 201;
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          clip_list_id: "CLSMOKE",
+          title: "Windows验收剪切",
+          item_count: 1,
+          items: []
+        }
+      }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/cutter/cut-jobs") {
+      await readMockRequestBody(request);
+      response.statusCode = 201;
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          submitted_count: 1,
+          jobs: [{
+            cut_job_id: "CJSMOKE",
+            status: "pending"
+          }]
+        }
+      }));
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/cutter/cut-jobs/run-next") {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          cut_job_id: "CJSMOKE",
+          status: "done",
+          export_clip_id: "ESMOKE",
+          output_file: "projects/Windows验收剪切/001-smoke.mp4",
+          phase_timings: [
+            { phase_id: "resolve_source", label: "准备源素材", status: "done", duration_ms: 125 },
+            { phase_id: "cut_media", label: "剪切/重编码", status: "done", duration_ms: 900 }
+          ]
+        }
+      }));
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/cutter/cut-jobs") {
       response.end(JSON.stringify({
         schema_version: "1.0",
         data: {
@@ -446,6 +502,60 @@ test("runner supports planned non-destructive Windows app acceptance suites", as
     assert.equal(report.windows_acceptance.real_data_smoke.cut_jobs.failed_count, 1);
     assert.equal(report.windows_acceptance.cache_smoke.observed_cache_bucket_count, 4);
     assert.equal(report.windows_acceptance.cache_smoke.total_observed_cache_size_bytes, 7680);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
+test("runner supports real cut smoke with a generated cut job", async () => {
+  const root = await tempRoot();
+  const api = createMockCutterApi();
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ suite: "real_cut_smoke", options: { query: "第一场", max_duration_ms: 1500 } })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      real_cut_smoke: {
+        selected_source_video_id: string;
+        clip_list_id: string;
+        cut_job_id: string;
+        run_next_status: string;
+        export_clip_id: string;
+        output_file: string;
+        phase_timings: Array<{ phase_id: string; duration_ms: number }>;
+      };
+    };
+    assert.equal(report.real_cut_smoke.selected_source_video_id, "C0001");
+    assert.equal(report.real_cut_smoke.clip_list_id, "CLSMOKE");
+    assert.equal(report.real_cut_smoke.cut_job_id, "CJSMOKE");
+    assert.equal(report.real_cut_smoke.run_next_status, "done");
+    assert.equal(report.real_cut_smoke.export_clip_id, "ESMOKE");
+    assert.equal(report.real_cut_smoke.output_file, "projects/Windows验收剪切/001-smoke.mp4");
+    assert.deepEqual(
+      report.real_cut_smoke.phase_timings.map((phase) => phase.phase_id),
+      ["resolve_source", "cut_media"]
+    );
   } finally {
     await close(api);
     if (runner) {

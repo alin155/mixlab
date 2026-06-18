@@ -5,6 +5,7 @@ export type RunnerSuite =
   | "app_runtime_smoke"
   | "real_data_smoke"
   | "cache_smoke"
+  | "real_cut_smoke"
   | "windows_acceptance"
   | "install_latest_and_smoke";
 
@@ -27,6 +28,7 @@ export type FailureCategory =
   | "public_library_slow"
   | "search_failure"
   | "transcript_failure"
+  | "cut_failure"
   | "cache_not_growing"
   | "runner_launch_failure"
   | "runner_ready_timeout"
@@ -231,6 +233,37 @@ export interface CacheSmokeReport {
   observed_cache_bucket_count: number;
 }
 
+export interface CutPhaseTimingSummary {
+  phase_id?: string;
+  label?: string;
+  status?: string;
+  duration_ms?: number;
+}
+
+export interface RealCutSmokeReport {
+  api_base_url: string;
+  app_runtime_smoke?: AppRuntimeSmokeReport;
+  checks: ApiProbeResult[];
+  query: string;
+  selected_source_video_id?: string;
+  selected_title?: string;
+  selected_segment_id?: string;
+  selected_text_preview?: string;
+  begin_ms?: number;
+  end_ms?: number;
+  selected_duration_ms?: number;
+  cut_mode: string;
+  project_id?: string;
+  project_title?: string;
+  clip_list_id?: string;
+  cut_job_id?: string;
+  run_next_status?: string;
+  run_next_elapsed_ms?: number;
+  export_clip_id?: string;
+  output_file?: string;
+  phase_timings?: CutPhaseTimingSummary[];
+}
+
 export interface WindowsAcceptanceReport {
   api_base_url: string;
   app_runtime_smoke?: AppRuntimeSmokeReport;
@@ -285,6 +318,7 @@ export interface RunReport {
   app_runtime_smoke?: AppRuntimeSmokeReport;
   real_data_smoke?: RealDataSmokeReport;
   cache_smoke?: CacheSmokeReport;
+  real_cut_smoke?: RealCutSmokeReport;
   windows_acceptance?: WindowsAcceptanceReport;
   install_latest_and_smoke?: InstallLatestAndSmokeReport;
 }

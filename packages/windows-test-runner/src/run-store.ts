@@ -16,6 +16,7 @@ import {
   runAppRuntimeSmoke,
   runCacheSmoke,
   runRealDataSmoke,
+  runRealCutSmoke,
   runWindowsAcceptance
 } from "./actions/windows-app-acceptance.ts";
 import type {
@@ -218,6 +219,21 @@ export class RunStore {
           record.failure_category = result.failure_category;
           record.failure_message = result.failure_message;
           throw new Error(result.failure_message ?? "cache_smoke failed");
+        }
+      } else if (record.suite === "real_cut_smoke") {
+        const result = await runRealCutSmoke({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.real_cut_smoke = result.report;
+        record.app_runtime_smoke = result.report.app_runtime_smoke;
+        record.launch_app_probe = result.report.app_runtime_smoke?.launch_app_probe;
+        record.probe_api = result.report.app_runtime_smoke?.launch_app_probe.probe_api;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "real_cut_smoke failed");
         }
       } else if (record.suite === "windows_acceptance") {
         const result = await runWindowsAcceptance({

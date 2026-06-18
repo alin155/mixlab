@@ -3,8 +3,10 @@ import type {
   ApiProbeResult,
   AppRuntimeSmokeReport,
   CacheSmokeReport,
+  CutPhaseTimingSummary,
   CutJobsSmokeSummary,
   FailureCategory,
+  RealCutSmokeReport,
   RealDataSmokeReport,
   RuntimeCacheBucketSummary,
   RuntimeStatusSmokeSummary,
@@ -115,13 +117,22 @@ async function requestJson(input: {
   baseUrl: string;
   timeoutMs: number;
   includeBody?: boolean;
+  method?: "GET" | "POST";
+  body?: unknown;
 }): Promise<JsonRequestResult> {
   const url = buildUrl(input.baseUrl, input.path);
   const started = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      method: input.method ?? "GET",
+      headers: input.body === undefined ? undefined : {
+        "content-type": "application/json"
+      },
+      body: input.body === undefined ? undefined : JSON.stringify(input.body),
+      signal: controller.signal
+    });
     const body = await readResponseBody(response);
     const check: ApiProbeResult = {
       id: input.id,
@@ -274,6 +285,42 @@ function sourceVideoDetailSummary(sourceVideoId: string, body: unknown, elapsedM
     transcript_character_count: fullText.length > 0 ? fullText.length : segmentTextLength,
     transcript_segment_count: segments.length
   };
+}
+
+function firstTranscriptSegment(body: unknown): Record<string, unknown> | undefined {
+  const data = dataRecord(body);
+  const transcript = isRecord(data.transcript) ? data.transcript : {};
+  return getArray(transcript, ["segments"]).find((segment) => {
+    if (!isRecord(segment)) {
+      return false;
+    }
+    const beginMs = getNumber(segment, ["begin_ms"]);
+    const endMs = getNumber(segment, ["end_ms"]);
+    const text = getString(segment, ["text"]);
+    return beginMs !== undefined && endMs !== undefined && endMs > beginMs && Boolean(text);
+  }) as Record<string, unknown> | undefined;
+}
+
+function safeSmokeId(date = new Date()): string {
+  return date.toISOString().replace(/\D/g, "").slice(0, 14);
+}
+
+function phaseTimingSummary(value: unknown): CutPhaseTimingSummary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter(isRecord)
+    .map((phase) => ({
+      phase_id: getString(phase, ["phase_id"]),
+      label: getString(phase, ["label"]),
+      status: getString(phase, ["status"]),
+      duration_ms: getNumber(phase, ["duration_ms"])
+    }));
+}
+
+function runNextSummary(body: unknown): Record<string, unknown> {
+  return dataRecord(body);
 }
 
 function cutJobsSummary(body: unknown, elapsedMs: number): CutJobsSmokeSummary {
@@ -572,6 +619,266 @@ export async function runCacheSmoke(input: {
       passed: false,
       failure_category: "cache_not_growing",
       failure_message: "Runtime status did not expose release/local cache buckets."
+    };
+  }
+
+  return { report, passed: true };
+}
+
+export async function runRealCutSmoke(input: {
+  apiBaseUrl: string;
+  options?: Record<string, unknown>;
+  onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
+}): Promise<SmokeResult<RealCutSmokeReport>> {
+  const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
+  const cutTimeoutMs = readPositiveNumber(input.options?.cut_timeout_ms, 180_000);
+  const query = typeof input.options?.query === "string" && input.options.query.trim()
+    ? input.options.query.trim()
+    : "第一场";
+  const cutMode = typeof input.options?.cut_mode === "string" && input.options.cut_mode.trim()
+    ? input.options.cut_mode.trim()
+    : "copy";
+  const maxDurationMs = readPositiveNumber(input.options?.max_duration_ms, 1_500);
+  const checks: ApiProbeResult[] = [];
+  const smokeId = safeSmokeId();
+  const projectTitle = `Windows验收剪切-${smokeId}`;
+  const projectId = `PWINSMOKE${smokeId}`;
+  const report: RealCutSmokeReport = {
+    api_base_url: input.apiBaseUrl,
+    checks,
+    query,
+    cut_mode: cutMode,
+    project_id: projectId,
+    project_title: projectTitle
+  };
+
+  await input.onEvent?.("real_cut_runtime", "Checking app runtime before real cut.");
+  const runtime = await runAppRuntimeSmoke({
+    apiBaseUrl: input.apiBaseUrl,
+    options: input.options,
+    onEvent: input.onEvent
+  });
+  report.app_runtime_smoke = runtime.report;
+  if (!runtime.passed) {
+    return {
+      report,
+      passed: false,
+      failure_category: runtime.failure_category,
+      failure_message: runtime.failure_message
+    };
+  }
+
+  await input.onEvent?.("real_cut_queue_guard", "Checking cut queue is idle before creating a smoke cut.");
+  const queueBefore = await requestJson({
+    id: "cut_jobs_before",
+    path: "/cutter/cut-jobs",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(queueBefore.check);
+  const queueBeforeSummary = cutJobsSummary(queueBefore.body, queueBefore.check.elapsed_ms);
+  if (!queueBefore.check.ok) {
+    return {
+      report,
+      passed: false,
+      failure_category: "real_data_unavailable",
+      failure_message: queueBefore.check.error ?? "Could not read cut queue before real cut smoke."
+    };
+  }
+  const allowBusyQueue = input.options?.allow_busy_queue === true;
+  if (!allowBusyQueue && (queueBeforeSummary.pending_count > 0 || queueBeforeSummary.running_count > 0)) {
+    return {
+      report,
+      passed: false,
+      failure_category: "cut_failure",
+      failure_message: `Cut queue is not idle: pending=${queueBeforeSummary.pending_count}, running=${queueBeforeSummary.running_count}.`
+    };
+  }
+
+  await input.onEvent?.("real_cut_search", `Searching public source library for real cut: ${query}`);
+  const search = await requestJson({
+    id: "real_cut_search",
+    path: `/cutter/source-search?query=${encodeURIComponent(query)}&limit=10`,
+    baseUrl: input.apiBaseUrl,
+    timeoutMs
+  });
+  checks.push(search.check);
+  const searchInfo = searchSummary(query, search.body, search.check.elapsed_ms);
+  if (!search.check.ok || !searchInfo.first_source_video_id) {
+    return {
+      report,
+      passed: false,
+      failure_category: "search_failure",
+      failure_message: search.check.error ?? `No searchable source video found for ${query}.`
+    };
+  }
+  report.selected_source_video_id = searchInfo.first_source_video_id;
+  report.selected_title = searchInfo.first_title;
+
+  const detailPath = searchInfo.first_detail_url ?? `/cutter/source-videos/${encodeURIComponent(searchInfo.first_source_video_id)}`;
+  await input.onEvent?.("real_cut_detail", "Reading source detail for real cut.", {
+    source_video_id: searchInfo.first_source_video_id
+  });
+  const detail = await requestJson({
+    id: "real_cut_source_detail",
+    path: detailPath,
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    includeBody: false
+  });
+  checks.push(detail.check);
+  if (!detail.check.ok) {
+    return {
+      report,
+      passed: false,
+      failure_category: "transcript_failure",
+      failure_message: detail.check.error ?? "Could not read source detail for real cut smoke."
+    };
+  }
+
+  const detailData = dataRecord(detail.body);
+  const segment = firstTranscriptSegment(detail.body);
+  if (!segment) {
+    return {
+      report,
+      passed: false,
+      failure_category: "transcript_failure",
+      failure_message: "Selected source detail has no usable transcript segment."
+    };
+  }
+
+  const segmentId = getString(segment, ["segment_id"]);
+  const beginMs = getNumber(segment, ["begin_ms"]);
+  const segmentEndMs = getNumber(segment, ["end_ms"]);
+  const text = getString(segment, ["text"]) ?? "";
+  if (!segmentId || beginMs === undefined || segmentEndMs === undefined || segmentEndMs <= beginMs) {
+    return {
+      report,
+      passed: false,
+      failure_category: "transcript_failure",
+      failure_message: "Selected transcript segment is incomplete."
+    };
+  }
+
+  const endMs = Math.min(segmentEndMs, beginMs + maxDurationMs);
+  const selectedText = text.slice(0, 120);
+  const sourceTitle = getString(detailData, ["title", "name"]) ?? searchInfo.first_title ?? searchInfo.first_source_video_id;
+  const sourceRelativePath = getString(detailData, ["source_relative_path", "relative_path", "path"]) ?? sourceTitle;
+  report.selected_title = sourceTitle;
+  report.selected_segment_id = segmentId;
+  report.selected_text_preview = selectedText;
+  report.begin_ms = beginMs;
+  report.end_ms = endMs;
+  report.selected_duration_ms = endMs - beginMs;
+
+  await input.onEvent?.("real_cut_create_clip_list", "Creating smoke cut list.", {
+    source_video_id: searchInfo.first_source_video_id,
+    begin_ms: beginMs,
+    end_ms: endMs
+  });
+  const clipList = await requestJson({
+    id: "real_cut_create_clip_list",
+    path: "/cutter/clip-lists",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    method: "POST",
+    body: {
+      library_id: runtime.report.runtime_status?.library_id ?? "lib_main_001",
+      project_id: projectId,
+      title: projectTitle,
+      items: [{
+        source_video_id: searchInfo.first_source_video_id,
+        source_title: sourceTitle,
+        source_relative_path: sourceRelativePath,
+        start_segment_id: segmentId,
+        end_segment_id: segmentId,
+        begin_ms: beginMs,
+        end_ms: endMs,
+        selected_text: selectedText,
+        cut_mode: cutMode,
+        pre_roll_ms: 0,
+        post_roll_ms: 0
+      }]
+    }
+  });
+  checks.push(clipList.check);
+  const clipListData = dataRecord(clipList.body);
+  const clipListId = getString(clipListData, ["clip_list_id"]);
+  report.clip_list_id = clipListId;
+  if (!clipList.check.ok || !clipListId) {
+    return {
+      report,
+      passed: false,
+      failure_category: "cut_failure",
+      failure_message: clipList.check.error ?? `Could not create clip list, status ${clipList.check.status_code ?? "n/a"}.`
+    };
+  }
+
+  await input.onEvent?.("real_cut_submit_queue", "Submitting smoke cut list to queue.", {
+    clip_list_id: clipListId
+  });
+  const submit = await requestJson({
+    id: "real_cut_submit_jobs",
+    path: "/cutter/cut-jobs",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    method: "POST",
+    body: { clip_list_id: clipListId }
+  });
+  checks.push(submit.check);
+  const submitData = dataRecord(submit.body);
+  const jobs = getArray(submitData, ["jobs"]);
+  const firstJob = isRecord(jobs[0]) ? jobs[0] : {};
+  const cutJobId = getString(firstJob, ["cut_job_id"]);
+  report.cut_job_id = cutJobId;
+  if (!submit.check.ok || !cutJobId) {
+    return {
+      report,
+      passed: false,
+      failure_category: "cut_failure",
+      failure_message: submit.check.error ?? `Could not submit cut job, status ${submit.check.status_code ?? "n/a"}.`
+    };
+  }
+
+  await input.onEvent?.("real_cut_run_next", "Running smoke cut job.", {
+    cut_job_id: cutJobId
+  });
+  const runNext = await requestJson({
+    id: "real_cut_run_next",
+    path: "/cutter/cut-jobs/run-next",
+    baseUrl: input.apiBaseUrl,
+    timeoutMs: cutTimeoutMs,
+    method: "POST"
+  });
+  checks.push(runNext.check);
+  const runData = runNextSummary(runNext.body);
+  report.run_next_elapsed_ms = runNext.check.elapsed_ms;
+  report.run_next_status = getString(runData, ["status"]);
+  report.export_clip_id = getString(runData, ["export_clip_id"]);
+  report.output_file = getString(runData, ["output_file"]);
+  report.phase_timings = phaseTimingSummary(runData.phase_timings);
+  if (!runNext.check.ok || report.run_next_status !== "done") {
+    return {
+      report,
+      passed: false,
+      failure_category: "cut_failure",
+      failure_message: runNext.check.error ?? `Real cut smoke finished with status ${report.run_next_status ?? "unknown"}.`
+    };
+  }
+  if (getString(runData, ["cut_job_id"]) !== cutJobId) {
+    return {
+      report,
+      passed: false,
+      failure_category: "cut_failure",
+      failure_message: `run-next executed ${getString(runData, ["cut_job_id"]) ?? "unknown"} instead of smoke job ${cutJobId}.`
+    };
+  }
+  if (!report.export_clip_id || !report.output_file) {
+    return {
+      report,
+      passed: false,
+      failure_category: "cut_failure",
+      failure_message: "Real cut smoke did not return export output metadata."
     };
   }
 

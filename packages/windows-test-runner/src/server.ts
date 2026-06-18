@@ -10,6 +10,7 @@ const SUPPORTED_SUITES = [
   "app_runtime_smoke",
   "real_data_smoke",
   "cache_smoke",
+  "real_cut_smoke",
   "windows_acceptance",
   "install_latest_and_smoke"
 ] as const;
