@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import { RUNNER_VERSION } from "./config.ts";
 import { startStartupRun, parseStartupRunRequest } from "./startup-run.ts";
 import { createWindowsTestRunnerServer } from "./server.ts";
@@ -260,8 +261,9 @@ function runnerConfig(input: { reportsRoot: string; cutterApiBaseUrl: string }):
 }
 
 test("runtime Runner version matches package version", async () => {
+  const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const packageJson = JSON.parse(await readFile(
-    path.join(process.cwd(), "packages", "windows-test-runner", "package.json"),
+    path.join(packageRoot, "package.json"),
     "utf8"
   )) as { version: string };
 
