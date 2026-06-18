@@ -1921,7 +1921,7 @@ test("material locator keeps search and review areas fixed while transcript scro
   const searchBoxRule = lastRule(/\.cutter-material-locator \.cutter-search-box\s*{(?<body>[^}]+)}/g);
   const searchBoxFocusRule = lastRule(/\.cutter-material-locator \.cutter-search-box:focus-within\s*{(?<body>[^}]+)}/g);
   const searchInputRule = lastRule(/\.cutter-material-locator \.cutter-search-box input\s*{(?<body>[^}]+)}/g);
-  const searchSubmitRule = lastRule(/\.cutter-material-locator \.cutter-locator-search-submit\s*{(?<body>[^}]+)}/g);
+  const searchSubmitRule = lastRule(/\.cutter-material-locator \.cutter-locator-search-form \.ml-button\s*{(?<body>[^}]+)}/g);
   const candidatePanelRule = lastRule(/\.cutter-material-locator \.cutter-locator-candidates\s*{(?<body>[^}]+)}/g);
   const appCandidatePanelRule = lastRule(/\.cutter-app:has\(\.cutter-material-locator\) \.cutter-locator-candidates\s*{(?<body>[^}]+)}/g);
   const candidateHeaderRule = lastRule(/\.cutter-material-locator \.cutter-locator-candidates > header\s*{(?<body>[^}]+)}/g);
@@ -2113,16 +2113,16 @@ test("material locator queue statuses use distinct semantic colors", async () =>
   const lastRule = (pattern: RegExp) =>
     Array.from(css.matchAll(pattern)).map((match) => match.groups?.body ?? "").at(-1) ?? "";
   const pendingRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-pending span:not\(\.cutter-locator-queue-hint\)\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-pending \.ml-badge\s*{(?<body>[^}]+)}/g
   );
   const runningRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-running span:not\(\.cutter-locator-queue-hint\)\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-running \.ml-badge\s*{(?<body>[^}]+)}/g
   );
   const doneRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-done span:not\(\.cutter-locator-queue-hint\)\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-done \.ml-badge\s*{(?<body>[^}]+)}/g
   );
   const failedRule = lastRule(
-    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-failed span:not\(\.cutter-locator-queue-hint\)\s*{(?<body>[^}]+)}/g
+    /\.cutter-app\[data-cutter-web-ready\]\[data-cutter-route="material-locator"\] \.cutter-locator-queue-row\.is-failed \.ml-badge\s*{(?<body>[^}]+)}/g
   );
 
   assert.match(pendingRule, /color:\s*#b45309/);

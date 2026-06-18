@@ -3,11 +3,16 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type FormEvent,
   type UIEvent,
   type MouseEvent as ReactMouseEvent,
   type SyntheticEvent
 } from "react";
+import {
+  Badge,
+  Button,
+  SearchBox,
+  type BadgeTone
+} from "@mixlab/ui-foundation";
 import {
   formatDuration,
   type LocalClipCatalog,
@@ -311,6 +316,21 @@ function queueStatusLabel(status: CutQueueJob["status"]): string {
       return "失败";
     case "cancelled":
       return "已取消";
+  }
+}
+
+function queueStatusTone(status: CutQueueJob["status"]): BadgeTone {
+  switch (status) {
+    case "pending":
+      return "warning";
+    case "running":
+      return "running";
+    case "done":
+      return "success";
+    case "failed":
+      return "danger";
+    case "cancelled":
+      return "neutral";
   }
 }
 
@@ -697,12 +717,6 @@ export function MaterialLocatorPage({
   const selectedRangeEndMs = selectedEndMs(selectedSegments, selectedEndCharOffset);
   const dragPreviewIds = new Set(dragPreviewSegmentIds);
   const timeSelectionStartIds = new Set(timeSelectionStartSegmentId ? [timeSelectionStartSegmentId] : []);
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    onSearch?.(String(formData.get("query") ?? ""));
-  }
-
   function setSegmentRef(segmentId: string, node: HTMLSpanElement | null) {
     if (node) {
       segmentRefs.current.set(segmentId, node);
@@ -1182,34 +1196,17 @@ export function MaterialLocatorPage({
       <div className="cutter-page-main">
         <section className="cutter-locator-command" aria-label="素材搜索">
           <div className="cutter-locator-command-header">
-            <form className="cutter-search-form cutter-locator-search-form" key={query} onSubmit={handleSubmit}>
-              <div className="cutter-search-box">
-                <span className="cutter-search-icon" aria-hidden="true">
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="M16.5 16.5L21 21" />
-                  </svg>
-                </span>
-                <input
-                  name="query"
-                  defaultValue={query}
-                  aria-label="搜索文案关键词或粘贴爆款文案"
-                  placeholder="搜索文案关键词或粘贴爆款文案"
-                />
-              </div>
-              <button className="cutter-locator-search-submit" type="submit">
-                搜索
-              </button>
-            </form>
+            <SearchBox
+              aria-label="搜索文案关键词或粘贴爆款文案"
+              buttonLabel="搜索"
+              className="cutter-search-form cutter-locator-search-form cutter-search-box"
+              defaultValue={query}
+              inputClassName="cutter-locator-search-input"
+              key={query}
+              name="query"
+              onSubmit={(value) => onSearch?.(value)}
+              placeholder="搜索文案关键词或粘贴爆款文案"
+            />
           </div>
         </section>
 
@@ -1296,20 +1293,26 @@ export function MaterialLocatorPage({
                 <div className="cutter-transcript-heading">
                   <h2>视频文案</h2>
                   <div className="cutter-hit-navigation" aria-label="命中文案切换">
-                    <button
-                      type="button"
+                    <Button
+                      className="cutter-hit-nav-button"
                       disabled={!hasHitNavigation}
                       onClick={() => onNavigateHit?.("previous")}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
                     >
                       上一个
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      className="cutter-hit-nav-button"
                       disabled={!hasHitNavigation}
                       onClick={() => onNavigateHit?.("next")}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
                     >
                       下一个
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </header>
@@ -1421,9 +1424,15 @@ export function MaterialLocatorPage({
                   <strong>
                     已选 {selectedDurationLabel(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}
                   </strong>
-                  <button className="cutter-primary-button" type="button" onClick={handleCutSelection}>
+                  <Button
+                    className="cutter-floating-cut-button"
+                    type="button"
+                    onClick={handleCutSelection}
+                    size="sm"
+                    variant="primary"
+                  >
                     剪切这段
-                  </button>
+                  </Button>
                 </div>
               ) : null}
             </section>
@@ -1530,7 +1539,7 @@ export function MaterialLocatorPage({
                   recentQueue.map((job) => {
                     return (
                       <div className={`cutter-locator-queue-row is-${job.status}`} key={job.queue_job_id}>
-                        <span>{queueStatusLabel(job.status)}</span>
+                        <Badge tone={queueStatusTone(job.status)}>{queueStatusLabel(job.status)}</Badge>
                         <strong>{job.title}</strong>
                         <small>{formatDuration(job.duration_ms)}</small>
                       </div>

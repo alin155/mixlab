@@ -12662,3 +12662,692 @@ body,
   overflow-wrap: anywhere;
   color: var(--ml-color-text);
 }
+
+/* UI Foundation material search migration.
+   This dense workbench keeps search, transcript, preview, and queue panes stable
+   while shared SearchBox/Button/Badge own the reusable control behavior. */
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-content {
+  overflow: hidden;
+}
+
+.cutter-material-locator {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cutter-material-locator .cutter-page-main {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: 256px minmax(480px, 1fr) 360px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  padding: 10px 0 0;
+  overflow: hidden;
+}
+
+.cutter-material-locator .cutter-locator-command {
+  grid-column: 1 / 3;
+  grid-row: 1;
+  width: auto;
+  max-width: none;
+  min-height: 36px;
+  border: 0;
+  border-radius: 0;
+  padding: 0 20px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-command-header {
+  display: grid;
+  min-height: 0;
+  gap: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.cutter-material-locator .cutter-locator-search-form {
+  display: block;
+  width: 100%;
+}
+
+.cutter-material-locator .cutter-search-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 36px;
+  align-items: center;
+  gap: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 8px 0 20px;
+  background: color-mix(in srgb, var(--ml-color-surface-subtle) 84%, var(--ml-color-surface));
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-search-box:focus-within {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-search-box input {
+  min-height: 36px;
+  border: 0;
+  padding: 0;
+  color: var(--ml-color-text);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 20px;
+  outline: 0;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-search-box input::placeholder {
+  color: var(--ml-color-text-tertiary);
+}
+
+.cutter-material-locator .cutter-locator-search-form .ml-button {
+  min-height: 28px;
+  border: 0;
+  padding: 0 10px;
+  color: var(--ml-color-accent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-workbench {
+  display: contents;
+}
+
+.cutter-material-locator .cutter-locator-candidates {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.cutter-app:has(.cutter-material-locator) .cutter-locator-candidates {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-candidates > header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  border-bottom: 0;
+  padding: 0 10px 0 20px;
+}
+
+.cutter-material-locator .cutter-locator-candidates > header > div {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.cutter-material-locator .cutter-locator-candidates h2,
+.cutter-material-locator .cutter-natural-transcript h2,
+.cutter-material-locator .cutter-locator-visual h2,
+.cutter-material-locator .cutter-locator-cut-panel h2,
+.cutter-material-locator .cutter-locator-queue-panel h2 {
+  margin: 0;
+  color: var(--ml-color-text);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 22px;
+}
+
+.cutter-material-locator .cutter-locator-candidates > header span,
+.cutter-material-locator .cutter-locator-cut-panel > header span,
+.cutter-material-locator .cutter-locator-queue-panel > header span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-material-locator .cutter-locator-results {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: transparent;
+}
+
+.cutter-material-locator .cutter-locator-results,
+.cutter-material-locator .cutter-locator-section,
+.cutter-material-locator .cutter-locator-result-list {
+  align-content: start;
+}
+
+.cutter-material-locator .cutter-empty-state,
+.cutter-material-locator .cutter-video-empty {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-transcript-empty {
+  border: 0;
+  background: color-mix(in srgb, var(--ml-color-surface-subtle) 28%, transparent);
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-section > header {
+  min-height: 28px;
+  border: 0;
+  padding: 0 20px;
+}
+
+.cutter-material-locator .cutter-locator-section > header h2 {
+  margin: 0;
+  color: var(--ml-color-accent);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 20px;
+}
+
+.cutter-material-locator .cutter-locator-result-list {
+  display: grid;
+  gap: 0;
+  padding: 0 4px 10px 14px;
+}
+
+.cutter-material-locator .cutter-locator-result {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 58px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--ml-color-text);
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-result:hover {
+  background: color-mix(in srgb, var(--ml-color-selected) 46%, transparent);
+}
+
+.cutter-material-locator .cutter-locator-result.is-selected {
+  border: 0;
+  background: var(--ml-color-selected);
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-result img,
+.cutter-material-locator .cutter-cover-placeholder {
+  width: 64px;
+  height: 38px;
+  border: 0;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.cutter-material-locator .cutter-locator-result-body {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.cutter-material-locator .cutter-locator-result-body strong {
+  overflow: hidden;
+  color: var(--ml-color-text);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-material-locator .cutter-locator-result-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.cutter-material-locator .cutter-locator-result-body small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-material-locator .cutter-locator-expand-button {
+  display: block;
+  padding: 8px 20px 14px;
+  color: var(--ml-color-text-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.cutter-material-locator .cutter-natural-transcript {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.cutter-material-locator .cutter-natural-transcript > header {
+  display: block;
+  min-height: 44px;
+  border: 0;
+  padding: 0 16px;
+}
+
+.cutter-material-locator .cutter-transcript-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+
+.cutter-material-locator .cutter-hit-navigation {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cutter-material-locator .cutter-hit-navigation button,
+.cutter-material-locator .cutter-hit-nav-button.ml-button {
+  min-height: 26px;
+  border: 0;
+  padding: 0 2px;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-transcript-body {
+  contain: content;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 18px 24px;
+}
+
+.cutter-material-locator .cutter-transcript-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-height: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: transparent;
+}
+
+.cutter-material-locator .cutter-transcript-index {
+  display: none;
+}
+
+.cutter-material-locator .cutter-transcript-time {
+  appearance: none;
+  justify-self: start;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 4px;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  font-family: var(--ml-font-mono);
+  font-size: 12px;
+  line-height: 22px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cutter-material-locator .cutter-transcript-text {
+  color: var(--ml-color-text);
+  font-size: 13px;
+  font-weight: 430;
+  line-height: 22px;
+}
+
+.cutter-material-locator .cutter-transcript-text mark {
+  border-radius: 3px;
+  padding: 0 1px;
+  color: var(--ml-color-text);
+  background: color-mix(in srgb, #facc15 42%, transparent);
+}
+
+.cutter-material-locator .cutter-transcript-row:hover {
+  background: color-mix(in srgb, var(--ml-color-surface-subtle) 48%, transparent);
+}
+
+.cutter-material-locator .cutter-transcript-row.is-current-hit {
+  background: transparent;
+}
+
+.cutter-material-locator .cutter-transcript-row.is-selected,
+.cutter-material-locator .cutter-transcript-row.is-drag-preview {
+  background: color-mix(in srgb, var(--ml-color-accent) 10%, transparent);
+}
+
+.cutter-material-locator .cutter-transcript-row.is-time-selection-start {
+  background: color-mix(in srgb, var(--ml-color-accent) 8%, transparent);
+}
+
+.cutter-material-locator .cutter-transcript-row.is-time-selection-start .cutter-transcript-time {
+  border: 1px solid color-mix(in srgb, var(--ml-color-accent) 34%, transparent);
+  background: color-mix(in srgb, var(--ml-color-accent) 14%, transparent);
+  color: var(--ml-color-accent);
+}
+
+.cutter-material-locator .cutter-selection-bar {
+  position: fixed;
+  z-index: 50;
+  display: inline-flex;
+  max-width: min(360px, calc(100vw - 32px));
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-border) 50%, transparent);
+  border-radius: 999px;
+  padding: 4px 5px 4px 10px;
+  color: var(--ml-color-text);
+  background: color-mix(in srgb, var(--ml-color-surface) 94%, #000000);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, calc(-100% - 10px));
+}
+
+.cutter-material-locator .cutter-selection-bar strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-material-locator .cutter-selection-bar button,
+.cutter-material-locator .cutter-selection-bar .ml-button {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.cutter-material-locator .cutter-locator-side-panel {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: grid;
+  grid-template-rows: 202px minmax(264px, auto) minmax(0, 1fr);
+  gap: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--ml-color-surface-subtle) 48%, transparent);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.cutter-app:has(.cutter-material-locator) .cutter-locator-side-panel {
+  border: 0;
+  background: color-mix(in srgb, var(--ml-color-surface-subtle) 48%, transparent);
+  box-shadow: none;
+}
+
+.cutter-app:has(.cutter-material-locator) .cutter-locator-visual,
+.cutter-app:has(.cutter-material-locator) .cutter-locator-cut-panel,
+.cutter-app:has(.cutter-material-locator) .cutter-locator-queue-panel,
+.cutter-material-locator .cutter-locator-visual,
+.cutter-material-locator .cutter-locator-cut-panel,
+.cutter-material-locator .cutter-locator-queue-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cutter-material-locator .cutter-locator-visual {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 12px 8px;
+}
+
+.cutter-material-locator .cutter-locator-visual > header {
+  display: none;
+}
+
+.cutter-material-locator .cutter-video-panel {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.cutter-app:has(.cutter-material-locator) .cutter-locator-visual .cutter-video-frame,
+.cutter-material-locator .cutter-video-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.cutter-app:has(.cutter-material-locator) .cutter-locator-visual .cutter-video-panel video,
+.cutter-material-locator .cutter-video-panel video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
+}
+
+.cutter-material-locator .cutter-video-poster-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background-position: center;
+  background-size: cover;
+}
+
+.cutter-material-locator .cutter-locator-cut-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cutter-material-locator .cutter-locator-cut-panel > header {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  border: 0;
+  padding: 0 12px;
+}
+
+.cutter-material-locator .cutter-locator-cut-panel > header > div {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.cutter-material-locator .cutter-locator-cut-selection {
+  display: block;
+  min-height: 0;
+  padding: 0 12px 12px;
+}
+
+.cutter-material-locator .cutter-locator-selected-copy {
+  min-height: 100%;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.cutter-material-locator .cutter-locator-selected-copy p {
+  min-height: 164px;
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: initial;
+  -webkit-line-clamp: initial;
+}
+
+.cutter-material-locator .cutter-locator-queue-panel {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cutter-material-locator .cutter-locator-queue-panel > header {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  padding: 0 12px;
+}
+
+.cutter-material-locator .cutter-queue-all-action {
+  min-height: 26px;
+  border: 0;
+  padding: 0;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 26px;
+}
+
+.cutter-material-locator .cutter-locator-queue-notice {
+  margin: 0 12px 6px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-ready) 20%, transparent);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--ml-color-ready);
+  background: var(--ml-color-ready-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cutter-material-locator .cutter-locator-queue-table {
+  display: grid;
+  align-content: start;
+  align-self: start;
+  min-height: 0;
+  overflow: visible;
+  color: var(--ml-color-text);
+  background: transparent;
+}
+
+.cutter-material-locator .cutter-locator-queue-head,
+.cutter-material-locator .cutter-locator-queue-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 46px;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ml-color-border) 28%, transparent);
+  padding: 0 12px;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.cutter-material-locator .cutter-locator-queue-head {
+  min-height: 30px;
+  font-weight: 650;
+}
+
+.cutter-material-locator .cutter-locator-queue-row strong,
+.cutter-material-locator .cutter-locator-queue-row small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ml-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row.is-pending .ml-badge {
+  color: #b45309;
+  background: #fff7ed;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row.is-running .ml-badge {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row.is-done .ml-badge {
+  color: #12805c;
+  background: #e8f7ef;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row.is-failed .ml-badge {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.cutter-app[data-cutter-web-ready][data-cutter-route="material-locator"] .cutter-locator-queue-row.is-cancelled .ml-badge {
+  color: #667085;
+  background: #f2f4f7;
+}
+
+@media (max-width: 1180px) {
+  .cutter-app:has(.cutter-material-locator) .cutter-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cutter-material-locator .cutter-page-main {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    overflow: visible;
+  }
+
+  .cutter-material-locator .cutter-locator-command,
+  .cutter-material-locator .cutter-locator-candidates,
+  .cutter-material-locator .cutter-natural-transcript,
+  .cutter-material-locator .cutter-locator-side-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .cutter-material-locator .cutter-locator-side-panel {
+    grid-template-rows: minmax(220px, auto) auto auto;
+    overflow: visible;
+  }
+}
