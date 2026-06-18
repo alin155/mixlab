@@ -44,6 +44,7 @@
 - 2026-06-18，剪辑端 Windows 包 `afc3bd3` 已通过最终性能验收，安装包 SHA-256 `da77a3173e5e5e23b913a6d6894535923002afcabfd84c24b97731e18772a464`。该包在 `521e977` 的源视频缓存 I/O 竞争修复基础上，把 `runtime-status` 的 source-video sample preflight 完全后台化：首个状态请求不再等待 SMB/FFprobe 样本检查，而是返回 `checking` 并异步刷新。`install_latest_and_smoke-20260618T040158Z-9fadf567` 通过：安装退出码 `0`，安装耗时 `6909ms`，首个 `runtime-status` `571ms`，source preflight timing `0ms`，公共素材首屏 `3ms`。延迟验收 `windows_acceptance-20260618T040332Z-561db02f` 通过：runtime `67ms`，公共素材 `8ms`，搜索 `第一场` `13ms` 且走 `searchd`，完整文案详情 `36ms`，剪切任务列表 `3ms`。真实剪切 `real_cut_smoke-20260618T040514Z-5ea69e8c` 通过：`run-next 1282ms`，`resolve_source 2ms`，`preflight_source 33ms`，`cut_media 1059ms`。当前 shared latest 已更新为 `afc3bd3`。
 - 2026-06-18，剪辑端 Windows 包 `c8b910f` 已完成共享目录交付并通过注册/登录模式安装验收。安装包 SHA-256 `ef58213b62de859c0bec891f78a08b7cbea55de5902a13139ac32356ac092f35`，GitHub Actions run `27759746635`。`install_latest_and_smoke-20260618T133201Z-59f3f677` 通过：安装退出码 `0`，安装耗时 `6995ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`34ms`。安装后即时验收处于冷启动窗口：搜索 `第一场` `827ms`、走 `sqlite-index`，完整文案详情 `1941ms`。延迟验收 `windows_acceptance-20260618T133409Z-bf9bb147` 通过：runtime `96ms`，公共素材首屏 `38ms`，搜索 `第一场` `55ms` 且走 `searchd`，完整文案详情 `39ms`，剪切任务列表 `24ms`，缓存可观测总量 `28,673,740,332` bytes，其中 source video cache `27,559,860,594` bytes / `3` 条。当前 shared latest 已更新为 `c8b910f`。
 - 2026-06-18，用户已将 Windows Test Runner 主入口 `3799` 启动为 `0.1.13`，Mac 侧通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证 `runner_version=0.1.13`。主入口注册/登录模式验收 `windows_acceptance-20260618T135736Z-54057e18` 通过：`auth_mode=reviewed`，`local_trusted=false`，runtime `1191ms`，公共素材首屏 `45ms`，搜索 `第一场` `39ms` 且走 `searchd`，完整文案详情 `22ms`，剪切任务列表 `19ms`，缓存可观测总量 `28,673,740,332` bytes。真实剪切 `real_cut_smoke-20260618T140015Z-7e2ec390` 通过：`run-next 1381ms`，`resolve_source 2ms`，`preflight_source 40ms`，`cut_media 1137ms`，输出 `export-clips/E000009/001-Windows验收剪切-20260618140015-C0629.mp4`。报告内未发现 session token 泄漏。
+- 2026-06-18，UI Foundation Shell 迁移包 `7b1e0cf` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `69be90e9ab8d87119697d1be3425137c42d5f402c5183acca6ddd97acd3f8cf4`，GitHub Actions run `27786632391`。`install_latest_and_smoke-20260618T204224Z-d71043e2` 通过：安装退出码 `0`，安装耗时 `6950ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`161ms`。安装后即时验收处于 searchd 冷启动窗口：搜索 `第一场` `1930ms`。稳定态验收 `windows_acceptance-20260618T204405Z-39423b3c` 通过：runtime `166ms`，公共素材首屏 `49ms`，搜索 `第一场` `51ms`，完整文案详情 `31ms`，剪切任务列表 `22ms`，缓存可观测总量 `28,673,740,332` bytes。当前 shared latest 已更新为 `7b1e0cf`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -176,14 +177,14 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-18 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-c8b910f.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-7b1e0cf.exe
 version: 0.18.10
-commit: c8b910f
-github_run_id: 27759746635
-sha256: ef58213b62de859c0bec891f78a08b7cbea55de5902a13139ac32356ac092f35
-included_fix: add password registration/login for admin and cutter; package latest desktop auth/runtime fixes
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T133201Z-59f3f677/report.json
-windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T133409Z-bf9bb147/report.json
+commit: 7b1e0cf
+github_run_id: 27786632391
+sha256: 69be90e9ab8d87119697d1be3425137c42d5f402c5183acca6ddd97acd3f8cf4
+included_fix: ui foundation shell migration; remove outer app frame and unify sidebar/workbench scroll
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T204224Z-d71043e2/report.json
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T204405Z-39423b3c/report.json
 acceptance_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/m18-4-windows-cutter-performance.md
 ```
 
