@@ -261,7 +261,7 @@ function runnerConfig(input: { reportsRoot: string; cutterApiBaseUrl: string }):
 
 test("runtime Runner version matches package version", async () => {
   const packageJson = JSON.parse(await readFile(
-    path.join(process.cwd(), "package.json"),
+    path.join(process.cwd(), "packages", "windows-test-runner", "package.json"),
     "utf8"
   )) as { version: string };
 

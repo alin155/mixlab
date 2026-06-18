@@ -957,7 +957,7 @@ test("admin source video page merges loaded pages without duplicate rows", async
   assert.equal(merged[1]?.source_video_id, "V999999");
 });
 
-test("AdminApp source detail hash renders Chinese detail loading route", () => {
+test("AdminApp source detail hash requires admin login in runtime API mode", () => {
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
 
@@ -972,8 +972,8 @@ test("AdminApp source detail hash renders Chinese detail loading route", () => {
 
   try {
     const html = renderToStaticMarkup(h(AdminApp));
-    assert.match(html, /原视频详情/);
-    assert.match(html, /正在读取素材库管理端数据/);
+    assert.match(html, /登录管理端/);
+    assert.match(html, /请输入管理员账号和密码继续管理公共素材库/);
   } finally {
     globalThis.window = originalWindow;
     globalThis.document = originalDocument;

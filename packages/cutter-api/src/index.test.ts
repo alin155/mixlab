@@ -467,6 +467,78 @@ test("cutter auth request-login creates a pending application without auth heade
   });
 });
 
+test("cutter account register login waits for admin approval and redacts password hashes", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const registered = await fetch(`${baseUrl}/cutter/auth/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        password: "Cutter12345",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+    assert.equal(registered.status, 201);
+    const registeredBody = await registered.json() as any;
+    assert.equal(registeredBody.data.user.username, "lisi");
+    assert.equal(registeredBody.data.user.status, "pending");
+    assert.equal("password_hash" in registeredBody.data.user, false);
+    assert.equal(registeredBody.data.session, undefined);
+
+    const pendingLogin = await fetch(`${baseUrl}/cutter/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        password: "Cutter12345",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+    assert.equal(pendingLogin.status, 401);
+
+    await approveCutterUser(libraryRoot, {
+      user_id: registeredBody.data.user.user_id,
+      now: "2026-05-02T09:01:00Z"
+    });
+
+    const loggedIn = await fetch(`${baseUrl}/cutter/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "lisi",
+        password: "Cutter12345",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+    assert.equal(loggedIn.status, 200);
+    const loggedInBody = await loggedIn.json() as any;
+    assert.equal(loggedInBody.data.user.status, "approved");
+    assert.equal("password_hash" in loggedInBody.data.user, false);
+    assert.ok(loggedInBody.data.session.session_token);
+
+    const loggedOut = await fetch(`${baseUrl}/cutter/auth/logout`, {
+      method: "POST",
+      headers: {
+        "X-MixLab-Device-Id": loggedInBody.data.session.device_id,
+        "X-MixLab-Session-Token": loggedInBody.data.session.session_token
+      }
+    });
+    assert.equal(loggedOut.status, 200);
+    assert.equal(((await loggedOut.json()) as any).data.removed, true);
+  });
+});
+
 test("cutter auth request-login records IP and browser as audit data only", async () => {
   const libraryRoot = await prepareLibrary();
 

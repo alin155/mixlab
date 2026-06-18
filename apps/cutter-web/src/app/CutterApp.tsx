@@ -1711,7 +1711,66 @@ export function CutterApp() {
       }
 
       setLoginStatus(loginGateStatusFromApplication(application));
-      setLoginMessage(nextStatus === "approved" ? "登录凭证尚未生成，请稍后刷新或重新提交申请。" : "");
+      setLoginMessage(nextStatus === "approved" ? "登录凭证尚未生成，请稍后刷新或重新登录。" : "");
+    },
+    [apiBaseUrl]
+  );
+
+  const handleRegisterAccount = useCallback(
+    async (input: { username: string; password: string }) => {
+      const deviceId = createDeviceId();
+      const nextPendingLogin = {
+        username: input.username,
+        device_id: deviceId,
+        device_name: cutterDeviceName()
+      };
+      writeCutterPendingLogin(nextPendingLogin);
+      setPendingLogin(nextPendingLogin);
+
+      try {
+        const application = await createCutterApiClient({ base_url: apiBaseUrl }).registerAccount({
+          ...nextPendingLogin,
+          password: input.password
+        });
+        setLoginStatus(loginGateStatusFromApplication(application));
+        setLoginMessage("注册已提交，请等待管理员审核。");
+      } catch (registerError) {
+        setLoginMessage(loginMessageForAuthError(registerError));
+      }
+    },
+    [apiBaseUrl]
+  );
+
+  const handleLoginAccount = useCallback(
+    async (input: { username: string; password: string }) => {
+      const deviceId = createDeviceId();
+      const deviceName = cutterDeviceName();
+
+      try {
+        const application = await createCutterApiClient({ base_url: apiBaseUrl }).loginAccount({
+          username: input.username,
+          password: input.password,
+          device_id: deviceId,
+          device_name: deviceName
+        });
+        const nextSession = authSessionFromApprovedApplication(application);
+        if (!nextSession) {
+          setLoginStatus(loginGateStatusFromApplication(application));
+          setLoginMessage("账号尚未通过审核，请等待管理员处理。");
+          return;
+        }
+
+        writeCutterAuthSession(nextSession);
+        clearCutterPendingLogin();
+        setPendingLogin(null);
+        setAuthSession(nextSession);
+        setLoginStatus("approved");
+        setLoginMessage("");
+      } catch (loginError) {
+        clearCutterAuthSession();
+        setAuthSession(null);
+        setLoginMessage(loginMessageForAuthError(loginError));
+      }
     },
     [apiBaseUrl]
   );
@@ -1810,7 +1869,7 @@ export function CutterApp() {
           }
           setLoginStatus(loginGateStatusFromApplication(application));
           setLoginMessage(
-            nextStatus === "approved" ? "登录凭证尚未生成，请稍后刷新或重新提交申请。" : ""
+            nextStatus === "approved" ? "登录凭证尚未生成，请稍后刷新或重新登录。" : ""
           );
           if (nextStatus === "pending") {
             retryTimer = window.setTimeout(() => setLoginPollTick((tick) => tick + 1), 5000);
@@ -3318,7 +3377,8 @@ export function CutterApp() {
       status={loginStatus}
       message={loginMessage || undefined}
       deviceName={cutterDeviceName()}
-      onApply={handleApplyLogin}
+      onLogin={handleLoginAccount}
+      onRegister={handleRegisterAccount}
     >
       {workbench}
     </CutterLoginGate>

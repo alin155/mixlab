@@ -3331,19 +3331,22 @@ test("desktop runtime clears fixture data when the real API becomes available", 
 });
 
 test("login gate renders Chinese application states and only approved status renders children", async () => {
+  const noopSubmit = async () => undefined;
   const unknown = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "unknown",
       deviceName: "Mac 剪辑端 · Safari",
-      onApply: async () => undefined,
+      onLogin: noopSubmit,
+      onRegister: noopSubmit,
       children: h("p", null, "工作台内容")
     })
   );
-  assert.match(unknown, /申请使用剪辑师工作台/);
+  assert.match(unknown, /登录剪辑师工作台/);
   assert.match(unknown, /用户名/);
-  assert.match(unknown, /提交申请/);
+  assert.match(unknown, /密码/);
+  assert.match(unknown, /登录/);
+  assert.match(unknown, /注册/);
   assert.match(unknown, /当前设备：Mac 剪辑端 · Safari/);
-  assert.match(unknown, /身份方式：用户名 \+ 本机设备/);
   assert.match(unknown, /管理员审核后即可进入/);
   assert.equal(unknown.includes("IP 只用于诊断"), false);
   assert.equal(unknown.includes("工作台内容"), false);
@@ -3351,47 +3354,52 @@ test("login gate renders Chinese application states and only approved status ren
   const pending = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "pending",
-      onApply: async () => undefined,
+      onLogin: noopSubmit,
+      onRegister: noopSubmit,
       children: h("p", null, "工作台内容")
     })
   );
   assert.match(pending, /申请已提交，请等待管理员审核。/);
-  assert.match(pending, /disabled=""/);
+  assert.match(pending, /账号已提交审核/);
 
   const rejected = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "rejected",
-      onApply: async () => undefined,
+      onLogin: noopSubmit,
+      onRegister: noopSubmit,
       children: h("p", null, "工作台内容")
     })
   );
   assert.match(rejected, /申请未通过，请联系管理员。/);
-  assert.match(rejected, /提交申请/);
+  assert.match(rejected, /登录/);
 
   const disabled = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "disabled",
-      onApply: async () => undefined,
+      onLogin: noopSubmit,
+      onRegister: noopSubmit,
       children: h("p", null, "工作台内容")
     })
   );
   assert.match(disabled, /账号已停用，请联系管理员。/);
-  assert.match(disabled, /提交申请/);
+  assert.match(disabled, /登录/);
 
   const expired = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "unknown",
-      message: "登录已失效，请重新申请或联系管理员。",
-      onApply: async () => undefined,
+      message: "登录已失效，请重新登录或联系管理员。",
+      onLogin: noopSubmit,
+      onRegister: noopSubmit,
       children: h("p", null, "工作台内容")
     })
   );
-  assert.match(expired, /登录已失效，请重新申请或联系管理员。/);
+  assert.match(expired, /登录已失效，请重新登录或联系管理员。/);
 
   const approved = renderToStaticMarkup(
     h(CutterLoginGate, {
       status: "approved",
-      onApply: async () => undefined,
+      onLogin: noopSubmit,
+      onRegister: noopSubmit,
       children: h("p", null, "工作台内容")
     })
   );

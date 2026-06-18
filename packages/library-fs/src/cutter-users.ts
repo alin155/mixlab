@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { hashPassword, verifyPassword } from "./password-auth.ts";
 
 export type CutterUserStatus = "pending" | "approved" | "rejected" | "disabled";
 
@@ -19,6 +20,8 @@ export interface CutterUserRecord {
   username: string;
   display_name: string;
   status: CutterUserStatus;
+  password_hash?: string;
+  registered_at?: string;
   applied_at: string;
   approved_at: string;
   rejected_at: string;
@@ -116,6 +119,8 @@ function validateUser(value: unknown, field: string): CutterUserRecord {
   if (!USER_STATUSES.has(value.status as CutterUserStatus)) {
     throw new Error(`剪辑师用户存储数据无效：${field}.status 不合法`);
   }
+  optionalString(value.password_hash, `${field}.password_hash`);
+  optionalString(value.registered_at, `${field}.registered_at`);
   assertString(value.applied_at, `${field}.applied_at`);
   assertString(value.approved_at, `${field}.approved_at`);
   assertString(value.rejected_at, `${field}.rejected_at`);
@@ -290,6 +295,42 @@ function nextUserId(users: CutterUserRecord[]): string {
   return createUserId(max + 1n);
 }
 
+function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase();
+}
+
+function findUserByUsername(users: CutterUserRecord[], username: string): CutterUserRecord | undefined {
+  const usernameKey = normalizeUsername(username);
+  return users.find((user) => normalizeUsername(user.username) === usernameKey);
+}
+
+function upsertActiveDevice(
+  user: CutterUserRecord,
+  input: {
+    device_id: string;
+    device_name: string;
+    now: string;
+    ip_address?: string;
+    user_agent?: string;
+  }
+): CutterDeviceRecord {
+  let device = user.devices.find((candidate) => candidate.device_id === input.device_id);
+  if (!device) {
+    device = {
+      device_id: input.device_id,
+      device_name: input.device_name,
+      status: "active",
+      first_seen_at: input.now,
+      last_login_at: ""
+    };
+    user.devices.push(device);
+  }
+  device.device_name = input.device_name;
+  device.last_ip_address = input.ip_address;
+  device.user_agent = input.user_agent;
+  return device;
+}
+
 export async function createCutterLoginApplication(
   libraryRoot: string,
   input: {
@@ -356,6 +397,147 @@ export async function createCutterLoginApplication(
     store.users.push(user);
     await writeStore(libraryRoot, store);
     return user;
+  });
+}
+
+export async function registerCutterAccount(
+  libraryRoot: string,
+  input: {
+    username: string;
+    password: string;
+    device_id: string;
+    device_name: string;
+    now: string;
+    ip_address?: string;
+    user_agent?: string;
+  }
+): Promise<CutterUserRecord> {
+  return withStoreMutation(libraryRoot, async () => {
+    const username = input.username.trim();
+    if (!username) {
+      throw new Error("用户名不能为空");
+    }
+    if (!input.device_id.trim()) {
+      throw new Error("设备 ID 不能为空");
+    }
+
+    const store = await readStore(libraryRoot);
+    if (findUserByUsername(store.users, username)) {
+      throw new Error("用户名已存在，请直接登录");
+    }
+
+    const user: CutterUserRecord = {
+      user_id: nextUserId(store.users),
+      username,
+      display_name: username,
+      status: "pending",
+      password_hash: await hashPassword(input.password),
+      registered_at: input.now,
+      applied_at: input.now,
+      approved_at: "",
+      rejected_at: "",
+      disabled_at: "",
+      last_login_at: "",
+      last_used_at: "",
+      note: "",
+      devices: [
+        {
+          device_id: input.device_id,
+          device_name: input.device_name,
+          status: "active",
+          first_seen_at: input.now,
+          last_login_at: "",
+          last_ip_address: input.ip_address,
+          user_agent: input.user_agent
+        }
+      ]
+    };
+    store.users.push(user);
+    await writeStore(libraryRoot, store);
+    return user;
+  });
+}
+
+export async function loginCutterAccount(
+  libraryRoot: string,
+  input: {
+    username: string;
+    password: string;
+    device_id: string;
+    device_name: string;
+    now: string;
+    ip_address?: string;
+    user_agent?: string;
+  }
+): Promise<
+  | { ok: true; user: CutterUserRecord; session: CutterSessionRecord }
+  | { ok: false; user?: CutterUserRecord; reason: string }
+> {
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const user = findUserByUsername(store.users, input.username);
+    if (!user || !user.password_hash || !(await verifyPassword(input.password, user.password_hash))) {
+      return { ok: false, reason: "用户名或密码错误" };
+    }
+
+    const device = upsertActiveDevice(user, input);
+
+    if (user.status === "pending") {
+      await writeStore(libraryRoot, store);
+      return { ok: false, user, reason: "账号正在等待管理员审核" };
+    }
+    if (user.status === "rejected") {
+      await writeStore(libraryRoot, store);
+      return { ok: false, user, reason: "账号申请未通过，请联系管理员" };
+    }
+    if (user.status === "disabled") {
+      await writeStore(libraryRoot, store);
+      return { ok: false, user, reason: "账号已停用，请联系管理员" };
+    }
+    if (device.status !== "active") {
+      await writeStore(libraryRoot, store);
+      return { ok: false, user, reason: "当前设备已停用，请联系管理员" };
+    }
+
+    let session = store.sessions.find(
+      (candidate) =>
+        candidate.user_id === user.user_id &&
+        candidate.device_id === input.device_id
+    );
+    if (!session) {
+      session = {
+        user_id: user.user_id,
+        device_id: input.device_id,
+        session_token: randomUUID(),
+        created_at: input.now,
+        last_seen_at: input.now
+      };
+      store.sessions.push(session);
+    } else {
+      session.last_seen_at = input.now;
+    }
+
+    user.last_login_at = input.now;
+    device.last_login_at = input.now;
+    await writeStore(libraryRoot, store);
+    return { ok: true, user, session };
+  });
+}
+
+export async function logoutCutterSession(
+  libraryRoot: string,
+  input: { device_id: string; session_token: string }
+): Promise<{ removed: boolean }> {
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const before = store.sessions.length;
+    store.sessions = store.sessions.filter(
+      (session) =>
+        session.device_id !== input.device_id ||
+        session.session_token !== input.session_token
+    );
+    await writeStore(libraryRoot, store);
+    return { removed: store.sessions.length !== before };
   });
 }
 
@@ -466,6 +648,13 @@ export async function disableCutterUser(
 export async function listCutterUsers(libraryRoot: string): Promise<{ users: CutterUserRecord[] }> {
   const store = await readStore(libraryRoot);
   return { users: store.users };
+}
+
+export type PublicCutterUserRecord = Omit<CutterUserRecord, "password_hash">;
+
+export function publicCutterUser(user: CutterUserRecord): PublicCutterUserRecord {
+  const { password_hash: _passwordHash, ...publicUser } = user;
+  return publicUser;
 }
 
 export async function validateCutterSession(

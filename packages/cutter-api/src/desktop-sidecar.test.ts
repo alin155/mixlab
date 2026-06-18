@@ -77,7 +77,7 @@ test("runs direct sidecar entrypoint inside pkg packaged exe", () => {
   );
 });
 
-test("maps desktop config to local trusted cutter API server input without mutating public library path", () => {
+test("maps desktop config to reviewed cutter API server input without mutating public library path", () => {
   assert.deepEqual(
     buildCutterApiServerInputFromDesktopConfig({
       api_host: "127.0.0.1",
@@ -91,8 +91,7 @@ test("maps desktop config to local trusted cutter API server input without mutat
       library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
-      auth_mode: "local_trusted",
-      trusted_username: "本机剪辑师"
+      auth_mode: "reviewed"
     }
   );
 });
@@ -115,8 +114,7 @@ test("maps desktop searchd env to cutter API server input", () => {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
-      auth_mode: "local_trusted",
-      trusted_username: "本机剪辑师",
+      auth_mode: "reviewed",
       searchd_cache_root: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`,
       searchd_base_url: "http://127.0.0.1:3799",
       searchd_timeout_ms: 20000
@@ -141,7 +139,7 @@ test("maps desktop searchd timeout env to cutter API server input", () => {
   assert.equal(input.searchd_timeout_ms, 7500);
 });
 
-test("maps desktop trusted username env to cutter API server input", () => {
+test("maps explicit desktop local trusted env to cutter API server input", () => {
   assert.deepEqual(
     buildCutterApiServerInputFromDesktopConfig(
       {
@@ -151,6 +149,7 @@ test("maps desktop trusted username env to cutter API server input", () => {
         local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
       },
       {
+        MIXLAB_CUTTER_AUTH_MODE: "local_trusted",
         MIXLAB_CUTTER_TRUSTED_USERNAME: " Allen "
       }
     ),
@@ -179,8 +178,8 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
       assert.equal(input.release_cache_root, String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`);
-      assert.equal(input.auth_mode, "local_trusted");
-      assert.equal(input.trusted_username, "本机剪辑师");
+      assert.equal(input.auth_mode, "reviewed");
+      assert.equal(input.trusted_username, undefined);
       assert.equal(input.searchd_base_url, "http://127.0.0.1:3799");
       assert.equal(input.searchd_timeout_ms, 20000);
       return fakeServer as unknown as Server;

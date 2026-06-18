@@ -746,6 +746,70 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         }
       };
     },
+    async registerAccount(request) {
+      return {
+        user: {
+          user_id: "CU000001",
+          username: request.username,
+          display_name: request.username,
+          status: "pending",
+          applied_at: "2026-05-02T10:00:00Z",
+          approved_at: "",
+          rejected_at: "",
+          disabled_at: "",
+          last_login_at: "",
+          last_used_at: "",
+          note: "",
+          devices: [
+            {
+              device_id: request.device_id,
+              device_name: request.device_name,
+              status: "active",
+              first_seen_at: "2026-05-02T10:00:00Z",
+              last_login_at: ""
+            }
+          ]
+        }
+      };
+    },
+    async loginAccount(request) {
+      return {
+        user: {
+          user_id: "CU000001",
+          username: request.username,
+          display_name: request.username,
+          status: "approved",
+          applied_at: "2026-05-02T10:00:00Z",
+          approved_at: "2026-05-02T10:00:00Z",
+          rejected_at: "",
+          disabled_at: "",
+          last_login_at: "2026-05-02T10:00:00Z",
+          last_used_at: "",
+          note: "",
+          devices: [
+            {
+              device_id: request.device_id,
+              device_name: request.device_name,
+              status: "active",
+              first_seen_at: "2026-05-02T10:00:00Z",
+              last_login_at: "2026-05-02T10:00:00Z"
+            }
+          ]
+        },
+        session: {
+          user_id: "CU000001",
+          device_id: request.device_id,
+          session_token: "fixture-session",
+          created_at: "2026-05-02T10:00:00Z",
+          last_seen_at: "2026-05-02T10:00:00Z"
+        }
+      };
+    },
+    async logoutAccount() {
+      return {
+        removed: true
+      };
+    },
     async getAuthMode() {
       return {
         auth_mode: "reviewed",

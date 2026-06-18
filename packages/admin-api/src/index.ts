@@ -34,20 +34,27 @@ import {
   completeReadyVisualArtifacts,
   disableCutterUser,
   getFileIdentity,
+  getAdminAuthBootstrapStatus,
+  loginAdmin,
+  logoutAdminSession,
   listCutterUsers,
   publishIndexRequiredSourceVideos,
   preprocessJobLogPath,
+  publicAdminUser,
+  publicCutterUser,
   readAdminSettings,
   readAllSourceVideoManifests,
   readPreprocessJobLog,
   readSourceVideoManifest,
   readUsageMetrics,
+  registerFirstAdmin,
   removeAdminSourceFolder,
   resolveSourceVideoFilePath,
   scanSourceVideos,
   updateAdminRuntimeSecrets,
   updateAdminSettings,
   updateAdminSourceFolder,
+  validateAdminSession,
   type AdminRuntimeSecretsPatch,
   type AdminSettingsPatch,
   type AdminRuntimePolicy,
@@ -82,6 +89,7 @@ export interface CreateAdminApiServerInput {
   library_root: string;
   library_id?: string;
   library_name?: string;
+  auth_mode?: "password" | "disabled";
   now?: () => string;
   env?: NodeJS.ProcessEnv;
   preprocess_runner?: PreprocessSupervisorRunner;
@@ -1025,6 +1033,29 @@ function requireRequestRecord(body: unknown): Record<string, unknown> {
   }
 
   return body;
+}
+
+function requiredBodyString(body: Record<string, unknown>, key: string, message: string): string {
+  const value = body[key];
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(message);
+  }
+
+  return value.trim();
+}
+
+function optionalBodyString(body: Record<string, unknown>, key: string): string | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${key} 必须是字符串`);
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 interface AdminSettingsMutationPatch {
@@ -2425,7 +2456,7 @@ function visibilityDetail(manifest: SourceVideoManifest) {
 function toAdminApproveCutterUserResponse(result: Awaited<ReturnType<typeof approveCutterUser>>) {
   return {
     status: result.status,
-    user: result.user,
+    user: publicCutterUser(result.user),
     session: {
       user_id: result.session.user_id,
       device_id: result.session.device_id,
@@ -3269,7 +3300,7 @@ async function readRequestJson(request: IncomingMessage): Promise<unknown> {
 function writeJson(response: ServerResponse, statusCode: number, body: unknown): void {
   response.writeHead(statusCode, {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-MixLab-Admin-Session-Token",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Content-Type": "application/json; charset=utf-8"
   });
@@ -3279,10 +3310,81 @@ function writeJson(response: ServerResponse, statusCode: number, body: unknown):
 function writeNoContent(response: ServerResponse): void {
   response.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-MixLab-Admin-Session-Token",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS"
   });
   response.end();
+}
+
+function firstHeaderValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+
+  return value?.trim() ?? "";
+}
+
+function adminSessionTokenFromRequest(request: IncomingMessage): string {
+  const directToken = firstHeaderValue(request.headers["x-mixlab-admin-session-token"]);
+  if (directToken) {
+    return directToken;
+  }
+
+  const authorization = firstHeaderValue(request.headers.authorization);
+  const bearerMatch = /^Bearer\s+(.+)$/i.exec(authorization);
+  return bearerMatch?.[1]?.trim() ?? "";
+}
+
+function isPublicAdminAuthRoute(method: string | undefined, pathname: string): boolean {
+  if (pathname === "/health") {
+    return method === "GET" || method === "HEAD";
+  }
+
+  if (pathname === "/api/admin/auth/bootstrap" || pathname === "/api/admin/auth/status") {
+    return method === "GET";
+  }
+
+  if (
+    pathname === "/api/admin/auth/register" ||
+    pathname === "/api/admin/auth/login" ||
+    pathname === "/api/admin/auth/logout"
+  ) {
+    return method === "POST";
+  }
+
+  return false;
+}
+
+function isPublicAdminMediaRoute(method: string | undefined, pathname: string): boolean {
+  return method === "GET" && /^\/api\/admin\/source-videos\/V\d{6}\/cover$/.test(pathname);
+}
+
+async function requireAdminSession(input: {
+  api_input: CreateAdminApiServerInput;
+  request: IncomingMessage;
+  response: ServerResponse;
+  now: string;
+}): Promise<boolean> {
+  if ((input.api_input.auth_mode ?? "disabled") === "disabled") {
+    return true;
+  }
+
+  const sessionToken = adminSessionTokenFromRequest(input.request);
+  if (!sessionToken) {
+    writeJson(input.response, 401, apiError("login_required", "请先登录管理端"));
+    return false;
+  }
+
+  const validation = await validateAdminSession(input.api_input.library_root, {
+    session_token: sessionToken,
+    now: input.now
+  });
+  if (!validation.ok) {
+    writeJson(input.response, 401, apiError("login_required", validation.reason));
+    return false;
+  }
+
+  return true;
 }
 
 async function writeCover(response: ServerResponse, input: CreateAdminApiServerInput, sourceVideoId: string): Promise<void> {
@@ -3344,6 +3446,123 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       if (request.method === "OPTIONS") {
         writeNoContent(response);
         return;
+      }
+
+      const requestNow = now();
+      const adminAuthMode = input.auth_mode ?? "disabled";
+
+      if (request.method === "GET" && url.pathname === "/health") {
+        writeJson(response, 200, apiOk({ ok: true }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/admin/auth/bootstrap") {
+        writeJson(response, 200, apiOk(await getAdminAuthBootstrapStatus(input.library_root)));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/admin/auth/status") {
+        const sessionToken = adminSessionTokenFromRequest(request);
+        if (adminAuthMode === "disabled") {
+          writeJson(response, 200, apiOk({
+            authenticated: true,
+            auth_mode: adminAuthMode,
+            user: null,
+            bootstrap: await getAdminAuthBootstrapStatus(input.library_root)
+          }));
+          return;
+        }
+
+        if (!sessionToken) {
+          writeJson(response, 200, apiOk({
+            authenticated: false,
+            auth_mode: adminAuthMode,
+            user: null,
+            bootstrap: await getAdminAuthBootstrapStatus(input.library_root)
+          }));
+          return;
+        }
+
+        const validation = await validateAdminSession(input.library_root, {
+          session_token: sessionToken,
+          now: requestNow
+        });
+        writeJson(response, 200, apiOk({
+          authenticated: validation.ok,
+          auth_mode: adminAuthMode,
+          user: validation.ok ? publicAdminUser(validation.user) : null,
+          bootstrap: await getAdminAuthBootstrapStatus(input.library_root),
+          message: validation.ok ? "" : validation.reason
+        }));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/auth/register") {
+        try {
+          const body = requireRequestRecord(await readRequestJson(request));
+          const registered = await registerFirstAdmin(input.library_root, {
+            username: requiredBodyString(body, "username", "用户名不能为空"),
+            password: requiredBodyString(body, "password", "密码不能为空"),
+            display_name: optionalBodyString(body, "display_name"),
+            now: requestNow
+          });
+          writeJson(response, 201, apiOk({
+            user: publicAdminUser(registered.user),
+            session: registered.session
+          }));
+        } catch (error) {
+          const message = error instanceof SyntaxError ? "请求 JSON 格式无效" : (error as Error).message;
+          writeJson(response, 400, apiError("invalid_request", message));
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/auth/login") {
+        try {
+          const body = requireRequestRecord(await readRequestJson(request));
+          const login = await loginAdmin(input.library_root, {
+            username: requiredBodyString(body, "username", "用户名不能为空"),
+            password: requiredBodyString(body, "password", "密码不能为空"),
+            now: requestNow
+          });
+          if (!login.ok) {
+            writeJson(response, 401, apiError("login_failed", login.reason));
+            return;
+          }
+
+          writeJson(response, 200, apiOk({
+            user: publicAdminUser(login.user),
+            session: login.session
+          }));
+        } catch (error) {
+          const message = error instanceof SyntaxError ? "请求 JSON 格式无效" : (error as Error).message;
+          writeJson(response, 400, apiError("invalid_request", message));
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/admin/auth/logout") {
+        const sessionToken = adminSessionTokenFromRequest(request);
+        writeJson(response, 200, apiOk(sessionToken
+          ? await logoutAdminSession(input.library_root, { session_token: sessionToken })
+          : { removed: false }));
+        return;
+      }
+
+      if (
+        url.pathname.startsWith("/api/admin/") &&
+        !isPublicAdminAuthRoute(request.method, url.pathname) &&
+        !isPublicAdminMediaRoute(request.method, url.pathname)
+      ) {
+        const authenticated = await requireAdminSession({
+          api_input: input,
+          request,
+          response,
+          now: requestNow
+        });
+        if (!authenticated) {
+          return;
+        }
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/library/status") {
@@ -3497,7 +3716,10 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/cutter-users") {
-        writeJson(response, 200, apiOk(await listCutterUsers(input.library_root)));
+        const users = await listCutterUsers(input.library_root);
+        writeJson(response, 200, apiOk({
+          users: users.users.map(publicCutterUser)
+        }));
         return;
       }
 
@@ -3864,10 +4086,11 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       const disableCutterUserMatch = /^\/api\/admin\/cutter-users\/(CU\d+)\/disable$/.exec(url.pathname);
       if (request.method === "POST" && disableCutterUserMatch) {
         try {
-          writeJson(response, 200, apiOk(await disableCutterUser(input.library_root, {
+          const disabled = await disableCutterUser(input.library_root, {
             user_id: disableCutterUserMatch[1] ?? "",
             now: now()
-          })));
+          });
+          writeJson(response, 200, apiOk(publicCutterUser(disabled)));
         } catch (error) {
           const message = (error as Error).message;
           if (message !== "剪辑师用户不存在") {

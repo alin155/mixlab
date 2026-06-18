@@ -4026,10 +4026,9 @@ async function waitForCutterWorkbenchReady(
     // API mode may show the cutter login gate before the workbench can fetch data.
   }
 
-  const usernameInput = page.getByLabel("用户名", { exact: true });
-  if (await usernameInput.isVisible({ timeout: timeoutMs }).catch(() => false)) {
-    await usernameInput.fill("本机剪辑师", { timeout: timeoutMs });
-    await page.getByRole("button", { name: "提交申请", exact: true }).click({ timeout: timeoutMs });
+  const loginGate = page.locator(".cutter-login-gate");
+  if (await loginGate.isVisible({ timeout: Math.min(1_000, timeoutMs) }).catch(() => false)) {
+    throw new Error("剪辑端仍停留在账号登录门禁，请确认本机可信模式或使用已审核剪辑师账号登录。");
   }
 
   await page.locator("[data-cutter-web-ready='true']").waitFor({ timeout: timeoutMs });
@@ -4078,7 +4077,7 @@ async function checkCutterAuth(input: {
       trusted_username: trustedUsername,
       material_locator_url: url,
       fresh_context_workbench_ready: workbenchReady,
-      login_gate_visible_after_ready: body.includes("申请使用剪辑师工作台"),
+      login_gate_visible_after_ready: body.includes("登录剪辑师工作台") || body.includes("注册剪辑师账号"),
       manual_apply_used: false,
       visible_username: visibleUsername
     };

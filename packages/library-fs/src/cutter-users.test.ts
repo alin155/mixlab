@@ -8,6 +8,9 @@ import {
   createCutterLoginApplication,
   disableCutterUser,
   ensureCutterSessionForDevice,
+  loginCutterAccount,
+  logoutCutterSession,
+  registerCutterAccount,
   listCutterUsers,
   validateCutterSession
 } from "./cutter-users.ts";
@@ -53,6 +56,94 @@ test("creates pending login application and approves it into a reusable session"
 
   assert.equal(session.ok, true);
   assert.equal(session.user?.username, "小王");
+});
+
+test("registers cutter account with password and logs in after admin approval", async () => {
+  const root = await makeRoot();
+  const registered = await registerCutterAccount(root, {
+    username: "cutter-a",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:00:00.000Z"
+  });
+
+  assert.equal(registered.status, "pending");
+  assert.equal(registered.password_hash === "Cutter12345", false);
+
+  const pendingLogin = await loginCutterAccount(root, {
+    username: "cutter-a",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:01:00.000Z"
+  });
+  assert.equal(pendingLogin.ok, false);
+  assert.equal(pendingLogin.ok ? "" : pendingLogin.reason, "账号正在等待管理员审核");
+
+  await approveCutterUser(root, {
+    user_id: registered.user_id,
+    now: "2026-06-18T10:02:00.000Z"
+  });
+
+  const login = await loginCutterAccount(root, {
+    username: "CUTTER-A",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:03:00.000Z"
+  });
+  assert.equal(login.ok, true);
+  assert.equal(login.ok ? login.user.user_id : "", registered.user_id);
+
+  const session = login.ok ? login.session : undefined;
+  assert.ok(session);
+  const validation = await validateCutterSession(root, {
+    device_id: "device-a",
+    session_token: session.session_token,
+    now: "2026-06-18T10:04:00.000Z"
+  });
+  assert.equal(validation.ok, true);
+
+  assert.deepEqual(await logoutCutterSession(root, {
+    device_id: "device-a",
+    session_token: session.session_token
+  }), {
+    removed: true
+  });
+});
+
+test("cutter account registration keeps usernames unique and never accepts wrong passwords", async () => {
+  const root = await makeRoot();
+  await registerCutterAccount(root, {
+    username: "cutter-a",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:00:00.000Z"
+  });
+
+  await assert.rejects(
+    () => registerCutterAccount(root, {
+      username: "CUTTER-A",
+      password: "Cutter67890",
+      device_id: "device-b",
+      device_name: "备用剪辑工作站",
+      now: "2026-06-18T10:01:00.000Z"
+    }),
+    /用户名已存在/
+  );
+
+  assert.deepEqual(await loginCutterAccount(root, {
+    username: "cutter-a",
+    password: "wrong-password",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:02:00.000Z"
+  }), {
+    ok: false,
+    reason: "用户名或密码错误"
+  });
 });
 
 test("approved login applications can recover their device session", async () => {

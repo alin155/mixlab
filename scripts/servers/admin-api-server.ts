@@ -8,6 +8,7 @@ interface AdminApiRuntimeConfig {
   library_name: string;
   host: string;
   port: number;
+  auth_mode: "password" | "disabled";
 }
 
 function optionalTrimmed(value: string | undefined): string | undefined {
@@ -36,6 +37,11 @@ function resolveAdminApiRuntimeConfigFromEnv(
     throw new Error("MIXLAB_ADMIN_API_PORT must be an integer between 1 and 65535");
   }
 
+  const authMode = optionalTrimmed(env.MIXLAB_ADMIN_AUTH_MODE) ?? "password";
+  if (authMode !== "password" && authMode !== "disabled") {
+    throw new Error("MIXLAB_ADMIN_AUTH_MODE must be password or disabled");
+  }
+
   return {
     library_root: libraryRoot,
     library_id:
@@ -47,7 +53,8 @@ function resolveAdminApiRuntimeConfigFromEnv(
       optionalTrimmed(env.MIXLAB_PREPROCESS_LIBRARY_NAME) ??
       "主素材库",
     host: optionalTrimmed(env.MIXLAB_ADMIN_API_HOST) ?? "127.0.0.1",
-    port
+    port,
+    auth_mode: authMode
   };
 }
 
@@ -61,7 +68,8 @@ assertPersistentRuntimePath({
 const server = createAdminApiServer({
   library_root: config.library_root,
   library_id: config.library_id,
-  library_name: config.library_name
+  library_name: config.library_name,
+  auth_mode: config.auth_mode
 });
 
 server.listen(config.port, config.host, () => {
@@ -73,7 +81,13 @@ server.listen(config.port, config.host, () => {
         library_root: config.library_root,
         library_id: config.library_id,
         library_name: config.library_name,
+        auth_mode: config.auth_mode,
         endpoints: [
+          "/api/admin/auth/bootstrap",
+          "/api/admin/auth/register",
+          "/api/admin/auth/login",
+          "/api/admin/auth/status",
+          "/api/admin/auth/logout",
           "/api/admin/library/status",
           "/api/admin/library/path-checks",
           "/api/admin/source-videos",

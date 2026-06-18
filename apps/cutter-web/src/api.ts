@@ -287,6 +287,10 @@ export interface CutterLoginRequest {
   device_name: string;
 }
 
+export interface CutterAccountCredentials extends CutterLoginRequest {
+  password: string;
+}
+
 export interface CutterSessionRecord {
   user_id: string;
   device_id: string;
@@ -298,6 +302,10 @@ export interface CutterSessionRecord {
 export interface CutterLoginApplication {
   user: CutterUserRecord;
   session?: CutterSessionRecord;
+}
+
+export interface CutterLogoutResult {
+  removed: boolean;
 }
 
 export type CutterAuthMode = "reviewed" | "local_trusted";
@@ -458,6 +466,9 @@ export class CutterApiError extends Error {
 
 export interface CutterApiClient {
   requestLogin(input: CutterLoginRequest): Promise<CutterLoginApplication>;
+  registerAccount(input: CutterAccountCredentials): Promise<CutterLoginApplication>;
+  loginAccount(input: CutterAccountCredentials): Promise<CutterLoginApplication>;
+  logoutAccount(): Promise<CutterLogoutResult>;
   getAuthMode(): Promise<CutterAuthModeStatus>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(): Promise<CutterRuntimeStatus>;
@@ -545,6 +556,56 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
             device_id: request.device_id,
             device_name: request.device_name
           })
+        }
+      );
+    },
+
+    registerAccount(request: CutterAccountCredentials) {
+      return requestEnvelope<CutterLoginApplication>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/register"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            username: request.username,
+            password: request.password,
+            device_id: request.device_id,
+            device_name: request.device_name
+          })
+        }
+      );
+    },
+
+    loginAccount(request: CutterAccountCredentials) {
+      return requestEnvelope<CutterLoginApplication>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/login"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            username: request.username,
+            password: request.password,
+            device_id: request.device_id,
+            device_name: request.device_name
+          })
+        }
+      );
+    },
+
+    logoutAccount() {
+      return requestEnvelope<CutterLogoutResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/logout"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify({})
         }
       );
     },

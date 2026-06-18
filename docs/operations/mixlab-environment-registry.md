@@ -133,6 +133,8 @@
 | 公共素材库根目录 | `MIXLAB_CUTTER_LIBRARY_ROOT` |
 | 本地工作区根目录 | `MIXLAB_CUTTER_WORKSPACE_ROOT` |
 | Searchd API | `MIXLAB_SEARCHD_BASE_URL=http://127.0.0.1:3790` |
+| 正式认证模式 | `MIXLAB_CUTTER_AUTH_MODE=reviewed`，剪辑师必须注册账号，管理员审核后才能登录 |
+| 测试免登录模式 | 仅在明确需要自动化/本机快速调试时显式使用 `MIXLAB_CUTTER_AUTH_MODE=local_trusted`，不得作为正式默认值 |
 
 Mac 本机调试默认本地工作区为：
 
@@ -203,6 +205,8 @@ acceptance_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/m18-4-wind
   "log_root": "%APPDATA%\\MixLab Cutter\\logs"
 }
 ```
+
+桌面端 sidecar 的正式默认认证模式是 `reviewed`。如果没有显式传入 `MIXLAB_CUTTER_AUTH_MODE=local_trusted`，Windows 剪辑端启动后也必须走剪辑师账号注册、管理员审核、账号密码登录流程。
 
 Windows 日志默认目录：
 

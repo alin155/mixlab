@@ -298,6 +298,31 @@ h2 {
   font-weight: 650;
 }
 
+.cutter-login-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border-radius: var(--ml-radius-control);
+  padding: 4px;
+  background: var(--ml-color-control);
+}
+
+.cutter-login-tabs button {
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+}
+
+.cutter-login-tabs button.is-active {
+  color: #fff;
+  background: var(--ml-color-accent);
+}
+
+.cutter-login-panel small {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .cutter-login-panel input:disabled,
 .cutter-login-panel button:disabled {
   cursor: not-allowed;

@@ -24,6 +24,10 @@ import {
   getLocalClipDetail,
   listCutterSourceLibrary,
   listLocalClips,
+  loginCutterAccount,
+  logoutCutterSession,
+  publicCutterUser,
+  registerCutterAccount,
   searchCutterSourceLibrary,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache,
@@ -203,6 +207,7 @@ interface LocalClipSelection {
 
 interface CutterLoginRequestBody {
   username?: unknown;
+  password?: unknown;
   device_id?: unknown;
   device_name?: unknown;
 }
@@ -4270,6 +4275,101 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
+      if (request.method === "POST" && url.pathname === "/cutter/auth/register") {
+        try {
+          const body = (await readRequestJson(request)) as CutterLoginRequestBody;
+          const user = await registerCutterAccount(input.library_root, {
+            username: requiredChineseString(body.username, "用户名不能为空"),
+            password: requiredChineseString(body.password, "密码不能为空"),
+            device_id: requiredChineseString(body.device_id, "设备 ID 不能为空"),
+            device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
+            now: currentNow(input),
+            ip_address: requestIpAddress(request),
+            user_agent: firstHeaderValue(request.headers["user-agent"]) || undefined
+          });
+          writeJson(response, 201, apiResponse({
+            user: publicCutterUser(user)
+          }));
+          return;
+        } catch (error) {
+          const message = (error as Error).message;
+          writeError(
+            response,
+            message === "用户名已存在，请直接登录" ? 409 : 400,
+            message === "用户名已存在，请直接登录" ? "username_exists" : "invalid_register_request",
+            message === "invalid_json" ? "请求 JSON 格式不正确" : message
+          );
+          return;
+        }
+      }
+
+      if (request.method === "POST" && url.pathname === "/cutter/auth/login") {
+        try {
+          const body = (await readRequestJson(request)) as CutterLoginRequestBody;
+          if (input.auth_mode === "local_trusted") {
+            const auth = trustedDesktopSession(input);
+            const now = currentNow(input);
+            writeJson(response, 200, apiResponse({
+              user: publicCutterUser(auth.user),
+              session: {
+                user_id: auth.user.user_id,
+                device_id: auth.device_id,
+                session_token: "desktop-local-trusted",
+                created_at: now,
+                last_seen_at: now
+              }
+            }));
+            return;
+          }
+
+          const login = await loginCutterAccount(input.library_root, {
+            username: requiredChineseString(body.username, "用户名不能为空"),
+            password: requiredChineseString(body.password, "密码不能为空"),
+            device_id: requiredChineseString(body.device_id, "设备 ID 不能为空"),
+            device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
+            now: currentNow(input),
+            ip_address: requestIpAddress(request),
+            user_agent: firstHeaderValue(request.headers["user-agent"]) || undefined
+          });
+          if (!login.ok) {
+            writeError(response, 401, "login_failed", login.reason);
+            return;
+          }
+
+          writeJson(response, 200, apiResponse({
+            user: publicCutterUser(login.user),
+            session: login.session
+          }));
+          return;
+        } catch (error) {
+          const message = (error as Error).message;
+          writeError(
+            response,
+            400,
+            "invalid_login_request",
+            message === "invalid_json" ? "请求 JSON 格式不正确" : message
+          );
+          return;
+        }
+      }
+
+      if (request.method === "POST" && url.pathname === "/cutter/auth/logout") {
+        if (input.auth_mode === "local_trusted") {
+          writeJson(response, 200, apiResponse({ removed: false }));
+          return;
+        }
+
+        const deviceId = firstHeaderValue(request.headers["x-mixlab-device-id"]);
+        const sessionToken = firstHeaderValue(request.headers["x-mixlab-session-token"]);
+        writeJson(response, 200, apiResponse(deviceId && sessionToken
+          ? await logoutCutterSession(input.library_root, {
+              device_id: deviceId,
+              session_token: sessionToken
+            })
+          : { removed: false }));
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/cutter/auth/request-login") {
         try {
           const body = (await readRequestJson(request)) as CutterLoginRequestBody;
@@ -4280,7 +4380,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               : auth.device_id;
             const now = currentNow(input);
             writeJson(response, 200, apiResponse({
-              user: auth.user,
+              user: publicCutterUser(auth.user),
               session: {
                 user_id: auth.user.user_id,
                 device_id: deviceId,
@@ -4310,7 +4410,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               })
             : undefined;
           writeJson(response, 200, apiResponse({
-            user: application,
+            user: publicCutterUser(application),
             ...(session ? { session } : {})
           }));
           return;
@@ -4746,7 +4846,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         writeJson(response, 200, apiResponse({
           ok: true,
-          user: auth.user
+          user: publicCutterUser(auth.user)
         }));
         return;
       }

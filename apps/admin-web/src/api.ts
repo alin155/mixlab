@@ -447,6 +447,42 @@ export interface AdminCutterUserApprovalResult {
   };
 }
 
+export interface AdminAuthBootstrapStatus {
+  has_admin: boolean;
+  registration_open: boolean;
+}
+
+export interface AdminPublicUser {
+  admin_id: string;
+  username: string;
+  display_name: string;
+  role: "owner" | "admin";
+  status: "active" | "disabled";
+  created_at: string;
+  last_login_at: string;
+  disabled_at: string;
+}
+
+export interface AdminAuthSession {
+  admin_id: string;
+  session_token: string;
+  created_at: string;
+  last_seen_at: string;
+}
+
+export interface AdminAuthResult {
+  user: AdminPublicUser;
+  session: AdminAuthSession;
+}
+
+export interface AdminAuthStatus {
+  authenticated: boolean;
+  auth_mode: "password" | "disabled";
+  user: AdminPublicUser | null;
+  bootstrap: AdminAuthBootstrapStatus;
+  message?: string;
+}
+
 export interface AdminActionResult {
   affected_count?: number;
   source_video_ids?: string[];
@@ -675,6 +711,11 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
 }
 
 export interface AdminApiClient {
+  getAuthBootstrap(): Promise<AdminAuthBootstrapStatus>;
+  getAuthStatus(): Promise<AdminAuthStatus>;
+  registerAdmin(input: { username: string; password: string; display_name?: string }): Promise<AdminAuthResult>;
+  loginAdmin(input: { username: string; password: string }): Promise<AdminAuthResult>;
+  logoutAdmin(): Promise<{ removed: boolean }>;
   getLibraryStatus(): Promise<AdminLibraryStatus>;
   getPathChecks(): Promise<AdminPathCheck[]>;
   getAdminSettings(): Promise<AdminSettingsConfig>;
@@ -722,6 +763,7 @@ export interface AdminApiClient {
 export interface CreateAdminApiClientInput {
   base_url: string;
   fetch?: typeof fetch;
+  auth?: { session_token: string };
 }
 
 export function unwrapAdminResponse<T>(envelope: AdminApiEnvelope<T>): T {
@@ -842,9 +884,12 @@ function redactApprovalResult(
 async function getJson<T>(
   fetchImpl: typeof fetch,
   baseUrl: string,
-  endpoint: string
+  endpoint: string,
+  headers?: HeadersInit
 ): Promise<T> {
-  const response = await fetchImpl(joinUrl(baseUrl, endpoint));
+  const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
+    ...(headers ? { headers } : {})
+  });
   const envelope = (await response.json()) as AdminApiEnvelope<T>;
   return unwrapAdminResponse(envelope);
 }
@@ -854,12 +899,14 @@ async function sendJson<T>(
   baseUrl: string,
   endpoint: string,
   method: "POST" | "PATCH",
-  body?: unknown
+  body?: unknown,
+  headers?: HeadersInit
 ): Promise<T> {
   const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
     method,
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...headers
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
@@ -870,32 +917,73 @@ async function sendJson<T>(
 async function deleteJson<T>(
   fetchImpl: typeof fetch,
   baseUrl: string,
-  endpoint: string
+  endpoint: string,
+  headers?: HeadersInit
 ): Promise<T> {
   const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
-    method: "DELETE"
+    method: "DELETE",
+    ...(headers ? { headers } : {})
   });
   const envelope = (await response.json()) as AdminApiEnvelope<T>;
   return unwrapAdminResponse(envelope);
 }
 
+function adminAuthHeaders(auth: CreateAdminApiClientInput["auth"]): HeadersInit | undefined {
+  return auth?.session_token
+    ? {
+        "X-MixLab-Admin-Session-Token": auth.session_token
+      }
+    : undefined;
+}
+
 export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApiClient {
   const fetchImpl = input.fetch ?? fetch;
+  const protectedHeaders = adminAuthHeaders(input.auth);
 
   return {
+    getAuthBootstrap: () =>
+      getJson<AdminAuthBootstrapStatus>(fetchImpl, input.base_url, "/api/admin/auth/bootstrap"),
+    getAuthStatus: () =>
+      getJson<AdminAuthStatus>(fetchImpl, input.base_url, "/api/admin/auth/status", protectedHeaders),
+    registerAdmin: (registerInput) =>
+      sendJson<AdminAuthResult>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/auth/register",
+        "POST",
+        registerInput
+      ),
+    loginAdmin: (loginInput) =>
+      sendJson<AdminAuthResult>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/auth/login",
+        "POST",
+        loginInput
+      ),
+    logoutAdmin: () =>
+      sendJson<{ removed: boolean }>(
+        fetchImpl,
+        input.base_url,
+        "/api/admin/auth/logout",
+        "POST",
+        {},
+        protectedHeaders
+      ),
     getLibraryStatus: () =>
-      getJson<AdminLibraryStatus>(fetchImpl, input.base_url, "/api/admin/library/status"),
+      getJson<AdminLibraryStatus>(fetchImpl, input.base_url, "/api/admin/library/status", protectedHeaders),
     getPathChecks: () =>
-      getJson<AdminPathCheck[]>(fetchImpl, input.base_url, "/api/admin/library/path-checks"),
+      getJson<AdminPathCheck[]>(fetchImpl, input.base_url, "/api/admin/library/path-checks", protectedHeaders),
     getAdminSettings: () =>
-      getJson<AdminSettingsConfig>(fetchImpl, input.base_url, "/api/admin/settings/config"),
+      getJson<AdminSettingsConfig>(fetchImpl, input.base_url, "/api/admin/settings/config", protectedHeaders),
     saveAdminSettings: (settingsUpdate) =>
       sendJson<AdminSettingsConfig>(
         fetchImpl,
         input.base_url,
         "/api/admin/settings/config",
         "PATCH",
-        settingsUpdate
+        settingsUpdate,
+        protectedHeaders
       ),
     addSourceFolder: (folder) =>
       sendJson<AdminSettingsConfig>(
@@ -903,7 +991,8 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         input.base_url,
         "/api/admin/settings/source-folders",
         "POST",
-        folder
+        folder,
+        protectedHeaders
       ),
     updateSourceFolder: (sourceFolderId, patch) =>
       sendJson<AdminSettingsConfig>(
@@ -911,95 +1000,111 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         input.base_url,
         `/api/admin/settings/source-folders/${sourceFolderId}`,
         "PATCH",
-        patch
+        patch,
+        protectedHeaders
       ),
     removeSourceFolder: (sourceFolderId) =>
       deleteJson<AdminSettingsConfig>(
         fetchImpl,
         input.base_url,
-        `/api/admin/settings/source-folders/${sourceFolderId}`
+        `/api/admin/settings/source-folders/${sourceFolderId}`,
+        protectedHeaders
       ),
     getDashboardMetrics: () =>
-      getJson<AdminDashboardMetrics>(fetchImpl, input.base_url, "/api/admin/dashboard/metrics"),
+      getJson<AdminDashboardMetrics>(fetchImpl, input.base_url, "/api/admin/dashboard/metrics", protectedHeaders),
     listSourceVideos: (options) =>
-      getJson<AdminSourceVideo[]>(fetchImpl, input.base_url, `/api/admin/source-videos${listQuery(options)}`)
+      getJson<AdminSourceVideo[]>(fetchImpl, input.base_url, `/api/admin/source-videos${listQuery(options)}`, protectedHeaders)
         .then((videos) => videos.map((video) => resolveSourceVideoMedia(input.base_url, video))),
     getSourceVideoDetail: (sourceVideoId) =>
-      getJson<AdminSourceVideoDetail>(fetchImpl, input.base_url, `/api/admin/source-videos/${sourceVideoId}`)
+      getJson<AdminSourceVideoDetail>(fetchImpl, input.base_url, `/api/admin/source-videos/${sourceVideoId}`, protectedHeaders)
         .then((detail) => resolveSourceVideoDetailMedia(input.base_url, detail)),
     listCutterUsers: () =>
-      getJson<AdminCutterUsersResponse>(fetchImpl, input.base_url, "/api/admin/cutter-users"),
+      getJson<AdminCutterUsersResponse>(fetchImpl, input.base_url, "/api/admin/cutter-users", protectedHeaders),
     approveCutterUser: (userId) =>
       sendJson<AdminCutterUserApprovalResult>(
         fetchImpl,
         input.base_url,
         `/api/admin/cutter-users/${userId}/approve`,
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ).then(redactApprovalResult),
     disableCutterUser: (userId) =>
       sendJson<AdminCutterUser>(
         fetchImpl,
         input.base_url,
         `/api/admin/cutter-users/${userId}/disable`,
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ),
     listPreprocessJobs: (options) =>
       getJson<AdminPreprocessJobsResponse>(
         fetchImpl,
         input.base_url,
-        `/api/admin/preprocess/jobs${listQuery(options ?? { limit: ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT })}`
+        `/api/admin/preprocess/jobs${listQuery(options ?? { limit: ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT })}`,
+        protectedHeaders
       ),
     getPreprocessJobLog: (jobId) =>
-      getJson<AdminPreprocessJobLog>(fetchImpl, input.base_url, `/api/admin/preprocess/jobs/${jobId}/log`),
+      getJson<AdminPreprocessJobLog>(fetchImpl, input.base_url, `/api/admin/preprocess/jobs/${jobId}/log`, protectedHeaders),
     listIndexVersions: () =>
-      getJson<AdminIndexVersionsResponse>(fetchImpl, input.base_url, "/api/admin/index/versions"),
+      getJson<AdminIndexVersionsResponse>(fetchImpl, input.base_url, "/api/admin/index/versions", protectedHeaders),
     getDoctorReport: () =>
-      getJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/report"),
+      getJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/report", protectedHeaders),
     getRuntimeSettings: () =>
-      getJson<AdminRuntimeSettings>(fetchImpl, input.base_url, "/api/admin/settings/runtime"),
+      getJson<AdminRuntimeSettings>(fetchImpl, input.base_url, "/api/admin/settings/runtime", protectedHeaders),
     initializeLibrary: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/init", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/init", "POST", undefined, protectedHeaders),
     scanSourceVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/scan", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/scan", "POST", undefined, protectedHeaders),
     queueUnprocessedVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/queue-unprocessed", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/queue-unprocessed", "POST", undefined, protectedHeaders),
     retryFailedVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/retry-failed", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/retry-failed", "POST", undefined, protectedHeaders),
     recoverProcessingVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/recover-processing", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/recover-processing", "POST", undefined, protectedHeaders),
     queueSourceVideo: (sourceVideoId) =>
       sendJson<AdminActionResult>(
         fetchImpl,
         input.base_url,
         `/api/admin/source-videos/${sourceVideoId}/queue`,
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ),
     retrySourceVideo: (sourceVideoId) =>
       sendJson<AdminActionResult>(
         fetchImpl,
         input.base_url,
         `/api/admin/source-videos/${sourceVideoId}/retry`,
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ),
     recoverProcessingSourceVideo: (sourceVideoId) =>
       sendJson<AdminActionResult>(
         fetchImpl,
         input.base_url,
         `/api/admin/source-videos/${sourceVideoId}/recover-processing`,
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ),
     publishSourceVideo: (sourceVideoId) =>
       sendJson<AdminActionResult>(
         fetchImpl,
         input.base_url,
         `/api/admin/source-videos/${sourceVideoId}/publish`,
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ),
     getPreprocessSupervisorStatus: () =>
       getJson<AdminPreprocessSupervisorStatus>(
         fetchImpl,
         input.base_url,
-        "/api/admin/preprocess/supervisor/status"
+        "/api/admin/preprocess/supervisor/status",
+        protectedHeaders
       ),
     startPreprocessSupervisor: (limit) =>
       sendJson<AdminPreprocessSupervisorStatus>(
@@ -1007,30 +1112,34 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         input.base_url,
         "/api/admin/preprocess/supervisor/start",
         "POST",
-        limit ? { limit } : {}
+        limit ? { limit } : {},
+        protectedHeaders
       ),
     stopPreprocessSupervisor: () =>
       sendJson<AdminPreprocessSupervisorStatus>(
         fetchImpl,
         input.base_url,
         "/api/admin/preprocess/supervisor/stop",
-        "POST"
+        "POST",
+        undefined,
+        protectedHeaders
       ),
     repairIndex: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/index/repair", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/index/repair", "POST", undefined, protectedHeaders),
     runDoctor: () =>
-      sendJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/run", "POST"),
+      sendJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/run", "POST", undefined, protectedHeaders),
     exportDoctorReport: () =>
-      sendJson<MixlabDoctorExport>(fetchImpl, input.base_url, "/api/admin/doctor/export", "POST"),
+      sendJson<MixlabDoctorExport>(fetchImpl, input.base_url, "/api/admin/doctor/export", "POST", undefined, protectedHeaders),
     testAsrConfig: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/settings/test-asr", "POST"),
+      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/settings/test-asr", "POST", undefined, protectedHeaders),
     updateSourceVideoMetadata: (sourceVideoId, metadata) =>
       sendJson<AdminSourceVideo>(
         fetchImpl,
         input.base_url,
         `/api/admin/source-videos/${sourceVideoId}/metadata`,
         "PATCH",
-        metadata
+        metadata,
+        protectedHeaders
       ).then((video) => resolveSourceVideoMedia(input.base_url, video)),
     updateSourceVideoCover: (sourceVideoId, cover) =>
       sendJson<AdminSourceVideo>(
@@ -1038,7 +1147,8 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         input.base_url,
         `/api/admin/source-videos/${sourceVideoId}/cover`,
         "PATCH",
-        cover
+        cover,
+        protectedHeaders
       )
         .then((video) => resolveSourceVideoMedia(input.base_url, video))
   };
@@ -2059,6 +2169,67 @@ export function createFixtureAdminApiClient(): AdminApiClient {
   }
 
   return {
+    getAuthBootstrap: async () => ({
+      has_admin: true,
+      registration_open: false
+    }),
+    getAuthStatus: async () => ({
+      authenticated: true,
+      auth_mode: "disabled",
+      user: {
+        admin_id: "AU000001",
+        username: "admin",
+        display_name: "管理员",
+        role: "owner",
+        status: "active",
+        created_at: "2024-05-07 10:00:00",
+        last_login_at: "2024-05-07 10:00:00",
+        disabled_at: ""
+      },
+      bootstrap: {
+        has_admin: true,
+        registration_open: false
+      }
+    }),
+    registerAdmin: async (input) => ({
+      user: {
+        admin_id: "AU000001",
+        username: input.username,
+        display_name: input.display_name || input.username,
+        role: "owner",
+        status: "active",
+        created_at: "2024-05-07 10:00:00",
+        last_login_at: "2024-05-07 10:00:00",
+        disabled_at: ""
+      },
+      session: {
+        admin_id: "AU000001",
+        session_token: "fixture-admin-session",
+        created_at: "2024-05-07 10:00:00",
+        last_seen_at: "2024-05-07 10:00:00"
+      }
+    }),
+    loginAdmin: async (input) => ({
+      user: {
+        admin_id: "AU000001",
+        username: input.username,
+        display_name: input.username,
+        role: "owner",
+        status: "active",
+        created_at: "2024-05-07 10:00:00",
+        last_login_at: "2024-05-07 10:00:00",
+        disabled_at: ""
+      },
+      session: {
+        admin_id: "AU000001",
+        session_token: "fixture-admin-session",
+        created_at: "2024-05-07 10:00:00",
+        last_seen_at: "2024-05-07 10:00:00"
+      }
+    }),
+    logoutAdmin: async () => ({
+      removed: true
+    }),
     getLibraryStatus: async () => ({ ...fixtureStatus }),
     getPathChecks: async () => fixturePathChecks.map((item) => ({ ...item })),
     getAdminSettings: async () => cloneSettings(fixtureSettings),

@@ -10,6 +10,7 @@ import {
   loadAdminDashboardData,
   type AdminActionResult,
   type AdminApiClient,
+  type AdminAuthStatus,
   type AdminCutterUsersResponse,
   type AdminDashboardMetrics,
   type AdminDashboardData,
@@ -26,9 +27,17 @@ import {
   type AdminSourceVideo,
   type AdminSourceVideoMetadataUpdate
 } from "../api.ts";
+import {
+  adminAuthSessionFromResult,
+  clearAdminAuthSession,
+  readAdminAuthSession,
+  writeAdminAuthSession,
+  type StoredAdminAuthSession
+} from "../auth.ts";
 import { DashboardPage } from "../features/dashboard/DashboardPage.tsx";
 import { CutterUsersPage } from "../features/cutter-users/CutterUsersPage.tsx";
 import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
+import { AdminLoginGate } from "../features/login/AdminLoginGate.tsx";
 import { PreprocessJobsPage } from "../features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { AdminSourceDetailPage } from "../features/source-detail/AdminSourceDetailPage.tsx";
@@ -60,14 +69,12 @@ export function resolveAdminRuntimeApiBaseUrl(input: {
   return DEFAULT_LOCAL_ADMIN_API_BASE_URL;
 }
 
-function createRuntimeClient() {
-  const baseUrl = resolveAdminRuntimeApiBaseUrl({
-    viteApiBaseUrl: import.meta.env?.VITE_MIXLAB_ADMIN_API_BASE_URL,
-    useFixtureData: import.meta.env?.VITE_MIXLAB_USE_FIXTURE_DATA === "true"
-  });
-
+function createRuntimeClient(baseUrl: string, authSession: StoredAdminAuthSession | null) {
   return baseUrl
-    ? createAdminApiClient({ base_url: baseUrl })
+    ? createAdminApiClient({
+        base_url: baseUrl,
+        ...(authSession ? { auth: { session_token: authSession.session_token } } : {})
+      })
     : createFixtureAdminApiClient();
 }
 
@@ -114,7 +121,15 @@ function adminPreprocessRuntimeLabel(data: AdminDashboardData): string {
   return "空闲";
 }
 
-function AdminTopbar({ data }: { data: AdminDashboardData | null }) {
+function AdminTopbar({
+  data,
+  authSession,
+  onLogout
+}: {
+  data: AdminDashboardData | null;
+  authSession: StoredAdminAuthSession | null;
+  onLogout: () => void;
+}) {
   return (
     <header className="admin-topbar">
       <a className="admin-topbar-brand" href={routeToHash("dashboard")}>
@@ -137,7 +152,9 @@ function AdminTopbar({ data }: { data: AdminDashboardData | null }) {
           <small>系统状态</small>
           <strong>{data ? adminDoctorSummaryLabel(data) : "加载中"}</strong>
         </span>
-        <span className="admin-topbar-avatar" aria-label="管理员">管</span>
+        <button className="admin-topbar-avatar" type="button" aria-label="退出管理端" onClick={onLogout}>
+          {authSession?.display_name?.slice(0, 1) || "管"}
+        </button>
       </div>
     </header>
   );
@@ -746,6 +763,15 @@ function renderPage(
 
 export function AdminApp() {
   const [route, setRoute] = useState<AdminRoute>(() => routeFromHash(window.location.hash));
+  const apiBaseUrl = useMemo(() => resolveAdminRuntimeApiBaseUrl({
+    viteApiBaseUrl: import.meta.env?.VITE_MIXLAB_ADMIN_API_BASE_URL,
+    useFixtureData: import.meta.env?.VITE_MIXLAB_USE_FIXTURE_DATA === "true"
+  }), []);
+  const apiMode = Boolean(apiBaseUrl);
+  const [adminAuthSession, setAdminAuthSession] = useState<StoredAdminAuthSession | null>(() => readAdminAuthSession());
+  const [adminAuthStatus, setAdminAuthStatus] = useState<AdminAuthStatus | null>(null);
+  const [adminAuthLoading, setAdminAuthLoading] = useState(apiMode);
+  const [adminAuthError, setAdminAuthError] = useState("");
   const [data, setData] = useState<AdminDashboardData | null>(null);
   const [error, setError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
@@ -778,7 +804,11 @@ export function AdminApp() {
   const pendingPreprocessJobsRef = useRef<AdminPreprocessJobsResponse | null>(null);
   const pendingIndexVersionsRef = useRef<AdminIndexVersionsResponse | null>(null);
   const hasDashboardData = Boolean(data);
-  const client = useMemo(createRuntimeClient, []);
+  const client = useMemo(
+    () => createRuntimeClient(apiBaseUrl, adminAuthSession),
+    [apiBaseUrl, adminAuthSession]
+  );
+  const canLoadAdminData = !apiMode || adminAuthStatus?.authenticated === true;
 
   useEffect(() => {
     const listener = () => setRoute(routeFromHash(window.location.hash));
@@ -787,6 +817,57 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
+    if (!apiMode) {
+      setAdminAuthStatus({
+        authenticated: true,
+        auth_mode: "disabled",
+        user: null,
+        bootstrap: {
+          has_admin: true,
+          registration_open: false
+        }
+      });
+      setAdminAuthLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setAdminAuthLoading(true);
+    setAdminAuthError("");
+    client.getAuthStatus()
+      .then((status) => {
+        if (cancelled) {
+          return;
+        }
+
+        setAdminAuthStatus(status);
+        if (!status.authenticated && adminAuthSession) {
+          clearAdminAuthSession();
+          setAdminAuthSession(null);
+        }
+      })
+      .catch((statusError) => {
+        if (!cancelled) {
+          setAdminAuthStatus(null);
+          setAdminAuthError(adminLoadErrorMessage(statusError));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAdminAuthLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminAuthSession, apiMode, client]);
+
+  useEffect(() => {
+    if (!canLoadAdminData) {
+      return;
+    }
+
     if (dashboardLoadingRef.current) {
       return;
     }
@@ -832,7 +913,7 @@ export function AdminApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, reloadToken]);
+  }, [canLoadAdminData, client, reloadToken]);
 
   useEffect(() => {
     if (!shouldLoadAdminSourceVideos({
@@ -1340,6 +1421,61 @@ export function AdminApp() {
     }
   };
 
+  const handleAdminRegister = async (input: { username: string; password: string; display_name?: string }) => {
+    setAdminAuthError("");
+    try {
+      const result = await client.registerAdmin(input);
+      const nextSession = adminAuthSessionFromResult(result);
+      writeAdminAuthSession(nextSession);
+      setAdminAuthSession(nextSession);
+      setAdminAuthStatus({
+        authenticated: true,
+        auth_mode: "password",
+        user: result.user,
+        bootstrap: {
+          has_admin: true,
+          registration_open: false
+        }
+      });
+      setReloadToken((current) => current + 1);
+    } catch (registerError) {
+      setAdminAuthError(adminActionErrorMessage("创建管理员", registerError));
+    }
+  };
+
+  const handleAdminLogin = async (input: { username: string; password: string }) => {
+    setAdminAuthError("");
+    try {
+      const result = await client.loginAdmin(input);
+      const nextSession = adminAuthSessionFromResult(result);
+      writeAdminAuthSession(nextSession);
+      setAdminAuthSession(nextSession);
+      setAdminAuthStatus({
+        authenticated: true,
+        auth_mode: "password",
+        user: result.user,
+        bootstrap: {
+          has_admin: true,
+          registration_open: false
+        }
+      });
+      setReloadToken((current) => current + 1);
+    } catch (loginError) {
+      setAdminAuthError(adminActionErrorMessage("登录管理端", loginError));
+    }
+  };
+
+  const handleAdminLogout = () => {
+    void client.logoutAdmin().catch(() => undefined);
+    clearAdminAuthSession();
+    setAdminAuthSession(null);
+    setAdminAuthStatus((current) => current
+      ? { ...current, authenticated: false, user: null }
+      : null);
+    setData(null);
+    dashboardLoadedRef.current = false;
+  };
+
   const actions: AdminActionHandlers = {
     sourceVideoQuery,
     sourceVideoStatusFilter,
@@ -1458,10 +1594,22 @@ export function AdminApp() {
     href: routeToHash(item.route)
   }));
 
+  if (apiMode && !adminAuthStatus?.authenticated) {
+    return (
+      <AdminLoginGate
+        mode={adminAuthStatus?.bootstrap.registration_open ? "register" : "login"}
+        loading={adminAuthLoading && !adminAuthStatus}
+        error={adminAuthError || adminAuthStatus?.message || ""}
+        onRegister={handleAdminRegister}
+        onLogin={handleAdminLogin}
+      />
+    );
+  }
+
   return (
     <main className="admin-app" data-admin-web-ready={data ? "true" : "false"}>
       <section className="admin-frame" aria-label="MixLab 管理端">
-        <AdminTopbar data={data} />
+        <AdminTopbar data={data} authSession={adminAuthSession} onLogout={handleAdminLogout} />
         <div className="admin-shell">
           <Sidebar
             brand={{

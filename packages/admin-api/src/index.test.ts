@@ -172,6 +172,74 @@ async function getJson(baseUrl: string, pathName: string): Promise<any> {
   return response.json();
 }
 
+test("admin password auth protects business routes and redacts password hashes", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const server = createAdminApiServer({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "测试素材库",
+    auth_mode: "password",
+    now: () => "2026-06-18T00:00:00.000Z",
+    env: {
+      DASHSCOPE_API_KEY: "sk-test-secret",
+      MIXLAB_ASR_MODEL: "paraformer-v2"
+    } as NodeJS.ProcessEnv
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const baseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
+
+  try {
+    const denied = await fetch(`${baseUrl}/api/admin/cutter-users`);
+    assert.equal(denied.status, 401);
+    assert.match(JSON.stringify(await denied.json()), /login_required/);
+
+    const bootstrap = await fetch(`${baseUrl}/api/admin/auth/bootstrap`);
+    assert.equal(bootstrap.status, 200);
+    assert.equal(((await bootstrap.json()) as any).data.registration_open, true);
+
+    const registered = await fetch(`${baseUrl}/api/admin/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "owner",
+        display_name: "Owner",
+        password: "Owner12345"
+      })
+    });
+    assert.equal(registered.status, 201);
+    const registeredBody = (await registered.json()) as any;
+    assert.equal(registeredBody.data.user.username, "owner");
+    assert.equal("password_hash" in registeredBody.data.user, false);
+
+    const sessionToken = registeredBody.data.session.session_token as string;
+    const authedStatus = await fetch(`${baseUrl}/api/admin/auth/status`, {
+      headers: { "X-MixLab-Admin-Session-Token": sessionToken }
+    });
+    assert.equal(authedStatus.status, 200);
+    assert.equal(((await authedStatus.json()) as any).data.authenticated, true);
+
+    const allowed = await fetch(`${baseUrl}/api/admin/cutter-users`, {
+      headers: { "X-MixLab-Admin-Session-Token": sessionToken }
+    });
+    assert.equal(allowed.status, 200);
+    assert.deepEqual(((await allowed.json()) as any).data.users, []);
+
+    const loggedOut = await fetch(`${baseUrl}/api/admin/auth/logout`, {
+      method: "POST",
+      headers: { "X-MixLab-Admin-Session-Token": sessionToken }
+    });
+    assert.equal(loggedOut.status, 200);
+    assert.equal(((await loggedOut.json()) as any).data.removed, true);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+
 async function writeManifest(libraryRoot: string, manifest: SourceVideoManifest): Promise<void> {
   const dir = path.join(libraryRoot, ".mixlab-library", "videos", manifest.source_video_id);
   await mkdir(dir, { recursive: true });

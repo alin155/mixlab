@@ -105,13 +105,18 @@ export function buildCutterApiServerInputFromDesktopConfig(
   const searchdTimeoutMs = optionalPositiveInteger(
     env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
   ) ?? DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS;
+  const authMode = env.MIXLAB_CUTTER_AUTH_MODE?.trim() === "local_trusted"
+    ? "local_trusted"
+    : "reviewed";
 
   return {
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
     workspace_root: workspaceRoot,
     release_cache_root: releaseCacheRoot,
-    auth_mode: "local_trusted",
-    trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师",
+    auth_mode: authMode,
+    ...(authMode === "local_trusted"
+      ? { trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师" }
+      : {}),
     ...(searchdCacheRoot ? { searchd_cache_root: normalizeDesktopPathForStorage(searchdCacheRoot) } : {}),
     ...(searchdBaseUrl
       ? {

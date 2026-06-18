@@ -1064,6 +1064,94 @@ test("supports cutter login requests and backend-shaped login status", async () 
   assert.equal(requests[2]?.headers.get("x-mixlab-session-token"), "session-001");
 });
 
+test("supports cutter account register login and logout endpoints", async () => {
+  const requests: Array<{ url: string; method: string | undefined; headers: Headers; body: unknown }> = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789/",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      requests.push({
+        url: String(url),
+        method: init?.method,
+        headers: new Headers(init?.headers),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      if (String(url).endsWith("/cutter/auth/logout")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { removed: true }
+        });
+      }
+
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          user: {
+            user_id: "CU000001",
+            username: "xiaowang",
+            display_name: "小王",
+            status: String(url).endsWith("/cutter/auth/register") ? "pending" : "approved",
+            applied_at: "2026-05-03T08:00:00Z",
+            approved_at: "",
+            rejected_at: "",
+            disabled_at: "",
+            last_login_at: "",
+            last_used_at: "",
+            note: "",
+            devices: []
+          },
+          session: String(url).endsWith("/cutter/auth/login")
+            ? {
+                user_id: "CU000001",
+                device_id: "device-001",
+                session_token: "session-001",
+                created_at: "2026-05-03T08:05:00Z",
+                last_seen_at: "2026-05-03T08:05:00Z"
+              }
+            : undefined
+        }
+      });
+    }
+  });
+
+  const registered = await client.registerAccount({
+    username: "小王",
+    password: "Cutter12345",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+  const loggedIn = await client.loginAccount({
+    username: "小王",
+    password: "Cutter12345",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+  const loggedOut = await client.logoutAccount();
+
+  assert.equal(registered.user.status, "pending");
+  assert.equal(loggedIn.session?.session_token, "session-001");
+  assert.equal(loggedOut.removed, true);
+  assert.deepEqual(requests.map((request) => [new URL(request.url).pathname, request.method]), [
+    ["/cutter/auth/register", "POST"],
+    ["/cutter/auth/login", "POST"],
+    ["/cutter/auth/logout", "POST"]
+  ]);
+  assert.deepEqual(requests[0]?.body, {
+    username: "小王",
+    password: "Cutter12345",
+    device_id: "device-001",
+    device_name: "MacBook Pro"
+  });
+  assert.equal(requests[0]?.headers.get("x-mixlab-device-id"), null);
+  assert.equal(requests[1]?.headers.get("x-mixlab-device-id"), null);
+  assert.equal(requests[2]?.headers.get("x-mixlab-device-id"), "device-001");
+  assert.equal(requests[2]?.headers.get("x-mixlab-session-token"), "session-001");
+});
+
 test("attaches cutter auth headers to protected data and control requests", async () => {
   const requests: Array<{ url: string; method: string | undefined; headers: Headers }> = [];
   const client = createCutterApiClient({
