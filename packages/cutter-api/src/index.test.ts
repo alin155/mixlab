@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -57,7 +57,8 @@ test("cutter API runtime config honors an explicit release cache path", () => {
     MIXLAB_CUTTER_RELEASE_CACHE_MAX_RELEASES: "3",
     MIXLAB_CUTTER_THUMBNAIL_CACHE_MAX_BYTES: "123456789",
     MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES: "987654321",
-    MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_MAX_BYTES: "456789123"
+    MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_MAX_BYTES: "456789123",
+    MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_CUT_WAIT_MS: "750"
   });
 
   assert.equal(config.release_cache_root, "/Volumes/FastDisk/MixLabCache");
@@ -65,6 +66,7 @@ test("cutter API runtime config honors an explicit release cache path", () => {
   assert.equal(config.thumbnail_cache_max_bytes, 123456789);
   assert.equal(config.cut_temp_max_bytes, 987654321);
   assert.equal(config.source_video_cache_max_bytes, 456789123);
+  assert.equal(config.source_video_cache_cut_wait_ms, 750);
 });
 
 test("cutter API runtime config can enable local searchd", () => {
@@ -1986,6 +1988,85 @@ test("source video cache warms from detail view and cuts from local cached sourc
       cutSourcePaths.push(input.source_video_path);
       await mkdir(path.dirname(input.output_path), { recursive: true });
       await writeFile(input.output_path, "source-cache-cut");
+    }
+  });
+});
+
+test("cuts from original source while source video cache is still warming", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-cache-fallback-workspace-"));
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-cache-fallback-"));
+  const originalSourcePath = path.join(libraryRoot, "source-videos", "01_现金流.mp4");
+  const cutSourcePaths: string[] = [];
+  let releaseCopy!: () => void;
+  let copyStarted!: () => void;
+  const copyStartedSignal = new Promise<void>((resolve) => {
+    copyStarted = resolve;
+  });
+  const releaseCopySignal = new Promise<void>((resolve) => {
+    releaseCopy = resolve;
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const create = await fetch(`${baseUrl}/cutter/local-clips`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_id: "V000001",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: 1200,
+        end_ms: 1800,
+        selected_text: "现金流",
+        cut_mode: "copy"
+      })
+    });
+    assert.equal(create.status, 201);
+
+    assert.deepEqual(cutSourcePaths, [originalSourcePath]);
+
+    await copyStartedSignal;
+    releaseCopy();
+
+    let runtimeStatus: any;
+    const deadline = Date.now() + 1_000;
+    do {
+      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      assert.equal(response.status, 200);
+      runtimeStatus = await response.json() as any;
+      if (runtimeStatus.data.local_cache.source_video_cache.cached_video_count >= 1) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    } while (Date.now() < deadline);
+
+    assert.equal(runtimeStatus.data.local_cache.source_video_cache.cached_video_count, 1);
+  }, {
+    workspace_root: workspaceRoot,
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 5_000,
+    source_video_cache_cut_wait_ms: 1,
+    source_video_cache_max_bytes: 64 * 1024 * 1024,
+    source_video_cache_copy_file: async (sourcePath, outputPath) => {
+      copyStarted();
+      await releaseCopySignal;
+      await copyFile(sourcePath, outputPath);
+    },
+    source_video_probe_runner: async () => ({
+      duration_ms: 12_000,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    }),
+    cut_runner: async (input) => {
+      cutSourcePaths.push(input.source_video_path);
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "fallback-cut");
     }
   });
 });

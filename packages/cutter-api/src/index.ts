@@ -76,6 +76,8 @@ export interface CreateCutterApiServerInput {
   thumbnail_cache_max_bytes?: number;
   cut_temp_max_bytes?: number;
   source_video_cache_max_bytes?: number;
+  source_video_cache_cut_wait_ms?: number;
+  source_video_cache_copy_file?: (source_path: string, output_path: string) => Promise<void>;
   searchd_cache_root?: string;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
@@ -498,6 +500,7 @@ function defaultCutterReleaseCacheRoot(env: NodeJS.ProcessEnv = process.env): st
 const DEFAULT_THUMBNAIL_CACHE_MAX_BYTES = 512 * 1024 * 1024;
 const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const DEFAULT_SOURCE_VIDEO_CACHE_MAX_BYTES = 100 * 1024 * 1024 * 1024;
+const DEFAULT_SOURCE_VIDEO_CACHE_CUT_WAIT_MS = 1_500;
 const SOURCE_PREFLIGHT_SAMPLE_COUNT = 3;
 const SOURCE_PREFLIGHT_PROBE_TIMEOUT_MS = 1_500;
 const SOURCE_PREFLIGHT_INLINE_TIMEOUT_MS = 200;
@@ -568,6 +571,15 @@ function cutTempMaxBytes(input: CreateCutterApiServerInput): number {
 
 function sourceVideoCacheMaxBytes(input: CreateCutterApiServerInput): number {
   return normalizeByteLimit(input.source_video_cache_max_bytes, DEFAULT_SOURCE_VIDEO_CACHE_MAX_BYTES);
+}
+
+function sourceVideoCacheCutWaitMs(input: CreateCutterApiServerInput): number {
+  const value = input.source_video_cache_cut_wait_ms;
+  if (!Number.isFinite(value ?? Number.NaN) || (value ?? -1) < 0) {
+    return DEFAULT_SOURCE_VIDEO_CACHE_CUT_WAIT_MS;
+  }
+
+  return Math.min(30_000, Math.floor(value!));
 }
 
 function thumbnailCacheRoot(input: CreateCutterApiServerInput): string {
@@ -937,7 +949,10 @@ async function prefetchSourceVideo(input: {
     await mkdir(root, { recursive: true });
     const tempPath = `${cacheFilePath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
     try {
-      await copyFile(input.source_video_file_path, tempPath);
+      await (input.api_input.source_video_cache_copy_file ?? copyFile)(
+        input.source_video_file_path,
+        tempPath
+      );
       const tempStat = await stat(tempPath);
       if (!tempStat.isFile() || tempStat.size !== sourceStat.size) {
         throw new Error("source video cache copy did not match source size");
@@ -989,6 +1004,12 @@ function prefetchSourceVideoBestEffort(input: {
   file_size?: number;
 }): void {
   void prefetchSourceVideo(input).catch(() => undefined);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, Math.max(0, milliseconds));
+  });
 }
 
 async function sourceDetailWithLocalSourceCache<T extends {
@@ -1046,13 +1067,20 @@ async function sourceDetailWithLocalSourceForCut<T extends {
     };
   }
 
+  const waitMs = sourceVideoCacheCutWaitMs(apiInput);
+  const prefetchPromise = prefetchSourceVideo({
+    api_input: apiInput,
+    source_video_id: source.source_video_id,
+    source_video_file_path: source.source_video_file_path,
+    file_size: source.file_size
+  });
+
+  void prefetchPromise.catch(() => undefined);
+
   try {
-    await prefetchSourceVideo({
-      api_input: apiInput,
-      source_video_id: source.source_video_id,
-      source_video_file_path: source.source_video_file_path,
-      file_size: source.file_size
-    });
+    if (waitMs > 0) {
+      await Promise.race([prefetchPromise, delay(waitMs)]);
+    }
     const readyPath = await cachedSourceVideoPath({
       api_input: apiInput,
       source_video_id: source.source_video_id,
@@ -1069,7 +1097,7 @@ async function sourceDetailWithLocalSourceForCut<T extends {
   } catch (error) {
     const root = sourceVideoCacheRoot(apiInput);
     const message = error instanceof Error ? error.message : "source video cache before cut failed";
-    sourceVideoCacheLastErrors.set(root, `剪切前缓存源视频失败，已降级读取原素材：${message}`);
+    sourceVideoCacheLastErrors.set(root, `源视频缓存准备失败，已降级读取原素材：${message}`);
   }
 
   return source;
@@ -1145,6 +1173,9 @@ export function resolveCutterApiRuntimeConfigFromEnv(
     cut_temp_max_bytes: optionalPositiveInteger(env.MIXLAB_CUTTER_CUT_TEMP_MAX_BYTES),
     source_video_cache_max_bytes: optionalPositiveInteger(
       env.MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_MAX_BYTES
+    ),
+    source_video_cache_cut_wait_ms: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SOURCE_VIDEO_CACHE_CUT_WAIT_MS
     ),
     searchd_base_url:
       optionalTrimmed(env.MIXLAB_SEARCHD_BASE_URL) ??
