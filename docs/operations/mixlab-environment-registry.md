@@ -47,6 +47,7 @@
 - 2026-06-18，UI Foundation Shell 迁移包 `7b1e0cf` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `69be90e9ab8d87119697d1be3425137c42d5f402c5183acca6ddd97acd3f8cf4`，GitHub Actions run `27786632391`。`install_latest_and_smoke-20260618T204224Z-d71043e2` 通过：安装退出码 `0`，安装耗时 `6950ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`161ms`。安装后即时验收处于 searchd 冷启动窗口：搜索 `第一场` `1930ms`。稳定态验收 `windows_acceptance-20260618T204405Z-39423b3c` 通过：runtime `166ms`，公共素材首屏 `49ms`，搜索 `第一场` `51ms`，完整文案详情 `31ms`，剪切任务列表 `22ms`，缓存可观测总量 `28,673,740,332` bytes。当前 shared latest 已更新为 `7b1e0cf`。
 - 2026-06-18，UI Foundation 低风险页迁移包 `10aa479` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `4f59030e5bfdb06984b4f2eed2123df3ce0a21fdb77dde35de0715fde8c2fa9a`，GitHub Actions run `27791103017`。`install_latest_and_smoke-20260618T220257Z-6ffbebb7` 通过：安装退出码 `0`，安装耗时 `6960ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`28ms`。安装后即时验收处于 searchd 冷启动窗口：搜索 `第一场` `860ms` 且走 `sqlite-index`，完整文案详情 `1679ms`。稳定态验收 `windows_acceptance-20260618T220518Z-885837c2` 通过：runtime `153ms`，公共素材首屏 `33ms`，搜索 `第一场` `50ms` 且走 `searchd`，完整文案详情 `20ms`，剪切任务列表 `23ms`，缓存可观测总量 `28,673,740,332` bytes。当前 shared latest 已更新为 `10aa479`。
 - 2026-06-18，UI Foundation 剪切任务页迁移包 `3cf28bb` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `dc3e1a2cd8fef0f0208095db9436cc392f2c9e4ca35df5577ac335f05af56e79`，GitHub Actions run `27793165132`。`install_latest_and_smoke-20260618T224828Z-e96cf5e9` 通过：安装退出码 `0`，安装耗时 `6859ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`43ms`。安装后即时验收处于 searchd 冷启动窗口：搜索 `第一场` `808ms` 且走 `sqlite-index`，完整文案详情 `2037ms`。稳定态验收 `windows_acceptance-20260618T225023Z-5c8b298c` 通过：runtime `136ms`，公共素材首屏 `32ms`，搜索 `第一场` `55ms` 且走 `searchd`，完整文案详情 `32ms`，剪切任务列表 `25ms`，缓存可观测总量 `28,673,740,332` bytes，其中 source video cache `27,559,860,594` bytes / `3` 条。当前 shared latest 已更新为 `3cf28bb`。
+- 2026-06-18，UI Foundation 素材搜索页迁移包 `b8890e3` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `a1b009c8399b9c8fc670821f327903072a533d934b389a1cbc7719f13a786003`，GitHub Actions run `27796580795`。该包包含 `cdc31dd` 的素材搜索 UI Foundation 迁移，并修复 Windows 冷启动时后台 release cache 同步期间 `/cutter/source-library` 可能退回 NAS SMB 慢读的问题：已有本机 release cache 时先用本机缓存响应，同时后台继续同步。`install_latest_and_smoke-20260619T001008Z-b2ecb85c` 通过：安装退出码 `0`，安装耗时 `6935ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`50ms`，搜索冷启动窗口 `811ms` 且走 `sqlite-index`。稳定态验收 `windows_acceptance-20260619T001310Z-b2aa6a21` 通过：runtime `176ms`，公共素材首屏 `62ms`，搜索 `第一场` `48ms` 且走 `searchd`，完整文案详情 `47ms`，剪切任务列表 `23ms`，缓存可观测总量 `28,673,740,332` bytes，其中 release cache `1,109,861,341` bytes、source video cache `27,559,860,594` bytes / `3` 条。当前 shared latest 已更新为 `b8890e3`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -179,14 +180,14 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-18 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-3cf28bb.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-b8890e3.exe
 version: 0.18.10
-commit: 3cf28bb
-github_run_id: 27793165132
-sha256: dc3e1a2cd8fef0f0208095db9436cc392f2c9e4ca35df5577ac335f05af56e79
-included_fix: ui foundation v1 cut tasks migration; shared Table/Badge/Button/Card, fixed header, one-line text/problem, semantic action states
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260618T224828Z-e96cf5e9/report.json
-windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260618T225023Z-5c8b298c/report.json
+commit: b8890e3
+github_run_id: 27796580795
+sha256: a1b009c8399b9c8fc670821f327903072a533d934b389a1cbc7719f13a786003
+included_fix: ui foundation v1 material search migration; use existing local release cache while background NAS sync continues to avoid cold-start public-library slow reads
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260619T001008Z-b2ecb85c/report.json
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260619T001310Z-b2aa6a21/report.json
 acceptance_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/m18-4-windows-cutter-performance.md
 ```
 
