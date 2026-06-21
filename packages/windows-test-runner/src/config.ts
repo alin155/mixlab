@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import type { RunnerConfig } from "./types.ts";
 
-export const RUNNER_VERSION = "0.1.18";
+export const RUNNER_VERSION = "0.1.19";
 
 function readPort(value: string | undefined, fallback: number): number {
   if (!value) {

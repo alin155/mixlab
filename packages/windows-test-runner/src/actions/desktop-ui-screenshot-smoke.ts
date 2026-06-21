@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runLaunchAppProbe } from "./launch-app-probe.ts";
@@ -27,7 +27,7 @@ interface DesktopUiPagePlan {
 interface PowerShellScreenshotResult {
   ok?: boolean;
   window_title?: string;
-  output_dir?: string;
+  local_output_dir?: string;
   window_rect?: {
     left: number;
     top: number;
@@ -163,7 +163,6 @@ function Invoke-MixLabClick([double]$rx, [double]$ry) {
 
 function Save-MixLabScreenshot([string]$id) {
   $localFile = Join-Path $localOutputDir "$id.png"
-  $sharedFile = Join-Path $outputDir "$id.png"
   $bitmap = New-Object System.Drawing.Bitmap($width, $height)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   try {
@@ -173,8 +172,7 @@ function Save-MixLabScreenshot([string]$id) {
     $graphics.Dispose()
     $bitmap.Dispose()
   }
-  Copy-Item -LiteralPath $localFile -Destination $sharedFile -Force
-  return $sharedFile
+  return $localFile
 }
 
 function Convert-MixLabJsonPath([string]$pathValue) {
@@ -210,7 +208,7 @@ foreach ($page in $pages) {
       id = $page.id
       label = $page.label
       action = $page.action
-      screenshot_path = Convert-MixLabJsonPath (Join-Path $outputDir "$($page.id).png")
+      screenshot_path = Convert-MixLabJsonPath (Join-Path $localOutputDir "$($page.id).png")
       ok = $false
       click_x = if ($click) { $click.x } else { $null }
       click_y = if ($click) { $click.y } else { $null }
@@ -222,7 +220,7 @@ foreach ($page in $pages) {
 [pscustomobject]@{
   ok = $true
   window_title = $proc.MainWindowTitle
-  output_dir = Convert-MixLabJsonPath $outputDir
+  local_output_dir = Convert-MixLabJsonPath $localOutputDir
   window_rect = [pscustomobject]@{
     left = $rect.Left
     top = $rect.Top
@@ -377,7 +375,31 @@ export async function runDesktopUiScreenshotSmoke(input: {
 
   report.window_title = parsed.window_title;
   report.window_rect = parsed.window_rect;
-  report.pages = parsed.pages ?? [];
+  await mkdir(outputDir, { recursive: true });
+  report.pages = await Promise.all((parsed.pages ?? []).map(async (page) => {
+    const screenshotPath = path.join(outputDir, `${page.id}.png`);
+    if (!page.ok) {
+      return {
+        ...page,
+        screenshot_path: screenshotPath
+      };
+    }
+    try {
+      await copyFile(page.screenshot_path, screenshotPath);
+      return {
+        ...page,
+        screenshot_path: screenshotPath,
+        ok: true
+      };
+    } catch (error) {
+      return {
+        ...page,
+        screenshot_path: screenshotPath,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }));
   report.captured_count = report.pages.filter((page) => page.ok).length;
 
   if (!parsed.ok || report.captured_count !== DEFAULT_PAGES.length) {
