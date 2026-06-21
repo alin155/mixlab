@@ -99,6 +99,17 @@ public static class MixLabWin32 {
   [DllImport("user32.dll")]
   public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+  [DllImport("user32.dll")]
+  public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
+
+  [DllImport("user32.dll")]
+  public static extern bool IsWindowVisible(IntPtr hWnd);
+
   [DllImport("user32.dll")]
   public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
@@ -166,6 +177,62 @@ function Invoke-MixLabClick([double]$rx, [double]$ry) {
   return @{ x = $x; y = $y }
 }
 
+function Invoke-MixLabAbsoluteClick([int]$x, [int]$y) {
+  [MixLabWin32]::SetCursorPos($x, $y) | Out-Null
+  [MixLabWin32]::mouse_event(0x0002, $x, $y, 0, 0)
+  Start-Sleep -Milliseconds 50
+  [MixLabWin32]::mouse_event(0x0004, $x, $y, 0, 0)
+}
+
+function Dismiss-MixLabBlockingDialog() {
+  $matches = New-Object System.Collections.ArrayList
+  $callback = [MixLabWin32+EnumWindowsProc]{
+    param([IntPtr]$hWnd, [IntPtr]$lParam)
+    if ($hWnd -eq $proc.MainWindowHandle) {
+      return $true
+    }
+    if (-not [MixLabWin32]::IsWindowVisible($hWnd)) {
+      return $true
+    }
+    $dialogRect = New-Object MixLabWin32+RECT
+    [MixLabWin32]::GetWindowRect($hWnd, [ref]$dialogRect) | Out-Null
+    $dialogWidth = $dialogRect.Right - $dialogRect.Left
+    $dialogHeight = $dialogRect.Bottom - $dialogRect.Top
+    if ($dialogWidth -lt 220 -or $dialogWidth -gt 820 -or $dialogHeight -lt 120 -or $dialogHeight -gt 620) {
+      return $true
+    }
+    $centerX = $dialogRect.Left + ($dialogWidth / 2)
+    $centerY = $dialogRect.Top + ($dialogHeight / 2)
+    $insideApp = $centerX -gt $rect.Left -and $centerX -lt $rect.Right -and $centerY -gt $rect.Top -and $centerY -lt $rect.Bottom
+    if (-not $insideApp) {
+      return $true
+    }
+    $titleBuilder = New-Object System.Text.StringBuilder 256
+    [MixLabWin32]::GetWindowText($hWnd, $titleBuilder, $titleBuilder.Capacity) | Out-Null
+    [void]$matches.Add([pscustomobject]@{
+      handle = $hWnd
+      title = $titleBuilder.ToString()
+      left = $dialogRect.Left
+      top = $dialogRect.Top
+      right = $dialogRect.Right
+      bottom = $dialogRect.Bottom
+      width = $dialogWidth
+      height = $dialogHeight
+    })
+    return $true
+  }
+  [MixLabWin32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+  $dialog = $matches |
+    Sort-Object @{ Expression = { $_.width * $_.height }; Descending = $true } |
+    Select-Object -First 1
+  if ($dialog) {
+    [MixLabWin32]::SetForegroundWindow($dialog.handle) | Out-Null
+    Start-Sleep -Milliseconds 150
+    Invoke-MixLabAbsoluteClick ([int]($dialog.left + ($dialog.width * 0.75))) ([int]($dialog.bottom - 42))
+    Start-Sleep -Milliseconds 500
+  }
+}
+
 function Save-MixLabScreenshot([string]$id) {
   $localFile = Join-Path $localOutputDir "$id.png"
   $bitmap = New-Object System.Drawing.Bitmap($width, $height)
@@ -193,9 +260,11 @@ foreach ($page in $pages) {
   $errorText = $null
   try {
     if ($page.action -eq 'sidebar' -or $page.action -eq 'content') {
+      Dismiss-MixLabBlockingDialog
       $click = Invoke-MixLabClick $page.x $page.y
       Start-Sleep -Milliseconds $settleMs
     }
+    Dismiss-MixLabBlockingDialog
     $file = Save-MixLabScreenshot $page.id
     $captures += [pscustomobject]@{
       id = $page.id
