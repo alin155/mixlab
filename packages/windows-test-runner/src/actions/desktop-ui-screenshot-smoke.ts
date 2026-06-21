@@ -39,14 +39,14 @@ interface PowerShellScreenshotResult {
 }
 
 const DEFAULT_PAGES: DesktopUiPagePlan[] = [
-  { id: "project-home", label: "首页", action: "sidebar", x: 0.070, y: 0.140 },
-  { id: "material-locator", label: "素材搜索", action: "sidebar", x: 0.070, y: 0.185 },
-  { id: "cut-tasks", label: "剪切任务", action: "sidebar", x: 0.070, y: 0.230 },
-  { id: "local-library", label: "本地素材", action: "sidebar", x: 0.070, y: 0.275 },
-  { id: "public-library", label: "公共素材库", action: "sidebar", x: 0.070, y: 0.320 },
-  { id: "source-detail", label: "原素材详情", action: "content", x: 0.255, y: 0.320 },
-  { id: "cache-management", label: "缓存管理", action: "sidebar", x: 0.070, y: 0.365 },
-  { id: "settings", label: "设置", action: "sidebar", x: 0.070, y: 0.410 }
+  { id: "project-home", label: "Project Home", action: "sidebar", x: 0.070, y: 0.140 },
+  { id: "material-locator", label: "Material Search", action: "sidebar", x: 0.070, y: 0.185 },
+  { id: "cut-tasks", label: "Cut Tasks", action: "sidebar", x: 0.070, y: 0.230 },
+  { id: "local-library", label: "Local Library", action: "sidebar", x: 0.070, y: 0.275 },
+  { id: "public-library", label: "Public Library", action: "sidebar", x: 0.070, y: 0.320 },
+  { id: "source-detail", label: "Source Detail", action: "content", x: 0.255, y: 0.320 },
+  { id: "cache-management", label: "Cache Management", action: "sidebar", x: 0.070, y: 0.365 },
+  { id: "settings", label: "Settings", action: "sidebar", x: 0.070, y: 0.410 }
 ];
 
 const MOCK_PNG_BASE64 =
