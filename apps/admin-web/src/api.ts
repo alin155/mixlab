@@ -729,6 +729,7 @@ export interface AdminApiClient {
   listCutterUsers(): Promise<AdminCutterUsersResponse>;
   approveCutterUser(userId: string): Promise<AdminCutterUserApprovalResult>;
   disableCutterUser(userId: string): Promise<AdminCutterUser>;
+  resetCutterUserPassword(userId: string, input: { new_password: string }): Promise<AdminCutterUser>;
   listPreprocessJobs(options?: { limit?: number; offset?: number }): Promise<AdminPreprocessJobsResponse>;
   getPreprocessJobLog(jobId: string): Promise<AdminPreprocessJobLog>;
   listIndexVersions(): Promise<AdminIndexVersionsResponse>;
@@ -1036,6 +1037,15 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         `/api/admin/cutter-users/${userId}/disable`,
         "POST",
         undefined,
+        protectedHeaders
+      ),
+    resetCutterUserPassword: (userId, passwordInput) =>
+      sendJson<AdminCutterUser>(
+        fetchImpl,
+        input.base_url,
+        `/api/admin/cutter-users/${userId}/password`,
+        "POST",
+        passwordInput,
         protectedHeaders
       ),
     listPreprocessJobs: (options) =>
@@ -2324,6 +2334,18 @@ export function createFixtureAdminApiClient(): AdminApiClient {
         return updated;
       });
 
+      if (!updated) {
+        throw new Error(`cutter user not found: ${userId}`);
+      }
+
+      return cloneCutterUser(updated);
+    },
+    resetCutterUserPassword: async (userId, passwordInput) => {
+      if (!passwordInput.new_password.trim()) {
+        throw new Error("新密码不能为空");
+      }
+
+      const updated = fixtureCutterUsers.find((user) => user.user_id === userId);
       if (!updated) {
         throw new Error(`cutter user not found: ${userId}`);
       }

@@ -1,4 +1,4 @@
-import { InspectorPanel } from "@mixlab/ui-foundation";
+import { Button, InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, type SourceVideoDetail, type TranscriptSegment } from "../../api.ts";
 
 function selectedText(segments: readonly TranscriptSegment[]): string {
@@ -29,31 +29,31 @@ export function SourceDetailPage({
   const videoSource = detail.media_url.startsWith("/fixture-media/") ? undefined : detail.media_url;
 
   return (
-    <section className="cutter-page cutter-source-detail" data-page="source-detail">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header">
+    <section className="cutter-page cutter-source-detail ml-workbench-page" data-page="source-detail">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--stack ml-scroll-region">
+        <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow">原视频详情</p>
-            <h1>原视频与完整文案</h1>
-            <p>{detail.title}</p>
+            <p className="cutter-eyebrow ml-page-kicker">原视频详情</p>
+            <h1 className="ml-page-title">原视频与完整文案</h1>
+            <p className="ml-page-description">{detail.title}</p>
           </div>
         </header>
 
-        <section className="cutter-video-panel">
-          <video controls preload="none" poster={detail.cover_url} src={videoSource} />
-          <div>
+        <section className="cutter-video-panel ml-document-media-panel">
+          <video className="ml-document-media-video" controls preload="none" poster={detail.cover_url} src={videoSource} />
+          <div className="ml-document-media-meta">
             <strong>{detail.title}</strong>
             <span>{formatDuration(detail.duration_ms)}</span>
           </div>
         </section>
 
-        <section className="cutter-transcript" data-selection-mode="continuous">
-          <header>
+        <section className="cutter-transcript ml-document-panel" data-selection-mode="continuous">
+          <header className="ml-document-panel-header">
             <h2>完整文案</h2>
-            <span>连续选择 · 已选 {selectedSegments.length} 句</span>
+            <span className="ml-document-panel-meta">连续选择 · 已选 {selectedSegments.length} 句</span>
           </header>
-          <p className="cutter-full-text">{detail.transcript.full_text}</p>
-          <div className="cutter-segment-list">
+          <p className="cutter-full-text ml-document-full-text">{detail.transcript.full_text}</p>
+          <div className="cutter-segment-list ml-segment-list">
             {detail.transcript.segments.map((segment) => {
               const isSelected = selectedSegments.some((selected) => selected.segment_id === segment.segment_id);
               const isHighlighted = highlightedSegmentIds.includes(segment.segment_id);
@@ -62,6 +62,7 @@ export function SourceDetailPage({
                 <button
                   className={[
                     "cutter-segment",
+                    "ml-segment-row",
                     isSelected ? "is-selected" : "",
                     isHighlighted ? "is-highlighted" : ""
                   ]
@@ -72,9 +73,9 @@ export function SourceDetailPage({
                   aria-pressed={isSelected}
                   onClick={() => onSelectSegment?.(segment.segment_id)}
                 >
-                  <span>{formatDuration(segment.begin_ms)}</span>
-                  <p>{segment.text}</p>
-                  <small>选择此句</small>
+                  <span className="ml-segment-time">{formatDuration(segment.begin_ms)}</span>
+                  <p className="ml-segment-text">{segment.text}</p>
+                  <small className="ml-segment-action">选择此句</small>
                 </button>
               );
             })}
@@ -84,18 +85,19 @@ export function SourceDetailPage({
 
       <InspectorPanel
         title="连续选择"
+        className="ml-inspector--workbench ml-workbench-inspector"
         action={
-          <button
-            className="cutter-primary-button"
+          <Button
             type="button"
             disabled={!canAddSelection}
             onClick={canAddSelection ? onAddToCutList : undefined}
+            variant="primary"
           >
             加入待剪清单
-          </button>
+          </Button>
         }
       >
-        <div className="cutter-inspector-stack">
+        <div className="ml-detail-stack">
           <strong>{selectionTitle}</strong>
           <span>{selectedRange}</span>
           <p>{selectedText(selectedSegments)}</p>

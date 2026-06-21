@@ -1,4 +1,4 @@
-import { InspectorPanel } from "@mixlab/ui-foundation";
+import { Button, InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, formatFileSize, type LocalClipCatalog } from "../../api.ts";
 import {
   projectDisplayTitle,
@@ -113,7 +113,9 @@ export function LocalLibraryPage({
   onSetViewMode,
   onSetOrientationFilter,
   onSelectLocalClip,
-  onOpenLocalClipDirectory
+  onOpenLocalClipDirectory,
+  onLoadMore,
+  isLoadingMore = false
 }: {
   catalog: LocalClipCatalog;
   query?: string;
@@ -127,6 +129,8 @@ export function LocalLibraryPage({
   onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
   onSelectLocalClip?: (localClipId: string) => void;
   onOpenLocalClipDirectory?: (localClip: LocalClip) => void;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }) {
   const projectById = new Map(projects.map((project) => [project.project_id, project]));
   const filtered = query
@@ -159,6 +163,7 @@ export function LocalLibraryPage({
     currentProjectId && projectById.has(currentProjectId)
       ? projectDisplayTitle(projectById.get(currentProjectId)!)
       : "当前项目";
+  const canLoadMore = catalog.clips.length < catalog.local_clip_count && Boolean(onLoadMore);
 
   const galleryItems = (clips: readonly LocalClip[]) =>
     clips.map((clip) => ({
@@ -181,57 +186,59 @@ export function LocalLibraryPage({
     }));
 
   return (
-    <section className="cutter-page cutter-local-library" data-page="local-library">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header">
+    <section className="cutter-page cutter-local-library ml-workbench-page ml-workbench-page--library" data-page="local-library">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--library ml-workbench-main--rows-list">
+        <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow">本地素材库</p>
-            <h1>本地可复剪素材</h1>
-            <p>
+            <p className="cutter-eyebrow ml-page-kicker">本地素材库</p>
+            <h1 className="ml-page-title">本地可复剪素材</h1>
+            <p className="ml-page-description">
               {viewMode === "current-project"
                 ? `${currentProjectTitle} · ${visible.length} 个当前项目素材`
                 : `${catalog.local_clip_count} 个本地可复剪素材，来自本机剪切输出。`}
             </p>
           </div>
-          <div className="cutter-local-library-controls">
-            <div className="cutter-local-view-toggle" role="group" aria-label="本地素材视图">
+          <div className="cutter-local-library-controls ml-control-cluster">
+            <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视图">
               {[
                 ["current-project", "当前项目"],
                 ["all", "全部素材"]
               ].map(([mode, label]) => (
-                <button
+                <Button
                   key={mode}
                   type="button"
-                  className={viewMode === mode ? "is-active" : ""}
+                  variant={viewMode === mode ? "primary" : "ghost"}
+                  size="sm"
                   aria-pressed={viewMode === mode}
                   onClick={() => onSetViewMode?.(mode as LocalLibraryViewMode)}
                 >
                   {label}
-                </button>
+                </Button>
               ))}
             </div>
-            <div className="cutter-local-view-toggle" role="group" aria-label="本地素材视频类型">
+            <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视频类型">
               {orientationFilterOptions.map((option) => (
-                <button
+                <Button
                   key={option.value}
                   type="button"
-                  className={orientationFilter === option.value ? "is-active" : ""}
+                  variant={orientationFilter === option.value ? "primary" : "ghost"}
+                  size="sm"
                   aria-pressed={orientationFilter === option.value}
                   onClick={() => onSetOrientationFilter?.(option.value)}
                 >
                   {option.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
         </header>
 
-        <div className="cutter-local-library-scroll">
+        <div className="cutter-local-library-scroll ml-scroll-region">
           {viewMode === "all" ? (
-            <div className="cutter-local-project-groups">
+            <div className="cutter-library-group-list ml-library-group-list">
               {grouped.map(([title, clips]) => (
-                <section className="cutter-local-project-group" key={title}>
-                  <header>
+                <section className="cutter-library-group ml-library-group" key={title}>
+                  <header className="cutter-library-group-header ml-library-group-header">
                     <strong>{title}</strong>
                     <span>{clips.length} 个素材</span>
                   </header>
@@ -242,20 +249,32 @@ export function LocalLibraryPage({
           ) : visible.length > 0 ? (
             <LibraryGallery items={galleryItems(visible)} />
           ) : (
-            <div className="cutter-local-empty-state">
+            <div className="cutter-library-empty-state ml-empty-panel">
               <strong>当前项目暂无本地素材</strong>
               <span>切换到全部素材，可以查看本机已剪切的其他项目素材。</span>
             </div>
           )}
+          {canLoadMore ? (
+            <Button
+              type="button"
+              className="cutter-local-load-more"
+              variant="secondary"
+              size="sm"
+              disabled={isLoadingMore}
+              onClick={onLoadMore}
+            >
+              {isLoadingMore ? "加载中" : `加载更多（已显示 ${catalog.clips.length} / ${catalog.local_clip_count}）`}
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      <InspectorPanel title="素材详情">
-        <div className="cutter-inspector-stack">
+      <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
+        <div className="ml-detail-stack">
           {selected ? (
             <video
               key={selected.local_clip_id}
-              className="cutter-local-detail-player"
+              className="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"
               src={selected.media_url}
               {...(selected.cover_url ? { poster: selected.cover_url } : {})}
               controls
@@ -269,15 +288,16 @@ export function LocalLibraryPage({
           <span>{selected ? galleryMeta(selected) : ""}</span>
           <p>{selected?.selected_text}</p>
           {selected && onOpenLocalClipDirectory ? (
-            <button
+            <Button
               type="button"
-              className="cutter-inline-action"
+              variant="secondary"
+              size="sm"
               onClick={() => onOpenLocalClipDirectory(selected)}
             >
               打开文件目录
-            </button>
+            </Button>
           ) : null}
-          {actionNotice ? <p className="cutter-note">{actionNotice}</p> : null}
+          {actionNotice ? <p className="cutter-note ml-page-description">{actionNotice}</p> : null}
         </div>
       </InspectorPanel>
     </section>

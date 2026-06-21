@@ -1,3 +1,5 @@
+import { Button } from "@mixlab/ui-foundation";
+
 export type DesktopSetupStage =
   | "loading"
   | "choose-public-library"
@@ -59,7 +61,7 @@ function stageLabel(stage: DesktopSetupStage): string {
 function CheckList({ result }: { result?: DesktopSetupDoctorResult }) {
   if (!result) {
     return (
-      <div className="cutter-desktop-check-list is-empty">
+      <div className="cutter-desktop-check-list ml-card ml-check-list is-empty">
         <strong>等待 Doctor 检查</strong>
         <span>选择公共素材库和本地工作区后，系统会验证目录结构和写入权限。</span>
       </div>
@@ -67,9 +69,9 @@ function CheckList({ result }: { result?: DesktopSetupDoctorResult }) {
   }
 
   return (
-    <div className="cutter-desktop-check-list">
+    <div className="cutter-desktop-check-list ml-card ml-check-list">
       {result.checks.map((check) => (
-        <div className={`cutter-desktop-check is-${check.status}`} key={check.id}>
+        <div className={`cutter-desktop-check ml-check-row is-${check.status}`} key={check.id}>
           <span>{check.status === "pass" ? "通过" : "失败"}</span>
           <strong>{check.label}</strong>
           {check.message ? <small>{check.message}</small> : null}
@@ -96,11 +98,11 @@ function Diagnostics({ diagnostics }: { diagnostics?: DesktopSetupDiagnostics })
   ].filter((row): row is [string, string] => Boolean(row[1]));
 
   return (
-    <section className="cutter-desktop-diagnostics" aria-label="桌面诊断">
+    <section className="cutter-desktop-diagnostics ml-card ml-diagnostics-panel" aria-label="桌面诊断">
       <h2>诊断信息</h2>
-      <dl>
+      <dl className="ml-diagnostics-list">
         {rows.map(([label, value]) => (
-          <div key={label}>
+          <div className="ml-diagnostics-row" key={label}>
             <dt>{label}</dt>
             <dd>{value}</dd>
           </div>
@@ -139,56 +141,58 @@ export function DesktopFirstRunPage({
   const canRunDoctor = Boolean(config.public_library_root && config.local_workspace_root);
 
   return (
-    <main className="cutter-app cutter-desktop-first-run" data-appearance-mode="dark">
-      <section className="cutter-desktop-first-run-shell">
-        <header className="cutter-desktop-first-run-header">
+    <main className="cutter-app cutter-desktop-first-run ml-entry-surface" data-appearance-mode="dark">
+      <section className="cutter-desktop-first-run-shell ml-entry-shell">
+        <header className="cutter-desktop-first-run-header ml-card ml-entry-header">
           <div>
-            <p className="cutter-eyebrow">M18.1 · Windows EXE</p>
-            <h1>Windows 桌面版首启</h1>
-            <p>首次运行需要绑定公共素材库、本地工作区，并启动本机剪切引擎。</p>
+            <p className="cutter-eyebrow ml-page-kicker ml-page-kicker--hero">M18.1 · Windows EXE</p>
+            <h1 className="ml-page-title ml-page-title--hero">Windows 桌面版首启</h1>
+            <p className="ml-page-description ml-page-description--hero">
+              首次运行需要绑定公共素材库、本地工作区，并启动本机剪切引擎。
+            </p>
           </div>
-          <strong>{stageLabel(stage)}</strong>
+          <strong className="ml-entry-stage-badge">{stageLabel(stage)}</strong>
         </header>
 
-        <section className="cutter-desktop-setup-grid">
-          <article className="cutter-desktop-setup-card">
-            <span>1</span>
+        <section className="cutter-desktop-setup-grid ml-entry-step-grid">
+          <article className="cutter-desktop-setup-card ml-card ml-entry-step-card">
+            <span className="ml-entry-step-index">1</span>
             <h2>选择公共素材库</h2>
             <p>{config.public_library_root || "未选择"}</p>
-            <button type="button" onClick={onChoosePublicLibrary}>选择公共素材库</button>
+            <Button type="button" variant="secondary" onClick={onChoosePublicLibrary}>选择公共素材库</Button>
           </article>
-          <article className="cutter-desktop-setup-card">
-            <span>2</span>
+          <article className="cutter-desktop-setup-card ml-card ml-entry-step-card">
+            <span className="ml-entry-step-index">2</span>
             <h2>确认本地工作区</h2>
             <p>{config.local_workspace_root || "未设置"}</p>
-            <button type="button" onClick={onChooseLocalWorkspace}>选择本地工作区</button>
+            <Button type="button" variant="secondary" onClick={onChooseLocalWorkspace}>选择本地工作区</Button>
           </article>
-          <article className="cutter-desktop-setup-card">
-            <span>3</span>
+          <article className="cutter-desktop-setup-card ml-card ml-entry-step-card">
+            <span className="ml-entry-step-index">3</span>
             <h2>运行 Doctor</h2>
             <p>检查素材库结构、本地写入权限和 ready 素材。</p>
-            <button type="button" disabled={!canRunDoctor || stage === "doctor-running"} onClick={onRunDoctor}>
+            <Button type="button" disabled={!canRunDoctor || stage === "doctor-running"} variant="secondary" onClick={onRunDoctor}>
               运行 Doctor
-            </button>
+            </Button>
           </article>
-          <article className="cutter-desktop-setup-card">
-            <span>4</span>
+          <article className="cutter-desktop-setup-card ml-card ml-entry-step-card">
+            <span className="ml-entry-step-index">4</span>
             <h2>启动本机引擎</h2>
             <p>固定监听 127.0.0.1:3789，网页端仍可独立运行。</p>
-            <button type="button" disabled={!doctorPassed || stage === "engine-starting"} onClick={onStartEngine}>
+            <Button type="button" disabled={!doctorPassed || stage === "engine-starting"} variant="secondary" onClick={onStartEngine}>
               启动本机引擎
-            </button>
+            </Button>
           </article>
         </section>
 
-        <section className="cutter-desktop-first-run-body">
+        <section className="cutter-desktop-first-run-body ml-entry-body">
           <CheckList result={doctorResult} />
-          <aside className="cutter-desktop-first-run-side">
+          <aside className="cutter-desktop-first-run-side ml-entry-side">
             <Diagnostics diagnostics={diagnostics} />
-            <div className="cutter-desktop-diagnostic-actions">
-              <button type="button" onClick={onRetry}>重试</button>
-              <button type="button" onClick={onCopyDiagnostics}>复制诊断</button>
-              <button type="button" onClick={onOpenLogDirectory}>打开日志目录</button>
+            <div className="cutter-desktop-diagnostic-actions ml-entry-actions">
+              <Button type="button" variant="secondary" onClick={onRetry}>重试</Button>
+              <Button type="button" variant="secondary" onClick={onCopyDiagnostics}>复制诊断</Button>
+              <Button type="button" variant="secondary" onClick={onOpenLogDirectory}>打开日志目录</Button>
             </div>
           </aside>
         </section>

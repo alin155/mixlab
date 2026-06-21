@@ -1,4 +1,4 @@
-import { InspectorPanel } from "@mixlab/ui-foundation";
+import { Button, InspectorPanel } from "@mixlab/ui-foundation";
 import {
   formatDuration,
   formatFileSize,
@@ -77,30 +77,31 @@ export function PublicLibraryPage({
     : `继续加载 ${Math.min(20, remainingCount)} 条`;
 
   return (
-    <section className="cutter-page cutter-public-library" data-page="public-library">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header">
+    <section className="cutter-page cutter-public-library ml-workbench-page ml-workbench-page--library" data-page="public-library">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--library ml-workbench-main--rows-list-footer">
+        <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow">公共素材库</p>
-            <h1>可用原素材</h1>
-            <p>浏览管理端已经发布到剪辑端的原视频。</p>
+            <p className="cutter-eyebrow ml-page-kicker">公共素材库</p>
+            <h1 className="ml-page-title">可用原素材</h1>
+            <p className="ml-page-description">浏览管理端已经发布到剪辑端的原视频。</p>
           </div>
-          <div className="cutter-local-view-toggle" role="group" aria-label="公共素材视频类型">
+          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
             {orientationFilterOptions.map((option) => (
-              <button
+              <Button
                 key={option.value}
                 type="button"
-                className={orientationFilter === option.value ? "is-active" : ""}
+                variant={orientationFilter === option.value ? "primary" : "ghost"}
+                size="sm"
                 aria-pressed={orientationFilter === option.value}
                 onClick={() => onSetOrientationFilter?.(option.value)}
               >
                 {option.label}
-              </button>
+              </Button>
             ))}
           </div>
         </header>
 
-        <div className="cutter-public-library-scroll">
+        <div className="cutter-public-library-scroll ml-scroll-region">
           {filtered.length > 0 ? (
             <LibraryGallery
               items={filtered.map((video) => ({
@@ -123,7 +124,7 @@ export function PublicLibraryPage({
               }))}
             />
           ) : (
-            <div className="cutter-local-empty-state">
+            <div className="cutter-library-empty-state ml-empty-panel">
               <strong>当前筛选没有可用原素材</strong>
               <span>切回全部或横版查看已经发布的公共素材。</span>
             </div>
@@ -131,15 +132,16 @@ export function PublicLibraryPage({
         </div>
 
         {hasMore ? (
-          <div className="cutter-public-library-pagination">
-            <button
+          <div className="cutter-library-pagination cutter-public-library-pagination ml-pagination-bar">
+            <Button
               type="button"
-              className="cutter-public-library-load-more"
+              variant="secondary"
+              size="sm"
               disabled={isLoadingMore}
               onClick={onLoadMore}
             >
               {loadMoreLabel}
-            </button>
+            </Button>
             <span>
               已显示 {library.videos.length} / {library.available_video_count}
             </span>
@@ -147,12 +149,12 @@ export function PublicLibraryPage({
         ) : null}
       </div>
 
-      <InspectorPanel title="原素材详情">
-        <div className="cutter-inspector-stack">
+      <InspectorPanel title="原素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
+        <div className="ml-detail-stack">
           {selected ? (
             <video
               key={selected.source_video_id}
-              className="cutter-local-detail-player"
+              className="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"
               src={selected.media_url}
               poster={selected.cover_url}
               controls
@@ -168,9 +170,9 @@ export function PublicLibraryPage({
           <span>{selected?.relative_path ? `路径 ${selected.relative_path}` : ""}</span>
           <p>{selected?.description}</p>
           {selected ? (
-            <a className="cutter-inline-action" href={sourceDetailHash(selected.source_video_id)}>
+            <Button href={sourceDetailHash(selected.source_video_id)} size="sm" variant="secondary">
               查看完整文案
-            </a>
+            </Button>
           ) : null}
         </div>
       </InspectorPanel>

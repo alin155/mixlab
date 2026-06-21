@@ -30,7 +30,11 @@ import { DashboardPage, adminCorePathHealth, adminUsageFunnelRows } from "./feat
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
 import { SettingsPage, adminFirstRunInitializationChecks } from "./features/settings/SettingsPage.tsx";
-import { CutterUserDisableDialog, CutterUsersPage } from "./features/cutter-users/CutterUsersPage.tsx";
+import {
+  CutterUserDisableDialog,
+  CutterUserPasswordResetDialog,
+  CutterUsersPage
+} from "./features/cutter-users/CutterUsersPage.tsx";
 import { AdminControlButton, EmptyState, MetricBand, SourceMetadataInspector, SourceVideoTable } from "./features/shared.tsx";
 import { AdminSourceDetailPage } from "./features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "./features/source-videos/SourceVideosPage.tsx";
@@ -1538,7 +1542,8 @@ test("cutter users page renders login applications and user metrics", async () =
     users,
     metrics,
     onApprove: () => {},
-    onDisable: () => {}
+    onDisable: () => {},
+    onResetPassword: () => undefined
   }));
 
   for (const text of [
@@ -1553,6 +1558,7 @@ test("cutter users page renders login applications and user metrics", async () =
     "剪切成功",
     "最近使用",
     "通过申请",
+    "重置密码",
     "停用用户",
     "张三",
     "王五"
@@ -1585,6 +1591,15 @@ test("cutter user destructive controls require real handlers and confirm disable
   assert.match(dialogHtml, new RegExp(approvedUser.display_name));
   assert.match(dialogHtml, /登录凭证会失效/);
   assert.match(dialogHtml, /确认停用/);
+
+  const resetDialogHtml = renderToStaticMarkup(h(CutterUserPasswordResetDialog, {
+    user: approvedUser,
+    onCancel: () => undefined,
+    onConfirm: () => undefined
+  }));
+  assert.match(resetDialogHtml, /重置剪辑师密码/);
+  assert.match(resetDialogHtml, /新密码/);
+  assert.match(resetDialogHtml, /确认重置/);
 });
 
 test("cutter users page keeps device audit details out of the default workflow", async () => {

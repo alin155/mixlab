@@ -1948,6 +1948,53 @@ test("approves cutter applications and disables cutter users", async () => {
   });
 });
 
+test("admin can reset cutter user password and invalidate sessions", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const application = await createCutterLoginApplication(libraryRoot, {
+    username: "password-target",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-05-01T10:00:00.000Z"
+  });
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    const approved = await postJson(
+      baseUrl,
+      `/api/admin/cutter-users/${application.user_id}/approve`
+    );
+    assert.equal(approved.ok, true);
+
+    const reset = await postJson(
+      baseUrl,
+      `/api/admin/cutter-users/${application.user_id}/password`,
+      { new_password: "Cutter67890" }
+    );
+    assert.equal(reset.ok, true);
+    assert.equal(reset.data.user_id, application.user_id);
+    assert.equal("password_hash" in reset.data, false);
+
+    const raw = JSON.parse(await readFile(
+      path.join(libraryRoot, ".mixlab-library", "cutter-users", "users.json"),
+      "utf8"
+    )) as {
+      users: Array<{ user_id: string; password_hash?: string }>;
+      sessions: unknown[];
+    };
+    const storedUser = raw.users.find((user) => user.user_id === application.user_id);
+    assert.ok(storedUser?.password_hash);
+    assert.notEqual(storedUser.password_hash, "Cutter67890");
+    assert.equal(raw.sessions.length, 0);
+
+    const weakPassword = await postJson(
+      baseUrl,
+      `/api/admin/cutter-users/${application.user_id}/password`,
+      { new_password: "123" }
+    );
+    assert.equal(weakPassword.ok, false);
+    assert.equal(weakPassword.error_code, "invalid_request");
+  });
+});
+
 test("admin cutter user routes accept CU ids longer than six digits", async () => {
   const libraryRoot = await makeLibraryRoot();
   const longUserId = "CU1000000000000";

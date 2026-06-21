@@ -634,6 +634,9 @@ test("serializes concurrent queue submissions so job ids and project order stay 
     Array.from({ length: 12 }, (_, index) => index + 1)
   );
   assert.equal((await listCutJobs({ workspace_root: workspaceRoot })).job_count, 12);
+  const paged = await listCutJobs({ workspace_root: workspaceRoot, limit: 3, offset: 2 });
+  assert.equal(paged.job_count, 12);
+  assert.equal(paged.jobs.length, 3);
 });
 
 test("runs a requested pending cut job without taking the oldest queued job", async () => {

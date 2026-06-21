@@ -1,4 +1,5 @@
 import { type FormEvent, type ReactNode, useState } from "react";
+import { Button } from "@mixlab/ui-foundation";
 import type { CutterLoginStatusValue } from "../../api.ts";
 
 export interface CutterLoginGateProps {
@@ -60,33 +61,38 @@ export function CutterLoginGate({ status, message, deviceName, onLogin, onRegist
   }
 
   return (
-    <main className="cutter-login-gate">
-      <section className="cutter-login-panel">
+    <main className="cutter-login-gate ml-auth-gate">
+      <section className="cutter-login-panel ml-card ml-auth-panel">
         <h1>{isRegister ? "注册剪辑师账号" : "登录剪辑师工作台"}</h1>
         <p>{message ?? reasonForStatus(status)}</p>
         <p>
           当前设备：{deviceName ?? "剪辑工作站"}。注册后需要管理员在管理端审核。
         </p>
-        <div className="cutter-login-tabs" role="tablist" aria-label="登录方式">
-          <button
+        <div className="cutter-login-tabs ml-segmented-control ml-segmented-control--equal" role="tablist" aria-label="登录方式">
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             className={mode === "login" ? "is-active" : ""}
             onClick={() => setMode("login")}
           >
             登录
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             className={mode === "register" ? "is-active" : ""}
             onClick={() => setMode("register")}
           >
             注册
-          </button>
+          </Button>
         </div>
         <form onSubmit={handleSubmit}>
-          <label>
+          <label className="cutter-login-field ml-form-field">
             用户名
             <input
+              className="ml-field-input"
               name="username"
               value={username}
               disabled={isDisabled}
@@ -94,9 +100,10 @@ export function CutterLoginGate({ status, message, deviceName, onLogin, onRegist
               onChange={(event) => setUsername(event.currentTarget.value)}
             />
           </label>
-          <label>
+          <label className="cutter-login-field ml-form-field">
             密码
             <input
+              className="ml-field-input"
               name="password"
               type="password"
               value={password}
@@ -106,9 +113,9 @@ export function CutterLoginGate({ status, message, deviceName, onLogin, onRegist
             />
           </label>
           {isRegister ? <small>密码至少 8 位，并同时包含字母和数字。</small> : null}
-          <button type="submit" disabled={isDisabled || !username.trim() || !password}>
+          <Button type="submit" disabled={isDisabled || !username.trim() || !password} variant="primary">
             {isApplying ? "处理中..." : isRegister ? "注册并等待审核" : "登录"}
-          </button>
+          </Button>
         </form>
         {isPending ? <p>账号已提交审核。审核通过后，使用用户名和密码登录即可进入。</p> : null}
       </section>

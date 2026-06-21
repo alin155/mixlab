@@ -180,6 +180,38 @@ test("source search client can request the next cursor batch", async () => {
   assert.equal(result.search_mode, "sqlite-index");
 });
 
+test("paginated cutter list clients add limit and offset query params", async () => {
+  const requests: string[] = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async (url) => {
+      requests.push(String(url));
+      if (String(url).startsWith("http://127.0.0.1:3789/cutter/local-clips")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { local_clip_count: 0, clips: [] }
+        });
+      }
+      if (String(url).startsWith("http://127.0.0.1:3789/cutter/cut-jobs")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: { job_count: 0, jobs: [] }
+        });
+      }
+
+      throw new Error(`unexpected request ${String(url)}`);
+    }
+  });
+
+  await client.listLocalClips({ limit: 80, offset: 20 });
+  await client.listCutJobs({ limit: 120, offset: 40 });
+
+  assert.deepEqual(requests, [
+    "http://127.0.0.1:3789/cutter/local-clips?limit=80&offset=20",
+    "http://127.0.0.1:3789/cutter/cut-jobs?limit=120&offset=40"
+  ]);
+});
+
 test("workbench data resolves Cutter API media URLs before rendering", async () => {
   let searchRequestCount = 0;
   const client = {
@@ -1087,6 +1119,28 @@ test("supports cutter account register login and logout endpoints", async () => 
         });
       }
 
+      if (String(url).endsWith("/cutter/auth/change-password")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            user: {
+              user_id: "CU000001",
+              username: "xiaowang",
+              display_name: "小王",
+              status: "approved",
+              applied_at: "2026-05-03T08:00:00Z",
+              approved_at: "2026-05-03T08:05:00Z",
+              rejected_at: "",
+              disabled_at: "",
+              last_login_at: "2026-05-03T08:05:00Z",
+              last_used_at: "",
+              note: "",
+              devices: []
+            }
+          }
+        });
+      }
+
       return makeJsonResponse({
         schema_version: "1.0",
         data: {
@@ -1130,14 +1184,20 @@ test("supports cutter account register login and logout endpoints", async () => 
     device_id: "device-001",
     device_name: "MacBook Pro"
   });
+  const changedPassword = await client.changePassword({
+    current_password: "Cutter12345",
+    new_password: "Cutter67890"
+  });
   const loggedOut = await client.logoutAccount();
 
   assert.equal(registered.user.status, "pending");
   assert.equal(loggedIn.session?.session_token, "session-001");
+  assert.equal(changedPassword.user.status, "approved");
   assert.equal(loggedOut.removed, true);
   assert.deepEqual(requests.map((request) => [new URL(request.url).pathname, request.method]), [
     ["/cutter/auth/register", "POST"],
     ["/cutter/auth/login", "POST"],
+    ["/cutter/auth/change-password", "POST"],
     ["/cutter/auth/logout", "POST"]
   ]);
   assert.deepEqual(requests[0]?.body, {
@@ -1148,8 +1208,14 @@ test("supports cutter account register login and logout endpoints", async () => 
   });
   assert.equal(requests[0]?.headers.get("x-mixlab-device-id"), null);
   assert.equal(requests[1]?.headers.get("x-mixlab-device-id"), null);
+  assert.deepEqual(requests[2]?.body, {
+    current_password: "Cutter12345",
+    new_password: "Cutter67890"
+  });
   assert.equal(requests[2]?.headers.get("x-mixlab-device-id"), "device-001");
   assert.equal(requests[2]?.headers.get("x-mixlab-session-token"), "session-001");
+  assert.equal(requests[3]?.headers.get("x-mixlab-device-id"), "device-001");
+  assert.equal(requests[3]?.headers.get("x-mixlab-session-token"), "session-001");
 });
 
 test("attaches cutter auth headers to protected data and control requests", async () => {

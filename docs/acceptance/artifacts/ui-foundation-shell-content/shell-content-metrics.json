@@ -1,0 +1,1201 @@
+{
+  "captured_at": "2026-06-19T21:49:08.979Z",
+  "base_url": "http://127.0.0.1:5177",
+  "viewport": {
+    "width": 1440,
+    "height": 920
+  },
+  "session_user": "hqh",
+  "routes": {
+    "project-home": {
+      "url": "http://127.0.0.1:5177/#/project-home",
+      "routeAttr": "project-home",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n本地 7950 / 公共 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归档。\n\n搜索\n新建项目\n最近项目\n还没有剪切项目\n点击“新建项目”后，这里会出现项目卡片。\n项目详情\n未选择项目\n选择一个项目后再搜索，剪切任务和本地素材会按项目归档。",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 1104,
+          "height": 872,
+          "top": 17,
+          "right": 1418,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden auto",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "page": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    },
+    "settings": {
+      "url": "http://127.0.0.1:5177/#/settings",
+      "routeAttr": "settings",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n公共 7950 / 本地 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n\n运行环境\n\n设置\n\n管理本地工作区、默认剪切方式和界面显示。\n\n服务状态\n连接\n可用\n当前剪辑师\nhqh\n可用原素材\n7950\n本地工作区\nMixLabLocal\n本地素材数\n146\n当前 Release\nv007950\nRelease 缓存\n本机可用\n源视频预检\n3/3 可读\n缩略图缓存\n12 MB\n缩略图索引\n293/293\n剪切临时区\n0 B\n剪切工具\n可用",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 744,
+          "height": 872,
+          "top": 17,
+          "right": 1058,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden auto",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "page": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    },
+    "cache-management": {
+      "url": "http://127.0.0.1:5177/#/cache-management",
+      "routeAttr": "cache-management",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n公共 7950 / 本地 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n\nLocal Runtime\n\n缓存管理\n\n查看本机缓存、搜索索引、源视频预检和剪切临时区状态。\n\n本机可用\n运行缓存\n22 GB\n\nRelease、搜索索引、缩略图、原视频和剪切临时区合计\n\nRelease\n2.1 GB\n\nv007950\n\n搜索索引\n0 KB\n\n本地 searchd\n\n缩略图\n12 MB\n\n293 条记录\n\n原视频\n20 GB\n\n8 条视频 · ",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 744,
+          "height": 872,
+          "top": 17,
+          "right": 1058,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden auto",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "page": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    },
+    "local-library": {
+      "url": "http://127.0.0.1:5177/#/local-library",
+      "routeAttr": "local-library",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n公共 7950 / 本地 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n\n本地素材库\n\n本地可复剪素材\n\n当前项目 · 0 个当前项目素材\n\n当前项目\n全部素材\n全部\n横版\n竖版\n当前项目暂无本地素材\n切换到全部素材，可以查看本机已剪切的其他项目素材。\n素材详情\n未选择本地素材\n0 条当前视图素材",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 730,
+          "height": 872,
+          "top": 17,
+          "right": 1044,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden auto",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "page": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    },
+    "public-library": {
+      "url": "http://127.0.0.1:5177/#/public-library",
+      "routeAttr": "public-library",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n公共 7950 / 本地 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n\n公共素材库\n\n可用原素材\n\n浏览管理端已经发布到剪辑端的原视频。\n\n全部\n横版\n竖版\n1.房产置换与资产优化\n08:37 · -\n未知\n2.比特币暴涨与投资多元化\n09:24 · -\n未知\n3.理财避险核心资产+核心能力\n07:37 · -\n未知\n4.财富管理的精髓\n10:46 · -\n未知\n5.全球风云变幻，把握投资时机\n07:03 · -\n未知\n6.货币洪流下",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 730,
+          "height": 872,
+          "top": 17,
+          "right": 1044,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden auto",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "page": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    },
+    "cut-tasks": {
+      "url": "http://127.0.0.1:5177/#/cut-tasks",
+      "routeAttr": "cut-tasks",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n公共 7950 / 本地 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n剪切任务\n\n146 个任务\n\n全部\n146\n等待中\n0\n剪切中\n0\n失败\n0\n已完成\n146\n打开文件目录\n本机剪切流水线\n本机剪切空闲\n\n没有正在执行的本机剪切任务。\n\n状态\t来源\t时间段\t选中文案\t问题\t操作\n已完成\t\nC1160\n\t\n02:30 - 05:04\n\t\n好，一直终于赶上。好，来123。好好，谢谢陶老师。好，我也跟陶老师算一算好。好好谢谢好谢谢好，谢",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 750,
+          "height": 872,
+          "top": 17,
+          "right": 1064,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden auto",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "page": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "8px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    },
+    "material-locator": {
+      "url": "http://127.0.0.1:5177/#/material-locator",
+      "routeAttr": "material-locator",
+      "readyAttr": "true",
+      "textProbe": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n未选择\n素材库\n本地 7950 / 公共 146\n剪切任务\n空闲\n本机服务\n正常\nhqh\n缓存\n22 GB\n搜索\n候选素材\n等待搜索\n先搜索文案\n输入关键词或粘贴文案后，系统会列出可选素材。\n视频文案\n上一个\n下一个\n先搜索文案\n点击候选素材后，这里会定位到命中文案并高亮显示。\n先搜索文案\n选择候选素材后，这里用于验证画面。\n选区信息\n暂无选区\n\n暂无选区\n\n最近剪切任务\n查看全部任务\n状态\n来源视频\n时长\n已完成\n10-6月13日-C1160\n02:33\n已完成\n9-6",
+      "rects": {
+        "app": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "shell": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 0
+        },
+        "sidebar": {
+          "x": 0,
+          "y": 0,
+          "width": 292,
+          "height": 920,
+          "top": 0,
+          "right": 292,
+          "bottom": 920,
+          "left": 0
+        },
+        "workbench": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "content": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "page": {
+          "x": 292,
+          "y": 0,
+          "width": 1148,
+          "height": 920,
+          "top": 0,
+          "right": 1440,
+          "bottom": 920,
+          "left": 292
+        },
+        "pageMain": {
+          "x": 314,
+          "y": 17,
+          "width": 1104,
+          "height": 872,
+          "top": 17,
+          "right": 1418,
+          "bottom": 889,
+          "left": 314
+        }
+      },
+      "styles": {
+        "app": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "shell": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(234, 242, 251)"
+        },
+        "sidebar": {
+          "display": "flex",
+          "position": "relative",
+          "overflow": "hidden hidden",
+          "padding": "20px 12px 20px 12px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "workbench": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(248, 251, 255)"
+        },
+        "content": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(246, 248, 251)"
+        },
+        "page": {
+          "display": "block",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "17px 22px 31px 22px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgba(0, 0, 0, 0)"
+        },
+        "pageMain": {
+          "display": "grid",
+          "position": "static",
+          "overflow": "hidden hidden",
+          "padding": "0px 0px 0px 0px",
+          "margin": "0px 0px 0px 0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "background": "rgb(255, 255, 255)"
+        }
+      },
+      "scroll": {
+        "body": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "documentElement": {
+          "scrollHeight": 920,
+          "clientHeight": 920
+        },
+        "content": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        },
+        "page": {
+          "scrollHeight": 920,
+          "clientHeight": 920,
+          "scrollTop": 0
+        }
+      }
+    }
+  }
+}

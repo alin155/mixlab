@@ -308,6 +308,15 @@ export interface CutterLogoutResult {
   removed: boolean;
 }
 
+export interface CutterPasswordChangeRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface CutterPasswordChangeResult {
+  user: CutterUserRecord;
+}
+
 export type CutterAuthMode = "reviewed" | "local_trusted";
 
 export interface CutterAuthModeStatus {
@@ -469,18 +478,19 @@ export interface CutterApiClient {
   registerAccount(input: CutterAccountCredentials): Promise<CutterLoginApplication>;
   loginAccount(input: CutterAccountCredentials): Promise<CutterLoginApplication>;
   logoutAccount(): Promise<CutterLogoutResult>;
+  changePassword(input: CutterPasswordChangeRequest): Promise<CutterPasswordChangeResult>;
   getAuthMode(): Promise<CutterAuthModeStatus>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(): Promise<CutterRuntimeStatus>;
   listSourceLibrary(options?: { limit?: number; offset?: number }): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string }): Promise<SearchResponse>;
-  listLocalClips(): Promise<LocalClipCatalog>;
+  listLocalClips(options?: { limit?: number; offset?: number }): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
   createLocalClip(request: CreateLocalClipRequest): Promise<LocalClip>;
   createClipList(request: CreateClipListRequest): Promise<ClipList>;
   submitCutJobs(request: SubmitCutJobsRequest): Promise<CutJobSubmission>;
-  listCutJobs(): Promise<CutJobCatalog>;
+  listCutJobs(options?: { limit?: number; offset?: number }): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
   retryCutJob(cutJobId: string): Promise<CutJob>;
   openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
@@ -610,6 +620,18 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    changePassword(request: CutterPasswordChangeRequest) {
+      return requestEnvelope<CutterPasswordChangeResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/auth/change-password"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
     getAuthMode() {
       return requestEnvelope<CutterAuthModeStatus>(
         fetchImpl,
@@ -682,10 +704,18 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    listLocalClips() {
+    listLocalClips(options) {
+      const params = new URLSearchParams();
+      if (options?.limit) {
+        params.set("limit", String(options.limit));
+      }
+      if (options?.offset) {
+        params.set("offset", String(options.offset));
+      }
+      const query = params.toString();
       return requestEnvelope<LocalClipCatalog>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/local-clips"),
+        appendPath(input.base_url, `/cutter/local-clips${query ? `?${query}` : ""}`),
         {
           headers: protectedHeaders
         }
@@ -756,10 +786,18 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    listCutJobs() {
+    listCutJobs(options) {
+      const params = new URLSearchParams();
+      if (options?.limit) {
+        params.set("limit", String(options.limit));
+      }
+      if (options?.offset) {
+        params.set("offset", String(options.offset));
+      }
+      const query = params.toString();
       return requestEnvelope<CutJobCatalog>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/cut-jobs"),
+        appendPath(input.base_url, `/cutter/cut-jobs${query ? `?${query}` : ""}`),
         {
           headers: protectedHeaders
         }

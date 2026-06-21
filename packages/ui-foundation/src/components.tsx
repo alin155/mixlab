@@ -1,4 +1,5 @@
 import type {
+  AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   CSSProperties,
   FormEvent,
@@ -92,6 +93,9 @@ export interface AppShellProps {
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
+  href?: AnchorHTMLAttributes<HTMLAnchorElement>["href"];
+  target?: AnchorHTMLAttributes<HTMLAnchorElement>["target"];
+  rel?: AnchorHTMLAttributes<HTMLAnchorElement>["rel"];
   leadingIcon?: ReactNode;
   trailingIcon?: ReactNode;
 }
@@ -112,6 +116,7 @@ export interface CardProps {
   footer?: ReactNode;
   children?: ReactNode;
   selected?: boolean;
+  bodyFlush?: boolean;
   className?: string;
   bodyClassName?: string;
 }
@@ -425,22 +430,57 @@ export function Sidebar({
 export function Button({
   variant = "secondary",
   size = "md",
+  href,
+  target,
+  rel,
   leadingIcon,
   trailingIcon,
   children,
   className = "",
+  disabled,
   type = "button",
   ...props
 }: ButtonProps) {
-  return (
-    <button
-      {...props}
-      className={cx("ml-button", `ml-button--${variant}`, `ml-button--${size}`, className)}
-      type={type}
-    >
+  const buttonClassName = cx(
+    "ml-button",
+    `ml-button--${variant}`,
+    `ml-button--${size}`,
+    disabled && "is-disabled",
+    className
+  );
+  const content = (
+    <>
       {leadingIcon ? <span className="ml-button-icon" aria-hidden="true">{leadingIcon}</span> : null}
       <span className="ml-button-label">{children}</span>
       {trailingIcon ? <span className="ml-button-icon" aria-hidden="true">{trailingIcon}</span> : null}
+    </>
+  );
+
+  if (href) {
+    const anchorProps = props as unknown as AnchorHTMLAttributes<HTMLAnchorElement>;
+    return (
+      <a
+        {...anchorProps}
+        aria-disabled={disabled ? true : anchorProps["aria-disabled"]}
+        className={buttonClassName}
+        href={disabled ? undefined : href}
+        rel={rel}
+        tabIndex={disabled ? -1 : anchorProps.tabIndex}
+        target={target}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      {...props}
+      className={buttonClassName}
+      disabled={disabled}
+      type={type}
+    >
+      {content}
     </button>
   );
 }
@@ -496,6 +536,7 @@ export function Card({
   footer,
   children,
   selected = false,
+  bodyFlush = false,
   className = "",
   bodyClassName = ""
 }: CardProps) {
@@ -512,7 +553,11 @@ export function Card({
           {actions ? <div className="ml-card-actions">{actions}</div> : null}
         </header>
       ) : null}
-      {children ? <div className={cx("ml-card-body", bodyClassName)}>{children}</div> : null}
+      {children ? (
+        <div className={cx("ml-card-body", bodyFlush && "is-flush", bodyClassName)}>
+          {children}
+        </div>
+      ) : null}
       {footer ? <footer className="ml-card-footer">{footer}</footer> : null}
     </section>
   );

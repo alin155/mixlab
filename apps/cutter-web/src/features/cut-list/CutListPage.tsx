@@ -1,4 +1,4 @@
-import { InspectorPanel, Table, type TableColumn } from "@mixlab/ui-foundation";
+import { Button, InspectorPanel, Table, type TableColumn } from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import type { CutListItem } from "../../state/cut-list.ts";
 
@@ -35,44 +35,44 @@ export function CutListPage({
       header: "时间段",
       render: (item) => `${formatDuration(item.begin_ms)} - ${formatDuration(item.end_ms)}`
     },
-    { id: "text", header: "选中文案", accessor: "selected_text" },
+    { id: "text", header: "选中文案", accessor: "selected_text", className: "ml-truncate-line" },
     { id: "mode", header: "模式", render: (item) => cutModeLabel(item.cut_mode), width: 112 },
     {
       id: "actions",
       header: "操作",
       width: 180,
       render: (item) => (
-        <span className="cutter-row-actions">
-          <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "up")}>
+        <span className="cutter-row-actions ml-toolbar-list">
+          <Button type="button" onClick={() => onMove?.(item.cut_list_item_id, "up")} size="sm" variant="ghost">
             上移
-          </button>
-          <button type="button" onClick={() => onMove?.(item.cut_list_item_id, "down")}>
+          </Button>
+          <Button type="button" onClick={() => onMove?.(item.cut_list_item_id, "down")} size="sm" variant="ghost">
             下移
-          </button>
-          <button type="button" onClick={() => onRemove?.(item.cut_list_item_id)}>
+          </Button>
+          <Button type="button" onClick={() => onRemove?.(item.cut_list_item_id)} size="sm" variant="danger">
             删除
-          </button>
+          </Button>
         </span>
       )
     }
   ];
 
   return (
-    <section className="cutter-page cutter-cut-list" data-page="cut-list">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header">
+    <section className="cutter-page cutter-cut-list ml-workbench-page ml-workbench-page--fluid" data-page="cut-list">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--rows-list">
+        <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow">本地待处理</p>
-            <h1>待剪清单</h1>
-            <p>连续文案片段在这里以一个任务保存，可排序后提交剪切队列。</p>
+            <p className="cutter-eyebrow ml-page-kicker">本地待处理</p>
+            <h1 className="ml-page-title">待剪清单</h1>
+            <p className="ml-page-description">连续文案片段在这里以一个任务保存，可排序后提交剪切队列。</p>
           </div>
-          <div className="cutter-button-group">
-            <button className="cutter-secondary-button" type="button" onClick={onClear}>
+          <div className="cutter-button-group ml-control-cluster">
+            <Button type="button" onClick={onClear} variant="secondary">
               清空
-            </button>
-            <button className="cutter-primary-button" type="button" onClick={onSubmit}>
+            </Button>
+            <Button type="button" onClick={onSubmit} variant="primary">
               提交剪切队列
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -84,8 +84,8 @@ export function CutListPage({
         />
       </div>
 
-      <InspectorPanel title="提交设置">
-        <div className="cutter-inspector-stack">
+      <InspectorPanel title="提交设置" className="ml-inspector--workbench ml-workbench-inspector">
+        <div className="ml-detail-stack">
           <strong>{items.length} 个待剪片段</strong>
           <span>默认模式为极速剪切，可在每条任务上覆盖。</span>
           <span>提交后进入本地剪切队列，不阻塞搜索和继续选段。</span>

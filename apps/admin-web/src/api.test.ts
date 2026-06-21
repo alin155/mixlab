@@ -257,6 +257,7 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.listCutterUsers();
   await client.approveCutterUser("CU000001");
   await client.disableCutterUser("CU000001");
+  await client.resetCutterUserPassword("CU000001", { new_password: "Cutter67890" });
   await client.listPreprocessJobs();
   await client.getPreprocessJobLog("J000001");
   await client.listIndexVersions();
@@ -297,6 +298,7 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/cutter-users",
       "/api/admin/cutter-users/CU000001/approve",
       "/api/admin/cutter-users/CU000001/disable",
+      "/api/admin/cutter-users/CU000001/password",
       "/api/admin/preprocess/jobs",
       "/api/admin/preprocess/jobs/J000001/log",
       "/api/admin/index/versions",

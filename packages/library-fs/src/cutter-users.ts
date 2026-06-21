@@ -541,6 +541,89 @@ export async function logoutCutterSession(
   });
 }
 
+export async function changeCutterAccountPassword(
+  libraryRoot: string,
+  input: {
+    user_id: string;
+    current_password: string;
+    new_password: string;
+    now: string;
+    device_id?: string;
+    session_token?: string;
+  }
+): Promise<{ ok: true; user: CutterUserRecord } | { ok: false; reason: string }> {
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const user = store.users.find((candidate) => candidate.user_id === input.user_id);
+    if (!user) {
+      return { ok: false, reason: "剪辑师用户不存在" };
+    }
+    if (user.status === "pending") {
+      return { ok: false, reason: "账号正在等待管理员审核" };
+    }
+    if (user.status === "rejected") {
+      return { ok: false, reason: "账号申请未通过，请联系管理员" };
+    }
+    if (user.status === "disabled") {
+      return { ok: false, reason: "账号已停用，请联系管理员" };
+    }
+    if (!user.password_hash) {
+      return { ok: false, reason: "当前账号尚未设置密码，请联系管理员重置密码" };
+    }
+    if (!(await verifyPassword(input.current_password, user.password_hash))) {
+      return { ok: false, reason: "当前密码错误" };
+    }
+
+    user.password_hash = await hashPassword(input.new_password);
+    store.sessions = store.sessions.filter((session) => {
+      if (session.user_id !== user.user_id) {
+        return true;
+      }
+
+      return Boolean(
+        input.device_id &&
+        input.session_token &&
+        session.device_id === input.device_id &&
+        session.session_token === input.session_token
+      );
+    });
+
+    const currentSession = store.sessions.find(
+      (session) =>
+        session.user_id === user.user_id &&
+        session.device_id === input.device_id &&
+        session.session_token === input.session_token
+    );
+    if (currentSession) {
+      currentSession.last_seen_at = input.now;
+    }
+
+    await writeStore(libraryRoot, store);
+    return { ok: true, user };
+  });
+}
+
+export async function resetCutterUserPassword(
+  libraryRoot: string,
+  input: {
+    user_id: string;
+    new_password: string;
+  }
+): Promise<CutterUserRecord> {
+  return withStoreMutation(libraryRoot, async () => {
+    const store = await readStore(libraryRoot);
+    const user = store.users.find((candidate) => candidate.user_id === input.user_id);
+    if (!user) {
+      throw new Error("剪辑师用户不存在");
+    }
+
+    user.password_hash = await hashPassword(input.new_password);
+    store.sessions = store.sessions.filter((session) => session.user_id !== user.user_id);
+    await writeStore(libraryRoot, store);
+    return user;
+  });
+}
+
 export async function approveCutterUser(
   libraryRoot: string,
   input: { user_id: string; now: string }

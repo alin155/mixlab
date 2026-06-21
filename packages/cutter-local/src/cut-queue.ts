@@ -82,6 +82,8 @@ export interface CutJobSubmission {
 
 export interface ListCutJobsInput {
   workspace_root: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface CutJobCatalog {
@@ -534,6 +536,20 @@ function formatCutJobId(dateStamp: string, sequence: number): string {
   return `CJ${dateStamp}-${String(sequence).padStart(4, "0")}`;
 }
 
+function normalizedListWindow(input: { limit?: number; offset?: number }): {
+  limit?: number;
+  offset: number;
+} {
+  const offset = Number.isFinite(input.offset) && input.offset && input.offset > 0
+    ? Math.floor(input.offset)
+    : 0;
+  const limit = Number.isFinite(input.limit) && input.limit && input.limit > 0
+    ? Math.floor(input.limit)
+    : undefined;
+
+  return { limit, offset };
+}
+
 async function allocateNextCutJobIds(input: {
   workspace_root: string;
   now: string;
@@ -648,6 +664,45 @@ async function readAllCutJobs(workspaceRoot: string): Promise<CutJobManifest[]> 
   return jobs;
 }
 
+async function readCutJobsPage(input: ListCutJobsInput): Promise<{
+  total: number;
+  jobs: CutJobManifest[];
+}> {
+  let entries;
+
+  try {
+    entries = await readdir(cutJobsRoot(input.workspace_root), { withFileTypes: true });
+  } catch {
+    return {
+      total: 0,
+      jobs: []
+    };
+  }
+
+  const jobEntries = entries
+    .filter((entry) => {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        return false;
+      }
+
+      return CUT_JOB_ID_PATTERN.test(entry.name.replace(/\.json$/, ""));
+    })
+    .sort((left, right) => right.name.localeCompare(left.name));
+  const { limit, offset } = normalizedListWindow(input);
+  const pageEntries = limit ? jobEntries.slice(offset, offset + limit) : jobEntries.slice(offset);
+  const jobs: CutJobManifest[] = [];
+
+  for (const entry of pageEntries) {
+    const cutJobId = entry.name.replace(/\.json$/, "");
+    jobs.push(JSON.parse(await readFile(cutJobPath(input.workspace_root, cutJobId), "utf8")) as CutJobManifest);
+  }
+
+  return {
+    total: jobEntries.length,
+    jobs
+  };
+}
+
 export async function submitClipListToQueue(
   input: SubmitClipListToQueueInput
 ): Promise<CutJobSubmission> {
@@ -698,14 +753,17 @@ export async function getCutJob(input: GetCutJobInput): Promise<CutJobManifest |
 }
 
 export async function listCutJobs(input: ListCutJobsInput): Promise<CutJobCatalog> {
-  const jobs = await readAllCutJobs(input.workspace_root);
+  const page = input.limit
+    ? await readCutJobsPage(input)
+    : { total: 0, jobs: await readAllCutJobs(input.workspace_root) };
+  const jobs = page.jobs;
   jobs.sort((left, right) => {
     const updatedCompare = right.updated_at.localeCompare(left.updated_at);
     return updatedCompare || right.cut_job_id.localeCompare(left.cut_job_id);
   });
 
   return {
-    job_count: jobs.length,
+    job_count: input.limit ? page.total : jobs.length,
     jobs
   };
 }

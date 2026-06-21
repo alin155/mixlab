@@ -169,25 +169,33 @@ export function CutQueuePage({
   autoRefreshEnabled = false,
   lastUpdatedLabel = "",
   pipelineState = idleCutPipelineState,
+  totalJobCount,
+  isLoadingMore = false,
   onRefresh,
   onRunNext,
   onRetryFailed,
-  onOpenCutOutputDirectory
+  onOpenCutOutputDirectory,
+  onLoadMore
 }: {
   jobs: readonly CutQueueJob[];
   project?: CutterProject;
   autoRefreshEnabled?: boolean;
   lastUpdatedLabel?: string;
   pipelineState?: CutPipelineState;
+  totalJobCount?: number;
+  isLoadingMore?: boolean;
   onRefresh?: () => void;
   onRunNext?: () => void;
   onRetryFailed?: (cutJobId: string) => void;
   onOpenCutOutputDirectory?: () => void;
+  onLoadMore?: () => void;
 }) {
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
   const pipelineDetail = cutPipelineDetailLabel(pipelineState);
   const projectTitle = project ? projectDisplayTitle(project) : "";
+  const totalCount = Math.max(totalJobCount ?? jobs.length, jobs.length);
+  const canLoadMore = totalCount > jobs.length && Boolean(onLoadMore);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [statusFilter, setStatusFilter] = useState<CutTaskFilter>("all");
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(() => preferredTaskJob(jobs)?.queue_job_id);
@@ -207,7 +215,7 @@ export function CutQueuePage({
       width: "17%",
       render: (job) => (
         <button
-          className="cutter-queue-source-button"
+          className="cutter-queue-source-button ml-table-text-button"
           type="button"
           onClick={(event) => {
             event.stopPropagation();
@@ -224,7 +232,7 @@ export function CutQueuePage({
       width: "15%",
       align: "center",
       render: (job) => (
-        <span className="cutter-queue-time-range">
+        <span className="cutter-queue-time-range ml-truncate-line ml-table-muted-text">
           {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
         </span>
       )
@@ -232,7 +240,11 @@ export function CutQueuePage({
     {
       id: "text",
       header: "选中文案",
-      render: (job) => <span className="cutter-queue-selected-text">{shortSelectedText(job.selected_text)}</span>
+      render: (job) => (
+        <span className="cutter-queue-selected-text ml-truncate-line ml-table-primary-text">
+          {shortSelectedText(job.selected_text)}
+        </span>
+      )
     },
     {
       id: "problem",
@@ -240,7 +252,9 @@ export function CutQueuePage({
       width: "17%",
       align: "center",
       render: (job) => (
-        <span className={`cutter-queue-problem is-${job.status}`}>{problemForJob(job, nowMs)}</span>
+        <span className={`cutter-queue-problem ml-status-text ml-status-text--${job.status} ml-truncate-line`}>
+          {problemForJob(job, nowMs)}
+        </span>
       )
     },
     {
@@ -249,7 +263,7 @@ export function CutQueuePage({
       width: "92px",
       align: "center",
       render: (job) => (
-        <span className={`cutter-queue-actions is-${job.status}`}>
+        <span className="cutter-queue-actions ml-table-action-cell">
           {job.status === "failed" && onRetryFailed ? (
             <Button
               size="sm"
@@ -262,11 +276,11 @@ export function CutQueuePage({
               重新剪切
             </Button>
           ) : job.status === "done" ? (
-            <span className="cutter-queue-action-check" role="img" aria-label="剪切成功" title="剪切成功">
+            <span className="ml-status-icon ml-status-icon--ready" role="img" aria-label="剪切成功" title="剪切成功">
               <CheckIcon />
             </span>
           ) : (
-            <span>{actionTextForJob(job.status)}</span>
+            <span className={`ml-status-text ml-status-text--${job.status}`}>{actionTextForJob(job.status)}</span>
           )}
         </span>
       )
@@ -291,12 +305,12 @@ export function CutQueuePage({
   }, [jobs, selectedJobId]);
 
   return (
-    <section className="cutter-page cutter-cut-queue" data-page="cut-tasks">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header">
+    <section className="cutter-page cutter-cut-queue ml-workbench-page ml-workbench-page--fluid" data-page="cut-tasks">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--task-flow">
+        <header className="cutter-page-header ml-workbench-header">
           <div>
-            <h1>剪切任务</h1>
-            <p>
+            <h1 className="ml-page-title">剪切任务</h1>
+            <p className="ml-page-description">
               {summary.total} 个任务
               {summary.running > 0 ? ` · ${summary.running} 个剪切中` : ""}
               {summary.failed > 0 ? ` · ${summary.failed} 个需要处理` : ""}
@@ -305,24 +319,25 @@ export function CutQueuePage({
           </div>
         </header>
 
-        <Card className="cutter-queue-filter-card" bodyClassName="cutter-queue-filter-card-body">
-          <div className="cutter-queue-filter-list">
+        <Card className="cutter-queue-filter-card is-workbench" bodyClassName="cutter-queue-filter-card-body ml-toolbar-card-body">
+          <div className="cutter-queue-filter-list ml-toolbar-list">
             {statusFilters.map((filter) => (
               <Button
                 key={filter.key}
                 className={`cutter-queue-filter-button${statusFilter === filter.key ? " is-active" : ""}`}
                 aria-pressed={statusFilter === filter.key}
                 onClick={() => setStatusFilter(filter.key)}
+                size="sm"
                 variant={statusFilter === filter.key ? "secondary" : "ghost"}
               >
                 <span>{filter.label}</span>
-                <strong>{taskCountForFilter(summary, filter.key)}</strong>
+                <strong className="ml-button-count">{taskCountForFilter(summary, filter.key)}</strong>
               </Button>
             ))}
           </div>
           {onOpenCutOutputDirectory ? (
             <Button
-              className="cutter-queue-directory-action"
+              className="cutter-queue-directory-action ml-toolbar-action"
               leadingIcon={<FolderIcon />}
               onClick={onOpenCutOutputDirectory}
               variant="secondary"
@@ -332,54 +347,73 @@ export function CutQueuePage({
           ) : null}
         </Card>
 
-        <Card className={`cutter-queue-pipeline-card is-${pipelineState.status}`}>
-          <div>
+        <Card
+          className={`cutter-queue-pipeline-card is-${pipelineState.status} is-workbench`}
+          bodyClassName="cutter-queue-pipeline-card-body ml-summary-card-body"
+        >
+          <div className="ml-inline-summary">
             <span>本机剪切流水线</span>
             <strong>{pipelineStatus}</strong>
           </div>
-          <p>{pipelineDetail}</p>
+          <p className="ml-supporting-text">{pipelineDetail}</p>
         </Card>
 
         <Table<CutQueueJob>
-          className="cutter-queue-table"
+          className="cutter-queue-table is-workbench"
           columns={taskColumns}
           density="compact"
-          empty={<span className="cutter-queue-empty">当前筛选没有剪切任务。</span>}
+          empty={<span className="cutter-queue-empty ml-empty-inline">当前筛选没有剪切任务。</span>}
           getRowKey={(job) => job.queue_job_id}
           onRowClick={(job) => setSelectedJobId(job.queue_job_id)}
           rows={visibleJobs}
           selectedRowKey={selectedJob?.queue_job_id}
           stickyHeader
         />
+        {canLoadMore ? (
+          <Button
+            type="button"
+            className="cutter-queue-load-more"
+            variant="secondary"
+            size="sm"
+            disabled={isLoadingMore}
+            onClick={onLoadMore}
+          >
+            {isLoadingMore ? "加载中" : `加载更多（已显示 ${jobs.length} / ${totalCount}）`}
+          </Button>
+        ) : null}
       </div>
 
-      <InspectorPanel title="任务详情">
+      <InspectorPanel
+        title="任务详情"
+        className="ml-inspector--workbench cutter-queue-inspector"
+        bodyClassName="cutter-queue-inspector-body"
+      >
         {selectedJob ? (
-          <div className="cutter-queue-detail">
-            <Badge className="cutter-queue-detail-status" tone={statusTone(selectedJob.status)}>
+          <div className="cutter-queue-detail ml-detail-panel-stack">
+            <Badge className="cutter-queue-detail-status ml-detail-status" tone={statusTone(selectedJob.status)}>
               {labelForStatus(selectedJob.status)}
             </Badge>
-            <dl>
-              <div>
+            <dl className="ml-data-list ml-data-list--grid cutter-queue-detail-list">
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>来源素材</dt>
                 <dd>{selectedJob.source_title || selectedJob.source_video_id || "未知来源"}</dd>
               </div>
-              <div>
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>时间范围</dt>
                 <dd>
                   {formatDuration(selectedJob.begin_ms)} - {formatDuration(selectedJob.end_ms)}
                 </dd>
               </div>
-              <div>
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>剪切模式</dt>
                 <dd>{cutModeLabel(selectedJob.cut_mode)}</dd>
               </div>
-              <div>
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>输出路径</dt>
                 <dd>{selectedJob.output_file ?? "尚未生成"}</dd>
               </div>
               {selectedJob.error_message ? (
-                <div>
+                <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                   <dt>错误摘要</dt>
                   <dd>{selectedJob.error_message}</dd>
                 </div>

@@ -627,6 +627,47 @@ h2 {
   gap: 8px;
 }
 
+.admin-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.admin-reset-password-form {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-reset-password-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.admin-reset-password-form input {
+  height: 36px;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-control);
+  padding: 0 12px;
+  color: var(--ml-color-text);
+  background: var(--ml-color-surface);
+  font: inherit;
+}
+
+.admin-reset-password-form input:focus {
+  border-color: var(--ml-color-primary);
+  outline: 2px solid rgba(37, 99, 235, 0.16);
+}
+
+.admin-dialog-error {
+  margin: 0;
+  color: var(--ml-color-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .admin-checkbox-row {
   display: inline-flex;
   gap: 8px;
@@ -5480,4 +5521,143 @@ body,
 
 .admin-app .admin-shell-v1 > .ml-sidebar .ml-sidebar-footer {
   min-width: 0;
+}
+
+/* UI Foundation v1 final polish.
+   Keep the admin shell aligned with cutter: no artificial outer frame, one
+   sidebar contract, and a single workbench scroll owner. */
+.admin-app {
+  background: var(--ml-color-canvas);
+}
+
+.admin-app .admin-shell-v1 {
+  grid-template-columns: var(--ml-sidebar-width) minmax(0, 1fr);
+  background: var(--ml-color-canvas);
+}
+
+.admin-app .admin-workbench-v1,
+.admin-app .admin-workspace {
+  background: var(--ml-color-window);
+}
+
+.admin-app .admin-shell-v1 > .ml-sidebar {
+  width: var(--ml-sidebar-width);
+  padding: 20px 12px;
+  border: 0;
+  background: var(--ml-color-sidebar);
+  box-shadow: none;
+}
+
+.admin-app .ml-sidebar-brand {
+  min-height: 56px;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+}
+
+.admin-app .ml-sidebar-brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #fff;
+  background: #0f2b5f;
+  box-shadow: none;
+}
+
+.admin-app .ml-sidebar-brand strong {
+  color: var(--ml-color-text);
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 18px;
+}
+
+.admin-app .ml-sidebar-brand small {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 16px;
+}
+
+.admin-app .ml-sidebar-nav {
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.admin-app .ml-sidebar-item {
+  min-height: 40px;
+  gap: 12px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: var(--ml-color-text-secondary);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.admin-app .ml-sidebar-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 20px;
+  width: 20px;
+  color: currentColor;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-app .ml-sidebar-icon svg {
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+}
+
+.admin-app .ml-sidebar-item:hover {
+  color: var(--ml-color-text);
+  background: color-mix(in srgb, var(--ml-color-accent) 7%, transparent);
+}
+
+.admin-app .ml-sidebar-item.is-active {
+  border: 0;
+  color: var(--ml-color-accent);
+  background: var(--ml-color-control-active);
+  box-shadow: none;
+}
+
+.admin-app .ml-sidebar-footer {
+  margin-top: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-app .admin-sidebar-footer {
+  border: 0;
+  border-radius: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--ml-color-surface) 72%, var(--ml-color-surface-subtle));
+  box-shadow: none;
+}
+
+.admin-app .admin-content-split {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.admin-app .ml-card,
+.admin-app .ml-inspector,
+.admin-app .ml-table-wrap,
+.admin-list-panel,
+.admin-metric-tile,
+.admin-smart-scan-card,
+.admin-disk,
+.admin-dashboard-note,
+.admin-inspector-action-panel,
+.admin-pagination-row {
+  border-color: color-mix(in srgb, var(--ml-color-border) 58%, transparent);
+  box-shadow: none;
 }

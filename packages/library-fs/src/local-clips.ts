@@ -45,6 +45,8 @@ export interface LocalClipView extends LocalClipManifest {
 
 export interface ListLocalClipsInput {
   library_root: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface LocalClipCatalog {
@@ -86,6 +88,20 @@ function numericLocalClipId(localClipId: string): number {
 
 function formatLocalClipId(value: number): string {
   return `LC${String(value).padStart(6, "0")}`;
+}
+
+function normalizedListWindow(input: { limit?: number; offset?: number }): {
+  limit?: number;
+  offset: number;
+} {
+  const offset = Number.isFinite(input.offset) && input.offset && input.offset > 0
+    ? Math.floor(input.offset)
+    : 0;
+  const limit = Number.isFinite(input.limit) && input.limit && input.limit > 0
+    ? Math.floor(input.limit)
+    : undefined;
+
+  return { limit, offset };
 }
 
 function safeLibraryRelativePath(libraryRoot: string, relativePath: string): string {
@@ -214,13 +230,14 @@ export async function listLocalClips(input: ListLocalClipsInput): Promise<LocalC
     };
   }
 
+  const clipEntries = entries
+    .filter((entry) => entry.isDirectory() && LOCAL_CLIP_ID_PATTERN.test(entry.name))
+    .sort((left, right) => numericLocalClipId(right.name) - numericLocalClipId(left.name));
+  const { limit, offset } = normalizedListWindow(input);
+  const pageEntries = limit ? clipEntries.slice(offset, offset + limit) : clipEntries.slice(offset);
   const clips: LocalClipView[] = [];
 
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !LOCAL_CLIP_ID_PATTERN.test(entry.name)) {
-      continue;
-    }
-
+  for (const entry of pageEntries) {
     try {
       clips.push(toLocalClipView(input.library_root, await readLocalClipManifest(input.library_root, entry.name)));
     } catch {
@@ -234,7 +251,7 @@ export async function listLocalClips(input: ListLocalClipsInput): Promise<LocalC
   });
 
   return {
-    local_clip_count: clips.length,
+    local_clip_count: clipEntries.length,
     clips
   };
 }

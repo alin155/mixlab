@@ -1,3 +1,4 @@
+import { Badge, Button, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
 import { useMemo, useState } from "react";
 import type { CutterRuntimeStatus } from "../../api.ts";
 import {
@@ -9,8 +10,16 @@ import {
   type CutterLocalCacheSnapshot
 } from "../../state/cutter-cache.ts";
 
-function statusToneClass(tone: "ready" | "syncing" | "warning" | "failed"): string {
-  return `cutter-cache-status is-${tone}`;
+function cacheStatusTone(tone: "ready" | "syncing" | "warning" | "failed"): BadgeTone {
+  if (tone === "ready") {
+    return "success";
+  }
+
+  if (tone === "syncing") {
+    return "info";
+  }
+
+  return tone === "failed" ? "danger" : "warning";
 }
 
 function releaseStatus(runtimeStatus?: CutterRuntimeStatus): {
@@ -160,18 +169,18 @@ function CacheStatCard({
   tone?: "ready" | "syncing" | "warning" | "failed";
 }) {
   return (
-    <article className="cutter-cache-stat">
-      <div>
+    <Card className={`cutter-cache-stat is-${tone}`} bodyClassName="cutter-cache-stat-body ml-metric-card-body">
+      <div className="cutter-cache-stat-summary ml-metric-summary">
         <span>{title}</span>
-        <strong>{value}</strong>
+        <strong className="ml-metric-value">{value}</strong>
       </div>
-      <p>{detail}</p>
+      <p className="ml-metric-description">{detail}</p>
       {typeof percent === "number" ? (
-        <div className="cutter-cache-meter" aria-label={`${title} 使用率`}>
-          <span className={`is-${tone}`} style={{ width: `${percent}%` }} />
+        <div className="cutter-cache-meter ml-meter" aria-label={`${title} 使用率`}>
+          <span className={`ml-meter-fill is-${tone}`} style={{ width: `${percent}%` }} />
         </div>
       ) : null}
-    </article>
+    </Card>
   );
 }
 
@@ -199,18 +208,18 @@ export function CacheManagementPage({
   }
 
   return (
-    <section className="cutter-page cutter-cache-management" data-page="cache-management">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header cutter-cache-header">
+    <section className="cutter-page cutter-cache-management cutter-operational-page ml-workbench-page ml-workbench-page--fluid" data-page="cache-management">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--rows-dashboard">
+        <header className="cutter-page-header cutter-cache-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow">Local Runtime</p>
-            <h1>缓存管理</h1>
-            <p>查看本机缓存、搜索索引、源视频预检和剪切临时区状态。</p>
+            <p className="cutter-eyebrow ml-page-kicker">Local Runtime</p>
+            <h1 className="ml-page-title">缓存管理</h1>
+            <p className="ml-page-description">查看本机缓存、搜索索引、源视频预检和剪切临时区状态。</p>
           </div>
-          <span className={statusToneClass(releaseState.tone)}>{releaseState.label}</span>
+          <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
         </header>
 
-        <section className="cutter-cache-stats" aria-label="缓存概览">
+        <section className="cutter-cache-stats ml-metric-grid" aria-label="缓存概览">
           <CacheStatCard
             title="运行缓存"
             value={formatCutterCacheSize(totalRuntimeCacheBytes)}
@@ -262,39 +271,41 @@ export function CacheManagementPage({
           />
         </section>
 
-        <section className="cutter-cache-panels">
-          <article className="cutter-cache-panel">
-            <header>
-              <h2>测试结果</h2>
-              <p>用于定位启动慢、搜索慢、剪切失败分别卡在哪一层。</p>
-            </header>
-            <div className="cutter-cache-check-list">
-              <div>
-                <span className={statusToneClass(runtimeStatus?.api_ready ? "ready" : "failed")}>
+        <section className="cutter-cache-panels ml-panel-grid ml-scroll-region">
+          <Card
+            className="cutter-cache-panel ml-panel-card"
+            bodyFlush
+            bodyClassName="cutter-cache-panel-body"
+            title="测试结果"
+            subtitle="用于定位启动慢、搜索慢、剪切失败分别卡在哪一层。"
+          >
+            <div className="ml-data-list ml-data-list--grid cutter-cache-check-list">
+              <div className="ml-data-row ml-data-row--check cutter-cache-check-row">
+                <Badge tone={cacheStatusTone(runtimeStatus?.api_ready ? "ready" : "failed")}>
                   {runtimeStatus?.api_ready ? "正常" : "异常"}
-                </span>
+                </Badge>
                 <strong>本机服务</strong>
                 <p>{runtimeStatus?.mode_label || "待连接本机服务"}</p>
               </div>
-              <div>
-                <span className={statusToneClass(releaseState.tone)}>{releaseState.label}</span>
+              <div className="ml-data-row ml-data-row--check cutter-cache-check-row">
+                <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
                 <strong>Release 缓存</strong>
                 <p>{release?.message || "等待 release 同步状态"}</p>
               </div>
-              <div>
-                <span className={statusToneClass(searchState.tone)}>{searchState.label}</span>
+              <div className="ml-data-row ml-data-row--check cutter-cache-check-row">
+                <Badge tone={cacheStatusTone(searchState.tone)}>{searchState.label}</Badge>
                 <strong>搜索索引</strong>
                 <p>{runtimeStatus?.search_backend?.message || "等待搜索服务状态"}</p>
               </div>
-              <div>
-                <span className={statusToneClass(preflightState.tone)}>{preflightState.label}</span>
+              <div className="ml-data-row ml-data-row--check cutter-cache-check-row">
+                <Badge tone={cacheStatusTone(preflightState.tone)}>{preflightState.label}</Badge>
                 <strong>源视频预检</strong>
                 <p>{runtimeStatus?.source_video_preflight?.message || "等待源视频可读性检查"}</p>
               </div>
-              <div>
-                <span className={statusToneClass(sourceVideoCache?.last_error ? "warning" : "ready")}>
+              <div className="ml-data-row ml-data-row--check cutter-cache-check-row">
+                <Badge tone={cacheStatusTone(sourceVideoCache?.last_error ? "warning" : "ready")}>
                   {sourceVideoCache?.active_prefetch_count ? "预取中" : "可用"}
-                </span>
+                </Badge>
                 <strong>原视频缓存</strong>
                 <p>
                   {sourceVideoCache
@@ -303,18 +314,27 @@ export function CacheManagementPage({
                 </p>
               </div>
             </div>
-          </article>
+          </Card>
 
-          <article className="cutter-cache-panel cutter-cache-detail-panel">
-            <header>
-              <h2>缓存明细</h2>
-              <button type="button" onClick={handleClearLocalStorageCache}>
+          <Card
+            className="cutter-cache-panel cutter-cache-detail-panel ml-panel-card"
+            bodyFlush
+            bodyClassName="cutter-cache-panel-body"
+            title="缓存明细"
+            actions={
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleClearLocalStorageCache}
+              >
                 清除界面缓存
-              </button>
-            </header>
-            <dl className="cutter-cache-detail-list">
+              </Button>
+            }
+          >
+            <dl className="ml-data-list ml-data-list--grid ml-data-list--stacked-detail cutter-cache-detail-list">
               {detailRows.map((row) => (
-                <div key={row.label}>
+                <div className="ml-data-row ml-data-row--wide-detail cutter-cache-detail-row" key={row.label}>
                   <dt>{row.label}</dt>
                   <dd>
                     <strong title={row.value}>{row.value}</strong>
@@ -323,44 +343,42 @@ export function CacheManagementPage({
                 </div>
               ))}
             </dl>
-          </article>
+          </Card>
         </section>
       </div>
 
-      <aside className="ml-inspector cutter-cache-inspector">
-        <header className="ml-inspector-header">
-          <div>
-            <p className="cutter-eyebrow">Cache Root</p>
-            <h2 className="ml-inspector-title">缓存位置</h2>
-          </div>
-        </header>
-        <div className="ml-inspector-body">
-          <section>
-            <h3>Release</h3>
-            <p>{release?.cache_root_path || "未启用"}</p>
-          </section>
-          <section>
-            <h3>搜索索引</h3>
-            <p>{local?.searchd_cache_root_path || "未启用"}</p>
-          </section>
-          <section>
-            <h3>缩略图</h3>
-            <p>{local?.thumbnail_cache_root_path || "未启用"}</p>
-          </section>
-          <section>
-            <h3>原视频</h3>
-            <p>{sourceVideoCache?.cache_root_path || "未启用"}</p>
-          </section>
-          <section>
-            <h3>剪切临时区</h3>
-            <p>{local?.cut_temp_cache.cache_root_path || "未启用"}</p>
-          </section>
-          <section>
-            <h3>界面缓存</h3>
-            <p>{localStorageCache.keys.length ? localStorageCache.keys.join(" / ") : "暂无界面缓存"}</p>
-          </section>
-        </div>
-      </aside>
+      <InspectorPanel
+        title="缓存位置"
+        subtitle="Cache Root"
+        className="ml-inspector--workbench ml-inspector--operational ml-inspector--stacked-body ml-workbench-inspector cutter-operational-inspector cutter-cache-inspector"
+      >
+        <section className="cutter-cache-location-section ml-detail-section">
+          <h3 className="ml-detail-section-title">Release</h3>
+          <p className="ml-detail-section-copy">{release?.cache_root_path || "未启用"}</p>
+        </section>
+        <section className="cutter-cache-location-section ml-detail-section">
+          <h3 className="ml-detail-section-title">搜索索引</h3>
+          <p className="ml-detail-section-copy">{local?.searchd_cache_root_path || "未启用"}</p>
+        </section>
+        <section className="cutter-cache-location-section ml-detail-section">
+          <h3 className="ml-detail-section-title">缩略图</h3>
+          <p className="ml-detail-section-copy">{local?.thumbnail_cache_root_path || "未启用"}</p>
+        </section>
+        <section className="cutter-cache-location-section ml-detail-section">
+          <h3 className="ml-detail-section-title">原视频</h3>
+          <p className="ml-detail-section-copy">{sourceVideoCache?.cache_root_path || "未启用"}</p>
+        </section>
+        <section className="cutter-cache-location-section ml-detail-section">
+          <h3 className="ml-detail-section-title">剪切临时区</h3>
+          <p className="ml-detail-section-copy">{local?.cut_temp_cache.cache_root_path || "未启用"}</p>
+        </section>
+        <section className="cutter-cache-location-section ml-detail-section">
+          <h3 className="ml-detail-section-title">界面缓存</h3>
+          <p className="ml-detail-section-copy">
+            {localStorageCache.keys.length ? localStorageCache.keys.join(" / ") : "暂无界面缓存"}
+          </p>
+        </section>
+      </InspectorPanel>
     </section>
   );
 }

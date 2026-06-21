@@ -369,6 +369,7 @@ interface AdminActionHandlers {
   ) => Promise<void>;
   onApproveCutterUser: (userId: string) => Promise<void>;
   onDisableCutterUser: (userId: string) => Promise<void>;
+  onResetCutterUserPassword: (userId: string, input: { new_password: string }) => Promise<void>;
   onOpenSourceDetail: (sourceVideoId: string) => void;
   onSourceVideoFiltersChange: (filters: {
     query: string;
@@ -746,6 +747,7 @@ function renderPage(
         metrics={data.metrics.usage}
         onApprove={actions.onApproveCutterUser}
         onDisable={actions.onDisableCutterUser}
+        onResetPassword={actions.onResetCutterUserPassword}
       />
     );
   }
@@ -1533,6 +1535,12 @@ export function AdminApp() {
     onDisableCutterUser: (userId) =>
       runAction("停用剪辑师用户", async (api) => {
         const result = await api.disableCutterUser(userId);
+        setCutterUsersReloadToken((current) => current + 1);
+        return result;
+      }),
+    onResetCutterUserPassword: (userId, passwordInput) =>
+      runAction("重置剪辑师密码", async (api) => {
+        const result = await api.resetCutterUserPassword(userId, passwordInput);
         setCutterUsersReloadToken((current) => current + 1);
         return result;
       }),

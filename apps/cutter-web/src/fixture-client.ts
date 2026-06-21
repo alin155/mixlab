@@ -42,6 +42,7 @@ export interface LoadCutterWorkbenchDataOptions {
   preferredSourceVideoId?: string;
   includeSourceLibrary?: boolean;
   sourceLibraryLimit?: number;
+  localClipLimit?: number;
 }
 
 function cover(seed: string, tint: string): string {
@@ -810,6 +811,32 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         removed: true
       };
     },
+    async changePassword() {
+      return {
+        user: {
+          user_id: "CU000001",
+          username: "fixture-user",
+          display_name: "fixture-user",
+          status: "approved",
+          applied_at: "2026-05-02T10:00:00Z",
+          approved_at: "2026-05-02T10:00:00Z",
+          rejected_at: "",
+          disabled_at: "",
+          last_login_at: "2026-05-02T10:00:00Z",
+          last_used_at: "",
+          note: "",
+          devices: [
+            {
+              device_id: "fixture-device",
+              device_name: "Fixture Device",
+              status: "active",
+              first_seen_at: "2026-05-02T10:00:00Z",
+              last_login_at: "2026-05-02T10:00:00Z"
+            }
+          ]
+        }
+      };
+    },
     async getAuthMode() {
       return {
         auth_mode: "reviewed",
@@ -884,8 +911,13 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         search_mode: "sqlite-index"
       };
     },
-    async listLocalClips() {
-      return data.localClips;
+    async listLocalClips(options) {
+      const offset = options?.offset && options.offset > 0 ? options.offset : 0;
+      const limit = options?.limit && options.limit > 0 ? options.limit : data.localClips.clips.length;
+      return {
+        ...data.localClips,
+        clips: data.localClips.clips.slice(offset, offset + limit)
+      };
     },
     async getLocalClipDetail(localClipId: string) {
       return data.localClips.clips.find((clip) => clip.local_clip_id === localClipId) ?? data.localClips.clips[0]!;
@@ -927,8 +959,8 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         ]
       };
     },
-    async listCutJobs(): Promise<CutJobCatalog> {
-      return {
+    async listCutJobs(options): Promise<CutJobCatalog> {
+      const catalog: CutJobCatalog = {
         job_count: 3,
         jobs: [
           {
@@ -959,6 +991,12 @@ export function createFixtureCutterApiClient(): CutterApiClient {
             updated_at: "2026-05-02T10:02:00Z"
           }
         ]
+      };
+      const offset = options?.offset && options.offset > 0 ? options.offset : 0;
+      const limit = options?.limit && options.limit > 0 ? options.limit : catalog.jobs.length;
+      return {
+        ...catalog,
+        jobs: catalog.jobs.slice(offset, offset + limit)
       };
     },
     async runNextCutJob(): Promise<CutJob | null> {
@@ -1142,7 +1180,9 @@ export async function loadCutterWorkbenchData(
 ): Promise<CutterFixtureData> {
   const includeSourceLibrary = options.includeSourceLibrary ?? true;
   const [localClipsResult, runtimeStatusResult, libraryResult] = await Promise.all([
-    client.listLocalClips(),
+    client.listLocalClips(
+      options.localClipLimit ? { limit: options.localClipLimit } : undefined
+    ),
     client.getRuntimeStatus(),
     includeSourceLibrary
       ? client.listSourceLibrary({ limit: options.sourceLibraryLimit })

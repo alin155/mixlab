@@ -18,6 +18,7 @@ import {
   allocateNextLocalClipId,
   appendUsageEvent,
   buildLocalClipArtifactPaths,
+  changeCutterAccountPassword,
   createCutterLoginApplication,
   ensureCutterSessionForDevice,
   getCutterSourceVideoDetail,
@@ -210,6 +211,11 @@ interface CutterLoginRequestBody {
   password?: unknown;
   device_id?: unknown;
   device_name?: unknown;
+}
+
+interface CutterPasswordChangeRequestBody {
+  current_password?: unknown;
+  new_password?: unknown;
 }
 
 interface AuthenticatedCutterSession {
@@ -4401,6 +4407,59 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/auth/change-password") {
+        if (input.auth_mode === "local_trusted") {
+          writeError(response, 400, "unsupported_auth_mode", "本机信任模式不支持修改密码");
+          return;
+        }
+
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+        if (!auth) {
+          return;
+        }
+
+        try {
+          const body = (await readRequestJson(request)) as CutterPasswordChangeRequestBody;
+          const sessionToken = firstHeaderValue(request.headers["x-mixlab-session-token"]);
+          const result = await changeCutterAccountPassword(input.library_root, {
+            user_id: auth.user.user_id,
+            current_password: requiredChineseString(body.current_password, "当前密码不能为空"),
+            new_password: requiredChineseString(body.new_password, "新密码不能为空"),
+            device_id: auth.device_id,
+            session_token: sessionToken,
+            now: currentNow(input)
+          });
+
+          if (!result.ok) {
+            writeError(
+              response,
+              result.reason === "当前密码错误" ? 401 : 400,
+              result.reason === "当前密码错误" ? "password_mismatch" : "invalid_password_change",
+              result.reason
+            );
+            return;
+          }
+
+          writeJson(response, 200, apiResponse({
+            user: publicCutterUser(result.user)
+          }));
+          return;
+        } catch (error) {
+          const message = (error as Error).message;
+          writeError(
+            response,
+            400,
+            "invalid_password_change",
+            message === "invalid_json" ? "请求 JSON 格式不正确" : message
+          );
+          return;
+        }
+      }
+
       if (request.method === "POST" && url.pathname === "/cutter/auth/request-login") {
         try {
           const body = (await readRequestJson(request)) as CutterLoginRequestBody;
@@ -5022,8 +5081,12 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         }
 
         const workspaceRoot = workspaceRootOrThrow(input);
+        const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+        const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
         writeJson(response, 200, apiResponse(await listCutJobs({
-          workspace_root: workspaceRoot
+          workspace_root: workspaceRoot,
+          limit: Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined,
+          offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0
         })));
         return;
       }
@@ -5037,9 +5100,16 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
+        const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+        const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
+        const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined;
+        const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+
         if (input.workspace_root) {
           const catalog = await listExportClips({
-            workspace_root: input.workspace_root
+            workspace_root: input.workspace_root,
+            limit,
+            offset
           });
           writeJson(response, 200, apiResponse({
             ...catalog,
@@ -5049,7 +5119,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         }
 
         const catalog = await listLocalClips({
-          library_root: input.library_root
+          library_root: input.library_root,
+          limit,
+          offset
         });
         writeJson(response, 200, apiResponse({
           ...catalog,

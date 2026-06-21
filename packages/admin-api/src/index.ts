@@ -49,6 +49,7 @@ import {
   readUsageMetrics,
   registerFirstAdmin,
   removeAdminSourceFolder,
+  resetCutterUserPassword,
   resolveSourceVideoFilePath,
   scanSourceVideos,
   updateAdminRuntimeSecrets,
@@ -4100,6 +4101,42 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
             response,
             message === "剪辑师用户不存在" ? 404 : 400,
             apiError(message === "剪辑师用户不存在" ? "not_found" : "invalid_request", message)
+          );
+        }
+        return;
+      }
+
+      const resetCutterUserPasswordMatch =
+        /^\/api\/admin\/cutter-users\/(CU\d+)\/password$/.exec(url.pathname);
+      if (request.method === "POST" && resetCutterUserPasswordMatch) {
+        try {
+          const body = (await readRequestJson(request)) as Record<string, unknown>;
+          const updated = await resetCutterUserPassword(input.library_root, {
+            user_id: resetCutterUserPasswordMatch[1] ?? "",
+            new_password: requiredBodyString(body, "new_password", "新密码不能为空")
+          });
+          writeJson(response, 200, apiOk(publicCutterUser(updated)));
+        } catch (error) {
+          const message = (error as Error).message;
+          if (
+            ![
+              "invalid_json",
+              "剪辑师用户不存在",
+              "新密码不能为空",
+              "密码至少需要 8 位",
+              "密码需要同时包含字母和数字"
+            ].includes(message)
+          ) {
+            throw error;
+          }
+          const statusCode = message === "剪辑师用户不存在" ? 404 : 400;
+          writeJson(
+            response,
+            statusCode,
+            apiError(
+              statusCode === 404 ? "not_found" : "invalid_request",
+              message === "invalid_json" ? "请求 JSON 格式不正确" : message
+            )
           );
         }
         return;

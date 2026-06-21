@@ -78,20 +78,104 @@ export function CutterUserDisableDialog({
   );
 }
 
+export function CutterUserPasswordResetDialog({
+  user,
+  onCancel,
+  onConfirm
+}: {
+  user: AdminCutterUser;
+  onCancel: () => void;
+  onConfirm: (newPassword: string) => Promise<void> | void;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    const nextPassword = password.trim();
+    if (!nextPassword) {
+      setError("请输入新密码。");
+      return;
+    }
+    if (nextPassword !== confirmPassword.trim()) {
+      setError("两次输入的新密码不一致。");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    try {
+      await onConfirm(nextPassword);
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "重置密码失败。");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation">
+      <section className="admin-confirm-dialog" role="dialog" aria-modal="true" aria-label="重置剪辑师密码">
+        <header>
+          <p>重置剪辑师密码</p>
+          <h2>{user.display_name}</h2>
+        </header>
+        <p>
+          重置后该剪辑师当前所有登录会话会失效，需要使用新密码重新登录。
+        </p>
+        <div className="admin-reset-password-form">
+          <label>
+            <span>新密码</span>
+            <input
+              autoFocus
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              placeholder="至少 8 位，包含字母和数字"
+            />
+          </label>
+          <label>
+            <span>确认新密码</span>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.currentTarget.value)}
+              placeholder="再次输入新密码"
+            />
+          </label>
+          {error ? <p className="admin-dialog-error">{error}</p> : null}
+        </div>
+        <footer>
+          <button className="admin-secondary-button" type="button" onClick={onCancel} disabled={submitting}>
+            取消
+          </button>
+          <button className="admin-danger-button" type="button" onClick={handleSubmit} disabled={submitting}>
+            确认重置
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export function CutterUsersPage({
   users,
   metrics,
   onApprove,
-  onDisable
+  onDisable,
+  onResetPassword
 }: {
   users: AdminCutterUsersResponse;
   metrics: UsageMetrics;
   onApprove?: (userId: string) => void;
   onDisable?: (userId: string) => void;
+  onResetPassword?: (userId: string, input: { new_password: string }) => Promise<void> | void;
 }) {
   const usersById = new Map(users.users.map((user) => [user.user_id, user]));
   const [disableTargetUserId, setDisableTargetUserId] = useState("");
+  const [passwordResetTargetUserId, setPasswordResetTargetUserId] = useState("");
   const disableTargetUser = users.users.find((user) => user.user_id === disableTargetUserId);
+  const passwordResetTargetUser = users.users.find((user) => user.user_id === passwordResetTargetUserId);
   const columns: Array<TableColumn<AdminCutterUser>> = [
     { id: "user", header: "用户", accessor: "display_name" },
     { id: "status", header: "状态", render: (user) => userStatusLabel(user.status) },
@@ -122,25 +206,36 @@ export function CutterUsersPage({
     {
       id: "actions",
       header: "操作",
-      render: (user) =>
-        user.status === "pending" ? (
-          <AdminControlButton
-            label="通过申请"
-            state="m9b-api"
-            reason="允许该用户名和设备进入剪辑师工作台。"
-            variant="primary"
-            onClick={onApprove ? () => onApprove(user.user_id) : undefined}
-          />
-        ) : user.status === "approved" ? (
-          <AdminControlButton
-            label="停用用户"
-            state="m9b-api"
-            reason="停用后该剪辑师现有登录凭证会失效。"
-            onClick={onDisable ? () => setDisableTargetUserId(user.user_id) : undefined}
-          />
-        ) : (
-          "无需操作"
-        )
+      render: (user) => (
+        <div className="admin-user-actions">
+          {user.status === "pending" ? (
+            <AdminControlButton
+              label="通过申请"
+              state="m9b-api"
+              reason="允许该用户名和设备进入剪辑师工作台。"
+              variant="primary"
+              onClick={onApprove ? () => onApprove(user.user_id) : undefined}
+            />
+          ) : null}
+          {onResetPassword ? (
+            <AdminControlButton
+              label="重置密码"
+              state="m9b-api"
+              reason="为该剪辑师设置新密码，并清除旧登录会话。"
+              onClick={() => setPasswordResetTargetUserId(user.user_id)}
+            />
+          ) : null}
+          {user.status === "approved" ? (
+            <AdminControlButton
+              label="停用用户"
+              state="m9b-api"
+              reason="停用后该剪辑师现有登录凭证会失效。"
+              onClick={onDisable ? () => setDisableTargetUserId(user.user_id) : undefined}
+            />
+          ) : null}
+          {user.status !== "pending" && user.status !== "approved" && !onResetPassword ? "无需操作" : null}
+        </div>
+      )
     }
   ];
 
@@ -151,6 +246,15 @@ export function CutterUsersPage({
 
     onDisable?.(disableTargetUser.user_id);
     setDisableTargetUserId("");
+  };
+
+  const confirmPasswordReset = async (newPassword: string) => {
+    if (!passwordResetTargetUser) {
+      return;
+    }
+
+    await onResetPassword?.(passwordResetTargetUser.user_id, { new_password: newPassword });
+    setPasswordResetTargetUserId("");
   };
 
   return (
@@ -215,6 +319,13 @@ export function CutterUsersPage({
           user={disableTargetUser}
           onCancel={() => setDisableTargetUserId("")}
           onConfirm={confirmDisableUser}
+        />
+      ) : null}
+      {passwordResetTargetUser ? (
+        <CutterUserPasswordResetDialog
+          user={passwordResetTargetUser}
+          onCancel={() => setPasswordResetTargetUserId("")}
+          onConfirm={confirmPasswordReset}
         />
       ) : null}
     </>

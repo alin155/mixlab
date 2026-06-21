@@ -1,5 +1,5 @@
-import { Badge, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
-import type { ReactNode } from "react";
+import { Badge, Button, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
+import { useState, type FormEvent, type ReactNode } from "react";
 import type { CutterRuntimeStatus } from "../../api.ts";
 import type { CutterWorkbenchSettings } from "../../fixture-client.ts";
 import {
@@ -38,12 +38,18 @@ type CutterInfoGroup = {
 
 function CutterInfoGroups({ groups }: { groups: readonly CutterInfoGroup[] }) {
   return (
-    <div className="cutter-info-groups">
+    <div className="cutter-info-groups ml-info-groups">
       {groups.map((group) => (
-        <Card title={group.title} className="cutter-info-group" key={group.title}>
-          <dl className="cutter-info-list">
+        <Card
+          title={group.title}
+          className="cutter-info-group"
+          bodyFlush
+          bodyClassName="cutter-info-group-body"
+          key={group.title}
+        >
+          <dl className="ml-data-list cutter-info-list">
             {group.rows.map((row) => (
-              <div className="cutter-info-row" key={row.label}>
+              <div className="ml-data-row cutter-info-row ml-info-row" key={row.label}>
                 <dt>{row.label}</dt>
                 <dd>{row.value}</dd>
               </div>
@@ -142,7 +148,8 @@ export function SettingsPage({
   onSetAppearanceMode,
   onSetDefaultCutMode,
   onSetDefaultSourceFilter,
-  onSetDefaultOrientationFilter
+  onSetDefaultOrientationFilter,
+  onChangePassword
 }: {
   settings: CutterWorkbenchSettings;
   runtimeStatus?: CutterRuntimeStatus;
@@ -154,7 +161,14 @@ export function SettingsPage({
   onSetDefaultCutMode?: (mode: CutMode) => void;
   onSetDefaultSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
   onSetDefaultOrientationFilter?: (filter: VideoOrientationFilter) => void;
+  onChangePassword?: (input: { current_password: string; new_password: string }) => Promise<void> | void;
 }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const runtimeGroup = runtimeStatus
     ? {
         title: "服务状态",
@@ -205,16 +219,60 @@ export function SettingsPage({
           { label: "连接", value: "未连接" },
           { label: "素材库", value: "待连接" }
         ]
-      };
+    };
+
+  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onChangePassword) {
+      return;
+    }
+
+    const current = currentPassword.trim();
+    const next = newPassword.trim();
+    const confirm = confirmPassword.trim();
+    if (!current) {
+      setPasswordError("请输入当前密码。");
+      setPasswordStatus("");
+      return;
+    }
+    if (!next) {
+      setPasswordError("请输入新密码。");
+      setPasswordStatus("");
+      return;
+    }
+    if (next !== confirm) {
+      setPasswordError("两次输入的新密码不一致。");
+      setPasswordStatus("");
+      return;
+    }
+
+    setPasswordSubmitting(true);
+    setPasswordError("");
+    setPasswordStatus("");
+    try {
+      await onChangePassword({
+        current_password: current,
+        new_password: next
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordStatus("密码已更新，下次登录请使用新密码。");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "修改密码失败。");
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  };
 
   return (
-    <section className="cutter-page cutter-settings" data-page="settings">
-      <div className="cutter-page-main">
-        <header className="cutter-page-header">
+    <section className="cutter-page cutter-settings cutter-operational-page ml-workbench-page" data-page="settings">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--stack ml-scroll-region">
+        <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow">运行环境</p>
-            <h1>设置</h1>
-            <p>管理本地工作区、默认剪切方式和界面显示。</p>
+            <p className="cutter-eyebrow ml-page-kicker">运行环境</p>
+            <h1 className="ml-page-title">设置</h1>
+            <p className="ml-page-description">管理本地工作区、默认剪切方式和界面显示。</p>
           </div>
         </header>
 
@@ -230,7 +288,7 @@ export function SettingsPage({
                   label: "默认素材来源",
                   value: (
                     <select
-                      className="cutter-appearance-select"
+                      className="cutter-appearance-select ml-field-select"
                       name="defaultSourceFilter"
                       value={defaultSourceFilter}
                       onChange={(event) =>
@@ -249,7 +307,7 @@ export function SettingsPage({
                   label: "默认视频类型",
                   value: (
                     <select
-                      className="cutter-appearance-select"
+                      className="cutter-appearance-select ml-field-select"
                       name="defaultOrientationFilter"
                       value={defaultOrientationFilter}
                       onChange={(event) =>
@@ -273,17 +331,23 @@ export function SettingsPage({
                 {
                   label: "默认剪切模式",
                   value: (
-                    <div className="cutter-cut-mode-toggle cutter-settings-cut-mode-toggle" role="group" aria-label="默认剪切模式">
+                    <div
+                      className="cutter-cut-mode-toggle cutter-settings-cut-mode-toggle ml-segmented-control"
+                      role="group"
+                      aria-label="默认剪切模式"
+                    >
                       {defaultCutModeOptions.map((option) => (
-                        <button
-                          className={defaultCutMode === option.value ? "is-active" : ""}
+                        <Button
+                          className="cutter-cut-mode-option"
+                          variant={defaultCutMode === option.value ? "primary" : "ghost"}
+                          size="sm"
                           type="button"
                           key={option.value}
                           aria-pressed={defaultCutMode === option.value}
                           onClick={() => onSetDefaultCutMode?.(option.value)}
                         >
                           {option.label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   )
@@ -294,7 +358,7 @@ export function SettingsPage({
                   label: "显示模式",
                   value: (
                     <select
-                      className="cutter-appearance-select"
+                      className="cutter-appearance-select ml-field-select"
                       value={appearanceMode}
                       onChange={(event) =>
                         onSetAppearanceMode(event.currentTarget.value as CutterAppearanceMode)
@@ -310,12 +374,73 @@ export function SettingsPage({
             }
           ]}
         />
+
+        <Card title="账号安全" className="cutter-settings-security ml-card-section-offset">
+          <form className="cutter-password-form ml-form-stack" onSubmit={handlePasswordSubmit}>
+            <div className="cutter-password-current-user ml-form-summary-row">
+              <span>当前账号</span>
+              <strong>
+                {runtimeStatus?.current_user.display_name || runtimeStatus?.current_user.username || "未登录"}
+              </strong>
+            </div>
+            <label className="cutter-password-field ml-form-field">
+              <span>当前密码</span>
+              <input
+                autoComplete="current-password"
+                className="cutter-password-input ml-field-input"
+                disabled={!onChangePassword || passwordSubmitting}
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.currentTarget.value)}
+              />
+            </label>
+            <label className="cutter-password-field ml-form-field">
+              <span>新密码</span>
+              <input
+                autoComplete="new-password"
+                className="cutter-password-input ml-field-input"
+                disabled={!onChangePassword || passwordSubmitting}
+                placeholder="至少 8 位，包含字母和数字"
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.currentTarget.value)}
+              />
+            </label>
+            <label className="cutter-password-field ml-form-field">
+              <span>确认新密码</span>
+              <input
+                autoComplete="new-password"
+                className="cutter-password-input ml-field-input"
+                disabled={!onChangePassword || passwordSubmitting}
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.currentTarget.value)}
+              />
+            </label>
+            {passwordError ? (
+              <p className="cutter-password-message is-error ml-form-message ml-form-message--danger">
+                {passwordError}
+              </p>
+            ) : null}
+            {passwordStatus ? (
+              <p className="cutter-password-message is-success ml-form-message ml-form-message--success">
+                {passwordStatus}
+              </p>
+            ) : null}
+            <div>
+              <Button disabled={!onChangePassword || passwordSubmitting} type="submit" variant="primary">
+                修改密码
+              </Button>
+            </div>
+          </form>
+        </Card>
       </div>
 
-      <InspectorPanel title="环境检查">
-        <div className="cutter-settings-doctor">
+      <InspectorPanel title="环境检查" className="ml-inspector--workbench ml-inspector--operational ml-workbench-inspector ml-workbench-inspector--offset-header cutter-operational-inspector cutter-settings-inspector">
+        <div className="cutter-settings-doctor ml-data-surface">
           {settings.doctor.map((check) => (
-            <div className="cutter-settings-doctor-row"
+            <div
+              className="ml-data-row cutter-settings-doctor-row ml-data-row--compact-check"
               key={check.label}
             >
               <Badge tone={doctorTone(check.status)}>{settingsDoctorLabel(check)}</Badge>

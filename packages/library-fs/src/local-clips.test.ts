@@ -110,6 +110,12 @@ test("lists and reads local clips with absolute media paths", async () => {
     clips.clips[0]?.media_file_path,
     path.join(libraryRoot, ".mixlab-library", "local-clips", "LC000002", "clip.mp4")
   );
+  const paged = await listLocalClips({ library_root: libraryRoot, limit: 1, offset: 1 });
+  assert.equal(paged.local_clip_count, 2);
+  assert.deepEqual(
+    paged.clips.map((clip) => clip.local_clip_id),
+    ["LC000001"]
+  );
 
   const detail = await getLocalClipDetail({
     library_root: libraryRoot,

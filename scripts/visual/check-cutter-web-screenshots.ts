@@ -15,6 +15,7 @@ const routes = [
   ["local-library", "local-library.png"],
   ["public-library", "public-library.png"],
   ["source-detail", "source-detail.png"],
+  ["cache-management", "cache-management.png"],
   ["settings", "settings.png"]
 ] as const;
 
@@ -182,7 +183,7 @@ async function captureRoute(
   }
 
   if (route === "local-library") {
-    await requireAnyCount(page, [".cutter-library-grid", ".cutter-local-empty-state"], 1);
+    await requireAnyCount(page, [".cutter-library-grid", ".cutter-library-empty-state"], 1);
     await requireText(page, "本地素材库");
     await requireText(page, "本地可复剪素材");
     await requireText(page, "素材详情");
@@ -199,6 +200,13 @@ async function captureRoute(
     await requireText(page, "原视频与完整文案");
     await requireText(page, "连续选择");
     await requireCount(page, "video", 1);
+  }
+
+  if (route === "cache-management") {
+    await requireText(page, "缓存管理");
+    await requireText(page, "测试结果");
+    await requireText(page, "缓存明细");
+    await requireText(page, "缓存位置");
   }
 
   if (route === "settings") {

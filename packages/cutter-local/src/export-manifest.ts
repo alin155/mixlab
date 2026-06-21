@@ -76,6 +76,8 @@ export interface ExportClipCatalog {
 
 export interface ListExportClipsInput {
   workspace_root: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface GetExportClipDetailInput {
@@ -110,6 +112,20 @@ function numericExportClipId(exportClipId: string): number {
 
 function formatExportClipId(value: number): string {
   return `E${String(value).padStart(6, "0")}`;
+}
+
+function normalizedListWindow(input: { limit?: number; offset?: number }): {
+  limit?: number;
+  offset: number;
+} {
+  const offset = Number.isFinite(input.offset) && input.offset && input.offset > 0
+    ? Math.floor(input.offset)
+    : 0;
+  const limit = Number.isFinite(input.limit) && input.limit && input.limit > 0
+    ? Math.floor(input.limit)
+    : undefined;
+
+  return { limit, offset };
 }
 
 function normalizeExtension(extension: string | undefined): string {
@@ -398,13 +414,14 @@ export async function listExportClips(
     };
   }
 
+  const clipEntries = entries
+    .filter((entry) => entry.isDirectory() && EXPORT_CLIP_ID_PATTERN.test(entry.name))
+    .sort((left, right) => numericExportClipId(right.name) - numericExportClipId(left.name));
+  const { limit, offset } = normalizedListWindow(input);
+  const pageEntries = limit ? clipEntries.slice(offset, offset + limit) : clipEntries.slice(offset);
   const clips: ExportClipView[] = [];
 
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !EXPORT_CLIP_ID_PATTERN.test(entry.name)) {
-      continue;
-    }
-
+  for (const entry of pageEntries) {
     try {
       clips.push(await readExportClipManifest(input.workspace_root, entry.name));
     } catch {
@@ -418,7 +435,7 @@ export async function listExportClips(
   });
 
   return {
-    local_clip_count: clips.length,
+    local_clip_count: clipEntries.length,
     clips
   };
 }

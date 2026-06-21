@@ -102,6 +102,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
     controls: [
       { route: "cutter-users", label: "查看剪辑师用户", state: "m9b-api", reason: "查看剪辑师申请、状态和使用统计。" },
       { route: "cutter-users", label: "通过申请", state: "m9b-api", reason: "允许待审核剪辑师进入剪辑端。" },
+      { route: "cutter-users", label: "重置密码", state: "m9b-api", reason: "为剪辑师设置新密码并清除旧登录会话。" },
       { route: "cutter-users", label: "停用用户", state: "m9b-api", reason: "停用后该剪辑师现有登录凭证会失效。" }
     ]
   },

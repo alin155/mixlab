@@ -99,6 +99,12 @@ test("lists and reads export clips newest first", async () => {
     catalog.clips.map((clip) => clip.export_clip_id),
     ["E000002", "E000001"]
   );
+  const paged = await listExportClips({ workspace_root: workspaceRoot, limit: 1, offset: 1 });
+  assert.equal(paged.local_clip_count, 2);
+  assert.deepEqual(
+    paged.clips.map((clip) => clip.export_clip_id),
+    ["E000001"]
+  );
 
   const detail = await getExportClipDetail({
     workspace_root: workspaceRoot,

@@ -456,8 +456,12 @@ export function materialLocatorSectionFooterLabel(input: {
   isSearching: boolean;
   hasMoreSearchResults: boolean;
 }): string {
-  if (input.sectionKey === "public" && (input.isSearching || input.hasMoreSearchResults)) {
+  if (input.sectionKey === "public" && input.isSearching) {
     return `继续加载中（已显示 ${input.itemCount}）`;
+  }
+
+  if (input.sectionKey === "public" && input.hasMoreSearchResults) {
+    return `加载更多（已显示 ${input.itemCount}）`;
   }
 
   return `已显示全部（${input.itemCount}）`;
@@ -536,6 +540,7 @@ export function MaterialLocatorPage({
   onSelectTranscriptRange,
   onSelectTranscriptTextRange,
   onNavigateHit,
+  onLoadMoreSearchResults,
   onCutSelection,
   onCancelSelection,
   onOpenCutOutputDirectory
@@ -572,6 +577,7 @@ export function MaterialLocatorPage({
     endCharOffset: number
   ) => void;
   onNavigateHit?: (direction: "previous" | "next") => void;
+  onLoadMoreSearchResults?: () => void;
   onCutSelection?: () => void;
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
@@ -647,6 +653,7 @@ export function MaterialLocatorPage({
     0
   );
   const hasMoreSearchResults = Boolean(search.has_more || search.next_cursor);
+  const canLoadMoreSearchResults = hasActiveQuery && hasMoreSearchResults && Boolean(onLoadMoreSearchResults);
   const candidateSummaryLabel = materialLocatorCandidateSummary({
     hasActiveQuery,
     candidateCount,
@@ -700,7 +707,7 @@ export function MaterialLocatorPage({
     : "0:00";
   const staticPreviewStyle: CSSProperties | undefined = previewPosterUrl
     ? ({
-        "--cutter-video-poster": `url("${previewPosterUrl}")`
+        "--ml-video-poster": `url("${previewPosterUrl}")`
       } as CSSProperties)
     : undefined;
   const selectedText = selectedTranscriptText(
@@ -1188,20 +1195,19 @@ export function MaterialLocatorPage({
 
   return (
     <section
-      className="cutter-page cutter-material-locator"
+      className="cutter-page cutter-material-locator ml-split-workbench-page"
       data-layout="search-select-cut"
       data-page="material-locator"
       data-product-page="material-search"
     >
-      <div className="cutter-page-main">
-        <section className="cutter-locator-command" aria-label="素材搜索">
-          <div className="cutter-locator-command-header">
+      <div className="cutter-page-main ml-split-workbench">
+        <section className="cutter-locator-command ml-command-row ml-split-workbench-command" aria-label="素材搜索">
+          <div className="cutter-locator-command-header ml-command-row-header">
             <SearchBox
               aria-label="搜索文案关键词或粘贴爆款文案"
               buttonLabel="搜索"
-              className="cutter-search-form cutter-locator-search-form cutter-search-box"
+              className="cutter-locator-search-form ml-command-row-form"
               defaultValue={query}
-              inputClassName="cutter-locator-search-input"
               key={query}
               name="query"
               onSubmit={(value) => onSearch?.(value)}
@@ -1210,41 +1216,42 @@ export function MaterialLocatorPage({
           </div>
         </section>
 
-        <section className={`cutter-locator-workbench is-${orientation}`} aria-label="素材搜索工作台">
-          <section className="cutter-locator-candidates" aria-label="候选素材">
-              <header>
-                <div>
-                  <h2>候选素材</h2>
-                  <span aria-live="polite">{candidateSummaryLabel}</span>
+        <section className={`cutter-locator-workbench ml-split-workbench-flow is-${orientation}`} aria-label="素材搜索工作台">
+          <section className="cutter-locator-candidates ml-list-panel ml-split-workbench-left" aria-label="候选素材">
+              <header className="ml-list-panel-header">
+                <div className="ml-list-panel-heading">
+                  <h2 className="ml-section-title ml-section-title--dense">候选素材</h2>
+                  <span className="ml-section-meta" aria-live="polite">{candidateSummaryLabel}</span>
                 </div>
               </header>
-              <div className="cutter-locator-results">
+              <div className="cutter-locator-results ml-pane-scroll">
                 {!hasActiveQuery ? (
-                  <div className="cutter-empty-state">
+                  <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
                     <strong>先搜索文案</strong>
                     <span>输入关键词或粘贴文案后，系统会列出可选素材。</span>
                   </div>
                 ) : isSearching && sections.length === 0 ? (
-                  <div className="cutter-empty-state">
+                  <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
                     <strong>正在匹配文案</strong>
                     <span>长文案会跨句检索，结果返回前不会判定为无命中。</span>
                   </div>
                 ) : sections.length === 0 ? (
-                  <div className="cutter-empty-state">
+                  <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
                     <strong>没有找到可选素材</strong>
                     <span>可以换一个关键词，或到公共素材库确认可用素材是否已经发布。</span>
                   </div>
                 ) : (
                   sections.map((section) => (
-                    <section className="cutter-locator-section" key={section.key}>
+                    <section className="cutter-locator-section ml-section-group" key={section.key}>
                       <header>
-                        <h2>⌄ {section.label}（{section.items.length}）</h2>
+                        <h2 className="ml-section-group-title">⌄ {section.label}（{section.items.length}）</h2>
                       </header>
-                      <div className="cutter-locator-result-list">
+                      <div className="cutter-locator-result-list ml-media-row-list ml-list-body--compact-inset">
                         {section.items.map((item) => (
                           <button
                             className={[
                               "cutter-locator-result",
+                              "ml-media-row",
                               selectedMaterialKey === `${item.source}:${item.id}` ? "is-selected" : ""
                             ]
                               .filter(Boolean)
@@ -1254,28 +1261,46 @@ export function MaterialLocatorPage({
                             onClick={() => onSelectMaterial?.(item)}
                           >
                             {item.cover_url ? (
-                              <img src={item.cover_url} alt="" />
+                              <img className="ml-media-row-thumb" src={item.cover_url} alt="" />
                             ) : (
-                              <span className="cutter-cover-placeholder" />
+                              <span className="ml-media-row-thumb is-placeholder" />
                             )}
-                            <span className="cutter-locator-result-body">
-                              <strong>{item.title}</strong>
-                              <span className="cutter-locator-result-meta">
-                                <small>{item.transcript_character_count.toLocaleString()} 字</small>
-                                <small>{formatDuration(item.duration_ms)} · 命中 {item.hit_count}</small>
+                            <span className="ml-media-row-body">
+                              <strong className="ml-media-row-title">{item.title}</strong>
+                              <span className="ml-media-row-meta">
+                                <small className="ml-media-row-subtle">{item.transcript_character_count.toLocaleString()} 字</small>
+                                <small className="ml-media-row-subtle">{formatDuration(item.duration_ms)} · 命中 {item.hit_count}</small>
                               </span>
                             </span>
                           </button>
                         ))}
                       </div>
-                      <span className="cutter-locator-expand-button">
-                        {materialLocatorSectionFooterLabel({
-                          sectionKey: section.key,
-                          itemCount: section.items.length,
-                          isSearching,
-                          hasMoreSearchResults
-                        })}
-                      </span>
+                      {section.key === "public" && canLoadMoreSearchResults ? (
+                        <Button
+                          className="cutter-locator-load-more ml-list-footer-action"
+                          disabled={isSearching}
+                          onClick={() => onLoadMoreSearchResults?.()}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          {materialLocatorSectionFooterLabel({
+                            sectionKey: section.key,
+                            itemCount: section.items.length,
+                            isSearching,
+                            hasMoreSearchResults
+                          })}
+                        </Button>
+                      ) : (
+                        <span className="cutter-locator-load-more-status ml-list-footer-note">
+                          {materialLocatorSectionFooterLabel({
+                            sectionKey: section.key,
+                            itemCount: section.items.length,
+                            isSearching,
+                            hasMoreSearchResults
+                          })}
+                        </span>
+                      )}
                     </section>
                   ))
                 )}
@@ -1283,16 +1308,16 @@ export function MaterialLocatorPage({
             </section>
 
             <section
-              className="cutter-natural-transcript"
+              className="cutter-natural-transcript ml-transcript-panel ml-split-workbench-center"
               data-autoscroll-target={activeHitSegmentId}
               data-current-hit-segment-id={activeHitSegmentId}
               data-current-hit-time-ms={activeHitSegment?.begin_ms ?? ""}
               data-selection-mode="natural-text"
             >
-              <header>
-                <div className="cutter-transcript-heading">
-                  <h2>视频文案</h2>
-                  <div className="cutter-hit-navigation" aria-label="命中文案切换">
+              <header className="ml-transcript-panel-header">
+                <div className="cutter-transcript-heading ml-transcript-heading">
+                  <h2 className="ml-section-title ml-section-title--dense">视频文案</h2>
+                  <div className="cutter-hit-navigation ml-transcript-actions" aria-label="命中文案切换">
                     <Button
                       className="cutter-hit-nav-button"
                       disabled={!hasHitNavigation}
@@ -1318,7 +1343,7 @@ export function MaterialLocatorPage({
               </header>
               {focusedDetail ? (
                 <div
-                  className="cutter-transcript-body"
+                  className="cutter-transcript-body ml-transcript-body"
                   data-rendered-segments={renderedTranscriptSegments.length}
                   data-total-segments={transcriptSegmentCount}
                   data-virtualized={transcriptVirtualized ? "true" : "false"}
@@ -1340,6 +1365,7 @@ export function MaterialLocatorPage({
                     <span
                       className={[
                         "cutter-transcript-row",
+                        "ml-transcript-row",
                         selectedIds.has(segment.segment_id) ? "is-selected" : "",
                         dragPreviewIds.has(segment.segment_id) ? "is-drag-preview" : "",
                         timeSelectionStartIds.has(segment.segment_id) ? "is-time-selection-start" : "",
@@ -1357,7 +1383,7 @@ export function MaterialLocatorPage({
                       <button
                         aria-label={`${formatDuration(segment.begin_ms)} 作为选区时间点`}
                         aria-pressed={timeSelectionStartIds.has(segment.segment_id)}
-                        className="cutter-transcript-time"
+                        className="cutter-transcript-time ml-transcript-time"
                         data-transcript-time-selector="true"
                         onClick={(event) => handleTranscriptTimeClick(event, segment)}
                         onMouseDown={(event) => event.stopPropagation()}
@@ -1365,8 +1391,8 @@ export function MaterialLocatorPage({
                       >
                         {formatDuration(segment.begin_ms)}
                       </button>
-                      <span className="cutter-transcript-index">{transcriptSegmentOrdinal(segment, absoluteIndex)}</span>
-                      <span className="cutter-transcript-text">
+                      <span className="cutter-transcript-index ml-transcript-index">{transcriptSegmentOrdinal(segment, absoluteIndex)}</span>
+                      <span className="cutter-transcript-text ml-transcript-text">
                         {splitTextByHighlightRanges(
                           segment.text,
                           highlightedRangesBySegmentId.get(segment.segment_id),
@@ -1397,7 +1423,7 @@ export function MaterialLocatorPage({
                   ) : null}
                 </div>
               ) : (
-                <div className="cutter-transcript-empty">
+                <div className="cutter-transcript-empty ml-empty-panel ml-empty-panel--subtle ml-empty-panel--fill">
                   <strong>{isSearching ? "正在匹配文案" : isPreviewLoading ? "正在加载预览" : "先搜索文案"}</strong>
                   <span>
                     {isSearching
@@ -1413,7 +1439,8 @@ export function MaterialLocatorPage({
                   className={[
                     "cutter-selection-bar",
                     "cutter-floating-selection-bar",
-                    "cutter-compact-selection-bar",
+                    "ml-floating-action-bar",
+                    "ml-floating-selection-anchor",
                     "is-anchored"
                   ]
                     .filter(Boolean)
@@ -1421,7 +1448,7 @@ export function MaterialLocatorPage({
                   style={selectionBarStyle}
                   ref={selectionBarRef}
                 >
-                  <strong>
+                  <strong className="ml-floating-action-label">
                     已选 {selectedDurationLabel(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}
                   </strong>
                   <Button
@@ -1437,20 +1464,21 @@ export function MaterialLocatorPage({
               ) : null}
             </section>
 
-          <aside className="cutter-locator-side-panel" aria-label="画面验证与单片段导出">
-            <section className="cutter-locator-visual" aria-label="画面验证">
-              <header>
+          <aside className="cutter-locator-side-panel ml-split-workbench-side" aria-label="画面验证与单片段导出">
+            <section className="cutter-locator-visual ml-pane-shell ml-pane-section ml-pane-section--media" aria-label="画面验证">
+              <header className="ml-pane-header is-hidden">
                 <div>
-                  <h2>视频预览</h2>
-                  <span>{focusedDetail ? focusedVideoLabel : "选择候选素材后验证画面"}</span>
+                  <h2 className="ml-section-title ml-section-title--dense">视频预览</h2>
+                  <span className="ml-section-meta">{focusedDetail ? focusedVideoLabel : "选择候选素材后验证画面"}</span>
                 </div>
               </header>
-              <section className="cutter-video-panel">
+              <section className="cutter-video-panel ml-media-frame ml-media-frame--fill">
                 {focusedDetail ? (
-                  <div className="cutter-video-frame">
+                  <div className="ml-media-frame-inner">
                     {videoSource ? (
                       <video
                         aria-label="视频预览"
+                        className="ml-media-fill"
                         data-testid="locator-video"
                         onLoadedMetadata={handleVideoLoadedMetadata}
                         onTimeUpdate={handleVideoTimeUpdate}
@@ -1463,21 +1491,21 @@ export function MaterialLocatorPage({
                     ) : (
                       <div
                         aria-label="视频预览"
-                        className={`cutter-video-poster-frame${usesDesignReferencePoster ? " is-reference-poster" : ""}`}
+                        className={`ml-video-poster${usesDesignReferencePoster ? " ml-video-poster--reference" : ""}`}
                         data-testid="locator-video-poster"
                         style={staticPreviewStyle}
                       >
                         {usesDesignReferencePoster ? null : (
-                          <div className="cutter-video-poster-controls" aria-hidden="true">
-                            <span className="cutter-video-play-icon" />
-                            <span className="cutter-video-time-label">
+                          <div className="ml-video-poster-controls" aria-hidden="true">
+                            <span className="ml-video-poster-play-icon" />
+                            <span className="ml-video-poster-time-label">
                               {previewTimeLabel} / {previewDurationLabel}
                             </span>
-                            <span className="cutter-video-volume-icon" />
-                            <span className="cutter-video-fullscreen-icon" />
-                            <span className="cutter-video-menu-icon" />
-                            <span className="cutter-video-progress-track">
-                              <span className="cutter-video-progress-value" />
+                            <span className="ml-video-poster-volume-icon" />
+                            <span className="ml-video-poster-fullscreen-icon" />
+                            <span className="ml-video-poster-menu-icon" />
+                            <span className="ml-video-poster-progress-track">
+                              <span className="ml-video-poster-progress-value" />
                             </span>
                           </div>
                         )}
@@ -1485,7 +1513,7 @@ export function MaterialLocatorPage({
                     )}
                   </div>
                 ) : (
-                  <div className="cutter-video-empty">
+                  <div className="cutter-locator-video-empty ml-empty-panel ml-empty-panel--plain ml-empty-panel--fill">
                     <strong>{isSearching ? "正在匹配文案" : isPreviewLoading ? "正在加载预览" : "先搜索文案"}</strong>
                     <span>
                       {isSearching
@@ -1499,38 +1527,43 @@ export function MaterialLocatorPage({
               </section>
             </section>
 
-            <section className="cutter-locator-cut-panel" aria-label="选区导出">
-              <header>
+            <section className="cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail" aria-label="选区导出">
+              <header className="ml-pane-header">
                 <div>
-                  <h2>选区信息</h2>
-                  <span>
+                  <h2 className="ml-section-title ml-section-title--dense">选区信息</h2>
+                  <span className="ml-section-meta">
                     {selectedSegments.length > 0
                       ? `已选 ${selectedDurationLabel(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}`
                       : "暂无选区"}
                   </span>
                 </div>
               </header>
-              <div className="cutter-locator-cut-selection">
-                <div className="cutter-locator-selected-copy">
+              <div className="cutter-locator-cut-selection ml-pane-body">
+                <div className="cutter-locator-selected-copy ml-selected-copy">
                   <p>{selectedText || "暂无选区"}</p>
                 </div>
               </div>
             </section>
 
-            <section className="cutter-locator-queue-panel" aria-label="最近剪切任务">
-              <header>
-                <h2>最近剪切任务</h2>
-                <a className="cutter-inline-action cutter-queue-all-action" href="#/cut-tasks">
+            <section className="cutter-locator-queue-panel ml-pane-shell ml-queue-panel-stack" aria-label="最近剪切任务">
+              <header className="ml-pane-header ml-pane-header--compact ml-pane-header--split">
+                <h2 className="ml-section-title ml-section-title--dense">最近剪切任务</h2>
+                <Button
+                  className="cutter-queue-all-action"
+                  href="#/cut-tasks"
+                  size="sm"
+                  variant="ghost"
+                >
                   查看全部任务
-                </a>
+                </Button>
               </header>
               {cutNotice ? (
-                <div className="cutter-locator-queue-notice" role="status">
+                <div className="cutter-locator-queue-notice ml-pane-notice ml-pane-notice--success" role="status">
                   {cutNotice}
                 </div>
               ) : null}
-              <div className="cutter-locator-queue-table">
-                <div className="cutter-locator-queue-head">
+              <div className="cutter-locator-queue-table ml-compact-table ml-queue-table-fit">
+                <div className="cutter-locator-queue-head ml-compact-table-head">
                   <span>状态</span>
                   <span>来源视频</span>
                   <span>时长</span>
@@ -1538,7 +1571,7 @@ export function MaterialLocatorPage({
                 {recentQueue.length > 0 ? (
                   recentQueue.map((job) => {
                     return (
-                      <div className={`cutter-locator-queue-row is-${job.status}`} key={job.queue_job_id}>
+                      <div className={`cutter-locator-queue-row ml-compact-table-row is-${job.status}`} key={job.queue_job_id}>
                         <Badge tone={queueStatusTone(job.status)}>{queueStatusLabel(job.status)}</Badge>
                         <strong>{job.title}</strong>
                         <small>{formatDuration(job.duration_ms)}</small>

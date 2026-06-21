@@ -15,6 +15,7 @@ import {
   publishIndexRequiredSourceVideos,
   publishReadySourceVideo,
   readUsageMetrics,
+  registerCutterAccount,
   scanSourceVideos
 } from "../../library-fs/src/index.ts";
 import {
@@ -536,6 +537,92 @@ test("cutter account register login waits for admin approval and redacts passwor
     });
     assert.equal(loggedOut.status, 200);
     assert.equal(((await loggedOut.json()) as any).data.removed, true);
+  });
+});
+
+test("cutter account can change password with current approved session", async () => {
+  const libraryRoot = await prepareLibrary();
+  const registered = await registerCutterAccount(libraryRoot, {
+    username: "mima",
+    password: "Cutter12345",
+    device_id: "device-login",
+    device_name: "剪辑工作站",
+    now: "2026-05-02T09:00:00Z"
+  });
+  await approveCutterUser(libraryRoot, {
+    user_id: registered.user_id,
+    now: "2026-05-02T09:01:00Z"
+  });
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const loggedIn = await fetch(`${baseUrl}/cutter/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "mima",
+        password: "Cutter12345",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+    assert.equal(loggedIn.status, 200);
+    const loggedInBody = await loggedIn.json() as any;
+    const session = loggedInBody.data.session;
+
+    const changed = await fetch(`${baseUrl}/cutter/auth/change-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-MixLab-Device-Id": session.device_id,
+        "X-MixLab-Session-Token": session.session_token
+      },
+      body: JSON.stringify({
+        current_password: "Cutter12345",
+        new_password: "Cutter67890"
+      })
+    });
+    assert.equal(changed.status, 200);
+    const changedBody = await changed.json() as any;
+    assert.equal(changedBody.data.user.user_id, registered.user_id);
+    assert.equal("password_hash" in changedBody.data.user, false);
+
+    const stillLoggedIn = await fetch(`${baseUrl}/cutter/auth/status`, {
+      headers: {
+        "X-MixLab-Device-Id": session.device_id,
+        "X-MixLab-Session-Token": session.session_token
+      }
+    });
+    assert.equal(stillLoggedIn.status, 200);
+
+    const oldPassword = await fetch(`${baseUrl}/cutter/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "mima",
+        password: "Cutter12345",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+    assert.equal(oldPassword.status, 401);
+
+    const newPassword = await fetch(`${baseUrl}/cutter/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        username: "mima",
+        password: "Cutter67890",
+        device_id: "device-login",
+        device_name: "剪辑工作站"
+      })
+    });
+    assert.equal(newPassword.status, 200);
   });
 });
 

@@ -5,12 +5,14 @@ import path from "node:path";
 import test from "node:test";
 import {
   approveCutterUser,
+  changeCutterAccountPassword,
   createCutterLoginApplication,
   disableCutterUser,
   ensureCutterSessionForDevice,
   loginCutterAccount,
   logoutCutterSession,
   registerCutterAccount,
+  resetCutterUserPassword,
   listCutterUsers,
   validateCutterSession
 } from "./cutter-users.ts";
@@ -111,6 +113,129 @@ test("registers cutter account with password and logs in after admin approval", 
   }), {
     removed: true
   });
+});
+
+test("approved cutter account can change password while keeping current session", async () => {
+  const root = await makeRoot();
+  const registered = await registerCutterAccount(root, {
+    username: "cutter-password",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:00:00.000Z"
+  });
+
+  await approveCutterUser(root, {
+    user_id: registered.user_id,
+    now: "2026-06-18T10:01:00.000Z"
+  });
+
+  const currentLogin = await loginCutterAccount(root, {
+    username: "cutter-password",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:02:00.000Z"
+  });
+  assert.equal(currentLogin.ok, true);
+
+  const otherLogin = await loginCutterAccount(root, {
+    username: "cutter-password",
+    password: "Cutter12345",
+    device_id: "device-b",
+    device_name: "备用工作站",
+    now: "2026-06-18T10:03:00.000Z"
+  });
+  assert.equal(otherLogin.ok, true);
+
+  const changed = await changeCutterAccountPassword(root, {
+    user_id: registered.user_id,
+    current_password: "Cutter12345",
+    new_password: "Cutter67890",
+    device_id: currentLogin.ok ? currentLogin.session.device_id : "",
+    session_token: currentLogin.ok ? currentLogin.session.session_token : "",
+    now: "2026-06-18T10:04:00.000Z"
+  });
+  assert.equal(changed.ok, true);
+
+  const store = JSON.parse(await readFile(storePath(root), "utf8")) as {
+    users: Array<{ user_id: string; password_hash?: string }>;
+    sessions: Array<{ user_id: string; device_id: string; session_token: string }>;
+  };
+  const storedUser = store.users.find((user) => user.user_id === registered.user_id);
+  assert.ok(storedUser?.password_hash);
+  assert.notEqual(storedUser.password_hash, "Cutter67890");
+  assert.equal(store.sessions.length, 1);
+  assert.equal(store.sessions[0]?.device_id, "device-a");
+
+  assert.equal((await loginCutterAccount(root, {
+    username: "cutter-password",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:05:00.000Z"
+  })).ok, false);
+
+  assert.equal((await loginCutterAccount(root, {
+    username: "cutter-password",
+    password: "Cutter67890",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:06:00.000Z"
+  })).ok, true);
+});
+
+test("admin password reset invalidates existing cutter sessions", async () => {
+  const root = await makeRoot();
+  const registered = await registerCutterAccount(root, {
+    username: "reset-target",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:00:00.000Z"
+  });
+
+  await approveCutterUser(root, {
+    user_id: registered.user_id,
+    now: "2026-06-18T10:01:00.000Z"
+  });
+
+  const login = await loginCutterAccount(root, {
+    username: "reset-target",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:02:00.000Z"
+  });
+  assert.equal(login.ok, true);
+
+  const reset = await resetCutterUserPassword(root, {
+    user_id: registered.user_id,
+    new_password: "Cutter67890"
+  });
+  assert.equal(reset.user_id, registered.user_id);
+
+  assert.equal((await validateCutterSession(root, {
+    device_id: "device-a",
+    session_token: login.ok ? login.session.session_token : "",
+    now: "2026-06-18T10:03:00.000Z"
+  })).ok, false);
+
+  assert.equal((await loginCutterAccount(root, {
+    username: "reset-target",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:04:00.000Z"
+  })).ok, false);
+
+  assert.equal((await loginCutterAccount(root, {
+    username: "reset-target",
+    password: "Cutter67890",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:05:00.000Z"
+  })).ok, true);
 });
 
 test("cutter account registration keeps usernames unique and never accepts wrong passwords", async () => {
