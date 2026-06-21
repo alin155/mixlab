@@ -7,6 +7,7 @@ export type RunnerSuite =
   | "cache_smoke"
   | "real_cut_smoke"
   | "windows_acceptance"
+  | "desktop_ui_screenshot_smoke"
   | "install_latest_and_smoke";
 
 export type RunnerStatus =
@@ -30,6 +31,7 @@ export type FailureCategory =
   | "transcript_failure"
   | "cut_failure"
   | "cache_not_growing"
+  | "desktop_screenshot_failure"
   | "runner_launch_failure"
   | "runner_ready_timeout"
   | "installer_missing"
@@ -271,6 +273,34 @@ export interface WindowsAcceptanceReport {
   cache_smoke?: CacheSmokeReport;
 }
 
+export interface DesktopUiScreenshotPage {
+  id: string;
+  label: string;
+  screenshot_path: string;
+  ok: boolean;
+  action: "sidebar" | "content" | "capture_only";
+  click_x?: number;
+  click_y?: number;
+  error?: string;
+}
+
+export interface DesktopUiScreenshotReport {
+  api_base_url: string;
+  output_dir: string;
+  window_title?: string;
+  window_rect?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  captured_count: number;
+  pages: DesktopUiScreenshotPage[];
+  launch_app_probe?: LaunchAppProbeReport;
+  script_stdout_tail?: string;
+  script_stderr_tail?: string;
+}
+
 export interface ProcessExitSummary {
   command: string;
   args: string[];
@@ -320,6 +350,7 @@ export interface RunReport {
   cache_smoke?: CacheSmokeReport;
   real_cut_smoke?: RealCutSmokeReport;
   windows_acceptance?: WindowsAcceptanceReport;
+  desktop_ui_screenshot_smoke?: DesktopUiScreenshotReport;
   install_latest_and_smoke?: InstallLatestAndSmokeReport;
 }
 

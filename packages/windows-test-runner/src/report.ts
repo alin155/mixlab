@@ -224,6 +224,19 @@ function writeSummary(record: RunRecord): string {
     lines.push(`- Real data: ${record.windows_acceptance.real_data_smoke ? "included" : "missing"}`);
     lines.push(`- Cache: ${record.windows_acceptance.cache_smoke ? "included" : "missing"}`);
   }
+  if (record.desktop_ui_screenshot_smoke) {
+    lines.push("", "## Desktop UI Screenshot Smoke", "");
+    lines.push(`- Output dir: ${record.desktop_ui_screenshot_smoke.output_dir}`);
+    lines.push(`- Window title: ${record.desktop_ui_screenshot_smoke.window_title ?? "n/a"}`);
+    if (record.desktop_ui_screenshot_smoke.window_rect) {
+      const rect = record.desktop_ui_screenshot_smoke.window_rect;
+      lines.push(`- Window rect: ${rect.left},${rect.top} ${rect.width}x${rect.height}`);
+    }
+    lines.push(`- Captured: ${record.desktop_ui_screenshot_smoke.captured_count} / ${record.desktop_ui_screenshot_smoke.pages.length}`);
+    for (const page of record.desktop_ui_screenshot_smoke.pages) {
+      lines.push(`- ${page.ok ? "captured" : "failed"} ${page.id}: ${page.screenshot_path}`);
+    }
+  }
 
   return `${lines.join("\n")}\n`;
 }
@@ -252,7 +265,8 @@ export function serializeRunReport(record: RunRecord): RunReport {
     real_data_smoke: record.real_data_smoke,
     cache_smoke: record.cache_smoke,
     real_cut_smoke: record.real_cut_smoke,
-    windows_acceptance: record.windows_acceptance
+    windows_acceptance: record.windows_acceptance,
+    desktop_ui_screenshot_smoke: record.desktop_ui_screenshot_smoke
   };
 }
 

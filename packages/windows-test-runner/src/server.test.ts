@@ -698,6 +698,66 @@ test("runner supports real cut smoke with a generated cut job", async () => {
   }
 });
 
+test("runner supports desktop UI screenshot smoke in mock mode", async () => {
+  const root = await tempRoot();
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: "http://127.0.0.1:9"
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "desktop_ui_screenshot_smoke",
+        options: {
+          mock_screenshots: true
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      status: string;
+      desktop_ui_screenshot_smoke: {
+        captured_count: number;
+        pages: Array<{ id: string; screenshot_path: string; ok: boolean }>;
+      };
+    };
+    assert.equal(report.status, "passed");
+    assert.equal(report.desktop_ui_screenshot_smoke.captured_count, 8);
+    assert.deepEqual(
+      report.desktop_ui_screenshot_smoke.pages.map((page) => page.id),
+      [
+        "project-home",
+        "material-locator",
+        "cut-tasks",
+        "local-library",
+        "public-library",
+        "source-detail",
+        "cache-management",
+        "settings"
+      ]
+    );
+    for (const page of report.desktop_ui_screenshot_smoke.pages) {
+      assert.equal(page.ok, true);
+      await stat(page.screenshot_path);
+    }
+  } finally {
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
 test("probe_api run fails with api_health_timeout when the cutter API is unavailable", async () => {
   const root = await tempRoot();
   const runner = createWindowsTestRunnerServer(runnerConfig({
