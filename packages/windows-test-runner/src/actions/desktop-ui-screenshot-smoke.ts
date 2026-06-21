@@ -181,7 +181,7 @@ function Convert-MixLabJsonPath([string]$pathValue) {
   if (-not $pathValue) {
     return $pathValue
   }
-  return $pathValue.Replace('\', '/')
+  return $pathValue.Replace([string][char]92, '/')
 }
 
 $captures = @()
