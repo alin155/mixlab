@@ -225,7 +225,7 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.13` |
+| 当前共享版本 | `0.1.23` |
 | 当前实机运行版本 | `0.1.13` on `3799`，2026-06-18 通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证。 |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
@@ -237,10 +237,10 @@ Windows 日志默认目录：
 | Mac 远程健康检查 | `http://192.168.1.20:3799/health` |
 | 共享 bootstrap 日志 | `/Users/huaqihang/Public/MixLabWindowsBuilds/logs/runner/bootstrap-<port>.log`，默认 `bootstrap-3799.log` |
 
-2026-06-18 当前共享发布记录：
+2026-06-21 当前共享发布记录：
 
 ```text
-0.1.13 58eec2d 27762136217 d3aa3766c2f5daa9a4901ccf10b89bf0e56ba2aee96c2309aee32a9f2a5c861c
+0.1.23 7ed3cd7 27918481611 0316fa67dbb7879ef454aa19cc62f8f4b9949e0be6565a14ccba9e1a8bdaa3fc
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -258,6 +258,8 @@ Windows 日志默认目录：
 `0.1.8` 修复内容：新增非破坏性 Windows 应用验收 suites：`app_runtime_smoke`、`real_data_smoke`、`cache_smoke`、`windows_acceptance`。这些 suites 通过 Windows 本机 sidecar API 验证真实数据、搜索、完整文案、剪切任务可读和缓存分类可观测；`windows_acceptance` 不创建剪切任务、不写本地工作区。
 
 `0.1.9` 修复内容：新增 `install_latest_and_smoke` suite。Runner 会从共享目录选择最新 `MixLab Cutter` 安装包，复制到 Windows 本机临时目录，校验 SHA-256，关闭旧桌面端/sidecar/searchd 进程，静默安装，然后执行 `windows_acceptance`。
+
+`0.1.23` 修复内容：新增并强化 `desktop_ui_screenshot_smoke`，可通过备用本机端口采集 Windows 桌面端核心页面截图。当前已能生成 8 张页面截图，但 Windows Security / Firewall dialog for `Node.js JavaScript Runtime` 会覆盖画面；该弹窗需要在 Windows 侧人工关闭或允许一次后，再重跑截图验收。
 
 `0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
 

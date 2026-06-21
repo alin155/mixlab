@@ -50,6 +50,15 @@ The Windows cutter runtime then synchronized the local release cache and reporte
 
 Runner: `0.1.13` at `http://192.168.1.20:3799`.
 
+Shared Runner package updated during this pass:
+
+- Active shared Runner: `0.1.23`
+- Commit: `7ed3cd7`
+- GitHub Actions run: `27918481611`
+- Shared latest: `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/latest.json`
+- SHA-256: `0316fa67dbb7879ef454aa19cc62f8f4b9949e0be6565a14ccba9e1a8bdaa3fc`
+- Purpose: add Windows desktop screenshot capture for UI Foundation acceptance.
+
 Install smoke:
 
 - Run: `install_latest_and_smoke-20260621T200636Z-0db14ade`
@@ -88,6 +97,27 @@ Phase timings:
 | generate_cover | 141ms |
 | write_manifest | 7ms |
 
+Desktop screenshot smoke:
+
+- Runner: `0.1.23` launched through the main `0.1.13` Runner on Windows localhost port `3855`
+- Launch report: `/Users/huaqihang/Public/MixLabWindowsBuilds/reports/launch_runner-20260621T215244Z-57217e57/report.json`
+- Screenshot run: `desktop_ui_screenshot_smoke-20260621T215246Z-7cb9a7e6`
+- Screenshot report: `/Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260621T215246Z-7cb9a7e6/report.json`
+- Screenshot directory: `/Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260621T215246Z-7cb9a7e6/screenshots`
+- Captured: `8 / 8`
+- Pages: project home, material search, cut tasks, local library, public library, source detail, cache management, settings
+
+Important visual finding:
+
+- The screenshots are technically captured, but the Windows Security / Firewall dialog for `Node.js JavaScript Runtime` is still covering the desktop.
+- Multiple non-destructive attempts were made to dismiss the dialog automatically without granting firewall permission:
+  - Runner `0.1.20`: send `Esc` before screenshots.
+  - Runner `0.1.21`: detect and dismiss blocking dialog by window geometry.
+  - Runner `0.1.22`: click the dialog cancel hotspot before screenshots.
+  - Runner `0.1.23`: use Windows UI Automation to invoke the lower-right dialog button.
+- The dialog remained visible. This is now treated as an environment blocker, not a product UI bug.
+- The visible UI behind the dialog confirms the sidebar footer order and count are correct: `本地 12 / 公共 10471`.
+
 ## Outcome
 
 The package is accepted as the current internal Windows desktop test build for the UI Foundation cutter surface.
@@ -98,4 +128,10 @@ The public-library count mismatch was not a frontend rendering bug. It was cause
 
 ## Residual Risk
 
-Windows Runner `0.1.13` does not capture desktop screenshots, so visual proof for the Windows webview remains based on install/runtime/API acceptance plus local cutter web screenshot verification. A future Runner extension can add screenshot capture, but it was not required for this package acceptance.
+Clean Windows desktop screenshots are still blocked by the Windows Security / Firewall dialog. The next verification step is to dismiss that dialog once on the Windows machine, then rerun:
+
+```text
+desktop_ui_screenshot_smoke
+```
+
+The product package, runtime data, public-library count, and real cut flow are already verified. The remaining open item is clean visual screenshot evidence for the Windows webview.
