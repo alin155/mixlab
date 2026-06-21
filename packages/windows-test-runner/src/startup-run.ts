@@ -15,6 +15,7 @@ const SUPPORTED_STARTUP_SUITES = new Set<RunnerSuite>([
   "cache_smoke",
   "real_cut_smoke",
   "windows_acceptance",
+  "desktop_ui_screenshot_smoke",
   "install_latest_and_smoke"
 ]);
 
