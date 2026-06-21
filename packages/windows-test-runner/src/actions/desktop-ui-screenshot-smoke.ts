@@ -90,6 +90,8 @@ function powerShellScript(input: {
   return `
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 
 $code = @"
 using System;
@@ -233,6 +235,49 @@ function Dismiss-MixLabBlockingDialog() {
   }
 }
 
+function Invoke-MixLabAutomationDismiss() {
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+    foreach ($window in $windows) {
+      $handle = [IntPtr]$window.Current.NativeWindowHandle
+      if ($handle -eq $proc.MainWindowHandle) {
+        continue
+      }
+      $dialogRect = $window.Current.BoundingRectangle
+      $dialogWidth = $dialogRect.Width
+      $dialogHeight = $dialogRect.Height
+      if ($dialogWidth -lt 220 -or $dialogWidth -gt 820 -or $dialogHeight -lt 120 -or $dialogHeight -gt 620) {
+        continue
+      }
+      $centerX = $dialogRect.Left + ($dialogWidth / 2)
+      $centerY = $dialogRect.Top + ($dialogHeight / 2)
+      $insideApp = $centerX -gt $rect.Left -and $centerX -lt $rect.Right -and $centerY -gt $rect.Top -and $centerY -lt $rect.Bottom
+      if (-not $insideApp) {
+        continue
+      }
+      $buttonCondition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Button
+      )
+      $buttons = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)
+      $button = $buttons |
+        Sort-Object @{ Expression = { $_.Current.BoundingRectangle.Top }; Descending = $true },
+          @{ Expression = { $_.Current.BoundingRectangle.Left }; Descending = $true } |
+        Select-Object -First 1
+      if ($button) {
+        $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+        $pattern.Invoke()
+        Start-Sleep -Milliseconds 700
+        return $true
+      }
+    }
+  } catch {
+    return $false
+  }
+  return $false
+}
+
 function Invoke-MixLabDialogCancelHotspot() {
   Invoke-MixLabAbsoluteClick ([int]($rect.Left + ($width * 0.68))) ([int]($rect.Top + ($height * 0.63)))
   Start-Sleep -Milliseconds 500
@@ -260,6 +305,7 @@ function Convert-MixLabJsonPath([string]$pathValue) {
 }
 
 $captures = @()
+Invoke-MixLabAutomationDismiss | Out-Null
 Invoke-MixLabDialogCancelHotspot
 Dismiss-MixLabBlockingDialog
 foreach ($page in $pages) {
