@@ -129,6 +129,9 @@ ${pagesJson}
 '@ | ConvertFrom-Json
 
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+$runId = Split-Path (Split-Path $outputDir -Parent) -Leaf
+$localOutputDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mixlab-cutter-screenshots-" + $runId)
+New-Item -ItemType Directory -Force -Path $localOutputDir | Out-Null
 
 $proc = Get-Process |
   Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like "*$windowTitle*" } |
@@ -159,17 +162,26 @@ function Invoke-MixLabClick([double]$rx, [double]$ry) {
 }
 
 function Save-MixLabScreenshot([string]$id) {
-  $file = Join-Path $outputDir "$id.png"
+  $localFile = Join-Path $localOutputDir "$id.png"
+  $sharedFile = Join-Path $outputDir "$id.png"
   $bitmap = New-Object System.Drawing.Bitmap($width, $height)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   try {
     $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-    $bitmap.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bitmap.Save($localFile, [System.Drawing.Imaging.ImageFormat]::Png)
   } finally {
     $graphics.Dispose()
     $bitmap.Dispose()
   }
-  return $file
+  Copy-Item -LiteralPath $localFile -Destination $sharedFile -Force
+  return $sharedFile
+}
+
+function Convert-MixLabJsonPath([string]$pathValue) {
+  if (-not $pathValue) {
+    return $pathValue
+  }
+  return $pathValue.Replace('\', '/')
 }
 
 $captures = @()
@@ -186,7 +198,7 @@ foreach ($page in $pages) {
       id = $page.id
       label = $page.label
       action = $page.action
-      screenshot_path = $file
+      screenshot_path = Convert-MixLabJsonPath $file
       ok = $true
       click_x = if ($click) { $click.x } else { $null }
       click_y = if ($click) { $click.y } else { $null }
@@ -198,7 +210,7 @@ foreach ($page in $pages) {
       id = $page.id
       label = $page.label
       action = $page.action
-      screenshot_path = Join-Path $outputDir "$($page.id).png"
+      screenshot_path = Convert-MixLabJsonPath (Join-Path $outputDir "$($page.id).png")
       ok = $false
       click_x = if ($click) { $click.x } else { $null }
       click_y = if ($click) { $click.y } else { $null }
@@ -210,7 +222,7 @@ foreach ($page in $pages) {
 [pscustomobject]@{
   ok = $true
   window_title = $proc.MainWindowTitle
-  output_dir = $outputDir
+  output_dir = Convert-MixLabJsonPath $outputDir
   window_rect = [pscustomobject]@{
     left = $rect.Left
     top = $rect.Top
