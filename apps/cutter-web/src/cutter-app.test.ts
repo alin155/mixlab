@@ -4356,7 +4356,7 @@ test("sidebar footer renders a simple cutter status summary", () => {
     "当前项目",
     "6月4日-2",
     "素材库",
-    "本地 41 / 公共 18",
+    "本地 18 / 公共 41",
     "剪切任务",
     "1 个处理中",
     "本机服务",
@@ -4411,21 +4411,20 @@ test("sidebar cache helpers count clearable local cutter cache and preserve logi
   assert.equal(window.localStorage.getItem("other:key"), "ignore");
 });
 
-test("sidebar footer can match public-first design pages", () => {
+test("sidebar footer does not swap local and public library counts", () => {
   const html = renderToStaticMarkup(
     h(CutterSidebarFooter, {
       username: "Allen",
-      localCount: 18,
-      publicCount: 41,
+      localCount: 146,
+      publicCount: 7950,
       activeTaskCount: 0,
       engineReady: true,
-      currentProjectLabel: "6月4日-2",
-      libraryCountOrder: "public-first"
+      currentProjectLabel: "6月19日"
     })
   );
 
-  assert.match(html, /公共 41 \/ 本地 18/);
-  assert.equal(html.includes("本地 41 / 公共 18"), false);
+  assert.match(html, /本地 146 \/ 公共 7950/);
+  assert.equal(html.includes("本地 7950 / 公共 146"), false);
 });
 
 test("sidebar footer keeps cutter status visually quiet", async () => {

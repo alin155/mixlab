@@ -462,7 +462,6 @@ export function CutterSidebarFooter({
   activeTaskCount,
   engineReady,
   currentProjectLabel = "未选择",
-  libraryCountOrder = "local-first",
   cacheBytes
 }: {
   username: string;
@@ -471,15 +470,11 @@ export function CutterSidebarFooter({
   activeTaskCount: number;
   engineReady: boolean;
   currentProjectLabel?: string;
-  libraryCountOrder?: "local-first" | "public-first";
   cacheBytes?: number;
 }) {
   const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
-  const libraryCountLabel =
-    libraryCountOrder === "public-first"
-      ? `公共 ${publicCount} / 本地 ${localCount}`
-      : `本地 ${publicCount} / 公共 ${localCount}`;
+  const libraryCountLabel = `本地 ${localCount} / 公共 ${publicCount}`;
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
   const cacheLabel = formatCutterCacheSize(displayCacheBytes);
 
@@ -3513,11 +3508,6 @@ export function CutterApp() {
               engineReady={engineReady}
               currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
               cacheBytes={runtimeCacheBytes}
-              libraryCountOrder={
-                route === "project-home" || route === "material-locator"
-                  ? "local-first"
-                  : "public-first"
-              }
             />
           ) : null
         }
