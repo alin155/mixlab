@@ -145,6 +145,11 @@ if (-not $proc) {
 [MixLabWin32]::ShowWindow($proc.MainWindowHandle, 5) | Out-Null
 [MixLabWin32]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
 Start-Sleep -Milliseconds 500
+$shell = New-Object -ComObject WScript.Shell
+$shell.SendKeys('{ESC}')
+Start-Sleep -Milliseconds 300
+[MixLabWin32]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+Start-Sleep -Milliseconds 300
 
 $rect = New-Object MixLabWin32+RECT
 [MixLabWin32]::GetWindowRect($proc.MainWindowHandle, [ref]$rect) | Out-Null
