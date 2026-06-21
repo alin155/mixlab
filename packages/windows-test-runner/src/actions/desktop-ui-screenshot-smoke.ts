@@ -233,6 +233,11 @@ function Dismiss-MixLabBlockingDialog() {
   }
 }
 
+function Invoke-MixLabDialogCancelHotspot() {
+  Invoke-MixLabAbsoluteClick ([int]($rect.Left + ($width * 0.68))) ([int]($rect.Top + ($height * 0.63)))
+  Start-Sleep -Milliseconds 500
+}
+
 function Save-MixLabScreenshot([string]$id) {
   $localFile = Join-Path $localOutputDir "$id.png"
   $bitmap = New-Object System.Drawing.Bitmap($width, $height)
@@ -255,6 +260,8 @@ function Convert-MixLabJsonPath([string]$pathValue) {
 }
 
 $captures = @()
+Invoke-MixLabDialogCancelHotspot
+Dismiss-MixLabBlockingDialog
 foreach ($page in $pages) {
   $click = $null
   $errorText = $null
