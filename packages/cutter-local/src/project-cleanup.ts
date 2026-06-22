@@ -1,7 +1,7 @@
 import { readdir, rmdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { listClipLists } from "./cut-list.ts";
-import { listCutJobs } from "./cut-queue.ts";
+import { invalidateCutJobCache, listCutJobs } from "./cut-queue.ts";
 import { listExportClips } from "./export-manifest.ts";
 
 export interface DeleteProjectOutputsInput {
@@ -130,6 +130,9 @@ export async function deleteProjectOutputs(
     if (await removeIfPresent(path.join(input.workspace_root, "clip-jobs", `${job.cut_job_id}.json`))) {
       removedCutJobs += 1;
     }
+  }
+  if (removedCutJobs > 0) {
+    invalidateCutJobCache(input.workspace_root);
   }
 
   let removedClipLists = 0;

@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import { copyFile, link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
@@ -165,6 +166,10 @@ const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
 const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const workspaceRunNextLocks = new Map<string, Promise<void>>();
 const workspaceQueueMutationLocks = new Map<string, Promise<void>>();
+const workspaceCutJobSnapshotCaches = new Map<string, {
+  loaded: boolean;
+  jobs: Map<string, CutJobManifest>;
+}>();
 
 async function withWorkspaceRunNextLock<T>(
   workspaceRoot: string,
@@ -216,6 +221,46 @@ async function withWorkspaceQueueMutationLock<T>(
       workspaceQueueMutationLocks.delete(key);
     }
   }
+}
+
+function workspaceCacheKey(workspaceRoot: string): string {
+  return path.resolve(workspaceRoot);
+}
+
+function cloneCutJob(job: CutJobManifest): CutJobManifest {
+  return {
+    ...job,
+    ...(job.phase_timings ? { phase_timings: job.phase_timings.map((phase) => ({ ...phase })) } : {})
+  };
+}
+
+function cachedCutJobs(workspaceRoot: string): CutJobManifest[] | null {
+  const cache = workspaceCutJobSnapshotCaches.get(workspaceCacheKey(workspaceRoot));
+  if (!cache?.loaded) {
+    return null;
+  }
+
+  return Array.from(cache.jobs.values(), cloneCutJob);
+}
+
+function replaceCutJobCache(workspaceRoot: string, jobs: CutJobManifest[]): void {
+  workspaceCutJobSnapshotCaches.set(workspaceCacheKey(workspaceRoot), {
+    loaded: true,
+    jobs: new Map(jobs.map((job) => [job.cut_job_id, cloneCutJob(job)]))
+  });
+}
+
+function upsertCutJobCache(workspaceRoot: string, job: CutJobManifest): void {
+  const cache = workspaceCutJobSnapshotCaches.get(workspaceCacheKey(workspaceRoot));
+  if (!cache?.loaded) {
+    return;
+  }
+
+  cache.jobs.set(job.cut_job_id, cloneCutJob(job));
+}
+
+export function invalidateCutJobCache(workspaceRoot: string): void {
+  workspaceCutJobSnapshotCaches.delete(workspaceCacheKey(workspaceRoot));
 }
 
 function cutJobsRoot(workspaceRoot: string): string {
@@ -731,9 +776,15 @@ async function writeCutJob(workspaceRoot: string, job: CutJobManifest): Promise<
   const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   await writeFile(tempPath, jsonBytes(job), "utf8");
   await rename(tempPath, filePath);
+  upsertCutJobCache(workspaceRoot, job);
 }
 
 async function readAllCutJobs(workspaceRoot: string): Promise<CutJobManifest[]> {
+  const cached = cachedCutJobs(workspaceRoot);
+  if (cached) {
+    return cached;
+  }
+
   let entries;
 
   try {
@@ -761,6 +812,7 @@ async function readAllCutJobs(workspaceRoot: string): Promise<CutJobManifest[]> 
     }
   }
 
+  replaceCutJobCache(workspaceRoot, jobs);
   return jobs;
 }
 
@@ -768,6 +820,17 @@ async function readCutJobsPage(input: ListCutJobsInput): Promise<{
   total: number;
   jobs: CutJobManifest[];
 }> {
+  const cached = cachedCutJobs(input.workspace_root);
+  const { limit, offset } = normalizedListWindow(input);
+
+  if (cached) {
+    const sorted = cached.sort(compareCutJobsForListing);
+    return {
+      total: sorted.length,
+      jobs: limit ? sorted.slice(offset, offset + limit) : sorted.slice(offset)
+    };
+  }
+
   let entries;
 
   try {
@@ -789,8 +852,12 @@ async function readCutJobsPage(input: ListCutJobsInput): Promise<{
     })
     .sort((left, right) => right.name.localeCompare(left.name));
   const readableJobs: CutJobManifest[] = [];
+  const readAllForExactTotal = !limit || jobEntries.length <= 500;
+  const entriesToRead = readAllForExactTotal
+    ? jobEntries
+    : jobEntries.slice(offset, offset + limit);
 
-  for (const entry of jobEntries) {
+  for (const entry of entriesToRead) {
     const cutJobId = entry.name.replace(/\.json$/, "");
     const job = await readCutJobForListing(input.workspace_root, cutJobId);
     if (job) {
@@ -798,11 +865,17 @@ async function readCutJobsPage(input: ListCutJobsInput): Promise<{
     }
   }
 
-  const { limit, offset } = normalizedListWindow(input);
-  const jobs = limit ? readableJobs.slice(offset, offset + limit) : readableJobs.slice(offset);
+  if (readAllForExactTotal) {
+    replaceCutJobCache(input.workspace_root, readableJobs);
+  }
+
+  const sorted = readableJobs.sort(compareCutJobsForListing);
+  const jobs = readAllForExactTotal && limit
+    ? sorted.slice(offset, offset + limit)
+    : sorted;
 
   return {
-    total: readableJobs.length,
+    total: readAllForExactTotal ? readableJobs.length : jobEntries.length,
     jobs
   };
 }
@@ -870,10 +943,7 @@ export async function listCutJobs(input: ListCutJobsInput): Promise<CutJobCatalo
     ? await readCutJobsPage(input)
     : { total: 0, jobs: await readAllCutJobs(input.workspace_root) };
   const jobs = page.jobs;
-  jobs.sort((left, right) => {
-    const updatedCompare = right.updated_at.localeCompare(left.updated_at);
-    return updatedCompare || right.cut_job_id.localeCompare(left.cut_job_id);
-  });
+  jobs.sort(compareCutJobsForListing);
 
   return {
     job_count: input.limit ? page.total : jobs.length,
@@ -909,6 +979,11 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
   };
   await writeCutJob(input.workspace_root, retried);
   return retried;
+}
+
+function compareCutJobsForListing(left: CutJobManifest, right: CutJobManifest): number {
+  const updatedCompare = right.updated_at.localeCompare(left.updated_at);
+  return updatedCompare || right.cut_job_id.localeCompare(left.cut_job_id);
 }
 
 function oldestPendingJob(jobs: CutJobManifest[]): CutJobManifest | null {
@@ -1059,8 +1134,18 @@ async function linkOrCopyFile(sourcePath: string, targetPath: string): Promise<v
 }
 
 async function sha256File(filePath: string): Promise<string> {
-  const bytes = await readFile(filePath);
-  return createHash("sha256").update(bytes).digest("hex");
+  const hash = createHash("sha256");
+
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => {
+      hash.update(chunk);
+    });
+    stream.on("error", reject);
+    stream.on("end", resolve);
+  });
+
+  return hash.digest("hex");
 }
 
 function localVideoArtifactPath(exportClipId: string, fileName: string): string {

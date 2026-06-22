@@ -395,6 +395,56 @@ test("runs direct cut jobs without persisting every intermediate phase", async (
   );
 });
 
+test("serves cut job list from live snapshot while a job is cutting", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-live-job-list-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeClipList(workspaceRoot);
+  const submission = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+  const cutJobId = submission.jobs[0]!.cut_job_id;
+
+  const initialList = await listCutJobs({
+    workspace_root: workspaceRoot,
+    limit: 20
+  });
+  assert.equal(initialList.jobs.find((job) => job.cut_job_id === cutJobId)?.status, "pending");
+
+  let listedDuringCut: Awaited<ReturnType<typeof listCutJobs>> | undefined;
+  const result = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264",
+      file_size: 123_456,
+      transcript_segments: []
+    }),
+    cut_runner: async (input) => {
+      listedDuringCut = await listCutJobs({
+        workspace_root: workspaceRoot,
+        limit: 20
+      });
+      await writeFile(input.output_path, "live-clip-bytes");
+    }
+  });
+
+  assert.equal(result?.status, "done");
+  const runningJob = listedDuringCut?.jobs.find((job) => job.cut_job_id === cutJobId);
+  assert.equal(runningJob?.status, "running");
+  assert.equal(runningJob?.current_phase, "cut_media");
+});
+
 test("cuts through workspace temp cache and removes temporary media after success", async () => {
   const workspaceRoot = await makeRoot("mixlab-cutter-local-cut-temp-");
   const libraryRoot = await makeRoot("mixlab-cutter-local-library-");

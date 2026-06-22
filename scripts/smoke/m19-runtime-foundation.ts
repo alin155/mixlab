@@ -158,9 +158,10 @@ async function loginCutter(apiBaseUrl: string): Promise<CutterSession> {
   const deviceId = process.env.MIXLAB_CUTTER_TEST_DEVICE_ID?.trim() || "m19-runtime-foundation";
   const username = process.env.MIXLAB_CUTTER_TEST_USERNAME?.trim();
   const password = process.env.MIXLAB_CUTTER_TEST_PASSWORD?.trim();
-  const mode = await fetchJson<ApiEnvelope<{ mode?: string }>>(`${apiBaseUrl}/cutter/auth/mode`);
+  const mode = await fetchJson<ApiEnvelope<{ auth_mode?: string; mode?: string }>>(`${apiBaseUrl}/cutter/auth/mode`);
+  const authMode = mode.data.auth_mode ?? mode.data.mode;
 
-  if (mode.data.mode !== "local_trusted" && (!username || !password)) {
+  if (authMode !== "local_trusted" && (!username || !password)) {
     throw new Error("MIXLAB_CUTTER_TEST_USERNAME and MIXLAB_CUTTER_TEST_PASSWORD are required for reviewed auth");
   }
 
