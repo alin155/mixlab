@@ -402,16 +402,19 @@ function Convert-MixLabJsonPath([string]$pathValue) {
 
 $captures = @()
 Invoke-MixLabSystemDialogDismissal
+Start-Sleep -Milliseconds 1500
 foreach ($page in $pages) {
   $click = $null
   $errorText = $null
   try {
     if ($page.action -eq 'sidebar' -or $page.action -eq 'content') {
       Invoke-MixLabSystemDialogDismissal
+      Start-Sleep -Milliseconds 600
       $click = Invoke-MixLabClick $page.x $page.y
       Start-Sleep -Milliseconds $settleMs
     }
     Invoke-MixLabSystemDialogDismissal
+    Start-Sleep -Milliseconds 800
     $file = Save-MixLabScreenshot $page.id
     $captures += [pscustomobject]@{
       id = $page.id
