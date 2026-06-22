@@ -55,6 +55,7 @@ const USER_STATUSES = new Set<CutterUserStatus>([
 ]);
 const DEVICE_STATUSES = new Set<CutterDeviceRecord["status"]>(["active", "disabled"]);
 const storeMutationQueues = new Map<string, Promise<void>>();
+const STORE_WRITE_RETRY_DELAYS_MS = [20, 80, 200];
 
 function usersPath(libraryRoot: string): string {
   return path.join(libraryRoot, ".mixlab-library", "cutter-users", "users.json");
@@ -233,21 +234,29 @@ async function readStore(libraryRoot: string): Promise<CutterUserStore> {
 async function writeStore(libraryRoot: string, store: CutterUserStore): Promise<void> {
   const targetPath = usersPath(libraryRoot);
   const targetDir = path.dirname(targetPath);
-  const tempPath = path.join(
-    targetDir,
-    `.users.${process.pid}.${Date.now()}.${randomUUID()}.tmp`
-  );
 
   await mkdir(targetDir, { recursive: true });
-  try {
-    await writeFile(tempPath, `${JSON.stringify(store, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600
-    });
-    await rename(tempPath, targetPath);
-  } catch (error) {
-    await rm(tempPath, { force: true });
-    throw new Error("无法写入剪辑师用户存储文件", { cause: error });
+  for (let attempt = 0; attempt <= STORE_WRITE_RETRY_DELAYS_MS.length; attempt += 1) {
+    const tempPath = path.join(
+      targetDir,
+      `.users.${process.pid}.${Date.now()}.${randomUUID()}.tmp`
+    );
+
+    try {
+      await writeFile(tempPath, `${JSON.stringify(store, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o600
+      });
+      await rename(tempPath, targetPath);
+      return;
+    } catch (error) {
+      await rm(tempPath, { force: true });
+      const delayMs = STORE_WRITE_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) {
+        throw new Error("无法写入剪辑师用户存储文件", { cause: error });
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 }
 
@@ -742,10 +751,11 @@ export function publicCutterUser(user: CutterUserRecord): PublicCutterUserRecord
 
 export async function validateCutterSession(
   libraryRoot: string,
-  input: { device_id: string; session_token: string; now: string }
+  input: { device_id: string; session_token: string; now: string; touch?: boolean }
 ): Promise<{ ok: true; user: CutterUserRecord } | { ok: false; reason: string }> {
-  return withStoreMutation(libraryRoot, async () => {
-    const store = await readStore(libraryRoot);
+  async function validateStoreSession(
+    store: CutterUserStore
+  ): Promise<{ ok: true; user: CutterUserRecord; store: CutterUserStore } | { ok: false; reason: string }> {
     const session = store.sessions.find(
       (candidate) =>
         candidate.device_id === input.device_id &&
@@ -766,13 +776,31 @@ export async function validateCutterSession(
       return { ok: false, reason: "用户尚未通过审核" };
     }
 
+    if (!input.touch) {
+      return { ok: true, user, store };
+    }
+
     session.last_seen_at = input.now;
     user.last_login_at = input.now;
     const device = user.devices.find((candidate) => candidate.device_id === input.device_id);
     if (device) {
       device.last_login_at = input.now;
     }
-    await writeStore(libraryRoot, store);
-    return { ok: true, user };
+
+    return { ok: true, user, store };
+  }
+
+  if (!input.touch) {
+    const validation = await validateStoreSession(await readStore(libraryRoot));
+    return validation.ok ? { ok: true, user: validation.user } : validation;
+  }
+
+  return withStoreMutation(libraryRoot, async () => {
+    const validation = await validateStoreSession(await readStore(libraryRoot));
+    if (!validation.ok) {
+      return validation;
+    }
+    await writeStore(libraryRoot, validation.store);
+    return { ok: true, user: validation.user };
   });
 }

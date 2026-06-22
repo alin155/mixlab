@@ -99,8 +99,8 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
       job.phase_timings?.[0]?.status
     ]),
     [
-      ["CJ20260502-0001", "pending", "CLI000001", "现金流混剪", 1, "queue_wait", "排队等待", "running"],
-      ["CJ20260502-0002", "pending", "CLI000002", "现金流混剪", 2, "queue_wait", "排队等待", "running"]
+      ["CJ20260502-0001", "pending", "CLI000001", "现金流混剪", 1, "queue_wait", "排队等待", "pending"],
+      ["CJ20260502-0002", "pending", "CLI000002", "现金流混剪", 2, "queue_wait", "排队等待", "pending"]
     ]
   );
 
@@ -188,6 +188,12 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
   assert.equal(cutCalls.length, 1);
   assert.equal(cutCalls[0]?.begin_ms, 1000);
   assert.equal(cutCalls[0]?.end_ms, 5200);
+  const pendingAfterFirstRun = await getCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: "CJ20260502-0002"
+  });
+  assert.equal(pendingAfterFirstRun?.status, "pending");
+  assert.equal(pendingAfterFirstRun?.phase_timings?.some((phase) => phase.status === "running"), false);
 
   const catalog = await listExportClips({ workspace_root: workspaceRoot });
   assert.equal(catalog.local_clip_count, 1);

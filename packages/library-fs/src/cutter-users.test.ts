@@ -106,6 +106,28 @@ test("registers cutter account with password and logs in after admin approval", 
     now: "2026-06-18T10:04:00.000Z"
   });
   assert.equal(validation.ok, true);
+  const storeAfterReadOnlyValidation = JSON.parse(await readFile(storePath(root), "utf8")) as {
+    sessions: Array<{ session_token: string; last_seen_at: string }>;
+  };
+  assert.equal(
+    storeAfterReadOnlyValidation.sessions.find((item) => item.session_token === session.session_token)?.last_seen_at,
+    "2026-06-18T10:03:00.000Z"
+  );
+
+  const touchedValidation = await validateCutterSession(root, {
+    device_id: "device-a",
+    session_token: session.session_token,
+    now: "2026-06-18T10:05:00.000Z",
+    touch: true
+  });
+  assert.equal(touchedValidation.ok, true);
+  const storeAfterTouchedValidation = JSON.parse(await readFile(storePath(root), "utf8")) as {
+    sessions: Array<{ session_token: string; last_seen_at: string }>;
+  };
+  assert.equal(
+    storeAfterTouchedValidation.sessions.find((item) => item.session_token === session.session_token)?.last_seen_at,
+    "2026-06-18T10:05:00.000Z"
+  );
 
   assert.deepEqual(await logoutCutterSession(root, {
     device_id: "device-a",

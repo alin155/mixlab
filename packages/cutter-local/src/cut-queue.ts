@@ -461,7 +461,14 @@ function durationMs(startedAt: string | undefined, finishedAt: string): number |
   return Math.max(0, end - start);
 }
 
-function initialPhaseTimings(createdAt: string): CutJobPhaseTiming[] {
+function pendingPhaseTimings(): CutJobPhaseTiming[] {
+  return CUT_JOB_PHASES.map((phase) => ({
+    ...phase,
+    status: "pending"
+  }));
+}
+
+function activeQueueWaitPhaseTimings(createdAt: string): CutJobPhaseTiming[] {
   return CUT_JOB_PHASES.map((phase, index) => ({
     ...phase,
     status: index === 0 ? "running" : "pending",
@@ -474,7 +481,9 @@ function ensurePhaseTimings(job: CutJobManifest): CutJobPhaseTiming[] {
     return job.phase_timings.map((phase) => ({ ...phase }));
   }
 
-  return initialPhaseTimings(job.created_at);
+  return job.status === "pending"
+    ? pendingPhaseTimings()
+    : activeQueueWaitPhaseTimings(job.started_at ?? job.created_at);
 }
 
 function updatePhase(
@@ -702,7 +711,7 @@ function jobFromClipListItem(input: {
     cut_mode: input.item.cut_mode,
     status: "pending",
     current_phase: "queue_wait",
-    phase_timings: initialPhaseTimings(input.now),
+    phase_timings: pendingPhaseTimings(),
     created_at: input.now,
     updated_at: input.now
   };
@@ -873,7 +882,7 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
     ...job,
     status: "pending",
     current_phase: "queue_wait",
-    phase_timings: initialPhaseTimings(input.now),
+    phase_timings: pendingPhaseTimings(),
     updated_at: input.now,
     started_at: undefined,
     finished_at: undefined,
@@ -1256,8 +1265,14 @@ async function runPendingCutJobUnlocked(
     updated_at: startedAt,
     error_message: undefined,
     current_phase: pending.current_phase ?? "queue_wait",
-    phase_timings: pending.phase_timings ?? initialPhaseTimings(pending.created_at)
+    phase_timings: pending.phase_timings ?? pendingPhaseTimings()
   };
+
+  running = startPhase(running, "queue_wait", pending.created_at);
+  running = finishPhase(running, "queue_wait", startedAt);
+  if (persistPhaseProgress) {
+    await writeCutJob(input.workspace_root, running);
+  }
 
   try {
     async function runPhase<T>(
