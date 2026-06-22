@@ -33,6 +33,20 @@ interface CutterAuthHeaders {
   session_token: string;
 }
 
+interface CutterAuthCredentials {
+  username: string;
+  password: string;
+  device_id: string;
+  device_name: string;
+}
+
+interface ResolvedCutterAuth {
+  headers?: CutterAuthHeaders;
+  source: "none" | "headers" | "credentials";
+  login_check?: ApiProbeResult;
+  failure_message?: string;
+}
+
 const DEFAULT_QUERIES = ["第一场", "现金流", "中国", "2026"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,6 +130,26 @@ function readAuthHeaders(options: Record<string, unknown> | undefined): CutterAu
   };
 }
 
+function readAuthCredentials(options: Record<string, unknown> | undefined): CutterAuthCredentials | undefined {
+  const credentials = options?.auth_credentials;
+  if (!isRecord(credentials)) {
+    return undefined;
+  }
+  const username = getString(credentials, ["username", "user_name"]);
+  const password = getString(credentials, ["password"]);
+  const deviceId = getString(credentials, ["device_id", "deviceId"]);
+  const deviceName = getString(credentials, ["device_name", "deviceName"]) ?? "MixLab Windows Test Runner";
+  if (!username || !password || !deviceId) {
+    return undefined;
+  }
+  return {
+    username,
+    password,
+    device_id: deviceId,
+    device_name: deviceName
+  };
+}
+
 function authHeaderRecord(auth: CutterAuthHeaders | undefined): Record<string, string> {
   return auth
     ? {
@@ -123,6 +157,69 @@ function authHeaderRecord(auth: CutterAuthHeaders | undefined): Record<string, s
         "X-MixLab-Session-Token": auth.session_token
       }
     : {};
+}
+
+async function resolveAuthHeaders(input: {
+  baseUrl: string;
+  timeoutMs: number;
+  options?: Record<string, unknown>;
+}): Promise<ResolvedCutterAuth> {
+  const suppliedHeaders = readAuthHeaders(input.options);
+  if (suppliedHeaders) {
+    return {
+      headers: suppliedHeaders,
+      source: "headers"
+    };
+  }
+
+  const credentials = readAuthCredentials(input.options);
+  if (!credentials) {
+    return { source: "none" };
+  }
+
+  const login = await requestJson({
+    id: "auth_login",
+    path: "/cutter/auth/login",
+    baseUrl: input.baseUrl,
+    timeoutMs: input.timeoutMs,
+    method: "POST",
+    includeBody: false,
+    body: {
+      username: credentials.username,
+      password: credentials.password,
+      device_id: credentials.device_id,
+      device_name: credentials.device_name
+    }
+  });
+
+  if (!login.check.ok) {
+    return {
+      source: "credentials",
+      login_check: login.check,
+      failure_message: login.check.error ?? `Cutter login failed with status ${login.check.status_code ?? "n/a"}.`
+    };
+  }
+
+  const data = dataRecord(login.body);
+  const session = isRecord(data.session) ? data.session : {};
+  const deviceId = getString(session, ["device_id", "deviceId"]);
+  const sessionToken = getString(session, ["session_token", "sessionToken"]);
+  if (!deviceId || !sessionToken) {
+    return {
+      source: "credentials",
+      login_check: login.check,
+      failure_message: "Cutter login did not return a usable session."
+    };
+  }
+
+  return {
+    headers: {
+      device_id: deviceId,
+      session_token: sessionToken
+    },
+    source: "credentials",
+    login_check: login.check
+  };
 }
 
 function buildUrl(baseUrl: string, pathName: string): string {
@@ -412,7 +509,14 @@ export async function runAppRuntimeSmoke(input: {
 }): Promise<SmokeResult<AppRuntimeSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const maxLibraryElapsedMs = readPositiveNumber(input.options?.public_library_max_elapsed_ms, 1000);
-  const authHeaders = readAuthHeaders(input.options);
+  let resolvedAuth = await resolveAuthHeaders({
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    options: {
+      auth_headers: input.options?.auth_headers
+    }
+  });
+  let authHeaders = resolvedAuth.headers;
   const launch = await runLaunchAppProbe({
     apiBaseUrl: input.apiBaseUrl,
     options: {
@@ -426,7 +530,8 @@ export async function runAppRuntimeSmoke(input: {
     api_base_url: input.apiBaseUrl,
     launch_app_probe: launch.report,
     checks,
-    public_library_max_elapsed_ms: maxLibraryElapsedMs
+    public_library_max_elapsed_ms: maxLibraryElapsedMs,
+    auth_source: resolvedAuth.source
   };
 
   if (!launch.passed) {
@@ -468,12 +573,25 @@ export async function runAppRuntimeSmoke(input: {
     };
   }
   if (!localTrusted && !authHeaders) {
-    return {
-      report,
-      passed: false,
-      failure_category: "api_auth_failure",
-      failure_message: "Reviewed auth requires options.auth_headers with device_id and session_token."
-    };
+    await input.onEvent?.("app_runtime_login", "Logging in with supplied Cutter credentials for reviewed auth.");
+    resolvedAuth = await resolveAuthHeaders({
+      baseUrl: input.apiBaseUrl,
+      timeoutMs,
+      options: input.options
+    });
+    authHeaders = resolvedAuth.headers;
+    report.auth_source = resolvedAuth.source;
+    if (resolvedAuth.login_check) {
+      checks.push(resolvedAuth.login_check);
+    }
+    if (!authHeaders) {
+      return {
+        report,
+        passed: false,
+        failure_category: "api_auth_failure",
+        failure_message: resolvedAuth.failure_message ?? "Reviewed auth requires options.auth_headers or options.auth_credentials."
+      };
+    }
   }
 
   await input.onEvent?.("app_runtime_status", "Reading cutter runtime status.");
@@ -533,7 +651,6 @@ export async function runRealDataSmoke(input: {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const limit = readPositiveNumber(input.options?.search_limit, 10);
   const queries = readStringArray(input.options?.queries, DEFAULT_QUERIES);
-  const authHeaders = readAuthHeaders(input.options);
   const checks: ApiProbeResult[] = [];
   const report: RealDataSmokeReport = {
     api_base_url: input.apiBaseUrl,
@@ -541,6 +658,23 @@ export async function runRealDataSmoke(input: {
     checks,
     searches: []
   };
+  const resolvedAuth = await resolveAuthHeaders({
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    options: input.options
+  });
+  const authHeaders = resolvedAuth.headers;
+  if (resolvedAuth.login_check) {
+    checks.push(resolvedAuth.login_check);
+  }
+  if (resolvedAuth.failure_message) {
+    return {
+      report,
+      passed: false,
+      failure_category: "api_auth_failure",
+      failure_message: resolvedAuth.failure_message
+    };
+  }
 
   await input.onEvent?.("real_data_source_library", "Reading public source library.");
   const library = await requestJson({
@@ -640,7 +774,6 @@ export async function runCacheSmoke(input: {
   onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
 }): Promise<SmokeResult<CacheSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
-  const authHeaders = readAuthHeaders(input.options);
   const checks: ApiProbeResult[] = [];
   const report: CacheSmokeReport = {
     api_base_url: input.apiBaseUrl,
@@ -648,6 +781,23 @@ export async function runCacheSmoke(input: {
     total_observed_cache_size_bytes: 0,
     observed_cache_bucket_count: 0
   };
+  const resolvedAuth = await resolveAuthHeaders({
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    options: input.options
+  });
+  const authHeaders = resolvedAuth.headers;
+  if (resolvedAuth.login_check) {
+    checks.push(resolvedAuth.login_check);
+  }
+  if (resolvedAuth.failure_message) {
+    return {
+      report,
+      passed: false,
+      failure_category: "api_auth_failure",
+      failure_message: resolvedAuth.failure_message
+    };
+  }
 
   await input.onEvent?.("cache_runtime_status", "Reading cache status from cutter runtime.");
   const runtime = await requestJson({
@@ -694,7 +844,6 @@ export async function runRealCutSmoke(input: {
 }): Promise<SmokeResult<RealCutSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const cutTimeoutMs = readPositiveNumber(input.options?.cut_timeout_ms, 180_000);
-  const authHeaders = readAuthHeaders(input.options);
   const query = typeof input.options?.query === "string" && input.options.query.trim()
     ? input.options.query.trim()
     : "第一场";
@@ -714,6 +863,23 @@ export async function runRealCutSmoke(input: {
     project_id: projectId,
     project_title: projectTitle
   };
+  const resolvedAuth = await resolveAuthHeaders({
+    baseUrl: input.apiBaseUrl,
+    timeoutMs,
+    options: input.options
+  });
+  const authHeaders = resolvedAuth.headers;
+  if (resolvedAuth.login_check) {
+    checks.push(resolvedAuth.login_check);
+  }
+  if (resolvedAuth.failure_message) {
+    return {
+      report,
+      passed: false,
+      failure_category: "api_auth_failure",
+      failure_message: resolvedAuth.failure_message
+    };
+  }
 
   await input.onEvent?.("real_cut_runtime", "Checking app runtime before real cut.");
   const runtime = await runAppRuntimeSmoke({

@@ -181,6 +181,7 @@ export interface AppRuntimeSmokeReport {
   checks: ApiProbeResult[];
   auth_mode?: string;
   local_trusted?: boolean;
+  auth_source?: "none" | "headers" | "credentials";
   runtime_status?: RuntimeStatusSmokeSummary;
   source_library?: SourceLibrarySmokeSummary;
   public_library_max_elapsed_ms: number;

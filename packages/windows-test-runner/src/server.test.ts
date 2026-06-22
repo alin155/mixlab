@@ -71,10 +71,14 @@ function createMockCutterApi(input: {
   authMode?: "local_trusted" | "reviewed";
   deviceId?: string;
   sessionToken?: string;
+  username?: string;
+  password?: string;
 } = {}): Server {
   const authMode = input.authMode ?? "local_trusted";
   const deviceId = input.deviceId ?? "acceptance-device";
   const sessionToken = input.sessionToken ?? "acceptance-session";
+  const username = input.username ?? "hqh";
+  const password = input.password ?? "hqh123456";
   function isAuthenticated(request: IncomingMessage): boolean {
     return (
       request.headers["x-mixlab-device-id"] === deviceId &&
@@ -91,6 +95,36 @@ function createMockCutterApi(input: {
     }
     if (url.pathname === "/cutter/auth/mode") {
       response.end(JSON.stringify({ auth_mode: authMode, local_trusted: authMode === "local_trusted" }));
+      return;
+    }
+    if (url.pathname === "/cutter/auth/login" && request.method === "POST") {
+      const body = await readMockRequestBody(request) as Record<string, unknown>;
+      if (
+        body.username !== username ||
+        body.password !== password ||
+        body.device_id !== deviceId
+      ) {
+        response.statusCode = 401;
+        response.end(JSON.stringify({
+          error: {
+            code: "invalid_credentials",
+            message: "账号或密码不正确"
+          }
+        }));
+        return;
+      }
+      response.end(JSON.stringify({
+        data: {
+          user: {
+            username,
+            status: "approved"
+          },
+          session: {
+            device_id: deviceId,
+            session_token: sessionToken
+          }
+        }
+      }));
       return;
     }
     if (authMode === "reviewed" && !isAuthenticated(request)) {
@@ -634,6 +668,86 @@ test("windows acceptance supports reviewed auth with supplied cutter session hea
     assert.equal(report.windows_acceptance.app_runtime_smoke.local_trusted, false);
     assert.equal(report.windows_acceptance.app_runtime_smoke.source_library.available_video_count, 1);
     assert.equal(report.windows_acceptance.app_runtime_smoke.source_library.returned_count, 1);
+    assert.equal(report.windows_acceptance.real_data_smoke.selected_detail.transcript_segment_count, 1);
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
+test("windows acceptance can login with reviewed cutter credentials without leaking secrets", async () => {
+  const root = await tempRoot();
+  const deviceId = "acceptance-device";
+  const sessionToken = "acceptance-session";
+  const password = "hqh123456";
+  const api = createMockCutterApi({
+    authMode: "reviewed",
+    deviceId,
+    sessionToken,
+    username: "hqh",
+    password
+  });
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "windows_acceptance",
+        options: {
+          auth_credentials: {
+            username: "hqh",
+            password,
+            device_id: deviceId,
+            device_name: "Windows Runner"
+          }
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const reportText = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).text();
+    assert.equal(reportText.includes(password), false);
+    assert.equal(reportText.includes(sessionToken), false);
+
+    const report = JSON.parse(reportText) as {
+      windows_acceptance: {
+        app_runtime_smoke: {
+          auth_mode: string;
+          local_trusted: boolean;
+          auth_source: string;
+          checks: Array<{ id: string; body?: unknown }>;
+        };
+        real_data_smoke: {
+          selected_detail: {
+            transcript_segment_count: number;
+          };
+        };
+      };
+    };
+    assert.equal(report.windows_acceptance.app_runtime_smoke.auth_mode, "reviewed");
+    assert.equal(report.windows_acceptance.app_runtime_smoke.local_trusted, false);
+    assert.equal(report.windows_acceptance.app_runtime_smoke.auth_source, "credentials");
+    assert.equal(report.windows_acceptance.app_runtime_smoke.checks.some((check) => check.id === "auth_login"), true);
+    assert.equal(
+      report.windows_acceptance.app_runtime_smoke.checks.find((check) => check.id === "auth_login")?.body,
+      undefined
+    );
     assert.equal(report.windows_acceptance.real_data_smoke.selected_detail.transcript_segment_count, 1);
   } finally {
     await close(api);
