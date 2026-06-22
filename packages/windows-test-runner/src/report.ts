@@ -217,6 +217,33 @@ function writeSummary(record: RunRecord): string {
       }
     }
   }
+  if (record.m19_runtime_foundation) {
+    lines.push("", "## M19 Runtime Foundation", "");
+    const m19 = record.m19_runtime_foundation;
+    lines.push(`- API base URL: ${m19.api_base_url}`);
+    if (m19.runtime) {
+      lines.push(`- Runtime: ${m19.runtime.elapsed_ms}ms, videos ${m19.runtime.available_video_count ?? "n/a"}, search ${m19.runtime.search_backend_mode ?? "n/a"}`);
+    }
+    if (m19.source_library_first_page) {
+      lines.push(`- Source library first page: ${m19.source_library_first_page.item_count ?? "n/a"} / ${m19.source_library_first_page.total_count ?? "n/a"}, ${m19.source_library_first_page.elapsed_ms}ms`);
+    }
+    if (m19.source_library_default_page) {
+      lines.push(`- Source library default page: ${m19.source_library_default_page.item_count ?? "n/a"}, ${m19.source_library_default_page.elapsed_ms}ms`);
+    }
+    if (m19.rapid_switch) {
+      lines.push(`- Rapid switch: ${m19.rapid_switch.iterations} iterations, max ${m19.rapid_switch.max_ms}ms, p95 ${m19.rapid_switch.p95_ms}ms`);
+    }
+    if (m19.search_first_page) {
+      lines.push(`- Search "${m19.search_first_page.query}": ${m19.search_first_page.group_count} groups, ${m19.search_first_page.elapsed_ms}ms`);
+    }
+    if (m19.candidate_switch) {
+      lines.push(`- Candidate switch: ${m19.candidate_switch.completed_count} / ${m19.candidate_switch.requested_count} full transcripts`);
+    }
+    if (m19.cut_queue) {
+      lines.push(`- Cut queue: ${m19.cut_queue.submitted_job_ids.length} jobs, submit ${m19.cut_queue.submit_ms}ms, poll ${m19.cut_queue.poll_ms}ms`);
+      lines.push(`- During cut: source ${m19.cut_queue.during_cut_responsiveness.source_library_ms}ms, search ${m19.cut_queue.during_cut_responsiveness.search_ms}ms, jobs ${m19.cut_queue.during_cut_responsiveness.cut_jobs_ms}ms`);
+    }
+  }
   if (record.windows_acceptance) {
     lines.push("", "## Windows Acceptance", "");
     lines.push(`- API base URL: ${record.windows_acceptance.api_base_url}`);
@@ -285,6 +312,7 @@ export function serializeRunReport(record: RunRecord): RunReport {
     real_data_smoke: record.real_data_smoke,
     cache_smoke: record.cache_smoke,
     real_cut_smoke: record.real_cut_smoke,
+    m19_runtime_foundation: record.m19_runtime_foundation,
     windows_acceptance: record.windows_acceptance,
     desktop_ui_screenshot_smoke: record.desktop_ui_screenshot_smoke,
     desktop_incident_diagnostics: record.desktop_incident_diagnostics

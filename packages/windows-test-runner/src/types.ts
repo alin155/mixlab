@@ -6,6 +6,7 @@ export type RunnerSuite =
   | "real_data_smoke"
   | "cache_smoke"
   | "real_cut_smoke"
+  | "m19_runtime_foundation"
   | "windows_acceptance"
   | "desktop_ui_screenshot_smoke"
   | "desktop_incident_diagnostics"
@@ -276,6 +277,77 @@ export interface WindowsAcceptanceReport {
   cache_smoke?: CacheSmokeReport;
 }
 
+export interface M19TimedApiCheck {
+  id: string;
+  path: string;
+  elapsed_ms: number;
+  ok: boolean;
+  status_code: number | null;
+  item_count?: number;
+  total_count?: number;
+  error?: string;
+}
+
+export interface M19CandidateDetailSummary {
+  source_video_id: string;
+  elapsed_ms: number;
+  transcript_character_count: number;
+  transcript_segment_count: number;
+}
+
+export interface M19CutQueueSummary {
+  clip_list_id?: string;
+  submitted_job_ids: string[];
+  submit_ms: number;
+  during_cut_responsiveness: {
+    source_library_ms: number;
+    search_ms: number;
+    cut_jobs_ms: number;
+    source_library_count: number;
+    search_group_count: number;
+    cut_job_count: number;
+  };
+  final_statuses: Record<string, string>;
+  poll_ms: number;
+}
+
+export interface M19RuntimeFoundationReport {
+  api_base_url: string;
+  target: "M19 Runtime Foundation v1";
+  launch_app_probe?: LaunchAppProbeReport;
+  auth_source?: "none" | "headers" | "credentials";
+  runtime?: {
+    elapsed_ms: number;
+    available_video_count?: number;
+    release_cache_ready?: boolean;
+    search_backend_mode?: string;
+    search_backend_response_ms?: number;
+  };
+  source_library_first_page?: M19TimedApiCheck;
+  source_library_default_page?: M19TimedApiCheck;
+  cached_revisit?: Record<string, M19TimedApiCheck>;
+  rapid_switch?: {
+    iterations: number;
+    max_ms: number;
+    p95_ms: number;
+    checks: M19TimedApiCheck[];
+  };
+  search_first_page?: {
+    query: string;
+    elapsed_ms: number;
+    group_count: number;
+    total_hit_count?: number;
+    search_mode?: string;
+    next_cursor?: string;
+  };
+  candidate_switch?: {
+    requested_count: number;
+    completed_count: number;
+    details: M19CandidateDetailSummary[];
+  };
+  cut_queue?: M19CutQueueSummary;
+}
+
 export interface DesktopUiScreenshotPage {
   id: string;
   label: string;
@@ -380,6 +452,7 @@ export interface RunReport {
   real_data_smoke?: RealDataSmokeReport;
   cache_smoke?: CacheSmokeReport;
   real_cut_smoke?: RealCutSmokeReport;
+  m19_runtime_foundation?: M19RuntimeFoundationReport;
   windows_acceptance?: WindowsAcceptanceReport;
   desktop_ui_screenshot_smoke?: DesktopUiScreenshotReport;
   desktop_incident_diagnostics?: DesktopIncidentDiagnosticsReport;

@@ -11,6 +11,7 @@ const SUPPORTED_SUITES = [
   "real_data_smoke",
   "cache_smoke",
   "real_cut_smoke",
+  "m19_runtime_foundation",
   "windows_acceptance",
   "desktop_ui_screenshot_smoke",
   "desktop_incident_diagnostics",
