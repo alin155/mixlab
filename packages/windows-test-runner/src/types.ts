@@ -8,6 +8,7 @@ export type RunnerSuite =
   | "real_cut_smoke"
   | "windows_acceptance"
   | "desktop_ui_screenshot_smoke"
+  | "desktop_incident_diagnostics"
   | "install_latest_and_smoke";
 
 export type RunnerStatus =
@@ -32,6 +33,7 @@ export type FailureCategory =
   | "cut_failure"
   | "cache_not_growing"
   | "desktop_screenshot_failure"
+  | "desktop_incident_diagnostics_failure"
   | "runner_launch_failure"
   | "runner_ready_timeout"
   | "installer_missing"
@@ -305,6 +307,31 @@ export interface DesktopUiScreenshotReport {
   script_stderr_tail?: string;
 }
 
+export interface DesktopIncidentDiagnosticsReport {
+  api_base_url: string;
+  output_dir: string;
+  window_title?: string;
+  window_process_id?: number;
+  window_process_name?: string;
+  window_process_path?: string;
+  window_rect?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  screenshot_path?: string;
+  screenshot_ok: boolean;
+  screenshot_error?: string;
+  launch_app_probe?: LaunchAppProbeReport;
+  desktop_diagnostics: DesktopDiagnosticsReport;
+  probes: ApiProbeResult[];
+  auth_source?: "none" | "headers" | "credentials";
+  auth_login_probe?: ApiProbeResult;
+  script_stdout_tail?: string;
+  script_stderr_tail?: string;
+}
+
 export interface ProcessExitSummary {
   command: string;
   args: string[];
@@ -355,6 +382,7 @@ export interface RunReport {
   real_cut_smoke?: RealCutSmokeReport;
   windows_acceptance?: WindowsAcceptanceReport;
   desktop_ui_screenshot_smoke?: DesktopUiScreenshotReport;
+  desktop_incident_diagnostics?: DesktopIncidentDiagnosticsReport;
   install_latest_and_smoke?: InstallLatestAndSmokeReport;
 }
 

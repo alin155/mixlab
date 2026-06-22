@@ -872,6 +872,82 @@ test("runner supports desktop UI screenshot smoke in mock mode", async () => {
   }
 });
 
+test("runner supports desktop incident diagnostics in mock mode without leaking credentials", async () => {
+  const root = await tempRoot();
+  const password = "hqh123456";
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let api: Server | undefined;
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    api = createMockCutterApi({
+      authMode: "reviewed",
+      deviceId: "incident-device",
+      password
+    });
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "desktop_incident_diagnostics",
+        options: {
+          mock_screenshot: true,
+          auth_credentials: {
+            username: "hqh",
+            password,
+            device_id: "incident-device",
+            device_name: "Incident Test"
+          }
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const reportResponse = await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`);
+    const reportText = await reportResponse.text();
+    assert.equal(reportText.includes(password), false);
+    const report = JSON.parse(reportText) as {
+      desktop_incident_diagnostics: {
+        screenshot_ok: boolean;
+        screenshot_path: string;
+        auth_source: string;
+        probes: Array<{ id: string; ok: boolean }>;
+      };
+    };
+    assert.equal(report.desktop_incident_diagnostics.screenshot_ok, true);
+    await stat(report.desktop_incident_diagnostics.screenshot_path);
+    assert.equal(report.desktop_incident_diagnostics.auth_source, "credentials");
+    assert.deepEqual(
+      report.desktop_incident_diagnostics.probes.map((probe) => [probe.id, probe.ok]),
+      [
+        ["health", true],
+        ["auth_mode", true],
+        ["runtime_status", true],
+        ["source_library_first_page", true],
+        ["cut_jobs", true]
+      ]
+    );
+  } finally {
+    if (api) {
+      await close(api);
+    }
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
 test("probe_api run fails with api_health_timeout when the cutter API is unavailable", async () => {
   const root = await tempRoot();
   const runner = createWindowsTestRunnerServer(runnerConfig({

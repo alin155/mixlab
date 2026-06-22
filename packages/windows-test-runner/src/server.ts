@@ -13,6 +13,7 @@ const SUPPORTED_SUITES = [
   "real_cut_smoke",
   "windows_acceptance",
   "desktop_ui_screenshot_smoke",
+  "desktop_incident_diagnostics",
   "install_latest_and_smoke"
 ] as const;
 

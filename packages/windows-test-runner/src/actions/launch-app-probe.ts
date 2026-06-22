@@ -277,7 +277,7 @@ async function readDiagnosticFile(filePath: string): Promise<DesktopDiagnosticFi
   }
 }
 
-async function collectDesktopDiagnostics(): Promise<DesktopDiagnosticsReport> {
+export async function collectDesktopDiagnostics(): Promise<DesktopDiagnosticsReport> {
   return {
     collected_at: new Date().toISOString(),
     appdata: process.env.APPDATA,

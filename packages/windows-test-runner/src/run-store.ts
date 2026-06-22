@@ -10,6 +10,7 @@ import {
 } from "./report.ts";
 import { runLaunchAppProbe } from "./actions/launch-app-probe.ts";
 import { runLaunchRunner } from "./actions/launch-runner.ts";
+import { runDesktopIncidentDiagnostics } from "./actions/desktop-incident-diagnostics.ts";
 import { runDesktopUiScreenshotSmoke } from "./actions/desktop-ui-screenshot-smoke.ts";
 import { runInstallLatestAndSmoke } from "./actions/install-latest-and-smoke.ts";
 import { runProbeApi } from "./actions/probe-api.ts";
@@ -266,6 +267,20 @@ export class RunStore {
           record.failure_category = result.failure_category;
           record.failure_message = result.failure_message;
           throw new Error(result.failure_message ?? "desktop_ui_screenshot_smoke failed");
+        }
+      } else if (record.suite === "desktop_incident_diagnostics") {
+        const result = await runDesktopIncidentDiagnostics({
+          apiBaseUrl: this.config.cutter_api_base_url,
+          reportDir: record.report_dir,
+          options: record.request.options,
+          onEvent: (stage, message, details) => this.addTimeline(record, stage, message, details)
+        });
+        record.desktop_incident_diagnostics = result.report;
+        record.launch_app_probe = result.report.launch_app_probe;
+        if (!result.passed) {
+          record.failure_category = result.failure_category;
+          record.failure_message = result.failure_message;
+          throw new Error(result.failure_message ?? "desktop_incident_diagnostics failed");
         }
       } else if (record.suite === "install_latest_and_smoke") {
         const result = await runInstallLatestAndSmoke({

@@ -243,6 +243,20 @@ function writeSummary(record: RunRecord): string {
       lines.push(`- ${page.ok ? "captured" : "failed"} ${page.id}: ${page.screenshot_path}`);
     }
   }
+  if (record.desktop_incident_diagnostics) {
+    lines.push("", "## Desktop Incident Diagnostics", "");
+    lines.push(`- Output dir: ${record.desktop_incident_diagnostics.output_dir}`);
+    lines.push(`- Screenshot: ${record.desktop_incident_diagnostics.screenshot_ok ? "captured" : "failed"} ${record.desktop_incident_diagnostics.screenshot_path ?? ""}`.trim());
+    if (record.desktop_incident_diagnostics.screenshot_error) {
+      lines.push(`- Screenshot error: ${record.desktop_incident_diagnostics.screenshot_error}`);
+    }
+    lines.push(`- Auth source: ${record.desktop_incident_diagnostics.auth_source ?? "none"}`);
+    for (const probe of record.desktop_incident_diagnostics.probes) {
+      lines.push(`- ${probe.id}: ${probe.ok ? "passed" : "failed"}, ${probe.elapsed_ms}ms, status ${probe.status_code ?? "n/a"}`);
+    }
+    const logFiles = record.desktop_incident_diagnostics.desktop_diagnostics.files.filter((file) => file.exists);
+    lines.push(`- Log files collected: ${logFiles.length}`);
+  }
 
   return `${lines.join("\n")}\n`;
 }
@@ -272,7 +286,8 @@ export function serializeRunReport(record: RunRecord): RunReport {
     cache_smoke: record.cache_smoke,
     real_cut_smoke: record.real_cut_smoke,
     windows_acceptance: record.windows_acceptance,
-    desktop_ui_screenshot_smoke: record.desktop_ui_screenshot_smoke
+    desktop_ui_screenshot_smoke: record.desktop_ui_screenshot_smoke,
+    desktop_incident_diagnostics: record.desktop_incident_diagnostics
   };
 }
 

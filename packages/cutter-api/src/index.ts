@@ -1259,6 +1259,17 @@ function writeError(
   } satisfies CutterApiErrorBody);
 }
 
+function logUnhandledCutterApiError(request: IncomingMessage, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
+  console.error("[mixlab-cutter-api] unhandled request error", {
+    method: request.method,
+    url: request.url,
+    message,
+    ...(stack ? { stack } : {})
+  });
+}
+
 export function cutterApiInfrastructureErrorPayload(error: unknown): {
   statusCode: number;
   code: string;
@@ -2109,6 +2120,9 @@ async function streamFile(input: {
   const range = input.range_enabled
     ? parseRangeHeader(input.request.headers.range, fileStat.size)
     : undefined;
+  const readStream = range
+    ? createReadStream(input.file_path, { start: range.start, end: range.end })
+    : createReadStream(input.file_path);
 
   setCorsHeaders(input.response);
 
@@ -2116,23 +2130,56 @@ async function streamFile(input: {
     input.response.setHeader("Accept-Ranges", "bytes");
   }
 
-  if (range) {
-    input.response.writeHead(206, {
-      "Content-Type": input.content_type,
-      "Content-Length": range.end - range.start + 1,
-      "Content-Range": `bytes ${range.start}-${range.end}/${fileStat.size}`
-    });
-    createReadStream(input.file_path, { start: range.start, end: range.end }).pipe(
-      input.response
-    );
-    return;
-  }
+  await new Promise<void>((resolve) => {
+    let settled = false;
 
-  input.response.writeHead(200, {
-    "Content-Type": input.content_type,
-    "Content-Length": fileStat.size
+    const settle = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      readStream.destroy();
+      resolve();
+    };
+
+    readStream.once("open", () => {
+      if (range) {
+        input.response.writeHead(206, {
+          "Content-Type": input.content_type,
+          "Content-Length": range.end - range.start + 1,
+          "Content-Range": `bytes ${range.start}-${range.end}/${fileStat.size}`
+        });
+      } else {
+        input.response.writeHead(200, {
+          "Content-Type": input.content_type,
+          "Content-Length": fileStat.size
+        });
+      }
+
+      readStream.pipe(input.response);
+    });
+
+    readStream.once("error", (error) => {
+      console.error(JSON.stringify({
+        event: "cutter_api_stream_file_failed",
+        file_path: input.file_path,
+        range_enabled: input.range_enabled,
+        range,
+        error: error instanceof Error ? error.message : String(error)
+      }));
+
+      if (input.response.headersSent) {
+        input.response.destroy(error);
+      } else {
+        writeError(input.response, 500, "file_stream_failed", "File stream failed");
+      }
+      settle();
+    });
+
+    input.response.once("finish", settle);
+    input.response.once("close", settle);
+    input.response.once("error", settle);
   });
-  createReadStream(input.file_path).pipe(input.response);
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -4907,7 +4954,10 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       }
 
       if (url.pathname === "/health") {
-        writeJson(response, 200, apiResponse({ ok: true }));
+        writeJson(response, 200, apiResponse({
+          ok: true,
+          searchd_configured: Boolean(optionalTrimmed(input.searchd_base_url))
+        }));
         return;
       }
 
@@ -5414,6 +5464,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      logUnhandledCutterApiError(request, error);
       writeError(response, 500, "internal_error", "Internal server error");
     }
   });

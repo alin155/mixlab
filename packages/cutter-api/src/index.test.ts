@@ -442,6 +442,18 @@ async function writeMalformedUsageEvents(libraryRoot: string): Promise<void> {
   await writeFile(path.join(usageDir, "events.ndjson"), "{not-json}\n", "utf8");
 }
 
+test("health reports whether the sidecar was started with searchd", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const body = await (await fetch(`${baseUrl}/health`)).json() as any;
+    assert.equal(body.data.ok, true);
+    assert.equal(body.data.searchd_configured, true);
+  }, {
+    searchd_base_url: "http://127.0.0.1:3790"
+  });
+});
+
 test("cutter auth request-login creates a pending application without auth headers", async () => {
   const libraryRoot = await prepareLibrary();
 
@@ -2429,6 +2441,34 @@ test("streams cover, subtitles, and source media with range support", async () =
     assert.equal(await rangeResponse.text(), "dummy");
   }, {
     release_cache_root: cacheRoot
+  });
+});
+
+test("file stream errors do not crash the cutter API process", async () => {
+  const libraryRoot = await prepareLibrary();
+  const badMediaDir = path.join(libraryRoot, "source-videos", "bad-media-dir");
+  await mkdir(badMediaDir, { recursive: true });
+
+  const manifestPath = path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify({
+      ...manifest,
+      relative_path: "source-videos/bad-media-dir"
+    }, null, 2)}\n`
+  );
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    try {
+      await fetch(`${baseUrl}/cutter/source-videos/V000001/media`);
+    } catch {
+      // A broken media stream may terminate that single response, but the API
+      // server must remain alive for the rest of the workspace.
+    }
+
+    const health = await fetch(`${baseUrl}/health`);
+    assert.equal(health.status, 200);
   });
 });
 

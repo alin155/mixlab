@@ -1628,7 +1628,11 @@ export function CutterApp() {
           return;
         }
 
-        setError(detailError instanceof Error ? detailError.message : "原视频完整文案加载失败");
+        setCutNotice(
+          detailError instanceof Error
+            ? `原视频完整文案加载失败：${detailError.message}`
+            : "原视频完整文案加载失败，可重新选择素材或稍后重试。"
+        );
       });
   }
 
@@ -2070,7 +2074,11 @@ export function CutterApp() {
               setCutNotice(cutNoticeForCompletedLocalClips(1));
             })
             .catch((localClipError) => {
-              setError(localClipError instanceof Error ? localClipError.message : "本地素材刷新失败");
+              setCutNotice(
+                localClipError instanceof Error
+                  ? `剪切完成，但本地素材刷新失败：${localClipError.message}`
+                  : "剪切完成，但本地素材刷新失败，可稍后重试。"
+              );
             });
         }
         return nextJobs;
@@ -2080,7 +2088,11 @@ export function CutterApp() {
         setHasSubmittedCutJobs(false);
       }
     } catch (queueError) {
-      setError(queueError instanceof Error ? queueError.message : "剪切队列加载失败");
+      setCutNotice(
+        queueError instanceof Error
+          ? `剪切任务列表刷新失败：${queueError.message}`
+          : "剪切任务列表刷新失败，可继续剪切，稍后刷新任务页查看结果。"
+      );
     }
   }, [apiMode, client, cutJobProjectIndex, projects, refreshLocalClips]);
 
@@ -2648,7 +2660,11 @@ export function CutterApp() {
         await refreshLocalClips();
       }
     } catch (pipelineError) {
-      setError(pipelineError instanceof Error ? pipelineError.message : "本机剪切执行失败");
+      setCutNotice(
+        pipelineError instanceof Error
+          ? `本机剪切执行失败：${pipelineError.message}`
+          : "本机剪切执行失败，可在剪切任务页查看并重新剪切。"
+      );
     } finally {
       cutPipelineRunningRef.current = false;
     }
@@ -2997,7 +3013,7 @@ export function CutterApp() {
               error_message: message
             })
           );
-          setError(message);
+          setCutNotice(`剪切任务创建失败：${message}`);
           return;
         }
       } else {
@@ -3221,7 +3237,8 @@ export function CutterApp() {
           await refreshQueueJobs(taggedSubmission.index);
           void runRealCutPipeline();
         } catch (submitError) {
-          setError(submitError instanceof Error ? submitError.message : "剪切清单提交失败");
+          const message = submitError instanceof Error ? submitError.message : "剪切清单提交失败";
+          setCutNotice(`剪切清单提交失败：${message}`);
           return;
         }
       } else {

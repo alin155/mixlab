@@ -230,6 +230,23 @@ fn http_get_json_with_timeouts(
 }
 
 fn current_api_has_searchd_backend(host: &str, port: u16) -> bool {
+    if let Some(payload) = http_get_json_with_timeouts(
+        host,
+        port,
+        "/health",
+        Duration::from_millis(500),
+        Duration::from_millis(1_000),
+    ) {
+        if payload
+            .get("data")
+            .and_then(|data| data.get("searchd_configured"))
+            .and_then(Value::as_bool)
+            == Some(true)
+        {
+            return true;
+        }
+    }
+
     let Some(payload) = http_get_json_with_timeouts(
         host,
         port,
