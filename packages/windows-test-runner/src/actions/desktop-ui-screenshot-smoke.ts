@@ -43,14 +43,14 @@ interface PowerShellScreenshotResult {
 }
 
 const DEFAULT_PAGES: DesktopUiPagePlan[] = [
-  { id: "project-home", label: "Project Home", action: "sidebar", x: 0.165, y: 0.140 },
-  { id: "material-locator", label: "Material Search", action: "sidebar", x: 0.165, y: 0.185 },
-  { id: "cut-tasks", label: "Cut Tasks", action: "sidebar", x: 0.165, y: 0.230 },
-  { id: "local-library", label: "Local Library", action: "sidebar", x: 0.165, y: 0.275 },
-  { id: "public-library", label: "Public Library", action: "sidebar", x: 0.165, y: 0.320 },
+  { id: "project-home", label: "Project Home", action: "sidebar", x: 0.165, y: 0.095 },
+  { id: "material-locator", label: "Material Search", action: "sidebar", x: 0.165, y: 0.140 },
+  { id: "cut-tasks", label: "Cut Tasks", action: "sidebar", x: 0.165, y: 0.185 },
+  { id: "local-library", label: "Local Library", action: "sidebar", x: 0.165, y: 0.230 },
+  { id: "public-library", label: "Public Library", action: "sidebar", x: 0.165, y: 0.275 },
   { id: "source-detail", label: "Source Detail", action: "content", x: 0.300, y: 0.320 },
-  { id: "cache-management", label: "Cache Management", action: "sidebar", x: 0.165, y: 0.365 },
-  { id: "settings", label: "Settings", action: "sidebar", x: 0.165, y: 0.410 }
+  { id: "cache-management", label: "Cache Management", action: "sidebar", x: 0.165, y: 0.320 },
+  { id: "settings", label: "Settings", action: "sidebar", x: 0.165, y: 0.365 }
 ];
 
 const MOCK_PNG_BASE64 =
