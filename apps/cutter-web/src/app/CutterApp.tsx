@@ -1458,6 +1458,7 @@ export function CutterApp() {
   const [renameTargetProjectId, setRenameTargetProjectId] = useState<string | undefined>();
   const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
   const cutPipelineRunningRef = useRef(false);
+  const cutPipelineRerunRequestedRef = useRef(false);
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const dataRef = useRef<CutterFixtureData | null>(data);
   const [cutList, setCutList] = useState<CutListItem[]>(() =>
@@ -2637,28 +2638,36 @@ export function CutterApp() {
   });
 
   const runRealCutPipeline = useCallback(async () => {
-    if (!apiMode || loginGateVisible || cutPipelineRunningRef.current) {
+    if (!apiMode || loginGateVisible) {
+      return;
+    }
+
+    if (cutPipelineRunningRef.current) {
+      cutPipelineRerunRequestedRef.current = true;
       return;
     }
 
     cutPipelineRunningRef.current = true;
     try {
-      const result = await runCutPipeline({
-        runNextCutJob: () => client.runNextCutJob(),
-        refreshQueueJobs,
-        refreshLocalClips,
-        onState: setCutPipelineState,
-        activeRefreshIntervalMs: 1000
-      });
-      const notice = cutNoticeForPipelineResult(result);
-      if (notice) {
-        setCutNotice(notice);
-      }
+      do {
+        cutPipelineRerunRequestedRef.current = false;
+        const result = await runCutPipeline({
+          runNextCutJob: () => client.runNextCutJob(),
+          refreshQueueJobs,
+          refreshLocalClips,
+          onState: setCutPipelineState,
+          activeRefreshIntervalMs: 1000
+        });
+        const notice = cutNoticeForPipelineResult(result);
+        if (notice) {
+          setCutNotice(notice);
+        }
+        await refreshQueueJobs();
+        if (result.done_count > 0) {
+          await refreshLocalClips();
+        }
+      } while (cutPipelineRerunRequestedRef.current);
       setHasSubmittedCutJobs(false);
-      await refreshQueueJobs();
-      if (result.done_count > 0) {
-        await refreshLocalClips();
-      }
     } catch (pipelineError) {
       setCutNotice(
         pipelineError instanceof Error
