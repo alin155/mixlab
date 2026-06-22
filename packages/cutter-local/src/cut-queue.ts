@@ -298,10 +298,16 @@ function normalizeReadCutJob(value: unknown, fallbackCutJobId: string): CutJobMa
 
 async function readCutJobForListing(workspaceRoot: string, cutJobId: string): Promise<CutJobManifest | null> {
   try {
-    return normalizeReadCutJob(
+    const job = normalizeReadCutJob(
       JSON.parse(await readFile(cutJobPath(workspaceRoot, cutJobId), "utf8")) as unknown,
       cutJobId
     );
+    return job
+      ? {
+          ...job,
+          phase_timings: ensurePhaseTimings(job)
+        }
+      : null;
   } catch {
     return null;
   }
@@ -477,13 +483,15 @@ function activeQueueWaitPhaseTimings(createdAt: string): CutJobPhaseTiming[] {
 }
 
 function ensurePhaseTimings(job: CutJobManifest): CutJobPhaseTiming[] {
+  if (job.status === "pending") {
+    return pendingPhaseTimings();
+  }
+
   if (job.phase_timings?.length === CUT_JOB_PHASES.length) {
     return job.phase_timings.map((phase) => ({ ...phase }));
   }
 
-  return job.status === "pending"
-    ? pendingPhaseTimings()
-    : activeQueueWaitPhaseTimings(job.started_at ?? job.created_at);
+  return activeQueueWaitPhaseTimings(job.started_at ?? job.created_at);
 }
 
 function updatePhase(
@@ -838,7 +846,16 @@ export async function submitClipListToQueue(
 
 export async function getCutJob(input: GetCutJobInput): Promise<CutJobManifest | null> {
   try {
-    return JSON.parse(await readFile(cutJobPath(input.workspace_root, input.cut_job_id), "utf8")) as CutJobManifest;
+    const job = normalizeReadCutJob(
+      JSON.parse(await readFile(cutJobPath(input.workspace_root, input.cut_job_id), "utf8")) as unknown,
+      input.cut_job_id
+    );
+    return job
+      ? {
+          ...job,
+          phase_timings: ensurePhaseTimings(job)
+        }
+      : null;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return null;

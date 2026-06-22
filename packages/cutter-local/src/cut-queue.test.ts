@@ -240,6 +240,87 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
   assert.equal(persisted.status, "done");
 });
 
+test("normalizes legacy pending jobs with running queue-wait phase and still runs them", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-legacy-pending-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-legacy-library-");
+  const sourceRelativePath = "source-videos/legacy.mp4";
+  await writeLibrarySource(libraryRoot, sourceRelativePath);
+  await mkdir(path.join(workspaceRoot, "clip-jobs"), { recursive: true });
+  await writeFile(
+    path.join(workspaceRoot, "clip-jobs", "CJ20260622-0001.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      cut_job_id: "CJ20260622-0001",
+      clip_list_id: "CL20260622-0001",
+      clip_list_item_id: "CLI000001",
+      library_id: "lib_main_001",
+      project_id: "P20260622-legacy",
+      title: "1-旧任务-legacy",
+      project_title: "旧任务",
+      project_clip_order: 1,
+      source_video_id: "VLEGACY",
+      source_title: "legacy",
+      source_relative_path: sourceRelativePath,
+      start_segment_id: "VLEGACY-S000001",
+      end_segment_id: "VLEGACY-S000001",
+      begin_ms: 1000,
+      end_ms: 2500,
+      selected_text: "旧任务排队等待。",
+      cut_mode: "copy",
+      status: "pending",
+      current_phase: "queue_wait",
+      phase_timings: [
+        {
+          phase_id: "queue_wait",
+          label: "排队等待",
+          status: "running",
+          started_at: "2026-06-22T12:28:46.571Z"
+        },
+        { phase_id: "resolve_source", label: "准备源素材", status: "pending" },
+        { phase_id: "preflight_source", label: "剪切前检查", status: "pending" },
+        { phase_id: "cut_media", label: "剪切/重编码", status: "pending" },
+        { phase_id: "write_project_output", label: "写入交付目录", status: "pending" },
+        { phase_id: "preprocess_local_asset", label: "本地素材预处理", status: "pending" },
+        { phase_id: "generate_cover", label: "生成封面", status: "pending" },
+        { phase_id: "write_manifest", label: "写入清单", status: "pending" }
+      ],
+      created_at: "2026-06-22T12:28:46.571Z",
+      updated_at: "2026-06-22T12:28:46.571Z"
+    }, null, 2),
+    "utf8"
+  );
+
+  const listed = await listCutJobs({ workspace_root: workspaceRoot });
+  assert.equal(listed.jobs[0]?.status, "pending");
+  assert.equal(listed.jobs[0]?.phase_timings?.some((phase) => phase.status === "running"), false);
+  const pending = await getCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: "CJ20260622-0001"
+  });
+  assert.equal(pending?.phase_timings?.some((phase) => phase.status === "running"), false);
+
+  const result = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-06-22T12:30:00.000Z",
+    resolve_source: (job) => ({
+      source_video_id: job.source_video_id,
+      title: job.source_title,
+      relative_path: job.source_relative_path,
+      source_video_file_path: path.join(libraryRoot, job.source_relative_path),
+      duration_ms: 10_000,
+      transcript_segments: []
+    }),
+    cut_runner: async (input) => {
+      await writeFile(input.output_path, "clip-bytes");
+    }
+  });
+
+  assert.equal(result?.status, "done");
+  assert.equal(result?.phase_timings?.[0]?.phase_id, "queue_wait");
+  assert.equal(result?.phase_timings?.[0]?.status, "done");
+});
+
 test("runs direct cut jobs without persisting every intermediate phase", async () => {
   const workspaceRoot = await makeRoot("mixlab-cutter-local-direct-cut-");
   const libraryRoot = await makeRoot("mixlab-cutter-local-direct-library-");
