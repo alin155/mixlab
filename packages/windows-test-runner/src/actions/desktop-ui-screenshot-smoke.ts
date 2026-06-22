@@ -222,6 +222,54 @@ function Invoke-MixLabAbsoluteClick([int]$x, [int]$y) {
   [MixLabWin32]::mouse_event(0x0004, $x, $y, 0, 0)
 }
 
+function Invoke-MixLabFirewallPromptHotspot() {
+  # Windows Firewall prompts are system dialogs centered over the app window.
+  # UI Automation can miss them when they are owned by the security center, so
+  # keep this fallback narrowly aimed at the prompt's bottom action row.
+  Invoke-MixLabAbsoluteClick ([int]($rect.Left + ($width * 0.555))) ([int]($rect.Top + ($height * 0.655)))
+  Start-Sleep -Milliseconds 500
+}
+
+function Dismiss-MixLabWindowsFirewallPrompt() {
+  $matches = New-Object System.Collections.ArrayList
+  $callback = [MixLabWin32+EnumWindowsProc]{
+    param([IntPtr]$hWnd, [IntPtr]$lParam)
+    if (-not [MixLabWin32]::IsWindowVisible($hWnd)) {
+      return $true
+    }
+    $titleBuilder = New-Object System.Text.StringBuilder 256
+    [MixLabWin32]::GetWindowText($hWnd, $titleBuilder, $titleBuilder.Capacity) | Out-Null
+    $title = $titleBuilder.ToString()
+    if ($title -like "*Windows 安全*" -or $title -like "*Windows Security*" -or $title -like "*安全中心*") {
+      $dialogRect = New-Object MixLabWin32+RECT
+      [MixLabWin32]::GetWindowRect($hWnd, [ref]$dialogRect) | Out-Null
+      [void]$matches.Add([pscustomobject]@{
+        handle = $hWnd
+        title = $title
+        left = $dialogRect.Left
+        top = $dialogRect.Top
+        right = $dialogRect.Right
+        bottom = $dialogRect.Bottom
+        width = $dialogRect.Right - $dialogRect.Left
+        height = $dialogRect.Bottom - $dialogRect.Top
+      })
+    }
+    return $true
+  }
+  [MixLabWin32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+  $dialog = $matches |
+    Sort-Object @{ Expression = { $_.width * $_.height }; Descending = $true } |
+    Select-Object -First 1
+  if ($dialog) {
+    [MixLabWin32]::SetForegroundWindow($dialog.handle) | Out-Null
+    Start-Sleep -Milliseconds 150
+    Invoke-MixLabAbsoluteClick ([int]($dialog.left + ($dialog.width * 0.28))) ([int]($dialog.bottom - 40))
+    Start-Sleep -Milliseconds 700
+    return $true
+  }
+  return $false
+}
+
 function Dismiss-MixLabBlockingDialog() {
   $matches = New-Object System.Collections.ArrayList
   $callback = [MixLabWin32+EnumWindowsProc]{
@@ -319,6 +367,18 @@ function Invoke-MixLabDialogCancelHotspot() {
   Start-Sleep -Milliseconds 500
 }
 
+function Invoke-MixLabSystemDialogDismissal() {
+  for ($dismissIndex = 0; $dismissIndex -lt 4; $dismissIndex += 1) {
+    $dismissedFirewall = Dismiss-MixLabWindowsFirewallPrompt
+    if (-not $dismissedFirewall) {
+      Invoke-MixLabAutomationDismiss | Out-Null
+      Dismiss-MixLabBlockingDialog
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  Invoke-MixLabFirewallPromptHotspot
+}
+
 function Save-MixLabScreenshot([string]$id) {
   $localFile = Join-Path $localOutputDir "$id.png"
   $bitmap = New-Object System.Drawing.Bitmap($width, $height)
@@ -341,19 +401,17 @@ function Convert-MixLabJsonPath([string]$pathValue) {
 }
 
 $captures = @()
-Invoke-MixLabAutomationDismiss | Out-Null
-Invoke-MixLabDialogCancelHotspot
-Dismiss-MixLabBlockingDialog
+Invoke-MixLabSystemDialogDismissal
 foreach ($page in $pages) {
   $click = $null
   $errorText = $null
   try {
     if ($page.action -eq 'sidebar' -or $page.action -eq 'content') {
-      Dismiss-MixLabBlockingDialog
+      Invoke-MixLabSystemDialogDismissal
       $click = Invoke-MixLabClick $page.x $page.y
       Start-Sleep -Milliseconds $settleMs
     }
-    Dismiss-MixLabBlockingDialog
+    Invoke-MixLabSystemDialogDismissal
     $file = Save-MixLabScreenshot $page.id
     $captures += [pscustomobject]@{
       id = $page.id
