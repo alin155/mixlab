@@ -2501,6 +2501,135 @@ test("cuts from local source video cache when a valid cached source exists", asy
   });
 });
 
+test("cuts from local source video cache when searchd detail reports unknown source size", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-source-cache-zero-size-workspace-"));
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-source-cache-zero-size-"));
+  const originalSourcePath = path.join(libraryRoot, "source-videos", "01_现金流.mp4");
+  const sourceStat = await stat(originalSourcePath);
+  const sourceCacheRoot = path.join(cacheRoot, "source-videos");
+  const cacheFileName = "V000001-cached-zero-size.mp4";
+  const cacheFilePath = path.join(sourceCacheRoot, cacheFileName);
+  const cutSourcePaths: string[] = [];
+
+  await mkdir(sourceCacheRoot, { recursive: true });
+  await copyFile(originalSourcePath, cacheFilePath);
+  await writeFile(
+    path.join(sourceCacheRoot, ".manifest.json"),
+    `${JSON.stringify({
+      schema_version: "1.0",
+      generated_at: new Date().toISOString(),
+      entries: {
+        V000001: {
+          source_video_id: "V000001",
+          source_video_file_path: originalSourcePath,
+          source_size: sourceStat.size,
+          source_mtime_ms: sourceStat.mtimeMs,
+          cache_file_name: cacheFileName,
+          cache_size: sourceStat.size,
+          cached_at: new Date().toISOString(),
+          last_accessed_at: new Date().toISOString()
+        }
+      }
+    }, null, 2)}\n`
+  );
+
+  await withSearchdServer(
+    (url) => {
+      if (url.pathname !== "/source-videos/V000001/detail") {
+        return {
+          status: 404,
+          body: {
+            error: {
+              code: "source_video_not_found",
+              message: "not found"
+            }
+          }
+        };
+      }
+
+      return {
+        body: {
+          schema_version: "1.0",
+          data: {
+            source_video_id: "V000001",
+            title: "C0015",
+            duration_ms: 12_000,
+            relative_path: "01_现金流.mp4",
+            cover_path: ".mixlab-library/videos/V000001/cover.jpg",
+            transcript: {
+              schema_version: "1.0",
+              source_video_id: "V000001",
+              provider: "sqlite-index",
+              model: "source-transcript-index",
+              generated_at: "",
+              duration_ms: 12_000,
+              full_text: "现金流，是企业的血液。",
+              segments: [
+                {
+                  segment_id: "V000001-S000001",
+                  index: 0,
+                  begin_ms: 1000,
+                  end_ms: 3600,
+                  begin_char: 0,
+                  end_char: 11,
+                  normalized_begin_char: 0,
+                  normalized_end_char: 9,
+                  text: "现金流，是企业的血液。",
+                  normalized_text: "现金流是企业的血液",
+                  confidence: 1
+                }
+              ]
+            }
+          }
+        }
+      };
+    },
+    async (searchdBaseUrl) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const create = await fetch(`${baseUrl}/cutter/local-clips`, {
+          method: "POST",
+          headers: {
+            ...headers,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            source_video_id: "V000001",
+            start_segment_id: "V000001-S000001",
+            end_segment_id: "V000001-S000001",
+            begin_ms: 1200,
+            end_ms: 1800,
+            selected_text: "现金流",
+            cut_mode: "copy"
+          })
+        });
+        assert.equal(create.status, 201);
+
+        assert.deepEqual(cutSourcePaths, [cacheFilePath]);
+      }, {
+        workspace_root: workspaceRoot,
+        release_cache_root: cacheRoot,
+        release_sync_timeout_ms: 5_000,
+        searchd_base_url: searchdBaseUrl,
+        source_video_cache_max_bytes: 64 * 1024 * 1024,
+        source_video_probe_runner: async () => ({
+          duration_ms: 12_000,
+          width: 1920,
+          height: 1080,
+          fps: 29.97,
+          codec: "h264"
+        }),
+        cut_runner: async (input) => {
+          cutSourcePaths.push(input.source_video_path);
+          await mkdir(path.dirname(input.output_path), { recursive: true });
+          await writeFile(input.output_path, "source-cache-zero-size-cut");
+        }
+      });
+    }
+  );
+});
+
 test("cuts from original source before starting cold source video cache warmup", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
@@ -2581,6 +2710,103 @@ test("cuts from original source before starting cold source video cache warmup",
       await writeFile(input.output_path, "fallback-cut");
     }
   });
+});
+
+test("streams source cover from local thumbnail cache when public cover file is unavailable", async () => {
+  const libraryRoot = await prepareLibrary();
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-cover-cache-missing-source-"));
+  const thumbnailCacheRoot = path.join(cacheRoot, "source-thumbnails");
+  const coverFilePath = path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "cover.jpg");
+  const coverBytes = await readFile(coverFilePath);
+  const cacheFileName = "V000001-cached-cover.jpg";
+  const cacheFilePath = path.join(thumbnailCacheRoot, cacheFileName);
+
+  await mkdir(thumbnailCacheRoot, { recursive: true });
+  await writeFile(cacheFilePath, coverBytes);
+  await writeFile(
+    path.join(thumbnailCacheRoot, ".manifest.json"),
+    `${JSON.stringify({
+      schema_version: "1.0",
+      generated_at: new Date().toISOString(),
+      entries: {
+        [cacheFileName]: {
+          source_video_id: "V000001",
+          source_file_path: coverFilePath,
+          source_size: coverBytes.length,
+          source_mtime_ms: Date.now(),
+          cache_file_name: cacheFileName,
+          cache_size: coverBytes.length,
+          checksum_sha256: "0".repeat(64),
+          cached_at: new Date().toISOString()
+        }
+      }
+    }, null, 2)}\n`
+  );
+  await rm(coverFilePath);
+
+  await withSearchdServer(
+    (url) => {
+      if (url.pathname !== "/source-videos/V000001/detail") {
+        return {
+          status: 404,
+          body: {
+            error: {
+              code: "source_video_not_found",
+              message: "not found"
+            }
+          }
+        };
+      }
+
+      return {
+        body: {
+          schema_version: "1.0",
+          data: {
+            source_video_id: "V000001",
+            title: "C0015",
+            duration_ms: 12_000,
+            relative_path: "01_现金流.mp4",
+            cover_path: ".mixlab-library/videos/V000001/cover.jpg",
+            transcript: {
+              schema_version: "1.0",
+              source_video_id: "V000001",
+              provider: "sqlite-index",
+              model: "source-transcript-index",
+              generated_at: "",
+              duration_ms: 12_000,
+              full_text: "现金流，是企业的血液。",
+              segments: [
+                {
+                  segment_id: "V000001-S000001",
+                  index: 0,
+                  begin_ms: 1000,
+                  end_ms: 3600,
+                  begin_char: 0,
+                  end_char: 11,
+                  normalized_begin_char: 0,
+                  normalized_end_char: 9,
+                  text: "现金流，是企业的血液。",
+                  normalized_text: "现金流是企业的血液",
+                  confidence: 1
+                }
+              ]
+            }
+          }
+        }
+      };
+    },
+    async (searchdBaseUrl) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const coverResponse = await fetch(`${baseUrl}/cutter/source-videos/V000001/cover`);
+        assert.equal(coverResponse.status, 200);
+        assert.equal(coverResponse.headers.get("content-type"), "image/jpeg");
+        assert.equal(Buffer.compare(Buffer.from(await coverResponse.arrayBuffer()), coverBytes), 0);
+      }, {
+        release_cache_root: cacheRoot,
+        searchd_base_url: searchdBaseUrl
+      });
+    }
+  );
 });
 
 test("streams cover, subtitles, and source media with range support", async () => {

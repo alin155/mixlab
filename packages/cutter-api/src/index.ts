@@ -833,11 +833,12 @@ function sourceVideoCacheEntryMatches(input: {
   if (!entry) {
     return false;
   }
+  const hasKnownSourceSize = Number.isFinite(input.source_size ?? Number.NaN) && (input.source_size ?? 0) > 0;
 
   return (
     entry.source_video_id === input.source_video_id &&
     entry.source_video_file_path === input.source_video_file_path &&
-    (!Number.isFinite(input.source_size ?? Number.NaN) || entry.source_size === input.source_size)
+    (!hasKnownSourceSize || entry.source_size === input.source_size)
   );
 }
 
@@ -2385,12 +2386,31 @@ async function cachedThumbnailFilePath(input: {
   source_video_id: string;
   source_file_path: string;
 }): Promise<string> {
-  const sourceStat = await stat(input.source_file_path);
-  if (!sourceStat.isFile()) {
-    return input.source_file_path;
+  const cacheRoot = thumbnailCacheRoot(input.api_input);
+  const cachedFromManifest = async (): Promise<string | undefined> => {
+    const manifest = await compactThumbnailCacheManifest(cacheRoot);
+    const entries = Object.values(manifest.entries)
+      .filter((entry) => entry.source_video_id === input.source_video_id)
+      .sort((left, right) => Date.parse(right.cached_at) - Date.parse(left.cached_at));
+    const exactCandidates = entries.filter((entry) => entry.source_file_path === input.source_file_path);
+    const candidates = exactCandidates.length > 0 ? exactCandidates : entries;
+    for (const entry of candidates) {
+      const cacheFilePath = path.join(cacheRoot, entry.cache_file_name);
+      const cacheStat = await stat(cacheFilePath).catch(() => null);
+      if (cacheStat?.isFile() && cacheStat.size === entry.cache_size) {
+        const now = new Date();
+        void utimes(cacheFilePath, now, now).catch(() => undefined);
+        return cacheFilePath;
+      }
+    }
+    return undefined;
+  };
+
+  const sourceStat = await stat(input.source_file_path).catch(() => null);
+  if (!sourceStat?.isFile()) {
+    return (await cachedFromManifest()) ?? input.source_file_path;
   }
 
-  const cacheRoot = thumbnailCacheRoot(input.api_input);
   const cacheFileName = thumbnailCacheFileName({
     source_video_id: input.source_video_id,
     source_file_path: input.source_file_path,
@@ -5780,6 +5800,10 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             source_video_id: detail.source_video_id,
             source_file_path: coverFilePath
           });
+          if (!(await fileExists(cachedCoverFilePath))) {
+            writeError(response, 404, "source_video_cover_not_found", "Source video cover not found");
+            return;
+          }
           await streamFile({
             request,
             response,
