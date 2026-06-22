@@ -227,6 +227,86 @@ function cutJobPath(workspaceRoot: string, cutJobId: string): string {
   return path.join(cutJobsRoot(workspaceRoot), `${cutJobId}.json`);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeReadCutJob(value: unknown, fallbackCutJobId: string): CutJobManifest | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const cutJobId = nonEmptyString(value.cut_job_id) ?? fallbackCutJobId;
+  if (!CUT_JOB_ID_PATTERN.test(cutJobId)) {
+    return null;
+  }
+
+  const createdAt = nonEmptyString(value.created_at) ?? new Date(0).toISOString();
+  const updatedAt = nonEmptyString(value.updated_at) ?? createdAt;
+  const status = nonEmptyString(value.status);
+  if (
+    status !== "pending" &&
+    status !== "running" &&
+    status !== "done" &&
+    status !== "failed" &&
+    status !== "cancelled"
+  ) {
+    return null;
+  }
+
+  return {
+    schema_version: "1.0",
+    cut_job_id: cutJobId,
+    clip_list_id: nonEmptyString(value.clip_list_id) ?? "",
+    clip_list_item_id: nonEmptyString(value.clip_list_item_id) ?? "",
+    library_id: nonEmptyString(value.library_id) ?? "",
+    ...(nonEmptyString(value.project_id) ? { project_id: nonEmptyString(value.project_id) } : {}),
+    ...(nonEmptyString(value.title) ? { title: nonEmptyString(value.title) } : {}),
+    ...(nonEmptyString(value.project_title) ? { project_title: nonEmptyString(value.project_title) } : {}),
+    ...(typeof value.project_clip_order === "number" && Number.isFinite(value.project_clip_order)
+      ? { project_clip_order: value.project_clip_order }
+      : {}),
+    source_video_id: nonEmptyString(value.source_video_id) ?? "",
+    source_title: nonEmptyString(value.source_title) ?? "",
+    source_relative_path: nonEmptyString(value.source_relative_path) ?? "",
+    start_segment_id: nonEmptyString(value.start_segment_id) ?? "",
+    end_segment_id: nonEmptyString(value.end_segment_id) ?? "",
+    begin_ms: numberOrZero(value.begin_ms),
+    end_ms: numberOrZero(value.end_ms),
+    selected_text: nonEmptyString(value.selected_text) ?? "",
+    cut_mode: value.cut_mode === "copy" ? "copy" : "smart",
+    status,
+    ...(nonEmptyString(value.current_phase) ? { current_phase: value.current_phase as CutJobPhaseId } : {}),
+    ...(Array.isArray(value.phase_timings) ? { phase_timings: value.phase_timings as CutJobPhaseTiming[] } : {}),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    ...(nonEmptyString(value.started_at) ? { started_at: nonEmptyString(value.started_at) } : {}),
+    ...(nonEmptyString(value.finished_at) ? { finished_at: nonEmptyString(value.finished_at) } : {}),
+    ...(nonEmptyString(value.error_message) ? { error_message: nonEmptyString(value.error_message) } : {}),
+    ...(nonEmptyString(value.export_clip_id) ? { export_clip_id: nonEmptyString(value.export_clip_id) } : {}),
+    ...(nonEmptyString(value.output_file) ? { output_file: nonEmptyString(value.output_file) } : {})
+  };
+}
+
+async function readCutJobForListing(workspaceRoot: string, cutJobId: string): Promise<CutJobManifest | null> {
+  try {
+    return normalizeReadCutJob(
+      JSON.parse(await readFile(cutJobPath(workspaceRoot, cutJobId), "utf8")) as unknown,
+      cutJobId
+    );
+  } catch {
+    return null;
+  }
+}
+
 function workspaceCacheRoot(workspaceRoot: string): string {
   return path.join(workspaceRoot, "cache");
 }
@@ -658,7 +738,10 @@ async function readAllCutJobs(workspaceRoot: string): Promise<CutJobManifest[]> 
       continue;
     }
 
-    jobs.push(JSON.parse(await readFile(cutJobPath(workspaceRoot, cutJobId), "utf8")) as CutJobManifest);
+    const job = await readCutJobForListing(workspaceRoot, cutJobId);
+    if (job) {
+      jobs.push(job);
+    }
   }
 
   return jobs;
@@ -688,17 +771,21 @@ async function readCutJobsPage(input: ListCutJobsInput): Promise<{
       return CUT_JOB_ID_PATTERN.test(entry.name.replace(/\.json$/, ""));
     })
     .sort((left, right) => right.name.localeCompare(left.name));
-  const { limit, offset } = normalizedListWindow(input);
-  const pageEntries = limit ? jobEntries.slice(offset, offset + limit) : jobEntries.slice(offset);
-  const jobs: CutJobManifest[] = [];
+  const readableJobs: CutJobManifest[] = [];
 
-  for (const entry of pageEntries) {
+  for (const entry of jobEntries) {
     const cutJobId = entry.name.replace(/\.json$/, "");
-    jobs.push(JSON.parse(await readFile(cutJobPath(input.workspace_root, cutJobId), "utf8")) as CutJobManifest);
+    const job = await readCutJobForListing(input.workspace_root, cutJobId);
+    if (job) {
+      readableJobs.push(job);
+    }
   }
 
+  const { limit, offset } = normalizedListWindow(input);
+  const jobs = limit ? readableJobs.slice(offset, offset + limit) : readableJobs.slice(offset);
+
   return {
-    total: jobEntries.length,
+    total: readableJobs.length,
     jobs
   };
 }

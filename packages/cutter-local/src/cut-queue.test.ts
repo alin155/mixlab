@@ -639,6 +639,48 @@ test("serializes concurrent queue submissions so job ids and project order stay 
   assert.equal(paged.jobs.length, 3);
 });
 
+test("lists cut jobs when legacy or corrupt job files exist", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-legacy-jobs-");
+  const jobsRoot = path.join(workspaceRoot, "clip-jobs");
+  await mkdir(jobsRoot, { recursive: true });
+  await writeFile(path.join(jobsRoot, "CJ20260502-0001.json"), JSON.stringify({
+    schema_version: "1.0",
+    cut_job_id: "CJ20260502-0001",
+    clip_list_id: "CL20260502-0001",
+    clip_list_item_id: "item-1",
+    library_id: "lib_main_001",
+    source_video_id: "V000001",
+    source_title: "现金流",
+    source_relative_path: "source-videos/01.mp4",
+    start_segment_id: "S1",
+    end_segment_id: "S1",
+    begin_ms: 1000,
+    end_ms: 2200,
+    selected_text: "现金流",
+    cut_mode: "smart",
+    status: "done",
+    created_at: "2026-05-02T10:00:00Z"
+  }));
+  await writeFile(path.join(jobsRoot, "CJ20260502-0002.json"), "{broken-json");
+  await writeFile(path.join(jobsRoot, "CJ20260502-0003.json"), JSON.stringify({
+    schema_version: "1.0",
+    cut_job_id: "CJ20260502-0003",
+    status: "failed",
+    created_at: "2026-05-02T10:03:00Z",
+    updated_at: "2026-05-02T10:04:00Z",
+    error_message: "source video not found"
+  }));
+
+  const catalog = await listCutJobs({ workspace_root: workspaceRoot, limit: 20 });
+
+  assert.equal(catalog.job_count, 2);
+  assert.deepEqual(catalog.jobs.map((job) => job.cut_job_id), [
+    "CJ20260502-0003",
+    "CJ20260502-0001"
+  ]);
+  assert.equal(catalog.jobs[1]?.updated_at, "2026-05-02T10:00:00Z");
+});
+
 test("runs a requested pending cut job without taking the oldest queued job", async () => {
   const workspaceRoot = await makeRoot("mixlab-cutter-local-run-specific-");
   const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
