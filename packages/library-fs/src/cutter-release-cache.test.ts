@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache
 } from "./cutter-release-cache.ts";
@@ -154,4 +155,33 @@ test("local release cache status stays diagnostic when pointer is missing", asyn
   assert.equal(status.cached_release_count, 1);
   assert.equal(status.max_cached_releases, 3);
   assert.ok(status.cache_size_bytes > 0);
+});
+
+test("fast local release cache status confirms the active release without a full cache scan", async () => {
+  const cacheRoot = await makeRoot("mixlab-release-cache-fast-status-");
+
+  await writeRelease({
+    root: cacheRoot,
+    version: "v000002",
+    search_index_version: "idx-v000002",
+    payload: "cached-current"
+  });
+  await writeRelease({
+    root: cacheRoot,
+    version: "v000001",
+    payload: "cached-previous"
+  });
+  await writePointer(cacheRoot, "v000002");
+
+  const status = await readFastLocalCutterReleaseCacheStatus({
+    cache_root: cacheRoot,
+    max_cached_releases: 2
+  });
+
+  assert.equal(status.cache_ready, true);
+  assert.equal(status.active_release_version, "v000002");
+  assert.equal(status.search_index_version, "idx-v000002");
+  assert.deepEqual(status.cached_release_versions, ["v000002"]);
+  assert.equal(status.cached_release_count, 1);
+  assert.equal(status.cache_size_bytes, 0);
 });

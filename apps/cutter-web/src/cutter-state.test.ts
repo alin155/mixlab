@@ -31,6 +31,7 @@ import {
   cutPipelineDetailLabel,
   cutPipelineStatusLabel,
   idleCutPipelineState,
+  observeServiceCutQueue,
   runCutPipeline
 } from "./state/cut-pipeline.ts";
 import * as cutListModule from "./state/cut-list.ts";
@@ -777,6 +778,54 @@ test("cut pipeline refreshes queue while a long running job is still active", as
   const result = await pipelinePromise;
   assert.equal(result.status, "completed");
   assert.equal(result.done_count, 1);
+});
+
+test("service queue observer waits for backend auto-drain instead of running the next job", async () => {
+  const [pendingJob] = createQueueJobsFromCutList([item({ cut_list_item_id: "cut-service-1" })], {
+    createdAt: "2026-05-04T10:00:00.000Z"
+  });
+  const runningJob = { ...pendingJob!, status: "running" as const, progress: 50 };
+  const doneJob = {
+    ...pendingJob!,
+    status: "done" as const,
+    progress: 100,
+    output_file: "export-clips/E000001/001-test.mp4"
+  };
+  const snapshots = [[runningJob], [doneJob], [doneJob]];
+  const states: string[] = [];
+  let refreshes = 0;
+  let localRefreshes = 0;
+  let currentJobs = [pendingJob!];
+
+  const result = await observeServiceCutQueue({
+    getJobs: () => currentJobs,
+    refreshQueueJobs: async () => {
+      currentJobs = snapshots[Math.min(refreshes, snapshots.length - 1)]!;
+      refreshes += 1;
+      return currentJobs;
+    },
+    refreshLocalClips: async () => {
+      localRefreshes += 1;
+    },
+    onState(state) {
+      states.push(cutPipelineStatusLabel(state));
+    },
+    pollIntervalMs: 1,
+    idleStablePolls: 2
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.processed_count, 1);
+  assert.equal(result.done_count, 1);
+  assert.equal(result.failed_count, 0);
+  assert.equal(localRefreshes, 1);
+  assert.deepEqual(states, [
+    "本机剪切运行中",
+    "本机剪切运行中",
+    "本机剪切已完成",
+    "本机剪切已完成",
+    "本机剪切已完成"
+  ]);
 });
 
 test("completed cut-list items become local clips for reuse search", () => {

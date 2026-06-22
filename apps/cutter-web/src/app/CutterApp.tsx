@@ -105,7 +105,7 @@ import {
 } from "../state/cut-task-refresh.ts";
 import {
   idleCutPipelineState,
-  runCutPipeline,
+  observeServiceCutQueue,
   type CutPipelineState
 } from "../state/cut-pipeline.ts";
 import {
@@ -965,14 +965,34 @@ export function mergeMaterialLocatorReloadData(
     ? normalizeLocatorQuery(current.search.normalized_query || current.search.query)
     : "";
 
-  if (current && normalizedActiveQuery && normalizedCurrentSearchQuery === normalizedActiveQuery) {
-    return {
-      ...next,
-      search: current.search
-    };
+  if (!current) {
+    return next;
   }
 
-  return next;
+  const search =
+    normalizedActiveQuery && normalizedCurrentSearchQuery === normalizedActiveQuery
+      ? current.search
+      : next.search;
+  const library =
+    next.library.videos.length === 0 && current.library.videos.length > 0
+      ? {
+          ...next.library,
+          videos: current.library.videos
+        }
+      : next.library;
+
+  return {
+    ...next,
+    library,
+    search
+  };
+}
+
+export function shouldRenderGlobalCutterError(input: {
+  error: string;
+  hasData: boolean;
+}): boolean {
+  return Boolean(input.error) && !input.hasData;
 }
 
 export function cutNoticeForSubmittedJobs(count: number): string {
@@ -1603,6 +1623,16 @@ export function CutterApp() {
     setLocatorCurrentHitIndex(0);
   }
 
+  function showRecoverableError(message: string) {
+    if (dataRef.current) {
+      setCutNotice(message);
+      setError("");
+      return;
+    }
+
+    setError(message);
+  }
+
   function loadFocusedSourceVideoDetail(sourceVideoId: string) {
     const requestId = focusedSourceDetailRequestIdRef.current + 1;
     focusedSourceDetailRequestIdRef.current = requestId;
@@ -2053,9 +2083,9 @@ export function CutterApp() {
     );
   }, [client]);
 
-  const refreshQueueJobs = useCallback(async (projectIndexOverride?: CutJobProjectIndex) => {
+  const refreshQueueJobs = useCallback(async (projectIndexOverride?: CutJobProjectIndex): Promise<readonly CutQueueJob[]> => {
     if (!apiMode) {
-      return;
+      return queueJobsRef.current;
     }
 
     try {
@@ -2088,12 +2118,14 @@ export function CutterApp() {
       if (!hasActiveCutJobs(nextJobs)) {
         setHasSubmittedCutJobs(false);
       }
+      return nextJobs;
     } catch (queueError) {
       setCutNotice(
         queueError instanceof Error
           ? `剪切任务列表刷新失败：${queueError.message}`
           : "剪切任务列表刷新失败，可继续剪切，稍后刷新任务页查看结果。"
       );
+      return queueJobsRef.current;
     }
   }, [apiMode, client, cutJobProjectIndex, projects, refreshLocalClips]);
 
@@ -2128,7 +2160,11 @@ export function CutterApp() {
       );
       setError("");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "继续加载本地素材失败");
+      showRecoverableError(
+        loadError instanceof Error
+          ? `继续加载本地素材失败：${loadError.message}`
+          : "继续加载本地素材失败，可继续使用当前列表。"
+      );
     } finally {
       setLocalClipsLoadingMore(false);
     }
@@ -2159,7 +2195,11 @@ export function CutterApp() {
       setLastQueueUpdatedLabel("刚刚更新");
       setError("");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "继续加载剪切任务失败");
+      showRecoverableError(
+        loadError instanceof Error
+          ? `继续加载剪切任务失败：${loadError.message}`
+          : "继续加载剪切任务失败，可继续使用当前列表。"
+      );
     } finally {
       setCutJobsLoadingMore(false);
     }
@@ -2224,6 +2264,7 @@ export function CutterApp() {
     loadCutterWorkbenchData(client, {
       preferredSourceVideoId: workbenchPreferredSourceVideoId,
       includeSourceLibrary: route === "public-library",
+      includeRuntimeCache: route === "cache-management",
       sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
       localClipLimit: CUTTER_LOCAL_CLIP_INITIAL_LOAD_LIMIT
     })
@@ -2235,7 +2276,11 @@ export function CutterApp() {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "剪辑端数据加载失败");
+          showRecoverableError(
+            loadError instanceof Error
+              ? `工作台刷新失败：${loadError.message}`
+              : "工作台刷新失败，可继续使用当前数据。"
+          );
         }
       });
 
@@ -2407,7 +2452,7 @@ export function CutterApp() {
             setCutNotice(feedback.notice);
           }
           if (feedback.error) {
-            setError(feedback.error);
+            showRecoverableError(feedback.error);
           }
         }
       } finally {
@@ -2505,7 +2550,7 @@ export function CutterApp() {
         setCutNotice(feedback.notice);
       }
       if (feedback.error) {
-        setError(feedback.error);
+        showRecoverableError(feedback.error);
       }
     } finally {
       if (materialSearchRequestIdRef.current === requestId) {
@@ -2651,12 +2696,19 @@ export function CutterApp() {
     try {
       do {
         cutPipelineRerunRequestedRef.current = false;
-        const result = await runCutPipeline({
-          runNextCutJob: () => client.runNextCutJob(),
+        const baselineTerminalJobIds = new Set(
+          queueJobsRef.current
+            .filter((job) => job.status === "done" || job.status === "failed")
+            .map((job) => job.queue_job_id)
+        );
+        const result = await observeServiceCutQueue({
+          getJobs: () => queueJobsRef.current,
           refreshQueueJobs,
           refreshLocalClips,
           onState: setCutPipelineState,
-          activeRefreshIntervalMs: 1000
+          baselineTerminalJobIds,
+          pollIntervalMs: 1000,
+          maxWaitMs: 120_000
         });
         const notice = cutNoticeForPipelineResult(result);
         if (notice) {
@@ -2748,7 +2800,11 @@ export function CutterApp() {
       );
       setError("");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "公共素材继续加载失败");
+      showRecoverableError(
+        loadError instanceof Error
+          ? `公共素材继续加载失败：${loadError.message}`
+          : "公共素材继续加载失败，可继续使用当前列表。"
+      );
     } finally {
       setSourceLibraryLoadingMore(false);
     }
@@ -3541,7 +3597,7 @@ export function CutterApp() {
         workbenchClassName={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
       >
         <section className="cutter-content ml-workbench-content">
-          {error ? (
+          {shouldRenderGlobalCutterError({ error, hasData: Boolean(data) }) ? (
             <InspectorPanel title="加载失败">
               <p>{error}</p>
             </InspectorPanel>

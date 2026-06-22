@@ -42,6 +42,7 @@
     "smoke:cutter-api-web": "tsx scripts/smoke/cutter-api-web.ts",
     "smoke:local-web-fast-path": "tsx scripts/smoke/local-web-fast-path.ts",
     "smoke:local-web-stability": "tsx scripts/smoke/local-web-stability.ts",
+    "smoke:m19-runtime-foundation": "tsx scripts/smoke/m19-runtime-foundation.ts",
     "smoke:searchd-concurrency": "tsx scripts/smoke/searchd-concurrency.ts",
     "smoke:searchd-nas-rehearsal": "tsx scripts/smoke/searchd-nas-rehearsal.ts",
     "smoke:real-nas-50-editor": "tsx scripts/smoke/real-nas-50-editor.ts",

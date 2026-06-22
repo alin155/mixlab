@@ -16,7 +16,8 @@ import {
   publishReadySourceVideo,
   readUsageMetrics,
   registerCutterAccount,
-  scanSourceVideos
+  scanSourceVideos,
+  syncCutterReleaseCache
 } from "../../library-fs/src/index.ts";
 import {
   createCutterApiServer,
@@ -336,6 +337,55 @@ async function prepareLibrary(): Promise<string> {
   return libraryRoot;
 }
 
+async function prepareManyReadyLibrary(count: number): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+
+  for (let index = 1; index <= count; index += 1) {
+    await writeDummyVideo(path.join(
+      libraryRoot,
+      "source-videos",
+      `${String(index).padStart(2, "0")}_素材_${index}.mp4`
+    ));
+  }
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  for (let index = 1; index <= count; index += 1) {
+    const sourceVideoId = `V${String(index).padStart(6, "0")}`;
+    await claimNextPreprocessJob({
+      library_root: libraryRoot,
+      worker_id: "worker-a",
+      now: "2026-05-02T00:01:00Z"
+    });
+    await writeArtifacts({
+      library_root: libraryRoot,
+      source_video_id: sourceVideoId,
+      full_text: `第 ${index} 条素材用于分页测试。`,
+      segments: [
+        segment({
+          source_video_id: sourceVideoId,
+          index: 0,
+          begin_ms: 1000,
+          end_ms: 3600,
+          text: `第 ${index} 条素材用于分页测试。`,
+          normalized_text: `第${index}条素材用于分页测试`
+        })
+      ]
+    });
+    await completeReady({
+      library_root: libraryRoot,
+      source_video_id: sourceVideoId
+    });
+  }
+
+  return libraryRoot;
+}
+
 async function withApiServer<T>(
   libraryRoot: string,
   fn: (baseUrl: string) => Promise<T>,
@@ -434,6 +484,50 @@ async function createApprovedAuthHeaders(libraryRoot: string): Promise<Record<st
     "X-MixLab-Device-Id": approved.session.device_id,
     "X-MixLab-Session-Token": approved.session.session_token
   };
+}
+
+async function fetchRuntimeStatusBody(baseUrl: string, headers: Record<string, string>): Promise<any> {
+  const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+  assert.equal(response.status, 200);
+  return await response.json() as any;
+}
+
+async function waitForRuntimeSearchBackend(
+  baseUrl: string,
+  headers: Record<string, string>,
+  predicate: (searchBackend: any) => boolean
+): Promise<any> {
+  let latest = await fetchRuntimeStatusBody(baseUrl, headers);
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (predicate(latest.data.search_backend)) {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    latest = await fetchRuntimeStatusBody(baseUrl, headers);
+  }
+
+  assert.fail(`runtime search backend did not reach expected state: ${JSON.stringify(latest.data.search_backend)}`);
+}
+
+async function waitForFile(filePath: string, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    try {
+      if ((await stat(filePath)).isFile()) {
+        return;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`file did not appear before timeout: ${filePath}`);
 }
 
 async function writeMalformedUsageEvents(libraryRoot: string): Promise<void> {
@@ -850,6 +944,26 @@ test("cutter source library requires approved session headers", async () => {
   });
 });
 
+test("cutter source library defaults to a bounded first page", async () => {
+  const libraryRoot = await prepareManyReadyLibrary(25);
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/cutter/source-library`, {
+      headers
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+
+    assert.equal(body.data.available_video_count, 25);
+    assert.equal(body.data.videos.length, 20);
+    assert.deepEqual(
+      body.data.videos.slice(0, 3).map((video: any) => video.source_video_id),
+      ["V000001", "V000002", "V000003"]
+    );
+  });
+});
+
 test("desktop local trusted auth exposes cutter endpoints without review headers", async () => {
   const libraryRoot = await prepareLibrary();
 
@@ -929,7 +1043,7 @@ test("runtime status requires approved cutter session and reports workspace read
     const anonymous = await fetch(`${baseUrl}/cutter/runtime-status`);
     assert.equal(anonymous.status, 401);
 
-    const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
     assert.equal(response.status, 200);
     const body = await response.json() as any;
 
@@ -952,16 +1066,14 @@ test("runtime status requires approved cutter session and reports workspace read
     assert.equal(body.data.release_cache.max_cached_releases, 2);
     assert.equal(typeof body.data.release_cache.cache_size_bytes, "number");
     assert.equal(body.data.local_cache.cache_root_path, path.join(workspaceRoot, "cache"));
-    assert.equal(body.data.local_cache.searchd_cache_size_bytes, 123);
+    assert.equal(typeof body.data.local_cache.searchd_cache_size_bytes, "number");
     assert.equal(body.data.local_cache.source_video_cache.cache_root_path, path.join(workspaceRoot, "cache", "source-videos"));
-    assert.equal(body.data.local_cache.source_video_cache.cached_video_count, 0);
-    assert.equal(body.data.local_cache.cut_temp_cache.file_count, 0);
     assert.equal(body.data.source_video_preflight.status, "checking");
 
     let latestBody = body;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 50));
-      const latestResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const latestResponse = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(latestResponse.status, 200);
       latestBody = await latestResponse.json() as any;
       if (latestBody.data.source_video_preflight.status === "ready") {
@@ -970,6 +1082,9 @@ test("runtime status requires approved cutter session and reports workspace read
     }
 
     assert.equal(latestBody.data.source_video_preflight.status, "ready");
+    assert.equal(latestBody.data.local_cache.searchd_cache_size_bytes, 123);
+    assert.equal(latestBody.data.local_cache.source_video_cache.cached_video_count, 0);
+    assert.equal(latestBody.data.local_cache.cut_temp_cache.file_count, 0);
     assert.equal(latestBody.data.source_video_preflight.readable_count, 1);
     assert.equal(latestBody.data.source_video_preflight.probe_count, 1);
     assert.equal(latestBody.data.source_video_preflight.probe_readable_count, 1);
@@ -1031,7 +1146,7 @@ test("runtime status keeps source video preflight in the background when probing
     let latestBody = firstBody;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 50));
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       latestBody = await response.json() as any;
       if (latestBody.data.source_video_preflight.status === "ready") {
@@ -1076,7 +1191,7 @@ test("runtime status keeps release cache refresh in the background when scanning
     let latestBody = firstBody;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 20));
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       latestBody = await response.json() as any;
       if (latestBody.data.release_cache.ready) {
@@ -1144,7 +1259,7 @@ test("runtime status keeps library metadata reads in the background when they ar
     let latestBody = firstBody;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 20));
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       latestBody = await response.json() as any;
       if (latestBody.data.library_id === "slow-lib") {
@@ -1199,24 +1314,29 @@ test("runtime status warms the release search index once the cache is ready", as
     now: "2026-05-02T00:35:00Z"
   });
 
-  await withApiServer(libraryRoot, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/cutter/source-library?limit=10`, { headers });
-    assert.equal(response.status, 200);
-  }, {
-    release_cache_root: cacheRoot,
-    release_sync_timeout_ms: 5_000
+  const synced = await syncCutterReleaseCache({
+    source_library_root: libraryRoot,
+    cache_root: cacheRoot
   });
+  assert.equal(synced.cache_ready, true);
+  const syncedReleaseVersion = synced.active_release_version;
 
   await withApiServer(libraryRoot, async (baseUrl) => {
-    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-    if (firstResponse.status !== 200) {
-      assert.fail(await firstResponse.text());
+    let firstBody = await fetchRuntimeStatusBody(baseUrl, headers);
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      if (
+        firstBody.data.release_cache.ready === true &&
+        firstBody.data.diagnostics.search_index_warmup.status === "warming"
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      firstBody = await fetchRuntimeStatusBody(baseUrl, headers);
     }
-    const firstBody = await firstResponse.json() as any;
 
     assert.equal(firstBody.data.release_cache.ready, true);
     assert.equal(firstBody.data.diagnostics.search_index_warmup.status, "warming");
-    assert.equal(firstBody.data.diagnostics.search_index_warmup.release_version, "v000002");
+    assert.equal(firstBody.data.diagnostics.search_index_warmup.release_version, syncedReleaseVersion);
     assert.equal(firstBody.data.diagnostics.search_index_warmup.query, "第一场");
     assert.equal(warmupCalls.length, 1);
     assert.deepEqual(warmupCalls[0], {
@@ -1239,7 +1359,7 @@ test("runtime status warms the release search index once the cache is ready", as
     let latestBody = firstBody;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 20));
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       latestBody = await response.json() as any;
       if (latestBody.data.diagnostics.search_index_warmup.status === "ready") {
@@ -1304,9 +1424,13 @@ test("runtime status reports local searchd health when configured", async () => 
     }),
     async (searchdBaseUrl, searchdRequests) => {
       await withApiServer(libraryRoot, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-        assert.equal(response.status, 200);
-        const body = await response.json() as any;
+        const firstBody = await fetchRuntimeStatusBody(baseUrl, headers);
+        assert.equal(firstBody.data.search_backend.mode, "searchd");
+        assert.ok(firstBody.data.diagnostics.runtime_timings_ms.search_backend < 500);
+
+        const body = await waitForRuntimeSearchBackend(baseUrl, headers, (searchBackend) =>
+          searchBackend.healthy === true
+        );
 
         assert.equal(body.data.search_backend.mode, "searchd");
         assert.equal(body.data.search_backend.preferred_mode, "searchd");
@@ -1347,9 +1471,13 @@ test("runtime status reports searchd warming without blocking startup", async ()
     }),
     async (searchdBaseUrl, searchdRequests) => {
       await withApiServer(libraryRoot, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-        assert.equal(response.status, 200);
-        const body = await response.json() as any;
+        const firstBody = await fetchRuntimeStatusBody(baseUrl, headers);
+        assert.equal(firstBody.data.search_backend.mode, "searchd");
+        assert.ok(firstBody.data.diagnostics.runtime_timings_ms.search_backend < 500);
+
+        const body = await waitForRuntimeSearchBackend(baseUrl, headers, (searchBackend) =>
+          searchBackend.index_version === "tantivy-v000001"
+        );
 
         assert.equal(body.data.search_backend.mode, "searchd");
         assert.equal(body.data.search_backend.healthy, false);
@@ -1389,9 +1517,13 @@ test("runtime status reports searchd refresh errors when available", async () =>
     }),
     async (searchdBaseUrl) => {
       await withApiServer(libraryRoot, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-        assert.equal(response.status, 200);
-        const body = await response.json() as any;
+        const firstBody = await fetchRuntimeStatusBody(baseUrl, headers);
+        assert.equal(firstBody.data.search_backend.mode, "searchd");
+        assert.ok(firstBody.data.diagnostics.runtime_timings_ms.search_backend < 500);
+
+        const body = await waitForRuntimeSearchBackend(baseUrl, headers, (searchBackend) =>
+          searchBackend.last_error === "failed to open sqlite index"
+        );
 
         assert.equal(body.data.search_backend.mode, "searchd");
         assert.equal(body.data.search_backend.healthy, false);
@@ -1421,7 +1553,7 @@ test("runtime status blocks source video preflight when media probing fails", as
 
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 50));
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       body = await response.json() as any;
       if (body.data.source_video_preflight.status === "blocked") {
@@ -1459,9 +1591,13 @@ test("runtime status degrades immediately when local searchd is unavailable", as
     }),
     async (searchdBaseUrl, searchdRequests) => {
       await withApiServer(libraryRoot, async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
-        assert.equal(response.status, 200);
-        const body = await response.json() as any;
+        const firstBody = await fetchRuntimeStatusBody(baseUrl, headers);
+        assert.equal(firstBody.data.search_backend.mode, "searchd");
+        assert.ok(firstBody.data.diagnostics.runtime_timings_ms.search_backend < 500);
+
+        const body = await waitForRuntimeSearchBackend(baseUrl, headers, (searchBackend) =>
+          /正在启动|自动恢复/.test(searchBackend.message)
+        );
 
         assert.equal(body.data.search_backend.mode, "searchd");
         assert.equal(body.data.search_backend.preferred_mode, "searchd");
@@ -1477,6 +1613,66 @@ test("runtime status degrades immediately when local searchd is unavailable", as
       assert.equal(new URL(searchdRequests[0]!).pathname, "/health");
     }
   );
+});
+
+test("runtime status does not wait for slow local searchd health checks", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  let searchdRequestCount = 0;
+  const slowSearchdFetch: typeof fetch = async () => {
+    searchdRequestCount += 1;
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return new Response(JSON.stringify({
+      schema_version: "1.0",
+      data: {
+        ok: true,
+        ready: true,
+        library_root: libraryRoot,
+        cache_root: "/tmp/mixlab-searchd",
+        index_version: "tantivy-v000001",
+        source_video_count: 42,
+        segment_count: 2048
+      }
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8"
+      }
+    });
+  };
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const startedAt = Date.now();
+    const firstResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(firstResponse.status, 200);
+    const firstBody = await firstResponse.json() as any;
+    const elapsedMs = Date.now() - startedAt;
+
+    assert.ok(elapsedMs < 700, `runtime-status waited ${elapsedMs}ms for slow searchd health`);
+    assert.equal(firstBody.data.search_backend.mode, "searchd");
+    assert.equal(firstBody.data.search_backend.healthy, false);
+    assert.match(firstBody.data.search_backend.message, /读取中|可用状态/);
+    assert.ok(
+      firstBody.data.diagnostics.runtime_timings_ms.search_backend < 500,
+      `search_backend timing was ${firstBody.data.diagnostics.runtime_timings_ms.search_backend}ms`
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    const secondResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(secondResponse.status, 200);
+    const secondBody = await secondResponse.json() as any;
+
+    assert.equal(secondBody.data.search_backend.mode, "searchd");
+    assert.equal(secondBody.data.search_backend.healthy, true);
+    assert.equal(secondBody.data.search_backend.degraded, false);
+    assert.equal(secondBody.data.search_backend.index_version, "tantivy-v000001");
+    assert.equal(secondBody.data.search_backend.source_video_count, 42);
+    assert.equal(searchdRequestCount, 1);
+  }, {
+    searchd_base_url: "http://127.0.0.1:3790",
+    searchd_fetch: slowSearchdFetch,
+    searchd_timeout_ms: 2_000
+  });
 });
 
 test("runtime status remains readable when cutter workspace is not configured", async () => {
@@ -1718,11 +1914,7 @@ test("source library reads from local release cache after syncing the current re
       first.data.videos.map((video: any) => video.source_video_id),
       ["V000001", "V000002"]
     );
-    assert.equal(
-      (await stat(path.join(cacheRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite")))
-        .isFile(),
-      true
-    );
+    await waitForFile(path.join(cacheRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite"));
 
     await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json"));
 
@@ -1761,6 +1953,7 @@ test("source library uses existing local release cache while background sync is 
   await withApiServer(libraryRoot, async (baseUrl) => {
     const response = await fetch(`${baseUrl}/cutter/source-library?limit=10`, { headers });
     assert.equal(response.status, 200);
+    await waitForFile(path.join(cacheRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite"));
   }, {
     release_cache_root: cacheRoot,
     release_sync_timeout_ms: 5_000
@@ -1777,12 +1970,14 @@ test("source library uses existing local release cache while background sync is 
     const body = await response.json() as any;
 
     assert.ok(Date.now() - startedAt < 1_000);
-    assert.equal(syncCalls, 1);
+    assert.equal(syncCalls, 0);
     assert.equal(body.data.available_video_count, 2);
     assert.deepEqual(
       body.data.videos.map((video: any) => video.source_video_id),
       ["V000001", "V000002"]
     );
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    assert.equal(syncCalls, 1);
   }, {
     release_cache_root: cacheRoot,
     release_sync_timeout_ms: 150,
@@ -2350,7 +2545,7 @@ test("cuts from original source before starting cold source video cache warmup",
     let runtimeStatus: any;
     const deadline = Date.now() + 1_000;
     do {
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       runtimeStatus = await response.json() as any;
       if (runtimeStatus.data.local_cache.source_video_cache.cached_video_count >= 1) {
@@ -2894,7 +3089,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
     let runtimeStatus: any;
     const cacheDeadline = Date.now() + 1_000;
     do {
-      const response = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
       assert.equal(response.status, 200);
       runtimeStatus = await response.json() as any;
       if (runtimeStatus.data.local_cache.source_video_cache.cached_video_count >= 1) {

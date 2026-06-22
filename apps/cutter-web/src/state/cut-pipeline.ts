@@ -1,4 +1,5 @@
 import type { CutJob } from "../api.ts";
+import type { CutQueueJob } from "./cut-queue.ts";
 
 export type CutPipelineStatus = "idle" | "running" | "completed" | "failed";
 
@@ -18,6 +19,17 @@ export interface RunCutPipelineInput {
   onState?: (state: CutPipelineState) => void;
   maxIterations?: number;
   activeRefreshIntervalMs?: number;
+}
+
+export interface ObserveServiceCutQueueInput {
+  refreshQueueJobs: () => Promise<readonly CutQueueJob[]>;
+  refreshLocalClips: () => Promise<void>;
+  getJobs: () => readonly CutQueueJob[];
+  onState?: (state: CutPipelineState) => void;
+  baselineTerminalJobIds?: ReadonlySet<string>;
+  pollIntervalMs?: number;
+  maxWaitMs?: number;
+  idleStablePolls?: number;
 }
 
 export const idleCutPipelineState: CutPipelineState = {
@@ -56,6 +68,50 @@ export function cutPipelineDetailLabel(state: CutPipelineState): string {
   }
 
   return `已处理 ${state.processed_count} 个任务，完成 ${state.done_count} 个，失败 ${state.failed_count} 个。`;
+}
+
+function isActiveQueueJob(job: CutQueueJob): boolean {
+  return job.status === "pending" || job.status === "running";
+}
+
+function isTerminalQueueJob(job: CutQueueJob): boolean {
+  return job.status === "done" || job.status === "failed";
+}
+
+function queueJobId(job: CutQueueJob): string {
+  return job.queue_job_id;
+}
+
+function serviceQueueState(input: {
+  jobs: readonly CutQueueJob[];
+  baselineTerminalJobIds: ReadonlySet<string>;
+  status: CutPipelineStatus;
+  message?: string;
+}): CutPipelineState {
+  const terminalJobs = input.jobs.filter(
+    (job) => isTerminalQueueJob(job) && !input.baselineTerminalJobIds.has(queueJobId(job))
+  );
+  const doneCount = terminalJobs.filter((job) => job.status === "done").length;
+  const failedCount = terminalJobs.filter((job) => job.status === "failed").length;
+
+  return {
+    status: input.status,
+    processed_count: terminalJobs.length,
+    done_count: doneCount,
+    failed_count: failedCount,
+    message:
+      input.message ??
+      (input.status === "running"
+        ? "本机剪切队列运行中"
+        : input.status === "completed"
+          ? "本机剪切已完成"
+          : "本机剪切空闲"),
+    last_updated_label: "刚刚更新"
+  };
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function runningState(input: {
@@ -172,5 +228,76 @@ export async function runCutPipeline(
     };
     input.onState?.(failedState);
     throw error;
+  }
+}
+
+export async function observeServiceCutQueue(
+  input: ObserveServiceCutQueueInput
+): Promise<CutPipelineState> {
+  const pollIntervalMs = input.pollIntervalMs ?? 1000;
+  const maxWaitMs = input.maxWaitMs ?? 120_000;
+  const idleStablePolls = input.idleStablePolls ?? 2;
+  const baselineTerminalJobIds = input.baselineTerminalJobIds ?? new Set<string>();
+  const startedAt = Date.now();
+  const refreshedLocalClipJobIds = new Set<string>();
+  let stableIdleCount = 0;
+  let latestJobs = input.getJobs();
+
+  input.onState?.(serviceQueueState({
+    jobs: latestJobs,
+    baselineTerminalJobIds,
+    status: latestJobs.some(isActiveQueueJob) ? "running" : "idle"
+  }));
+
+  for (;;) {
+    latestJobs = await input.refreshQueueJobs();
+    const newlyDoneJobs = latestJobs.filter(
+      (job) =>
+        job.status === "done" &&
+        !baselineTerminalJobIds.has(queueJobId(job)) &&
+        !refreshedLocalClipJobIds.has(queueJobId(job))
+    );
+
+    if (newlyDoneJobs.length > 0) {
+      for (const job of newlyDoneJobs) {
+        refreshedLocalClipJobIds.add(queueJobId(job));
+      }
+      await input.refreshLocalClips();
+    }
+
+    const hasActiveJobs = latestJobs.some(isActiveQueueJob);
+    input.onState?.(serviceQueueState({
+      jobs: latestJobs,
+      baselineTerminalJobIds,
+      status: hasActiveJobs ? "running" : "completed"
+    }));
+
+    if (!hasActiveJobs) {
+      stableIdleCount += 1;
+      if (stableIdleCount >= idleStablePolls) {
+        const finalState = serviceQueueState({
+          jobs: latestJobs,
+          baselineTerminalJobIds,
+          status: "completed"
+        });
+        input.onState?.(finalState);
+        return finalState;
+      }
+    } else {
+      stableIdleCount = 0;
+    }
+
+    if (Date.now() - startedAt >= maxWaitMs) {
+      const timeoutState = serviceQueueState({
+        jobs: latestJobs,
+        baselineTerminalJobIds,
+        status: hasActiveJobs ? "running" : "completed",
+        message: hasActiveJobs ? "本机剪切仍在后台排队或执行，可继续操作页面。" : undefined
+      });
+      input.onState?.(timeoutState);
+      return timeoutState;
+    }
+
+    await wait(pollIntervalMs);
   }
 }

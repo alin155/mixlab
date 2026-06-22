@@ -636,8 +636,11 @@ export async function listCutterSourceLibrary(
     readyManifests = indexed.manifests;
     availableVideoCount = indexed.available_video_count;
   } catch {
-    readyManifests = await readVisibleSourceVideoManifests(input.library_root);
-    availableVideoCount = readyManifests.length;
+    const visible = await readVisibleSourceVideoManifests(input.library_root);
+    const offset = Math.max(0, input.offset ?? 0);
+    const limit = input.limit && input.limit > 0 ? input.limit : visible.length;
+    readyManifests = visible.slice(offset, offset + limit);
+    availableVideoCount = visible.length;
   }
 
   const videos = await Promise.all(

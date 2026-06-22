@@ -43,6 +43,7 @@ export {
   readCurrentCutterRelease
 } from "./cutter-release.ts";
 export {
+  readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache
 } from "./cutter-release-cache.ts";

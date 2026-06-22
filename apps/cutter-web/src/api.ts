@@ -481,7 +481,7 @@ export interface CutterApiClient {
   changePassword(input: CutterPasswordChangeRequest): Promise<CutterPasswordChangeResult>;
   getAuthMode(): Promise<CutterAuthModeStatus>;
   getLoginStatus(): Promise<CutterLoginStatus>;
-  getRuntimeStatus(): Promise<CutterRuntimeStatus>;
+  getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
   listSourceLibrary(options?: { limit?: number; offset?: number }): Promise<SourceLibraryResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string }): Promise<SearchResponse>;
@@ -649,10 +649,15 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    getRuntimeStatus() {
+    getRuntimeStatus(options) {
+      const params = new URLSearchParams();
+      if (options?.includeCache) {
+        params.set("include_cache", "1");
+      }
+      const query = params.toString();
       return requestEnvelope<CutterRuntimeStatus>(
         fetchImpl,
-        appendPath(input.base_url, "/cutter/runtime-status"),
+        appendPath(input.base_url, `/cutter/runtime-status${query ? `?${query}` : ""}`),
         {
           headers: protectedHeaders
         }

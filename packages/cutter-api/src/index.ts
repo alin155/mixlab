@@ -30,6 +30,7 @@ import {
   publicCutterUser,
   registerCutterAccount,
   searchCutterSourceLibrary,
+  readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache,
   writeLocalClipManifest,
@@ -520,9 +521,15 @@ const SOURCE_PREFLIGHT_BACKGROUND_DELAY_MS = 500;
 const SOURCE_PREFLIGHT_CACHE_TTL_MS = 5 * 60 * 1000;
 const RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS = 200;
 const RELEASE_CACHE_STATUS_CACHE_TTL_MS = 60_000;
+const RELEASE_CACHE_BACKGROUND_SYNC_DELAY_MS = 250;
+const SOURCE_LIBRARY_DEFAULT_PAGE_LIMIT = 20;
+const SOURCE_LIBRARY_MAX_PAGE_LIMIT = 100;
+const SOURCE_LIBRARY_PAGE_CACHE_TTL_MS = 30_000;
 const LIBRARY_ID_INLINE_TIMEOUT_MS = 200;
 const LIBRARY_ID_CACHE_TTL_MS = 60_000;
 const SEARCH_INDEX_WARMUP_QUERY = "第一场";
+const SEARCH_BACKEND_STATUS_INLINE_TIMEOUT_MS = 150;
+const SEARCH_BACKEND_STATUS_CACHE_TTL_MS = 10_000;
 const LOCAL_CACHE_STATUS_INLINE_TIMEOUT_MS = 150;
 const LOCAL_CACHE_STATUS_CACHE_TTL_MS = 30_000;
 const THUMBNAIL_CACHE_MANIFEST_FILE_NAME = ".manifest.json";
@@ -1010,10 +1017,12 @@ async function prefetchSourceVideo(input: {
         max_bytes: maxBytes,
         keep_source_video_id: input.source_video_id
       });
+      invalidateLocalCacheRuntimeStatus(input.api_input);
       sourceVideoCacheLastErrors.delete(root);
     } catch (error) {
       await rm(tempPath, { force: true });
       sourceVideoCacheLastErrors.set(root, (error as Error).message || "source video cache failed");
+      invalidateLocalCacheRuntimeStatus(input.api_input);
       throw error;
     }
   })();
@@ -1368,6 +1377,29 @@ function parsePositiveLimit(value: string | null): number {
   }
 
   return limit;
+}
+
+function parseSourceLibraryLimit(value: string | null): number {
+  if (value === null || value.trim() === "") {
+    return SOURCE_LIBRARY_DEFAULT_PAGE_LIMIT;
+  }
+
+  const limit = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    return SOURCE_LIBRARY_DEFAULT_PAGE_LIMIT;
+  }
+
+  return Math.min(limit, SOURCE_LIBRARY_MAX_PAGE_LIMIT);
+}
+
+function parseSourceLibraryOffset(value: string | null): number {
+  if (value === null || value.trim() === "") {
+    return 0;
+  }
+
+  const offset = Number.parseInt(value, 10);
+  return Number.isInteger(offset) && offset > 0 ? offset : 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -3001,10 +3033,14 @@ async function readLibraryIdBestEffort(
       });
   }
 
+  if (!cache.value) {
+    return fallback;
+  }
+
   return delayedFallback(
     cache.promise,
     LIBRARY_ID_INLINE_TIMEOUT_MS,
-    cache.value ?? fallback
+    cache.value
   );
 }
 
@@ -3130,7 +3166,7 @@ async function readSqliteSearchBackendStatus(input: {
   };
 }
 
-async function readSearchBackendStatus(
+async function readSearchBackendStatusFresh(
   input: CreateCutterApiServerInput,
   fallbackSourceVideoCount: number
 ): Promise<CutterSearchBackendStatus> {
@@ -3174,6 +3210,103 @@ async function readSearchBackendStatus(
       segment_count: 0,
       message: "搜索索引状态读取较慢，工作台先进入可用状态"
     }
+  );
+}
+
+function checkingSearchBackendStatus(
+  input: CreateCutterApiServerInput,
+  fallbackSourceVideoCount: number
+): CutterSearchBackendStatus {
+  const searchdBaseUrl = optionalTrimmed(input.searchd_base_url);
+
+  if (searchdBaseUrl) {
+    return {
+      mode: "searchd",
+      preferred_mode: "searchd",
+      label: "本地 searchd（状态读取中）",
+      healthy: false,
+      degraded: true,
+      index_version: "",
+      source_video_count: fallbackSourceVideoCount,
+      segment_count: 0,
+      message: "本地搜索服务状态读取中，页面先进入可用状态"
+    };
+  }
+
+  return {
+    mode: "transcript-artifact-fallback",
+    preferred_mode: "sqlite-index",
+    label: "搜索索引（状态读取中）",
+    healthy: false,
+    degraded: true,
+    index_version: "",
+    source_video_count: fallbackSourceVideoCount,
+    segment_count: 0,
+    message: "搜索索引状态读取中，页面先进入可用状态"
+  };
+}
+
+interface SearchBackendRuntimeStatusCacheEntry {
+  expires_at_ms: number;
+  status?: CutterSearchBackendStatus;
+  promise?: Promise<CutterSearchBackendStatus>;
+}
+
+const searchBackendRuntimeStatusByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  SearchBackendRuntimeStatusCacheEntry
+>();
+
+async function readSearchBackendStatus(
+  input: CreateCutterApiServerInput,
+  fallbackSourceVideoCount: number
+): Promise<CutterSearchBackendStatus> {
+  const nowMs = Date.now();
+  let cache = searchBackendRuntimeStatusByInput.get(input);
+
+  if (!cache) {
+    cache = {
+      expires_at_ms: 0
+    };
+    searchBackendRuntimeStatusByInput.set(input, cache);
+  }
+
+  if (cache.status && cache.expires_at_ms > nowMs) {
+    return cache.status;
+  }
+
+  if (!cache.promise) {
+    cache.promise = new Promise<CutterSearchBackendStatus>((resolve, reject) => {
+      setTimeout(() => {
+        readSearchBackendStatusFresh(input, fallbackSourceVideoCount).then(resolve, reject);
+      }, 0);
+    })
+      .then((status) => {
+        cache.status = status;
+        cache.expires_at_ms = Date.now() + SEARCH_BACKEND_STATUS_CACHE_TTL_MS;
+        return status;
+      })
+      .catch(() => {
+        const fallback = cache.status ?? checkingSearchBackendStatus(input, fallbackSourceVideoCount);
+        cache.status = fallback;
+        cache.expires_at_ms = Date.now() + Math.min(5_000, SEARCH_BACKEND_STATUS_CACHE_TTL_MS);
+        return fallback;
+      })
+      .finally(() => {
+        if (cache) {
+          delete cache.promise;
+        }
+      });
+  }
+
+  if (!cache.status) {
+    return checkingSearchBackendStatus(input, fallbackSourceVideoCount);
+  }
+
+  return delayedFallback(
+    cache.promise,
+    SEARCH_BACKEND_STATUS_INLINE_TIMEOUT_MS,
+    cache.status
   );
 }
 
@@ -3285,6 +3418,27 @@ const releaseCacheRuntimeStatusByInput = new WeakMap<
   ReleaseCacheRuntimeCacheEntry
 >();
 
+interface FastLibraryReadState {
+  release_root?: string;
+  release_version: string;
+}
+
+interface SourceLibraryPagePayload {
+  library_id: string;
+  available_video_count: number;
+  videos: ApiSourceVideoCard[];
+}
+
+interface SourceLibraryPageCacheEntry {
+  expires_at_ms: number;
+  promise: Promise<SourceLibraryPagePayload>;
+}
+
+const sourceLibraryPageCacheByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  Map<string, SourceLibraryPageCacheEntry>
+>();
+
 interface SearchIndexWarmupCacheEntry {
   release_version: string;
   status: SearchIndexWarmupStatus;
@@ -3391,6 +3545,111 @@ function scheduleSearchIndexWarmup(
     });
 }
 
+function sourceLibraryPageCacheKey(input: {
+  state: FastLibraryReadState;
+  limit: number;
+  offset: number;
+}): string {
+  return [
+    input.state.release_root ?? "source",
+    input.state.release_version || "fallback",
+    input.limit,
+    input.offset
+  ].join("\0");
+}
+
+function sourceLibraryPageCacheForInput(
+  input: CreateCutterApiServerInput
+): Map<string, SourceLibraryPageCacheEntry> {
+  let cache = sourceLibraryPageCacheByInput.get(input);
+  if (!cache) {
+    cache = new Map();
+    sourceLibraryPageCacheByInput.set(input, cache);
+  }
+
+  return cache;
+}
+
+async function loadSourceLibraryPageWithState(
+  input: CreateCutterApiServerInput,
+  state: FastLibraryReadState,
+  limit: number,
+  offset: number
+): Promise<SourceLibraryPagePayload> {
+  const cache = sourceLibraryPageCacheForInput(input);
+  const key = sourceLibraryPageCacheKey({ state, limit, offset });
+  const nowMs = Date.now();
+  const cached = cache.get(key);
+
+  if (cached && cached.expires_at_ms > nowMs) {
+    return cached.promise;
+  }
+
+  const promise = (async (): Promise<SourceLibraryPagePayload> => {
+    const library = await listCutterSourceLibrary({
+      library_root: input.library_root,
+      ...(state.release_root ? { release_root: state.release_root } : {}),
+      limit,
+      offset
+    });
+
+    return {
+      library_id: await readLibraryIdBestEffort(input),
+      available_video_count: library.available_video_count,
+      videos: library.videos.map(addSourceVideoUrls)
+    };
+  })().catch((error) => {
+    cache.delete(key);
+    throw error;
+  });
+
+  cache.set(key, {
+    expires_at_ms: nowMs + SOURCE_LIBRARY_PAGE_CACHE_TTL_MS,
+    promise
+  });
+
+  return promise;
+}
+
+function scheduleSourceLibraryFirstPageWarmup(
+  input: CreateCutterApiServerInput,
+  status: CutterReleaseCacheRuntimeStatus
+): Promise<unknown> | undefined {
+  const releaseRoot = releaseCacheRootForInput(input);
+  if (!releaseRoot || !status.ready || !status.active_release_version) {
+    return undefined;
+  }
+
+  return loadSourceLibraryPageWithState(
+    input,
+    {
+      release_root: releaseRoot,
+      release_version: status.active_release_version
+    },
+    SOURCE_LIBRARY_DEFAULT_PAGE_LIMIT,
+    0
+  ).catch(() => undefined);
+}
+
+function scheduleReleaseCacheWarmups(
+  input: CreateCutterApiServerInput,
+  status: CutterReleaseCacheRuntimeStatus
+): void {
+  if (!status.ready) {
+    return;
+  }
+
+  const firstPageWarmup = scheduleSourceLibraryFirstPageWarmup(input, status);
+  if (firstPageWarmup) {
+    void firstPageWarmup.finally(() => {
+      scheduleSearchIndexWarmup(input, status);
+    });
+    return;
+  }
+
+  scheduleSearchIndexWarmup(input, status);
+}
+
 function syncCutterReleaseCacheRuntimeStatusUncached(
   input: CreateCutterApiServerInput
 ): Promise<CutterReleaseCacheRuntimeStatus> {
@@ -3455,18 +3714,22 @@ async function syncCutterReleaseCacheBestEffort(
   }
 
   if (cache.status && cache.expires_at_ms > nowMs) {
-    scheduleSearchIndexWarmup(input, cache.status);
+    scheduleReleaseCacheWarmups(input, cache.status);
     return cache.status;
   }
 
   if (!cache.promise) {
-    cache.promise = syncCutterReleaseCacheRuntimeStatusUncached(input)
+    cache.promise = new Promise<CutterReleaseCacheRuntimeStatus>((resolve, reject) => {
+      setTimeout(() => {
+        syncCutterReleaseCacheRuntimeStatusUncached(input).then(resolve, reject);
+      }, RELEASE_CACHE_BACKGROUND_SYNC_DELAY_MS);
+    })
       .then((status) => {
         cache.status = status;
         cache.expires_at_ms = Date.now() + (
           status.cache_size_bytes > 0 ? RELEASE_CACHE_STATUS_CACHE_TTL_MS : 5_000
         );
-        scheduleSearchIndexWarmup(input, status);
+        scheduleReleaseCacheWarmups(input, status);
         return status;
       })
       .catch((error): CutterReleaseCacheRuntimeStatus => {
@@ -3488,12 +3751,19 @@ async function syncCutterReleaseCacheBestEffort(
 
   const pendingSync = cache.promise;
   const localFallback = await localReleaseCacheRuntimeStatusFallback(input, cacheRoot, cache.status);
+  if (!cache.status) {
+    cache.status = localFallback;
+    cache.expires_at_ms = Date.now() + Math.min(5_000, RELEASE_CACHE_STATUS_CACHE_TTL_MS);
+    scheduleReleaseCacheWarmups(input, localFallback);
+    return localFallback;
+  }
+
   const status = await delayedFallback(
     pendingSync,
     Math.min(releaseSyncTimeoutMs(input), RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS),
     localFallback
   );
-  scheduleSearchIndexWarmup(input, status);
+  scheduleReleaseCacheWarmups(input, status);
   return status;
 }
 
@@ -3502,14 +3772,17 @@ async function localReleaseCacheRuntimeStatusFallback(
   cacheRoot: string,
   previous?: CutterReleaseCacheRuntimeStatus
 ): Promise<CutterReleaseCacheRuntimeStatus> {
-  const statusReader = input.release_cache_status_reader ?? readLocalCutterReleaseCacheStatus;
-
   try {
-    const localStatus = await statusReader({
-      cache_root: cacheRoot,
-      max_cached_releases: releaseCacheMaxReleases(input),
-      include_cache_size: false
-    });
+    const localStatus = input.release_cache_status_reader
+      ? await input.release_cache_status_reader({
+          cache_root: cacheRoot,
+          max_cached_releases: releaseCacheMaxReleases(input),
+          include_cache_size: false
+        })
+      : await readFastLocalCutterReleaseCacheStatus({
+          cache_root: cacheRoot,
+          max_cached_releases: releaseCacheMaxReleases(input)
+        });
 
     if (localStatus.cache_ready) {
       return releaseCacheRuntimeStatusFromLocal(
@@ -3529,12 +3802,39 @@ async function localReleaseCacheRuntimeStatusFallback(
 async function releaseRootForFastLibraryRead(
   input: CreateCutterApiServerInput
 ): Promise<string | undefined> {
+  const state = await fastLibraryReadState(input);
+  return state.release_root;
+}
+
+async function fastLibraryReadState(
+  input: CreateCutterApiServerInput
+): Promise<FastLibraryReadState> {
   const cacheRoot = releaseCacheRootForInput(input);
   if (!cacheRoot) {
-    return undefined;
+    return {
+      release_version: ""
+    };
   }
   const status = await syncCutterReleaseCacheBestEffort(input);
-  return status.ready ? cacheRoot : undefined;
+  return status.ready
+    ? {
+        release_root: cacheRoot,
+        release_version: status.active_release_version
+      }
+    : {
+        release_version: ""
+      };
+}
+
+async function loadSourceLibraryPage(
+  input: CreateCutterApiServerInput,
+  request: {
+    limit: number;
+    offset: number;
+  }
+): Promise<SourceLibraryPagePayload> {
+  const state = await fastLibraryReadState(input);
+  return loadSourceLibraryPageWithState(input, state, request.limit, request.offset);
 }
 
 function checkingSourceVideoPreflightStatus(): CutterSourceVideoPreflightStatus {
@@ -3803,6 +4103,16 @@ const localCacheRuntimeStatusByInput = new WeakMap<
   LocalCacheRuntimeStatusCacheEntry
 >();
 
+function invalidateLocalCacheRuntimeStatus(input: CreateCutterApiServerInput): void {
+  const cache = localCacheRuntimeStatusByInput.get(input);
+  if (!cache) {
+    return;
+  }
+
+  cache.expires_at_ms = 0;
+  delete cache.status;
+}
+
 async function readLocalCacheRuntimeStatusBestEffort(
   input: CreateCutterApiServerInput
 ): Promise<CutterLocalCacheRuntimeStatus> {
@@ -3821,7 +4131,11 @@ async function readLocalCacheRuntimeStatusBestEffort(
   }
 
   if (!cache.promise) {
-    cache.promise = readLocalCacheRuntimeStatus(input)
+    cache.promise = new Promise<CutterLocalCacheRuntimeStatus>((resolve, reject) => {
+      setTimeout(() => {
+        readLocalCacheRuntimeStatus(input).then(resolve, reject);
+      }, 0);
+    })
       .then((status) => {
         cache.status = status;
         cache.expires_at_ms = Date.now() + LOCAL_CACHE_STATUS_CACHE_TTL_MS;
@@ -3840,16 +4154,21 @@ async function readLocalCacheRuntimeStatusBestEffort(
       });
   }
 
+  if (!cache.status) {
+    return checkingLocalCacheRuntimeStatus(input);
+  }
+
   return delayedFallback(
     cache.promise,
     LOCAL_CACHE_STATUS_INLINE_TIMEOUT_MS,
-    cache.status ?? checkingLocalCacheRuntimeStatus(input)
+    cache.status
   );
 }
 
 async function runtimeStatusForSession(input: {
   api_input: CreateCutterApiServerInput;
   auth: AuthenticatedCutterSession;
+  include_local_cache?: boolean;
 }): Promise<CutterRuntimeStatusPayload> {
   const timings: Record<string, number> = {};
   const totalStartedAt = Date.now();
@@ -3871,7 +4190,12 @@ async function runtimeStatusForSession(input: {
   };
 
   const localClips = input.api_input.workspace_root
-    ? await timeAsync("local_clips", () => listExportClips({ workspace_root: input.api_input.workspace_root! }))
+    ? await timeAsync("local_clips", () =>
+        listExportClips({
+          workspace_root: input.api_input.workspace_root!,
+          limit: 1
+        })
+      )
     : await timeAsync("local_clips", () => listLocalClips({ library_root: input.api_input.library_root }));
 
   let ffmpegStatus: CutterRuntimeStatusPayload["ffmpeg_status"] = "不可用";
@@ -3904,7 +4228,9 @@ async function runtimeStatusForSession(input: {
   );
   const [searchBackend, localCache, sourceVideoPreflight] = await Promise.all([
     timeAsync("search_backend", () => readSearchBackendStatus(input.api_input, availableVideoCount)),
-    timeAsync("local_cache", () => readLocalCacheRuntimeStatusBestEffort(input.api_input)),
+    timeAsync("local_cache", () => input.include_local_cache
+      ? readLocalCacheRuntimeStatusBestEffort(input.api_input)
+      : Promise.resolve(checkingLocalCacheRuntimeStatus(input.api_input))),
     timeAsync("source_video_preflight", () => readSourceVideoPreflightStatus(input.api_input))
   ]);
   const effectiveAvailableVideoCount =
@@ -5067,7 +5393,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         writeJson(response, 200, apiResponse(await runtimeStatusForSession({
           api_input: input,
-          auth
+          auth,
+          include_local_cache: url.searchParams.get("include_cache") === "1"
         })));
         return;
       }
@@ -5081,24 +5408,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
-        const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
-        const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
-        const releaseRoot = await releaseRootForFastLibraryRead(input);
-        const library = await listCutterSourceLibrary({
-          library_root: input.library_root,
-          ...(releaseRoot ? { release_root: releaseRoot } : {}),
-          limit: Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined,
-          offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0
+        const library = await loadSourceLibraryPage(input, {
+          limit: parseSourceLibraryLimit(url.searchParams.get("limit")),
+          offset: parseSourceLibraryOffset(url.searchParams.get("offset"))
         });
-        const videos: ApiSourceVideoCard[] = library.videos.map(addSourceVideoUrls);
         writeJson(
           response,
           200,
-          apiResponse({
-            library_id: await readLibraryIdBestEffort(input),
-            ...library,
-            videos
-          })
+          apiResponse(library)
         );
         return;
       }

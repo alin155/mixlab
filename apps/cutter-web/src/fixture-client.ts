@@ -41,6 +41,7 @@ export interface CutterFixtureData {
 export interface LoadCutterWorkbenchDataOptions {
   preferredSourceVideoId?: string;
   includeSourceLibrary?: boolean;
+  includeRuntimeCache?: boolean;
   sourceLibraryLimit?: number;
   localClipLimit?: number;
 }
@@ -1183,7 +1184,7 @@ export async function loadCutterWorkbenchData(
     client.listLocalClips(
       options.localClipLimit ? { limit: options.localClipLimit } : undefined
     ),
-    client.getRuntimeStatus(),
+    client.getRuntimeStatus({ includeCache: options.includeRuntimeCache }),
     includeSourceLibrary
       ? client.listSourceLibrary({ limit: options.sourceLibraryLimit })
       : Promise.resolve(undefined)

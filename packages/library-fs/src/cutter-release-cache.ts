@@ -442,3 +442,54 @@ export async function readLocalCutterReleaseCacheStatus(input: {
     };
   }
 }
+
+export async function readFastLocalCutterReleaseCacheStatus(input: {
+  cache_root: string;
+  max_cached_releases?: number;
+}): Promise<CutterReleaseCacheStatus> {
+  const maxCachedReleases = normalizeMaxCachedReleases(input.max_cached_releases);
+
+  try {
+    const pointer = await readCurrentPointer(input.cache_root);
+    const manifest = await readJsonFile<CutterReleaseManifest>(
+      releaseManifestPath(input.cache_root, pointer.current_version)
+    );
+    const catalogFilePath = releaseCatalogPath(input.cache_root, pointer.current_version);
+
+    if (!(await fileExists(catalogFilePath))) {
+      throw new Error("cached catalog is missing");
+    }
+
+    if (!(await releaseFilesReady(input.cache_root, pointer.current_version))) {
+      throw new Error("cached release is incomplete");
+    }
+
+    return {
+      cache_root: input.cache_root,
+      cache_ready: true,
+      active_release_version: manifest.release_version,
+      search_index_version: manifest.source_index_version,
+      ready_video_count: manifest.ready_video_count,
+      cached_release_versions: [manifest.release_version],
+      cached_release_count: 1,
+      max_cached_releases: maxCachedReleases,
+      cache_size_bytes: 0,
+      catalog_file_path: catalogFilePath,
+      message: "本机 Release 可用"
+    };
+  } catch {
+    return {
+      cache_root: input.cache_root,
+      cache_ready: false,
+      active_release_version: "",
+      search_index_version: "",
+      ready_video_count: 0,
+      cached_release_versions: [],
+      cached_release_count: 0,
+      max_cached_releases: maxCachedReleases,
+      cache_size_bytes: 0,
+      catalog_file_path: "",
+      message: "本机 Release 不可用"
+    };
+  }
+}

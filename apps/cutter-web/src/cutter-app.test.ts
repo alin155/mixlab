@@ -83,6 +83,7 @@ import {
   shouldClearSessionForLoginStatusError,
   shouldPollPendingLogin,
   shouldRefreshCutQueueForRoute,
+  shouldRenderGlobalCutterError,
   shouldRetryPendingLoginError,
   shouldClearFixtureDataForRuntime,
   shouldStartMaterialSearchForHashChange,
@@ -2076,6 +2077,47 @@ test("material locator data reload preserves the active search while focusing a 
 
   const blankSearchMerged = mergeMaterialLocatorReloadData(data, reloadedData, "");
   assert.equal(blankSearchMerged.search.groups.length, 0);
+});
+
+test("workbench reload keeps cached public library cards when the route does not request them", () => {
+  const data = createFixtureCutterData();
+  const routeReload = {
+    ...data,
+    library: {
+      ...data.library,
+      videos: []
+    },
+    search: emptySearchResponse()
+  };
+
+  const merged = mergeMaterialLocatorReloadData(data, routeReload, "");
+
+  assert.equal(merged.library.videos.length, data.library.videos.length);
+  assert.equal(merged.library.available_video_count, routeReload.library.available_video_count);
+});
+
+test("recoverable cutter refresh errors do not replace an already rendered workbench", () => {
+  assert.equal(
+    shouldRenderGlobalCutterError({
+      error: "Internal server error",
+      hasData: false
+    }),
+    true
+  );
+  assert.equal(
+    shouldRenderGlobalCutterError({
+      error: "Internal server error",
+      hasData: true
+    }),
+    false
+  );
+  assert.equal(
+    shouldRenderGlobalCutterError({
+      error: "",
+      hasData: false
+    }),
+    false
+  );
 });
 
 test("material search pages merge cursor batches without delaying first results", () => {
@@ -4470,6 +4512,14 @@ test("cutter production shell uses UI Foundation AppShell instead of MacWindow",
   assert.doesNotMatch(source, /className="cutter-shell"/);
   assert.match(source, /className="cutter-shell-v1"/);
   assert.match(source, /workbenchClassName=\{`cutter-workspace/);
+});
+
+test("cutter production app observes the service cut queue instead of running run-next", async () => {
+  const source = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /observeServiceCutQueue/);
+  assert.doesNotMatch(source, /client\.runNextCutJob\(/);
+  assert.doesNotMatch(source, /runNextCutJob:\s*\(\)\s*=>\s*client\.runNextCutJob\(\)/);
 });
 
 test("cutter viewport containment is defined once at the shell layer", async () => {
