@@ -113,6 +113,7 @@ export function buildCutterApiServerInputFromDesktopConfig(
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
     workspace_root: workspaceRoot,
     release_cache_root: releaseCacheRoot,
+    auto_run_cut_queue: true,
     auth_mode: authMode,
     ...(authMode === "local_trusted"
       ? { trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师" }

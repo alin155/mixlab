@@ -3162,6 +3162,105 @@ test("clip-list usage counts submissions per queued cut item", async () => {
   });
 });
 
+test("auto-runs submitted workspace cut jobs when enabled", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-api-auto-queue-"));
+  const cutOutputs: Array<{ begin_ms: number; end_ms: number }> = [];
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    auto_run_cut_queue: true,
+    now: () => "2026-05-02T10:00:00Z",
+    cut_runner: async (input) => {
+      cutOutputs.push({
+        begin_ms: input.begin_ms,
+        end_ms: input.end_ms
+      });
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "auto-queued-clip-bytes");
+    },
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        library_id: "lib_main_001",
+        project_id: "P20260506-auto",
+        title: "自动队列",
+        items: [
+          {
+            source_video_id: "V000001",
+            source_title: "01_现金流.mp4",
+            source_relative_path: "source-videos/01_现金流.mp4",
+            start_segment_id: "V000001-S000001",
+            end_segment_id: "V000001-S000001",
+            begin_ms: 1000,
+            end_ms: 3600,
+            selected_text: "现金流，是企业的血液。",
+            cut_mode: "copy"
+          }
+        ]
+      })
+    });
+    assert.equal(clipListResponse.status, 201);
+
+    const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        clip_list_id: "CL20260502-0001"
+      })
+    });
+    assert.equal(submitResponse.status, 201);
+
+    let jobs: any;
+    const deadline = Date.now() + 1_000;
+    do {
+      const response = await fetch(`${baseUrl}/cutter/cut-jobs`, { headers });
+      assert.equal(response.status, 200);
+      jobs = await response.json() as any;
+      if (jobs.data.jobs[0]?.status === "done") {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    } while (Date.now() < deadline);
+
+    assert.equal(jobs.data.jobs[0].status, "done");
+    assert.equal(jobs.data.jobs[0].output_file, "export-clips/E000001/001-自动队列-01_现金流.mp4");
+    assert.deepEqual(cutOutputs, [{ begin_ms: 1000, end_ms: 3600 }]);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
 test("clip list creation responds before slow usage analytics finish", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

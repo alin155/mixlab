@@ -23,6 +23,7 @@ const server = createCutterApiServer({
   workspace_root: config.workspace_root,
   release_cache_root: config.release_cache_root,
   searchd_base_url: config.searchd_base_url,
+  auto_run_cut_queue: true,
   auth_mode: config.auth_mode,
   trusted_user_id: config.trusted_user_id,
   trusted_username: config.trusted_username

@@ -116,6 +116,7 @@ export interface CreateCutterApiServerInput {
   cover_runner?: CoverRunner;
   source_video_probe_runner?: CutterSourceVideoProbeRunner;
   open_path?: CutterPathOpener;
+  auto_run_cut_queue?: boolean;
 }
 
 export interface CutterApiRuntimeConfig extends CreateCutterApiServerInput {
@@ -4338,6 +4339,66 @@ async function createWorkspaceLocalClip(input: {
 }
 
 export function createCutterApiServer(input: CreateCutterApiServerInput): Server {
+  let cutQueueDrainRunning = false;
+  let cutQueueDrainRequested = false;
+  let cutQueueDrainTimer: NodeJS.Timeout | undefined;
+
+  const scheduleCutQueueDrain = (reason: string): void => {
+    if (!input.auto_run_cut_queue || !input.workspace_root) {
+      return;
+    }
+
+    cutQueueDrainRequested = true;
+
+    if (cutQueueDrainRunning || cutQueueDrainTimer) {
+      return;
+    }
+
+    cutQueueDrainTimer = setTimeout(() => {
+      cutQueueDrainTimer = undefined;
+      void drainCutQueueBestEffort(reason);
+    }, 0);
+  };
+
+  const drainCutQueueBestEffort = async (reason: string): Promise<void> => {
+    if (cutQueueDrainRunning || !input.workspace_root) {
+      return;
+    }
+
+    cutQueueDrainRunning = true;
+
+    try {
+      do {
+        cutQueueDrainRequested = false;
+
+        for (;;) {
+          const job = await runWorkspaceCutJob({
+            api_input: input,
+            workspace_root: input.workspace_root
+          });
+
+          if (!job) {
+            break;
+          }
+        }
+      } while (cutQueueDrainRequested);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(JSON.stringify({
+        event: "cut_queue_auto_drain_failed",
+        reason,
+        message
+      }));
+    } finally {
+      cutQueueDrainRunning = false;
+      if (cutQueueDrainRequested) {
+        scheduleCutQueueDrain("rerun");
+      }
+    }
+  };
+
+  scheduleCutQueueDrain("startup");
+
   return createServer(async (request, response) => {
     try {
       setCorsHeaders(response);
@@ -4823,6 +4884,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           now: input.now?.() ?? new Date().toISOString()
         });
         writeJson(response, 201, apiResponse(submission));
+        scheduleCutQueueDrain("submit");
         await recordCutterUsageEventsBestEffort(
           submission.jobs.map((job) => ({
             api_input: input,
@@ -4903,6 +4965,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             cut_job_id: cutJobId,
             now: input.now?.() ?? new Date().toISOString()
           })));
+          scheduleCutQueueDrain("retry");
         } catch (error) {
           const message = error instanceof Error ? error.message : "";
           if (message === "cut job not found") {

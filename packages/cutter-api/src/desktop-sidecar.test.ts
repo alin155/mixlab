@@ -91,6 +91,7 @@ test("maps desktop config to reviewed cutter API server input without mutating p
       library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      auto_run_cut_queue: true,
       auth_mode: "reviewed"
     }
   );
@@ -114,6 +115,7 @@ test("maps desktop searchd env to cutter API server input", () => {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      auto_run_cut_queue: true,
       auth_mode: "reviewed",
       searchd_cache_root: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`,
       searchd_base_url: "http://127.0.0.1:3799",
@@ -157,6 +159,7 @@ test("maps explicit desktop local trusted env to cutter API server input", () =>
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
       release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      auto_run_cut_queue: true,
       auth_mode: "local_trusted",
       trusted_username: "Allen"
     }
@@ -178,6 +181,7 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
       assert.equal(input.release_cache_root, String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`);
+      assert.equal(input.auto_run_cut_queue, true);
       assert.equal(input.auth_mode, "reviewed");
       assert.equal(input.trusted_username, undefined);
       assert.equal(input.searchd_base_url, "http://127.0.0.1:3799");
