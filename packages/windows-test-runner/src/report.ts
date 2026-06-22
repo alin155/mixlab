@@ -228,6 +228,12 @@ function writeSummary(record: RunRecord): string {
     lines.push("", "## Desktop UI Screenshot Smoke", "");
     lines.push(`- Output dir: ${record.desktop_ui_screenshot_smoke.output_dir}`);
     lines.push(`- Window title: ${record.desktop_ui_screenshot_smoke.window_title ?? "n/a"}`);
+    if (record.desktop_ui_screenshot_smoke.window_process_name) {
+      lines.push(`- Window process: ${record.desktop_ui_screenshot_smoke.window_process_name}`);
+    }
+    if (record.desktop_ui_screenshot_smoke.window_process_path) {
+      lines.push(`- Window process path: ${record.desktop_ui_screenshot_smoke.window_process_path}`);
+    }
     if (record.desktop_ui_screenshot_smoke.window_rect) {
       const rect = record.desktop_ui_screenshot_smoke.window_rect;
       lines.push(`- Window rect: ${rect.left},${rect.top} ${rect.width}x${rect.height}`);

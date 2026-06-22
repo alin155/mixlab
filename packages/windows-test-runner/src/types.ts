@@ -288,6 +288,9 @@ export interface DesktopUiScreenshotReport {
   api_base_url: string;
   output_dir: string;
   window_title?: string;
+  window_process_id?: number;
+  window_process_name?: string;
+  window_process_path?: string;
   window_rect?: {
     left: number;
     top: number;

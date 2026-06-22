@@ -27,6 +27,9 @@ interface DesktopUiPagePlan {
 interface PowerShellScreenshotResult {
   ok?: boolean;
   window_title?: string;
+  window_process_id?: number;
+  window_process_name?: string;
+  window_process_path?: string;
   local_output_dir?: string;
   window_rect?: {
     left: number;
@@ -146,17 +149,49 @@ $runId = Split-Path (Split-Path $outputDir -Parent) -Leaf
 $localOutputDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mixlab-cutter-screenshots-" + $runId)
 New-Item -ItemType Directory -Force -Path $localOutputDir | Out-Null
 
+function Get-MixLabProcessPath($candidate) {
+  try {
+    return $candidate.Path
+  } catch {
+    return ""
+  }
+}
+
+function Get-MixLabProcessScore($candidate) {
+  $name = if ($candidate.ProcessName) { $candidate.ProcessName.ToString().ToLowerInvariant() } else { "" }
+  $title = if ($candidate.MainWindowTitle) { $candidate.MainWindowTitle.ToString().ToLowerInvariant() } else { "" }
+  $pathValue = (Get-MixLabProcessPath $candidate).ToLowerInvariant()
+  $score = 0
+  if ($title -like "*$($windowTitle.ToLowerInvariant())*") { $score += 10 }
+  if ($name -like "*mixlab*" -and $name -like "*cutter*") { $score += 100 }
+  if ($pathValue -like "*mixlab cutter.exe" -or $pathValue -like "*mixlab*cutter*.exe") { $score += 120 }
+  if ($name -in @("chrome", "msedge", "firefox", "explorer", "cmd", "powershell", "windowsterminal")) { $score -= 200 }
+  return $score
+}
+
 $proc = Get-Process |
   Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like "*$windowTitle*" } |
-  Sort-Object StartTime -Descending |
+  ForEach-Object {
+    $pathValue = Get-MixLabProcessPath $_
+    [pscustomobject]@{
+      process = $_
+      score = Get-MixLabProcessScore $_
+      path = $pathValue
+    }
+  } |
+  Where-Object { $_.score -gt 0 } |
+  Sort-Object @{ Expression = { $_.score }; Descending = $true },
+    @{ Expression = { $_.process.StartTime }; Descending = $true } |
   Select-Object -First 1
 
 if (-not $proc) {
-  throw "Window matching '$windowTitle' was not found."
+  throw "Real MixLab Cutter window matching '$windowTitle' was not found. Browser, Explorer, cmd, and terminal windows are ignored."
 }
 
+$procPath = $proc.path
+$proc = $proc.process
+
 [MixLabWin32]::ShowWindow($proc.MainWindowHandle, 5) | Out-Null
-[MixLabWin32]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
 Start-Sleep -Milliseconds 500
 $shell = New-Object -ComObject WScript.Shell
 $shell.SendKeys('{ESC}')
@@ -347,6 +382,9 @@ foreach ($page in $pages) {
 [pscustomobject]@{
   ok = $true
   window_title = $proc.MainWindowTitle
+  window_process_id = $proc.Id
+  window_process_name = $proc.ProcessName
+  window_process_path = Convert-MixLabJsonPath $procPath
   local_output_dir = Convert-MixLabJsonPath $localOutputDir
   window_rect = [pscustomobject]@{
     left = $rect.Left
@@ -501,6 +539,9 @@ export async function runDesktopUiScreenshotSmoke(input: {
   }
 
   report.window_title = parsed.window_title;
+  report.window_process_id = parsed.window_process_id;
+  report.window_process_name = parsed.window_process_name;
+  report.window_process_path = parsed.window_process_path;
   report.window_rect = parsed.window_rect;
   await mkdir(outputDir, { recursive: true });
   report.pages = await Promise.all((parsed.pages ?? []).map(async (page) => {
