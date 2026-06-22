@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runLaunchAppProbe } from "./launch-app-probe.ts";
@@ -42,14 +43,14 @@ interface PowerShellScreenshotResult {
 }
 
 const DEFAULT_PAGES: DesktopUiPagePlan[] = [
-  { id: "project-home", label: "Project Home", action: "sidebar", x: 0.070, y: 0.140 },
-  { id: "material-locator", label: "Material Search", action: "sidebar", x: 0.070, y: 0.185 },
-  { id: "cut-tasks", label: "Cut Tasks", action: "sidebar", x: 0.070, y: 0.230 },
-  { id: "local-library", label: "Local Library", action: "sidebar", x: 0.070, y: 0.275 },
-  { id: "public-library", label: "Public Library", action: "sidebar", x: 0.070, y: 0.320 },
-  { id: "source-detail", label: "Source Detail", action: "content", x: 0.255, y: 0.320 },
-  { id: "cache-management", label: "Cache Management", action: "sidebar", x: 0.070, y: 0.365 },
-  { id: "settings", label: "Settings", action: "sidebar", x: 0.070, y: 0.410 }
+  { id: "project-home", label: "Project Home", action: "sidebar", x: 0.165, y: 0.140 },
+  { id: "material-locator", label: "Material Search", action: "sidebar", x: 0.165, y: 0.185 },
+  { id: "cut-tasks", label: "Cut Tasks", action: "sidebar", x: 0.165, y: 0.230 },
+  { id: "local-library", label: "Local Library", action: "sidebar", x: 0.165, y: 0.275 },
+  { id: "public-library", label: "Public Library", action: "sidebar", x: 0.165, y: 0.320 },
+  { id: "source-detail", label: "Source Detail", action: "content", x: 0.300, y: 0.320 },
+  { id: "cache-management", label: "Cache Management", action: "sidebar", x: 0.165, y: 0.365 },
+  { id: "settings", label: "Settings", action: "sidebar", x: 0.165, y: 0.410 }
 ];
 
 const MOCK_PNG_BASE64 =
@@ -452,6 +453,14 @@ async function runMockScreenshots(outputDir: string): Promise<DesktopUiScreensho
   return pages;
 }
 
+async function hashFile(filePath: string): Promise<string | undefined> {
+  try {
+    return createHash("sha256").update(await readFile(filePath)).digest("hex");
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runDesktopUiScreenshotSmoke(input: {
   apiBaseUrl: string;
   reportDir: string;
@@ -569,6 +578,10 @@ export async function runDesktopUiScreenshotSmoke(input: {
     }
   }));
   report.captured_count = report.pages.filter((page) => page.ok).length;
+  const screenshotHashes = await Promise.all(
+    report.pages.filter((page) => page.ok).map((page) => hashFile(page.screenshot_path))
+  );
+  const uniqueScreenshotCount = new Set(screenshotHashes.filter(Boolean)).size;
 
   if (!parsed.ok || report.captured_count !== DEFAULT_PAGES.length) {
     return {
@@ -576,6 +589,14 @@ export async function runDesktopUiScreenshotSmoke(input: {
       passed: false,
       failure_category: "desktop_screenshot_failure",
       failure_message: `Expected ${DEFAULT_PAGES.length} screenshots, captured ${report.captured_count}.`
+    };
+  }
+  if (uniqueScreenshotCount < 5) {
+    return {
+      report,
+      passed: false,
+      failure_category: "desktop_screenshot_failure",
+      failure_message: `Desktop screenshots did not navigate across pages: only ${uniqueScreenshotCount} unique captures.`
     };
   }
 
