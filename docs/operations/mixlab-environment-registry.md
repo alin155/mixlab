@@ -51,6 +51,7 @@
 - 2026-06-21，UI Foundation Cutter 最终清理包 `fee7184` 已完成共享目录交付并通过 Windows 安装与真实剪切验收。安装包 SHA-256 `fa6917108943c039ab8146f7aa6fb5caf966a356cb2db27a0476b55ff7e3b0fc`，GitHub Actions run `27915627515`。该包修复剪辑端左下角侧边栏“素材库”本地/公共数量反转问题，移除了按路由切换数量顺序的逻辑。验收前发现管理端/当前索引已到 `v010471`、`10471` 条 ready 视频，但 Cutter release catalog 仍停在 `v007950`、`7950` 条；已发布 Cutter release `v010471` 并让 Windows 本机 release cache 同步。`install_latest_and_smoke-20260621T200636Z-0db14ade` 通过：安装退出码 `0`，安装耗时 `6905ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `available_video_count=10471`，公共素材首屏 `20 / 10471`、`27ms`。真实剪切 `real_cut_smoke-20260621T200740Z-504436ad` 通过：`run-next 1020ms`，`resolve_source 1ms`，`preflight_source 3ms`，`cut_media 828ms`，输出 `export-clips/E000012/001-Windows验收剪切-20260621200740-C0728.mp4`。
 - 2026-06-22 UTC，UI Foundation Cutter 最终验收包 `e58b0c0` 已完成共享目录交付并通过 Windows 安装、稳定态、真实剪切和桌面截图验收。安装包 SHA-256 `616ef8e82580c422d0088fbeae1fcdbbc2335de397f9fe67d23396b7d29bea03`，GitHub Actions run `27926100937`。该包在 `fee7184` 的 UI Foundation / 侧边栏数量修复基础上，加固剪切任务列表读取，避免旧版或损坏的本地 job 文件导致剪切任务或搜索页面加载失败。`install_latest_and_smoke-20260622T033101Z-e47cfbf7` 通过：安装退出码 `0`，安装耗时 `7135ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `available_video_count=10471`，公共素材首屏 `20 / 10471`。稳定态 `windows_acceptance-20260622T033351Z-a641ee2c` 通过：runtime `276ms`，公共素材首屏 `53ms`，搜索 `第一场` `51ms` 且走 `searchd`，完整文案详情 `31ms`，剪切任务列表 `158ms`。真实剪切 `real_cut_smoke-20260622T033449Z-ab051386` 通过：`run-next 1169ms`，`resolve_source 1ms`，`preflight_source 2ms`，`cut_media 984ms`，输出 `export-clips/E000013/001-Windows验收剪切-20260622033449-C0728.mp4`。桌面截图 `desktop_ui_screenshot_smoke-20260622T043112Z-cdbf15ef` 通过并人工复查 8 张截图，无 Windows 弹窗遮挡，无浏览器级滚动条，侧边栏显示 `本地 13 / 公共 10471`。当前 shared latest 已更新为 `e58b0c0`。
 - 2026-06-22 UTC，剪辑端 Windows 包 `4cfa671` 已完成共享目录交付并通过 Windows 安装、稳定态和真实剪切验收。安装包 SHA-256 `ddd5df4af7e542513ad5aaabc5cf4e071f8dbe2a37c13badb5aafb45c7207e3a`，GitHub Actions run `27947836426`。该包修复搜索/剪切后可能出现全屏“加载失败”的稳定性问题：Cutter API 源媒体流错误不再触发进程崩溃，桌面端 searchd readiness 在 reviewed 认证下可正确识别，前端队列/详情等可恢复刷新失败改为局部提示而不是整页错误。`install_latest_and_smoke-20260622T114426Z-2eecf96a` 通过：安装退出码 `0`，安装耗时 `7133ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `284ms`，公共素材首屏 `20 / 10471`、`47ms`。稳定态 `windows_acceptance-20260622T113915Z-3aa5b97c` 通过：runtime `213ms`，公共素材首屏 `65ms`，搜索 `第一场` `74ms` 且走 `searchd`，完整文案详情 `34ms`、`10940` 字 / `367` 段，缓存可观测总量 `41,190,616,226` bytes。真实剪切 `real_cut_smoke-20260622T114525Z-d82f8837` 通过：`run-next 1361ms`，`resolve_source 2ms`，`preflight_source 3ms`，`cut_media 1131ms`，输出 `export-clips/E000016/001-Windows验收剪切-20260622114525-C0728.mp4`。当前 shared latest 已更新为 `4cfa671`。
+- 2026-06-22 UTC，剪辑端 Windows 包 `d899706` 已完成共享目录交付并通过 Windows 安装和稳定态验收。安装包 SHA-256 `66d534ce86b93124b4cc387b56dcd04f69b2614b853b8c5cdabc062400b8603a`，GitHub Actions run `27961434253`。该包在 `d137b6a` 前端 rerun 防护基础上新增服务端自动 drain 剪切队列：桌面端和本机 Cutter API 在提交/重试剪切任务后会自动消费 pending 队列，避免前端连续剪切、刷新或错过 `/run-next` 触发时任务长期停留在排队等待。`install_latest_and_smoke-20260622T150236Z-dc5858a0` 通过：安装退出码 `0`，安装耗时 `7210ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `34ms`，公共素材首屏 `20 / 10471`、`15ms`。安装后服务端自动处理历史 pending：初始 `pending=1, running=1, done=20`，随后稳定态 `windows_acceptance-20260622T150439Z-982fde32` 通过并显示 `pending=0, running=0, done=22`。继续触发旧 Runner `real_cut_smoke-20260622T150610Z-b54a8a93` 时，Runner 因仍假设“提交后由 Runner 手动 run-next”而误报 `status unknown`；后续稳定态 `windows_acceptance-20260622T150750Z-4bda19b4` 通过，显示新建 smoke 剪切任务实际已完成：`pending=0, running=0, done=23`。当前 shared latest 已更新为 `d899706`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -183,15 +184,15 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-22 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-4cfa671.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-d899706.exe
 version: 0.18.10
-commit: 4cfa671
-github_run_id: 27947836426
-sha256: ddd5df4af7e542513ad5aaabc5cf4e071f8dbe2a37c13badb5aafb45c7207e3a
-included_fix: handle Cutter API source media stream errors without crashing; detect searchd readiness correctly under reviewed auth; downgrade recoverable cutter refresh failures from full-screen errors to local notices
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260622T114426Z-2eecf96a/report.json
-windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260622T113915Z-3aa5b97c/report.json
-real_cut_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260622T114525Z-d82f8837/report.json
+commit: d899706
+github_run_id: 27961434253
+sha256: 66d534ce86b93124b4cc387b56dcd04f69b2614b853b8c5cdabc062400b8603a
+included_fix: server-side automatic cutter queue drain plus frontend rerun guard so rapid consecutive cuts do not leave jobs pending
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260622T150236Z-dc5858a0/report.json
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260622T150750Z-4bda19b4/report.json
+runner_real_cut_smoke_incompatible_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260622T150610Z-b54a8a93/report.json
 ```
 
 桌面端内置资源：
@@ -228,7 +229,7 @@ Windows 日志默认目录：
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
 | 当前共享版本 | `0.1.32` |
-| 当前实机运行版本 | `0.1.13` on `3799`，2026-06-22 仍作为主入口完成安装和验收；共享目录已有 `0.1.32`，需要重启 Windows Runner 后才能使用新增诊断 suite。 |
+| 当前实机运行版本 | `0.1.32` on `3799`，2026-06-22 Mac 侧通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证。 |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -267,7 +268,7 @@ Windows 日志默认目录：
 
 `0.1.31` 修复内容：`desktop_ui_screenshot_smoke` 会识别并非破坏性关闭 Windows Security / Firewall prompt，截图前后增加稳定等待，避免弹窗遮挡页面截图。`desktop_ui_screenshot_smoke-20260622T043112Z-cdbf15ef` 已通过并产出 8 张干净桌面端截图。
 
-`0.1.32` 修复内容：新增 `desktop_incident_diagnostics` suite，并把 `launch_app_probe` 的 incident 采集能力抽出复用。用于 Windows 桌面端出现全屏加载失败、sidecar/searchd 异常或日志需要回传时，自动收集桌面端日志、sidecar/searchd 输出尾部、运行时状态和最近报告线索。共享目录已发布 `0.1.32`，但主入口 `3799` 截至本记录仍为 `0.1.13`。
+`0.1.32` 修复内容：新增 `desktop_incident_diagnostics` suite，并把 `launch_app_probe` 的 incident 采集能力抽出复用。用于 Windows 桌面端出现全屏加载失败、sidecar/searchd 异常或日志需要回传时，自动收集桌面端日志、sidecar/searchd 输出尾部、运行时状态和最近报告线索。共享目录已发布 `0.1.32`，主入口 `3799` 截至 2026-06-22 已验证为 `0.1.32`。
 
 `0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
 
