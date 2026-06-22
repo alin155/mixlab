@@ -192,7 +192,7 @@ if (-not $proc) {
 $procPath = $proc.path
 $proc = $proc.process
 
-[MixLabWin32]::ShowWindow($proc.MainWindowHandle, 5) | Out-Null
+[MixLabWin32]::ShowWindow($proc.MainWindowHandle, 3) | Out-Null
 Start-Sleep -Milliseconds 500
 $shell = New-Object -ComObject WScript.Shell
 $shell.SendKeys('{ESC}')
