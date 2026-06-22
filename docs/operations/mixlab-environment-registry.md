@@ -1,6 +1,6 @@
 # MixLab 环境登记表
 
-更新时间：2026-06-21
+更新时间：2026-06-21 / 2026-06-22 UTC
 
 本文件记录 MixLab 管理端、剪辑端、Windows 桌面端、Windows Test Runner、共享文件夹、NAS 公共素材库和本机缓存的约定环境。后续开发、测试、打包、调试前必须先确认这里的环境视角，避免把不同机器上的 `127.0.0.1`、不同端口、不同素材根目录混在一起。
 
@@ -48,7 +48,8 @@
 - 2026-06-18，UI Foundation 低风险页迁移包 `10aa479` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `4f59030e5bfdb06984b4f2eed2123df3ce0a21fdb77dde35de0715fde8c2fa9a`，GitHub Actions run `27791103017`。`install_latest_and_smoke-20260618T220257Z-6ffbebb7` 通过：安装退出码 `0`，安装耗时 `6960ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`28ms`。安装后即时验收处于 searchd 冷启动窗口：搜索 `第一场` `860ms` 且走 `sqlite-index`，完整文案详情 `1679ms`。稳定态验收 `windows_acceptance-20260618T220518Z-885837c2` 通过：runtime `153ms`，公共素材首屏 `33ms`，搜索 `第一场` `50ms` 且走 `searchd`，完整文案详情 `20ms`，剪切任务列表 `23ms`，缓存可观测总量 `28,673,740,332` bytes。当前 shared latest 已更新为 `10aa479`。
 - 2026-06-18，UI Foundation 剪切任务页迁移包 `3cf28bb` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `dc3e1a2cd8fef0f0208095db9436cc392f2c9e4ca35df5577ac335f05af56e79`，GitHub Actions run `27793165132`。`install_latest_and_smoke-20260618T224828Z-e96cf5e9` 通过：安装退出码 `0`，安装耗时 `6859ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`43ms`。安装后即时验收处于 searchd 冷启动窗口：搜索 `第一场` `808ms` 且走 `sqlite-index`，完整文案详情 `2037ms`。稳定态验收 `windows_acceptance-20260618T225023Z-5c8b298c` 通过：runtime `136ms`，公共素材首屏 `32ms`，搜索 `第一场` `55ms` 且走 `searchd`，完整文案详情 `32ms`，剪切任务列表 `25ms`，缓存可观测总量 `28,673,740,332` bytes，其中 source video cache `27,559,860,594` bytes / `3` 条。当前 shared latest 已更新为 `3cf28bb`。
 - 2026-06-18，UI Foundation 素材搜索页迁移包 `b8890e3` 已完成共享目录交付并通过 Windows 安装验收。安装包 SHA-256 `a1b009c8399b9c8fc670821f327903072a533d934b389a1cbc7719f13a786003`，GitHub Actions run `27796580795`。该包包含 `cdc31dd` 的素材搜索 UI Foundation 迁移，并修复 Windows 冷启动时后台 release cache 同步期间 `/cutter/source-library` 可能退回 NAS SMB 慢读的问题：已有本机 release cache 时先用本机缓存响应，同时后台继续同步。`install_latest_and_smoke-20260619T001008Z-b2ecb85c` 通过：安装退出码 `0`，安装耗时 `6935ms`，`auth_mode=reviewed`，`local_trusted=false`，公共素材首屏 `20 / 7950`、`50ms`，搜索冷启动窗口 `811ms` 且走 `sqlite-index`。稳定态验收 `windows_acceptance-20260619T001310Z-b2aa6a21` 通过：runtime `176ms`，公共素材首屏 `62ms`，搜索 `第一场` `48ms` 且走 `searchd`，完整文案详情 `47ms`，剪切任务列表 `23ms`，缓存可观测总量 `28,673,740,332` bytes，其中 release cache `1,109,861,341` bytes、source video cache `27,559,860,594` bytes / `3` 条。当前 shared latest 已更新为 `b8890e3`。
-- 2026-06-21，UI Foundation Cutter 最终清理包 `fee7184` 已完成共享目录交付并通过 Windows 安装与真实剪切验收。安装包 SHA-256 `fa6917108943c039ab8146f7aa6fb5caf966a356cb2db27a0476b55ff7e3b0fc`，GitHub Actions run `27915627515`。该包修复剪辑端左下角侧边栏“素材库”本地/公共数量反转问题，移除了按路由切换数量顺序的逻辑。验收前发现管理端/当前索引已到 `v010471`、`10471` 条 ready 视频，但 Cutter release catalog 仍停在 `v007950`、`7950` 条；已发布 Cutter release `v010471` 并让 Windows 本机 release cache 同步。`install_latest_and_smoke-20260621T200636Z-0db14ade` 通过：安装退出码 `0`，安装耗时 `6905ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `available_video_count=10471`，公共素材首屏 `20 / 10471`、`27ms`。真实剪切 `real_cut_smoke-20260621T200740Z-504436ad` 通过：`run-next 1020ms`，`resolve_source 1ms`，`preflight_source 3ms`，`cut_media 828ms`，输出 `export-clips/E000012/001-Windows验收剪切-20260621200740-C0728.mp4`。当前 shared latest 已更新为 `fee7184`。
+- 2026-06-21，UI Foundation Cutter 最终清理包 `fee7184` 已完成共享目录交付并通过 Windows 安装与真实剪切验收。安装包 SHA-256 `fa6917108943c039ab8146f7aa6fb5caf966a356cb2db27a0476b55ff7e3b0fc`，GitHub Actions run `27915627515`。该包修复剪辑端左下角侧边栏“素材库”本地/公共数量反转问题，移除了按路由切换数量顺序的逻辑。验收前发现管理端/当前索引已到 `v010471`、`10471` 条 ready 视频，但 Cutter release catalog 仍停在 `v007950`、`7950` 条；已发布 Cutter release `v010471` 并让 Windows 本机 release cache 同步。`install_latest_and_smoke-20260621T200636Z-0db14ade` 通过：安装退出码 `0`，安装耗时 `6905ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `available_video_count=10471`，公共素材首屏 `20 / 10471`、`27ms`。真实剪切 `real_cut_smoke-20260621T200740Z-504436ad` 通过：`run-next 1020ms`，`resolve_source 1ms`，`preflight_source 3ms`，`cut_media 828ms`，输出 `export-clips/E000012/001-Windows验收剪切-20260621200740-C0728.mp4`。
+- 2026-06-22 UTC，UI Foundation Cutter 最终验收包 `e58b0c0` 已完成共享目录交付并通过 Windows 安装、稳定态、真实剪切和桌面截图验收。安装包 SHA-256 `616ef8e82580c422d0088fbeae1fcdbbc2335de397f9fe67d23396b7d29bea03`，GitHub Actions run `27926100937`。该包在 `fee7184` 的 UI Foundation / 侧边栏数量修复基础上，加固剪切任务列表读取，避免旧版或损坏的本地 job 文件导致剪切任务或搜索页面加载失败。`install_latest_and_smoke-20260622T033101Z-e47cfbf7` 通过：安装退出码 `0`，安装耗时 `7135ms`，`auth_mode=reviewed`，`local_trusted=false`，runtime `available_video_count=10471`，公共素材首屏 `20 / 10471`。稳定态 `windows_acceptance-20260622T033351Z-a641ee2c` 通过：runtime `276ms`，公共素材首屏 `53ms`，搜索 `第一场` `51ms` 且走 `searchd`，完整文案详情 `31ms`，剪切任务列表 `158ms`。真实剪切 `real_cut_smoke-20260622T033449Z-ab051386` 通过：`run-next 1169ms`，`resolve_source 1ms`，`preflight_source 2ms`，`cut_media 984ms`，输出 `export-clips/E000013/001-Windows验收剪切-20260622033449-C0728.mp4`。桌面截图 `desktop_ui_screenshot_smoke-20260622T043112Z-cdbf15ef` 通过并人工复查 8 张截图，无 Windows 弹窗遮挡，无浏览器级滚动条，侧边栏显示 `本地 13 / 公共 10471`。当前 shared latest 已更新为 `e58b0c0`。
 - 2026-06-16，发现旧版 `start-windows-test-runner.cmd` 使用 `pushd` 进入 UNC 共享目录，Windows 会自动映射临时盘符；多次启动/中断时可能残留一串 `N:` 到 `Z:` 之类的共享映射。启动脚本已改为直接使用 `%~dp0` 绝对路径，不再 `pushd`/`popd`，以后不应再新增这类映射。
 - 2026-06-16，排查 Windows 桌面端首启页阻塞时发现端口冲突风险：Windows Test Runner 使用 `3799`，桌面端 searchd 必须使用 `3790`，不能让测试 Runner 和产品内部搜索服务共用同一个端口。
 - Mac 当前观察到的监听端口：
@@ -178,17 +179,19 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 | Windows 包脚本 | `npm run package:cutter-desktop:windows` |
 | 安装包交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
 
-2026-06-21 当前最新已验收共享安装包：
+2026-06-22 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-fee7184.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-e58b0c0.exe
 version: 0.18.10
-commit: fee7184
-github_run_id: 27915627515
-sha256: fa6917108943c039ab8146f7aa6fb5caf966a356cb2db27a0476b55ff7e3b0fc
-included_fix: fix cutter sidebar local/public library count mapping; align Cutter release catalog to v010471 / 10471 public videos
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260621T200636Z-0db14ade/report.json
-real_cut_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260621T200740Z-504436ad/report.json
+commit: e58b0c0
+github_run_id: 27926100937
+sha256: 616ef8e82580c422d0088fbeae1fcdbbc2335de397f9fe67d23396b7d29bea03
+included_fix: fix cutter sidebar local/public library count mapping; align Cutter release catalog to v010471 / 10471 public videos; harden cut job list against legacy/corrupt workspace job files
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260622T033101Z-e47cfbf7/report.json
+windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260622T033351Z-a641ee2c/report.json
+real_cut_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260622T033449Z-ab051386/report.json
+desktop_ui_screenshot_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260622T043112Z-cdbf15ef/report.json
 acceptance_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/m18-5-windows-cutter-ui-foundation-final.md
 ```
 
@@ -225,7 +228,7 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.23` |
+| 当前共享版本 | `0.1.31` |
 | 当前实机运行版本 | `0.1.13` on `3799`，2026-06-18 通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证。 |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
@@ -237,10 +240,10 @@ Windows 日志默认目录：
 | Mac 远程健康检查 | `http://192.168.1.20:3799/health` |
 | 共享 bootstrap 日志 | `/Users/huaqihang/Public/MixLabWindowsBuilds/logs/runner/bootstrap-<port>.log`，默认 `bootstrap-3799.log` |
 
-2026-06-21 当前共享发布记录：
+2026-06-22 UTC 当前共享发布记录：
 
 ```text
-0.1.23 7ed3cd7 27918481611 0316fa67dbb7879ef454aa19cc62f8f4b9949e0be6565a14ccba9e1a8bdaa3fc
+0.1.31 810d1e5 27929551191 3a73c75ac5f11d30e978cb509daf84556215523ed6b72bd999cd40fbf0bff550
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -259,7 +262,11 @@ Windows 日志默认目录：
 
 `0.1.9` 修复内容：新增 `install_latest_and_smoke` suite。Runner 会从共享目录选择最新 `MixLab Cutter` 安装包，复制到 Windows 本机临时目录，校验 SHA-256，关闭旧桌面端/sidecar/searchd 进程，静默安装，然后执行 `windows_acceptance`。
 
-`0.1.23` 修复内容：新增并强化 `desktop_ui_screenshot_smoke`，可通过备用本机端口采集 Windows 桌面端核心页面截图。当前已能生成 8 张页面截图，但 Windows Security / Firewall dialog for `Node.js JavaScript Runtime` 会覆盖画面；该弹窗需要在 Windows 侧人工关闭或允许一次后，再重跑截图验收。
+`0.1.23` 修复内容：新增并强化 `desktop_ui_screenshot_smoke`，可通过备用本机端口采集 Windows 桌面端核心页面截图。该版本可生成 8 张页面截图，但曾被 Windows Security / Firewall dialog for `Node.js JavaScript Runtime` 覆盖；此限制已由 `0.1.31` 处理。
+
+`0.1.29` 修复内容：`windows_acceptance`、`install_latest_and_smoke` 等正式验收 suite 支持 `options.auth_credentials`，可用剪辑师用户名/密码登录获取 reviewed 模式 session headers，报告不记录密码或 session token。
+
+`0.1.31` 修复内容：`desktop_ui_screenshot_smoke` 会识别并非破坏性关闭 Windows Security / Firewall prompt，截图前后增加稳定等待，避免弹窗遮挡页面截图。`desktop_ui_screenshot_smoke-20260622T043112Z-cdbf15ef` 已通过并产出 8 张干净桌面端截图。
 
 `0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
 
