@@ -184,13 +184,14 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-23 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-33a24a7.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-bbb4a77.exe
 version: 0.18.10
-commit: 33a24a791f4c65ee69c9b6536dc924fa7d724689
-github_run_id: 28015985365
-sha256: 16b01227e01b09383eb8f9778febfdac782442983046df5501994106804d5e4c
-included_fix: Windows directory opener uses stable explorer.exe resolution for Cutter API and Tauri folder-open actions
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T095000Z-3c46d189/report.json
+commit: bbb4a77ec77e1f93a0e9dfd52f99ec986e10dc13
+github_run_id: 28020267131
+sha256: 89c847ea10a15785fa987baf7c6d6945bdd8e141bd1037108fcc37f84ac8e186
+included_fix: Windows desktop folder buttons resolve directories through Cutter API with open=false and then open via native Tauri host; Settings shows runtime environment and app version.
+install_smoke_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T105438Z-7ac5ba5d/summary.md
+archived_install_smoke_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/install_latest_and_smoke-20260623T105438Z-7ac5ba5d/summary.md
 m19_runtime_foundation_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/m19_runtime_foundation-20260623T035006Z-8dad91a6/report.json
 local_web_m19_report: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/m19-runtime-foundation-local-web-current.json
 ```
