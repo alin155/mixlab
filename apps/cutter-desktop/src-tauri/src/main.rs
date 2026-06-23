@@ -426,6 +426,18 @@ fn spawn_hidden_process(command: &mut Command) -> Result<(), String> {
         .map_err(|error| format!("无法启动进程：{error}"))
 }
 
+fn spawn_visible_process(command: &mut Command) -> Result<(), String> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("无法启动进程：{error}"))
+}
+
 fn spawn_logged_process(
     app: &AppHandle,
     command: &mut Command,
@@ -668,7 +680,7 @@ fn windows_explorer_path() -> PathBuf {
 }
 
 #[tauri::command(rename_all = "camelCase")]
-fn desktop_open_directory(path_value: String) -> Result<(), String> {
+fn desktop_open_directory(app: AppHandle, path_value: String) -> Result<(), String> {
     let trimmed = path_value.trim();
     if trimmed.is_empty() {
         return Ok(());
@@ -676,6 +688,11 @@ fn desktop_open_directory(path_value: String) -> Result<(), String> {
 
     let target = PathBuf::from(trimmed);
     fs::create_dir_all(&target).map_err(|error| format!("无法创建目录：{error}"))?;
+    desktop_host_log(
+        &app,
+        "open_directory_requested",
+        json!({ "path": path_string(target.clone()) }),
+    );
 
     #[cfg(target_os = "macos")]
     let mut command = {
@@ -698,7 +715,24 @@ fn desktop_open_directory(path_value: String) -> Result<(), String> {
         command
     };
 
-    spawn_hidden_process(&mut command)
+    match spawn_visible_process(&mut command) {
+        Ok(()) => {
+            desktop_host_log(
+                &app,
+                "open_directory_spawned",
+                json!({ "path": path_string(target) }),
+            );
+            Ok(())
+        }
+        Err(error) => {
+            desktop_host_log(
+                &app,
+                "open_directory_failed",
+                json!({ "path": path_string(target), "error": error }),
+            );
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]

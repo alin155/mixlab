@@ -118,6 +118,13 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /\.join\("resources"\)[\s\S]*\.join\("binaries"\)[\s\S]*\.join\(executable_name\)/);
   assert.match(source, /fn desktop_start_engine/);
   assert.match(source, /fn desktop_open_directory/);
+  assert.match(source, /fn spawn_visible_process/);
+  assert.match(source, /open_directory_requested/);
+  assert.match(source, /open_directory_spawned/);
+  assert.match(source, /open_directory_failed/);
+  assert.match(source, /desktop_open_directory\(app: AppHandle,/);
+  assert.match(source, /spawn_visible_process\(&mut command\)/);
+  assert.doesNotMatch(source, /desktop_open_directory\(path_value: String\)[\s\S]*spawn_hidden_process\(&mut command\)/);
   assert.match(source, /desktop_start_engine,\s*\n\s*desktop_open_directory/);
 });
 
