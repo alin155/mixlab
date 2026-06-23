@@ -244,6 +244,7 @@ export interface OpenCutOutputDirectoryResult {
 export interface OpenCutOutputDirectoryRequest {
   project_id?: string;
   project_title?: string;
+  open?: boolean;
 }
 
 export interface DeleteProjectOutputsResult {

@@ -195,6 +195,7 @@ interface SubmitCutJobsRequestBody {
 interface OpenExportDirectoryRequestBody {
   project_id?: unknown;
   project_title?: unknown;
+  open?: unknown;
 }
 
 interface LocalClipSelection {
@@ -4617,6 +4618,7 @@ async function openWorkspaceExportDirectory(
   const workspaceRoot = workspaceRootOrThrow(input);
   const projectId = optionalString(body.project_id, "project_id");
   const projectTitle = optionalString(body.project_title, "project_title");
+  const shouldOpen = body.open !== false;
   const targetPath = await resolveProjectOutputDirectory({
     workspace_root: workspaceRoot,
     project_id: projectId,
@@ -4625,7 +4627,9 @@ async function openWorkspaceExportDirectory(
   const openPath = input.open_path ?? defaultOpenPath;
 
   await mkdir(targetPath, { recursive: true });
-  await openPath(targetPath);
+  if (shouldOpen) {
+    await openPath(targetPath);
+  }
 
   return { path: targetPath };
 }

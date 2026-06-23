@@ -3836,6 +3836,24 @@ test("opens the current project output directory for cutters", async () => {
     assert.equal(body.data.path, expectedPath);
     assert.deepEqual(openedPaths, [expectedPath]);
     assert.equal(await fileOrDirExists(expectedPath), true);
+
+    const resolveOnlyResponse = await fetch(`${baseUrl}/cutter/workspace/open-export-directory`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        project_title: "只解析目录",
+        open: false
+      })
+    });
+    assert.equal(resolveOnlyResponse.status, 200);
+    const resolveOnlyBody = await resolveOnlyResponse.json() as any;
+    const expectedResolveOnlyPath = path.join(workspaceRoot, "projects", "只解析目录");
+    assert.equal(resolveOnlyBody.data.path, expectedResolveOnlyPath);
+    assert.deepEqual(openedPaths, [expectedPath]);
+    assert.equal(await fileOrDirExists(expectedResolveOnlyPath), true);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

@@ -142,6 +142,8 @@ export function SettingsPage({
   settings,
   runtimeStatus,
   appearanceMode,
+  appVersion,
+  runtimeEnvironment = "Web 端",
   defaultCutMode = settings.default_cut_mode,
   defaultSourceFilter = "all",
   defaultOrientationFilter = "all",
@@ -154,6 +156,8 @@ export function SettingsPage({
   settings: CutterWorkbenchSettings;
   runtimeStatus?: CutterRuntimeStatus;
   appearanceMode: CutterAppearanceMode;
+  appVersion?: string;
+  runtimeEnvironment?: string;
   defaultCutMode?: CutMode;
   defaultSourceFilter?: MaterialSearchSourceFilter;
   defaultOrientationFilter?: VideoOrientationFilter;
@@ -169,10 +173,15 @@ export function SettingsPage({
   const [passwordStatus, setPasswordStatus] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const runtimeIdentityRows = [
+    { label: "运行环境", value: runtimeEnvironment },
+    { label: "应用版本", value: appVersion?.trim() ? `v${appVersion.trim()}` : "Web 调试" }
+  ];
   const runtimeGroup = runtimeStatus
     ? {
         title: "服务状态",
         rows: [
+          ...runtimeIdentityRows,
           { label: "连接", value: runtimeStatus.api_ready ? "可用" : "不可用" },
           {
             label: "当前剪辑师",
@@ -216,6 +225,7 @@ export function SettingsPage({
     : {
         title: "服务状态",
         rows: [
+          ...runtimeIdentityRows,
           { label: "连接", value: "未连接" },
           { label: "素材库", value: "待连接" }
         ]

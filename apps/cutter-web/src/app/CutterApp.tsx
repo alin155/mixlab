@@ -7,12 +7,14 @@ import {
 import {
   CutterApiError,
   createCutterApiClient,
+  type CutterApiClient,
   type CutterAuthModeStatus,
   type CutterLoginApplication,
   type CutterLoginStatus,
   type CutterLoginStatusValue,
   type CutterPasswordChangeRequest,
   type CutterRuntimeStatus,
+  type OpenCutOutputDirectoryRequest,
   type SearchGroup,
   type SearchResponse,
   type SourceVideoCard
@@ -138,6 +140,24 @@ const CUTTER_CUT_JOB_REFRESH_LIMIT = 200;
 const MATERIAL_SEARCH_FIRST_BATCH_LIMIT = 10;
 const MATERIAL_SEARCH_NEXT_BATCH_LIMIT = 20;
 const DEFAULT_LOCAL_CUTTER_API_BASE_URL = "http://127.0.0.1:3789/";
+
+export async function openOutputDirectoryForRuntime(input: {
+  client: Pick<CutterApiClient, "openCutOutputDirectory">;
+  request?: OpenCutOutputDirectoryRequest;
+  isDesktopMode: boolean;
+  openDesktopDirectoryFn?: (pathValue: string) => Promise<void>;
+}) {
+  const opened = await input.client.openCutOutputDirectory({
+    ...input.request,
+    ...(input.isDesktopMode ? { open: false } : {})
+  });
+
+  if (input.isDesktopMode) {
+    await (input.openDesktopDirectoryFn ?? openDesktopDirectory)(opened.path);
+  }
+
+  return opened;
+}
 
 function mergeSourceVideoCards(
   current: readonly SourceVideoCard[],
@@ -1212,6 +1232,8 @@ function renderPage(
     cutPipelineState: CutPipelineState;
     apiBaseUrl: string;
     appearanceMode: CutterAppearanceMode;
+    appVersion?: string;
+    runtimeEnvironment: string;
     selectedCutMode: CutMode;
   },
   handlers: {
@@ -1375,6 +1397,8 @@ function renderPage(
         settings={data.settings}
         runtimeStatus={data.runtimeStatus}
         appearanceMode={viewState.appearanceMode}
+        appVersion={viewState.appVersion}
+        runtimeEnvironment={viewState.runtimeEnvironment}
         defaultCutMode={viewState.selectedCutMode}
         defaultSourceFilter={viewState.sourceFilter}
         defaultOrientationFilter={viewState.orientationFilter}
@@ -1509,6 +1533,15 @@ export function CutterApp() {
     () => createRuntimeClient(apiBaseUrl, authSession),
     [apiBaseUrl, authSession]
   );
+
+  async function openRuntimeOutputDirectory(request: OpenCutOutputDirectoryRequest = {}) {
+    return openOutputDirectoryForRuntime({
+      client,
+      request,
+      isDesktopMode
+    });
+  }
+
   const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus, {
     desktopTrusted: isDesktopMode
   });
@@ -3152,7 +3185,7 @@ export function CutterApp() {
       const project = projects.find((item) => item.project_id === projectId);
 
       try {
-        await client.openCutOutputDirectory({
+        await openRuntimeOutputDirectory({
           project_id: projectId,
           ...(project ? { project_title: projectDisplayTitle(project) } : {})
         });
@@ -3400,7 +3433,7 @@ export function CutterApp() {
       }
 
       try {
-        await client.openCutOutputDirectory({
+        await openRuntimeOutputDirectory({
           ...(currentProjectId ? { project_id: currentProjectId } : {}),
           ...(currentProject ? { project_title: projectDisplayTitle(currentProject) } : {})
         });
@@ -3420,7 +3453,7 @@ export function CutterApp() {
         : undefined;
 
       try {
-        await client.openCutOutputDirectory({
+        await openRuntimeOutputDirectory({
           ...(localClip.project_id ? { project_id: localClip.project_id } : {}),
           ...(project ? { project_title: projectDisplayTitle(project) } : {})
         });
@@ -3643,6 +3676,8 @@ export function CutterApp() {
                 cutPipelineState,
                 apiBaseUrl,
                 appearanceMode,
+                appVersion: isDesktopMode ? desktopAppVersionText || "读取中" : undefined,
+                runtimeEnvironment: isDesktopMode ? "Windows 桌面端" : "Web 端",
                 selectedCutMode
               },
               handlers

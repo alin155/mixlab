@@ -908,13 +908,15 @@ test("opens cutter project output directory with approved session headers", asyn
 
   const opened = await client.openCutOutputDirectory({
     project_id: "P20260506-aaa",
-    project_title: "5月6日"
+    project_title: "5月6日",
+    open: false
   });
 
   assert.equal(opened.path, "/Users/allen/Movies/MixLabLocal/projects/5月6日");
   assert.deepEqual(observedBody, {
     project_id: "P20260506-aaa",
-    project_title: "5月6日"
+    project_title: "5月6日",
+    open: false
   });
   assert.equal(observedDevice, "device-001");
   assert.equal(observedSession, "session-001");

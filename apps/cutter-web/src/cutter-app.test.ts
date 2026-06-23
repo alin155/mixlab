@@ -91,6 +91,7 @@ import {
   CutterProjectSwitcher,
   CutterSidebarFooter,
   CutterApp,
+  openOutputDirectoryForRuntime,
   shouldLoadWorkbenchData,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
@@ -151,6 +152,66 @@ function installTestWindow() {
     }
   });
 }
+
+test("desktop output directory opening resolves through API and delegates to native host", async () => {
+  const requests: unknown[] = [];
+  const openedPaths: string[] = [];
+
+  const opened = await openOutputDirectoryForRuntime({
+    isDesktopMode: true,
+    client: {
+      openCutOutputDirectory: async (request) => {
+        requests.push(request);
+        return { path: String.raw`C:\Users\ASUS\Videos\MixLabLocal\export-clips\ProjectA` };
+      }
+    },
+    request: {
+      project_id: "P20260623",
+      project_title: "ProjectA"
+    },
+    openDesktopDirectoryFn: async (pathValue) => {
+      openedPaths.push(pathValue);
+    }
+  });
+
+  assert.deepEqual(requests, [
+    {
+      project_id: "P20260623",
+      project_title: "ProjectA",
+      open: false
+    }
+  ]);
+  assert.deepEqual(openedPaths, [String.raw`C:\Users\ASUS\Videos\MixLabLocal\export-clips\ProjectA`]);
+  assert.equal(opened.path, String.raw`C:\Users\ASUS\Videos\MixLabLocal\export-clips\ProjectA`);
+});
+
+test("web output directory opening keeps API-owned open behavior", async () => {
+  const requests: unknown[] = [];
+  const openedPaths: string[] = [];
+
+  await openOutputDirectoryForRuntime({
+    isDesktopMode: false,
+    client: {
+      openCutOutputDirectory: async (request) => {
+        requests.push(request);
+        return { path: "/Users/allen/Movies/MixLabLocal/export-clips/ProjectA" };
+      }
+    },
+    request: {
+      project_title: "ProjectA"
+    },
+    openDesktopDirectoryFn: async (pathValue) => {
+      openedPaths.push(pathValue);
+    }
+  });
+
+  assert.deepEqual(requests, [
+    {
+      project_title: "ProjectA"
+    }
+  ]);
+  assert.deepEqual(openedPaths, []);
+});
 
 function backendDevice(overrides: Partial<CutterDeviceRecord> = {}): CutterDeviceRecord {
   return {
@@ -4690,6 +4751,8 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
       settings: data.settings,
       runtimeStatus: data.runtimeStatus,
       appearanceMode: "dark",
+      appVersion: "0.18.10",
+      runtimeEnvironment: "Windows 桌面端",
       defaultCutMode: "precise",
       defaultSourceFilter: "all",
       defaultOrientationFilter: "all",
@@ -4700,6 +4763,10 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
   for (const text of [
     "设置",
     "服务状态",
+    "运行环境",
+    "Windows 桌面端",
+    "应用版本",
+    "v0.18.10",
     "连接",
     "可用",
     "演示剪辑师",
