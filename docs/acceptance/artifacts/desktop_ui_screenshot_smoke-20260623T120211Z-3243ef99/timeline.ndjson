@@ -1,0 +1,10 @@
+{"at":"2026-06-23T12:02:11.080Z","stage":"starting","message":"Run accepted."}
+{"at":"2026-06-23T12:02:11.116Z","stage":"running","message":"Running suite desktop_ui_screenshot_smoke."}
+{"at":"2026-06-23T12:02:11.190Z","stage":"launching_or_focusing_app","message":"Launching or focusing MixLab Cutter before screenshots."}
+{"at":"2026-06-23T12:02:11.266Z","stage":"locating_app","message":"Locating installed MixLab Cutter executable."}
+{"at":"2026-06-23T12:02:11.396Z","stage":"launching_app","message":"Launching MixLab Cutter.","details":{"app_executable_path":"C:\\Users\\ASUS\\Desktop\\MixLab Cutter.lnk"}}
+{"at":"2026-06-23T12:02:11.452Z","stage":"waiting_api","message":"Waiting for MixLab Cutter sidecar API.","details":{"api_base_url":"http://127.0.0.1:3789","timeout_ms":30000}}
+{"at":"2026-06-23T12:02:11.506Z","stage":"probing_api","message":"Running cutter API smoke probes."}
+{"at":"2026-06-23T12:02:11.563Z","stage":"capturing_desktop_ui","message":"Capturing Windows desktop UI screenshots.","details":{"output_dir":"\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260623T120211Z-3243ef99\\screenshots"}}
+{"at":"2026-06-23T12:03:11.460Z","stage":"writing_report","message":"Writing report."}
+{"at":"2026-06-23T12:03:11.631Z","stage":"passed","message":"Run passed."}

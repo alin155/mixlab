@@ -184,14 +184,16 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-23 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-bbb4a77.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-8d5305d.exe
 version: 0.18.10
-commit: bbb4a77ec77e1f93a0e9dfd52f99ec986e10dc13
-github_run_id: 28020267131
-sha256: 89c847ea10a15785fa987baf7c6d6945bdd8e141bd1037108fcc37f84ac8e186
-included_fix: Windows desktop folder buttons resolve directories through Cutter API with open=false and then open via native Tauri host; Settings shows runtime environment and app version.
-install_smoke_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T105438Z-7ac5ba5d/summary.md
-archived_install_smoke_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/install_latest_and_smoke-20260623T105438Z-7ac5ba5d/summary.md
+commit: 8d5305d80b0e2447ec523ac069c4992287e240fd
+github_run_id: 28023759271
+sha256: 752104a5910523cfaf5c3bc6b793d546238fe1e6d7f62f65f150be7229b0a83d
+included_fix: Windows desktop folder buttons resolve directories through Cutter API with open=false and then open via native Tauri host; folder reveal is started through a visible OS process and logs open-directory diagnostics; Settings shows runtime environment, app version, and build commit.
+install_smoke_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T120102Z-c5bc768e/summary.md
+archived_install_smoke_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/install_latest_and_smoke-20260623T120102Z-c5bc768e/summary.md
+desktop_ui_screenshot_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260623T120211Z-3243ef99/summary.md
+archived_desktop_ui_screenshot_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/desktop_ui_screenshot_smoke-20260623T120211Z-3243ef99/summary.md
 m19_runtime_foundation_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/m19_runtime_foundation-20260623T035006Z-8dad91a6/report.json
 local_web_m19_report: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/m19-runtime-foundation-local-web-current.json
 ```

@@ -1,0 +1,22 @@
+{"at":"2026-06-23T12:01:02.787Z","stage":"starting","message":"Run accepted."}
+{"at":"2026-06-23T12:01:02.826Z","stage":"running","message":"Running suite install_latest_and_smoke."}
+{"at":"2026-06-23T12:01:02.926Z","stage":"copy_installer","message":"Copying installer to local temp storage.","details":{"installer_source_path":"\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\MixLab Cutter_0.18.10_x64-setup-8d5305d.exe","installer_local_path":"C:\\Users\\ASUS\\AppData\\Local\\Temp\\MixLabWindowsTestRunner\\installers\\2026-06-23T12-01-02-926Z-MixLab Cutter_0.18.10_x64-setup-8d5305d.exe"}}
+{"at":"2026-06-23T12:01:05.020Z","stage":"unblock_installer","message":"Removing Windows downloaded-file marker if present."}
+{"at":"2026-06-23T12:01:05.254Z","stage":"stop_existing_app","message":"Stopping existing MixLab Cutter processes."}
+{"at":"2026-06-23T12:01:05.676Z","stage":"install_app","message":"Running MixLab Cutter installer silently.","details":{"installer_local_path":"C:\\Users\\ASUS\\AppData\\Local\\Temp\\MixLabWindowsTestRunner\\installers\\2026-06-23T12-01-02-926Z-MixLab Cutter_0.18.10_x64-setup-8d5305d.exe"}}
+{"at":"2026-06-23T12:01:14.223Z","stage":"windows_acceptance_after_install","message":"Running Windows acceptance after install."}
+{"at":"2026-06-23T12:01:14.296Z","stage":"locating_app","message":"Locating installed MixLab Cutter executable."}
+{"at":"2026-06-23T12:01:14.379Z","stage":"launching_app","message":"Launching MixLab Cutter.","details":{"app_executable_path":"C:\\Users\\ASUS\\Desktop\\MixLab Cutter.lnk"}}
+{"at":"2026-06-23T12:01:14.465Z","stage":"waiting_api","message":"Waiting for MixLab Cutter sidecar API.","details":{"api_base_url":"http://127.0.0.1:3789","timeout_ms":30000}}
+{"at":"2026-06-23T12:01:19.118Z","stage":"probing_api","message":"Running cutter API smoke probes."}
+{"at":"2026-06-23T12:01:19.189Z","stage":"app_runtime_auth","message":"Checking desktop auth mode."}
+{"at":"2026-06-23T12:01:19.244Z","stage":"app_runtime_login","message":"Logging in with supplied Cutter credentials for reviewed auth."}
+{"at":"2026-06-23T12:01:20.358Z","stage":"app_runtime_status","message":"Reading cutter runtime status."}
+{"at":"2026-06-23T12:01:20.452Z","stage":"app_runtime_source_library","message":"Reading public source library first page."}
+{"at":"2026-06-23T12:01:20.548Z","stage":"real_data_source_library","message":"Reading public source library."}
+{"at":"2026-06-23T12:01:20.630Z","stage":"real_data_search","message":"Searching public source library: 第一场"}
+{"at":"2026-06-23T12:01:21.487Z","stage":"real_data_detail","message":"Reading selected source video full transcript.","details":{"source_video_id":"V000790"}}
+{"at":"2026-06-23T12:01:21.569Z","stage":"real_data_cut_jobs","message":"Reading cut job queue."}
+{"at":"2026-06-23T12:01:21.702Z","stage":"cache_runtime_status","message":"Reading cache status from cutter runtime."}
+{"at":"2026-06-23T12:01:21.775Z","stage":"writing_report","message":"Writing report."}
+{"at":"2026-06-23T12:01:21.928Z","stage":"passed","message":"Run passed."}
