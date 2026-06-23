@@ -33,6 +33,7 @@ type CutterInfoGroup = {
   rows: Array<{
     label: string;
     value: ReactNode;
+    action?: ReactNode;
   }>;
 };
 
@@ -49,9 +50,13 @@ function CutterInfoGroups({ groups }: { groups: readonly CutterInfoGroup[] }) {
         >
           <dl className="ml-data-list cutter-info-list">
             {group.rows.map((row) => (
-              <div className="ml-data-row cutter-info-row ml-info-row" key={row.label}>
+              <div
+                className={`ml-data-row cutter-info-row ml-info-row${row.action ? " ml-info-row--with-action" : ""}`}
+                key={row.label}
+              >
                 <dt>{row.label}</dt>
                 <dd>{row.value}</dd>
+                {row.action ? <div className="ml-info-row-action">{row.action}</div> : null}
               </div>
             ))}
           </dl>
@@ -152,6 +157,9 @@ export function SettingsPage({
   onSetDefaultCutMode,
   onSetDefaultSourceFilter,
   onSetDefaultOrientationFilter,
+  localWorkspacePath,
+  workspaceConfigNotice,
+  onConfigureLocalWorkspace,
   onChangePassword
 }: {
   settings: CutterWorkbenchSettings;
@@ -167,14 +175,19 @@ export function SettingsPage({
   onSetDefaultCutMode?: (mode: CutMode) => void;
   onSetDefaultSourceFilter?: (filter: MaterialSearchSourceFilter) => void;
   onSetDefaultOrientationFilter?: (filter: VideoOrientationFilter) => void;
+  localWorkspacePath?: string;
+  workspaceConfigNotice?: string;
+  onConfigureLocalWorkspace?: () => void;
   onChangePassword?: (input: { current_password: string; new_password: string }) => Promise<void> | void;
 }) {
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordStatus, setPasswordStatus] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const localWorkspaceDisplay = localWorkspacePath?.trim() || settings.local_workspace || "未配置";
   const runtimeIdentityRows = [
     { label: "运行环境", value: runtimeEnvironment },
     { label: "应用版本", value: appVersion?.trim() ? `v${appVersion.trim()}` : "Web 调试" },
@@ -271,11 +284,30 @@ export function SettingsPage({
       setNewPassword("");
       setConfirmPassword("");
       setPasswordStatus("密码已更新，下次登录请使用新密码。");
+      setPasswordDialogOpen(false);
     } catch (error) {
       setPasswordError(error instanceof Error ? error.message : "修改密码失败。");
     } finally {
       setPasswordSubmitting(false);
     }
+  };
+
+  const openPasswordDialog = () => {
+    setPasswordError("");
+    setPasswordStatus("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordDialogOpen(true);
+  };
+
+  const closePasswordDialog = () => {
+    if (passwordSubmitting) {
+      return;
+    }
+
+    setPasswordError("");
+    setPasswordDialogOpen(false);
   };
 
   return (
@@ -296,7 +328,18 @@ export function SettingsPage({
               title: "素材与工作区",
               rows: [
                 { label: "公共素材库", value: settings.public_library_mount },
-                { label: "本地工作区", value: settings.local_workspace },
+                {
+                  label: "本地素材库地址",
+                  value: localWorkspaceDisplay,
+                  action: onConfigureLocalWorkspace ? (
+                    <Button size="sm" type="button" variant="secondary" onClick={onConfigureLocalWorkspace}>
+                      配置
+                    </Button>
+                  ) : undefined
+                },
+                ...(workspaceConfigNotice?.trim()
+                  ? [{ label: "配置状态", value: workspaceConfigNotice }]
+                  : []),
                 {
                   label: "默认素材来源",
                   value: (
@@ -388,14 +431,37 @@ export function SettingsPage({
           ]}
         />
 
-        <Card title="账号安全" className="cutter-settings-security ml-card-section-offset">
-          <form className="cutter-password-form ml-form-stack" onSubmit={handlePasswordSubmit}>
-            <div className="cutter-password-current-user ml-form-summary-row">
-              <span>当前账号</span>
-              <strong>
-                {runtimeStatus?.current_user.display_name || runtimeStatus?.current_user.username || "未登录"}
-              </strong>
-            </div>
+        <Card
+          title="账号安全"
+          actions={
+            <Button disabled={!onChangePassword} type="button" variant="secondary" onClick={openPasswordDialog}>
+              修改登录密码
+            </Button>
+          }
+          className="cutter-settings-security ml-card-section-offset"
+        >
+          <div className="cutter-password-current-user ml-form-summary-row">
+            <span>当前账号</span>
+            <strong>
+              {runtimeStatus?.current_user.display_name || runtimeStatus?.current_user.username || "未登录"}
+            </strong>
+          </div>
+          {passwordStatus ? (
+            <p className="cutter-password-message is-success ml-form-message ml-form-message--success">
+              {passwordStatus}
+            </p>
+          ) : null}
+        </Card>
+      </div>
+
+      {passwordDialogOpen ? (
+        <div className="cutter-modal-backdrop ml-modal-backdrop" role="presentation">
+          <section className="cutter-password-dialog ml-dialog" role="dialog" aria-modal="true" aria-label="修改登录密码">
+            <header className="ml-dialog-header">
+              <h2 className="ml-dialog-title">修改登录密码</h2>
+              <p className="ml-dialog-description">当前账号：{runtimeStatus?.current_user.display_name || runtimeStatus?.current_user.username || "未登录"}</p>
+            </header>
+            <form className="cutter-password-form ml-form-stack" onSubmit={handlePasswordSubmit}>
             <label className="cutter-password-field ml-form-field">
               <span>当前密码</span>
               <input
@@ -440,14 +506,18 @@ export function SettingsPage({
                 {passwordStatus}
               </p>
             ) : null}
-            <div>
-              <Button disabled={!onChangePassword || passwordSubmitting} type="submit" variant="primary">
-                修改密码
+            <footer className="ml-dialog-footer">
+              <Button disabled={passwordSubmitting} type="button" variant="secondary" onClick={closePasswordDialog}>
+                取消
               </Button>
-            </div>
+              <Button disabled={!onChangePassword || passwordSubmitting} type="submit" variant="primary">
+                保存密码
+              </Button>
+            </footer>
           </form>
-        </Card>
-      </div>
+          </section>
+        </div>
+      ) : null}
 
       <InspectorPanel title="环境检查" className="ml-inspector--workbench ml-inspector--operational ml-workbench-inspector ml-workbench-inspector--offset-header cutter-operational-inspector cutter-settings-inspector">
         <div className="cutter-settings-doctor ml-data-surface">

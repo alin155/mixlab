@@ -1244,6 +1244,8 @@ function renderPage(
     buildCommit?: string;
     runtimeEnvironment: string;
     selectedCutMode: CutMode;
+    localWorkspacePath?: string;
+    workspaceConfigNotice?: string;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -1287,6 +1289,7 @@ function renderPage(
     setLocalLibraryViewMode: (mode: LocalLibraryViewMode) => void;
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
     setCutMode: (mode: CutMode) => void;
+    configureLocalWorkspace?: () => void;
     changePassword: (input: CutterPasswordChangeRequest) => Promise<void>;
   }
 ) {
@@ -1412,10 +1415,13 @@ function renderPage(
         defaultCutMode={viewState.selectedCutMode}
         defaultSourceFilter={viewState.sourceFilter}
         defaultOrientationFilter={viewState.orientationFilter}
+        localWorkspacePath={viewState.localWorkspacePath}
+        workspaceConfigNotice={viewState.workspaceConfigNotice}
         onSetAppearanceMode={handlers.setAppearanceMode}
         onSetDefaultCutMode={handlers.setCutMode}
         onSetDefaultSourceFilter={handlers.setSourceFilter}
         onSetDefaultOrientationFilter={handlers.setOrientationFilter}
+        onConfigureLocalWorkspace={handlers.configureLocalWorkspace}
         onChangePassword={handlers.changePassword}
       />
     );
@@ -1495,6 +1501,7 @@ export function CutterApp() {
   const focusedSourceDetailRequestIdRef = useRef(0);
   const didAutoApplyLocalTrustedLoginRef = useRef(false);
   const [cutNotice, setCutNotice] = useState("");
+  const [workspaceConfigNotice, setWorkspaceConfigNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
   const [appearanceMode, setAppearanceMode] = useState<CutterAppearanceMode>(() =>
@@ -2811,6 +2818,45 @@ export function CutterApp() {
     setCutNotice("密码已更新");
   };
 
+  const handleConfigureLocalWorkspace = async () => {
+    if (!isDesktopMode) {
+      setWorkspaceConfigNotice("Web 端不能直接选择本机文件夹，请在 Windows 桌面端配置。");
+      return;
+    }
+
+    try {
+      const selected = await chooseDesktopDirectory("选择本地素材库文件夹");
+      if (!selected) {
+        return;
+      }
+
+      const nextConfig = {
+        ...desktopConfig,
+        local_workspace_root: selected
+      };
+      const savedConfig = await writeDesktopConfig(nextConfig);
+      setDesktopConfig(savedConfig);
+      setDesktopDoctorResult(undefined);
+      setWorkspaceConfigNotice("已保存本地素材库地址，重启 MixLab Cutter 后生效。");
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
+        stage: desktopStage,
+        config: savedConfig,
+        logPath: savedConfig.log_root || desktopLogPath
+      }));
+    } catch (chooseError) {
+      const message = chooseError instanceof Error ? chooseError.message : "配置本地素材库地址失败";
+      setWorkspaceConfigNotice(message);
+      setDesktopDiagnostics(desktopDiagnosticsForState({
+        appVersion: desktopAppVersionText,
+        stage: desktopStage,
+        config: desktopConfig,
+        latestError: message,
+        logPath: desktopLogPath
+      }));
+    }
+  };
+
   const handleLoadMoreSourceLibrary = useCallback(async () => {
     const currentData = dataRef.current;
     if (!currentData || sourceLibraryLoadingMore) {
@@ -3474,6 +3520,7 @@ export function CutterApp() {
       }
     },
     setAppearanceMode: handleSetAppearanceMode,
+    configureLocalWorkspace: isDesktopMode ? handleConfigureLocalWorkspace : undefined,
     changePassword: handleChangePassword
   };
 
@@ -3690,7 +3737,9 @@ export function CutterApp() {
                 appVersion: isDesktopMode ? desktopAppVersionText || "读取中" : undefined,
                 buildCommit,
                 runtimeEnvironment: isDesktopMode ? "Windows 桌面端" : "Web 端",
-                selectedCutMode
+                selectedCutMode,
+                localWorkspacePath: isDesktopMode ? desktopConfig.local_workspace_root : undefined,
+                workspaceConfigNotice
               },
               handlers
             )

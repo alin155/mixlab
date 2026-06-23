@@ -4763,6 +4763,10 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
       defaultCutMode: "precise",
       defaultSourceFilter: "all",
       defaultOrientationFilter: "all",
+      localWorkspacePath: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
+      workspaceConfigNotice: "已保存本地素材库地址，重启 MixLab Cutter 后生效。",
+      onConfigureLocalWorkspace: () => undefined,
+      onChangePassword: () => undefined,
       onSetAppearanceMode: () => undefined
     })
   );
@@ -4783,6 +4787,10 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
     "本地素材数",
     "公共素材库",
     "本地工作区",
+    "本地素材库地址",
+    "配置",
+    "配置状态",
+    "已保存本地素材库地址，重启 MixLab Cutter 后生效。",
     "剪切工具",
     "剪切工具路径",
     "默认剪切模式",
@@ -4800,6 +4808,9 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
     "浅色",
     "系统",
     "同时剪切数",
+    "账号安全",
+    "当前账号",
+    "修改登录密码",
     "环境检查",
     "mp3_16k_mono_64k"
   ]) {
@@ -4824,22 +4835,25 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
   assert.equal(html.includes("跟随系统"), false);
   assert.equal(html.includes("深夜"), false);
   assert.equal(html.includes("护眼"), false);
+  assert.equal(html.includes(String.raw`C:\Users\Allen\Videos\MixLabLocal`), true);
   assert.match(html, /cutter-page-main ml-workbench-main ml-workbench-main--stack ml-scroll-region/);
   assert.match(html, /aria-pressed="true"[\s\S]*?<span class="ml-button-label">精准剪切<\/span>/);
   assert.match(html, /class="ml-button ml-button--primary ml-button--sm cutter-cut-mode-option"/);
   assert.match(html, /cutter-cut-mode-toggle cutter-settings-cut-mode-toggle ml-segmented-control/);
   assert.match(html, /cutter-appearance-select ml-field-select/);
   assert.match(html, /cutter-settings-doctor ml-data-surface/);
-  assert.match(html, /cutter-password-form ml-form-stack/);
   assert.match(html, /cutter-password-current-user ml-form-summary-row/);
-  assert.match(html, /cutter-password-field ml-form-field/);
-  assert.match(html, /cutter-password-input ml-field-input/);
   assert.match(html, /cutter-settings-security ml-card-section-offset/);
   assert.match(html, /ml-card-body is-flush cutter-info-group-body/);
   assert.doesNotMatch(html, /cutter-card-body-flush/);
   assert.match(html, /ml-data-list cutter-info-list/);
   assert.match(html, /ml-data-row cutter-info-row ml-info-row/);
+  assert.match(html, /ml-data-row cutter-info-row ml-info-row ml-info-row--with-action/);
   assert.match(html, /ml-data-row cutter-settings-doctor-row ml-data-row--compact-check/);
+  assert.equal(html.includes("当前密码"), false);
+  assert.equal(html.includes("新密码"), false);
+  assert.equal(html.includes("确认新密码"), false);
+  assert.equal(html.includes("cutter-password-dialog"), false);
 });
 
 test("settings info groups use page body classes instead of styling Card internals", async () => {

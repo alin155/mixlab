@@ -3183,6 +3183,14 @@ video.ml-media-frame {
   padding: 0 16px;
 }
 
+.ml-info-row--with-action {
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+}
+
+.ml-info-row-action {
+  justify-self: end;
+}
+
 .ml-action-stack--detail {
   width: var(--ml-action-stack-detail-width, 362px);
   max-width: 100%;
