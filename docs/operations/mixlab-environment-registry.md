@@ -184,13 +184,13 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 2026-06-23 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-feacafc.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-33a24a7.exe
 version: 0.18.10
-commit: feacafc835851052a34ec8cae896516433049132
-github_run_id: 27990697040
-sha256: f08c03815a845f0894274eee5cecb2c941f834f0842d23c30a84f68534c2c6bf
-included_fix: M19 Runtime Foundation v1 source-video/thumbnail local-cache fallback when NAS originals or unknown source sizes would otherwise break media/cover access
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T033132Z-8d03581d/report.json
+commit: 33a24a791f4c65ee69c9b6536dc924fa7d724689
+github_run_id: 28015985365
+sha256: 16b01227e01b09383eb8f9778febfdac782442983046df5501994106804d5e4c
+included_fix: Windows directory opener uses stable explorer.exe resolution for Cutter API and Tauri folder-open actions
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T095000Z-3c46d189/report.json
 m19_runtime_foundation_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/m19_runtime_foundation-20260623T035006Z-8dad91a6/report.json
 local_web_m19_report: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/m19-runtime-foundation-local-web-current.json
 ```
