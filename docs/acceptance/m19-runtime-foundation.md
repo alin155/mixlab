@@ -62,6 +62,13 @@ M19 验收报告：`/Users/huaqihang/Public/MixLabWindowsBuilds/reports/m19_runt
 - 连续剪切：提交 `5` 条任务，`submit=23ms`，`CJ20260623-0001` 到 `CJ20260623-0005` 全部 `done`，`poll=4074ms`
 - 剪切期间响应：source-library `3ms`、search `12ms`、cut-jobs `5ms`
 
+桌面截图验收报告：`/Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260623T043408Z-a4ea294d/report.json`
+
+- 状态：`passed`
+- 页面截图：`8 / 8` 通过
+- 覆盖页面：project-home、material-locator、cut-tasks、local-library、public-library、source-detail、cache-management、settings
+- 结论：Windows 桌面端关键页面没有全屏加载失败或启动弹窗遮挡。
+
 ## 硬指标逐项结论
 
 | 硬指标 | 本机 Web | Windows 桌面 | 结论 |
