@@ -143,6 +143,7 @@ export function SettingsPage({
   runtimeStatus,
   appearanceMode,
   appVersion,
+  buildCommit,
   runtimeEnvironment = "Web 端",
   defaultCutMode = settings.default_cut_mode,
   defaultSourceFilter = "all",
@@ -157,6 +158,7 @@ export function SettingsPage({
   runtimeStatus?: CutterRuntimeStatus;
   appearanceMode: CutterAppearanceMode;
   appVersion?: string;
+  buildCommit?: string;
   runtimeEnvironment?: string;
   defaultCutMode?: CutMode;
   defaultSourceFilter?: MaterialSearchSourceFilter;
@@ -175,7 +177,8 @@ export function SettingsPage({
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const runtimeIdentityRows = [
     { label: "运行环境", value: runtimeEnvironment },
-    { label: "应用版本", value: appVersion?.trim() ? `v${appVersion.trim()}` : "Web 调试" }
+    { label: "应用版本", value: appVersion?.trim() ? `v${appVersion.trim()}` : "Web 调试" },
+    ...(buildCommit?.trim() ? [{ label: "构建版本", value: buildCommit.trim() }] : [])
   ];
   const runtimeGroup = runtimeStatus
     ? {

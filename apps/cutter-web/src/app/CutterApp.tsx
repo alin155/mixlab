@@ -280,6 +280,14 @@ function getRuntimeApiBaseUrl(): string {
   });
 }
 
+export function resolveCutterBuildCommit(buildCommit?: string): string {
+  return (buildCommit ?? "").trim().slice(0, 12);
+}
+
+function getCutterBuildCommit(): string {
+  return resolveCutterBuildCommit(import.meta.env?.VITE_MIXLAB_BUILD_COMMIT);
+}
+
 function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | null) {
   return baseUrl
     ? createCutterApiClient({
@@ -1233,6 +1241,7 @@ function renderPage(
     apiBaseUrl: string;
     appearanceMode: CutterAppearanceMode;
     appVersion?: string;
+    buildCommit?: string;
     runtimeEnvironment: string;
     selectedCutMode: CutMode;
   },
@@ -1398,6 +1407,7 @@ function renderPage(
         runtimeStatus={data.runtimeStatus}
         appearanceMode={viewState.appearanceMode}
         appVersion={viewState.appVersion}
+        buildCommit={viewState.buildCommit}
         runtimeEnvironment={viewState.runtimeEnvironment}
         defaultCutMode={viewState.selectedCutMode}
         defaultSourceFilter={viewState.sourceFilter}
@@ -1442,6 +1452,7 @@ export function CutterApp() {
   const [desktopDiagnostics, setDesktopDiagnostics] = useState<DesktopSetupDiagnostics | undefined>();
   const [desktopLogPath, setDesktopLogPath] = useState("");
   const [desktopAppVersionText, setDesktopAppVersionText] = useState("");
+  const buildCommit = getCutterBuildCommit();
   const [desktopAutoStarting, setDesktopAutoStarting] = useState(false);
   const desktopSetupReady = !isDesktopMode || desktopStage === "ready";
   const apiBaseUrl = desktopSetupReady ? detectedApiBaseUrl : "";
@@ -3677,6 +3688,7 @@ export function CutterApp() {
                 apiBaseUrl,
                 appearanceMode,
                 appVersion: isDesktopMode ? desktopAppVersionText || "读取中" : undefined,
+                buildCommit,
                 runtimeEnvironment: isDesktopMode ? "Windows 桌面端" : "Web 端",
                 selectedCutMode
               },

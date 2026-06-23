@@ -92,6 +92,7 @@ import {
   CutterSidebarFooter,
   CutterApp,
   openOutputDirectoryForRuntime,
+  resolveCutterBuildCommit,
   shouldLoadWorkbenchData,
   shouldShowLoginGate
 } from "./app/CutterApp.tsx";
@@ -152,6 +153,11 @@ function installTestWindow() {
     }
   });
 }
+
+test("cutter build commit display uses a short stable id", () => {
+  assert.equal(resolveCutterBuildCommit(" bbb4a77ec77e1f93a0e9dfd52f99ec986e10dc13 "), "bbb4a77ec77e");
+  assert.equal(resolveCutterBuildCommit(""), "");
+});
 
 test("desktop output directory opening resolves through API and delegates to native host", async () => {
   const requests: unknown[] = [];
@@ -4752,6 +4758,7 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
       runtimeStatus: data.runtimeStatus,
       appearanceMode: "dark",
       appVersion: "0.18.10",
+      buildCommit: "bbb4a77ec77e",
       runtimeEnvironment: "Windows 桌面端",
       defaultCutMode: "precise",
       defaultSourceFilter: "all",
@@ -4767,6 +4774,8 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
     "Windows 桌面端",
     "应用版本",
     "v0.18.10",
+    "构建版本",
+    "bbb4a77ec77e",
     "连接",
     "可用",
     "演示剪辑师",

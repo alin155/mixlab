@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +12,7 @@ export interface WindowsDesktopPackageStep {
 export interface PackageWindowsDesktopInput {
   repo_root?: string;
   platform?: NodeJS.Platform | string;
+  env?: NodeJS.ProcessEnv;
   run_command?: (step: WindowsDesktopPackageStep) => Promise<void>;
 }
 
@@ -32,6 +33,26 @@ export function assertWindowsPackagingHost(platform: NodeJS.Platform | string = 
       "npm run package:cutter-desktop:windows"
     ].join("\n")
   );
+}
+
+export function resolveWindowsDesktopBuildCommit(
+  repoRoot: string,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const configured = (env.VITE_MIXLAB_BUILD_COMMIT || env.GITHUB_SHA || "").trim();
+  if (configured) {
+    return configured.slice(0, 12);
+  }
+
+  try {
+    return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+  } catch {
+    return "";
+  }
 }
 
 export function createWindowsDesktopPackagePlan(
@@ -102,6 +123,12 @@ export async function packageWindowsDesktop(input: PackageWindowsDesktopInput = 
   assertWindowsPackagingHost(platform);
 
   const repoRoot = input.repo_root ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const env = input.env ?? process.env;
+  const buildCommit = resolveWindowsDesktopBuildCommit(repoRoot, env);
+  if (buildCommit && !env.VITE_MIXLAB_BUILD_COMMIT) {
+    env.VITE_MIXLAB_BUILD_COMMIT = buildCommit;
+  }
+
   const npmCommand = npmCommandForPlatform(platform);
   const plan = createWindowsDesktopPackagePlan(repoRoot).map((step) => ({
     ...step,

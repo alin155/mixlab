@@ -27,7 +27,8 @@ import {
   assertWindowsPackagingHost,
   createWindowsDesktopPackagePlan,
   npmCommandForPlatform,
-  packageWindowsDesktop
+  packageWindowsDesktop,
+  resolveWindowsDesktopBuildCommit
 } from "./package-windows-desktop.ts";
 
 test("build sidecar plan targets a Windows x64 executable for Tauri sidecar naming", () => {
@@ -243,6 +244,21 @@ test("Windows desktop package plan runs the required build steps in order", () =
       cwd: "/repo"
     }
   ]);
+});
+
+test("Windows desktop package exposes a short build commit to Vite", () => {
+  assert.equal(
+    resolveWindowsDesktopBuildCommit("/repo", {
+      GITHUB_SHA: "bbb4a77ec77e1f93a0e9dfd52f99ec986e10dc13"
+    } as NodeJS.ProcessEnv),
+    "bbb4a77ec77e"
+  );
+  assert.equal(
+    resolveWindowsDesktopBuildCommit("/repo", {
+      VITE_MIXLAB_BUILD_COMMIT: "1234567890abcdef"
+    } as NodeJS.ProcessEnv),
+    "1234567890ab"
+  );
 });
 
 test("Windows desktop packaging fails early on non-Windows hosts", () => {
