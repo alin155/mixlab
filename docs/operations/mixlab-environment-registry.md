@@ -181,18 +181,18 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 | Windows 包脚本 | `npm run package:cutter-desktop:windows` |
 | 安装包交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
 
-2026-06-22 UTC 当前最新已验收共享安装包：
+2026-06-23 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-d899706.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-feacafc.exe
 version: 0.18.10
-commit: d899706
-github_run_id: 27961434253
-sha256: 66d534ce86b93124b4cc387b56dcd04f69b2614b853b8c5cdabc062400b8603a
-included_fix: server-side automatic cutter queue drain plus frontend rerun guard so rapid consecutive cuts do not leave jobs pending
-install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260622T150236Z-dc5858a0/report.json
-windows_acceptance_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/windows_acceptance-20260622T150750Z-4bda19b4/report.json
-runner_real_cut_smoke_incompatible_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/real_cut_smoke-20260622T150610Z-b54a8a93/report.json
+commit: feacafc835851052a34ec8cae896516433049132
+github_run_id: 27990697040
+sha256: f08c03815a845f0894274eee5cecb2c941f834f0842d23c30a84f68534c2c6bf
+included_fix: M19 Runtime Foundation v1 source-video/thumbnail local-cache fallback when NAS originals or unknown source sizes would otherwise break media/cover access
+install_smoke_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T033132Z-8d03581d/report.json
+m19_runtime_foundation_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/m19_runtime_foundation-20260623T035006Z-8dad91a6/report.json
+local_web_m19_report: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/m19-runtime-foundation-local-web-current.json
 ```
 
 桌面端内置资源：
@@ -228,8 +228,8 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.32` |
-| 当前实机运行版本 | `0.1.32` on `3799`，2026-06-22 Mac 侧通过 `curl --noproxy '*' http://192.168.1.20:3799/health` 与 `/version` 验证。 |
+| 当前共享版本 | `0.1.33` |
+| 当前实机运行版本 | 主入口 `0.1.32` on `3799`；2026-06-23 M19 验收通过主入口 `launch_runner` 启动备用 Runner `0.1.33` on Windows local port `49334`。 |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -240,10 +240,10 @@ Windows 日志默认目录：
 | Mac 远程健康检查 | `http://192.168.1.20:3799/health` |
 | 共享 bootstrap 日志 | `/Users/huaqihang/Public/MixLabWindowsBuilds/logs/runner/bootstrap-<port>.log`，默认 `bootstrap-3799.log` |
 
-2026-06-22 UTC 当前共享发布记录：
+2026-06-23 UTC 当前共享发布记录：
 
 ```text
-0.1.32 4cfa671 27947836567 d8e453ff4d49368364f644ef199ed33385ca1b59e12ab2559c602a7c3928663e
+0.1.33 a0dcd74 27985347100 4e0ae93c37bc662e2536b01da60bcd15a40a3aeb8d5862fc1171392cbcdfa82b
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -269,6 +269,8 @@ Windows 日志默认目录：
 `0.1.31` 修复内容：`desktop_ui_screenshot_smoke` 会识别并非破坏性关闭 Windows Security / Firewall prompt，截图前后增加稳定等待，避免弹窗遮挡页面截图。`desktop_ui_screenshot_smoke-20260622T043112Z-cdbf15ef` 已通过并产出 8 张干净桌面端截图。
 
 `0.1.32` 修复内容：新增 `desktop_incident_diagnostics` suite，并把 `launch_app_probe` 的 incident 采集能力抽出复用。用于 Windows 桌面端出现全屏加载失败、sidecar/searchd 异常或日志需要回传时，自动收集桌面端日志、sidecar/searchd 输出尾部、运行时状态和最近报告线索。共享目录已发布 `0.1.32`，主入口 `3799` 截至 2026-06-22 已验证为 `0.1.32`。
+
+`0.1.33` 修复内容：新增 `m19_runtime_foundation` 验收 suite，并支持 startup-run 指针报告，用于在高端口 Runner 受防火墙限制时仍能通过共享目录读取 M19 硬指标结果。`m19_runtime_foundation-20260623T035006Z-8dad91a6` 已通过，覆盖 30 次快速切换、1 万级公共素材分页、搜索首屏、候选快速切换、连续 5 条剪切队列和剪切期间响应。
 
 `0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
 

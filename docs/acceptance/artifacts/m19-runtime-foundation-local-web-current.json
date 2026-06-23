@@ -1,0 +1,97 @@
+{
+  "status": "passed",
+  "generated_at": "2026-06-22T23:15:22.831Z",
+  "target": "M19 Runtime Foundation v1",
+  "config": {
+    "cutter_api_base_url": "http://127.0.0.1:4789",
+    "cutter_web_base_url": "http://127.0.0.1:5877",
+    "query": "第一场",
+    "tab_switch_iterations": 30,
+    "cut_count": 5
+  },
+  "api": {
+    "runtime_ms": 6,
+    "available_video_count": 10471,
+    "search_backend": {
+      "mode": "searchd",
+      "preferred_mode": "searchd",
+      "label": "本地 searchd（状态读取中）",
+      "healthy": false,
+      "degraded": true,
+      "index_version": "",
+      "source_video_count": 10471,
+      "segment_count": 0,
+      "message": "本地搜索服务状态读取中，页面先进入可用状态"
+    },
+    "source_library_first_page_ms": 8,
+    "source_library_first_page_count": 20,
+    "source_library_total_count": 10471,
+    "search_first_page_ms": 91,
+    "search_group_count": 10,
+    "search_next_cursor": "searchd:10"
+  },
+  "browser": {
+    "cached_revisit": {
+      "project_home": {
+        "visible_ms": 13,
+        "refresh_ms": 2,
+        "card_count": 2
+      },
+      "local_library": {
+        "visible_ms": 10,
+        "refresh_ms": 4,
+        "card_count": 1
+      },
+      "public_library": {
+        "visible_ms": 12,
+        "refresh_ms": 2,
+        "card_count": 1
+      }
+    },
+    "tab_switch": {
+      "iterations": 30,
+      "max_ms": 55,
+      "p95_ms": 42,
+      "source_library_request_limits": [
+        20,
+        20,
+        20,
+        20,
+        20,
+        20,
+        20
+      ]
+    },
+    "candidate_switch": {
+      "clicked_count": 5,
+      "transcript_ready": true
+    }
+  },
+  "cut_queue": {
+    "clip_list_id": "CL20260622-0009",
+    "submitted_job_ids": [
+      "CJ20260622-0041",
+      "CJ20260622-0042",
+      "CJ20260622-0043",
+      "CJ20260622-0044",
+      "CJ20260622-0045"
+    ],
+    "submit_ms": 6,
+    "during_cut_responsiveness": {
+      "source_library_ms": 1,
+      "search_ms": 23,
+      "cut_jobs_ms": 2,
+      "source_library_count": 20,
+      "search_group_count": 10,
+      "cut_job_count": 50
+    },
+    "final_statuses": {
+      "CJ20260622-0045": "done",
+      "CJ20260622-0044": "done",
+      "CJ20260622-0043": "done",
+      "CJ20260622-0042": "done",
+      "CJ20260622-0041": "done"
+    },
+    "poll_ms": 2017
+  }
+}

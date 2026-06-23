@@ -1,0 +1,426 @@
+{
+  "schema_version": "1.0",
+  "run_id": "m19_runtime_foundation-20260623T035006Z-8dad91a6",
+  "suite": "m19_runtime_foundation",
+  "status": "passed",
+  "runner_version": "0.1.33",
+  "started_at": "2026-06-23T03:50:06.153Z",
+  "updated_at": "2026-06-23T03:50:11.838Z",
+  "finished_at": "2026-06-23T03:50:11.788Z",
+  "report_dir": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\m19_runtime_foundation-20260623T035006Z-8dad91a6",
+  "timeline_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\m19_runtime_foundation-20260623T035006Z-8dad91a6\\timeline.ndjson",
+  "summary_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\m19_runtime_foundation-20260623T035006Z-8dad91a6\\summary.md",
+  "launch_app_probe": {
+    "api_base_url": "http://127.0.0.1:3789",
+    "api_ready_before_launch": true,
+    "api_ready": true,
+    "api_ready_elapsed_ms": 0,
+    "app_started": false,
+    "candidates": [],
+    "health_status_code": 200
+  },
+  "m19_runtime_foundation": {
+    "api_base_url": "http://127.0.0.1:3789",
+    "target": "M19 Runtime Foundation v1",
+    "launch_app_probe": {
+      "api_base_url": "http://127.0.0.1:3789",
+      "api_ready_before_launch": true,
+      "api_ready": true,
+      "api_ready_elapsed_ms": 0,
+      "app_started": false,
+      "candidates": [],
+      "health_status_code": 200
+    },
+    "auth_source": "credentials",
+    "runtime": {
+      "elapsed_ms": 280,
+      "available_video_count": 10471,
+      "release_cache_ready": true,
+      "search_backend_mode": "searchd",
+      "search_backend_response_ms": 3
+    },
+    "source_library_first_page": {
+      "id": "m19_source_library_limit_20",
+      "path": "/cutter/source-library?limit=20",
+      "elapsed_ms": 4,
+      "ok": true,
+      "status_code": 200,
+      "item_count": 20,
+      "total_count": 10471
+    },
+    "source_library_default_page": {
+      "id": "m19_source_library_default",
+      "path": "/cutter/source-library",
+      "elapsed_ms": 4,
+      "ok": true,
+      "status_code": 200,
+      "item_count": 20,
+      "total_count": 10471
+    },
+    "cached_revisit": {
+      "project_home": {
+        "id": "project_home",
+        "path": "/cutter/cut-jobs?limit=20",
+        "elapsed_ms": 3,
+        "ok": true,
+        "status_code": 200,
+        "item_count": 20,
+        "total_count": 40
+      },
+      "local_library": {
+        "id": "local_library",
+        "path": "/cutter/local-clips?limit=20",
+        "elapsed_ms": 8,
+        "ok": true,
+        "status_code": 200,
+        "item_count": 18
+      },
+      "public_library": {
+        "id": "public_library",
+        "path": "/cutter/source-library?limit=20",
+        "elapsed_ms": 2,
+        "ok": true,
+        "status_code": 200,
+        "item_count": 20,
+        "total_count": 10471
+      }
+    },
+    "rapid_switch": {
+      "iterations": 30,
+      "max_ms": 23,
+      "p95_ms": 16,
+      "checks": [
+        {
+          "id": "m19_switch_1",
+          "path": "/cutter/runtime-status",
+          "elapsed_ms": 9,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 0,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_2",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 4,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_3",
+          "path": "/cutter/local-clips?limit=20",
+          "elapsed_ms": 12,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 18
+        },
+        {
+          "id": "m19_switch_4",
+          "path": "/cutter/source-search?query=%E7%AC%AC%E4%B8%80%E5%9C%BA&limit=10",
+          "elapsed_ms": 12,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 10
+        },
+        {
+          "id": "m19_switch_5",
+          "path": "/cutter/cut-jobs?limit=50",
+          "elapsed_ms": 3,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 40,
+          "total_count": 40
+        },
+        {
+          "id": "m19_switch_6",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 2,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_7",
+          "path": "/cutter/runtime-status",
+          "elapsed_ms": 3,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 0,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_8",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 2,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_9",
+          "path": "/cutter/local-clips?limit=20",
+          "elapsed_ms": 7,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 18
+        },
+        {
+          "id": "m19_switch_10",
+          "path": "/cutter/source-search?query=%E7%AC%AC%E4%B8%80%E5%9C%BA&limit=10",
+          "elapsed_ms": 10,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 10
+        },
+        {
+          "id": "m19_switch_11",
+          "path": "/cutter/cut-jobs?limit=50",
+          "elapsed_ms": 5,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 40,
+          "total_count": 40
+        },
+        {
+          "id": "m19_switch_12",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 6,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_13",
+          "path": "/cutter/runtime-status",
+          "elapsed_ms": 8,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 0,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_14",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 23,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_15",
+          "path": "/cutter/local-clips?limit=20",
+          "elapsed_ms": 7,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 18
+        },
+        {
+          "id": "m19_switch_16",
+          "path": "/cutter/source-search?query=%E7%AC%AC%E4%B8%80%E5%9C%BA&limit=10",
+          "elapsed_ms": 8,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 10
+        },
+        {
+          "id": "m19_switch_17",
+          "path": "/cutter/cut-jobs?limit=50",
+          "elapsed_ms": 3,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 40,
+          "total_count": 40
+        },
+        {
+          "id": "m19_switch_18",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 2,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_19",
+          "path": "/cutter/runtime-status",
+          "elapsed_ms": 2,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 0,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_20",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 1,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_21",
+          "path": "/cutter/local-clips?limit=20",
+          "elapsed_ms": 13,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 18
+        },
+        {
+          "id": "m19_switch_22",
+          "path": "/cutter/source-search?query=%E7%AC%AC%E4%B8%80%E5%9C%BA&limit=10",
+          "elapsed_ms": 8,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 10
+        },
+        {
+          "id": "m19_switch_23",
+          "path": "/cutter/cut-jobs?limit=50",
+          "elapsed_ms": 4,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 40,
+          "total_count": 40
+        },
+        {
+          "id": "m19_switch_24",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 5,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_25",
+          "path": "/cutter/runtime-status",
+          "elapsed_ms": 16,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 0,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_26",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 3,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        },
+        {
+          "id": "m19_switch_27",
+          "path": "/cutter/local-clips?limit=20",
+          "elapsed_ms": 7,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 18
+        },
+        {
+          "id": "m19_switch_28",
+          "path": "/cutter/source-search?query=%E7%AC%AC%E4%B8%80%E5%9C%BA&limit=10",
+          "elapsed_ms": 8,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 10
+        },
+        {
+          "id": "m19_switch_29",
+          "path": "/cutter/cut-jobs?limit=50",
+          "elapsed_ms": 3,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 40,
+          "total_count": 40
+        },
+        {
+          "id": "m19_switch_30",
+          "path": "/cutter/source-library?limit=20",
+          "elapsed_ms": 2,
+          "ok": true,
+          "status_code": 200,
+          "item_count": 20,
+          "total_count": 10471
+        }
+      ]
+    },
+    "search_first_page": {
+      "query": "第一场",
+      "elapsed_ms": 24,
+      "group_count": 10,
+      "search_mode": "searchd",
+      "next_cursor": "searchd:10"
+    },
+    "candidate_switch": {
+      "requested_count": 5,
+      "completed_count": 5,
+      "details": [
+        {
+          "source_video_id": "V010574",
+          "elapsed_ms": 14,
+          "transcript_character_count": 10940,
+          "transcript_segment_count": 367
+        },
+        {
+          "source_video_id": "V000868",
+          "elapsed_ms": 20,
+          "transcript_character_count": 8248,
+          "transcript_segment_count": 277
+        },
+        {
+          "source_video_id": "V011063",
+          "elapsed_ms": 28,
+          "transcript_character_count": 5822,
+          "transcript_segment_count": 194
+        },
+        {
+          "source_video_id": "V002729",
+          "elapsed_ms": 19,
+          "transcript_character_count": 339,
+          "transcript_segment_count": 14
+        },
+        {
+          "source_video_id": "V010705",
+          "elapsed_ms": 26,
+          "transcript_character_count": 14060,
+          "transcript_segment_count": 492
+        }
+      ]
+    },
+    "cut_queue": {
+      "clip_list_id": "CL20260623-0001",
+      "submitted_job_ids": [
+        "CJ20260623-0001",
+        "CJ20260623-0002",
+        "CJ20260623-0003",
+        "CJ20260623-0004",
+        "CJ20260623-0005"
+      ],
+      "submit_ms": 23,
+      "during_cut_responsiveness": {
+        "source_library_ms": 3,
+        "search_ms": 12,
+        "cut_jobs_ms": 5,
+        "source_library_count": 20,
+        "search_group_count": 10,
+        "cut_job_count": 45
+      },
+      "final_statuses": {
+        "CJ20260623-0005": "done",
+        "CJ20260623-0004": "done",
+        "CJ20260623-0003": "done",
+        "CJ20260623-0002": "done",
+        "CJ20260623-0001": "done"
+      },
+      "poll_ms": 4074
+    }
+  }
+}
