@@ -20,6 +20,7 @@ import {
   syncCutterReleaseCache
 } from "../../library-fs/src/index.ts";
 import {
+  buildOpenPathCommandPlan,
   createCutterApiServer,
   cutterApiInfrastructureErrorPayload,
   type CreateCutterApiServerInput,
@@ -80,6 +81,46 @@ test("cutter API runtime config can enable local searchd", () => {
 
   assert.equal(config.searchd_base_url, "http://127.0.0.1:3799");
   assert.equal(config.searchd_timeout_ms, 4500);
+});
+
+test("open directory command uses stable platform launchers", () => {
+  assert.deepEqual(buildOpenPathCommandPlan({
+    target_path: "/Users/allen/Movies/MixLabLocal/projects/5月6日",
+    platform: "darwin"
+  }), {
+    command: "open",
+    args: ["/Users/allen/Movies/MixLabLocal/projects/5月6日"]
+  });
+
+  assert.deepEqual(buildOpenPathCommandPlan({
+    target_path: String.raw`C:\Users\Allen\Videos\MixLabLocal\projects\5月6日`,
+    platform: "win32",
+    env: {
+      SystemRoot: String.raw`C:\Windows`
+    }
+  }), {
+    command: String.raw`C:\Windows\explorer.exe`,
+    args: [String.raw`C:\Users\Allen\Videos\MixLabLocal\projects\5月6日`]
+  });
+
+  assert.deepEqual(buildOpenPathCommandPlan({
+    target_path: String.raw`C:\Users\Allen\Videos\MixLabLocal\projects\5月6日`,
+    platform: "win32",
+    env: {
+      WINDIR: String.raw`D:\Windows`
+    }
+  }), {
+    command: String.raw`D:\Windows\explorer.exe`,
+    args: [String.raw`C:\Users\Allen\Videos\MixLabLocal\projects\5月6日`]
+  });
+
+  assert.deepEqual(buildOpenPathCommandPlan({
+    target_path: "/home/allen/MixLabLocal/projects/5月6日",
+    platform: "linux"
+  }), {
+    command: "xdg-open",
+    args: ["/home/allen/MixLabLocal/projects/5月6日"]
+  });
 });
 
 test("cutter API runtime config can enable local trusted auth for web rehearsals", () => {

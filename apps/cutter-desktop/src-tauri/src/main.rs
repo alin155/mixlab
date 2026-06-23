@@ -659,6 +659,14 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
     }
 }
 
+#[cfg(windows)]
+fn windows_explorer_path() -> PathBuf {
+    env::var("SystemRoot")
+        .or_else(|_: env::VarError| env::var("WINDIR"))
+        .map(|root| PathBuf::from(root).join("explorer.exe"))
+        .unwrap_or_else(|_| PathBuf::from("explorer.exe"))
+}
+
 #[tauri::command(rename_all = "camelCase")]
 fn desktop_open_directory(path_value: String) -> Result<(), String> {
     let trimmed = path_value.trim();
@@ -678,7 +686,7 @@ fn desktop_open_directory(path_value: String) -> Result<(), String> {
 
     #[cfg(windows)]
     let mut command = {
-        let mut command = Command::new("explorer.exe");
+        let mut command = Command::new(windows_explorer_path());
         command.arg(&target);
         command
     };

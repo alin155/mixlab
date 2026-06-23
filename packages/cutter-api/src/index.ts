@@ -208,6 +208,11 @@ interface LocalClipSelection {
   selected_text: string;
 }
 
+export interface OpenPathCommandPlan {
+  command: string;
+  args: string[];
+}
+
 interface CutterLoginRequestBody {
   username?: unknown;
   password?: unknown;
@@ -2794,13 +2799,32 @@ function runProcessForStdoutAsync(input: {
   });
 }
 
+function windowsExplorerCommand(env: NodeJS.ProcessEnv): string {
+  const windowsRoot = env.SystemRoot?.trim() || env.WINDIR?.trim();
+  return windowsRoot ? path.win32.join(windowsRoot, "explorer.exe") : "explorer.exe";
+}
+
+export function buildOpenPathCommandPlan(input: {
+  target_path: string;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+}): OpenPathCommandPlan {
+  const platform = input.platform ?? process.platform;
+  const env = input.env ?? process.env;
+
+  if (platform === "darwin") {
+    return { command: "open", args: [input.target_path] };
+  }
+
+  if (platform === "win32") {
+    return { command: windowsExplorerCommand(env), args: [input.target_path] };
+  }
+
+  return { command: "xdg-open", args: [input.target_path] };
+}
+
 function defaultOpenPath(targetPath: string): Promise<void> {
-  const [command, args] =
-    process.platform === "darwin"
-      ? ["open", [targetPath]]
-      : process.platform === "win32"
-        ? ["explorer", [targetPath]]
-        : ["xdg-open", [targetPath]];
+  const { command, args } = buildOpenPathCommandPlan({ target_path: targetPath });
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -2809,7 +2833,9 @@ function defaultOpenPath(targetPath: string): Promise<void> {
       stdio: "ignore"
     });
 
-    child.once("error", reject);
+    child.once("error", (error) => {
+      reject(new Error(`open directory failed: ${error.message}`));
+    });
     child.once("spawn", () => {
       child.unref();
       resolve();
