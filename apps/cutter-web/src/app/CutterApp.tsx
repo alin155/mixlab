@@ -1067,12 +1067,43 @@ function defaultDesktopConfig(localWorkspaceRoot = "", logRoot = ""): DesktopCon
   };
 }
 
+function normalizeDesktopPathForCompare(pathValue: string): string {
+  return pathValue.replaceAll("/", "\\").replace(/\\+$/u, "").trim().toLowerCase();
+}
+
+function desktopPathIsSameOrChild(candidate: string, parent: string): boolean {
+  const normalizedCandidate = normalizeDesktopPathForCompare(candidate);
+  const normalizedParent = normalizeDesktopPathForCompare(parent);
+  return Boolean(
+    normalizedCandidate &&
+      normalizedParent &&
+      (normalizedCandidate === normalizedParent || normalizedCandidate.startsWith(`${normalizedParent}\\`))
+  );
+}
+
+export function desktopWorkspaceConfigError(config: Pick<DesktopConfig, "public_library_root" | "local_workspace_root">): string {
+  const publicRoot = config.public_library_root.trim();
+  const localWorkspaceRoot = config.local_workspace_root.trim();
+  if (!publicRoot || !localWorkspaceRoot) {
+    return "";
+  }
+
+  if (
+    desktopPathIsSameOrChild(localWorkspaceRoot, publicRoot) ||
+    desktopPathIsSameOrChild(publicRoot, localWorkspaceRoot)
+  ) {
+    return "本地素材库地址不能与公共素材库相同或互相包含，请选择 Windows 本机目录。";
+  }
+
+  return "";
+}
+
 function desktopSetupStageForConfig(config: DesktopConfig): DesktopSetupStage {
   if (!config.public_library_root) {
     return "choose-public-library";
   }
 
-  if (!config.local_workspace_root) {
+  if (!config.local_workspace_root || desktopWorkspaceConfigError(config)) {
     return "choose-workspace";
   }
 
@@ -1080,7 +1111,11 @@ function desktopSetupStageForConfig(config: DesktopConfig): DesktopSetupStage {
 }
 
 export function hasCompleteDesktopConfig(config: DesktopConfig | null | undefined): boolean {
-  return Boolean(config?.public_library_root?.trim() && config.local_workspace_root?.trim());
+  return Boolean(
+    config?.public_library_root?.trim() &&
+      config.local_workspace_root?.trim() &&
+      !desktopWorkspaceConfigError(config)
+  );
 }
 
 function desktopDiagnosticsForState(input: {
@@ -2834,6 +2869,10 @@ export function CutterApp() {
         ...desktopConfig,
         local_workspace_root: selected
       };
+      const configError = desktopWorkspaceConfigError(nextConfig);
+      if (configError) {
+        throw new Error(configError);
+      }
       const savedConfig = await writeDesktopConfig(nextConfig);
       setDesktopConfig(savedConfig);
       setDesktopDoctorResult(undefined);
@@ -2920,7 +2959,13 @@ export function CutterApp() {
 
       commitDesktopConfigDraft({
         ...desktopConfig,
-        public_library_root: selected
+        public_library_root: selected,
+        ...(desktopWorkspaceConfigError({
+          public_library_root: selected,
+          local_workspace_root: desktopConfig.local_workspace_root
+        })
+          ? { local_workspace_root: "" }
+          : {})
       });
       setDesktopDoctorResult(undefined);
     } catch (chooseError) {
@@ -2942,10 +2987,24 @@ export function CutterApp() {
         return;
       }
 
-      commitDesktopConfigDraft({
+      const nextConfig = {
         ...desktopConfig,
         local_workspace_root: selected
-      });
+      };
+      const configError = desktopWorkspaceConfigError(nextConfig);
+      if (configError) {
+        setDesktopStage("choose-workspace");
+        setDesktopDiagnostics(desktopDiagnosticsForState({
+          appVersion: desktopAppVersionText,
+          stage: "choose-workspace",
+          config: nextConfig,
+          latestError: configError,
+          logPath: desktopLogPath
+        }));
+        return;
+      }
+
+      commitDesktopConfigDraft(nextConfig);
       setDesktopDoctorResult(undefined);
     } catch (chooseError) {
       const message = chooseError instanceof Error ? chooseError.message : "选择本地工作区失败";

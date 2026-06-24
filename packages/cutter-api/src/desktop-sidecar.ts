@@ -37,6 +37,27 @@ type SidecarEvent =
   | { event: "failed"; stage: string; error: string }
   | { event: "stopping" };
 
+function normalizeDesktopPathForCompare(pathValue: string): string {
+  return pathValue.replaceAll("/", "\\").replace(/\\+$/u, "").trim().toLowerCase();
+}
+
+function desktopPathIsSameOrChild(candidate: string, parent: string): boolean {
+  const normalizedCandidate = normalizeDesktopPathForCompare(candidate);
+  const normalizedParent = normalizeDesktopPathForCompare(parent);
+  return Boolean(
+    normalizedCandidate &&
+      normalizedParent &&
+      (normalizedCandidate === normalizedParent || normalizedCandidate.startsWith(`${normalizedParent}\\`))
+  );
+}
+
+function desktopWorkspaceOverlapsPublicLibrary(config: Pick<CutterDesktopConfig, "public_library_root" | "local_workspace_root">): boolean {
+  return (
+    desktopPathIsSameOrChild(config.local_workspace_root, config.public_library_root) ||
+    desktopPathIsSameOrChild(config.public_library_root, config.local_workspace_root)
+  );
+}
+
 export function resolveDesktopSidecarConfigPath(input: ResolveDesktopSidecarConfigPathInput): string {
   const args = input.args ?? [];
 
@@ -74,6 +95,12 @@ export async function readCutterDesktopConfig(configPath: string): Promise<Cutte
   }
   if (!parsed.public_library_root || !parsed.local_workspace_root) {
     throw new Error("桌面端配置错误：缺少公共素材库或本地工作区路径。");
+  }
+  if (desktopWorkspaceOverlapsPublicLibrary({
+    public_library_root: parsed.public_library_root,
+    local_workspace_root: parsed.local_workspace_root
+  })) {
+    throw new Error("桌面端配置错误：本地工作区不能与公共素材库相同或互相包含。");
   }
 
   return {

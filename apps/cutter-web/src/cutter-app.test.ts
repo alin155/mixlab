@@ -60,6 +60,7 @@ import {
   cutterRuntimeCacheBytes,
   cutterLocalCacheSnapshot,
   cutterDeviceNameFromNavigator,
+  desktopWorkspaceConfigError,
   formatCutterCacheSize,
   hasCompleteDesktopConfig,
   loginGateStatusFromApplication,
@@ -5055,6 +5056,25 @@ test("desktop setup treats a saved public library and workspace as complete", ()
       api_port: 3789,
       public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
       local_workspace_root: ""
+    }),
+    false
+  );
+
+  const overlappingConfig = {
+    api_host: "127.0.0.1" as const,
+    api_port: 3789 as const,
+    public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+    local_workspace_root: String.raw`\\NAS\MixLab\PublicLibrary`
+  };
+  assert.equal(hasCompleteDesktopConfig(overlappingConfig), false);
+  assert.match(desktopWorkspaceConfigError(overlappingConfig), /本地素材库地址不能与公共素材库/);
+
+  assert.equal(
+    hasCompleteDesktopConfig({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+      local_workspace_root: String.raw`\\NAS\MixLab`
     }),
     false
   );

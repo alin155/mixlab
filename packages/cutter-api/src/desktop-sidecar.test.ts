@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   buildCutterApiServerInputFromDesktopConfig,
+  readCutterDesktopConfig,
   resolveDesktopSidecarConfigPath,
   shouldRunDirectSidecar,
   startCutterApiSidecar
@@ -95,6 +99,27 @@ test("maps desktop config to reviewed cutter API server input without mutating p
       auth_mode: "reviewed"
     }
   );
+});
+
+test("rejects desktop config when local workspace overlaps public library", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "mixlab-desktop-sidecar-config-"));
+  const configPath = path.join(dir, "desktop-config.json");
+  try {
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        api_host: "127.0.0.1",
+        api_port: 3789,
+        public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+        local_workspace_root: String.raw`\\NAS\MixLab\PublicLibrary`
+      }),
+      "utf8"
+    );
+
+    await assert.rejects(() => readCutterDesktopConfig(configPath), /本地工作区不能与公共素材库/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("maps desktop searchd env to cutter API server input", () => {

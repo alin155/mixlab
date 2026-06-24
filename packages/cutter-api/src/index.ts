@@ -5395,7 +5395,10 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       if (url.pathname === "/health") {
         writeJson(response, 200, apiResponse({
           ok: true,
-          searchd_configured: Boolean(optionalTrimmed(input.searchd_base_url))
+          searchd_configured: Boolean(optionalTrimmed(input.searchd_base_url)),
+          library_root_path: input.library_root,
+          workspace_root_path: input.workspace_root ?? "",
+          release_cache_root_path: input.release_cache_root ?? ""
         }));
         return;
       }

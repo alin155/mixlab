@@ -584,6 +584,9 @@ test("health reports whether the sidecar was started with searchd", async () => 
     const body = await (await fetch(`${baseUrl}/health`)).json() as any;
     assert.equal(body.data.ok, true);
     assert.equal(body.data.searchd_configured, true);
+    assert.equal(body.data.library_root_path, libraryRoot);
+    assert.equal(body.data.workspace_root_path, "");
+    assert.equal(body.data.release_cache_root_path, "");
   }, {
     searchd_base_url: "http://127.0.0.1:3790"
   });

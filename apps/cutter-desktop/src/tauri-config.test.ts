@@ -103,12 +103,16 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /--cache-root/);
   assert.match(source, /desktop_searchd_cache_dir_path/);
   assert.match(source, /searchd_spawned/);
-  assert.match(source, /current_api_has_searchd_backend/);
+  assert.match(source, /current_api_matches_desktop_config/);
+  assert.match(source, /searchd_matches_desktop_config/);
   assert.match(source, /fn spawn_searchd/);
   assert.match(source, /searchd_unhealthy_restart/);
+  assert.match(source, /searchd_config_mismatch_restart/);
   assert.match(source, /stop_windows_process_tree\(SEARCHD_EXECUTABLE_NAME\)/);
   assert.match(source, /searchd_ready/);
-  assert.match(source, /engine_existing_without_searchd/);
+  assert.match(source, /engine_existing_not_reusable/);
+  assert.match(source, /engine_config_autocorrected/);
+  assert.match(source, /desktop_config_autocorrected/);
   assert.match(source, /stop_windows_process_tree\(CUTTER_API_SIDECAR_EXECUTABLE_NAME\)/);
   assert.match(source, /fn desktop_app_version/);
   assert.match(source, /desktop_host_log/);

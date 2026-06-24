@@ -37,7 +37,7 @@ const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
 const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
 const SEARCHD_API_TIMEOUT_MS: &str = "20000";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct CutterDesktopConfig {
     api_host: String,
     api_port: u16,
@@ -267,6 +267,79 @@ fn current_api_has_searchd_backend(host: &str, port: u16) -> bool {
     mode == Some("searchd")
 }
 
+fn json_data_string(payload: &Value, key: &str) -> Option<String> {
+    payload
+        .get("data")
+        .and_then(|data| data.get(key))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(String::from)
+}
+
+fn path_matches(left: &str, right: &str) -> bool {
+    !left.trim().is_empty()
+        && !right.trim().is_empty()
+        && normalized_for_compare(left) == normalized_for_compare(right)
+}
+
+fn release_cache_root_for_config(config: &CutterDesktopConfig) -> PathBuf {
+    Path::new(&config.local_workspace_root).join("cache")
+}
+
+fn current_api_matches_desktop_config(host: &str, port: u16, config: &CutterDesktopConfig) -> bool {
+    let Some(payload) = http_get_json_with_timeouts(
+        host,
+        port,
+        "/health",
+        Duration::from_millis(500),
+        Duration::from_millis(1_000),
+    ) else {
+        return false;
+    };
+
+    let searchd_configured = payload
+        .get("data")
+        .and_then(|data| data.get("searchd_configured"))
+        .and_then(Value::as_bool)
+        == Some(true);
+    let library_root = json_data_string(&payload, "library_root_path");
+    let workspace_root = json_data_string(&payload, "workspace_root_path");
+
+    searchd_configured
+        && library_root
+            .as_deref()
+            .map(|path| path_matches(path, &config.public_library_root))
+            .unwrap_or(false)
+        && workspace_root
+            .as_deref()
+            .map(|path| path_matches(path, &config.local_workspace_root))
+            .unwrap_or(false)
+}
+
+fn searchd_matches_desktop_config(config: &CutterDesktopConfig) -> bool {
+    let Some(payload) = http_get_json_with_timeouts(
+        SEARCHD_HOST,
+        SEARCHD_PORT,
+        "/health",
+        Duration::from_millis(500),
+        Duration::from_millis(1_000),
+    ) else {
+        return false;
+    };
+
+    let Some(library_root) = json_data_string(&payload, "library_root") else {
+        return false;
+    };
+    let Some(release_root) = json_data_string(&payload, "release_root") else {
+        return false;
+    };
+    let expected_release_root = path_string(release_cache_root_for_config(config));
+
+    path_matches(&library_root, &config.public_library_root)
+        && path_matches(&release_root, &expected_release_root)
+}
+
 #[cfg(windows)]
 fn stop_windows_process_tree(process_name: &str) {
     let mut command = Command::new("taskkill.exe");
@@ -491,7 +564,7 @@ fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), St
         }
     };
     let mut searchd_command = Command::new(&searchd_path);
-    let release_cache_root = Path::new(&config.local_workspace_root).join("cache");
+    let release_cache_root = release_cache_root_for_config(config);
     let searchd_cache_root = desktop_searchd_cache_dir_path(app)?;
     fs::create_dir_all(&searchd_cache_root)
         .map_err(|error| format!("无法创建本地搜索索引缓存目录：{error}"))?;
@@ -540,12 +613,23 @@ fn wait_for_searchd_ready(app: &AppHandle) -> bool {
 fn ensure_searchd_started(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
     let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
     if searchd_is_ready {
+        if searchd_matches_desktop_config(config) {
+            desktop_host_log(
+                app,
+                "searchd_already_ready",
+                json!({ "searchd_base_url": searchd_base_url() }),
+            );
+            return Ok(true);
+        }
+
         desktop_host_log(
             app,
-            "searchd_already_ready",
-            json!({ "searchd_base_url": searchd_base_url() }),
+            "searchd_config_mismatch_restart",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "本地搜索服务配置与当前桌面配置不一致，准备重启 searchd" }),
         );
-        return Ok(true);
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(800));
+        searchd_is_ready = false;
     }
 
     if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
@@ -592,16 +676,33 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         return Err(message);
     }
 
-    let config = match read_desktop_config_from_path(Path::new(&config_path)) {
+    let raw_config = match read_desktop_config_from_path(Path::new(&config_path)) {
         Ok(config) => config,
         Err(error) => {
             desktop_host_log(&app, "engine_config_invalid", json!({ "error": error }));
             return Err(error);
         }
     };
+    let (config, correction) = sanitize_desktop_config(raw_config);
+    if let Some(reason) = correction {
+        let path = Path::new(&config_path);
+        if let Err(error) = write_desktop_config_to_path(path, &config) {
+            desktop_host_log(
+                &app,
+                "engine_config_autocorrect_failed",
+                json!({ "error": error, "reason": reason }),
+            );
+            return Err(error);
+        }
+        desktop_host_log(
+            &app,
+            "engine_config_autocorrected",
+            json!({ "reason": reason, "local_workspace_root": config.local_workspace_root }),
+        );
+    }
 
     if http_health_endpoint_is_ready("127.0.0.1", 3789) {
-        if current_api_has_searchd_backend("127.0.0.1", 3789) {
+        if current_api_matches_desktop_config("127.0.0.1", 3789, &config) {
             let searchd_is_ready = ensure_searchd_started(&app, &config)?;
             desktop_host_log(
                 &app,
@@ -615,10 +716,15 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
             return Ok(());
         }
 
+        let message = if current_api_has_searchd_backend("127.0.0.1", 3789) {
+            "检测到旧本机引擎配置与当前桌面配置不一致，准备重启本机引擎"
+        } else {
+            "检测到旧本机引擎未接入 searchd，准备重启本机引擎"
+        };
         desktop_host_log(
             &app,
-            "engine_existing_without_searchd",
-            json!({ "api_address": "http://127.0.0.1:3789", "message": "检测到旧本机引擎未接入 searchd，准备重启本机引擎" }),
+            "engine_existing_not_reusable",
+            json!({ "api_address": "http://127.0.0.1:3789", "message": message }),
         );
         stop_windows_process_tree(CUTTER_API_SIDECAR_EXECUTABLE_NAME);
         stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
@@ -755,6 +861,36 @@ fn read_desktop_config_from_path(path: &Path) -> Result<CutterDesktopConfig, Str
         .map_err(|error| format!("桌面配置格式无效：{error}"))
 }
 
+fn desktop_workspace_overlaps_public_library(config: &CutterDesktopConfig) -> bool {
+    let public_root = config.public_library_root.trim();
+    let workspace_root = config.local_workspace_root.trim();
+    if public_root.is_empty() || workspace_root.is_empty() {
+        return false;
+    }
+
+    path_is_same_or_child(workspace_root, public_root)
+        || path_is_same_or_child(public_root, workspace_root)
+}
+
+fn sanitize_desktop_config(config: CutterDesktopConfig) -> (CutterDesktopConfig, Option<String>) {
+    if !desktop_workspace_overlaps_public_library(&config) {
+        return (config, None);
+    }
+
+    let mut next = config;
+    next.local_workspace_root = desktop_default_workspace_root();
+    (
+        next,
+        Some("本地工作区不能与公共素材库相同或互相包含，已恢复默认本地工作区".into()),
+    )
+}
+
+fn write_desktop_config_to_path(path: &Path, config: &CutterDesktopConfig) -> Result<(), String> {
+    let raw = serde_json::to_string_pretty(config)
+        .map_err(|error| format!("无法序列化桌面配置：{error}"))?;
+    fs::write(path, format!("{raw}\n")).map_err(|error| format!("无法保存桌面配置：{error}"))
+}
+
 #[tauri::command]
 fn desktop_read_config(app: AppHandle) -> Result<Option<CutterDesktopConfig>, String> {
     let path = desktop_config_file(&app)?;
@@ -762,7 +898,17 @@ fn desktop_read_config(app: AppHandle) -> Result<Option<CutterDesktopConfig>, St
         return Ok(None);
     }
 
-    read_desktop_config_from_path(&path).map(Some)
+    let raw_config = read_desktop_config_from_path(&path)?;
+    let (config, correction) = sanitize_desktop_config(raw_config);
+    if let Some(reason) = correction {
+        write_desktop_config_to_path(&path, &config)?;
+        desktop_host_log(
+            &app,
+            "desktop_config_autocorrected",
+            json!({ "reason": reason, "local_workspace_root": config.local_workspace_root }),
+        );
+    }
+    Ok(Some(config))
 }
 
 #[tauri::command]
@@ -770,10 +916,12 @@ fn desktop_write_config(
     app: AppHandle,
     config: CutterDesktopConfig,
 ) -> Result<CutterDesktopConfig, String> {
+    if desktop_workspace_overlaps_public_library(&config) {
+        return Err("本地工作区不能与公共素材库相同或互相包含，请选择 Windows 本机目录。".into());
+    }
+
     let path = desktop_config_file(&app)?;
-    let raw = serde_json::to_string_pretty(&config)
-        .map_err(|error| format!("无法序列化桌面配置：{error}"))?;
-    fs::write(&path, format!("{raw}\n")).map_err(|error| format!("无法保存桌面配置：{error}"))?;
+    write_desktop_config_to_path(&path, &config)?;
     Ok(config)
 }
 
@@ -1050,23 +1198,21 @@ fn check_workspace(config: &CutterDesktopConfig) -> Vec<DesktopDoctorCheck> {
         }
     });
 
-    checks.push(
-        if path_is_same_or_child(&config.local_workspace_root, &config.public_library_root) {
-            DesktopDoctorCheck {
-                id: "outside_public_library".into(),
-                label: "不在公共素材库内".into(),
-                status: "fail".into(),
-                message: Some("本地工作区不能放在公共素材库内".into()),
-            }
-        } else {
-            DesktopDoctorCheck {
-                id: "outside_public_library".into(),
-                label: "不在公共素材库内".into(),
-                status: "pass".into(),
-                message: None,
-            }
-        },
-    );
+    checks.push(if desktop_workspace_overlaps_public_library(config) {
+        DesktopDoctorCheck {
+            id: "outside_public_library".into(),
+            label: "不在公共素材库内".into(),
+            status: "fail".into(),
+            message: Some("本地工作区不能与公共素材库相同或互相包含".into()),
+        }
+    } else {
+        DesktopDoctorCheck {
+            id: "outside_public_library".into(),
+            label: "不在公共素材库内".into(),
+            status: "pass".into(),
+            message: None,
+        }
+    });
 
     checks
 }
@@ -1158,6 +1304,51 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("create temp library root");
         root
+    }
+
+    #[test]
+    fn desktop_workspace_overlap_rejects_public_library_roots() {
+        let same_root = CutterDesktopConfig {
+            api_host: "127.0.0.1".into(),
+            api_port: 3789,
+            public_library_root: r"\\NAS\MixLab\PublicLibrary".into(),
+            local_workspace_root: r"\\NAS\MixLab\PublicLibrary".into(),
+            log_root: None,
+            ffmpeg_path: None,
+            ffprobe_path: None,
+        };
+        assert!(desktop_workspace_overlaps_public_library(&same_root));
+
+        let parent_root = CutterDesktopConfig {
+            local_workspace_root: r"\\NAS\MixLab".into(),
+            ..same_root.clone()
+        };
+        assert!(desktop_workspace_overlaps_public_library(&parent_root));
+
+        let local_root = CutterDesktopConfig {
+            local_workspace_root: r"C:\Users\Allen\Videos\MixLabLocal".into(),
+            ..same_root
+        };
+        assert!(!desktop_workspace_overlaps_public_library(&local_root));
+    }
+
+    #[test]
+    fn sanitize_desktop_config_recovers_overlapping_workspace() {
+        let (config, correction) = sanitize_desktop_config(CutterDesktopConfig {
+            api_host: "127.0.0.1".into(),
+            api_port: 3789,
+            public_library_root: r"\\NAS\MixLab\PublicLibrary".into(),
+            local_workspace_root: r"\\NAS\MixLab\PublicLibrary".into(),
+            log_root: None,
+            ffmpeg_path: None,
+            ffprobe_path: None,
+        });
+
+        assert!(correction
+            .unwrap_or_default()
+            .contains("已恢复默认本地工作区"));
+        assert!(!desktop_workspace_overlaps_public_library(&config));
+        assert!(config.local_workspace_root.contains("MixLabLocal"));
     }
 
     #[test]
