@@ -9,6 +9,7 @@ import type {
   LocalClipCatalog,
   OpenCutOutputDirectoryRequest,
   SearchResponse,
+  SourceFolderOption,
   SourceLibraryResponse,
   SourceVideoCard,
   SourceVideoDetail,
@@ -31,6 +32,7 @@ export interface CutterWorkbenchSettings {
 
 export interface CutterFixtureData {
   library: SourceLibraryResponse;
+  sourceFolders: SourceFolderOption[];
   primaryDetail: SourceVideoDetail;
   search: SearchResponse;
   localClips: LocalClipCatalog;
@@ -43,6 +45,7 @@ export interface LoadCutterWorkbenchDataOptions {
   includeSourceLibrary?: boolean;
   includeRuntimeCache?: boolean;
   sourceLibraryLimit?: number;
+  sourceFolderName?: string;
   localClipLimit?: number;
 }
 
@@ -165,6 +168,7 @@ const videos: SourceVideoCard[] = [
     codec: "h264",
     file_size: 4_862_000_000,
     relative_path: "经营课/现金流管理与风险控制.mp4",
+    source_folder_name: "经营课",
     description: "由管理端配置的课程说明：适合提取现金流、回款节奏、风险控制类短视频素材。",
     tags: ["经营分析", "现金流", "风险控制"],
     category: "经营课",
@@ -186,6 +190,7 @@ const videos: SourceVideoCard[] = [
     codec: "h265",
     file_size: 8_120_000_000,
     relative_path: "增长课/私域直播复盘方法.mp4",
+    source_folder_name: "增长课",
     description: "管理端维护封面、标签和简介；剪辑端用于浏览和选段。",
     tags: ["私域", "直播复盘", "增长"],
     category: "增长课",
@@ -207,6 +212,7 @@ const videos: SourceVideoCard[] = [
     codec: "h264",
     file_size: 3_460_000_000,
     relative_path: "销售课/销售话术拆解.mp4",
+    source_folder_name: "销售课",
     description: "适合复用为案例、金句、成交拆解类混剪素材。",
     tags: ["销售", "话术", "案例"],
     category: "销售课",
@@ -228,6 +234,7 @@ const videos: SourceVideoCard[] = [
     codec: "h264",
     file_size: 4_050_000_000,
     relative_path: "管理课/团队目标对齐会.mp4",
+    source_folder_name: "管理课",
     description: "适合组织管理、目标拆解、复盘会议主题的视频剪辑。",
     tags: ["管理", "目标", "复盘"],
     category: "管理课",
@@ -249,6 +256,7 @@ const videos: SourceVideoCard[] = [
     codec: "h264",
     file_size: 4_840_000_000,
     relative_path: "产品课/用户访谈问题设计.mp4",
+    source_folder_name: "产品课",
     description: "适合剪成需求洞察、用户研究、产品判断类短视频。",
     tags: ["产品", "用户访谈", "洞察"],
     category: "产品课",
@@ -270,6 +278,7 @@ const videos: SourceVideoCard[] = [
     codec: "h264",
     file_size: 2_920_000_000,
     relative_path: "内容课/短视频开场结构.mp4",
+    source_folder_name: "内容课",
     description: "沉淀可复用的开场模板、反差表达和转折句。",
     tags: ["短视频", "开场", "表达"],
     category: "内容课",
@@ -291,6 +300,7 @@ const videos: SourceVideoCard[] = [
     codec: "h265",
     file_size: 9_330_000_000,
     relative_path: "经营课/组织成本控制案例.mp4",
+    source_folder_name: "经营课",
     description: "可剪为降本增效、组织效率、预算管理等主题。",
     tags: ["组织", "成本", "预算"],
     category: "经营课",
@@ -312,6 +322,7 @@ const videos: SourceVideoCard[] = [
     codec: "h264",
     file_size: 4_210_000_000,
     relative_path: "品牌课/品牌故事表达.mp4",
+    source_folder_name: "品牌课",
     description: "用于品牌口播、创始人故事、价值主张类混剪。",
     tags: ["品牌", "故事", "口播"],
     category: "品牌课",
@@ -399,6 +410,7 @@ const search: SearchResponse = {
       source_video_id: "src-001",
       title: "直播复盘：从流量到现金流健康度",
       duration_ms: videos[0]!.duration_ms,
+      source_folder_name: videos[0]!.source_folder_name,
       hit_count: 8,
       best_excerpt: "现金流的本质，是在正确的时间点，有足够的现金去支持业务的持续运转。",
       hit_segments: primaryDetail.transcript.segments
@@ -417,6 +429,7 @@ const search: SearchResponse = {
       source_video_id: "src-004",
       title: "投放复盘：ROI 与现金流管理实战",
       duration_ms: videos[3]!.duration_ms,
+      source_folder_name: videos[3]!.source_folder_name,
       hit_count: 4,
       best_excerpt: "投放不是只看 ROI，还要看现金流压力和回款节奏。",
       transcript_character_count: 14_575,
@@ -443,6 +456,7 @@ const search: SearchResponse = {
       source_video_id: "src-007",
       title: "组织成本控制与现金流案例",
       duration_ms: videos[6]!.duration_ms,
+      source_folder_name: videos[6]!.source_folder_name,
       hit_count: 3,
       best_excerpt: "成本控制的目标不是少花钱，而是让现金流支撑更长的经营周期。",
       transcript_character_count: 19_032,
@@ -463,6 +477,7 @@ const search: SearchResponse = {
       source_video_id: "src-002",
       title: "私域直播复盘方法",
       duration_ms: videos[1]!.duration_ms,
+      source_folder_name: videos[1]!.source_folder_name,
       hit_count: 1,
       best_excerpt: "直播复盘先看成交曲线，再回到现金流和投放回收周期。",
       transcript_character_count: "直播复盘先看成交曲线，再回到现金流和投放回收周期。".replace(/\s+/g, "").length,
@@ -483,6 +498,7 @@ const search: SearchResponse = {
       source_video_id: "src-005",
       title: "企业运营与现金流管理实战",
       duration_ms: videos[4]!.duration_ms,
+      source_folder_name: videos[4]!.source_folder_name,
       hit_count: 2,
       best_excerpt: "运营动作最终要回到现金流，否则增长只是账面热闹。",
       transcript_character_count: 22_114,
@@ -660,18 +676,33 @@ const runtimeStatus: CutterRuntimeStatus = {
 };
 
 export function createFixtureCutterData(): CutterFixtureData {
+  const sourceFolders = sourceFolderOptionsFromVideos(videos);
   return {
     library: {
       library_id: "lib_main_001",
       available_video_count: videos.length,
+      source_folders: sourceFolders,
       videos
     },
+    sourceFolders,
     primaryDetail,
     search,
     localClips,
     settings,
     runtimeStatus
   };
+}
+
+function sourceFolderOptionsFromVideos(items: readonly SourceVideoCard[]): SourceFolderOption[] {
+  const counts = new Map<string, number>();
+  for (const video of items) {
+    const name = video.source_folder_name?.trim();
+    if (!name) {
+      continue;
+    }
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([name, count]) => ({ name, count }));
 }
 
 export function emptySearchResponse(query = ""): SearchResponse {
@@ -875,22 +906,40 @@ export function createFixtureCutterApiClient(): CutterApiClient {
     async getRuntimeStatus() {
       return data.runtimeStatus;
     },
-    async listSourceLibrary() {
-      return data.library;
+    async listSourceLibrary(options?: { limit?: number; offset?: number; sourceFolderName?: string }) {
+      const sourceFolderName = options?.sourceFolderName?.trim();
+      const offset = options?.offset && options.offset > 0 ? options.offset : 0;
+      const limit = options?.limit && options.limit > 0 ? options.limit : data.library.videos.length;
+      const videos = sourceFolderName
+        ? data.library.videos.filter((video) => video.source_folder_name === sourceFolderName)
+        : data.library.videos;
+
+      return {
+        ...data.library,
+        available_video_count: videos.length,
+        source_folders: data.sourceFolders,
+        videos: videos.slice(offset, offset + limit)
+      };
+    },
+    async listSourceFolders() {
+      return {
+        source_folders: data.sourceFolders
+      };
     },
     async getSourceVideoDetail(sourceVideoId: string) {
       return sourceVideoId === data.primaryDetail.source_video_id
         ? data.primaryDetail
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
-    async searchSourceLibrary(query: string, limit = 20, options: { cursor?: string } = {}) {
+    async searchSourceLibrary(query: string, limit = 20, options: { cursor?: string; sourceFolderName?: string } = {}) {
       const normalizedQuery = query.trim().toLowerCase();
       if (!normalizedQuery) {
         return emptySearchResponse(query);
       }
 
       const filteredGroups = data.search.groups.filter((group) =>
-        searchGroupText(group).toLowerCase().includes(normalizedQuery)
+        searchGroupText(group).toLowerCase().includes(normalizedQuery) &&
+        (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName)
       );
       const offset = fixtureSearchOffset(options.cursor);
       const groups = filteredGroups.slice(offset, offset + limit);
@@ -1180,22 +1229,33 @@ export async function loadCutterWorkbenchData(
   options: LoadCutterWorkbenchDataOptions = {}
 ): Promise<CutterFixtureData> {
   const includeSourceLibrary = options.includeSourceLibrary ?? true;
-  const [localClipsResult, runtimeStatusResult, libraryResult] = await Promise.all([
+  const [localClipsResult, runtimeStatusResult, sourceFoldersResult, libraryResult] = await Promise.all([
     client.listLocalClips(
       options.localClipLimit ? { limit: options.localClipLimit } : undefined
     ),
     client.getRuntimeStatus({ includeCache: options.includeRuntimeCache }),
+    typeof client.listSourceFolders === "function"
+      ? client.listSourceFolders().catch(() => ({ source_folders: [] }))
+      : Promise.resolve({ source_folders: [] }),
     includeSourceLibrary
-      ? client.listSourceLibrary({ limit: options.sourceLibraryLimit })
+      ? client.listSourceLibrary({
+          limit: options.sourceLibraryLimit,
+          sourceFolderName: options.sourceFolderName
+        })
       : Promise.resolve(undefined)
   ]);
+  const sourceFolders = sourceFoldersResult.source_folders.length > 0
+    ? sourceFoldersResult.source_folders
+    : (libraryResult?.source_folders ?? []);
   const resolvedLibraryResult = libraryResult ?? {
     library_id: runtimeStatusResult.library_id,
     available_video_count: runtimeStatusResult.available_video_count,
+    source_folders: sourceFolders,
     videos: []
   };
   const library = {
     ...resolvedLibraryResult,
+    source_folders: sourceFolders,
     videos: resolvedLibraryResult.videos.map((video) => resolveSourceVideoCardUrls(client, video))
   };
   const localClips = {
@@ -1208,6 +1268,7 @@ export async function loadCutterWorkbenchData(
 
   return {
     library,
+    sourceFolders,
     primaryDetail: resolveSourceVideoDetailUrls(client, primaryDetailResult),
     search: emptySearchResponse(),
     localClips,

@@ -68,3 +68,27 @@ body,
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+.cutter-source-folder-select {
+  width: auto;
+  min-width: 128px;
+  max-width: 196px;
+  height: 36px;
+}
+
+.ml-command-row-header--source-filter {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .ml-command-row-header--source-filter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cutter-source-folder-select {
+    width: 100%;
+    max-width: none;
+  }
+}

@@ -11,6 +11,7 @@ import {
 } from "../../protocol/src/index.ts";
 import type {
   CutterKeyframesArtifact,
+  CutterSourceFolderOption,
   CutterSourceLibraryView,
   CutterSourceVideoCard,
   CutterSourceVideoDetail,
@@ -18,6 +19,7 @@ import type {
 } from "./cutter-source-library.ts";
 import { readSourceVideoManifest } from "./preprocess-lifecycle.ts";
 import { resolveSourceVideoFilePath } from "./source-paths.ts";
+import { normalizeSourceFolderName, sourceFolderNameFromRelativePath } from "./source-folders.ts";
 
 export interface PublishCutterReleaseInput {
   library_root: string;
@@ -76,6 +78,7 @@ interface ReleaseCatalogRow {
   logical_uri: string;
   source_folder_id: string;
   source_folder_relative_path: string;
+  source_folder_name: string;
   source_video_file_path: string;
   cover_path: string;
   transcript_path: string;
@@ -95,6 +98,7 @@ interface IndexSourceVideoRow {
   title: string;
   duration_ms: number;
   relative_path: string;
+  source_folder_name: string;
   cover_path: string;
   transcript_character_count: number;
 }
@@ -266,6 +270,7 @@ function readIndexSourceVideoRows(input: {
         v.title,
         v.duration_ms,
         v.relative_path,
+        CASE WHEN instr(v.relative_path, '/') > 0 THEN substr(v.relative_path, 1, instr(v.relative_path, '/') - 1) ELSE '' END AS source_folder_name,
         v.cover_path,
         0 AS transcript_character_count
       FROM source_videos v
@@ -335,6 +340,7 @@ function createCatalogSchema(db: DatabaseSync): void {
       logical_uri TEXT NOT NULL,
       source_folder_id TEXT NOT NULL,
       source_folder_relative_path TEXT NOT NULL,
+      source_folder_name TEXT NOT NULL DEFAULT '',
       source_video_file_path TEXT NOT NULL,
       cover_path TEXT NOT NULL,
       transcript_path TEXT NOT NULL,
@@ -351,6 +357,7 @@ function createCatalogSchema(db: DatabaseSync): void {
 
     CREATE INDEX idx_release_source_videos_position ON source_videos(position);
     CREATE INDEX idx_release_source_videos_title ON source_videos(title);
+    CREATE INDEX idx_release_source_videos_source_folder ON source_videos(source_folder_name, position);
   `);
 }
 
@@ -406,6 +413,7 @@ async function writeCatalogSqlite(input: {
           logical_uri,
           source_folder_id,
           source_folder_relative_path,
+          source_folder_name,
           source_video_file_path,
           cover_path,
           transcript_path,
@@ -419,7 +427,7 @@ async function writeCatalogSqlite(input: {
           course,
           category
         )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     input.videos.forEach((video, index) => {
@@ -440,6 +448,7 @@ async function writeCatalogSqlite(input: {
         video.manifest.logical_uri,
         sourceFolderId,
         sourceFolderRelativePath,
+        sourceFolderNameFromRelativePath(video.manifest.relative_path),
         video.source_video_file_path,
         video.manifest.cover_path,
         video.manifest.transcript_path,
@@ -732,6 +741,19 @@ function openReadonlyDatabase(filePath: string): DatabaseSync {
   return new DatabaseSync(`file:${filePath}?mode=ro&immutable=1`);
 }
 
+function sourceVideoColumnExists(db: DatabaseSync, columnName: string): boolean {
+  const rows = db.prepare("PRAGMA table_info(source_videos)").all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === columnName);
+}
+
+function releaseSourceFolderSqlExpression(db: DatabaseSync): string {
+  if (sourceVideoColumnExists(db, "source_folder_name")) {
+    return "source_folder_name";
+  }
+
+  return "CASE WHEN instr(relative_path, '/') > 0 THEN substr(relative_path, 1, instr(relative_path, '/') - 1) ELSE '' END";
+}
+
 function parseTags(tagsJson: string): string[] | undefined {
   try {
     const tags = JSON.parse(tagsJson) as unknown;
@@ -779,6 +801,7 @@ function releaseCatalogRowToCard(
     codec: row.codec,
     file_size: row.file_size,
     relative_path: row.relative_path,
+    source_folder_name: row.source_folder_name || sourceFolderNameFromRelativePath(row.relative_path),
     logical_uri: row.logical_uri,
     source_video_file_path: resolveReleaseSourceVideoFilePath(input.library_root, row),
     cover_path: row.cover_path,
@@ -870,6 +893,7 @@ export async function listCutterReleaseCatalog(
     release_root?: string;
     limit?: number;
     offset?: number;
+    source_folder_name?: string;
   }
 ): Promise<CutterSourceLibraryView> {
   const releaseRootBase = input.release_root ?? input.library_root;
@@ -887,7 +911,18 @@ export async function listCutterReleaseCatalog(
 
   try {
     const offset = Math.max(0, input.offset ?? 0);
-    const limit = input.limit && input.limit > 0 ? input.limit : releaseManifest.ready_video_count;
+    const sourceFolderName = normalizeSourceFolderName(input.source_folder_name);
+    const sourceFolderExpression = releaseSourceFolderSqlExpression(db);
+    const whereClause = sourceFolderName ? `WHERE ${sourceFolderExpression} = ?` : "";
+    const whereParams = sourceFolderName ? [sourceFolderName] : [];
+    const availableVideoCount = Number(
+      (db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM source_videos
+        ${whereClause}
+      `).get(...whereParams) as { count?: number } | undefined)?.count ?? 0
+    );
+    const limit = input.limit && input.limit > 0 ? input.limit : availableVideoCount;
     const rows = db.prepare(`
       SELECT
         source_video_id,
@@ -902,6 +937,7 @@ export async function listCutterReleaseCatalog(
         logical_uri,
         source_folder_id,
         source_folder_relative_path,
+        ${sourceFolderExpression} AS source_folder_name,
         source_video_file_path,
         cover_path,
         transcript_path,
@@ -914,17 +950,52 @@ export async function listCutterReleaseCatalog(
         course,
         category
       FROM source_videos
+      ${whereClause}
       ORDER BY position
       LIMIT ? OFFSET ?
-    `).all(limit, offset) as unknown as ReleaseCatalogRow[];
+    `).all(...whereParams, limit, offset) as unknown as ReleaseCatalogRow[];
 
     return {
-      available_video_count: releaseManifest.ready_video_count,
+      available_video_count: availableVideoCount,
       videos: rows.map((row) => releaseCatalogRowToCard({
         library_root: input.library_root,
         artifact_root: artifactRoot
       }, row))
     };
+  } finally {
+    db.close();
+  }
+}
+
+export async function listCutterReleaseSourceFolders(
+  input: {
+    library_root: string;
+    release_root?: string;
+  }
+): Promise<CutterSourceFolderOption[]> {
+  const releaseRootBase = input.release_root ?? input.library_root;
+  const pointer = await readJsonFile<CutterReleaseCurrentPointer>(
+    currentReleasePointerPath(releaseRootBase)
+  );
+  const catalogPath = releaseCatalogPath(releaseRootBase, pointer.current_version);
+  const db = openReadonlyDatabase(catalogPath);
+
+  try {
+    const sourceFolderExpression = releaseSourceFolderSqlExpression(db);
+    const rows = db.prepare(`
+      SELECT ${sourceFolderExpression} AS name, COUNT(*) AS count
+      FROM source_videos
+      WHERE ${sourceFolderExpression} <> ''
+      GROUP BY ${sourceFolderExpression}
+      ORDER BY name COLLATE NOCASE ASC
+    `).all() as Array<{ name: string; count: number }>;
+
+    return rows
+      .map((row) => ({
+        name: row.name,
+        count: Number(row.count ?? 0)
+      }))
+      .filter((row) => row.name.trim() && row.count > 0);
   } finally {
     db.close();
   }
@@ -946,6 +1017,7 @@ export async function getCutterReleaseSourceVideoDetail(input: {
   const db = openReadonlyDatabase(catalogPath);
 
   try {
+    const sourceFolderExpression = releaseSourceFolderSqlExpression(db);
     const row = db.prepare(`
       SELECT
         source_video_id,
@@ -960,6 +1032,7 @@ export async function getCutterReleaseSourceVideoDetail(input: {
         logical_uri,
         source_folder_id,
         source_folder_relative_path,
+        ${sourceFolderExpression} AS source_folder_name,
         source_video_file_path,
         cover_path,
         transcript_path,

@@ -9,6 +9,7 @@ import {
   claimNextPreprocessJob,
   completePreprocessArtifacts,
   getCutterSourceVideoDetail,
+  listCutterSourceFolders,
   listCutterSourceLibrary,
   publishIndexRequiredSourceVideos,
   publishReadySourceVideo,
@@ -207,6 +208,74 @@ async function prepareLibrary(): Promise<string> {
       keyframes_path: ".mixlab-library/videos/V000002/keyframes.json",
       cover_path: ".mixlab-library/videos/V000002/cover.jpg"
     }
+  });
+
+  return libraryRoot;
+}
+
+async function prepareTeacherFolderLibrary(): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "陶矜", "现金流.mp4"));
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "陶矜2", "现金流.mp4"));
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:01:00Z"
+  });
+  await writeReadyArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    full_text: "陶矜老师讲现金流。",
+    segments: [
+      segment({
+        source_video_id: "V000001",
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 3600,
+        text: "陶矜老师讲现金流。",
+        normalized_text: "陶矜老师讲现金流"
+      })
+    ]
+  });
+  await completeVideoToReady({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    duration_ms: 123_000
+  });
+
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:20:00Z"
+  });
+  await writeReadyArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    full_text: "陶矜2老师讲现金流。",
+    segments: [
+      segment({
+        source_video_id: "V000002",
+        index: 0,
+        begin_ms: 2000,
+        end_ms: 5200,
+        text: "陶矜2老师讲现金流。",
+        normalized_text: "陶矜2老师讲现金流"
+      })
+    ]
+  });
+  await completeVideoToReady({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    duration_ms: 88_000
   });
 
   return libraryRoot;
@@ -429,6 +498,58 @@ test("searches only cutter-visible ready transcripts and enriches groups with co
     limit: 20
   });
   assert.deepEqual(hiddenOnly.groups, []);
+});
+
+test("source folder filters keep similar teacher folder names separate", async () => {
+  const libraryRoot = await prepareTeacherFolderLibrary();
+
+  const sourceFolders = await listCutterSourceFolders({ library_root: libraryRoot });
+  assert.deepEqual(sourceFolders, [
+    { name: "陶矜", count: 1 },
+    { name: "陶矜2", count: 1 }
+  ]);
+
+  const taoLibrary = await listCutterSourceLibrary({
+    library_root: libraryRoot,
+    source_folder_name: "陶矜"
+  });
+  assert.deepEqual(
+    taoLibrary.videos.map((video) => `${video.source_folder_name}:${video.source_video_id}`),
+    ["陶矜:V000001"]
+  );
+  assert.equal(taoLibrary.available_video_count, 1);
+  assert.equal(taoLibrary.source_folders?.length, 2);
+
+  const taoTwoLibrary = await listCutterSourceLibrary({
+    library_root: libraryRoot,
+    source_folder_name: "陶矜2"
+  });
+  assert.deepEqual(
+    taoTwoLibrary.videos.map((video) => `${video.source_folder_name}:${video.source_video_id}`),
+    ["陶矜2:V000002"]
+  );
+
+  const taoSearch = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流",
+    limit: 20,
+    source_folder_name: "陶矜"
+  });
+  assert.deepEqual(
+    taoSearch.groups.map((group) => `${group.source_folder_name}:${group.source_video_id}`),
+    ["陶矜:V000001"]
+  );
+
+  const taoTwoSearch = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流",
+    limit: 20,
+    source_folder_name: "陶矜2"
+  });
+  assert.deepEqual(
+    taoTwoSearch.groups.map((group) => `${group.source_folder_name}:${group.source_video_id}`),
+    ["陶矜2:V000002"]
+  );
 });
 
 test("falls back to ready transcript artifacts when the current sqlite search index is invalid", async () => {

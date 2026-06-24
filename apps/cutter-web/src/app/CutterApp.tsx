@@ -17,6 +17,7 @@ import {
   type OpenCutOutputDirectoryRequest,
   type SearchGroup,
   type SearchResponse,
+  type SourceFolderOption,
   type SourceVideoCard
 } from "../api.ts";
 import {
@@ -1262,6 +1263,8 @@ function renderPage(
     currentProjectId?: string;
     homeSelectedProjectId?: string;
     sourceFilter: MaterialSearchSourceFilter;
+    sourceFolderFilter: string;
+    sourceFolders: readonly SourceFolderOption[];
     orientationFilter: VideoOrientationFilter;
     publicLibraryOrientationFilter: VideoOrientationFilter;
     publicLibrarySelectedSourceVideoId?: string;
@@ -1298,6 +1301,7 @@ function renderPage(
     navigateHit: (direction: "previous" | "next") => void;
     cancelTranscriptSelection: () => void;
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
+    setSourceFolderFilter: (folderName: string) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
     setPublicLibraryOrientationFilter: (filter: VideoOrientationFilter) => void;
     selectPublicSourceVideo: (sourceVideoId: string) => void;
@@ -1367,6 +1371,8 @@ function renderPage(
         search={data.search}
         query={viewState.searchQuery}
         sourceFilter={viewState.sourceFilter}
+        sourceFolderFilter={viewState.sourceFolderFilter}
+        sourceFolders={viewState.sourceFolders}
         orientationFilter={viewState.orientationFilter}
         selectedDetail={viewState.selectedDetail}
         selectedSegments={viewState.selectedSegments}
@@ -1385,6 +1391,7 @@ function renderPage(
         queue={queue}
         cutMode={viewState.selectedCutMode}
         onSearch={handlers.search}
+        onSetSourceFolderFilter={handlers.setSourceFolderFilter}
         onSelectMaterial={handlers.selectMaterial}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
         onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
@@ -1471,10 +1478,13 @@ function renderPage(
       library={data.library}
       selectedSourceVideoId={viewState.publicLibrarySelectedSourceVideoId}
       orientationFilter={viewState.publicLibraryOrientationFilter}
+      sourceFolderFilter={viewState.sourceFolderFilter}
+      sourceFolders={viewState.sourceFolders}
       runtimeStatus={data.runtimeStatus}
       isLoadingMore={viewState.sourceLibraryLoadingMore}
       hasMore={data.library.videos.length < data.library.available_video_count}
       onSetOrientationFilter={handlers.setPublicLibraryOrientationFilter}
+      onSetSourceFolderFilter={handlers.setSourceFolderFilter}
       onSelectSourceVideo={handlers.selectPublicSourceVideo}
       onLoadMore={handlers.loadMoreSourceLibrary}
     />
@@ -1512,6 +1522,7 @@ export function CutterApp() {
   const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>(() =>
     readCutterDefaultSourceFilter()
   );
+  const [sourceFolderFilter, setSourceFolderFilter] = useState("");
   const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>(() =>
     readCutterDefaultOrientationFilter()
   );
@@ -2352,6 +2363,7 @@ export function CutterApp() {
       includeSourceLibrary: route === "public-library",
       includeRuntimeCache: route === "cache-management",
       sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
+      sourceFolderName: sourceFolderFilter || undefined,
       localClipLimit: CUTTER_LOCAL_CLIP_INITIAL_LOAD_LIMIT
     })
       .then((result) => {
@@ -2373,7 +2385,7 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, desktopSetupReady, loginGateVisible, route, workbenchPreferredSourceVideoId]);
+  }, [client, desktopSetupReady, loginGateVisible, route, sourceFolderFilter, workbenchPreferredSourceVideoId]);
 
   useEffect(() => {
     setData((current) =>
@@ -2488,7 +2500,9 @@ export function CutterApp() {
       try {
         const firstPage = resolveSearchResponseUrls(
           client,
-          await client.searchSourceLibrary(query, MATERIAL_SEARCH_FIRST_BATCH_LIMIT)
+          await client.searchSourceLibrary(query, MATERIAL_SEARCH_FIRST_BATCH_LIMIT, {
+            sourceFolderName: sourceFolderFilter || undefined
+          })
         );
         if (cancelled || materialSearchRequestIdRef.current !== requestId) {
           return;
@@ -2563,6 +2577,7 @@ export function CutterApp() {
     orientationFilter,
     route,
     searchQuery,
+    sourceFolderFilter,
     sourceFilter
   ]);
 
@@ -2584,7 +2599,8 @@ export function CutterApp() {
       const page = resolveSearchResponseUrls(
         client,
         await client.searchSourceLibrary(query, MATERIAL_SEARCH_NEXT_BATCH_LIMIT, {
-          cursor: nextCursor
+          cursor: nextCursor,
+          sourceFolderName: sourceFolderFilter || undefined
         })
       );
 
@@ -2834,6 +2850,12 @@ export function CutterApp() {
     writeCutterDefaultSourceFilter(supportedFilter);
   };
 
+  const handleSetSourceFolderFilter = (folderName: string) => {
+    setSourceFolderFilter(folderName.trim());
+    setPublicLibrarySelectedSourceVideoId(undefined);
+    clearMaterialLocatorFocus();
+  };
+
   const handleSetOrientationFilter = (filter: VideoOrientationFilter) => {
     const supportedFilter = normalizeVideoOrientationFilter(filter);
     setOrientationFilter(supportedFilter);
@@ -2911,7 +2933,8 @@ export function CutterApp() {
     try {
       const nextPage = await client.listSourceLibrary({
         limit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
-        offset
+        offset,
+        sourceFolderName: sourceFolderFilter || undefined
       });
       const nextVideos = nextPage.videos.map((video) => resolveSourceVideoCardUrls(client, video));
 
@@ -2937,7 +2960,7 @@ export function CutterApp() {
     } finally {
       setSourceLibraryLoadingMore(false);
     }
-  }, [client, sourceLibraryLoadingMore]);
+  }, [client, sourceFolderFilter, sourceLibraryLoadingMore]);
 
   const commitDesktopConfigDraft = (config: DesktopConfig, stage = desktopSetupStageForConfig(config)) => {
     setDesktopConfig(config);
@@ -3373,6 +3396,7 @@ export function CutterApp() {
       setTranscriptSelection({});
     },
     setSourceFilter: handleSetSourceFilter,
+    setSourceFolderFilter: handleSetSourceFolderFilter,
     setOrientationFilter: handleSetOrientationFilter,
     setPublicLibraryOrientationFilter: handleSetPublicLibraryOrientationFilter,
     selectPublicSourceVideo: setPublicLibrarySelectedSourceVideoId,
@@ -3780,6 +3804,8 @@ export function CutterApp() {
                 currentProjectId,
                 homeSelectedProjectId,
                 sourceFilter,
+                sourceFolderFilter,
+                sourceFolders: data.sourceFolders,
                 orientationFilter,
                 publicLibraryOrientationFilter,
                 publicLibrarySelectedSourceVideoId,

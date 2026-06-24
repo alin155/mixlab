@@ -22,6 +22,7 @@ import {
   createCutterLoginApplication,
   ensureCutterSessionForDevice,
   getCutterSourceVideoDetail,
+  listCutterSourceFolders,
   getLocalClipDetail,
   listCutterSourceLibrary,
   listLocalClips,
@@ -41,6 +42,7 @@ import {
   type SyncCutterReleaseCacheResult,
   type CutterSourceLibrarySearchGroup,
   type CutterSourceLibrarySearchResult,
+  type CutterSourceFolderOption,
   type CutterSourceVideoCard,
   type CutterSourceVideoDetail,
   type LocalClipView
@@ -1441,12 +1443,16 @@ function searchdSourceSearchUrl(input: {
   query: string;
   limit: number;
   cursor?: string;
+  source_folder_name?: string;
 }): string {
   const url = new URL(`${normalizeSearchdBaseUrl(input.base_url)}/source-search`);
   url.searchParams.set("query", input.query);
   url.searchParams.set("limit", String(input.limit));
   if (input.cursor) {
     url.searchParams.set("cursor", input.cursor);
+  }
+  if (input.source_folder_name) {
+    url.searchParams.set("source_folder_name", input.source_folder_name);
   }
 
   return url.toString();
@@ -1533,6 +1539,7 @@ function coerceSearchdGroup(value: unknown): CutterSourceLibrarySearchGroup | nu
     best_excerpt: stringField(value, "best_excerpt", hitSegments[0]?.text ?? ""),
     hit_segments: hitSegments,
     relative_path: stringField(value, "relative_path"),
+    source_folder_name: stringField(value, "source_folder_name"),
     source_video_file_path: stringField(value, "source_video_file_path"),
     cover_path: stringField(value, "cover_path"),
     cover_file_path: stringField(value, "cover_file_path"),
@@ -1633,6 +1640,7 @@ function coerceSearchdSourceVideoDetailPayload(payload: unknown): {
   title: string;
   duration_ms: number;
   relative_path: string;
+  source_folder_name: string;
   cover_path: string;
   transcript: CutterSourceVideoDetail["transcript"];
 } {
@@ -1652,6 +1660,7 @@ function coerceSearchdSourceVideoDetailPayload(payload: unknown): {
     title,
     duration_ms: Math.max(0, Math.round(numberField(record, "duration_ms"))),
     relative_path: stringField(record, "relative_path"),
+    source_folder_name: stringField(record, "source_folder_name"),
     cover_path: stringField(record, "cover_path"),
     transcript: coerceSearchdTranscript(record.transcript)
   };
@@ -1754,6 +1763,7 @@ async function searchCutterSourceLibraryViaSearchd(input: {
   query: string;
   limit: number;
   cursor?: string;
+  source_folder_name?: string;
 }): Promise<CutterSourceLibrarySearchResult> {
   const startedAt = Date.now();
   const fetchImpl = input.searchd_fetch ?? fetch;
@@ -1765,7 +1775,8 @@ async function searchCutterSourceLibraryViaSearchd(input: {
       base_url: input.searchd_base_url,
       query: input.query,
       limit: input.limit,
-      cursor: input.cursor
+      cursor: input.cursor,
+      source_folder_name: input.source_folder_name
     }), {
       headers: {
         Accept: "application/json"
@@ -1847,6 +1858,7 @@ function searchdTranscriptDetail(input: {
     codec: "",
     file_size: 0,
     relative_path: input.indexed.relative_path,
+    source_folder_name: input.indexed.source_folder_name,
     logical_uri: "",
     source_video_file_path: input.indexed.relative_path
       ? resolveSourceVideoPath({
@@ -1972,6 +1984,7 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
   query: string;
   limit: number;
   cursor?: string;
+  source_folder_name?: string;
 }): Promise<CutterSourceLibrarySearchResult> {
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
@@ -1983,7 +1996,8 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
         searchd_timeout_ms: input.api_input.searchd_timeout_ms,
         query: input.query,
         limit: input.limit,
-        cursor: input.cursor
+        cursor: input.cursor,
+        source_folder_name: input.source_folder_name
       });
     } catch (error) {
       if ((error as Error).message === "invalid_search_cursor" || cursorBackend === "searchd" || cursorBackend === "unknown") {
@@ -2000,7 +2014,8 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     ...(releaseRoot ? { release_root: releaseRoot } : {}),
     query: input.query,
     limit: input.limit,
-    cursor: input.cursor
+    cursor: input.cursor,
+    source_folder_name: input.source_folder_name
   });
 }
 
@@ -3474,6 +3489,7 @@ interface SourceLibraryPagePayload {
   library_id: string;
   available_video_count: number;
   videos: ApiSourceVideoCard[];
+  source_folders?: CutterSourceFolderOption[];
 }
 
 interface SourceLibraryPageCacheEntry {
@@ -3596,12 +3612,14 @@ function sourceLibraryPageCacheKey(input: {
   state: FastLibraryReadState;
   limit: number;
   offset: number;
+  source_folder_name?: string;
 }): string {
   return [
     input.state.release_root ?? "source",
     input.state.release_version || "fallback",
     input.limit,
-    input.offset
+    input.offset,
+    input.source_folder_name ?? ""
   ].join("\0");
 }
 
@@ -3621,10 +3639,11 @@ async function loadSourceLibraryPageWithState(
   input: CreateCutterApiServerInput,
   state: FastLibraryReadState,
   limit: number,
-  offset: number
+  offset: number,
+  sourceFolderName?: string
 ): Promise<SourceLibraryPagePayload> {
   const cache = sourceLibraryPageCacheForInput(input);
-  const key = sourceLibraryPageCacheKey({ state, limit, offset });
+  const key = sourceLibraryPageCacheKey({ state, limit, offset, source_folder_name: sourceFolderName });
   const nowMs = Date.now();
   const cached = cache.get(key);
 
@@ -3637,12 +3656,14 @@ async function loadSourceLibraryPageWithState(
       library_root: input.library_root,
       ...(state.release_root ? { release_root: state.release_root } : {}),
       limit,
-      offset
+      offset,
+      source_folder_name: sourceFolderName
     });
 
     return {
       library_id: await readLibraryIdBestEffort(input),
       available_video_count: library.available_video_count,
+      ...(library.source_folders ? { source_folders: library.source_folders } : {}),
       videos: library.videos.map(addSourceVideoUrls)
     };
   })().catch((error) => {
@@ -3878,10 +3899,17 @@ async function loadSourceLibraryPage(
   request: {
     limit: number;
     offset: number;
+    source_folder_name?: string;
   }
 ): Promise<SourceLibraryPagePayload> {
   const state = await fastLibraryReadState(input);
-  return loadSourceLibraryPageWithState(input, state, request.limit, request.offset);
+  return loadSourceLibraryPageWithState(
+    input,
+    state,
+    request.limit,
+    request.offset,
+    request.source_folder_name
+  );
 }
 
 function checkingSourceVideoPreflightStatus(): CutterSourceVideoPreflightStatus {
@@ -5463,12 +5491,37 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         const library = await loadSourceLibraryPage(input, {
           limit: parseSourceLibraryLimit(url.searchParams.get("limit")),
-          offset: parseSourceLibraryOffset(url.searchParams.get("offset"))
+          offset: parseSourceLibraryOffset(url.searchParams.get("offset")),
+          source_folder_name: optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined)
         });
         writeJson(
           response,
           200,
           apiResponse(library)
+        );
+        return;
+      }
+
+      if (url.pathname === "/cutter/source-folders") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const state = await fastLibraryReadState(input);
+        const sourceFolders = await listCutterSourceFolders({
+          library_root: input.library_root,
+          ...(state.release_root ? { release_root: state.release_root } : {})
+        });
+        writeJson(
+          response,
+          200,
+          apiResponse({
+            source_folders: sourceFolders
+          })
         );
         return;
       }
@@ -5486,6 +5539,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         const query = url.searchParams.get("query") ?? "";
         const cursor = optionalTrimmed(url.searchParams.get("cursor") ?? undefined);
+        const sourceFolderName = optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined);
         const startedAt = Date.now();
         let result: CutterSourceLibrarySearchResult;
         try {
@@ -5493,7 +5547,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             api_input: input,
             query,
             limit: parsePositiveLimit(url.searchParams.get("limit")),
-            cursor
+            cursor,
+            source_folder_name: sourceFolderName
           });
         } catch (error) {
           await recordCutterUsageEventBestEffort({

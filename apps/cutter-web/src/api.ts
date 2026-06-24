@@ -20,6 +20,7 @@ export interface SourceVideoCard {
   codec?: string;
   file_size?: number;
   relative_path?: string;
+  source_folder_name?: string;
   description?: string;
   tags?: string[];
   category?: string;
@@ -36,6 +37,16 @@ export interface SourceLibraryResponse {
   library_id?: string;
   available_video_count: number;
   videos: SourceVideoCard[];
+  source_folders?: SourceFolderOption[];
+}
+
+export interface SourceFolderOption {
+  name: string;
+  count: number;
+}
+
+export interface SourceFolderResponse {
+  source_folders: SourceFolderOption[];
 }
 
 export interface TranscriptSegment {
@@ -69,6 +80,7 @@ export interface SearchGroup {
   best_excerpt: string;
   hit_segments: SearchHitSegment[];
   transcript_character_count?: number;
+  source_folder_name?: string;
   media_url?: string;
   cover_url?: string;
   detail_url?: string;
@@ -483,9 +495,10 @@ export interface CutterApiClient {
   getAuthMode(): Promise<CutterAuthModeStatus>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
-  listSourceLibrary(options?: { limit?: number; offset?: number }): Promise<SourceLibraryResponse>;
+  listSourceLibrary(options?: { limit?: number; offset?: number; sourceFolderName?: string }): Promise<SourceLibraryResponse>;
+  listSourceFolders(): Promise<SourceFolderResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
-  searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string }): Promise<SearchResponse>;
+  searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string; sourceFolderName?: string }): Promise<SearchResponse>;
   listLocalClips(options?: { limit?: number; offset?: number }): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
   createLocalClip(request: CreateLocalClipRequest): Promise<LocalClip>;
@@ -673,10 +686,23 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       if (options?.offset) {
         params.set("offset", String(options.offset));
       }
+      if (options?.sourceFolderName) {
+        params.set("source_folder_name", options.sourceFolderName);
+      }
       const query = params.toString();
       return requestEnvelope<SourceLibraryResponse>(
         fetchImpl,
         appendPath(input.base_url, `/cutter/source-library${query ? `?${query}` : ""}`),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    listSourceFolders() {
+      return requestEnvelope<SourceFolderResponse>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/source-folders"),
         {
           headers: protectedHeaders
         }
@@ -700,6 +726,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       });
       if (options.cursor) {
         params.set("cursor", options.cursor);
+      }
+      if (options.sourceFolderName) {
+        params.set("source_folder_name", options.sourceFolderName);
       }
       return requestEnvelope<SearchResponse>(
         fetchImpl,

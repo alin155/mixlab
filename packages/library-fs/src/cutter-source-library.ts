@@ -26,15 +26,23 @@ import {
 import {
   currentCutterReleaseSearchIndexFilePath,
   getCutterReleaseSourceVideoDetail,
-  listCutterReleaseCatalog
+  listCutterReleaseCatalog,
+  listCutterReleaseSourceFolders
 } from "./cutter-release.ts";
 import { resolveSourceVideoFilePath } from "./source-paths.ts";
+import { normalizeSourceFolderName, sourceFolderNameFromRelativePath } from "./source-folders.ts";
 
 export interface ListCutterSourceLibraryInput {
   library_root: string;
   release_root?: string;
   limit?: number;
   offset?: number;
+  source_folder_name?: string;
+}
+
+export interface ListCutterSourceFoldersInput {
+  library_root: string;
+  release_root?: string;
 }
 
 export interface GetCutterSourceVideoDetailInput {
@@ -49,6 +57,7 @@ export interface SearchCutterSourceLibraryInput {
   query: string;
   limit: number;
   cursor?: string;
+  source_folder_name?: string;
 }
 
 export interface CutterSourceVideoCard {
@@ -61,6 +70,7 @@ export interface CutterSourceVideoCard {
   codec: string;
   file_size: number;
   relative_path: string;
+  source_folder_name: string;
   logical_uri: string;
   source_video_file_path: string;
   cover_path: string;
@@ -75,6 +85,12 @@ export interface CutterSourceVideoCard {
 export interface CutterSourceLibraryView {
   available_video_count: number;
   videos: CutterSourceVideoCard[];
+  source_folders?: CutterSourceFolderOption[];
+}
+
+export interface CutterSourceFolderOption {
+  name: string;
+  count: number;
 }
 
 export interface CutterTranscriptArtifact {
@@ -107,6 +123,7 @@ export interface CutterSourceVideoDetail extends CutterSourceVideoCard {
 
 export interface CutterSourceLibrarySearchGroup extends TranscriptSearchGroup {
   relative_path: string;
+  source_folder_name: string;
   source_video_file_path: string;
   cover_path: string;
   cover_file_path: string;
@@ -209,6 +226,7 @@ async function toCutterSourceVideoCard(
     source_video_file_path: await resolveSourceVideoFilePath(libraryRoot, manifest),
     cover_path: manifest.cover_path,
     cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path),
+    source_folder_name: sourceFolderNameFromRelativePath(manifest.relative_path),
     ...(manifest.description ? { description: manifest.description } : {}),
     ...(manifest.tags ? { tags: manifest.tags } : {}),
     ...(manifest.lecturer ? { lecturer: manifest.lecturer } : {}),
@@ -235,6 +253,7 @@ async function toFastCutterSourceVideoCard(
     source_video_file_path: manifest.relative_path,
     cover_path: manifest.cover_path,
     cover_file_path: artifactFilePath(libraryRoot, manifest.cover_path),
+    source_folder_name: sourceFolderNameFromRelativePath(manifest.relative_path),
     ...(manifest.description ? { description: manifest.description } : {}),
     ...(manifest.tags ? { tags: manifest.tags } : {}),
     ...(manifest.lecturer ? { lecturer: manifest.lecturer } : {}),
@@ -471,9 +490,30 @@ function isSourceTranscriptSqliteSearchGroup(
 
   return (
     typeof candidate.relative_path === "string" &&
+    typeof candidate.source_folder_name === "string" &&
     typeof candidate.cover_path === "string" &&
     typeof candidate.transcript_character_count === "number"
   );
+}
+
+function matchesSourceFolderName(manifest: SourceVideoManifest, sourceFolderName: string | undefined): boolean {
+  const normalized = normalizeSourceFolderName(sourceFolderName);
+  return !normalized || sourceFolderNameFromRelativePath(manifest.relative_path) === normalized;
+}
+
+function sourceFolderOptionsFromManifests(manifests: readonly SourceVideoManifest[]): CutterSourceFolderOption[] {
+  const counts = new Map<string, number>();
+  for (const manifest of manifests) {
+    const name = sourceFolderNameFromRelativePath(manifest.relative_path);
+    if (!name) {
+      continue;
+    }
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-Hans-CN"));
 }
 
 async function pruneSqliteIndexCache(
@@ -629,18 +669,32 @@ export async function listCutterSourceLibrary(
   let availableVideoCount = 0;
 
   try {
-    const indexed = await readIndexedReadySourceVideoManifests(input.library_root, {
-      limit: input.limit,
-      offset: input.offset
-    });
-    readyManifests = indexed.manifests;
-    availableVideoCount = indexed.available_video_count;
+    if (normalizeSourceFolderName(input.source_folder_name)) {
+      const visible = await readVisibleSourceVideoManifests(input.library_root);
+      const filtered = visible.filter((manifest) =>
+        matchesSourceFolderName(manifest, input.source_folder_name)
+      );
+      const offset = Math.max(0, input.offset ?? 0);
+      const limit = input.limit && input.limit > 0 ? input.limit : filtered.length;
+      readyManifests = filtered.slice(offset, offset + limit);
+      availableVideoCount = filtered.length;
+    } else {
+      const indexed = await readIndexedReadySourceVideoManifests(input.library_root, {
+        limit: input.limit,
+        offset: input.offset
+      });
+      readyManifests = indexed.manifests;
+      availableVideoCount = indexed.available_video_count;
+    }
   } catch {
     const visible = await readVisibleSourceVideoManifests(input.library_root);
+    const filtered = visible.filter((manifest) =>
+      matchesSourceFolderName(manifest, input.source_folder_name)
+    );
     const offset = Math.max(0, input.offset ?? 0);
-    const limit = input.limit && input.limit > 0 ? input.limit : visible.length;
-    readyManifests = visible.slice(offset, offset + limit);
-    availableVideoCount = visible.length;
+    const limit = input.limit && input.limit > 0 ? input.limit : filtered.length;
+    readyManifests = filtered.slice(offset, offset + limit);
+    availableVideoCount = filtered.length;
   }
 
   const videos = await Promise.all(
@@ -651,8 +705,26 @@ export async function listCutterSourceLibrary(
 
   return {
     available_video_count: availableVideoCount,
+    source_folders: sourceFolderOptionsFromManifests(
+      await readVisibleSourceVideoManifests(input.library_root)
+    ),
     videos
   };
+}
+
+export async function listCutterSourceFolders(
+  input: ListCutterSourceFoldersInput
+): Promise<CutterSourceFolderOption[]> {
+  try {
+    return await listCutterReleaseSourceFolders(input);
+  } catch (error) {
+    if (input.release_root) {
+      throw error;
+    }
+  }
+
+  const visible = await readVisibleSourceVideoManifests(input.library_root);
+  return sourceFolderOptionsFromManifests(visible);
 }
 
 export async function getCutterSourceVideoDetail(
@@ -721,7 +793,8 @@ export async function searchCutterSourceLibrary(
         index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root, input.release_root),
         query: input.query,
         limit: input.limit,
-        cursor: input.cursor
+        cursor: input.cursor,
+        source_folder_name: input.source_folder_name
       });
     } catch (error) {
       if (input.release_root) {
@@ -743,7 +816,9 @@ export async function searchCutterSourceLibrary(
     const offset = decodeArtifactSearchCursor(input.cursor);
     const pageLimit = Math.max(1, input.limit);
     const searchLimit = offset + pageLimit + 1;
-    const visibleManifests = await readVisibleSourceVideoManifests(input.library_root);
+    const visibleManifests = (await readVisibleSourceVideoManifests(input.library_root)).filter((manifest) =>
+      matchesSourceFolderName(manifest, input.source_folder_name)
+    );
     const searchableVideos = [];
     let indexVersion = "";
 
@@ -792,6 +867,7 @@ export async function searchCutterSourceLibrary(
         return {
           ...group,
           relative_path: group.relative_path,
+          source_folder_name: group.source_folder_name,
           source_video_file_path: group.relative_path,
           cover_path: group.cover_path,
           cover_file_path: group.cover_path
@@ -816,6 +892,7 @@ export async function searchCutterSourceLibrary(
         return {
           ...group,
           relative_path: card.relative_path,
+          source_folder_name: card.source_folder_name,
           source_video_file_path: card.source_video_file_path,
           cover_path: card.cover_path,
           cover_file_path: card.cover_file_path,

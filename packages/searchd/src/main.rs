@@ -166,6 +166,7 @@ struct SearchQuery {
     query: String,
     limit: Option<usize>,
     cursor: Option<String>,
+    source_folder_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -269,6 +270,7 @@ struct SourceVideoDetailResponse {
     title: String,
     duration_ms: u64,
     relative_path: String,
+    source_folder_name: String,
     cover_path: String,
     transcript_character_count: usize,
     transcript: SourceVideoTranscriptResponse,
@@ -307,6 +309,7 @@ struct SearchGroup {
     title: String,
     duration_ms: u64,
     relative_path: String,
+    source_folder_name: String,
     cover_path: String,
     hit_count: usize,
     best_excerpt: String,
@@ -362,6 +365,7 @@ struct SegmentRecord {
     title: String,
     duration_ms: u64,
     relative_path: String,
+    source_folder_name: String,
     cover_path: String,
     segment_id: String,
     segment_index: usize,
@@ -384,6 +388,7 @@ struct VideoRecord {
     title: String,
     duration_ms: u64,
     relative_path: String,
+    source_folder_name: String,
     cover_path: String,
     transcript_character_count: usize,
     normalized_text: String,
@@ -490,13 +495,20 @@ impl SearchEngine {
         })
     }
 
-    fn search(&self, query: &str, limit: usize, cursor: Option<&str>) -> Result<SearchResponse> {
+    fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        cursor: Option<&str>,
+        source_folder_name: Option<&str>,
+    ) -> Result<SearchResponse> {
         let started_at = Instant::now();
         let normalized_query = normalize_transcript_text(query);
         let offset = decode_cursor(cursor)?;
         let limit = limit.clamp(1, 100);
         let cursor_text = encode_cursor(offset);
         let bundle = self.ensure_bundle()?;
+        let source_folder_filter = normalize_source_folder_filter(source_folder_name);
 
         if normalized_query.is_empty() {
             return Ok(SearchResponse {
@@ -514,7 +526,13 @@ impl SearchEngine {
             });
         }
 
-        let groups = search_bundle(&bundle, &normalized_query, offset, limit)?;
+        let groups = search_bundle(
+            &bundle,
+            &normalized_query,
+            offset,
+            limit,
+            source_folder_filter.as_deref(),
+        )?;
         let has_more = groups.has_more;
 
         Ok(SearchResponse {
@@ -1131,14 +1149,35 @@ fn read_metadata(connection: &Connection) -> Result<IndexMetadata> {
     })
 }
 
+fn source_video_column_exists(connection: &Connection, column_name: &str) -> Result<bool> {
+    let mut statement = connection.prepare("PRAGMA table_info(source_videos)")?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(1))?;
+    for row in rows {
+        if row? == column_name {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn source_folder_sql_expression(connection: &Connection) -> Result<&'static str> {
+    if source_video_column_exists(connection, "source_folder_name")? {
+        return Ok("v.source_folder_name");
+    }
+
+    Ok("CASE WHEN instr(v.relative_path, '/') > 0 THEN substr(v.relative_path, 1, instr(v.relative_path, '/') - 1) ELSE '' END")
+}
+
 fn read_segments(connection: &Connection) -> Result<Vec<SegmentRecord>> {
-    let mut statement = connection.prepare(
+    let source_folder_expression = source_folder_sql_expression(connection)?;
+    let sql = format!(
         "\
         SELECT
           v.source_video_id,
           v.title,
           v.duration_ms,
           v.relative_path,
+          {source_folder_expression} AS source_folder_name,
           v.cover_path,
           s.segment_id,
           s.segment_index,
@@ -1149,21 +1188,23 @@ fn read_segments(connection: &Connection) -> Result<Vec<SegmentRecord>> {
         FROM segments s
         JOIN source_videos v ON v.source_video_id = s.source_video_id
         ORDER BY v.position ASC, s.segment_index ASC\
-        ",
-    )?;
+        "
+    );
+    let mut statement = connection.prepare(&sql)?;
     let rows = statement.query_map([], |row| {
         Ok(SegmentRecord {
             source_video_id: row.get(0)?,
             title: row.get(1)?,
             duration_ms: row.get::<_, i64>(2)?.max(0) as u64,
             relative_path: row.get(3)?,
-            cover_path: row.get(4)?,
-            segment_id: row.get(5)?,
-            segment_index: row.get::<_, i64>(6)?.max(0) as usize,
-            begin_ms: row.get::<_, i64>(7)?.max(0) as u64,
-            end_ms: row.get::<_, i64>(8)?.max(0) as u64,
-            text: row.get(9)?,
-            normalized_text: row.get(10)?,
+            source_folder_name: row.get(4)?,
+            cover_path: row.get(5)?,
+            segment_id: row.get(6)?,
+            segment_index: row.get::<_, i64>(7)?.max(0) as usize,
+            begin_ms: row.get::<_, i64>(8)?.max(0) as u64,
+            end_ms: row.get::<_, i64>(9)?.max(0) as u64,
+            text: row.get(10)?,
+            normalized_text: row.get(11)?,
         })
     })?;
 
@@ -1205,6 +1246,7 @@ fn build_video_records(
                 title: segment.title.clone(),
                 duration_ms: segment.duration_ms,
                 relative_path: segment.relative_path.clone(),
+                source_folder_name: segment.source_folder_name.clone(),
                 cover_path: segment.cover_path.clone(),
                 transcript_character_count: video_character_counts
                     .get(&segment.source_video_id)
@@ -1280,15 +1322,23 @@ fn search_bundle(
     normalized_query: &str,
     offset: usize,
     limit: usize,
+    source_folder_name: Option<&str>,
 ) -> Result<GroupSearchResult> {
     let target_group_count = offset + limit + 1;
     let (precise_candidate_video_ids, mut has_more_from_window) =
-        precise_candidate_video_ids_for_query(bundle, normalized_query, offset, limit)?;
+        precise_candidate_video_ids_for_query(
+            bundle,
+            normalized_query,
+            offset,
+            limit,
+            source_folder_name,
+        )?;
     let mut groups = search_candidate_videos(
         bundle,
         &precise_candidate_video_ids,
         normalized_query,
         target_group_count,
+        source_folder_name,
     );
 
     let query_length = normalized_query.chars().count();
@@ -1298,7 +1348,7 @@ fn search_bundle(
 
     if should_supplement_recall {
         let (broad_candidate_video_ids, broad_has_more_from_window) =
-            candidate_video_ids_for_query(bundle, normalized_query, offset, limit)?;
+            candidate_video_ids_for_query(bundle, normalized_query, offset, limit, source_folder_name)?;
         has_more_from_window |= broad_has_more_from_window;
         let supplemental_candidate_video_ids = broad_candidate_video_ids
             .into_iter()
@@ -1309,6 +1359,7 @@ fn search_bundle(
             &supplemental_candidate_video_ids,
             normalized_query,
             target_group_count,
+            source_folder_name,
         );
         for group in supplemental_groups {
             if groups
@@ -1325,7 +1376,12 @@ fn search_bundle(
     }
 
     if groups.is_empty() {
-        let supplemental_videos = bundle.videos.iter().enumerate().collect::<Vec<_>>();
+        let supplemental_videos = bundle
+            .videos
+            .iter()
+            .enumerate()
+            .filter(|(_, video)| video_matches_source_folder(video, source_folder_name))
+            .collect::<Vec<_>>();
         groups.extend(search_video_records(
             supplemental_videos,
             normalized_query,
@@ -1353,6 +1409,7 @@ fn precise_candidate_video_ids_for_query(
     normalized_query: &str,
     offset: usize,
     limit: usize,
+    source_folder_name: Option<&str>,
 ) -> Result<(Vec<String>, bool)> {
     let grams = query_grams(normalized_query);
     if grams.is_empty() {
@@ -1363,7 +1420,13 @@ fn precise_candidate_video_ids_for_query(
     let query = BooleanQuery::intersection(tantivy_term_queries(bundle, &grams));
     let mut candidate_video_ids = Vec::new();
     let has_more_from_window =
-        collect_tantivy_candidates(bundle, &query, fetch_docs, &mut candidate_video_ids)?;
+        collect_tantivy_candidates(
+            bundle,
+            &query,
+            fetch_docs,
+            &mut candidate_video_ids,
+            source_folder_name,
+        )?;
 
     Ok((candidate_video_ids, has_more_from_window))
 }
@@ -1389,11 +1452,31 @@ fn push_candidate_video_id(candidate_video_ids: &mut Vec<String>, source_video_i
     }
 }
 
+fn normalize_source_folder_filter(source_folder_name: Option<&str>) -> Option<String> {
+    source_folder_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn video_matches_source_folder(video: &VideoRecord, source_folder_name: Option<&str>) -> bool {
+    source_folder_name
+        .map(|filter| video.source_folder_name == filter)
+        .unwrap_or(true)
+}
+
+fn segment_matches_source_folder(segment: &SegmentRecord, source_folder_name: Option<&str>) -> bool {
+    source_folder_name
+        .map(|filter| segment.source_folder_name == filter)
+        .unwrap_or(true)
+}
+
 fn collect_tantivy_candidates(
     bundle: &IndexBundle,
     query: &dyn TantivyQuery,
     fetch_docs: usize,
     candidate_video_ids: &mut Vec<String>,
+    source_folder_name: Option<&str>,
 ) -> Result<bool> {
     let searcher = bundle.reader.searcher();
     let top_docs = searcher.search(query, &TopDocs::with_limit(fetch_docs).order_by_score())?;
@@ -1406,6 +1489,9 @@ fn collect_tantivy_candidates(
             let Some(video) = bundle.videos.get(video_key as usize) else {
                 continue;
             };
+            if !video_matches_source_folder(video, source_folder_name) {
+                continue;
+            }
             push_candidate_video_id(candidate_video_ids, &video.source_video_id);
             continue;
         }
@@ -1417,6 +1503,9 @@ fn collect_tantivy_candidates(
             let Some(segment) = bundle.segments.get(doc_key as usize) else {
                 continue;
             };
+            if !segment_matches_source_folder(segment, source_folder_name) {
+                continue;
+            }
             push_candidate_video_id(candidate_video_ids, &segment.source_video_id);
         }
     }
@@ -1467,6 +1556,7 @@ fn candidate_video_ids_for_query(
     normalized_query: &str,
     offset: usize,
     limit: usize,
+    source_folder_name: Option<&str>,
 ) -> Result<(Vec<String>, bool)> {
     let grams = query_grams(normalized_query);
     if grams.is_empty() {
@@ -1481,7 +1571,13 @@ fn candidate_video_ids_for_query(
 
     let broad_query = BooleanQuery::union(tantivy_term_queries(bundle, &grams));
     has_more_from_window |=
-        collect_tantivy_candidates(bundle, &broad_query, fetch_docs, &mut candidate_video_ids)?;
+        collect_tantivy_candidates(
+            bundle,
+            &broad_query,
+            fetch_docs,
+            &mut candidate_video_ids,
+            source_folder_name,
+        )?;
 
     for anchor_text in supplemental_candidate_anchor_texts(normalized_query) {
         let anchor_grams = query_grams(&anchor_text);
@@ -1494,6 +1590,7 @@ fn candidate_video_ids_for_query(
             &anchor_query,
             supplemental_fetch_docs,
             &mut candidate_video_ids,
+            source_folder_name,
         )?;
     }
 
@@ -1505,6 +1602,7 @@ fn search_candidate_videos(
     candidate_video_ids: &[String],
     normalized_query: &str,
     max_groups: usize,
+    source_folder_name: Option<&str>,
 ) -> Vec<SearchGroup> {
     let evaluation_limit = candidate_evaluation_limit(max_groups, normalized_query.chars().count());
     let videos = candidate_video_ids
@@ -1513,6 +1611,9 @@ fn search_candidate_videos(
         .filter_map(|source_video_id| {
             let index = bundle.video_indices_by_id.get(source_video_id).copied()?;
             let video = bundle.videos.get(index)?;
+            if !video_matches_source_folder(video, source_folder_name) {
+                return None;
+            }
             Some((index, video))
         })
         .collect::<Vec<_>>();
@@ -1591,6 +1692,7 @@ fn search_video_record(
             title: video.title.clone(),
             duration_ms: video.duration_ms,
             relative_path: video.relative_path.clone(),
+            source_folder_name: video.source_folder_name.clone(),
             cover_path: video.cover_path.clone(),
             hit_count: matches.len(),
             best_excerpt: first_match_segments
@@ -2155,6 +2257,7 @@ fn source_video_detail_from_bundle(
         title: video.title.clone(),
         duration_ms: video.duration_ms,
         relative_path: video.relative_path.clone(),
+        source_folder_name: video.source_folder_name.clone(),
         cover_path: video.cover_path.clone(),
         transcript_character_count: video.transcript_character_count,
         transcript: SourceVideoTranscriptResponse {
@@ -2303,8 +2406,16 @@ async fn source_search_handler(
     let engine = Arc::clone(&state.engine);
     let query_text = query.query;
     let cursor = query.cursor;
+    let source_folder_name = query.source_folder_name;
     let data =
-        tokio::task::spawn_blocking(move || engine.search(&query_text, limit, cursor.as_deref()))
+        tokio::task::spawn_blocking(move || {
+            engine.search(
+                &query_text,
+                limit,
+                cursor.as_deref(),
+                source_folder_name.as_deref(),
+            )
+        })
             .await
             .map_err(|error| ApiError::internal(error.to_string()))?
             .map_err(|error| {
@@ -2456,7 +2567,7 @@ mod tests {
         ]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("现金流", 10, None).unwrap();
+        let result = engine.search("现金流", 10, None, None).unwrap();
 
         assert_eq!(result.index_version, "v000001");
         assert_eq!(result.search_mode, "searchd");
@@ -2477,7 +2588,7 @@ mod tests {
         )]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("企业的血液", 10, None).unwrap();
+        let result = engine.search("企业的血液", 10, None, None).unwrap();
 
         assert_eq!(result.returned_count, 1);
         assert_eq!(result.groups[0].source_video_id, "V000001");
@@ -2524,7 +2635,7 @@ mod tests {
         ]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("企业的血液", 10, None).unwrap();
+        let result = engine.search("企业的血液", 10, None, None).unwrap();
         let source_video_ids = result
             .groups
             .iter()
@@ -2559,7 +2670,7 @@ mod tests {
         )]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("现金流是企业的血夜", 10, None).unwrap();
+        let result = engine.search("现金流是企业的血夜", 10, None, None).unwrap();
 
         assert_eq!(result.returned_count, 1);
         assert_eq!(result.groups[0].source_video_id, "V000001");
@@ -2589,7 +2700,7 @@ mod tests {
         ]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("现金流，是企业的血液", 10, None).unwrap();
+        let result = engine.search("现金流，是企业的血液", 10, None, None).unwrap();
 
         assert_eq!(
             result
@@ -2613,10 +2724,48 @@ mod tests {
         )]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("组织校率", 10, None).unwrap();
+        let result = engine.search("组织校率", 10, None, None).unwrap();
 
         assert_eq!(result.returned_count, 0);
         assert!(result.groups.is_empty());
+    }
+
+    #[test]
+    fn source_folder_filter_keeps_similar_folder_names_separate() {
+        let library = prepare_library_with_folder_paths(&[
+            (
+                "V000001",
+                "陶矜课程",
+                "陶矜",
+                "现金流决定项目健康。",
+                "现金流决定项目健康",
+            ),
+            (
+                "V000002",
+                "陶矜2课程",
+                "陶矜2",
+                "现金流决定项目健康。",
+                "现金流决定项目健康",
+            ),
+            (
+                "V000003",
+                "王牧笛课程",
+                "王牧笛",
+                "现金流决定项目健康。",
+                "现金流决定项目健康",
+            ),
+        ]);
+        let engine = SearchEngine::new(library.path().to_path_buf(), None);
+
+        let tao = engine.search("现金流", 10, None, Some("陶矜")).unwrap();
+        assert_eq!(tao.returned_count, 1);
+        assert_eq!(tao.groups[0].source_video_id, "V000001");
+        assert_eq!(tao.groups[0].source_folder_name, "陶矜");
+
+        let tao_two = engine.search("现金流", 10, None, Some("陶矜2")).unwrap();
+        assert_eq!(tao_two.returned_count, 1);
+        assert_eq!(tao_two.groups[0].source_video_id, "V000002");
+        assert_eq!(tao_two.groups[0].source_folder_name, "陶矜2");
     }
 
     #[test]
@@ -2644,7 +2793,7 @@ mod tests {
 
         let tolerant_query = normalize_transcript_text("把你的优质人才卷到他的平台尚");
         let (tolerant_ids, _) =
-            candidate_video_ids_for_query(&bundle, &tolerant_query, 0, 10).unwrap();
+            candidate_video_ids_for_query(&bundle, &tolerant_query, 0, 10, None).unwrap();
         assert!(tolerant_ids.iter().any(|id| id == "V000001"));
 
         let long_query = normalize_transcript_text(
@@ -2652,7 +2801,7 @@ mod tests {
              未来中国将走向一个阶段，叫企业平台化，员工老板创业化。你要防备的是你的同行推出平台合伙人，\
              把你的优质人才卷到他的平台上。所以我们再提出来叫做企业平台化，员工老板创业化。",
         );
-        let (long_ids, _) = candidate_video_ids_for_query(&bundle, &long_query, 0, 10).unwrap();
+        let (long_ids, _) = candidate_video_ids_for_query(&bundle, &long_query, 0, 10, None).unwrap();
         assert!(long_ids.iter().any(|id| id == "V000001"));
     }
 
@@ -2684,6 +2833,7 @@ mod tests {
                  未来中国将走向一个阶段，叫企业平台化，员工老板创业化。你要防备的是你的同行推出平台合伙人，\
                  把你的优质人才卷到他的平台上。所以我们再提出来叫做企业平台化，员工老板创业化。",
                 10,
+                None,
                 None,
             )
             .unwrap();
@@ -2738,7 +2888,7 @@ mod tests {
         )]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("现金流", 10, None).unwrap();
+        let result = engine.search("现金流", 10, None, None).unwrap();
 
         assert_eq!(result.groups[0].transcript_character_count, 10);
     }
@@ -2752,13 +2902,13 @@ mod tests {
         ]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let first = engine.search("现金流", 1, None).unwrap();
+        let first = engine.search("现金流", 1, None, None).unwrap();
         assert_eq!(first.groups.len(), 1);
         assert_eq!(first.has_more, true);
         assert_eq!(first.next_cursor, "searchd:1");
 
         let second = engine
-            .search("现金流", 1, Some(&first.next_cursor))
+            .search("现金流", 1, Some(&first.next_cursor), None)
             .unwrap();
         assert_eq!(second.groups.len(), 1);
         assert_ne!(
@@ -2778,7 +2928,7 @@ mod tests {
         ]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let full = engine.search("现金流", 4, None).unwrap();
+        let full = engine.search("现金流", 4, None, None).unwrap();
         let full_ids = full
             .groups
             .iter()
@@ -2788,7 +2938,7 @@ mod tests {
         let mut cursor: Option<String> = None;
         let mut paged_ids = Vec::new();
         for _ in 0..4 {
-            let page = engine.search("现金流", 1, cursor.as_deref()).unwrap();
+            let page = engine.search("现金流", 1, cursor.as_deref(), None).unwrap();
             assert_eq!(page.groups.len(), 1);
             paged_ids.push(page.groups[0].source_video_id.clone());
             cursor = page.has_more.then_some(page.next_cursor);
@@ -2820,7 +2970,7 @@ mod tests {
             "V000004".to_string(),
         ];
 
-        let groups = search_candidate_videos(&bundle, &candidate_video_ids, "现金流", 2);
+        let groups = search_candidate_videos(&bundle, &candidate_video_ids, "现金流", 2, None);
 
         assert_eq!(
             groups
@@ -2842,7 +2992,7 @@ mod tests {
 
         let first_engine =
             SearchEngine::new(library.path().to_path_buf(), Some(cache_root.clone()));
-        let first = first_engine.search("现金流", 10, None).unwrap();
+        let first = first_engine.search("现金流", 10, None, None).unwrap();
         assert_eq!(first.returned_count, 2);
 
         assert!(!cache_root.join("sqlite").exists());
@@ -2851,7 +3001,7 @@ mod tests {
         assert!(cache_dir.join("mixlab-searchd-cache.json").is_file());
 
         let restarted_engine = SearchEngine::new(library.path().to_path_buf(), Some(cache_root));
-        let restarted = restarted_engine.search("现金流", 10, None).unwrap();
+        let restarted = restarted_engine.search("现金流", 10, None, None).unwrap();
         assert_eq!(restarted.returned_count, 2);
         assert_eq!(restarted.groups[0].source_video_id, "V000001");
     }
@@ -2869,7 +3019,7 @@ mod tests {
             library.path().to_path_buf(),
             Some(cache.path().to_path_buf()),
         );
-        let result = engine.search("现金流", 10, None).unwrap();
+        let result = engine.search("现金流", 10, None, None).unwrap();
 
         assert_eq!(result.returned_count, 2);
         assert_eq!(result.search_mode, "searchd");
@@ -2910,12 +3060,12 @@ mod tests {
             None,
         );
 
-        let result = engine.search("现金流", 10, None).unwrap();
+        let result = engine.search("现金流", 10, None, None).unwrap();
         assert_eq!(result.index_version, "v000001");
         assert_eq!(result.returned_count, 1);
         assert_eq!(result.groups[0].source_video_id, "V000001");
 
-        let library_current_result = engine.search("组织效率", 10, None).unwrap();
+        let library_current_result = engine.search("组织效率", 10, None, None).unwrap();
         assert_eq!(library_current_result.index_version, "v000001");
         assert_eq!(library_current_result.returned_count, 0);
 
@@ -2945,7 +3095,7 @@ mod tests {
         let library = prepare_library(&[("V000001", "一号", "现金流第一句。", "现金流第一句")]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let first = engine.search("现金流", 10, None).unwrap();
+        let first = engine.search("现金流", 10, None, None).unwrap();
         assert_eq!(first.index_version, "v000001");
         assert_eq!(first.returned_count, 1);
 
@@ -2959,12 +3109,12 @@ mod tests {
             )],
         );
 
-        let stale = engine.search("组织效率", 10, None).unwrap();
+        let stale = engine.search("组织效率", 10, None, None).unwrap();
         assert_eq!(stale.index_version, "v000001");
         assert_eq!(stale.returned_count, 0);
 
         for _ in 0..50 {
-            let refreshed = engine.search("组织效率", 10, None).unwrap();
+            let refreshed = engine.search("组织效率", 10, None, None).unwrap();
             if refreshed.index_version == "v000002" {
                 assert_eq!(refreshed.returned_count, 1);
                 assert_eq!(refreshed.groups[0].source_video_id, "V000002");
@@ -3058,6 +3208,105 @@ mod tests {
         let library = TempDir::new().unwrap();
 
         write_index_package(library.path(), "v000001", videos);
+
+        library
+    }
+
+    fn prepare_library_with_folder_paths(
+        videos: &[(&str, &str, &str, &str, &str)],
+    ) -> TempDir {
+        let library = TempDir::new().unwrap();
+        let index_root = library
+            .path()
+            .join(".mixlab-library")
+            .join("indexes")
+            .join("source-transcript-index");
+        let package_root = index_root.join("v000001");
+        fs::create_dir_all(&package_root).unwrap();
+        fs::write(
+            index_root.join("current.json"),
+            r#"{"library_id":"lib_main_001","current_version":"v000001","updated_at":"2026-06-02T00:00:00Z"}"#,
+        )
+        .unwrap();
+
+        let connection = Connection::open(package_root.join("index.sqlite")).unwrap();
+        connection
+            .execute_batch(
+                "\
+                CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE source_videos (
+                  position INTEGER NOT NULL,
+                  source_video_id TEXT PRIMARY KEY,
+                  title TEXT NOT NULL,
+                  duration_ms INTEGER NOT NULL,
+                  relative_path TEXT NOT NULL,
+                  source_folder_name TEXT NOT NULL DEFAULT '',
+                  cover_path TEXT NOT NULL
+                );
+                CREATE TABLE segments (
+                  source_video_id TEXT NOT NULL,
+                  segment_id TEXT PRIMARY KEY,
+                  segment_index INTEGER NOT NULL,
+                  begin_ms INTEGER NOT NULL,
+                  end_ms INTEGER NOT NULL,
+                  text TEXT NOT NULL,
+                  normalized_text TEXT NOT NULL
+                );\
+                ",
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES ('index_version', 'v000001')",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES ('source_video_count', ?1)",
+                [videos.len().to_string()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES ('segment_count', ?1)",
+                [videos.len().to_string()],
+            )
+            .unwrap();
+
+        for (index, (source_video_id, title, source_folder_name, text, normalized_text)) in
+            videos.iter().enumerate()
+        {
+            connection
+                .execute(
+                    "INSERT INTO source_videos
+                      (position, source_video_id, title, duration_ms, relative_path, source_folder_name, cover_path)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        index as i64,
+                        source_video_id,
+                        title,
+                        4_000_i64,
+                        format!("{source_folder_name}/{source_video_id}.mp4"),
+                        source_folder_name,
+                        format!(".mixlab-library/videos/{source_video_id}/cover.jpg"),
+                    ],
+                )
+                .unwrap();
+            connection
+                .execute(
+                    "INSERT INTO segments
+                      (source_video_id, segment_id, segment_index, begin_ms, end_ms, text, normalized_text)
+                     VALUES (?1, ?2, 0, 0, 4000, ?3, ?4)",
+                    params![
+                        source_video_id,
+                        format!("{source_video_id}-S000001"),
+                        text,
+                        normalized_text,
+                    ],
+                )
+                .unwrap();
+        }
 
         library
     }

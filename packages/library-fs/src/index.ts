@@ -4,6 +4,7 @@ import {
   createSourceTranscriptSqliteIndexBytes,
   type SourceTranscriptSqliteVideo
 } from "../../search-sqlite/src/index.ts";
+import { sourceFolderNameFromRelativePath } from "./source-folders.ts";
 import {
   validateIndexPackageManifest,
   type IndexCurrentPointer,
@@ -34,6 +35,7 @@ export {
 export { listCutterVisibleSourceVideos } from "./cutter-catalog.ts";
 export {
   getCutterSourceVideoDetail,
+  listCutterSourceFolders,
   listCutterSourceLibrary,
   searchCutterSourceLibrary
 } from "./cutter-source-library.ts";
@@ -79,6 +81,7 @@ export type {
 } from "./cutter-catalog.ts";
 export type {
   CutterKeyframesArtifact,
+  CutterSourceFolderOption,
   CutterSourceLibrarySearchGroup,
   CutterSourceLibrarySearchResult,
   CutterSourceLibraryView,
@@ -86,6 +89,7 @@ export type {
   CutterSourceVideoDetail,
   CutterTranscriptArtifact,
   GetCutterSourceVideoDetailInput,
+  ListCutterSourceFoldersInput,
   ListCutterSourceLibraryInput,
   SearchCutterSourceLibraryInput
 } from "./cutter-source-library.ts";
@@ -293,6 +297,7 @@ async function buildSearchSqliteVideos(input: {
       title: manifest.title,
       duration_ms: manifest.duration_ms,
       relative_path: manifest.relative_path,
+      source_folder_name: sourceFolderNameFromRelativePath(manifest.relative_path),
       cover_path: manifest.cover_path,
       segments: transcript.segments
     });

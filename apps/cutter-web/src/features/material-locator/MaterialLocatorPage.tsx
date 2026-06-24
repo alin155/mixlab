@@ -18,6 +18,7 @@ import {
   type LocalClipCatalog,
   type SearchResponse,
   type SearchHitSegment,
+  type SourceFolderOption,
   type SourceLibraryResponse,
   type SourceVideoDetail,
   type TranscriptSegment
@@ -523,6 +524,8 @@ export function MaterialLocatorPage({
   search,
   query,
   sourceFilter,
+  sourceFolderFilter = "",
+  sourceFolders = [],
   orientationFilter,
   selectedDetail,
   selectedSegments = [],
@@ -538,6 +541,7 @@ export function MaterialLocatorPage({
   cutNotice = "",
   queue,
   onSearch,
+  onSetSourceFolderFilter,
   onSelectMaterial,
   onSelectTranscriptRange,
   onSelectTranscriptTextRange,
@@ -552,6 +556,8 @@ export function MaterialLocatorPage({
   search: SearchResponse;
   query: string;
   sourceFilter: MaterialSearchSourceFilter;
+  sourceFolderFilter?: string;
+  sourceFolders?: readonly SourceFolderOption[];
   orientationFilter: VideoOrientationFilter;
   selectedDetail: SourceVideoDetail;
   selectedSegments?: readonly TranscriptSegment[];
@@ -570,6 +576,7 @@ export function MaterialLocatorPage({
   queue: readonly CutQueueJob[];
   cutMode?: CutMode;
   onSearch?: (query: string) => void;
+  onSetSourceFolderFilter?: (folderName: string) => void;
   onSelectMaterial?: (result: MaterialLocatorResult) => void;
   onSelectTranscriptRange?: (startSegmentId: string, endSegmentId: string) => void;
   onSelectTranscriptTextRange?: (
@@ -593,6 +600,7 @@ export function MaterialLocatorPage({
     library,
     search
   });
+  const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
   const hasActiveQuery = query.trim().length > 0;
   const hasFocusedMaterial = hasActiveQuery && Boolean(selectedMaterialKey);
   const focusedDetail = hasFocusedMaterial ? selectedDetail : undefined;
@@ -1204,7 +1212,7 @@ export function MaterialLocatorPage({
     >
       <div className="cutter-page-main ml-split-workbench">
         <section className="cutter-locator-command ml-command-row ml-split-workbench-command" aria-label="素材搜索">
-          <div className="cutter-locator-command-header ml-command-row-header">
+          <div className="cutter-locator-command-header ml-command-row-header ml-command-row-header--source-filter">
             <SearchBox
               aria-label="搜索文案关键词或粘贴爆款文案"
               buttonLabel="搜索"
@@ -1215,6 +1223,21 @@ export function MaterialLocatorPage({
               onSubmit={(value) => onSearch?.(value)}
               placeholder="搜索文案关键词或粘贴爆款文案"
             />
+            {sourceFolderOptions.length > 0 ? (
+              <select
+                aria-label="按老师筛选"
+                className="cutter-source-folder-select ml-field-select"
+                value={sourceFolderFilter}
+                onChange={(event) => onSetSourceFolderFilter?.(event.currentTarget.value)}
+              >
+                <option value="">全部老师</option>
+                {sourceFolderOptions.map((folder) => (
+                  <option key={folder.name} value={folder.name}>
+                    {folder.name}（{folder.count}）
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
         </section>
 

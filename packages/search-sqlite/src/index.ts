@@ -17,6 +17,7 @@ export interface SourceTranscriptSqliteVideo {
   title: string;
   duration_ms: number;
   relative_path?: string;
+  source_folder_name?: string;
   cover_path?: string;
   segments: TranscriptSegment[];
 }
@@ -48,10 +49,12 @@ export interface SearchSourceTranscriptSqliteIndexInput {
   query: string;
   limit: number;
   cursor?: string;
+  source_folder_name?: string;
 }
 
 export interface SourceTranscriptSqliteSearchGroup extends TranscriptSearchGroup {
   relative_path: string;
+  source_folder_name: string;
   cover_path: string;
   transcript_character_count: number;
 }
@@ -85,6 +88,7 @@ interface SourceVideoSearchRow {
   title: string;
   duration_ms: number;
   relative_path: string;
+  source_folder_name: string;
   cover_path: string;
 }
 
@@ -140,6 +144,7 @@ function createSchema(db: DatabaseSync): void {
       title TEXT NOT NULL,
       duration_ms INTEGER NOT NULL,
       relative_path TEXT NOT NULL,
+      source_folder_name TEXT NOT NULL DEFAULT '',
       cover_path TEXT NOT NULL
     );
 
@@ -163,6 +168,7 @@ function createSchema(db: DatabaseSync): void {
 
     CREATE INDEX idx_segment_ngrams_gram ON segment_ngrams(gram);
     CREATE INDEX idx_segments_source_position ON segments(source_video_id, segment_index);
+    CREATE INDEX idx_source_videos_source_folder ON source_videos(source_folder_name, position);
   `);
 }
 
@@ -187,8 +193,8 @@ export async function writeSourceTranscriptSqliteIndex(
 
     const insertVideo = db.prepare(`
       INSERT INTO source_videos
-        (position, source_video_id, title, duration_ms, relative_path, cover_path)
-      VALUES (?, ?, ?, ?, ?, ?)
+        (position, source_video_id, title, duration_ms, relative_path, source_folder_name, cover_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     const insertSegment = db.prepare(`
       INSERT INTO segments
@@ -207,6 +213,7 @@ export async function writeSourceTranscriptSqliteIndex(
         video.title,
         video.duration_ms,
         video.relative_path ?? "",
+        video.source_folder_name ?? "",
         video.cover_path ?? ""
       );
 
@@ -314,8 +321,83 @@ export function readSourceTranscriptSqliteIndexMetadata(
   }
 }
 
-function candidateSourceVideoIds(db: DatabaseSync, normalizedQuery: string, limit: number): string[] {
+function sourceVideoColumnExists(db: DatabaseSync, columnName: string): boolean {
+  const rows = db.prepare("PRAGMA table_info(source_videos)").all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === columnName);
+}
+
+function sourceFolderSqlExpression(db: DatabaseSync): string {
+  if (sourceVideoColumnExists(db, "source_folder_name")) {
+    return "v.source_folder_name";
+  }
+
+  return "CASE WHEN instr(v.relative_path, '/') > 0 THEN substr(v.relative_path, 1, instr(v.relative_path, '/') - 1) ELSE '' END";
+}
+
+function normalizeSourceFolderFilter(value: string | undefined): string {
+  return (value ?? "").trim();
+}
+
+function readSourceVideoIdsForFolderFilter(db: DatabaseSync, sourceFolderName: string): string[] {
+  const folderFilter = normalizeSourceFolderFilter(sourceFolderName);
+
+  if (!folderFilter || sourceVideoColumnExists(db, "source_folder_name")) {
+    return [];
+  }
+
+  const rows = db
+    .prepare(`
+      SELECT v.source_video_id
+      FROM source_videos v
+      WHERE ${sourceFolderSqlExpression(db)} = ?
+      ORDER BY v.position ASC
+    `)
+    .all(folderFilter) as Array<{ source_video_id: string }>;
+
+  return rows.map((row) => row.source_video_id);
+}
+
+function rankedCandidateGrams(db: DatabaseSync, grams: string[]): string[] {
+  if (grams.length <= 3) {
+    return grams;
+  }
+
+  const placeholders = grams.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`
+      SELECT gram, COUNT(*) AS frequency
+      FROM segment_ngrams
+      WHERE gram IN (${placeholders})
+      GROUP BY gram
+      ORDER BY frequency ASC, gram ASC
+      LIMIT 3
+    `)
+    .all(...grams) as Array<{ gram: string }>;
+
+  return rows.length > 0 ? rows.map((row) => row.gram) : grams.slice(0, 3);
+}
+
+function candidateSourceVideoIds(
+  db: DatabaseSync,
+  normalizedQuery: string,
+  limit: number,
+  sourceFolderName?: string
+): string[] {
   const grams = ngramsFromQuery(normalizedQuery);
+  const folderFilter = normalizeSourceFolderFilter(sourceFolderName);
+  const hasSourceFolderColumn = sourceVideoColumnExists(db, "source_folder_name");
+  const sourceFolderCondition = folderFilter && hasSourceFolderColumn ? "AND v.source_folder_name = ?" : "";
+  const legacySourceVideoIds = folderFilter && !hasSourceFolderColumn
+    ? readSourceVideoIdsForFolderFilter(db, folderFilter)
+    : [];
+  const legacySourceVideoPlaceholders = legacySourceVideoIds.map(() => "?").join(", ");
+  const legacySourceVideoCondition = legacySourceVideoIds.length > 0
+    ? `AND s.source_video_id IN (${legacySourceVideoPlaceholders})`
+    : "";
+
+  if (folderFilter && !hasSourceFolderColumn && legacySourceVideoIds.length === 0) {
+    return [];
+  }
 
   if (grams.length === 0) {
     const rows = db
@@ -324,15 +406,28 @@ function candidateSourceVideoIds(db: DatabaseSync, normalizedQuery: string, limi
         FROM segments s
         JOIN source_videos v ON v.source_video_id = s.source_video_id
         WHERE instr(s.normalized_text, ?) > 0
+        ${sourceFolderCondition}
+        ${legacySourceVideoCondition}
         ORDER BY v.position ASC
         LIMIT ?
       `)
-      .all(normalizedQuery, limit) as Array<{ source_video_id: string }>;
+      .all(
+        ...[
+          normalizedQuery,
+          ...(folderFilter && hasSourceFolderColumn ? [folderFilter] : []),
+          ...legacySourceVideoIds,
+          limit
+        ]
+      ) as Array<{ source_video_id: string }>;
 
     return rows.map((row) => row.source_video_id);
   }
 
-  const placeholders = grams.map(() => "?").join(", ");
+  const candidateGrams = rankedCandidateGrams(db, grams);
+  const placeholders = candidateGrams.map(() => "?").join(", ");
+  const legacyNgramSourceVideoCondition = legacySourceVideoIds.length > 0
+    ? `AND g.source_video_id IN (${legacySourceVideoPlaceholders})`
+    : "";
   const rows = db
     .prepare(`
       SELECT
@@ -342,11 +437,20 @@ function candidateSourceVideoIds(db: DatabaseSync, normalizedQuery: string, limi
       FROM segment_ngrams g
       JOIN source_videos v ON v.source_video_id = g.source_video_id
       WHERE g.gram IN (${placeholders})
+      ${sourceFolderCondition}
+      ${legacyNgramSourceVideoCondition}
       GROUP BY v.source_video_id
       ORDER BY matched_grams DESC, v.position ASC
       LIMIT ?
     `)
-    .all(...grams, limit) as Array<{ source_video_id: string }>;
+    .all(
+      ...[
+        ...candidateGrams,
+        ...(folderFilter && hasSourceFolderColumn ? [folderFilter] : []),
+        ...legacySourceVideoIds,
+        limit
+      ]
+    ) as Array<{ source_video_id: string }>;
 
   return rows.map((row) => row.source_video_id);
 }
@@ -359,6 +463,7 @@ function readCandidateVideos(
   title: string;
   duration_ms: number;
   relative_path: string;
+  source_folder_name: string;
   cover_path: string;
   transcript_character_count: number;
   segments: TranscriptSegment[];
@@ -368,11 +473,12 @@ function readCandidateVideos(
   }
 
   const placeholders = sourceVideoIds.map(() => "?").join(", ");
+  const sourceFolderExpression = sourceFolderSqlExpression(db);
   const videoRows = db
     .prepare(`
-      SELECT position, source_video_id, title, duration_ms, relative_path, cover_path
-      FROM source_videos
-      WHERE source_video_id IN (${placeholders})
+      SELECT position, source_video_id, title, duration_ms, relative_path, ${sourceFolderExpression} AS source_folder_name, cover_path
+      FROM source_videos v
+      WHERE v.source_video_id IN (${placeholders})
       ORDER BY position ASC
     `)
     .all(...sourceVideoIds) as unknown as SourceVideoSearchRow[];
@@ -432,6 +538,7 @@ function readCandidateVideos(
     title: video.title,
     duration_ms: video.duration_ms,
     relative_path: video.relative_path,
+    source_folder_name: video.source_folder_name,
     cover_path: video.cover_path,
     transcript_character_count: compactCharacterCount(
       (segmentsByVideo.get(video.source_video_id) ?? [])
@@ -478,7 +585,8 @@ export function searchSourceTranscriptSqliteIndex(
     const candidateIds = candidateSourceVideoIds(
       db,
       normalizedQuery,
-      Math.max(searchLimit * 20, searchLimit)
+      Math.max(searchLimit * 20, searchLimit),
+      input.source_folder_name
     );
     const candidateVideos = readCandidateVideos(db, candidateIds);
     const candidateBySourceVideoId = new Map(
@@ -494,6 +602,7 @@ export function searchSourceTranscriptSqliteIndex(
       return {
         ...group,
         relative_path: candidate?.relative_path ?? "",
+        source_folder_name: candidate?.source_folder_name ?? "",
         cover_path: candidate?.cover_path ?? "",
         transcript_character_count:
           candidate?.transcript_character_count ?? compactCharacterCount(

@@ -3,6 +3,7 @@ import {
   formatDuration,
   formatFileSize,
   type CutterRuntimeStatus,
+  type SourceFolderOption,
   type SourceLibraryResponse,
   type SourceVideoCard
 } from "../../api.ts";
@@ -51,23 +52,30 @@ export function PublicLibraryPage({
   library,
   selectedSourceVideoId,
   orientationFilter = "all",
+  sourceFolderFilter = "",
+  sourceFolders = [],
   runtimeStatus,
   isLoadingMore = false,
   hasMore = false,
   onSetOrientationFilter,
+  onSetSourceFolderFilter,
   onSelectSourceVideo,
   onLoadMore
 }: {
   library: SourceLibraryResponse;
   selectedSourceVideoId?: string;
   orientationFilter?: VideoOrientationFilter;
+  sourceFolderFilter?: string;
+  sourceFolders?: readonly SourceFolderOption[];
   runtimeStatus?: CutterRuntimeStatus;
   isLoadingMore?: boolean;
   hasMore?: boolean;
   onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
+  onSetSourceFolderFilter?: (folderName: string) => void;
   onSelectSourceVideo?: (sourceVideoId: string) => void;
   onLoadMore?: () => void;
 }) {
+  const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
   const filtered = library.videos.filter((video) => matchesOrientationFilter(video, orientationFilter));
   const selected =
     filtered.find((video) => video.source_video_id === selectedSourceVideoId) ?? filtered[0];
@@ -85,19 +93,36 @@ export function PublicLibraryPage({
             <h1 className="ml-page-title">可用原素材</h1>
             <p className="ml-page-description">浏览管理端已经发布到剪辑端的原视频。</p>
           </div>
-          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
-            {orientationFilterOptions.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                variant={orientationFilter === option.value ? "primary" : "ghost"}
-                size="sm"
-                aria-pressed={orientationFilter === option.value}
-                onClick={() => onSetOrientationFilter?.(option.value)}
+          <div className="cutter-public-library-controls ml-control-cluster">
+            {sourceFolderOptions.length > 0 ? (
+              <select
+                aria-label="按老师筛选"
+                className="cutter-source-folder-select ml-field-select"
+                value={sourceFolderFilter}
+                onChange={(event) => onSetSourceFolderFilter?.(event.currentTarget.value)}
               >
-                {option.label}
-              </Button>
-            ))}
+                <option value="">全部老师</option>
+                {sourceFolderOptions.map((folder) => (
+                  <option key={folder.name} value={folder.name}>
+                    {folder.name}（{folder.count}）
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
+              {orientationFilterOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={orientationFilter === option.value ? "primary" : "ghost"}
+                  size="sm"
+                  aria-pressed={orientationFilter === option.value}
+                  onClick={() => onSetOrientationFilter?.(option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
           </div>
         </header>
 
