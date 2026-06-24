@@ -181,19 +181,19 @@ Searchd 的 `127.0.0.1` 同样是机器本地视角。Windows 桌面端里的 se
 | Windows 包脚本 | `npm run package:cutter-desktop:windows` |
 | 安装包交付目录 | `/Users/huaqihang/Public/MixLabWindowsBuilds` |
 
-2026-06-23 UTC 当前最新已验收共享安装包：
+2026-06-24 UTC 当前最新已验收共享安装包：
 
 ```text
-file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-8d5305d.exe
+file: /Users/huaqihang/Public/MixLabWindowsBuilds/MixLab Cutter_0.18.10_x64-setup-3f30c9c.exe
 version: 0.18.10
-commit: 8d5305d80b0e2447ec523ac069c4992287e240fd
-github_run_id: 28023759271
-sha256: 752104a5910523cfaf5c3bc6b793d546238fe1e6d7f62f65f150be7229b0a83d
-included_fix: Windows desktop folder buttons resolve directories through Cutter API with open=false and then open via native Tauri host; folder reveal is started through a visible OS process and logs open-directory diagnostics; Settings shows runtime environment, app version, and build commit.
-install_smoke_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260623T120102Z-c5bc768e/summary.md
-archived_install_smoke_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/install_latest_and_smoke-20260623T120102Z-c5bc768e/summary.md
-desktop_ui_screenshot_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260623T120211Z-3243ef99/summary.md
-archived_desktop_ui_screenshot_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/desktop_ui_screenshot_smoke-20260623T120211Z-3243ef99/summary.md
+commit: 3f30c9cfe9b5995a1eeea902d01abda96bd59e32
+github_run_id: 28108476782
+sha256: 04e263a3cac6a443b8a655de30ce65d82b76e06807af8858e74281b079bdd0db
+included_fix: Cutter material search and public library support exact source-videos first-level folder filters such as 王牧笛, 陈永亮, 陶矜, 陶矜2 across release catalog, SQLite/searchd, Cutter API, web UI, and Windows release cache sync; old indexes remain compatible by deriving the folder from relative_path.
+install_smoke_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/install_latest_and_smoke-20260624T152418Z-579f2411/summary.md
+archived_install_smoke_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/install_latest_and_smoke-20260624T152418Z-579f2411/summary.md
+desktop_ui_screenshot_summary: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/summary.md
+archived_desktop_ui_screenshot_summary: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/summary.md
 m19_runtime_foundation_report: /Users/huaqihang/Public/MixLabWindowsBuilds/reports/m19_runtime_foundation-20260623T035006Z-8dad91a6/report.json
 local_web_m19_report: /Users/huaqihang/Documents/mixlab/docs/acceptance/artifacts/m19-runtime-foundation-local-web-current.json
 ```

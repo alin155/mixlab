@@ -1,0 +1,219 @@
+{
+  "schema_version": "1.0",
+  "run_id": "desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8",
+  "suite": "desktop_ui_screenshot_smoke",
+  "status": "passed",
+  "runner_version": "0.1.32",
+  "started_at": "2026-06-24T15:26:34.163Z",
+  "updated_at": "2026-06-24T15:27:32.480Z",
+  "finished_at": "2026-06-24T15:27:32.426Z",
+  "report_dir": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8",
+  "timeline_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\timeline.ndjson",
+  "summary_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\summary.md",
+  "launch_app_probe": {
+    "api_base_url": "http://127.0.0.1:3789",
+    "api_ready_before_launch": true,
+    "api_ready": true,
+    "api_ready_elapsed_ms": 1,
+    "app_started": true,
+    "candidates": [
+      {
+        "path": "C:\\Users\\ASUS\\AppData\\Local\\Programs\\MixLab Cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Users\\ASUS\\AppData\\Local\\Programs\\mixlab-cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Users\\ASUS\\AppData\\Local\\Programs\\com.mixlab.cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Users\\ASUS\\AppData\\Local\\MixLab Cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Users\\ASUS\\AppData\\Local\\mixlab-cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Program Files\\MixLab Cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Program Files\\mixlab-cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Program Files (x86)\\MixLab Cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Program Files (x86)\\mixlab-cutter\\MixLab Cutter.exe",
+        "exists": false
+      },
+      {
+        "path": "C:\\Users\\ASUS\\Desktop\\MixLab Cutter.lnk",
+        "exists": true
+      }
+    ],
+    "health_status_code": 200,
+    "app_executable_path": "cmd.exe",
+    "app_pid": 33496,
+    "app_launch_method": "windows_shortcut",
+    "app_shortcut_path": "C:\\Users\\ASUS\\Desktop\\MixLab Cutter.lnk"
+  },
+  "desktop_ui_screenshot_smoke": {
+    "api_base_url": "http://127.0.0.1:3789",
+    "output_dir": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots",
+    "captured_count": 8,
+    "pages": [
+      {
+        "id": "project-home",
+        "label": "Project Home",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\project-home.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 139,
+        "error": null
+      },
+      {
+        "id": "material-locator",
+        "label": "Material Search",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\material-locator.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 186,
+        "error": null
+      },
+      {
+        "id": "cut-tasks",
+        "label": "Cut Tasks",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\cut-tasks.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 233,
+        "error": null
+      },
+      {
+        "id": "local-library",
+        "label": "Local Library",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\local-library.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 280,
+        "error": null
+      },
+      {
+        "id": "public-library",
+        "label": "Public Library",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\public-library.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 327,
+        "error": null
+      },
+      {
+        "id": "source-detail",
+        "label": "Source Detail",
+        "action": "content",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\source-detail.png",
+        "ok": true,
+        "click_x": 486,
+        "click_y": 327,
+        "error": null
+      },
+      {
+        "id": "cache-management",
+        "label": "Cache Management",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\cache-management.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 375,
+        "error": null
+      },
+      {
+        "id": "settings",
+        "label": "Settings",
+        "action": "sidebar",
+        "screenshot_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\\screenshots\\settings.png",
+        "ok": true,
+        "click_x": 128,
+        "click_y": 422,
+        "error": null
+      }
+    ],
+    "launch_app_probe": {
+      "api_base_url": "http://127.0.0.1:3789",
+      "api_ready_before_launch": true,
+      "api_ready": true,
+      "api_ready_elapsed_ms": 1,
+      "app_started": true,
+      "candidates": [
+        {
+          "path": "C:\\Users\\ASUS\\AppData\\Local\\Programs\\MixLab Cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Users\\ASUS\\AppData\\Local\\Programs\\mixlab-cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Users\\ASUS\\AppData\\Local\\Programs\\com.mixlab.cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Users\\ASUS\\AppData\\Local\\MixLab Cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Users\\ASUS\\AppData\\Local\\mixlab-cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Program Files\\MixLab Cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Program Files\\mixlab-cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Program Files (x86)\\MixLab Cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Program Files (x86)\\mixlab-cutter\\MixLab Cutter.exe",
+          "exists": false
+        },
+        {
+          "path": "C:\\Users\\ASUS\\Desktop\\MixLab Cutter.lnk",
+          "exists": true
+        }
+      ],
+      "health_status_code": 200,
+      "app_executable_path": "cmd.exe",
+      "app_pid": 33496,
+      "app_launch_method": "windows_shortcut",
+      "app_shortcut_path": "C:\\Users\\ASUS\\Desktop\\MixLab Cutter.lnk"
+    },
+    "script_stdout_tail": "{\r\n    \"ok\":  true,\r\n    \"window_title\":  \"MixLab Cutter\",\r\n    \"window_process_id\":  28248,\r\n    \"window_process_name\":  \"mixlab-cutter-desktop\",\r\n    \"window_process_path\":  \"D:/Ӧ��/MixLab Cutter/mixlab-cutter-desktop.exe\",\r\n    \"local_output_dir\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8\",\r\n    \"window_rect\":  {\r\n                        \"left\":  -8,\r\n                        \"top\":  -8,\r\n                        \"width\":  1936,\r\n                        \"height\":  1048\r\n                    },\r\n    \"pages\":  [\r\n                  {\r\n                      \"id\":  \"project-home\",\r\n                      \"label\":  \"Project Home\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/project-home.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  139,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"material-locator\",\r\n                      \"label\":  \"Material Search\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/material-locator.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  186,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"cut-tasks\",\r\n                      \"label\":  \"Cut Tasks\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/cut-tasks.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  233,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"local-library\",\r\n                      \"label\":  \"Local Library\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/local-library.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  280,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"public-library\",\r\n                      \"label\":  \"Public Library\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/public-library.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  327,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"source-detail\",\r\n                      \"label\":  \"Source Detail\",\r\n                      \"action\":  \"content\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/source-detail.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  486,\r\n                      \"click_y\":  327,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"cache-management\",\r\n                      \"label\":  \"Cache Management\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/cache-management.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  375,\r\n                      \"error\":  null\r\n                  },\r\n                  {\r\n                      \"id\":  \"settings\",\r\n                      \"label\":  \"Settings\",\r\n                      \"action\":  \"sidebar\",\r\n                      \"screenshot_path\":  \"C:/Users/ASUS/AppData/Local/Temp/mixlab-cutter-screenshots-desktop_ui_screenshot_smoke-20260624T152634Z-e0f0e8b8/settings.png\",\r\n                      \"ok\":  true,\r\n                      \"click_x\":  128,\r\n                      \"click_y\":  422,\r\n                      \"error\":  null\r\n                  }\r\n              ]\r\n}\r\n",
+    "window_title": "MixLab Cutter",
+    "window_process_id": 28248,
+    "window_process_name": "mixlab-cutter-desktop",
+    "window_process_path": "D:/Ӧ��/MixLab Cutter/mixlab-cutter-desktop.exe",
+    "window_rect": {
+      "left": -8,
+      "top": -8,
+      "width": 1936,
+      "height": 1048
+    }
+  }
+}
