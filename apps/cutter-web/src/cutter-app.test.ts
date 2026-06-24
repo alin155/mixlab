@@ -2714,6 +2714,9 @@ test("material locator window-renders long transcripts around the active hit", (
   assert.match(html, /data-total-segments="400"/);
   assert.match(html, /data-rendered-segments="84"/);
   assert.match(html, /data-segment-id="long-260"/);
+  assert.match(html, /class="cutter-transcript-spacer ml-transcript-spacer"/);
+  assert.match(html, /style="height:\s*12152px"/);
+  assert.match(html, /style="height:\s*5544px"/);
   assert.match(html, /长文案也必须快速定位/);
   assert.equal(html.includes('data-segment-id="long-001"'), false);
   assert.equal(html.includes('data-segment-id="long-400"'), false);

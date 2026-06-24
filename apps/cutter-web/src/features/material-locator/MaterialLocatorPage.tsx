@@ -1354,7 +1354,7 @@ export function MaterialLocatorPage({
                   {transcriptVirtualized && transcriptTopSpacerHeight > 0 ? (
                     <span
                       aria-hidden="true"
-                      className="cutter-transcript-spacer"
+                      className="cutter-transcript-spacer ml-transcript-spacer"
                       style={{ height: transcriptTopSpacerHeight }}
                     />
                   ) : null}
@@ -1417,7 +1417,7 @@ export function MaterialLocatorPage({
                   {transcriptVirtualized && transcriptBottomSpacerHeight > 0 ? (
                     <span
                       aria-hidden="true"
-                      className="cutter-transcript-spacer"
+                      className="cutter-transcript-spacer ml-transcript-spacer"
                       style={{ height: transcriptBottomSpacerHeight }}
                     />
                   ) : null}

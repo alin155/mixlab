@@ -642,6 +642,7 @@ test("foundation owns shared segmented, empty, and pagination visual primitives"
   assert.match(css, /\.ml-transcript-heading\s*{[^}]*justify-content:\s*space-between[^}]*min-height:\s*44px/s);
   assert.match(css, /\.ml-transcript-actions\s*{[^}]*display:\s*flex[^}]*gap:\s*12px/s);
   assert.match(css, /\.ml-transcript-body\s*{[^}]*contain:\s*content[^}]*overflow:\s*auto[^}]*padding:\s*0 18px 24px/s);
+  assert.match(css, /\.ml-transcript-spacer\s*{[^}]*display:\s*block[^}]*pointer-events:\s*none/s);
   assert.match(css, /\.ml-pagination-bar\s*{[^}]*min-height:\s*56px/s);
   assert.match(css, /\.ml-pagination-bar\s*{[^}]*display:\s*flex/s);
   assert.match(css, /\.ml-pagination-bar\s*{[^}]*justify-content:\s*center/s);

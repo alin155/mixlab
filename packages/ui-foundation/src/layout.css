@@ -1504,6 +1504,13 @@ a.ml-button:active:not(.is-disabled) {
   padding: 0 18px 24px;
 }
 
+.ml-transcript-spacer {
+  display: block;
+  flex: 0 0 auto;
+  min-height: 0;
+  pointer-events: none;
+}
+
 .ml-pagination-bar {
   min-height: 56px;
   display: flex;
