@@ -2672,7 +2672,7 @@ test("material locator transcript renders as natural text with invisible segment
   assert.equal(html.includes("内部映射"), false);
 });
 
-test("material locator window-renders long transcripts around the active hit", () => {
+test("material locator renders complete long transcripts without virtual spacer gaps", () => {
   const data = fixture();
   const longSegments = Array.from({ length: 400 }, (_, index) => {
     const segmentNumber = index + 1;
@@ -2710,16 +2710,14 @@ test("material locator window-renders long transcripts around the active hit", (
     })
   );
 
-  assert.match(html, /data-virtualized="true"/);
+  assert.match(html, /data-virtualized="false"/);
   assert.match(html, /data-total-segments="400"/);
-  assert.match(html, /data-rendered-segments="84"/);
+  assert.match(html, /data-rendered-segments="400"/);
   assert.match(html, /data-segment-id="long-260"/);
-  assert.match(html, /class="cutter-transcript-spacer ml-transcript-spacer"/);
-  assert.match(html, /style="height:\s*12152px"/);
-  assert.match(html, /style="height:\s*5544px"/);
+  assert.equal(html.includes("cutter-transcript-spacer"), false);
   assert.match(html, /长文案也必须快速定位/);
-  assert.equal(html.includes('data-segment-id="long-001"'), false);
-  assert.equal(html.includes('data-segment-id="long-400"'), false);
+  assert.match(html, /data-segment-id="long-001"/);
+  assert.match(html, /data-segment-id="long-400"/);
 });
 
 test("material locator candidate focus highlights hits and creates a ready-to-cut selection", () => {

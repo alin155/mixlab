@@ -364,7 +364,9 @@ export function materialLocatorAutoSeekKey(
   return [detail.source_video_id, detail.media_url, activeHitSegmentId].join(":");
 }
 
-const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = 160;
+// A single video's transcript is small enough to render fully, and rows have
+// variable height. Fixed-height virtualization creates spacer gaps while scrolling.
+const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = Number.POSITIVE_INFINITY;
 const TRANSCRIPT_ROW_ESTIMATED_HEIGHT = 56;
 const TRANSCRIPT_RENDER_OVERSCAN = 18;
 const TRANSCRIPT_INITIAL_RENDER_COUNT = 84;
@@ -1129,14 +1131,14 @@ export function MaterialLocatorPage({
 
   useEffect(() => {
     setTranscriptRenderRange(transcriptRangeAroundIndex(activeHitSegmentIndex, transcriptSegmentCount));
-    if (transcriptBodyRef.current) {
+    if (transcriptVirtualized && transcriptBodyRef.current) {
       transcriptBodyRef.current.scrollTop = Math.max(
         0,
         activeHitSegmentIndex * TRANSCRIPT_ROW_ESTIMATED_HEIGHT -
           transcriptBodyRef.current.clientHeight / 2
       );
     }
-  }, [activeHitSegmentIndex, focusedDetail?.source_video_id, transcriptSegmentCount]);
+  }, [activeHitSegmentIndex, focusedDetail?.source_video_id, transcriptSegmentCount, transcriptVirtualized]);
 
   useEffect(() => {
     const autoSeekKey = materialLocatorAutoSeekKey(focusedDetail, activeHitSegmentId);
