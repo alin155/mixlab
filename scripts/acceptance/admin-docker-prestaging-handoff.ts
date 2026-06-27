@@ -34,6 +34,26 @@ interface HandoffSources {
   live_readonly_report: string;
 }
 
+interface ReleaseInputRequest {
+  target_image_tag: string;
+  workflow_dispatch_command: string;
+  required_operator_inputs: Array<{
+    id: string;
+    label: string;
+    value: string;
+    status: "provided" | "required";
+    source: string;
+  }>;
+  initial_staging_defaults: {
+    library_preprocess_worker: "0";
+    ready_publish_worker: "0";
+    dashscope_api_key: "blank-unless-canary-approved";
+    library_root: "/data/PublicLibrary";
+  };
+  forbidden_before_staged_proof: string[];
+  post_staging_required_proofs: string[];
+}
+
 export interface AdminDockerPrestagingHandoffReport {
   schema_version: "1.0";
   generated_at: string;
@@ -61,6 +81,7 @@ export interface AdminDockerPrestagingHandoffReport {
   ready_to_request_release_inputs: boolean;
   staging_execution_ready: boolean;
   docker_deploy_allowed: false;
+  release_input_request: ReleaseInputRequest;
   gates: HandoffGate[];
   summary: HandoffSummary;
   next_actions: string[];
@@ -176,6 +197,67 @@ function requestReleaseInputActions(candidateSha: string): string[] {
   ];
 }
 
+function buildReleaseInputRequest(input: {
+  candidate_sha: string;
+  candidate_branch: string;
+}): ReleaseInputRequest {
+  const target = input.candidate_sha || "<candidate-sha>";
+  const ref = input.candidate_branch || "<candidate-branch>";
+
+  return {
+    target_image_tag: target,
+    workflow_dispatch_command: [
+      "gh workflow run docker-admin.yml",
+      "--repo alin155/mixlab",
+      `--ref ${ref}`,
+      "-f push_images=true",
+      "-f current_image_tag=<current-admin-docker-image-tag>",
+      "-f rollback_image_tag=<current-admin-docker-image-tag>"
+    ].join(" "),
+    required_operator_inputs: [
+      {
+        id: "explicit_push_images_approval",
+        label: "Run workflow_dispatch with push_images=true only after release approval",
+        value: "workflow_dispatch:push_images=true",
+        status: "required",
+        source: "human release decision"
+      },
+      {
+        id: "current_image_tag",
+        label: "Current NAS Admin Docker image tag",
+        value: "",
+        status: "required",
+        source: "NAS Docker inspect or compose env before staging"
+      },
+      {
+        id: "rollback_image_tag",
+        label: "Rollback image tag, normally matching current_image_tag",
+        value: "",
+        status: "required",
+        source: "same value as current_image_tag for the first update"
+      }
+    ],
+    initial_staging_defaults: {
+      library_preprocess_worker: "0",
+      ready_publish_worker: "0",
+      dashscope_api_key: "blank-unless-canary-approved",
+      library_root: "/data/PublicLibrary"
+    },
+    forbidden_before_staged_proof: [
+      "Do not edit NAS .env or restart NAS containers before the pushed-image workflow succeeds.",
+      "Do not enable library preprocess worker, ready publish worker, scan apply, index repair, or release publish for initial staging.",
+      "Do not treat the existing 18080 legacy Admin target as staged candidate proof.",
+      "Do not mutate Cutter release/index before staged live-readonly and Cutter compatibility proof pass."
+    ],
+    post_staging_required_proofs: [
+      "Run GET-only live-readonly against the staged Admin Web root and require current Admin API contract endpoints to pass.",
+      "Export staged admin-worker env/inspect evidence and require admin-worker-env-proof accepted.",
+      "Run Windows Cutter compatibility proof with staged-candidate windows_acceptance and real_cut_smoke reports.",
+      "Verify ready count stays at 10471 and current index stays v010471 unless a later separately approved publish phase changes them."
+    ]
+  };
+}
+
 export function buildAdminDockerPrestagingHandoffReport(input: {
   generated_at: string;
   command: string;
@@ -205,6 +287,8 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
   const targetUrl = asString(target.normalized_base_url) || asString(target.base_url);
   const libraryRoot = asString(observed.library_root);
   const currentIndexVersion = asString(observed.current_index_version);
+  const candidateSha = asString(run.headSha);
+  const candidateBranch = asString(run.headBranch);
   const currentApiContractBlocked = liveUploadBlockers.includes("current-admin-api-contract-live") ||
     liveUploadBlockers.includes("data-loading-contract-live");
   const liveBaselineObserved = Boolean(targetUrl && libraryRoot && readyCount !== null && currentIndexVersion);
@@ -342,7 +426,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
     candidate: {
       github_run_id: asNumber(run.databaseId) ?? 0,
       github_run_url: asString(run.url),
-      head_sha: asString(run.headSha),
+      head_sha: candidateSha,
       current_worktree_candidate_ready: currentWorktreeCandidateReady,
       github_run_staging_handoff_ready: githubRunStagingReady,
       docker_deploy_allowed: false
@@ -360,9 +444,13 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
     ready_to_request_release_inputs: readyToRequestReleaseInputs,
     staging_execution_ready: stagingExecutionReady,
     docker_deploy_allowed: false,
+    release_input_request: buildReleaseInputRequest({
+      candidate_sha: candidateSha,
+      candidate_branch: candidateBranch
+    }),
     gates,
     summary,
-    next_actions: requestReleaseInputActions(asString(run.headSha)),
+    next_actions: requestReleaseInputActions(candidateSha),
     result: {
       status: resultStatus,
       summary: resultStatus === "failed"
@@ -407,6 +495,27 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     `- Disk usage percent: ${report.live_baseline.disk_usage_percent ?? "<missing>"}`,
     `- Disk status: ${report.live_baseline.disk_status || "<missing>"}`,
     `- Current API contract blocked: ${report.live_baseline.current_api_contract_blocked ? "yes" : "no"}`,
+    "",
+    "## Release Input Request",
+    "",
+    `- Target image tag: ${report.release_input_request.target_image_tag}`,
+    `- Workflow command: ${report.release_input_request.workflow_dispatch_command}`,
+    `- Initial library preprocess worker: ${report.release_input_request.initial_staging_defaults.library_preprocess_worker}`,
+    `- Initial ready publish worker: ${report.release_input_request.initial_staging_defaults.ready_publish_worker}`,
+    `- Initial DASHSCOPE_API_KEY: ${report.release_input_request.initial_staging_defaults.dashscope_api_key}`,
+    `- Library root: ${report.release_input_request.initial_staging_defaults.library_root}`,
+    "",
+    "| Input | Status | Source | Value |",
+    "| --- | --- | --- | --- |",
+    ...report.release_input_request.required_operator_inputs.map((item) => `| ${item.id} | ${item.status} | ${item.source.replace(/\|/g, "/")} | ${item.value || "<required>"} |`),
+    "",
+    "### Forbidden Before Staged Proof",
+    "",
+    ...report.release_input_request.forbidden_before_staged_proof.map((item) => `- ${item}`),
+    "",
+    "### Post-Staging Required Proofs",
+    "",
+    ...report.release_input_request.post_staging_required_proofs.map((item) => `- ${item}`),
     "",
     "## Gates",
     "",
@@ -494,6 +603,8 @@ async function main(): Promise<void> {
     ready_to_request_release_inputs: report.ready_to_request_release_inputs,
     staging_execution_ready: report.staging_execution_ready,
     docker_deploy_allowed: report.docker_deploy_allowed,
+    target_image_tag: report.release_input_request.target_image_tag,
+    workflow_dispatch_command: report.release_input_request.workflow_dispatch_command,
     release_input_blockers: report.summary.release_input_blockers,
     staging_execution_blockers: report.summary.staging_execution_blockers,
     json_path: report.artifacts?.json_path,

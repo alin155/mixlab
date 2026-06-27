@@ -19,7 +19,8 @@ function runArtifactReport(overrides: Record<string, unknown> = {}): unknown {
     run: {
       databaseId: 12345,
       url: "https://github.com/alin155/mixlab/actions/runs/12345",
-      headSha: "abc123"
+      headSha: "abc123",
+      headBranch: "codex/admin-docker-mvp"
     },
     ...overrides
   };
@@ -98,6 +99,14 @@ test("pre-staging handoff can request release inputs while keeping staging and d
   assert.equal(built.live_baseline.ready_video_count, 10471);
   assert.equal(built.live_baseline.current_index_version, "v010471");
   assert.equal(built.live_baseline.current_api_contract_blocked, true);
+  assert.equal(built.release_input_request.target_image_tag, "abc123");
+  assert.match(built.release_input_request.workflow_dispatch_command, /--ref codex\/admin-docker-mvp/);
+  assert.match(built.release_input_request.workflow_dispatch_command, /push_images=true/);
+  assert.ok(built.release_input_request.required_operator_inputs.some((input) => input.id === "current_image_tag" && input.status === "required"));
+  assert.ok(built.release_input_request.required_operator_inputs.some((input) => input.id === "rollback_image_tag" && input.status === "required"));
+  assert.equal(built.release_input_request.initial_staging_defaults.library_preprocess_worker, "0");
+  assert.equal(built.release_input_request.initial_staging_defaults.ready_publish_worker, "0");
+  assert.ok(built.release_input_request.forbidden_before_staged_proof.some((item) => item.includes("18080")));
 });
 
 test("pre-staging handoff blocks release inputs without a current-worktree candidate", () => {
@@ -133,8 +142,12 @@ test("pre-staging handoff markdown records candidate and release-input boundarie
   assert.match(markdown, /Docker deploy allowed: no/);
   assert.match(markdown, /Ready video count: 10471/);
   assert.match(markdown, /Current index: v010471/);
+  assert.match(markdown, /Release Input Request/);
+  assert.match(markdown, /gh workflow run docker-admin\.yml/);
   assert.match(markdown, /current_image_tag/);
   assert.match(markdown, /rollback_image_tag/);
+  assert.match(markdown, /Initial ready publish worker: 0/);
+  assert.match(markdown, /Forbidden Before Staged Proof/);
 });
 
 test("pre-staging handoff CLI writes JSON and Markdown", async () => {
