@@ -22,6 +22,27 @@ function blockedParityReport(): unknown {
   };
 }
 
+function postUpdateOnlyParityReport(): unknown {
+  return {
+    decision: {
+      docker_image_update_required: true
+    },
+    summary: {
+      upload_blockers: [
+        "current-admin-api-contract-parity",
+        "version-health-parity-contract",
+        "admin-worker-env-proof-contract",
+        "cutter-compatibility-proof-contract",
+        "admin-worker-env-external-proof",
+        "cutter-compatibility-external-proof"
+      ]
+    },
+    result: {
+      status: "blocked"
+    }
+  };
+}
+
 function acceptedWorkerProof(): unknown {
   return {
     proof_accepted: true,
@@ -164,9 +185,11 @@ test("admin Docker staging runbook stays blocked when tags and release evidence 
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, false);
   assert.equal(report.docker_deploy_allowed, false);
   assert.equal(report.result.status, "blocked");
   assert.ok(report.summary.staging_blockers.includes("current-image-tag-provided"));
+  assert.ok(report.summary.staging_execution_blockers.includes("current-image-tag-provided"));
   assert.ok(report.summary.staging_blockers.includes("target-image-tag-provided"));
   assert.ok(report.summary.staging_blockers.includes("rollback-image-tag-provided"));
   assert.ok(report.summary.staging_blockers.includes("image-push-explicitly-approved"));
@@ -176,6 +199,8 @@ test("admin Docker staging runbook stays blocked when tags and release evidence 
   assert.ok(report.summary.staging_blockers.includes("candidate-contract-proof-accepted"));
   assert.ok(report.summary.staging_blockers.includes("worker-env-proof-accepted"));
   assert.ok(report.summary.staging_blockers.includes("cutter-compatibility-proof-accepted"));
+  assert.ok(!report.summary.staging_execution_blockers.includes("worker-env-proof-accepted"));
+  assert.ok(!report.summary.staging_execution_blockers.includes("cutter-compatibility-proof-accepted"));
   assert.ok(report.runbook.stage_update.some((line) => line.includes("<target-tag>")));
 });
 
@@ -200,7 +225,9 @@ test("admin Docker staging runbook requires rollback tag to match current tag", 
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, false);
   assert.ok(report.summary.staging_blockers.includes("rollback-tag-matches-current"));
+  assert.ok(report.summary.staging_execution_blockers.includes("rollback-tag-matches-current"));
 });
 
 test("admin Docker staging runbook can become ready for staging review without approving deploy", () => {
@@ -223,17 +250,57 @@ test("admin Docker staging runbook can become ready for staging review without a
     image_push_approval: "workflow_dispatch:push_images=true"
   });
 
+  assert.equal(report.staging_execution_ready, true);
   assert.equal(report.staging_review_ready, true);
   assert.equal(report.docker_deploy_allowed, false);
   assert.equal(report.image_push_approval.accepted, true);
   assert.equal(report.observations.target_tag_matches_local_smoke, true);
   assert.equal(report.result.status, "ready-for-staging-review");
   assert.deepEqual(report.summary.staging_blockers, []);
+  assert.deepEqual(report.summary.staging_execution_blockers, []);
   assert.ok(report.runbook.stage_update.some((line) => line.includes("MIXLAB_IMAGE_TAG=new-tag")));
   assert.ok(report.runbook.rollback.some((line) => line.includes("MIXLAB_IMAGE_TAG=old-tag")));
   assert.ok(report.runbook.preflight.some((line) => line.includes("candidate API/version contract proof")));
   assert.ok(report.runbook.post_update_validation.some((line) => line.includes("candidate contract proof")));
   assert.ok(report.runbook.post_update_validation.some((line) => line.includes("Cutter")));
+});
+
+test("admin Docker staging runbook separates staging execution from post-staging proof", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: postUpdateOnlyParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: acceptedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: blockedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: blockedCutterProof(),
+    current_image_tag: "old-tag",
+    target_image_tag: "new-tag",
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.staging_execution_ready, true);
+  assert.equal(report.staging_review_ready, false);
+  assert.deepEqual(report.summary.staging_execution_blockers, []);
+  assert.ok(report.summary.staging_blockers.includes("parity-report-blockers-clear"));
+  assert.ok(report.summary.staging_blockers.includes("worker-env-proof-accepted"));
+  assert.ok(report.summary.staging_blockers.includes("cutter-compatibility-proof-accepted"));
+  assert.deepEqual(report.observations.staging_execution_parity_blockers, []);
+  assert.deepEqual(report.observations.unresolved_parity_upload_blockers, [
+    "current-admin-api-contract-parity",
+    "version-health-parity-contract",
+    "admin-worker-env-proof-contract",
+    "cutter-compatibility-proof-contract",
+    "admin-worker-env-external-proof",
+    "cutter-compatibility-external-proof"
+  ]);
+  assert.match(report.result.summary, /Staging execution inputs are ready/);
 });
 
 test("admin Docker staging runbook resolves external parity blockers only when accepted proofs exist", () => {
@@ -257,6 +324,7 @@ test("admin Docker staging runbook resolves external parity blockers only when a
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, false);
   assert.deepEqual(report.observations.resolved_external_parity_blockers, [
     "admin-worker-env-external-proof",
     "cutter-compatibility-external-proof"
@@ -266,6 +334,7 @@ test("admin Docker staging runbook resolves external parity blockers only when a
     "nas-disk-risk"
   ]);
   assert.ok(report.summary.staging_blockers.includes("parity-report-blockers-clear"));
+  assert.ok(report.summary.staging_execution_blockers.includes("parity-report-staging-execution-safe"));
   assert.ok(!report.summary.staging_blockers.includes("candidate-contract-proof-accepted"));
   assert.ok(!report.summary.staging_blockers.includes("worker-env-proof-accepted"));
   assert.ok(!report.summary.staging_blockers.includes("cutter-compatibility-proof-accepted"));
@@ -292,7 +361,9 @@ test("admin Docker staging runbook blocks when Cutter compatibility proof is mis
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, true);
   assert.ok(report.summary.staging_blockers.includes("cutter-compatibility-proof-accepted"));
+  assert.ok(!report.summary.staging_execution_blockers.includes("cutter-compatibility-proof-accepted"));
   assert.deepEqual(report.observations.cutter_upload_blockers, [
     "windows-acceptance-report-provided",
     "real-cut-report-provided"
@@ -320,7 +391,9 @@ test("admin Docker staging runbook blocks when candidate contract proof is missi
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, false);
   assert.ok(report.summary.staging_blockers.includes("candidate-contract-proof-accepted"));
+  assert.ok(report.summary.staging_execution_blockers.includes("candidate-contract-proof-accepted"));
   assert.deepEqual(report.observations.candidate_contract_blockers, [
     "candidate-target-configured",
     "candidate-current-admin-api-contract"
@@ -347,8 +420,10 @@ test("admin Docker staging runbook blocks without explicit workflow push approva
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, false);
   assert.equal(report.image_push_approval.accepted, false);
   assert.ok(report.summary.staging_blockers.includes("image-push-explicitly-approved"));
+  assert.ok(report.summary.staging_execution_blockers.includes("image-push-explicitly-approved"));
 });
 
 test("admin Docker staging runbook blocks when target tag differs from smoked image tag", () => {
@@ -372,6 +447,8 @@ test("admin Docker staging runbook blocks when target tag differs from smoked im
   });
 
   assert.equal(report.staging_review_ready, false);
+  assert.equal(report.staging_execution_ready, false);
   assert.equal(report.observations.target_tag_matches_local_smoke, false);
   assert.ok(report.summary.staging_blockers.includes("target-tag-matches-smoked-image"));
+  assert.ok(report.summary.staging_execution_blockers.includes("target-tag-matches-smoked-image"));
 });

@@ -14,6 +14,7 @@ interface RunbookGate {
   category: RunbookGateCategory;
   status: RunbookGateStatus;
   evidence: string;
+  blocks_staging_execution: boolean;
   blocks_staging: boolean;
   required_evidence?: string;
 }
@@ -22,6 +23,7 @@ interface RunbookSummary {
   total: number;
   passed: number;
   blocked: number;
+  staging_execution_blockers: string[];
   staging_blockers: string[];
 }
 
@@ -59,6 +61,7 @@ export interface AdminDockerStagingRunbookReport {
   sources: RunbookSources;
   image_tags: ImageTags;
   image_push_approval: PushApproval;
+  staging_execution_ready: boolean;
   staging_review_ready: boolean;
   docker_deploy_allowed: false;
   observations: {
@@ -70,6 +73,7 @@ export interface AdminDockerStagingRunbookReport {
     parity_status: string;
     docker_image_update_required: boolean | null;
     parity_upload_blockers: string[];
+    staging_execution_parity_blockers: string[];
     unresolved_parity_upload_blockers: string[];
     resolved_external_parity_blockers: string[];
     candidate_contract_status: string;
@@ -192,6 +196,9 @@ function gate(input: RunbookGate): RunbookGate {
 }
 
 function summarize(gates: RunbookGate[]): RunbookSummary {
+  const stagingExecutionBlockers = gates
+    .filter((item) => item.blocks_staging_execution && item.status !== "pass")
+    .map((item) => item.id);
   const stagingBlockers = gates
     .filter((item) => item.blocks_staging && item.status !== "pass")
     .map((item) => item.id);
@@ -200,6 +207,7 @@ function summarize(gates: RunbookGate[]): RunbookSummary {
     total: gates.length,
     passed: gates.filter((item) => item.status === "pass").length,
     blocked: gates.filter((item) => item.status === "blocked").length,
+    staging_execution_blockers: stagingExecutionBlockers,
     staging_blockers: stagingBlockers
   };
 }
@@ -211,8 +219,31 @@ function tagProvidedGate(id: string, title: string, value: string, envName: stri
     category: "input",
     status: value ? "pass" : "blocked",
     evidence: value ? `${envName}=${value}` : `${envName} is not provided.`,
+    blocks_staging_execution: !value,
     blocks_staging: !value,
     required_evidence: `Set ${envName} before producing a staging runbook.`
+  });
+}
+
+function stagingExecutionParityBlockers(input: {
+  parity_blockers: string[];
+  docker_image_update_required: boolean | null;
+}): string[] {
+  const postUpdateProofBlockers = new Set([
+    "current-admin-api-contract-parity",
+    "version-health-parity-contract",
+    "admin-worker-env-proof-contract",
+    "cutter-compatibility-proof-contract",
+    "admin-worker-env-external-proof",
+    "cutter-compatibility-external-proof"
+  ]);
+
+  return input.parity_blockers.filter((item) => {
+    if (input.docker_image_update_required === true && postUpdateProofBlockers.has(item)) {
+      return false;
+    }
+
+    return true;
   });
 }
 
@@ -300,6 +331,10 @@ export function buildAdminDockerStagingRunbookReport(input: {
     worker_accepted: workerAccepted,
     cutter_accepted: cutterAccepted
   });
+  const executionParityBlockers = stagingExecutionParityBlockers({
+    parity_blockers: normalizedParity.unresolved,
+    docker_image_update_required: updateRequired
+  });
   const tags = { current, target, rollback };
   const targetDiffers = Boolean(current && target && current !== target);
   const rollbackMatchesCurrent = Boolean(current && rollback && current === rollback);
@@ -310,6 +345,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "safety",
       status: "pass",
       evidence: "This report reads archived artifacts and env inputs only; it does not run Docker, push images, restart containers, or write NAS files.",
+      blocks_staging_execution: false,
       blocks_staging: false
     }),
     tagProvidedGate("current-image-tag-provided", "Current image tag is explicit", current, "MIXLAB_DOCKER_CURRENT_IMAGE_TAG"),
@@ -321,6 +357,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "input",
       status: targetDiffers ? "pass" : "blocked",
       evidence: `current=${current || "missing"}, target=${target || "missing"}`,
+      blocks_staging_execution: !targetDiffers,
       blocks_staging: !targetDiffers,
       required_evidence: "Target tag must differ from current tag so the staging action is explicit."
     }),
@@ -330,6 +367,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "rollback",
       status: rollbackMatchesCurrent ? "pass" : "blocked",
       evidence: `current=${current || "missing"}, rollback=${rollback || "missing"}`,
+      blocks_staging_execution: !rollbackMatchesCurrent,
       blocks_staging: !rollbackMatchesCurrent,
       required_evidence: "Rollback tag must match the current deployed tag before staging."
     }),
@@ -341,6 +379,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       evidence: imagePushApproval
         ? `MIXLAB_DOCKER_PUSH_APPROVAL=${imagePushApproval}`
         : "MIXLAB_DOCKER_PUSH_APPROVAL is not provided.",
+      blocks_staging_execution: !imagePushApproved,
       blocks_staging: !imagePushApproved,
       required_evidence: "Set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true only after the GitHub Admin Docker workflow was manually dispatched with push_images=true and its smoke gate passed."
     }),
@@ -352,6 +391,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       evidence: localSmokePassed
         ? `local smoke status=${resultStatus(input.local_docker_smoke_report) || "unknown"}, image_tag=${localSmokeBuildIdentity.image_tag || "missing"}`
         : `local smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}`,
+      blocks_staging_execution: !localSmokePassed,
       blocks_staging: !localSmokePassed,
       required_evidence: "Run validate:admin-docker-local-smoke with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 and require local_smoke_passed:true before staging."
     }),
@@ -361,6 +401,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "input",
       status: targetMatchesLocalSmoke ? "pass" : "blocked",
       evidence: `target=${target || "missing"}, smoked_image_tag=${localSmokeBuildIdentity.image_tag || "missing"}`,
+      blocks_staging_execution: !targetMatchesLocalSmoke,
       blocks_staging: !targetMatchesLocalSmoke,
       required_evidence: "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact build_identity.image_tag from the accepted local Docker smoke report."
     }),
@@ -370,8 +411,21 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "evidence",
       status: input.parity_plan_report_path ? "pass" : "blocked",
       evidence: input.parity_plan_report_path || "No parity report path provided.",
+      blocks_staging_execution: !input.parity_plan_report_path,
       blocks_staging: !input.parity_plan_report_path,
       required_evidence: "Provide the Docker version/API parity plan artifact."
+    }),
+    gate({
+      id: "parity-report-staging-execution-safe",
+      title: "Docker parity blockers do not prevent staging execution",
+      category: "runtime-risk",
+      status: executionParityBlockers.length === 0 ? "pass" : "blocked",
+      evidence: executionParityBlockers.length === 0
+        ? `Only post-update parity proof remains before final review: ${normalizedParity.unresolved.join(", ") || "none"}.`
+        : `Pre-update parity blockers still prevent staging execution: ${executionParityBlockers.join(", ")}.`,
+      blocks_staging_execution: executionParityBlockers.length > 0,
+      blocks_staging: false,
+      required_evidence: "Before staging execution, live target/proxy/root/disk blockers must be clear. Current API and proof-contract blockers may remain only when docker_image_update_required=true because staging is the update that should resolve them."
     }),
     gate({
       id: "parity-report-blockers-clear",
@@ -381,6 +435,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       evidence: normalizedParity.unresolved.length === 0
         ? `No unresolved parity upload blockers after external proof normalization. Resolved external blockers: ${normalizedParity.resolved_external.join(", ") || "none"}`
         : `Unresolved parity blockers: ${normalizedParity.unresolved.join(", ")}; resolved external blockers: ${normalizedParity.resolved_external.join(", ") || "none"}`,
+      blocks_staging_execution: false,
       blocks_staging: normalizedParity.unresolved.length > 0,
       required_evidence: "Resolve current API contract parity and disk blockers, and provide accepted worker/Cutter external proof for their external-proof blockers."
     }),
@@ -390,6 +445,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "evidence",
       status: candidateReady ? "pass" : "blocked",
       evidence: `candidate proof status=${asString(candidateResult.status) || "unknown"}, blockers=${candidateBlockers.join(", ") || "none"}`,
+      blocks_staging_execution: !candidateReady,
       blocks_staging: !candidateReady,
       required_evidence: "Run validate:admin-docker-candidate-contract-proof against the local or staged candidate and require candidate_contract_ready:true."
     }),
@@ -399,8 +455,9 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "evidence",
       status: workerAccepted ? "pass" : "blocked",
       evidence: `worker proof status=${asString(workerResult.status) || "unknown"}, blockers=${workerBlockers.join(", ") || "none"}`,
+      blocks_staging_execution: false,
       blocks_staging: !workerAccepted,
-      required_evidence: "Run validate:admin-worker-env-proof with exported NAS evidence and require proof_accepted:true."
+      required_evidence: "Run validate:admin-worker-env-proof with exported NAS evidence after staging and require proof_accepted:true before final MVP acceptance."
     }),
     gate({
       id: "cutter-compatibility-proof-accepted",
@@ -408,8 +465,9 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "evidence",
       status: cutterAccepted ? "pass" : "blocked",
       evidence: `cutter proof status=${asString(cutterResult.status) || "unknown"}, blockers=${cutterBlockers.join(", ") || "none"}`,
+      blocks_staging_execution: false,
       blocks_staging: !cutterAccepted,
-      required_evidence: "Run validate:admin-cutter-compatibility-proof with staged-candidate Windows reports and require proof_accepted:true."
+      required_evidence: "Run validate:admin-cutter-compatibility-proof with staged-candidate Windows reports and require proof_accepted:true before final MVP acceptance."
     }),
     gate({
       id: "current-api-update-needed-is-known",
@@ -417,6 +475,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "runtime-risk",
       status: updateRequired === true || updateRequired === false ? "pass" : "blocked",
       evidence: updateRequired === null ? "docker_image_update_required is unknown." : `docker_image_update_required=${updateRequired}`,
+      blocks_staging_execution: updateRequired === null,
       blocks_staging: updateRequired === null,
       required_evidence: "Run Docker version/API parity plan before staging."
     }),
@@ -426,11 +485,13 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "safety",
       status: asString(parityResult.status) === "blocked" ? "pass" : "blocked",
       evidence: `parity_result=${asString(parityResult.status) || "unknown"}`,
+      blocks_staging_execution: asString(parityResult.status) !== "blocked",
       blocks_staging: asString(parityResult.status) !== "blocked",
       required_evidence: "The parity plan should remain a non-deploy gate; actual staging needs a separate release decision."
     })
   ];
   const summary = summarize(gates);
+  const stagingExecutionReady = summary.staging_execution_blockers.length === 0;
   const stagingReviewReady = summary.staging_blockers.length === 0;
 
   return {
@@ -450,6 +511,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       value: imagePushApproval,
       accepted: imagePushApproved
     },
+    staging_execution_ready: stagingExecutionReady,
     staging_review_ready: stagingReviewReady,
     docker_deploy_allowed: false,
     observations: {
@@ -461,6 +523,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       parity_status: asString(parityResult.status),
       docker_image_update_required: updateRequired,
       parity_upload_blockers: parityBlockers,
+      staging_execution_parity_blockers: executionParityBlockers,
       unresolved_parity_upload_blockers: normalizedParity.unresolved,
       resolved_external_parity_blockers: normalizedParity.resolved_external,
       candidate_contract_status: asString(candidateResult.status),
@@ -480,7 +543,9 @@ export function buildAdminDockerStagingRunbookReport(input: {
       status: stagingReviewReady ? "ready-for-staging-review" : "blocked",
       summary: stagingReviewReady
         ? "Runbook is ready for a separate human release decision; this report still does not deploy Docker."
-        : "Runbook is blocked until explicit tags and release evidence gates are satisfied."
+        : stagingExecutionReady
+          ? "Staging execution inputs are ready, but final MVP acceptance remains blocked until post-staging worker, live, parity, and Cutter proofs pass."
+          : "Runbook is blocked until explicit tags and staging execution gates are satisfied."
     },
     artifacts: null
   };
@@ -496,6 +561,8 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `Mode: ${report.mode}`,
     "",
     `Result: ${report.result.status}`,
+    "",
+    `Staging execution ready: ${report.staging_execution_ready ? "yes" : "no"}`,
     "",
     `Staging review ready: ${report.staging_review_ready ? "yes" : "no"}`,
     "",
@@ -528,6 +595,7 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Parity status: ${report.observations.parity_status || "unknown"}`,
     `- Docker image update required: ${report.observations.docker_image_update_required ?? "unknown"}`,
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
+    `- Staging execution parity blockers: ${report.observations.staging_execution_parity_blockers.join(", ") || "none"}`,
     `- Unresolved parity blockers: ${report.observations.unresolved_parity_upload_blockers.join(", ") || "none"}`,
     `- Resolved external parity blockers: ${report.observations.resolved_external_parity_blockers.join(", ") || "none"}`,
     `- Candidate contract status: ${report.observations.candidate_contract_status || "unknown"}`,
@@ -558,12 +626,13 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     "",
     "## Gates",
     "",
-    "| Gate | Category | Status | Blocks Staging | Evidence | Required Evidence |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Gate | Category | Status | Blocks Staging Execution | Blocks Final Review | Evidence | Required Evidence |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
     ...report.gates.map((item) => [
       item.id,
       item.category,
       item.status,
+      item.blocks_staging_execution ? "yes" : "no",
       item.blocks_staging ? "yes" : "no",
       item.evidence,
       item.required_evidence ?? "n/a"
