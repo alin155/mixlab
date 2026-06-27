@@ -54,6 +54,7 @@ const REQUIRED_FILES = [
   "scripts/acceptance/admin-docker-prestaging-handoff.ts",
   "scripts/acceptance/admin-docker-nas-image-proof.ts",
   "scripts/acceptance/admin-docker-release-inputs.ts",
+  "scripts/acceptance/admin-docker-nas-release-inputs-collector.sh",
   "scripts/acceptance/admin-docker-candidate-scope.ts",
   "scripts/acceptance/nas-acc-009-collector.sh",
   "scripts/acceptance/nas-docker-compose-static.ts",
@@ -373,8 +374,8 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     "scripts/acceptance/package-evidence-kit.ts",
-    /MANIFEST\.json[\s\S]*SHA-256[\s\S]*validate:evidence-kit-manifest[\s\S]*evidence-kit-manifest-self-check\.ps1[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*size_bytes[\s\S]*executable[\s\S]*writeEvidenceKitManifest[\s\S]*TARGET_EVIDENCE_KIT_ARTIFACT_NAME/,
-    "evidence kit packaging must generate a machine-readable manifest with file hashes, sizes, executable flags, artifact identity, and packaged target-side self-checks",
+    /MANIFEST\.json[\s\S]*SHA-256[\s\S]*validate:evidence-kit-manifest[\s\S]*evidence-kit-manifest-self-check\.ps1[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*admin-docker-nas-release-inputs-collector\.sh[\s\S]*size_bytes[\s\S]*executable[\s\S]*writeEvidenceKitManifest[\s\S]*TARGET_EVIDENCE_KIT_ARTIFACT_NAME/,
+    "evidence kit packaging must generate a machine-readable manifest with file hashes, sizes, executable flags, artifact identity, packaged target-side self-checks, and the Admin Docker NAS release-input collector",
     errors
   );
   requireText(

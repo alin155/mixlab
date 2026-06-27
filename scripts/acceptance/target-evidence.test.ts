@@ -1845,6 +1845,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     const nasCollector = path.join(outputDir, "nas", "nas-acc-009-collector.sh");
     const nasSelfCheck = path.join(outputDir, "nas", "nas-evidence-self-check.sh");
     const nasReportSelfCheck = path.join(outputDir, "nas", "nas-50-editor-report-self-check.sh");
+    const adminDockerNasReleaseInputsCollector = path.join(outputDir, "nas", "admin-docker-nas-release-inputs-collector.sh");
     const windowsDraft = JSON.parse(readFileSync(path.join(outputDir, "windows", "windows-acc-008.json"), "utf8"));
     const nasDraft = JSON.parse(readFileSync(path.join(outputDir, "nas", "nas-acc-009.json"), "utf8"));
     const testerChecklist = readFileSync(path.join(outputDir, "TESTER-CHECKLIST.md"), "utf8");
@@ -1874,7 +1875,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     const rootReadme = readFileSync(path.join(outputDir, "README.md"), "utf8");
     const cleanManifestReport = await validateEvidenceKitManifest(outputDir);
     assert.equal(cleanManifestReport.ok, true, cleanManifestReport.errors.join("\n"));
-    assert.equal(cleanManifestReport.file_count, 15 + optionalManifestPaths.length);
+    assert.equal(cleanManifestReport.file_count, 16 + optionalManifestPaths.length);
     assert.equal(existsSync(path.join(outputDir, "MANIFEST.json")), true);
     assert.equal(manifest.schema_version, 1);
     assert.equal(manifest.artifact_name, TARGET_EVIDENCE_KIT_ARTIFACT_NAME);
@@ -1900,6 +1901,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
       "nas/nas-acc-009-collector.sh",
       "nas/nas-evidence-self-check.sh",
       "nas/nas-50-editor-report-self-check.sh",
+      "nas/admin-docker-nas-release-inputs-collector.sh",
       "nas/nas-acc-009.json",
       "nas/captures/50-editor-report.json",
       ...optionalManifestPaths
@@ -1913,6 +1915,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.equal(manifestFiles.get("nas/nas-acc-009-collector.sh")?.executable, true);
     assert.equal(manifestFiles.get("nas/nas-evidence-self-check.sh")?.executable, true);
     assert.equal(manifestFiles.get("nas/nas-50-editor-report-self-check.sh")?.executable, true);
+    assert.equal(manifestFiles.get("nas/admin-docker-nas-release-inputs-collector.sh")?.executable, true);
     assert.equal(manifestFiles.get("evidence-kit-manifest-self-check.sh")?.executable, true);
     assert.equal(manifestFiles.get("evidence-kit-manifest-self-check.ps1")?.executable, false);
     assert.equal(manifestFiles.get("nas/captures/50-editor-report.json")?.executable, false);
@@ -1920,7 +1923,8 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
       rootManifestShellSelfCheck,
       nasCollector,
       nasSelfCheck,
-      nasReportSelfCheck
+      nasReportSelfCheck,
+      adminDockerNasReleaseInputsCollector
     ]) {
       assert.equal(readFileSync(shellScriptPath, "utf8").includes("\r\n"), false);
     }
@@ -2179,6 +2183,8 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(testerChecklist, /48,000 indexed transcript segments/);
     assert.match(testerChecklist, /50\+ editor searchd flow/);
     assert.match(testerChecklist, /nas-50-editor-report-self-check\.sh/);
+    assert.match(testerChecklist, /admin-docker-nas-release-inputs-collector\.sh/);
+    assert.match(testerChecklist, /admin-docker-release-inputs\/ output back to the Mac repository/);
     assert.match(testerChecklist, /nas-acc-009-collector\.sh/);
     assert.match(testerChecklist, /nas-evidence-self-check\.sh/);
     assert.match(testerChecklist, /validate:windows-evidence/);
@@ -2214,6 +2220,14 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(windowsCapturesReadme, /doctor-pass/);
     assert.match(windowsCapturesReadme, /success-diagnostics\.txt/);
     assert.match(readFileSync(nasCollector, "utf8"), /admin-worker-loop-started/);
+    const adminDockerNasReleaseInputsCollectorScript = readFileSync(adminDockerNasReleaseInputsCollector, "utf8");
+    assert.equal(
+      adminDockerNasReleaseInputsCollectorScript,
+      normalizeLf(readFileSync("scripts/acceptance/admin-docker-nas-release-inputs-collector.sh", "utf8"))
+    );
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_IMAGE_TAG/);
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /admin-docker-current\.inspect\.json/);
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /admin-worker\.inspect\.json/);
     const nasSelfCheckScript = readFileSync(nasSelfCheck, "utf8");
     assert.equal(nasSelfCheckScript, normalizeLf(readFileSync("scripts/acceptance/nas-evidence-self-check.sh", "utf8")));
     assert.match(nasSelfCheckScript, /ACC-009 target-side self-check/);
@@ -2234,6 +2248,11 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(nasReportSelfCheckScript, /Authorization:\\s\*Bearer/);
     assert.match(nasReportSelfCheckScript, /signed URL field/);
     assert.match(nasReadme, /npm run smoke:searchd-nas-rehearsal/);
+    assert.match(nasReadme, /admin-docker-nas-release-inputs-collector\.sh/);
+    assert.match(nasReadme, /admin-docker-current\.env/);
+    assert.match(nasReadme, /admin-worker\.inspect\.json/);
+    assert.match(nasReadme, /does not dump the full `\.env`/);
+    assert.match(nasReadme, /validate:admin-docker-release-inputs/);
     assert.match(nasReadme, /nas-evidence-self-check\.sh/);
     assert.match(nasReadme, /nas-50-editor-report-self-check\.sh/);
     assert.match(nasReadme, /only a fast local sanity check/);
@@ -2258,6 +2277,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.equal((statSync(nasCollector).mode & 0o111) !== 0, true);
     assert.equal((statSync(nasSelfCheck).mode & 0o111) !== 0, true);
     assert.equal((statSync(nasReportSelfCheck).mode & 0o111) !== 0, true);
+    assert.equal((statSync(adminDockerNasReleaseInputsCollector).mode & 0o111) !== 0, true);
     try {
       execFileSync("sh", [nasSelfCheck, path.join(outputDir, "nas", "nas-acc-009.json")], {
         encoding: "utf8"

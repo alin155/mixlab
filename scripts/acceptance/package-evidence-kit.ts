@@ -147,6 +147,7 @@ Use this checklist before declaring ACC-008, ACC-009, or final delivery complete
 - Verify the SMB public library is readable from cutter machines and not writable by cutters.
 - Use at least 2,000 indexed source videos and 48,000 indexed transcript segments.
 - Complete the 50+ editor searchd flow: keyword search, full-transcript location, transcript selection, local cut submission, local clip output, zero search failures in metrics.usage.search_failure_count, public-library write protection, and cross-workspace isolation.
+- For Admin Docker MVP release inputs, run admin-docker-nas-release-inputs-collector.sh from the NAS Compose project folder and copy its admin-docker-release-inputs/ output back to the Mac repository before release-input validation.
 - Before collector copy, run nas-50-editor-report-self-check.sh ./captures/50-editor-report.json.
 - Run nas-acc-009-collector.sh with EVIDENCE_DIR=./captures, then run nas-evidence-self-check.sh ./nas-acc-009.json before leaving the NAS shell host.
 
@@ -214,6 +215,23 @@ Screenshots must be real .png, .jpg, .jpeg, or .webp files with matching file si
 const NAS_README = `# ACC-009 NAS Evidence
 
 Run this folder on the NAS shell host after the Docker deployment and SMB tests.
+
+For Admin Docker MVP release-input collection, copy this \`nas\` folder or only
+\`admin-docker-nas-release-inputs-collector.sh\` into the NAS Compose project
+folder that contains \`docker-compose.yml\` and \`.env\`, then run:
+
+\`\`\`sh
+sh ./admin-docker-nas-release-inputs-collector.sh ./admin-docker-release-inputs
+\`\`\`
+
+The Admin Docker release-input collector writes only whitelist-based files for
+repository-side proof: \`admin-docker-current.env\`,
+\`admin-docker-current.inspect.json\`, \`admin-worker.env\`, and
+\`admin-worker.inspect.json\`. It does not dump the full \`.env\`, full container
+environment, ASR keys, bearer tokens, or private data. Copy that output
+directory back to the Mac repository before running
+\`validate:admin-docker-nas-image-proof\`, \`validate:admin-worker-env-proof\`, and
+\`validate:admin-docker-release-inputs\`.
 
 \`\`\`sh
 REPOSITORY_COMMIT_SHA=<40-char-commit-sha> \\
@@ -479,10 +497,15 @@ export async function packageAcceptanceEvidenceKit(outputDir = EVIDENCE_KIT_DIR)
     "scripts/acceptance/nas-50-editor-report-self-check.sh",
     path.join(nasDir, "nas-50-editor-report-self-check.sh")
   );
+  await copyShellScript(
+    "scripts/acceptance/admin-docker-nas-release-inputs-collector.sh",
+    path.join(nasDir, "admin-docker-nas-release-inputs-collector.sh")
+  );
   await chmod(path.join(outputDir, "evidence-kit-manifest-self-check.sh"), 0o755);
   await chmod(path.join(nasDir, "nas-acc-009-collector.sh"), 0o755);
   await chmod(path.join(nasDir, "nas-evidence-self-check.sh"), 0o755);
   await chmod(path.join(nasDir, "nas-50-editor-report-self-check.sh"), 0o755);
+  await chmod(path.join(nasDir, "admin-docker-nas-release-inputs-collector.sh"), 0o755);
 
   await writeJson(path.join(windowsDir, "windows-acc-008.json"), createWindowsAcceptanceEvidenceDraft(draftOptions));
   await writeJson(path.join(nasDir, "nas-acc-009.json"), createNasAcceptanceEvidenceDraft(draftOptions));
