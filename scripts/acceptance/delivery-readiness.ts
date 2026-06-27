@@ -427,8 +427,8 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     ".github/workflows/docker-admin.yml",
-    /current_image_tag:[\s\S]*rollback_image_tag:[\s\S]*MIXLAB_DOCKER_TARGET_IMAGE_TAG: \$\{\{ github\.sha \}\}[\s\S]*MIXLAB_DOCKER_PUSH_APPROVAL: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && 'workflow_dispatch:push_images=true' \|\| '' \}\}[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-staging-runbook-\*\.json[\s\S]*admin-docker-release-readiness-summary-\*\.json[\s\S]*admin-docker-github-artifact-readiness-\*\.json/,
-    "Admin Docker workflow must bind staging target tag to github.sha, record explicit push approval, and upload staging/readiness/GitHub-artifact release-gate reports",
+    /current_image_tag:[\s\S]*rollback_image_tag:[\s\S]*MIXLAB_DOCKER_TARGET_IMAGE_TAG: \$\{\{ github\.sha \}\}[\s\S]*MIXLAB_DOCKER_PUSH_APPROVAL: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && 'workflow_dispatch:push_images=true' \|\| '' \}\}[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-local-smoke-\*\.json[\s\S]*admin-docker-staging-runbook-\*\.json[\s\S]*admin-docker-release-readiness-summary-\*\.json[\s\S]*admin-docker-github-artifact-readiness-\*\.json/,
+    "Admin Docker workflow must bind staging target tag to github.sha, record explicit push approval, and upload local-smoke/staging/readiness/GitHub-artifact release-gate reports",
     errors
   );
   requireText(
@@ -1537,8 +1537,8 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     ".github/workflows/docker-admin.yml",
-    /deploy\/nas\/mixlab\/\*\*[\s\S]*docs\/deployment\/m19-nas-docker\.md[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-github-artifact-readiness-\*\.json[\s\S]*name: mixlab-target-evidence-kit[\s\S]*dist\/acceptance\/mixlab-evidence-kit/,
-    "must trigger on NAS deployment assets, run local Docker smoke, generate staging/readiness/artifact release reports, build Docker images, and upload the manifest/draft/self-check-validated evidence kit beside the candidate run",
+    /deploy\/nas\/mixlab\/\*\*[\s\S]*docs\/deployment\/m19-nas-docker\.md[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-local-smoke-\*\.json[\s\S]*admin-docker-github-artifact-readiness-\*\.json[\s\S]*name: mixlab-target-evidence-kit[\s\S]*dist\/acceptance\/mixlab-evidence-kit/,
+    "must trigger on NAS deployment assets, run local Docker smoke, generate staging/readiness/artifact release reports, build Docker images, upload self-contained release gates, and upload the manifest/draft/self-check-validated evidence kit beside the candidate run",
     errors
   );
 }

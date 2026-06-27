@@ -3418,6 +3418,10 @@ test("Admin Docker workflow builds, smokes, and only pushes NAS images after exp
   assert.match(workflow, /MIXLAB_DOCKER_TARGET_IMAGE_TAG: \$\{\{ github\.sha \}\}/);
   assert.match(workflow, /MIXLAB_DOCKER_PUSH_APPROVAL: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && 'workflow_dispatch:push_images=true' \|\| '' \}\}/);
   assert.match(workflow, /name: mixlab-admin-docker-release-gates/);
+  assert.match(
+    workflow,
+    /name: mixlab-admin-docker-release-gates[\s\S]*docs\/acceptance\/artifacts\/admin-docker-local-smoke-\*\.json[\s\S]*docs\/acceptance\/artifacts\/admin-docker-local-smoke-\*\.md/
+  );
   assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-staging-runbook-\*\.json/);
   assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-release-readiness-summary-\*\.json/);
   assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-github-artifact-readiness-\*\.json/);

@@ -180,6 +180,8 @@ jobs:
         with:
           name: mixlab-admin-docker-release-gates
           path: |
+            docs/acceptance/artifacts/admin-docker-local-smoke-*.json
+            docs/acceptance/artifacts/admin-docker-local-smoke-*.md
             docs/acceptance/artifacts/admin-docker-candidate-contract-proof-*.json
             docs/acceptance/artifacts/admin-docker-candidate-contract-proof-*.md
             docs/acceptance/artifacts/admin-docker-release-live-readonly-*.json
