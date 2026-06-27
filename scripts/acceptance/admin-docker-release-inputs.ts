@@ -161,11 +161,18 @@ function nextActions(input: {
   release_input_blockers: string[];
   staging_execution_blockers: string[];
 }): string[] {
+  const preservedStagingBlockers = input.staging_execution_blockers.length > 0
+    ? [
+        `Preserved pre-staging execution blockers: ${input.staging_execution_blockers.join(", ")}.`
+      ]
+    : [];
+
   if (!input.release_inputs_ready) {
     return [
       "Keep push_images=false until release inputs are ready.",
       "Run validate:admin-docker-nas-image-proof with a sanitized NAS MIXLAB_IMAGE_TAG evidence file and docker inspect evidence.",
-      `Resolve release input blockers: ${input.release_input_blockers.join(", ") || "unknown"}.`
+      `Resolve release input blockers: ${input.release_input_blockers.join(", ") || "unknown"}.`,
+      ...preservedStagingBlockers
     ];
   }
 

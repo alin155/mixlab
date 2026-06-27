@@ -112,6 +112,29 @@ test("release input package emits exact workflow command but still requires expl
   assert.ok(built.next_actions.some((item) => item.includes("Before staging execution")));
 });
 
+test("release input package preserves live NAS disk risk carried by handoff", () => {
+  const built = report({
+    handoff: handoff({
+      summary: {
+        staging_execution_blockers: [
+          "explicit-push-approval-required",
+          "nas-disk-risk-carried-forward"
+        ],
+        docker_deploy_blockers: [
+          "explicit-push-approval-required",
+          "nas-disk-risk-carried-forward"
+        ]
+      }
+    }),
+    proof: nasImageProof()
+  });
+
+  assert.equal(built.release_inputs_ready, true);
+  assert.ok(built.summary.push_execution_blockers.includes("handoff-staging-blockers-carried-forward"));
+  assert.ok(built.observations.handoff_staging_execution_blockers.includes("nas-disk-risk-carried-forward"));
+  assert.ok(built.next_actions.some((item) => item.includes("nas-disk-risk-carried-forward")));
+});
+
 test("release input package blocks a rejected NAS image proof", () => {
   const built = report({
     handoff: handoff(),
@@ -131,6 +154,7 @@ test("release input package blocks a rejected NAS image proof", () => {
   assert.ok(built.summary.release_input_blockers.includes("nas-image-proof-accepted"));
   assert.ok(built.summary.release_input_blockers.includes("current-and-rollback-tags-present"));
   assert.equal(built.inputs.current_image_tag, "");
+  assert.ok(built.next_actions.some((item) => item.includes("Preserved pre-staging execution blockers")));
 });
 
 test("release input package blocks when target tag equals current tag", () => {

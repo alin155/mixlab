@@ -78,6 +78,7 @@ export interface AdminDockerPrestagingHandoffReport {
     current_index_version: string;
     disk_usage_percent: number | null;
     disk_status: string;
+    live_upload_blockers: string[];
     current_api_contract_blocked: boolean;
   };
   ready_to_request_release_inputs: boolean;
@@ -187,13 +188,23 @@ function summarize(gates: HandoffGate[]): HandoffSummary {
   };
 }
 
-function requestReleaseInputActions(candidateSha: string): string[] {
+function requestReleaseInputActions(input: {
+  candidateSha: string;
+  liveDiskRiskBlocked: boolean;
+}): string[] {
+  const candidateSha = input.candidateSha;
   const target = candidateSha || "<candidate-sha>";
+  const diskAction = input.liveDiskRiskBlocked
+    ? [
+        "Resolve the current NAS disk blocked state before staging execution; do not treat a generated push_images=true command as approval while disk risk is carried forward."
+      ]
+    : [];
 
   return [
     "Export a sanitized current NAS Admin Docker MIXLAB_IMAGE_TAG evidence file and docker inspect evidence, then run validate:admin-docker-nas-image-proof before choosing release inputs.",
     "Run validate:admin-docker-release-inputs with the accepted pre-staging handoff and NAS image proof reports to generate the exact push_images=true command.",
     "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
+    ...diskAction,
     `After explicit approval, rerun the Admin Docker workflow with push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
     "Do not change NAS .env or restart containers until the pushed-image run completes and produces release-gates artifacts.",
     "For initial staging, keep MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0, MIXLAB_ENABLE_READY_PUBLISH_WORKER=0, and leave DASHSCOPE_API_KEY blank unless a separate controlled-preprocess canary is approved.",
@@ -305,6 +316,9 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
   const candidateBranch = asString(run.headBranch);
   const currentApiContractBlocked = liveUploadBlockers.includes("current-admin-api-contract-live") ||
     liveUploadBlockers.includes("data-loading-contract-live");
+  const liveDiskRiskBlocked = diskStatus === "blocked" ||
+    liveUploadBlockers.includes("preprocess-disk") ||
+    liveUploadBlockers.includes("disk-space-protection-contract-live");
   const liveBaselineObserved = Boolean(targetUrl && libraryRoot && readyCount !== null && currentIndexVersion);
   const gates: HandoffGate[] = [
     gate({
@@ -362,6 +376,19 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       blocks_staging_execution: true,
       blocks_docker_deploy: true,
       required_evidence: "If this is already a staged candidate, rerun full staging/live-readonly proof instead of using the pre-staging handoff."
+    }),
+    gate({
+      id: "nas-disk-risk-carried-forward",
+      title: "Current NAS disk risk is carried forward",
+      category: "live-baseline",
+      status: liveDiskRiskBlocked ? "blocked" : "pass",
+      evidence: liveDiskRiskBlocked
+        ? `disk_usage=${diskUsage ?? "unknown"}%, disk_status=${diskStatus || "unknown"}, live_upload_blockers=${liveUploadBlockers.join(", ") || "none"}`
+        : `disk_usage=${diskUsage ?? "unknown"}%, disk_status=${diskStatus || "unknown"}`,
+      blocks_release_inputs: false,
+      blocks_staging_execution: liveDiskRiskBlocked,
+      blocks_docker_deploy: liveDiskRiskBlocked,
+      required_evidence: "NAS disk risk must be cleared or explicitly re-proven safe before staging execution; image push input packaging alone is not approval."
     }),
     gate({
       id: "explicit-push-approval-required",
@@ -453,6 +480,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       current_index_version: currentIndexVersion,
       disk_usage_percent: diskUsage,
       disk_status: diskStatus,
+      live_upload_blockers: liveUploadBlockers,
       current_api_contract_blocked: currentApiContractBlocked
     },
     ready_to_request_release_inputs: readyToRequestReleaseInputs,
@@ -464,7 +492,10 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
     }),
     gates,
     summary,
-    next_actions: requestReleaseInputActions(candidateSha),
+    next_actions: requestReleaseInputActions({
+      candidateSha,
+      liveDiskRiskBlocked
+    }),
     result: {
       status: resultStatus,
       summary: resultStatus === "failed"
@@ -508,6 +539,7 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     `- Current index: ${report.live_baseline.current_index_version || "<missing>"}`,
     `- Disk usage percent: ${report.live_baseline.disk_usage_percent ?? "<missing>"}`,
     `- Disk status: ${report.live_baseline.disk_status || "<missing>"}`,
+    `- Live upload blockers: ${report.live_baseline.live_upload_blockers.join(", ") || "none"}`,
     `- Current API contract blocked: ${report.live_baseline.current_api_contract_blocked ? "yes" : "no"}`,
     "",
     "## Release Input Request",

@@ -63,6 +63,8 @@ function liveReadonlyReport(overrides: Record<string, unknown> = {}): unknown {
       upload_blockers: [
         "current-admin-api-contract-live",
         "data-loading-contract-live",
+        "preprocess-disk",
+        "disk-space-protection-contract-live",
         "admin-worker-live-flags",
         "cutter-release-compatibility-live"
       ]
@@ -94,16 +96,20 @@ test("pre-staging handoff can request release inputs while keeping staging and d
   assert.equal(built.result.status, "ready-for-release-inputs");
   assert.deepEqual(built.summary.release_input_blockers, []);
   assert.ok(built.summary.staging_execution_blockers.includes("explicit-push-approval-required"));
+  assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-risk-carried-forward"));
   assert.ok(built.summary.staging_execution_blockers.includes("admin-worker-env-proof-required"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("nas-disk-risk-carried-forward"));
   assert.equal(built.candidate.head_sha, "abc123");
   assert.equal(built.live_baseline.ready_video_count, 10471);
   assert.equal(built.live_baseline.current_index_version, "v010471");
   assert.equal(built.live_baseline.current_api_contract_blocked, true);
+  assert.ok(built.live_baseline.live_upload_blockers.includes("preprocess-disk"));
   assert.equal(built.release_input_request.target_image_tag, "abc123");
   assert.match(built.release_input_request.workflow_dispatch_command, /--ref codex\/admin-docker-mvp/);
   assert.match(built.release_input_request.workflow_dispatch_command, /push_images=true/);
   assert.match(built.release_input_request.nas_image_proof_command, /validate:admin-docker-nas-image-proof/);
   assert.match(built.release_input_request.release_inputs_command, /validate:admin-docker-release-inputs/);
+  assert.ok(built.next_actions.some((item) => item.includes("disk blocked")));
   assert.ok(built.release_input_request.required_operator_inputs.some((input) => input.id === "current_image_tag" && input.status === "required"));
   assert.ok(built.release_input_request.required_operator_inputs.some((input) => input.id === "rollback_image_tag" && input.status === "required"));
   assert.equal(built.release_input_request.initial_staging_defaults.library_preprocess_worker, "0");
@@ -144,6 +150,7 @@ test("pre-staging handoff markdown records candidate and release-input boundarie
   assert.match(markdown, /Docker deploy allowed: no/);
   assert.match(markdown, /Ready video count: 10471/);
   assert.match(markdown, /Current index: v010471/);
+  assert.match(markdown, /Live upload blockers: .*preprocess-disk/);
   assert.match(markdown, /Release Input Request/);
   assert.match(markdown, /gh workflow run docker-admin\.yml/);
   assert.match(markdown, /validate:admin-docker-nas-image-proof/);
@@ -152,6 +159,16 @@ test("pre-staging handoff markdown records candidate and release-input boundarie
   assert.match(markdown, /rollback_image_tag/);
   assert.match(markdown, /Initial ready publish worker: 0/);
   assert.match(markdown, /Forbidden Before Staged Proof/);
+});
+
+test("pre-staging handoff keeps release inputs requestable while carrying live disk risk", () => {
+  const built = report();
+
+  assert.equal(built.ready_to_request_release_inputs, true);
+  assert.equal(built.staging_execution_ready, false);
+  assert.deepEqual(built.summary.release_input_blockers, []);
+  assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-risk-carried-forward"));
+  assert.ok(built.gates.some((item) => item.id === "nas-disk-risk-carried-forward" && item.status === "blocked" && !item.blocks_release_inputs));
 });
 
 test("pre-staging handoff CLI writes JSON and Markdown", async () => {
