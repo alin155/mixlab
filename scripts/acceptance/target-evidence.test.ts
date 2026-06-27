@@ -1816,8 +1816,26 @@ test("searchd concurrency smoke can place run artifacts under a target root", as
 test("packages a standalone target evidence kit with drafts and collectors", async () => {
   const tempRoot = mkdtempSync(path.join(tmpdir(), "mixlab-evidence-kit-"));
   const outputDir = path.join(tempRoot, "kit");
+  const envKeys = [
+    "GITHUB_SERVER_URL",
+    "GITHUB_REPOSITORY",
+    "GITHUB_RUN_ID",
+    "GITHUB_SHA",
+    "GITHUB_WORKFLOW",
+    "MIXLAB_WINDOWS_INSTALLER_FILE_NAME",
+    "MIXLAB_WINDOWS_INSTALLER_SHA256",
+    "MIXLAB_WINDOWS_INSTALLER_WORKFLOW_RUN_URL",
+    "MIXLAB_WINDOWS_INSTALLER_VERSION",
+    "MIXLAB_NAS_IMAGE_TAG",
+    "MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL"
+  ] as const;
+  const previousEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
 
   try {
+    for (const key of envKeys) {
+      delete process.env[key];
+    }
+
     await packageAcceptanceEvidenceKit(outputDir);
 
     const windowsCollector = path.join(outputDir, "windows", "windows-acc-008-collector.ps1");
@@ -2393,6 +2411,14 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.equal(validateWindowsAcceptanceEvidence(windowsDraft).ok, false);
     assert.equal(validateNasAcceptanceEvidence(nasDraft).ok, false);
   } finally {
+    for (const key of envKeys) {
+      const previous = previousEnv.get(key);
+      if (previous === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previous;
+      }
+    }
     rmSync(tempRoot, { recursive: true, force: true });
   }
 });
