@@ -51,6 +51,7 @@ interface RunbookSources {
   candidate_contract_proof_report: string;
   worker_env_proof_report: string;
   cutter_compatibility_proof_report: string;
+  release_inputs_report: string;
 }
 
 export interface AdminDockerStagingRunbookReport {
@@ -85,6 +86,11 @@ export interface AdminDockerStagingRunbookReport {
     cutter_compatibility_status: string;
     cutter_proof_accepted: boolean | null;
     cutter_upload_blockers: string[];
+    release_inputs_status: string;
+    release_inputs_ready: boolean | null;
+    release_input_blockers: string[];
+    release_input_handoff_staging_blockers: string[];
+    carried_pre_staging_execution_blockers: string[];
   };
   runbook: {
     preflight: string[];
@@ -187,8 +193,22 @@ function latestArtifact(artifactDir: string, prefix: string): Promise<string> {
   });
 }
 
+function optionalLatestArtifact(artifactDir: string, prefix: string): Promise<string> {
+  return readdir(artifactDir).then((files) => {
+    const candidates = files
+      .filter((file) => file.startsWith(prefix) && file.endsWith(".json"))
+      .sort();
+
+    return candidates.length > 0 ? path.join(artifactDir, candidates[candidates.length - 1]) : "";
+  }).catch(() => "");
+}
+
 async function loadJson(filePath: string): Promise<unknown> {
   return JSON.parse(await readFile(filePath, "utf8")) as unknown;
+}
+
+async function optionalLoadJson(filePath: string): Promise<unknown> {
+  return filePath ? loadJson(filePath) : undefined;
 }
 
 function gate(input: RunbookGate): RunbookGate {
@@ -295,6 +315,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
   worker_env_proof_report: unknown;
   cutter_compatibility_proof_report_path: string;
   cutter_compatibility_proof_report: unknown;
+  release_inputs_report_path?: string;
+  release_inputs_report?: unknown;
   current_image_tag?: string;
   target_image_tag?: string;
   rollback_image_tag?: string;
@@ -318,13 +340,23 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const candidateResult = asRecord(input.candidate_contract_proof_report).result;
   const workerResult = asRecord(input.worker_env_proof_report).result;
   const cutterResult = asRecord(input.cutter_compatibility_proof_report).result;
+  const releaseInputs = asRecord(input.release_inputs_report);
+  const releaseInputsResult = asRecord(releaseInputs.result);
+  const releaseInputsObservations = asRecord(releaseInputs.observations);
   const parityBlockers = summaryBlockers(input.parity_plan_report);
   const candidateBlockers = summaryBlockers(input.candidate_contract_proof_report, "candidate_review_blockers");
   const workerBlockers = summaryBlockers(input.worker_env_proof_report);
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
+  const releaseInputBlockers = summaryBlockers(input.release_inputs_report, "release_input_blockers");
   const candidateReady = asBoolean(asRecord(input.candidate_contract_proof_report).candidate_contract_ready);
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
+  const releaseInputsReady = asBoolean(releaseInputs.release_inputs_ready);
+  const releaseInputHandoffStagingBlockers = asArray(releaseInputsObservations.handoff_staging_execution_blockers)
+    .filter((item): item is string => typeof item === "string");
+  const carriedPreStagingExecutionBlockers = releaseInputHandoffStagingBlockers.filter((item) => (
+    item === "nas-disk-risk-carried-forward"
+  ));
   const updateRequired = asBoolean(parityDecision.docker_image_update_required);
   const normalizedParity = normalizeParityBlockers({
     parity_blockers: parityBlockers,
@@ -415,6 +447,32 @@ export function buildAdminDockerStagingRunbookReport(input: {
       blocks_staging: !input.parity_plan_report_path,
       required_evidence: "Provide the Docker version/API parity plan artifact."
     }),
+    ...(input.release_inputs_report_path ? [
+      gate({
+        id: "release-inputs-ready-for-decision",
+        title: "Release inputs package is ready for a separate release decision",
+        category: "evidence",
+        status: releaseInputsReady ? "pass" : "blocked",
+        evidence: releaseInputsReady
+          ? "release_inputs_ready=true"
+          : `release input blockers: ${releaseInputBlockers.join(", ") || "unknown"}`,
+        blocks_staging_execution: !releaseInputsReady,
+        blocks_staging: !releaseInputsReady,
+        required_evidence: "Provide an accepted admin-docker-release-inputs report before using it to constrain staging."
+      }),
+      gate({
+        id: "pre-staging-execution-blockers-carried-forward",
+        title: "Pre-staging execution blockers carried by release inputs are clear",
+        category: "runtime-risk",
+        status: carriedPreStagingExecutionBlockers.length === 0 ? "pass" : "blocked",
+        evidence: carriedPreStagingExecutionBlockers.length === 0
+          ? `handoff_staging_blockers=${releaseInputHandoffStagingBlockers.join(", ") || "none"}`
+          : `carried pre-staging execution blockers=${carriedPreStagingExecutionBlockers.join(", ")}`,
+        blocks_staging_execution: carriedPreStagingExecutionBlockers.length > 0,
+        blocks_staging: carriedPreStagingExecutionBlockers.length > 0,
+        required_evidence: "Clear or explicitly re-prove NAS disk safety before staging execution."
+      })
+    ] : []),
     gate({
       id: "parity-report-staging-execution-safe",
       title: "Docker parity blockers do not prevent staging execution",
@@ -504,7 +562,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
       parity_plan_report: input.parity_plan_report_path,
       candidate_contract_proof_report: input.candidate_contract_proof_report_path,
       worker_env_proof_report: input.worker_env_proof_report_path,
-      cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path
+      cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
+      release_inputs_report: input.release_inputs_report_path ?? ""
     },
     image_tags: tags,
     image_push_approval: {
@@ -534,7 +593,12 @@ export function buildAdminDockerStagingRunbookReport(input: {
       worker_upload_blockers: workerBlockers,
       cutter_compatibility_status: asString(cutterResult.status),
       cutter_proof_accepted: cutterAccepted,
-      cutter_upload_blockers: cutterBlockers
+      cutter_upload_blockers: cutterBlockers,
+      release_inputs_status: asString(releaseInputsResult.status),
+      release_inputs_ready: releaseInputsReady,
+      release_input_blockers: releaseInputBlockers,
+      release_input_handoff_staging_blockers: releaseInputHandoffStagingBlockers,
+      carried_pre_staging_execution_blockers: carriedPreStagingExecutionBlockers
     },
     runbook: buildRunbook(tags),
     gates,
@@ -577,6 +641,7 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Candidate contract proof: ${report.sources.candidate_contract_proof_report || "not provided"}`,
     `- Worker env proof: ${report.sources.worker_env_proof_report || "not provided"}`,
     `- Cutter compatibility proof: ${report.sources.cutter_compatibility_proof_report || "not provided"}`,
+    `- Release inputs: ${report.sources.release_inputs_report || "not provided"}`,
     "",
     "## Image Tags",
     "",
@@ -607,6 +672,11 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Cutter compatibility status: ${report.observations.cutter_compatibility_status || "unknown"}`,
     `- Cutter proof accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}`,
     `- Cutter blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
+    `- Release inputs status: ${report.observations.release_inputs_status || "not provided"}`,
+    `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}`,
+    `- Release input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
+    `- Release input handoff staging blockers: ${report.observations.release_input_handoff_staging_blockers.join(", ") || "none"}`,
+    `- Carried pre-staging execution blockers: ${report.observations.carried_pre_staging_execution_blockers.join(", ") || "none"}`,
     "",
     "## Preflight",
     "",
@@ -661,6 +731,8 @@ async function main(): Promise<void> {
     ?? await latestArtifact(artifactDir, "admin-worker-env-proof-");
   const cutterPath = process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT
     ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
+  const releaseInputsPath = process.env.MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-release-inputs-");
   const timestamp = timestampForFile();
   const jsonPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.md`);
@@ -677,6 +749,8 @@ async function main(): Promise<void> {
     worker_env_proof_report: await loadJson(workerPath),
     cutter_compatibility_proof_report_path: cutterPath,
     cutter_compatibility_proof_report: await loadJson(cutterPath),
+    release_inputs_report_path: releaseInputsPath,
+    release_inputs_report: await optionalLoadJson(releaseInputsPath),
     current_image_tag: process.env.MIXLAB_DOCKER_CURRENT_IMAGE_TAG,
     target_image_tag: process.env.MIXLAB_DOCKER_TARGET_IMAGE_TAG,
     rollback_image_tag: process.env.MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG,

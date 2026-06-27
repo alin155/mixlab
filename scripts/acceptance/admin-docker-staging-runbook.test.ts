@@ -67,6 +67,27 @@ function acceptedCutterProof(): unknown {
   };
 }
 
+function releaseInputsReport(input: {
+  ready?: boolean;
+  blockers?: string[];
+  handoffStagingBlockers?: string[];
+} = {}): unknown {
+  const ready = input.ready ?? true;
+
+  return {
+    release_inputs_ready: ready,
+    observations: {
+      handoff_staging_execution_blockers: input.handoffStagingBlockers ?? []
+    },
+    summary: {
+      release_input_blockers: ready ? [] : input.blockers ?? ["nas-image-proof-accepted"]
+    },
+    result: {
+      status: ready ? "ready-for-release-decision" : "blocked"
+    }
+  };
+}
+
 function acceptedCandidateProof(): unknown {
   return {
     candidate_contract_ready: true,
@@ -263,6 +284,75 @@ test("admin Docker staging runbook can become ready for staging review without a
   assert.ok(report.runbook.preflight.some((line) => line.includes("candidate API/version contract proof")));
   assert.ok(report.runbook.post_update_validation.some((line) => line.includes("candidate contract proof")));
   assert.ok(report.runbook.post_update_validation.some((line) => line.includes("Cutter")));
+});
+
+test("admin Docker staging runbook carries NAS disk risk from release inputs", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: clearParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: acceptedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: acceptedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: acceptedCutterProof(),
+    release_inputs_report_path: "release-inputs.json",
+    release_inputs_report: releaseInputsReport({
+      handoffStagingBlockers: [
+        "nas-disk-risk-carried-forward",
+        "explicit-push-approval-required"
+      ]
+    }),
+    current_image_tag: "old-tag",
+    target_image_tag: "new-tag",
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.staging_execution_ready, false);
+  assert.equal(report.staging_review_ready, false);
+  assert.deepEqual(report.observations.carried_pre_staging_execution_blockers, [
+    "nas-disk-risk-carried-forward"
+  ]);
+  assert.ok(report.summary.staging_execution_blockers.includes("pre-staging-execution-blockers-carried-forward"));
+  assert.ok(report.summary.staging_blockers.includes("pre-staging-execution-blockers-carried-forward"));
+});
+
+test("admin Docker staging runbook accepts release inputs without execution carry-forward blockers", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: clearParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: acceptedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: acceptedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: acceptedCutterProof(),
+    release_inputs_report_path: "release-inputs.json",
+    release_inputs_report: releaseInputsReport({
+      handoffStagingBlockers: [
+        "explicit-push-approval-required",
+        "current-and-rollback-tags-required"
+      ]
+    }),
+    current_image_tag: "old-tag",
+    target_image_tag: "new-tag",
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.staging_execution_ready, true);
+  assert.equal(report.staging_review_ready, true);
+  assert.deepEqual(report.observations.carried_pre_staging_execution_blockers, []);
+  assert.ok(!report.summary.staging_execution_blockers.includes("pre-staging-execution-blockers-carried-forward"));
 });
 
 test("admin Docker staging runbook separates staging execution from post-staging proof", () => {
