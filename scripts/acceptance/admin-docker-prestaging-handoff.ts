@@ -37,6 +37,7 @@ interface HandoffSources {
 interface ReleaseInputRequest {
   target_image_tag: string;
   workflow_dispatch_command: string;
+  nas_image_proof_command: string;
   required_operator_inputs: Array<{
     id: string;
     label: string;
@@ -189,7 +190,8 @@ function requestReleaseInputActions(candidateSha: string): string[] {
   const target = candidateSha || "<candidate-sha>";
 
   return [
-    `Confirm the current deployed Admin Docker image tag on the NAS before staging; this becomes both current_image_tag and rollback_image_tag for the first update.`,
+    "Export the current NAS Admin Docker .env and docker inspect evidence, then run validate:admin-docker-nas-image-proof before choosing release inputs.",
+    "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
     `After explicit approval, rerun the Admin Docker workflow with push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
     "Do not change NAS .env or restart containers until the pushed-image run completes and produces release-gates artifacts.",
     "For initial staging, keep MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0, MIXLAB_ENABLE_READY_PUBLISH_WORKER=0, and leave DASHSCOPE_API_KEY blank unless a separate controlled-preprocess canary is approved.",
@@ -214,6 +216,11 @@ function buildReleaseInputRequest(input: {
       "-f current_image_tag=<current-admin-docker-image-tag>",
       "-f rollback_image_tag=<current-admin-docker-image-tag>"
     ].join(" "),
+    nas_image_proof_command: [
+      "MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env",
+      "MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<path>/admin-docker-current.inspect.json",
+      "npm run validate:admin-docker-nas-image-proof"
+    ].join(" "),
     required_operator_inputs: [
       {
         id: "explicit_push_images_approval",
@@ -227,14 +234,14 @@ function buildReleaseInputRequest(input: {
         label: "Current NAS Admin Docker image tag",
         value: "",
         status: "required",
-        source: "NAS Docker inspect or compose env before staging"
+        source: "accepted admin-docker-nas-image-proof report before staging"
       },
       {
         id: "rollback_image_tag",
         label: "Rollback image tag, normally matching current_image_tag",
         value: "",
         status: "required",
-        source: "same value as current_image_tag for the first update"
+        source: "same accepted admin-docker-nas-image-proof value as current_image_tag for the first update"
       }
     ],
     initial_staging_defaults: {
@@ -369,7 +376,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       blocks_release_inputs: false,
       blocks_staging_execution: !githubRunStagingReady,
       blocks_docker_deploy: true,
-      required_evidence: "Provide current_image_tag and rollback_image_tag, with rollback matching current before staging."
+      required_evidence: "Provide an accepted admin-docker-nas-image-proof report, then use its current_image_tag and rollback_image_tag values with rollback matching current before staging."
     }),
     gate({
       id: "staged-live-readonly-required",
@@ -500,6 +507,7 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     "",
     `- Target image tag: ${report.release_input_request.target_image_tag}`,
     `- Workflow command: ${report.release_input_request.workflow_dispatch_command}`,
+    `- NAS image proof command: ${report.release_input_request.nas_image_proof_command}`,
     `- Initial library preprocess worker: ${report.release_input_request.initial_staging_defaults.library_preprocess_worker}`,
     `- Initial ready publish worker: ${report.release_input_request.initial_staging_defaults.ready_publish_worker}`,
     `- Initial DASHSCOPE_API_KEY: ${report.release_input_request.initial_staging_defaults.dashscope_api_key}`,
