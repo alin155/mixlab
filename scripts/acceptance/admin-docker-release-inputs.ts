@@ -161,7 +161,7 @@ function nextActions(input: {
   if (!input.release_inputs_ready) {
     return [
       "Keep push_images=false until release inputs are ready.",
-      "Run validate:admin-docker-nas-image-proof with exported NAS .env and docker inspect evidence.",
+      "Run validate:admin-docker-nas-image-proof with a sanitized NAS MIXLAB_IMAGE_TAG evidence file and docker inspect evidence.",
       `Resolve release input blockers: ${input.release_input_blockers.join(", ") || "unknown"}.`
     ];
   }

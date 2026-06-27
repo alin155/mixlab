@@ -85,6 +85,9 @@ test("NAS image proof stays blocked and gives collection instructions when evide
   assert.ok(built.summary.release_input_blockers.includes("nas-env-file-provided"));
   assert.ok(built.summary.release_input_blockers.includes("nas-inspect-json-provided"));
   assert.ok(built.collection_instructions.some((item) => item.includes("docker inspect")));
+  assert.ok(built.collection_instructions.some((item) => item.includes("grep '^MIXLAB_IMAGE_TAG='")));
+  assert.equal(built.collection_instructions.some((item) => item.includes("cp .env")), false);
+  assert.equal(built.collection_instructions.some((item) => item.includes("DASHSCOPE_API_KEY")), false);
 });
 
 test("NAS image proof accepts a stable current tag for current and rollback inputs", () => {

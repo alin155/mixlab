@@ -190,7 +190,7 @@ function serviceImagesFromInspect(rawJson: string): ServiceImageObservation[] {
 
 function requiredCollectionInstructions(): string[] {
   return [
-    "On the NAS host, export the current Compose image tag without secrets: cp .env admin-docker-current.env",
+    "On the NAS host, export only the current Compose image tag without secrets: grep '^MIXLAB_IMAGE_TAG=' .env > admin-docker-current.env",
     "On the NAS host, export running Admin container image metadata: docker inspect $(docker compose --env-file .env -f docker-compose.yml ps -q admin-web admin-api admin-worker) > admin-docker-current.inspect.json",
     "Copy those files into a local evidence folder and run: MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<path>/admin-docker-current.inspect.json npm run validate:admin-docker-nas-image-proof",
     "Do not use MIXLAB_IMAGE_TAG=latest as rollback evidence; the GitHub push updates latest and makes it unsafe for rollback."
@@ -250,20 +250,20 @@ export function buildAdminDockerNasImageProofReport(input: {
   const gates = [
     gate({
       id: "nas-image-proof-no-side-effects",
-      title: "NAS image proof reads exported files only",
+      title: "NAS image proof reads sanitized local evidence only",
       category: "safety",
       status: "pass",
-      evidence: "This report reads an exported .env and docker inspect JSON only; it does not contact NAS, Docker, GHCR, GitHub, Admin API, or Cutter API.",
+      evidence: "This report reads a sanitized MIXLAB_IMAGE_TAG evidence file and docker inspect JSON only; it does not contact NAS, Docker, GHCR, GitHub, Admin API, or Cutter API.",
       blocks_release_inputs: false
     }),
     gate({
       id: "nas-env-file-provided",
-      title: "NAS Compose env file is provided",
+      title: "Sanitized NAS image tag evidence is provided",
       category: "evidence",
       status: envFilePresent ? "pass" : "blocked",
       evidence: input.env_file_path || "No MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE path provided.",
       blocks_release_inputs: !envFilePresent,
-      required_evidence: "Export the current NAS Compose .env before staging so MIXLAB_IMAGE_TAG can be used as the rollback input."
+      required_evidence: "Export a sanitized NAS tag evidence file containing only MIXLAB_IMAGE_TAG before staging."
     }),
     gate({
       id: "nas-inspect-json-provided",

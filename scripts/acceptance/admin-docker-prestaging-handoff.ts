@@ -191,7 +191,7 @@ function requestReleaseInputActions(candidateSha: string): string[] {
   const target = candidateSha || "<candidate-sha>";
 
   return [
-    "Export the current NAS Admin Docker .env and docker inspect evidence, then run validate:admin-docker-nas-image-proof before choosing release inputs.",
+    "Export a sanitized current NAS Admin Docker MIXLAB_IMAGE_TAG evidence file and docker inspect evidence, then run validate:admin-docker-nas-image-proof before choosing release inputs.",
     "Run validate:admin-docker-release-inputs with the accepted pre-staging handoff and NAS image proof reports to generate the exact push_images=true command.",
     "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
     `After explicit approval, rerun the Admin Docker workflow with push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
