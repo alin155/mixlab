@@ -25,6 +25,16 @@ function handoff(overrides: Record<string, unknown> = {}): unknown {
     release_input_request: {
       target_image_tag: TARGET_TAG
     },
+    summary: {
+      staging_execution_blockers: [
+        "explicit-push-approval-required",
+        "current-and-rollback-tags-required"
+      ],
+      docker_deploy_blockers: [
+        "explicit-push-approval-required",
+        "current-and-rollback-tags-required"
+      ]
+    },
     ...overrides
   };
 }
@@ -86,7 +96,12 @@ test("release input package emits exact workflow command but still requires expl
   assert.equal(built.release_decision_required, true);
   assert.equal(built.result.status, "ready-for-release-decision");
   assert.deepEqual(built.summary.release_input_blockers, []);
+  assert.ok(built.summary.push_execution_blockers.includes("handoff-staging-blockers-carried-forward"));
   assert.ok(built.summary.push_execution_blockers.includes("explicit-release-approval-required"));
+  assert.deepEqual(built.observations.handoff_staging_execution_blockers, [
+    "explicit-push-approval-required",
+    "current-and-rollback-tags-required"
+  ]);
   assert.equal(built.inputs.target_image_tag, TARGET_TAG);
   assert.equal(built.inputs.current_image_tag, CURRENT_TAG);
   assert.equal(built.inputs.rollback_image_tag, CURRENT_TAG);
@@ -94,6 +109,7 @@ test("release input package emits exact workflow command but still requires expl
   assert.match(built.inputs.workflow_dispatch_command, new RegExp(`current_image_tag=${CURRENT_TAG}`));
   assert.match(built.inputs.workflow_dispatch_command, new RegExp(`rollback_image_tag=${CURRENT_TAG}`));
   assert.equal(built.inputs.workflow_dispatch_command.includes("<"), false);
+  assert.ok(built.next_actions.some((item) => item.includes("Before staging execution")));
 });
 
 test("release input package blocks a rejected NAS image proof", () => {
@@ -182,5 +198,6 @@ test("release input package CLI writes JSON and Markdown", async () => {
   assert.equal(built.release_inputs_ready, true);
   assert.equal(built.artifacts?.json_path, path.join(tempRoot, "admin-docker-release-inputs-20260627T000000Z.json"));
   assert.match(await readFile(built.artifacts?.markdown_path ?? "", "utf8"), /Admin Docker Release Inputs/);
+  assert.match(await readFile(built.artifacts?.markdown_path ?? "", "utf8"), /Handoff staging execution blockers/);
   assert.match(toMarkdown(built), /Release decision required: yes/);
 });

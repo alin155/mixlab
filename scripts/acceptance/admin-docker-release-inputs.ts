@@ -55,6 +55,8 @@ export interface AdminDockerReleaseInputsReport {
     handoff_ready_to_request_release_inputs: boolean | null;
     handoff_staging_execution_ready: boolean | null;
     handoff_docker_deploy_allowed: boolean | null;
+    handoff_staging_execution_blockers: string[];
+    handoff_docker_deploy_blockers: string[];
     nas_image_proof_accepted: boolean | null;
     nas_image_proof_docker_deploy_allowed: boolean | null;
     nas_image_proof_blockers: string[];
@@ -157,6 +159,7 @@ function nextActions(input: {
   release_inputs_ready: boolean;
   workflow_dispatch_command: string;
   release_input_blockers: string[];
+  staging_execution_blockers: string[];
 }): string[] {
   if (!input.release_inputs_ready) {
     return [
@@ -168,6 +171,7 @@ function nextActions(input: {
 
   return [
     "Review this report and the NAS image proof report before any release decision.",
+    `Before staging execution, clear handoff staging blockers: ${input.staging_execution_blockers.join(", ") || "none"}.`,
     `After explicit release approval only, run: ${input.workflow_dispatch_command}`,
     "Do not edit NAS .env, restart NAS containers, or enable workers until the pushed-image workflow succeeds and staging proof is collected.",
     "After the push workflow succeeds, regenerate GitHub run artifact, staging runbook, live-readonly, admin-worker env proof, and Cutter compatibility proof."
@@ -187,6 +191,7 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const releaseInputRequest = asRecord(handoff.release_input_request);
   const candidate = asRecord(handoff.candidate);
   const proofInputs = asRecord(proof.release_inputs);
+  const handoffSummary = asRecord(handoff.summary);
   const proofSummary = asRecord(proof.summary);
   const target = asString(releaseInputRequest.target_image_tag);
   const branch = asString(candidate.head_branch)
@@ -202,6 +207,8 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const handoffDeployAllowed = asBoolean(handoff.docker_deploy_allowed);
   const proofAccepted = asBoolean(proof.proof_accepted);
   const proofDeployAllowed = asBoolean(proof.docker_deploy_allowed);
+  const handoffStagingExecutionBlockers = stringArray(handoffSummary.staging_execution_blockers);
+  const handoffDockerDeployBlockers = stringArray(handoffSummary.docker_deploy_blockers);
   const proofBlockers = stringArray(proofSummary.release_input_blockers);
   const targetDiffers = Boolean(target && current && target !== current);
   const rollbackMatchesCurrent = Boolean(current && rollback && current === rollback);
@@ -260,6 +267,19 @@ export function buildAdminDockerReleaseInputsReport(input: {
       blocks_push_execution: true,
       blocks_docker_deploy: true,
       required_evidence: "Release input packaging must be based on a non-deploy pre-staging handoff."
+    }),
+    gate({
+      id: "handoff-staging-blockers-carried-forward",
+      title: "Pre-staging execution blockers are carried forward",
+      category: "handoff",
+      status: handoffStagingExecutionBlockers.length > 0 ? "blocked" : "pass",
+      evidence: handoffStagingExecutionBlockers.length > 0
+        ? `staging blockers=${handoffStagingExecutionBlockers.join(", ")}`
+        : "No pre-staging execution blockers were reported.",
+      blocks_release_inputs: false,
+      blocks_push_execution: handoffStagingExecutionBlockers.length > 0,
+      blocks_docker_deploy: true,
+      required_evidence: "The release-input package must preserve pre-staging blockers so a generated push_images=true command is not mistaken for staging approval."
     }),
     gate({
       id: "nas-image-proof-accepted",
@@ -377,6 +397,8 @@ export function buildAdminDockerReleaseInputsReport(input: {
       handoff_ready_to_request_release_inputs: handoffReady,
       handoff_staging_execution_ready: handoffStagingReady,
       handoff_docker_deploy_allowed: handoffDeployAllowed,
+      handoff_staging_execution_blockers: handoffStagingExecutionBlockers,
+      handoff_docker_deploy_blockers: handoffDockerDeployBlockers,
       nas_image_proof_accepted: proofAccepted,
       nas_image_proof_docker_deploy_allowed: proofDeployAllowed,
       nas_image_proof_blockers: proofBlockers,
@@ -388,7 +410,8 @@ export function buildAdminDockerReleaseInputsReport(input: {
     next_actions: nextActions({
       release_inputs_ready: releaseInputsReady,
       workflow_dispatch_command: command,
-      release_input_blockers: summary.release_input_blockers
+      release_input_blockers: summary.release_input_blockers,
+      staging_execution_blockers: handoffStagingExecutionBlockers
     }),
     result: {
       status: summary.failed > 0
@@ -448,6 +471,7 @@ export function toMarkdown(report: AdminDockerReleaseInputsReport): string {
     `- Release input blockers: ${report.summary.release_input_blockers.join(", ") || "none"}`,
     `- Push execution blockers: ${report.summary.push_execution_blockers.join(", ") || "none"}`,
     `- Docker deploy blockers: ${report.summary.docker_deploy_blockers.join(", ") || "none"}`,
+    `- Handoff staging execution blockers: ${report.observations.handoff_staging_execution_blockers.join(", ") || "none"}`,
     "",
     "## Next Actions",
     "",
