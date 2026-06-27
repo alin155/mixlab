@@ -41,6 +41,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      MIXLAB_ACCEPTANCE_OUTPUT_DIR: .local-dev/admin-docker-release-gates
+      MIXLAB_ACCEPTANCE_ARTIFACT_DIR: .local-dev/admin-docker-release-gates
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,8 +107,8 @@ jobs:
         with:
           name: mixlab-admin-docker-local-smoke
           path: |
-            docs/acceptance/artifacts/admin-docker-local-smoke-*.json
-            docs/acceptance/artifacts/admin-docker-local-smoke-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-local-smoke-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-local-smoke-*.md
           if-no-files-found: warn
           retention-days: 30
 
@@ -180,24 +183,24 @@ jobs:
         with:
           name: mixlab-admin-docker-release-gates
           path: |
-            docs/acceptance/artifacts/admin-docker-local-smoke-*.json
-            docs/acceptance/artifacts/admin-docker-local-smoke-*.md
-            docs/acceptance/artifacts/admin-docker-candidate-contract-proof-*.json
-            docs/acceptance/artifacts/admin-docker-candidate-contract-proof-*.md
-            docs/acceptance/artifacts/admin-docker-release-live-readonly-*.json
-            docs/acceptance/artifacts/admin-docker-release-live-readonly-*.md
-            docs/acceptance/artifacts/admin-docker-version-parity-plan-*.json
-            docs/acceptance/artifacts/admin-docker-version-parity-plan-*.md
-            docs/acceptance/artifacts/admin-worker-env-proof-*.json
-            docs/acceptance/artifacts/admin-worker-env-proof-*.md
-            docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.json
-            docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.md
-            docs/acceptance/artifacts/admin-docker-staging-runbook-*.json
-            docs/acceptance/artifacts/admin-docker-staging-runbook-*.md
-            docs/acceptance/artifacts/admin-docker-release-readiness-summary-*.json
-            docs/acceptance/artifacts/admin-docker-release-readiness-summary-*.md
-            docs/acceptance/artifacts/admin-docker-github-artifact-readiness-*.json
-            docs/acceptance/artifacts/admin-docker-github-artifact-readiness-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-local-smoke-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-local-smoke-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-candidate-contract-proof-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-candidate-contract-proof-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-release-live-readonly-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-release-live-readonly-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-version-parity-plan-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-version-parity-plan-*.md
+            .local-dev/admin-docker-release-gates/admin-worker-env-proof-*.json
+            .local-dev/admin-docker-release-gates/admin-worker-env-proof-*.md
+            .local-dev/admin-docker-release-gates/admin-cutter-compatibility-proof-*.json
+            .local-dev/admin-docker-release-gates/admin-cutter-compatibility-proof-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-staging-runbook-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-staging-runbook-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-release-readiness-summary-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-release-readiness-summary-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-github-artifact-readiness-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-github-artifact-readiness-*.md
           if-no-files-found: warn
           retention-days: 30
 

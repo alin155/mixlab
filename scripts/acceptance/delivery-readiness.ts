@@ -422,8 +422,8 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     ".github/workflows/docker-admin.yml",
-    /MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"[\s\S]*MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"[\s\S]*name: mixlab-admin-docker-local-smoke[\s\S]*docs\/acceptance\/artifacts\/admin-docker-local-smoke-\*\.json[\s\S]*MIXLAB_ADMIN_DOCKER_CANDIDATE_FROM_LOCAL_SMOKE: "1"[\s\S]*docker\/login-action@v3/,
-    "Admin Docker workflow must require the local Docker MVP smoke to pass, upload its reports, and derive candidate proof from that smoke before GHCR login/push",
+    /MIXLAB_ACCEPTANCE_OUTPUT_DIR: \.local-dev\/admin-docker-release-gates[\s\S]*MIXLAB_ACCEPTANCE_ARTIFACT_DIR: \.local-dev\/admin-docker-release-gates[\s\S]*MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"[\s\S]*MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"[\s\S]*name: mixlab-admin-docker-local-smoke[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-local-smoke-\*\.json[\s\S]*MIXLAB_ADMIN_DOCKER_CANDIDATE_FROM_LOCAL_SMOKE: "1"[\s\S]*docker\/login-action@v3/,
+    "Admin Docker workflow must isolate generated release-gate reports from committed historical artifacts, require the local Docker MVP smoke to pass, upload its reports, and derive candidate proof from that smoke before GHCR login/push",
     errors
   );
   requireText(
@@ -1544,7 +1544,7 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     ".github/workflows/docker-admin.yml",
-    /deploy\/nas\/mixlab\/\*\*[\s\S]*docs\/deployment\/m19-nas-docker\.md[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-local-smoke-\*\.json[\s\S]*admin-docker-github-artifact-readiness-\*\.json[\s\S]*name: mixlab-target-evidence-kit[\s\S]*dist\/acceptance\/mixlab-evidence-kit/,
+    /deploy\/nas\/mixlab\/\*\*[\s\S]*docs\/deployment\/m19-nas-docker\.md[\s\S]*MIXLAB_ACCEPTANCE_OUTPUT_DIR: \.local-dev\/admin-docker-release-gates[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-local-smoke-\*\.json[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-github-artifact-readiness-\*\.json[\s\S]*name: mixlab-target-evidence-kit[\s\S]*dist\/acceptance\/mixlab-evidence-kit/,
     "must trigger on NAS deployment assets, run local Docker smoke, generate staging/readiness/artifact release reports, build Docker images, upload self-contained release gates, and upload the manifest/draft/self-check-validated evidence kit beside the candidate run",
     errors
   );

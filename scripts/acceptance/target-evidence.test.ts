@@ -3440,11 +3440,11 @@ test("Admin Docker workflow builds, smokes, and only pushes NAS images after exp
   assert.match(workflow, /name: mixlab-admin-docker-release-gates/);
   assert.match(
     workflow,
-    /name: mixlab-admin-docker-release-gates[\s\S]*docs\/acceptance\/artifacts\/admin-docker-local-smoke-\*\.json[\s\S]*docs\/acceptance\/artifacts\/admin-docker-local-smoke-\*\.md/
+    /name: mixlab-admin-docker-release-gates[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-local-smoke-\*\.json[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-local-smoke-\*\.md/
   );
-  assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-staging-runbook-\*\.json/);
-  assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-release-readiness-summary-\*\.json/);
-  assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-github-artifact-readiness-\*\.json/);
+  assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-staging-runbook-\*\.json/);
+  assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-release-readiness-summary-\*\.json/);
+  assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-github-artifact-readiness-\*\.json/);
   assert.match(workflow, /npm run package:evidence-kit/);
   assert.match(workflow, /npm run validate:evidence-kit-manifest/);
   assert.match(workflow, /sh dist\/acceptance\/mixlab-evidence-kit\/evidence-kit-manifest-self-check\.sh dist\/acceptance\/mixlab-evidence-kit/);
