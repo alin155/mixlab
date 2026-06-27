@@ -16,6 +16,14 @@ function optionalTrimmed(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function buildFingerprint(env: NodeJS.ProcessEnv = process.env) {
+  return {
+    build_sha: optionalTrimmed(env.MIXLAB_BUILD_SHA) ?? optionalTrimmed(env.GITHUB_SHA) ?? "local",
+    build_version: optionalTrimmed(env.MIXLAB_BUILD_VERSION) ?? "local",
+    image_tag: optionalTrimmed(env.MIXLAB_IMAGE_TAG) ?? ""
+  };
+}
+
 function resolveAdminApiRuntimeConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): AdminApiRuntimeConfig {
@@ -82,7 +90,9 @@ server.listen(config.port, config.host, () => {
         library_id: config.library_id,
         library_name: config.library_name,
         auth_mode: config.auth_mode,
+        build: buildFingerprint(),
         endpoints: [
+          "/health",
           "/api/admin/auth/bootstrap",
           "/api/admin/auth/register",
           "/api/admin/auth/login",
@@ -92,6 +102,7 @@ server.listen(config.port, config.host, () => {
           "/api/admin/library/path-checks",
           "/api/admin/source-videos",
           "/api/admin/preprocess/jobs",
+          "/api/admin/preprocess/safety",
           "/api/admin/index/versions",
           "/api/admin/doctor/report",
           "/api/admin/settings/runtime",

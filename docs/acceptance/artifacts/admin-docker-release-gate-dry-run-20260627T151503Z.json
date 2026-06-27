@@ -1,0 +1,157 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T15:15:03.707Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-gate-dry-run.ts",
+  "mode": "dry-run-static",
+  "release_ready": false,
+  "docker_upload_allowed": false,
+  "compose_static": {
+    "ok": true,
+    "errors": [],
+    "compose_path": "deploy/nas/mixlab/docker-compose.yml",
+    "env_example_path": "deploy/nas/mixlab/.env.example"
+  },
+  "gates": [
+    {
+      "id": "dry-run-no-side-effects",
+      "title": "Dry-run has no Docker or NAS side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads local static deployment files only; it does not start Docker, workers, or NAS writes.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "compose-static-contract",
+      "title": "NAS Docker compose static contract",
+      "category": "static",
+      "status": "pass",
+      "evidence": "Static validator passed for deploy/nas/mixlab/docker-compose.yml and deploy/nas/mixlab/.env.example.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "path-isolation-static",
+      "title": "Path isolation is explicit in compose",
+      "category": "static",
+      "status": "pass",
+      "evidence": "Compose maps PUBLIC_LIBRARY_HOST_PATH into /data/PublicLibrary for runtime services; Mac /Volumes paths are not baked into Docker defaults.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "image-tag-static-parity",
+      "title": "Admin image tag parity is statically declared",
+      "category": "static",
+      "status": "pass",
+      "evidence": "admin-api, admin-worker, and admin-web use the same MIXLAB_IMAGE_TAG default contract.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "healthcheck-static-defined",
+      "title": "Admin container healthchecks are declared",
+      "category": "static",
+      "status": "pass",
+      "evidence": "admin-api checks /health on 127.0.0.1:3889 and admin-web checks its internal HTTP root.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "worker-flags-default-disabled",
+      "title": "Standalone worker flags default disabled",
+      "category": "static",
+      "status": "pass",
+      "evidence": "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER and MIXLAB_ENABLE_READY_PUBLISH_WORKER default to 0 in compose and .env.example.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "api-worker-not-public",
+      "title": "admin-api and admin-worker are not host-published",
+      "category": "static",
+      "status": "pass",
+      "evidence": "Static validation confirms only admin-web publishes a host port.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "disk-threshold-static",
+      "title": "Disk protection threshold is statically configured",
+      "category": "static",
+      "status": "pass",
+      "evidence": "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT defaults to 92 for admin-api and admin-worker.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "usage-events-live-tolerance",
+      "title": "usage-events live tolerance and repair proof",
+      "category": "live-nas",
+      "status": "needs-live-proof",
+      "evidence": "Static files cannot prove the target NAS events file is readable, tolerant of malformed rows, and repairable through the reviewed usage-events repair workflow.",
+      "required_live_evidence": "Run `npx tsx scripts/acceptance/usage-events-repair.ts --library-root <target>` as dry-run, archive the JSON/Markdown report, and only run `--apply` after separate reviewed maintenance approval.",
+      "blocks_docker_upload": true
+    },
+    {
+      "id": "v001440-recovery-live",
+      "title": "V001440 / stuck processing recovery proof",
+      "category": "live-nas",
+      "status": "needs-live-proof",
+      "evidence": "Static files cannot prove the target stuck-job recovery path is safe for the current NAS state or that the deployed Admin API exposes the processing_recovery preflight contract.",
+      "required_live_evidence": "Run GET /api/admin/release-gates and verify processing_recovery, then archive GET /api/admin/preprocess/safety plus processing source-videos/jobs evidence before any separately reviewed recovery command.",
+      "blocks_docker_upload": true
+    },
+    {
+      "id": "disk-space-live",
+      "title": "NAS disk space live protection proof",
+      "category": "live-nas",
+      "status": "needs-live-proof",
+      "evidence": "The static disk threshold exists, but current NAS free space, write-block behavior, and the deployed disk_space_protection contract must be checked on the target host.",
+      "required_live_evidence": "Run GET /api/admin/release-gates and verify disk_space_protection, then archive GET /api/admin/preprocess/safety plus GET /api/admin/library/status evidence proving the configured threshold, no worker start, and no ready/Cutter mutation scope.",
+      "blocks_docker_upload": true
+    },
+    {
+      "id": "docker-health-version-live",
+      "title": "Live Docker health and version parity proof",
+      "category": "live-docker",
+      "status": "needs-live-proof",
+      "evidence": "Static compose can declare images and healthchecks, but cannot prove the deployed containers run the intended tag, expose version_health_parity, and are healthy.",
+      "required_live_evidence": "Run GET /api/admin/release-gates and verify version_health_parity, then archive admin-web root, admin-api /health, release-gates build metadata, admin-web/admin-api/admin-worker image tags, health state, and rollback tag before any separately approved deploy rehearsal.",
+      "blocks_docker_upload": true
+    },
+    {
+      "id": "admin-worker-live-flags",
+      "title": "Live admin-worker opt-in state proof",
+      "category": "live-docker",
+      "status": "needs-live-proof",
+      "evidence": "Static defaults are disabled, but the target API must expose admin_worker_env_proof and the running container environment still needs live env/inspect verification before upload/enablement.",
+      "required_live_evidence": "Run GET /api/admin/release-gates and verify admin_worker_env_proof, then run `npx tsx scripts/acceptance/admin-worker-env-proof.ts` with NAS-exported admin-worker.env plus admin-worker.inspect.json showing standalone workers are disabled and /data/PublicLibrary roots are used.",
+      "blocks_docker_upload": true
+    },
+    {
+      "id": "cutter-release-compatibility-live",
+      "title": "Cutter release/index/search compatibility proof",
+      "category": "cutter-compatibility",
+      "status": "needs-live-proof",
+      "evidence": "Static Admin Docker checks cannot prove Windows Cutter continues reading the current release/index/search protocol.",
+      "required_live_evidence": "Run the Cutter compatibility smoke against the current release/index/search path after any Docker release candidate is staged.",
+      "blocks_docker_upload": true
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "passed": 8,
+    "failed": 0,
+    "blocked": 0,
+    "needs_live_proof": 6,
+    "upload_blockers": [
+      "usage-events-live-tolerance",
+      "v001440-recovery-live",
+      "disk-space-live",
+      "docker-health-version-live",
+      "admin-worker-live-flags",
+      "cutter-release-compatibility-live"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Docker upload remains blocked until required live NAS/Docker/Cutter proof is archived."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T151503Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T151503Z.md"
+  }
+}

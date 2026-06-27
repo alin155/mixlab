@@ -6,7 +6,11 @@ import {
 import type {
   AdminDashboardData,
   AdminPreprocessJob,
-  AdminPreprocessJobLog
+  AdminPreprocessJobLog,
+  AdminPreprocessProcessHistoryEvent,
+  AdminPreprocessProcessHistoryFilters,
+  AdminPreprocessProcessHistoryItem,
+  AdminPreprocessProcessHistoryResponse
 } from "../../api.ts";
 import {
   chineseDiagnosticText,
@@ -14,6 +18,14 @@ import {
   jobStageLabel,
   strictChineseDiagnosticText
 } from "../../app/chinese.ts";
+import {
+  adminRuntimeCacheStatusLabel,
+  adminRuntimeComponentSummary,
+  adminRuntimeDataSourceLabel,
+  adminRuntimeScanModeLabel,
+  adminRuntimeScanReasonLabel,
+  adminRuntimeSlowReasonLabel
+} from "../../app/runtime-observability-labels.ts";
 import { formatAdminDuration } from "../../app/view-model.ts";
 import {
   AdminControlButton,
@@ -129,19 +141,150 @@ function safeJobStageLabel(job: AdminPreprocessJob): string {
   return label;
 }
 
+function processHistoryEventLabel(event: AdminPreprocessProcessHistoryItem["last_event_type"]): string {
+  const labels: Record<AdminPreprocessProcessHistoryItem["last_event_type"], string> = {
+    failed: "失败",
+    indexed: "已入索引",
+    completed: "已完成",
+    claimed: "已领取",
+    status: "状态更新"
+  };
+
+  return labels[event];
+}
+
+function processHistoryStatusLabel(status: AdminPreprocessProcessHistoryItem["preprocess_status"]): string {
+  const labels: Record<AdminPreprocessProcessHistoryItem["preprocess_status"], string> = {
+    ready: "可用",
+    processing: "处理中",
+    queued: "队列中",
+    unprocessed: "未处理",
+    failed: "失败",
+    "index-required": "待发布"
+  };
+
+  return labels[status];
+}
+
+function processHistoryAvailabilityLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  if (!history) {
+    return "等待读取";
+  }
+
+  if (!history.history_available) {
+    return "读模型未命中";
+  }
+
+  return history.cache_status === "hit" ? "读模型命中" : "读模型未命中";
+}
+
+function processHistoryTrackedRangeLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  if (!history || !history.summary.tracked_count) {
+    return "暂无分析范围";
+  }
+
+  if (!history.summary.oldest_event_at || !history.summary.newest_event_at) {
+    return "暂无事件时间";
+  }
+
+  const oldest = timeLabel(history.summary.oldest_event_at);
+  const newest = timeLabel(history.summary.newest_event_at);
+
+  return `${oldest} 至 ${newest}`;
+}
+
+function processHistoryStatusDistributionLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  if (!history || !history.summary.tracked_count) {
+    return "-";
+  }
+
+  const counts = history.summary.status_counts;
+  const active = counts.processing + counts.queued;
+
+  return `处理中 ${active} · 待发布 ${counts["index-required"]} · 失败 ${counts.failed}`;
+}
+
+function processHistoryEventDistributionLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  if (!history || !history.summary.tracked_count) {
+    return "-";
+  }
+
+  const counts = history.summary.event_counts;
+
+  return `入索引 ${counts.indexed} · 完成 ${counts.completed} · 失败 ${counts.failed} · 领取 ${counts.claimed}`;
+}
+
+function processHistorySourceFolderName(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  return history?.summary.source_folder_summaries[0]?.source_folder_name || "-";
+}
+
+function processHistorySourceFolderDistributionLabel(
+  history: AdminPreprocessProcessHistoryResponse | null | undefined
+): string {
+  const topFolder = history?.summary.source_folder_summaries[0];
+  if (!topFolder) {
+    return "-";
+  }
+
+  return `${topFolder.tracked_count} 条 · 活跃 ${topFolder.active_count} · 失败 ${topFolder.failed_count}`;
+}
+
+function processHistoryLatestTrendDate(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  return history?.summary.daily_trend[0]?.date || "-";
+}
+
+function processHistoryLatestTrendLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
+  const latest = history?.summary.daily_trend[0];
+  if (!latest) {
+    return "-";
+  }
+
+  return `${latest.tracked_count} 条 · 完成 ${latest.completed_count} · 失败 ${latest.failed_count}`;
+}
+
+function activeProcessHistoryFilters(input: {
+  history: AdminPreprocessProcessHistoryResponse | null | undefined;
+  filters: AdminPreprocessProcessHistoryFilters | undefined;
+}): AdminPreprocessProcessHistoryFilters {
+  return input.filters ?? input.history?.filters ?? {
+    source_folder_name: "",
+    preprocess_status: "",
+    event_type: ""
+  };
+}
+
+function withCurrentProcessHistoryOption<T extends string>(options: T[], current: T | ""): T[] {
+  if (!current || options.includes(current)) {
+    return options;
+  }
+
+  return [...options, current];
+}
+
 export function PreprocessJobsPage({
   data,
   isLoadingJobs = false,
+  jobsError = "",
+  processHistory = null,
+  processHistoryFilters,
+  isLoadingProcessHistory = false,
+  processHistoryError = "",
   selectedJobLog,
   onRetryFailedVideos,
   onRecoverProcessingVideos,
   onStartPreprocessSupervisor,
   onStopPreprocessSupervisor,
   onRepairIndex,
+  onProcessHistoryFiltersChange,
   onOpenPreprocessJobLog
 }: {
   data: AdminDashboardData;
   isLoadingJobs?: boolean;
+  jobsError?: string;
+  processHistory?: AdminPreprocessProcessHistoryResponse | null;
+  processHistoryFilters?: AdminPreprocessProcessHistoryFilters;
+  isLoadingProcessHistory?: boolean;
+  processHistoryError?: string;
   selectedJobLog?: {
     loading: boolean;
     error: string;
@@ -152,6 +295,7 @@ export function PreprocessJobsPage({
   onStartPreprocessSupervisor?: () => void;
   onStopPreprocessSupervisor?: () => void;
   onRepairIndex?: () => void;
+  onProcessHistoryFiltersChange?: (filters: AdminPreprocessProcessHistoryFilters) => void;
   onOpenPreprocessJobLog?: (jobId: string) => void;
 }) {
   const running = data.jobs.jobs.filter((job) => job.status === "running");
@@ -282,6 +426,63 @@ export function PreprocessJobsPage({
     },
     { id: "actions", header: "操作", render: jobActions }
   ];
+  const processHistoryRows = processHistory?.items ?? [];
+  const processHistoryColumns: Array<TableColumn<AdminPreprocessProcessHistoryItem>> = [
+    {
+      id: "source",
+      header: "原视频",
+      render: (item) => `${item.source_video_id} · ${item.title}`
+    },
+    {
+      id: "event",
+      header: "最近事件",
+      render: (item) => processHistoryEventLabel(item.last_event_type)
+    },
+    {
+      id: "status",
+      header: "状态",
+      render: (item) => processHistoryStatusLabel(item.preprocess_status)
+    },
+    {
+      id: "folder",
+      header: "素材来源",
+      render: (item) => item.source_folder_name || "-"
+    },
+    {
+      id: "time",
+      header: "时间",
+      render: (item) => timeLabel(item.last_event_at)
+    },
+    {
+      id: "elapsed",
+      header: "处理耗时",
+      render: (item) => item.elapsed_ms > 0 ? formatAdminDuration(item.elapsed_ms) : "-"
+    }
+  ];
+  const processHistorySourceLabel = processHistory
+    ? `${adminRuntimeDataSourceLabel(processHistory.actual_data_source)} · ${adminRuntimeScanModeLabel(processHistory.scan_mode)} · ${adminRuntimeCacheStatusLabel(processHistory.cache_status)}`
+    : "读模型 · 不扫描";
+  const preprocessJobsRuntime = data.jobs.runtime;
+  const preprocessJobsRuntimeSourceLabel = preprocessJobsRuntime
+    ? `${adminRuntimeDataSourceLabel(preprocessJobsRuntime.actual_data_source)} · ${adminRuntimeScanModeLabel(preprocessJobsRuntime.scan_mode)} · ${adminRuntimeCacheStatusLabel(preprocessJobsRuntime.cache_status)}`
+    : "等待路由数据";
+  const historyFilters = activeProcessHistoryFilters({
+    history: processHistory,
+    filters: processHistoryFilters
+  });
+  const sourceFolderFilterOptions = withCurrentProcessHistoryOption(
+    processHistory?.filter_options.source_folder_names ?? [],
+    historyFilters.source_folder_name
+  );
+  const statusFilterOptions = withCurrentProcessHistoryOption(
+    processHistory?.filter_options.preprocess_statuses ?? [],
+    historyFilters.preprocess_status
+  );
+  const eventFilterOptions = withCurrentProcessHistoryOption<AdminPreprocessProcessHistoryEvent>(
+    processHistory?.filter_options.event_types ?? [],
+    historyFilters.event_type
+  );
+  const processHistoryFiltersDisabled = !onProcessHistoryFiltersChange || isLoadingProcessHistory;
 
   return (
     <>
@@ -357,6 +558,38 @@ export function PreprocessJobsPage({
             <span>{observability.load_advice}</span>
           </article>
         </section>
+        <section className="admin-index-summary-grid" aria-label="预处理扫描证据">
+          <article>
+            <span>任务队列</span>
+            <strong>{preprocessJobsRuntime ? adminRuntimeScanModeLabel(preprocessJobsRuntime.scan_mode) : "等待路由数据"}</strong>
+            <p>{preprocessJobsRuntime ? `${adminRuntimeScanReasonLabel(preprocessJobsRuntime.scan_reason)} · ${preprocessJobsRuntime.duration_ms}ms` : "路由数据返回后显示扫描证据"}</p>
+          </article>
+          <article>
+            <span>任务来源</span>
+            <strong>{preprocessJobsRuntime ? adminRuntimeDataSourceLabel(preprocessJobsRuntime.actual_data_source) : "读模型"}</strong>
+            <p>{preprocessJobsRuntimeSourceLabel}</p>
+          </article>
+          <article>
+            <span>任务窗口</span>
+            <strong>{preprocessJobsRuntime?.result_count ?? compactJobs.length}</strong>
+            <p>偏移 {preprocessJobsRuntime?.offset ?? 0} · 上限 {preprocessJobsRuntime?.limit ?? compactJobs.length}</p>
+          </article>
+          <article>
+            <span>任务慢请求</span>
+            <strong>{preprocessJobsRuntime?.slow ? "需处理" : "正常"}</strong>
+            <p>{preprocessJobsRuntime ? adminRuntimeSlowReasonLabel(preprocessJobsRuntime) : "未收到慢请求标记"}</p>
+          </article>
+          <article>
+            <span>任务组件耗时</span>
+            <strong>{preprocessJobsRuntime?.components?.length ?? 0} 个组件</strong>
+            <p>{preprocessJobsRuntime ? adminRuntimeComponentSummary(preprocessJobsRuntime) : "暂无组件耗时"}</p>
+          </article>
+          <article>
+            <span>处理历史</span>
+            <strong>{processHistory ? adminRuntimeScanModeLabel(processHistory.scan_mode) : "不扫描"}</strong>
+            <p>{processHistory ? `${adminRuntimeScanReasonLabel(processHistory.scan_reason)} · ${processHistorySourceLabel}` : "读模型 · 不扫描"}</p>
+          </article>
+        </section>
         <section className="admin-current-job-card" aria-label="当前处理视频">
           <div>
             <p>{supervisorRunning ? "当前处理视频" : "待恢复视频"}</p>
@@ -389,6 +622,8 @@ export function PreprocessJobsPage({
           </header>
           {isLoadingJobs ? (
             <EmptyState title="任务明细后台同步中" detail="队列统计已显示，明细回来后会自动补上。" />
+          ) : jobsError ? (
+            <EmptyState title="任务队列加载失败" detail={jobsError} />
           ) : compactJobs.length ? (
             <Table
               columns={jobColumns}
@@ -398,6 +633,120 @@ export function PreprocessJobsPage({
             />
           ) : (
             <EmptyState title="暂无预处理任务" detail="当前没有正在处理、排队或失败的视频。" />
+          )}
+        </section>
+        <section className="admin-list-section admin-process-history-panel" aria-label="预处理历史">
+          <header className="admin-section-header">
+            <h2>处理历史</h2>
+            <p>按最近事件展示完成、失败、入索引和处理中记录，数据来自管理端读模型。</p>
+          </header>
+          <div className="admin-source-filter-bar admin-source-filter-card" aria-label="筛选处理历史">
+            <select
+              className="admin-select admin-filter-select"
+              value={historyFilters.source_folder_name}
+              disabled={processHistoryFiltersDisabled}
+              aria-label="素材来源筛选"
+              onChange={(event) => onProcessHistoryFiltersChange?.({
+                ...historyFilters,
+                source_folder_name: event.currentTarget.value
+              })}
+            >
+              <option value="">全部素材来源</option>
+              {sourceFolderFilterOptions.map((sourceFolderName) => (
+                <option value={sourceFolderName} key={sourceFolderName}>{sourceFolderName}</option>
+              ))}
+            </select>
+            <select
+              className="admin-select admin-filter-select"
+              value={historyFilters.preprocess_status}
+              disabled={processHistoryFiltersDisabled}
+              aria-label="处理状态筛选"
+              onChange={(event) => onProcessHistoryFiltersChange?.({
+                ...historyFilters,
+                preprocess_status: event.currentTarget.value as AdminPreprocessProcessHistoryFilters["preprocess_status"]
+              })}
+            >
+              <option value="">全部状态</option>
+              {statusFilterOptions.map((status) => (
+                <option value={status} key={status}>{processHistoryStatusLabel(status)}</option>
+              ))}
+            </select>
+            <select
+              className="admin-select admin-filter-select"
+              value={historyFilters.event_type}
+              disabled={processHistoryFiltersDisabled}
+              aria-label="最近事件筛选"
+              onChange={(event) => onProcessHistoryFiltersChange?.({
+                ...historyFilters,
+                event_type: event.currentTarget.value as AdminPreprocessProcessHistoryFilters["event_type"]
+              })}
+            >
+              <option value="">全部事件</option>
+              {eventFilterOptions.map((eventType) => (
+                <option value={eventType} key={eventType}>{processHistoryEventLabel(eventType)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="admin-index-summary-grid">
+            <article>
+              <span>数据状态</span>
+              <strong>{processHistoryAvailabilityLabel(processHistory)}</strong>
+              <p>{processHistorySourceLabel}</p>
+            </article>
+            <article>
+              <span>返回记录</span>
+              <strong>{processHistory?.summary.returned_count ?? 0}</strong>
+              <p>窗口 {processHistory?.window_days ?? 30} 天 · 上限 {processHistory?.limit ?? 20}</p>
+            </article>
+            <article>
+              <span>已完成/失败</span>
+              <strong>{processHistory?.summary.completed_count ?? 0} / {processHistory?.summary.failed_count ?? 0}</strong>
+              <p>平均耗时 {processHistory?.summary.average_process_ms ? formatAdminDuration(processHistory.summary.average_process_ms) : "-"}</p>
+            </article>
+            <article>
+              <span>分析范围</span>
+              <strong>{processHistory?.summary.tracked_count ?? 0}</strong>
+              <p>{processHistoryTrackedRangeLabel(processHistory)}</p>
+            </article>
+            <article>
+              <span>状态分布</span>
+              <strong>{processHistory?.summary.tracked_active_count ?? 0} 个活跃</strong>
+              <p>{processHistoryStatusDistributionLabel(processHistory)}</p>
+            </article>
+            <article>
+              <span>事件分布</span>
+              <strong>{processHistory?.summary.tracked_completed_count ?? 0} 个完成</strong>
+              <p>{processHistoryEventDistributionLabel(processHistory)}</p>
+            </article>
+            <article>
+              <span>来源分布</span>
+              <strong>{processHistorySourceFolderName(processHistory)}</strong>
+              <p>{processHistorySourceFolderDistributionLabel(processHistory)}</p>
+            </article>
+            <article>
+              <span>最近趋势</span>
+              <strong>{processHistoryLatestTrendDate(processHistory)}</strong>
+              <p>{processHistoryLatestTrendLabel(processHistory)}</p>
+            </article>
+          </div>
+          {processHistoryError ? (
+            <EmptyState title="处理历史加载失败" detail={processHistoryError} />
+          ) : isLoadingProcessHistory && !processHistory ? (
+            <EmptyState title="处理历史后台同步中" detail="队列仍可操作，历史记录回来后会自动补上。" />
+          ) : processHistory && !processHistory.history_available ? (
+            <EmptyState
+              title="处理历史读模型暂不可用"
+              detail="接口返回安全空结果，没有触发预处理任务文件扫描。"
+            />
+          ) : processHistoryRows.length ? (
+            <Table
+              columns={processHistoryColumns}
+              rows={processHistoryRows}
+              getRowKey={(item) => `${item.source_video_id}-${item.last_event_type}-${item.last_event_at}`}
+              stickyHeader
+            />
+          ) : (
+            <EmptyState title="暂无处理历史" detail="当前读模型没有返回最近处理事件。" />
           )}
         </section>
         <section className="admin-list-section admin-index-publish-panel" aria-label="索引发布">
@@ -484,8 +833,20 @@ export function PreprocessJobsPage({
                   label: "上次处理",
                   value: lastResult
                     ? `领取 ${lastResult.total_claimed_count}，成功 ${lastResult.succeeded_count}，失败 ${lastResult.failed_count}`
-                    : "暂无记录"
+                  : "暂无记录"
                 }
+              ]
+            },
+            {
+              title: "页面契约",
+              rows: [
+                { label: "主工作区", value: "预处理队列" },
+                { label: "辅助区", value: "处理历史与任务日志" },
+                { label: "数据来源", value: "admin-read-model / supervisor-runtime" },
+                { label: "扫描模式", value: "不扫描 / 分页读取" },
+                { label: "加载边界", value: "路由加载，任务日志按需读取" },
+                { label: "命令边界", value: "预处理命令经过后端门禁" },
+                { label: "错误边界", value: "本页面局部处理" }
               ]
             }
           ]}

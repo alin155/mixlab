@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "mode": "apply",
+  "library_root": "/Volumes/MixLab/PublicLibrary",
+  "events_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/usage-events/events.ndjson",
+  "events_exists": true,
+  "line_count": 9086,
+  "valid_line_count": 9084,
+  "malformed_line_count": 2,
+  "malformed_lines": [
+    9084,
+    9086
+  ],
+  "changed": true,
+  "backup_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/usage-events/backups/events.ndjson.backup-20260625T185622Z",
+  "quarantine_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/usage-events/quarantine/events.malformed-20260625T185622Z.ndjson",
+  "rewrite_strategy": "rename",
+  "warnings": [],
+  "report_json_path": "docs/acceptance/artifacts/usage-events-repair-20260625T185622Z.json",
+  "report_md_path": "docs/acceptance/artifacts/usage-events-repair-20260625T185622Z.md"
+}

@@ -8,9 +8,14 @@ import {
 } from "../../packages/ffmpeg-core/src/index.ts";
 import {
   completeReadyVisualArtifacts,
+  DEFAULT_PREPROCESS_DISK_BLOCK_USAGE_PERCENT,
+  inspectPreprocessSafety,
   publishIndexRequiredSourceVideos,
   readAllSourceVideoManifests
 } from "../../packages/library-fs/src/index.ts";
+import {
+  resolveAdminDockerMvpMode
+} from "../../packages/admin-api/src/admin-command-guard.ts";
 import { resolveReadyPublishSourceVideoPath } from "./publish-ready-source-path.ts";
 
 const ENABLE_FLAG = "MIXLAB_ENABLE_READY_PUBLISH_WORKER";
@@ -114,6 +119,22 @@ if (!isEnabled(ENABLE_FLAG)) {
   process.exit(0);
 }
 
+if (resolveAdminDockerMvpMode(process.env) === "v0.1") {
+  console.log("Ready publish worker skipped by Docker MVP mode.");
+  console.log(
+    JSON.stringify(
+      {
+        reason: "admin_docker_mvp_blocks_ready_publish",
+        docker_mvp_mode: "v0.1",
+        required_mode_for_publish: "off"
+      },
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
 if (missingRuntimeEnvKeys.length > 0) {
   console.error("Ready publish worker is enabled, but readiness checks failed.");
   console.error(
@@ -136,6 +157,31 @@ const coverAtMs = parsePositiveIntegerEnv("MIXLAB_READY_COVER_AT_MS", 1_000);
 const coverWidth = parsePositiveIntegerEnv("MIXLAB_READY_COVER_WIDTH", 640);
 const keyframeIntervalMs = parsePositiveIntegerEnv("MIXLAB_READY_KEYFRAME_INTERVAL_MS", 5_000);
 const keyframeMaxCount = parsePositiveIntegerEnv("MIXLAB_READY_KEYFRAME_MAX_COUNT", 60);
+const safety = await inspectPreprocessSafety({
+  library_root: libraryRoot,
+  now: startedAt,
+  disk_block_usage_percent: parsePositiveIntegerEnv(
+    "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT",
+    DEFAULT_PREPROCESS_DISK_BLOCK_USAGE_PERCENT
+  ),
+  include_processing_guard: false
+});
+
+if (!safety.safe_to_start) {
+  console.log("Ready publish worker skipped by safety gate.");
+  console.log(
+    JSON.stringify(
+      {
+        reason: "preprocess_safety_blocked",
+        safety
+      },
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
 const manifests = await readAllSourceVideoManifests(libraryRoot);
 const indexRequired = manifests.filter((manifest) => manifest.preprocess_status === "index-required");
 

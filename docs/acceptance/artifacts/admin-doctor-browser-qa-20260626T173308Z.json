@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T17:33:08.220Z",
+  "command": "tsx scripts/acceptance/admin-doctor-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5193/#/doctor",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5193/#/doctor",
+      "load_ms": 557.4,
+      "screenshot_path": "docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T173308Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "系统检查": true,
+        "诊断报告": true,
+        "检查结果": true,
+        "检查报告": true,
+        "doctor-probes": true,
+        "doctor-route": true,
+        "状态扫描": true,
+        "本页面局部处理": true,
+        "导出操作": true,
+        "重新检查": true,
+        "导出检查报告": true,
+        "公共素材库根目录": true
+      },
+      "diagnostic_report_text": "诊断报告\n\n系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。\n\n需关注\n检查项\t状态\t检查目的\t技术详情\n公共素材库根目录\t通过\t确认管理端能访问公共素材库根目录。\t公共素材库可访问，子目录完整\n发布清单\t通过\t确认素材库清单和原视频协议文件有效。\t发布清单文件 与 原视频协议文件 有效\n视频产物\t需关注\t确认文案、封面、关键帧等预处理产物完整。\t有 5 个视频缺少可视化产物\n预处理日志目录可写性\t通过\t确认预处理任务日志目录可以创建和写入。\t预处理日志目录可写\n预处理任务日志\t需关注\t确认已进入预处理生命周期的视频都有可读任务日志。\t预处理日志缺失： V000037\n音视频工具\t通过\t确认本机可执行音视频提取和剪切任务。\t原始检查信息已隐藏，可导出检查报告查看。\n语音识别配置\t通过\t确认语音识别所需配置可用且不会暴露密钥。\t阿里云百炼密钥 已配置且未暴露\n状态计数\t需关注\t确认素材状态统计与当前索引边界一致。\t待发布索引与已可用边界需发布\n本地剪辑片段\t需关注\t确认本地剪切后生成的片段清单和媒体文件有效。\t相关对象 LC000001；原始检查信息已隐藏，可导出检查报告查看。",
+      "inspector_text": "检查报告\n\n系统检查\n\n报告\n生成时间\n2024-05-07 10:26:15\n协议版本\n1.0\n库路径\n/Volumes/PublicLibrary\n通过\n5\n警告\n4\n失败\n0\n页面契约\n主工作区\n诊断报告\n辅助区\n检查结果\n数据来源\ndoctor-probes\n扫描原因\ndoctor-route\n扫描模式\n状态扫描\n错误边界\n本页面局部处理\n导出边界\n导出操作",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5193/#/doctor",
+      "load_ms": 544.9,
+      "screenshot_path": "docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T173308Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "系统检查": true,
+        "诊断报告": true,
+        "检查结果": true,
+        "检查报告": true,
+        "doctor-probes": true,
+        "doctor-route": true,
+        "状态扫描": true,
+        "本页面局部处理": true,
+        "导出操作": true,
+        "重新检查": true,
+        "导出检查报告": true,
+        "公共素材库根目录": true
+      },
+      "diagnostic_report_text": "诊断报告\n\n系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。\n\n需关注\n检查项\t状态\t检查目的\t技术详情\n公共素材库根目录\t通过\t确认管理端能访问公共素材库根目录。\t公共素材库可访问，子目录完整\n发布清单\t通过\t确认素材库清单和原视频协议文件有效。\t发布清单文件 与 原视频协议文件 有效\n视频产物\t需关注\t确认文案、封面、关键帧等预处理产物完整。\t有 5 个视频缺少可视化产物\n预处理日志目录可写性\t通过\t确认预处理任务日志目录可以创建和写入。\t预处理日志目录可写\n预处理任务日志\t需关注\t确认已进入预处理生命周期的视频都有可读任务日志。\t预处理日志缺失： V000037\n音视频工具\t通过\t确认本机可执行音视频提取和剪切任务。\t原始检查信息已隐藏，可导出检查报告查看。\n语音识别配置\t通过\t确认语音识别所需配置可用且不会暴露密钥。\t阿里云百炼密钥 已配置且未暴露\n状态计数\t需关注\t确认素材状态统计与当前索引边界一致。\t待发布索引与已可用边界需发布\n本地剪辑片段\t需关注\t确认本地剪切后生成的片段清单和媒体文件有效。\t相关对象 LC000001；原始检查信息已隐藏，可导出检查报告查看。",
+      "inspector_text": "检查报告\n\n系统检查\n\n报告\n生成时间\n2024-05-07 10:26:15\n协议版本\n1.0\n库路径\n/Volumes/PublicLibrary\n通过\n5\n警告\n4\n失败\n0\n页面契约\n主工作区\n诊断报告\n辅助区\n检查结果\n数据来源\ndoctor-probes\n扫描原因\ndoctor-route\n扫描模式\n状态扫描\n错误边界\n本页面局部处理\n导出边界\n导出操作",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "diagnostic-report-visible",
+      "passed": true,
+      "detail": "desktop:507; mobile:507"
+    },
+    {
+      "name": "inspector-contract-visible",
+      "passed": true,
+      "detail": "desktop:184; mobile:184"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "doctor browser QA passed for desktop and mobile fixture routes"
+  }
+}

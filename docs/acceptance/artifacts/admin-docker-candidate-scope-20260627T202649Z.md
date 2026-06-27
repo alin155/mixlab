@@ -1,0 +1,431 @@
+# Admin Docker Candidate Scope
+
+Generated: 2026-06-27T20:26:49.354Z
+Mode: admin-docker-candidate-scope
+Branch: codex/windows-first-run-autostart-20260615104835
+HEAD: 8060f31b9a4e582f23db4962f371550e5bf267ab
+
+## Decision
+
+- Total changed paths: 1107
+- Current worktree clean: no
+- Candidate scope review ready: no
+- Selective candidate commit ready: no
+- Remote workflow proof possible from current worktree: no
+- Blockers: current-worktree-dirty, unknown-paths-require-review, cutter-impact-paths-require-review, local-generated-artifacts-must-be-excluded-or-cleaned
+
+## Buckets
+
+| Bucket | Severity | Count | Omitted |
+| --- | --- | ---: | ---: |
+| mvp_candidate_code | candidate | 350 | 230 |
+| planning_docs | evidence | 1 | 0 |
+| acceptance_evidence | evidence | 264 | 144 |
+| local_generated_artifact | exclude | 6 | 0 |
+| cutter_impact_review | review | 1 | 0 |
+| unknown_review | review | 485 | 365 |
+
+## Path Samples
+
+### mvp_candidate_code
+
+-  M .github/workflows/docker-admin.yml
+-  M apps/admin-web/index.html
+-  M apps/admin-web/src/admin-app.test.ts
+-  M apps/admin-web/src/api.test.ts
+-  M apps/admin-web/src/api.ts
+-  M apps/admin-web/src/app/AdminApp.tsx
+-  M apps/admin-web/src/app/navigation.ts
+-  M apps/admin-web/src/features/admin-ui-contract.test.ts
+-  M apps/admin-web/src/features/admin-ui-contract.ts
+-  M apps/admin-web/src/features/cutter-users/CutterUsersPage.tsx
+-  M apps/admin-web/src/features/dashboard/DashboardPage.tsx
+-  M apps/admin-web/src/features/doctor/DoctorPage.tsx
+-  M apps/admin-web/src/features/index-publish/IndexPublishPage.tsx
+-  M apps/admin-web/src/features/preprocess-jobs/PreprocessJobsPage.tsx
+-  M apps/admin-web/src/features/settings/SettingsPage.tsx
+-  M apps/admin-web/src/features/source-videos/SourceVideosPage.tsx
+-  M apps/admin-web/src/styles.css
+-  M deploy/nas/mixlab/.env.example
+-  M deploy/nas/mixlab/docker-compose.yml
+-  M docker/admin-runtime.Dockerfile
+-  M docker/admin-web.Dockerfile
+-  M package.json
+-  M packages/admin-api/src/index.test.ts
+-  M packages/admin-api/src/index.ts
+-  M packages/library-fs/src/admin-settings.test.ts
+-  M packages/library-fs/src/admin-settings.ts
+-  M packages/library-fs/src/admin-users.test.ts
+-  M packages/library-fs/src/admin-users.ts
+-  M packages/library-fs/src/asr-artifacts.test.ts
+-  M packages/library-fs/src/asr-artifacts.ts
+-  M packages/library-fs/src/cutter-users.test.ts
+-  M packages/library-fs/src/cutter-users.ts
+-  M packages/library-fs/src/index.ts
+-  M packages/library-fs/src/scanner.test.ts
+-  M packages/library-fs/src/scanner.ts
+-  M packages/library-fs/src/usage-events.test.ts
+-  M packages/library-fs/src/usage-events.ts
+-  M packages/preprocess-core/src/index.test.ts
+-  M packages/preprocess-core/src/index.ts
+-  M packages/preprocess-core/src/library-worker.test.ts
+-  M packages/preprocess-core/src/library-worker.ts
+-  M packages/runtime-config/src/docker-worker.test.ts
+-  M packages/runtime-config/src/docker-worker.ts
+-  M packages/ui-foundation/src/components.tsx
+-  M packages/ui-foundation/src/design-contract.test.ts
+-  M packages/ui-foundation/src/design-contract.ts
+-  M scripts/acceptance/delivery-readiness.ts
+-  M scripts/acceptance/nas-docker-compose-static.test.ts
+-  M scripts/acceptance/nas-docker-compose-static.ts
+-  M scripts/acceptance/target-evidence.test.ts
+-  M scripts/docker/admin-worker-loop.ts
+-  M scripts/servers/admin-api-server.ts
+-  M scripts/workers/preprocess-library-worker.ts
+-  M scripts/workers/publish-ready-worker.ts
+- ?? apps/admin-web/src/admin-auth-client.test.ts
+- ?? apps/admin-web/src/admin-auth-client.ts
+- ?? apps/admin-web/src/admin-http.test.ts
+- ?? apps/admin-web/src/admin-http.ts
+- ?? apps/admin-web/src/admin-operations-client.test.ts
+- ?? apps/admin-web/src/admin-operations-client.ts
+- ?? apps/admin-web/src/admin-source-video-client.test.ts
+- ?? apps/admin-web/src/admin-source-video-client.ts
+- ?? apps/admin-web/src/admin-source-video-media.ts
+- ?? apps/admin-web/src/app/command-cancellation-policy.test.ts
+- ?? apps/admin-web/src/app/command-cancellation-policy.ts
+- ?? apps/admin-web/src/app/route-loading-runtime.ts
+- ?? apps/admin-web/src/app/runtime-observability-labels.ts
+- ?? apps/admin-web/src/features/operation-log/
+- ?? apps/admin-web/src/features/protection/
+- ?? apps/admin-web/src/fixtures/
+- ?? packages/admin-api/src/admin-auth-commands.test.ts
+- ?? packages/admin-api/src/admin-auth-commands.ts
+- ?? packages/admin-api/src/admin-auth-route-deps.test.ts
+- ?? packages/admin-api/src/admin-auth-route-deps.ts
+- ?? packages/admin-api/src/admin-auth-routes.test.ts
+- ?? packages/admin-api/src/admin-auth-routes.ts
+- ?? packages/admin-api/src/admin-command-audit.test.ts
+- ?? packages/admin-api/src/admin-command-audit.ts
+- ?? packages/admin-api/src/admin-command-guard.test.ts
+- ?? packages/admin-api/src/admin-command-guard.ts
+- ?? packages/admin-api/src/admin-command-restore-plan.test.ts
+- ?? packages/admin-api/src/admin-command-restore-plan.ts
+- ?? packages/admin-api/src/admin-command-restore-route-deps.test.ts
+- ?? packages/admin-api/src/admin-command-restore-route-deps.ts
+- ?? packages/admin-api/src/admin-command-restore-routes.test.ts
+- ?? packages/admin-api/src/admin-command-restore-routes.ts
+- ?? packages/admin-api/src/admin-command-restore.test.ts
+- ?? packages/admin-api/src/admin-command-restore.ts
+- ?? packages/admin-api/src/admin-command-runtime.test.ts
+- ?? packages/admin-api/src/admin-command-runtime.ts
+- ?? packages/admin-api/src/admin-command-snapshot.test.ts
+- ?? packages/admin-api/src/admin-command-snapshot.ts
+- ?? packages/admin-api/src/admin-current-index-query.test.ts
+- ?? packages/admin-api/src/admin-current-index-query.ts
+- ?? packages/admin-api/src/admin-cutter-user-command-route-deps.test.ts
+- ?? packages/admin-api/src/admin-cutter-user-command-route-deps.ts
+- ?? packages/admin-api/src/admin-cutter-user-command-routes.test.ts
+- ?? packages/admin-api/src/admin-cutter-user-command-routes.ts
+- ?? packages/admin-api/src/admin-cutter-user-commands.test.ts
+- ?? packages/admin-api/src/admin-cutter-user-commands.ts
+- ?? packages/admin-api/src/admin-dashboard-metrics-cache.test.ts
+- ?? packages/admin-api/src/admin-dashboard-metrics-cache.ts
+- ?? packages/admin-api/src/admin-dashboard-metrics-query.test.ts
+- ?? packages/admin-api/src/admin-dashboard-metrics-query.ts
+- ?? packages/admin-api/src/admin-dashboard-read-facade.test.ts
+- ?? packages/admin-api/src/admin-dashboard-read-facade.ts
+- ?? packages/admin-api/src/admin-dashboard-read-services.test.ts
+- ?? packages/admin-api/src/admin-dashboard-read-services.ts
+- ?? packages/admin-api/src/admin-data-loading-plan.test.ts
+- ?? packages/admin-api/src/admin-data-loading-plan.ts
+- ?? packages/admin-api/src/admin-file-fact-readers.test.ts
+- ?? packages/admin-api/src/admin-file-fact-readers.ts
+- ?? packages/admin-api/src/admin-health-query.test.ts
+- ?? packages/admin-api/src/admin-health-query.ts
+- ?? packages/admin-api/src/admin-health-read-services.test.ts
+- ?? packages/admin-api/src/admin-health-read-services.ts
+- ?? packages/admin-api/src/admin-http-session.test.ts
+- ?? packages/admin-api/src/admin-http-session.ts
+- ?? packages/admin-api/src/admin-index-command-route-deps.test.ts
+- ?? packages/admin-api/src/admin-index-command-route-deps.ts
+- ... 230 more omitted
+
+### planning_docs
+
+-  M docs/operations/mixlab-environment-registry.md
+
+
+### acceptance_evidence
+
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T210556Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T210556Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T211026Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T211026Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T211614Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T211614Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T212209Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T212209Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T212653Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T212653Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T212738Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T212738Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T213300Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T213300Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T213657Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T213657Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T214120Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T214120Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T214807Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T214807Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T215351Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T215351Z.md
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T220123Z.json
+- ?? docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T220123Z.md
+- ?? docs/acceptance/artifacts/admin-confirm-dialog-css-cleanup-20260627T0828Z.json
+- ?? docs/acceptance/artifacts/admin-confirm-dialog-css-cleanup-20260627T0828Z.md
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260626T204735Z.json
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260626T204735Z.md
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260626T205258Z.json
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260626T205258Z.md
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260627T082409Z.json
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260627T082409Z.md
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260627T082531Z.json
+- ?? docs/acceptance/artifacts/admin-css-governance-classification-20260627T082531Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260626T202110Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260626T202110Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260626T202518Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260626T202518Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260627T152927Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260627T152927Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260627T194754Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260627T194754Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T171853Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T171853Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T171853Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T171853Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180022Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180022Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180022Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180022Z.md
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180453Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180453Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180453Z.json
+- ?? docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180453Z.md
+- ?? docs/acceptance/artifacts/admin-dashboard-material-summary-single-connection-20260627T102045Z.json
+- ?? docs/acceptance/artifacts/admin-dashboard-material-summary-single-connection-20260627T102045Z.md
+- ?? docs/acceptance/artifacts/admin-dashboard-production-summary-query-plan-20260627T101631Z.json
+- ?? docs/acceptance/artifacts/admin-dashboard-production-summary-query-plan-20260627T101631Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T155835Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T155835Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T155900Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T155900Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T160602Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T160602Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T161306Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T161306Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T161407Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T161407Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T190102Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T190102Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T190148Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T190148Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T194726Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T194726Z.md
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T195510Z.json
+- ?? docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T195510Z.md
+- ?? docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260627T201432Z.json
+- ?? docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260627T201432Z.md
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T191424Z.json
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T191424Z.md
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T192218Z.json
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T192218Z.md
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T193625Z.json
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T193625Z.md
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T194719Z.json
+- ?? docs/acceptance/artifacts/admin-docker-local-smoke-20260627T194719Z.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase0-readonly-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase1-surface-gate-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase2-auth-cutter-users-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase3-controlled-preprocess-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4-docker-candidate-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.10-smoke-tag-binding-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.11-ci-release-gate-artifacts-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.12-local-smoke-derived-candidate-proof-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.13-delivery-readiness-gate-hardening-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.14-github-artifact-readiness-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.15-github-run-artifact-collection-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.5-local-docker-smoke-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.6-release-readiness-summary-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.7-ci-smoke-before-push-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.8-explicit-image-push-gate-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-mvp-v0.1-phase4.9-staging-push-approval-gate-20260627.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260626T193919Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260626T193919Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T143231Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T143231Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T144209Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T144209Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T145208Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T145208Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T150126Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T150126Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T151503Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T151503Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T152607Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-gate-dry-run-20260627T152607Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-live-readonly-20260626T194617Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-live-readonly-20260626T194617Z.md
+- ?? docs/acceptance/artifacts/admin-docker-release-live-readonly-20260626T195525Z.json
+- ?? docs/acceptance/artifacts/admin-docker-release-live-readonly-20260626T195525Z.md
+- ... 144 more omitted
+
+### local_generated_artifact
+
+- ?? .local-dev/
+- ?? .playwright-cli/
+- ?? apps/cutter-desktop/src-tauri/gen/
+- ?? apps/cutter-web/public/local-clips/
+- ?? captures/
+- ?? output/
+
+
+### cutter_impact_review
+
+-  M packages/cutter-api/src/index.test.ts
+
+
+### unknown_review
+
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T173308Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T173308Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T173308Z.json
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T173308Z.md
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z.json
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z.md
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180453Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180453Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180453Z.json
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180453Z.md
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260627T075719Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260627T075719Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260627T075719Z.json
+- ?? docs/acceptance/artifacts/admin-doctor-browser-qa-20260627T075719Z.md
+- ?? docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T081546Z.json
+- ?? docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T081546Z.md
+- ?? docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T082019Z.json
+- ?? docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T082019Z.md
+- ?? docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T082053Z.json
+- ?? docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T082053Z.md
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T165342Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T165342Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T165342Z.json
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T165342Z.md
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180022Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180022Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180022Z.json
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180022Z.md
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180453Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180453Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180453Z.json
+- ?? docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180453Z.md
+- ?? docs/acceptance/artifacts/admin-index-versions-runtime-components-20260627T092909Z.json
+- ?? docs/acceptance/artifacts/admin-index-versions-runtime-components-20260627T092909Z.md
+- ?? docs/acceptance/artifacts/admin-migrated-pages-live-browser-qa-20260626T180022Z.json
+- ?? docs/acceptance/artifacts/admin-migrated-pages-live-browser-qa-20260626T180022Z.md
+- ?? docs/acceptance/artifacts/admin-migrated-pages-live-browser-qa-20260626T180453Z.json
+- ?? docs/acceptance/artifacts/admin-migrated-pages-live-browser-qa-20260626T180453Z.md
+- ?? docs/acceptance/artifacts/admin-preprocess-job-page-query-plan-20260627T095744Z.json
+- ?? docs/acceptance/artifacts/admin-preprocess-job-page-query-plan-20260627T095744Z.md
+- ?? docs/acceptance/artifacts/admin-preprocess-jobs-runtime-components-20260627T092256Z.json
+- ?? docs/acceptance/artifacts/admin-preprocess-jobs-runtime-components-20260627T092256Z.md
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T113427Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114000Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114000Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114000Z.json
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114000Z.md
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114058Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114058Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114058Z.json
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T114058Z.md
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T162358Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T162358Z-mobile.png
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T162358Z.json
+- ?? docs/acceptance/artifacts/admin-process-history-live-browser-qa-20260626T162358Z.md
+- ?? docs/acceptance/artifacts/admin-process-history-live-readonly-20260626T103749Z.json
+- ?? docs/acceptance/artifacts/admin-process-history-live-readonly-20260626T103749Z.md
+- ?? docs/acceptance/artifacts/admin-process-history-live-readonly-20260626T104810Z.json
+- ?? docs/acceptance/artifacts/admin-process-history-live-readonly-20260626T104810Z.md
+- ?? docs/acceptance/artifacts/admin-process-history-live-readonly-20260627T114859Z.json
+- ?? docs/acceptance/artifacts/admin-process-history-live-readonly-20260627T114859Z.md
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-dashboard-desktop.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-dashboard-mobile.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-operation-log-desktop.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-operation-log-mobile.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-preprocess-jobs-desktop.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-preprocess-jobs-mobile.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-protection-desktop.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-protection-mobile.png
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z.json
+- ?? docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z.md
+- ?? docs/acceptance/artifacts/admin-protection-maintenance-browser-qa-20260626T191903Z-desktop.png
+- ?? docs/acceptance/artifacts/admin-protection-maintenance-browser-qa-20260626T191903Z.json
+- ?? docs/acceptance/artifacts/admin-protection-maintenance-browser-qa-20260626T191903Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-projection-readiness-20260627T103205Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-projection-readiness-20260627T103205Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T105630Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T105630Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T110736Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T110736Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T111845Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T111845Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T112254Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260626T112254Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T072110Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T072110Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T073149Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T073149Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T104129Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T104129Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T104540Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T104540Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T110549Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T110549Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T110719Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T110719Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T112552Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T112552Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T114754Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-rebuild-plan-20260627T114754Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T225927Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T225927Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T225933Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T225933Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T230241Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T230241Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T230639Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T230639Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T230933Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260625T230933Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260626T110759Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260626T110759Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260626T111856Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260626T111856Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260627T072140Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260627T072140Z.md
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260627T105027Z.json
+- ?? docs/acceptance/artifacts/admin-read-model-reconcile-20260627T105027Z.md
+- ... 365 more omitted
+
+## Next Actions
+
+- Review unknown paths and either map them into the Admin Docker MVP scope or exclude them before forming the candidate commit.
+- Review Cutter-impact paths separately; include them only if they are required for Phase 5 Cutter compatibility evidence.
+- Exclude local generated artifacts such as .local-dev, captures, output, local clips, and Tauri gen files from the candidate commit.
+
+## Artifacts
+
+- JSON: docs/acceptance/artifacts/admin-docker-candidate-scope-20260627T202649Z.json
+- Markdown: docs/acceptance/artifacts/admin-docker-candidate-scope-20260627T202649Z.md

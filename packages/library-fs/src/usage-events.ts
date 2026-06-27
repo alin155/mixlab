@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, stat, unlink } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
 export type MixlabUsageEventType =
@@ -49,6 +50,14 @@ export interface UserUsageMetrics {
   last_used_at: string;
 }
 
+export interface UsageEventStoreMetrics {
+  line_count: number;
+  valid_line_count: number;
+  malformed_line_count: number;
+  malformed_lines: number[];
+  warning: string;
+}
+
 export interface UsageMetrics {
   search_request_count: number;
   search_hit_count: number;
@@ -82,6 +91,7 @@ export interface UsageMetrics {
   recent_keywords: string[];
   most_used_source_video_ids: string[];
   users: UserUsageMetrics[];
+  event_store: UsageEventStoreMetrics;
 }
 
 const EVENT_TYPES = new Set<MixlabUsageEventType>([
@@ -97,6 +107,8 @@ const EVENT_TYPES = new Set<MixlabUsageEventType>([
   "reuse_local_clip"
 ]);
 const CORE_SEARCH_SAMPLE_LIMIT = 20;
+export const USAGE_METRICS_SUMMARY_PROJECTION_FILE_NAME = "usage-metrics.sqlite";
+export const USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION = "admin-usage-metrics-summary-v2";
 const RESULT_STATUSES = new Set<MixlabUsageResultStatus>([
   "success",
   "empty",
@@ -113,8 +125,135 @@ const SEARCH_PAGE_TYPES = new Set<MixlabUsageSearchPageType>([
 ]);
 const eventMutationQueues = new Map<string, Promise<void>>();
 
+export interface UsageEventsFileSignature {
+  exists: boolean;
+  size_bytes: number;
+  mtime_ms: number;
+}
+
+interface UsageKeywordProjectionEntry {
+  key: string;
+  keyword: string;
+  occurred_at: string;
+  sequence: number;
+}
+
+interface UsageCoreSearchProjectionEvent {
+  occurred_at: string;
+  sequence: number;
+  result_status?: MixlabUsageResultStatus;
+  search_elapsed_ms?: number;
+  search_mode?: MixlabUsageSearchMode;
+}
+
+export interface UsageMetricsProjectionState {
+  schema_version: typeof USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION;
+  next_sequence: number;
+  search_latency_ms: number[];
+  source_video_counts: Array<[string, number]>;
+  keyword_entries: UsageKeywordProjectionEntry[];
+  core_search_events: UsageCoreSearchProjectionEvent[];
+}
+
+export interface UsageMetricsProjection {
+  metrics: UsageMetrics;
+  projection_state: UsageMetricsProjectionState;
+}
+
+export interface StoredUsageMetricsSummaryProjection {
+  metrics: UsageMetrics;
+  projection_state?: UsageMetricsProjectionState;
+  generated_at: string;
+}
+
+function emptyEventStoreMetrics(): UsageEventStoreMetrics {
+  return {
+    line_count: 0,
+    valid_line_count: 0,
+    malformed_line_count: 0,
+    malformed_lines: [],
+    warning: ""
+  };
+}
+
 function usageEventsPath(libraryRoot: string): string {
   return path.join(libraryRoot, ".mixlab-library", "usage-events", "events.ndjson");
+}
+
+export function usageMetricsSummaryProjectionPath(libraryRoot: string): string {
+  return path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "admin-read-model",
+    USAGE_METRICS_SUMMARY_PROJECTION_FILE_NAME
+  );
+}
+
+export async function readUsageEventsFileSignature(libraryRoot: string): Promise<UsageEventsFileSignature> {
+  try {
+    const fileStat = await stat(usageEventsPath(libraryRoot));
+    if (!fileStat.isFile()) {
+      return {
+        exists: false,
+        size_bytes: 0,
+        mtime_ms: 0
+      };
+    }
+
+    return {
+      exists: true,
+      size_bytes: Number(fileStat.size),
+      mtime_ms: Math.floor(fileStat.mtimeMs)
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
+      return {
+        exists: false,
+        size_bytes: 0,
+        mtime_ms: 0
+      };
+    }
+    throw error;
+  }
+}
+
+export function usageEventsFileSignaturesEqual(
+  left: UsageEventsFileSignature,
+  right: UsageEventsFileSignature
+): boolean {
+  return left.exists === right.exists &&
+    left.size_bytes === right.size_bytes &&
+    left.mtime_ms === right.mtime_ms;
+}
+
+export async function invalidateUsageMetricsSummaryProjection(libraryRoot: string): Promise<{
+  path: string;
+  invalidated: boolean;
+}> {
+  const summaryPath = usageMetricsSummaryProjectionPath(libraryRoot);
+  try {
+    await unlink(summaryPath);
+    return {
+      path: summaryPath,
+      invalidated: true
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
+      return {
+        path: summaryPath,
+        invalidated: false
+      };
+    }
+    throw error;
+  }
 }
 
 function emptyMetrics(): UsageMetrics {
@@ -150,12 +289,137 @@ function emptyMetrics(): UsageMetrics {
     active_user_count: 0,
     recent_keywords: [],
     most_used_source_video_ids: [],
-    users: []
+    users: [],
+    event_store: emptyEventStoreMetrics()
   };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isUsageEventStoreMetrics(value: unknown): value is UsageEventStoreMetrics {
+  return isRecord(value) &&
+    isNumber(value.line_count) &&
+    isNumber(value.valid_line_count) &&
+    isNumber(value.malformed_line_count) &&
+    Array.isArray(value.malformed_lines) &&
+    value.malformed_lines.every((item) => isNumber(item)) &&
+    typeof value.warning === "string";
+}
+
+function isUserUsageMetrics(value: unknown): value is UserUsageMetrics {
+  return isRecord(value) &&
+    typeof value.user_id === "string" &&
+    typeof value.username === "string" &&
+    isNumber(value.search_request_count) &&
+    isNumber(value.search_failure_count) &&
+    isNumber(value.add_to_cut_list_count) &&
+    isNumber(value.transcript_selection_count) &&
+    isNumber(value.cut_submission_count) &&
+    isNumber(value.cut_success_count) &&
+    isNumber(value.local_clip_count) &&
+    isNumber(value.reuse_local_clip_count) &&
+    typeof value.last_used_at === "string";
+}
+
+function isUsageMetrics(value: unknown): value is UsageMetrics {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const numberFields: Array<keyof UsageMetrics> = [
+    "search_request_count",
+    "search_hit_count",
+    "search_empty_count",
+    "search_failure_count",
+    "search_latency_p50_ms",
+    "search_latency_p95_ms",
+    "search_latency_max_ms",
+    "searchd_search_count",
+    "sqlite_index_search_count",
+    "fallback_search_count",
+    "search_backend_unknown_count",
+    "core_search_request_count",
+    "core_search_failure_count",
+    "core_search_latency_p50_ms",
+    "core_search_latency_p95_ms",
+    "core_search_latency_max_ms",
+    "core_searchd_search_count",
+    "core_sqlite_index_search_count",
+    "core_fallback_search_count",
+    "core_search_backend_unknown_count",
+    "source_detail_view_count",
+    "transcript_selection_count",
+    "add_to_cut_list_count",
+    "cut_submission_count",
+    "cut_success_count",
+    "cut_failure_count",
+    "local_clip_count",
+    "reuse_local_clip_count",
+    "active_user_count"
+  ];
+
+  return numberFields.every((field) => isNumber(value[field])) &&
+    isStringArray(value.recent_keywords) &&
+    isStringArray(value.most_used_source_video_ids) &&
+    Array.isArray(value.users) &&
+    value.users.every(isUserUsageMetrics) &&
+    isUsageEventStoreMetrics(value.event_store);
+}
+
+function isSearchMode(value: unknown): value is MixlabUsageSearchMode {
+  return typeof value === "string" && SEARCH_MODES.has(value as MixlabUsageSearchMode);
+}
+
+function isResultStatus(value: unknown): value is MixlabUsageResultStatus {
+  return typeof value === "string" && RESULT_STATUSES.has(value as MixlabUsageResultStatus);
+}
+
+function isKeywordProjectionEntry(value: unknown): value is UsageKeywordProjectionEntry {
+  return isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.keyword === "string" &&
+    typeof value.occurred_at === "string" &&
+    isNumber(value.sequence);
+}
+
+function isCoreSearchProjectionEvent(value: unknown): value is UsageCoreSearchProjectionEvent {
+  return isRecord(value) &&
+    typeof value.occurred_at === "string" &&
+    isNumber(value.sequence) &&
+    (value.result_status === undefined || isResultStatus(value.result_status)) &&
+    (value.search_elapsed_ms === undefined || isNumber(value.search_elapsed_ms)) &&
+    (value.search_mode === undefined || isSearchMode(value.search_mode));
+}
+
+function isSourceVideoCountEntry(value: unknown): value is [string, number] {
+  return Array.isArray(value) &&
+    value.length === 2 &&
+    typeof value[0] === "string" &&
+    isNumber(value[1]);
+}
+
+function isUsageMetricsProjectionState(value: unknown): value is UsageMetricsProjectionState {
+  return isRecord(value) &&
+    value.schema_version === USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION &&
+    isNumber(value.next_sequence) &&
+    Array.isArray(value.search_latency_ms) &&
+    value.search_latency_ms.every(isNumber) &&
+    Array.isArray(value.source_video_counts) &&
+    value.source_video_counts.every(isSourceVideoCountEntry) &&
+    Array.isArray(value.keyword_entries) &&
+    value.keyword_entries.every(isKeywordProjectionEntry) &&
+    Array.isArray(value.core_search_events) &&
+    value.core_search_events.every(isCoreSearchProjectionEvent);
 }
 
 function trimRequiredString(value: unknown, field: string): string {
@@ -284,7 +548,12 @@ function validateUsageEvent(
   return event;
 }
 
-async function readUsageEvents(libraryRoot: string): Promise<MixlabUsageEvent[]> {
+interface UsageEventsReadResult {
+  events: MixlabUsageEvent[];
+  event_store: UsageEventStoreMetrics;
+}
+
+async function readUsageEvents(libraryRoot: string): Promise<UsageEventsReadResult> {
   let raw: string;
   try {
     raw = await readFile(usageEventsPath(libraryRoot), "utf8");
@@ -294,36 +563,51 @@ async function readUsageEvents(libraryRoot: string): Promise<MixlabUsageEvent[]>
       "code" in error &&
       (error as NodeJS.ErrnoException).code === "ENOENT"
     ) {
-      return [];
+      return {
+        events: [],
+        event_store: emptyEventStoreMetrics()
+      };
     }
     throw new Error("无法读取使用事件存储文件", { cause: error });
   }
 
   const events: MixlabUsageEvent[] = [];
+  const eventStore = emptyEventStoreMetrics();
   const lines = raw.split(/\r?\n/);
   for (const [index, line] of lines.entries()) {
     if (line.trim() === "") {
       continue;
     }
 
+    eventStore.line_count += 1;
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
     } catch (error) {
-      throw new Error(`使用事件存储文件格式错误：第 ${index + 1} 行不是有效 JSON`, {
-        cause: error
-      });
+      void error;
+      eventStore.malformed_line_count += 1;
+      eventStore.malformed_lines.push(index + 1);
+      continue;
     }
 
     try {
       events.push(validateUsageEvent(parsed, { require_event_id: true }));
     } catch (error) {
-      throw new Error(`使用事件存储文件格式错误：第 ${index + 1} 行事件数据无效`, {
-        cause: error
-      });
+      void error;
+      eventStore.malformed_line_count += 1;
+      eventStore.malformed_lines.push(index + 1);
     }
   }
-  return events;
+  eventStore.valid_line_count = events.length;
+  if (eventStore.malformed_line_count > 0) {
+    const lineLabel = eventStore.malformed_lines.slice(0, 8).join(", ");
+    const suffix = eventStore.malformed_lines.length > 8 ? " 等" : "";
+    eventStore.warning = `使用事件存储有 ${eventStore.malformed_line_count} 行无法读取，已跳过第 ${lineLabel}${suffix} 行。`;
+  }
+  return {
+    events,
+    event_store: eventStore
+  };
 }
 
 async function withEventMutation<T>(
@@ -399,11 +683,34 @@ function percentile(values: number[], rank: number): number {
   return sorted[index] ?? 0;
 }
 
-function aggregateCoreSearchWindow(metrics: UsageMetrics, events: MixlabUsageEvent[]): void {
-  const coreSearchEvents = events
-    .filter((event) => event.event_type === "search" && event.search_page_type !== "cursor")
-    .sort((left, right) => left.occurred_at.localeCompare(right.occurred_at))
+function resetCoreSearchMetrics(metrics: UsageMetrics): void {
+  metrics.core_search_request_count = 0;
+  metrics.core_search_failure_count = 0;
+  metrics.core_search_latency_p50_ms = 0;
+  metrics.core_search_latency_p95_ms = 0;
+  metrics.core_search_latency_max_ms = 0;
+  metrics.core_searchd_search_count = 0;
+  metrics.core_sqlite_index_search_count = 0;
+  metrics.core_fallback_search_count = 0;
+  metrics.core_search_backend_unknown_count = 0;
+}
+
+function sortedCoreSearchProjectionEvents(
+  events: UsageCoreSearchProjectionEvent[]
+): UsageCoreSearchProjectionEvent[] {
+  return [...events]
+    .sort((left, right) => {
+      const occurredOrder = left.occurred_at.localeCompare(right.occurred_at);
+      return occurredOrder === 0 ? left.sequence - right.sequence : occurredOrder;
+    })
     .slice(-CORE_SEARCH_SAMPLE_LIMIT);
+}
+
+function applyCoreSearchProjection(
+  metrics: UsageMetrics,
+  coreSearchEvents: UsageCoreSearchProjectionEvent[]
+): void {
+  resetCoreSearchMetrics(metrics);
   const latencyMs: number[] = [];
 
   for (const event of coreSearchEvents) {
@@ -431,12 +738,50 @@ function aggregateCoreSearchWindow(metrics: UsageMetrics, events: MixlabUsageEve
   metrics.core_search_latency_max_ms = latencyMs.length > 0 ? Math.max(...latencyMs) : 0;
 }
 
-function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
+function applySearchLatencyProjection(metrics: UsageMetrics, searchLatencyMs: number[]): void {
+  metrics.search_latency_p50_ms = percentile(searchLatencyMs, 50);
+  metrics.search_latency_p95_ms = percentile(searchLatencyMs, 95);
+  metrics.search_latency_max_ms = searchLatencyMs.length > 0 ? Math.max(...searchLatencyMs) : 0;
+}
+
+function applyKeywordProjection(metrics: UsageMetrics, keywordEntries: UsageKeywordProjectionEntry[]): void {
+  metrics.recent_keywords = [...keywordEntries]
+    .sort((left, right) => {
+      const occurredOrder = right.occurred_at.localeCompare(left.occurred_at);
+      return occurredOrder === 0 ? right.sequence - left.sequence : occurredOrder;
+    })
+    .slice(0, 8)
+    .map((entry) => entry.keyword);
+}
+
+function applySourceVideoProjection(metrics: UsageMetrics, sourceVideoCounts: Array<[string, number]>): void {
+  metrics.most_used_source_video_ids = [...sourceVideoCounts]
+    .sort((left, right) => {
+      const countOrder = right[1] - left[1];
+      return countOrder === 0 ? left[0].localeCompare(right[0]) : countOrder;
+    })
+    .slice(0, 8)
+    .map(([sourceVideoId]) => sourceVideoId);
+}
+
+function sortUsageUsers(users: Iterable<UserUsageMetrics>): UserUsageMetrics[] {
+  return [...users].sort((left, right) => {
+    const usedOrder = right.last_used_at.localeCompare(left.last_used_at);
+    return usedOrder === 0 ? left.user_id.localeCompare(right.user_id) : usedOrder;
+  });
+}
+
+function buildUsageMetricsProjection(
+  events: MixlabUsageEvent[],
+  eventStore: UsageEventStoreMetrics
+): UsageMetricsProjection {
   const metrics = emptyMetrics();
+  metrics.event_store = eventStore;
   const users = new Map<string, UserUsageMetrics>();
   const keywordByKey = new Map<string, { keyword: string; occurred_at: string; sequence: number }>();
   const sourceVideoCounts = new Map<string, number>();
   const searchLatencyMs: number[] = [];
+  const coreSearchEvents: UsageCoreSearchProjectionEvent[] = [];
 
   for (const [sequence, event] of events.entries()) {
     const user = getOrCreateUserMetrics(users, event);
@@ -489,6 +834,13 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
             });
           }
         }
+        coreSearchEvents.push({
+          occurred_at: event.occurred_at,
+          sequence,
+          result_status: event.result_status,
+          search_elapsed_ms: event.search_elapsed_ms,
+          search_mode: event.search_mode
+        });
         break;
       case "view_source_video":
         metrics.source_detail_view_count += 1;
@@ -526,30 +878,436 @@ function aggregateUsageEvents(events: MixlabUsageEvent[]): UsageMetrics {
   }
 
   metrics.active_user_count = users.size;
-  metrics.search_latency_p50_ms = percentile(searchLatencyMs, 50);
-  metrics.search_latency_p95_ms = percentile(searchLatencyMs, 95);
-  metrics.search_latency_max_ms = searchLatencyMs.length > 0 ? Math.max(...searchLatencyMs) : 0;
-  aggregateCoreSearchWindow(metrics, events);
-  metrics.recent_keywords = [...keywordByKey.values()]
-    .sort((left, right) => {
-      const occurredOrder = right.occurred_at.localeCompare(left.occurred_at);
-      return occurredOrder === 0 ? right.sequence - left.sequence : occurredOrder;
-    })
-    .slice(0, 8)
-    .map((entry) => entry.keyword);
-  metrics.most_used_source_video_ids = [...sourceVideoCounts.entries()]
-    .sort((left, right) => {
-      const countOrder = right[1] - left[1];
-      return countOrder === 0 ? left[0].localeCompare(right[0]) : countOrder;
-    })
-    .slice(0, 8)
-    .map(([sourceVideoId]) => sourceVideoId);
-  metrics.users = [...users.values()].sort((left, right) => {
-    const usedOrder = right.last_used_at.localeCompare(left.last_used_at);
-    return usedOrder === 0 ? left.user_id.localeCompare(right.user_id) : usedOrder;
-  });
+  const state: UsageMetricsProjectionState = {
+    schema_version: USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION,
+    next_sequence: events.length,
+    search_latency_ms: searchLatencyMs,
+    source_video_counts: [...sourceVideoCounts.entries()],
+    keyword_entries: [...keywordByKey.entries()].map(([key, entry]) => ({
+      key,
+      ...entry
+    })),
+    core_search_events: sortedCoreSearchProjectionEvents(coreSearchEvents)
+  };
 
-  return metrics;
+  applySearchLatencyProjection(metrics, state.search_latency_ms);
+  applyCoreSearchProjection(metrics, state.core_search_events);
+  applyKeywordProjection(metrics, state.keyword_entries);
+  applySourceVideoProjection(metrics, state.source_video_counts);
+  metrics.users = sortUsageUsers(users.values());
+
+  return {
+    metrics,
+    projection_state: state
+  };
+}
+
+function aggregateUsageEvents(
+  events: MixlabUsageEvent[],
+  eventStore: UsageEventStoreMetrics
+): UsageMetrics {
+  return buildUsageMetricsProjection(events, eventStore).metrics;
+}
+
+function cloneMetrics(metrics: UsageMetrics): UsageMetrics {
+  return JSON.parse(JSON.stringify(metrics)) as UsageMetrics;
+}
+
+function cloneProjectionState(state: UsageMetricsProjectionState): UsageMetricsProjectionState {
+  return JSON.parse(JSON.stringify(state)) as UsageMetricsProjectionState;
+}
+
+function applyUsageEventToProjection(
+  projection: UsageMetricsProjection,
+  event: MixlabUsageEvent
+): UsageMetricsProjection {
+  const metrics = cloneMetrics(projection.metrics);
+  const state = cloneProjectionState(projection.projection_state);
+  const sequence = state.next_sequence;
+  state.next_sequence += 1;
+
+  metrics.event_store.line_count += 1;
+  metrics.event_store.valid_line_count += 1;
+
+  const users = new Map<string, UserUsageMetrics>(
+    metrics.users.map((user) => [user.user_id, { ...user }])
+  );
+  const user = getOrCreateUserMetrics(users, event);
+  if (event.occurred_at > user.last_used_at) {
+    user.last_used_at = event.occurred_at;
+  }
+
+  const sourceVideoCounts = new Map<string, number>(state.source_video_counts);
+  incrementSourceVideoCount(sourceVideoCounts, event.source_video_id);
+  state.source_video_counts = [...sourceVideoCounts.entries()];
+
+  switch (event.event_type) {
+    case "search":
+      if (event.result_status === "failure") {
+        metrics.search_failure_count += 1;
+        user.search_failure_count += 1;
+      }
+      if (event.search_page_type === "cursor") {
+        break;
+      }
+
+      metrics.search_request_count += 1;
+      user.search_request_count += 1;
+      if (typeof event.search_elapsed_ms === "number") {
+        state.search_latency_ms.push(event.search_elapsed_ms);
+      }
+      if (event.search_mode === "searchd") {
+        metrics.searchd_search_count += 1;
+      } else if (event.search_mode === "sqlite-index") {
+        metrics.sqlite_index_search_count += 1;
+      } else if (event.search_mode === "transcript-artifact-fallback") {
+        metrics.fallback_search_count += 1;
+      } else {
+        metrics.search_backend_unknown_count += 1;
+      }
+      if (event.result_status === "success") {
+        metrics.search_hit_count += 1;
+      } else if (event.result_status === "empty") {
+        metrics.search_empty_count += 1;
+      }
+      if (event.query) {
+        const key = event.query.toLocaleLowerCase();
+        const keywordEntries = new Map(
+          state.keyword_entries.map((entry) => [entry.key, entry])
+        );
+        const existing = keywordEntries.get(key);
+        if (
+          !existing ||
+          event.occurred_at > existing.occurred_at ||
+          (event.occurred_at === existing.occurred_at && sequence > existing.sequence)
+        ) {
+          keywordEntries.set(key, {
+            key,
+            keyword: event.query,
+            occurred_at: event.occurred_at,
+            sequence
+          });
+        }
+        state.keyword_entries = [...keywordEntries.values()];
+      }
+      state.core_search_events = sortedCoreSearchProjectionEvents([
+        ...state.core_search_events,
+        {
+          occurred_at: event.occurred_at,
+          sequence,
+          result_status: event.result_status,
+          search_elapsed_ms: event.search_elapsed_ms,
+          search_mode: event.search_mode
+        }
+      ]);
+      break;
+    case "view_source_video":
+      metrics.source_detail_view_count += 1;
+      break;
+    case "select_transcript_span":
+      metrics.transcript_selection_count += 1;
+      user.transcript_selection_count += 1;
+      break;
+    case "add_to_cut_list":
+      metrics.add_to_cut_list_count += 1;
+      user.add_to_cut_list_count += 1;
+      break;
+    case "submit_cut_job":
+      metrics.cut_submission_count += 1;
+      user.cut_submission_count += 1;
+      break;
+    case "cut_success":
+      metrics.cut_success_count += 1;
+      user.cut_success_count += 1;
+      break;
+    case "cut_failure":
+      metrics.cut_failure_count += 1;
+      break;
+    case "create_local_clip":
+      metrics.local_clip_count += 1;
+      user.local_clip_count += 1;
+      break;
+    case "reuse_local_clip":
+      metrics.reuse_local_clip_count += 1;
+      user.reuse_local_clip_count += 1;
+      break;
+    case "view_transcript":
+      break;
+  }
+
+  metrics.active_user_count = users.size;
+  applySearchLatencyProjection(metrics, state.search_latency_ms);
+  applyCoreSearchProjection(metrics, state.core_search_events);
+  applyKeywordProjection(metrics, state.keyword_entries);
+  applySourceVideoProjection(metrics, state.source_video_counts);
+  metrics.users = sortUsageUsers(users.values());
+
+  return {
+    metrics,
+    projection_state: state
+  };
+}
+
+function createUsageMetricsSummaryProjectionSchema(db: DatabaseSync): void {
+  db.exec(`
+    PRAGMA journal_mode = DELETE;
+
+    CREATE TABLE IF NOT EXISTS usage_metrics_summary (
+      id TEXT PRIMARY KEY,
+      schema_version TEXT NOT NULL,
+      generated_at TEXT NOT NULL,
+      usage_events_exists INTEGER NOT NULL,
+      usage_events_size_bytes INTEGER NOT NULL,
+      usage_events_mtime_ms INTEGER NOT NULL,
+      metrics_json TEXT NOT NULL,
+      projection_state_json TEXT
+    );
+  `);
+
+  const columns = db.prepare("PRAGMA table_info(usage_metrics_summary)").all() as Array<{
+    name: string;
+  }>;
+  if (!columns.some((column) => column.name === "projection_state_json")) {
+    db.exec("ALTER TABLE usage_metrics_summary ADD COLUMN projection_state_json TEXT");
+  }
+}
+
+function readUsageMetricsSummaryProjectionRow(db: DatabaseSync): {
+  schema_version: string;
+  generated_at: string;
+  usage_events_exists: number;
+  usage_events_size_bytes: number;
+  usage_events_mtime_ms: number;
+  metrics_json: string;
+  projection_state_json: string | null;
+} | undefined {
+  return db.prepare(`
+    SELECT
+      schema_version,
+      generated_at,
+      usage_events_exists,
+      usage_events_size_bytes,
+      usage_events_mtime_ms,
+      metrics_json,
+      projection_state_json
+    FROM usage_metrics_summary
+    WHERE id = 'current'
+  `).get() as {
+    schema_version: string;
+    generated_at: string;
+    usage_events_exists: number;
+    usage_events_size_bytes: number;
+    usage_events_mtime_ms: number;
+    metrics_json: string;
+    projection_state_json: string | null;
+  } | undefined;
+}
+
+function rowMatchesUsageEventsSignature(input: {
+  row: {
+    usage_events_exists: number;
+    usage_events_size_bytes: number;
+    usage_events_mtime_ms: number;
+  };
+  signature: UsageEventsFileSignature;
+}): boolean {
+  return Boolean(input.row.usage_events_exists) === input.signature.exists &&
+    Number(input.row.usage_events_size_bytes) === input.signature.size_bytes &&
+    Number(input.row.usage_events_mtime_ms) === input.signature.mtime_ms;
+}
+
+function parseUsageMetricsSummaryProjectionRow(row: {
+  schema_version: string;
+  generated_at: string;
+  metrics_json: string;
+  projection_state_json: string | null;
+}): StoredUsageMetricsSummaryProjection | null {
+  if (row.schema_version !== USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION) {
+    return null;
+  }
+
+  const parsedMetrics = JSON.parse(row.metrics_json);
+  if (!isUsageMetrics(parsedMetrics)) {
+    return null;
+  }
+
+  let projectionState: UsageMetricsProjectionState | undefined;
+  if (row.projection_state_json) {
+    const parsedState = JSON.parse(row.projection_state_json);
+    if (!isUsageMetricsProjectionState(parsedState)) {
+      return null;
+    }
+    projectionState = parsedState;
+  }
+
+  return {
+    metrics: parsedMetrics,
+    projection_state: projectionState,
+    generated_at: row.generated_at
+  };
+}
+
+export function readUsageMetricsSummaryProjection(input: {
+  library_root: string;
+  signature: UsageEventsFileSignature;
+}): StoredUsageMetricsSummaryProjection | null {
+  let db: DatabaseSync | undefined;
+  try {
+    db = new DatabaseSync(`file:${usageMetricsSummaryProjectionPath(input.library_root)}?mode=ro`);
+    const row = readUsageMetricsSummaryProjectionRow(db);
+    if (!row || !rowMatchesUsageEventsSignature({ row, signature: input.signature })) {
+      return null;
+    }
+    return parseUsageMetricsSummaryProjectionRow(row);
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
+}
+
+export async function writeUsageMetricsSummaryProjection(input: {
+  library_root: string;
+  signature: UsageEventsFileSignature;
+  metrics: UsageMetrics;
+  projection_state?: UsageMetricsProjectionState;
+  generated_at: string;
+}): Promise<void> {
+  await mkdir(path.dirname(usageMetricsSummaryProjectionPath(input.library_root)), { recursive: true });
+  const db = new DatabaseSync(usageMetricsSummaryProjectionPath(input.library_root));
+
+  try {
+    createUsageMetricsSummaryProjectionSchema(db);
+    db.exec("BEGIN");
+    db.prepare(`
+      INSERT INTO usage_metrics_summary (
+        id,
+        schema_version,
+        generated_at,
+        usage_events_exists,
+        usage_events_size_bytes,
+        usage_events_mtime_ms,
+        metrics_json,
+        projection_state_json
+      )
+      VALUES ('current', ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        schema_version = excluded.schema_version,
+        generated_at = excluded.generated_at,
+        usage_events_exists = excluded.usage_events_exists,
+        usage_events_size_bytes = excluded.usage_events_size_bytes,
+        usage_events_mtime_ms = excluded.usage_events_mtime_ms,
+        metrics_json = excluded.metrics_json,
+        projection_state_json = excluded.projection_state_json
+    `).run(
+      USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION,
+      input.generated_at,
+      input.signature.exists ? 1 : 0,
+      input.signature.size_bytes,
+      input.signature.mtime_ms,
+      JSON.stringify(input.metrics),
+      input.projection_state ? JSON.stringify(input.projection_state) : null
+    );
+    db.exec("COMMIT");
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // Transaction may not have started.
+    }
+    throw error;
+  } finally {
+    db.close();
+  }
+}
+
+async function writeThroughUsageMetricsSummaryProjection(input: {
+  library_root: string;
+  previous_signature: UsageEventsFileSignature;
+  next_signature: UsageEventsFileSignature;
+  event: MixlabUsageEvent;
+  generated_at: string;
+}): Promise<{
+  path: string;
+  updated: boolean;
+  reason: string;
+}> {
+  const summaryPath = usageMetricsSummaryProjectionPath(input.library_root);
+  let db: DatabaseSync | undefined;
+  try {
+    db = new DatabaseSync(summaryPath);
+    createUsageMetricsSummaryProjectionSchema(db);
+    const row = readUsageMetricsSummaryProjectionRow(db);
+    if (!row) {
+      return {
+        path: summaryPath,
+        updated: false,
+        reason: "missing_projection"
+      };
+    }
+    if (!rowMatchesUsageEventsSignature({ row, signature: input.previous_signature })) {
+      return {
+        path: summaryPath,
+        updated: false,
+        reason: "stale_projection"
+      };
+    }
+
+    const stored = parseUsageMetricsSummaryProjectionRow(row);
+    if (!stored?.projection_state) {
+      return {
+        path: summaryPath,
+        updated: false,
+        reason: "missing_projection_state"
+      };
+    }
+
+    const updated = applyUsageEventToProjection({
+      metrics: stored.metrics,
+      projection_state: stored.projection_state
+    }, input.event);
+
+    db.exec("BEGIN");
+    db.prepare(`
+      UPDATE usage_metrics_summary
+      SET
+        schema_version = ?,
+        generated_at = ?,
+        usage_events_exists = ?,
+        usage_events_size_bytes = ?,
+        usage_events_mtime_ms = ?,
+        metrics_json = ?,
+        projection_state_json = ?
+      WHERE id = 'current'
+    `).run(
+      USAGE_METRICS_SUMMARY_PROJECTION_SCHEMA_VERSION,
+      input.generated_at,
+      input.next_signature.exists ? 1 : 0,
+      input.next_signature.size_bytes,
+      input.next_signature.mtime_ms,
+      JSON.stringify(updated.metrics),
+      JSON.stringify(updated.projection_state)
+    );
+    db.exec("COMMIT");
+    return {
+      path: summaryPath,
+      updated: true,
+      reason: "updated"
+    };
+  } catch {
+    try {
+      db?.exec("ROLLBACK");
+    } catch {
+      // Transaction may not have started.
+    }
+    return {
+      path: summaryPath,
+      updated: false,
+      reason: "write_failed"
+    };
+  } finally {
+    db?.close();
+  }
 }
 
 export async function appendUsageEvent(
@@ -559,6 +1317,7 @@ export async function appendUsageEvent(
   return withEventMutation(libraryRoot, async () => {
     const normalizedEvent = validateUsageEvent(event, { require_event_id: false });
     await readUsageEvents(libraryRoot);
+    const previousSignature = await readUsageEventsFileSignature(libraryRoot);
 
     const targetPath = usageEventsPath(libraryRoot);
     await mkdir(path.dirname(targetPath), { recursive: true });
@@ -570,10 +1329,26 @@ export async function appendUsageEvent(
     } catch (error) {
       throw new Error("无法写入使用事件存储文件", { cause: error });
     }
+    const nextSignature = await readUsageEventsFileSignature(libraryRoot);
+    const writeThrough = await writeThroughUsageMetricsSummaryProjection({
+      library_root: libraryRoot,
+      previous_signature: previousSignature,
+      next_signature: nextSignature,
+      event: normalizedEvent,
+      generated_at: new Date().toISOString()
+    });
+    if (!writeThrough.updated) {
+      await invalidateUsageMetricsSummaryProjection(libraryRoot).catch(() => undefined);
+    }
     return normalizedEvent;
   });
 }
 
+export async function readUsageMetricsProjection(libraryRoot: string): Promise<UsageMetricsProjection> {
+  const result = await readUsageEvents(libraryRoot);
+  return buildUsageMetricsProjection(result.events, result.event_store);
+}
+
 export async function readUsageMetrics(libraryRoot: string): Promise<UsageMetrics> {
-  return aggregateUsageEvents(await readUsageEvents(libraryRoot));
+  return (await readUsageMetricsProjection(libraryRoot)).metrics;
 }

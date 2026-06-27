@@ -1,0 +1,187 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T16:02:18.725Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-readiness-summary.ts",
+  "mode": "admin-docker-release-readiness-summary",
+  "sources": {
+    "live_readonly_report": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260627T154159Z.json",
+    "parity_plan_report": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260627T154221Z.json",
+    "worker_env_proof_report": "docs/acceptance/artifacts/admin-worker-env-proof-20260627T151522Z.json",
+    "cutter_compatibility_proof_report": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260627T152927Z.json",
+    "staging_runbook_report": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260627T160217Z.json"
+  },
+  "release_review_ready": false,
+  "docker_upload_allowed": false,
+  "observations": {
+    "live_status": "blocked",
+    "live_upload_blockers": [
+      "current-admin-api-contract-live",
+      "auth-context-live",
+      "build-version-health",
+      "version-health-parity-contract-live",
+      "preprocess-disk",
+      "disk-space-protection-contract-live",
+      "usage-events-tolerance",
+      "usage-events-repair-contract-live",
+      "processing-recovery",
+      "processing-recovery-contract-live",
+      "current-index",
+      "data-loading-contract-live",
+      "admin-worker-env-proof-contract-live",
+      "admin-worker-live-flags",
+      "cutter-compatibility-proof-contract-live",
+      "cutter-release-compatibility-live"
+    ],
+    "parity_status": "blocked",
+    "parity_upload_blockers": [
+      "current-admin-api-contract-parity",
+      "version-health-parity-contract",
+      "admin-worker-env-proof-contract",
+      "cutter-compatibility-proof-contract",
+      "nas-disk-risk",
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ],
+    "worker_status": "blocked",
+    "worker_proof_accepted": false,
+    "worker_upload_blockers": [
+      "env-file-provided",
+      "inspect-json-provided",
+      "env-file-worker-flags-disabled",
+      "inspect-worker-flags-disabled",
+      "admin-worker-library-roots",
+      "admin-worker-image-observed"
+    ],
+    "cutter_status": "blocked",
+    "cutter_proof_accepted": false,
+    "cutter_upload_blockers": [
+      "windows-acceptance-report-provided",
+      "windows-acceptance-passed",
+      "reviewed-auth-mode",
+      "public-library-ready-count",
+      "public-library-first-page-readable",
+      "search-protocol-readable",
+      "transcript-detail-readable",
+      "real-cut-report-provided",
+      "real-cut-smoke-passed",
+      "real-cut-output-produced",
+      "real-cut-core-phases-done"
+    ],
+    "staging_status": "blocked",
+    "staging_review_ready": false,
+    "staging_blockers": [
+      "current-image-tag-provided",
+      "target-image-tag-provided",
+      "rollback-image-tag-provided",
+      "target-differs-from-current",
+      "rollback-tag-matches-current",
+      "parity-report-blockers-clear",
+      "candidate-contract-proof-accepted",
+      "worker-env-proof-accepted",
+      "cutter-compatibility-proof-accepted"
+    ],
+    "unresolved_parity_blockers": [
+      "current-admin-api-contract-parity",
+      "version-health-parity-contract",
+      "admin-worker-env-proof-contract",
+      "cutter-compatibility-proof-contract",
+      "nas-disk-risk",
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ],
+    "resolved_external_parity_blockers": []
+  },
+  "gates": [
+    {
+      "id": "summary-no-side-effects",
+      "title": "Readiness summary has no runtime side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This summary reads archived artifacts only; it does not contact Docker, NAS, Windows Runner, Admin API, or Cutter API.",
+      "blocks_release_review": false
+    },
+    {
+      "id": "live-readonly-blockers-clear",
+      "title": "Live NAS Docker read-only blockers are clear",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live blockers: current-admin-api-contract-live, auth-context-live, build-version-health, version-health-parity-contract-live, preprocess-disk, disk-space-protection-contract-live, usage-events-tolerance, usage-events-repair-contract-live, processing-recovery, processing-recovery-contract-live, current-index, data-loading-contract-live, admin-worker-env-proof-contract-live, admin-worker-live-flags, cutter-compatibility-proof-contract-live, cutter-release-compatibility-live",
+      "blocks_release_review": true,
+      "required_evidence": "Rerun the GET-only live-readonly probe after the staged target exposes current endpoints and live gates pass."
+    },
+    {
+      "id": "parity-plan-blockers-clear",
+      "title": "Docker version/API parity blockers are clear",
+      "category": "parity",
+      "status": "blocked",
+      "evidence": "Parity blockers: current-admin-api-contract-parity, version-health-parity-contract, admin-worker-env-proof-contract, cutter-compatibility-proof-contract, nas-disk-risk, admin-worker-env-external-proof, cutter-compatibility-external-proof",
+      "blocks_release_review": true,
+      "required_evidence": "Current Admin API contract, disk risk, worker proof, and Cutter proof blockers must be cleared."
+    },
+    {
+      "id": "worker-proof-accepted",
+      "title": "admin-worker env proof is accepted",
+      "category": "worker",
+      "status": "blocked",
+      "evidence": "worker status=blocked, blockers=env-file-provided, inspect-json-provided, env-file-worker-flags-disabled, inspect-worker-flags-disabled, admin-worker-library-roots, admin-worker-image-observed",
+      "blocks_release_review": true,
+      "required_evidence": "Provide accepted NAS admin-worker env and inspect proof."
+    },
+    {
+      "id": "cutter-proof-accepted",
+      "title": "Cutter compatibility proof is accepted",
+      "category": "cutter",
+      "status": "blocked",
+      "evidence": "cutter status=blocked, blockers=windows-acceptance-report-provided, windows-acceptance-passed, reviewed-auth-mode, public-library-ready-count, public-library-first-page-readable, search-protocol-readable, transcript-detail-readable, real-cut-report-provided, real-cut-smoke-passed, real-cut-output-produced, real-cut-core-phases-done",
+      "blocks_release_review": true,
+      "required_evidence": "Provide accepted staged-candidate Windows Cutter compatibility proof."
+    },
+    {
+      "id": "staging-runbook-ready",
+      "title": "Docker staging runbook is ready for release review",
+      "category": "runbook",
+      "status": "blocked",
+      "evidence": "staging blockers: current-image-tag-provided, target-image-tag-provided, rollback-image-tag-provided, target-differs-from-current, rollback-tag-matches-current, parity-report-blockers-clear, candidate-contract-proof-accepted, worker-env-proof-accepted, cutter-compatibility-proof-accepted",
+      "blocks_release_review": true,
+      "required_evidence": "Regenerate the staging runbook after explicit tags and evidence gates are satisfied."
+    },
+    {
+      "id": "summary-does-not-approve-upload",
+      "title": "Summary does not approve Docker upload by itself",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "staging_runbook.docker_deploy_allowed=false",
+      "blocks_release_review": false,
+      "required_evidence": "Docker upload must remain a separate release decision even when evidence gates are ready."
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 2,
+    "blocked": 5,
+    "release_review_blockers": [
+      "live-readonly-blockers-clear",
+      "parity-plan-blockers-clear",
+      "worker-proof-accepted",
+      "cutter-proof-accepted",
+      "staging-runbook-ready"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Docker release review remains blocked by archived evidence gates."
+  },
+  "next_actions": [
+    "Update or stage a NAS Docker image exposing the current Admin API contract endpoints, then rerun the GET-only live-readonly probe and parity plan.",
+    "Update or stage a NAS Docker image exposing admin_worker_env_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.",
+    "Update or stage a NAS Docker image exposing cutter_compatibility_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.",
+    "Resolve NAS disk pressure before staging; do not treat low free space as a cosmetic warning.",
+    "Collect NAS-exported admin-worker env and inspect evidence, then rerun validate:admin-worker-env-proof.",
+    "After a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.",
+    "Provide explicit current, target, and rollback Docker image tags before release review."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260627T160218Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260627T160218Z.md"
+  }
+}

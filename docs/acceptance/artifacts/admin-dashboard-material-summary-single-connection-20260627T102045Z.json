@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T10:20:45.000Z",
+  "slice": "R.242 Dashboard Material Summary Single-Connection Read",
+  "phase": "Phase 3 Admin Read Model and Query API performance",
+  "goal_coverage": "slice",
+  "full_goal_statement": "This advances Admin Architecture v1 by reducing Dashboard material-summary read-model overhead. It does not complete material-summary projection rebuilds, Protection Gate coverage, route-loader restructuring, UI information architecture, redundancy cleanup, Docker release gates, or the full Admin Architecture v1 goal.",
+  "role_review": {
+    "project_architect": "approved: the slice stays on the read-model/query mainline and does not convert the issue into a Dashboard UI patch.",
+    "delivery_lead": "approved: the change is GET/read-path only, preserves response shape and freshness behavior, and does not write or rebuild NAS data."
+  },
+  "implementation": {
+    "files_changed": [
+      "packages/admin-api/src/admin-read-model-store.ts",
+      "docs/architecture/admin-architecture-v1-next-implementation-plan.md",
+      "docs/architecture/admin-architecture-v1-requirements-traceability.md"
+    ],
+    "summary": [
+      "readAdminDashboardMaterialSummaryFromStore now opens admin.sqlite once and reuses metadata/counts for freshness.",
+      "The function no longer calls readAdminReadModelStoreStatus and then reopens the same store for material metadata.",
+      "The read path still refuses missing stores, stale stores, missing material-summary metadata, and summary count mismatches.",
+      "A direct NAS inspection showed the current store has no dashboard_material_* metadata rows, so projection availability remains a separate follow-up."
+    ],
+    "non_goals": [
+      "No material-summary rebuild.",
+      "No Dashboard UI change.",
+      "No NAS data mutation.",
+      "No read-model reconcile start.",
+      "No Docker deployment.",
+      "No Cutter release/index/search protocol change.",
+      "No broad cache or fixture substitution."
+    ]
+  },
+  "performance": {
+    "before": {
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T101631Z.md",
+      "dashboard_metrics_p95_ms": 471.5,
+      "material_summary_component_ms": 144.0,
+      "direct_function_probe_range_ms": "126.0-138.2"
+    },
+    "after": {
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T102045Z.md",
+      "dashboard_metrics_p95_ms": 451.2,
+      "material_summary_component_ms": 73.0,
+      "direct_function_probe_warm_range_ms": "64.9-72.3",
+      "dashboard_metrics_warm_cache_ms": [
+        2.0,
+        1.4
+      ]
+    },
+    "data_findings": [
+      "The live NAS admin.sqlite currently has no dashboard_material_* metadata rows.",
+      "The optimized reader returns null faster when material-summary metadata is absent.",
+      "A later projection/rebuild slice should decide how and when dashboard_material_* metadata is created without mutating data from page requests."
+    ]
+  },
+  "verification": {
+    "passed": [
+      "node --test --import tsx packages/admin-api/src/admin-read-model-store.test.ts",
+      "node --test --import tsx packages/admin-api/src/admin-dashboard-metrics-query.test.ts packages/admin-api/src/admin-dashboard-read-facade.test.ts packages/admin-api/src/admin-source-video-status-page-query.test.ts packages/admin-api/src/admin-source-video-routes.test.ts",
+      "npm run typecheck",
+      "npm run validate:admin-real-nas-performance-isolated",
+      "npm run audit:admin-redundancy-governance"
+    ],
+    "test_counts": {
+      "read_model_store_tests": 33,
+      "dashboard_and_source_video_focused_tests": 25
+    },
+    "artifacts": {
+      "isolated_performance_json": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T102044Z.json",
+      "isolated_performance_markdown": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T102044Z.md",
+      "performance_json": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T102045Z.json",
+      "performance_markdown": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T102045Z.md",
+      "redundancy_audit_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T102044Z.json",
+      "redundancy_audit_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T102044Z.md"
+    },
+    "redundancy_audit_note": "The audit command exited successfully and preserved the governance state: cleanup remains blocked until candidates are reviewed. This is expected because R.242 is not a redundancy-cleanup slice."
+  },
+  "safety": {
+    "nas_mutation": false,
+    "docker_mutation": false,
+    "cutter_protocol_change": false,
+    "ready_asset_change": false,
+    "page_time_full_scan": false,
+    "read_model_rebuild_started": false
+  },
+  "remaining_gaps": [
+    "Dashboard material-summary projection availability is still unresolved because the observed admin.sqlite has no dashboard_material_* metadata rows.",
+    "Dashboard production_summary remains variable and measured 190ms in the latest cold sample.",
+    "usage_metrics still costs about 112ms on the observed NAS run.",
+    "Source-video status_store_page remains the dominant source-video status-list cost.",
+    "Route-loader restructuring, UI information architecture, Protection Gate completion, redundancy cleanup, Docker release gates, and full Admin Architecture v1 remain incomplete."
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "artifact": "admin-source-videos-runtime-components",
+  "generated_at": "2026-06-27T10:04:55.000Z",
+  "result": "pass",
+  "scope": {
+    "phase": "Phase 3 Admin Read Model and Query API observability",
+    "slice": "R.239 Source Videos Runtime Component Evidence",
+    "endpoints": [
+      "/api/admin/source-videos?status=processing&limit=20",
+      "/api/admin/source-videos?status=index-required&limit=20",
+      "/api/admin/source-videos?status=queued&limit=20"
+    ],
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "docker_deployment": false,
+    "nas_mutation": false,
+    "cutter_protocol_change": false
+  },
+  "implementation": {
+    "files": [
+      "packages/admin-api/src/admin-source-video-status-page-query.ts",
+      "packages/admin-api/src/admin-source-video-read-facade.ts",
+      "packages/admin-api/src/admin-source-video-routes.ts",
+      "packages/admin-api/src/admin-source-video-status-page-query.test.ts",
+      "packages/admin-api/src/admin-source-video-routes.test.ts",
+      "scripts/acceptance/admin-real-nas-performance.ts",
+      "scripts/acceptance/admin-real-nas-performance.test.ts"
+    ],
+    "components": [
+      "library_counts",
+      "status_store_page",
+      "status_read_model",
+      "manifest_id_page"
+    ],
+    "required_contracts": [
+      {
+        "endpoint_name": "source_videos_processing",
+        "expected_components": ["library_counts", "status_store_page"]
+      },
+      {
+        "endpoint_name": "source_videos_index_required",
+        "expected_components": ["library_counts", "status_store_page"]
+      },
+      {
+        "endpoint_name": "source_videos_queued",
+        "expected_components": ["library_counts", "status_store_page"]
+      }
+    ]
+  },
+  "performance": {
+    "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T100455Z.md",
+    "source_videos_processing": {
+      "p95_ms": 67.6,
+      "status_store_page_avg_ms": 66.5,
+      "status_store_page_max_ms": 67.0,
+      "manifests": 0
+    },
+    "source_videos_index_required": {
+      "p95_ms": 222.6,
+      "status_store_page_avg_ms": 219.5,
+      "status_store_page_max_ms": 221.0,
+      "manifests": 19
+    },
+    "source_videos_queued": {
+      "p95_ms": 177.8,
+      "status_store_page_avg_ms": 172.0,
+      "status_store_page_max_ms": 174.0,
+      "manifests": 20
+    },
+    "source_videos_failed": {
+      "p95_ms": 72.2,
+      "status_store_page_avg_ms": 69.0,
+      "status_store_page_max_ms": 69.0,
+      "manifests": 0
+    }
+  },
+  "verification": [
+    {
+      "command": "node --test --import tsx packages/admin-api/src/admin-source-video-status-page-query.test.ts packages/admin-api/src/admin-source-video-routes.test.ts packages/admin-api/src/admin-source-video-read-facade.test.ts scripts/acceptance/admin-real-nas-performance.test.ts scripts/acceptance/admin-real-nas-performance-isolated.test.ts",
+      "result": "pass",
+      "tests": 33
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "npm run validate:admin-real-nas-performance-isolated",
+      "result": "pass",
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T100454Z.md"
+    },
+    {
+      "command": "npm run audit:admin-redundancy-governance",
+      "result": "pass_as_governance_blocked",
+      "artifact": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T100518Z.md"
+    }
+  ],
+  "remaining_gaps": [
+    "Source-videos first page still has no component timings because it uses the default-page path, not status-page query.",
+    "The next performance target is status_store_page itself: index-required and queued spend most of their time in the read-model SQLite page read over SMB.",
+    "This slice is observability only and does not change source-video list semantics, sorting, API data shape, Docker deployment, or Cutter protocols."
+  ]
+}

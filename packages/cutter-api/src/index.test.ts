@@ -1762,7 +1762,15 @@ test("malformed usage events do not break authenticated source search", async ()
     assert.equal(response.status, 200);
     const body = await response.json() as any;
     assert.equal(body.data.groups[0].source_video_id, "V000001");
-    await assert.rejects(() => readUsageMetrics(libraryRoot), /使用事件存储文件格式错误/);
+    const metrics = await waitForUsageMetrics(
+      libraryRoot,
+      (usage) => usage.search_request_count === 1
+    );
+    assert.equal(metrics.search_request_count, 1);
+    assert.equal(metrics.event_store.line_count, 2);
+    assert.equal(metrics.event_store.valid_line_count, 1);
+    assert.equal(metrics.event_store.malformed_line_count, 1);
+    assert.deepEqual(metrics.event_store.malformed_lines, [1]);
   });
 });
 
@@ -1813,7 +1821,15 @@ test("malformed usage events do not break authenticated local clip creation", as
     const body = await response.json() as any;
     assert.equal(body.data.local_clip_id, "LC000001");
     assert.equal(cutOutputs.length, 1);
-    await assert.rejects(() => readUsageMetrics(libraryRoot), /使用事件存储文件格式错误/);
+    const metrics = await waitForUsageMetrics(
+      libraryRoot,
+      (usage) => usage.local_clip_count === 1
+    );
+    assert.equal(metrics.local_clip_count, 1);
+    assert.equal(metrics.event_store.malformed_line_count, 1);
+    assert.equal(metrics.event_store.line_count >= 2, true);
+    assert.equal(metrics.event_store.valid_line_count, metrics.event_store.line_count - 1);
+    assert.deepEqual(metrics.event_store.malformed_lines, [1]);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

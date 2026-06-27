@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "artifact": "admin-preprocess-job-page-query-plan",
+  "generated_at": "2026-06-27T09:57:44.000Z",
+  "result": "pass",
+  "scope": {
+    "phase": "Phase 3 Admin Read Model and Query API",
+    "slice": "R.238 Preprocess Job Page Query Plan Optimization",
+    "endpoint": "/api/admin/preprocess/jobs?limit=20",
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "docker_deployment": false,
+    "nas_mutation": false,
+    "cutter_protocol_change": false
+  },
+  "query_plan_findings": [
+    {
+      "query": "source_video_status by preprocess_status ordered by position",
+      "plan": "SEARCH source_video_status USING INDEX idx_admin_source_video_status_status_position (preprocess_status=?)",
+      "status": "indexed"
+    },
+    {
+      "query": "preprocess_job_status snapshots by source_video_id",
+      "plan": "SEARCH preprocess_job_status USING INDEX sqlite_autoindex_preprocess_job_status_1 (source_video_id=?)",
+      "status": "indexed"
+    },
+    {
+      "query": "preprocess_job_status global row count",
+      "plan": "SCAN preprocess_job_status USING COVERING INDEX idx_admin_preprocess_job_failed",
+      "status": "removed_from_page_hot_path"
+    }
+  ],
+  "implementation": {
+    "files": [
+      "packages/admin-api/src/admin-read-model-store.ts",
+      "packages/admin-api/src/admin-read-model-store.test.ts"
+    ],
+    "changes": [
+      "Reused one SQLite connection inside readAdminPreprocessJobManifestPageFromStore for status metadata and page rows.",
+      "Extracted shared statusFromMetadata freshness logic so the public status reader and the page reader use the same freshness contract.",
+      "Removed global preprocess_job_status COUNT(*) from the preprocess job page hot path.",
+      "Kept global snapshot row-count mismatch detection in process-history readiness and other diagnostic paths.",
+      "Added a focused test proving the page hot path can return current-page ready snapshots while readiness still reports table_row_count_mismatch."
+    ]
+  },
+  "performance": {
+    "before_artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T095420Z.md",
+    "after_artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T095744Z.md",
+    "before": {
+      "preprocess_jobs_warm_route_ms": 214.1,
+      "preprocess_job_page_avg_ms": 213.0,
+      "preprocess_job_page_max_ms": 213.0
+    },
+    "after": {
+      "preprocess_jobs_warm_route_ms": 149.1,
+      "preprocess_job_page_avg_ms": 147.0,
+      "preprocess_job_page_max_ms": 148.0
+    },
+    "improvement": {
+      "warm_route_ms": 65.0,
+      "warm_route_percent": 30.4,
+      "preprocess_job_page_avg_ms": 66.0,
+      "preprocess_job_page_avg_percent": 31.0
+    }
+  },
+  "verification": [
+    {
+      "command": "node --test --import tsx packages/admin-api/src/admin-read-model-store.test.ts",
+      "result": "pass",
+      "tests": 32
+    },
+    {
+      "command": "node --test --import tsx packages/admin-api/src/admin-preprocess-jobs-read-facade.test.ts packages/admin-api/src/admin-slow-read-routes.test.ts",
+      "result": "pass",
+      "tests": 8
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "npm run validate:admin-real-nas-performance-isolated",
+      "result": "pass",
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T095743Z.md"
+    },
+    {
+      "command": "npm run audit:admin-redundancy-governance",
+      "result": "pass_as_governance_blocked",
+      "artifact": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T095420Z.md"
+    }
+  ],
+  "remaining_gaps": [
+    "preprocess_job_page still spends about 147ms on SMB SQLite reads and can be considered for a short TTL read-model page cache only if route refresh behavior requires it.",
+    "source-videos status routes still need component-level timings before deeper query changes.",
+    "Dashboard production_summary still costs about 367ms and should be inspected separately.",
+    "This slice does not complete Protection Gate coverage, frontend loading architecture, redundancy cleanup, or Docker release gates."
+  ]
+}

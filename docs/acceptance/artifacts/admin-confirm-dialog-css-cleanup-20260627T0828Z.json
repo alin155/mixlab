@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T08:28:00.000Z",
+  "mode": "admin-confirm-dialog-css-cleanup-browser-qa",
+  "scope": {
+    "route": "http://127.0.0.1:5193/#/cutter-users",
+    "fixture_mode": true,
+    "changed_selector": ".admin-confirm-dialog footer",
+    "changed_file": "apps/admin-web/src/styles.css"
+  },
+  "change_summary": {
+    "removed_rule": "earlier exact duplicate .admin-confirm-dialog footer block",
+    "retained_rule_line": 5252,
+    "retained_declarations": {
+      "display": "flex",
+      "justify-content": "flex-end",
+      "gap": "8px"
+    }
+  },
+  "desktop": {
+    "viewport": {
+      "width": 1200,
+      "height": 829
+    },
+    "dialog_visible": true,
+    "dialog_box": {
+      "x": 360,
+      "y": 286,
+      "width": 480,
+      "height": 258
+    },
+    "footer_visible": true,
+    "footer_box": {
+      "x": 381,
+      "y": 487,
+      "width": 438,
+      "height": 36
+    },
+    "footer_display": "flex",
+    "footer_justify_content": "flex-end",
+    "footer_gap": "8px",
+    "button_count": 2,
+    "button_labels": [
+      "取消",
+      "确认停用"
+    ],
+    "document_no_horizontal_overflow": true,
+    "body_no_horizontal_overflow": true,
+    "screenshot": "output/playwright/admin-confirm-dialog-css-cleanup-20260627T0827Z.png"
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "dialog_visible": true,
+    "dialog_box": {
+      "x": 24,
+      "y": 284,
+      "width": 342,
+      "height": 276
+    },
+    "footer_visible": true,
+    "footer_box": {
+      "x": 45,
+      "y": 503,
+      "width": 300,
+      "height": 36
+    },
+    "footer_display": "flex",
+    "footer_justify_content": "flex-end",
+    "footer_gap": "8px",
+    "button_count": 2,
+    "button_labels": [
+      "取消",
+      "确认停用"
+    ],
+    "document_no_horizontal_overflow": true,
+    "body_no_horizontal_overflow": true,
+    "screenshot": "output/playwright/admin-confirm-dialog-css-cleanup-mobile-20260627T0828Z.png"
+  },
+  "supporting_artifacts": {
+    "css_governance_json": "docs/acceptance/artifacts/admin-css-governance-classification-20260627T082531Z.json",
+    "css_governance_markdown": "docs/acceptance/artifacts/admin-css-governance-classification-20260627T082531Z.md"
+  },
+  "result": {
+    "status": "pass",
+    "summary": "The retained .admin-confirm-dialog footer rule remains the computed footer contract on desktop and mobile; the dialog buttons are visible and no horizontal overflow is present."
+  }
+}

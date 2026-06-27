@@ -9,7 +9,12 @@ import {
   parseFfprobeSourceMetadata,
   resolveFfmpegRuntime
 } from "../../packages/ffmpeg-core/src/index.ts";
-import { getFileIdentity, type FileIdentityMode } from "../../packages/library-fs/src/index.ts";
+import {
+  DEFAULT_PREPROCESS_DISK_BLOCK_USAGE_PERCENT,
+  getFileIdentity,
+  inspectPreprocessSafety,
+  type FileIdentityMode
+} from "../../packages/library-fs/src/index.ts";
 import { redactUrlQueryForLogging } from "../../packages/oss-core/src/index.ts";
 import {
   resolvePreprocessAudioMode,
@@ -20,6 +25,15 @@ import {
   runSourceVideoTextPreprocess,
   type RunLibraryTextPreprocessWorkerResult
 } from "../../packages/preprocess-core/src/index.ts";
+import {
+  adminCommandSystemActor
+} from "../../packages/admin-api/src/admin-command-audit.ts";
+import {
+  resolveAdminDockerMvpMode
+} from "../../packages/admin-api/src/admin-command-guard.ts";
+import {
+  createAdminWorkerLifecycleCommands
+} from "../../packages/admin-api/src/admin-worker-lifecycle-commands.ts";
 
 const ENABLE_FLAG = "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER";
 
@@ -187,6 +201,11 @@ const libraryId = optionalTrimmed(process.env.MIXLAB_PREPROCESS_LIBRARY_ID) ?? "
 const libraryName = optionalTrimmed(process.env.MIXLAB_PREPROCESS_LIBRARY_NAME) ?? "主素材库";
 const workerId =
   optionalTrimmed(process.env.MIXLAB_PREPROCESS_WORKER_ID) ?? `worker-${process.pid}`;
+const dockerMvpMode = resolveAdminDockerMvpMode(process.env);
+const scanBeforeClaim = dockerMvpMode === "v0.1" ? false : true;
+const claimStatuses: Array<"queued" | "unprocessed"> = dockerMvpMode === "v0.1"
+  ? ["queued"]
+  : ["queued", "unprocessed"];
 const audioMode = parsePreprocessAudioMode();
 const fileIdentityMode = parseFileIdentityMode();
 const limit = parsePositiveIntegerEnv("MIXLAB_PREPROCESS_WORKER_LIMIT");
@@ -195,6 +214,31 @@ const countRefreshInterval =
 const maxPollAttempts = parsePositiveIntegerEnvWithDefault("MIXLAB_ASR_MAX_POLL_ATTEMPTS", 60);
 const pollIntervalMs = parsePositiveIntegerEnvWithDefault("MIXLAB_ASR_POLL_INTERVAL_MS", 3000);
 const asrModel = optionalTrimmed(process.env.MIXLAB_ASR_MODEL) ?? "paraformer-v2";
+const safety = await inspectPreprocessSafety({
+  library_root: libraryRoot,
+  now: startedAt,
+  disk_block_usage_percent: parsePositiveIntegerEnvWithDefault(
+    "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT",
+    DEFAULT_PREPROCESS_DISK_BLOCK_USAGE_PERCENT
+  ),
+  include_processing_guard: true
+});
+
+if (!safety.safe_to_start) {
+  console.log("Library preprocessing worker skipped by safety gate.");
+  console.log(
+    JSON.stringify(
+      {
+        reason: "preprocess_safety_blocked",
+        safety
+      },
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
 const uploader = createDashScopeTemporaryFileAudioUploader({
   api_key: process.env.DASHSCOPE_API_KEY ?? "",
   model: asrModel,
@@ -209,6 +253,9 @@ console.log(
       library_id: libraryId,
       library_name: libraryName,
       worker_id: workerId,
+      docker_mvp_mode: dockerMvpMode,
+      scan_before_claim: scanBeforeClaim,
+      claim_statuses: claimStatuses,
       limit: limit ?? null,
       count_refresh_interval: countRefreshInterval,
       audio_mode: audioMode.id,
@@ -228,8 +275,13 @@ const result = await runLibraryTextPreprocessWorker({
   library_name: libraryName,
   worker_id: workerId,
   ...(limit ? { limit } : {}),
+  scan_before_claim: scanBeforeClaim,
+  claim_statuses: claimStatuses,
   count_refresh_interval: countRefreshInterval,
   audio_mode: audioMode.id,
+  lifecycle: createAdminWorkerLifecycleCommands({
+    actor: adminCommandSystemActor("预处理独立工作器", "system-task")
+  }),
   async probe_source_video(input) {
     const plan = buildFfprobeSourceMetadataPlan({
       source_path: input.source_video_path

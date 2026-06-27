@@ -1,20 +1,30 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runSourceVideoTextPreprocess } from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
-  const root = await mkdir(path.join(os.tmpdir(), `mixlab-preprocess-core-${Date.now()}-`), {
-    recursive: true
-  });
+  return mkdtemp(path.join(os.tmpdir(), "mixlab-preprocess-core-"));
+}
 
-  if (!root) {
-    throw new Error("failed to create test library root");
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
   }
+}
 
-  return root;
+function requireString(value: unknown, message: string): string {
+  assert.equal(typeof value, "string", message);
+  return value as string;
 }
 
 test("extracts audio, uploads it, runs ASR, and writes transcript artifacts", async () => {
@@ -136,19 +146,30 @@ test("extracts audio, uploads it, runs ASR, and writes transcript artifacts", as
 
   assert.equal(commands.length, 1);
   assert.equal(commands[0]?.executable, "/bin/ffmpeg");
+  const extractedAudioPath = requireString(commands[0]?.args.at(-1), "expected ffmpeg output path");
+  const finalAudioPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "asr-audio",
+    "audio.mp3"
+  );
+
+  assert.notEqual(extractedAudioPath, finalAudioPath);
+  assert.equal(path.dirname(extractedAudioPath), path.dirname(finalAudioPath));
+  assert.match(extractedAudioPath, /audio\.tmp-.+\.mp3$/);
   assert.deepEqual(uploadedFiles, [
     {
-      local_file_path: path.join(
-        libraryRoot,
-        ".mixlab-library",
-        "videos",
-        "V000001",
-        "asr-audio",
-        "audio.mp3"
-      ),
+      local_file_path: finalAudioPath,
       object_key: "mixlab-stage/lib_main_001/asr-audio/V000001/audio.mp3"
     }
   ]);
+  assert.equal(await readFile(finalAudioPath, "utf8"), "fake-audio");
+  assert.equal(
+    (await readdir(path.dirname(finalAudioPath))).some((entry) => entry.includes(".tmp-")),
+    false
+  );
   assert.deepEqual(result, {
     source_video_id: "V000001",
     audio_path: ".mixlab-library/videos/V000001/asr-audio/audio.mp3",
@@ -463,7 +484,18 @@ test("uses the selected wav production audio mode for preprocessing", async () =
     }
   });
 
-  assert.deepEqual(commands[0]?.args, [
+  const commandArgs = commands[0]?.args ?? [];
+  const finalAudioPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "asr-audio",
+    "audio.wav"
+  );
+  const extractedAudioPath = requireString(commandArgs.at(-1), "expected ffmpeg output path");
+
+  assert.deepEqual(commandArgs.slice(0, -1), [
     "-hide_banner",
     "-y",
     "-i",
@@ -474,28 +506,78 @@ test("uses the selected wav production audio mode for preprocessing", async () =
     "-ar",
     "16000",
     "-codec:a",
-    "pcm_s16le",
-    path.join(
-      libraryRoot,
-      ".mixlab-library",
-      "videos",
-      "V000001",
-      "asr-audio",
-      "audio.wav"
-    )
+    "pcm_s16le"
   ]);
+  assert.notEqual(extractedAudioPath, finalAudioPath);
+  assert.equal(path.dirname(extractedAudioPath), path.dirname(finalAudioPath));
+  assert.match(extractedAudioPath, /audio\.tmp-.+\.wav$/);
   assert.deepEqual(uploadedInputs, [
     {
-      local_file_path: path.join(
-        libraryRoot,
-        ".mixlab-library",
-        "videos",
-        "V000001",
-        "asr-audio",
-        "audio.wav"
-      ),
+      local_file_path: finalAudioPath,
       content_type: "audio/wav"
     }
   ]);
   assert.equal(result.audio_path, ".mixlab-library/videos/V000001/asr-audio/audio.wav");
+});
+
+test("cleans temporary audio when extraction fails before upload", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const sourceVideoPath = path.join(libraryRoot, "source-videos", "课程", "老板现金流.mp4");
+  const finalAudioPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "asr-audio",
+    "audio.mp3"
+  );
+  let temporaryAudioPath = "";
+
+  await mkdir(path.dirname(sourceVideoPath), { recursive: true });
+  await writeFile(sourceVideoPath, "fake-video");
+
+  await assert.rejects(() => runSourceVideoTextPreprocess({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    source_video_id: "V000001",
+    source_video_path: sourceVideoPath,
+    ffmpeg_path: "/bin/ffmpeg",
+    audio_format: "mp3",
+    now: "2026-05-02T00:00:00Z",
+    command_runner: {
+      async run(_executable, args) {
+        const outputPath = args.at(-1);
+
+        if (!outputPath) {
+          throw new Error("missing output path");
+        }
+
+        temporaryAudioPath = outputPath;
+        await mkdir(path.dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, "partial-audio");
+        throw new Error("ffmpeg failed");
+      }
+    },
+    uploader: {
+      async uploadAsrAudio() {
+        throw new Error("upload should not run after extraction failure");
+      }
+    },
+    asr_http: {
+      async requestJson() {
+        throw new Error("ASR submit should not run after extraction failure");
+      },
+      async getJson() {
+        throw new Error("ASR result fetch should not run after extraction failure");
+      }
+    },
+    asr: {
+      api_key: "sk-test-secret",
+      model: "paraformer-v2"
+    }
+  }), /ffmpeg failed/);
+
+  assert.match(temporaryAudioPath, /audio\.tmp-.+\.mp3$/);
+  assert.equal(await pathExists(temporaryAudioPath), false);
+  assert.equal(await pathExists(finalAudioPath), false);
 });

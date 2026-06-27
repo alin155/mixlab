@@ -1,0 +1,507 @@
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
+const DEFAULT_ARTIFACT_DIR = "docs/acceptance/artifacts";
+
+type ReadinessStatus = "pass" | "blocked";
+type ReadinessCategory =
+  | "safety"
+  | "local-smoke"
+  | "live-nas"
+  | "parity"
+  | "worker"
+  | "cutter"
+  | "runbook";
+
+interface ReadinessGate {
+  id: string;
+  title: string;
+  category: ReadinessCategory;
+  status: ReadinessStatus;
+  evidence: string;
+  blocks_release_review: boolean;
+  required_evidence?: string;
+}
+
+interface ReadinessSummary {
+  total: number;
+  passed: number;
+  blocked: number;
+  release_review_blockers: string[];
+}
+
+interface ReadinessSources {
+  local_docker_smoke_report: string;
+  live_readonly_report: string;
+  parity_plan_report: string;
+  worker_env_proof_report: string;
+  cutter_compatibility_proof_report: string;
+  staging_runbook_report: string;
+}
+
+export interface AdminDockerReleaseReadinessSummaryReport {
+  schema_version: "1.0";
+  generated_at: string;
+  command: string;
+  mode: "admin-docker-release-readiness-summary";
+  sources: ReadinessSources;
+  release_review_ready: boolean;
+  docker_upload_allowed: false;
+  observations: {
+    local_smoke_status: string;
+    local_smoke_passed: boolean | null;
+    local_smoke_blockers: string[];
+    live_status: string;
+    live_upload_blockers: string[];
+    parity_status: string;
+    parity_upload_blockers: string[];
+    worker_status: string;
+    worker_proof_accepted: boolean | null;
+    worker_upload_blockers: string[];
+    cutter_status: string;
+    cutter_proof_accepted: boolean | null;
+    cutter_upload_blockers: string[];
+    staging_status: string;
+    staging_review_ready: boolean | null;
+    staging_blockers: string[];
+    unresolved_parity_blockers: string[];
+    resolved_external_parity_blockers: string[];
+  };
+  gates: ReadinessGate[];
+  summary: ReadinessSummary;
+  result: {
+    status: "ready-for-release-decision" | "blocked";
+    summary: string;
+  };
+  next_actions: string[];
+  artifacts: {
+    json_path: string;
+    markdown_path: string;
+  } | null;
+}
+
+function timestampForFile(date = new Date()): string {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function summaryBlockers(report: unknown, key = "upload_blockers"): string[] {
+  return asArray(asRecord(asRecord(report).summary)[key])
+    .filter((item): item is string => typeof item === "string");
+}
+
+function resultStatus(report: unknown): string {
+  return asString(asRecord(asRecord(report).result).status);
+}
+
+function gate(input: ReadinessGate): ReadinessGate {
+  return input;
+}
+
+function summarize(gates: ReadinessGate[]): ReadinessSummary {
+  const releaseReviewBlockers = gates
+    .filter((item) => item.blocks_release_review && item.status !== "pass")
+    .map((item) => item.id);
+
+  return {
+    total: gates.length,
+    passed: gates.filter((item) => item.status === "pass").length,
+    blocked: gates.filter((item) => item.status === "blocked").length,
+    release_review_blockers: releaseReviewBlockers
+  };
+}
+
+function latestArtifact(artifactDir: string, prefix: string): Promise<string> {
+  return readdir(artifactDir).then((files) => {
+    const candidates = files
+      .filter((file) => file.startsWith(prefix) && file.endsWith(".json"))
+      .sort();
+
+    if (candidates.length === 0) {
+      throw new Error(`No ${prefix}*.json artifact found in ${artifactDir}`);
+    }
+
+    return path.join(artifactDir, candidates[candidates.length - 1]);
+  });
+}
+
+async function loadJson(filePath: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8")) as unknown;
+  } catch (error) {
+    throw new Error(`Failed to read JSON report at ${filePath}: ${errorMessage(error)}`);
+  }
+}
+
+function nextActions(input: {
+  localSmokePassed: boolean | null;
+  localSmokeBlockers: string[];
+  liveBlockers: string[];
+  parityBlockers: string[];
+  workerAccepted: boolean | null;
+  cutterAccepted: boolean | null;
+  stagingBlockers: string[];
+}): string[] {
+  const actions: string[] = [];
+
+  if (!input.localSmokePassed) {
+    actions.push("Run the Admin Docker local smoke on a Docker-capable machine with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1, then rerun validate:admin-docker-release-readiness-summary.");
+  }
+
+  if (input.localSmokeBlockers.includes("docker-cli-available") || input.localSmokeBlockers.includes("docker-compose-available")) {
+    actions.push("Provide Docker CLI and Docker Compose on the local/staging validation machine before treating the candidate as Docker-smoked.");
+  }
+
+  if (input.parityBlockers.includes("current-admin-api-contract-parity")) {
+    actions.push("Update or stage a NAS Docker image exposing the current Admin API contract endpoints, then rerun the GET-only live-readonly probe and parity plan.");
+  }
+
+  if (input.parityBlockers.includes("admin-worker-env-proof-contract")) {
+    actions.push("Update or stage a NAS Docker image exposing admin_worker_env_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.");
+  }
+
+  if (input.parityBlockers.includes("cutter-compatibility-proof-contract")) {
+    actions.push("Update or stage a NAS Docker image exposing cutter_compatibility_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.");
+  }
+
+  if (input.parityBlockers.includes("nas-disk-risk") || input.liveBlockers.includes("preprocess-disk")) {
+    actions.push("Resolve NAS disk pressure before staging; do not treat low free space as a cosmetic warning.");
+  }
+
+  if (!input.workerAccepted) {
+    actions.push("Collect NAS-exported admin-worker env and inspect evidence, then rerun validate:admin-worker-env-proof.");
+  }
+
+  if (!input.cutterAccepted) {
+    actions.push("After a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.");
+  }
+
+  if (input.stagingBlockers.includes("candidate-contract-proof-accepted")) {
+    actions.push("Run validate:admin-docker-candidate-contract-proof against the local or staged Admin candidate and require candidate_contract_ready:true before staging review.");
+  }
+
+  if (input.stagingBlockers.includes("image-push-explicitly-approved")) {
+    actions.push("Run the Admin Docker GitHub workflow manually with push_images=true after local Docker smoke passes, then set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true for the staging runbook.");
+  }
+
+  if (input.stagingBlockers.includes("target-tag-matches-smoked-image")) {
+    actions.push("Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact build_identity.image_tag from the accepted local Docker smoke report before staging review.");
+  }
+
+  if (input.stagingBlockers.some((item) => item.includes("image-tag") || item.includes("tag-"))) {
+    actions.push("Provide explicit current, target, and rollback Docker image tags before release review.");
+  }
+
+  if (actions.length === 0) {
+    actions.push("All evidence gates are ready for a separate release decision; this summary still does not upload Docker.");
+  }
+
+  return actions;
+}
+
+export function buildAdminDockerReleaseReadinessSummaryReport(input: {
+  generated_at: string;
+  command: string;
+  live_readonly_report_path: string;
+  live_readonly_report: unknown;
+  local_docker_smoke_report_path: string;
+  local_docker_smoke_report: unknown;
+  parity_plan_report_path: string;
+  parity_plan_report: unknown;
+  worker_env_proof_report_path: string;
+  worker_env_proof_report: unknown;
+  cutter_compatibility_proof_report_path: string;
+  cutter_compatibility_proof_report: unknown;
+  staging_runbook_report_path: string;
+  staging_runbook_report: unknown;
+}): AdminDockerReleaseReadinessSummaryReport {
+  const localSmokeBlockers = summaryBlockers(input.local_docker_smoke_report, "local_smoke_blockers");
+  const liveBlockers = summaryBlockers(input.live_readonly_report);
+  const parityBlockers = summaryBlockers(input.parity_plan_report);
+  const workerBlockers = summaryBlockers(input.worker_env_proof_report);
+  const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
+  const stagingBlockers = summaryBlockers(input.staging_runbook_report, "staging_blockers");
+  const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
+  const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
+  const localSmokePassed = asBoolean(asRecord(input.local_docker_smoke_report).local_smoke_passed);
+  const stagingReviewReady = asBoolean(asRecord(input.staging_runbook_report).staging_review_ready);
+  const stagingObservations = asRecord(asRecord(input.staging_runbook_report).observations);
+  const dockerDeployAllowed = asBoolean(asRecord(input.staging_runbook_report).docker_deploy_allowed);
+  const gates = [
+    gate({
+      id: "summary-no-side-effects",
+      title: "Readiness summary has no runtime side effects",
+      category: "safety",
+      status: "pass",
+      evidence: "This summary reads archived artifacts only; it does not contact Docker, NAS, Windows Runner, Admin API, or Cutter API.",
+      blocks_release_review: false
+    }),
+    gate({
+      id: "local-docker-smoke-passed",
+      title: "Local Docker candidate smoke has passed",
+      category: "local-smoke",
+      status: localSmokePassed ? "pass" : "blocked",
+      evidence: localSmokePassed
+        ? "Local Docker smoke passed with local images, compose stack, endpoint probes, and admin-worker env proof."
+        : `Local Docker smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}`,
+      blocks_release_review: !localSmokePassed,
+      required_evidence: "Run validate:admin-docker-local-smoke with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 on a Docker-capable machine and require local_smoke_passed:true."
+    }),
+    gate({
+      id: "live-readonly-blockers-clear",
+      title: "Live NAS Docker read-only blockers are clear",
+      category: "live-nas",
+      status: liveBlockers.length === 0 ? "pass" : "blocked",
+      evidence: liveBlockers.length === 0 ? "No live-readonly upload blockers reported." : `Live blockers: ${liveBlockers.join(", ")}`,
+      blocks_release_review: liveBlockers.length > 0,
+      required_evidence: "Rerun the GET-only live-readonly probe after the staged target exposes current endpoints and live gates pass."
+    }),
+    gate({
+      id: "parity-plan-blockers-clear",
+      title: "Docker version/API parity blockers are clear",
+      category: "parity",
+      status: parityBlockers.length === 0 ? "pass" : "blocked",
+      evidence: parityBlockers.length === 0 ? "No parity upload blockers reported." : `Parity blockers: ${parityBlockers.join(", ")}`,
+      blocks_release_review: parityBlockers.length > 0,
+      required_evidence: "Current Admin API contract, disk risk, worker proof, and Cutter proof blockers must be cleared."
+    }),
+    gate({
+      id: "worker-proof-accepted",
+      title: "admin-worker env proof is accepted",
+      category: "worker",
+      status: workerAccepted ? "pass" : "blocked",
+      evidence: `worker status=${resultStatus(input.worker_env_proof_report) || "unknown"}, blockers=${workerBlockers.join(", ") || "none"}`,
+      blocks_release_review: !workerAccepted,
+      required_evidence: "Provide accepted NAS admin-worker env and inspect proof."
+    }),
+    gate({
+      id: "cutter-proof-accepted",
+      title: "Cutter compatibility proof is accepted",
+      category: "cutter",
+      status: cutterAccepted ? "pass" : "blocked",
+      evidence: `cutter status=${resultStatus(input.cutter_compatibility_proof_report) || "unknown"}, blockers=${cutterBlockers.join(", ") || "none"}`,
+      blocks_release_review: !cutterAccepted,
+      required_evidence: "Provide accepted staged-candidate Windows Cutter compatibility proof."
+    }),
+    gate({
+      id: "staging-runbook-ready",
+      title: "Docker staging runbook is ready for release review",
+      category: "runbook",
+      status: stagingReviewReady ? "pass" : "blocked",
+      evidence: stagingBlockers.length === 0 ? `staging_review_ready=${stagingReviewReady}` : `staging blockers: ${stagingBlockers.join(", ")}`,
+      blocks_release_review: !stagingReviewReady,
+      required_evidence: "Regenerate the staging runbook after explicit tags and evidence gates are satisfied."
+    }),
+    gate({
+      id: "summary-does-not-approve-upload",
+      title: "Summary does not approve Docker upload by itself",
+      category: "safety",
+      status: dockerDeployAllowed === false ? "pass" : "blocked",
+      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}`,
+      blocks_release_review: dockerDeployAllowed !== false,
+      required_evidence: "Docker upload must remain a separate release decision even when evidence gates are ready."
+    })
+  ];
+  const summary = summarize(gates);
+  const releaseReviewReady = summary.release_review_blockers.length === 0;
+
+  return {
+    schema_version: "1.0",
+    generated_at: input.generated_at,
+    command: input.command,
+    mode: "admin-docker-release-readiness-summary",
+    sources: {
+      local_docker_smoke_report: input.local_docker_smoke_report_path,
+      live_readonly_report: input.live_readonly_report_path,
+      parity_plan_report: input.parity_plan_report_path,
+      worker_env_proof_report: input.worker_env_proof_report_path,
+      cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
+      staging_runbook_report: input.staging_runbook_report_path
+    },
+    release_review_ready: releaseReviewReady,
+    docker_upload_allowed: false,
+    observations: {
+      local_smoke_status: resultStatus(input.local_docker_smoke_report),
+      local_smoke_passed: localSmokePassed,
+      local_smoke_blockers: localSmokeBlockers,
+      live_status: resultStatus(input.live_readonly_report),
+      live_upload_blockers: liveBlockers,
+      parity_status: resultStatus(input.parity_plan_report),
+      parity_upload_blockers: parityBlockers,
+      worker_status: resultStatus(input.worker_env_proof_report),
+      worker_proof_accepted: workerAccepted,
+      worker_upload_blockers: workerBlockers,
+      cutter_status: resultStatus(input.cutter_compatibility_proof_report),
+      cutter_proof_accepted: cutterAccepted,
+      cutter_upload_blockers: cutterBlockers,
+      staging_status: resultStatus(input.staging_runbook_report),
+      staging_review_ready: stagingReviewReady,
+      staging_blockers: stagingBlockers,
+      unresolved_parity_blockers: asArray(stagingObservations.unresolved_parity_upload_blockers)
+        .filter((item): item is string => typeof item === "string"),
+      resolved_external_parity_blockers: asArray(stagingObservations.resolved_external_parity_blockers)
+        .filter((item): item is string => typeof item === "string")
+    },
+    gates,
+    summary,
+    result: {
+      status: releaseReviewReady ? "ready-for-release-decision" : "blocked",
+      summary: releaseReviewReady
+        ? "All archived evidence gates are ready for a separate release decision; this summary still does not upload Docker."
+        : "Docker release review remains blocked by archived evidence gates."
+    },
+    next_actions: nextActions({
+      localSmokePassed,
+      localSmokeBlockers,
+      liveBlockers,
+      parityBlockers,
+      workerAccepted,
+      cutterAccepted,
+      stagingBlockers
+    }),
+    artifacts: null
+  };
+}
+
+export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): string {
+  const lines = [
+    "# Admin Docker Release Readiness Summary",
+    "",
+    `Generated: ${report.generated_at}`,
+    "",
+    `Mode: ${report.mode}`,
+    "",
+    `Result: ${report.result.status}`,
+    "",
+    `Release review ready: ${report.release_review_ready ? "yes" : "no"}`,
+    "",
+    `Docker upload allowed: ${report.docker_upload_allowed ? "yes" : "no"}`,
+    "",
+    "This summary reads archived artifacts only. It does not contact Docker, NAS, Windows Runner, Admin API, or Cutter API, and it does not approve Docker upload.",
+    "",
+    "## Sources",
+    "",
+    `- Local Docker smoke: ${report.sources.local_docker_smoke_report}`,
+    `- Live readonly: ${report.sources.live_readonly_report}`,
+    `- Parity plan: ${report.sources.parity_plan_report}`,
+    `- Worker proof: ${report.sources.worker_env_proof_report}`,
+    `- Cutter proof: ${report.sources.cutter_compatibility_proof_report}`,
+    `- Staging runbook: ${report.sources.staging_runbook_report}`,
+    "",
+    "## Observations",
+    "",
+    `- Local Docker smoke passed: ${report.observations.local_smoke_passed ?? "unknown"}; blockers: ${report.observations.local_smoke_blockers.join(", ") || "none"}`,
+    `- Live blockers: ${report.observations.live_upload_blockers.join(", ") || "none"}`,
+    `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
+    `- Worker accepted: ${report.observations.worker_proof_accepted ?? "unknown"}; blockers: ${report.observations.worker_upload_blockers.join(", ") || "none"}`,
+    `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
+    `- Staging ready: ${report.observations.staging_review_ready ?? "unknown"}; blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
+    `- Unresolved parity blockers: ${report.observations.unresolved_parity_blockers.join(", ") || "none"}`,
+    `- Resolved external parity blockers: ${report.observations.resolved_external_parity_blockers.join(", ") || "none"}`,
+    "",
+    "## Gates",
+    "",
+    "| Gate | Category | Status | Blocks Release Review | Evidence | Required Evidence |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...report.gates.map((item) => [
+      item.id,
+      item.category,
+      item.status,
+      item.blocks_release_review ? "yes" : "no",
+      item.evidence,
+      item.required_evidence ?? "n/a"
+    ].join(" | ")),
+    "",
+    "## Next Actions",
+    "",
+    ...report.next_actions.map((item) => `- ${item}`),
+    "",
+    "## Artifacts",
+    "",
+    `- JSON: ${report.artifacts?.json_path ?? "not written"}`,
+    `- Markdown: ${report.artifacts?.markdown_path ?? "not written"}`,
+    ""
+  ];
+
+  return `${lines.join("\n")}\n`;
+}
+
+async function main(): Promise<void> {
+  const outputDir = process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR ?? DEFAULT_OUTPUT_DIR;
+  const artifactDir = process.env.MIXLAB_ACCEPTANCE_ARTIFACT_DIR ?? DEFAULT_ARTIFACT_DIR;
+  const localSmokePath = process.env.MIXLAB_DOCKER_LOCAL_SMOKE_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
+  const livePath = process.env.MIXLAB_DOCKER_LIVE_READONLY_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-release-live-readonly-");
+  const parityPath = process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
+  const workerPath = process.env.MIXLAB_ADMIN_WORKER_ENV_PROOF_REPORT
+    ?? await latestArtifact(artifactDir, "admin-worker-env-proof-");
+  const cutterPath = process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT
+    ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
+  const runbookPath = process.env.MIXLAB_DOCKER_STAGING_RUNBOOK_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-staging-runbook-");
+  const timestamp = timestampForFile();
+  const jsonPath = path.join(outputDir, `admin-docker-release-readiness-summary-${timestamp}.json`);
+  const markdownPath = path.join(outputDir, `admin-docker-release-readiness-summary-${timestamp}.md`);
+  const report = buildAdminDockerReleaseReadinessSummaryReport({
+    generated_at: new Date().toISOString(),
+    command: process.argv.join(" "),
+    local_docker_smoke_report_path: localSmokePath,
+    local_docker_smoke_report: await loadJson(localSmokePath),
+    live_readonly_report_path: livePath,
+    live_readonly_report: await loadJson(livePath),
+    parity_plan_report_path: parityPath,
+    parity_plan_report: await loadJson(parityPath),
+    worker_env_proof_report_path: workerPath,
+    worker_env_proof_report: await loadJson(workerPath),
+    cutter_compatibility_proof_report_path: cutterPath,
+    cutter_compatibility_proof_report: await loadJson(cutterPath),
+    staging_runbook_report_path: runbookPath,
+    staging_runbook_report: await loadJson(runbookPath)
+  });
+  const reportWithArtifacts: AdminDockerReleaseReadinessSummaryReport = {
+    ...report,
+    artifacts: {
+      json_path: jsonPath,
+      markdown_path: markdownPath
+    }
+  };
+
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(jsonPath, `${JSON.stringify(reportWithArtifacts, null, 2)}\n`);
+  await writeFile(markdownPath, toMarkdown(reportWithArtifacts));
+  console.log(JSON.stringify(reportWithArtifacts, null, 2));
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  void main().catch((error) => {
+    console.error(errorMessage(error));
+    process.exitCode = 1;
+  });
+}

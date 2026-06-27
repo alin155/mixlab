@@ -4,7 +4,14 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createAdminSmartScanReport, createFixtureAdminApiClient, loadAdminDashboardData } from "./api.ts";
+import {
+  createAdminSmartScanReport,
+  createFixtureAdminApiClient,
+  loadAdminDashboardData,
+  type AdminPreprocessProcessHistoryOptions,
+  type AdminRuntimeDiagnosticsHistoryResponse,
+  type AdminRuntimeEndpointMeta
+} from "./api.ts";
 import {
   chineseDiagnosticText,
   diagnosticLabel,
@@ -13,22 +20,49 @@ import {
 } from "./app/chinese.ts";
 import { ADMIN_NAV_ITEMS, routeFromHash } from "./app/navigation.ts";
 import {
+  ADMIN_BACKGROUND_REFRESH_SPECS,
+  ADMIN_ROUTE_LOADING_SPECS,
+  ADMIN_ROUTE_LOCAL_READ_SPECS,
+  ADMIN_ROUTE_REQUEST_LOAD_SPECS,
+  ADMIN_ROUTE_TOKEN_LOAD_SPECS,
+  EMPTY_ADMIN_ROUTE_LOCAL_READ_ERRORS,
+  adminRouteLocalReadLabel,
+  adminRouteRenderLoadingState,
+  adminSourceVideoManifestFallbackPolicy,
+  clearAdminRouteLocalReadError,
+  createAdminBackgroundRefreshScope,
+  createAdminRouteRequestScope,
+  createAdminRouteTokenRequestScope,
+  setAdminRouteLocalReadError,
+  shouldStartAdminBackgroundRefresh,
+  shouldAutoRefreshAdminData,
+  shouldLoadAdminSourceVideos,
+  shouldPrefetchAdminRoute,
+  shouldStartAdminRouteRequestLoad,
+  shouldStartAdminRouteTokenLoad,
+  startAdminBackgroundRefresh,
+  startAdminRouteRequestLoad,
+  startAdminRouteTokenLoad
+} from "./app/route-loading-runtime.ts";
+import {
   ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS,
   AdminApp,
   adminActionErrorMessage,
   adminLoadErrorMessage,
+  loadAdminPreprocessRouteData,
   mergeAdminDashboardPanelData,
   mergeAdminSourceVideoPages,
   resolveAdminRuntimeApiBaseUrl,
-  shouldLoadAdminSourceVideos,
-  shouldAutoRefreshAdminData,
   sourceDetailForRequest,
   sourceDetailLoadErrorMessage,
   sourceDetailRequestForRoute
 } from "./app/AdminApp.tsx";
 import { DashboardPage, adminCorePathHealth, adminUsageFunnelRows } from "./features/dashboard/DashboardPage.tsx";
 import { DoctorPage } from "./features/doctor/DoctorPage.tsx";
+import { IndexPublishPage } from "./features/index-publish/IndexPublishPage.tsx";
+import { OperationLogPage } from "./features/operation-log/OperationLogPage.tsx";
 import { PreprocessJobsPage } from "./features/preprocess-jobs/PreprocessJobsPage.tsx";
+import { ProtectionCenterPage } from "./features/protection/ProtectionCenterPage.tsx";
 import { SettingsPage, adminFirstRunInitializationChecks } from "./features/settings/SettingsPage.tsx";
 import {
   CutterUserDisableDialog,
@@ -41,6 +75,50 @@ import { SourceVideosPage } from "./features/source-videos/SourceVideosPage.tsx"
 
 async function fixtureData() {
   return loadAdminDashboardData(createFixtureAdminApiClient());
+}
+
+function doctorRuntimeDiagnosticsFixture(): AdminRuntimeDiagnosticsHistoryResponse {
+  return {
+    schema_version: "1.0",
+    generated_at: "2024-05-07T10:40:00.000Z",
+    path: "/Volumes/PublicLibrary/.mixlab-library/admin-read-model/runtime-diagnostics.ndjson",
+    entries: [
+      {
+        schema_version: "1.0",
+        recorded_at: "2024-05-07T10:39:00.000Z",
+        runtime: {
+          schema_version: "1.0",
+          endpoint: "/api/admin/source-videos",
+          method: "GET",
+          duration_ms: 1_200,
+          scan_mode: "paged-list",
+          data_source: "admin-read-model",
+          scan_reason: "route-owned-page",
+          actual_data_source: "admin-read-model",
+          cache_status: "miss",
+          result_count: 20,
+          offset: 0,
+          limit: 20,
+          slow: true,
+          slow_reason: "素材列表超过目标耗时",
+          components: [
+            {
+              name: "status_page",
+              duration_ms: 840,
+              data_source: "admin-read-model",
+              scan_mode: "paged-list",
+              scan_reason: "route-owned-page",
+              cache_status: "miss"
+            }
+          ]
+        }
+      }
+    ],
+    limit: 20,
+    total_line_count: 2,
+    malformed_line_count: 1,
+    truncated: false
+  };
 }
 
 function visibleText(html: string): string {
@@ -59,14 +137,19 @@ function visibleText(html: string): string {
 test("admin navigation uses approved Chinese IA and legacy route aliases", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["仪表盘", "原视频管理", "预处理", "剪辑师用户", "设置"]
+    ["总览", "保护中心", "素材库", "预处理", "发布与索引", "剪辑师", "系统检查", "设置", "操作记录"]
   );
-  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "设置");
+  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "操作记录");
   assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "公共素材库设置"), false);
-  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "索引与发布"), false);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "发布与索引"), true);
   assert.equal(routeFromHash("#/library-settings"), "settings");
-  assert.equal(routeFromHash("#/index-health"), "preprocess-jobs");
-  assert.equal(routeFromHash("#/index-publish"), "preprocess-jobs");
+  assert.equal(routeFromHash("#/index-health"), "index-publish");
+  assert.equal(routeFromHash("#/index-publish"), "index-publish");
+  assert.equal(routeFromHash("#/release"), "protection");
+  assert.equal(routeFromHash("#/release-gates"), "protection");
+  assert.equal(routeFromHash("#/doctor"), "doctor");
+  assert.equal(routeFromHash("#/operation-log"), "operation-log");
+  assert.equal(routeFromHash("#/audit-log"), "operation-log");
 });
 
 test("admin web runtime defaults to the local real API instead of fixture data", () => {
@@ -90,14 +173,28 @@ test("admin web runtime defaults to the local real API instead of fixture data",
 
 test("rendered admin pages avoid obvious English user-facing labels", async () => {
   const data = await fixtureData();
+  const client = createFixtureAdminApiClient();
   const renderedPages = [
     renderToStaticMarkup(h(DashboardPage, { data })),
     renderToStaticMarkup(h(SourceVideosPage, { data })),
     renderToStaticMarkup(h(PreprocessJobsPage, { data })),
+    renderToStaticMarkup(h(ProtectionCenterPage, {
+      overview: await client.getOperationsOverview(),
+      readModelReconcileStatus: await client.getReadModelReconcileStatus(),
+      readModelReconcileError: "",
+      loading: false,
+      error: ""
+    })),
+    renderToStaticMarkup(h(IndexPublishPage, { data })),
     renderToStaticMarkup(h(DoctorPage, { data })),
     renderToStaticMarkup(h(CutterUsersPage, {
-      users: await createFixtureAdminApiClient().listCutterUsers(),
+      users: await client.listCutterUsers(),
       metrics: data.metrics.usage
+    })),
+    renderToStaticMarkup(h(OperationLogPage, {
+      operationLog: await client.getOperationLog(),
+      loading: false,
+      error: ""
     })),
     renderToStaticMarkup(h(SettingsPage, { data }))
   ];
@@ -119,6 +216,328 @@ test("rendered admin pages avoid obvious English user-facing labels", async () =
   ]) {
     assert.equal(text.includes(englishLabel), false, `${englishLabel} should not be visible`);
   }
+});
+
+test("index publish page follows the production-console composition contract", async () => {
+  const data = await fixtureData();
+  const indexRuntime: AdminRuntimeEndpointMeta = {
+    schema_version: "1.0",
+    endpoint: "/api/admin/index/versions",
+    method: "GET",
+    duration_ms: 684,
+    scan_mode: "paged-list",
+    data_source: "index-version-packages",
+    scan_reason: "index-version-page",
+    actual_data_source: "index-version-packages",
+    cache_status: "hit",
+    result_count: 2,
+    offset: 0,
+    limit: 20,
+    slow: false,
+    slow_reason: "",
+    components: [
+      {
+        name: "current_pointer_fast_page",
+        duration_ms: 301,
+        data_source: "current-index",
+        scan_mode: "no-scan",
+        scan_reason: "index-version-page",
+        cache_status: "hit"
+      },
+      {
+        name: "index_package_validation",
+        duration_ms: 241,
+        data_source: "index-version-packages",
+        scan_mode: "paged-list",
+        scan_reason: "index-version-page",
+        cache_status: "hit",
+        detail: "validated=2"
+      }
+    ]
+  };
+  const dataWithRuntime = {
+    ...data,
+    indexes: {
+      ...data.indexes,
+      runtime: indexRuntime
+    }
+  };
+  const html = renderToStaticMarkup(h(IndexPublishPage, {
+    data: dataWithRuntime,
+    onRepairIndex: () => undefined,
+    onPublishSourceVideo: () => undefined,
+    onRunDoctor: () => undefined
+  }));
+  const text = visibleText(html);
+
+  for (const expected of [
+    "发布与索引",
+    "发布队列",
+    "待发布索引",
+    "索引版本",
+    "版本详情",
+    "页面契约",
+    "主工作区 发布队列",
+    "辅助区 索引版本",
+    "发布队列来源 读模型",
+    "版本来源 索引版本包",
+    "扫描模式 不扫描",
+    "错误边界 本页面局部处理",
+    "路由加载",
+    "分页读取",
+    "版本读取 分页列表",
+    "索引版本页 · 684ms",
+    "版本来源 索引版本包",
+    "索引版本 · 分页列表 · 命中",
+    "版本窗口 2",
+    "偏移 0 · 上限 20",
+    "版本慢请求 正常",
+    "未超过目标耗时",
+    "版本组件耗时 2 个组件",
+    "当前指针快读 301ms / 当前索引 / 不扫描 / 命中",
+    "索引包校验 241ms / 索引版本 / 分页列表 / 命中",
+    "当前校验",
+    "校验索引"
+  ]) {
+    assert.equal(text.includes(expected), true, `${expected} should be visible`);
+  }
+  assert.doesNotMatch(text, /current_pointer_fast_page|index_package_validation|validated=2/);
+
+  assert.match(html, /aria-label="发布队列"/);
+  assert.match(html, /aria-label="索引版本"/);
+  assert.match(html, /aria-label="索引版本扫描证据"/);
+  assert.doesNotMatch(text, /Dashboard|dashboard/);
+  assert.equal(text.includes("请到素材库"), false);
+
+  const summaryOnlyText = visibleText(renderToStaticMarkup(h(IndexPublishPage, {
+    data: {
+      ...data,
+      source_videos: data.source_videos.filter((video) => video.preprocess_status !== "index-required"),
+      status: {
+        ...data.status,
+        index_required_video_count: 5
+      }
+    }
+  })));
+  assert.equal(summaryOnlyText.includes("摘要 5 条"), true);
+  assert.equal(summaryOnlyText.includes("请到素材库"), false);
+});
+
+test("protection center renders release gates and read-model status", async () => {
+  const client = createFixtureAdminApiClient();
+  const overview = await client.getOperationsOverview();
+  const readModelReconcileStatus = await client.getReadModelReconcileStatus();
+  const html = renderToStaticMarkup(h(ProtectionCenterPage, {
+    overview,
+    readModelReconcileStatus,
+    readModelReconcileError: "",
+    loading: false,
+    error: ""
+  }));
+
+  for (const text of [
+    "保护中心",
+    "发布门禁",
+    "读模型和加载策略",
+    "路径环境",
+    "版本信息",
+    "当前索引",
+    "admin.sqlite",
+    "查询库状态",
+    "对账计划",
+    "无需对账",
+    "扫描模式",
+    "不扫描",
+    "隐藏全库扫描",
+    "禁止",
+    "新鲜",
+    "页面契约",
+    "主工作区",
+    "发布门禁",
+    "辅助区",
+    "读模型状态",
+    "数据来源",
+    "data-loading-contract / read-model-reconcile",
+    "全量对账只作为显式维护命令",
+    "加载边界",
+    "路由加载，不阻塞 Admin Shell",
+    "命令边界",
+    "后台对账需显式启动或停止",
+    "错误边界",
+    "本页面局部处理",
+	    "后台对账",
+	    "运行中",
+	    "读取快照",
+	    "读取 preprocess job 快照",
+	    "总进度",
+	    "70%",
+	    "步骤进度",
+	    "10%",
+	    "preprocess job 快照",
+	    "64 / 623",
+	    "启动后台对账",
+	    "请求停止对账",
+	    "full-reconcile",
+	    "安全检查点"
+	  ]) {
+	    assert.match(html, new RegExp(text));
+	  }
+	});
+
+test("protection center exposes explicit read-model reconcile command controls", async () => {
+  const client = createFixtureAdminApiClient();
+  const overview = await client.getOperationsOverview();
+  const runningStatus = await client.getReadModelReconcileStatus();
+  const idleStatus = {
+    ...runningStatus,
+    status: "idle" as const,
+    phase: "idle" as const,
+    cancel_requested: false,
+    message: "Fixture idle"
+  };
+  const cancelRequestedStatus = {
+    ...runningStatus,
+    cancel_requested: true
+  };
+  const noop = () => undefined;
+  const buttonTag = (html: string, label: string) =>
+    html.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0] ?? "";
+  const runningHtml = renderToStaticMarkup(h(ProtectionCenterPage, {
+    overview,
+    readModelReconcileStatus: runningStatus,
+    readModelReconcileError: "",
+    onStartReadModelReconcile: noop,
+    onCancelReadModelReconcile: noop,
+    loading: false,
+    error: ""
+  }));
+  const idleHtml = renderToStaticMarkup(h(ProtectionCenterPage, {
+    overview,
+    readModelReconcileStatus: idleStatus,
+    readModelReconcileError: "",
+    onStartReadModelReconcile: noop,
+    onCancelReadModelReconcile: noop,
+    loading: false,
+    error: ""
+  }));
+  const cancelRequestedHtml = renderToStaticMarkup(h(ProtectionCenterPage, {
+    overview,
+    readModelReconcileStatus: cancelRequestedStatus,
+    readModelReconcileError: "",
+    onStartReadModelReconcile: noop,
+    onCancelReadModelReconcile: noop,
+    loading: false,
+    error: ""
+  }));
+
+  assert.match(buttonTag(runningHtml, "启动后台对账"), /disabled/);
+  assert.doesNotMatch(buttonTag(runningHtml, "请求停止对账"), /disabled/);
+  assert.doesNotMatch(buttonTag(idleHtml, "启动后台对账"), /disabled/);
+  assert.match(buttonTag(idleHtml, "请求停止对账"), /disabled/);
+  assert.match(buttonTag(cancelRequestedHtml, "请求停止对账"), /disabled/);
+  assert.match(visibleText(runningHtml), /显式维护命令/);
+});
+
+test("operation log renders read-model audit events as a route-owned read-only page", async () => {
+  const operationLog = await createFixtureAdminApiClient().getOperationLog({ limit: 50 });
+  const client = createFixtureAdminApiClient();
+  const restorePlanPreview = {
+    snapshotId: "fixture-source-video-metadata-snapshot",
+    plan: await client.getCommandSnapshotRestorePlan("fixture-source-video-metadata-snapshot"),
+    loading: false,
+    error: ""
+  };
+  const restoreResult = await client.restoreCommandSnapshot("fixture-source-video-metadata-snapshot");
+  const html = renderToStaticMarkup(h(OperationLogPage, {
+    operationLog,
+    loading: false,
+    error: "",
+    restorePlanPreview,
+    onPreviewCommandSnapshotRestore: () => undefined
+  }));
+  const text = visibleText(html);
+
+  for (const expected of [
+    "操作记录",
+    "审计记录",
+    "最近事件",
+    "保存素材信息",
+    "操作者 Owner",
+    "锁持有者 admin-api:source-video-metadata",
+    "剪辑师",
+    "通过剪辑师",
+    "命令 通过剪辑师",
+    "文件快照",
+    "已捕获 1 个文件",
+    "查看恢复预检",
+    "恢复预检通过",
+    "fixture-source-video-metadata-snapshot",
+    "1 可恢复 / 0 阻断 / 1 总数",
+    "不扫描",
+    "恢复执行",
+    "准备恢复",
+    "读模型对账",
+    "读模型失效标记",
+    "Admin read model 已标记为需要对账。",
+    "命令 保存设置",
+    "原因 素材来源范围变化",
+    "审计状态",
+    "fixture/.mixlab-library/admin/operation-log/events.ndjson",
+    "页面契约",
+    "主工作区 审计时间线",
+    "辅助区 恢复预检",
+    "数据来源 operation-log / command-snapshot",
+    "扫描模式 不扫描",
+    "加载边界 路由加载，只读取最近事件窗口",
+    "命令边界 确认执行恢复前重新预检",
+    "错误边界 本页面局部处理"
+  ]) {
+    assert.equal(text.includes(expected), true, `${expected} should be visible`);
+  }
+
+  assert.match(html, /<button/);
+  assert.doesNotMatch(html, />确认执行恢复<\/button>/);
+  assert.doesNotMatch(text, /read-model-invalidate/);
+  assert.doesNotMatch(text, /settings-config/);
+  assert.doesNotMatch(text, /source-folder-scope-change/);
+  assert.doesNotMatch(text, /Admin command/);
+
+  const armedText = visibleText(renderToStaticMarkup(h(OperationLogPage, {
+    operationLog,
+    loading: false,
+    error: "",
+    restorePlanPreview,
+    restoreExecution: {
+      snapshotId: "fixture-source-video-metadata-snapshot",
+      armed: true,
+      loading: false,
+      error: "",
+      result: null
+    },
+    onPreviewCommandSnapshotRestore: () => undefined,
+    onArmCommandSnapshotRestore: () => undefined,
+    onCancelCommandSnapshotRestore: () => undefined,
+    onExecuteCommandSnapshotRestore: () => undefined
+  })));
+  assert.equal(armedText.includes("确认执行恢复"), true);
+  assert.equal(armedText.includes("取消"), true);
+
+  const restoredText = visibleText(renderToStaticMarkup(h(OperationLogPage, {
+    operationLog,
+    loading: false,
+    error: "",
+    restorePlanPreview,
+    restoreExecution: {
+      snapshotId: "fixture-source-video-metadata-snapshot",
+      armed: false,
+      loading: false,
+      error: "",
+      result: restoreResult
+    },
+    onPreviewCommandSnapshotRestore: () => undefined
+  })));
+  assert.equal(restoredText.includes("恢复已执行"), true);
+  assert.equal(restoredText.includes("恢复 1 个文件，阻断 0 个文件"), true);
 });
 
 test("Chinese diagnostic helpers cover real doctor labels and hide unhandled English details", () => {
@@ -180,8 +599,8 @@ test("dashboard renders restrained library status", async () => {
   const html = renderToStaticMarkup(h(DashboardPage, { data }));
 
   for (const text of [
-    "Admin / Dashboard",
-    "公共素材库仪表盘",
+    "公共素材库生产状态",
+    "总览",
     "公共库摘要",
     "根目录",
     "可搜索总时长",
@@ -194,6 +613,10 @@ test("dashboard renders restrained library status", async () => {
     "索引发布",
     "最近预警",
     "局部刷新",
+    "数据来源",
+    "素材 读模型 · 不扫描",
+    "产能 读模型 · 不扫描",
+    "使用 读模型 · 不扫描",
     "下一步建议",
     "核心链路健康",
     "搜索到剪切可用，部分指标需要观察",
@@ -205,6 +628,21 @@ test("dashboard renders restrained library status", async () => {
     "搜索服务正常覆盖",
     "磁盘空间",
     "刷新方式",
+    "页面契约",
+    "主工作区",
+    "状态总览",
+    "辅助区",
+    "后台指标",
+    "首屏来源",
+    "library-manifest / admin-settings / supervisor-runtime",
+    "后台来源",
+    "admin-read-model / usage-events / runtime-telemetry",
+    "扫描模式",
+    "不扫描 / 后台状态扫描",
+    "刷新边界",
+    "Shell 首屏可用，指标卡片局部刷新",
+    "错误边界",
+    "Shell 保留，显示加载失败",
     "空状态",
     "错误状态",
     "v000027",
@@ -709,8 +1147,8 @@ test("settings merges library paths, runtime policy, and path checks", async () 
 	    assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
 	  }
 	  assert.doesNotMatch(html, /初始化素材库|扫描源视频|自动扫描素材来源|自动入队未处理视频|自动发布可用索引/);
-	  assert.doesNotMatch(html, /素材库编号|协议版本|预处理产物库|运行策略|路径与权限校验|是否需要迁移|语言提示|对象存储|最近失败/);
-	});
+  assert.doesNotMatch(html, /素材库编号|协议版本|预处理产物库|路径与权限校验|是否需要迁移|语言提示|对象存储|最近失败/);
+});
 
 test("settings exposes first-run initialization when protocol files are missing", async () => {
   const data = await fixtureData();
@@ -778,6 +1216,43 @@ test("settings renders editable source folder and runtime controls", async () =>
   assert.doesNotMatch(saveButton, /disabled/);
 });
 
+test("settings page follows the production-console composition contract", async () => {
+  const html = renderToStaticMarkup(h(SettingsPage, {
+    data: await fixtureData(),
+    onSaveAdminSettings: () => undefined,
+    onTestAsrConfig: () => undefined
+  }));
+  const text = visibleText(html);
+
+  for (const expectedText of [
+    "设置",
+    "设置表单",
+    "设置概览",
+    "素材来源",
+    "运行策略",
+    "路径检查",
+    "admin-settings",
+    "path-checks",
+    "runtime-secrets",
+    "settings-route",
+    "不扫描",
+    "本页面局部处理",
+    "本地编辑",
+    "命令操作",
+    "保存设置",
+    "检查语音识别"
+  ]) {
+    assert.match(text, new RegExp(expectedText));
+  }
+
+  assert.match(html, /aria-label="设置数据来源"/);
+  assert.match(html, /aria-label="设置表单"/);
+  assert.match(html, /aria-label="运行策略"/);
+  assert.match(html, /aria-label="路径检查"/);
+  assert.doesNotMatch(text, /Dashboard|dashboard/);
+  assert.doesNotMatch(text, /自动扫描素材来源|自动入队未处理视频|自动发布可用索引|隐藏全库扫描/);
+});
+
 test("source video management renders public metadata controls", async () => {
 	  const html = renderToStaticMarkup(h(SourceVideosPage, { data: await fixtureData() }));
 
@@ -801,6 +1276,136 @@ test("source video management renders public metadata controls", async () => {
 	  assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁|data-control-state="read-only"/);
 	  assert.doesNotMatch(html, /处理此视频|重试此视频|发布此视频|保存公开说明/);
 	});
+
+test("source video page follows the production-console composition contract", async () => {
+  const data = await fixtureData();
+  const noop = () => {};
+  const html = renderToStaticMarkup(h(SourceVideosPage, {
+    data,
+    onOpenSourceDetail: noop,
+    onSourceVideoFiltersChange: noop,
+    onLoadMoreSourceVideos: noop
+  }));
+  const text = visibleText(html);
+
+  for (const expectedText of [
+    "素材库",
+    "素材表格",
+    "素材详情",
+    "读模型",
+    "分页读取",
+    "不扫描",
+    "状态与搜索",
+    "页面控制",
+    "路由刷新",
+    "不写协议文件",
+    "首屏和继续加载都走素材库路由",
+    "已载入",
+    "全部原视频",
+    "生产待处理",
+    "保存素材信息"
+  ]) {
+    assert.match(text, new RegExp(expectedText));
+  }
+
+  assert.match(html, /aria-label="素材库数据来源"/);
+  assert.match(html, /aria-label="素材表格"/);
+  assert.doesNotMatch(text, /Dashboard|dashboard/);
+  assert.doesNotMatch(text, /初始化素材库|扫描源视频|自动扫描素材来源/);
+
+  const localHtml = renderToStaticMarkup(h(SourceVideosPage, { data }));
+  assert.match(visibleText(localHtml), /本地筛选/);
+});
+
+test("source video page exposes read-model fallback diagnostics in Chinese", async () => {
+  const data = await fixtureData();
+  const runtimeMeta: AdminRuntimeEndpointMeta = {
+    schema_version: "1.0",
+    endpoint: "/api/admin/source-videos?status=processing&limit=20",
+    method: "GET",
+    duration_ms: 412,
+    scan_mode: "paged-list",
+    data_source: "admin-read-model",
+    scan_reason: "route-owned-page",
+    actual_data_source: "source-video-manifest",
+    cache_status: "miss",
+    result_count: 1,
+    offset: 0,
+    limit: 20,
+    slow: false,
+    slow_reason: "",
+    fallback_reason: "status-store:store-not-fresh",
+    components: [
+      {
+        name: "status_page",
+        duration_ms: 301,
+        data_source: "admin-read-model",
+        scan_mode: "paged-list",
+        scan_reason: "route-owned-page",
+        cache_status: "miss"
+      },
+      {
+        name: "manifest_fallback",
+        duration_ms: 90,
+        data_source: "source-video-manifest",
+        scan_mode: "paged-list",
+        scan_reason: "route-owned-page",
+        cache_status: "miss",
+        detail: "manifest fallback was used"
+      }
+    ]
+  };
+  const html = renderToStaticMarkup(h(SourceVideosPage, {
+    data,
+    sourceVideoRuntime: runtimeMeta
+  }));
+  const text = visibleText(html);
+
+  assert.match(text, /读模型回退/);
+  assert.match(text, /原因：读模型过期 · 412ms/);
+  assert.match(html, /aria-label="素材库扫描证据"/);
+  assert.match(text, /扫描模式/);
+  assert.match(text, /分页列表/);
+  assert.match(text, /页面路由读取 · 412ms/);
+  assert.match(text, /数据来源/);
+  assert.match(text, /素材清单/);
+  assert.match(text, /计划来源 读模型 · 未命中/);
+  assert.match(text, /返回窗口/);
+  assert.match(text, /偏移 0 · 上限 20/);
+  assert.match(text, /慢请求/);
+  assert.match(text, /未超过目标耗时/);
+  assert.match(text, /组件耗时/);
+  assert.match(text, /状态分页 301ms \/ 读模型 \/ 分页列表 \/ 未命中/);
+  assert.match(text, /清单回退 90ms \/ 素材清单 \/ 分页列表 \/ 未命中/);
+  assert.doesNotMatch(text, /status-store:store-not-fresh/);
+  assert.doesNotMatch(text, /status_page|manifest_fallback|manifest fallback was used/);
+  assert.doesNotMatch(text, /打开保护中心|启动后台对账|读模型维护/);
+
+  const reconcileStatus = await createFixtureAdminApiClient().getReadModelReconcileStatus();
+  const blockedHtml = renderToStaticMarkup(h(SourceVideosPage, {
+    data,
+    readModelMaintenanceHref: "#/protection",
+    onStartReadModelReconcile: async () => {},
+    readModelReconcileStatus: reconcileStatus,
+    sourceVideoRuntime: {
+      ...runtimeMeta,
+      duration_ms: 98,
+      actual_data_source: "admin-read-model",
+      fallback_reason: "manifest-fallback:forbidden"
+    }
+  }));
+  const blockedText = visibleText(blockedHtml);
+  assert.match(blockedText, /清单回退已阻断 · 98ms/);
+  assert.match(blockedText, /读模型维护/);
+  assert.match(blockedText, /需要对账/);
+  assert.match(blockedText, /打开保护中心/);
+  assert.match(blockedText, /启动后台对账/);
+  assert.match(blockedText, /对账状态/);
+  assert.match(blockedText, /运行中/);
+  assert.match(blockedText, /读取快照 · 读取任务快照 · 70%/);
+  assert.match(blockedHtml, /href="#\/protection"/);
+  assert.doesNotMatch(blockedText, /manifest-fallback:forbidden/);
+});
 
 test("source video management labels stuck processing videos as recoverable", async () => {
   const data = await fixtureData();
@@ -1081,7 +1686,50 @@ test("admin load and action errors are mapped to Chinese-safe messages", () => {
 
 test("preprocess jobs render failure retry and later success", async () => {
   const data = await fixtureData();
-  const html = renderToStaticMarkup(h(PreprocessJobsPage, { data }));
+  const preprocessJobsRuntime: AdminRuntimeEndpointMeta = {
+    schema_version: "1.0",
+    endpoint: "/api/admin/preprocess/jobs?limit=20",
+    method: "GET",
+    duration_ms: 742,
+    scan_mode: "status-scan",
+    data_source: "admin-read-model",
+    scan_reason: "route-owned-page",
+    actual_data_source: "admin-read-model",
+    cache_status: "hit",
+    result_count: 4,
+    offset: 0,
+    limit: 20,
+    slow: false,
+    slow_reason: "",
+    components: [
+      {
+        name: "preprocess_job_page",
+        duration_ms: 621,
+        data_source: "admin-read-model",
+        scan_mode: "paged-list",
+        scan_reason: "route-owned-page",
+        cache_status: "hit"
+      },
+      {
+        name: "runtime_load",
+        duration_ms: 12,
+        data_source: "runtime-telemetry",
+        scan_mode: "no-scan",
+        scan_reason: "route-owned-page",
+        cache_status: "not-applicable",
+        detail: "status=healthy"
+      }
+    ]
+  };
+  const dataWithRuntime = {
+    ...data,
+    jobs: {
+      ...data.jobs,
+      runtime: preprocessJobsRuntime
+    }
+  };
+  const processHistory = await createFixtureAdminApiClient().listPreprocessProcessHistory();
+  const html = renderToStaticMarkup(h(PreprocessJobsPage, { data: dataWithRuntime, processHistory }));
 
   for (const text of [
     "预处理",
@@ -1092,20 +1740,47 @@ test("preprocess jobs render failure retry and later success", async () => {
     "预计剩余",
     "预计完成",
     "负荷建议",
+    "预处理扫描证据",
+    "任务队列",
+    "状态集合",
+    "页面路由读取 · 742ms",
+    "任务来源",
+    "读模型 · 状态集合 · 命中",
+    "任务窗口",
+    "偏移 0 · 上限 20",
+    "任务慢请求",
+    "任务组件耗时",
+    "预处理分页 621ms / 读模型 / 分页列表 / 命中",
+    "运行负载 12ms / 运行时遥测 / 不扫描 / 不适用",
     "未处理原视频",
     "将加入",
     "预计总时长",
     "素材来源",
     "正在处理",
     "队列中",
-	    "最近完成",
-	    "失败可重试",
-	    "处理控制",
-	    "状态摘要",
-	    "处理结果",
-	    "运行中",
-	    "详情",
-	    "暂停预处理",
+    "最近完成",
+    "失败可重试",
+    "处理控制",
+    "状态摘要",
+    "处理结果",
+    "页面契约",
+    "主工作区",
+    "预处理队列",
+    "辅助区",
+    "处理历史与任务日志",
+    "数据来源",
+    "admin-read-model / supervisor-runtime",
+    "扫描模式",
+    "不扫描 / 分页读取",
+    "加载边界",
+    "路由加载，任务日志按需读取",
+    "命令边界",
+    "预处理命令经过后端门禁",
+    "错误边界",
+    "本页面局部处理",
+    "运行中",
+    "详情",
+    "暂停预处理",
     "上次处理",
     "索引状态",
     "自动增量发布",
@@ -1119,15 +1794,41 @@ test("preprocess jobs render failure retry and later success", async () => {
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
+  for (const text of [
+    "处理历史",
+    "全部素材来源",
+    "全部状态",
+    "全部事件",
+    "读模型命中",
+    "页面路由读取 · 读模型 · 不扫描 · 命中",
+    "分析范围",
+    "状态分布",
+    "事件分布",
+    "来源分布",
+    "最近趋势",
+    "处理中 1 · 待发布 0 · 失败 1",
+    "入索引 2 · 完成 0 · 失败 1 · 领取 1",
+    "默认素材来源",
+    "4 条 · 活跃 1 · 失败 1",
+    "2024-05-07",
+    "4 条 · 完成 2 · 失败 1",
+    "现金流课程片段",
+    "已领取",
+    "利润增长的估价优化",
+    "已入索引"
+  ]) {
+    assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
+  }
+  assert.doesNotMatch(html, /preprocess_job_page|runtime_load|status=healthy/);
   assert.doesNotMatch(html, /current\.json/);
-	  assert.match(html, /运行负荷正常，可以继续处理/);
-	  assert.match(html, /发布到剪辑端/);
-	  assert.doesNotMatch(html, /data-control-state="native-boundary"/);
-	  assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁|启动预处理流水线|暂停预处理流水线/);
-	  assert.doesNotMatch(html, /任务日志|查看日志|服务心跳|失败策略/);
-	  assert.doesNotMatch(html, /<h2 class="ml-form-group-title">运行负荷<\/h2>/);
-	  assert.doesNotMatch(html, /<span class="ml-form-label">(CPU|内存|网络)<\/span>/);
-	  assert.doesNotMatch(html, />加入预处理队列<\/button>/);
+  assert.match(html, /运行负荷正常，可以继续处理/);
+  assert.match(html, /发布到剪辑端/);
+  assert.doesNotMatch(html, /data-control-state="native-boundary"/);
+  assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁|启动预处理流水线|暂停预处理流水线/);
+  assert.doesNotMatch(html, /查看日志|服务心跳|失败策略/);
+  assert.doesNotMatch(html, /<h2 class="ml-form-group-title">运行负荷<\/h2>/);
+  assert.doesNotMatch(html, /<span class="ml-form-label">(CPU|内存|网络)<\/span>/);
+  assert.doesNotMatch(html, />加入预处理队列<\/button>/);
 
   const logHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
     data,
@@ -1145,8 +1846,8 @@ test("preprocess jobs render failure retry and later success", async () => {
     },
     onOpenPreprocessJobLog: () => {}
   }));
-	  assert.match(logHtml, /任务处理详情/);
-	  assert.match(logHtml, /J000037 · V000037/);
+  assert.match(logHtml, /任务处理详情/);
+  assert.match(logHtml, /J000037 · V000037/);
   assert.match(logHtml, /failed: 阿里云百炼语音识别网络超时/);
   assert.doesNotMatch(logHtml, /\.mixlab-library\/logs\/V000037\.log/);
 
@@ -1163,6 +1864,50 @@ test("preprocess jobs render failure retry and later success", async () => {
   assert.match(loadingJobsHtml, /预处理流水线与索引发布/);
   assert.match(loadingJobsHtml, /任务明细后台同步中/);
   assert.doesNotMatch(loadingJobsHtml, /正在读取预处理队列/);
+
+  const unavailableHistoryHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
+    data,
+    processHistory: {
+      ...processHistory,
+      history_available: false,
+      cache_status: "miss",
+      summary: {
+        returned_count: 0,
+        completed_count: 0,
+        failed_count: 0,
+        active_count: 0,
+        average_process_ms: 0,
+        tracked_count: 0,
+        tracked_completed_count: 0,
+        tracked_failed_count: 0,
+        tracked_active_count: 0,
+        tracked_average_process_ms: 0,
+        window_start_at: "",
+        newest_event_at: "",
+        oldest_event_at: "",
+        status_counts: {
+          unprocessed: 0,
+          queued: 0,
+          processing: 0,
+          ready: 0,
+          failed: 0,
+          "index-required": 0
+        },
+        event_counts: {
+          failed: 0,
+          indexed: 0,
+          completed: 0,
+          claimed: 0,
+          status: 0
+        },
+        source_folder_summaries: [],
+        daily_trend: []
+      },
+      items: []
+    }
+  }));
+  assert.match(unavailableHistoryHtml, /处理历史读模型暂不可用/);
+  assert.match(unavailableHistoryHtml, /没有触发预处理任务文件扫描/);
 
   const noisyFailureData = {
     ...data,
@@ -1397,7 +2142,7 @@ test("admin data auto refresh stays active while preprocessing can change page s
   };
 
   assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS >= 8_000, true);
-  assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS <= 15_000, true);
+  assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS <= 60_000, true);
   assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", queuedData), true);
   assert.equal(shouldAutoRefreshAdminData("dashboard", queuedData), false);
   assert.equal(shouldAutoRefreshAdminData("source-videos", queuedData), false);
@@ -1406,6 +2151,309 @@ test("admin data auto refresh stays active while preprocessing can change page s
   assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", idleData), true);
   assert.equal(shouldAutoRefreshAdminData("dashboard", idleData), false);
   assert.equal(shouldAutoRefreshAdminData("source-videos", idleData), false);
+});
+
+test("preprocess route loader keeps process history route-owned and locally recoverable", async () => {
+  const fixture = createFixtureAdminApiClient();
+  const calls: Array<
+    { kind: "jobs"; options?: { limit?: number; offset?: number } }
+    | { kind: "history"; options?: AdminPreprocessProcessHistoryOptions }
+  > = [];
+  const client = {
+    ...fixture,
+    listPreprocessJobs: async (options?: { limit?: number; offset?: number }) => {
+      calls.push({ kind: "jobs", options });
+      return fixture.listPreprocessJobs(options);
+    },
+    listPreprocessProcessHistory: async (options?: AdminPreprocessProcessHistoryOptions) => {
+      calls.push({ kind: "history", options });
+      return fixture.listPreprocessProcessHistory(options);
+    }
+  };
+
+  const result = await loadAdminPreprocessRouteData(client);
+
+  assert.deepEqual(calls.map((call) => call.kind), ["jobs", "history"]);
+  assert.deepEqual(calls[0]?.options, { limit: 20 });
+  assert.deepEqual(calls[1]?.options, { limit: 20, window_days: 30 });
+  assert.equal((result.jobs?.jobs.length ?? 0) > 0, true);
+  assert.equal(result.processHistory?.scan_mode, "no-scan");
+  assert.equal(result.processHistory?.actual_data_source, "admin-read-model");
+  assert.equal(result.jobsError, "");
+  assert.equal(result.processHistoryError, "");
+
+  calls.length = 0;
+  const filtered = await loadAdminPreprocessRouteData(client, {
+    source_folder_name: "默认素材来源",
+    preprocess_status: "failed",
+    event_type: "failed"
+  });
+
+  assert.deepEqual(calls.map((call) => call.kind), ["jobs", "history"]);
+  assert.deepEqual(calls[0]?.options, { limit: 20 });
+  assert.deepEqual(calls[1]?.options, {
+    limit: 20,
+    window_days: 30,
+    source_folder_name: "默认素材来源",
+    preprocess_status: "failed",
+    event_type: "failed"
+  });
+  assert.equal(filtered.processHistory?.items.length, 1);
+  assert.equal(filtered.processHistory?.items[0]?.source_video_id, "V000037");
+  assert.equal(filtered.processHistory?.scan_mode, "no-scan");
+  assert.equal(filtered.processHistoryError, "");
+
+  const partial = await loadAdminPreprocessRouteData({
+    ...fixture,
+    listPreprocessProcessHistory: async () => {
+      throw new Error("Route not found");
+    }
+  });
+
+  assert.equal((partial.jobs?.jobs.length ?? 0) > 0, true);
+  assert.equal(partial.processHistory, null);
+  assert.equal(partial.jobsError, "");
+  assert.match(partial.processHistoryError, /处理历史加载失败/);
+  assert.doesNotMatch(partial.processHistoryError, /Route not found/);
+
+  const jobsPartial = await loadAdminPreprocessRouteData({
+    ...fixture,
+    listPreprocessJobs: async () => {
+      throw new Error("SMB timed out");
+    }
+  });
+
+  assert.equal(jobsPartial.jobs, null);
+  assert.match(jobsPartial.jobsError, /预处理队列加载失败/);
+  assert.doesNotMatch(jobsPartial.jobsError, /SMB timed out/);
+  assert.equal(jobsPartial.processHistory?.scan_mode, "no-scan");
+  assert.equal(jobsPartial.processHistory?.actual_data_source, "admin-read-model");
+  assert.equal(jobsPartial.processHistoryError, "");
+});
+
+test("route-owned read failures render inside local production-console surfaces", async () => {
+  const data = await fixtureData();
+  const routeError = "读模型暂不可用，请稍后重试。";
+  const withoutSourceVideos = {
+    ...data,
+    source_videos: []
+  };
+  const sourceVideosText = visibleText(renderToStaticMarkup(h(SourceVideosPage, {
+    data: withoutSourceVideos,
+    sourceVideoError: `原视频列表加载失败：${routeError}`
+  })));
+  const indexPublishText = visibleText(renderToStaticMarkup(h(IndexPublishPage, {
+    data: {
+      ...withoutSourceVideos,
+      status: {
+        ...withoutSourceVideos.status,
+        index_required_video_count: 5
+      }
+    },
+    indexRequiredError: `待发布视频加载失败：${routeError}`
+  })));
+  const preprocessText = visibleText(renderToStaticMarkup(h(PreprocessJobsPage, {
+    data: {
+      ...data,
+      jobs: {
+        ...data.jobs,
+        jobs: []
+      }
+    },
+    jobsError: `预处理队列加载失败：${routeError}`
+  })));
+  const doctorText = visibleText(renderToStaticMarkup(h(DoctorPage, {
+    data,
+    doctorReportError: `系统检查加载失败：${routeError}`
+  })));
+  const settingsText = visibleText(renderToStaticMarkup(h(SettingsPage, {
+    data,
+    pathChecksError: `路径校验加载失败：${routeError}`,
+    runtimeSettingsError: `运行时状态加载失败：${routeError}`
+  })));
+
+  assert.match(sourceVideosText, /素材表格加载失败/);
+  assert.match(sourceVideosText, /原视频列表加载失败/);
+  assert.match(indexPublishText, /发布队列加载失败/);
+  assert.match(indexPublishText, /待发布视频加载失败/);
+  assert.match(preprocessText, /任务队列加载失败/);
+  assert.match(preprocessText, /预处理队列加载失败/);
+  assert.match(doctorText, /诊断报告加载失败/);
+  assert.match(doctorText, /系统检查加载失败/);
+  assert.match(settingsText, /路径检查加载失败/);
+  assert.match(settingsText, /路径校验加载失败/);
+  assert.match(settingsText, /运行时状态加载失败/);
+});
+
+test("route-local read registry owns visible page read-error boundaries", () => {
+  assert.deepEqual(Object.keys(ADMIN_ROUTE_LOCAL_READ_SPECS), [
+    "sourceVideos",
+    "indexRequiredVideos",
+    "preprocessJobs",
+    "cutterUsers",
+    "doctorReport",
+    "settingsPathChecks",
+    "settingsRuntime"
+  ]);
+
+  assert.deepEqual(
+    Object.values(ADMIN_ROUTE_LOCAL_READ_SPECS).map((spec) => [
+      spec.route,
+      spec.label,
+      spec.surface,
+      spec.global_action_notice
+    ]),
+    [
+      ["source-videos", "原视频列表加载", "素材表格", false],
+      ["index-publish", "待发布视频加载", "发布队列", false],
+      ["preprocess-jobs", "预处理队列加载", "任务队列", false],
+      ["cutter-users", "剪辑师用户加载", "用户表格", false],
+      ["doctor", "系统检查加载", "诊断报告", false],
+      ["settings", "路径校验加载", "路径检查", false],
+      ["settings", "运行时状态加载", "运行策略", false]
+    ]
+  );
+  assert.equal(adminRouteLocalReadLabel("settingsRuntime"), "运行时状态加载");
+
+  const withError = setAdminRouteLocalReadError(
+    EMPTY_ADMIN_ROUTE_LOCAL_READ_ERRORS,
+    "sourceVideos",
+    "素材表格加载失败"
+  );
+  assert.equal(withError.sourceVideos, "素材表格加载失败");
+  assert.equal(withError.preprocessJobs, "");
+  assert.equal(clearAdminRouteLocalReadError(withError, "sourceVideos").sourceVideos, "");
+});
+
+test("route loading runtime registry owns visible loading and background refresh boundaries", () => {
+  assert.deepEqual(Object.keys(ADMIN_ROUTE_LOADING_SPECS), [
+    "sourceDetail",
+    "sourceVideosInitial",
+    "sourceVideosMore",
+    "indexRequiredVideos",
+    "preprocessJobsInitial",
+    "preprocessProcessHistory",
+    "operationsOverview",
+    "operationLog",
+    "doctorReport",
+    "runtimeDiagnostics",
+    "settingsPathChecks",
+    "settingsRuntime",
+    "cutterUsers"
+  ]);
+
+  assert.deepEqual(
+    Object.values(ADMIN_ROUTE_LOADING_SPECS).map((spec) => [
+      spec.route,
+      spec.phase,
+      spec.shell_blocking,
+      spec.abortable,
+      spec.global_action_notice
+    ]),
+    [
+      ["source-detail", "route-entry", false, true, false],
+      ["source-videos", "route-entry", false, true, false],
+      ["source-videos", "route-pagination", false, true, false],
+      ["index-publish", "route-entry", false, true, false],
+      ["preprocess-jobs", "route-entry", false, true, false],
+      ["preprocess-jobs", "route-supplemental", false, true, false],
+      ["protection", "route-entry", false, true, false],
+      ["operation-log", "route-entry", false, true, false],
+      ["doctor", "route-entry", false, true, false],
+      ["doctor", "route-supplemental", false, true, false],
+      ["settings", "route-entry", false, true, false],
+      ["settings", "route-supplemental", false, true, false],
+      ["cutter-users", "route-entry", false, true, false]
+    ]
+  );
+
+  assert.deepEqual(Object.keys(ADMIN_BACKGROUND_REFRESH_SPECS), [
+    "shellDataReloadToken",
+    "dashboardPanelData",
+    "nonDashboardMetrics",
+    "cutterUsersPrefetch",
+    "preprocessJobsPrefetch",
+    "preprocessJobsInterval"
+  ]);
+  for (const spec of Object.values(ADMIN_BACKGROUND_REFRESH_SPECS)) {
+    assert.equal(spec.shell_blocking, false, `${spec.key} must not block the Admin Shell`);
+    assert.equal(spec.route_blocking, false, `${spec.key} must not block the visible route`);
+    assert.equal(spec.abortable, true, `${spec.key} must use request-scope cancellation`);
+  }
+  assert.equal(ADMIN_BACKGROUND_REFRESH_SPECS.cutterUsersPrefetch.enabled_by_default, false);
+  assert.equal(ADMIN_BACKGROUND_REFRESH_SPECS.preprocessJobsInterval.visible_error_surface, "route-local");
+
+  assert.deepEqual(
+    adminRouteRenderLoadingState({
+      sourceVideosLoading: true,
+      sourceVideosLoadingMore: false,
+      sourceVideosHasMore: true,
+      preprocessJobsLoading: false,
+      operationsOverviewLoading: true,
+      operationLogLoading: false
+    }),
+    {
+      sourceVideos: true,
+      sourceVideosMore: false,
+      sourceVideosHasMore: true,
+      preprocessJobs: false,
+      operationsOverview: true,
+      operationLog: false
+    }
+  );
+});
+
+test("AdminApp renders visible route loading through the runtime helper", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  assert.equal(
+    source.includes("loadingState: AdminRouteRenderLoadingState"),
+    true,
+    "renderPage should receive the route loading runtime state type"
+  );
+  assert.equal(
+    source.includes("adminRouteRenderLoadingState({"),
+    true,
+    "AdminApp should derive render loading state through the route loading runtime helper"
+  );
+});
+
+test("AdminApp keeps route-owned read failures out of global action notices", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  for (const expected of [
+    "setRouteLocalReadError(\"sourceVideos\", loadError)",
+    "setRouteLocalReadError(\"indexRequiredVideos\", loadError)",
+    "setRouteLocalReadErrorMessage(\"preprocessJobs\", jobsError)",
+    "setRouteLocalReadError(\"preprocessJobs\", loadError)",
+    "setRouteLocalReadError(\"cutterUsers\", loadError)",
+    "setRouteLocalReadError(\"doctorReport\", loadError)",
+    "setRouteLocalReadError(\"settingsPathChecks\", loadError)",
+    "setRouteLocalReadError(\"settingsRuntime\", loadError)"
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should handle a route-local read error`);
+  }
+
+  for (const forbidden of [
+    "setSourceVideosError(",
+    "setIndexRequiredVideosError(",
+    "setPreprocessJobsError(",
+    "setCutterUsersError(",
+    "setDoctorReportError(",
+    "setSettingsPathChecksError(",
+    "setSettingsRuntimeError(",
+    "setActionError(adminActionErrorMessage(\"原视频列表加载\"",
+    "setActionError(adminActionErrorMessage(\"继续加载原视频\"",
+    "setActionError(adminActionErrorMessage(\"待发布视频加载\"",
+    "setActionError(adminActionErrorMessage(\"预处理队列加载\"",
+    "setActionError(adminActionErrorMessage(\"预处理队列刷新\"",
+    "setActionError(adminActionErrorMessage(\"剪辑师用户加载\"",
+    "setActionError(adminActionErrorMessage(\"系统检查加载\"",
+    "setActionError(adminActionErrorMessage(\"路径校验加载\"",
+    "setActionError(adminActionErrorMessage(\"运行时状态加载\""
+  ]) {
+    assert.equal(source.includes(forbidden), false, `${forbidden} should not poison the Admin shell notice`);
+  }
 });
 
 test("dashboard background refresh updates only panel data", async () => {
@@ -1452,14 +2500,909 @@ test("source video route waits for dashboard data before loading the first page"
     route: "dashboard",
     hasData: true
   }), false);
+  assert.equal(adminSourceVideoManifestFallbackPolicy("processing"), "forbid");
+  assert.equal(adminSourceVideoManifestFallbackPolicy("index-required"), "forbid");
+  assert.equal(adminSourceVideoManifestFallbackPolicy("queued"), undefined);
+  assert.equal(adminSourceVideoManifestFallbackPolicy("ready"), undefined);
+  assert.equal(adminSourceVideoManifestFallbackPolicy("all"), undefined);
+});
+
+test("route loading runtime owns pure route loader planner decisions", () => {
+  const adminAppSource = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+  const runtimeSource = readFileSync(resolve("apps/admin-web/src/app/route-loading-runtime.ts"), "utf8");
+
+  for (const expected of [
+    "export function shouldAutoRefreshAdminData",
+    "export function shouldLoadAdminSourceVideos",
+    "export function shouldPrefetchAdminRoute"
+  ]) {
+    assert.equal(runtimeSource.includes(expected), true, `${expected} should be owned by route-loading-runtime`);
+    assert.equal(adminAppSource.includes(expected), false, `${expected} should not be defined by AdminApp`);
+  }
+
+  assert.equal(
+    adminAppSource.includes("shouldAutoRefreshAdminData(route, data)"),
+    true,
+    "AdminApp should consume the runtime planner instead of duplicating it"
+  );
+  assert.equal(
+    adminAppSource.includes("shouldLoadAdminSourceVideos({"),
+    true,
+    "AdminApp should consume the source-video route planner"
+  );
+  assert.equal(
+    Array.from(adminAppSource.matchAll(/manifest_fallback: adminSourceVideoManifestFallbackPolicy\(sourceVideoStatusFilter\)/g)).length,
+    2,
+    "source-video initial and pagination requests should use the manifest fallback policy helper"
+  );
+  assert.equal(
+    runtimeSource.includes("export function adminSourceVideoManifestFallbackPolicy"),
+    true,
+    "source-video manifest fallback policy should be owned by route-loading-runtime"
+  );
+  assert.equal(
+    adminAppSource.includes("shouldPrefetchAdminRoute({"),
+    true,
+    "AdminApp should consume the prefetch planner"
+  );
+});
+
+test("route loading runtime owns token-based route load start guards", () => {
+  assert.deepEqual(
+    Object.values(ADMIN_ROUTE_TOKEN_LOAD_SPECS).map((spec) => [
+      spec.key,
+      spec.route,
+      spec.loading_key,
+      spec.local_read_key ?? null,
+      spec.requires_shell_data,
+      spec.request_scope,
+      spec.client_method,
+      spec.success_target,
+      spec.error_surface,
+      spec.supports_pending_handoff
+    ]),
+    [
+      [
+        "doctorReport",
+        "doctor",
+        "doctorReport",
+        "doctorReport",
+        false,
+        "route-abortable",
+        "getDoctorReport",
+        "dashboardData.doctor",
+        "route-local-read-error",
+        true
+      ],
+      [
+        "runtimeDiagnostics",
+        "doctor",
+        "runtimeDiagnostics",
+        null,
+        true,
+        "route-abortable",
+        "getRuntimeDiagnosticsHistory",
+        "runtimeDiagnosticsHistory",
+        "route-local-state-error",
+        false
+      ],
+      [
+        "settingsPathChecks",
+        "settings",
+        "settingsPathChecks",
+        "settingsPathChecks",
+        false,
+        "route-abortable",
+        "getPathChecks",
+        "dashboardData.path_checks",
+        "route-local-read-error",
+        true
+      ],
+      [
+        "settingsRuntime",
+        "settings",
+        "settingsRuntime",
+        "settingsRuntime",
+        false,
+        "route-abortable",
+        "getRuntimeSettings",
+        "dashboardData.runtime",
+        "route-local-read-error",
+        true
+      ]
+    ]
+  );
+
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2
+  }), true);
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "settings",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2
+  }), false);
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "doctor",
+    loading: true,
+    loadedToken: 1,
+    reloadToken: 2
+  }), false);
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "doctor",
+    loading: false,
+    loadedToken: 2,
+    reloadToken: 2
+  }), false);
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    canLoad: false
+  }), false);
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "runtimeDiagnostics",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2
+  }), false);
+  assert.equal(shouldStartAdminRouteTokenLoad({
+    key: "runtimeDiagnostics",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    canLoad: true
+  }), true);
+
+  const createdScopes: string[] = [];
+  const started = createAdminRouteTokenRequestScope({
+    key: "doctorReport",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(started, {
+    spec: ADMIN_ROUTE_TOKEN_LOAD_SPECS.doctorReport,
+    requestScope: { loader: "doctorReport" }
+  });
+  assert.deepEqual(createdScopes, ["getDoctorReport"]);
+
+  const blocked = createAdminRouteTokenRequestScope({
+    key: "doctorReport",
+    route: "settings",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.equal(blocked, null);
+  assert.deepEqual(createdScopes, ["getDoctorReport"]);
+});
+
+test("route loading runtime runs token loader lifecycle through the execution runner", async () => {
+  const events: string[] = [];
+  const started = startAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    createRequestScope: (spec) => {
+      events.push(`scope:${spec.key}`);
+      return {
+        loader: spec.key,
+        abort: () => events.push(`abort:${spec.key}`)
+      };
+    },
+    onStart: ({ spec }) => events.push(`start:${spec.key}`),
+    request: async ({ requestScope }) => {
+      events.push(`request:${requestScope.loader}`);
+      return "ok";
+    },
+    onSuccess: (result) => events.push(`success:${result}`),
+    onError: (error) => events.push(`error:${String(error)}`),
+    onSettled: ({ cancelled }) => events.push(`settled:${cancelled}`)
+  });
+
+  assert.equal(started?.spec.key, "doctorReport");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(events, [
+    "scope:doctorReport",
+    "start:doctorReport",
+    "request:doctorReport",
+    "success:ok",
+    "settled:false"
+  ]);
+
+  const blockedEvents: string[] = [];
+  const blocked = startAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "settings",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    createRequestScope: (spec) => {
+      blockedEvents.push(`scope:${spec.key}`);
+      return {
+        abort: () => blockedEvents.push(`abort:${spec.key}`)
+      };
+    },
+    request: async () => "blocked",
+    onSuccess: (result) => blockedEvents.push(`success:${result}`),
+    onError: (error) => blockedEvents.push(`error:${String(error)}`)
+  });
+
+  assert.equal(blocked, null);
+  assert.deepEqual(blockedEvents, []);
+
+  const cancelledEvents: string[] = [];
+  const cancelled = startAdminRouteTokenLoad({
+    key: "doctorReport",
+    route: "doctor",
+    loading: false,
+    loadedToken: 1,
+    reloadToken: 2,
+    createRequestScope: (spec) => ({
+      abort: () => cancelledEvents.push(`abort:${spec.key}`)
+    }),
+    onStart: ({ spec }) => cancelledEvents.push(`start:${spec.key}`),
+    request: async () => "late",
+    onSuccess: (result) => cancelledEvents.push(`success:${result}`),
+    onError: (error) => cancelledEvents.push(`error:${String(error)}`),
+    onCancel: ({ spec }) => cancelledEvents.push(`cancel:${spec.key}`),
+    onSettled: ({ cancelled: wasCancelled }) => cancelledEvents.push(`settled:${wasCancelled}`)
+  });
+
+  cancelled?.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(cancelledEvents, [
+    "start:doctorReport",
+    "cancel:doctorReport",
+    "abort:doctorReport",
+    "settled:true"
+  ]);
+});
+
+test("route loading runtime runs request loader lifecycle through the execution runner", async () => {
+  assert.deepEqual(
+    Object.values(ADMIN_ROUTE_REQUEST_LOAD_SPECS).map((spec) => [
+      spec.key,
+      spec.route,
+      spec.loading_key,
+      spec.local_read_key,
+      spec.request_scope,
+      spec.client_method,
+      spec.success_target,
+      spec.error_surface,
+      spec.supports_loaded_token
+    ]),
+    [
+      [
+        "cutterUsers",
+        "cutter-users",
+        "cutterUsers",
+        "cutterUsers",
+        "route-abortable",
+        "listCutterUsers",
+        "cutterUsers",
+        "route-local-read-error",
+        true
+      ],
+      [
+        "indexRequiredVideos",
+        "index-publish",
+        "indexRequiredVideos",
+        "indexRequiredVideos",
+        "route-abortable",
+        "listSourceVideos",
+        "indexRequiredVideos",
+        "route-local-read-error",
+        false
+      ],
+      [
+        "sourceVideosInitial",
+        "source-videos",
+        "sourceVideosInitial",
+        "sourceVideos",
+        "route-abortable",
+        "listSourceVideosWithRuntime",
+        "sourceVideosInitial",
+        "route-local-read-error",
+        false
+      ],
+      [
+        "preprocessJobsInitial",
+        "preprocess-jobs",
+        "preprocessJobsInitial",
+        "preprocessJobs",
+        "route-abortable",
+        "loadAdminPreprocessRouteData",
+        "preprocessJobsInitial",
+        "route-local-read-error",
+        false
+      ],
+      [
+        "operationLog",
+        "operation-log",
+        "operationLog",
+        undefined,
+        "route-abortable",
+        "getOperationLog",
+        "operationLog",
+        "route-local-state-error",
+        false
+      ],
+      [
+        "operationsOverview",
+        "protection",
+        "operationsOverview",
+        undefined,
+        "route-abortable",
+        "loadProtectionCenterData",
+        "operationsOverview",
+        "route-local-state-error",
+        false
+      ],
+      [
+        "sourceDetail",
+        "source-detail",
+        "sourceDetail",
+        undefined,
+        "route-abortable",
+        "getSourceVideoDetail",
+        "sourceDetail",
+        "route-local-state-error",
+        false
+      ]
+    ]
+  );
+
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "settings",
+    loading: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: true
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false,
+    hasFreshData: true
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false,
+    canLoad: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "indexRequiredVideos",
+    route: "index-publish",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "indexRequiredVideos",
+    route: "source-videos",
+    loading: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "sourceVideosInitial",
+    route: "source-videos",
+    loading: false,
+    canLoad: true
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "sourceVideosInitial",
+    route: "source-videos",
+    loading: false,
+    canLoad: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "sourceVideosInitial",
+    route: "index-publish",
+    loading: false,
+    canLoad: true
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "preprocessJobsInitial",
+    route: "preprocess-jobs",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "preprocessJobsInitial",
+    route: "source-videos",
+    loading: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "operationLog",
+    route: "operation-log",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "operationLog",
+    route: "cutter-users",
+    loading: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "operationsOverview",
+    route: "protection",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "operationsOverview",
+    route: "operation-log",
+    loading: false
+  }), false);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "sourceDetail",
+    route: "source-detail",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "sourceDetail",
+    route: "source-videos",
+    loading: false
+  }), false);
+
+  const createdScopes: string[] = [];
+  const scoped = createAdminRouteRequestScope({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(scoped, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.cutterUsers,
+    requestScope: { loader: "cutterUsers" }
+  });
+  assert.deepEqual(createdScopes, ["listCutterUsers"]);
+
+  const indexRequiredScope = createAdminRouteRequestScope({
+    key: "indexRequiredVideos",
+    route: "index-publish",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(indexRequiredScope, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.indexRequiredVideos,
+    requestScope: { loader: "indexRequiredVideos" }
+  });
+  assert.deepEqual(createdScopes, ["listCutterUsers", "listSourceVideos"]);
+
+  const sourceVideosInitialScope = createAdminRouteRequestScope({
+    key: "sourceVideosInitial",
+    route: "source-videos",
+    loading: false,
+    canLoad: true,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(sourceVideosInitialScope, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.sourceVideosInitial,
+    requestScope: { loader: "sourceVideosInitial" }
+  });
+  assert.deepEqual(createdScopes, [
+    "listCutterUsers",
+    "listSourceVideos",
+    "listSourceVideosWithRuntime"
+  ]);
+
+  const preprocessJobsInitialScope = createAdminRouteRequestScope({
+    key: "preprocessJobsInitial",
+    route: "preprocess-jobs",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(preprocessJobsInitialScope, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.preprocessJobsInitial,
+    requestScope: { loader: "preprocessJobsInitial" }
+  });
+  assert.deepEqual(createdScopes, [
+    "listCutterUsers",
+    "listSourceVideos",
+    "listSourceVideosWithRuntime",
+    "loadAdminPreprocessRouteData"
+  ]);
+
+  const operationLogScope = createAdminRouteRequestScope({
+    key: "operationLog",
+    route: "operation-log",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(operationLogScope, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.operationLog,
+    requestScope: { loader: "operationLog" }
+  });
+  assert.deepEqual(createdScopes, [
+    "listCutterUsers",
+    "listSourceVideos",
+    "listSourceVideosWithRuntime",
+    "loadAdminPreprocessRouteData",
+    "getOperationLog"
+  ]);
+
+  const operationsOverviewScope = createAdminRouteRequestScope({
+    key: "operationsOverview",
+    route: "protection",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(operationsOverviewScope, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.operationsOverview,
+    requestScope: { loader: "operationsOverview" }
+  });
+  assert.deepEqual(createdScopes, [
+    "listCutterUsers",
+    "listSourceVideos",
+    "listSourceVideosWithRuntime",
+    "loadAdminPreprocessRouteData",
+    "getOperationLog",
+    "loadProtectionCenterData"
+  ]);
+
+  const sourceDetailScope = createAdminRouteRequestScope({
+    key: "sourceDetail",
+    route: "source-detail",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.client_method);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(sourceDetailScope, {
+    spec: ADMIN_ROUTE_REQUEST_LOAD_SPECS.sourceDetail,
+    requestScope: { loader: "sourceDetail" }
+  });
+  assert.deepEqual(createdScopes, [
+    "listCutterUsers",
+    "listSourceVideos",
+    "listSourceVideosWithRuntime",
+    "loadAdminPreprocessRouteData",
+    "getOperationLog",
+    "loadProtectionCenterData",
+    "getSourceVideoDetail"
+  ]);
+
+  const events: string[] = [];
+  const started = startAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false,
+    createRequestScope: (spec) => {
+      events.push(`scope:${spec.key}`);
+      return {
+        loader: spec.key,
+        abort: () => events.push(`abort:${spec.key}`)
+      };
+    },
+    onStart: ({ spec }) => events.push(`start:${spec.key}`),
+    request: async ({ requestScope }) => {
+      events.push(`request:${requestScope.loader}`);
+      return "ok";
+    },
+    onSuccess: (result) => events.push(`success:${result}`),
+    onError: (error) => events.push(`error:${String(error)}`),
+    onSettled: ({ cancelled }) => events.push(`settled:${cancelled}`)
+  });
+
+  assert.equal(started?.spec.key, "cutterUsers");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(events, [
+    "scope:cutterUsers",
+    "start:cutterUsers",
+    "request:cutterUsers",
+    "success:ok",
+    "settled:false"
+  ]);
+
+  const blockedEvents: string[] = [];
+  const blocked = startAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false,
+    hasFreshData: true,
+    createRequestScope: (spec) => {
+      blockedEvents.push(`scope:${spec.key}`);
+      return {
+        abort: () => blockedEvents.push(`abort:${spec.key}`)
+      };
+    },
+    request: async () => "blocked",
+    onSuccess: (result) => blockedEvents.push(`success:${result}`),
+    onError: (error) => blockedEvents.push(`error:${String(error)}`)
+  });
+  assert.equal(blocked, null);
+  assert.deepEqual(blockedEvents, []);
+
+  const cancelledEvents: string[] = [];
+  const cancelled = startAdminRouteRequestLoad({
+    key: "cutterUsers",
+    route: "cutter-users",
+    loading: false,
+    createRequestScope: (spec) => ({
+      abort: () => cancelledEvents.push(`abort:${spec.key}`)
+    }),
+    onStart: ({ spec }) => cancelledEvents.push(`start:${spec.key}`),
+    request: async () => "late",
+    onSuccess: (result) => cancelledEvents.push(`success:${result}`),
+    onError: (error) => cancelledEvents.push(`error:${String(error)}`),
+    onCancel: ({ spec }) => cancelledEvents.push(`cancel:${spec.key}`),
+    onSettled: ({ cancelled: wasCancelled }) => cancelledEvents.push(`settled:${wasCancelled}`)
+  });
+
+  cancelled?.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(cancelledEvents, [
+    "start:cutterUsers",
+    "cancel:cutterUsers",
+    "abort:cutterUsers",
+    "settled:true"
+  ]);
+});
+
+test("background refresh runner owns abortable supplemental reads", async () => {
+  assert.equal(shouldStartAdminBackgroundRefresh({
+    key: "dashboardPanelData",
+    loading: false
+  }), true);
+  assert.equal(shouldStartAdminBackgroundRefresh({
+    key: "dashboardPanelData",
+    loading: true
+  }), false);
+  assert.equal(shouldStartAdminBackgroundRefresh({
+    key: "dashboardPanelData",
+    loading: false,
+    active: true
+  }), false);
+  assert.equal(shouldStartAdminBackgroundRefresh({
+    key: "cutterUsersPrefetch",
+    loading: false
+  }), false);
+  assert.equal(shouldStartAdminBackgroundRefresh({
+    key: "cutterUsersPrefetch",
+    loading: false,
+    enabled: true
+  }), true);
+
+  const createdScopes: string[] = [];
+  const dashboardScope = createAdminBackgroundRefreshScope({
+    key: "dashboardPanelData",
+    loading: false,
+    createRequestScope: (spec) => {
+      createdScopes.push(spec.key);
+      return { loader: spec.key };
+    }
+  });
+  assert.deepEqual(dashboardScope, {
+    spec: ADMIN_BACKGROUND_REFRESH_SPECS.dashboardPanelData,
+    requestScope: { loader: "dashboardPanelData" }
+  });
+  assert.deepEqual(createdScopes, ["dashboardPanelData"]);
+
+  const events: string[] = [];
+  const started = startAdminBackgroundRefresh({
+    key: "dashboardPanelData",
+    loading: false,
+    createRequestScope: (spec) => {
+      events.push(`scope:${spec.key}`);
+      return {
+        loader: spec.key,
+        abort: () => events.push(`abort:${spec.key}`)
+      };
+    },
+    onStart: ({ spec }) => events.push(`start:${spec.key}`),
+    request: async ({ requestScope }) => {
+      events.push(`request:${requestScope.loader}`);
+      return "ok";
+    },
+    onSuccess: (result) => events.push(`success:${result}`),
+    onError: (error) => events.push(`error:${String(error)}`),
+    onSettled: ({ cancelled }) => events.push(`settled:${cancelled}`)
+  });
+
+  assert.equal(started?.spec.key, "dashboardPanelData");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(events, [
+    "scope:dashboardPanelData",
+    "start:dashboardPanelData",
+    "request:dashboardPanelData",
+    "success:ok",
+    "settled:false"
+  ]);
+
+  const cancelledEvents: string[] = [];
+  const cancelled = startAdminBackgroundRefresh({
+    key: "dashboardPanelData",
+    loading: false,
+    createRequestScope: (spec) => ({
+      abort: () => cancelledEvents.push(`abort:${spec.key}`)
+    }),
+    onStart: ({ spec }) => cancelledEvents.push(`start:${spec.key}`),
+    request: async () => "late",
+    onSuccess: (result) => cancelledEvents.push(`success:${result}`),
+    onError: (error) => cancelledEvents.push(`error:${String(error)}`),
+    onCancel: ({ spec }) => cancelledEvents.push(`cancel:${spec.key}`),
+    onSettled: ({ cancelled: wasCancelled }) => cancelledEvents.push(`settled:${wasCancelled}`)
+  });
+
+  cancelled?.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(cancelledEvents, [
+    "start:dashboardPanelData",
+    "cancel:dashboardPanelData",
+    "abort:dashboardPanelData",
+    "settled:true"
+  ]);
+});
+
+test("AdminApp consumes token route load guards from the runtime", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  assert.equal(source.includes("startAdminRouteTokenLoad({"), true);
+  assert.equal(source.includes("createAdminRouteTokenRequestScope({"), false);
+  assert.equal(source.includes("shouldStartAdminRouteTokenLoad({"), false);
+  assert.equal(
+    Array.from(source.matchAll(/startAdminRouteTokenLoad\(\{/g)).length,
+    4,
+    "Doctor and Settings token route loaders should use the token execution runner"
+  );
+  assert.equal(source.includes("expectedRoute:"), false);
+  for (const expected of [
+    "key: \"doctorReport\"",
+    "key: \"runtimeDiagnostics\"",
+    "key: \"settingsPathChecks\"",
+    "key: \"settingsRuntime\""
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should identify a registered token route loader`);
+  }
+  assert.equal(
+    Array.from(source.matchAll(/createRequestScope: \(\) => createRuntimeRequestScope\(apiBaseUrl, adminAuthSession\)/g)).length,
+    16,
+    "token, request, and background runners should create abortable request scopes through runtime runners"
+  );
+  for (const expected of [
+    "request: ({ requestScope }) => requestScope.client.getDoctorReport()",
+    "request: ({ requestScope }) => requestScope.client.getRuntimeDiagnosticsHistory({ limit: 20 })",
+    "request: ({ requestScope }) => requestScope.client.getPathChecks()",
+    "request: ({ requestScope }) => withAdminLoadTimeout("
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should stay in the migrated token runner contract`);
+  }
+  assert.equal(source.includes("route !== \"doctor\" ||"), false);
+  assert.equal(source.includes("route !== \"settings\" ||"), false);
+  assert.equal(source.includes("runtimeDiagnosticsLoadingRef.current ||"), false);
+  assert.equal(source.includes("settingsPathChecksLoadingRef.current ||"), false);
+  assert.equal(source.includes("settingsRuntimeLoadingRef.current ||"), false);
+});
+
+test("AdminApp consumes request route loaders from the runtime", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  assert.equal(source.includes("startAdminRouteRequestLoad({"), true);
+  assert.equal(
+    Array.from(source.matchAll(/startAdminRouteRequestLoad\(\{/g)).length,
+    7,
+    "Cutter Users, Index Publish, Source Videos, Preprocess Jobs, Operation Log, Protection Center, and Source Detail route loaders should use the request execution runner"
+  );
+  assert.equal(source.includes("key: \"cutterUsers\""), true);
+  assert.equal(source.includes("key: \"indexRequiredVideos\""), true);
+  assert.equal(source.includes("key: \"sourceVideosInitial\""), true);
+  assert.equal(source.includes("key: \"preprocessJobsInitial\""), true);
+  assert.equal(source.includes("key: \"operationLog\""), true);
+  assert.equal(source.includes("key: \"operationsOverview\""), true);
+  assert.equal(source.includes("key: \"sourceDetail\""), true);
+  assert.equal(
+    Array.from(source.matchAll(/createRequestScope: \(\) => createRuntimeRequestScope\(apiBaseUrl, adminAuthSession\)/g)).length,
+    16,
+    "token, request, and background runners should create abortable request scopes through runtime runners"
+  );
+  assert.equal(source.includes("hasFreshData: Boolean(cutterUsers && cutterUsersLoadedTokenRef.current === cutterUsersReloadToken)"), true);
+  assert.equal(source.includes("request: ({ requestScope }) => withAdminLoadTimeout("), true);
+  assert.equal(source.includes("requestScope.client.listCutterUsers()"), true);
+  assert.equal(source.includes("requestScope.client.listSourceVideos({"), true);
+  assert.equal(source.includes("requestScope.client.listSourceVideosWithRuntime({"), true);
+  assert.equal(source.includes("canLoad: shouldLoadAdminSourceVideos({"), true);
+  assert.equal(source.includes("status: \"index-required\""), true);
+  assert.equal(source.includes("loadAdminPreprocessRouteData(requestScope.client, preprocessProcessHistoryFilters)"), true);
+  assert.equal(source.includes("requestScope.client.getOperationLog({ limit: 50 })"), true);
+  assert.equal(source.includes("loadProtectionCenterData(requestScope.client)"), true);
+  assert.equal(source.includes("requestScope.client.getSourceVideoDetail(request.sourceVideoId)"), true);
+  assert.equal(source.includes("route !== \"cutter-users\""), false);
+  assert.equal(source.includes("route !== \"operation-log\""), false);
+  assert.equal(source.includes("route !== \"protection\""), false);
+  assert.equal(source.includes("cutterUsersRouteLoadingRef.current)"), false);
+});
+
+test("route prefetch stays disabled by default and waits for dashboard data", async () => {
+  const data = await fixtureData();
+  const routePlanEnabled = {
+    ...data.data_loading_plan,
+    routes: data.data_loading_plan.routes.map((route) =>
+      route.route === "preprocess-jobs"
+        ? { ...route, prefetch: true }
+        : route
+    )
+  };
+
+  assert.equal(shouldPrefetchAdminRoute({
+    plan: data.data_loading_plan,
+    route: "preprocess-jobs",
+    hasData: false
+  }), false);
+  assert.equal(shouldPrefetchAdminRoute({
+    plan: data.data_loading_plan,
+    route: "preprocess-jobs",
+    hasData: true
+  }), false);
+  assert.equal(shouldPrefetchAdminRoute({
+    plan: routePlanEnabled,
+    route: "preprocess-jobs",
+    hasData: true
+  }), false);
 });
 
 test("doctor page renders Chinese diagnosis checks and report export", async () => {
   const data = await fixtureData();
-  const html = renderToStaticMarkup(h(DoctorPage, { data }));
+  const html = renderToStaticMarkup(h(DoctorPage, {
+    data,
+    runtimeDiagnostics: doctorRuntimeDiagnosticsFixture()
+  }));
 
   for (const text of [
     "检查系统状态",
+    "慢接口历史",
+    "素材列表",
+    "1200ms",
+    "管理端读模型",
+    "分页读取",
+    "未命中",
+    "历史文件存在异常行",
     "发布清单",
     "音视频工具",
     "语音识别",
@@ -1534,6 +3477,46 @@ test("doctor page renders Chinese diagnosis checks and report export", async () 
   assert.doesNotMatch(realDoctorHtml, /Unknown English Probe|raw probe detail|source-videos|source video manifests|library counts|ffmpeg|bundled|preprocess logs|EACCES/i);
 });
 
+test("doctor page follows the production-console composition contract", async () => {
+  const data = await fixtureData();
+  const html = renderToStaticMarkup(h(DoctorPage, {
+    data,
+    runtimeDiagnostics: doctorRuntimeDiagnosticsFixture(),
+    onRunDoctor: () => undefined,
+    onExportDoctor: () => undefined
+  }));
+  const text = visibleText(html);
+
+  for (const expectedText of [
+    "系统检查",
+    "诊断报告",
+    "慢接口历史",
+    "检查结果",
+    "检查报告",
+    "doctor-probes",
+    "admin-read-model",
+    "read-model-health",
+    "doctor-route",
+    "状态扫描",
+    "不扫描",
+    "本页面局部处理",
+    "导出操作",
+    "不改变素材状态",
+    "页面契约",
+    "主工作区 诊断报告",
+    "辅助区 检查结果与慢接口历史",
+    "重新检查",
+    "导出检查报告"
+  ]) {
+    assert.match(text, new RegExp(expectedText));
+  }
+
+  assert.match(html, /aria-label="系统检查数据来源"/);
+  assert.match(html, /aria-label="诊断报告"/);
+  assert.doesNotMatch(text, /Dashboard|dashboard/);
+  assert.doesNotMatch(text, /初始化素材库|自动扫描素材来源|隐藏全库扫描/);
+});
+
 test("cutter users page renders login applications and user metrics", async () => {
   const client = createFixtureAdminApiClient();
   const users = await client.listCutterUsers();
@@ -1547,7 +3530,7 @@ test("cutter users page renders login applications and user metrics", async () =
   }));
 
   for (const text of [
-    "剪辑师用户",
+    "剪辑师",
     "登录申请与使用统计",
     "待审核",
     "已通过",
@@ -1565,6 +3548,44 @@ test("cutter users page renders login applications and user metrics", async () =
   ]) {
     assert.match(html, new RegExp(text));
   }
+});
+
+test("cutter users page follows the production-console composition contract", async () => {
+  const client = createFixtureAdminApiClient();
+  const users = await client.listCutterUsers();
+  const metrics = (await client.getDashboardMetrics()).usage;
+  const html = renderToStaticMarkup(h(CutterUsersPage, {
+    users,
+    metrics,
+    onApprove: () => {},
+    onDisable: () => {},
+    onResetPassword: () => undefined
+  }));
+  const text = visibleText(html);
+
+  for (const expectedText of [
+    "剪辑师",
+    "用户表格",
+    "用户概览",
+    "使用概览",
+    "用户仓库",
+    "使用指标",
+    "命令操作",
+    "不扫描",
+    "本页面局部处理",
+    "通过 / 停用 / 重置密码",
+    "待审核",
+    "已通过",
+    "重置密码",
+    "停用用户"
+  ]) {
+    assert.match(text, new RegExp(expectedText));
+  }
+
+  assert.match(html, /aria-label="剪辑师数据来源"/);
+  assert.match(html, /aria-label="用户表格"/);
+  assert.doesNotMatch(text, /Dashboard|dashboard/);
+  assert.doesNotMatch(text, /扫描源视频|初始化素材库|自动扫描素材来源/);
 });
 
 test("cutter user destructive controls require real handlers and confirm disable", async () => {
@@ -1771,6 +3792,176 @@ test("M9B UI shell orchestrates Admin API mutations without duplicating shell ac
   assert.match(readFileSync(resolve("apps/admin-web/src/features/settings/SettingsPage.tsx"), "utf8"), /useEffect/);
 });
 
+test("route-owned loaders use reusable request scopes instead of raw AbortControllers", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  const requestScopeCount = Array.from(
+    source.matchAll(/createRuntimeRequestScope\(apiBaseUrl, adminAuthSession\)/g)
+  ).length;
+  const rawAbortControllerCount = Array.from(source.matchAll(/new AbortController\(\)/g)).length;
+  const rawSignalBindingCount = Array.from(
+    source.matchAll(/createRuntimeClient\(baseUrl, authSession, \{ signal: abortController\.signal \}\)/g)
+  ).length;
+  const requestScopeAbortCount = Array.from(source.matchAll(/requestScope\.abort\(\)/g)).length;
+  const tokenLoadCancelCount = Array.from(source.matchAll(/tokenLoad\.cancel\(\)/g)).length;
+  const requestLoadCancelCount = Array.from(source.matchAll(/routeLoad\.cancel\(\)/g)).length;
+
+  assert.ok(requestScopeCount >= 16, `expected route and background request scopes, got ${requestScopeCount}`);
+  assert.equal(rawAbortControllerCount, 1, "raw AbortController construction should stay inside the helper");
+  assert.equal(rawSignalBindingCount, 1, "AbortSignal binding should stay inside the helper");
+  assert.ok(requestScopeAbortCount >= 3, `expected remaining non-runner cleanup aborts, got ${requestScopeAbortCount}`);
+  assert.equal(tokenLoadCancelCount, 4, "token route loaders should clean up through the execution runner");
+  assert.equal(requestLoadCancelCount, 7, "request route loaders should clean up through the execution runner");
+
+  for (const expected of [
+    "function createRuntimeRequestScope(",
+    "requestScope.client.getAuthStatus()",
+    "loadAdminDashboardData(requestScope.client, { includeHeavy: false })",
+    "requestScope.client.listSourceVideos({",
+    "loadAdminPreprocessRouteData(requestScope.client",
+    "requestScope.client.listIndexVersions()",
+    "loadProtectionCenterData(requestScope.client)",
+    "requestScope.client.getOperationLog({ limit: 50 })",
+    "requestScope.client.getDoctorReport()",
+    "requestScope.client.getPathChecks()",
+    "requestScope.client.getRuntimeSettings()",
+    "requestScope.client.getSourceVideoDetail(request.sourceVideoId)",
+    "requestScope.client.listCutterUsers()"
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should use the request scope`);
+  }
+
+  for (const forbidden of [
+    "createRuntimeClient(apiBaseUrl, adminAuthSession, { signal:",
+    "const scopedClient =",
+    "abortController.abort();"
+  ]) {
+    assert.equal(source.includes(forbidden), false, `${forbidden} should not appear outside the helper path`);
+  }
+});
+
+test("background refresh and prefetch loaders use reusable request scopes", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+  const requestScopeCount = Array.from(
+    source.matchAll(/createRuntimeRequestScope\(apiBaseUrl, adminAuthSession\)/g)
+  ).length;
+  const activeBackgroundRefreshCount = Array.from(
+    source.matchAll(/let activeBackgroundRefresh: AdminBackgroundRefreshExecution<AdminRuntimeRequestScope> \| null = null/g)
+  ).length;
+  const backgroundPreprocessRefreshCount = Array.from(
+    source.matchAll(/loadAdminPreprocessRouteData\(requestScope\.client, preprocessProcessHistoryFilters\)/g)
+  ).length;
+  const backgroundRefreshCancelCount = Array.from(
+    source.matchAll(/activeBackgroundRefresh\?\.cancel\(\)/g)
+  ).length;
+  const scopedBackgroundRefreshCancelCount = Array.from(
+    source.matchAll(/backgroundRefresh\.cancel\(\)/g)
+  ).length;
+  const backgroundRefreshStartCount = Array.from(
+    source.matchAll(/startAdminBackgroundRefresh\(\{/g)
+  ).length;
+
+  assert.ok(requestScopeCount >= 16, `expected background scopes in addition to route scopes, got ${requestScopeCount}`);
+  assert.equal(activeBackgroundRefreshCount, 2, "dashboard and preprocess interval refreshes should track runner executions");
+  assert.ok(backgroundPreprocessRefreshCount >= 3, "route load, prefetch, and interval refresh should use request scopes");
+  assert.equal(backgroundRefreshCancelCount, 2, "dashboard and preprocess interval refreshes should cancel through runner handles");
+  assert.equal(scopedBackgroundRefreshCancelCount, 3, "supplemental and prefetch refreshes should cancel through runner handles");
+  assert.equal(backgroundRefreshStartCount, 5, "all background refresh specs should use the shared runner");
+
+  for (const expected of [
+    "startAdminBackgroundRefresh({",
+    "key: \"nonDashboardMetrics\"",
+    "key: \"dashboardPanelData\"",
+    "key: \"cutterUsersPrefetch\"",
+    "key: \"preprocessJobsPrefetch\"",
+    "key: \"preprocessJobsInterval\"",
+    "let activeBackgroundRefresh: AdminBackgroundRefreshExecution<AdminRuntimeRequestScope> | null = null",
+    "requestScope.client.getDashboardMetrics()",
+    "requestScope.client.listCutterUsers()",
+    "loadAdminDashboardPanelData(requestScope.client)",
+    "active: Boolean(activeBackgroundRefresh)",
+    "activeBackgroundRefresh?.cancel()",
+    "cutterUsersPrefetchLoadingRef.current = false;",
+    "preprocessJobsPrefetchLoadingRef.current = false;"
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should be part of background cancellation`);
+  }
+
+  for (const forbidden of [
+    "loadAdminDashboardPanelData(client)",
+    "loadAdminPreprocessRouteData(client, preprocessProcessHistoryFilters)",
+    "let activeRequestScope: AdminRuntimeRequestScope | null = null",
+    "activeRequestScope?.abort()",
+    "cutterUsersPrefetchLoadingRef.current = true;\n\n    withAdminLoadTimeout(",
+    "preprocessJobsPrefetchLoadingRef.current = true;\n\n    loadAdminPreprocessRouteData(",
+    "let activeAbortController",
+    "withAdminLoadTimeout(\n      client.listCutterUsers()"
+  ]) {
+    assert.equal(source.includes(forbidden), false, `${forbidden} should not use the shared client`);
+  }
+});
+
+test("command actions use stable command policy instead of abortable request scopes", () => {
+  const source = readFileSync(resolve("apps/admin-web/src/app/AdminApp.tsx"), "utf8");
+
+  for (const expected of [
+    "from \"./command-cancellation-policy.ts\"",
+    "const activeAdminCommandLabelRef = useRef(\"\");",
+    "const beginAdminCommandAction = (label: string, notice?: string): boolean => {",
+    "adminCommandActionStartDecision(activeAdminCommandLabelRef.current, label)",
+    "const finishAdminCommandAction = (label: string) => {",
+    "if (!beginAdminCommandAction(label)) {",
+    "const result = await action(client);",
+    "finishAdminCommandAction(label);",
+    "if (!beginAdminCommandAction(\"扫描新增素材\",",
+    "await client.scanSourceVideos();",
+    "await client.runDoctor();",
+    "loadAdminDashboardData(client, { includeHeavy: false })",
+    "finishAdminCommandAction(\"扫描新增素材\");",
+    "if (!beginAdminCommandAction(\"命令快照恢复\",",
+    "client.restoreCommandSnapshot(snapshotId)",
+    "finishAdminCommandAction(\"命令快照恢复\");",
+    "if (!beginAdminCommandAction(\"启动后台对账\",",
+    "client.startReadModelReconcile()",
+    "finishAdminCommandAction(\"启动后台对账\");",
+    "if (!beginAdminCommandAction(\"请求停止对账\",",
+    "client.cancelReadModelReconcile()",
+    "finishAdminCommandAction(\"请求停止对账\");"
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should enforce command policy`);
+  }
+
+  for (const expected of [
+    "onInitializeLibrary: () => runAction(\"初始化素材库\"",
+    "onScanSourceVideos: () => runAction(\"扫描源视频\"",
+    "onQueueUnprocessedVideos: () => runAction(\"加入预处理队列\"",
+    "onRepairIndex: () => runAction(\"发布到剪辑端\"",
+    "onRunDoctor: () => runAction(\"运行系统检查\"",
+    "onSaveAdminSettings: (settings) =>",
+    "onApproveCutterUser: (userId) =>",
+    "onExecuteCommandSnapshotRestore: executeCommandSnapshotRestore",
+    "onStartReadModelReconcile: startReadModelReconcile",
+    "onCancelReadModelReconcile: cancelReadModelReconcile",
+    "onRunSmartScan: runSmartScan"
+  ]) {
+    assert.equal(source.includes(expected), true, `${expected} should remain command guarded`);
+  }
+
+  for (const forbidden of [
+    "action(requestScope.client)",
+    "requestScope.client.scanSourceVideos()",
+    "requestScope.client.runDoctor()",
+    "requestScope.client.restoreCommandSnapshot",
+    "requestScope.client.startReadModelReconcile",
+    "requestScope.client.cancelReadModelReconcile",
+    "requestScope.client.queueUnprocessedVideos",
+    "requestScope.client.repairIndex",
+    "requestScope.client.saveAdminSettings"
+  ]) {
+    assert.equal(source.includes(forbidden), false, `${forbidden} should not be used for mutating commands`);
+  }
+});
+
 test("admin production shell has explicit UI Foundation scroll ownership", () => {
   const css = readFileSync(resolve("apps/admin-web/src/styles.css"), "utf8");
 
@@ -1794,7 +3985,7 @@ test("source video management keeps write actions contextual", async () => {
     })
   );
 
-	  assert.match(html, /原视频管理/);
+	  assert.match(html, /素材库/);
 	  assert.match(html, /搜索文件名 \/ 标签 \/ 相对路径/);
 	  assert.match(html, /查看详情/);
 	  assert.match(html, /素材详情/);

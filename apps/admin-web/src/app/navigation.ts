@@ -3,10 +3,12 @@ export type AdminRoute =
   | "source-videos"
   | "source-detail"
   | "preprocess-jobs"
+  | "protection"
   | "index-publish"
   | "doctor"
   | "cutter-users"
-  | "settings";
+  | "settings"
+  | "operation-log";
 
 export interface AdminNavItem {
   route: AdminRoute;
@@ -14,30 +16,52 @@ export interface AdminNavItem {
   icon: string;
 }
 
+export type AdminSurfaceMode = "full" | "docker-mvp-v0.1";
+
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
-  { route: "dashboard", label: "仪表盘", icon: "dashboard" },
-  { route: "source-videos", label: "原视频管理", icon: "video" },
+  { route: "dashboard", label: "总览", icon: "dashboard" },
+  { route: "protection", label: "保护中心", icon: "shield" },
+  { route: "source-videos", label: "素材库", icon: "video" },
   { route: "preprocess-jobs", label: "预处理", icon: "queue" },
-  { route: "cutter-users", label: "剪辑师用户", icon: "users" },
-  { route: "settings", label: "设置", icon: "settings" }
+  { route: "index-publish", label: "发布与索引", icon: "index" },
+  { route: "cutter-users", label: "剪辑师", icon: "users" },
+  { route: "doctor", label: "系统检查", icon: "doctor" },
+  { route: "settings", label: "设置", icon: "settings" },
+  { route: "operation-log", label: "操作记录", icon: "list" }
 ];
+
+export const ADMIN_DOCKER_MVP_NAV_ITEMS: AdminNavItem[] = [
+  { route: "dashboard", label: "总览", icon: "dashboard" },
+  { route: "source-videos", label: "素材库", icon: "video" },
+  { route: "preprocess-jobs", label: "预处理", icon: "queue" },
+  { route: "cutter-users", label: "剪辑师", icon: "users" },
+  { route: "doctor", label: "系统检查", icon: "doctor" }
+];
+
+const ADMIN_DOCKER_MVP_ROUTES = new Set<AdminRoute>([
+  ...ADMIN_DOCKER_MVP_NAV_ITEMS.map((item) => item.route),
+  "source-detail"
+]);
 
 const ROUTES = new Set<AdminRoute>([
   "dashboard",
   "source-videos",
   "source-detail",
   "preprocess-jobs",
+  "protection",
   "index-publish",
   "doctor",
   "cutter-users",
-  "settings"
+  "settings",
+  "operation-log"
 ]);
 
 const ROUTE_ALIASES: Record<string, AdminRoute> = {
   "library-settings": "settings",
-  "index-health": "preprocess-jobs",
-  "index-publish": "preprocess-jobs",
-  doctor: "settings"
+  "index-health": "index-publish",
+  release: "protection",
+  "release-gates": "protection",
+  "audit-log": "operation-log"
 };
 
 export function routeFromHash(hash: string): AdminRoute {
@@ -50,4 +74,25 @@ export function routeFromHash(hash: string): AdminRoute {
 
 export function routeToHash(route: AdminRoute): string {
   return `#/${route}`;
+}
+
+export function resolveAdminSurfaceMode(value?: string | null): AdminSurfaceMode {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "v0.1" ||
+    normalized === "docker-mvp-v0.1" ||
+    normalized === "true"
+    ? "docker-mvp-v0.1"
+    : "full";
+}
+
+export function adminNavItemsForMode(mode: AdminSurfaceMode): AdminNavItem[] {
+  return mode === "docker-mvp-v0.1" ? ADMIN_DOCKER_MVP_NAV_ITEMS : ADMIN_NAV_ITEMS;
+}
+
+export function adminRouteAllowedInMode(route: AdminRoute, mode: AdminSurfaceMode): boolean {
+  return mode === "full" || ADMIN_DOCKER_MVP_ROUTES.has(route);
+}
+
+export function adminRouteForMode(route: AdminRoute, mode: AdminSurfaceMode): AdminRoute {
+  return adminRouteAllowedInMode(route, mode) ? route : "dashboard";
 }

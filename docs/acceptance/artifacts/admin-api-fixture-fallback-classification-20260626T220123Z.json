@@ -1,0 +1,2481 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T22:01:23.081Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-api-fixture-fallback-classification.ts",
+  "mode": "admin-api-fixture-fallback-classification",
+  "scope": {
+    "target_file": "apps/admin-web/src/api.ts",
+    "terms": [
+      "fixture",
+      "fallback",
+      "mock",
+      "legacy",
+      "deprecated",
+      "TODO"
+    ]
+  },
+  "cleanup_allowed": false,
+  "classification_ready": true,
+  "summary": {
+    "file": "apps/admin-web/src/api.ts",
+    "lines_scanned": 2714,
+    "occurrence_count": 173,
+    "fixture_client_boundary_count": 165,
+    "route_loading_fallback_contract_count": 1,
+    "runtime_fallback_contract_count": 3,
+    "usage_metrics_field_count": 4,
+    "test_or_mock_boundary_count": 0,
+    "legacy_debt_candidate_count": 0
+  },
+  "occurrences": [
+    {
+      "term": "fixture",
+      "line": 5,
+      "text": "import { createAdminFixtureDataLoadingPlan } from \"./fixtures/admin-data-loading-plan.ts\";",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 17,
+      "text": "fixtureCommandSnapshotRestorePlan,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 18,
+      "text": "fixtureCommandSnapshotRestoreResult,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 19,
+      "text": "fixtureOperationLog,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 20,
+      "text": "fixtureOperationsOverview,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 21,
+      "text": "fixtureReadModelReconcileStatus,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 25,
+      "text": "normalizeFixtureSourceFolder,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 27,
+      "text": "publishFixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 29,
+      "text": "queueFixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 30,
+      "text": "recountFixtureSourceVideoState,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 36,
+      "text": "updateFixtureSourceVideoCover,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 37,
+      "text": "updateFixtureSourceVideoMetadata",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 38,
+      "text": "} from \"./fixtures/admin-fixture-data.ts\";",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 411,
+      "text": "fallback_search_count: number;",
+      "kind": "usage-metrics-field",
+      "cleanup_policy": "Do not rename or remove without backend usage-metrics compatibility and dashboard contract tests.",
+      "required_evidence": [
+        "backend/admin dashboard compatibility tests for usage metric fields",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 420,
+      "text": "core_fallback_search_count: number;",
+      "kind": "usage-metrics-field",
+      "cleanup_policy": "Do not rename or remove without backend usage-metrics compatibility and dashboard contract tests.",
+      "required_evidence": [
+        "backend/admin dashboard compatibility tests for usage metric fields",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 755,
+      "text": "fallback: string;",
+      "kind": "route-loading-fallback-contract",
+      "cleanup_policy": "Keep as route-local loading/error contract unless replaced by the data-loading plan contract and page tests.",
+      "required_evidence": [
+        "route loader/page tests proving local loading and error behavior",
+        "data-loading plan contract still names fallback behavior",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1896,
+      "text": "function fixtureDataLoadingPlan(): AdminDataLoadingPlan {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1897,
+      "text": "return createAdminFixtureDataLoadingPlan({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1902,
+      "text": "export function createFixtureAdminApiClient(): AdminApiClient {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1903,
+      "text": "let fixtureStatus: AdminLibraryStatus = { ...status };",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1904,
+      "text": "let fixturePathChecks: AdminPathCheck[] = pathChecks.map((item) => ({ ...item }));",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1905,
+      "text": "let fixtureSourceVideos: AdminSourceVideo[] = sourceVideos.map((video) => ({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1909,
+      "text": "let fixtureJobs: AdminPreprocessJobsResponse = {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1913,
+      "text": "let fixtureProcessHistory = clonePreprocessProcessHistory(processHistory);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1914,
+      "text": "let fixtureIndexes: AdminIndexVersionsResponse = {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1918,
+      "text": "let fixtureDoctor: MixlabDoctorReport = {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1923,
+      "text": "let fixtureSettings = cloneSettings(settings);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1924,
+      "text": "let fixtureMetrics = cloneDashboardMetrics(dashboardMetrics);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1925,
+      "text": "let fixtureCutterUsers = cutterUsers.map(cloneCutterUser);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1928,
+      "text": "const counted = recountFixtureSourceVideoState({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1929,
+      "text": "sourceVideos: fixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1930,
+      "text": "status: fixtureStatus,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1931,
+      "text": "metrics: fixtureMetrics",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1933,
+      "text": "fixtureStatus = counted.status;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1934,
+      "text": "fixtureMetrics = counted.metrics;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1942,
+      "text": "const mutation = queueFixtureSourceVideos(",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1944,
+      "text": "sourceVideos: fixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1945,
+      "text": "jobs: fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1946,
+      "text": "indexes: fixtureIndexes,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1947,
+      "text": "status: fixtureStatus,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1948,
+      "text": "metrics: fixtureMetrics",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1952,
+      "text": "fixtureSourceVideos = mutation.state.sourceVideos;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1953,
+      "text": "fixtureJobs = mutation.state.jobs;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1954,
+      "text": "fixtureStatus = mutation.state.status;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1955,
+      "text": "fixtureMetrics = mutation.state.metrics;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1959,
+      "text": "function publishFixtureSourceVideosAndSave(input: {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1963,
+      "text": "const mutation = publishFixtureSourceVideos(",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1965,
+      "text": "sourceVideos: fixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1966,
+      "text": "jobs: fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1967,
+      "text": "indexes: fixtureIndexes,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1968,
+      "text": "status: fixtureStatus,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1969,
+      "text": "metrics: fixtureMetrics",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1973,
+      "text": "fixtureSourceVideos = mutation.state.sourceVideos;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1974,
+      "text": "fixtureIndexes = mutation.state.indexes;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1975,
+      "text": "fixtureStatus = mutation.state.status;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1976,
+      "text": "fixtureMetrics = mutation.state.metrics;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1981,
+      "text": "const primarySourceFolder = fixtureSettings.source_folders.find((folder) => folder.enabled)",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1982,
+      "text": "?? fixtureSettings.source_folders[0];",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1983,
+      "text": "fixtureStatus = {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1984,
+      "text": "...fixtureStatus,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1985,
+      "text": "name: fixtureSettings.library_name,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1986,
+      "text": "source_videos_path: primarySourceFolder?.path ?? fixtureStatus.source_videos_path",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1990,
+      "text": "function saveFixtureSettings(settingsUpdate: AdminSettingsConfigUpdate): AdminSettingsConfig {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1995,
+      "text": "const currentById = new Map(fixtureSettings.source_folders.map((folder) => [folder.id, folder]));",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1996,
+      "text": "fixtureSettings = cloneSettings({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 1997,
+      "text": "...fixtureSettings,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2000,
+      "text": "normalizeFixtureSourceFolder(currentById.get(folder.id), folder)",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2006,
+      "text": "return cloneSettings(fixtureSettings);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2009,
+      "text": "function addFixtureSourceFolder(folder: AdminSourceFolderCreate): AdminSettingsConfig {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2012,
+      "text": "id: nextSourceFolderId(fixtureSettings.source_folders),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2017,
+      "text": "fixtureSettings = cloneSettings({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2018,
+      "text": "...fixtureSettings,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2019,
+      "text": "source_folders: [...fixtureSettings.source_folders, nextFolder],",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2023,
+      "text": "return cloneSettings(fixtureSettings);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2026,
+      "text": "function updateFixtureSourceFolder(",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2031,
+      "text": "fixtureSettings = cloneSettings({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2032,
+      "text": "...fixtureSettings,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2033,
+      "text": "source_folders: fixtureSettings.source_folders.map((folder) => {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2039,
+      "text": "return normalizeFixtureSourceFolder(folder, {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2052,
+      "text": "return cloneSettings(fixtureSettings);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2055,
+      "text": "function removeFixtureSourceFolder(sourceFolderId: string): AdminSettingsConfig {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2060,
+      "text": "const sourceFolders = fixtureSettings.source_folders.filter((folder) => folder.id !== sourceFolderId);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2061,
+      "text": "if (sourceFolders.length === fixtureSettings.source_folders.length) {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2065,
+      "text": "fixtureSettings = cloneSettings({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2066,
+      "text": "...fixtureSettings,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2071,
+      "text": "return cloneSettings(fixtureSettings);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2110,
+      "text": "session_token: \"fixture-admin-session\",",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2128,
+      "text": "session_token: \"fixture-admin-session\",",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2136,
+      "text": "getLibraryStatus: async () => ({ ...fixtureStatus }),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2137,
+      "text": "getDataLoadingPlan: async () => cloneDataLoadingPlan(fixtureDataLoadingPlan()),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2138,
+      "text": "getOperationsOverview: async () => fixtureOperationsOverview({",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2139,
+      "text": "status: fixtureStatus,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2140,
+      "text": "jobs: fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2141,
+      "text": "sourceVideos: fixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2142,
+      "text": "metrics: fixtureMetrics,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2143,
+      "text": "dataLoadingPlan: fixtureDataLoadingPlan()",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2145,
+      "text": "getReadModelReconcileStatus: async () => fixtureReadModelReconcileStatus(fixtureStatus.video_count),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2149,
+      "text": "...fixtureReadModelReconcileStatus(fixtureStatus.video_count),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2152,
+      "text": "message: \"Fixture read-model reconcile started\"",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2158,
+      "text": "...fixtureReadModelReconcileStatus(fixtureStatus.video_count),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2161,
+      "text": "message: \"Fixture read-model reconcile cancellation requested\"",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2164,
+      "text": "getOperationLog: async (options) => fixtureOperationLog(options?.limit),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2165,
+      "text": "getCommandSnapshotRestorePlan: async (snapshotId) => fixtureCommandSnapshotRestorePlan(snapshotId),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2166,
+      "text": "restoreCommandSnapshot: async (snapshotId) => fixtureCommandSnapshotRestoreResult(snapshotId),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2167,
+      "text": "getPathChecks: async () => fixturePathChecks.map((item) => ({ ...item })),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2168,
+      "text": "getAdminSettings: async () => cloneSettings(fixtureSettings),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2169,
+      "text": "saveAdminSettings: async (settingsUpdate) => saveFixtureSettings(settingsUpdate),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2170,
+      "text": "addSourceFolder: async (folder) => addFixtureSourceFolder(folder),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2171,
+      "text": "updateSourceFolder: async (sourceFolderId, patch) => updateFixtureSourceFolder(sourceFolderId, patch),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2172,
+      "text": "removeSourceFolder: async (sourceFolderId) => removeFixtureSourceFolder(sourceFolderId),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2173,
+      "text": "getDashboardMetrics: async () => cloneDashboardMetrics(fixtureMetrics),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2176,
+      "text": "const limit = options?.limit && options.limit > 0 ? options.limit : fixtureSourceVideos.length;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2178,
+      "text": "return fixtureSourceVideos",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2187,
+      "text": "const video = fixtureSourceVideos.find((candidate) => candidate.source_video_id === sourceVideoId);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2192,
+      "text": "jobs: fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2193,
+      "text": "status: fixtureStatus",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2197,
+      "text": "users: fixtureCutterUsers.map(cloneCutterUser)",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2202,
+      "text": "fixtureCutterUsers = fixtureCutterUsers.map((user) => {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2243,
+      "text": "fixtureCutterUsers = fixtureCutterUsers.map((user) => {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2271,
+      "text": "const updated = fixtureCutterUsers.find((user) => user.user_id === userId);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2279,
+      "text": "...fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2281,
+      "text": "...fixtureJobs.supervisor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2282,
+      "text": "last_result: fixtureJobs.supervisor.last_result",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2283,
+      "text": "? { ...fixtureJobs.supervisor.last_result }",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2286,
+      "text": "jobs: fixtureJobs.jobs.map((job) => ({ ...job }))",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2289,
+      "text": "clonePreprocessProcessHistory(fixtureProcessHistory, options),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2291,
+      "text": "const job = fixtureJobs.jobs.find((candidate) => candidate.job_id === jobId);",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2312,
+      "text": "...fixtureIndexes,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2313,
+      "text": "versions: fixtureIndexes.versions.map((version) => ({ ...version }))",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2316,
+      "text": "...fixtureDoctor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2317,
+      "text": "summary: { ...fixtureDoctor.summary },",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2318,
+      "text": "checks: fixtureDoctor.checks.map((check) => ({ ...check }))",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2326,
+      "text": "audio_mode: fixtureSettings.runtime_policy.audio_mode",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2332,
+      "text": "message: \"fixture 素材库已初始化\"",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2336,
+      "text": "existing_video_count: fixtureSourceVideos.length,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2337,
+      "text": "message: \"fixture 扫描完成\"",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2352,
+      "text": "...fixtureJobs.supervisor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2353,
+      "text": "last_result: fixtureJobs.supervisor.last_result",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2354,
+      "text": "? { ...fixtureJobs.supervisor.last_result }",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2358,
+      "text": "fixtureJobs = {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2359,
+      "text": "...fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2361,
+      "text": "...fixtureJobs.supervisor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2374,
+      "text": ": fixtureJobs.supervisor.last_result",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2378,
+      "text": "...fixtureJobs.supervisor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2379,
+      "text": "last_result: fixtureJobs.supervisor.last_result",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2380,
+      "text": "? { ...fixtureJobs.supervisor.last_result }",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2385,
+      "text": "fixtureJobs = {",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2386,
+      "text": "...fixtureJobs,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2388,
+      "text": "...fixtureJobs.supervisor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2396,
+      "text": "...fixtureJobs.supervisor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2397,
+      "text": "last_result: fixtureJobs.supervisor.last_result",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2398,
+      "text": "? { ...fixtureJobs.supervisor.last_result }",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2403,
+      "text": "publishFixtureSourceVideosAndSave({ sourceVideoId }),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2405,
+      "text": "publishFixtureSourceVideosAndSave({ alwaysPublishIndex: true }),",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2406,
+      "text": "runDoctor: async () => fixtureDoctor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2408,
+      "text": "file_name: `mixlab-doctor-${fixtureDoctor.generated_at.replaceAll(/[:\\s]/g, \"-\")}.json`,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2409,
+      "text": "relative_path: \".mixlab-library/exports/doctor/mixlab-doctor-fixture.json\",",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2410,
+      "text": "file_path: \"/Volumes/PublicLibrary/.mixlab-library/exports/doctor/mixlab-doctor-fixture.json\",",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2412,
+      "text": "...fixtureDoctor,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2413,
+      "text": "summary: { ...fixtureDoctor.summary },",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2414,
+      "text": "checks: fixtureDoctor.checks.map((check) => ({ ...check }))",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2424,
+      "text": "const { sourceVideos: nextSourceVideos, updated } = updateFixtureSourceVideoMetadata(",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2425,
+      "text": "fixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2429,
+      "text": "fixtureSourceVideos = nextSourceVideos;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2433,
+      "text": "const { sourceVideos: nextSourceVideos, updated } = updateFixtureSourceVideoCover(",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2434,
+      "text": "fixtureSourceVideos,",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2438,
+      "text": "fixtureSourceVideos = nextSourceVideos;",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 2542,
+      "text": "fallback_search_count: 0,",
+      "kind": "usage-metrics-field",
+      "cleanup_policy": "Do not rename or remove without backend usage-metrics compatibility and dashboard contract tests.",
+      "required_evidence": [
+        "backend/admin dashboard compatibility tests for usage metric fields",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 2551,
+      "text": "core_fallback_search_count: 0,",
+      "kind": "usage-metrics-field",
+      "cleanup_policy": "Do not rename or remove without backend usage-metrics compatibility and dashboard contract tests.",
+      "required_evidence": [
+        "backend/admin dashboard compatibility tests for usage metric fields",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 2630,
+      "text": "fallback: T,",
+      "kind": "runtime-fallback-contract",
+      "cleanup_policy": "Keep unless the runtime fallback behavior has an explicit replacement and failure-mode tests.",
+      "required_evidence": [
+        "failure-mode test proving runtime fallback behavior after refactor",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 2645,
+      "text": "const timer = setTimeout(() => finish(fallback), timeoutMs);",
+      "kind": "runtime-fallback-contract",
+      "cleanup_policy": "Keep unless the runtime fallback behavior has an explicit replacement and failure-mode tests.",
+      "required_evidence": [
+        "failure-mode test proving runtime fallback behavior after refactor",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fallback",
+      "line": 2647,
+      "text": "promise.then(finish).catch(() => finish(fallback));",
+      "kind": "runtime-fallback-contract",
+      "cleanup_policy": "Keep unless the runtime fallback behavior has an explicit replacement and failure-mode tests.",
+      "required_evidence": [
+        "failure-mode test proving runtime fallback behavior after refactor",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    },
+    {
+      "term": "fixture",
+      "line": 2666,
+      "text": "settleWithin(client.getDataLoadingPlan(), fixtureDataLoadingPlan(), 6_000)",
+      "kind": "fixture-client-boundary",
+      "cleanup_policy": "Keep until the fixture AdminApiClient boundary is split or typed into its own module with equivalent tests.",
+      "required_evidence": [
+        "replacement module path or explicit decision to keep fixture client in api.ts",
+        "fixture client behavior parity tests",
+        "focused Admin Web API tests",
+        "typecheck",
+        "post-change fixture/fallback classification artifact"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "classification-no-side-effects",
+      "status": "pass",
+      "evidence": "The classification reads Admin Web api.ts and writes acceptance artifacts only.",
+      "blocks_cleanup": false
+    },
+    {
+      "id": "fixture-client-boundary-classified",
+      "status": "blocked",
+      "evidence": "165 fixture-client occurrences need a module ownership decision before extraction or cleanup.",
+      "blocks_cleanup": true
+    },
+    {
+      "id": "fallback-contracts-preserved",
+      "status": "blocked",
+      "evidence": "4 fallback contract occurrences must be preserved or replaced with tests before cleanup.",
+      "blocks_cleanup": true
+    },
+    {
+      "id": "api-hotspot-cleanup-still-targeted",
+      "status": "pass",
+      "evidence": "No mock/legacy/debt candidates were detected.",
+      "blocks_cleanup": false
+    }
+  ],
+  "result": {
+    "status": "blocked",
+    "summary": "Admin Web api.ts fixture/fallback hotspots are classified; cleanup remains blocked until each selected boundary has replacement tests."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T220123Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-api-fixture-fallback-classification-20260626T220123Z.md"
+  }
+}

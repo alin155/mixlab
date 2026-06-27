@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T17:07:00.948Z",
+  "command": "tsx scripts/acceptance/admin-source-videos-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5191/#/source-videos",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5191/#/source-videos",
+      "load_ms": 556.9,
+      "screenshot_path": "docs/acceptance/artifacts/admin-source-videos-browser-qa-20260626T170700Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "素材库": true,
+        "素材表格": true,
+        "素材详情": true,
+        "读模型": true,
+        "分页读取": true,
+        "不扫描": true,
+        "状态与搜索": true,
+        "页面控制": true,
+        "路由刷新": true,
+        "不写协议文件": true,
+        "保存素材信息": true
+      },
+      "asset_table_text": "素材表格\n\n首屏和继续加载都走素材库路由；状态筛选不会让页面直接扫描 NAS 大目录。\n\n已载入 6\n封面\t标题\t时长\t相对路径\t字幕状态\t预处理状态\t搜索可见\t发布版本\t操作\n\n\t\n现金流课程片段\nV000043 · 现金流课程片段.mp4\n\t56:14\tsource-videos/2024/05/现金流课程片段.mp4\t生成中\t处理中\t否\t-\t查看详情\n\n\t\n现金流管理与风险控制\nV000042 · 现金流管理与风险控制.mp4\n\t56:14\tsource-videos/2024/05/现金流管理与风险控制.mp4\t已生成\t已可用\t是\tv000027\t查看详情\n\n\t\n利润增长的估价优化\nV000041 · 利润增长估价优化.mp4\n\t01:12:09\tsource-videos/2024/05/利润增长估价优化.mp4\t已生成\t已可用\t是\tv000027\t查看详情\n\n\t\n组织复制方法\nV000039 · 组织复制方法.mp4\n\t47:01\tsource-videos/2024/05/组织复制方法.mp4\t已生成\t待发布索引\t否\t待发布\t查看详情\n\n\t\n客户筛选与品牌定价\nV000037 · 客户筛选与品牌定价.mp4\n\t38:15\tsource-videos/2024/05/客户筛选与品牌定价.mp4\t失败\t处理失败\t否\t-\t查看详情\n\n\t\n人工智能商业落地\nV000044 · 人工智能商业落地.mp4\n\t00:00\tsource-videos/2024/05/人工智能商业落地.mp4\t等待\t未处理\t否\t-\t查看详情\n显示 1-6 / 已返回 6\n上一页\n下一页",
+      "inspector_text": "素材详情\n现金流课程片段\nV000043 · 处理中\n剪辑师可见：否\n当前状态\n处理中\n恢复到队列\n封面图片\n标题\n标签\n说明\n讲师\n课程\n分类\n保存素材信息",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5191/#/source-videos",
+      "load_ms": 539.2,
+      "screenshot_path": "docs/acceptance/artifacts/admin-source-videos-browser-qa-20260626T170700Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "素材库": true,
+        "素材表格": true,
+        "素材详情": true,
+        "读模型": true,
+        "分页读取": true,
+        "不扫描": true,
+        "状态与搜索": true,
+        "页面控制": true,
+        "路由刷新": true,
+        "不写协议文件": true,
+        "保存素材信息": true
+      },
+      "asset_table_text": "素材表格\n\n首屏和继续加载都走素材库路由；状态筛选不会让页面直接扫描 NAS 大目录。\n\n已载入 6\n封面\t标题\t时长\t相对路径\t字幕状态\t预处理状态\t搜索可见\t发布版本\t操作\n\n\t\n现金流课程片段\nV000043 · 现金流课程片段.mp4\n\t56:14\tsource-videos/2024/05/现金流课程片段.mp4\t生成中\t处理中\t否\t-\t查看详情\n\n\t\n现金流管理与风险控制\nV000042 · 现金流管理与风险控制.mp4\n\t56:14\tsource-videos/2024/05/现金流管理与风险控制.mp4\t已生成\t已可用\t是\tv000027\t查看详情\n\n\t\n利润增长的估价优化\nV000041 · 利润增长估价优化.mp4\n\t01:12:09\tsource-videos/2024/05/利润增长估价优化.mp4\t已生成\t已可用\t是\tv000027\t查看详情\n\n\t\n组织复制方法\nV000039 · 组织复制方法.mp4\n\t47:01\tsource-videos/2024/05/组织复制方法.mp4\t已生成\t待发布索引\t否\t待发布\t查看详情\n\n\t\n客户筛选与品牌定价\nV000037 · 客户筛选与品牌定价.mp4\n\t38:15\tsource-videos/2024/05/客户筛选与品牌定价.mp4\t失败\t处理失败\t否\t-\t查看详情\n\n\t\n人工智能商业落地\nV000044 · 人工智能商业落地.mp4\n\t00:00\tsource-videos/2024/05/人工智能商业落地.mp4\t等待\t未处理\t否\t-\t查看详情\n显示 1-6 / 已返回 6\n上一页\n下一页",
+      "inspector_text": "素材详情\n现金流课程片段\nV000043 · 处理中\n剪辑师可见：否\n当前状态\n处理中\n恢复到队列\n封面图片\n标题\n标签\n说明\n讲师\n课程\n分类\n保存素材信息",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "asset-table-visible",
+      "passed": true,
+      "detail": "desktop:694; mobile:694"
+    },
+    {
+      "name": "metadata-inspector-visible",
+      "passed": true,
+      "detail": "desktop:79; mobile:79"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "source-videos browser QA passed for desktop and mobile fixture routes"
+  }
+}

@@ -1,0 +1,749 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T10:48:10.062Z",
+  "command": "tsx scripts/acceptance/admin-process-history-live-readonly.ts",
+  "api_base_url": "http://127.0.0.1:3892",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "requested_limit": 20,
+  "requested_window_days": 30,
+  "environment": {
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "library_updated_at": "2026-06-25T19:07:13.162Z",
+    "current_index_version": "v010471",
+    "video_count": 11394,
+    "ready_video_count": 10471,
+    "admin_read_model": {
+      "storage": "sqlite",
+      "exists": true,
+      "freshness": "fresh",
+      "video_count": 11394,
+      "reconciliation_action": "none",
+      "reconciliation_reason": "fresh",
+      "reconciliation_scan_mode": "no-scan",
+      "safe_for_page_request": true
+    }
+  },
+  "data_loading_contract": {
+    "endpoint_found": true,
+    "scan_mode": "no-scan",
+    "owner": "",
+    "read_model": "admin-read-model-v1",
+    "route_found": true,
+    "readiness_endpoint_found": true,
+    "readiness_scan_mode": "no-scan",
+    "readiness_read_model": "admin-read-model-v1",
+    "readiness_route_found": true
+  },
+  "process_history": {
+    "available": false,
+    "status": "safe-miss",
+    "actual_data_source": "admin-read-model",
+    "cache_status": "miss",
+    "scan_mode": "no-scan",
+    "returned_count": 0,
+    "item_count": 0,
+    "window_days": 30,
+    "limit": 20
+  },
+  "process_history_readiness": {
+    "ready": false,
+    "reason": "store_unreadable",
+    "actual_data_source": "admin-read-model",
+    "scan_mode": "no-scan",
+    "expected_job_snapshot_rows": 11394,
+    "snapshot_complete": false,
+    "snapshot_metadata_row_count": null,
+    "snapshot_table_row_count": null,
+    "metadata_row_count_matches": false,
+    "table_row_count_matches": false
+  },
+  "requests": [
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 50.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 133,
+      "data": {
+        "authenticated": true,
+        "auth_mode": "disabled",
+        "user": null,
+        "bootstrap": {
+          "has_admin": true,
+          "registration_open": false
+        }
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 31.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 732,
+      "data": {
+        "library_id": "lib_main_001",
+        "name": "主素材库",
+        "root_path": "/Volumes/MixLab/PublicLibrary",
+        "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+        "mixlab_library_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+        "protocol_version": "1.0",
+        "version": "1.0",
+        "created_at": "2026-06-24T11:53:43.919Z",
+        "updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "processing_video_count": 0,
+        "queued_video_count": 904,
+        "unprocessed_video_count": 0,
+        "failed_video_count": 0,
+        "index_required_video_count": 19,
+        "disk_total_bytes": 31840459087872,
+        "disk_available_bytes": 674093084672,
+        "index_status": "needs-publish",
+        "current_index_version": "v010471",
+        "active_task_label": "无正在处理任务"
+      }
+    },
+    {
+      "name": "read_model_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/status",
+      "duration_ms": 93.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1462,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T10:48:10.145Z",
+        "admin_read_model": {
+          "schema_version": "1.0",
+          "storage": "sqlite",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "freshness": "fresh",
+          "exists": true,
+          "generated_at": "2026-06-25T23:10:54.245Z",
+          "library_updated_at": "2026-06-25T19:07:13.162Z",
+          "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+          "video_count": 11394,
+          "current_video_count": 11394,
+          "counts_by_status": {
+            "unprocessed": 0,
+            "queued": 904,
+            "processing": 0,
+            "ready": 10471,
+            "failed": 0,
+            "index-required": 19
+          },
+          "invalidated_at": "",
+          "invalidation_reason": "",
+          "last_error": "",
+          "reconciliation": {
+            "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+            "action": "none",
+            "reason": "fresh",
+            "scan_mode": "no-scan",
+            "requires_background_reconcile": false,
+            "safe_for_page_request": true
+          }
+        },
+        "source_video_status": {
+          "name": "source-video-status-read-model-v1",
+          "storage": "persistent-json",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+          "freshness": "fresh",
+          "memory_cache": "building",
+          "persisted": "fresh",
+          "generated_at": "2026-06-25T23:10:54.245Z",
+          "library_updated_at": "2026-06-25T19:07:13.162Z",
+          "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+          "video_count": 11394,
+          "current_video_count": 11394,
+          "counts_by_status": {
+            "unprocessed": 0,
+            "queued": 904,
+            "processing": 0,
+            "ready": 10471,
+            "failed": 0,
+            "index-required": 19
+          },
+          "cache_ttl_ms": 30000
+        }
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "method": "GET",
+      "path": "/api/admin/data-loading/plan",
+      "duration_ms": 1.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 11375,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T10:48:10.238Z",
+        "strategy": "shell-first-route-owned-v1",
+        "shell_interactive_target_ms": 1000,
+        "route_timeout_ms": 8000,
+        "background_prefetch_default": false,
+        "hidden_full_scan_allowed": false,
+        "endpoints": [
+          {
+            "endpoint": "/api/admin/library/status",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "library-manifest",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "interval",
+            "notes": "Reads library.json summary and current index pointer; does not enumerate videos."
+          },
+          {
+            "endpoint": "/api/admin/settings/config",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-settings",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Small Admin settings file used for shell and route controls."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/supervisor/status",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "supervisor-runtime",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "interval",
+            "notes": "In-memory supervisor state; safe for shell status."
+          },
+          {
+            "endpoint": "/api/admin/data-loading/plan",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "data-loading-contract",
+            "scan_reason": "shell-contract",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Machine-readable route loading contract for Admin web."
+          },
+          {
+            "endpoint": "/api/admin/source-videos",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "paged-list",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 20,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Route-owned paged source-video list. Ready rows use the transcript index; non-ready status filters use source-video-status-read-model-v1."
+          },
+          {
+            "endpoint": "/api/admin/source-videos/:id",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "single-id",
+            "data_source": "source-video-manifest",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Single selected source-video detail and transcript summary."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/jobs",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "status-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 20,
+            "cache_ttl_ms": 30000,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "interval",
+            "notes": "Preprocess route list. The default limit is bounded by source-video-status-read-model-v1 instead of a hidden manifest sweep."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/process-history",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 50,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Bounded preprocess process-history report from complete admin.sqlite snapshots. It must not enumerate preprocess-job files from a page request."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/process-history/readiness",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "No-scan readiness diagnostic explaining whether admin.sqlite has a complete preprocess-job snapshot for process-history rows."
+          },
+          {
+            "endpoint": "/api/admin/read-model/status",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Diagnostic read-model freshness endpoint. It reports state without forcing a rebuild."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile/status",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Diagnostic status for the explicit background read-model reconciler. It never starts a scan."
+          },
+          {
+            "endpoint": "/api/admin/operations/overview",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "data-loading-contract",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Protection Center aggregate for release gates, read-model freshness, data-loading strategy, and ready protection."
+          },
+          {
+            "endpoint": "/api/admin/operation-log",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "operation-log",
+            "scan_reason": "operation-log-tail",
+            "critical": false,
+            "timeout_ms": 1000,
+            "refresh": "route-entry",
+            "notes": "Admin operation log tail from a bounded NDJSON file. It must not enumerate source-video manifests."
+          },
+          {
+            "endpoint": "/api/admin/runtime/diagnostics/history",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "runtime-diagnostics-history-v1",
+            "timeout_ms": 1000,
+            "refresh": "route-entry",
+            "notes": "Recent runtime endpoint diagnostics from a bounded derived history file; it must not enumerate source-video manifests."
+          },
+          {
+            "endpoint": "/api/admin/index/versions",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "paged-list",
+            "data_source": "index-version-packages",
+            "scan_reason": "index-version-page",
+            "critical": false,
+            "default_limit": 8,
+            "cache_ttl_ms": 30000,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Paged and cached index-version list; current version remains visible even when outside the first page."
+          },
+          {
+            "endpoint": "/api/admin/dashboard/metrics",
+            "method": "GET",
+            "phase": "background",
+            "cost": "expensive",
+            "scan_mode": "status-scan",
+            "data_source": "usage-events",
+            "scan_reason": "background-metrics",
+            "critical": false,
+            "cache_ttl_ms": 30000,
+            "timeout_ms": 8000,
+            "refresh": "interval",
+            "notes": "Supplemental dashboard metrics. Shell must remain usable when this endpoint is slow."
+          },
+          {
+            "endpoint": "/api/admin/cutter-users",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "user-store",
+            "scan_reason": "user-management-route",
+            "critical": false,
+            "timeout_ms": 20000,
+            "refresh": "route-entry",
+            "notes": "Route-owned user-management table; do not prefetch from dashboard shell."
+          },
+          {
+            "endpoint": "/api/admin/doctor/report",
+            "method": "GET",
+            "phase": "route",
+            "cost": "expensive",
+            "scan_mode": "status-scan",
+            "data_source": "doctor-probes",
+            "scan_reason": "doctor-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Doctor route report only; full checks are not a shell dependency."
+          },
+          {
+            "endpoint": "/api/admin/library/path-checks",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "path-checks",
+            "scan_reason": "settings-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Settings route path availability checks; reports configured paths without source-video enumeration."
+          },
+          {
+            "endpoint": "/api/admin/settings/runtime",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "runtime-secrets",
+            "scan_reason": "settings-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Settings route runtime probe; not loaded during dashboard shell."
+          },
+          {
+            "endpoint": "/api/admin/library/scan-preview",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "folder-scan",
+            "data_source": "source-folders",
+            "scan_reason": "explicit-scan-preview",
+            "critical": false,
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit scan planning command. It is never a page-open side effect."
+          },
+          {
+            "endpoint": "/api/admin/library/scan",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "folder-scan",
+            "data_source": "source-folders",
+            "scan_reason": "explicit-scan-apply",
+            "critical": false,
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit scan apply command protected by scan-preview and ready blockers."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "full-reconcile",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "explicit-read-model-reconcile",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit background maintenance command. It rebuilds admin.sqlite from a validated manifest snapshot and is never a page-open side effect."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile/cancel",
+            "method": "POST",
+            "phase": "command",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "explicit-reconcile-cancel",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "command-only",
+            "notes": "Explicit cancel request for the background read-model reconciler. It does not scan the library and only stops at safe checkpoints."
+          }
+        ],
+        "routes": [
+          {
+            "route": "dashboard",
+            "load_phase": "shell",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/library/status",
+              "/api/admin/settings/config",
+              "/api/admin/preprocess/supervisor/status",
+              "/api/admin/data-loading/plan"
+            ],
+            "fallback": "Use shell placeholders for metrics, Doctor, source videos, jobs, and indexes until route panels ask for them."
+          },
+          {
+            "route": "source-videos",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos"
+            ],
+            "fallback": "Show route-local loading and keep Admin shell interactive."
+          },
+          {
+            "route": "source-detail",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos/:id"
+            ],
+            "fallback": "Show selected-source error without replacing shell data."
+          },
+          {
+            "route": "preprocess-jobs",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/preprocess/jobs",
+              "/api/admin/preprocess/process-history",
+              "/api/admin/preprocess/process-history/readiness",
+              "/api/admin/index/versions"
+            ],
+            "fallback": "Use summary counts from library status until the route list resolves."
+          },
+          {
+            "route": "protection",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/operations/overview"
+            ],
+            "fallback": "Use shell library counts until protection details resolve."
+          },
+          {
+            "route": "operation-log",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/operation-log"
+            ],
+            "fallback": "Show route-local operation log loading without blocking the Admin shell."
+          },
+          {
+            "route": "runtime-diagnostics",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/runtime/diagnostics/history"
+            ],
+            "fallback": "Show recent endpoint diagnostics without blocking the Admin shell."
+          },
+          {
+            "route": "cutter-users",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/cutter-users"
+            ],
+            "fallback": "Keep route-local user loading/errors isolated from dashboard shell."
+          },
+          {
+            "route": "doctor",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/doctor/report"
+            ],
+            "fallback": "Use placeholder Doctor summary from shell until explicit report loads."
+          },
+          {
+            "route": "settings",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/library/path-checks",
+              "/api/admin/settings/runtime"
+            ],
+            "fallback": "Settings form can render from shell settings before path/runtime probes finish."
+          }
+        ]
+      }
+    },
+    {
+      "name": "process_history_readiness",
+      "method": "GET",
+      "path": "/api/admin/preprocess/process-history/readiness",
+      "duration_ms": 148.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 843,
+      "data": {
+        "source": "admin-read-model-store",
+        "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+        "store_exists": true,
+        "store_freshness": "unreadable",
+        "generated_at": "2026-06-25T23:10:54.245Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "scan_mode": "no-scan",
+        "ready_for_process_history": false,
+        "reason": "store_unreadable",
+        "expected_job_snapshot_rows": 11394,
+        "snapshot_complete": false,
+        "snapshot_metadata_row_count": null,
+        "snapshot_table_row_count": null,
+        "metadata_row_count_matches": false,
+        "table_row_count_matches": false,
+        "last_error": "no such table: preprocess_job_status",
+        "schema_version": "1.0",
+        "checked_at": "2026-06-26T10:48:10.387Z",
+        "data_source": "admin-read-model",
+        "actual_data_source": "admin-read-model",
+        "scan_reason": "read-model-health"
+      }
+    },
+    {
+      "name": "process_history",
+      "method": "GET",
+      "path": "/api/admin/preprocess/process-history?limit=20&window_days=30",
+      "duration_ms": 122.9,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 408,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T10:48:10.388Z",
+        "data_source": "admin-read-model",
+        "actual_data_source": "admin-read-model",
+        "cache_status": "miss",
+        "scan_mode": "no-scan",
+        "scan_reason": "route-owned-page",
+        "history_available": false,
+        "window_days": 30,
+        "limit": 20,
+        "summary": {
+          "returned_count": 0,
+          "completed_count": 0,
+          "failed_count": 0,
+          "active_count": 0,
+          "average_process_ms": 0
+        },
+        "items": []
+      }
+    }
+  ],
+  "gates": [
+    {
+      "name": "get-only-probe",
+      "passed": true,
+      "detail": "methods=auth_status:GET,library_status:GET,read_model_status:GET,data_loading_plan:GET,process_history_readiness:GET,process_history:GET"
+    },
+    {
+      "name": "request-success",
+      "passed": true,
+      "detail": "all probe requests returned ok"
+    },
+    {
+      "name": "library-root",
+      "passed": true,
+      "detail": "root_path=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "read-model-page-safe",
+      "passed": true,
+      "detail": "storage=sqlite, exists=true, freshness=fresh, scan_mode=no-scan, safe_for_page_request=true"
+    },
+    {
+      "name": "data-loading-contract",
+      "passed": true,
+      "detail": "endpoint_found=true, route_found=true, scan_mode=no-scan, read_model=admin-read-model-v1, readiness_endpoint_found=true, readiness_route_found=true, readiness_scan_mode=no-scan, readiness_read_model=admin-read-model-v1"
+    },
+    {
+      "name": "process-history-no-scan",
+      "passed": true,
+      "detail": "status=safe-miss, actual_data_source=admin-read-model, cache_status=miss, scan_mode=no-scan"
+    },
+    {
+      "name": "process-history-readiness-no-scan",
+      "passed": true,
+      "detail": "ready=false, reason=store_unreadable, expected=11394, metadata=n/a, table=n/a, scan_mode=no-scan"
+    },
+    {
+      "name": "process-history-bounded",
+      "passed": true,
+      "detail": "limit=20, window_days=30, item_count=0, returned_count=0"
+    }
+  ],
+  "notes": [
+    "All probe requests use GET only.",
+    "This probe never starts, cancels, applies, repairs, publishes, rebuilds, or deploys any command.",
+    "A process-history hit proves the live admin.sqlite job snapshot can serve the route-owned panel. A safe miss is still acceptable as no-scan evidence but means the live read model needs a separate gated rebuild before the panel can show rows.",
+    "The admin.sqlite read model is a rebuildable query projection; source-video manifests, preprocess-job files and release/index outputs remain the durable facts."
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "process-history safe-miss through admin-read-model with no-scan; readiness=store_unreadable"
+  }
+}

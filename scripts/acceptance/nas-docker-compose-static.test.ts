@@ -27,13 +27,21 @@ test("NAS Docker compose static validation rejects drift from target deployment 
     composePath,
     compose
       .replace("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL: ${MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL:-25}", "")
+      .replaceAll("MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}", "MIXLAB_ADMIN_DOCKER_MVP_MODE: off")
+      .replace("MIXLAB_PREPROCESS_LIBRARY_ROOT: /data/PublicLibrary", "")
+      .replace("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-0}", "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-1}")
+      .replace("MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-0}", "MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-1}")
       .replace('command: ["npm", "run", "worker:admin-loop"]', 'command: ["npm", "run", "server:admin-api"]'),
     "utf8"
   );
   await writeFile(
     envPath,
     env
+      .replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1", "MIXLAB_ADMIN_DOCKER_MVP_MODE=off")
       .replace("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=25", "MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=1")
+      .replace("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0", "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1")
+      .replace("MIXLAB_ENABLE_READY_PUBLISH_WORKER=0", "MIXLAB_ENABLE_READY_PUBLISH_WORKER=1")
+      .replace("MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT=92", "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT=99")
       .replace("DASHSCOPE_API_KEY=", "DASHSCOPE_API_KEY=sk-should-not-be-in-example"),
     "utf8"
   );
@@ -45,8 +53,15 @@ test("NAS Docker compose static validation rejects drift from target deployment 
 
   assert.equal(result.ok, false);
   assert.match(result.errors.join("\n"), /admin-worker must use the mounted \/data\/PublicLibrary root/);
+  assert.match(result.errors.join("\n"), /admin-api must default to Docker MVP mode v0\.1/);
+  assert.match(result.errors.join("\n"), /admin-worker must default to Docker MVP mode v0\.1/);
+  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_ADMIN_DOCKER_MVP_MODE must be "v0\.1"/);
+  assert.match(result.errors.join("\n"), /admin-worker standalone workers must default disabled/);
   assert.match(result.errors.join("\n"), /admin-worker must depend on admin-api and run worker:admin-loop/);
   assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL must be "25"/);
+  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER must be "0"/);
+  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_ENABLE_READY_PUBLISH_WORKER must be "0"/);
+  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT must be "92"/);
   assert.match(result.errors.join("\n"), /\.env\.example DASHSCOPE_API_KEY must be blank/);
 });
 
@@ -61,8 +76,8 @@ test("NAS Docker compose static validation rejects externally exposed runtime se
     composePath,
     compose
       .replace(
-        "    volumes:\n      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary\n\n  admin-worker:",
-        "    ports:\n      - \"3889:3889\"\n    volumes:\n      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary\n\n  admin-worker:"
+        "    volumes:\n      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary\n    healthcheck:",
+        "    ports:\n      - \"3889:3889\"\n    volumes:\n      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary\n    healthcheck:"
       )
       .replace(
         "  admin-worker:\n    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}\n    restart: unless-stopped\n    depends_on:\n      - admin-api\n    env_file:\n      - .env\n    environment:",

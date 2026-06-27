@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,7 +8,7 @@ import {
   readAdminSettings,
   writeAdminSettings
 } from "./admin-settings.ts";
-import { scanSourceVideos } from "./index.ts";
+import { previewSourceVideoScan, scanSourceVideos } from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   const root = await mkdir(path.join(os.tmpdir(), `mixlab-scan-${Date.now()}-`), {
@@ -30,6 +30,34 @@ async function writeDummyFile(filePath: string): Promise<void> {
 async function readJson<T>(filePath: string): Promise<T> {
   return JSON.parse(await readFile(filePath, "utf8")) as T;
 }
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test("scan preview is read-only for uninitialized libraries", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "课程", "预览素材.mp4"));
+
+  const preview = await previewSourceVideoScan({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-01T00:00:00Z"
+  });
+
+  assert.equal(preview.blocked, false);
+  assert.equal(preview.total_video_count, 1);
+  assert.equal(preview.new_video_count, 1);
+  assert.deepEqual(preview.source_video_ids, ["V000001"]);
+  assert.equal(await pathExists(path.join(libraryRoot, ".mixlab-library")), false);
+});
 
 test("scans source-videos recursively and writes unprocessed source-video manifests", async () => {
   const libraryRoot = await makeLibraryRoot();
@@ -535,4 +563,126 @@ test("prunes manifests that no longer belong to the current enabled source folde
   );
   assert.equal(manifest.relative_path, "src_default/新素材.mp4");
   assert.equal(manifest.source_folder_id, "src_default");
+});
+
+test("previews scan changes without mutating manifest directories", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const externalSource = path.join(libraryRoot, "external-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "旧素材.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const settings = await readAdminSettings(libraryRoot);
+  await writeAdminSettings(libraryRoot, {
+    ...settings,
+    source_folders: settings.source_folders.map((folder) =>
+      folder.id === "src_default"
+        ? { ...folder, path: externalSource }
+        : folder
+    )
+  });
+  await writeDummyFile(path.join(externalSource, "新素材.mp4"));
+
+  const preview = await previewSourceVideoScan({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+
+  assert.equal(preview.blocked, false);
+  assert.equal(preview.total_video_count, 1);
+  assert.equal(preview.new_video_count, 1);
+  assert.equal(preview.existing_video_count, 0);
+  assert.equal(preview.inactive_manifest_count, 1);
+  assert.equal(preview.inactive_ready_count, 0);
+  assert.deepEqual(preview.inactive_source_video_ids, ["V000001"]);
+
+  const original = await readJson<{ relative_path: string }>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
+  );
+  assert.equal(original.relative_path, "旧素材.mp4");
+  await assert.rejects(
+    () => readFile(
+      path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json"),
+      "utf8"
+    ),
+    /ENOENT/
+  );
+});
+
+test("blocks scans that would remove ready source videos", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const externalSource = path.join(libraryRoot, "external-source");
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "已发布素材.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const manifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "source-video.json"
+  );
+  const manifest = await readJson<Record<string, unknown>>(manifestPath);
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify({
+      ...manifest,
+      preprocess_status: "ready",
+      visible_to_cutters: true,
+      transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+      srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+      keyframes_path: ".mixlab-library/videos/V000001/keyframes.json",
+      cover_path: ".mixlab-library/videos/V000001/cover.jpg"
+    }, null, 2)}\n`
+  );
+
+  const settings = await readAdminSettings(libraryRoot);
+  await writeAdminSettings(libraryRoot, {
+    ...settings,
+    source_folders: settings.source_folders.map((folder) =>
+      folder.id === "src_default"
+        ? { ...folder, path: externalSource }
+        : folder
+    )
+  });
+  await writeDummyFile(path.join(externalSource, "新素材.mp4"));
+
+  const preview = await previewSourceVideoScan({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+
+  assert.equal(preview.blocked, true);
+  assert.equal(preview.inactive_ready_count, 1);
+  assert.deepEqual(preview.inactive_ready_source_video_ids, ["V000001"]);
+  assert.equal(preview.blockers[0]?.code, "ready-manifest-removal");
+
+  await assert.rejects(
+    () => scanSourceVideos({
+      library_root: libraryRoot,
+      library_id: "lib_main_001",
+      library_name: "主素材库",
+      now: "2026-05-02T00:05:00Z"
+    }),
+    /已发布 ready 视频/
+  );
+
+  const protectedManifest = await readJson<Record<string, unknown>>(manifestPath);
+  assert.equal(protectedManifest.preprocess_status, "ready");
+  assert.equal(protectedManifest.visible_to_cutters, true);
 });

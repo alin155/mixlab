@@ -1,0 +1,91 @@
+# Admin Docker Candidate Contract Proof
+
+Generated: 2026-06-27T19:01:48.352Z
+
+Mode: admin-docker-candidate-contract-proof
+
+Result: ready-for-candidate-review
+
+Candidate contract ready: yes
+
+Docker upload allowed: no
+
+Staging approved: no
+
+This proof sends only GET requests to explicit candidate Web/API target roots. It does not run Docker, build images, push images, restart containers, enable workers, write NAS files, repair usage-events, recover processing jobs, publish indexes, run Windows Runner, launch Cutter, or change Cutter protocols.
+
+## Target
+
+- Base URL configured: yes
+- Web base URL: http://127.0.0.1:5176
+- Web normalized base URL: http://127.0.0.1:5176
+- Web target kind: local-loopback-candidate
+- Web safe to probe: yes
+- Web target classification: Candidate target is local to the current machine and is allowed only as local candidate proof.
+- Web target notes: This may prove local candidate API shape.; It is not NAS Docker live evidence and cannot replace admin-docker-release-live-readonly.
+- API base URL configured: yes
+- API base URL: http://127.0.0.1:3892
+- API normalized base URL: http://127.0.0.1:3892
+- API target kind: local-loopback-candidate
+- API safe to probe: yes
+- API target classification: Candidate target is local to the current machine and is allowed only as local candidate proof.
+- API target notes: This may prove local candidate API shape.; It is not NAS Docker live evidence and cannot replace admin-docker-release-live-readonly.
+- Split API target: yes
+- Session token present: no
+- NAS live evidence: no
+
+## Observed
+
+- Auth mode: disabled
+- Authenticated: true
+- Library root: /Users/huaqihang/Documents/mixlab/.local-dev/admin-mvp-phase4-library
+- Current index: unknown
+- Build: sha phase4-local-candidate, version admin-docker-mvp-v0.1, image tag local-admin-docker-mvp-v0.1
+- Release gates: overall attention, allowed false
+
+## Summary
+
+- Passed: 15
+- Failed: 0
+- Blocked: 0
+- Candidate review blockers: none
+- Docker upload blockers: candidate-not-nas-live-evidence, candidate-does-not-approve-upload
+
+## Requests
+
+| Probe | Target | Base URL | Request | HTTP | OK | Duration | Error |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+admin_web_root | web | http://127.0.0.1:5176 | GET / | 200 | yes | 26.6ms | none
+auth_status | api | http://127.0.0.1:3892 | GET /api/admin/auth/status | 200 | yes | 4.4ms | none
+library_status | api | http://127.0.0.1:3892 | GET /api/admin/library/status | 200 | yes | 2.4ms | none
+release_gates | api | http://127.0.0.1:3892 | GET /api/admin/release-gates | 200 | yes | 9.2ms | none
+data_loading_plan | api | http://127.0.0.1:3892 | GET /api/admin/data-loading/plan | 200 | yes | 0.8ms | none
+
+## Gates
+
+| Gate | Category | Status | Blocks Candidate Review | Blocks Docker Upload | Evidence | Required Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+candidate-proof-no-side-effects | safety | pass | no | no | The proof uses GET requests only and never starts Docker, enables workers, writes NAS files, repairs usage-events, recovers jobs, publishes indexes, or changes Cutter protocols. | n/a
+candidate-target-configured | target | pass | no | yes | Candidate target was supplied explicitly. | n/a
+candidate-target-shape | target | pass | no | yes | local-loopback-candidate: Candidate target is local to the current machine and is allowed only as local candidate proof. | n/a
+candidate-api-target-shape | target | pass | no | yes | local-loopback-candidate: Candidate target is local to the current machine and is allowed only as local candidate proof. | n/a
+candidate-not-nas-live-evidence | release-boundary | pass | no | yes | This report always sets nas_live_evidence=false and cannot replace admin-docker-release-live-readonly. | Run the separate NAS live-readonly probe after a staged target exists.
+candidate-probe-get-only | safety | pass | no | yes | methods=GET,GET,GET,GET,GET | n/a
+candidate-admin-web-root | candidate-api | pass | no | yes | HTTP 200, ok, 26.6ms | GET / must return an Admin Web response from the candidate target.
+candidate-current-admin-api-contract | candidate-api | pass | no | yes | auth/status, release-gates, and data-loading/plan responded. | Candidate must expose /api/admin/auth/status, /api/admin/release-gates, and /api/admin/data-loading/plan.
+candidate-version-health-contract | candidate-contract | pass | no | yes | version_health_parity contract is complete. | release-gates must expose version_health_parity with expected services, GET preflight endpoints, external proof requirements, and no ready/Cutter mutations.
+candidate-disk-protection-contract | candidate-contract | pass | no | yes | disk_space_protection contract is complete. | release-gates must expose disk_space_protection with GET preflight endpoints and no worker/ready/Cutter mutations.
+candidate-usage-events-repair-contract | candidate-contract | pass | no | yes | usage_events_repair contract is complete. | release-gates must expose usage_events_repair dry-run/apply commands with usage-events-only scope and no ready/Cutter mutations.
+candidate-processing-recovery-contract | candidate-contract | pass | no | yes | processing_recovery contract is complete. | release-gates must expose processing_recovery preflight scope, idle-supervisor requirement, and no ready/Cutter mutations.
+candidate-admin-worker-env-proof-contract | candidate-contract | pass | no | yes | admin_worker_env_proof contract is complete. | release-gates must expose admin_worker_env_proof with disabled standalone worker flags, /data/PublicLibrary roots, proof command, no secrets, no worker start, and no ready/Cutter mutations.
+candidate-cutter-compatibility-proof-contract | candidate-contract | pass | no | yes | cutter_compatibility_proof contract is complete. | release-gates must expose cutter_compatibility_proof with Windows acceptance and real-cut requirements, staged-candidate boundary, and no ready/Cutter mutations.
+candidate-does-not-approve-upload | release-boundary | pass | no | yes | docker_upload_allowed=false and staging_approved=false are hard-coded in this report. | Docker upload requires separate NAS live-readonly, parity, worker, Cutter, staging-tag, rollback, disk, and release decision gates.
+
+## Scope
+
+This is candidate contract proof only. It cannot replace NAS live-readonly evidence, admin-worker external proof, Cutter compatibility proof, staging runbook tags, rollback evidence, or a separate release decision.
+
+## Artifacts
+
+- JSON: docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T190148Z.json
+- Markdown: docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T190148Z.md

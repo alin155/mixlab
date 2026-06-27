@@ -1,0 +1,251 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T19:47:19.575Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-local-smoke.ts",
+  "mode": "admin-docker-local-smoke",
+  "run_requested": false,
+  "local_smoke_passed": false,
+  "docker_upload_allowed": false,
+  "nas_live_evidence": false,
+  "observations": {
+    "web_url": "http://127.0.0.1:18081/",
+    "work_dir": ".local-dev/admin-docker-local-smoke/20260627T194719Z",
+    "compose_file": ".local-dev/admin-docker-local-smoke/20260627T194719Z/docker-compose.yml",
+    "public_library_host_path": ".local-dev/admin-docker-local-smoke/20260627T194719Z/PublicLibrary",
+    "runtime_image": "mixlab-admin-runtime:local-mvp-smoke",
+    "web_image": "mixlab-admin-web:local-mvp-smoke",
+    "docker_cli_available": false,
+    "docker_compose_available": false,
+    "static_contract_ok": true
+  },
+  "build_identity": {
+    "image_tag": "local-admin-docker-mvp-v0.1",
+    "build_sha": "local-docker-smoke",
+    "build_version": "admin-docker-mvp-v0.1",
+    "mvp_mode": "v0.1"
+  },
+  "static_contract": {
+    "ok": true,
+    "checks": [
+      {
+        "id": "nas-compose-static-contract",
+        "status": "pass",
+        "evidence": "NAS compose static contract passes, including MVP mode, disabled standalone workers, /data/PublicLibrary roots, and admin-web-only port publication."
+      },
+      {
+        "id": "runtime-dockerfile-mvp-arg",
+        "status": "pass",
+        "evidence": "admin-runtime Dockerfile defaults MIXLAB_ADMIN_DOCKER_MVP_MODE to v0.1."
+      },
+      {
+        "id": "runtime-dockerfile-mvp-env",
+        "status": "pass",
+        "evidence": "admin-runtime image persists MIXLAB_ADMIN_DOCKER_MVP_MODE into the runtime environment."
+      },
+      {
+        "id": "web-dockerfile-mvp-arg",
+        "status": "pass",
+        "evidence": "admin-web Dockerfile defaults MIXLAB_ADMIN_DOCKER_MVP_MODE to v0.1."
+      },
+      {
+        "id": "web-dockerfile-mvp-vite-env",
+        "status": "pass",
+        "evidence": "admin-web build receives VITE_MIXLAB_ADMIN_DOCKER_MVP_MODE from the Docker MVP mode arg."
+      }
+    ],
+    "paths": {
+      "runtime_dockerfile": "docker/admin-runtime.Dockerfile",
+      "web_dockerfile": "docker/admin-web.Dockerfile",
+      "compose": "deploy/nas/mixlab/docker-compose.yml",
+      "env_example": "deploy/nas/mixlab/.env.example"
+    }
+  },
+  "commands": [
+    {
+      "command": "docker",
+      "args": [
+        "--version"
+      ],
+      "stdout": "",
+      "stderr": "",
+      "duration_ms": 1.8,
+      "exit_code": null,
+      "ok": false,
+      "error_code": "ENOENT",
+      "message": "spawn docker ENOENT",
+      "timed_out": false
+    },
+    {
+      "command": "docker",
+      "args": [
+        "compose",
+        "version"
+      ],
+      "exit_code": null,
+      "stdout": "",
+      "stderr": "",
+      "duration_ms": 0,
+      "ok": false,
+      "error_code": "docker_cli_unavailable",
+      "message": "docker CLI is not available"
+    }
+  ],
+  "probes": [],
+  "worker_env": {
+    "command": null,
+    "flags": {
+      "MIXLAB_ADMIN_DOCKER_MVP_MODE": "",
+      "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "",
+      "MIXLAB_ENABLE_READY_PUBLISH_WORKER": ""
+    },
+    "library_roots": {
+      "MIXLAB_ADMIN_LIBRARY_ROOT": "",
+      "MIXLAB_PREPROCESS_LIBRARY_ROOT": ""
+    }
+  },
+  "gates": [
+    {
+      "id": "local-smoke-no-nas-side-effects",
+      "title": "Local Docker smoke uses isolated local library",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "The script builds local images and mounts .local-dev/admin-docker-local-smoke/*/PublicLibrary when run; it never contacts NAS Docker, restarts live containers, writes NAS files, publishes indexes, or changes Cutter protocols.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "static-contract-ready",
+      "title": "Docker static contract is ready",
+      "category": "static-contract",
+      "status": "pass",
+      "evidence": "Dockerfiles and NAS compose defaults preserve MVP mode, disabled standalone workers, /data/PublicLibrary roots, and admin-web-only publication.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "explicit-run-requested",
+      "title": "Operator explicitly requested container run",
+      "category": "operator-intent",
+      "status": "blocked",
+      "evidence": "MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN is not 1, so the script did not build images or start containers.",
+      "blocks_local_smoke": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "Set MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 on a Docker-capable machine to run the full local smoke."
+    },
+    {
+      "id": "docker-cli-available",
+      "title": "Docker CLI is available",
+      "category": "docker-runtime",
+      "status": "blocked",
+      "evidence": "spawn docker ENOENT",
+      "blocks_local_smoke": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "Install/start Docker Desktop, Colima, or a compatible Docker context before running this smoke."
+    },
+    {
+      "id": "docker-compose-available",
+      "title": "Docker Compose is available",
+      "category": "docker-runtime",
+      "status": "blocked",
+      "evidence": "docker CLI is not available",
+      "blocks_local_smoke": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "A working docker compose command is required for the local candidate smoke."
+    },
+    {
+      "id": "admin-runtime-image-built",
+      "title": "Admin runtime image builds",
+      "category": "docker-build",
+      "status": "skipped",
+      "evidence": "Image build was not attempted.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-web-image-built",
+      "title": "Admin web image builds",
+      "category": "docker-build",
+      "status": "skipped",
+      "evidence": "Image build was not attempted.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "local-compose-up",
+      "title": "Local compose stack starts",
+      "category": "compose",
+      "status": "skipped",
+      "evidence": "Compose up was not attempted.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "local-endpoint-probes",
+      "title": "Local admin web/API probes pass",
+      "category": "probe",
+      "status": "skipped",
+      "evidence": "Endpoint probes were not attempted.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "release-gates-mvp-contract",
+      "title": "Release gates expose Docker MVP contract",
+      "category": "probe",
+      "status": "skipped",
+      "evidence": "Release-gates contract was not evaluated because endpoint probes did not pass.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-worker-env-local-proof",
+      "title": "Local admin-worker env has safe MVP flags",
+      "category": "worker-env",
+      "status": "skipped",
+      "evidence": "admin-worker env was not collected.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "local-smoke-not-nas-live-evidence",
+      "title": "Local smoke is not NAS live release evidence",
+      "category": "release-boundary",
+      "status": "blocked",
+      "evidence": "Passing this local smoke validates a Docker candidate shape only. Docker upload/deploy still requires NAS staging/live-readonly, worker-env proof from the NAS host, Cutter compatibility reports, disk gate, and rollback gate.",
+      "blocks_local_smoke": false,
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the staged/NAS release gates after local Docker smoke passes."
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "passed": 2,
+    "blocked": 4,
+    "failed": 0,
+    "skipped": 6,
+    "local_smoke_blockers": [
+      "explicit-run-requested",
+      "docker-cli-available",
+      "docker-compose-available"
+    ],
+    "docker_upload_blockers": [
+      "explicit-run-requested",
+      "docker-cli-available",
+      "docker-compose-available",
+      "local-smoke-not-nas-live-evidence"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Local Docker MVP smoke was not executed because MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 was not set. Static checks still ran."
+  },
+  "run_instructions": [
+    "MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_WEB_PORT=18081 npm run validate:admin-docker-local-smoke",
+    "The smoke builds local-only images, starts an isolated local compose stack, probes admin-web and /api/admin/* through nginx, collects admin-worker env, then runs docker compose down.",
+    "Do not use this as NAS live evidence. NAS release still needs live-readonly, worker-env proof, Cutter compatibility proof, disk gate, and rollback/staging approval."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-local-smoke-20260627T194719Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-local-smoke-20260627T194719Z.md"
+  }
+}

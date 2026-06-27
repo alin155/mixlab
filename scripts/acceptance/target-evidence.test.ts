@@ -3362,9 +3362,13 @@ test("Windows installer workflow publishes the installer and matching target evi
   assert.match(workflow, /dist\/acceptance\/mixlab-evidence-kit/);
 });
 
-test("Admin Docker workflow publishes the target evidence kit beside NAS images", () => {
+test("Admin Docker workflow builds, smokes, and only pushes NAS images after explicit dispatch approval", () => {
   const workflow = readFileSync(".github/workflows/docker-admin.yml", "utf8");
 
+  assert.match(workflow, /workflow_dispatch:[\s\S]*push_images:[\s\S]*type: boolean/);
+  assert.match(workflow, /description: "Push Admin Docker images to GHCR after smoke passes"/);
+  assert.match(workflow, /current_image_tag:[\s\S]*Current deployed Admin Docker image tag/);
+  assert.match(workflow, /rollback_image_tag:[\s\S]*Rollback Admin Docker image tag/);
   assert.match(workflow, /docs\/acceptance\/evidence\/\*\*/);
   assert.match(workflow, /deploy\/nas\/mixlab\/\*\*/);
   assert.match(workflow, /docs\/deployment\/m19-nas-docker\.md/);
@@ -3377,8 +3381,20 @@ test("Admin Docker workflow publishes the target evidence kit beside NAS images"
   assert.match(workflow, /npm run audit:delivery-readiness/);
   assert.match(
     workflow,
-    /npm run typecheck[\s\S]*npm run test:searchd[\s\S]*npm run test:acceptance-evidence[\s\S]*npm run audit:delivery-readiness[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*docker\/build-push-action@v6/
+    /npm run typecheck[\s\S]*npm run test:searchd[\s\S]*npm run test:acceptance-evidence[\s\S]*npm run audit:delivery-readiness[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*npm run validate:admin-docker-candidate-contract-proof[\s\S]*npm run validate:admin-docker-release-live-readonly[\s\S]*npm run validate:admin-docker-version-parity-plan[\s\S]*npm run validate:admin-worker-env-proof[\s\S]*npm run validate:admin-cutter-compatibility-proof[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness/
   );
+  assert.match(workflow, /MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"/);
+  assert.match(workflow, /MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"/);
+  assert.match(workflow, /MIXLAB_ADMIN_DOCKER_CANDIDATE_FROM_LOCAL_SMOKE: "1"/);
+  assert.match(workflow, /name: mixlab-admin-docker-local-smoke/);
+  assert.match(workflow, /Log in to GHCR[\s\S]*if: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true \}\}/);
+  assert.match(workflow, /push: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true \}\}/);
+  assert.match(workflow, /MIXLAB_DOCKER_TARGET_IMAGE_TAG: \$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /MIXLAB_DOCKER_PUSH_APPROVAL: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && 'workflow_dispatch:push_images=true' \|\| '' \}\}/);
+  assert.match(workflow, /name: mixlab-admin-docker-release-gates/);
+  assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-staging-runbook-\*\.json/);
+  assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-release-readiness-summary-\*\.json/);
+  assert.match(workflow, /docs\/acceptance\/artifacts\/admin-docker-github-artifact-readiness-\*\.json/);
   assert.match(workflow, /npm run package:evidence-kit/);
   assert.match(workflow, /npm run validate:evidence-kit-manifest/);
   assert.match(workflow, /sh dist\/acceptance\/mixlab-evidence-kit\/evidence-kit-manifest-self-check\.sh dist\/acceptance\/mixlab-evidence-kit/);

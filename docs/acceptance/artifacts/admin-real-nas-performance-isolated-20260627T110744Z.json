@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T11:07:44.810Z",
+  "command": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
+  "mode": "isolated-auth-disabled-no-repair-performance",
+  "api_base_url": "http://127.0.0.1:54188",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "isolated_server": {
+    "host": "127.0.0.1",
+    "port": 54188,
+    "auth_mode": "disabled",
+    "health_wait_ms": 345.1
+  },
+  "performance_artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T110745Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T110745Z.md"
+  },
+  "performance_summary": {
+    "generated_at": "2026-06-27T11:07:45.261Z",
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "endpoint_count": 20,
+    "failed_endpoint_count": 0,
+    "slow_endpoint_count": 0,
+    "runtime_repair_endpoint_count": 0,
+    "runtime_component_contract_failed_count": 0,
+    "read_only_probe": true,
+    "disable_page_time_store_repair": true
+  },
+  "gates": [
+    {
+      "name": "isolated-auth-disabled",
+      "passed": true,
+      "detail": "auth_mode=disabled, authenticated=true"
+    },
+    {
+      "name": "library-root-match",
+      "passed": true,
+      "detail": "observed=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "no-repair-sample-policy",
+      "passed": true,
+      "detail": "read_only_probe=true, disable_page_time_store_repair=true"
+    },
+    {
+      "name": "no-runtime-repair-samples",
+      "passed": true,
+      "detail": "runtime_repair_endpoint_count=0"
+    },
+    {
+      "name": "required-runtime-components-present",
+      "passed": true,
+      "detail": "contract_count=5"
+    },
+    {
+      "name": "all-endpoint-samples-succeeded",
+      "passed": true,
+      "detail": "endpoint_count=20"
+    },
+    {
+      "name": "performance-targets-met",
+      "passed": true,
+      "detail": "no slow endpoint gates"
+    }
+  ],
+  "notes": [
+    "This runner starts a temporary local Admin API with MIXLAB_ADMIN_AUTH_MODE=disabled and shuts it down after the probe.",
+    "The child performance probe sends X-MixLab-Admin-Read-Only-Probe: true on GET requests.",
+    "This runner does not start workers, run scan/apply/publish/repair commands, deploy Docker, or kill the user's existing 3889/5176 services.",
+    "Passing this runner proves the sampled route set met the current performance gates for the observed library root; it does not complete Admin Architecture v1."
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "Isolated auth-disabled no-repair performance probe passed."
+  }
+}

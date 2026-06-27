@@ -1,0 +1,21 @@
+{
+  "ok": false,
+  "mode": "dry-run",
+  "library_root": "/Volumes/MixLab/PublicLibrary",
+  "events_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/usage-events/events.ndjson",
+  "events_exists": true,
+  "line_count": 9086,
+  "valid_line_count": 9084,
+  "malformed_line_count": 2,
+  "malformed_lines": [
+    9084,
+    9086
+  ],
+  "changed": false,
+  "backup_path": "",
+  "quarantine_path": "",
+  "rewrite_strategy": "none",
+  "warnings": [],
+  "report_json_path": "docs/acceptance/artifacts/usage-events-repair-20260625T185616Z.json",
+  "report_md_path": "docs/acceptance/artifacts/usage-events-repair-20260625T185616Z.md"
+}

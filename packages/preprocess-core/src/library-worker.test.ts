@@ -3,8 +3,19 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { addAdminSourceFolder, scanSourceVideos } from "../../library-fs/src/index.ts";
-import { runLibraryTextPreprocessWorker } from "./library-worker.ts";
+import {
+  addAdminSourceFolder,
+  claimNextPreprocessJob,
+  completePreprocessArtifacts,
+  failPreprocessJob,
+  refreshLibraryCounts,
+  scanSourceVideos,
+  updatePreprocessJobStage
+} from "../../library-fs/src/index.ts";
+import {
+  runLibraryTextPreprocessWorker,
+  type LibraryTextPreprocessWorkerLifecycle
+} from "./library-worker.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "mixlab-library-worker-"));
@@ -449,4 +460,86 @@ test("preprocesses non-default configured source folder files by physical path",
 
   assert.equal(result.items[0]?.source_video_path, sourceVideoPath);
   assert.equal(result.succeeded_count, 1);
+});
+
+test("accepts injected lifecycle writes while preserving worker processing behavior", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const calls: string[] = [];
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
+
+  const lifecycle: LibraryTextPreprocessWorkerLifecycle = {
+    async claim_next_preprocess_job(input) {
+      calls.push("claim");
+      return claimNextPreprocessJob(input);
+    },
+    async update_preprocess_job_stage(input) {
+      calls.push(`stage:${input.stage}`);
+      return updatePreprocessJobStage(input);
+    },
+    async complete_preprocess_artifacts(input) {
+      calls.push("complete");
+      return completePreprocessArtifacts(input);
+    },
+    async fail_preprocess_job(input) {
+      calls.push("fail");
+      return failPreprocessJob(input);
+    },
+    async refresh_library_counts(libraryRootInput, now) {
+      calls.push("refresh-counts");
+      return refreshLibraryCounts(libraryRootInput, now);
+    }
+  };
+
+  const result = await runLibraryTextPreprocessWorker({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    worker_id: "worker-a",
+    limit: 1,
+    lifecycle,
+    now: deterministicNow(),
+    async probe_source_video() {
+      return {
+        duration_ms: 4_000,
+        width: 1280,
+        height: 720,
+        fps: 25,
+        codec: "h264"
+      };
+    },
+    async get_content_hash(sourceVideoPath) {
+      return `sha256:${path.basename(sourceVideoPath)}`;
+    },
+    async preprocess_source_video(input) {
+      await input.on_stage?.("asr");
+
+      return {
+        source_video_id: input.source_video_id,
+        audio_path: ".mixlab-library/videos/V000001/asr-audio/audio.mp3",
+        audio_object_key: "temporary/V000001/audio.mp3",
+        audio_file_url: "oss://temporary/V000001/audio.mp3",
+        asr_task_id: "task-v000001",
+        transcription_url: "https://example.com/V000001.json",
+        transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+        srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+        duration_ms: 4_000,
+        segment_count: 1
+      };
+    }
+  });
+
+  assert.equal(result.succeeded_count, 1);
+  assert.equal(result.failed_count, 0);
+  assert.deepEqual(calls, [
+    "claim",
+    "stage:probe-media",
+    "stage:asr",
+    "complete",
+    "refresh-counts"
+  ]);
+
+  const manifest = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json")
+  );
+  assert.equal(manifest.preprocess_status, "index-required");
 });

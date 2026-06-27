@@ -1,0 +1,276 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T15:26:20.209Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-live-readonly.ts",
+  "mode": "live-readonly-get",
+  "target": {
+    "base_url": "",
+    "configured": false,
+    "expected_library_root": "/data/PublicLibrary",
+    "session_token_present": false
+  },
+  "live_readiness_ready": false,
+  "docker_upload_allowed": false,
+  "requests": [],
+  "observed": {
+    "auth_mode": "",
+    "authenticated": null,
+    "library_root": "",
+    "current_index_version": "",
+    "video_count": null,
+    "ready_video_count": null,
+    "release_overall_status": "",
+    "release_allowed": null,
+    "runtime_path_profile": "",
+    "build_sha": "",
+    "build_version": "",
+    "image_tag": ""
+  },
+  "gates": [
+    {
+      "id": "target-url-configured",
+      "title": "Explicit NAS Docker Admin target URL configured",
+      "category": "target",
+      "status": "blocked",
+      "evidence": "MIXLAB_ADMIN_DOCKER_LIVE_BASE_URL is not set; the probe will not guess a NAS address.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Set MIXLAB_ADMIN_DOCKER_LIVE_BASE_URL to the NAS Docker admin-web URL."
+    },
+    {
+      "id": "get-only-live-probe",
+      "title": "Live probe uses GET only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "methods=none",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-web-root-live",
+      "title": "Admin Web root reachable",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Admin Web root not proven: request not run",
+      "blocks_docker_upload": true,
+      "required_evidence": "Probe the NAS admin-web root URL and archive a successful HTTP response."
+    },
+    {
+      "id": "admin-api-proxy-live",
+      "title": "Admin API proxy reachable through Admin Web",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "No Admin API JSON endpoint was proven; auth=request not run, library=request not run, supervisor=request not run",
+      "blocks_docker_upload": true,
+      "required_evidence": "Probe at least one /api/admin/* JSON endpoint through the NAS admin-web proxy."
+    },
+    {
+      "id": "current-admin-api-contract-live",
+      "title": "Current Admin Architecture v1 API contract is live",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Required current endpoints are missing or blocked: auth=request not run, release_gates=request not run, data_loading_plan=request not run",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy or point to an Admin API image exposing /api/admin/auth/status, /api/admin/release-gates, and /api/admin/data-loading/plan."
+    },
+    {
+      "id": "auth-context-live",
+      "title": "Protected live gate endpoints are readable",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "auth_mode=unknown, authenticated=null; protected endpoints may require MIXLAB_ADMIN_DOCKER_LIVE_SESSION_TOKEN.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Provide a reviewed Admin session token only through MIXLAB_ADMIN_DOCKER_LIVE_SESSION_TOKEN; do not write it into docs."
+    },
+    {
+      "id": "runtime-path-profile-live",
+      "title": "Docker runtime path profile and library root",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "runtime_path_profile=unknown, library_root=unknown, expected=/data/PublicLibrary",
+      "blocks_docker_upload": true,
+      "required_evidence": "Live release gates and library status must show Docker profile with /data/PublicLibrary."
+    },
+    {
+      "id": "build-version-health",
+      "title": "Build version and image tag are live",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "build-version-health was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "version-health-parity-contract-live",
+      "title": "Version and health parity contract is exposed live",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete version_health_parity contract with expected services, GET health preflight endpoints, external Docker proof requirements, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns version_health_parity from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "preprocess-disk",
+      "title": "NAS disk protection passes live gate",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "preprocess-disk was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "disk-space-protection-contract-live",
+      "title": "Disk-space protection preflight contract is exposed live",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete disk_space_protection contract with GET preflight endpoints, threshold env var, no worker start, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns disk_space_protection from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "usage-events-tolerance",
+      "title": "usage-events tolerance passes live gate",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "usage-events-tolerance was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "usage-events-repair-contract-live",
+      "title": "usage-events repair dry-run contract is exposed live",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete usage_events_repair contract with dry-run/apply commands and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns usage_events_repair from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "processing-recovery",
+      "title": "V001440 / processing recovery gate passes",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "processing-recovery was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "processing-recovery-contract-live",
+      "title": "Processing recovery preflight contract is exposed live",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete processing_recovery contract with GET preflight endpoints, idle-supervisor requirement, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns processing_recovery from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "current-index",
+      "title": "Current Cutter index gate passes",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "current-index was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "dashboard-metrics-live",
+      "title": "Dashboard metrics read does not fail live",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Dashboard metrics not proven: request not run",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run GET /api/admin/dashboard/metrics successfully against the NAS Docker target."
+    },
+    {
+      "id": "data-loading-contract-live",
+      "title": "Data-loading contract is readable live",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Data-loading plan not proven: request not run",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run GET /api/admin/data-loading/plan successfully against the NAS Docker target."
+    },
+    {
+      "id": "supervisor-status-live",
+      "title": "Supervisor status is readable without starting workers",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Supervisor status not proven: request not run",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run GET /api/admin/preprocess/supervisor/status successfully; do not call start/stop."
+    },
+    {
+      "id": "admin-worker-env-proof-contract-live",
+      "title": "admin-worker env proof contract is exposed live",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete admin_worker_env_proof contract with disabled worker flags, /data/PublicLibrary roots, proof command, no secrets, no worker start, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns admin_worker_env_proof from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "admin-worker-live-flags",
+      "title": "Running admin-worker opt-in flags are externally verified",
+      "category": "live-docker",
+      "status": "needs-external-proof",
+      "evidence": "Admin API GET endpoints cannot prove the running admin-worker container environment.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Capture NAS admin-worker.env and admin-worker.inspect.json, then run admin-worker-env-proof to show standalone workers are disabled, /data/PublicLibrary roots are used, and no secrets are written to reports."
+    },
+    {
+      "id": "cutter-compatibility-proof-contract-live",
+      "title": "Cutter compatibility proof contract is exposed live",
+      "category": "cutter-compatibility",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete cutter_compatibility_proof contract with Windows acceptance and real-cut report requirements, proof command, staged-candidate boundary, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns cutter_compatibility_proof from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "cutter-release-compatibility-live",
+      "title": "Cutter release/index/search compatibility is externally verified",
+      "category": "cutter-compatibility",
+      "status": "needs-external-proof",
+      "evidence": "Admin API GET endpoints cannot prove Windows Cutter compatibility after a Docker release candidate.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run admin-cutter-compatibility-proof with staged-candidate windows_acceptance and real_cut_smoke reports, then archive the accepted proof."
+    }
+  ],
+  "summary": {
+    "total": 23,
+    "passed": 1,
+    "failed": 0,
+    "blocked": 20,
+    "needs_external_proof": 2,
+    "upload_blockers": [
+      "target-url-configured",
+      "admin-web-root-live",
+      "admin-api-proxy-live",
+      "current-admin-api-contract-live",
+      "auth-context-live",
+      "runtime-path-profile-live",
+      "build-version-health",
+      "version-health-parity-contract-live",
+      "preprocess-disk",
+      "disk-space-protection-contract-live",
+      "usage-events-tolerance",
+      "usage-events-repair-contract-live",
+      "processing-recovery",
+      "processing-recovery-contract-live",
+      "current-index",
+      "dashboard-metrics-live",
+      "data-loading-contract-live",
+      "supervisor-status-live",
+      "admin-worker-env-proof-contract-live",
+      "admin-worker-live-flags",
+      "cutter-compatibility-proof-contract-live",
+      "cutter-release-compatibility-live"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Docker upload remains blocked until all live and external proof gates pass."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260627T152620Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260627T152620Z.md"
+  }
+}

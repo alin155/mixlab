@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T18:04:53.376Z",
+  "command": "tsx scripts/acceptance/admin-settings-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5187/#/settings",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5187/#/settings",
+      "load_ms": 8954.1,
+      "screenshot_path": "docs/acceptance/artifacts/admin-settings-browser-qa-20260626T180453Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "设置": true,
+        "设置表单": true,
+        "设置概览": true,
+        "素材来源": true,
+        "运行策略": true,
+        "路径检查": true,
+        "admin-settings": true,
+        "path-checks": true,
+        "runtime-secrets": true,
+        "settings-route": true,
+        "不扫描": true,
+        "本地编辑": true,
+        "本页面局部处理": true,
+        "保存设置": true,
+        "检查语音识别": true
+      },
+      "settings_form_text": "设置表单\n\n素材库名称、素材来源和运行策略先在本页面本地编辑，点击保存后才写入管理配置。\n\n本地编辑\n素材库基本信息\n素材库名称\n素材来源\n来源名称\n文件夹路径\n启用素材来源\n已发现 11394 个 · 新增未处理 0 个 · 最近扫描 2026-06-02T13:47:37.153Z\n默认来源不可移除",
+      "runtime_surface_text": "运行策略\n\n预处理并发、音频格式和语音识别密钥状态来自运行时配置；密钥值不会回显。\n\n通过\n预处理设置\n产物路径\n/Volumes/MixLab/PublicLibrary/.mixlab-library\n并发任务数\n音频模式\n压缩单声道\n无损单声道\n音视频工具\n内置 · 可用\n语音识别\n供应商\n阿里云百炼\n模型\n通义语音识别模型\n当前音频\n压缩单声道\n密钥状态\n已配置，已隐藏\n填写密钥",
+      "inspector_text": "设置概览\n\n系统状态\n\n公共素材库/Volumes/MixLab/PublicLibrary · 根路径可读写通过\n素材来源：默认素材来源/Volumes/MixLab/PublicLibrary/source-videos · 素材来源可读通过\n处理结果目录/Volumes/MixLab/PublicLibrary/.mixlab-library · 协议目录可读写通过\n发布清单文件/Volumes/MixLab/PublicLibrary/.mixlab-library/library.json · 发布清单文件可读写通过\n\n新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。\n\n页面契约\n主工作区\n设置表单\n辅助区\n路径检查\n设置来源\nadmin-settings\n路径来源\npath-checks\n运行来源\nruntime-secrets\n扫描原因\nsettings-route\n扫描模式\n不扫描\n编辑边界\n本地编辑\n保存边界\n命令操作\n错误边界\n本页面局部处理\n保存设置\n检查语音识别",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5187/#/settings",
+      "load_ms": 2838.2,
+      "screenshot_path": "docs/acceptance/artifacts/admin-settings-browser-qa-20260626T180453Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "设置": true,
+        "设置表单": true,
+        "设置概览": true,
+        "素材来源": true,
+        "运行策略": true,
+        "路径检查": true,
+        "admin-settings": true,
+        "path-checks": true,
+        "runtime-secrets": true,
+        "settings-route": true,
+        "不扫描": true,
+        "本地编辑": true,
+        "本页面局部处理": true,
+        "保存设置": true,
+        "检查语音识别": true
+      },
+      "settings_form_text": "设置表单\n\n素材库名称、素材来源和运行策略先在本页面本地编辑，点击保存后才写入管理配置。\n\n本地编辑\n素材库基本信息\n素材库名称\n素材来源\n来源名称\n文件夹路径\n启用素材来源\n已发现 11394 个 · 新增未处理 0 个 · 最近扫描 2026-06-02T13:47:37.153Z\n默认来源不可移除",
+      "runtime_surface_text": "运行策略\n\n预处理并发、音频格式和语音识别密钥状态来自运行时配置；密钥值不会回显。\n\n通过\n预处理设置\n产物路径\n/Volumes/MixLab/PublicLibrary/.mixlab-library\n并发任务数\n音频模式\n压缩单声道\n无损单声道\n音视频工具\n内置 · 可用\n语音识别\n供应商\n阿里云百炼\n模型\n通义语音识别模型\n当前音频\n压缩单声道\n密钥状态\n已配置，已隐藏\n填写密钥",
+      "inspector_text": "设置概览\n\n系统状态\n\n公共素材库/Volumes/MixLab/PublicLibrary · 根路径可读写通过\n素材来源：默认素材来源/Volumes/MixLab/PublicLibrary/source-videos · 素材来源可读通过\n处理结果目录/Volumes/MixLab/PublicLibrary/.mixlab-library · 协议目录可读写通过\n发布清单文件/Volumes/MixLab/PublicLibrary/.mixlab-library/library.json · 发布清单文件可读写通过\n\n新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。\n\n页面契约\n主工作区\n设置表单\n辅助区\n路径检查\n设置来源\nadmin-settings\n路径来源\npath-checks\n运行来源\nruntime-secrets\n扫描原因\nsettings-route\n扫描模式\n不扫描\n编辑边界\n本地编辑\n保存边界\n命令操作\n错误边界\n本页面局部处理\n保存设置\n检查语音识别",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "settings-form-visible",
+      "passed": true,
+      "detail": "desktop:152; mobile:152"
+    },
+    {
+      "name": "runtime-surface-visible",
+      "passed": true,
+      "detail": "desktop:195; mobile:195"
+    },
+    {
+      "name": "inspector-contract-visible",
+      "passed": true,
+      "detail": "desktop:457; mobile:457"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "settings browser QA passed for desktop and mobile fixture routes"
+  }
+}

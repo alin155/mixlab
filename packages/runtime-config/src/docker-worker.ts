@@ -20,8 +20,14 @@ export function resolveNpmExecutable(platform: NodeJS.Platform = process.platfor
   return platform === "win32" ? "npm.cmd" : "npm";
 }
 
+export function isAdminDockerMvpMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  const mode = env.MIXLAB_ADMIN_DOCKER_MVP_MODE?.trim().toLowerCase();
+  return mode === "v0.1" || mode === "docker-mvp-v0.1" || mode === "true";
+}
+
 export function buildAdminWorkerCycle(env: NodeJS.ProcessEnv = process.env): AdminWorkerCommand[] {
   const npm = resolveNpmExecutable();
+  const dockerMvpMode = isAdminDockerMvpMode(env);
   return [
     {
       name: "preprocess-library",
@@ -31,7 +37,7 @@ export function buildAdminWorkerCycle(env: NodeJS.ProcessEnv = process.env): Adm
     {
       name: "publish-ready",
       command: [npm, "run", "worker:publish-ready"],
-      enabled: env.MIXLAB_ENABLE_READY_PUBLISH_WORKER === "1",
+      enabled: !dockerMvpMode && env.MIXLAB_ENABLE_READY_PUBLISH_WORKER === "1",
     },
   ];
 }

@@ -1,0 +1,165 @@
+{
+  "ok": false,
+  "errors": [
+    "admin dashboard: admin dashboard must show 公共素材库生产总览; admin dashboard must show 搜索 p95; admin dashboard must show 本地搜索覆盖; admin dashboard must show 搜索失败; admin dashboard must show 素材规模; admin dashboard search_failure_count must be a non-negative integer",
+    "admin real NAS matrix: locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('系统检查').first() to be visible\u001b[22m\n\u001b[2m    35 × locator resolved to hidden <span class=\"ml-window-title\">MixLab V3 - 素材库管理端 / 系统检查</span>\u001b[22m\n",
+    "cutter public library web: cutter public library web must display the available public source count",
+    "local web layout: locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.cutter-locator-status-strip').first() to be visible\u001b[22m\n",
+    "material locator: locator.innerText: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.cutter-locator-status-strip').first()\u001b[22m\n"
+  ],
+  "endpoints": [
+    {
+      "label": "admin web",
+      "url": "http://127.0.0.1:5186/",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "cutter web",
+      "url": "http://127.0.0.1:5187/",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "admin api",
+      "url": "http://127.0.0.1:3891/api/admin/library/status",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "cutter api",
+      "url": "http://127.0.0.1:3791/health",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "label": "searchd",
+      "url": "http://127.0.0.1:3799/health",
+      "ok": true,
+      "status": 200
+    }
+  ],
+  "cutter_search_matrix": {
+    "cutter_api_base_url": "http://127.0.0.1:3791/",
+    "query_count": 6,
+    "max_search_ms": 151,
+    "all_queries_used_searchd": true,
+    "matched_searchd_index": false,
+    "queries": [
+      {
+        "query": "现金流",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v007829",
+        "search_mode": "searchd",
+        "search_ms": 151,
+        "first_source_video_id": "V008282",
+        "first_hit_count": 1,
+        "first_segment_id": "V008282-S000002",
+        "first_segment_begin_ms": 13740,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "利润",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v007829",
+        "search_mode": "searchd",
+        "search_ms": 75,
+        "first_source_video_id": "V007771",
+        "first_hit_count": 2,
+        "first_segment_id": "V007771-S000002",
+        "first_segment_begin_ms": 1015,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "客户",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v007829",
+        "search_mode": "searchd",
+        "search_ms": 49,
+        "first_source_video_id": "V007837",
+        "first_hit_count": 1,
+        "first_segment_id": "V007837-S000001",
+        "first_segment_begin_ms": 1860,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "增长",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v007829",
+        "search_mode": "searchd",
+        "search_ms": 54,
+        "first_source_video_id": "V004932",
+        "first_hit_count": 3,
+        "first_segment_id": "V004932-S000001",
+        "first_segment_begin_ms": 0,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "AI",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v007829",
+        "search_mode": "searchd",
+        "search_ms": 49,
+        "first_source_video_id": "V006352",
+        "first_hit_count": 1,
+        "first_segment_id": "V006352-S000002",
+        "first_segment_begin_ms": 11260,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      },
+      {
+        "query": "品牌",
+        "group_count": 3,
+        "returned_count": 3,
+        "index_version": "v007829",
+        "search_mode": "searchd",
+        "search_ms": 44,
+        "first_source_video_id": "V007397",
+        "first_hit_count": 1,
+        "first_segment_id": "V007397-S000001",
+        "first_segment_begin_ms": 0,
+        "first_segment_contains_query": true,
+        "first_segment_has_match_range": true
+      }
+    ]
+  },
+  "cutter_auth": {
+    "cutter_api_base_url": "http://127.0.0.1:3791/",
+    "auth_mode_url": "http://127.0.0.1:3791/cutter/auth/mode",
+    "auth_mode": "local_trusted",
+    "local_trusted": true,
+    "trusted_username": "本机剪辑师",
+    "material_locator_url": "http://127.0.0.1:5187/#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+    "fresh_context_workbench_ready": true,
+    "login_gate_visible_after_ready": false,
+    "manual_apply_used": false,
+    "visible_username": "本机剪辑师"
+  },
+  "cutter_public_library_web": {
+    "cutter_api_base_url": "http://127.0.0.1:3791/",
+    "url": "http://127.0.0.1:5187/#public-library",
+    "api_available_video_count": 7827,
+    "api_returned_count": 20,
+    "api_first_source_video_id": "V000001",
+    "api_first_title": "1.房产置换与资产优化",
+    "web_api_response_observed": true,
+    "available_count_visible": false,
+    "first_title_visible": true,
+    "public_source_label_visible": true,
+    "load_more_button_visible": true,
+    "loaded_count_before": 20,
+    "loaded_count_after": 40,
+    "load_more_clicked": true,
+    "loaded_count_increased": true,
+    "selected_inspector_title": "1.房产置换与资产优化"
+  }
+}

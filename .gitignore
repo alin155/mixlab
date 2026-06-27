@@ -13,3 +13,11 @@ coverage/
 UItest/
 reports/
 docs/deployment/secrets.private.md
+
+# Local runtime and browser-capture scratch output.
+.local-dev/
+.playwright-cli/
+captures/
+output/
+apps/cutter-desktop/src-tauri/gen/
+apps/cutter-web/public/local-clips/

@@ -1,0 +1,1757 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T09:37:20.955Z",
+  "command": "tsx scripts/acceptance/admin-real-nas-performance.ts",
+  "environment": {
+    "api_base_url": "http://127.0.0.1:51307",
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library": {
+      "root_path": "/Volumes/MixLab/PublicLibrary",
+      "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+      "current_index_version": "v010471",
+      "updated_at": "2026-06-25T19:07:13.162Z",
+      "video_count": 11394,
+      "ready_video_count": 10471,
+      "processing_video_count": 0,
+      "queued_video_count": 904,
+      "failed_video_count": 0,
+      "index_required_video_count": 19,
+      "disk_total_bytes": 31840459087872,
+      "disk_available_bytes": 681569583104,
+      "disk_used_percent": 97.9
+    },
+    "read_model_before": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-27T09:37:21.007Z",
+      "admin_read_model": {
+        "schema_version": "1.0",
+        "storage": "sqlite",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+        "freshness": "fresh",
+        "exists": true,
+        "generated_at": "2026-06-27T07:26:00.815Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "invalidated_at": "",
+        "invalidation_reason": "",
+        "last_error": "",
+        "reconciliation": {
+          "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "action": "none",
+          "reason": "fresh",
+          "scan_mode": "no-scan",
+          "requires_background_reconcile": false,
+          "safe_for_page_request": true
+        }
+      },
+      "source_video_status": {
+        "name": "source-video-status-read-model-v1",
+        "storage": "persistent-json",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+        "freshness": "fresh",
+        "memory_cache": "missing",
+        "persisted": "fresh",
+        "generated_at": "2026-06-27T07:26:00.815Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "cache_ttl_ms": 30000
+      }
+    },
+    "read_model_after": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-27T09:37:24.989Z",
+      "admin_read_model": {
+        "schema_version": "1.0",
+        "storage": "sqlite",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+        "freshness": "fresh",
+        "exists": true,
+        "generated_at": "2026-06-27T07:26:00.815Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "invalidated_at": "",
+        "invalidation_reason": "",
+        "last_error": "",
+        "reconciliation": {
+          "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "action": "none",
+          "reason": "fresh",
+          "scan_mode": "no-scan",
+          "requires_background_reconcile": false,
+          "safe_for_page_request": true
+        }
+      },
+      "source_video_status": {
+        "name": "source-video-status-read-model-v1",
+        "storage": "persistent-json",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+        "freshness": "fresh",
+        "memory_cache": "fresh",
+        "persisted": "fresh",
+        "generated_at": "2026-06-27T07:26:00.815Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "cache_ttl_ms": 30000
+      }
+    }
+  },
+  "sample_policy": {
+    "cold_samples_per_endpoint": 1,
+    "default_warm_samples_per_endpoint": 1,
+    "read_only_probe": true,
+    "disable_page_time_store_repair": true
+  },
+  "notes": [
+    "All endpoint probes use GET requests only and send X-MixLab-Admin-Read-Only-Probe: true to disable page-time derived-store repair.",
+    "The probe checks read-model reconcile status but never starts, cancels, applies, repairs, publishes, or runs any command.",
+    "Runtime Source Summary is derived from response meta.runtime fields and does not perform any additional scans.",
+    "When MIXLAB_ADMIN_AUTH_MODE=disabled is used for an isolated local probe, timings represent business I/O after authentication rather than password/session overhead.",
+    "The source-video-status-read-model-v1 persistent JSON file is generated cache under .mixlab-library/admin/read-models and does not rewrite source-video manifests.",
+    "The admin.sqlite read model is an optimization and must remain rebuildable from source-video manifests; it is not the asset source of truth."
+  ],
+  "endpoints": [
+    {
+      "name": "health",
+      "method": "GET",
+      "path": "/health",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Runtime liveness check.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 2.8,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 792
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 1.8,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 792
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 1.8,
+        "p50_ms": 1.8,
+        "p95_ms": 2.8,
+        "max_ms": 2.8,
+        "response_bytes_max": 792,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Authentication mode and bootstrap status.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 1.3,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 133
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 2.3,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 133
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 1.3,
+        "p50_ms": 1.3,
+        "p95_ms": 2.3,
+        "max_ms": 2.3,
+        "response_bytes_max": 133,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Summary manifest, disk and current index status; should not enumerate all videos when library.json exists.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 25.7,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 732
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 5.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 732
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 5.9,
+        "p50_ms": 5.9,
+        "p95_ms": 25.7,
+        "max_ms": 25.7,
+        "response_bytes_max": 732,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "method": "GET",
+      "path": "/api/admin/data-loading/plan",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Machine-readable Admin loading contract.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 12679
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.7,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 12679
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.7,
+        "p50_ms": 0.7,
+        "p95_ms": 1,
+        "max_ms": 1,
+        "response_bytes_max": 12679,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "read_model_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/status",
+      "phase": "diagnostic",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "No-scan freshness report for source-video-status-read-model-v1.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 74.1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 1459
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 78.2,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 1459
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 74.1,
+        "p50_ms": 74.1,
+        "p95_ms": 78.2,
+        "max_ms": 78.2,
+        "response_bytes_max": 1459,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "read_model_reconcile_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/reconcile/status",
+      "phase": "diagnostic",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Read-only background reconciler status; does not start or cancel reconcile.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 0.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 622
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.6,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 622
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.6,
+        "p50_ms": 0.6,
+        "p95_ms": 0.9,
+        "max_ms": 0.9,
+        "response_bytes_max": 622,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "protection_status",
+      "method": "GET",
+      "path": "/api/admin/protection/status",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Preprocess protection state used by Admin safety surfaces.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 0.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 679
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.6,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 679
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.6,
+        "p50_ms": 0.6,
+        "p95_ms": 0.9,
+        "max_ms": 0.9,
+        "response_bytes_max": 679,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "release_gates",
+      "method": "GET",
+      "path": "/api/admin/release-gates",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Docker/release readiness gate summary.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 49.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 2596
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 19.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 2596
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 19.9,
+        "p50_ms": 19.9,
+        "p95_ms": 49.9,
+        "max_ms": 49.9,
+        "response_bytes_max": 2596,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "preprocess_safety",
+      "method": "GET",
+      "path": "/api/admin/preprocess/safety",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Disk/path/recovery safety state.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 517
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.5,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 517
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.5,
+        "p50_ms": 0.5,
+        "p95_ms": 1,
+        "max_ms": 1,
+        "response_bytes_max": 517,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "operations_overview",
+      "method": "GET",
+      "path": "/api/admin/operations/overview",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Protection Center aggregate; should compose no-scan and bounded route data.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 84.6,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 17972
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 88.4,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 17972
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 84.6,
+        "p50_ms": 84.6,
+        "p95_ms": 88.4,
+        "max_ms": 88.4,
+        "response_bytes_max": 17972,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "operation_log",
+      "method": "GET",
+      "path": "/api/admin/operation-log?limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Bounded operation-log tail; should not enumerate source-video manifests.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 25.7,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 8322
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.4,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 8321
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.4,
+        "p50_ms": 0.4,
+        "p95_ms": 25.7,
+        "max_ms": 25.7,
+        "response_bytes_max": 8322,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "source_videos_first_page",
+      "method": "GET",
+      "path": "/api/admin/source-videos?limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 12000,
+      "notes": "Bounded first page; confirms no accidental unbounded source-videos load.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 1.1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 9796,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "unknown",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.5,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 9796,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "unknown",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.5,
+        "p50_ms": 0.5,
+        "p95_ms": 1.1,
+        "max_ms": 1.1,
+        "response_bytes_max": 9796,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 2
+          },
+          "cache_statuses": {
+            "unknown": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "source_videos_processing",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=processing&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 15000,
+      "notes": "Non-ready status filter backed by source-video-status-read-model-v1.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 72.2,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 377,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 77.2,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 377,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 72.2,
+        "p50_ms": 72.2,
+        "p95_ms": 77.2,
+        "max_ms": 77.2,
+        "response_bytes_max": 377,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "source_videos_index_required",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=index-required&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 15000,
+      "notes": "Index-required list; previously a slow path on large libraries.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 237.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 7845,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 228.6,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 7845,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 228.6,
+        "p50_ms": 228.6,
+        "p95_ms": 237.9,
+        "max_ms": 237.9,
+        "response_bytes_max": 7845,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "source_videos_queued",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=queued&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 15000,
+      "notes": "Queued list; validates candidate paging instead of full manifest sweep.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 193.7,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 14546,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 188.1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 14546,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 188.1,
+        "p50_ms": 188.1,
+        "p95_ms": 193.7,
+        "max_ms": 193.7,
+        "response_bytes_max": 14546,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "source_videos_failed",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=failed&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 15000,
+      "notes": "Failed list; validates status read model coverage.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 78,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 377,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 77.6,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 377,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 77.6,
+        "p50_ms": 77.6,
+        "p95_ms": 78,
+        "max_ms": 78,
+        "response_bytes_max": 377,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "preprocess_jobs",
+      "method": "GET",
+      "path": "/api/admin/preprocess/jobs?limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 15000,
+      "notes": "Preprocess job list; should use read-model candidate pages.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 473.8,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 10332,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "status-scan",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 494,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 10332,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "status-scan",
+            "slow": false,
+            "slow_reason": "",
+            "components": []
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 473.8,
+        "p50_ms": 473.8,
+        "p95_ms": 494,
+        "max_ms": 494,
+        "response_bytes_max": 10332,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "index_versions",
+      "method": "GET",
+      "path": "/api/admin/index/versions?limit=8",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 15000,
+      "notes": "Bounded and cached index version list.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 211.5,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 2906,
+          "runtime": {
+            "actual_data_source": "current-index",
+            "cache_status": "miss",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": [
+              {
+                "name": "current_pointer_fast_page",
+                "duration_ms": 46,
+                "data_source": "current-index",
+                "scan_mode": "paged-list",
+                "scan_reason": "index-version-page",
+                "cache_status": "hit",
+                "detail": "offset=0;limit=8;result=hit;versions=8"
+              },
+              {
+                "name": "index_package_validation",
+                "duration_ms": 162,
+                "data_source": "index-version-packages",
+                "scan_mode": "paged-list",
+                "scan_reason": "index-version-page",
+                "cache_status": "not-applicable",
+                "detail": "versions=8;directory_ms=0;current_ms=0"
+              }
+            ]
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 1.5,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 2629,
+          "runtime": {
+            "actual_data_source": "current-index",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "paged-list",
+            "slow": false,
+            "slow_reason": "",
+            "components": [
+              {
+                "name": "cache_lookup",
+                "duration_ms": 0,
+                "data_source": "current-index",
+                "scan_mode": "no-scan",
+                "scan_reason": "index-version-page",
+                "cache_status": "hit",
+                "detail": "offset=0;limit=8"
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 1.5,
+        "p50_ms": 1.5,
+        "p95_ms": 211.5,
+        "max_ms": 211.5,
+        "response_bytes_max": 2906,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 2,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "current-index": 2
+          },
+          "cache_statuses": {
+            "miss": 1,
+            "hit": 1
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {
+            "current_pointer_fast_page": {
+              "sample_count": 1,
+              "total_ms": 46,
+              "max_ms": 46,
+              "data_sources": {
+                "current-index": 1
+              },
+              "scan_modes": {
+                "paged-list": 1
+              },
+              "scan_reasons": {
+                "index-version-page": 1
+              },
+              "cache_statuses": {
+                "hit": 1
+              },
+              "details": {
+                "offset=0;limit=8;result=hit;versions=8": 1
+              }
+            },
+            "index_package_validation": {
+              "sample_count": 1,
+              "total_ms": 162,
+              "max_ms": 162,
+              "data_sources": {
+                "index-version-packages": 1
+              },
+              "scan_modes": {
+                "paged-list": 1
+              },
+              "scan_reasons": {
+                "index-version-page": 1
+              },
+              "cache_statuses": {
+                "not-applicable": 1
+              },
+              "details": {
+                "versions=8;directory_ms=0;current_ms=0": 1
+              }
+            },
+            "cache_lookup": {
+              "sample_count": 1,
+              "total_ms": 0,
+              "max_ms": 0,
+              "data_sources": {
+                "current-index": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "index-version-page": 1
+              },
+              "cache_statuses": {
+                "hit": 1
+              },
+              "details": {
+                "offset=0;limit=8": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cutter_users",
+      "method": "GET",
+      "path": "/api/admin/cutter-users",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Cutter user management list.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 25.8,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 26535
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 2.8,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 26535
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 2.8,
+        "p50_ms": 2.8,
+        "p95_ms": 25.8,
+        "max_ms": 25.8,
+        "response_bytes_max": 26535,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 0,
+          "missing_runtime_count": 2,
+          "actual_data_sources": {},
+          "cache_statuses": {},
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {}
+        }
+      }
+    },
+    {
+      "name": "dashboard_metrics",
+      "method": "GET",
+      "path": "/api/admin/dashboard/metrics",
+      "phase": "background",
+      "expected_max_p95_ms": 8000,
+      "timeout_ms": 20000,
+      "notes": "Expensive dashboard metrics. It must not be part of Admin shell blocking load.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 942.4,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 10770,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "miss",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "status-scan",
+            "slow": false,
+            "slow_reason": "",
+            "components": [
+              {
+                "name": "library_manifest",
+                "duration_ms": 0,
+                "data_source": "library-manifest",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "status_summary",
+                "duration_ms": 67,
+                "data_source": "admin-read-model",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "material_summary",
+                "duration_ms": 143,
+                "data_source": "admin-read-model",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "production_summary",
+                "duration_ms": 363,
+                "data_source": "admin-read-model",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "current_index_version",
+                "duration_ms": 1,
+                "data_source": "current-index",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "transcript_metrics",
+                "duration_ms": 2,
+                "data_source": "current-index",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "preprocess_jobs",
+                "duration_ms": 0,
+                "data_source": "library-manifest",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": "summary-mode"
+              },
+              {
+                "name": "usage_metrics",
+                "duration_ms": 103,
+                "data_source": "admin-read-model",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              },
+              {
+                "name": "runtime_load",
+                "duration_ms": 260,
+                "data_source": "runtime-telemetry",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "",
+                "detail": ""
+              }
+            ]
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 9696,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "status-scan",
+            "slow": false,
+            "slow_reason": "",
+            "components": [
+              {
+                "name": "dashboard_metrics_cache",
+                "duration_ms": 0,
+                "data_source": "admin-read-model",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "hit",
+                "detail": ""
+              }
+            ]
+          }
+        },
+        {
+          "label": "warm",
+          "sample_index": 2,
+          "duration_ms": 1.1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 9696,
+          "runtime": {
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "fallback_reason": "",
+            "repair_reason": "",
+            "scan_mode": "status-scan",
+            "slow": false,
+            "slow_reason": "",
+            "components": [
+              {
+                "name": "dashboard_metrics_cache",
+                "duration_ms": 0,
+                "data_source": "admin-read-model",
+                "scan_mode": "no-scan",
+                "scan_reason": "background-metrics",
+                "cache_status": "hit",
+                "detail": ""
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "sample_count": 3,
+        "success_count": 3,
+        "min_ms": 1,
+        "p50_ms": 1.1,
+        "p95_ms": 942.4,
+        "max_ms": 942.4,
+        "response_bytes_max": 10770,
+        "passed_target": true,
+        "runtime": {
+          "sample_count": 3,
+          "missing_runtime_count": 0,
+          "actual_data_sources": {
+            "admin-read-model": 3
+          },
+          "cache_statuses": {
+            "miss": 1,
+            "hit": 2
+          },
+          "fallback_reasons": {},
+          "repair_reasons": {},
+          "slow_runtime_count": 0,
+          "slow_reasons": {},
+          "components": {
+            "library_manifest": {
+              "sample_count": 1,
+              "total_ms": 0,
+              "max_ms": 0,
+              "data_sources": {
+                "library-manifest": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "status_summary": {
+              "sample_count": 1,
+              "total_ms": 67,
+              "max_ms": 67,
+              "data_sources": {
+                "admin-read-model": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "material_summary": {
+              "sample_count": 1,
+              "total_ms": 143,
+              "max_ms": 143,
+              "data_sources": {
+                "admin-read-model": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "production_summary": {
+              "sample_count": 1,
+              "total_ms": 363,
+              "max_ms": 363,
+              "data_sources": {
+                "admin-read-model": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "current_index_version": {
+              "sample_count": 1,
+              "total_ms": 1,
+              "max_ms": 1,
+              "data_sources": {
+                "current-index": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "transcript_metrics": {
+              "sample_count": 1,
+              "total_ms": 2,
+              "max_ms": 2,
+              "data_sources": {
+                "current-index": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "preprocess_jobs": {
+              "sample_count": 1,
+              "total_ms": 0,
+              "max_ms": 0,
+              "data_sources": {
+                "library-manifest": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {
+                "summary-mode": 1
+              }
+            },
+            "usage_metrics": {
+              "sample_count": 1,
+              "total_ms": 103,
+              "max_ms": 103,
+              "data_sources": {
+                "admin-read-model": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "runtime_load": {
+              "sample_count": 1,
+              "total_ms": 260,
+              "max_ms": 260,
+              "data_sources": {
+                "runtime-telemetry": 1
+              },
+              "scan_modes": {
+                "no-scan": 1
+              },
+              "scan_reasons": {
+                "background-metrics": 1
+              },
+              "cache_statuses": {},
+              "details": {}
+            },
+            "dashboard_metrics_cache": {
+              "sample_count": 2,
+              "total_ms": 0,
+              "max_ms": 0,
+              "data_sources": {
+                "admin-read-model": 2
+              },
+              "scan_modes": {
+                "no-scan": 2
+              },
+              "scan_reasons": {
+                "background-metrics": 2
+              },
+              "cache_statuses": {
+                "hit": 2
+              },
+              "details": {}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "runtime_component_contracts": [
+    {
+      "endpoint_name": "preprocess_jobs",
+      "expected_components": [
+        "concurrency_policy",
+        "library_counts",
+        "preprocess_job_page",
+        "runtime_load"
+      ],
+      "observed_components": [],
+      "missing_components": [
+        "concurrency_policy",
+        "library_counts",
+        "preprocess_job_page",
+        "runtime_load"
+      ],
+      "passed": false
+    },
+    {
+      "endpoint_name": "index_versions",
+      "expected_components": [
+        "cache_lookup"
+      ],
+      "observed_components": [
+        "cache_lookup",
+        "current_pointer_fast_page",
+        "index_package_validation"
+      ],
+      "missing_components": [],
+      "passed": true
+    }
+  ]
+}

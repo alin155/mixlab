@@ -1,13 +1,63 @@
 import type {
-  DoctorCheck,
   MixlabDoctorExport,
   MixlabDoctorReport
 } from "../../../packages/doctor-core/src/index.ts";
+import {
+  adminAuthHeaders,
+  getJson,
+  listQuery,
+  sendJson
+} from "./admin-http.ts";
+import { createAdminAuthClientMethods } from "./admin-auth-client.ts";
+import {
+  ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT,
+  ADMIN_PREPROCESS_PROCESS_HISTORY_DEFAULT_LOAD_LIMIT,
+  createAdminOperationsClientMethods
+} from "./admin-operations-client.ts";
+import { createAdminSourceVideoClientMethods } from "./admin-source-video-client.ts";
+import { createAdminFixtureDataLoadingPlan } from "./fixtures/admin-data-loading-plan.ts";
+import {
+  adminSourceVideoMatchesOptions,
+  cloneCutterUser,
+  cloneDashboardMetrics,
+  cloneDataLoadingPlan,
+  clonePreprocessProcessHistory,
+  cloneRuntimeSettings,
+  cloneSettings,
+  cutterUsers,
+  dashboardMetrics,
+  doctor,
+  fixtureCommandSnapshotRestorePlan,
+  fixtureCommandSnapshotRestoreResult,
+  fixtureOperationLog,
+  fixtureOperationsOverview,
+  fixtureReadModelReconcileStatus,
+  indexes,
+  jobs,
+  nextSourceFolderId,
+  normalizeFixtureSourceFolder,
+  pathChecks,
+  publishFixtureSourceVideos,
+  processHistory,
+  queueFixtureSourceVideos,
+  recountFixtureSourceVideoState,
+  runtime,
+  settings,
+  makeSourceVideoDetail,
+  sourceVideos,
+  status,
+  updateFixtureSourceVideoCover,
+  updateFixtureSourceVideoMetadata
+} from "./fixtures/admin-fixture-data.ts";
+
+export { unwrapAdminResponse } from "./admin-http.ts";
+export { resolveMediaUrl } from "./admin-source-video-media.ts";
 
 export type AdminApiEnvelope<T> =
   | {
       ok: true;
       data: T;
+      meta?: AdminApiResponseMeta;
     }
   | {
       ok: false;
@@ -84,7 +134,10 @@ export interface AdminSourceVideoListOptions {
   offset?: number;
   query?: string;
   status?: AdminPreprocessStatus | "all";
+  manifest_fallback?: AdminSourceVideoManifestFallbackPolicy;
 }
+
+export type AdminSourceVideoManifestFallbackPolicy = "allow" | "forbid";
 
 export interface AdminPreprocessJob {
   job_id: string;
@@ -150,6 +203,106 @@ export interface AdminPreprocessJobsResponse {
     load_advice: string;
   };
   jobs: AdminPreprocessJob[];
+  runtime?: AdminRuntimeEndpointMeta;
+}
+
+export type AdminPreprocessProcessHistoryEvent =
+  | "failed"
+  | "indexed"
+  | "completed"
+  | "claimed"
+  | "status";
+
+export interface AdminPreprocessProcessHistoryItem {
+  source_video_id: string;
+  title: string;
+  preprocess_status: AdminPreprocessStatus;
+  source_folder_name: string;
+  visible_to_cutters: boolean;
+  claimed_at: string;
+  completed_at: string;
+  indexed_at: string;
+  failed_at: string;
+  last_event_at: string;
+  last_event_type: AdminPreprocessProcessHistoryEvent;
+  elapsed_ms: number;
+}
+
+export interface AdminPreprocessProcessHistorySummary {
+  returned_count: number;
+  completed_count: number;
+  failed_count: number;
+  active_count: number;
+  average_process_ms: number;
+  tracked_count: number;
+  tracked_completed_count: number;
+  tracked_failed_count: number;
+  tracked_active_count: number;
+  tracked_average_process_ms: number;
+  window_start_at: string;
+  newest_event_at: string;
+  oldest_event_at: string;
+  status_counts: Record<AdminPreprocessStatus, number>;
+  event_counts: Record<AdminPreprocessProcessHistoryEvent, number>;
+  source_folder_summaries: AdminPreprocessProcessHistorySourceFolderSummary[];
+  daily_trend: AdminPreprocessProcessHistoryTrendBucket[];
+}
+
+export interface AdminPreprocessProcessHistoryFilters {
+  source_folder_name: string;
+  preprocess_status: AdminPreprocessStatus | "";
+  event_type: AdminPreprocessProcessHistoryEvent | "";
+}
+
+export interface AdminPreprocessProcessHistoryFilterOptions {
+  source_folder_names: string[];
+  preprocess_statuses: AdminPreprocessStatus[];
+  event_types: AdminPreprocessProcessHistoryEvent[];
+}
+
+export interface AdminPreprocessProcessHistorySourceFolderSummary {
+  source_folder_name: string;
+  tracked_count: number;
+  completed_count: number;
+  failed_count: number;
+  active_count: number;
+  average_process_ms: number;
+  newest_event_at: string;
+}
+
+export interface AdminPreprocessProcessHistoryTrendBucket {
+  date: string;
+  tracked_count: number;
+  completed_count: number;
+  failed_count: number;
+  active_count: number;
+  average_process_ms: number;
+}
+
+export interface AdminPreprocessProcessHistoryResponse {
+  schema_version: "1.0";
+  generated_at: string;
+  library_updated_at?: string;
+  data_source: "admin-read-model";
+  actual_data_source: "admin-read-model";
+  cache_status: AdminRuntimeCacheStatus;
+  scan_mode: "no-scan";
+  scan_reason: "route-owned-page";
+  history_available: boolean;
+  window_days: number;
+  limit: number;
+  filters: AdminPreprocessProcessHistoryFilters;
+  filter_options: AdminPreprocessProcessHistoryFilterOptions;
+  summary: AdminPreprocessProcessHistorySummary;
+  items: AdminPreprocessProcessHistoryItem[];
+}
+
+export interface AdminPreprocessProcessHistoryOptions {
+  limit?: number;
+  window_days?: number;
+  source_folder_name?: string;
+  preprocess_status?: AdminPreprocessStatus | "all" | "";
+  event_type?: AdminPreprocessProcessHistoryEvent | "all" | "";
 }
 
 export interface AdminIndexVersion {
@@ -173,6 +326,7 @@ export interface AdminIndexVersionsResponse {
   limit?: number;
   has_more?: boolean;
   versions: AdminIndexVersion[];
+  runtime?: AdminRuntimeEndpointMeta;
 }
 
 export interface AdminRuntimeSettings {
@@ -257,6 +411,14 @@ export interface UserUsageMetrics {
   last_used_at: string;
 }
 
+export interface UsageEventStoreMetrics {
+  line_count: number;
+  valid_line_count: number;
+  malformed_line_count: number;
+  malformed_lines: number[];
+  warning: string;
+}
+
 export interface UsageMetrics {
   search_request_count: number;
   search_hit_count: number;
@@ -290,6 +452,7 @@ export interface UsageMetrics {
   recent_keywords: string[];
   most_used_source_video_ids: string[];
   users: UserUsageMetrics[];
+  event_store: UsageEventStoreMetrics;
 }
 
 export interface AdminDashboardMetrics {
@@ -319,6 +482,7 @@ export interface AdminDashboardMetrics {
     index_required_video_count: number;
   };
   runtime_load: AdminRuntimeLoadMetrics;
+  sources: AdminDashboardMetricsSources;
 }
 
 export type AdminRuntimeLoadStatus = "healthy" | "attention" | "blocked";
@@ -498,6 +662,651 @@ export interface AdminActionResult {
   message?: string;
 }
 
+export type AdminDataLoadPhase = "shell" | "route" | "background" | "command";
+export type AdminDataLoadCost = "cheap" | "bounded" | "expensive";
+export type AdminDataLoadScanMode =
+  | "no-scan"
+  | "single-id"
+  | "paged-list"
+  | "folder-scan"
+  | "status-scan"
+  | "full-reconcile";
+export type AdminScanDataSource =
+  | "admin-settings"
+  | "admin-read-model"
+  | "command-snapshot"
+  | "current-index"
+  | "data-loading-contract"
+  | "doctor-probes"
+  | "index-version-packages"
+  | "library-manifest"
+  | "operation-log"
+  | "path-checks"
+  | "read-model-reconcile"
+  | "runtime-telemetry"
+  | "runtime-secrets"
+  | "source-folders"
+  | "source-video-manifest"
+  | "supervisor-runtime"
+  | "transcript-artifacts"
+  | "usage-events"
+  | "user-store";
+export type AdminScanReason =
+  | "background-metrics"
+  | "doctor-route"
+  | "explicit-reconcile-cancel"
+  | "explicit-read-model-reconcile"
+  | "explicit-scan-apply"
+  | "explicit-scan-preview"
+  | "index-version-page"
+  | "operation-log-tail"
+  | "read-model-health"
+  | "route-owned-page"
+  | "selected-record"
+  | "settings-route"
+  | "shell-contract"
+  | "shell-summary"
+  | "user-management-route";
+
+export type AdminRuntimeCacheStatus =
+  | "hit"
+  | "miss"
+  | "pending"
+  | "not-applicable"
+  | "unknown";
+
+export interface AdminRuntimeEndpointMeta {
+  schema_version: "1.0";
+  endpoint: string;
+  method: "GET" | "POST" | "PATCH" | "DELETE";
+  duration_ms: number;
+  scan_mode: AdminDataLoadScanMode;
+  data_source: AdminScanDataSource;
+  scan_reason: AdminScanReason;
+  actual_data_source: AdminScanDataSource;
+  cache_status: AdminRuntimeCacheStatus;
+  result_count: number;
+  offset: number;
+  limit: number;
+  slow: boolean;
+  slow_reason: string;
+  fallback_reason?: string;
+  repair_reason?: string;
+  components?: AdminRuntimeComponentTiming[];
+}
+
+export interface AdminRuntimeComponentTiming {
+  name: string;
+  duration_ms: number;
+  data_source?: AdminScanDataSource;
+  scan_mode?: AdminDataLoadScanMode;
+  scan_reason?: AdminScanReason;
+  cache_status?: AdminRuntimeCacheStatus;
+  detail?: string;
+}
+
+export interface AdminDashboardMetricSource {
+  data_source: AdminScanDataSource;
+  scan_mode: AdminDataLoadScanMode;
+  scan_reason: AdminScanReason;
+}
+
+export interface AdminDashboardMetricsSources {
+  material: AdminDashboardMetricSource;
+  transcript: AdminDashboardMetricSource;
+  production: AdminDashboardMetricSource;
+  usage: AdminDashboardMetricSource;
+  risk: AdminDashboardMetricSource;
+  runtime_load: AdminDashboardMetricSource;
+}
+
+export interface AdminApiResponseMeta {
+  runtime: AdminRuntimeEndpointMeta;
+}
+
+export interface AdminRuntimeDiagnosticsHistoryEntry {
+  schema_version: "1.0";
+  recorded_at: string;
+  runtime: AdminRuntimeEndpointMeta;
+}
+
+export interface AdminRuntimeDiagnosticsHistoryResponse {
+  schema_version: "1.0";
+  generated_at: string;
+  path: string;
+  entries: AdminRuntimeDiagnosticsHistoryEntry[];
+  limit: number;
+  total_line_count: number;
+  malformed_line_count: number;
+  truncated: boolean;
+}
+
+export interface AdminRuntimeDiagnosticsHistoryOptions {
+  limit?: number;
+}
+
+export interface AdminSourceVideoListResult {
+  source_videos: AdminSourceVideo[];
+  runtime?: AdminRuntimeEndpointMeta;
+}
+
+export interface AdminDataLoadingEndpointPlan {
+  endpoint: string;
+  method: "GET" | "POST" | "PATCH" | "DELETE";
+  phase: AdminDataLoadPhase;
+  cost: AdminDataLoadCost;
+  scan_mode: AdminDataLoadScanMode;
+  data_source: AdminScanDataSource;
+  scan_reason: AdminScanReason;
+  critical: boolean;
+  default_limit?: number;
+  cache_ttl_ms?: number;
+  read_model?: string;
+  timeout_ms: number;
+  refresh: "manual" | "interval" | "route-entry" | "command-only";
+  notes: string;
+}
+
+export interface AdminRouteDataLoadingPlan {
+  route: string;
+  load_phase: "shell" | "route-entry" | "manual-command";
+  prefetch: boolean;
+  endpoints: string[];
+  fallback: string;
+}
+
+export interface AdminDataLoadingPlan {
+  schema_version: "1.0";
+  generated_at: string;
+  strategy: "shell-first-route-owned-v1";
+  shell_interactive_target_ms: number;
+  route_timeout_ms: number;
+  background_prefetch_default: boolean;
+  hidden_full_scan_allowed: boolean;
+  endpoints: AdminDataLoadingEndpointPlan[];
+  routes: AdminRouteDataLoadingPlan[];
+}
+
+export type AdminGateStatus = "pass" | "attention" | "blocked";
+
+export interface AdminReleaseGate {
+  code: string;
+  status: AdminGateStatus;
+  message: string;
+  details: Record<string, unknown>;
+}
+
+export interface AdminPreprocessSafetyStatus {
+  checked_at: string;
+  safe_to_start: boolean;
+  status: "healthy" | "attention" | "blocked";
+  disk: {
+    total_bytes: number;
+    available_bytes: number;
+    used_bytes: number;
+    usage_percent: number;
+    block_usage_percent: number;
+    status: "healthy" | "attention" | "blocked";
+    last_error: string;
+  };
+  processing: {
+    checked: boolean;
+    processing_count: number;
+    source_video_ids: string[];
+  };
+  blockers: Array<{
+    code: string;
+    message: string;
+    source_video_ids: string[];
+  }>;
+}
+
+export interface AdminProtectionStatus {
+  checked_at: string;
+  mode: "preprocess-protection-v1";
+  ready_video_count: number;
+  processing_video_count: number;
+  queued_video_count: number;
+  index_required_video_count: number;
+  current_index_version: string;
+  scan_apply_requires_preview: boolean;
+  ready_asset_policy: {
+    immutable_status: "ready";
+    allowed_ready_mutations: string[];
+    blocked_ready_mutations: string[];
+  };
+  scan_preview_endpoint: string;
+  release_gates_endpoint: string;
+}
+
+export interface AdminUsageEventStoreHealth {
+  line_count: number;
+  valid_line_count: number;
+  malformed_line_count: number;
+  malformed_lines: number[];
+  warning: string;
+}
+
+export interface AdminUsageEventsRepairReadiness {
+  repair_required: boolean;
+  status: "clean" | "dry-run-required";
+  events_path: string;
+  projection_path: string;
+  dry_run_command: string;
+  apply_command: string;
+  artifacts_pattern: string;
+  backup_directory: string;
+  quarantine_directory: string;
+  safe_scope: "usage-events-only";
+  mutates_ready_assets: false;
+  mutates_cutter_protocol: false;
+  notes: string[];
+}
+
+export interface AdminProcessingRecoveryReadiness {
+  recovery_required: boolean;
+  status: "clear" | "preflight-required";
+  processing_count: number;
+  source_video_ids: string[];
+  sample_truncated: boolean;
+  preflight_endpoints: string[];
+  bulk_recovery_endpoint: string;
+  single_recovery_endpoints: string[];
+  supervisor_must_be_idle: true;
+  safe_scope: "processing-to-queued-only";
+  mutates_ready_assets: false;
+  mutates_cutter_protocol: false;
+  notes: string[];
+}
+
+export interface AdminDiskSpaceProtectionReadiness {
+  status: "healthy" | "attention" | "blocked";
+  safe_to_preprocess: boolean;
+  preprocess_write_blocked: boolean;
+  release_blocked: boolean;
+  library_root: string;
+  total_bytes: number;
+  available_bytes: number;
+  used_bytes: number;
+  usage_percent: number;
+  block_usage_percent: number;
+  attention_usage_percent: number;
+  last_error: string;
+  threshold_env_var: "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT";
+  write_block_scope: "preprocess-and-docker-upload";
+  preflight_endpoints: string[];
+  starts_workers: false;
+  mutates_ready_assets: false;
+  mutates_cutter_protocol: false;
+  notes: string[];
+}
+
+export interface AdminVersionHealthParityReadiness {
+  status: "ready" | "incomplete";
+  metadata_complete: boolean;
+  build_sha: string;
+  build_version: string;
+  image_tag: string;
+  expected_services: Array<"admin-web" | "admin-api" | "admin-worker">;
+  health_preflight_endpoints: string[];
+  live_probe_command: string;
+  external_proof_required: string[];
+  static_compose_gate: "image-tag-static-parity";
+  safe_scope: "version-health-only";
+  starts_workers: false;
+  mutates_ready_assets: false;
+  mutates_cutter_protocol: false;
+  notes: string[];
+}
+
+export interface AdminWorkerEnvProofReadiness {
+  proof_required: true;
+  status: "external-proof-required";
+  expected_service: "admin-worker";
+  required_env_flags: {
+    MIXLAB_ADMIN_DOCKER_MVP_MODE: "v0.1";
+    MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: "0";
+    MIXLAB_ENABLE_READY_PUBLISH_WORKER: "0";
+  };
+  required_library_roots: {
+    MIXLAB_ADMIN_LIBRARY_ROOT: "/data/PublicLibrary";
+    MIXLAB_PREPROCESS_LIBRARY_ROOT: "/data/PublicLibrary";
+  };
+  env_file_name: "admin-worker.env";
+  inspect_json_name: "admin-worker.inspect.json";
+  env_file_variable: "MIXLAB_ADMIN_WORKER_ENV_FILE";
+  inspect_json_variable: "MIXLAB_ADMIN_WORKER_INSPECT_JSON";
+  proof_command: "npx tsx scripts/acceptance/admin-worker-env-proof.ts";
+  collection_commands: string[];
+  artifacts_pattern: "docs/acceptance/artifacts/admin-worker-env-proof-*.{json,md}";
+  safe_scope: "admin-worker-env-only";
+  starts_workers: false;
+  records_secrets: false;
+  mutates_ready_assets: false;
+  mutates_cutter_protocol: false;
+  notes: string[];
+}
+
+export interface AdminCutterCompatibilityProofReadiness {
+  proof_required: true;
+  status: "external-proof-required";
+  expected_ready_count: number;
+  expected_auth_mode: "reviewed";
+  required_reports: {
+    windows_acceptance_env_var: "MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT";
+    real_cut_env_var: "MIXLAB_CUTTER_REAL_CUT_REPORT";
+    optional_desktop_screenshot_env_var: "MIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT";
+    expected_ready_count_env_var: "MIXLAB_CUTTER_EXPECTED_READY_COUNT";
+    expected_release_version_env_var: "MIXLAB_CUTTER_EXPECTED_RELEASE_VERSION";
+  };
+  required_evidence: string[];
+  proof_command: "npx tsx scripts/acceptance/admin-cutter-compatibility-proof.ts";
+  artifacts_pattern: "docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.{json,md}";
+  safe_scope: "cutter-compatibility-only";
+  requires_staged_candidate: true;
+  contacts_windows_runner: false;
+  contacts_docker: false;
+  starts_workers: false;
+  mutates_ready_assets: false;
+  mutates_cutter_protocol: false;
+  notes: string[];
+}
+
+export interface AdminReleaseGatesResponse {
+  checked_at: string;
+  overall_status: AdminGateStatus;
+  release_allowed: boolean;
+  gates: AdminReleaseGate[];
+  build: Record<string, unknown>;
+  runtime: Record<string, unknown>;
+  safety: AdminPreprocessSafetyStatus;
+  usage_event_store: AdminUsageEventStoreHealth;
+  usage_events_repair: AdminUsageEventsRepairReadiness;
+  processing_recovery: AdminProcessingRecoveryReadiness;
+  disk_space_protection: AdminDiskSpaceProtectionReadiness;
+  version_health_parity: AdminVersionHealthParityReadiness;
+  admin_worker_env_proof: AdminWorkerEnvProofReadiness;
+  cutter_compatibility_proof: AdminCutterCompatibilityProofReadiness;
+}
+
+export interface AdminSourceVideoStatusReadModelOverview {
+  name: string;
+  storage: "persistent-json";
+  path: string;
+  freshness: "fresh" | "building" | "stale" | "missing";
+  memory_cache: "fresh" | "building" | "stale" | "missing";
+  persisted: "fresh" | "stale" | "missing";
+  generated_at: string;
+  library_updated_at: string;
+  current_library_updated_at: string;
+  video_count: number;
+  current_video_count: number;
+  counts_by_status: Record<AdminPreprocessStatus, number>;
+  cache_ttl_ms: number;
+}
+
+export interface AdminReadModelStoreOverview {
+  schema_version: "1.0";
+  storage: "sqlite";
+  path: string;
+  freshness: "fresh" | "stale" | "missing" | "unreadable";
+  exists: boolean;
+  generated_at: string;
+  library_updated_at: string;
+  current_library_updated_at: string;
+  video_count: number;
+  current_video_count: number;
+  counts_by_status: Record<AdminPreprocessStatus, number>;
+  invalidated_at: string;
+  invalidation_reason: string;
+  last_error: string;
+  reconciliation: {
+    store_path: string;
+    action: "none" | "build" | "rebuild" | "manual-review";
+    reason: "fresh" | "missing_library" | "missing_store" | "stale_store" | "unreadable_store";
+    scan_mode: "no-scan" | "full-reconcile";
+    requires_background_reconcile: boolean;
+    safe_for_page_request: boolean;
+  };
+}
+
+export interface AdminReadModelStatus {
+  schema_version: "1.0";
+  generated_at: string;
+  admin_read_model: AdminReadModelStoreOverview;
+  source_video_status: AdminSourceVideoStatusReadModelOverview;
+}
+
+export type AdminReadModelReconcilerRunStatus =
+  | "idle"
+  | "running"
+  | "succeeded"
+  | "skipped"
+  | "cancelled"
+  | "failed";
+
+export type AdminReadModelReconcilerPhase =
+  | "idle"
+  | "starting"
+  | "scanning"
+  | "writing"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
+export type AdminReadModelReconcilerProgressStep =
+  | "idle"
+  | "starting"
+  | "library-manifest"
+  | "source-video-manifests"
+  | "preprocess-job-snapshots"
+  | "writing"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
+export interface AdminReadModelReconcilerProgress {
+  scanned_source_video_count: number;
+  total_source_video_count: number;
+  preprocess_job_snapshot_count: number;
+  total_preprocess_job_snapshot_count: number;
+  current_step: AdminReadModelReconcilerProgressStep;
+  step_completed_count: number;
+  step_total_count: number;
+  step_percent: number;
+  percent: number;
+  message: string;
+}
+
+export interface AdminReadModelReconcilerEvent {
+  at: string;
+  event_type:
+    | "started"
+    | "progress"
+    | "cancel-requested"
+    | "cancelled"
+    | "succeeded"
+    | "skipped"
+    | "failed";
+  phase: AdminReadModelReconcilerPhase;
+  message: string;
+  scanned_source_video_count: number;
+  total_source_video_count: number;
+  preprocess_job_snapshot_count: number;
+  total_preprocess_job_snapshot_count: number;
+  current_step: AdminReadModelReconcilerProgressStep;
+  step_completed_count: number;
+  step_total_count: number;
+  step_percent: number;
+}
+
+export interface AdminReadModelReconcilerStatus {
+  schema_version: "1.0";
+  command: "read-model-reconcile";
+  status: AdminReadModelReconcilerRunStatus;
+  phase: AdminReadModelReconcilerPhase;
+  scan_mode: "full-reconcile";
+  cancel_requested: boolean;
+  started_at: string;
+  finished_at: string;
+  snapshot_video_count: number;
+  progress: AdminReadModelReconcilerProgress;
+  events: AdminReadModelReconcilerEvent[];
+  message: string;
+  result: Record<string, unknown> | null;
+  error_code: string;
+  error_message: string;
+}
+
+export interface AdminReadModelReconcilerStartResult {
+  accepted: boolean;
+  status: AdminReadModelReconcilerStatus;
+}
+
+export interface AdminReadModelReconcilerCancelResult {
+  accepted: boolean;
+  status: AdminReadModelReconcilerStatus;
+}
+
+export interface AdminOperationsOverview {
+  schema_version: "1.0";
+  generated_at: string;
+  title: string;
+  summary: {
+    overall_status: AdminGateStatus;
+    release_allowed: boolean;
+    blocked_gate_count: number;
+    attention_gate_count: number;
+    ready_video_count: number;
+    queued_video_count: number;
+    processing_video_count: number;
+    index_required_video_count: number;
+    current_index_version: string;
+  };
+  next_actions: Array<{
+    key: string;
+    label: string;
+    detail: string;
+    route: string;
+  }>;
+  protection: AdminProtectionStatus;
+  release: AdminReleaseGatesResponse;
+  read_model: AdminReadModelStatus;
+  data_loading: AdminDataLoadingPlan;
+}
+
+export interface AdminOperationLogEvent {
+  schema_version: "1.0";
+  event_id: string;
+  occurred_at: string;
+  area: "read-model" | "protection" | "preprocess" | "release" | "settings" | "users" | "system";
+  action: string;
+  event_type: "started" | "progress" | "cancel-requested" | "cancelled" | "succeeded" | "skipped" | "failed";
+  message: string;
+  details: Record<string, unknown>;
+}
+
+export interface AdminCommandActor {
+  kind: "admin-user" | "system" | "unknown";
+  source: "admin-session" | "auth-disabled" | "system-task" | "runtime-holder";
+  admin_id?: string;
+  username?: string;
+  display_name?: string;
+  role?: string;
+  label?: string;
+}
+
+export interface AdminOperationLogResponse {
+  schema_version: "1.0";
+  generated_at: string;
+  path: string;
+  events: AdminOperationLogEvent[];
+  limit: number;
+  total_line_count: number;
+  malformed_line_count: number;
+  truncated: boolean;
+}
+
+export type AdminCommandRestorePlanFileStatus = "restorable" | "blocked";
+export type AdminCommandRestorePlanTargetStatus = "exists" | "missing" | "not-file" | "unsafe";
+export type AdminCommandRestorePlanSnapshotStatus =
+  | "exists"
+  | "missing"
+  | "not-file"
+  | "size-mismatch"
+  | "unsafe"
+  | "not-captured";
+export type AdminCommandRestorePlanBlocker =
+  | "snapshot_manifest_outside_command_snapshot_root"
+  | "snapshot_manifest_missing"
+  | "snapshot_manifest_not_file"
+  | "snapshot_manifest_invalid_json"
+  | "snapshot_manifest_invalid_schema"
+  | "snapshot_is_not_file_capture"
+  | "snapshot_file_not_captured"
+  | "snapshot_file_path_missing"
+  | "snapshot_file_path_unsafe"
+  | "snapshot_file_missing"
+  | "snapshot_file_not_file"
+  | "snapshot_file_size_mismatch"
+  | "source_path_missing"
+  | "source_path_unsafe"
+  | "target_is_not_file";
+
+export interface AdminCommandRestorePlanFile {
+  label: string;
+  can_restore: boolean;
+  status: AdminCommandRestorePlanFileStatus;
+  source_relative_path?: string;
+  snapshot_relative_path?: string;
+  target_status: AdminCommandRestorePlanTargetStatus;
+  snapshot_status: AdminCommandRestorePlanSnapshotStatus;
+  expected_size_bytes?: number;
+  snapshot_size_bytes?: number;
+  blockers: AdminCommandRestorePlanBlocker[];
+}
+
+export interface AdminCommandRestorePlan {
+  schema_version: "1.0";
+  generated_at: string;
+  can_restore: boolean;
+  command?: string;
+  snapshot_id?: string;
+  snapshot_kind?: string;
+  snapshot_manifest_relative_path?: string;
+  file_count: number;
+  restorable_file_count: number;
+  blocked_file_count: number;
+  blockers: AdminCommandRestorePlanBlocker[];
+  files: AdminCommandRestorePlanFile[];
+}
+
+export type AdminCommandSnapshotRestoreStatus = "restored" | "blocked";
+export type AdminCommandSnapshotRestoreBlocker =
+  | AdminCommandRestorePlanBlocker
+  | "restore_plan_blocked"
+  | "restore_plan_empty"
+  | "restore_file_missing_paths"
+  | "restore_file_path_unsafe";
+
+export interface AdminCommandSnapshotRestoreFile {
+  label: string;
+  restored: boolean;
+  source_relative_path?: string;
+  snapshot_relative_path?: string;
+}
+
+export interface AdminCommandSnapshotRestoreResult {
+  schema_version: "1.0";
+  restored_at: string;
+  status: AdminCommandSnapshotRestoreStatus;
+  restored_file_count: number;
+  blocked_file_count: number;
+  blockers: AdminCommandSnapshotRestoreBlocker[];
+  plan: AdminCommandRestorePlan;
+  files: AdminCommandSnapshotRestoreFile[];
+}
+
 export interface AdminSourceVideoMetadataUpdate {
   title?: string;
   description?: string;
@@ -517,13 +1326,12 @@ export interface AdminDashboardData {
   doctor: MixlabDoctorReport;
   runtime: AdminRuntimeSettings;
   metrics: AdminDashboardMetrics;
+  data_loading_plan: AdminDataLoadingPlan;
 }
 
 export interface LoadAdminDashboardDataOptions {
   includeHeavy?: boolean;
 }
-
-const ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT = 20;
 
 export type AdminSmartScanAction =
   | "none"
@@ -717,6 +1525,14 @@ export interface AdminApiClient {
   loginAdmin(input: { username: string; password: string }): Promise<AdminAuthResult>;
   logoutAdmin(): Promise<{ removed: boolean }>;
   getLibraryStatus(): Promise<AdminLibraryStatus>;
+  getDataLoadingPlan(): Promise<AdminDataLoadingPlan>;
+  getOperationsOverview(): Promise<AdminOperationsOverview>;
+  getReadModelReconcileStatus(): Promise<AdminReadModelReconcilerStatus>;
+  startReadModelReconcile(): Promise<AdminReadModelReconcilerStartResult>;
+  cancelReadModelReconcile(): Promise<AdminReadModelReconcilerCancelResult>;
+  getOperationLog(options?: { limit?: number }): Promise<AdminOperationLogResponse>;
+  getCommandSnapshotRestorePlan(snapshotId: string): Promise<AdminCommandRestorePlan>;
+  restoreCommandSnapshot(snapshotId: string): Promise<AdminCommandSnapshotRestoreResult>;
   getPathChecks(): Promise<AdminPathCheck[]>;
   getAdminSettings(): Promise<AdminSettingsConfig>;
   saveAdminSettings(settings: AdminSettingsConfigUpdate): Promise<AdminSettingsConfig>;
@@ -725,15 +1541,22 @@ export interface AdminApiClient {
   removeSourceFolder(sourceFolderId: string): Promise<AdminSettingsConfig>;
   getDashboardMetrics(): Promise<AdminDashboardMetrics>;
   listSourceVideos(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideo[]>;
+  listSourceVideosWithRuntime(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideoListResult>;
   getSourceVideoDetail(sourceVideoId: string): Promise<AdminSourceVideoDetail>;
   listCutterUsers(): Promise<AdminCutterUsersResponse>;
   approveCutterUser(userId: string): Promise<AdminCutterUserApprovalResult>;
   disableCutterUser(userId: string): Promise<AdminCutterUser>;
   resetCutterUserPassword(userId: string, input: { new_password: string }): Promise<AdminCutterUser>;
   listPreprocessJobs(options?: { limit?: number; offset?: number }): Promise<AdminPreprocessJobsResponse>;
+  listPreprocessProcessHistory(
+    options?: AdminPreprocessProcessHistoryOptions
+  ): Promise<AdminPreprocessProcessHistoryResponse>;
   getPreprocessJobLog(jobId: string): Promise<AdminPreprocessJobLog>;
   listIndexVersions(): Promise<AdminIndexVersionsResponse>;
   getDoctorReport(): Promise<MixlabDoctorReport>;
+  getRuntimeDiagnosticsHistory(
+    options?: AdminRuntimeDiagnosticsHistoryOptions
+  ): Promise<AdminRuntimeDiagnosticsHistoryResponse>;
   getRuntimeSettings(): Promise<AdminRuntimeSettings>;
   initializeLibrary(): Promise<AdminActionResult>;
   scanSourceVideos(): Promise<AdminActionResult>;
@@ -765,105 +1588,7 @@ export interface CreateAdminApiClientInput {
   base_url: string;
   fetch?: typeof fetch;
   auth?: { session_token: string };
-}
-
-export function unwrapAdminResponse<T>(envelope: AdminApiEnvelope<T>): T {
-  if (envelope.ok) {
-    return envelope.data;
-  }
-
-  throw new Error(`${envelope.error_code}: ${envelope.message}`);
-}
-
-function joinUrl(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/$/, "")}${path}`;
-}
-
-function listQuery(options?: { limit?: number; offset?: number; query?: string; status?: string }): string {
-  const params = new URLSearchParams();
-
-  if (options?.limit) {
-    params.set("limit", String(options.limit));
-  }
-
-  if (options?.offset) {
-    params.set("offset", String(options.offset));
-  }
-
-  if (options?.query?.trim()) {
-    params.set("query", options.query.trim());
-  }
-
-  if (options?.status && options.status !== "all") {
-    params.set("status", options.status);
-  }
-
-  const query = params.toString();
-  return query ? `?${query}` : "";
-}
-
-export function resolveMediaUrl(baseUrl: string, pathOrUrl: string): string {
-  const trimmed = pathOrUrl.trim();
-
-  if (!trimmed) {
-    return "";
-  }
-
-  if (/^data:/i.test(trimmed)) {
-    return /^data:image\//i.test(trimmed) ? trimmed : "";
-  }
-
-  const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed);
-
-  try {
-    if (hasExplicitScheme) {
-      const resolved = new URL(trimmed);
-      return resolved.protocol === "http:" || resolved.protocol === "https:" ? resolved.toString() : "";
-    }
-
-    const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    const parsedBaseUrl = new URL(normalizedBaseUrl);
-    const resolved = new URL(trimmed, normalizedBaseUrl);
-    return (parsedBaseUrl.protocol === "http:" || parsedBaseUrl.protocol === "https:") &&
-      (resolved.protocol === "http:" || resolved.protocol === "https:")
-      ? resolved.toString()
-      : "";
-  } catch {
-    if (hasExplicitScheme || trimmed.startsWith("//")) {
-      return "";
-    }
-
-    try {
-      const relativeBaseUrl = baseUrl.trim() || "/";
-      const rootedRelativeBase = relativeBaseUrl.startsWith("/")
-        ? relativeBaseUrl
-        : `/${relativeBaseUrl}`;
-      const normalizedRelativeBase = rootedRelativeBase.endsWith("/")
-        ? rootedRelativeBase
-        : `${rootedRelativeBase}/`;
-      const resolved = new URL(trimmed, `http://mixlab.local${normalizedRelativeBase}`);
-      return `${resolved.pathname}${resolved.search}${resolved.hash}`;
-    } catch {
-      return "";
-    }
-  }
-}
-
-function resolveSourceVideoMedia(baseUrl: string, video: AdminSourceVideo): AdminSourceVideo {
-  return {
-    ...video,
-    cover_url: resolveMediaUrl(baseUrl, video.cover_url)
-  };
-}
-
-function resolveSourceVideoDetailMedia(
-  baseUrl: string,
-  detail: AdminSourceVideoDetail
-): AdminSourceVideoDetail {
-  return {
-    ...detail,
-    source_video: resolveSourceVideoMedia(baseUrl, detail.source_video)
-  };
+  signal?: AbortSignal;
 }
 
 function redactApprovalResult(
@@ -882,143 +1607,32 @@ function redactApprovalResult(
   };
 }
 
-async function getJson<T>(
-  fetchImpl: typeof fetch,
-  baseUrl: string,
-  endpoint: string,
-  headers?: HeadersInit
-): Promise<T> {
-  const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
-    ...(headers ? { headers } : {})
-  });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponse(envelope);
-}
-
-async function sendJson<T>(
-  fetchImpl: typeof fetch,
-  baseUrl: string,
-  endpoint: string,
-  method: "POST" | "PATCH",
-  body?: unknown,
-  headers?: HeadersInit
-): Promise<T> {
-  const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers
-    },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponse(envelope);
-}
-
-async function deleteJson<T>(
-  fetchImpl: typeof fetch,
-  baseUrl: string,
-  endpoint: string,
-  headers?: HeadersInit
-): Promise<T> {
-  const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
-    method: "DELETE",
-    ...(headers ? { headers } : {})
-  });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponse(envelope);
-}
-
-function adminAuthHeaders(auth: CreateAdminApiClientInput["auth"]): HeadersInit | undefined {
-  return auth?.session_token
-    ? {
-        "X-MixLab-Admin-Session-Token": auth.session_token
-      }
-    : undefined;
-}
-
 export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApiClient {
-  const fetchImpl = input.fetch ?? fetch;
+  const baseFetch = input.fetch ?? fetch;
+  const fetchImpl: typeof fetch = input.signal
+    ? (resource, init) => baseFetch(resource, { ...(init ?? {}), signal: input.signal })
+    : baseFetch;
   const protectedHeaders = adminAuthHeaders(input.auth);
+  const authMethods = createAdminAuthClientMethods({
+    fetchImpl,
+    baseUrl: input.base_url,
+    protectedHeaders
+  });
+  const operationsMethods = createAdminOperationsClientMethods({
+    fetchImpl,
+    baseUrl: input.base_url,
+    protectedHeaders
+  });
+  const sourceVideoMethods = createAdminSourceVideoClientMethods({
+    fetchImpl,
+    baseUrl: input.base_url,
+    protectedHeaders
+  });
 
   return {
-    getAuthBootstrap: () =>
-      getJson<AdminAuthBootstrapStatus>(fetchImpl, input.base_url, "/api/admin/auth/bootstrap"),
-    getAuthStatus: () =>
-      getJson<AdminAuthStatus>(fetchImpl, input.base_url, "/api/admin/auth/status", protectedHeaders),
-    registerAdmin: (registerInput) =>
-      sendJson<AdminAuthResult>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/auth/register",
-        "POST",
-        registerInput
-      ),
-    loginAdmin: (loginInput) =>
-      sendJson<AdminAuthResult>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/auth/login",
-        "POST",
-        loginInput
-      ),
-    logoutAdmin: () =>
-      sendJson<{ removed: boolean }>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/auth/logout",
-        "POST",
-        {},
-        protectedHeaders
-      ),
-    getLibraryStatus: () =>
-      getJson<AdminLibraryStatus>(fetchImpl, input.base_url, "/api/admin/library/status", protectedHeaders),
-    getPathChecks: () =>
-      getJson<AdminPathCheck[]>(fetchImpl, input.base_url, "/api/admin/library/path-checks", protectedHeaders),
-    getAdminSettings: () =>
-      getJson<AdminSettingsConfig>(fetchImpl, input.base_url, "/api/admin/settings/config", protectedHeaders),
-    saveAdminSettings: (settingsUpdate) =>
-      sendJson<AdminSettingsConfig>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/settings/config",
-        "PATCH",
-        settingsUpdate,
-        protectedHeaders
-      ),
-    addSourceFolder: (folder) =>
-      sendJson<AdminSettingsConfig>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/settings/source-folders",
-        "POST",
-        folder,
-        protectedHeaders
-      ),
-    updateSourceFolder: (sourceFolderId, patch) =>
-      sendJson<AdminSettingsConfig>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/settings/source-folders/${sourceFolderId}`,
-        "PATCH",
-        patch,
-        protectedHeaders
-      ),
-    removeSourceFolder: (sourceFolderId) =>
-      deleteJson<AdminSettingsConfig>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/settings/source-folders/${sourceFolderId}`,
-        protectedHeaders
-      ),
-    getDashboardMetrics: () =>
-      getJson<AdminDashboardMetrics>(fetchImpl, input.base_url, "/api/admin/dashboard/metrics", protectedHeaders),
-    listSourceVideos: (options) =>
-      getJson<AdminSourceVideo[]>(fetchImpl, input.base_url, `/api/admin/source-videos${listQuery(options)}`, protectedHeaders)
-        .then((videos) => videos.map((video) => resolveSourceVideoMedia(input.base_url, video))),
-    getSourceVideoDetail: (sourceVideoId) =>
-      getJson<AdminSourceVideoDetail>(fetchImpl, input.base_url, `/api/admin/source-videos/${sourceVideoId}`, protectedHeaders)
-        .then((detail) => resolveSourceVideoDetailMedia(input.base_url, detail)),
+    ...authMethods,
+    ...operationsMethods,
+    ...sourceVideoMethods,
     listCutterUsers: () =>
       getJson<AdminCutterUsersResponse>(fetchImpl, input.base_url, "/api/admin/cutter-users", protectedHeaders),
     approveCutterUser: (userId) =>
@@ -1047,929 +1661,109 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
         "POST",
         passwordInput,
         protectedHeaders
-      ),
-    listPreprocessJobs: (options) =>
-      getJson<AdminPreprocessJobsResponse>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/preprocess/jobs${listQuery(options ?? { limit: ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT })}`,
-        protectedHeaders
-      ),
-    getPreprocessJobLog: (jobId) =>
-      getJson<AdminPreprocessJobLog>(fetchImpl, input.base_url, `/api/admin/preprocess/jobs/${jobId}/log`, protectedHeaders),
-    listIndexVersions: () =>
-      getJson<AdminIndexVersionsResponse>(fetchImpl, input.base_url, "/api/admin/index/versions", protectedHeaders),
-    getDoctorReport: () =>
-      getJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/report", protectedHeaders),
-    getRuntimeSettings: () =>
-      getJson<AdminRuntimeSettings>(fetchImpl, input.base_url, "/api/admin/settings/runtime", protectedHeaders),
-    initializeLibrary: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/init", "POST", undefined, protectedHeaders),
-    scanSourceVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/library/scan", "POST", undefined, protectedHeaders),
-    queueUnprocessedVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/queue-unprocessed", "POST", undefined, protectedHeaders),
-    retryFailedVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/retry-failed", "POST", undefined, protectedHeaders),
-    recoverProcessingVideos: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/preprocess/recover-processing", "POST", undefined, protectedHeaders),
-    queueSourceVideo: (sourceVideoId) =>
-      sendJson<AdminActionResult>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/source-videos/${sourceVideoId}/queue`,
-        "POST",
-        undefined,
-        protectedHeaders
-      ),
-    retrySourceVideo: (sourceVideoId) =>
-      sendJson<AdminActionResult>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/source-videos/${sourceVideoId}/retry`,
-        "POST",
-        undefined,
-        protectedHeaders
-      ),
-    recoverProcessingSourceVideo: (sourceVideoId) =>
-      sendJson<AdminActionResult>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/source-videos/${sourceVideoId}/recover-processing`,
-        "POST",
-        undefined,
-        protectedHeaders
-      ),
-    publishSourceVideo: (sourceVideoId) =>
-      sendJson<AdminActionResult>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/source-videos/${sourceVideoId}/publish`,
-        "POST",
-        undefined,
-        protectedHeaders
-      ),
-    getPreprocessSupervisorStatus: () =>
-      getJson<AdminPreprocessSupervisorStatus>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/preprocess/supervisor/status",
-        protectedHeaders
-      ),
-    startPreprocessSupervisor: (limit) =>
-      sendJson<AdminPreprocessSupervisorStatus>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/preprocess/supervisor/start",
-        "POST",
-        limit ? { limit } : {},
-        protectedHeaders
-      ),
-    stopPreprocessSupervisor: () =>
-      sendJson<AdminPreprocessSupervisorStatus>(
-        fetchImpl,
-        input.base_url,
-        "/api/admin/preprocess/supervisor/stop",
-        "POST",
-        undefined,
-        protectedHeaders
-      ),
-    repairIndex: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/index/repair", "POST", undefined, protectedHeaders),
-    runDoctor: () =>
-      sendJson<MixlabDoctorReport>(fetchImpl, input.base_url, "/api/admin/doctor/run", "POST", undefined, protectedHeaders),
-    exportDoctorReport: () =>
-      sendJson<MixlabDoctorExport>(fetchImpl, input.base_url, "/api/admin/doctor/export", "POST", undefined, protectedHeaders),
-    testAsrConfig: () =>
-      sendJson<AdminActionResult>(fetchImpl, input.base_url, "/api/admin/settings/test-asr", "POST", undefined, protectedHeaders),
-    updateSourceVideoMetadata: (sourceVideoId, metadata) =>
-      sendJson<AdminSourceVideo>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/source-videos/${sourceVideoId}/metadata`,
-        "PATCH",
-        metadata,
-        protectedHeaders
-      ).then((video) => resolveSourceVideoMedia(input.base_url, video)),
-    updateSourceVideoCover: (sourceVideoId, cover) =>
-      sendJson<AdminSourceVideo>(
-        fetchImpl,
-        input.base_url,
-        `/api/admin/source-videos/${sourceVideoId}/cover`,
-        "PATCH",
-        cover,
-        protectedHeaders
       )
-        .then((video) => resolveSourceVideoMedia(input.base_url, video))
   };
 }
 
-function cover(seed: string, tint: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="%23f5f6f8"/><rect y="98" width="320" height="82" fill="%23${tint}"/><path d="M28 122h24V78h26v44h18V60h30v62h22V88h24v34h25V48h31v74h20V82h25v40h28v15H28z" fill="%23262f3a"/><circle cx="266" cy="48" r="24" fill="%23ffffff" opacity=".68"/><text x="18" y="164" font-family="Arial" font-size="19" fill="%23ffffff">${seed}</text></svg>`;
-  return `data:image/svg+xml,${svg}`;
+function fixtureDataLoadingPlan(): AdminDataLoadingPlan {
+  return createAdminFixtureDataLoadingPlan({
+    process_history_default_load_limit: ADMIN_PREPROCESS_PROCESS_HISTORY_DEFAULT_LOAD_LIMIT
+  });
 }
 
-const status: AdminLibraryStatus = {
-  library_id: "MLPUB-001",
-  name: "公司公开课程素材库",
-  root_path: "/Volumes/PublicLibrary",
-  source_videos_path: "/Volumes/PublicLibrary/source-videos",
-  mixlab_library_path: "/Volumes/PublicLibrary/.mixlab-library",
-  protocol_version: "1.0.0",
-  video_count: 623,
-  ready_video_count: 120,
-  processing_video_count: 3,
-  queued_video_count: 28,
-  unprocessed_video_count: 465,
-  failed_video_count: 2,
-  index_required_video_count: 5,
-  disk_total_bytes: 4_000_000_000_000,
-  disk_available_bytes: 2_480_000_000_000,
-  index_status: "ready",
-  current_index_version: "v000027",
-  active_task_label: "V000043 - build-keyframes 65%",
-  updated_at: "2024-05-07 10:26"
-};
+function cloneRuntimeEndpointMeta(runtime: AdminRuntimeEndpointMeta): AdminRuntimeEndpointMeta {
+  return {
+    ...runtime,
+    components: runtime.components?.map((component) => ({ ...component }))
+  };
+}
 
-const pathChecks: AdminPathCheck[] = [
-  {
-    label: "公共素材库",
-    path: status.root_path,
-    status: "pass",
-    message: "根路径可访问"
-  },
-  {
-    label: "素材来源：默认素材来源",
-    path: status.source_videos_path,
-    status: "pass",
-    message: "素材来源可读"
-  },
-  {
-    label: ".mixlab-library",
-    path: status.mixlab_library_path,
-    status: "pass",
-    message: "协议目录可写"
-  },
-  {
-    label: "manifest.json",
-    path: `${status.mixlab_library_path}/library.json`,
-    status: "pass",
-    message: "library.json 有效"
-  }
-];
-
-const sourceVideos: AdminSourceVideo[] = [
-  {
-    source_video_id: "V000043",
-    title: "现金流课程片段",
-    file_name: "现金流课程片段.mp4",
-    relative_path: "source-videos/2024/05/现金流课程片段.mp4",
-    cover_url: cover("V43", "9bb8d6"),
-    duration_ms: 3_374_000,
-    file_size: 2_420_000_000,
-    preprocess_status: "processing",
-    visible_to_cutters: false,
-    tags: ["财务", "现金流"],
-    description: "正在生成关键帧，未对剪辑师可见。",
-    lecturer: "李明",
-    course: "企业现金流",
-    category: "公开课",
-    updated_at: "2024-05-07 10:24:18"
-  },
-  {
-    source_video_id: "V000042",
-    title: "现金流管理与风险控制",
-    file_name: "现金流管理与风险控制.mp4",
-    relative_path: "source-videos/2024/05/现金流管理与风险控制.mp4",
-    cover_url: cover("V42", "86a98b"),
-    duration_ms: 3_374_000,
-    file_size: 2_110_000_000,
-    preprocess_status: "ready",
-    visible_to_cutters: true,
-    tags: ["财务", "风险控制"],
-    description: "现金流安全边界、预算节奏和经营风险控制。",
-    lecturer: "李明",
-    course: "企业现金流",
-    category: "公开课",
-    updated_at: "2024-05-07 10:22:07"
-  },
-  {
-    source_video_id: "V000041",
-    title: "利润增长的估价优化",
-    file_name: "利润增长估价优化.mp4",
-    relative_path: "source-videos/2024/05/利润增长估价优化.mp4",
-    cover_url: cover("V41", "d8b16f"),
-    duration_ms: 4_329_000,
-    file_size: 2_870_000_000,
-    preprocess_status: "ready",
-    visible_to_cutters: true,
-    tags: ["利润", "估价"],
-    description: "利润结构、毛利改善和估价模型说明。",
-    lecturer: "孙悦",
-    course: "增长模型",
-    category: "经营课",
-    updated_at: "2024-05-07 10:20:13"
-  },
-  {
-    source_video_id: "V000039",
-    title: "组织复制方法",
-    file_name: "组织复制方法.mp4",
-    relative_path: "source-videos/2024/05/组织复制方法.mp4",
-    cover_url: cover("V39", "b0a2cb"),
-    duration_ms: 2_821_000,
-    file_size: 1_760_000_000,
-    preprocess_status: "index-required",
-    visible_to_cutters: false,
-    tags: ["组织", "流程"],
-    description: "文案已完成，等待索引发布后才可见。",
-    lecturer: "周航",
-    course: "组织复制",
-    category: "管理课",
-    updated_at: "2024-05-07 10:16:44"
-  },
-  {
-    source_video_id: "V000037",
-    title: "客户筛选与品牌定价",
-    file_name: "客户筛选与品牌定价.mp4",
-    relative_path: "source-videos/2024/05/客户筛选与品牌定价.mp4",
-    cover_url: cover("V37", "c79f8d"),
-    duration_ms: 2_295_000,
-    file_size: 1_280_000_000,
-    preprocess_status: "failed",
-    visible_to_cutters: false,
-    tags: ["客户", "定价"],
-    description: "ASR 返回错误，等待管理员重试。",
-    lecturer: "林青",
-    course: "品牌定价",
-    category: "营销课",
-    error_stage: "asr",
-    error_message: "DashScope ASR 网络超时",
-    updated_at: "2024-05-07 10:12:51"
-  },
-  {
-    source_video_id: "V000044",
-    title: "人工智能商业落地",
-    file_name: "人工智能商业落地.mp4",
-    relative_path: "source-videos/2024/05/人工智能商业落地.mp4",
-    cover_url: cover("V44", "95b9a8"),
-    duration_ms: 0,
-    file_size: 1_920_000_000,
-    preprocess_status: "unprocessed",
-    visible_to_cutters: false,
-    tags: ["AI", "商业"],
-    description: "新扫描素材，尚未预处理。",
-    lecturer: "王然",
-    course: "AI 商业化",
-    category: "公开课",
-    updated_at: "2024-05-07 10:27:03"
-  }
-];
-
-const jobs: AdminPreprocessJobsResponse = {
-  active_count: 1,
-  queued_count: 2,
-  completed_count: 3,
-  failed_count: 1,
-  supervisor: {
-    state: "running",
-    state_label: "运行中",
-    worker_id: "admin-worker-5174",
-    started_at: "2024-05-07 10:24:18",
-    stopped_at: "",
-    last_error: "",
-    stop_requested: false,
-    last_result: {
-      total_claimed_count: 2,
-      succeeded_count: 1,
-      failed_count: 1
-    }
-  },
-  jobs: [
-    {
-      job_id: "J000043",
-      source_video_id: "V000043",
-      title: "现金流课程片段",
-      status: "running",
-      status_label: "正在处理",
-      stage: "build-keyframes",
-      stage_label: "生成关键帧",
-      progress: 65,
-      started_at: "2024-05-07 10:24:18",
-      elapsed_ms: 272_000,
-      estimated_remaining_ms: 268_000,
-      estimated_start_at: "2024-05-07 10:24:18",
-      estimated_done_at: "2024-05-07 10:33:18",
-      queue_position: 0,
-      log_path: ".mixlab-library/logs/V000043.log",
-      retryable: false
-    },
-    {
-      job_id: "J000044",
-      source_video_id: "V000044",
-      title: "人工智能商业落地",
-      status: "queued",
-      status_label: "等待处理",
-      stage: "extract-audio",
-      stage_label: "等待处理",
-      progress: 0,
-      elapsed_ms: 0,
-      estimated_remaining_ms: 540_000,
-      estimated_start_at: "2024-05-07 10:33:18",
-      estimated_done_at: "2024-05-07 10:42:18",
-      queue_position: 1,
-      log_path: ".mixlab-library/logs/V000044.log",
-      retryable: false
-    },
-    {
-      job_id: "J000037",
-      source_video_id: "V000037",
-      title: "客户筛选与品牌定价",
-      status: "failed",
-      status_label: "失败可重试",
-      stage: "asr",
-      stage_label: "语音识别",
-      progress: 0,
-      failed_at: "2024-05-07 10:18:20",
-      elapsed_ms: 38_000,
-      estimated_remaining_ms: 0,
-      estimated_start_at: "",
-      estimated_done_at: "",
-      queue_position: 0,
-      log_path: ".mixlab-library/logs/V000037.log",
-      retryable: true,
-      error_message: "DashScope ASR 网络超时"
-    },
-    {
-      job_id: "J000042",
-      source_video_id: "V000042",
-      title: "现金流管理与风险控制",
-      status: "done",
-      status_label: "已完成",
-      stage: "publish-ready",
-      stage_label: "发布可用产物",
-      progress: 100,
-      completed_at: "2024-05-07 10:23:02",
-      elapsed_ms: 468_000,
-      estimated_remaining_ms: 0,
-      estimated_start_at: "",
-      estimated_done_at: "2024-05-07 10:23:02",
-      queue_position: 0,
-      log_path: ".mixlab-library/logs/V000042.log",
-      retryable: false
-    },
-    {
-      job_id: "J000041",
-      source_video_id: "V000041",
-      title: "利润增长的估价优化",
-      status: "done",
-      status_label: "已完成",
-      stage: "publish-ready",
-      stage_label: "发布可用产物",
-      progress: 100,
-      completed_at: "2024-05-07 10:25:40",
-      elapsed_ms: 655_000,
-      estimated_remaining_ms: 0,
-      estimated_start_at: "",
-      estimated_done_at: "2024-05-07 10:25:40",
-      queue_position: 0,
-      log_path: ".mixlab-library/logs/V000041.log",
-      retryable: false
-    }
-  ],
-  observability: {
-    running_job_id: "J000043",
-    running_source_video_id: "V000043",
-    pipeline_progress_percent: 46,
-    estimated_all_done_at: "2024-05-07 10:42:18",
-    estimated_queue_duration_ms: 1_078_000,
-    throughput_label: "预计 17:58 完成当前队列",
-    load_advice: "运行负荷正常，可以继续处理"
-  }
-};
-
-const indexes: AdminIndexVersionsResponse = {
-  current_version: "v000027",
-  current_validation_status: "pass",
-  current_validation_message: "current.json 指向 v000027",
-  versions: [
-    {
-      index_version: "v000027",
-      created_at: "2024-05-07 09:51:32",
-      ready_video_count: 120,
-      schema_version: "1.0.0",
-      validation_status: "pass",
-      validation_message: "索引包校验通过",
-      is_current: true,
-      published_by: "admin"
-    },
-    {
-      index_version: "v000026",
-      created_at: "2024-05-06 22:10:11",
-      ready_video_count: 118,
-      schema_version: "1.0.0",
-      validation_status: "pass",
-      validation_message: "索引包校验通过",
-      is_current: false,
-      published_by: "admin"
-    },
-    {
-      index_version: "v000025",
-      created_at: "2024-05-05 21:47:09",
-      ready_video_count: 114,
-      schema_version: "1.0.0",
-      validation_status: "pass",
-      validation_message: "索引包校验通过",
-      is_current: false,
-      published_by: "admin"
-    }
-  ]
-};
-
-const doctorChecks: DoctorCheck[] = [
-  {
-    check_id: "public-root",
-    label: "公共路径",
-    status: "pass",
-    message: "公共素材库可访问，子目录完整"
-  },
-  {
-    check_id: "manifest",
-    label: "Manifest",
-    status: "pass",
-    message: "manifest.json 与 source-video.json 有效"
-  },
-  {
-    check_id: "artifacts",
-    label: "视频产物",
-    status: "warn",
-    message: "有 5 个视频缺少可视化产物"
-  },
-  {
-    check_id: "preprocess-logs-writable",
-    label: "Preprocess Logs Writable",
-    status: "pass",
-    message: "preprocess log directory is writable"
-  },
-  {
-    check_id: "preprocess-logs",
-    label: "Preprocess Logs",
-    status: "warn",
-    message: "preprocess logs are missing for V000037"
-  },
-  {
-    check_id: "ffmpeg",
-    label: "FFmpeg",
-    status: "pass",
-    message: "bundled ffmpeg 可用"
-  },
-  {
-    check_id: "asr",
-    label: "ASR",
-    status: "pass",
-    message: "DashScope key 已配置且未暴露"
-  },
-  {
-    check_id: "counts",
-    label: "状态计数",
-    status: "warn",
-    message: "index-required 与 ready 边界需发布"
-  },
-  {
-    check_id: "local-clips",
-    label: "Local Clips",
-    status: "warn",
-    message: "LC000001: media file is missing"
-  }
-];
-
-const doctor: MixlabDoctorReport = {
-  schema_version: "1.0",
-  generated_at: "2024-05-07 10:26:15",
-  library_root: status.root_path,
-  summary: {
-    pass: 5,
-    warn: 4,
-    fail: 0
-  },
-  checks: doctorChecks
-};
-
-const runtime: AdminRuntimeSettings = {
-  ffmpeg: {
-    available: true,
-    source: "bundled",
-    version: "ffmpeg 6.1.1 essentials",
-    last_error: ""
-  },
-  ffprobe: {
-    available: true,
-    source: "bundled",
-    version: "ffprobe 6.1.1 essentials",
-    last_error: ""
-  },
-  asr: {
-    provider: "dashscope",
-    provider_label: "阿里云百炼 / DashScope",
-    model: "paraformer-v2",
-    audio_mode: "mp3_16k_mono_64k",
-    dashscope_api_key_configured: true,
-    language_hints: ["zh"],
-    speaker_diarization_enabled: false,
-    object_storage_mode: "dashscope-temporary",
-    last_failure_reason: "V000037 ASR 网络超时，可重试"
-  }
-};
-
-const settings: AdminSettingsConfig = {
-  schema_version: "1.0",
-  library_name: "公司公开课程素材库",
-  source_folders: [
-    {
-      id: "src_default",
-      name: "默认素材来源",
-      path: "/Volumes/PublicLibrary/source-videos",
-      enabled: true,
-      last_scanned_at: "2024-05-07 10:27:03",
-      discovered_video_count: 623,
-      new_unprocessed_count: 1
-    },
-    {
-      id: "src_002",
-      name: "财务课程归档",
-      path: "/Volumes/CourseArchive/finance",
-      enabled: true,
-      last_scanned_at: "2024-05-07 09:20:00",
-      discovered_video_count: 84,
-      new_unprocessed_count: 0
-    }
-  ],
-  artifact_library: {
-    mode: "default",
-    path: "/Volumes/PublicLibrary/.mixlab-library",
-    migration_required: false
-  },
-  runtime_policy: {
-    audio_mode: "mp3_16k_mono_64k",
-    concurrent_jobs: 2,
-    auto_scan_enabled: true,
-    auto_queue_enabled: false,
-    auto_publish_index_enabled: true
-  },
-  updated_at: "2024-05-07 10:27:03"
-};
-
-const usage: UsageMetrics = {
-  search_request_count: 42,
-  search_hit_count: 36,
-  search_empty_count: 6,
-  search_failure_count: 0,
-  search_latency_p50_ms: 12,
-  search_latency_p95_ms: 47,
-  search_latency_max_ms: 68,
-  searchd_search_count: 39,
-  sqlite_index_search_count: 2,
-  fallback_search_count: 1,
-  search_backend_unknown_count: 0,
-  core_search_request_count: 20,
-  core_search_failure_count: 0,
-  core_search_latency_p50_ms: 11,
-  core_search_latency_p95_ms: 47,
-  core_search_latency_max_ms: 68,
-  core_searchd_search_count: 20,
-  core_sqlite_index_search_count: 0,
-  core_fallback_search_count: 0,
-  core_search_backend_unknown_count: 0,
-  source_detail_view_count: 28,
-  transcript_selection_count: 19,
-  add_to_cut_list_count: 11,
-  cut_submission_count: 8,
-  cut_success_count: 7,
-  cut_failure_count: 1,
-  local_clip_count: 9,
-  reuse_local_clip_count: 4,
-  active_user_count: 2,
-  recent_keywords: ["现金流", "风险控制", "品牌定价"],
-  most_used_source_video_ids: ["V000042", "V000041", "V000037"],
-  users: [
-    {
-      user_id: "CU000002",
-      username: "wangwu",
-      search_request_count: 24,
-      search_failure_count: 0,
-      add_to_cut_list_count: 8,
-      transcript_selection_count: 12,
-      cut_submission_count: 5,
-      cut_success_count: 5,
-      local_clip_count: 6,
-      reuse_local_clip_count: 1,
-      last_used_at: "2024-05-07 10:25:00"
-    },
-    {
-      user_id: "CU000003",
-      username: "zhaoliu",
-      search_request_count: 18,
-      search_failure_count: 0,
-      add_to_cut_list_count: 3,
-      transcript_selection_count: 7,
-      cut_submission_count: 3,
-      cut_success_count: 2,
-      local_clip_count: 3,
-      reuse_local_clip_count: 3,
-      last_used_at: "2024-05-07 10:18:00"
-    }
-  ]
-};
-
-const dashboardMetrics: AdminDashboardMetrics = {
-  material: {
-    video_count: status.video_count,
-    ready_video_count: status.ready_video_count,
-    total_duration_ms: 1_982_000_000,
-    ready_duration_ms: 426_000_000,
-    unprocessed_duration_ms: 1_120_000_000,
-    total_size_bytes: 820_000_000_000
-  },
-  transcript: {
-    transcript_video_count: 118,
-    character_count: 1_240_000,
-    segment_count: 24_800,
-    current_index_version: status.current_index_version
-  },
-  production: {
-    completed_today_count: 6,
-    failed_today_count: 1,
-    average_video_process_ms: 540_000,
-    estimated_queue_done_at: "2024-05-07 15:40:00"
-  },
-  usage,
-  risk: {
-    failed_video_count: status.failed_video_count,
-    index_required_video_count: status.index_required_video_count
-  },
-  runtime_load: {
-    overall_status: "healthy",
-    cpu: {
-      usage_percent: 32,
-      load_average_1m: 1.1,
-      status: "healthy",
-      label: "负荷正常"
-    },
-    memory: {
-      total_bytes: 32_000_000_000,
-      used_bytes: 15_400_000_000,
-      available_bytes: 16_600_000_000,
-      usage_percent: 48,
-      status: "healthy",
-      label: "内存充足"
-    },
-    disk: {
-      total_bytes: status.disk_total_bytes,
-      available_bytes: status.disk_available_bytes,
-      usage_percent: 38,
-      status: "healthy",
-      label: "空间充足"
-    },
-    network: {
-      active_interface_count: 2,
-      status: "healthy",
-      label: "网络可用"
-    },
-    service: {
-      uptime_seconds: 7420,
-      heartbeat_at: "2024-05-07 10:26:00",
-      status: "healthy",
-      label: "服务运行中"
-    }
-  }
-};
-
-const cutterUsers: AdminCutterUser[] = [
-  {
-    user_id: "CU000001",
-    username: "zhangsan",
-    display_name: "张三",
-    status: "pending",
-    applied_at: "2024-05-07 09:10:00",
-    approved_at: "",
-    rejected_at: "",
-    disabled_at: "",
-    last_login_at: "",
-    last_used_at: "",
-    note: "新设备申请访问素材库",
-    devices: [
+function createFixtureRuntimeDiagnosticsHistory(): AdminRuntimeDiagnosticsHistoryResponse {
+  return {
+    schema_version: "1.0",
+    generated_at: "2024-05-07T10:40:00.000Z",
+    path: "/Volumes/PublicLibrary/.mixlab-library/admin-read-model/runtime-diagnostics.ndjson",
+    limit: 20,
+    total_line_count: 2,
+    malformed_line_count: 1,
+    truncated: false,
+    entries: [
       {
-        device_id: "device-a",
-        device_name: "剪辑工作站 A",
-        status: "active",
-        first_seen_at: "2024-05-07 09:10:00",
-        last_login_at: ""
+        schema_version: "1.0",
+        recorded_at: "2024-05-07T10:39:00.000Z",
+        runtime: {
+          schema_version: "1.0",
+          endpoint: "/api/admin/dashboard/metrics",
+          method: "GET",
+          duration_ms: 925,
+          scan_mode: "status-scan",
+          data_source: "admin-read-model",
+          scan_reason: "background-metrics",
+          actual_data_source: "admin-read-model",
+          cache_status: "miss",
+          result_count: 1,
+          offset: 0,
+          limit: 0,
+          slow: true,
+          slow_reason: "dashboard-cold-path-above-target",
+          components: [
+            {
+              name: "production_summary",
+              duration_ms: 345,
+              data_source: "admin-read-model",
+              scan_mode: "status-scan",
+              scan_reason: "background-metrics",
+              cache_status: "miss"
+            },
+            {
+              name: "runtime_load",
+              duration_ms: 261,
+              data_source: "runtime-telemetry",
+              scan_mode: "no-scan",
+              scan_reason: "background-metrics",
+              cache_status: "not-applicable"
+            }
+          ]
+        }
+      },
+      {
+        schema_version: "1.0",
+        recorded_at: "2024-05-07T10:38:30.000Z",
+        runtime: {
+          schema_version: "1.0",
+          endpoint: "/api/admin/source-videos",
+          method: "GET",
+          duration_ms: 184,
+          scan_mode: "paged-list",
+          data_source: "admin-read-model",
+          scan_reason: "route-owned-page",
+          actual_data_source: "admin-read-model",
+          cache_status: "hit",
+          result_count: 20,
+          offset: 0,
+          limit: 20,
+          slow: false,
+          slow_reason: ""
+        }
       }
     ]
-  },
-  {
-    user_id: "CU000002",
-    username: "wangwu",
-    display_name: "王五",
-    status: "approved",
-    applied_at: "2024-05-06 11:12:00",
-    approved_at: "2024-05-06 11:30:00",
-    rejected_at: "",
-    disabled_at: "",
-    last_login_at: "2024-05-07 10:12:00",
-    last_used_at: "2024-05-07 10:25:00",
-    note: "",
-    devices: [
-      {
-        device_id: "device-b",
-        device_name: "剪辑工作站 B",
-        status: "active",
-        first_seen_at: "2024-05-06 11:12:00",
-        last_login_at: "2024-05-07 10:12:00"
-      }
-    ]
-  }
-];
-
-function cloneSettings(value: AdminSettingsConfig): AdminSettingsConfig {
-  return {
-    ...value,
-    source_folders: value.source_folders.map((folder) => ({ ...folder })),
-    artifact_library: { ...value.artifact_library },
-    runtime_policy: { ...value.runtime_policy }
   };
 }
 
-function cloneRuntimeSettings(value: AdminRuntimeSettings): AdminRuntimeSettings {
-  return {
-    ffmpeg: { ...value.ffmpeg },
-    ffprobe: { ...value.ffprobe },
-    asr: { ...value.asr, language_hints: [...value.asr.language_hints] }
-  };
-}
-
-function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
-  let maxSuffix = BigInt(sourceFolders.length);
-
-  for (const folder of sourceFolders) {
-    const match = /^src_(\d+)$/.exec(folder.id);
-    if (match) {
-      const suffix = BigInt(match[1] ?? "0");
-      if (suffix > maxSuffix) {
-        maxSuffix = suffix;
-      }
-    }
-  }
-
-  return `src_${String(maxSuffix + 1n).padStart(3, "0")}`;
-}
-
-function normalizeFixtureSourceFolder(
-  previous: AdminSourceFolder | undefined,
-  next: AdminSourceFolder
-): AdminSourceFolder {
-  if (!previous || previous.path === next.path) {
-    return next;
-  }
+function cloneRuntimeDiagnosticsHistory(
+  history: AdminRuntimeDiagnosticsHistoryResponse,
+  options?: AdminRuntimeDiagnosticsHistoryOptions
+): AdminRuntimeDiagnosticsHistoryResponse {
+  const limit = options?.limit && options.limit > 0 ? Math.floor(options.limit) : history.limit;
 
   return {
-    ...next,
-    last_scanned_at: "",
-    discovered_video_count: 0,
-    new_unprocessed_count: 0
+    ...history,
+    limit,
+    entries: history.entries.slice(0, limit).map((entry) => ({
+      ...entry,
+      runtime: cloneRuntimeEndpointMeta(entry.runtime)
+    }))
   };
-}
-
-function cloneUsageMetrics(value: UsageMetrics): UsageMetrics {
-  return {
-    ...value,
-    recent_keywords: [...value.recent_keywords],
-    most_used_source_video_ids: [...value.most_used_source_video_ids],
-    users: value.users.map((user) => ({ ...user }))
-  };
-}
-
-function cloneDashboardMetrics(value: AdminDashboardMetrics): AdminDashboardMetrics {
-  return {
-    material: { ...value.material },
-    transcript: { ...value.transcript },
-    production: { ...value.production },
-    usage: cloneUsageMetrics(value.usage),
-    risk: { ...value.risk },
-    runtime_load: {
-      overall_status: value.runtime_load.overall_status,
-      cpu: { ...value.runtime_load.cpu },
-      memory: { ...value.runtime_load.memory },
-      disk: { ...value.runtime_load.disk },
-      network: { ...value.runtime_load.network },
-      service: { ...value.runtime_load.service }
-    }
-  };
-}
-
-function cloneCutterUser(user: AdminCutterUser): AdminCutterUser {
-  return {
-    ...user,
-    devices: user.devices.map((device) => ({ ...device }))
-  };
-}
-
-function artifact(sourceVideoId: string, fileName: string, exists = true): AdminArtifactDetail {
-  const path = `.mixlab-library/videos/${sourceVideoId}/${fileName}`;
-  return {
-    path,
-    file_path: `/Volumes/PublicLibrary/${path}`,
-    exists
-  };
-}
-
-function makeSourceVideoDetail(
-  video: AdminSourceVideo,
-  input: {
-    jobs: AdminPreprocessJobsResponse;
-    status: AdminLibraryStatus;
-  }
-): AdminSourceVideoDetail {
-  const job = input.jobs.jobs.find((candidate) => candidate.source_video_id === video.source_video_id);
-  const ready = video.preprocess_status === "ready";
-
-  return {
-    source_video: {
-      ...video,
-      tags: [...video.tags]
-    },
-    technical: {
-      duration_ms: video.duration_ms,
-      width: ready ? 1920 : 0,
-      height: ready ? 1080 : 0,
-      fps: ready ? 25 : 0,
-      codec: ready ? "h264" : "",
-      file_size: video.file_size,
-      content_hash: ready ? `${video.source_video_id.toLowerCase()}-content-hash` : "",
-      relative_path: video.relative_path
-    },
-    visibility: {
-      visible_to_cutters: video.preprocess_status === "ready" && video.visible_to_cutters,
-      label: video.preprocess_status === "ready" && video.visible_to_cutters ? "剪辑师可见" : "剪辑师暂不可见",
-      reason: video.preprocess_status === "ready" && video.visible_to_cutters
-        ? ""
-        : video.preprocess_status !== "ready"
-          ? "视频尚未完成预处理"
-          : "管理员尚未开放给剪辑师"
-    },
-    preprocess: {
-      status: video.preprocess_status,
-      job_id: `J${video.source_video_id.slice(1)}`,
-      stage: job?.stage ?? video.preprocess_status,
-      attempt: ready ? 1 : 0,
-      started_at: job?.started_at ?? "",
-      completed_at: job?.completed_at ?? "",
-      failed_at: job?.failed_at ?? "",
-      error_stage: video.error_stage ?? "",
-      error_message: video.error_message ?? ""
-    },
-    artifacts: {
-      transcript: artifact(video.source_video_id, "transcript.json", ready),
-      subtitles: artifact(video.source_video_id, "subtitles.srt", ready),
-      cover: artifact(video.source_video_id, "cover.jpg", ready),
-      keyframes: artifact(video.source_video_id, "keyframes.json", ready),
-      index_version: ready ? input.status.current_index_version : ""
-    },
-    transcript: {
-      full_text: ready ? "现金流，是企业经营中的关键安全边界。" : "",
-      segment_count: ready ? 12 : 0,
-      character_count: ready ? 19 : 0
-    }
-  };
-}
-
-function adminSourceVideoMatchesOptions(
-  video: AdminSourceVideo,
-  options?: AdminSourceVideoListOptions
-): boolean {
-  const matchesStatus = !options?.status || options.status === "all" || video.preprocess_status === options.status;
-  const normalizedQuery = options?.query?.trim().toLocaleLowerCase() ?? "";
-
-  if (!matchesStatus) {
-    return false;
-  }
-
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  const searchableText = [
-    video.source_video_id,
-    video.title,
-    video.file_name,
-    video.relative_path,
-    video.description,
-    video.lecturer,
-    video.course,
-    video.category,
-    ...video.tags
-  ].join(" ").toLocaleLowerCase();
-
-  return searchableText.includes(normalizedQuery);
 }
 
 export function createFixtureAdminApiClient(): AdminApiClient {
@@ -1983,6 +1777,7 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     ...jobs,
     jobs: jobs.jobs.map((job) => ({ ...job }))
   };
+  let fixtureProcessHistory = clonePreprocessProcessHistory(processHistory);
   let fixtureIndexes: AdminIndexVersionsResponse = {
     ...indexes,
     versions: indexes.versions.map((version) => ({ ...version }))
@@ -1995,31 +1790,51 @@ export function createFixtureAdminApiClient(): AdminApiClient {
   let fixtureSettings = cloneSettings(settings);
   let fixtureMetrics = cloneDashboardMetrics(dashboardMetrics);
   let fixtureCutterUsers = cutterUsers.map(cloneCutterUser);
+  let fixtureRuntimeDiagnosticsHistory = createFixtureRuntimeDiagnosticsHistory();
 
   function recount(): void {
-    fixtureStatus = {
-      ...fixtureStatus,
-      ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
-      processing_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "processing").length,
-      queued_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "queued").length,
-      unprocessed_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "unprocessed").length,
-      failed_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "failed").length,
-      index_required_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "index-required").length
-    };
-    fixtureMetrics = {
-      ...fixtureMetrics,
-      material: {
-        ...fixtureMetrics.material,
-        video_count: fixtureSourceVideos.length,
-        ready_video_count: fixtureStatus.ready_video_count,
-        unprocessed_duration_ms: fixtureSourceVideos
-          .filter((video) => video.preprocess_status === "unprocessed")
-          .reduce((total, video) => total + video.duration_ms, 0)
-      },
-      risk: {
-        failed_video_count: fixtureStatus.failed_video_count,
-        index_required_video_count: fixtureStatus.index_required_video_count
-      }
+    const counted = recountFixtureSourceVideoState({
+      sourceVideos: fixtureSourceVideos,
+      status: fixtureStatus,
+      metrics: fixtureMetrics
+    });
+    fixtureStatus = counted.status;
+    fixtureMetrics = counted.metrics;
+  }
+
+  function listFixtureSourceVideos(options?: AdminSourceVideoListOptions): AdminSourceVideo[] {
+    const offset = options?.offset && options.offset > 0 ? options.offset : 0;
+    const limit = options?.limit && options.limit > 0 ? options.limit : fixtureSourceVideos.length;
+
+    return fixtureSourceVideos
+      .filter((video) => adminSourceVideoMatchesOptions(video, options))
+      .slice(offset, offset + limit)
+      .map((video) => ({
+        ...video,
+        tags: [...video.tags]
+      }));
+  }
+
+  function fixtureSourceVideoListRuntime(
+    options: AdminSourceVideoListOptions | undefined,
+    resultCount: number
+  ): AdminRuntimeEndpointMeta {
+    return {
+      schema_version: "1.0",
+      endpoint: `/api/admin/source-videos${listQuery(options)}`,
+      method: "GET",
+      duration_ms: 12,
+      scan_mode: "paged-list",
+      data_source: "admin-read-model",
+      scan_reason: "route-owned-page",
+      actual_data_source: "admin-read-model",
+      cache_status: "hit",
+      result_count: resultCount,
+      offset: options?.offset && options.offset > 0 ? options.offset : 0,
+      limit: options?.limit && options.limit > 0 ? options.limit : fixtureSourceVideos.length,
+      slow: false,
+      slow_reason: "",
+      fallback_reason: ""
     };
   }
 
@@ -2028,60 +1843,42 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     message: string,
     sourceVideoId?: string
   ): AdminActionResult {
-    const affected = fixtureSourceVideos.filter((video) =>
-      statuses.includes(video.preprocess_status) &&
-      (!sourceVideoId || video.source_video_id === sourceVideoId)
+    const mutation = queueFixtureSourceVideos(
+      {
+        sourceVideos: fixtureSourceVideos,
+        jobs: fixtureJobs,
+        indexes: fixtureIndexes,
+        status: fixtureStatus,
+        metrics: fixtureMetrics
+      },
+      { statuses, message, sourceVideoId }
     );
+    fixtureSourceVideos = mutation.state.sourceVideos;
+    fixtureJobs = mutation.state.jobs;
+    fixtureStatus = mutation.state.status;
+    fixtureMetrics = mutation.state.metrics;
+    return mutation.result;
+  }
 
-    fixtureSourceVideos = fixtureSourceVideos.map((video) =>
-      statuses.includes(video.preprocess_status) &&
-        (!sourceVideoId || video.source_video_id === sourceVideoId)
-        ? {
-            ...video,
-            preprocess_status: "queued",
-            visible_to_cutters: false,
-            error_stage: undefined,
-            error_message: undefined,
-            updated_at: "2024-05-07 10:30:00"
-          }
-        : video
+  function publishFixtureSourceVideosAndSave(input: {
+    sourceVideoId?: string;
+    alwaysPublishIndex?: boolean;
+  } = {}): AdminActionResult {
+    const mutation = publishFixtureSourceVideos(
+      {
+        sourceVideos: fixtureSourceVideos,
+        jobs: fixtureJobs,
+        indexes: fixtureIndexes,
+        status: fixtureStatus,
+        metrics: fixtureMetrics
+      },
+      input
     );
-
-    for (const video of affected) {
-      const jobId = `J${video.source_video_id.slice(1)}`;
-      const existing = fixtureJobs.jobs.find((job) => job.job_id === jobId);
-      const nextJob: AdminPreprocessJob = {
-        job_id: jobId,
-        source_video_id: video.source_video_id,
-        title: video.title,
-        status: "queued",
-        status_label: "等待处理",
-        stage: "extract-audio",
-        stage_label: "等待处理",
-        progress: 0,
-        elapsed_ms: 0,
-        estimated_remaining_ms: fixtureMetrics.production.average_video_process_ms,
-        estimated_start_at: "",
-        estimated_done_at: "",
-        queue_position: fixtureJobs.jobs.filter((job) => job.status === "queued").length + 1,
-        log_path: `.mixlab-library/logs/${video.source_video_id}.log`,
-        retryable: false
-      };
-
-      fixtureJobs = {
-        ...fixtureJobs,
-        jobs: existing
-          ? fixtureJobs.jobs.map((job) => job.job_id === jobId ? nextJob : job)
-          : [nextJob, ...fixtureJobs.jobs]
-      };
-    }
-
-    recount();
-    return {
-      affected_count: affected.length,
-      source_video_ids: affected.map((video) => video.source_video_id),
-      message
-    };
+    fixtureSourceVideos = mutation.state.sourceVideos;
+    fixtureIndexes = mutation.state.indexes;
+    fixtureStatus = mutation.state.status;
+    fixtureMetrics = mutation.state.metrics;
+    return mutation.result;
   }
 
   function syncSettingsSideEffects(): void {
@@ -2241,6 +2038,36 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       removed: true
     }),
     getLibraryStatus: async () => ({ ...fixtureStatus }),
+    getDataLoadingPlan: async () => cloneDataLoadingPlan(fixtureDataLoadingPlan()),
+    getOperationsOverview: async () => fixtureOperationsOverview({
+      status: fixtureStatus,
+      jobs: fixtureJobs,
+      sourceVideos: fixtureSourceVideos,
+      metrics: fixtureMetrics,
+      dataLoadingPlan: fixtureDataLoadingPlan()
+    }),
+    getReadModelReconcileStatus: async () => fixtureReadModelReconcileStatus(fixtureStatus.video_count),
+    startReadModelReconcile: async () => ({
+      accepted: true,
+      status: {
+        ...fixtureReadModelReconcileStatus(fixtureStatus.video_count),
+        status: "running",
+        phase: "scanning",
+        message: "Fixture read-model reconcile started"
+      }
+    }),
+    cancelReadModelReconcile: async () => ({
+      accepted: true,
+      status: {
+        ...fixtureReadModelReconcileStatus(fixtureStatus.video_count),
+        status: "running",
+        cancel_requested: true,
+        message: "Fixture read-model reconcile cancellation requested"
+      }
+    }),
+    getOperationLog: async (options) => fixtureOperationLog(options?.limit),
+    getCommandSnapshotRestorePlan: async (snapshotId) => fixtureCommandSnapshotRestorePlan(snapshotId),
+    restoreCommandSnapshot: async (snapshotId) => fixtureCommandSnapshotRestoreResult(snapshotId),
     getPathChecks: async () => fixturePathChecks.map((item) => ({ ...item })),
     getAdminSettings: async () => cloneSettings(fixtureSettings),
     saveAdminSettings: async (settingsUpdate) => saveFixtureSettings(settingsUpdate),
@@ -2248,17 +2075,13 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     updateSourceFolder: async (sourceFolderId, patch) => updateFixtureSourceFolder(sourceFolderId, patch),
     removeSourceFolder: async (sourceFolderId) => removeFixtureSourceFolder(sourceFolderId),
     getDashboardMetrics: async () => cloneDashboardMetrics(fixtureMetrics),
-    listSourceVideos: async (options) => {
-      const offset = options?.offset && options.offset > 0 ? options.offset : 0;
-      const limit = options?.limit && options.limit > 0 ? options.limit : fixtureSourceVideos.length;
-
-      return fixtureSourceVideos
-        .filter((video) => adminSourceVideoMatchesOptions(video, options))
-        .slice(offset, offset + limit)
-        .map((video) => ({
-          ...video,
-          tags: [...video.tags]
-        }));
+    listSourceVideos: async (options) => listFixtureSourceVideos(options),
+    listSourceVideosWithRuntime: async (options) => {
+      const sourceVideoList = listFixtureSourceVideos(options);
+      return {
+        source_videos: sourceVideoList,
+        runtime: fixtureSourceVideoListRuntime(options, sourceVideoList.length)
+      };
     },
     getSourceVideoDetail: async (sourceVideoId) => {
       const video = fixtureSourceVideos.find((candidate) => candidate.source_video_id === sourceVideoId);
@@ -2362,6 +2185,8 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       },
       jobs: fixtureJobs.jobs.map((job) => ({ ...job }))
     }),
+    listPreprocessProcessHistory: async (options) =>
+      clonePreprocessProcessHistory(fixtureProcessHistory, options),
     getPreprocessJobLog: async (jobId) => {
       const job = fixtureJobs.jobs.find((candidate) => candidate.job_id === jobId);
 
@@ -2392,6 +2217,8 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       summary: { ...fixtureDoctor.summary },
       checks: fixtureDoctor.checks.map((check) => ({ ...check }))
     }),
+    getRuntimeDiagnosticsHistory: async (options) =>
+      cloneRuntimeDiagnosticsHistory(fixtureRuntimeDiagnosticsHistory, options),
     getRuntimeSettings: async () => {
       const clonedRuntime = cloneRuntimeSettings(runtime);
       return {
@@ -2474,113 +2301,10 @@ export function createFixtureAdminApiClient(): AdminApiClient {
           : null
       };
     },
-    publishSourceVideo: async (sourceVideoId) => {
-      const affected = fixtureSourceVideos.filter((video) =>
-        video.preprocess_status === "index-required" &&
-        video.source_video_id === sourceVideoId
-      );
-
-      fixtureSourceVideos = fixtureSourceVideos.map((video) =>
-        video.preprocess_status === "index-required" && video.source_video_id === sourceVideoId
-          ? {
-              ...video,
-              preprocess_status: "ready",
-              visible_to_cutters: true,
-              updated_at: "2024-05-07 10:31:00"
-            }
-          : video
-      );
-      if (affected.length > 0) {
-        fixtureIndexes = {
-          current_version: "v000028",
-          current_validation_status: "pass",
-          current_validation_message: "current.json 指向 v000028",
-          versions: [
-            {
-              index_version: "v000028",
-              created_at: "2024-05-07 10:31:00",
-              ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
-              schema_version: "1.0.0",
-              validation_status: "pass",
-              validation_message: "索引包校验通过",
-              is_current: true,
-              published_by: "admin"
-            },
-            ...fixtureIndexes.versions.map((version) => ({ ...version, is_current: false }))
-          ]
-        };
-        fixtureStatus = {
-          ...fixtureStatus,
-          current_index_version: "v000028",
-          index_status: "ready"
-        };
-      }
-      recount();
-
-      return {
-        affected_count: affected.length,
-        prepared_source_video_ids: affected.map((video) => video.source_video_id),
-        published_source_video_ids: affected.map((video) => video.source_video_id),
-        skipped_source_video_ids: [],
-        published_count: affected.length,
-        skipped_count: 0,
-        ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
-        message: affected.length > 0
-          ? `已发布 ${affected.length} 个原视频，当前可用 ${fixtureStatus.ready_video_count} 个。`
-          : "没有需要发布的待索引视频。"
-      };
-    },
-    repairIndex: async () => {
-      const affected = fixtureSourceVideos.filter((video) => video.preprocess_status === "index-required");
-
-      fixtureSourceVideos = fixtureSourceVideos.map((video) =>
-        video.preprocess_status === "index-required"
-          ? {
-              ...video,
-              preprocess_status: "ready",
-              visible_to_cutters: true,
-              updated_at: "2024-05-07 10:31:00"
-            }
-          : video
-      );
-      fixtureIndexes = {
-        current_version: "v000028",
-        current_validation_status: "pass",
-        current_validation_message: "current.json 指向 v000028",
-        versions: [
-          {
-            index_version: "v000028",
-            created_at: "2024-05-07 10:31:00",
-            ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
-            schema_version: "1.0.0",
-            validation_status: "pass",
-            validation_message: "索引包校验通过",
-            is_current: true,
-            published_by: "admin"
-          },
-          ...fixtureIndexes.versions.map((version) => ({ ...version, is_current: false }))
-        ]
-      };
-      fixtureStatus = {
-        ...fixtureStatus,
-        current_index_version: "v000028",
-        index_status: "ready"
-      };
-      recount();
-
-      return {
-        affected_count: affected.length,
-        prepared_source_video_ids: affected.map((video) => video.source_video_id),
-        published_source_video_ids: affected.map((video) => video.source_video_id),
-        skipped_source_video_ids: [],
-        published_count: affected.length,
-        skipped_count: 0,
-        ready_video_count: fixtureSourceVideos.filter((video) => video.preprocess_status === "ready").length,
-        message: affected.length > 0
-          ? `已发布 ${affected.length} 个原视频，当前可用 ${fixtureStatus.ready_video_count} 个。`
-          : "没有需要发布的待索引视频。"
-      };
-    },
+    publishSourceVideo: async (sourceVideoId) =>
+      publishFixtureSourceVideosAndSave({ sourceVideoId }),
+    repairIndex: async () =>
+      publishFixtureSourceVideosAndSave({ alwaysPublishIndex: true }),
     runDoctor: async () => fixtureDoctor,
     exportDoctorReport: async () => ({
       file_name: `mixlab-doctor-${fixtureDoctor.generated_at.replaceAll(/[:\s]/g, "-")}.json`,
@@ -2599,48 +2323,21 @@ export function createFixtureAdminApiClient(): AdminApiClient {
         : "DashScope API Key 未配置。"
     }),
     updateSourceVideoMetadata: async (sourceVideoId, metadata) => {
-      let updated: AdminSourceVideo | undefined;
-
-      fixtureSourceVideos = fixtureSourceVideos.map((video) => {
-        if (video.source_video_id !== sourceVideoId) {
-          return video;
-        }
-
-        updated = {
-          ...video,
-          ...metadata,
-          tags: metadata.tags ?? video.tags,
-          updated_at: "2024-05-07 10:32:00"
-        };
-        return updated;
-      });
-
-      if (!updated) {
-        throw new Error(`source video not found: ${sourceVideoId}`);
-      }
-
+      const { sourceVideos: nextSourceVideos, updated } = updateFixtureSourceVideoMetadata(
+        fixtureSourceVideos,
+        sourceVideoId,
+        metadata
+      );
+      fixtureSourceVideos = nextSourceVideos;
       return updated;
     },
     updateSourceVideoCover: async (sourceVideoId, coverUpdate) => {
-      let updated: AdminSourceVideo | undefined;
-
-      fixtureSourceVideos = fixtureSourceVideos.map((video) => {
-        if (video.source_video_id !== sourceVideoId) {
-          return video;
-        }
-
-        updated = {
-          ...video,
-          cover_url: `data:${coverUpdate.content_type};base64,${coverUpdate.image_base64}`,
-          updated_at: "2024-05-07 10:33:00"
-        };
-        return updated;
-      });
-
-      if (!updated) {
-        throw new Error(`source video not found: ${sourceVideoId}`);
-      }
-
+      const { sourceVideos: nextSourceVideos, updated } = updateFixtureSourceVideoCover(
+        fixtureSourceVideos,
+        sourceVideoId,
+        coverUpdate
+      );
+      fixtureSourceVideos = nextSourceVideos;
       return updated;
     }
   };
@@ -2766,7 +2463,14 @@ function placeholderDashboardMetrics(status: AdminLibraryStatus): AdminDashboard
       active_user_count: 0,
       recent_keywords: [],
       most_used_source_video_ids: [],
-      users: []
+      users: [],
+      event_store: {
+        line_count: 0,
+        valid_line_count: 0,
+        malformed_line_count: 0,
+        malformed_lines: [],
+        warning: ""
+      }
     },
     risk: {
       failed_video_count: status.failed_video_count,
@@ -2787,6 +2491,38 @@ function placeholderDashboardMetrics(status: AdminLibraryStatus): AdminDashboard
       },
       network: { active_interface_count: 0, status: "healthy", label: "待刷新" },
       service: { uptime_seconds: 0, heartbeat_at: status.updated_at, status: "healthy", label: "待刷新" }
+    },
+    sources: {
+      material: {
+        data_source: "library-manifest",
+        scan_mode: "no-scan",
+        scan_reason: "shell-summary"
+      },
+      transcript: {
+        data_source: "current-index",
+        scan_mode: "no-scan",
+        scan_reason: "shell-summary"
+      },
+      production: {
+        data_source: "library-manifest",
+        scan_mode: "no-scan",
+        scan_reason: "shell-summary"
+      },
+      usage: {
+        data_source: "usage-events",
+        scan_mode: "status-scan",
+        scan_reason: "background-metrics"
+      },
+      risk: {
+        data_source: "library-manifest",
+        scan_mode: "no-scan",
+        scan_reason: "shell-summary"
+      },
+      runtime_load: {
+        data_source: "runtime-telemetry",
+        scan_mode: "no-scan",
+        scan_reason: "background-metrics"
+      }
     }
   };
 }
@@ -2814,31 +2550,22 @@ function settleWithin<T>(
   });
 }
 
-function fastLoadFallbackStatus(): AdminLibraryStatus {
-  return {
-    ...status,
-    name: "主素材库",
-    active_task_label: "后台刷新中",
-    updated_at: new Date().toISOString()
-  };
-}
-
 export async function loadAdminDashboardData(
   client: AdminApiClient,
   options: LoadAdminDashboardDataOptions = {}
 ): Promise<AdminDashboardData> {
   const includeHeavy = options.includeHeavy ?? true;
-  const fastFallbackStatus = fastLoadFallbackStatus();
 
   if (!includeHeavy) {
+    const libraryStatus = await client.getLibraryStatus();
     const [
-      libraryStatus,
       adminSettings,
-      adminSupervisor
+      adminSupervisor,
+      dataLoadingPlan
     ] = await Promise.all([
-      settleWithin(client.getLibraryStatus(), fastFallbackStatus, 6_000),
       settleWithin(client.getAdminSettings(), cloneSettings(settings), 6_000),
-      settleWithin(client.getPreprocessSupervisorStatus(), jobs.supervisor, 6_000)
+      settleWithin(client.getPreprocessSupervisorStatus(), jobs.supervisor, 6_000),
+      settleWithin(client.getDataLoadingPlan(), fixtureDataLoadingPlan(), 6_000)
     ]);
 
     return {
@@ -2850,7 +2577,8 @@ export async function loadAdminDashboardData(
       indexes: placeholderIndexVersions(libraryStatus),
       doctor: placeholderDoctorReport(libraryStatus),
       runtime: cloneRuntimeSettings(runtime),
-      metrics: placeholderDashboardMetrics(libraryStatus)
+      metrics: placeholderDashboardMetrics(libraryStatus),
+      data_loading_plan: dataLoadingPlan
     };
   }
 
@@ -2860,14 +2588,16 @@ export async function loadAdminDashboardData(
     adminRuntime,
     adminSourceVideos,
     adminJobs,
-    adminSupervisor
+    adminSupervisor,
+    dataLoadingPlan
   ] = await Promise.all([
     client.getLibraryStatus(),
     client.getAdminSettings(),
     client.getRuntimeSettings(),
     includeHeavy ? client.listSourceVideos() : Promise.resolve([]),
     includeHeavy ? client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT }) : Promise.resolve(null),
-    includeHeavy ? Promise.resolve(null) : client.getPreprocessSupervisorStatus()
+    includeHeavy ? Promise.resolve(null) : client.getPreprocessSupervisorStatus(),
+    client.getDataLoadingPlan()
   ]);
 
   return {
@@ -2879,6 +2609,7 @@ export async function loadAdminDashboardData(
     indexes: includeHeavy ? await client.listIndexVersions() : placeholderIndexVersions(libraryStatus),
     doctor: includeHeavy ? await client.getDoctorReport() : placeholderDoctorReport(libraryStatus),
     runtime: adminRuntime,
-    metrics: includeHeavy ? await client.getDashboardMetrics() : placeholderDashboardMetrics(libraryStatus)
+    metrics: includeHeavy ? await client.getDashboardMetrics() : placeholderDashboardMetrics(libraryStatus),
+    data_loading_plan: dataLoadingPlan
   };
 }

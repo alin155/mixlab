@@ -1,0 +1,238 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T19:47:26.048Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-candidate-contract-proof.ts",
+  "mode": "admin-docker-candidate-contract-proof",
+  "target": {
+    "base_url": "",
+    "normalized_base_url": "",
+    "configured": false,
+    "kind": "not-configured",
+    "safe_to_probe": false,
+    "classification_evidence": "MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL is not set.",
+    "classification_notes": [
+      "This proof will not guess localhost, NAS, or Docker ports.",
+      "Set a candidate admin-web root URL when a local or staged candidate exists."
+    ],
+    "api_base_url": "",
+    "api_normalized_base_url": "",
+    "api_configured": false,
+    "api_kind": "not-configured",
+    "api_safe_to_probe": false,
+    "api_classification_evidence": "MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL is not set.",
+    "api_classification_notes": [
+      "This proof will not guess localhost, NAS, or Docker ports.",
+      "Set a candidate admin-web root URL when a local or staged candidate exists."
+    ],
+    "split_api_target": false,
+    "session_token_present": false,
+    "nas_live_evidence": false
+  },
+  "candidate_contract_ready": false,
+  "docker_upload_allowed": false,
+  "staging_approved": false,
+  "requests": [],
+  "observed": {
+    "auth_mode": "",
+    "authenticated": null,
+    "library_root": "",
+    "current_index_version": "",
+    "release_overall_status": "",
+    "release_allowed": null,
+    "build_sha": "",
+    "build_version": "",
+    "image_tag": ""
+  },
+  "gates": [
+    {
+      "id": "candidate-proof-no-side-effects",
+      "title": "Candidate proof has no runtime side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "The proof uses GET requests only and never starts Docker, enables workers, writes NAS files, repairs usage-events, recovers jobs, publishes indexes, or changes Cutter protocols.",
+      "blocks_candidate_review": false,
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "candidate-target-configured",
+      "title": "Candidate target URL is explicit",
+      "category": "target",
+      "status": "blocked",
+      "evidence": "MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL is not set.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "Set MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL to a local or staged admin-web root."
+    },
+    {
+      "id": "candidate-target-shape",
+      "title": "Candidate target is an admin-web root",
+      "category": "target",
+      "status": "blocked",
+      "evidence": "not-configured: MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL is not set.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "Use an admin-web root URL, not NAS desktop, a subpath, query, or hash."
+    },
+    {
+      "id": "candidate-api-target-shape",
+      "title": "Candidate API target is an admin API root",
+      "category": "target",
+      "status": "blocked",
+      "evidence": "inherited-web-target: MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL is not set.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "Use an admin API root URL, not NAS desktop, a subpath, query, or hash."
+    },
+    {
+      "id": "candidate-not-nas-live-evidence",
+      "title": "Candidate proof is not NAS live release evidence",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "This report always sets nas_live_evidence=false and cannot replace admin-docker-release-live-readonly.",
+      "blocks_candidate_review": false,
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the separate NAS live-readonly probe after a staged target exists."
+    },
+    {
+      "id": "candidate-probe-get-only",
+      "title": "Candidate probe uses GET only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "methods=none",
+      "blocks_candidate_review": false,
+      "blocks_docker_upload": true
+    },
+    {
+      "id": "candidate-admin-web-root",
+      "title": "Candidate Admin Web root is reachable",
+      "category": "candidate-api",
+      "status": "blocked",
+      "evidence": "request not run",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "GET / must return an Admin Web response from the candidate target."
+    },
+    {
+      "id": "candidate-current-admin-api-contract",
+      "title": "Candidate exposes current Admin API endpoints",
+      "category": "candidate-api",
+      "status": "blocked",
+      "evidence": "auth=request not run; release_gates=request not run; data_loading=request not run",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "Candidate must expose /api/admin/auth/status, /api/admin/release-gates, and /api/admin/data-loading/plan."
+    },
+    {
+      "id": "candidate-version-health-contract",
+      "title": "Candidate exposes version/health parity contract",
+      "category": "candidate-contract",
+      "status": "blocked",
+      "evidence": "version_health_parity contract is missing or incomplete.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "release-gates must expose version_health_parity with expected services, GET preflight endpoints, external proof requirements, and no ready/Cutter mutations."
+    },
+    {
+      "id": "candidate-disk-protection-contract",
+      "title": "Candidate exposes disk-space protection contract",
+      "category": "candidate-contract",
+      "status": "blocked",
+      "evidence": "disk_space_protection contract is missing or incomplete.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "release-gates must expose disk_space_protection with GET preflight endpoints and no worker/ready/Cutter mutations."
+    },
+    {
+      "id": "candidate-usage-events-repair-contract",
+      "title": "Candidate exposes usage-events repair contract",
+      "category": "candidate-contract",
+      "status": "blocked",
+      "evidence": "usage_events_repair contract is missing or incomplete.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "release-gates must expose usage_events_repair dry-run/apply commands with usage-events-only scope and no ready/Cutter mutations."
+    },
+    {
+      "id": "candidate-processing-recovery-contract",
+      "title": "Candidate exposes processing recovery contract",
+      "category": "candidate-contract",
+      "status": "blocked",
+      "evidence": "processing_recovery contract is missing or incomplete.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "release-gates must expose processing_recovery preflight scope, idle-supervisor requirement, and no ready/Cutter mutations."
+    },
+    {
+      "id": "candidate-admin-worker-env-proof-contract",
+      "title": "Candidate exposes admin-worker env proof contract",
+      "category": "candidate-contract",
+      "status": "blocked",
+      "evidence": "admin_worker_env_proof contract is missing or incomplete.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "release-gates must expose admin_worker_env_proof with disabled standalone worker flags, /data/PublicLibrary roots, proof command, no secrets, no worker start, and no ready/Cutter mutations."
+    },
+    {
+      "id": "candidate-cutter-compatibility-proof-contract",
+      "title": "Candidate exposes Cutter compatibility proof contract",
+      "category": "candidate-contract",
+      "status": "blocked",
+      "evidence": "cutter_compatibility_proof contract is missing or incomplete.",
+      "blocks_candidate_review": true,
+      "blocks_docker_upload": true,
+      "required_evidence": "release-gates must expose cutter_compatibility_proof with Windows acceptance and real-cut requirements, staged-candidate boundary, and no ready/Cutter mutations."
+    },
+    {
+      "id": "candidate-does-not-approve-upload",
+      "title": "Candidate proof does not approve Docker upload",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "docker_upload_allowed=false and staging_approved=false are hard-coded in this report.",
+      "blocks_candidate_review": false,
+      "blocks_docker_upload": true,
+      "required_evidence": "Docker upload requires separate NAS live-readonly, parity, worker, Cutter, staging-tag, rollback, disk, and release decision gates."
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "passed": 4,
+    "blocked": 11,
+    "failed": 0,
+    "candidate_review_blockers": [
+      "candidate-target-configured",
+      "candidate-target-shape",
+      "candidate-api-target-shape",
+      "candidate-admin-web-root",
+      "candidate-current-admin-api-contract",
+      "candidate-version-health-contract",
+      "candidate-disk-protection-contract",
+      "candidate-usage-events-repair-contract",
+      "candidate-processing-recovery-contract",
+      "candidate-admin-worker-env-proof-contract",
+      "candidate-cutter-compatibility-proof-contract"
+    ],
+    "docker_upload_blockers": [
+      "candidate-target-configured",
+      "candidate-target-shape",
+      "candidate-api-target-shape",
+      "candidate-not-nas-live-evidence",
+      "candidate-admin-web-root",
+      "candidate-current-admin-api-contract",
+      "candidate-version-health-contract",
+      "candidate-disk-protection-contract",
+      "candidate-usage-events-repair-contract",
+      "candidate-processing-recovery-contract",
+      "candidate-admin-worker-env-proof-contract",
+      "candidate-cutter-compatibility-proof-contract",
+      "candidate-does-not-approve-upload"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Candidate contract proof remains blocked until the candidate exposes the required current API and release-gate contracts."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T194726Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T194726Z.md"
+  }
+}

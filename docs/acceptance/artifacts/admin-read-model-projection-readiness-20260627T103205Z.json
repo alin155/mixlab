@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T10:32:05.000Z",
+  "slice": "R.243 Admin Read Model Projection Readiness",
+  "phase": "Phase 3 Admin Read Model and Query API observability",
+  "goal_coverage": "slice",
+  "full_goal_statement": "This advances Admin Architecture v1 by making read-model projection availability explicit. It does not rebuild the material-summary projection, complete Protection Gate coverage, route-loader restructuring, UI information architecture, redundancy cleanup, Docker release gates, or the full Admin Architecture v1 goal.",
+  "role_review": {
+    "project_architect": "approved: the slice distinguishes store freshness from projection readiness without downgrading usable route read-model paths.",
+    "delivery_lead": "approved: the change is read-only/status/reporting behavior plus tests; it does not write NAS data, start reconcile, or alter Cutter protocols."
+  },
+  "implementation": {
+    "files_changed": [
+      "packages/admin-api/src/admin-read-model-store.ts",
+      "packages/admin-api/src/admin-read-model-store.test.ts",
+      "scripts/acceptance/admin-real-nas-performance.ts",
+      "scripts/acceptance/admin-real-nas-performance.test.ts",
+      "docs/architecture/admin-architecture-v1-next-implementation-plan.md",
+      "docs/architecture/admin-architecture-v1-requirements-traceability.md"
+    ],
+    "summary": [
+      "Admin read-model status now exposes optional projections.material_summary and projections.production_summary readiness.",
+      "Projection readiness records status, reason, scan_mode, requires_background_reconcile, safe_for_page_request, video_count, and current_video_count.",
+      "The main store freshness and reconciliation plan remain page-safe when counts are fresh; projection gaps are visible without marking the whole store stale.",
+      "The real NAS performance report now includes a Read Model Projection Readiness table."
+    ],
+    "non_goals": [
+      "No material-summary rebuild.",
+      "No page-time full scan.",
+      "No NAS source-video manifest mutation.",
+      "No read-model reconcile start.",
+      "No Docker deployment.",
+      "No Cutter release/index/search protocol change."
+    ]
+  },
+  "live_findings": {
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "admin_sqlite_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+    "store_freshness": "fresh",
+    "source_video_status_rows": 11394,
+    "source_video_status_manifest_rows": 939,
+    "source_video_status_duration_rows": 35,
+    "material_metadata_rows": 0,
+    "projections": {
+      "material_summary": {
+        "status": "missing",
+        "reason": "missing_metadata",
+        "scan_mode": "full-reconcile",
+        "requires_background_reconcile": true,
+        "safe_for_page_request": true,
+        "video_count": 0,
+        "current_video_count": 11394
+      },
+      "production_summary": {
+        "status": "ready",
+        "reason": "ready",
+        "scan_mode": "no-scan",
+        "requires_background_reconcile": false,
+        "safe_for_page_request": true,
+        "video_count": 11394,
+        "current_video_count": 11394
+      }
+    }
+  },
+  "verification": {
+    "passed": [
+      "node --test --import tsx packages/admin-api/src/admin-read-model-store.test.ts scripts/acceptance/admin-real-nas-performance.test.ts",
+      "node --test --import tsx packages/admin-api/src/admin-read-model-routes.test.ts packages/admin-api/src/admin-read-model-reconciler-runtime.test.ts packages/admin-api/src/admin-dashboard-metrics-query.test.ts packages/admin-api/src/admin-dashboard-read-facade.test.ts",
+      "npm run typecheck",
+      "npm run validate:admin-real-nas-performance-isolated",
+      "npm run audit:admin-redundancy-governance"
+    ],
+    "test_counts": {
+      "projection_and_performance_tests": 36,
+      "read_model_route_runtime_dashboard_tests": 12
+    },
+    "artifacts": {
+      "isolated_performance_json": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T103205Z.json",
+      "isolated_performance_markdown": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T103205Z.md",
+      "performance_json": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T103205Z.json",
+      "performance_markdown": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T103205Z.md",
+      "redundancy_audit_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T103205Z.json",
+      "redundancy_audit_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T103205Z.md"
+    },
+    "redundancy_audit_note": "The audit command exited successfully and preserved the governance state: cleanup remains blocked until candidates are reviewed."
+  },
+  "safety": {
+    "nas_mutation": false,
+    "docker_mutation": false,
+    "cutter_protocol_change": false,
+    "ready_asset_change": false,
+    "page_time_full_scan": false,
+    "read_model_rebuild_started": false
+  },
+  "remaining_gaps": [
+    "The material-summary projection still needs a controlled maintenance rebuild to populate dashboard_material_* metadata.",
+    "The observed source_video_status table is fresh for counts but only has 939 full manifest rows, so it cannot support full material duration/size aggregation yet.",
+    "Route-loader restructuring, UI information architecture, Protection Gate completion, redundancy cleanup, Docker release gates, and full Admin Architecture v1 remain incomplete."
+  ]
+}

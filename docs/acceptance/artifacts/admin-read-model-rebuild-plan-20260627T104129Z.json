@@ -1,0 +1,253 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T10:41:29.799Z",
+  "command": "tsx scripts/acceptance/admin-read-model-rebuild-plan.ts",
+  "mode": "plan-only",
+  "api_base_url": "http://127.0.0.1:3889",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "min_disk_available_bytes": 1073741824,
+  "requests": [
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 69.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 134,
+      "data": {
+        "authenticated": false,
+        "auth_mode": "password",
+        "user": null,
+        "bootstrap": {
+          "has_admin": true,
+          "registration_open": false
+        }
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 1.2,
+      "http_status": 401,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 76,
+      "error_code": "login_required",
+      "message": "请先登录管理端"
+    },
+    {
+      "name": "read_model_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/status",
+      "duration_ms": 1.2,
+      "http_status": 401,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 76,
+      "error_code": "login_required",
+      "message": "请先登录管理端"
+    },
+    {
+      "name": "reconcile_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/reconcile/status",
+      "duration_ms": 0.6,
+      "http_status": 401,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 76,
+      "error_code": "login_required",
+      "message": "请先登录管理端"
+    },
+    {
+      "name": "process_history_readiness",
+      "method": "GET",
+      "path": "/api/admin/preprocess/process-history/readiness",
+      "duration_ms": 0.5,
+      "http_status": 401,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 76,
+      "error_code": "login_required",
+      "message": "请先登录管理端"
+    },
+    {
+      "name": "process_history",
+      "method": "GET",
+      "path": "/api/admin/preprocess/process-history?limit=20&window_days=30",
+      "duration_ms": 0.4,
+      "http_status": 401,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 76,
+      "error_code": "login_required",
+      "message": "请先登录管理端"
+    }
+  ],
+  "environment": {
+    "auth_mode": "password",
+    "authenticated": false,
+    "library_root": "",
+    "library_updated_at": "",
+    "current_index_version": "",
+    "video_count": null,
+    "ready_video_count": null,
+    "queued_video_count": null,
+    "processing_video_count": null,
+    "failed_video_count": null,
+    "index_required_video_count": null,
+    "disk_available_bytes": null,
+    "disk_total_bytes": null,
+    "admin_read_model": {
+      "storage": "",
+      "exists": null,
+      "freshness": "",
+      "video_count": null,
+      "store_path": "",
+      "reconciliation_action": "",
+      "reconciliation_reason": "",
+      "reconciliation_scan_mode": "",
+      "safe_for_page_request": null,
+      "projections": {
+        "material_summary": {
+          "status": "unavailable",
+          "reason": "missing_projection_status",
+          "scan_mode": "no-scan",
+          "requires_background_reconcile": null,
+          "safe_for_page_request": null,
+          "video_count": null,
+          "current_video_count": null
+        },
+        "production_summary": {
+          "status": "unavailable",
+          "reason": "missing_projection_status",
+          "scan_mode": "no-scan",
+          "requires_background_reconcile": null,
+          "safe_for_page_request": null,
+          "video_count": null,
+          "current_video_count": null
+        }
+      }
+    }
+  },
+  "reconcile_status": {
+    "status": "",
+    "phase": ""
+  },
+  "process_history_readiness": {
+    "ready": null,
+    "reason": "",
+    "last_error": "",
+    "actual_data_source": "",
+    "scan_mode": "",
+    "expected_job_snapshot_rows": null,
+    "snapshot_complete": null,
+    "snapshot_metadata_row_count": null,
+    "snapshot_table_row_count": null
+  },
+  "current_process_history": {
+    "status": "unavailable",
+    "available": null,
+    "actual_data_source": "",
+    "cache_status": "",
+    "scan_mode": "",
+    "returned_count": null
+  },
+  "rebuild_plan": {
+    "mode": "plan-only",
+    "needed": true,
+    "planned_action": "force-rebuild-derived-admin-read-model",
+    "reason": "process_history:unknown",
+    "separate_execution_required": true,
+    "runner": "scripts/acceptance/admin-read-model-reconcile.ts",
+    "required_environment": {
+      "MIXLAB_ADMIN_API_BASE_URL": "http://127.0.0.1:3889",
+      "MIXLAB_ADMIN_READ_MODEL_EXPECT_ROOT": "/Volumes/MixLab/PublicLibrary",
+      "MIXLAB_ADMIN_READ_MODEL_RECONCILE_ALLOW": "true",
+      "MIXLAB_ADMIN_READ_MODEL_RECONCILE_FORCE": "true"
+    },
+    "allowed_mutation_paths": [
+      "/.mixlab-library/admin-read-model/admin.sqlite",
+      "/.mixlab-library/admin-read-model/admin.sqlite-*",
+      "/.mixlab-library/admin-read-model",
+      "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/operation-log/events.ndjson"
+    ],
+    "forbidden_effects": [
+      "Do not modify source-video manifests.",
+      "Do not modify library.json counts or library.updated_at.",
+      "Do not modify release/index artifacts or Cutter release/search protocols.",
+      "Do not requeue, rerun, delete, hide, or downline ready source videos.",
+      "Do not upload Docker images or change NAS container configuration in this step.",
+      "Do not use operation-log audit entries as a business-state source of truth."
+    ],
+    "post_run_invariants": [
+      "library.video_count stays unchanged.",
+      "library.ready_video_count stays unchanged.",
+      "library.updated_at stays unchanged.",
+      "current_index_version stays unchanged.",
+      "admin-read-model freshness becomes fresh and safe_for_page_request remains true.",
+      "dashboard material and production projections become ready or the follow-up run is treated as failed.",
+      "process-history readiness becomes ready or the follow-up run is treated as failed."
+    ]
+  },
+  "gates": [
+    {
+      "name": "get-only-plan",
+      "passed": true,
+      "detail": "requests=GET /api/admin/auth/status, GET /api/admin/library/status, GET /api/admin/read-model/status, GET /api/admin/read-model/reconcile/status, GET /api/admin/preprocess/process-history/readiness, GET /api/admin/preprocess/process-history?limit=20&window_days=30"
+    },
+    {
+      "name": "request-success",
+      "passed": false,
+      "detail": "library_status:401,read_model_status:401,reconcile_status:401,process_history_readiness:401,process_history:401"
+    },
+    {
+      "name": "library-root",
+      "passed": false,
+      "detail": "root_path=unknown, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "disk-available",
+      "passed": false,
+      "detail": "disk_available=n/a, minimum=1.0 GiB"
+    },
+    {
+      "name": "reconcile-not-running",
+      "passed": true,
+      "detail": "status=unknown, phase=unknown"
+    },
+    {
+      "name": "process-history-currently-no-scan",
+      "passed": false,
+      "detail": "status=unavailable, source=unknown, scan_mode=unknown"
+    },
+    {
+      "name": "readiness-explains-state",
+      "passed": false,
+      "detail": "ready=null, reason=unknown, last_error=none"
+    },
+    {
+      "name": "projection-plan-covers-background-reconcile",
+      "passed": true,
+      "detail": "projection_reasons=none, plan_needed=true"
+    },
+    {
+      "name": "bounded-mutation-scope-only",
+      "passed": true,
+      "detail": "allowed=/.mixlab-library/admin-read-model/admin.sqlite, /.mixlab-library/admin-read-model/admin.sqlite-*, /.mixlab-library/admin-read-model, /Volumes/MixLab/PublicLibrary/.mixlab-library/admin/operation-log/events.ndjson, forbidden=6"
+    },
+    {
+      "name": "protected-invariants-recorded",
+      "passed": false,
+      "detail": "total=n/a, ready=n/a, updated_at=unknown, index=unknown"
+    }
+  ],
+  "result": {
+    "passed": false,
+    "status": "failed",
+    "summary": "failed gates: request-success, library-root, disk-available, process-history-currently-no-scan, readiness-explains-state, protected-invariants-recorded"
+  }
+}

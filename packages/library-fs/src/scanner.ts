@@ -23,6 +23,25 @@ export interface ScanSourceVideosResult {
   source_video_ids: string[];
 }
 
+export type SourceVideoScanBlockerCode = "ready-manifest-removal";
+
+export interface SourceVideoScanBlocker {
+  code: SourceVideoScanBlockerCode;
+  message: string;
+  source_video_ids: string[];
+}
+
+export interface SourceVideoScanPreviewResult extends ScanSourceVideosResult {
+  scan_mode: "full-source-folder-scan";
+  inactive_manifest_count: number;
+  inactive_ready_count: number;
+  inactive_source_video_ids: string[];
+  inactive_ready_source_video_ids: string[];
+  skipped_source_folder_ids: string[];
+  blocked: boolean;
+  blockers: SourceVideoScanBlocker[];
+}
+
 interface ExistingManifestIndex {
   byRelativePath: Map<string, SourceVideoManifest>;
   manifests: SourceVideoManifest[];
@@ -42,6 +61,14 @@ interface SourceFileRow {
 interface SourceFolderScanStats {
   discovered_video_count: number;
   new_unprocessed_count: number;
+}
+
+interface SourceVideoScanPlan extends ScanSourceVideosResult {
+  manifests: SourceVideoManifest[];
+  active_source_video_ids: Set<string>;
+  inactive_manifests: SourceVideoManifest[];
+  folder_stats: Map<string, SourceFolderScanStats>;
+  skipped_source_folder_ids: Set<string>;
 }
 
 function jsonBytes(value: unknown): string {
@@ -259,6 +286,67 @@ async function pruneInactiveManifestDirectories(input: {
   }
 }
 
+function sortSourceVideoIds(sourceVideoIds: string[]): string[] {
+  return [...sourceVideoIds].sort(
+    (left, right) => numericSourceVideoId(left) - numericSourceVideoId(right)
+  );
+}
+
+function scanBlockers(plan: SourceVideoScanPlan): SourceVideoScanBlocker[] {
+  const inactiveReadyIds = sortSourceVideoIds(
+    plan.inactive_manifests
+      .filter((manifest) => manifest.preprocess_status === "ready")
+      .map((manifest) => manifest.source_video_id)
+  );
+
+  if (inactiveReadyIds.length === 0) {
+    return [];
+  }
+
+  return [{
+    code: "ready-manifest-removal",
+    message: `扫描结果会移除 ${inactiveReadyIds.length} 个已发布 ready 视频，已阻断以保护剪辑端生产数据。`,
+    source_video_ids: inactiveReadyIds
+  }];
+}
+
+function toScanPreviewResult(plan: SourceVideoScanPlan): SourceVideoScanPreviewResult {
+  const inactiveSourceVideoIds = sortSourceVideoIds(
+    plan.inactive_manifests.map((manifest) => manifest.source_video_id)
+  );
+  const inactiveReadySourceVideoIds = sortSourceVideoIds(
+    plan.inactive_manifests
+      .filter((manifest) => manifest.preprocess_status === "ready")
+      .map((manifest) => manifest.source_video_id)
+  );
+  const blockers = scanBlockers(plan);
+
+  return {
+    scan_mode: "full-source-folder-scan",
+    total_video_count: plan.total_video_count,
+    new_video_count: plan.new_video_count,
+    existing_video_count: plan.existing_video_count,
+    source_video_ids: sortSourceVideoIds(plan.source_video_ids),
+    inactive_manifest_count: inactiveSourceVideoIds.length,
+    inactive_ready_count: inactiveReadySourceVideoIds.length,
+    inactive_source_video_ids: inactiveSourceVideoIds,
+    inactive_ready_source_video_ids: inactiveReadySourceVideoIds,
+    skipped_source_folder_ids: [...plan.skipped_source_folder_ids].sort(),
+    blocked: blockers.length > 0,
+    blockers
+  };
+}
+
+function assertScanPlanCanApply(plan: SourceVideoScanPlan): void {
+  const blockers = scanBlockers(plan);
+
+  if (blockers.length === 0) {
+    return;
+  }
+
+  throw new Error(blockers.map((blocker) => blocker.message).join(" "));
+}
+
 function countByStatus(manifests: SourceVideoManifest[]): LibraryCounts {
   const counts: Record<PreprocessStatus, number> = {
     unprocessed: 0,
@@ -314,9 +402,7 @@ async function writeLibraryManifest(input: {
   );
 }
 
-export async function scanSourceVideos(
-  input: ScanSourceVideosInput
-): Promise<ScanSourceVideosResult> {
+async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<SourceVideoScanPlan> {
   const scanFolders = await readEnabledScanFolders(input.library_root);
   const files: SourceFileRow[] = [];
   const folderStats = new Map<string, SourceFolderScanStats>();
@@ -344,8 +430,6 @@ export async function scanSourceVideos(
   let nextNumericId = existing.maxNumericId + 1;
   let newVideoCount = 0;
   let existingVideoCount = 0;
-
-  await mkdir(videosRoot(input.library_root), { recursive: true });
 
   for (const row of files) {
     const relativePath = toSourceFolderRelativePath(row);
@@ -391,13 +475,44 @@ export async function scanSourceVideos(
     }
   }
 
+  const inactiveManifests = existing.manifests.filter(
+    (manifest) => !includedSourceVideoIds.has(manifest.source_video_id)
+  );
+
+  return {
+    total_video_count: manifests.length,
+    new_video_count: newVideoCount,
+    existing_video_count: existingVideoCount,
+    source_video_ids: sortSourceVideoIds(manifests.map((manifest) => manifest.source_video_id)),
+    manifests,
+    active_source_video_ids: includedSourceVideoIds,
+    inactive_manifests: inactiveManifests,
+    folder_stats: folderStats,
+    skipped_source_folder_ids: skippedFolderIds
+  };
+}
+
+export async function previewSourceVideoScan(
+  input: ScanSourceVideosInput
+): Promise<SourceVideoScanPreviewResult> {
+  return toScanPreviewResult(await buildSourceVideoScanPlan(input));
+}
+
+export async function scanSourceVideos(
+  input: ScanSourceVideosInput
+): Promise<ScanSourceVideosResult> {
+  const plan = await buildSourceVideoScanPlan(input);
+  assertScanPlanCanApply(plan);
+
+  await mkdir(videosRoot(input.library_root), { recursive: true });
+
   await pruneInactiveManifestDirectories({
     library_root: input.library_root,
-    existing_manifests: existing.manifests,
-    active_source_video_ids: includedSourceVideoIds
+    existing_manifests: plan.inactive_manifests,
+    active_source_video_ids: plan.active_source_video_ids
   });
 
-  for (const manifest of manifests) {
+  for (const manifest of plan.manifests) {
     await writeSourceVideoManifest(input.library_root, manifest);
   }
 
@@ -406,21 +521,19 @@ export async function scanSourceVideos(
     library_id: input.library_id,
     library_name: input.library_name,
     now: input.now,
-    manifests
+    manifests: plan.manifests
   });
 
   await writeSourceFolderScanStats({
     library_root: input.library_root,
     now: input.now,
-    stats: folderStats
+    stats: plan.folder_stats
   });
 
   return {
-    total_video_count: manifests.length,
-    new_video_count: newVideoCount,
-    existing_video_count: existingVideoCount,
-    source_video_ids: manifests
-      .map((manifest) => manifest.source_video_id)
-      .sort((left, right) => numericSourceVideoId(left) - numericSourceVideoId(right))
+    total_video_count: plan.total_video_count,
+    new_video_count: plan.new_video_count,
+    existing_video_count: plan.existing_video_count,
+    source_video_ids: plan.source_video_ids
   };
 }

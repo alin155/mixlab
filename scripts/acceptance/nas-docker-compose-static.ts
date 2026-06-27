@@ -155,14 +155,32 @@ export async function validateNasDockerComposeStatic(input: {
   );
   requireMatch(
     composeRaw,
-    /admin-worker:[\s\S]*MIXLAB_ADMIN_LIBRARY_ROOT: \/data\/PublicLibrary[\s\S]*MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL: \$\{MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL:-25\}/,
-    "admin-worker must use the mounted /data/PublicLibrary root and default count refresh interval 25",
+    /admin-api:[\s\S]*MIXLAB_ADMIN_DOCKER_MVP_MODE: \$\{MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0\.1\}/,
+    "admin-api must default to Docker MVP mode v0.1",
     errors
   );
   requireMatch(
     composeRaw,
-    /admin-worker:[\s\S]*MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: \$\{MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-1\}[\s\S]*MIXLAB_ENABLE_READY_PUBLISH_WORKER: \$\{MIXLAB_ENABLE_READY_PUBLISH_WORKER:-1\}/,
-    "admin-worker must enable preprocess and ready-publish workers by default",
+    /admin-api:[\s\S]*MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT: \$\{MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT:-92\}[\s\S]*healthcheck:[\s\S]*127\.0\.0\.1:3889\/health/,
+    "admin-api must expose build/runtime health on /health and use disk block threshold 92 by default",
+    errors
+  );
+  requireMatch(
+    composeRaw,
+    /admin-worker:[\s\S]*MIXLAB_ADMIN_LIBRARY_ROOT: \/data\/PublicLibrary[\s\S]*MIXLAB_PREPROCESS_LIBRARY_ROOT: \/data\/PublicLibrary[\s\S]*MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL: \$\{MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL:-25\}[\s\S]*MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT: \$\{MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT:-92\}/,
+    "admin-worker must use the mounted /data/PublicLibrary root, explicit preprocess root, count refresh interval 25, and disk block threshold 92",
+    errors
+  );
+  requireMatch(
+    composeRaw,
+    /admin-worker:[\s\S]*MIXLAB_ADMIN_DOCKER_MVP_MODE: \$\{MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0\.1\}/,
+    "admin-worker must default to Docker MVP mode v0.1",
+    errors
+  );
+  requireMatch(
+    composeRaw,
+    /admin-worker:[\s\S]*MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: \$\{MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-0\}[\s\S]*MIXLAB_ENABLE_READY_PUBLISH_WORKER: \$\{MIXLAB_ENABLE_READY_PUBLISH_WORKER:-0\}/,
+    "admin-worker standalone workers must default disabled and require explicit opt-in",
     errors
   );
   requireMatch(
@@ -173,8 +191,8 @@ export async function validateNasDockerComposeStatic(input: {
   );
   requireMatch(
     composeRaw,
-    /admin-web:[\s\S]*depends_on:\s*\n\s+- admin-api[\s\S]*ports:\s*\n\s+- "\$\{MIXLAB_ADMIN_WEB_PORT:-8080\}:80"/,
-    "admin-web must depend on admin-api and expose MIXLAB_ADMIN_WEB_PORT defaulting to 8080",
+    /admin-web:[\s\S]*depends_on:\s*\n\s+- admin-api[\s\S]*ports:\s*\n\s+- "\$\{MIXLAB_ADMIN_WEB_PORT:-8080\}:80"[\s\S]*healthcheck:[\s\S]*wget -qO- http:\/\/127\.0\.0\.1\//,
+    "admin-web must depend on admin-api, expose MIXLAB_ADMIN_WEB_PORT defaulting to 8080, and define an internal healthcheck",
     errors
   );
   if (serviceDefinesNetworkPublication(composeRaw, "admin-api")) {
@@ -197,11 +215,13 @@ export async function validateNasDockerComposeStatic(input: {
   const env = parseEnv(envRaw);
   requireEnvValue(env, "PUBLIC_LIBRARY_HOST_PATH", "/volume1/MixLab/PublicLibrary", errors);
   requireEnvValue(env, "MIXLAB_IMAGE_TAG", "latest", errors);
+  requireEnvValue(env, "MIXLAB_ADMIN_DOCKER_MVP_MODE", "v0.1", errors);
   requireEnvValue(env, "MIXLAB_ADMIN_WEB_PORT", "8080", errors);
   requireEnvValue(env, "MIXLAB_WORKER_POLL_INTERVAL_SECONDS", "60", errors);
-  requireEnvValue(env, "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", "1", errors);
-  requireEnvValue(env, "MIXLAB_ENABLE_READY_PUBLISH_WORKER", "1", errors);
+  requireEnvValue(env, "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", "0", errors);
+  requireEnvValue(env, "MIXLAB_ENABLE_READY_PUBLISH_WORKER", "0", errors);
   requireEnvValue(env, "MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL", "25", errors);
+  requireEnvValue(env, "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT", "92", errors);
 
   if (env.get("DASHSCOPE_API_KEY") !== "") {
     errors.push(".env.example DASHSCOPE_API_KEY must be blank");

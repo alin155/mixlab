@@ -1,0 +1,239 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T18:46:59.707Z",
+  "command": "tsx scripts/acceptance/admin-request-cancellation-browser-qa.ts",
+  "api_base_url": "http://127.0.0.1:56789",
+  "web_base_url": "http://127.0.0.1:56790",
+  "output_dir": "docs/acceptance/artifacts",
+  "scenario": {
+    "route_under_test": "source-videos",
+    "delayed_endpoint": "/api/admin/source-videos",
+    "delayed_response_ms": 5000,
+    "navigate_away_route": "dashboard"
+  },
+  "browser": {
+    "final_hash": "#/dashboard",
+    "body_text_excerpt": "总览\n保护中心\n素材库\n预处理\n发布与索引\n剪辑师\n系统检查\n设置\n操作记录\n素材库\n已挂载\n当前索引\nv000001\n预处理\n空闲\n系统状态\n正常\nML\nMixLab Admin\n公共素材库管理\n素材库\nMock Public Library\n当前索引\nv000001\n系统状态\n正常\n管\n\n公共素材库生产状态\n\n总览\n让管理员先判断“剪辑团队现在能不能用”。当前连接真实素材库：/mock/PublicLibrary\n局部刷新\n数据来源\n素材 读模型 · 不扫描\n产能 读模型 · 不扫描\n使用 读模型 · 不扫描\n可服务\n素材库当前无需处理\n\n系统没有发现需要立即执行的生产动作。\n\n可用视频\n1\n\n占全部 100%\n\n处理中\n0\n\n预处理服务未运行\n\n处理失败\n0\n\n当前无阻塞\n\n可搜索总时长\n0h\n\n总时长 0h\n\n句子片段\n3\n\n1 个视频有文案\n\n当前索引\nv000001\n\n协议\n\n失败任务\n0\n\n当前无阻塞\n\n活跃剪辑师\n0/50\n\n最近 0 次搜索 · p95 暂无数据 · 本地搜索 暂无数据\n\n预处理进度\n\n已处理 1 / 1，队列中 0，失败 0\n\n局部刷新\n可用素材数 1\n100%\n素材库状态\n\n索引、路径和发布状态是剪辑端能否搜索的核心依据。\n\n扫描素材库\n素材库路径\n/mock/PublicLibrary\n索引版本\nv000001\n可用素材数\n1\n索引发布时间\n06-26 00:00\n下一步建议\n无需处理\n素材库当前无需处理\n\n系统没有发现需要立即执行的生产动作。\n\n核心链路健康\n\n搜索到剪切可用，部分指标需要观察\n本地搜索 暂无数据 · p95 暂无数据 · 0/50 剪辑师\n需要观察\n关键词定位\n暂无样本\n完整文案\n3 段\n选段剪切\n暂无样本\n50 人容量\n0/50\n生产吞吐\n\n当前公共素材库从原视频到可搜索索引的流转状态。\n\n可用\n1\n处理中\n0\n队列中\n0\n待处理\n0\n失败\n0\n生产健康\n\n影响剪辑端搜索可靠性的关键状态。\n\n预处理流水线\nIdle\n\n0 队列中\n\n索引发布\nv000001\n\n当前可搜索索引已同步\n\n系统检查\n通过\n\n通过 0 / 警告 0 / 失败 0\n\n系统负荷\n正常\n\nNo queued jobs in mock QA\n\n素材规模\n原视频总时长\n01:00\n可用总时长\n01:00\n未处理时长\n未统计\n原视频容量\n10",
+    "console_errors": [],
+    "unexpected_request_failures": []
+  },
+  "mock_api": {
+    "request_count": 13,
+    "records": [
+      {
+        "id": 1,
+        "method": "GET",
+        "path": "/api/admin/auth/status",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.147Z",
+        "closed_at": "2026-06-26T18:47:00.148Z",
+        "response_sent_at": "2026-06-26T18:47:00.147Z",
+        "status_code": 200,
+        "duration_ms": 1.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 2,
+        "method": "GET",
+        "path": "/api/admin/library/status",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.160Z",
+        "closed_at": "2026-06-26T18:47:00.160Z",
+        "response_sent_at": "2026-06-26T18:47:00.160Z",
+        "status_code": 200,
+        "duration_ms": 0.4,
+        "aborted_before_response": false
+      },
+      {
+        "id": 3,
+        "method": "GET",
+        "path": "/api/admin/settings/config",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.166Z",
+        "closed_at": "2026-06-26T18:47:00.166Z",
+        "response_sent_at": "2026-06-26T18:47:00.166Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 4,
+        "method": "GET",
+        "path": "/api/admin/preprocess/supervisor/status",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.166Z",
+        "closed_at": "2026-06-26T18:47:00.167Z",
+        "response_sent_at": "2026-06-26T18:47:00.166Z",
+        "status_code": 200,
+        "duration_ms": 0.2,
+        "aborted_before_response": false
+      },
+      {
+        "id": 5,
+        "method": "GET",
+        "path": "/api/admin/data-loading/plan",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.167Z",
+        "closed_at": "2026-06-26T18:47:00.167Z",
+        "response_sent_at": "2026-06-26T18:47:00.167Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 6,
+        "method": "GET",
+        "path": "/api/admin/preprocess/jobs",
+        "search": "?limit=20",
+        "started_at": "2026-06-26T18:47:00.180Z",
+        "closed_at": "2026-06-26T18:47:00.180Z",
+        "response_sent_at": "2026-06-26T18:47:00.180Z",
+        "status_code": 200,
+        "duration_ms": 0.2,
+        "aborted_before_response": false
+      },
+      {
+        "id": 7,
+        "method": "GET",
+        "path": "/api/admin/library/status",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.181Z",
+        "closed_at": "2026-06-26T18:47:00.181Z",
+        "response_sent_at": "2026-06-26T18:47:00.181Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 8,
+        "method": "GET",
+        "path": "/api/admin/dashboard/metrics",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.181Z",
+        "closed_at": "2026-06-26T18:47:00.181Z",
+        "response_sent_at": "2026-06-26T18:47:00.181Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 9,
+        "method": "GET",
+        "path": "/api/admin/source-videos",
+        "search": "?limit=20",
+        "started_at": "2026-06-26T18:47:00.216Z",
+        "closed_at": "2026-06-26T18:47:00.254Z",
+        "response_sent_at": "",
+        "status_code": null,
+        "duration_ms": 38.4,
+        "aborted_before_response": true
+      },
+      {
+        "id": 10,
+        "method": "GET",
+        "path": "/api/admin/dashboard/metrics",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.216Z",
+        "closed_at": "2026-06-26T18:47:00.216Z",
+        "response_sent_at": "2026-06-26T18:47:00.216Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 11,
+        "method": "GET",
+        "path": "/api/admin/library/status",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.250Z",
+        "closed_at": "2026-06-26T18:47:00.250Z",
+        "response_sent_at": "2026-06-26T18:47:00.250Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 12,
+        "method": "GET",
+        "path": "/api/admin/preprocess/jobs",
+        "search": "?limit=20",
+        "started_at": "2026-06-26T18:47:00.250Z",
+        "closed_at": "2026-06-26T18:47:00.250Z",
+        "response_sent_at": "2026-06-26T18:47:00.250Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      },
+      {
+        "id": 13,
+        "method": "GET",
+        "path": "/api/admin/dashboard/metrics",
+        "search": "",
+        "started_at": "2026-06-26T18:47:00.250Z",
+        "closed_at": "2026-06-26T18:47:00.250Z",
+        "response_sent_at": "2026-06-26T18:47:00.250Z",
+        "status_code": 200,
+        "duration_ms": 0.1,
+        "aborted_before_response": false
+      }
+    ],
+    "delayed_request": {
+      "id": 9,
+      "method": "GET",
+      "path": "/api/admin/source-videos",
+      "search": "?limit=20",
+      "started_at": "2026-06-26T18:47:00.216Z",
+      "closed_at": "2026-06-26T18:47:00.254Z",
+      "response_sent_at": "",
+      "status_code": null,
+      "duration_ms": 38.4,
+      "aborted_before_response": true
+    }
+  },
+  "timings": {
+    "source_route_request_start_wait_ms": 25.1,
+    "cancellation_observed_wait_ms": 26.5,
+    "total_ms": 578.8
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-request-cancellation-browser-qa-20260626T184659Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-request-cancellation-browser-qa-20260626T184659Z.md"
+  },
+  "gates": [
+    {
+      "name": "isolated-local-mock-api",
+      "passed": true,
+      "detail": "api=http://127.0.0.1:56789, web=http://127.0.0.1:56790"
+    },
+    {
+      "name": "delayed-source-videos-request-started",
+      "passed": true,
+      "detail": "GET /api/admin/source-videos?limit=20"
+    },
+    {
+      "name": "route-change-returned-to-dashboard",
+      "passed": true,
+      "detail": "final_hash=#/dashboard, has_overview=true"
+    },
+    {
+      "name": "delayed-request-aborted-before-response",
+      "passed": true,
+      "detail": "aborted=true, response_sent_at=none, duration_ms=38.4"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "console_errors=0"
+    },
+    {
+      "name": "no-unexpected-request-failures",
+      "passed": true,
+      "detail": "no unexpected browser request failures"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "Admin Web route-owned request cancellation was observed before the delayed mock API response"
+  }
+}

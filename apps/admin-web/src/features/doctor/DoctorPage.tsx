@@ -1,9 +1,14 @@
-import { InspectorPanel } from "@mixlab/ui-foundation";
-import type { AdminDashboardData } from "../../api.ts";
+import { Badge, InspectorPanel, Table, type BadgeTone, type TableColumn } from "@mixlab/ui-foundation";
+import type {
+  AdminDashboardData,
+  AdminRuntimeDiagnosticsHistoryResponse,
+  AdminRuntimeEndpointMeta
+} from "../../api.ts";
 import { strictChineseDiagnosticText } from "../../app/chinese.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
 import {
   AdminControlButton,
+  EmptyState,
   AdminInfoGroups,
   AdminPageHeader,
   AdminStatusLine,
@@ -51,7 +56,7 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
   "library-counts": {
     name: "素材库计数",
     purpose: "确认素材库统计字段和实际状态一致。",
-    impact: "计数异常会让仪表盘、队列和剪辑端可见数量失真。",
+    impact: "计数异常会让总览、队列和剪辑端可见数量失真。",
     suggestion: "重新扫描并发布索引，必要时检查 library.json。"
   },
   "source-video-manifests": {
@@ -116,6 +121,8 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
   }
 };
 
+type DoctorCheckRow = AdminDashboardData["doctor"]["checks"][number];
+
 export function doctorExplanation(checkId: string, label: string): DoctorExplanation {
   return DOCTOR_EXPLANATIONS[checkId] ?? {
     name: "技术检查项",
@@ -125,37 +132,353 @@ export function doctorExplanation(checkId: string, label: string): DoctorExplana
   };
 }
 
+function doctorStatusLabel(status: DoctorCheckRow["status"]): string {
+  return status === "pass" ? "通过" : status === "warn" ? "需关注" : "需处理";
+}
+
+function doctorStatusTone(status: DoctorCheckRow["status"]): BadgeTone {
+  return status === "pass" ? "success" : status === "warn" ? "warning" : "danger";
+}
+
+type RuntimeDiagnosticEntry = AdminRuntimeDiagnosticsHistoryResponse["entries"][number];
+
+function runtimeDurationLabel(durationMs: number): string {
+  return `${Math.round(durationMs)}ms`;
+}
+
+function runtimeEndpointLabel(endpoint: string): string {
+  const labels: Record<string, string> = {
+    "/api/admin/dashboard/metrics": "总览指标",
+    "/api/admin/source-videos": "素材列表",
+    "/api/admin/preprocess/jobs": "预处理队列",
+    "/api/admin/index/versions": "索引版本",
+    "/api/admin/runtime/diagnostics/history": "慢接口历史"
+  };
+
+  return labels[endpoint] ?? endpoint;
+}
+
+function runtimeScanModeLabel(scanMode: AdminRuntimeEndpointMeta["scan_mode"]): string {
+  const labels: Record<AdminRuntimeEndpointMeta["scan_mode"], string> = {
+    "no-scan": "不扫描",
+    "single-id": "单条读取",
+    "paged-list": "分页读取",
+    "folder-scan": "目录扫描",
+    "status-scan": "状态扫描",
+    "full-reconcile": "全量对账"
+  };
+
+  return labels[scanMode];
+}
+
+function runtimeDataSourceLabel(dataSource: AdminRuntimeEndpointMeta["data_source"]): string {
+  const labels: Partial<Record<AdminRuntimeEndpointMeta["data_source"], string>> = {
+    "admin-read-model": "管理端读模型",
+    "current-index": "当前索引",
+    "doctor-probes": "系统探针",
+    "index-version-packages": "索引版本包",
+    "library-manifest": "素材库清单",
+    "operation-log": "操作记录",
+    "runtime-telemetry": "运行负荷",
+    "source-video-manifest": "原视频清单",
+    "usage-events": "使用事件"
+  };
+
+  return labels[dataSource] ?? dataSource;
+}
+
+function runtimeCacheLabel(status: AdminRuntimeEndpointMeta["cache_status"]): string {
+  const labels: Record<AdminRuntimeEndpointMeta["cache_status"], string> = {
+    hit: "命中",
+    miss: "未命中",
+    pending: "刷新中",
+    "not-applicable": "不适用",
+    unknown: "未知"
+  };
+
+  return labels[status];
+}
+
+function runtimeResultTone(runtime: AdminRuntimeEndpointMeta): BadgeTone {
+  if (runtime.slow || runtime.duration_ms >= 1_000 || runtime.repair_reason) {
+    return "danger";
+  }
+
+  if (runtime.duration_ms >= 500 || runtime.fallback_reason) {
+    return "warning";
+  }
+
+  return "success";
+}
+
+function runtimeResultLabel(runtime: AdminRuntimeEndpointMeta): string {
+  if (runtime.slow) {
+    return "慢";
+  }
+
+  if (runtime.repair_reason) {
+    return "修复";
+  }
+
+  if (runtime.fallback_reason) {
+    return "降级";
+  }
+
+  return "正常";
+}
+
+function runtimeReasonLabel(runtime: AdminRuntimeEndpointMeta): string {
+  return runtime.slow_reason || runtime.repair_reason || runtime.fallback_reason || "未记录异常原因";
+}
+
+function runtimeComponentLabel(name: string): string {
+  const labels: Record<string, string> = {
+    production_summary: "生产汇总",
+    runtime_load: "运行负荷",
+    material_summary: "素材汇总",
+    usage_metrics: "使用统计",
+    transcript_summary: "文案统计"
+  };
+
+  return labels[name] ?? name;
+}
+
+function runtimeComponentSummary(runtime: AdminRuntimeEndpointMeta): string {
+  if (!runtime.components?.length) {
+    return "未记录组件耗时";
+  }
+
+  return [...runtime.components]
+    .sort((left, right) => right.duration_ms - left.duration_ms)
+    .slice(0, 3)
+    .map((component) => `${runtimeComponentLabel(component.name)} ${runtimeDurationLabel(component.duration_ms)}`)
+    .join(" · ");
+}
+
 export function DoctorPage({
   data,
+  doctorReportError = "",
+  runtimeDiagnostics,
+  runtimeDiagnosticsLoading = false,
+  runtimeDiagnosticsError = "",
   onRunDoctor,
   onExportDoctor
 }: {
   data: AdminDashboardData;
+  doctorReportError?: string;
+  runtimeDiagnostics?: AdminRuntimeDiagnosticsHistoryResponse | null;
+  runtimeDiagnosticsLoading?: boolean;
+  runtimeDiagnosticsError?: string;
   onRunDoctor?: () => void;
   onExportDoctor?: () => void;
 }) {
+  const attentionCount = data.doctor.summary.warn + data.doctor.summary.fail;
+  const reportTone: BadgeTone = data.doctor.summary.fail > 0
+    ? "danger"
+    : data.doctor.summary.warn > 0
+      ? "warning"
+      : "success";
+  const reportStatus = data.doctor.summary.fail > 0
+    ? "需处理"
+    : data.doctor.summary.warn > 0
+      ? "需关注"
+      : "通过";
+  const diagnosticColumns: Array<TableColumn<DoctorCheckRow>> = [
+    {
+      id: "name",
+      header: "检查项",
+      render: (item) => doctorExplanation(item.check_id, item.label).name
+    },
+    {
+      id: "status",
+      header: "状态",
+      render: (item) => <Badge tone={doctorStatusTone(item.status)}>{doctorStatusLabel(item.status)}</Badge>
+    },
+    {
+      id: "purpose",
+      header: "检查目的",
+      render: (item) => doctorExplanation(item.check_id, item.label).purpose
+    },
+    {
+      id: "detail",
+      header: "技术详情",
+      render: (item) => strictChineseDiagnosticText(item.message)
+    }
+  ];
+  const runtimeEntries = runtimeDiagnostics?.entries ?? [];
+  const slowRuntimeCount = runtimeEntries.filter((entry) => entry.runtime.slow).length;
+  const fallbackRuntimeCount = runtimeEntries.filter((entry) =>
+    Boolean(entry.runtime.fallback_reason || entry.runtime.repair_reason)
+  ).length;
+  const latestRuntimeEntry = runtimeEntries[0] ?? null;
+  const runtimeColumns: Array<TableColumn<RuntimeDiagnosticEntry>> = [
+    {
+      id: "endpoint",
+      header: "接口",
+      render: (item) => (
+        <div>
+          <strong>{runtimeEndpointLabel(item.runtime.endpoint)}</strong>
+          <p>{item.runtime.endpoint}</p>
+        </div>
+      )
+    },
+    {
+      id: "duration",
+      header: "耗时",
+      render: (item) => (
+        <Badge tone={runtimeResultTone(item.runtime)}>
+          {runtimeDurationLabel(item.runtime.duration_ms)}
+        </Badge>
+      )
+    },
+    {
+      id: "source",
+      header: "来源与扫描",
+      render: (item) =>
+        `${runtimeDataSourceLabel(item.runtime.actual_data_source)} · ${runtimeScanModeLabel(item.runtime.scan_mode)}`
+    },
+    {
+      id: "cache",
+      header: "缓存",
+      render: (item) => runtimeCacheLabel(item.runtime.cache_status)
+    },
+    {
+      id: "reason",
+      header: "原因",
+      render: (item) => runtimeReasonLabel(item.runtime)
+    },
+    {
+      id: "components",
+      header: "组件耗时",
+      render: (item) => runtimeComponentSummary(item.runtime)
+    }
+  ];
+
   return (
     <>
-      <div className="admin-main-column">
+      <div className="admin-main-column admin-doctor-console">
         <AdminPageHeader
           title="系统检查"
           eyebrow="检查系统状态"
-          action={<AdminControlButton label="重新检查" state="m9b-api" reason="重新检查路径、索引、工具和预处理产物。" variant="primary" onClick={onRunDoctor} />}
+          description="诊断报告按路由加载，系统探针只在系统检查路由执行。"
+          action={(
+            <div className="admin-page-header-actions">
+              <AdminControlButton label="重新检查" state="m9b-api" reason="重新检查路径、索引、工具和预处理产物。" variant="primary" onClick={onRunDoctor} />
+              <AdminControlButton label="导出检查报告" state="m9b-api" reason="导出当前检查结果，便于排障留档。" onClick={onExportDoctor} />
+            </div>
+          )}
         />
         <MetricBand
           items={[
             { label: "通过", value: data.doctor.summary.pass, caption: "检查通过" },
             { label: "警告", value: data.doctor.summary.warn, caption: "需要关注" },
-            { label: "失败", value: data.doctor.summary.fail, caption: "需要处理" }
+            { label: "失败", value: data.doctor.summary.fail, caption: "需要处理" },
+            { label: "需处理项", value: attentionCount, caption: "警告与失败合计" }
           ]}
         />
-        <section className="admin-list-panel">
+        <section className="admin-doctor-route-contract" aria-label="系统检查数据来源">
+          <div>
+            <span>诊断报告</span>
+            <strong>doctor-probes</strong>
+            <p>状态扫描 · doctor-route</p>
+          </div>
+          <div>
+            <span>检查结果</span>
+            <strong>路由加载</strong>
+            <p>本页面局部处理</p>
+          </div>
+          <div>
+            <span>报告导出</span>
+            <strong>导出操作</strong>
+            <p>不改变素材状态</p>
+          </div>
+          <div>
+            <span>慢接口历史</span>
+            <strong>admin-read-model</strong>
+            <p>不扫描 · route-entry</p>
+          </div>
+        </section>
+        <section className="admin-list-section admin-runtime-diagnostics-history" aria-label="慢接口历史">
+          <header className="admin-section-header">
+            <div>
+              <h2>慢接口历史</h2>
+              <p>读取运行时诊断历史，定位接口耗时、数据来源、扫描模式、缓存状态和阻塞原因。</p>
+            </div>
+            <Badge tone={slowRuntimeCount > 0 ? "warning" : "success"}>
+              {slowRuntimeCount > 0 ? `${slowRuntimeCount} 个慢接口` : "无慢接口"}
+            </Badge>
+          </header>
+          <MetricBand
+            items={[
+              { label: "最近样本", value: runtimeEntries.length, caption: "历史记录" },
+              { label: "慢接口", value: slowRuntimeCount, caption: "超过目标" },
+              { label: "降级或修复", value: fallbackRuntimeCount, caption: "需关注" },
+              {
+                label: "异常行",
+                value: runtimeDiagnostics?.malformed_line_count ?? 0,
+                caption: "历史文件容错"
+              }
+            ]}
+          />
+          {runtimeDiagnosticsError ? (
+            <AdminStatusLine
+              tone="failed"
+              label="慢接口历史加载失败"
+              detail={runtimeDiagnosticsError}
+              value="局部错误"
+            />
+          ) : null}
+          {runtimeDiagnostics?.malformed_line_count ? (
+            <AdminStatusLine
+              tone="warning"
+              label="历史文件存在异常行"
+              detail="管理端已跳过无法解析的运行时诊断记录，页面继续显示有效样本。"
+              value={runtimeDiagnostics.malformed_line_count}
+            />
+          ) : null}
+          {runtimeDiagnosticsLoading && !runtimeDiagnostics ? (
+            <EmptyState title="正在读取慢接口历史" detail="该请求只读取有界诊断历史，不会触发全库扫描。" />
+          ) : runtimeEntries.length > 0 ? (
+            <Table
+              columns={runtimeColumns}
+              rows={runtimeEntries}
+              getRowKey={(item) => `${item.recorded_at}-${item.runtime.endpoint}`}
+              stickyHeader
+            />
+          ) : (
+            <EmptyState title="暂无慢接口历史" detail="系统检查仍可使用；后续页面请求会逐步写入运行时诊断样本。" />
+          )}
+        </section>
+        <section className="admin-list-section admin-doctor-report-surface" aria-label="诊断报告">
+          <header className="admin-section-header">
+            <div>
+              <h2>诊断报告</h2>
+              <p>系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。</p>
+            </div>
+            <Badge tone={reportTone}>{reportStatus}</Badge>
+          </header>
+          {doctorReportError ? (
+            <AdminStatusLine
+              tone="failed"
+              label="诊断报告加载失败"
+              detail={doctorReportError}
+              value="局部错误"
+            />
+          ) : null}
+          <Table
+            columns={diagnosticColumns}
+            rows={data.doctor.checks}
+            getRowKey={(item) => item.check_id}
+            stickyHeader
+          />
+        </section>
+        <section className="admin-list-panel" aria-label="检查摘要">
           {data.doctor.checks.map((item) => (
             <AdminStatusLine
               tone={adminStatusTone(item.status)}
               label={doctorExplanation(item.check_id, item.label).name}
               detail={`${doctorExplanation(item.check_id, item.label).name} · ${strictChineseDiagnosticText(item.message)}`}
-              value={item.status === "pass" ? "通过" : item.status === "warn" ? "需关注" : "需处理"}
+              value={doctorStatusLabel(item.status)}
               key={item.check_id}
             />
           ))}
@@ -181,7 +504,7 @@ export function DoctorPage({
           />
         </section>
       </div>
-      <InspectorPanel title="检查报告">
+      <InspectorPanel title="检查报告" subtitle="系统检查">
         <AdminInfoGroups
           groups={[
             {
@@ -194,10 +517,48 @@ export function DoctorPage({
                 { label: "警告", value: data.doctor.summary.warn },
                 { label: "失败", value: data.doctor.summary.fail }
               ]
+            },
+            {
+              title: "慢接口历史",
+              rows: [
+                { label: "最近样本", value: runtimeEntries.length },
+                { label: "慢接口", value: slowRuntimeCount },
+                { label: "降级或修复", value: fallbackRuntimeCount },
+                { label: "异常行", value: runtimeDiagnostics?.malformed_line_count ?? 0 },
+                {
+                  label: "最近接口",
+                  value: latestRuntimeEntry
+                    ? runtimeEndpointLabel(latestRuntimeEntry.runtime.endpoint)
+                    : "暂无记录"
+                },
+                {
+                  label: "最近耗时",
+                  value: latestRuntimeEntry
+                    ? runtimeDurationLabel(latestRuntimeEntry.runtime.duration_ms)
+                    : "-"
+                },
+                {
+                  label: "最近来源",
+                  value: latestRuntimeEntry
+                    ? runtimeDataSourceLabel(latestRuntimeEntry.runtime.actual_data_source)
+                    : "-"
+                }
+              ]
+            },
+            {
+              title: "页面契约",
+              rows: [
+                { label: "主工作区", value: "诊断报告" },
+                { label: "辅助区", value: "检查结果与慢接口历史" },
+                { label: "数据来源", value: "doctor-probes / admin-read-model" },
+                { label: "扫描原因", value: "doctor-route / read-model-health" },
+                { label: "扫描模式", value: "状态扫描 / 不扫描" },
+                { label: "错误边界", value: "本页面局部处理" },
+                { label: "导出边界", value: "导出操作" }
+              ]
             }
           ]}
         />
-        <AdminControlButton label="导出检查报告" state="m9b-api" reason="导出当前检查结果，便于排障留档。" variant="primary" onClick={onExportDoctor} />
       </InspectorPanel>
     </>
   );

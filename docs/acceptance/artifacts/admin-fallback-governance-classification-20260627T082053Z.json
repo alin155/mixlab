@@ -1,0 +1,629 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T08:20:53.547Z",
+  "command": "tsx scripts/acceptance/admin-fallback-governance-classification.ts",
+  "mode": "admin-fallback-governance-classification",
+  "scope": {
+    "scan_roots": [
+      "apps/admin-web/src",
+      "packages/admin-api/src",
+      "packages/library-fs/src"
+    ],
+    "governance_terms": [
+      "fixture",
+      "fallback",
+      "legacy",
+      "mock",
+      "deprecated",
+      "TODO"
+    ]
+  },
+  "classification_ready": true,
+  "cleanup_allowed": false,
+  "summary": {
+    "files_scanned": 293,
+    "hotspot_count": 28,
+    "classification_counts": {
+      "test-fixture": 14,
+      "fixture-runtime-boundary": 6,
+      "safe-fallback": 7,
+      "legacy-compatibility": 1,
+      "removable-candidate": 0
+    },
+    "removable_candidate_count": 0
+  },
+  "classified_hotspots": [
+    {
+      "path": "apps/admin-web/src/fixtures/admin-data-loading-plan.ts",
+      "count": 35,
+      "terms": [
+        "fixture",
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 24
+        },
+        {
+          "term": "fallback",
+          "count": 11
+        }
+      ],
+      "classification": "fixture-runtime-boundary",
+      "cleanup_policy": "Keep as the deterministic fixture/runtime boundary until the Admin fixture client or fixture data contract is replaced and tested.",
+      "required_evidence": [
+        "replacement fixture/runtime contract",
+        "Admin Web fixture tests and at least one browser QA route"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/api.test.ts",
+      "count": 32,
+      "terms": [
+        "fixture",
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 31
+        },
+        {
+          "term": "fallback",
+          "count": 1
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/admin-app.test.ts",
+      "count": 18,
+      "terms": [
+        "fixture",
+        "fallback",
+        "legacy"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 15
+        },
+        {
+          "term": "fallback",
+          "count": 2
+        },
+        {
+          "term": "legacy",
+          "count": 1
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/fixtures/admin-fixture-operation-log.ts",
+      "count": 17,
+      "terms": [
+        "fixture"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 17
+        }
+      ],
+      "classification": "fixture-runtime-boundary",
+      "cleanup_policy": "Keep as the deterministic fixture/runtime boundary until the Admin fixture client or fixture data contract is replaced and tested.",
+      "required_evidence": [
+        "replacement fixture/runtime contract",
+        "Admin Web fixture tests and at least one browser QA route"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/api.ts",
+      "count": 13,
+      "terms": [
+        "fixture",
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 9
+        },
+        {
+          "term": "fallback",
+          "count": 4
+        }
+      ],
+      "classification": "fixture-runtime-boundary",
+      "cleanup_policy": "Keep as the deterministic fixture/runtime boundary until the Admin fixture client or fixture data contract is replaced and tested.",
+      "required_evidence": [
+        "replacement fixture/runtime contract",
+        "Admin Web fixture tests and at least one browser QA route"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-data-loading-plan.ts",
+      "count": 12,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 12
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/fixtures/admin-fixture-data.ts",
+      "count": 10,
+      "terms": [
+        "fixture"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 10
+        }
+      ],
+      "classification": "fixture-runtime-boundary",
+      "cleanup_policy": "Keep as the deterministic fixture/runtime boundary until the Admin fixture client or fixture data contract is replaced and tested.",
+      "required_evidence": [
+        "replacement fixture/runtime contract",
+        "Admin Web fixture tests and at least one browser QA route"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/fixtures/admin-fixture-operations-overview.ts",
+      "count": 10,
+      "terms": [
+        "fixture"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 10
+        }
+      ],
+      "classification": "fixture-runtime-boundary",
+      "cleanup_policy": "Keep as the deterministic fixture/runtime boundary until the Admin fixture client or fixture data contract is replaced and tested.",
+      "required_evidence": [
+        "replacement fixture/runtime contract",
+        "Admin Web fixture tests and at least one browser QA route"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-source-video-list-query.test.ts",
+      "count": 6,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 6
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/library-fs/src/cutter-source-library.ts",
+      "count": 6,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 6
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-preprocess-jobs-read-services.test.ts",
+      "count": 5,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 5
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-preprocess-read-routes.ts",
+      "count": 5,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 5
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "packages/library-fs/src/usage-events.ts",
+      "count": 5,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 5
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "packages/library-fs/src/usage-events.test.ts",
+      "count": 4,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 4
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/features/preprocess-jobs/PreprocessJobsPage.tsx",
+      "count": 3,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 3
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-source-video-status-page-query.test.ts",
+      "count": 3,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 3
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/library-fs/src/cutter-source-library.test.ts",
+      "count": 3,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 3
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/library-fs/src/scanner.test.ts",
+      "count": 3,
+      "terms": [
+        "legacy"
+      ],
+      "term_counts": [
+        {
+          "term": "legacy",
+          "count": 3
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-preprocess-jobs-read-facade.test.ts",
+      "count": 2,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 2
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-primary-source-videos-path.test.ts",
+      "count": 2,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 2
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-source-video-status-page-query.ts",
+      "count": 2,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 2
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/index.test.ts",
+      "count": 2,
+      "terms": [
+        "fixture"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 2
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/admin-reference.css",
+      "count": 1,
+      "terms": [
+        "legacy"
+      ],
+      "term_counts": [
+        {
+          "term": "legacy",
+          "count": 1
+        }
+      ],
+      "classification": "legacy-compatibility",
+      "cleanup_policy": "Keep until the legacy compatibility contract is retired with explicit migration evidence.",
+      "required_evidence": [
+        "explicit migration or deprecation decision",
+        "tests proving old data/routes/users are no longer supported or are safely migrated"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/features/source-videos/SourceVideosPage.tsx",
+      "count": 1,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 1
+        }
+      ],
+      "classification": "safe-fallback",
+      "cleanup_policy": "Keep as a production tolerance or compatibility fallback; do not remove without a measured replacement path and regression tests.",
+      "required_evidence": [
+        "runtime metric or compatibility proof showing the fallback is no longer needed",
+        "focused production-path tests covering missing/malformed/old data",
+        "rollback note"
+      ]
+    },
+    {
+      "path": "apps/admin-web/src/fixtures/admin-fixture-usage-data.ts",
+      "count": 1,
+      "terms": [
+        "fixture"
+      ],
+      "term_counts": [
+        {
+          "term": "fixture",
+          "count": 1
+        }
+      ],
+      "classification": "fixture-runtime-boundary",
+      "cleanup_policy": "Keep as the deterministic fixture/runtime boundary until the Admin fixture client or fixture data contract is replaced and tested.",
+      "required_evidence": [
+        "replacement fixture/runtime contract",
+        "Admin Web fixture tests and at least one browser QA route"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-auth-routes.test.ts",
+      "count": 1,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 1
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-source-video-default-page-query.test.ts",
+      "count": 1,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 1
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    },
+    {
+      "path": "packages/admin-api/src/admin-source-video-read-facade.test.ts",
+      "count": 1,
+      "terms": [
+        "fallback"
+      ],
+      "term_counts": [
+        {
+          "term": "fallback",
+          "count": 1
+        }
+      ],
+      "classification": "test-fixture",
+      "cleanup_policy": "Keep as test-only coverage unless the owning test is replaced with equivalent assertions.",
+      "required_evidence": [
+        "replacement test assertions or approved test deletion",
+        "focused test run for the owning package"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "classification-no-side-effects",
+      "status": "pass",
+      "evidence": "This report reads source files and writes acceptance artifacts only; it does not delete, move, or rewrite production code.",
+      "blocks_cleanup": false
+    },
+    {
+      "id": "all-term-hotspots-classified",
+      "status": "pass",
+      "evidence": "28 term hotspots classified.",
+      "blocks_cleanup": false
+    },
+    {
+      "id": "broad-cleanup-still-blocked",
+      "status": "blocked",
+      "evidence": "Cleanup remains targeted only; 0 removable candidates still require line-level proof before edits.",
+      "blocks_cleanup": true
+    }
+  ],
+  "result": {
+    "status": "classified",
+    "summary": "fallback/fixture/legacy hotspots are classified for future targeted cleanup"
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T082053Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-fallback-governance-classification-20260627T082053Z.md"
+  }
+}

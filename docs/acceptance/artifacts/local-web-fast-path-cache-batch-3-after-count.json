@@ -1,0 +1,92 @@
+{
+  "status": "passed",
+  "generated_at": "2026-06-14T15:57:28.963Z",
+  "endpoints": {
+    "admin_api_health_ms": 53,
+    "cutter_api_health_ms": 1,
+    "searchd_health_ms": 1
+  },
+  "admin": {
+    "status_ms": 53,
+    "source_videos_first_page_ms": 43,
+    "current_index_version": "v008207",
+    "ready_video_count": 8205,
+    "source_videos_first_page_count": 20
+  },
+  "cutter": {
+    "runtime_ms": 81,
+    "library_first_page_ms": 26,
+    "search_ms": 19,
+    "detail_ms": 7,
+    "cut_ms": 1174,
+    "query": "第一场",
+    "release_cache": {
+      "enabled": true,
+      "ready": true,
+      "sync_status": "ready",
+      "active_release_version": "v007950",
+      "source_release_version": "v007950",
+      "search_index_version": "v007950",
+      "ready_video_count": 7950,
+      "cached_release_versions": [
+        "v007940",
+        "v007950"
+      ],
+      "cached_release_count": 2,
+      "max_cached_releases": 2,
+      "cache_size_bytes": 2219627612,
+      "pruned_release_versions": [],
+      "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache",
+      "catalog_file_path": "/Users/huaqihang/Movies/MixLabLocal/cache/.mixlab-library/releases/v007950/catalog.sqlite",
+      "message": "本机 Release 已是最新"
+    },
+    "search_backend": {
+      "mode": "searchd",
+      "preferred_mode": "searchd",
+      "label": "本地 searchd",
+      "healthy": true,
+      "degraded": false,
+      "index_version": "v007950",
+      "source_video_count": 7950,
+      "segment_count": 684281,
+      "response_ms": 1,
+      "message": "本地 Tantivy 搜索索引可用"
+    },
+    "available_video_count": 7950,
+    "library_first_page_count": 20,
+    "search_mode": "searchd",
+    "search_index_version": "v007950",
+    "search_group_count": 10,
+    "selected_source_video_id": "V000868",
+    "selected_source_title": "C0629",
+    "full_transcript_segment_count": 277,
+    "selected_segment_id": "V000868-S000001",
+    "selected_text_char_count": 26,
+    "local_clip_id": "E000133",
+    "local_clip_media_file_path": "/Users/huaqihang/Movies/MixLabLocal/export-clips/E000133/001-auto-smoke-2026-06-14T15_57_27.245Z-C0629.mp4",
+    "local_clip_media_file_size_bytes": 13058942,
+    "local_output_is_outside_public_library": true
+  },
+  "web_routes": {
+    "admin_dashboard": {
+      "url": "http://127.0.0.1:5176/#/dashboard",
+      "load_ms": 101,
+      "horizontal_overflow_px": 0
+    },
+    "cutter_project_home": {
+      "url": "http://127.0.0.1:5177/#/project-home",
+      "load_ms": 63,
+      "horizontal_overflow_px": 0
+    },
+    "cutter_material_locator": {
+      "url": "http://127.0.0.1:5177/#/material-locator?query=%E7%AC%AC%E4%B8%80%E5%9C%BA",
+      "load_ms": 11,
+      "horizontal_overflow_px": 0
+    }
+  },
+  "sla": {
+    "api_sla_ms": 1000,
+    "cut_sla_ms": 10000,
+    "route_sla_ms": 1000
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "status": "passed",
+  "generated_at": "2026-06-13T16:49:01.498Z",
+  "endpoints": {
+    "admin_api_health_ms": 68,
+    "cutter_api_health_ms": 2,
+    "searchd_health_ms": 8
+  },
+  "admin": {
+    "status_ms": 68,
+    "source_videos_first_page_ms": 256,
+    "current_index_version": "v007843",
+    "ready_video_count": 7843,
+    "source_videos_first_page_count": 20
+  },
+  "cutter": {
+    "runtime_ms": 904,
+    "library_first_page_ms": 6,
+    "search_ms": 129,
+    "detail_ms": 2,
+    "cut_ms": 9024,
+    "query": "现金流",
+    "release_cache": {
+      "enabled": true,
+      "ready": true,
+      "sync_status": "ready",
+      "active_release_version": "v007841",
+      "source_release_version": "v007841",
+      "ready_video_count": 7841,
+      "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache",
+      "catalog_file_path": "/Users/huaqihang/Movies/MixLabLocal/cache/.mixlab-library/releases/v007841/catalog.sqlite",
+      "message": "本机 Release 已是最新"
+    },
+    "search_backend": {
+      "mode": "searchd",
+      "preferred_mode": "searchd",
+      "label": "本地 searchd",
+      "healthy": true,
+      "degraded": false,
+      "index_version": "v007841",
+      "source_video_count": 7841,
+      "segment_count": 684076,
+      "response_ms": 145,
+      "message": "本地 Tantivy 搜索索引可用"
+    },
+    "available_video_count": 7843,
+    "library_first_page_count": 20,
+    "search_mode": "searchd",
+    "search_index_version": "v007841",
+    "search_group_count": 10,
+    "selected_source_video_id": "V008282",
+    "selected_source_title": "C1426",
+    "full_transcript_segment_count": 2,
+    "selected_segment_id": "V008282-S000002",
+    "selected_text_char_count": 14,
+    "local_clip_id": "E000124",
+    "local_clip_media_file_path": "/Users/huaqihang/Movies/MixLabLocal/export-clips/E000124/001-auto-smoke-2026-06-13T16_48_51.871Z-C1426.mp4",
+    "local_clip_media_file_size_bytes": 22616936,
+    "local_output_is_outside_public_library": true
+  },
+  "web_routes": {
+    "admin_dashboard": {
+      "url": "http://127.0.0.1:5186/#/dashboard",
+      "load_ms": 143,
+      "horizontal_overflow_px": 0
+    },
+    "cutter_project_home": {
+      "url": "http://127.0.0.1:5187/#/project-home",
+      "load_ms": 69,
+      "horizontal_overflow_px": 0
+    },
+    "cutter_material_locator": {
+      "url": "http://127.0.0.1:5187/#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81",
+      "load_ms": 13,
+      "horizontal_overflow_px": 0
+    }
+  },
+  "sla": {
+    "api_sla_ms": 1000,
+    "cut_sla_ms": 10000,
+    "route_sla_ms": 1000
+  }
+}

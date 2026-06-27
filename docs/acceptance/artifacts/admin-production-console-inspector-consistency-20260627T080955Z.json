@@ -1,0 +1,154 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T08:09:55.983Z",
+  "command": "node --input-type=module <inline R.226 Playwright QA>",
+  "scope": "R.226 production-console Inspector consistency for dashboard, preprocess-jobs, protection, operation-log",
+  "web_base_url": "http://127.0.0.1:5192",
+  "fixture_mode": true,
+  "nas_mutation_allowed": false,
+  "docker_mutation_allowed": false,
+  "routes": [
+    {
+      "route": "dashboard",
+      "label": "总览",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5192/#/dashboard",
+      "load_ms": 535.4,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-dashboard-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "dashboard",
+      "label": "总览",
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5192/#/dashboard",
+      "load_ms": 414.1,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-dashboard-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "preprocess-jobs",
+      "label": "预处理",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5192/#/preprocess-jobs",
+      "load_ms": 447.1,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-preprocess-jobs-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "preprocess-jobs",
+      "label": "预处理",
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5192/#/preprocess-jobs",
+      "load_ms": 412.7,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-preprocess-jobs-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "protection",
+      "label": "保护中心",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5192/#/protection",
+      "load_ms": 439.7,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-protection-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "protection",
+      "label": "保护中心",
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5192/#/protection",
+      "load_ms": 409.9,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-protection-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "operation-log",
+      "label": "操作记录",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5192/#/operation-log",
+      "load_ms": 439.8,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-operation-log-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    },
+    {
+      "route": "operation-log",
+      "label": "操作记录",
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5192/#/operation-log",
+      "load_ms": 409.3,
+      "screenshot_path": "docs/acceptance/artifacts/admin-production-console-inspector-consistency-20260627T080955Z-operation-log-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "missing_expected_text": [],
+      "console_errors": [],
+      "failed_api_requests": [],
+      "passed": true
+    }
+  ],
+  "gates": [
+    {
+      "name": "all-routes-render-contract",
+      "passed": true,
+      "detail": "all expected Inspector contract texts visible"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "dashboard/desktop=0px, dashboard/mobile=0px, preprocess-jobs/desktop=0px, preprocess-jobs/mobile=0px, protection/desktop=0px, protection/mobile=0px, operation-log/desktop=0px, operation-log/mobile=0px"
+    },
+    {
+      "name": "no-console-errors-or-failed-requests",
+      "passed": true,
+      "detail": "no browser console errors or failed requests"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "R.226 Inspector consistency browser QA passed in isolated fixture Admin Web"
+  }
+}

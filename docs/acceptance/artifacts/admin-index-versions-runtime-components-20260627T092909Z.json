@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T09:29:09.000Z",
+  "mode": "admin-index-versions-runtime-components",
+  "scope": {
+    "phase": "Phase 3 Admin Read Model and Query API observability",
+    "primary_endpoint": "/api/admin/index/versions",
+    "primary_query": "packages/admin-api/src/admin-index-versions-query.ts",
+    "primary_route": "packages/admin-api/src/admin-slow-read-routes.ts",
+    "coverage_statement": "R.235 adds component-level runtime evidence for the index/versions slow endpoint. It does not change query semantics, cache TTL, response data shape, index repair/publish behavior, NAS data, Docker state, Worker behavior, or Cutter protocols."
+  },
+  "component_contract": {
+    "runtime_meta_field": "meta.runtime.components",
+    "components": [
+      {
+        "name": "current_pointer_fast_page",
+        "purpose": "Measures the large-history current.json fast page path.",
+        "data_source": "current-index",
+        "scan_mode": "paged-list"
+      },
+      {
+        "name": "directory_listing",
+        "purpose": "Measures index-version directory enumeration when the fast path cannot serve the page.",
+        "data_source": "index-version-packages",
+        "scan_mode": "paged-list"
+      },
+      {
+        "name": "current_pointer_validation",
+        "purpose": "Measures current.json validation against discovered index packages.",
+        "data_source": "current-index",
+        "scan_mode": "single-id"
+      },
+      {
+        "name": "index_package_validation",
+        "purpose": "Measures per-page index-manifest/index.sqlite validation.",
+        "data_source": "index-version-packages",
+        "scan_mode": "paged-list"
+      },
+      {
+        "name": "cache_lookup",
+        "purpose": "Explains short-TTL cache hits without rescanning version directories.",
+        "data_source": "dynamic: current-index or index-version-packages",
+        "scan_mode": "no-scan"
+      },
+      {
+        "name": "pending_wait",
+        "purpose": "Explains coalesced in-flight reads when another request is already building the same page.",
+        "data_source": "dynamic: current-index or index-version-packages",
+        "scan_mode": "paged-list"
+      }
+    ]
+  },
+  "line_count_evidence": {
+    "admin_index_versions_query_line_count": 521,
+    "admin_index_versions_query_test_line_count": 247,
+    "admin_slow_read_routes_line_count": 205,
+    "admin_slow_read_routes_test_line_count": 377,
+    "current_line_anchors": {
+      "runtime_component_field": "packages/admin-api/src/admin-index-versions-query.ts:53",
+      "current_pointer_fast_page": "packages/admin-api/src/admin-index-versions-query.ts:333",
+      "directory_listing": "packages/admin-api/src/admin-index-versions-query.ts:350",
+      "current_pointer_validation": "packages/admin-api/src/admin-index-versions-query.ts:369",
+      "index_package_validation": "packages/admin-api/src/admin-index-versions-query.ts:403",
+      "pending_wait": "packages/admin-api/src/admin-index-versions-query.ts:457",
+      "cache_lookup": "packages/admin-api/src/admin-index-versions-query.ts:477",
+      "route_components_passthrough": "packages/admin-api/src/admin-slow-read-routes.ts:193"
+    }
+  },
+  "verification": {
+    "focused_tests": {
+      "command": "node --test --import tsx packages/admin-api/src/admin-index-versions-query.test.ts packages/admin-api/src/admin-slow-read-routes.test.ts",
+      "result": "12 tests passed"
+    },
+    "broader_backend_tests": {
+      "command": "node --test --import tsx packages/admin-api/src/admin-index-versions-query.test.ts packages/admin-api/src/admin-slow-read-routes.test.ts packages/admin-api/src/admin-slow-read-route-deps.test.ts packages/admin-api/src/admin-index-command-routes.test.ts packages/admin-api/src/admin-index-command-route-deps.test.ts packages/admin-api/src/index.test.ts",
+      "result": "89 tests passed"
+    },
+    "typecheck": {
+      "command": "npm run typecheck -- --pretty false",
+      "result": "passed"
+    },
+    "performance_contract_tests": {
+      "command": "node --test --import tsx scripts/acceptance/admin-real-nas-performance.test.ts scripts/acceptance/admin-real-nas-performance-isolated.test.ts",
+      "result": "6 tests passed"
+    },
+    "redundancy_governance": {
+      "artifact_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T092843Z.json",
+      "artifact_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T092843Z.md",
+      "result": "blocked",
+      "cleanup_allowed": false
+    }
+  },
+  "non_goals_preserved": [
+    "No query semantics change",
+    "No cache TTL change",
+    "No API data shape change",
+    "No index repair or publish behavior change",
+    "No NAS mutation",
+    "No Docker upload",
+    "No Worker behavior change",
+    "No Cutter release/index/search protocol change"
+  ],
+  "result": {
+    "status": "pass",
+    "summary": "The index/versions slow endpoint now exposes component-level runtime timings so future optimization can distinguish current pointer fast path, directory listing, package validation, cache hits, and pending waits."
+  }
+}

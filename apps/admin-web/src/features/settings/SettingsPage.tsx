@@ -1,4 +1,4 @@
-import { InspectorPanel } from "@mixlab/ui-foundation";
+import { Badge, InspectorPanel } from "@mixlab/ui-foundation";
 import { useEffect, useState } from "react";
 import type {
   AdminDashboardData,
@@ -95,6 +95,8 @@ function defaultNewSourceFolder(data: AdminDashboardData, sourceFolders: AdminSo
 
 export function SettingsPage({
   data,
+  pathChecksError = "",
+  runtimeSettingsError = "",
   onSaveAdminSettings,
   onInitializeLibrary,
   onTestAsrConfig,
@@ -102,6 +104,8 @@ export function SettingsPage({
   onExportDoctor
 }: {
   data: AdminDashboardData;
+  pathChecksError?: string;
+  runtimeSettingsError?: string;
   onSaveAdminSettings?: (settings: AdminSettingsConfigUpdate) => void | Promise<void>;
   onInitializeLibrary?: () => void | Promise<void>;
   onTestAsrConfig?: () => void;
@@ -118,6 +122,11 @@ export function SettingsPage({
   const [dashscopeApiKey, setDashscopeApiKey] = useState("");
   const toolState = data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理";
   const initializationChecks = adminFirstRunInitializationChecks(data);
+  const enabledSourceFolderCount = sourceFolders.filter((folder) => folder.enabled).length;
+  const pathIssueCount = data.path_checks.filter((check) => check.status !== "pass").length;
+  const runtimeProbeState = toolState === "可用" && data.runtime.asr.dashscope_api_key_configured
+    ? "通过"
+    : "需关注";
 
   useEffect(() => {
     setLibraryName(data.settings.library_name);
@@ -161,10 +170,11 @@ export function SettingsPage({
 
   return (
     <>
-      <div className="admin-main-column">
-	        <AdminPageHeader
-	          title="设置"
-	          eyebrow="素材来源与预处理设置"
+      <div className="admin-main-column admin-settings-console">
+        <AdminPageHeader
+          title="设置"
+          eyebrow="素材来源与预处理设置"
+          description="设置表单按路由加载，路径和运行时探针只在设置页刷新。"
           action={(
             <AdminControlButton
               label="新增素材来源"
@@ -174,134 +184,185 @@ export function SettingsPage({
             />
           )}
         />
-        <section className="ml-form-group">
-          <h2 className="ml-form-group-title">素材库基本信息</h2>
-          <div className="ml-form-row">
-            <span className="ml-form-label">素材库名称</span>
-            <span>
-              <input
-                className="admin-text-input"
-                aria-label="素材库名称"
-                value={libraryName}
-                onChange={(event) => setLibraryName(event.currentTarget.value)}
-              />
-            </span>
+        <MetricBand
+          items={[
+            { label: "素材来源", value: sourceFolders.length, caption: "当前配置数量" },
+            { label: "启用来源", value: enabledSourceFolderCount, caption: "保存后生效" },
+            { label: "并发任务", value: runtimePolicy.concurrent_jobs, caption: "预处理运行策略" },
+            { label: "路径问题", value: pathIssueCount, caption: "路径检查需关注" }
+          ]}
+        />
+        <section className="admin-settings-route-contract" aria-label="设置数据来源">
+          <div>
+            <span>设置表单</span>
+            <strong>admin-settings</strong>
+            <p>本地编辑 · 不扫描</p>
+          </div>
+          <div>
+            <span>路径检查</span>
+            <strong>path-checks</strong>
+            <p>settings-route · 不枚举素材</p>
+          </div>
+          <div>
+            <span>运行状态</span>
+            <strong>runtime-secrets</strong>
+            <p>密钥隐藏 · 本页面局部处理</p>
           </div>
         </section>
-        <section className="ml-form-group">
-          <h2 className="ml-form-group-title">素材来源</h2>
-          <div className="admin-source-folder-list">
-            {sourceFolders.map((folder) => (
-              <section className="admin-source-folder-row" key={folder.id}>
-                <label>
-                  <span>来源名称</span>
-                  <input
-                    className="admin-text-input"
-                    value={folder.name}
-                    aria-label={`${folder.name} 来源名称`}
-                    onChange={(event) => updateSourceFolder(folder.id, { name: event.currentTarget.value })}
-                  />
-                </label>
-                <label>
-                  <span>文件夹路径</span>
-                  <input
-                    className="admin-text-input"
-                    value={folder.path}
-                    aria-label={`${folder.name} 文件夹路径`}
-                    onChange={(event) => updateSourceFolder(folder.id, { path: event.currentTarget.value })}
-                  />
-                </label>
-                <label className="admin-checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={folder.enabled}
-                    onChange={(event) => updateSourceFolder(folder.id, { enabled: event.currentTarget.checked })}
-                  />
-                  <span>启用素材来源</span>
-                </label>
-                <span className="admin-source-folder-meta">
-                  已发现 {folder.discovered_video_count ?? 0} 个 · 新增未处理 {folder.new_unprocessed_count ?? 0} 个 · 最近扫描 {folder.last_scanned_at || "未扫描"}
-                </span>
-                {folder.id === "src_default" ? (
-                  <span className="admin-inline-note">默认来源不可移除</span>
-                ) : (
-                  <AdminControlButton
-                    label="移除"
-                    state="local"
-                    reason="从设置中移除该素材来源，保存后生效。"
-                    onClick={() => removeSourceFolder(folder.id)}
-                  />
-                )}
-              </section>
-            ))}
-          </div>
-        </section>
-	        <AdminInfoGroups
-	          groups={[
-	            {
-	              title: "预处理设置",
-	              rows: [
-	                { label: "产物路径", value: data.settings.artifact_library.path },
-	                {
-	                  label: "并发任务数",
-	                  value: (
-                    <input
-                      className="admin-number-input"
-                      aria-label="并发任务数"
-                      type="number"
-                      min={1}
-                      value={runtimePolicy.concurrent_jobs}
-                      onChange={(event) => updateRuntimePolicy({
-                        concurrent_jobs: Math.max(1, Number(event.currentTarget.value) || 1)
-                      })}
-                    />
-                  )
-                },
-                {
-                  label: "音频模式",
-                  value: (
-                    <select
-                      className="admin-select"
-                      value={runtimePolicy.audio_mode}
-                      aria-label="选择音频模式"
-                      onChange={(event) => updateRuntimePolicy({
-                        audio_mode: event.currentTarget.value as RuntimePolicy["audio_mode"]
-                      })}
-                    >
-                      <option value="mp3_16k_mono_64k">压缩单声道</option>
-                      <option value="wav_16k_mono_pcm_s16le">无损单声道</option>
-                    </select>
-                  )
-	                },
-	                { label: "音视频工具", value: `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}` }
-	              ]
-	            },
-	            {
-	              title: "语音识别",
-	              rows: [
-	                { label: "供应商", value: asrProviderLabel(data.runtime.asr.provider) },
-	                { label: "模型", value: asrModelLabel(data.runtime.asr.model) },
-	                { label: "当前音频", value: audioModeLabel(runtimePolicy.audio_mode) },
-	                { label: "密钥状态", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
-	                {
-	                  label: "填写密钥",
-	                  value: (
+        <section className="admin-list-section admin-settings-form-surface" aria-label="设置表单">
+          <header className="admin-section-header">
+            <div>
+              <h2>设置表单</h2>
+              <p>素材库名称、素材来源和运行策略先在本页面本地编辑，点击保存后才写入管理配置。</p>
+            </div>
+            <Badge tone="info">本地编辑</Badge>
+          </header>
+          <section className="ml-form-group">
+            <h2 className="ml-form-group-title">素材库基本信息</h2>
+            <div className="ml-form-row">
+              <span className="ml-form-label">素材库名称</span>
+              <span>
+                <input
+                  className="admin-text-input"
+                  aria-label="素材库名称"
+                  value={libraryName}
+                  onChange={(event) => setLibraryName(event.currentTarget.value)}
+                />
+              </span>
+            </div>
+          </section>
+          <section className="ml-form-group" aria-label="素材来源设置">
+            <h2 className="ml-form-group-title">素材来源</h2>
+            <div className="admin-source-folder-list">
+              {sourceFolders.map((folder) => (
+                <section className="admin-source-folder-row" key={folder.id}>
+                  <label>
+                    <span>来源名称</span>
                     <input
                       className="admin-text-input"
-                      type="password"
-                      aria-label="阿里云百炼接口密钥"
-                      autoComplete="off"
-                      placeholder="留空保持当前密钥"
-                      value={dashscopeApiKey}
-                      onChange={(event) => setDashscopeApiKey(event.currentTarget.value)}
-	                    />
-	                  )
-	                }
-	              ]
-	            }
-	          ]}
-	        />
-        <section className="admin-settings-diagnostics">
+                      value={folder.name}
+                      aria-label={`${folder.name} 来源名称`}
+                      onChange={(event) => updateSourceFolder(folder.id, { name: event.currentTarget.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>文件夹路径</span>
+                    <input
+                      className="admin-text-input"
+                      value={folder.path}
+                      aria-label={`${folder.name} 文件夹路径`}
+                      onChange={(event) => updateSourceFolder(folder.id, { path: event.currentTarget.value })}
+                    />
+                  </label>
+                  <label className="admin-checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={folder.enabled}
+                      onChange={(event) => updateSourceFolder(folder.id, { enabled: event.currentTarget.checked })}
+                    />
+                    <span>启用素材来源</span>
+                  </label>
+                  <span className="admin-source-folder-meta">
+                    已发现 {folder.discovered_video_count ?? 0} 个 · 新增未处理 {folder.new_unprocessed_count ?? 0} 个 · 最近扫描 {folder.last_scanned_at || "未扫描"}
+                  </span>
+                  {folder.id === "src_default" ? (
+                    <span className="admin-inline-note">默认来源不可移除</span>
+                  ) : (
+                    <AdminControlButton
+                      label="移除"
+                      state="local"
+                      reason="从设置中移除该素材来源，保存后生效。"
+                      onClick={() => removeSourceFolder(folder.id)}
+                    />
+                  )}
+                </section>
+              ))}
+            </div>
+          </section>
+        </section>
+        <section className="admin-list-section admin-settings-runtime-surface" aria-label="运行策略">
+          <header className="admin-section-header">
+            <div>
+              <h2>运行策略</h2>
+              <p>预处理并发、音频格式和语音识别密钥状态来自运行时配置；密钥值不会回显。</p>
+            </div>
+            <Badge tone={runtimeProbeState === "通过" ? "success" : "warning"}>{runtimeProbeState}</Badge>
+          </header>
+          {runtimeSettingsError ? (
+            <AdminStatusLine
+              tone="failed"
+              label="运行时状态加载失败"
+              detail={runtimeSettingsError}
+              value="局部错误"
+            />
+          ) : null}
+          <AdminInfoGroups
+            groups={[
+              {
+                title: "预处理设置",
+                rows: [
+                  { label: "产物路径", value: data.settings.artifact_library.path },
+                  {
+                    label: "并发任务数",
+                    value: (
+                      <input
+                        className="admin-number-input"
+                        aria-label="并发任务数"
+                        type="number"
+                        min={1}
+                        value={runtimePolicy.concurrent_jobs}
+                        onChange={(event) => updateRuntimePolicy({
+                          concurrent_jobs: Math.max(1, Number(event.currentTarget.value) || 1)
+                        })}
+                      />
+                    )
+                  },
+                  {
+                    label: "音频模式",
+                    value: (
+                      <select
+                        className="admin-select"
+                        value={runtimePolicy.audio_mode}
+                        aria-label="选择音频模式"
+                        onChange={(event) => updateRuntimePolicy({
+                          audio_mode: event.currentTarget.value as RuntimePolicy["audio_mode"]
+                        })}
+                      >
+                        <option value="mp3_16k_mono_64k">压缩单声道</option>
+                        <option value="wav_16k_mono_pcm_s16le">无损单声道</option>
+                      </select>
+                    )
+                  },
+                  { label: "音视频工具", value: `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}` }
+                ]
+              },
+              {
+                title: "语音识别",
+                rows: [
+                  { label: "供应商", value: asrProviderLabel(data.runtime.asr.provider) },
+                  { label: "模型", value: asrModelLabel(data.runtime.asr.model) },
+                  { label: "当前音频", value: audioModeLabel(runtimePolicy.audio_mode) },
+                  { label: "密钥状态", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
+                  {
+                    label: "填写密钥",
+                    value: (
+                      <input
+                        className="admin-text-input"
+                        type="password"
+                        aria-label="阿里云百炼接口密钥"
+                        autoComplete="off"
+                        placeholder="留空保持当前密钥"
+                        value={dashscopeApiKey}
+                        onChange={(event) => setDashscopeApiKey(event.currentTarget.value)}
+                      />
+                    )
+                  }
+                ]
+              }
+            ]}
+          />
+        </section>
+        <section className="admin-settings-diagnostics" aria-label="系统诊断">
           <header className="admin-section-header admin-section-header-row">
             <div>
               <h2>系统诊断</h2>
@@ -345,15 +406,15 @@ export function SettingsPage({
             />
           </div>
         </section>
-	      </div>
-	      <InspectorPanel title="系统状态">
+      </div>
+      <InspectorPanel title="设置概览" subtitle="系统状态">
         {initializationChecks.length ? (
           <section className="admin-first-run-panel" aria-label="素材库初始化修复">
-	            <header>
-	              <span>初始化</span>
-	              <strong>素材库目录待创建</strong>
-	              <p>发现公共素材库文件缺失或不可写，初始化后再刷新系统状态。</p>
-	            </header>
+            <header>
+              <span>初始化</span>
+              <strong>素材库目录待创建</strong>
+              <p>发现公共素材库文件缺失或不可写，初始化后再刷新系统状态。</p>
+            </header>
             <div className="admin-first-run-issues">
               {initializationChecks.map((item) => (
                 <span key={`${item.label}-${item.path}`}>
@@ -370,30 +431,62 @@ export function SettingsPage({
             />
           </section>
         ) : null}
-        <section className="admin-list-panel">
+        <section className="admin-list-panel" aria-label="路径检查">
+          {pathChecksError ? (
+            <AdminStatusLine
+              tone="failed"
+              label="路径检查加载失败"
+              detail={pathChecksError}
+              value="局部错误"
+            />
+          ) : null}
           {data.path_checks.map((item) => (
-	            <AdminStatusLine
-	              tone={adminStatusTone(item.status)}
-	              label={settingsPathCheckLabel(item)}
-	              detail={`${item.path} · ${chineseDiagnosticText(item.message)}`}
-	              value={item.status === "pass" ? "通过" : "处理"}
+            <AdminStatusLine
+              tone={adminStatusTone(item.status)}
+              label={settingsPathCheckLabel(item)}
+              detail={`${item.path} · ${chineseDiagnosticText(item.message)}`}
+              value={item.status === "pass" ? "通过" : "处理"}
               key={item.label}
             />
           ))}
-	        </section>
-	        <p className="admin-note">
-	          新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。
-	        </p>
+        </section>
+        <p className="admin-note">
+          新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。
+        </p>
+        <AdminInfoGroups
+          groups={[
+            {
+              title: "页面契约",
+              rows: [
+                { label: "主工作区", value: "设置表单" },
+                { label: "辅助区", value: "路径检查" },
+                { label: "设置来源", value: "admin-settings" },
+                { label: "路径来源", value: "path-checks" },
+                { label: "运行来源", value: "runtime-secrets" },
+                { label: "扫描原因", value: "settings-route" },
+                { label: "扫描模式", value: "不扫描" },
+                { label: "编辑边界", value: "本地编辑" },
+                { label: "保存边界", value: "命令操作" },
+                { label: "错误边界", value: "本页面局部处理" }
+              ]
+            }
+          ]}
+        />
         <section className="admin-action-stack">
-	          <AdminControlButton
-	            label="保存设置"
-	            state="m9b-api"
-	            reason="保存素材来源和预处理参数。"
-	            variant="primary"
+          <AdminControlButton
+            label="保存设置"
+            state="m9b-api"
+            reason="保存素材来源和预处理参数。"
+            variant="primary"
             onClick={onSaveAdminSettings ? saveSettings : undefined}
           />
-	          <AdminControlButton label="检查语音识别" state="m9b-api" reason="检查当前语音识别配置是否可用。" onClick={onTestAsrConfig} />
-	        </section>
+          <AdminControlButton
+            label="检查语音识别"
+            state="m9b-api"
+            reason="检查当前语音识别配置是否可用。"
+            onClick={onTestAsrConfig}
+          />
+        </section>
       </InspectorPanel>
     </>
   );

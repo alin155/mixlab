@@ -8,10 +8,19 @@ services:
       MIXLAB_ADMIN_API_HOST: 0.0.0.0
       MIXLAB_ADMIN_API_PORT: 3889
       MIXLAB_ADMIN_LIBRARY_ROOT: /data/PublicLibrary
+      MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}
+      MIXLAB_IMAGE_TAG: ${MIXLAB_IMAGE_TAG:-latest}
+      MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT: ${MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT:-92}
       MIXLAB_FFMPEG_PATH: /usr/bin/ffmpeg
       MIXLAB_FFPROBE_PATH: /usr/bin/ffprobe
     volumes:
       - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3889/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   admin-worker:
     image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}
@@ -22,12 +31,16 @@ services:
       - .env
     environment:
       MIXLAB_ADMIN_LIBRARY_ROOT: /data/PublicLibrary
+      MIXLAB_PREPROCESS_LIBRARY_ROOT: /data/PublicLibrary
+      MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}
+      MIXLAB_IMAGE_TAG: ${MIXLAB_IMAGE_TAG:-latest}
       MIXLAB_FFMPEG_PATH: /usr/bin/ffmpeg
       MIXLAB_FFPROBE_PATH: /usr/bin/ffprobe
       MIXLAB_WORKER_POLL_INTERVAL_SECONDS: ${MIXLAB_WORKER_POLL_INTERVAL_SECONDS:-60}
-      MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-1}
-      MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-1}
+      MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-0}
+      MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-0}
       MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL: ${MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL:-25}
+      MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT: ${MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT:-92}
     volumes:
       - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary
     command: ["npm", "run", "worker:admin-loop"]
@@ -39,3 +52,9 @@ services:
       - admin-api
     ports:
       - "${MIXLAB_ADMIN_WEB_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

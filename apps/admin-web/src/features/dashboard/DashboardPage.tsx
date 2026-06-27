@@ -1,5 +1,10 @@
 import { InspectorPanel } from "@mixlab/ui-foundation";
-import type { AdminDashboardData, AdminPreprocessJob, UsageMetrics } from "../../api.ts";
+import type {
+  AdminDashboardData,
+  AdminDashboardMetricSource,
+  AdminPreprocessJob,
+  UsageMetrics
+} from "../../api.ts";
 import {
   createAdminSmartScanReport,
   type AdminSmartScanAction,
@@ -17,6 +22,7 @@ import {
 } from "../../app/view-model.ts";
 import {
   AdminControlButton,
+  AdminInfoGroups,
   AdminStatusLine,
   AdminPageHeader,
   CountStrip,
@@ -82,6 +88,40 @@ function optionalCountLabel(value: number): string {
 
 function optionalAverageDurationLabel(ms: number): string {
   return ms > 0 ? formatAdminDuration(ms) : "暂无样本";
+}
+
+function dashboardMetricSourceLabel(source: AdminDashboardMetricSource): string {
+  const sourceLabels: Record<AdminDashboardMetricSource["data_source"], string> = {
+    "admin-settings": "设置",
+    "admin-read-model": "读模型",
+    "command-snapshot": "命令快照",
+    "current-index": "当前索引",
+    "data-loading-contract": "加载契约",
+    "doctor-probes": "系统检查",
+    "index-version-packages": "索引包",
+    "library-manifest": "素材库账本",
+    "operation-log": "操作记录",
+    "path-checks": "路径检查",
+    "read-model-reconcile": "后台对账",
+    "runtime-telemetry": "运行时",
+    "runtime-secrets": "运行配置",
+    "source-folders": "素材来源",
+    "source-video-manifest": "视频清单",
+    "supervisor-runtime": "预处理服务",
+    "transcript-artifacts": "文案产物",
+    "usage-events": "使用事件",
+    "user-store": "用户存储"
+  };
+  const scanLabels: Record<AdminDashboardMetricSource["scan_mode"], string> = {
+    "no-scan": "不扫描",
+    "single-id": "单条读取",
+    "paged-list": "分页读取",
+    "folder-scan": "目录扫描",
+    "status-scan": "状态读取",
+    "full-reconcile": "全量对账"
+  };
+
+  return `${sourceLabels[source.data_source]} · ${scanLabels[source.scan_mode]}`;
 }
 
 function percentLabel(value: number): string {
@@ -505,13 +545,13 @@ export function DashboardPage({
   return (
     <>
       <div className="admin-main-column">
-        <section className="admin-console-hero" aria-label="仪表盘总览">
+        <section className="admin-console-hero" aria-label="管理端总览">
           <AdminPageHeader
-            title="公共素材库仪表盘"
-            eyebrow="Admin / Dashboard"
+            title="总览"
+            eyebrow="公共素材库生产状态"
             description={`让管理员先判断“剪辑团队现在能不能用”。当前连接真实素材库：${data.status.root_path}`}
             action={
-              <section className="admin-action-row" aria-label="仪表盘操作">
+              <section className="admin-action-row" aria-label="总览操作">
                 <AdminControlButton
                   label="局部刷新"
                   state={dashboardWriteState}
@@ -534,6 +574,12 @@ export function DashboardPage({
               </section>
             }
           />
+        </section>
+        <section className="admin-dashboard-source-line" aria-label="总览数据来源">
+          <span>数据来源</span>
+          <strong>素材 {dashboardMetricSourceLabel(data.metrics.sources.material)}</strong>
+          <strong>产能 {dashboardMetricSourceLabel(data.metrics.sources.production)}</strong>
+          <strong>使用 {dashboardMetricSourceLabel(data.metrics.sources.usage)}</strong>
         </section>
         <section className={`admin-dashboard-alert is-${report.severity}`} aria-label="当前最重要状态">
           <span className={`admin-status-badge is-${report.severity === "blocked" ? "failed" : report.severity === "attention" ? "warning" : "ready"}`}>
@@ -582,7 +628,7 @@ export function DashboardPage({
                 <AdminControlButton
                   label="局部刷新"
                   state={dashboardWriteState}
-                  reason="刷新当前仪表盘数据。"
+                  reason="刷新当前总览数据。"
                   onClick={onRunSmartScan}
                 />
                 {data.status.failed_video_count > 0 ? (
@@ -725,7 +771,7 @@ export function DashboardPage({
             </div>
           </article>
         </section>
-        <section className="admin-dashboard-grid" aria-label="仪表盘关键指标">
+        <section className="admin-dashboard-grid" aria-label="总览关键指标">
           <DashboardPanel
             title="素材规模"
             rows={[
@@ -863,6 +909,22 @@ export function DashboardPage({
             <dd>卡片局部刷新</dd>
           </div>
         </dl>
+        <AdminInfoGroups
+          groups={[
+            {
+              title: "页面契约",
+              rows: [
+                { label: "主工作区", value: "状态总览" },
+                { label: "辅助区", value: "后台指标" },
+                { label: "首屏来源", value: "library-manifest / admin-settings / supervisor-runtime" },
+                { label: "后台来源", value: "admin-read-model / usage-events / runtime-telemetry" },
+                { label: "扫描模式", value: "不扫描 / 后台状态扫描" },
+                { label: "刷新边界", value: "Shell 首屏可用，指标卡片局部刷新" },
+                { label: "错误边界", value: "Shell 保留，显示加载失败" }
+              ]
+            }
+          ]}
+        />
         <div className="admin-dashboard-note">
           <strong>空状态</strong>
           <p>首次未初始化时只显示设置入口和素材库初始化说明。</p>

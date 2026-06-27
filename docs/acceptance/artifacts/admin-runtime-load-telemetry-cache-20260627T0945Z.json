@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T09:45:20.112Z",
+  "slice": "R.237 Runtime Load Telemetry Cache",
+  "goal": "Avoid repeated synchronous CPU sampling for Admin runtime-load telemetry during the same route-load window while preserving real first-read telemetry and public response data.",
+  "scope": {
+    "phase": "Phase 3 Query/read-model performance with Phase 2 route-loading support",
+    "in_scope": [
+      "Short TTL runtime-load telemetry cache in Admin dashboard read facade",
+      "Pending runtime-load read coalescing per library root",
+      "Focused tests for pending, TTL hit, TTL expiry, library isolation, and cache clear",
+      "Isolated GET-only performance proof against /Volumes/MixLab/PublicLibrary"
+    ],
+    "out_of_scope": [
+      "NAS data mutation",
+      "source-video manifest changes",
+      "read-model schema changes",
+      "scan/apply/reconcile starts",
+      "worker execution",
+      "Docker deployment",
+      "Admin UI layout changes",
+      "Cutter release/index/search protocol changes"
+    ]
+  },
+  "changed_files": [
+    "packages/admin-api/src/admin-dashboard-read-facade.ts",
+    "packages/admin-api/src/admin-dashboard-read-facade.test.ts",
+    "docs/architecture/admin-architecture-v1-next-implementation-plan.md",
+    "docs/architecture/admin-architecture-v1-requirements-traceability.md"
+  ],
+  "implementation": {
+    "cache_ttl_ms": 2000,
+    "cache_key": "library_root",
+    "query_boundary": "createAdminDashboardReadFacade.read_runtime_load_metrics",
+    "preserves_first_read_sampling": true,
+    "coalesces_pending_reads": true,
+    "cleared_by": "clear_dashboard_metrics_cache"
+  },
+  "before_evidence": {
+    "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T093828Z.json",
+    "preprocess_jobs_p95_ms": 490.8,
+    "runtime_load_total_ms": 528,
+    "runtime_load_max_ms": 266,
+    "runtime_load_sample_count": 2,
+    "dashboard_metrics_p95_ms": 939
+  },
+  "after_evidence": {
+    "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T094520Z.json",
+    "isolated_gate_artifact": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T094519Z.json",
+    "preprocess_jobs_p95_ms": 497.8,
+    "preprocess_jobs_cold_ms": 497.8,
+    "preprocess_jobs_warm_ms": 225.4,
+    "runtime_load_total_ms": 273,
+    "runtime_load_max_ms": 273,
+    "runtime_load_warm_ms": 0,
+    "preprocess_job_page_average_ms": 217.5,
+    "dashboard_metrics_p95_ms": 690.4,
+    "failed_endpoint_count": 0,
+    "slow_endpoint_count": 0,
+    "runtime_repair_endpoint_count": 0,
+    "runtime_component_contract_failed_count": 0
+  },
+  "acceptance": {
+    "focused_tests": {
+      "command": "node --test --import tsx packages/admin-api/src/admin-dashboard-read-facade.test.ts packages/admin-api/src/admin-dashboard-read-services.test.ts packages/admin-api/src/admin-runtime-load-query.test.ts packages/admin-api/src/admin-preprocess-jobs-read-facade.test.ts packages/admin-api/src/admin-slow-read-routes.test.ts",
+      "passed": true,
+      "test_count": 17
+    },
+    "isolated_probe": {
+      "command": "MIXLAB_ADMIN_PERF_PROGRESS=true MIXLAB_ADMIN_PERF_WARM_SAMPLES=1 node --import tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
+      "passed": true,
+      "endpoint_count": 20
+    }
+  },
+  "remaining_gaps": [
+    "preprocess_job_page remains about 217ms per sampled request and should be evaluated in the next Query/store slice.",
+    "source-video status routes still do not expose component timings.",
+    "Docker release gates remain blocked until the full release gate sequence passes."
+  ]
+}

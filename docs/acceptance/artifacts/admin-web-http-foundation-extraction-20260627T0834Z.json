@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T08:34:00.000Z",
+  "mode": "admin-web-http-foundation-extraction",
+  "scope": {
+    "phase": "Phase 5 large-file governance and Admin Web API layering",
+    "primary_file": "apps/admin-web/src/api.ts",
+    "new_foundation_module": "apps/admin-web/src/admin-http.ts",
+    "new_test_module": "apps/admin-web/src/admin-http.test.ts"
+  },
+  "boundary_decision": {
+    "moved_to_foundation": [
+      "unwrapAdminResponse",
+      "unwrapAdminResponseWithMeta",
+      "joinUrl",
+      "listQuery",
+      "getJson",
+      "getJsonWithMeta",
+      "sendJson",
+      "deleteJson",
+      "adminAuthHeaders"
+    ],
+    "retained_in_api_ts": [
+      "Admin API type contracts",
+      "real AdminApiClient method assembly",
+      "fixture AdminApiClient",
+      "dashboard data aggregation",
+      "media URL resolution"
+    ],
+    "public_import_compatibility": "`apps/admin-web/src/api.ts` continues to re-export `unwrapAdminResponse`."
+  },
+  "line_anchor_evidence": {
+    "pre_edit_local_probe": {
+      "createAdminApiClient_line": 1679,
+      "loadAdminDashboardData_line": 2879
+    },
+    "post_edit_local_probe": {
+      "createAdminApiClient_line": 1573,
+      "loadAdminDashboardData_line": 2773,
+      "admin_http_line_count": 128,
+      "admin_http_test_line_count": 130
+    },
+    "note": "The repo worktree is dirty from earlier slices, so older audit artifact line counts are not used as a direct baseline. Function anchors show the HTTP helper block was removed from api.ts."
+  },
+  "redundancy_audit": {
+    "artifact_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T083347Z.json",
+    "artifact_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T083347Z.md",
+    "api_ts_line_count": 2836,
+    "files_scanned": 295,
+    "large_file_count": 19,
+    "cleanup_allowed": false,
+    "result": "blocked"
+  },
+  "verification": {
+    "focused_tests": {
+      "command": "node --test --import tsx apps/admin-web/src/admin-http.test.ts apps/admin-web/src/api.test.ts apps/admin-web/src/admin-app.test.ts",
+      "tests": 89,
+      "passed": 89
+    },
+    "redundancy_governance_tests": {
+      "command": "node --test --import tsx scripts/acceptance/admin-redundancy-governance-audit.test.ts",
+      "tests": 3,
+      "passed": 3
+    },
+    "typecheck": {
+      "command": "npm run typecheck -- --pretty false",
+      "status": "pass"
+    }
+  },
+  "non_goals_preserved": [
+    "no endpoint path change",
+    "no request method change",
+    "no response envelope change",
+    "no fixture data/model change",
+    "no UI render change",
+    "no backend Admin API change",
+    "no NAS mutation",
+    "no Docker upload",
+    "no Cutter protocol change"
+  ],
+  "result": {
+    "status": "pass",
+    "summary": "Admin Web HTTP/envelope helpers now live in a foundation module with focused tests, while api.ts preserves the public client contract and existing imports."
+  }
+}

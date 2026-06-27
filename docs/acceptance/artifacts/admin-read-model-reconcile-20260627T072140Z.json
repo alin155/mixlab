@@ -1,0 +1,1801 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T07:21:40.652Z",
+  "command": "tsx scripts/acceptance/admin-read-model-reconcile.ts",
+  "mode": "apply",
+  "api_base_url": "http://127.0.0.1:63178",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "allow_reconcile": true,
+  "force_reconcile": true,
+  "preflight": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "health",
+        "passed": true,
+        "detail": "status=200"
+      },
+      {
+        "name": "auth-status",
+        "passed": true,
+        "detail": "status=200"
+      },
+      {
+        "name": "library-status",
+        "passed": true,
+        "detail": "status=200"
+      },
+      {
+        "name": "read-model-status",
+        "passed": true,
+        "detail": "status=200"
+      },
+      {
+        "name": "reconcile-status",
+        "passed": true,
+        "detail": "status=200"
+      },
+      {
+        "name": "library-root",
+        "passed": true,
+        "detail": "root_path=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+      },
+      {
+        "name": "disk-available",
+        "passed": true,
+        "detail": "disk_available_bytes=681578373120, minimum=1073741824"
+      },
+      {
+        "name": "source-video-status-fresh",
+        "passed": true,
+        "detail": "source-video-status freshness=fresh, persisted=fresh"
+      },
+      {
+        "name": "reconcile-not-running",
+        "passed": true,
+        "detail": "status=idle, phase=idle"
+      },
+      {
+        "name": "reconcile-action-safe",
+        "passed": true,
+        "detail": "action=none, reason=fresh, scan_mode=no-scan"
+      },
+      {
+        "name": "no-manual-review",
+        "passed": true,
+        "detail": "action=none, freshness=fresh"
+      }
+    ]
+  },
+  "before": {
+    "library_status": {
+      "library_id": "lib_main_001",
+      "name": "主素材库",
+      "root_path": "/Volumes/MixLab/PublicLibrary",
+      "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+      "mixlab_library_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+      "protocol_version": "1.0",
+      "version": "1.0",
+      "created_at": "2026-06-24T11:53:43.919Z",
+      "updated_at": "2026-06-25T19:07:13.162Z",
+      "video_count": 11394,
+      "ready_video_count": 10471,
+      "processing_video_count": 0,
+      "queued_video_count": 904,
+      "unprocessed_video_count": 0,
+      "failed_video_count": 0,
+      "index_required_video_count": 19,
+      "disk_total_bytes": 31840459087872,
+      "disk_available_bytes": 681578373120,
+      "index_status": "needs-publish",
+      "current_index_version": "v010471",
+      "active_task_label": "无正在处理任务"
+    },
+    "read_model_status": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-27T07:21:40.729Z",
+      "admin_read_model": {
+        "schema_version": "1.0",
+        "storage": "sqlite",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+        "freshness": "fresh",
+        "exists": true,
+        "generated_at": "2026-06-26T11:21:40.447Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "invalidated_at": "",
+        "invalidation_reason": "",
+        "last_error": "",
+        "reconciliation": {
+          "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "action": "none",
+          "reason": "fresh",
+          "scan_mode": "no-scan",
+          "requires_background_reconcile": false,
+          "safe_for_page_request": true
+        }
+      },
+      "source_video_status": {
+        "name": "source-video-status-read-model-v1",
+        "storage": "persistent-json",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+        "freshness": "fresh",
+        "memory_cache": "fresh",
+        "persisted": "fresh",
+        "generated_at": "2026-06-26T11:21:40.447Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "cache_ttl_ms": 30000
+      }
+    },
+    "reconcile_status": {
+      "schema_version": "1.0",
+      "command": "read-model-reconcile",
+      "status": "idle",
+      "phase": "idle",
+      "scan_mode": "full-reconcile",
+      "cancel_requested": false,
+      "started_at": "",
+      "finished_at": "",
+      "snapshot_video_count": 0,
+      "progress": {
+        "scanned_source_video_count": 0,
+        "total_source_video_count": 0,
+        "preprocess_job_snapshot_count": 0,
+        "total_preprocess_job_snapshot_count": 0,
+        "current_step": "idle",
+        "step_completed_count": 0,
+        "step_total_count": 0,
+        "step_percent": 0,
+        "percent": 0,
+        "message": "读模型后台对账尚未运行。"
+      },
+      "events": [],
+      "message": "读模型后台对账尚未运行。",
+      "result": null,
+      "error_code": "",
+      "error_message": ""
+    }
+  },
+  "action": {
+    "started": true,
+    "accepted": true,
+    "terminal_status": "succeeded",
+    "terminal_phase": "completed",
+    "poll_count": 194,
+    "duration_ms": 241978.6,
+    "start_response": {
+      "accepted": true,
+      "status": {
+        "schema_version": "1.0",
+        "command": "read-model-reconcile",
+        "status": "running",
+        "phase": "starting",
+        "scan_mode": "full-reconcile",
+        "cancel_requested": false,
+        "started_at": "2026-06-27T07:21:40.811Z",
+        "finished_at": "",
+        "snapshot_video_count": 0,
+        "progress": {
+          "scanned_source_video_count": 0,
+          "total_source_video_count": 0,
+          "preprocess_job_snapshot_count": 0,
+          "total_preprocess_job_snapshot_count": 0,
+          "current_step": "starting",
+          "step_completed_count": 0,
+          "step_total_count": 0,
+          "step_percent": 0,
+          "percent": 0,
+          "message": "正在后台对账 admin.sqlite 读模型。"
+        },
+        "events": [
+          {
+            "at": "2026-06-27T07:21:40.811Z",
+            "event_type": "started",
+            "phase": "starting",
+            "message": "正在后台对账 admin.sqlite 读模型。",
+            "scanned_source_video_count": 0,
+            "total_source_video_count": 0,
+            "preprocess_job_snapshot_count": 0,
+            "total_preprocess_job_snapshot_count": 0,
+            "current_step": "starting",
+            "step_completed_count": 0,
+            "step_total_count": 0,
+            "step_percent": 0
+          }
+        ],
+        "message": "正在后台对账 admin.sqlite 读模型。",
+        "result": null,
+        "error_code": "",
+        "error_message": ""
+      }
+    },
+    "terminal_response": {
+      "schema_version": "1.0",
+      "command": "read-model-reconcile",
+      "status": "succeeded",
+      "phase": "completed",
+      "scan_mode": "full-reconcile",
+      "cancel_requested": false,
+      "started_at": "2026-06-27T07:21:40.811Z",
+      "finished_at": "2026-06-27T07:25:41.948Z",
+      "snapshot_video_count": 11394,
+      "progress": {
+        "scanned_source_video_count": 11394,
+        "total_source_video_count": 11394,
+        "preprocess_job_snapshot_count": 11394,
+        "total_preprocess_job_snapshot_count": 11394,
+        "current_step": "completed",
+        "step_completed_count": 11394,
+        "step_total_count": 11394,
+        "step_percent": 100,
+        "percent": 100,
+        "message": "已从 11394 条 manifest 快照重建 admin.sqlite。"
+      },
+      "events": [
+        {
+          "at": "2026-06-27T07:24:48.008Z",
+          "event_type": "progress",
+          "phase": "scanning",
+          "message": "已读取 11200/11394 条 preprocess job 快照。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11200,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "preprocess-job-snapshots",
+          "step_completed_count": 11200,
+          "step_total_count": 11394,
+          "step_percent": 98
+        },
+        {
+          "at": "2026-06-27T07:24:48.446Z",
+          "event_type": "progress",
+          "phase": "scanning",
+          "message": "已读取 11264/11394 条 preprocess job 快照。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11264,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "preprocess-job-snapshots",
+          "step_completed_count": 11264,
+          "step_total_count": 11394,
+          "step_percent": 99
+        },
+        {
+          "at": "2026-06-27T07:24:48.860Z",
+          "event_type": "progress",
+          "phase": "scanning",
+          "message": "已读取 11328/11394 条 preprocess job 快照。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11328,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "preprocess-job-snapshots",
+          "step_completed_count": 11328,
+          "step_total_count": 11394,
+          "step_percent": 99
+        },
+        {
+          "at": "2026-06-27T07:24:49.345Z",
+          "event_type": "progress",
+          "phase": "scanning",
+          "message": "已读取 11392/11394 条 preprocess job 快照。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11392,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "preprocess-job-snapshots",
+          "step_completed_count": 11392,
+          "step_total_count": 11394,
+          "step_percent": 100
+        },
+        {
+          "at": "2026-06-27T07:24:49.388Z",
+          "event_type": "progress",
+          "phase": "scanning",
+          "message": "已读取 11394/11394 条 preprocess job 快照。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11394,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "preprocess-job-snapshots",
+          "step_completed_count": 11394,
+          "step_total_count": 11394,
+          "step_percent": 100
+        },
+        {
+          "at": "2026-06-27T07:24:49.388Z",
+          "event_type": "progress",
+          "phase": "scanning",
+          "message": "已读取 11394 条 source-video manifest 快照。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11394,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "source-video-manifests",
+          "step_completed_count": 11394,
+          "step_total_count": 11394,
+          "step_percent": 100
+        },
+        {
+          "at": "2026-06-27T07:24:49.388Z",
+          "event_type": "progress",
+          "phase": "writing",
+          "message": "正在写入 admin.sqlite 读模型。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11394,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "writing",
+          "step_completed_count": 0,
+          "step_total_count": 1,
+          "step_percent": 0
+        },
+        {
+          "at": "2026-06-27T07:25:41.948Z",
+          "event_type": "succeeded",
+          "phase": "completed",
+          "message": "已从 11394 条 manifest 快照重建 admin.sqlite。",
+          "scanned_source_video_count": 11394,
+          "total_source_video_count": 11394,
+          "preprocess_job_snapshot_count": 11394,
+          "total_preprocess_job_snapshot_count": 11394,
+          "current_step": "completed",
+          "step_completed_count": 11394,
+          "step_total_count": 11394,
+          "step_percent": 100
+        }
+      ],
+      "message": "已从 11394 条 manifest 快照重建 admin.sqlite。",
+      "result": {
+        "applied": true,
+        "reason": "rebuilt",
+        "snapshot_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "source_video_id": ""
+      },
+      "error_code": "",
+      "error_message": ""
+    }
+  },
+  "after": {
+    "library_status": {
+      "library_id": "lib_main_001",
+      "name": "主素材库",
+      "root_path": "/Volumes/MixLab/PublicLibrary",
+      "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+      "mixlab_library_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+      "protocol_version": "1.0",
+      "version": "1.0",
+      "created_at": "2026-06-24T11:53:43.919Z",
+      "updated_at": "2026-06-25T19:07:13.162Z",
+      "video_count": 11394,
+      "ready_video_count": 10471,
+      "processing_video_count": 0,
+      "queued_video_count": 904,
+      "unprocessed_video_count": 0,
+      "failed_video_count": 0,
+      "index_required_video_count": 19,
+      "disk_total_bytes": 31840459087872,
+      "disk_available_bytes": 681574305792,
+      "index_status": "needs-publish",
+      "current_index_version": "v010471",
+      "active_task_label": "无正在处理任务"
+    },
+    "read_model_status": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-27T07:26:27.544Z",
+      "admin_read_model": {
+        "schema_version": "1.0",
+        "storage": "sqlite",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+        "freshness": "fresh",
+        "exists": true,
+        "generated_at": "2026-06-27T07:26:00.815Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "invalidated_at": "",
+        "invalidation_reason": "",
+        "last_error": "",
+        "reconciliation": {
+          "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "action": "none",
+          "reason": "fresh",
+          "scan_mode": "no-scan",
+          "requires_background_reconcile": false,
+          "safe_for_page_request": true
+        }
+      },
+      "source_video_status": {
+        "name": "source-video-status-read-model-v1",
+        "storage": "persistent-json",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+        "freshness": "fresh",
+        "memory_cache": "fresh",
+        "persisted": "fresh",
+        "generated_at": "2026-06-27T07:26:00.815Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 904,
+          "processing": 0,
+          "ready": 10471,
+          "failed": 0,
+          "index-required": 19
+        },
+        "cache_ttl_ms": 30000
+      }
+    },
+    "operation_log": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-27T07:26:27.769Z",
+      "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/operation-log/events.ndjson",
+      "events": [
+        {
+          "schema_version": "1.0",
+          "event_id": "4b0eb7e2-b235-43b4-9fbf-39ac5a41826e",
+          "occurred_at": "2026-06-27T07:25:41.948Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "succeeded",
+          "message": "已从 11394 条 manifest 快照重建 admin.sqlite。",
+          "details": {
+            "phase": "completed",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "86f596c1-b7cd-48bc-a2e7-0ebe154b8cd4",
+          "occurred_at": "2026-06-27T07:21:40.811Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "succeeded",
+          "message": "Admin command read-model-reconcile succeeded.",
+          "details": {
+            "command": "read-model-reconcile",
+            "holder": "admin-api:66998",
+            "actor": {
+              "kind": "system",
+              "source": "system-task",
+              "label": "后台读模型对账"
+            },
+            "lease_reason": "read-model-reconcile",
+            "method": "POST",
+            "scope": "library",
+            "scan_mode": "full-reconcile",
+            "requires_scan_preview": false,
+            "requires_inactive_supervisor": false,
+            "invalidates_source_video_read_model": true,
+            "mutation_targets": [
+              "read-model-cache"
+            ],
+            "read_model_invalidation": {
+              "invalidates_source_video_read_model": true,
+              "requires_read_model_reconcile": false,
+              "reason": "read-model-rebuild"
+            },
+            "command_snapshot": {
+              "created": true,
+              "reason": "created",
+              "snapshot_kind": "metadata-only",
+              "rollback_status": "not-implemented",
+              "snapshot_id": "7973cf96-9f03-4298-a571-cabf9a9403b1",
+              "manifest_relative_path": ".mixlab-library/admin/command-snapshots/2026-06-27T07-21-40.811Z-read-model-reconcile-7973cf96-9f03-4298-a571-cabf9a9403b1/snapshot.json",
+              "requested_file_count": 0,
+              "captured_file_count": 0,
+              "missing_file_count": 0,
+              "skipped_file_count": 0,
+              "failed_file_count": 0
+            }
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "b140c452-5194-475e-88fc-0b4bd5c5c35c",
+          "occurred_at": "2026-06-27T07:24:49.388Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11394 条 source-video manifest 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "ff6f4712-e3ec-4227-a460-8ce654df3354",
+          "occurred_at": "2026-06-27T07:24:49.388Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11394/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "6658d201-684b-405d-a6c9-e07c13e338cb",
+          "occurred_at": "2026-06-27T07:24:49.388Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "正在写入 admin.sqlite 读模型。",
+          "details": {
+            "phase": "writing",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "49f77833-0138-4e27-8acf-d7c09a720ccb",
+          "occurred_at": "2026-06-27T07:24:49.345Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11392/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "7db4e11e-a81a-4d74-b203-1dbe7025bd5b",
+          "occurred_at": "2026-06-27T07:24:48.860Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11328/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "0b978671-f5b0-4550-9b7f-0edc2b60c797",
+          "occurred_at": "2026-06-27T07:24:48.446Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11264/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "96ed250f-7997-413b-980e-5dab9cac3a9a",
+          "occurred_at": "2026-06-27T07:24:48.008Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11200/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "cfb0e25d-c669-4a29-a517-226538e93362",
+          "occurred_at": "2026-06-27T07:24:47.592Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11136/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "2038a6be-1bdb-4031-b14c-7764c6b98a41",
+          "occurred_at": "2026-06-27T07:24:47.169Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11072/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "4bf6c2f6-fd3b-4dcc-a522-abb63185ab65",
+          "occurred_at": "2026-06-27T07:24:46.766Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 11008/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "e93686c8-17f7-46ce-b4f3-e5b10329bb07",
+          "occurred_at": "2026-06-27T07:24:45.893Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10944/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "db54a15f-6ae4-4072-9fea-52c766c68bf3",
+          "occurred_at": "2026-06-27T07:24:42.766Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10880/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "17b7c4ba-ddbf-42ba-82ad-d4f5483ef44a",
+          "occurred_at": "2026-06-27T07:24:40.934Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10816/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "75879cd5-6b00-41ab-a62b-947fb10c8e75",
+          "occurred_at": "2026-06-27T07:24:39.453Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10752/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "44d09e09-d793-4976-ae2a-999bc710e738",
+          "occurred_at": "2026-06-27T07:24:39.075Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10688/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "f637e1ef-cc5f-4fbf-b5a9-6dc0ab8eb558",
+          "occurred_at": "2026-06-27T07:24:38.671Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10624/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "4ee153fb-97e7-4cd3-8abf-1c4d8cf45ac6",
+          "occurred_at": "2026-06-27T07:24:38.286Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10560/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        },
+        {
+          "schema_version": "1.0",
+          "event_id": "132e7b58-b795-49e2-91c3-b0909388cf3b",
+          "occurred_at": "2026-06-27T07:24:37.904Z",
+          "area": "read-model",
+          "action": "read-model-reconcile",
+          "event_type": "progress",
+          "message": "已读取 10496/11394 条 preprocess job 快照。",
+          "details": {
+            "phase": "scanning",
+            "scanned_source_video_count": 11394,
+            "total_source_video_count": 11394
+          }
+        }
+      ],
+      "limit": 20,
+      "total_line_count": 236,
+      "malformed_line_count": 0,
+      "truncated": true,
+      "read_mode": "full-file",
+      "cache_status": "miss",
+      "complete": true,
+      "refresh_in_progress": false
+    },
+    "probes": [
+      {
+        "name": "source_videos_index_required",
+        "request": {
+          "method": "GET",
+          "path": "/api/admin/source-videos?status=index-required&limit=20",
+          "duration_ms": 341.2,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 7845,
+          "data": [
+            {
+              "source_video_id": "V000170",
+              "title": "C1193",
+              "file_name": "C1193.MP4",
+              "relative_path": "王牧笛/2024年素材/牧笛私董会合集20248.03-8.04/803/C1193.MP4",
+              "cover_url": "/api/admin/source-videos/V000170/cover",
+              "duration_ms": 1001,
+              "file_size": 33821332,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V002204",
+              "title": "C0430",
+              "file_name": "C0430.MP4",
+              "relative_path": "陶矜/（30）广州站/出奇守正破局重塑/29号花絮/C0430.MP4",
+              "cover_url": "/api/admin/source-videos/V002204/cover",
+              "duration_ms": 1005,
+              "file_size": 8392798,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V003906",
+              "title": "C0111",
+              "file_name": "C0111.MP4",
+              "relative_path": "陶矜2/2023年素材/20231015上海陶矜/10.13/花絮/C0111.MP4",
+              "cover_url": "/api/admin/source-videos/V003906/cover",
+              "duration_ms": 480,
+              "file_size": 4198128,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V004084",
+              "title": "C0286",
+              "file_name": "C0286.mov",
+              "relative_path": "陶矜2/2023年素材/20231015上海陶矜/10.14/花絮/C0286.mov",
+              "cover_url": "/api/admin/source-videos/V004084/cover",
+              "duration_ms": 480,
+              "file_size": 3662830,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V004085",
+              "title": "C0287",
+              "file_name": "C0287.mov",
+              "relative_path": "陶矜2/2023年素材/20231015上海陶矜/10.14/花絮/C0287.mov",
+              "cover_url": "/api/admin/source-videos/V004085/cover",
+              "duration_ms": 480,
+              "file_size": 3647325,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V004831",
+              "title": "C3013",
+              "file_name": "C3013.MP4",
+              "relative_path": "陶矜2/2023年素材/2310深圳/陶矜股权深圳站/花絮视频/21号/C3013.MP4",
+              "cover_url": "/api/admin/source-videos/V004831/cover",
+              "duration_ms": 1001,
+              "file_size": 33821340,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V005853",
+              "title": "C0054",
+              "file_name": "C0054.MP4",
+              "relative_path": "陶矜2/2024年素材/1.3-口播/！口播—黑色T/C0054.MP4",
+              "cover_url": "/api/admin/source-videos/V005853/cover",
+              "duration_ms": 480,
+              "file_size": 4198127,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V006307",
+              "title": "C0056",
+              "file_name": "C0056.MP4",
+              "relative_path": "陶矜2/2024年素材/240504口播（黑碎卷发）/C0056.MP4",
+              "cover_url": "/api/admin/source-videos/V006307/cover",
+              "duration_ms": 1005,
+              "file_size": 4198459,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V006445",
+              "title": "C8105",
+              "file_name": "C8105.MP4",
+              "relative_path": "陶矜2/2024年素材/240817-18-北京/8.18课程视频/C8105.MP4",
+              "cover_url": "/api/admin/source-videos/V006445/cover",
+              "duration_ms": 1005,
+              "file_size": 8393300,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V007422",
+              "title": "C0985",
+              "file_name": "C0985.MP4",
+              "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第一天/CLIP/C0985.MP4",
+              "cover_url": "/api/admin/source-videos/V007422/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V007434",
+              "title": "C0998",
+              "file_name": "C0998.MP4",
+              "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第一天/CLIP/C0998.MP4",
+              "cover_url": "/api/admin/source-videos/V007434/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V007813",
+              "title": "C2165",
+              "file_name": "C2165.MP4",
+              "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第三天/CLIP/C2165.MP4",
+              "cover_url": "/api/admin/source-videos/V007813/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V008307",
+              "title": "C1453",
+              "file_name": "C1453.MP4",
+              "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第二天/CLIP/C1453.MP4",
+              "cover_url": "/api/admin/source-videos/V008307/cover",
+              "duration_ms": 960,
+              "file_size": 33690075,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V008415",
+              "title": "C1565",
+              "file_name": "C1565.MP4",
+              "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第二天/CLIP/C1565.MP4",
+              "cover_url": "/api/admin/source-videos/V008415/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V008946",
+              "title": "C0231",
+              "file_name": "C0231.MP4",
+              "relative_path": "陶矜2/2025年素材/250411-13北京/C0231.MP4",
+              "cover_url": "/api/admin/source-videos/V008946/cover",
+              "duration_ms": 960,
+              "file_size": 67252717,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V009342",
+              "title": "C7567",
+              "file_name": "C7567.MP4",
+              "relative_path": "陶矜2/2025年素材/花絮/花絮1/CLIP/C7567.MP4",
+              "cover_url": "/api/admin/source-videos/V009342/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V009797",
+              "title": "C8055",
+              "file_name": "C8055.MP4",
+              "relative_path": "陶矜2/2025年素材/花絮/花絮3/CLIP/C8055.MP4",
+              "cover_url": "/api/admin/source-videos/V009797/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V009907",
+              "title": "C8178",
+              "file_name": "C8178.MP4",
+              "relative_path": "陶矜2/2025年素材/花絮/花絮3/CLIP/C8178.MP4",
+              "cover_url": "/api/admin/source-videos/V009907/cover",
+              "duration_ms": 960,
+              "file_size": 33689996,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            },
+            {
+              "source_video_id": "V010013",
+              "title": "C7089",
+              "file_name": "C7089.MP4",
+              "relative_path": "陶矜2/2025年素材/陶矜2503杭州/3.29-3.30外请摄像录课/3.30/C7089.MP4",
+              "cover_url": "/api/admin/source-videos/V010013/cover",
+              "duration_ms": 1001,
+              "file_size": 33690260,
+              "preprocess_status": "index-required",
+              "visible_to_cutters": false,
+              "tags": [],
+              "description": "",
+              "lecturer": "",
+              "course": "",
+              "category": "",
+              "updated_at": ""
+            }
+          ]
+        }
+      },
+      {
+        "name": "source_videos_queued",
+        "request": {
+          "method": "GET",
+          "path": "/api/admin/source-videos?status=queued&limit=20",
+          "duration_ms": 15002.3,
+          "http_status": null,
+          "ok": false,
+          "api_ok": null,
+          "response_bytes": 0,
+          "data": null,
+          "error_code": "timeout",
+          "message": "This operation was aborted"
+        }
+      },
+      {
+        "name": "preprocess_jobs",
+        "request": {
+          "method": "GET",
+          "path": "/api/admin/preprocess/jobs?limit=20",
+          "duration_ms": 15003.3,
+          "http_status": null,
+          "ok": false,
+          "api_ok": null,
+          "response_bytes": 0,
+          "data": null,
+          "error_code": "timeout",
+          "message": "This operation was aborted"
+        }
+      },
+      {
+        "name": "process_history_readiness",
+        "request": {
+          "method": "GET",
+          "path": "/api/admin/preprocess/process-history/readiness",
+          "duration_ms": 351,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 789,
+          "data": {
+            "source": "admin-read-model-store",
+            "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+            "store_exists": true,
+            "store_freshness": "fresh",
+            "generated_at": "2026-06-27T07:26:00.815Z",
+            "library_updated_at": "2026-06-25T19:07:13.162Z",
+            "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+            "scan_mode": "no-scan",
+            "ready_for_process_history": true,
+            "reason": "ready",
+            "expected_job_snapshot_rows": 11394,
+            "snapshot_complete": true,
+            "snapshot_metadata_row_count": 11394,
+            "snapshot_table_row_count": 11394,
+            "metadata_row_count_matches": true,
+            "table_row_count_matches": true,
+            "last_error": "",
+            "schema_version": "1.0",
+            "checked_at": "2026-06-27T07:26:58.506Z",
+            "data_source": "admin-read-model",
+            "actual_data_source": "admin-read-model",
+            "scan_reason": "read-model-health"
+          }
+        }
+      },
+      {
+        "name": "process_history",
+        "request": {
+          "method": "GET",
+          "path": "/api/admin/preprocess/process-history?limit=20&window_days=30",
+          "duration_ms": 3037.5,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 10109,
+          "data": {
+            "schema_version": "1.0",
+            "generated_at": "2026-06-27T07:26:00.815Z",
+            "library_updated_at": "2026-06-25T19:07:13.162Z",
+            "data_source": "admin-read-model",
+            "actual_data_source": "admin-read-model",
+            "cache_status": "hit",
+            "scan_mode": "no-scan",
+            "scan_reason": "route-owned-page",
+            "history_available": true,
+            "window_days": 30,
+            "limit": 20,
+            "filters": {
+              "source_folder_name": "",
+              "preprocess_status": "",
+              "event_type": ""
+            },
+            "filter_options": {
+              "source_folder_names": [
+                "未归类",
+                "陶矜2",
+                "陶矜",
+                "王牧笛",
+                "陈永亮"
+              ],
+              "preprocess_statuses": [
+                "queued",
+                "ready",
+                "index-required"
+              ],
+              "event_types": [
+                "indexed",
+                "completed",
+                "claimed"
+              ]
+            },
+            "summary": {
+              "returned_count": 20,
+              "completed_count": 0,
+              "failed_count": 0,
+              "active_count": 20,
+              "average_process_ms": 0,
+              "tracked_count": 10080,
+              "tracked_completed_count": 9176,
+              "tracked_failed_count": 0,
+              "tracked_active_count": 904,
+              "tracked_average_process_ms": 22058,
+              "window_start_at": "2026-05-28T07:26:58.509Z",
+              "newest_event_at": "2026-06-25T18:57:33.378Z",
+              "oldest_event_at": "2026-05-26T13:34:34.433Z",
+              "status_counts": {
+                "unprocessed": 0,
+                "queued": 904,
+                "processing": 0,
+                "ready": 9157,
+                "failed": 0,
+                "index-required": 19
+              },
+              "event_counts": {
+                "failed": 0,
+                "indexed": 9157,
+                "completed": 19,
+                "claimed": 904,
+                "status": 0
+              },
+              "source_folder_summaries": [
+                {
+                  "source_folder_name": "未归类",
+                  "tracked_count": 9157,
+                  "completed_count": 9157,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 22089,
+                  "newest_event_at": "2026-06-21T19:12:11.959Z"
+                },
+                {
+                  "source_folder_name": "陶矜2",
+                  "tracked_count": 661,
+                  "completed_count": 17,
+                  "failed_count": 0,
+                  "active_count": 644,
+                  "average_process_ms": 7056,
+                  "newest_event_at": "2026-06-24T12:49:15.282Z"
+                },
+                {
+                  "source_folder_name": "陶矜",
+                  "tracked_count": 197,
+                  "completed_count": 1,
+                  "failed_count": 0,
+                  "active_count": 196,
+                  "average_process_ms": 6920,
+                  "newest_event_at": "2026-06-24T12:49:15.282Z"
+                },
+                {
+                  "source_folder_name": "王牧笛",
+                  "tracked_count": 54,
+                  "completed_count": 1,
+                  "failed_count": 0,
+                  "active_count": 53,
+                  "average_process_ms": 7983,
+                  "newest_event_at": "2026-06-24T12:49:15.282Z"
+                },
+                {
+                  "source_folder_name": "陈永亮",
+                  "tracked_count": 11,
+                  "completed_count": 0,
+                  "failed_count": 0,
+                  "active_count": 11,
+                  "average_process_ms": 0,
+                  "newest_event_at": "2026-06-25T18:57:33.378Z"
+                }
+              ],
+              "daily_trend": [
+                {
+                  "date": "2026-06-25",
+                  "tracked_count": 1,
+                  "completed_count": 0,
+                  "failed_count": 0,
+                  "active_count": 1,
+                  "average_process_ms": 0
+                },
+                {
+                  "date": "2026-06-24",
+                  "tracked_count": 903,
+                  "completed_count": 0,
+                  "failed_count": 0,
+                  "active_count": 903,
+                  "average_process_ms": 0
+                },
+                {
+                  "date": "2026-06-21",
+                  "tracked_count": 229,
+                  "completed_count": 229,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 17155
+                },
+                {
+                  "date": "2026-06-20",
+                  "tracked_count": 277,
+                  "completed_count": 277,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 24159
+                },
+                {
+                  "date": "2026-06-19",
+                  "tracked_count": 294,
+                  "completed_count": 294,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 35342
+                },
+                {
+                  "date": "2026-06-18",
+                  "tracked_count": 304,
+                  "completed_count": 304,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 42161
+                },
+                {
+                  "date": "2026-06-17",
+                  "tracked_count": 313,
+                  "completed_count": 313,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 39770
+                },
+                {
+                  "date": "2026-06-16",
+                  "tracked_count": 370,
+                  "completed_count": 370,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 8088
+                },
+                {
+                  "date": "2026-06-15",
+                  "tracked_count": 356,
+                  "completed_count": 356,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 9074
+                },
+                {
+                  "date": "2026-06-14",
+                  "tracked_count": 372,
+                  "completed_count": 372,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 30928
+                },
+                {
+                  "date": "2026-06-13",
+                  "tracked_count": 398,
+                  "completed_count": 398,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 8262
+                },
+                {
+                  "date": "2026-06-12",
+                  "tracked_count": 387,
+                  "completed_count": 387,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 8026
+                },
+                {
+                  "date": "2026-06-11",
+                  "tracked_count": 418,
+                  "completed_count": 418,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 10390
+                },
+                {
+                  "date": "2026-06-10",
+                  "tracked_count": 454,
+                  "completed_count": 454,
+                  "failed_count": 0,
+                  "active_count": 0,
+                  "average_process_ms": 19822
+                }
+              ]
+            },
+            "items": [
+              {
+                "source_video_id": "V001440",
+                "title": "C0018",
+                "preprocess_status": "queued",
+                "source_folder_name": "陈永亮",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-25T18:57:33.378Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-25T18:57:33.378Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011146",
+                "title": "新口播-2024-03-19_14-09-13",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011145",
+                "title": "新口播-2024-03-19_11-51-52",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011143",
+                "title": "C0030",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011142",
+                "title": "C0029",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011104",
+                "title": "MVI_9768",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011093",
+                "title": "直播回放-01月28日",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011023",
+                "title": "C0732",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011022",
+                "title": "C0731",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011021",
+                "title": "C0730",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V011020",
+                "title": "C0729",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010972",
+                "title": "C0680",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010953",
+                "title": "C0661",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010952",
+                "title": "C0660",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010951",
+                "title": "C0659",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010950",
+                "title": "C0658",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010949",
+                "title": "C0656",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010948",
+                "title": "C0655",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010947",
+                "title": "C0654",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              },
+              {
+                "source_video_id": "V010946",
+                "title": "C0653",
+                "preprocess_status": "queued",
+                "source_folder_name": "陶矜2",
+                "visible_to_cutters": false,
+                "claimed_at": "2026-06-24T12:49:15.282Z",
+                "completed_at": "",
+                "indexed_at": "",
+                "failed_at": "",
+                "last_event_at": "2026-06-24T12:49:15.282Z",
+                "last_event_type": "claimed",
+                "elapsed_ms": 0
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "invariants": [
+    {
+      "name": "library-total-count-unchanged",
+      "passed": true,
+      "detail": "before=11394, after=11394"
+    },
+    {
+      "name": "library-ready-count-unchanged",
+      "passed": true,
+      "detail": "before=10471, after=10471"
+    },
+    {
+      "name": "library-updated-at-unchanged",
+      "passed": true,
+      "detail": "before=2026-06-25T19:07:13.162Z, after=2026-06-25T19:07:13.162Z"
+    },
+    {
+      "name": "current-index-version-unchanged",
+      "passed": true,
+      "detail": "before=v010471, after=v010471"
+    },
+    {
+      "name": "source-video-status-remains-fresh",
+      "passed": true,
+      "detail": "freshness=fresh"
+    },
+    {
+      "name": "reconcile-terminal-success",
+      "passed": true,
+      "detail": "terminal_status=succeeded"
+    },
+    {
+      "name": "admin-read-model-fresh",
+      "passed": true,
+      "detail": "freshness=fresh"
+    },
+    {
+      "name": "admin-read-model-safe-for-page",
+      "passed": true,
+      "detail": "safe_for_page_request=true"
+    },
+    {
+      "name": "admin-read-model-no-scan",
+      "passed": true,
+      "detail": "scan_mode=no-scan"
+    },
+    {
+      "name": "admin-read-model-counts-match-library",
+      "passed": true,
+      "detail": "store_total=11394, library_total=11394"
+    },
+    {
+      "name": "operation-log-readable",
+      "passed": true,
+      "detail": "status=200"
+    },
+    {
+      "name": "post-probes-pass",
+      "passed": false,
+      "detail": "source_videos_index_required:ok, source_videos_queued:timeout, preprocess_jobs:timeout, process_history_readiness:ok, process_history:ok"
+    },
+    {
+      "name": "process-history-readiness-ready",
+      "passed": true,
+      "detail": "ready=true, reason=ready"
+    },
+    {
+      "name": "process-history-no-scan-hit",
+      "passed": true,
+      "detail": "history_available=true, source=admin-read-model, scan_mode=no-scan"
+    }
+  ],
+  "result": {
+    "passed": false,
+    "status": "failed",
+    "summary": "One or more reconcile gates failed. Inspect preflight, terminal status, and invariants."
+  }
+}

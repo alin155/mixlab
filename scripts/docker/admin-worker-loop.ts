@@ -37,6 +37,12 @@ async function refreshRuntimeSecrets(): Promise<void> {
 logEvent({
   event: "admin-worker-loop-started",
   intervalSeconds,
+  libraryRoot: optionalTrimmed(process.env.MIXLAB_PREPROCESS_LIBRARY_ROOT)
+    ?? optionalTrimmed(process.env.MIXLAB_ADMIN_LIBRARY_ROOT)
+    ?? "",
+  buildSha: optionalTrimmed(process.env.MIXLAB_BUILD_SHA) ?? optionalTrimmed(process.env.GITHUB_SHA) ?? "local",
+  buildVersion: optionalTrimmed(process.env.MIXLAB_BUILD_VERSION) ?? "local",
+  imageTag: optionalTrimmed(process.env.MIXLAB_IMAGE_TAG) ?? "",
 });
 
 while (true) {

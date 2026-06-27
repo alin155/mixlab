@@ -59,6 +59,7 @@
   - `127.0.0.1:5176`：管理端 Web。
 - Windows IP 可能因 DHCP 变化而改变。Codex 远程调用 Runner 前，应重新验证 `http://<Windows-LAN-IP>:3799/health`。
 - Mac 当前 shell 可能设置了 `http_proxy=http://127.0.0.1:1087`。访问局域网 Runner 时必须绕过代理，例如使用 `curl --noproxy '*'`。
+- 2026-06-27 UTC，Mac 侧 GET-only 观察 NAS 管理端候选入口：`http://192.168.1.27:8080/` 连接失败；`http://192.168.1.27:18080/` 返回 nginx `HTTP 200`，并通过 `/api/admin/library/status` 读到 NAS Docker 路径 `/data/PublicLibrary`、`11394` 总视频、`10471` ready、当前索引 `v010471`。同一只读探测显示 NAS 当前部署仍是旧管理端 API：`/api/admin/auth/status`、`/api/admin/release-gates`、`/api/admin/data-loading/plan` 返回 `404`，磁盘约 `98%` 且 `status=blocked`。证据：`docs/acceptance/artifacts/admin-docker-release-live-readonly-20260627T154159Z.json`。
 - 需要确认：当前正式 NAS 公共素材库根目录。代码和文档里存在多个候选路径，实际测试必须以当前启动环境变量和 Doctor 结果为准。
 
 ## 仓库与共享目录
@@ -88,6 +89,8 @@
 | 3789 | Mac 或 Windows | 剪辑端 API / Desktop sidecar | Web 调试和 Windows 桌面端都使用这个 API 端口，但 `127.0.0.1` 视角不同。 |
 | 3790 | Mac 或 Windows | searchd | 剪辑端搜索服务。 |
 | 3799 | Windows | Windows Test Runner | Windows 本机健康检查：`http://127.0.0.1:3799/health`。Mac 当前远程调用地址：`http://192.168.1.20:3799`，如 DHCP 变化需重验。 |
+| 18080 | NAS | 管理端 Web 当前只读观测入口 | 2026-06-27 UTC 从 Mac 侧 `curl --noproxy '*' -I http://192.168.1.27:18080/` 返回 `HTTP 200`；当前为旧管理端 API，不能作为新版 Docker 发布通过证据。 |
+| 8080 | NAS | 管理端 Web Compose 默认端口 | `deploy/nas/mixlab/.env.example` 默认 `MIXLAB_ADMIN_WEB_PORT=8080`，但 2026-06-27 UTC 从 Mac 侧连接 `192.168.1.27:8080` 失败；实际端口以 NAS `.env` 和只读探测为准。 |
 | 8898 | Mac | 管理端静态视觉参考 | 只作为设计参考页，不是正式产品运行时。 |
 | 5173 | Tauri dev | Cutter Web devUrl | `apps/cutter-desktop/src-tauri/tauri.conf.json` 的开发模式地址。 |
 

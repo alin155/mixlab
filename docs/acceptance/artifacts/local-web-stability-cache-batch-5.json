@@ -1,0 +1,443 @@
+{
+  "status": "passed",
+  "generated_at": "2026-06-14T17:19:19.793Z",
+  "config": {
+    "iterations": 6,
+    "cut_every": 3,
+    "queries": [
+      "第一场"
+    ],
+    "api_sla_ms": 1000,
+    "search_p95_sla_ms": 500,
+    "detail_p95_sla_ms": 1000,
+    "cut_sla_ms": 10000,
+    "route_sla_ms": 1000
+  },
+  "endpoints": {
+    "admin_status_ms": 137,
+    "cutter_health_ms": 6,
+    "searchd_health_ms": 6
+  },
+  "initial_runtime": {
+    "mode": "api",
+    "mode_label": "真实 Cutter API 模式",
+    "api_ready": true,
+    "generated_at": "2026-06-14T17:19:14.785Z",
+    "library_id": "lib_main_001",
+    "library_root_label": "PublicLibrary",
+    "library_root_path": "/Volumes/MixLab/PublicLibrary",
+    "available_video_count": 7950,
+    "workspace_enabled": true,
+    "workspace_root_label": "MixLabLocal",
+    "workspace_root_path": "/Users/huaqihang/Movies/MixLabLocal",
+    "local_clip_count": 137,
+    "ffmpeg_status": "可用",
+    "ffmpeg_source": "内置",
+    "local_runtime": {
+      "cpu_usage_percent": 17,
+      "disk_io_bytes_per_second": 3533701
+    },
+    "search_backend": {
+      "mode": "searchd",
+      "preferred_mode": "searchd",
+      "label": "本地 searchd",
+      "healthy": true,
+      "degraded": false,
+      "index_version": "v007950",
+      "source_video_count": 7950,
+      "segment_count": 684281,
+      "response_ms": 2,
+      "message": "本地 Tantivy 搜索索引可用"
+    },
+    "release_cache": {
+      "enabled": true,
+      "ready": true,
+      "sync_status": "ready",
+      "active_release_version": "v007950",
+      "source_release_version": "v007950",
+      "search_index_version": "v007950",
+      "ready_video_count": 7950,
+      "cached_release_versions": [
+        "v007940",
+        "v007950"
+      ],
+      "cached_release_count": 2,
+      "max_cached_releases": 2,
+      "cache_size_bytes": 2219627612,
+      "pruned_release_versions": [],
+      "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache",
+      "catalog_file_path": "/Users/huaqihang/Movies/MixLabLocal/cache/.mixlab-library/releases/v007950/catalog.sqlite",
+      "message": "本机 Release 已是最新"
+    },
+    "local_cache": {
+      "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache",
+      "thumbnail_cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache/source-thumbnails",
+      "thumbnail_cache_manifest_path": "/Users/huaqihang/Movies/MixLabLocal/cache/source-thumbnails/.manifest.json",
+      "thumbnail_cache_size_bytes": 3428776,
+      "thumbnail_cache_max_bytes": 536870912,
+      "thumbnail_cache_manifest_entry_count": 2,
+      "thumbnail_cache_checksum_entry_count": 2,
+      "cut_temp_cache": {
+        "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache/cut-temp",
+        "max_bytes": 4294967296,
+        "size_bytes": 0,
+        "file_count": 0
+      }
+    },
+    "source_video_preflight": {
+      "status": "ready",
+      "checked_count": 3,
+      "readable_count": 3,
+      "probe_count": 3,
+      "probe_readable_count": 3,
+      "sample_count": 3,
+      "samples": [
+        {
+          "source_video_id": "V000001",
+          "title": "1.房产置换与资产优化",
+          "source_video_file_path": "/Volumes/MixLab/PublicLibrary/source-videos/王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/1.房产置换与资产优化.mp4",
+          "readable": true,
+          "file_size": 666539381,
+          "media_probe": {
+            "checked": true,
+            "ok": true,
+            "duration_ms": 516980,
+            "width": 1920,
+            "height": 1080,
+            "codec": "h264",
+            "reason": "FFprobe 可解析"
+          },
+          "reason": "可读取"
+        },
+        {
+          "source_video_id": "V000002",
+          "title": "2.比特币暴涨与投资多元化",
+          "source_video_file_path": "/Volumes/MixLab/PublicLibrary/source-videos/王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/2.比特币暴涨与投资多元化.mp4",
+          "readable": true,
+          "file_size": 728028537,
+          "media_probe": {
+            "checked": true,
+            "ok": true,
+            "duration_ms": 564300,
+            "width": 1920,
+            "height": 1080,
+            "codec": "h264",
+            "reason": "FFprobe 可解析"
+          },
+          "reason": "可读取"
+        },
+        {
+          "source_video_id": "V000003",
+          "title": "3.理财避险核心资产+核心能力",
+          "source_video_file_path": "/Volumes/MixLab/PublicLibrary/source-videos/王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/3.理财避险核心资产+核心能力.mp4",
+          "readable": true,
+          "file_size": 590051338,
+          "media_probe": {
+            "checked": true,
+            "ok": true,
+            "duration_ms": 457620,
+            "width": 1920,
+            "height": 1080,
+            "codec": "h264",
+            "reason": "FFprobe 可解析"
+          },
+          "reason": "可读取"
+        }
+      ],
+      "message": "源视频样本可读取并可被 FFprobe 解析，剪切前置检查通过"
+    },
+    "current_user": {
+      "user_id": "CU-DESKTOP-LOCAL",
+      "username": "Allen",
+      "display_name": "Allen"
+    }
+  },
+  "final_runtime": {
+    "mode": "api",
+    "mode_label": "真实 Cutter API 模式",
+    "api_ready": true,
+    "generated_at": "2026-06-14T17:19:19.249Z",
+    "library_id": "lib_main_001",
+    "library_root_label": "PublicLibrary",
+    "library_root_path": "/Volumes/MixLab/PublicLibrary",
+    "available_video_count": 7950,
+    "workspace_enabled": true,
+    "workspace_root_label": "MixLabLocal",
+    "workspace_root_path": "/Users/huaqihang/Movies/MixLabLocal",
+    "local_clip_count": 139,
+    "ffmpeg_status": "可用",
+    "ffmpeg_source": "内置",
+    "local_runtime": {
+      "cpu_usage_percent": 19,
+      "disk_io_bytes_per_second": 4959764
+    },
+    "search_backend": {
+      "mode": "searchd",
+      "preferred_mode": "searchd",
+      "label": "本地 searchd",
+      "healthy": true,
+      "degraded": false,
+      "index_version": "v007950",
+      "source_video_count": 7950,
+      "segment_count": 684281,
+      "response_ms": 1,
+      "message": "本地 Tantivy 搜索索引可用"
+    },
+    "release_cache": {
+      "enabled": true,
+      "ready": true,
+      "sync_status": "ready",
+      "active_release_version": "v007950",
+      "source_release_version": "v007950",
+      "search_index_version": "v007950",
+      "ready_video_count": 7950,
+      "cached_release_versions": [
+        "v007940",
+        "v007950"
+      ],
+      "cached_release_count": 2,
+      "max_cached_releases": 2,
+      "cache_size_bytes": 2219627612,
+      "pruned_release_versions": [],
+      "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache",
+      "catalog_file_path": "/Users/huaqihang/Movies/MixLabLocal/cache/.mixlab-library/releases/v007950/catalog.sqlite",
+      "message": "本机 Release 已是最新"
+    },
+    "local_cache": {
+      "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache",
+      "thumbnail_cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache/source-thumbnails",
+      "thumbnail_cache_manifest_path": "/Users/huaqihang/Movies/MixLabLocal/cache/source-thumbnails/.manifest.json",
+      "thumbnail_cache_size_bytes": 3428776,
+      "thumbnail_cache_max_bytes": 536870912,
+      "thumbnail_cache_manifest_entry_count": 2,
+      "thumbnail_cache_checksum_entry_count": 2,
+      "cut_temp_cache": {
+        "cache_root_path": "/Users/huaqihang/Movies/MixLabLocal/cache/cut-temp",
+        "max_bytes": 4294967296,
+        "size_bytes": 0,
+        "file_count": 0
+      }
+    },
+    "source_video_preflight": {
+      "status": "ready",
+      "checked_count": 3,
+      "readable_count": 3,
+      "probe_count": 3,
+      "probe_readable_count": 3,
+      "sample_count": 3,
+      "samples": [
+        {
+          "source_video_id": "V000001",
+          "title": "1.房产置换与资产优化",
+          "source_video_file_path": "/Volumes/MixLab/PublicLibrary/source-videos/王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/1.房产置换与资产优化.mp4",
+          "readable": true,
+          "file_size": 666539381,
+          "media_probe": {
+            "checked": true,
+            "ok": true,
+            "duration_ms": 516980,
+            "width": 1920,
+            "height": 1080,
+            "codec": "h264",
+            "reason": "FFprobe 可解析"
+          },
+          "reason": "可读取"
+        },
+        {
+          "source_video_id": "V000002",
+          "title": "2.比特币暴涨与投资多元化",
+          "source_video_file_path": "/Volumes/MixLab/PublicLibrary/source-videos/王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/2.比特币暴涨与投资多元化.mp4",
+          "readable": true,
+          "file_size": 728028537,
+          "media_probe": {
+            "checked": true,
+            "ok": true,
+            "duration_ms": 564300,
+            "width": 1920,
+            "height": 1080,
+            "codec": "h264",
+            "reason": "FFprobe 可解析"
+          },
+          "reason": "可读取"
+        },
+        {
+          "source_video_id": "V000003",
+          "title": "3.理财避险核心资产+核心能力",
+          "source_video_file_path": "/Volumes/MixLab/PublicLibrary/source-videos/王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/3.理财避险核心资产+核心能力.mp4",
+          "readable": true,
+          "file_size": 590051338,
+          "media_probe": {
+            "checked": true,
+            "ok": true,
+            "duration_ms": 457620,
+            "width": 1920,
+            "height": 1080,
+            "codec": "h264",
+            "reason": "FFprobe 可解析"
+          },
+          "reason": "可读取"
+        }
+      ],
+      "message": "源视频样本可读取并可被 FFprobe 解析，剪切前置检查通过"
+    },
+    "current_user": {
+      "user_id": "CU-DESKTOP-LOCAL",
+      "username": "Allen",
+      "display_name": "Allen"
+    }
+  },
+  "cache_delta": {
+    "cut_temp_initial": {
+      "size_bytes": 0,
+      "file_count": 0,
+      "max_bytes": 4294967296
+    },
+    "cut_temp_final": {
+      "size_bytes": 0,
+      "file_count": 0,
+      "max_bytes": 4294967296
+    },
+    "thumbnails_initial": {
+      "size_bytes": 3428776,
+      "manifest_entries": 2,
+      "checksum_entries": 2
+    },
+    "thumbnails_final": {
+      "size_bytes": 3428776,
+      "manifest_entries": 2,
+      "checksum_entries": 2
+    }
+  },
+  "summary": {
+    "runtime_p95_ms": 465,
+    "runtime_max_ms": 465,
+    "library_p95_ms": 58,
+    "search_p95_ms": 21,
+    "search_max_ms": 21,
+    "detail_p95_ms": 6,
+    "detail_max_ms": 6,
+    "cover_p95_ms": 22,
+    "cut_p95_ms": 2171,
+    "cut_max_ms": 2171,
+    "cut_count": 2
+  },
+  "runs": [
+    {
+      "iteration": 1,
+      "query": "第一场",
+      "runtime_ms": 172,
+      "library_ms": 45,
+      "search_ms": 19,
+      "detail_ms": 6,
+      "cover_ms": 22,
+      "cover_content_type": "image/jpeg",
+      "search_group_count": 10,
+      "source_video_id": "V000868",
+      "source_title": "C0629",
+      "transcript_segment_count": 277
+    },
+    {
+      "iteration": 2,
+      "query": "第一场",
+      "runtime_ms": 465,
+      "library_ms": 58,
+      "search_ms": 21,
+      "detail_ms": 1,
+      "cover_ms": 1,
+      "cover_content_type": "image/jpeg",
+      "search_group_count": 10,
+      "source_video_id": "V000868",
+      "source_title": "C0629",
+      "transcript_segment_count": 277
+    },
+    {
+      "iteration": 3,
+      "query": "第一场",
+      "runtime_ms": 194,
+      "library_ms": 43,
+      "search_ms": 19,
+      "detail_ms": 1,
+      "cover_ms": 1,
+      "cover_content_type": "image/jpeg",
+      "search_group_count": 10,
+      "source_video_id": "V000868",
+      "source_title": "C0629",
+      "transcript_segment_count": 277,
+      "cut": {
+        "ms": 2171,
+        "local_clip_id": "E000138",
+        "file_path": "/Users/huaqihang/Movies/MixLabLocal/export-clips/E000138/001-stability-3-2026-06-14T17_19_15.855Z-C0629.mp4",
+        "output_exists": true,
+        "output_size_bytes": 13058942,
+        "output_outside_public_library": true
+      }
+    },
+    {
+      "iteration": 4,
+      "query": "第一场",
+      "runtime_ms": 171,
+      "library_ms": 49,
+      "search_ms": 18,
+      "detail_ms": 1,
+      "cover_ms": 1,
+      "cover_content_type": "image/jpeg",
+      "search_group_count": 10,
+      "source_video_id": "V000868",
+      "source_title": "C0629",
+      "transcript_segment_count": 277
+    },
+    {
+      "iteration": 5,
+      "query": "第一场",
+      "runtime_ms": 187,
+      "library_ms": 43,
+      "search_ms": 19,
+      "detail_ms": 1,
+      "cover_ms": 1,
+      "cover_content_type": "image/jpeg",
+      "search_group_count": 10,
+      "source_video_id": "V000868",
+      "source_title": "C0629",
+      "transcript_segment_count": 277
+    },
+    {
+      "iteration": 6,
+      "query": "第一场",
+      "runtime_ms": 182,
+      "library_ms": 47,
+      "search_ms": 18,
+      "detail_ms": 1,
+      "cover_ms": 1,
+      "cover_content_type": "image/jpeg",
+      "search_group_count": 10,
+      "source_video_id": "V000868",
+      "source_title": "C0629",
+      "transcript_segment_count": 277,
+      "cut": {
+        "ms": 301,
+        "local_clip_id": "E000139",
+        "file_path": "/Users/huaqihang/Movies/MixLabLocal/export-clips/E000139/001-stability-6-2026-06-14T17_19_18.766Z-C0629.mp4",
+        "output_exists": true,
+        "output_size_bytes": 13058942,
+        "output_outside_public_library": true
+      }
+    }
+  ],
+  "routes": {
+    "admin_dashboard": {
+      "url": "http://127.0.0.1:5176/#/dashboard",
+      "load_ms": 134,
+      "horizontal_overflow_px": 0
+    },
+    "cutter_project_home": {
+      "url": "http://127.0.0.1:5177/#/project-home",
+      "load_ms": 68,
+      "horizontal_overflow_px": 0
+    },
+    "cutter_material_locator": {
+      "url": "http://127.0.0.1:5177/#/material-locator?query=%E7%AC%AC%E4%B8%80%E5%9C%BA",
+      "load_ms": 13,
+      "horizontal_overflow_px": 0
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T09:04:00.000Z",
+  "mode": "admin-web-source-video-client-boundary-extraction",
+  "scope": {
+    "phase": "Phase 5 large-file governance and Admin Web API layering",
+    "primary_file": "apps/admin-web/src/api.ts",
+    "new_client_module": "apps/admin-web/src/admin-source-video-client.ts",
+    "new_media_module": "apps/admin-web/src/admin-source-video-media.ts",
+    "new_test_module": "apps/admin-web/src/admin-source-video-client.test.ts"
+  },
+  "boundary_decision": {
+    "moved_to_source_video_client": [
+      "listSourceVideos",
+      "listSourceVideosWithRuntime",
+      "getSourceVideoDetail",
+      "queueSourceVideo",
+      "retrySourceVideo",
+      "recoverProcessingSourceVideo",
+      "publishSourceVideo",
+      "updateSourceVideoMetadata",
+      "updateSourceVideoCover"
+    ],
+    "moved_to_media_boundary": [
+      "resolveMediaUrl",
+      "resolveSourceVideoMedia",
+      "resolveSourceVideoDetailMedia"
+    ],
+    "retained_in_api_ts": [
+      "AdminApiClient public interface",
+      "CreateAdminApiClientInput",
+      "real client method composition",
+      "fixture source-video methods",
+      "dashboard aggregation",
+      "session signal binding"
+    ],
+    "public_import_compatibility": "`apps/admin-web/src/api.ts` continues to re-export `resolveMediaUrl`."
+  },
+  "line_count_evidence": {
+    "r231_api_ts_audit_line_count": 2814,
+    "r232_api_ts_audit_line_count": 2685,
+    "delta": -129,
+    "admin_source_video_client_line_count": 120,
+    "admin_source_video_media_line_count": 65,
+    "admin_source_video_client_test_line_count": 221,
+    "current_line_anchors": {
+      "resolveMediaUrl": "apps/admin-web/src/admin-source-video-media.ts:3",
+      "createAdminSourceVideoClientMethods": "apps/admin-web/src/admin-source-video-client.ts:40",
+      "createAdminApiClient": "apps/admin-web/src/api.ts:1511",
+      "sourceVideoMethods_composition": "apps/admin-web/src/api.ts:1522",
+      "sourceVideoMethods_spread": "apps/admin-web/src/api.ts:1630",
+      "loadAdminDashboardData": "apps/admin-web/src/api.ts:2622"
+    }
+  },
+  "redundancy_audit": {
+    "artifact_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T090312Z.json",
+    "artifact_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T090312Z.md",
+    "files_scanned": 300,
+    "large_file_count": 19,
+    "term_hotspot_count": 28,
+    "cleanup_allowed": false,
+    "result": "blocked"
+  },
+  "verification": {
+    "focused_tests": {
+      "command": "node --test --import tsx apps/admin-web/src/admin-source-video-client.test.ts apps/admin-web/src/admin-auth-client.test.ts apps/admin-web/src/admin-http.test.ts apps/admin-web/src/api.test.ts apps/admin-web/src/admin-app.test.ts",
+      "tests": 93,
+      "passed": 93
+    },
+    "redundancy_governance_tests": {
+      "command": "node --test --import tsx scripts/acceptance/admin-redundancy-governance-audit.test.ts",
+      "tests": 3,
+      "passed": 3
+    },
+    "typecheck": {
+      "command": "npm run typecheck -- --pretty false",
+      "status": "pass"
+    }
+  },
+  "non_goals_preserved": [
+    "no backend source-video API change",
+    "no endpoint path change",
+    "no request method/header/body change",
+    "no response envelope change",
+    "no fixture source-video behavior change",
+    "no source-video page UI change",
+    "no read-model schema change",
+    "no NAS mutation",
+    "no Docker upload",
+    "no Cutter protocol change"
+  ],
+  "result": {
+    "status": "pass",
+    "summary": "The real Admin Web source-video client method group and media URL resolution now have route/domain-owned boundaries while createAdminApiClient preserves the public AdminApiClient contract."
+  }
+}

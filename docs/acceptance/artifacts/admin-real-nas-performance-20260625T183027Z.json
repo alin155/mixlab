@@ -1,0 +1,354 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-25T18:30:27.872Z",
+  "command": "tsx scripts/acceptance/admin-real-nas-performance.ts",
+  "environment": {
+    "api_base_url": "http://127.0.0.1:3891",
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library": {
+      "root_path": "/Volumes/MixLab/PublicLibrary",
+      "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+      "current_index_version": "v010471",
+      "updated_at": "2026-06-24T13:06:42.230Z",
+      "video_count": 11394,
+      "ready_video_count": 10471,
+      "processing_video_count": 1,
+      "queued_video_count": 903,
+      "failed_video_count": 0,
+      "index_required_video_count": 19,
+      "disk_total_bytes": 31840459087872,
+      "disk_available_bytes": 675147137024,
+      "disk_used_percent": 97.9
+    },
+    "read_model_before": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-25T18:30:27.911Z",
+      "source_video_status": {
+        "name": "source-video-status-read-model-v1",
+        "storage": "persistent-json",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+        "freshness": "missing",
+        "memory_cache": "missing",
+        "persisted": "missing",
+        "generated_at": "",
+        "library_updated_at": "",
+        "current_library_updated_at": "2026-06-24T13:06:42.230Z",
+        "video_count": 0,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 0,
+          "processing": 0,
+          "ready": 0,
+          "failed": 0,
+          "index-required": 0
+        },
+        "cache_ttl_ms": 30000
+      }
+    },
+    "read_model_after": {
+      "schema_version": "1.0",
+      "generated_at": "2026-06-25T18:30:42.251Z",
+      "source_video_status": {
+        "name": "source-video-status-read-model-v1",
+        "storage": "persistent-json",
+        "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+        "freshness": "building",
+        "memory_cache": "building",
+        "persisted": "missing",
+        "generated_at": "",
+        "library_updated_at": "",
+        "current_library_updated_at": "2026-06-24T13:06:42.230Z",
+        "video_count": 0,
+        "current_video_count": 11394,
+        "counts_by_status": {
+          "unprocessed": 0,
+          "queued": 0,
+          "processing": 0,
+          "ready": 0,
+          "failed": 0,
+          "index-required": 0
+        },
+        "cache_ttl_ms": 30000
+      }
+    }
+  },
+  "sample_policy": {
+    "cold_samples_per_endpoint": 1,
+    "default_warm_samples_per_endpoint": 1
+  },
+  "notes": [
+    "All endpoint probes use GET requests only.",
+    "When MIXLAB_ADMIN_AUTH_MODE=disabled is used for an isolated local probe, timings represent business I/O after authentication rather than password/session overhead.",
+    "The source-video-status-read-model-v1 persistent JSON file is generated cache under .mixlab-library/admin/read-models and does not rewrite source-video manifests."
+  ],
+  "endpoints": [
+    {
+      "name": "health",
+      "method": "GET",
+      "path": "/health",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Runtime liveness check.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 13.3,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 792
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 1,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 792
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 1,
+        "p50_ms": 1,
+        "p95_ms": 13.3,
+        "max_ms": 13.3,
+        "response_bytes_max": 792,
+        "passed_target": true
+      }
+    },
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Authentication mode and bootstrap status.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 0.8,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 133
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 0.6,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 133
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 0.6,
+        "p50_ms": 0.6,
+        "p95_ms": 0.8,
+        "max_ms": 0.8,
+        "response_bytes_max": 133,
+        "passed_target": true
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Summary manifest, disk and current index status; should not enumerate all videos when library.json exists.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 24,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 734
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 5720,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 734
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 24,
+        "p50_ms": 24,
+        "p95_ms": 5720,
+        "max_ms": 5720,
+        "response_bytes_max": 734,
+        "passed_target": false
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "method": "GET",
+      "path": "/api/admin/data-loading/plan",
+      "phase": "shell",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "Machine-readable Admin loading contract.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 3.2,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 6017
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 3.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 6017
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 3.2,
+        "p50_ms": 3.2,
+        "p95_ms": 3.9,
+        "max_ms": 3.9,
+        "response_bytes_max": 6017,
+        "passed_target": true
+      }
+    },
+    {
+      "name": "read_model_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/status",
+      "phase": "diagnostic",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 5000,
+      "notes": "No-scan freshness report for source-video-status-read-model-v1.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 83.9,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 629
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 3,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 629
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 3,
+        "p50_ms": 3,
+        "p95_ms": 83.9,
+        "max_ms": 83.9,
+        "response_bytes_max": 629,
+        "passed_target": true
+      }
+    },
+    {
+      "name": "protection_status",
+      "method": "GET",
+      "path": "/api/admin/protection/status",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Preprocess protection state used by Admin safety surfaces.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 2.3,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 679
+        },
+        {
+          "label": "warm",
+          "sample_index": 1,
+          "duration_ms": 2.3,
+          "http_status": 200,
+          "ok": true,
+          "api_ok": true,
+          "response_bytes": 679
+        }
+      ],
+      "summary": {
+        "sample_count": 2,
+        "success_count": 2,
+        "min_ms": 2.3,
+        "p50_ms": 2.3,
+        "p95_ms": 2.3,
+        "max_ms": 2.3,
+        "response_bytes_max": 679,
+        "passed_target": true
+      }
+    },
+    {
+      "name": "release_gates",
+      "method": "GET",
+      "path": "/api/admin/release-gates",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "timeout_ms": 8000,
+      "notes": "Docker/release readiness gate summary.",
+      "samples": [
+        {
+          "label": "cold",
+          "sample_index": 0,
+          "duration_ms": 8003.2,
+          "http_status": null,
+          "ok": false,
+          "api_ok": null,
+          "response_bytes": 0,
+          "error_code": "timeout",
+          "message": "This operation was aborted"
+        }
+      ],
+      "summary": {
+        "sample_count": 1,
+        "success_count": 0,
+        "min_ms": null,
+        "p50_ms": null,
+        "p95_ms": null,
+        "max_ms": null,
+        "response_bytes_max": 0,
+        "passed_target": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "artifact": "admin-source-video-status-store-single-connection",
+  "generated_at": "2026-06-27T10:08:02.000Z",
+  "result": "pass",
+  "scope": {
+    "phase": "Phase 3 Admin Read Model and Query API performance",
+    "slice": "R.240 Source Video Status Store Single-Connection Read",
+    "endpoints": [
+      "/api/admin/source-videos?status=processing&limit=20",
+      "/api/admin/source-videos?status=index-required&limit=20",
+      "/api/admin/source-videos?status=queued&limit=20"
+    ],
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "docker_deployment": false,
+    "nas_mutation": false,
+    "cutter_protocol_change": false
+  },
+  "implementation": {
+    "files": [
+      "packages/admin-api/src/admin-read-model-store.ts"
+    ],
+    "changes": [
+      "Changed readAdminSourceVideoStatusesPageFromStoreWithReadiness to open admin.sqlite once for metadata/freshness and page rows.",
+      "Reused statusFromMetadata for source-video status-store page freshness.",
+      "Preserved unsupported-status, store-not-fresh, incomplete-manifest-rows, unreadable-store, and freshness semantics."
+    ]
+  },
+  "performance": {
+    "before_artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T100455Z.md",
+    "after_artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T100802Z.md",
+    "source_videos_processing": {
+      "before_p95_ms": 67.6,
+      "after_p95_ms": 69.1,
+      "before_status_store_page_avg_ms": 66.5,
+      "after_status_store_page_avg_ms": 67.0,
+      "improvement_ms": -0.5,
+      "improvement_percent": -0.8
+    },
+    "source_videos_index_required": {
+      "before_p95_ms": 222.6,
+      "after_p95_ms": 189.5,
+      "before_status_store_page_avg_ms": 219.5,
+      "after_status_store_page_avg_ms": 186.5,
+      "improvement_ms": 33.0,
+      "improvement_percent": 15.0
+    },
+    "source_videos_queued": {
+      "before_p95_ms": 177.8,
+      "after_p95_ms": 145.8,
+      "before_status_store_page_avg_ms": 172.0,
+      "after_status_store_page_avg_ms": 142.0,
+      "improvement_ms": 30.0,
+      "improvement_percent": 17.4
+    },
+    "source_videos_failed": {
+      "before_p95_ms": 72.2,
+      "after_p95_ms": 74.0,
+      "before_status_store_page_avg_ms": 69.0,
+      "after_status_store_page_avg_ms": 69.5,
+      "improvement_ms": -0.5,
+      "improvement_percent": -0.7
+    }
+  },
+  "verification": [
+    {
+      "command": "node --test --import tsx packages/admin-api/src/admin-read-model-store.test.ts packages/admin-api/src/admin-source-video-status-page-query.test.ts packages/admin-api/src/admin-source-video-routes.test.ts packages/admin-api/src/admin-source-video-read-facade.test.ts",
+      "result": "pass",
+      "tests": 58
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "npm run validate:admin-real-nas-performance-isolated",
+      "result": "pass",
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T100801Z.md"
+    },
+    {
+      "command": "npm run audit:admin-redundancy-governance",
+      "result": "pass_as_governance_blocked",
+      "artifact": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T100834Z.md"
+    }
+  ],
+  "remaining_gaps": [
+    "Empty status lists are already dominated by fixed SMB/SQLite read overhead and did not materially improve.",
+    "index-required and queued improved, but status_store_page is still the dominant component and may need an explicit short-TTL read-model page cache or deeper store layout work if lower latency is required.",
+    "This slice does not change default source-video page components, frontend route loaders, Protection Gate coverage, Docker release gates, or Cutter protocols."
+  ]
+}

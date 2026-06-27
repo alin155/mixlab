@@ -54,6 +54,10 @@ function mixlabRoot(libraryRoot: string): string {
   return path.join(libraryRoot, ".mixlab-library");
 }
 
+export function defaultSourceVideosPath(libraryRoot: string): string {
+  return path.join(libraryRoot, "source-videos");
+}
+
 function settingsPath(libraryRoot: string): string {
   return path.join(mixlabRoot(libraryRoot), "admin-settings.json");
 }
@@ -70,7 +74,7 @@ function defaultSettings(libraryRoot: string): AdminSettings {
       {
         id: "src_default",
         name: "默认素材来源",
-        path: path.join(libraryRoot, "source-videos"),
+        path: defaultSourceVideosPath(libraryRoot),
         enabled: true,
         last_scanned_at: "",
         discovered_video_count: 0,
@@ -90,6 +94,45 @@ function defaultSettings(libraryRoot: string): AdminSettings {
       auto_publish_index_enabled: true
     },
     updated_at: ""
+  };
+}
+
+function looksLikeEnvironmentDefaultPath(value: string, basename: string): boolean {
+  return path.basename(path.resolve(value)) === basename;
+}
+
+export function resolveAdminSourceFolderRuntimePath(
+  libraryRoot: string,
+  folder: AdminSourceFolder
+): string {
+  if (
+    folder.id === "src_default" &&
+    path.isAbsolute(folder.path) &&
+    looksLikeEnvironmentDefaultPath(folder.path, "source-videos")
+  ) {
+    return defaultSourceVideosPath(libraryRoot);
+  }
+
+  return folder.path;
+}
+
+export function normalizeAdminSettingsForRuntime(
+  libraryRoot: string,
+  settings: AdminSettings
+): AdminSettings {
+  const artifactLibrary = settings.artifact_library.mode === "default" &&
+    path.isAbsolute(settings.artifact_library.path) &&
+    looksLikeEnvironmentDefaultPath(settings.artifact_library.path, ".mixlab-library")
+    ? { ...settings.artifact_library, path: mixlabRoot(libraryRoot) }
+    : settings.artifact_library;
+
+  return {
+    ...settings,
+    artifact_library: artifactLibrary,
+    source_folders: settings.source_folders.map((folder) => ({
+      ...folder,
+      path: resolveAdminSourceFolderRuntimePath(libraryRoot, folder)
+    }))
   };
 }
 
@@ -317,7 +360,7 @@ export async function readAdminSettings(libraryRoot: string): Promise<AdminSetti
   try {
     const settings = JSON.parse(raw) as unknown;
     validate(settings);
-    return settings;
+    return normalizeAdminSettingsForRuntime(libraryRoot, settings);
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new Error("管理员设置文件读取失败：JSON 格式无效");
@@ -401,8 +444,9 @@ export async function writeAdminSettings(
   settings: AdminSettings
 ): Promise<AdminSettings> {
   validate(settings);
-  assertAbsoluteSourceFolderPaths(settings.source_folders);
-  const next = { ...settings, updated_at: new Date().toISOString() };
+  const runtimeSettings = normalizeAdminSettingsForRuntime(libraryRoot, settings);
+  assertAbsoluteSourceFolderPaths(runtimeSettings.source_folders);
+  const next = { ...runtimeSettings, updated_at: new Date().toISOString() };
   await mkdir(mixlabRoot(libraryRoot), { recursive: true });
   await writeFile(settingsPath(libraryRoot), `${JSON.stringify(next, null, 2)}\n`, "utf8");
   return next;

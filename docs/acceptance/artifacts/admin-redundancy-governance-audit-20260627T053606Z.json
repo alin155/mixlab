@@ -1,0 +1,686 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T05:36:06.886Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-redundancy-governance-audit.ts",
+  "mode": "admin-redundancy-governance-audit",
+  "scope": {
+    "scan_roots": [
+      "apps/admin-web/src",
+      "packages/admin-api/src",
+      "packages/library-fs/src"
+    ],
+    "large_file_line_threshold": 700,
+    "governance_terms": [
+      "fixture",
+      "fallback",
+      "legacy",
+      "mock",
+      "deprecated",
+      "TODO"
+    ]
+  },
+  "cleanup_ready": false,
+  "cleanup_allowed": false,
+  "observations": {
+    "duplicate_selectors": [
+      {
+        "selector": ".admin-app .ml-inspector",
+        "count": 19,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-shell",
+        "count": 17,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-content-split",
+        "count": 15,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-metric-tile",
+        "count": 15,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-sidebar",
+        "count": 14,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-source-table th",
+        "count": 13,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-smart-scan-card",
+        "count": 13,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": "body",
+        "count": 13,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-sidebar-item",
+        "count": 12,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app",
+        "count": 11,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-console-statusbar",
+        "count": 11,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-list-panel",
+        "count": 11,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-workspace",
+        "count": 11,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-core-path-card",
+        "count": 10,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-kpi-grid",
+        "count": 10,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .admin-primary-button",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .admin-secondary-button",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-sidebar-footer",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-sidebar-item.is-active",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-list-panel h2",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-metric-band",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-metric-tile strong",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-page-header",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-page-header p",
+        "count": 9,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-button",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .ml-source-table td",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-core-path-row",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-count-strip",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-current-job-card",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-dashboard-grid",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-dashboard-panel h2",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-disk",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-empty-state",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-health-row",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-metric-tile span",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-ops-grid",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-status-badge",
+        "count": 8,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .admin-number-input",
+        "count": 7,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .admin-select",
+        "count": 7,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      },
+      {
+        "selector": ".admin-app .admin-text-input",
+        "count": 7,
+        "files": [
+          "apps/admin-web/src/admin-reference.css",
+          "apps/admin-web/src/styles.css"
+        ]
+      }
+    ],
+    "large_files": [
+      {
+        "path": "apps/admin-web/src/styles.css",
+        "line_count": 6166
+      },
+      {
+        "path": "packages/admin-api/src/index.test.ts",
+        "line_count": 4338
+      },
+      {
+        "path": "apps/admin-web/src/api.ts",
+        "line_count": 2715
+      },
+      {
+        "path": "apps/admin-web/src/admin-app.test.ts",
+        "line_count": 2619
+      },
+      {
+        "path": "packages/admin-api/src/admin-read-model-store.ts",
+        "line_count": 2543
+      },
+      {
+        "path": "apps/admin-web/src/app/AdminApp.tsx",
+        "line_count": 2400
+      },
+      {
+        "path": "packages/admin-api/src/admin-read-model-store.test.ts",
+        "line_count": 1892
+      },
+      {
+        "path": "apps/admin-web/src/api.test.ts",
+        "line_count": 1446
+      },
+      {
+        "path": "packages/library-fs/src/usage-events.ts",
+        "line_count": 1355
+      },
+      {
+        "path": "apps/admin-web/src/admin-reference.css",
+        "line_count": 1184
+      },
+      {
+        "path": "packages/library-fs/src/cutter-release.ts",
+        "line_count": 1120
+      },
+      {
+        "path": "packages/library-fs/src/cutter-users.test.ts",
+        "line_count": 1077
+      },
+      {
+        "path": "packages/admin-api/src/index.ts",
+        "line_count": 1034
+      },
+      {
+        "path": "apps/admin-web/src/features/dashboard/DashboardPage.tsx",
+        "line_count": 923
+      },
+      {
+        "path": "packages/library-fs/src/cutter-source-library.ts",
+        "line_count": 921
+      },
+      {
+        "path": "packages/library-fs/src/cutter-users.ts",
+        "line_count": 890
+      },
+      {
+        "path": "apps/admin-web/src/features/preprocess-jobs/PreprocessJobsPage.tsx",
+        "line_count": 842
+      },
+      {
+        "path": "packages/library-fs/src/usage-events.test.ts",
+        "line_count": 796
+      },
+      {
+        "path": "apps/admin-web/src/features/operation-log/OperationLogPage.tsx",
+        "line_count": 769
+      }
+    ],
+    "term_hotspots": [
+      {
+        "path": "apps/admin-web/src/fixtures/admin-data-loading-plan.ts",
+        "count": 34,
+        "terms": [
+          "fixture",
+          "fallback"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/api.test.ts",
+        "count": 31,
+        "terms": [
+          "fixture"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/admin-app.test.ts",
+        "count": 17,
+        "terms": [
+          "fixture",
+          "fallback",
+          "legacy"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/fixtures/admin-fixture-operation-log.ts",
+        "count": 17,
+        "terms": [
+          "fixture"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/api.ts",
+        "count": 13,
+        "terms": [
+          "fixture",
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-data-loading-plan.ts",
+        "count": 12,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/fixtures/admin-fixture-data.ts",
+        "count": 10,
+        "terms": [
+          "fixture"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/fixtures/admin-fixture-operations-overview.ts",
+        "count": 10,
+        "terms": [
+          "fixture"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-source-video-list-query.test.ts",
+        "count": 6,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/library-fs/src/cutter-source-library.ts",
+        "count": 6,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-preprocess-jobs-read-services.test.ts",
+        "count": 5,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-preprocess-read-routes.ts",
+        "count": 5,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/library-fs/src/usage-events.ts",
+        "count": 5,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/library-fs/src/usage-events.test.ts",
+        "count": 4,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/features/preprocess-jobs/PreprocessJobsPage.tsx",
+        "count": 3,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-source-video-status-page-query.test.ts",
+        "count": 3,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/library-fs/src/cutter-source-library.test.ts",
+        "count": 3,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/library-fs/src/scanner.test.ts",
+        "count": 3,
+        "terms": [
+          "legacy"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-preprocess-jobs-read-facade.test.ts",
+        "count": 2,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-primary-source-videos-path.test.ts",
+        "count": 2,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-source-video-status-page-query.ts",
+        "count": 2,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/index.test.ts",
+        "count": 2,
+        "terms": [
+          "fixture"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/admin-reference.css",
+        "count": 1,
+        "terms": [
+          "legacy"
+        ]
+      },
+      {
+        "path": "apps/admin-web/src/fixtures/admin-fixture-usage-data.ts",
+        "count": 1,
+        "terms": [
+          "fixture"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-auth-routes.test.ts",
+        "count": 1,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-source-video-default-page-query.test.ts",
+        "count": 1,
+        "terms": [
+          "fallback"
+        ]
+      },
+      {
+        "path": "packages/admin-api/src/admin-source-video-read-facade.test.ts",
+        "count": 1,
+        "terms": [
+          "fallback"
+        ]
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": "audit-no-side-effects",
+      "title": "Redundancy audit has no source-code side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads source files and writes acceptance artifacts only; it does not delete, move, or rewrite production code.",
+      "blocks_cleanup": false
+    },
+    {
+      "id": "cleanup-remains-targeted",
+      "title": "Cleanup remains evidence-led and targeted",
+      "category": "governance",
+      "status": "pass",
+      "evidence": "The audit records cleanup candidates but does not authorize broad deletion without replacement paths and tests.",
+      "blocks_cleanup": false
+    },
+    {
+      "id": "css-duplicate-selectors-reviewed",
+      "title": "CSS duplicate selectors have been reviewed",
+      "category": "css",
+      "status": "blocked",
+      "evidence": "40 duplicate CSS selector candidates require review.",
+      "blocks_cleanup": true,
+      "required_evidence": "For each selected CSS duplicate cleanup, provide the replacement selector/component path and run Admin Web visual or browser QA."
+    },
+    {
+      "id": "large-admin-files-reviewed",
+      "title": "Large Admin files have been reviewed before cleanup",
+      "category": "code-size",
+      "status": "blocked",
+      "evidence": "19 files meet or exceed 700 lines and need targeted ownership decisions.",
+      "blocks_cleanup": true,
+      "required_evidence": "Large files should be split only along established query/command/page/component boundaries with focused tests."
+    },
+    {
+      "id": "fixture-fallback-legacy-hotspots-reviewed",
+      "title": "Fixture/fallback/legacy hotspots have been reviewed",
+      "category": "fallbacks",
+      "status": "blocked",
+      "evidence": "27 files contain fixture/fallback/legacy/mock/deprecated/TODO terms and need classification before cleanup.",
+      "blocks_cleanup": true,
+      "required_evidence": "Classify each cleanup candidate as test fixture, safe fallback, legacy compatibility, or removable dead code before editing."
+    }
+  ],
+  "summary": {
+    "files_scanned": 293,
+    "css_files_scanned": 2,
+    "duplicate_selector_count": 40,
+    "large_file_count": 19,
+    "term_hotspot_count": 27,
+    "cleanup_blockers": [
+      "css-duplicate-selectors-reviewed",
+      "large-admin-files-reviewed",
+      "fixture-fallback-legacy-hotspots-reviewed"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Redundancy cleanup remains blocked until candidates are reviewed and split into targeted cleanup slices."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T053606Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T053606Z.md"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T18:04:53.376Z",
+  "command": "tsx scripts/acceptance/admin-index-publish-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5187/#/index-publish",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5187/#/index-publish",
+      "load_ms": 6448.9,
+      "screenshot_path": "docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180453Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "发布与索引": true,
+        "发布队列": true,
+        "待发布索引": true,
+        "索引版本": true,
+        "版本详情": true,
+        "页面契约": true,
+        "发布队列来源": true,
+        "读模型": true,
+        "版本来源": true,
+        "索引版本包": true,
+        "扫描模式": true,
+        "不扫描": true,
+        "本页面局部处理": true
+      },
+      "publication_queue_text": "发布队列\n\n待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。\n\n19 条待发布\nID\t文件名\t状态\t可见性\t操作\nV000170\tC1193.MP4\t待发布索引\t未可见\t发布到剪辑端\nV002204\tC0430.MP4\t待发布索引\t未可见\t发布到剪辑端\nV003906\tC0111.MP4\t待发布索引\t未可见\t发布到剪辑端\nV004084\tC0286.mov\t待发布索引\t未可见\t发布到剪辑端\nV004085\tC0287.mov\t待发布索引\t未可见\t发布到剪辑端\nV004831\tC3013.MP4\t待发布索引\t未可见\t发布到剪辑端\nV005853\tC0054.MP4\t待发布索引\t未可见\t发布到剪辑端\nV006307\tC0056.MP4\t待发布索引\t未可见\t发布到剪辑端\nV006445\tC8105.MP4\t待发布索引\t未可见\t发布到剪辑端\nV007422\tC0985.MP4\t待发布索引\t未可见\t发布到剪辑端\nV007434\tC0998.MP4\t待发布索引\t未可见\t发布到剪辑端\nV007813\tC2165.MP4\t待发布索引\t未可见\t发布到剪辑端\nV008307\tC1453.MP4\t待发布索引\t未可见\t发布到剪辑端\nV008415\tC1565.MP4\t待发布索引\t未可见\t发布到剪辑端\nV008946\tC0231.MP4\t待发布索引\t未可见\t发布到剪辑端\nV009342\tC7567.MP4\t待发布索引\t未可见\t发布到剪辑端\nV009797\tC8055.MP4\t待发布索引\t未可见\t发布到剪辑端\nV009907\tC8178.MP4\t待发布索引\t未可见\t发布到剪辑端\nV010013\tC7089.MP4\t待发布索引\t未可见\t发布到剪辑端",
+      "index_version_text": "索引版本\n\n剪辑端搜索读取当前索引指针；历史版本只作为发布与回溯依据。\n\n通过\n版本\t创建时间\t已可用数量\t协议版本\t校验\t校验说明\t当前状态\nv010471\t2026-06-21T19:12:11.959Z\t10471\t1.0\t通过\t索引包校验通过\t当前索引指向\nv010470\t2026-06-21T19:04:21.501Z\t10470\t1.0\t通过\t索引包校验通过\t历史版本\nv010469\t2026-06-21T18:59:05.874Z\t10469\t1.0\t通过\t索引包校验通过\t历史版本\nv010468\t2026-06-21T18:54:20.121Z\t10468\t1.0\t通过\t索引包校验通过\t历史版本\nv010467\t2026-06-21T18:49:15.396Z\t10467\t1.0\t通过\t索引包校验通过\t历史版本\nv010466\t2026-06-21T18:45:12.940Z\t10466\t1.0\t通过\t索引包校验通过\t历史版本\nv010465\t2026-06-21T18:40:26.900Z\t10465\t1.0\t通过\t索引包校验通过\t历史版本\nv010464\t2026-06-21T18:35:44.815Z\t10464\t1.0\t通过\t索引包校验通过\t历史版本",
+      "inspector_text": "版本详情\n\n发布与索引\n\nv010471\n当前索引\nv010471\n当前索引状态\n当前索引已发布 v010471\n已可用数量\n10471\n协议版本\n1.0\n校验\n通过\n校验说明\n索引包校验通过\n发布人\nadmin\n页面契约\n主工作区\n发布队列\n辅助区\n索引版本\n发布队列来源\n读模型\n版本来源\n索引版本包\n扫描模式\n不扫描\n错误边界\n本页面局部处理",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5187/#/index-publish",
+      "load_ms": 11130.2,
+      "screenshot_path": "docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180453Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "发布与索引": true,
+        "发布队列": true,
+        "待发布索引": true,
+        "索引版本": true,
+        "版本详情": true,
+        "页面契约": true,
+        "发布队列来源": true,
+        "读模型": true,
+        "版本来源": true,
+        "索引版本包": true,
+        "扫描模式": true,
+        "不扫描": true,
+        "本页面局部处理": true
+      },
+      "publication_queue_text": "发布队列\n\n待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。\n\n19 条待发布\nID\t文件名\t状态\t可见性\t操作\nV000170\tC1193.MP4\t待发布索引\t未可见\t发布到剪辑端\nV002204\tC0430.MP4\t待发布索引\t未可见\t发布到剪辑端\nV003906\tC0111.MP4\t待发布索引\t未可见\t发布到剪辑端\nV004084\tC0286.mov\t待发布索引\t未可见\t发布到剪辑端\nV004085\tC0287.mov\t待发布索引\t未可见\t发布到剪辑端\nV004831\tC3013.MP4\t待发布索引\t未可见\t发布到剪辑端\nV005853\tC0054.MP4\t待发布索引\t未可见\t发布到剪辑端\nV006307\tC0056.MP4\t待发布索引\t未可见\t发布到剪辑端\nV006445\tC8105.MP4\t待发布索引\t未可见\t发布到剪辑端\nV007422\tC0985.MP4\t待发布索引\t未可见\t发布到剪辑端\nV007434\tC0998.MP4\t待发布索引\t未可见\t发布到剪辑端\nV007813\tC2165.MP4\t待发布索引\t未可见\t发布到剪辑端\nV008307\tC1453.MP4\t待发布索引\t未可见\t发布到剪辑端\nV008415\tC1565.MP4\t待发布索引\t未可见\t发布到剪辑端\nV008946\tC0231.MP4\t待发布索引\t未可见\t发布到剪辑端\nV009342\tC7567.MP4\t待发布索引\t未可见\t发布到剪辑端\nV009797\tC8055.MP4\t待发布索引\t未可见\t发布到剪辑端\nV009907\tC8178.MP4\t待发布索引\t未可见\t发布到剪辑端\nV010013\tC7089.MP4\t待发布索引\t未可见\t发布到剪辑端",
+      "index_version_text": "索引版本\n\n剪辑端搜索读取当前索引指针；历史版本只作为发布与回溯依据。\n\n通过\n版本\t创建时间\t已可用数量\t协议版本\t校验\t校验说明\t当前状态\nv010471\t2026-06-21T19:12:11.959Z\t10471\t1.0\t通过\t索引包校验通过\t当前索引指向\nv010470\t2026-06-21T19:04:21.501Z\t10470\t1.0\t通过\t索引包校验通过\t历史版本\nv010469\t2026-06-21T18:59:05.874Z\t10469\t1.0\t通过\t索引包校验通过\t历史版本\nv010468\t2026-06-21T18:54:20.121Z\t10468\t1.0\t通过\t索引包校验通过\t历史版本\nv010467\t2026-06-21T18:49:15.396Z\t10467\t1.0\t通过\t索引包校验通过\t历史版本\nv010466\t2026-06-21T18:45:12.940Z\t10466\t1.0\t通过\t索引包校验通过\t历史版本\nv010465\t2026-06-21T18:40:26.900Z\t10465\t1.0\t通过\t索引包校验通过\t历史版本\nv010464\t2026-06-21T18:35:44.815Z\t10464\t1.0\t通过\t索引包校验通过\t历史版本",
+      "inspector_text": "版本详情\n\n发布与索引\n\nv010471\n当前索引\nv010471\n当前索引状态\n当前索引已发布 v010471\n已可用数量\n10471\n协议版本\n1.0\n校验\n通过\n校验说明\n索引包校验通过\n发布人\nadmin\n页面契约\n主工作区\n发布队列\n辅助区\n索引版本\n发布队列来源\n读模型\n版本来源\n索引版本包\n扫描模式\n不扫描\n错误边界\n本页面局部处理",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "publication-queue-visible",
+      "passed": true,
+      "detail": "desktop:732; mobile:732"
+    },
+    {
+      "name": "index-version-surface-visible",
+      "passed": true,
+      "detail": "desktop:545; mobile:545"
+    },
+    {
+      "name": "inspector-contract-visible",
+      "passed": true,
+      "detail": "desktop:174; mobile:174"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "index-publish browser QA passed for desktop and mobile fixture routes"
+  }
+}

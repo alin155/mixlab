@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { appendUsageEvent, readUsageMetrics } from "./usage-events.ts";
+import {
+  appendUsageEvent,
+  invalidateUsageMetricsSummaryProjection,
+  readUsageMetrics,
+  readUsageEventsFileSignature,
+  readUsageMetricsProjection,
+  readUsageMetricsSummaryProjection,
+  usageMetricsSummaryProjectionPath,
+  writeUsageMetricsSummaryProjection
+} from "./usage-events.ts";
 
 type UsageEventInput = Parameters<typeof appendUsageEvent>[1];
 
@@ -18,6 +27,22 @@ function eventsPath(root: string): string {
 async function writeRawEvents(root: string, text: string): Promise<void> {
   await mkdir(path.dirname(eventsPath(root)), { recursive: true });
   await writeFile(eventsPath(root), text, "utf8");
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT"
+    ) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 function baseEvent(
@@ -40,6 +65,126 @@ function storedEvent(
     ...baseEvent(overrides)
   };
 }
+
+test("appendUsageEvent invalidates the admin usage metrics summary projection", async () => {
+  const root = await makeRoot();
+  const summaryPath = usageMetricsSummaryProjectionPath(root);
+  const missing = await invalidateUsageMetricsSummaryProjection(root);
+
+  assert.equal(missing.path, summaryPath);
+  assert.equal(missing.invalidated, false);
+
+  await mkdir(path.dirname(summaryPath), { recursive: true });
+  await writeFile(summaryPath, "stale summary", "utf8");
+  assert.equal(await fileExists(summaryPath), true);
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      result_status: "success"
+    })
+  );
+
+  assert.equal(await fileExists(summaryPath), false);
+});
+
+test("appendUsageEvent writes through a fresh stateful usage metrics projection", async () => {
+  const root = await makeRoot();
+  const summaryPath = usageMetricsSummaryProjectionPath(root);
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      source_video_id: "V000002",
+      search_mode: "searchd",
+      search_elapsed_ms: 10,
+      result_status: "success"
+    })
+  );
+  const initialSignature = await readUsageEventsFileSignature(root);
+  const initialProjection = await readUsageMetricsProjection(root);
+  await writeUsageMetricsSummaryProjection({
+    library_root: root,
+    signature: initialSignature,
+    metrics: initialProjection.metrics,
+    projection_state: initialProjection.projection_state,
+    generated_at: "2026-05-03T10:00:10.000Z"
+  });
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      user_id: "CU000002",
+      username: "小李",
+      device_id: "device-2",
+      occurred_at: "2026-05-03T10:01:00.000Z",
+      query: "组织效率",
+      source_video_id: "V000001",
+      search_mode: "sqlite-index",
+      search_elapsed_ms: 30,
+      result_status: "empty"
+    })
+  );
+
+  const updatedSignature = await readUsageEventsFileSignature(root);
+  const stored = readUsageMetricsSummaryProjection({
+    library_root: root,
+    signature: updatedSignature
+  });
+
+  assert.equal(await fileExists(summaryPath), true);
+  assert.ok(stored);
+  assert.equal(stored.metrics.search_request_count, 2);
+  assert.equal(stored.metrics.search_hit_count, 1);
+  assert.equal(stored.metrics.search_empty_count, 1);
+  assert.equal(stored.metrics.search_latency_p50_ms, 10);
+  assert.equal(stored.metrics.search_latency_p95_ms, 30);
+  assert.equal(stored.metrics.core_search_request_count, 2);
+  assert.equal(stored.metrics.core_search_latency_max_ms, 30);
+  assert.deepEqual(stored.metrics.recent_keywords, ["组织效率", "现金流"]);
+  assert.deepEqual(stored.metrics.most_used_source_video_ids, ["V000001", "V000002"]);
+  assert.equal(stored.metrics.active_user_count, 2);
+
+  const fullRead = await readUsageMetrics(root);
+  assert.deepEqual(stored.metrics, fullRead);
+});
+
+test("appendUsageEvent invalidates projections that lack incremental state", async () => {
+  const root = await makeRoot();
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "现金流",
+      result_status: "success"
+    })
+  );
+  const signature = await readUsageEventsFileSignature(root);
+  const projection = await readUsageMetricsProjection(root);
+  await writeUsageMetricsSummaryProjection({
+    library_root: root,
+    signature,
+    metrics: projection.metrics,
+    generated_at: "2026-05-03T10:00:10.000Z"
+  });
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "组织效率",
+      result_status: "empty",
+      occurred_at: "2026-05-03T10:01:00.000Z"
+    })
+  );
+
+  assert.equal(await fileExists(usageMetricsSummaryProjectionPath(root)), false);
+});
 
 test("aggregates search, selection, cut success, active users, and per-user counts", async () => {
   const root = await makeRoot();
@@ -307,54 +452,87 @@ test("missing usage event store returns zero metrics and empty arrays", async ()
     active_user_count: 0,
     recent_keywords: [],
     most_used_source_video_ids: [],
-    users: []
+    users: [],
+    event_store: {
+      line_count: 0,
+      valid_line_count: 0,
+      malformed_line_count: 0,
+      malformed_lines: [],
+      warning: ""
+    }
   });
 });
 
-test("malformed NDJSON throws Chinese error and append does not overwrite it", async () => {
+test("malformed NDJSON is skipped and append continues without overwriting history", async () => {
   const root = await makeRoot();
   const malformed = `${JSON.stringify(
     storedEvent({ event_type: "search", query: "现金流", result_status: "success" })
   )}\n{ 这不是 json }\n`;
   await writeRawEvents(root, malformed);
 
-  await assert.rejects(() => readUsageMetrics(root), /使用事件存储文件格式错误/);
-  await assert.rejects(
-    () =>
-      appendUsageEvent(
-        root,
-        baseEvent({
-          event_type: "search",
-          query: "组织能力",
-          result_status: "empty"
-        })
-      ),
-    /使用事件存储文件格式错误/
+  const before = await readUsageMetrics(root);
+
+  assert.equal(before.search_request_count, 1);
+  assert.equal(before.event_store.line_count, 2);
+  assert.equal(before.event_store.valid_line_count, 1);
+  assert.equal(before.event_store.malformed_line_count, 1);
+  assert.deepEqual(before.event_store.malformed_lines, [2]);
+  assert.match(before.event_store.warning, /已跳过第 2 行/);
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "组织能力",
+      result_status: "empty",
+      occurred_at: "2026-05-03T10:01:00.000Z"
+    })
   );
-  assert.equal(await readFile(eventsPath(root), "utf8"), malformed);
+
+  const afterRaw = await readFile(eventsPath(root), "utf8");
+  assert.match(afterRaw, /^\{"event_id":"evt-stored-1"/);
+  assert.match(afterRaw, /\{ 这不是 json \}/);
+  assert.match(afterRaw, /"query":"组织能力"/);
+
+  const after = await readUsageMetrics(root);
+  assert.equal(after.search_request_count, 2);
+  assert.equal(after.search_empty_count, 1);
+  assert.equal(after.event_store.line_count, 3);
+  assert.equal(after.event_store.valid_line_count, 2);
+  assert.equal(after.event_store.malformed_line_count, 1);
+  assert.deepEqual(after.event_store.malformed_lines, [2]);
 });
 
-test("stored event without event_id throws Chinese storage error and append does not overwrite it", async () => {
+test("stored event without event_id is reported as a skipped malformed line", async () => {
   const root = await makeRoot();
   const corrupted = `${JSON.stringify(
     baseEvent({ event_type: "search", query: "现金流", result_status: "success" })
   )}\n`;
   await writeRawEvents(root, corrupted);
 
-  await assert.rejects(() => readUsageMetrics(root), /使用事件存储文件格式错误/);
-  await assert.rejects(
-    () =>
-      appendUsageEvent(
-        root,
-        baseEvent({
-          event_type: "search",
-          query: "组织能力",
-          result_status: "empty"
-        })
-      ),
-    /使用事件存储文件格式错误/
+  const before = await readUsageMetrics(root);
+
+  assert.equal(before.search_request_count, 0);
+  assert.equal(before.event_store.line_count, 1);
+  assert.equal(before.event_store.valid_line_count, 0);
+  assert.equal(before.event_store.malformed_line_count, 1);
+  assert.deepEqual(before.event_store.malformed_lines, [1]);
+
+  await appendUsageEvent(
+    root,
+    baseEvent({
+      event_type: "search",
+      query: "组织能力",
+      result_status: "empty"
+    })
   );
-  assert.equal(await readFile(eventsPath(root), "utf8"), corrupted);
+
+  const after = await readUsageMetrics(root);
+  assert.equal(after.search_request_count, 1);
+  assert.equal(after.search_empty_count, 1);
+  assert.equal(after.event_store.line_count, 2);
+  assert.equal(after.event_store.valid_line_count, 1);
+  assert.equal(after.event_store.malformed_line_count, 1);
 });
 
 test("invalid usage event input throws Chinese validation error", async () => {

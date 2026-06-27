@@ -55,10 +55,19 @@ const USER_STATUSES = new Set<CutterUserStatus>([
 ]);
 const DEVICE_STATUSES = new Set<CutterDeviceRecord["status"]>(["active", "disabled"]);
 const storeMutationQueues = new Map<string, Promise<void>>();
-const STORE_WRITE_RETRY_DELAYS_MS = [20, 80, 200];
+const STORE_WRITE_RETRY_DELAYS_MS = [50, 150, 500, 1000, 2000];
+const STORE_READ_RETRY_DELAYS_MS = [20, 80, 200, 500];
 
 function usersPath(libraryRoot: string): string {
   return path.join(libraryRoot, ".mixlab-library", "cutter-users", "users.json");
+}
+
+function hasErrnoCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -206,34 +215,103 @@ function validateStore(value: unknown): CutterUserStore {
   return { schema_version: "1.0", users, sessions };
 }
 
-async function readStore(libraryRoot: string): Promise<CutterUserStore> {
-  let raw: string;
-  try {
-    raw = await readFile(usersPath(libraryRoot), "utf8");
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as NodeJS.ErrnoException).code === "ENOENT"
-    ) {
-      return { schema_version: "1.0", users: [], sessions: [] };
+function findJsonEnd(text: string): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
     }
-    throw new Error("无法读取剪辑师用户存储文件", { cause: error });
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{" || char === "[") {
+      depth += 1;
+    } else if (char === "}" || char === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return index + 1;
+      }
+    }
   }
 
-  let parsed: unknown;
+  return -1;
+}
+
+function parseStoreJson(raw: string): unknown {
   try {
-    parsed = JSON.parse(raw);
+    return JSON.parse(raw);
   } catch (error) {
-    throw new Error("剪辑师用户存储文件格式错误", { cause: error });
+    const jsonEnd = findJsonEnd(raw);
+    if (jsonEnd > 0 && /^[\s\0]*$/.test(raw.slice(jsonEnd))) {
+      return JSON.parse(raw.slice(0, jsonEnd));
+    }
+    throw error;
+  }
+}
+
+async function readStore(libraryRoot: string): Promise<CutterUserStore> {
+  let lastFormatError: unknown;
+  let lastValidationError: unknown;
+
+  for (let attempt = 0; attempt <= STORE_READ_RETRY_DELAYS_MS.length; attempt += 1) {
+    let raw: string;
+    try {
+      raw = await readFile(usersPath(libraryRoot), "utf8");
+    } catch (error) {
+      if (hasErrnoCode(error, "ENOENT")) {
+        return { schema_version: "1.0", users: [], sessions: [] };
+      }
+      throw new Error("无法读取剪辑师用户存储文件", { cause: error });
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = parseStoreJson(raw);
+    } catch (error) {
+      lastFormatError = error;
+      const delayMs = STORE_READ_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) {
+        throw new Error("剪辑师用户存储文件格式错误", { cause: lastFormatError });
+      }
+      await delay(delayMs);
+      continue;
+    }
+
+    try {
+      return validateStore(parsed);
+    } catch (error) {
+      lastValidationError = error;
+      const delayMs = STORE_READ_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) {
+        throw lastValidationError;
+      }
+      await delay(delayMs);
+    }
   }
 
-  return validateStore(parsed);
+  if (lastFormatError) {
+    throw new Error("剪辑师用户存储文件格式错误", { cause: lastFormatError });
+  }
+  throw lastValidationError instanceof Error
+    ? lastValidationError
+    : new Error("剪辑师用户存储数据无效");
 }
 
 async function writeStore(libraryRoot: string, store: CutterUserStore): Promise<void> {
   const targetPath = usersPath(libraryRoot);
   const targetDir = path.dirname(targetPath);
+  const serialized = `${JSON.stringify(store, null, 2)}\n`;
 
   await mkdir(targetDir, { recursive: true });
   for (let attempt = 0; attempt <= STORE_WRITE_RETRY_DELAYS_MS.length; attempt += 1) {
@@ -243,7 +321,7 @@ async function writeStore(libraryRoot: string, store: CutterUserStore): Promise<
     );
 
     try {
-      await writeFile(tempPath, `${JSON.stringify(store, null, 2)}\n`, {
+      await writeFile(tempPath, serialized, {
         encoding: "utf8",
         mode: 0o600
       });
@@ -253,9 +331,14 @@ async function writeStore(libraryRoot: string, store: CutterUserStore): Promise<
       await rm(tempPath, { force: true });
       const delayMs = STORE_WRITE_RETRY_DELAYS_MS[attempt];
       if (delayMs === undefined) {
+        if (hasErrnoCode(error, "EBUSY")) {
+          // SMB/NAS mounts can keep the target locked for atomic replace while direct writes still work.
+          await writeFile(targetPath, serialized, { encoding: "utf8" });
+          return;
+        }
         throw new Error("无法写入剪辑师用户存储文件", { cause: error });
       }
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await delay(delayMs);
     }
   }
 }

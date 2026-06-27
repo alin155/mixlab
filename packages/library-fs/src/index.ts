@@ -16,8 +16,14 @@ import {
   refreshLibraryCounts
 } from "./preprocess-lifecycle.ts";
 import { publishCutterRelease as publishCutterReleaseSnapshot } from "./cutter-release.ts";
-export { scanSourceVideos } from "./scanner.ts";
-export type { ScanSourceVideosInput, ScanSourceVideosResult } from "./scanner.ts";
+export { previewSourceVideoScan, scanSourceVideos } from "./scanner.ts";
+export type {
+  ScanSourceVideosInput,
+  ScanSourceVideosResult,
+  SourceVideoScanBlocker,
+  SourceVideoScanBlockerCode,
+  SourceVideoScanPreviewResult
+} from "./scanner.ts";
 export {
   appendPreprocessJobLog,
   claimNextPreprocessJob,
@@ -60,8 +66,10 @@ export { writeAsrTextArtifacts } from "./asr-artifacts.ts";
 export { getFileIdentity, hashFileSha256 } from "./file-hash.ts";
 export * from "./admin-settings.ts";
 export * from "./admin-users.ts";
+export * from "./admin-writer-lease.ts";
 export * from "./cutter-users.ts";
 export * from "./password-auth.ts";
+export * from "./preprocess-safety.ts";
 export * from "./usage-events.ts";
 export { resolveSourceVideoFilePath } from "./source-paths.ts";
 export type { FileIdentityMode } from "./file-hash.ts";

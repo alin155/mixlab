@@ -52,11 +52,15 @@ export const CUTTER_REQUIRED_PAGES = [
 ] as const;
 
 export const ADMIN_REQUIRED_PAGES = [
-  "仪表盘",
-  "原视频管理",
+  "总览",
+  "保护中心",
+  "素材库",
   "预处理",
-  "剪辑师用户",
-  "设置"
+  "发布与索引",
+  "剪辑师",
+  "系统检查",
+  "设置",
+  "操作记录"
 ] as const;
 
 export const FORBIDDEN_UI_PATTERNS = [

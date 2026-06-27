@@ -9,7 +9,12 @@ import {
   resolveSourceVideoFilePath,
   scanSourceVideos,
   updatePreprocessJobStage,
-  type ScanSourceVideosResult
+  type ClaimNextPreprocessJobInput,
+  type CompletePreprocessArtifactsInput,
+  type FailPreprocessJobInput,
+  type PreprocessJobSummary,
+  type ScanSourceVideosResult,
+  type UpdatePreprocessJobStageInput
 } from "../../library-fs/src/index.ts";
 import type { SourceVideoMediaMetadata } from "../../ffmpeg-core/src/index.ts";
 import type { PreprocessAudioModeId } from "./audio-mode.ts";
@@ -46,6 +51,15 @@ export interface RunLibraryTextPreprocessWorkerInput {
   preprocess_source_video(
     input: LibraryTextPreprocessInput
   ): Promise<SourceVideoTextPreprocessResult>;
+  lifecycle?: LibraryTextPreprocessWorkerLifecycle;
+}
+
+export interface LibraryTextPreprocessWorkerLifecycle {
+  claim_next_preprocess_job(input: ClaimNextPreprocessJobInput): Promise<PreprocessJobSummary | null>;
+  update_preprocess_job_stage(input: UpdatePreprocessJobStageInput): Promise<void>;
+  complete_preprocess_artifacts(input: CompletePreprocessArtifactsInput): Promise<void>;
+  fail_preprocess_job(input: FailPreprocessJobInput): Promise<void>;
+  refresh_library_counts(libraryRoot: string, now: string): Promise<void>;
 }
 
 export interface LibraryTextPreprocessWorkerSuccess {
@@ -127,6 +141,13 @@ export async function runLibraryTextPreprocessWorker(
   const getContentHash =
     input.get_content_hash ?? ((filePath: string) => getFileIdentity(filePath));
   const countRefreshInterval = input.count_refresh_interval ?? 25;
+  const lifecycle = input.lifecycle ?? {
+    claim_next_preprocess_job: claimNextPreprocessJob,
+    update_preprocess_job_stage: updatePreprocessJobStage,
+    complete_preprocess_artifacts: completePreprocessArtifacts,
+    fail_preprocess_job: failPreprocessJob,
+    refresh_library_counts: refreshLibraryCounts
+  };
   const scanResult = input.scan_before_claim === false
     ? await existingScanResult(input.library_root)
     : await scanSourceVideos({
@@ -148,13 +169,13 @@ export async function runLibraryTextPreprocessWorker(
       return;
     }
 
-    await refreshLibraryCounts(input.library_root, now());
+    await lifecycle.refresh_library_counts(input.library_root, now());
     claimedSinceCountRefresh = 0;
     pendingCountRefresh = false;
   }
 
   while (items.length < maxClaimCount) {
-    const job = await claimNextPreprocessJob({
+    const job = await lifecycle.claim_next_preprocess_job({
       library_root: input.library_root,
       worker_id: input.worker_id,
       now: now(),
@@ -173,7 +194,7 @@ export async function runLibraryTextPreprocessWorker(
     try {
       const manifest = await readSourceVideoManifest(input.library_root, job.source_video_id);
       sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
-      await updatePreprocessJobStage({
+      await lifecycle.update_preprocess_job_stage({
         library_root: input.library_root,
         source_video_id: job.source_video_id,
         stage: "probe-media",
@@ -192,7 +213,7 @@ export async function runLibraryTextPreprocessWorker(
         audio_mode: input.audio_mode,
         now: now(),
         on_stage(stage) {
-          return updatePreprocessJobStage({
+          return lifecycle.update_preprocess_job_stage({
             library_root: input.library_root,
             source_video_id: job.source_video_id,
             stage,
@@ -201,7 +222,7 @@ export async function runLibraryTextPreprocessWorker(
         }
       });
 
-      await completePreprocessArtifacts({
+      await lifecycle.complete_preprocess_artifacts({
         library_root: input.library_root,
         source_video_id: job.source_video_id,
         now: now(),
@@ -228,7 +249,7 @@ export async function runLibraryTextPreprocessWorker(
     } catch (error) {
       const message = errorMessage(error);
 
-      await failPreprocessJob({
+      await lifecycle.fail_preprocess_job({
         library_root: input.library_root,
         source_video_id: job.source_video_id,
         now: now(),

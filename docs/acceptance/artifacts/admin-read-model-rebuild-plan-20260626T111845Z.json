@@ -1,0 +1,363 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T11:18:45.812Z",
+  "command": "tsx scripts/acceptance/admin-read-model-rebuild-plan.ts",
+  "mode": "plan-only",
+  "api_base_url": "http://127.0.0.1:3892",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "min_disk_available_bytes": 1073741824,
+  "requests": [
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 53.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 133,
+      "data": {
+        "authenticated": true,
+        "auth_mode": "disabled",
+        "user": null,
+        "bootstrap": {
+          "has_admin": true,
+          "registration_open": false
+        }
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 64,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 732,
+      "data": {
+        "library_id": "lib_main_001",
+        "name": "主素材库",
+        "root_path": "/Volumes/MixLab/PublicLibrary",
+        "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+        "mixlab_library_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+        "protocol_version": "1.0",
+        "version": "1.0",
+        "created_at": "2026-06-24T11:53:43.919Z",
+        "updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "processing_video_count": 0,
+        "queued_video_count": 904,
+        "unprocessed_video_count": 0,
+        "failed_video_count": 0,
+        "index_required_video_count": 19,
+        "disk_total_bytes": 31840459087872,
+        "disk_available_bytes": 674076200960,
+        "index_status": "needs-publish",
+        "current_index_version": "v010471",
+        "active_task_label": "无正在处理任务"
+      }
+    },
+    {
+      "name": "read_model_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/status",
+      "duration_ms": 100.6,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1459,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T11:18:45.932Z",
+        "admin_read_model": {
+          "schema_version": "1.0",
+          "storage": "sqlite",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "freshness": "fresh",
+          "exists": true,
+          "generated_at": "2026-06-26T11:13:44.841Z",
+          "library_updated_at": "2026-06-25T19:07:13.162Z",
+          "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+          "video_count": 11394,
+          "current_video_count": 11394,
+          "counts_by_status": {
+            "unprocessed": 0,
+            "queued": 904,
+            "processing": 0,
+            "ready": 10471,
+            "failed": 0,
+            "index-required": 19
+          },
+          "invalidated_at": "",
+          "invalidation_reason": "",
+          "last_error": "",
+          "reconciliation": {
+            "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+            "action": "none",
+            "reason": "fresh",
+            "scan_mode": "no-scan",
+            "requires_background_reconcile": false,
+            "safe_for_page_request": true
+          }
+        },
+        "source_video_status": {
+          "name": "source-video-status-read-model-v1",
+          "storage": "persistent-json",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+          "freshness": "fresh",
+          "memory_cache": "fresh",
+          "persisted": "fresh",
+          "generated_at": "2026-06-26T11:13:44.841Z",
+          "library_updated_at": "2026-06-25T19:07:13.162Z",
+          "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+          "video_count": 11394,
+          "current_video_count": 11394,
+          "counts_by_status": {
+            "unprocessed": 0,
+            "queued": 904,
+            "processing": 0,
+            "ready": 10471,
+            "failed": 0,
+            "index-required": 19
+          },
+          "cache_ttl_ms": 30000
+        }
+      }
+    },
+    {
+      "name": "reconcile_status",
+      "method": "GET",
+      "path": "/api/admin/read-model/reconcile/status",
+      "duration_ms": 0.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 463,
+      "data": {
+        "schema_version": "1.0",
+        "command": "read-model-reconcile",
+        "status": "idle",
+        "phase": "idle",
+        "scan_mode": "full-reconcile",
+        "cancel_requested": false,
+        "started_at": "",
+        "finished_at": "",
+        "snapshot_video_count": 0,
+        "progress": {
+          "scanned_source_video_count": 0,
+          "total_source_video_count": 0,
+          "percent": 0,
+          "message": "读模型后台对账尚未运行。"
+        },
+        "events": [],
+        "message": "读模型后台对账尚未运行。",
+        "result": null,
+        "error_code": "",
+        "error_message": ""
+      }
+    },
+    {
+      "name": "process_history_readiness",
+      "method": "GET",
+      "path": "/api/admin/preprocess/process-history/readiness",
+      "duration_ms": 169.6,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 799,
+      "data": {
+        "source": "admin-read-model-store",
+        "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+        "store_exists": true,
+        "store_freshness": "fresh",
+        "generated_at": "2026-06-26T11:13:44.841Z",
+        "library_updated_at": "2026-06-25T19:07:13.162Z",
+        "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+        "scan_mode": "no-scan",
+        "ready_for_process_history": false,
+        "reason": "snapshot_incomplete",
+        "expected_job_snapshot_rows": 11394,
+        "snapshot_complete": false,
+        "snapshot_metadata_row_count": 0,
+        "snapshot_table_row_count": 0,
+        "metadata_row_count_matches": false,
+        "table_row_count_matches": false,
+        "last_error": "",
+        "schema_version": "1.0",
+        "checked_at": "2026-06-26T11:18:46.201Z",
+        "data_source": "admin-read-model",
+        "actual_data_source": "admin-read-model",
+        "scan_reason": "read-model-health"
+      }
+    },
+    {
+      "name": "process_history",
+      "method": "GET",
+      "path": "/api/admin/preprocess/process-history?limit=20&window_days=30",
+      "duration_ms": 137.8,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 408,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T11:18:46.203Z",
+        "data_source": "admin-read-model",
+        "actual_data_source": "admin-read-model",
+        "cache_status": "miss",
+        "scan_mode": "no-scan",
+        "scan_reason": "route-owned-page",
+        "history_available": false,
+        "window_days": 30,
+        "limit": 20,
+        "summary": {
+          "returned_count": 0,
+          "completed_count": 0,
+          "failed_count": 0,
+          "active_count": 0,
+          "average_process_ms": 0
+        },
+        "items": []
+      }
+    }
+  ],
+  "environment": {
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "library_updated_at": "2026-06-25T19:07:13.162Z",
+    "current_index_version": "v010471",
+    "video_count": 11394,
+    "ready_video_count": 10471,
+    "queued_video_count": 904,
+    "processing_video_count": 0,
+    "failed_video_count": 0,
+    "index_required_video_count": 19,
+    "disk_available_bytes": 674076200960,
+    "disk_total_bytes": 31840459087872,
+    "admin_read_model": {
+      "storage": "sqlite",
+      "exists": true,
+      "freshness": "fresh",
+      "video_count": 11394,
+      "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+      "reconciliation_action": "none",
+      "reconciliation_reason": "fresh",
+      "reconciliation_scan_mode": "no-scan",
+      "safe_for_page_request": true
+    }
+  },
+  "reconcile_status": {
+    "status": "idle",
+    "phase": "idle"
+  },
+  "process_history_readiness": {
+    "ready": false,
+    "reason": "snapshot_incomplete",
+    "last_error": "",
+    "actual_data_source": "admin-read-model",
+    "scan_mode": "no-scan",
+    "expected_job_snapshot_rows": 11394,
+    "snapshot_complete": false,
+    "snapshot_metadata_row_count": 0,
+    "snapshot_table_row_count": 0
+  },
+  "current_process_history": {
+    "status": "safe-miss",
+    "available": false,
+    "actual_data_source": "admin-read-model",
+    "cache_status": "miss",
+    "scan_mode": "no-scan",
+    "returned_count": 0
+  },
+  "rebuild_plan": {
+    "mode": "plan-only",
+    "needed": true,
+    "planned_action": "force-rebuild-derived-admin-read-model",
+    "reason": "snapshot_incomplete",
+    "separate_execution_required": true,
+    "runner": "scripts/acceptance/admin-read-model-reconcile.ts",
+    "required_environment": {
+      "MIXLAB_ADMIN_API_BASE_URL": "http://127.0.0.1:3892",
+      "MIXLAB_ADMIN_READ_MODEL_EXPECT_ROOT": "/Volumes/MixLab/PublicLibrary",
+      "MIXLAB_ADMIN_READ_MODEL_RECONCILE_ALLOW": "true",
+      "MIXLAB_ADMIN_READ_MODEL_RECONCILE_FORCE": "true"
+    },
+    "allowed_mutation_paths": [
+      "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+      "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite-*",
+      "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model",
+      "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/operation-log/events.ndjson"
+    ],
+    "forbidden_effects": [
+      "Do not modify source-video manifests.",
+      "Do not modify library.json counts or library.updated_at.",
+      "Do not modify release/index artifacts or Cutter release/search protocols.",
+      "Do not requeue, rerun, delete, hide, or downline ready source videos.",
+      "Do not upload Docker images or change NAS container configuration in this step.",
+      "Do not use operation-log audit entries as a business-state source of truth."
+    ],
+    "post_run_invariants": [
+      "library.video_count stays unchanged.",
+      "library.ready_video_count stays unchanged.",
+      "library.updated_at stays unchanged.",
+      "current_index_version stays unchanged.",
+      "admin-read-model freshness becomes fresh and safe_for_page_request remains true.",
+      "process-history readiness becomes ready or the follow-up run is treated as failed."
+    ]
+  },
+  "gates": [
+    {
+      "name": "get-only-plan",
+      "passed": true,
+      "detail": "requests=GET /api/admin/auth/status, GET /api/admin/library/status, GET /api/admin/read-model/status, GET /api/admin/read-model/reconcile/status, GET /api/admin/preprocess/process-history/readiness, GET /api/admin/preprocess/process-history?limit=20&window_days=30"
+    },
+    {
+      "name": "request-success",
+      "passed": true,
+      "detail": "all probe requests returned ok"
+    },
+    {
+      "name": "library-root",
+      "passed": true,
+      "detail": "root_path=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "disk-available",
+      "passed": true,
+      "detail": "disk_available=627.8 GiB, minimum=1.0 GiB"
+    },
+    {
+      "name": "reconcile-not-running",
+      "passed": true,
+      "detail": "status=idle, phase=idle"
+    },
+    {
+      "name": "process-history-currently-no-scan",
+      "passed": true,
+      "detail": "status=safe-miss, source=admin-read-model, scan_mode=no-scan"
+    },
+    {
+      "name": "readiness-explains-state",
+      "passed": true,
+      "detail": "ready=false, reason=snapshot_incomplete, last_error=none"
+    },
+    {
+      "name": "bounded-mutation-scope-only",
+      "passed": true,
+      "detail": "allowed=/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite, /Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite-*, /Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model, /Volumes/MixLab/PublicLibrary/.mixlab-library/admin/operation-log/events.ndjson, forbidden=6"
+    },
+    {
+      "name": "protected-invariants-recorded",
+      "passed": true,
+      "detail": "total=11394, ready=10471, updated_at=2026-06-25T19:07:13.162Z, index=v010471"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "plan-only rebuild gate passed; reason=snapshot_incomplete; execute separate reconcile runner if proceeding"
+  }
+}

@@ -1,0 +1,650 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T14:16:40.864Z",
+  "command": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
+  "mode": "isolated-auth-disabled-no-repair-performance",
+  "api_base_url": "http://127.0.0.1:60998",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "isolated_server": {
+    "host": "127.0.0.1",
+    "port": 60998,
+    "auth_mode": "disabled",
+    "health_wait_ms": 489.7
+  },
+  "performance_artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T141641Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T141641Z.md"
+  },
+  "performance_summary": {
+    "generated_at": "2026-06-27T14:16:41.461Z",
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "endpoint_count": 20,
+    "failed_endpoint_count": 0,
+    "slow_endpoint_count": 0,
+    "runtime_repair_endpoint_count": 0,
+    "runtime_component_contract_failed_count": 0,
+    "high_risk_route_count": 4,
+    "high_risk_route_evidence_failed_count": 0,
+    "background_aggregation_count": 1,
+    "background_aggregation_evidence_failed_count": 0,
+    "read_only_probe": true,
+    "disable_page_time_store_repair": true
+  },
+  "high_risk_route_runtime_evidence": [
+    {
+      "endpoint_name": "source_videos_processing",
+      "path": "/api/admin/source-videos?status=processing&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 87.1,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "admin-read-model": 2
+      },
+      "scan_modes": {
+        "paged-list": 2
+      },
+      "cache_statuses": {
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "status_store_page",
+          "sample_count": 2,
+          "avg_ms": 83,
+          "max_ms": 85,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "paged-list": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {
+            "status=processing;offset=0;limit=20;manifests=0": 2
+          }
+        },
+        {
+          "name": "library_counts",
+          "sample_count": 2,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "library-manifest": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "shell-summary": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "video_count=11394;status=processing;offset=0;limit=20": 2
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    },
+    {
+      "endpoint_name": "source_videos_index_required",
+      "path": "/api/admin/source-videos?status=index-required&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 237.8,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "admin-read-model": 2
+      },
+      "scan_modes": {
+        "paged-list": 2
+      },
+      "cache_statuses": {
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "status_store_page",
+          "sample_count": 2,
+          "avg_ms": 231,
+          "max_ms": 234,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "paged-list": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {
+            "status=index-required;offset=0;limit=20;manifests=19": 2
+          }
+        },
+        {
+          "name": "library_counts",
+          "sample_count": 2,
+          "avg_ms": 0.5,
+          "max_ms": 1,
+          "data_sources": {
+            "library-manifest": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "shell-summary": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "video_count=11394;status=index-required;offset=0;limit=20": 2
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    },
+    {
+      "endpoint_name": "preprocess_jobs",
+      "path": "/api/admin/preprocess/jobs?limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 472.2,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "admin-read-model": 2
+      },
+      "scan_modes": {
+        "status-scan": 2
+      },
+      "cache_statuses": {
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "runtime_load",
+          "sample_count": 2,
+          "avg_ms": 134.5,
+          "max_ms": 269,
+          "data_sources": {
+            "runtime-telemetry": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "status=blocked": 2
+          }
+        },
+        {
+          "name": "preprocess_job_page",
+          "sample_count": 2,
+          "avg_ms": 198,
+          "max_ms": 200,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "paged-list": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {
+            "offset=0;limit=20;manifests=20;snapshots=0": 2
+          }
+        },
+        {
+          "name": "concurrency_policy",
+          "sample_count": 2,
+          "avg_ms": 2.5,
+          "max_ms": 4,
+          "data_sources": {
+            "admin-settings": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "settings-route": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "concurrency=1": 2
+          }
+        },
+        {
+          "name": "library_counts",
+          "sample_count": 2,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "library-manifest": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "shell-summary": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "video_count=11394;ready=10471;queued=904;processing=0;failed=0;index_required=19": 2
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    },
+    {
+      "endpoint_name": "index_versions",
+      "path": "/api/admin/index/versions?limit=8",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 291.8,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "current-index": 2
+      },
+      "scan_modes": {
+        "paged-list": 2
+      },
+      "cache_statuses": {
+        "miss": 1,
+        "hit": 1
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "index_package_validation",
+          "sample_count": 1,
+          "avg_ms": 240,
+          "max_ms": 240,
+          "data_sources": {
+            "index-version-packages": 1
+          },
+          "scan_modes": {
+            "paged-list": 1
+          },
+          "scan_reasons": {
+            "index-version-page": 1
+          },
+          "cache_statuses": {
+            "not-applicable": 1
+          },
+          "details": {
+            "versions=8;directory_ms=0;current_ms=0": 1
+          }
+        },
+        {
+          "name": "current_pointer_fast_page",
+          "sample_count": 1,
+          "avg_ms": 48,
+          "max_ms": 48,
+          "data_sources": {
+            "current-index": 1
+          },
+          "scan_modes": {
+            "paged-list": 1
+          },
+          "scan_reasons": {
+            "index-version-page": 1
+          },
+          "cache_statuses": {
+            "hit": 1
+          },
+          "details": {
+            "offset=0;limit=8;result=hit;versions=8": 1
+          }
+        },
+        {
+          "name": "cache_lookup",
+          "sample_count": 1,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "current-index": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "index-version-page": 1
+          },
+          "cache_statuses": {
+            "hit": 1
+          },
+          "details": {
+            "offset=0;limit=8": 1
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    }
+  ],
+  "background_aggregation_runtime_evidence": [
+    {
+      "endpoint_name": "dashboard_metrics",
+      "path": "/api/admin/dashboard/metrics",
+      "phase": "background",
+      "expected_max_p95_ms": 8000,
+      "p95_ms": 460.9,
+      "passed_target": true,
+      "sample_count": 3,
+      "success_count": 3,
+      "runtime_sample_count": 3,
+      "actual_data_sources": {
+        "admin-read-model": 3
+      },
+      "scan_modes": {
+        "no-scan": 3
+      },
+      "cache_statuses": {
+        "miss": 1,
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "production_summary",
+          "sample_count": 1,
+          "avg_ms": 174,
+          "max_ms": 174,
+          "data_sources": {
+            "admin-read-model": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        },
+        {
+          "name": "usage_metrics",
+          "sample_count": 1,
+          "avg_ms": 106,
+          "max_ms": 106,
+          "data_sources": {
+            "admin-read-model": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {
+            "hit": 1
+          },
+          "details": {
+            "usage_projection=summary-hit": 1
+          }
+        },
+        {
+          "name": "status_summary",
+          "sample_count": 1,
+          "avg_ms": 88,
+          "max_ms": 88,
+          "data_sources": {
+            "admin-read-model": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        },
+        {
+          "name": "material_summary",
+          "sample_count": 1,
+          "avg_ms": 85,
+          "max_ms": 85,
+          "data_sources": {
+            "admin-read-model": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        },
+        {
+          "name": "transcript_metrics",
+          "sample_count": 1,
+          "avg_ms": 2,
+          "max_ms": 2,
+          "data_sources": {
+            "current-index": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        },
+        {
+          "name": "current_index_version",
+          "sample_count": 1,
+          "avg_ms": 1,
+          "max_ms": 1,
+          "data_sources": {
+            "current-index": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        },
+        {
+          "name": "dashboard_metrics_cache",
+          "sample_count": 2,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "background-metrics": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {}
+        },
+        {
+          "name": "library_manifest",
+          "sample_count": 1,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "library-manifest": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        },
+        {
+          "name": "preprocess_jobs",
+          "sample_count": 1,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "library-manifest": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {
+            "summary-mode": 1
+          }
+        },
+        {
+          "name": "runtime_load",
+          "sample_count": 1,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "runtime-telemetry": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "background-metrics": 1
+          },
+          "cache_statuses": {},
+          "details": {}
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "isolated-auth-disabled",
+      "passed": true,
+      "detail": "auth_mode=disabled, authenticated=true"
+    },
+    {
+      "name": "library-root-match",
+      "passed": true,
+      "detail": "observed=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "no-repair-sample-policy",
+      "passed": true,
+      "detail": "read_only_probe=true, disable_page_time_store_repair=true"
+    },
+    {
+      "name": "no-runtime-repair-samples",
+      "passed": true,
+      "detail": "runtime_repair_endpoint_count=0"
+    },
+    {
+      "name": "required-runtime-components-present",
+      "passed": true,
+      "detail": "contract_count=5"
+    },
+    {
+      "name": "high-risk-route-runtime-evidence-complete",
+      "passed": true,
+      "detail": "routes=source_videos_processing,source_videos_index_required,preprocess_jobs,index_versions"
+    },
+    {
+      "name": "background-aggregation-runtime-evidence-complete",
+      "passed": true,
+      "detail": "routes=dashboard_metrics"
+    },
+    {
+      "name": "all-endpoint-samples-succeeded",
+      "passed": true,
+      "detail": "endpoint_count=20"
+    },
+    {
+      "name": "performance-targets-met",
+      "passed": true,
+      "detail": "no slow endpoint gates"
+    }
+  ],
+  "notes": [
+    "This runner starts a temporary local Admin API with MIXLAB_ADMIN_AUTH_MODE=disabled and shuts it down after the probe.",
+    "The child performance probe sends X-MixLab-Admin-Read-Only-Probe: true on GET requests.",
+    "High-risk route runtime evidence must expose data source, scan mode, cache status and component timing for processing, index-required, preprocess/jobs and index/versions.",
+    "Background aggregation runtime evidence must keep dashboard_metrics in the background phase and expose usage_metrics provenance.",
+    "This runner does not start workers, run scan/apply/publish/repair commands, deploy Docker, or kill the user's existing 3889/5176 services.",
+    "Passing this runner proves the sampled route set met the current performance gates for the observed library root; it does not complete Admin Architecture v1."
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "Isolated auth-disabled no-repair performance probe passed."
+  }
+}

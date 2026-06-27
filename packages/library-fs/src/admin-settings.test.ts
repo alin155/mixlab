@@ -38,6 +38,45 @@ test("creates default admin settings with one default source folder", async () =
   assert.equal(settings.source_folders[0]?.enabled, true);
 });
 
+test("normalizes environment default paths against the current library root", async () => {
+  const root = await makeRoot();
+  const current = await readAdminSettings(root);
+  await mkdir(path.dirname(adminSettingsPath(root)), { recursive: true });
+  await writeFile(
+    adminSettingsPath(root),
+    `${JSON.stringify(
+      {
+        ...current,
+        artifact_library: {
+          ...current.artifact_library,
+          path: "/data/PublicLibrary/.mixlab-library"
+        },
+        source_folders: [
+          {
+            ...current.source_folders[0],
+            path: "/data/PublicLibrary/source-videos"
+          },
+          {
+            id: "src_002",
+            name: "外部素材",
+            path: "/mnt/course-source",
+            enabled: true
+          }
+        ]
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  const settings = await readAdminSettings(root);
+
+  assert.equal(settings.artifact_library.path, path.join(root, ".mixlab-library"));
+  assert.equal(settings.source_folders[0]?.path, path.join(root, "source-videos"));
+  assert.equal(settings.source_folders[1]?.path, "/mnt/course-source");
+});
+
 test("persists multiple source folders without changing the single artifact library", async () => {
   const root = await makeRoot();
   const next = await addAdminSourceFolder(root, {

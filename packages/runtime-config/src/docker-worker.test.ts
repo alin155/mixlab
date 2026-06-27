@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildAdminWorkerCycle,
+  isAdminDockerMvpMode,
   parseWorkerPollIntervalSeconds,
   resolveNpmExecutable,
 } from "./docker-worker.ts";
@@ -32,9 +33,30 @@ describe("docker worker config", () => {
     assert.equal(resolveNpmExecutable("darwin"), "npm");
   });
 
+  it("detects docker mvp aliases used by admin containers", () => {
+    assert.equal(isAdminDockerMvpMode({}), false);
+    assert.equal(isAdminDockerMvpMode({ MIXLAB_ADMIN_DOCKER_MVP_MODE: "v0.1" }), true);
+    assert.equal(isAdminDockerMvpMode({ MIXLAB_ADMIN_DOCKER_MVP_MODE: "docker-mvp-v0.1" }), true);
+    assert.equal(isAdminDockerMvpMode({ MIXLAB_ADMIN_DOCKER_MVP_MODE: "true" }), true);
+    assert.equal(isAdminDockerMvpMode({ MIXLAB_ADMIN_DOCKER_MVP_MODE: "off" }), false);
+  });
+
   it("builds disabled commands by default", () => {
     assert.deepEqual(
       buildAdminWorkerCycle({}).map((command) => [command.name, command.enabled]),
+      [
+        ["preprocess-library", false],
+        ["publish-ready", false],
+      ],
+    );
+  });
+
+  it("keeps worker commands disabled unless explicitly opted in with 1", () => {
+    assert.deepEqual(
+      buildAdminWorkerCycle({
+        MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: "0",
+        MIXLAB_ENABLE_READY_PUBLISH_WORKER: "true",
+      }).map((command) => [command.name, command.enabled]),
       [
         ["preprocess-library", false],
         ["publish-ready", false],
@@ -51,6 +73,20 @@ describe("docker worker config", () => {
       [
         ["preprocess-library", true],
         ["publish-ready", true],
+      ],
+    );
+  });
+
+  it("keeps ready publish worker disabled in docker mvp mode even when the flag is set", () => {
+    assert.deepEqual(
+      buildAdminWorkerCycle({
+        MIXLAB_ADMIN_DOCKER_MVP_MODE: "v0.1",
+        MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: "1",
+        MIXLAB_ENABLE_READY_PUBLISH_WORKER: "1",
+      }).map((command) => [command.name, command.enabled]),
+      [
+        ["preprocess-library", true],
+        ["publish-ready", false],
       ],
     );
   });

@@ -1,0 +1,433 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T14:01:22.549Z",
+  "command": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
+  "mode": "isolated-auth-disabled-no-repair-performance",
+  "api_base_url": "http://127.0.0.1:60558",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "isolated_server": {
+    "host": "127.0.0.1",
+    "port": 60558,
+    "auth_mode": "disabled",
+    "health_wait_ms": 383.7
+  },
+  "performance_artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T140123Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T140123Z.md"
+  },
+  "performance_summary": {
+    "generated_at": "2026-06-27T14:01:23.046Z",
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "endpoint_count": 20,
+    "failed_endpoint_count": 0,
+    "slow_endpoint_count": 0,
+    "runtime_repair_endpoint_count": 0,
+    "runtime_component_contract_failed_count": 0,
+    "high_risk_route_count": 4,
+    "high_risk_route_evidence_failed_count": 0,
+    "read_only_probe": true,
+    "disable_page_time_store_repair": true
+  },
+  "high_risk_route_runtime_evidence": [
+    {
+      "endpoint_name": "source_videos_processing",
+      "path": "/api/admin/source-videos?status=processing&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 81.5,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "admin-read-model": 2
+      },
+      "scan_modes": {
+        "paged-list": 2
+      },
+      "cache_statuses": {
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "status_store_page",
+          "sample_count": 2,
+          "avg_ms": 79,
+          "max_ms": 79,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "paged-list": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {
+            "status=processing;offset=0;limit=20;manifests=0": 2
+          }
+        },
+        {
+          "name": "library_counts",
+          "sample_count": 2,
+          "avg_ms": 0.5,
+          "max_ms": 1,
+          "data_sources": {
+            "library-manifest": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "shell-summary": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "video_count=11394;status=processing;offset=0;limit=20": 2
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    },
+    {
+      "endpoint_name": "source_videos_index_required",
+      "path": "/api/admin/source-videos?status=index-required&limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 230.5,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "admin-read-model": 2
+      },
+      "scan_modes": {
+        "paged-list": 2
+      },
+      "cache_statuses": {
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "status_store_page",
+          "sample_count": 2,
+          "avg_ms": 226.5,
+          "max_ms": 227,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "paged-list": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {
+            "status=index-required;offset=0;limit=20;manifests=19": 2
+          }
+        },
+        {
+          "name": "library_counts",
+          "sample_count": 2,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "library-manifest": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "shell-summary": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "video_count=11394;status=index-required;offset=0;limit=20": 2
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    },
+    {
+      "endpoint_name": "preprocess_jobs",
+      "path": "/api/admin/preprocess/jobs?limit=20",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 447,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "admin-read-model": 2
+      },
+      "scan_modes": {
+        "status-scan": 2
+      },
+      "cache_statuses": {
+        "hit": 2
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "runtime_load",
+          "sample_count": 2,
+          "avg_ms": 129.5,
+          "max_ms": 259,
+          "data_sources": {
+            "runtime-telemetry": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "status=blocked": 2
+          }
+        },
+        {
+          "name": "preprocess_job_page",
+          "sample_count": 2,
+          "avg_ms": 188,
+          "max_ms": 195,
+          "data_sources": {
+            "admin-read-model": 2
+          },
+          "scan_modes": {
+            "paged-list": 2
+          },
+          "scan_reasons": {
+            "route-owned-page": 2
+          },
+          "cache_statuses": {
+            "hit": 2
+          },
+          "details": {
+            "offset=0;limit=20;manifests=20;snapshots=0": 2
+          }
+        },
+        {
+          "name": "concurrency_policy",
+          "sample_count": 2,
+          "avg_ms": 0.5,
+          "max_ms": 1,
+          "data_sources": {
+            "admin-settings": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "settings-route": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "concurrency=1": 2
+          }
+        },
+        {
+          "name": "library_counts",
+          "sample_count": 2,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "library-manifest": 2
+          },
+          "scan_modes": {
+            "no-scan": 2
+          },
+          "scan_reasons": {
+            "shell-summary": 2
+          },
+          "cache_statuses": {
+            "not-applicable": 2
+          },
+          "details": {
+            "video_count=11394;ready=10471;queued=904;processing=0;failed=0;index_required=19": 2
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    },
+    {
+      "endpoint_name": "index_versions",
+      "path": "/api/admin/index/versions?limit=8",
+      "phase": "route",
+      "expected_max_p95_ms": 1000,
+      "p95_ms": 286.2,
+      "passed_target": true,
+      "sample_count": 2,
+      "success_count": 2,
+      "runtime_sample_count": 2,
+      "actual_data_sources": {
+        "current-index": 2
+      },
+      "scan_modes": {
+        "paged-list": 2
+      },
+      "cache_statuses": {
+        "miss": 1,
+        "hit": 1
+      },
+      "fallback_reasons": {},
+      "repair_reasons": {},
+      "slow_runtime_count": 0,
+      "slow_reasons": {},
+      "components": [
+        {
+          "name": "index_package_validation",
+          "sample_count": 1,
+          "avg_ms": 240,
+          "max_ms": 240,
+          "data_sources": {
+            "index-version-packages": 1
+          },
+          "scan_modes": {
+            "paged-list": 1
+          },
+          "scan_reasons": {
+            "index-version-page": 1
+          },
+          "cache_statuses": {
+            "not-applicable": 1
+          },
+          "details": {
+            "versions=8;directory_ms=0;current_ms=0": 1
+          }
+        },
+        {
+          "name": "current_pointer_fast_page",
+          "sample_count": 1,
+          "avg_ms": 42,
+          "max_ms": 42,
+          "data_sources": {
+            "current-index": 1
+          },
+          "scan_modes": {
+            "paged-list": 1
+          },
+          "scan_reasons": {
+            "index-version-page": 1
+          },
+          "cache_statuses": {
+            "hit": 1
+          },
+          "details": {
+            "offset=0;limit=8;result=hit;versions=8": 1
+          }
+        },
+        {
+          "name": "cache_lookup",
+          "sample_count": 1,
+          "avg_ms": 0,
+          "max_ms": 0,
+          "data_sources": {
+            "current-index": 1
+          },
+          "scan_modes": {
+            "no-scan": 1
+          },
+          "scan_reasons": {
+            "index-version-page": 1
+          },
+          "cache_statuses": {
+            "hit": 1
+          },
+          "details": {
+            "offset=0;limit=8": 1
+          }
+        }
+      ],
+      "evidence_complete": true,
+      "missing_evidence": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "isolated-auth-disabled",
+      "passed": true,
+      "detail": "auth_mode=disabled, authenticated=true"
+    },
+    {
+      "name": "library-root-match",
+      "passed": true,
+      "detail": "observed=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "no-repair-sample-policy",
+      "passed": true,
+      "detail": "read_only_probe=true, disable_page_time_store_repair=true"
+    },
+    {
+      "name": "no-runtime-repair-samples",
+      "passed": true,
+      "detail": "runtime_repair_endpoint_count=0"
+    },
+    {
+      "name": "required-runtime-components-present",
+      "passed": true,
+      "detail": "contract_count=5"
+    },
+    {
+      "name": "high-risk-route-runtime-evidence-complete",
+      "passed": true,
+      "detail": "routes=source_videos_processing,source_videos_index_required,preprocess_jobs,index_versions"
+    },
+    {
+      "name": "all-endpoint-samples-succeeded",
+      "passed": true,
+      "detail": "endpoint_count=20"
+    },
+    {
+      "name": "performance-targets-met",
+      "passed": true,
+      "detail": "no slow endpoint gates"
+    }
+  ],
+  "notes": [
+    "This runner starts a temporary local Admin API with MIXLAB_ADMIN_AUTH_MODE=disabled and shuts it down after the probe.",
+    "The child performance probe sends X-MixLab-Admin-Read-Only-Probe: true on GET requests.",
+    "High-risk route runtime evidence must expose data source, scan mode, cache status and component timing for processing, index-required, preprocess/jobs and index/versions.",
+    "This runner does not start workers, run scan/apply/publish/repair commands, deploy Docker, or kill the user's existing 3889/5176 services.",
+    "Passing this runner proves the sampled route set met the current performance gates for the observed library root; it does not complete Admin Architecture v1."
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "Isolated auth-disabled no-repair performance probe passed."
+  }
+}

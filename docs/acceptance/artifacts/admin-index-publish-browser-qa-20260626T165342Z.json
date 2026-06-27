@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T16:53:42.863Z",
+  "command": "tsx scripts/acceptance/admin-index-publish-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5189/#/index-publish",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5189/#/index-publish",
+      "load_ms": 614.6,
+      "screenshot_path": "docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T165342Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "发布与索引": true,
+        "发布队列": true,
+        "待发布索引": true,
+        "索引版本": true,
+        "版本详情": true,
+        "页面契约": true,
+        "发布队列来源": true,
+        "读模型": true,
+        "版本来源": true,
+        "索引版本包": true,
+        "扫描模式": true,
+        "不扫描": true,
+        "本页面局部处理": true
+      },
+      "publication_queue_text": "发布队列\n\n待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。\n\n摘要 5 条\n\n当前摘要显示仍有待发布视频，待发布首屏尚未返回明细，可刷新本页或检查读模型状态。",
+      "index_version_text": "索引版本\n\n剪辑端搜索读取当前索引指针；历史版本只作为发布与回溯依据。\n\n通过\n版本\t创建时间\t已可用数量\t协议版本\t校验\t校验说明\t当前状态\nv000027\t2024-05-07 09:51:32\t120\t1.0.0\t通过\t索引包校验通过\t当前索引指向\nv000026\t2024-05-06 22:10:11\t118\t1.0.0\t通过\t索引包校验通过\t历史版本\nv000025\t2024-05-05 21:47:09\t114\t1.0.0\t通过\t索引包校验通过\t历史版本",
+      "inspector_text": "版本详情\n\n发布与索引\n\nv000027\n当前索引\nv000027\n当前索引状态\n当前索引已发布 v000027\n已可用数量\n120\n协议版本\n1.0.0\n校验\n通过\n校验说明\n索引包校验通过\n发布人\nadmin\n页面契约\n主工作区\n发布队列\n辅助区\n索引版本\n发布队列来源\n读模型\n版本来源\n索引版本包\n扫描模式\n不扫描\n错误边界\n本页面局部处理",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5189/#/index-publish",
+      "load_ms": 548.3,
+      "screenshot_path": "docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T165342Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "发布与索引": true,
+        "发布队列": true,
+        "待发布索引": true,
+        "索引版本": true,
+        "版本详情": true,
+        "页面契约": true,
+        "发布队列来源": true,
+        "读模型": true,
+        "版本来源": true,
+        "索引版本包": true,
+        "扫描模式": true,
+        "不扫描": true,
+        "本页面局部处理": true
+      },
+      "publication_queue_text": "发布队列\n\n待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。\n\n摘要 5 条\n\n当前摘要显示仍有待发布视频，待发布首屏尚未返回明细，可刷新本页或检查读模型状态。",
+      "index_version_text": "索引版本\n\n剪辑端搜索读取当前索引指针；历史版本只作为发布与回溯依据。\n\n通过\n版本\t创建时间\t已可用数量\t协议版本\t校验\t校验说明\t当前状态\nv000027\t2024-05-07 09:51:32\t120\t1.0.0\t通过\t索引包校验通过\t当前索引指向\nv000026\t2024-05-06 22:10:11\t118\t1.0.0\t通过\t索引包校验通过\t历史版本\nv000025\t2024-05-05 21:47:09\t114\t1.0.0\t通过\t索引包校验通过\t历史版本",
+      "inspector_text": "版本详情\n\n发布与索引\n\nv000027\n当前索引\nv000027\n当前索引状态\n当前索引已发布 v000027\n已可用数量\n120\n协议版本\n1.0.0\n校验\n通过\n校验说明\n索引包校验通过\n发布人\nadmin\n页面契约\n主工作区\n发布队列\n辅助区\n索引版本\n发布队列来源\n读模型\n版本来源\n索引版本包\n扫描模式\n不扫描\n错误边界\n本页面局部处理",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "publication-queue-visible",
+      "passed": true,
+      "detail": "desktop:91; mobile:91"
+    },
+    {
+      "name": "index-version-surface-visible",
+      "passed": true,
+      "detail": "desktop:235; mobile:235"
+    },
+    {
+      "name": "inspector-contract-visible",
+      "passed": true,
+      "detail": "desktop:174; mobile:174"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "index-publish browser QA passed for desktop and mobile fixture routes"
+  }
+}

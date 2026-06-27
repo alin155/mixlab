@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import {
   runDashScopeRecordedAudioAsr,
@@ -89,6 +89,13 @@ function audioRelativePath(sourceVideoId: string, format: AudioExtractionFormat)
   return `.mixlab-library/videos/${sourceVideoId}/asr-audio/audio.${format}`;
 }
 
+function temporaryArtifactPath(finalPath: string): string {
+  const parsed = path.parse(finalPath);
+  const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return path.join(parsed.dir, `${parsed.name}.tmp-${nonce}${parsed.ext}`);
+}
+
 function contentType(format: AudioExtractionFormat): string {
   if (format === "mp3") {
     return "audio/mpeg";
@@ -151,12 +158,13 @@ export async function runSourceVideoTextPreprocess(
   const audioSettings = resolvePreprocessAudioSettings(input);
   const audioPath = audioRelativePath(input.source_video_id, audioSettings.extension);
   const absoluteAudioPath = path.join(input.library_root, audioPath);
+  const temporaryAudioPath = temporaryArtifactPath(absoluteAudioPath);
 
   await mkdir(path.dirname(absoluteAudioPath), { recursive: true });
 
   const extractionPlan = buildFfmpegAudioExtractionPlan({
     source_path: input.source_video_path,
-    output_path: absoluteAudioPath,
+    output_path: temporaryAudioPath,
     output_format: audioSettings.audio_format,
     sample_rate_hz: audioSettings.sample_rate_hz,
     channels: audioSettings.channels,
@@ -164,7 +172,13 @@ export async function runSourceVideoTextPreprocess(
   });
 
   await input.on_stage?.("extract-audio");
-  await input.command_runner.run(input.ffmpeg_path, extractionPlan.args);
+  try {
+    await input.command_runner.run(input.ffmpeg_path, extractionPlan.args);
+    await rename(temporaryAudioPath, absoluteAudioPath);
+  } catch (error) {
+    await rm(temporaryAudioPath, { force: true }).catch(() => {});
+    throw error;
+  }
 
   await input.on_stage?.("upload-audio");
   const objectKey = input.oss_object_key_prefix
@@ -218,6 +232,7 @@ export async function runSourceVideoTextPreprocess(
 export { runLibraryTextPreprocessWorker } from "./library-worker.ts";
 export type {
   LibraryTextPreprocessInput,
+  LibraryTextPreprocessWorkerLifecycle,
   LibraryTextPreprocessWorkerFailure,
   LibraryTextPreprocessWorkerItem,
   LibraryTextPreprocessWorkerSuccess,

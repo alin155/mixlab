@@ -11,15 +11,26 @@ import {
   type AdminActionResult,
   type AdminApiClient,
   type AdminAuthStatus,
+  type AdminCommandRestorePlan,
   type AdminCutterUsersResponse,
   type AdminDashboardMetrics,
   type AdminDashboardData,
   type AdminIndexVersionsResponse,
   type AdminLibraryStatus,
+  type AdminOperationLogResponse,
+  type AdminPathCheck,
+  type AdminPreprocessProcessHistoryEvent,
+  type AdminPreprocessProcessHistoryFilters,
+  type AdminPreprocessProcessHistoryOptions,
   type AdminPreprocessJobLog,
   type AdminPreprocessJobsResponse,
+  type AdminPreprocessProcessHistoryResponse,
   type AdminPreprocessSupervisorStatus,
   type AdminPreprocessStatus,
+  type AdminReadModelReconcilerStatus,
+  type AdminRuntimeDiagnosticsHistoryResponse,
+  type AdminRuntimeEndpointMeta,
+  type AdminRuntimeSettings,
   type AdminSettingsConfigUpdate,
   type AdminSmartScanAction,
   type AdminSourceVideoCoverUpdate,
@@ -37,19 +48,52 @@ import {
 import { DashboardPage } from "../features/dashboard/DashboardPage.tsx";
 import { CutterUsersPage } from "../features/cutter-users/CutterUsersPage.tsx";
 import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
+import { IndexPublishPage } from "../features/index-publish/IndexPublishPage.tsx";
 import { AdminLoginGate } from "../features/login/AdminLoginGate.tsx";
+import {
+  OperationLogPage,
+  type CommandSnapshotRestoreExecutionState,
+  type CommandSnapshotRestorePlanPreview
+} from "../features/operation-log/OperationLogPage.tsx";
 import { PreprocessJobsPage } from "../features/preprocess-jobs/PreprocessJobsPage.tsx";
+import { ProtectionCenterPage } from "../features/protection/ProtectionCenterPage.tsx";
+import {
+  loadProtectionCenterData,
+  type AdminOperationsOverview
+} from "../features/protection/api.ts";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { AdminSourceDetailPage } from "../features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "../features/source-videos/SourceVideosPage.tsx";
 import { EmptyState } from "../features/shared.tsx";
 import {
-  ADMIN_NAV_ITEMS,
+  adminNavItemsForMode,
+  adminRouteForMode,
   routeFromHash,
   routeToHash,
+  resolveAdminSurfaceMode,
+  type AdminSurfaceMode,
   type AdminRoute
 } from "./navigation.ts";
 import { chineseDiagnosticText } from "./chinese.ts";
+import { adminCommandActionStartDecision } from "./command-cancellation-policy.ts";
+import {
+  EMPTY_ADMIN_ROUTE_LOCAL_READ_ERRORS,
+  adminRouteRenderLoadingState,
+  adminRouteLocalReadLabel,
+  clearAdminRouteLocalReadError,
+  setAdminRouteLocalReadError,
+  adminSourceVideoManifestFallbackPolicy,
+  shouldAutoRefreshAdminData,
+  shouldLoadAdminSourceVideos,
+  shouldPrefetchAdminRoute,
+  startAdminBackgroundRefresh,
+  startAdminRouteRequestLoad,
+  startAdminRouteTokenLoad,
+  type AdminBackgroundRefreshExecution,
+  type AdminRouteRenderLoadingState,
+  type AdminRouteLocalReadErrors,
+  type AdminRouteLocalReadKey
+} from "./route-loading-runtime.ts";
 
 const DEFAULT_LOCAL_ADMIN_API_BASE_URL = "http://127.0.0.1:3889/";
 
@@ -69,25 +113,49 @@ export function resolveAdminRuntimeApiBaseUrl(input: {
   return DEFAULT_LOCAL_ADMIN_API_BASE_URL;
 }
 
-function createRuntimeClient(baseUrl: string, authSession: StoredAdminAuthSession | null) {
+function createRuntimeClient(
+  baseUrl: string,
+  authSession: StoredAdminAuthSession | null,
+  options: { signal?: AbortSignal } = {}
+) {
   return baseUrl
     ? createAdminApiClient({
         base_url: baseUrl,
-        ...(authSession ? { auth: { session_token: authSession.session_token } } : {})
+        ...(authSession ? { auth: { session_token: authSession.session_token } } : {}),
+        ...(options.signal ? { signal: options.signal } : {})
       })
     : createFixtureAdminApiClient();
 }
 
+interface AdminRuntimeRequestScope {
+  client: AdminApiClient;
+  abort: () => void;
+}
+
+function createRuntimeRequestScope(
+  baseUrl: string,
+  authSession: StoredAdminAuthSession | null
+): AdminRuntimeRequestScope {
+  const abortController = new AbortController();
+
+  return {
+    client: createRuntimeClient(baseUrl, authSession, { signal: abortController.signal }),
+    abort: () => abortController.abort()
+  };
+}
+
 function routeTitle(route: AdminRoute): string {
   const labels: Record<AdminRoute, string> = {
-    dashboard: "仪表盘",
-    "source-videos": "原视频管理",
+    dashboard: "总览",
+    "source-videos": "素材库",
     "source-detail": "原视频详情",
     "preprocess-jobs": "预处理",
-    "index-publish": "预处理",
+    protection: "保护中心",
+    "index-publish": "发布与索引",
     doctor: "系统检查",
-    "cutter-users": "剪辑师用户",
-    settings: "设置"
+    "cutter-users": "剪辑师",
+    settings: "设置",
+    "operation-log": "操作记录"
   };
 
   return labels[route];
@@ -183,24 +251,55 @@ function AdminSidebarStatus({ data }: { data: AdminDashboardData }) {
   );
 }
 
-export const ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS = 10_000;
+export const ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS = 30_000;
 const ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT = 20;
 const ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT = 20;
+const ADMIN_PREPROCESS_PROCESS_HISTORY_INITIAL_LOAD_LIMIT = 20;
 const ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS = 8_000;
+const ADMIN_CUTTER_USERS_LOAD_TIMEOUT_MS = 20_000;
 
-async function loadAdminPreprocessRouteData(client: AdminApiClient) {
-  const jobs = await client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT });
+export async function loadAdminPreprocessRouteData(
+  client: AdminApiClient,
+  processHistoryOptions: AdminPreprocessProcessHistoryOptions = {}
+) {
+  const [jobsResult, processHistoryResult] = await Promise.all([
+    withAdminLoadTimeout(
+      client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT }),
+      "预处理队列加载"
+    )
+      .then((jobs) => ({
+        jobs,
+        jobsError: ""
+      }))
+      .catch((error) => ({
+        jobs: null,
+        jobsError: adminActionErrorMessage("预处理队列加载", error)
+      })),
+    withAdminLoadTimeout(
+      client.listPreprocessProcessHistory({
+        limit: ADMIN_PREPROCESS_PROCESS_HISTORY_INITIAL_LOAD_LIMIT,
+        window_days: 30,
+        ...processHistoryOptions
+      }),
+      "处理历史加载"
+    )
+      .then((processHistory) => ({
+        processHistory,
+        processHistoryError: ""
+      }))
+      .catch((error) => ({
+        processHistory: null,
+        processHistoryError: adminActionErrorMessage("处理历史加载", error)
+      }))
+  ]);
 
-  return { jobs };
+  return {
+    jobs: jobsResult.jobs,
+    jobsError: jobsResult.jobsError,
+    processHistory: processHistoryResult.processHistory,
+    processHistoryError: processHistoryResult.processHistoryError
+  };
 }
-
-const ALWAYS_AUTO_REFRESH_ROUTES = new Set<AdminRoute>([
-  "preprocess-jobs"
-]);
-
-const PRODUCTION_AUTO_REFRESH_ROUTES = new Set<AdminRoute>([
-  "source-detail"
-]);
 
 function withAdminLoadTimeout<T>(
   promise: Promise<T>,
@@ -258,34 +357,6 @@ export function mergeAdminSourceVideoPages(
   return Array.from(byId.values());
 }
 
-export function shouldAutoRefreshAdminData(route: AdminRoute, data: AdminDashboardData): boolean {
-  if (ALWAYS_AUTO_REFRESH_ROUTES.has(route)) {
-    return true;
-  }
-
-  if (!PRODUCTION_AUTO_REFRESH_ROUTES.has(route)) {
-    return false;
-  }
-
-  return (
-    data.jobs.supervisor.state === "running" ||
-    data.jobs.supervisor.state === "stopping" ||
-    data.jobs.active_count > 0 ||
-    data.jobs.queued_count > 0 ||
-    data.status.processing_video_count > 0 ||
-    data.status.queued_video_count > 0 ||
-    data.status.unprocessed_video_count > 0 ||
-    data.status.index_required_video_count > 0
-  );
-}
-
-export function shouldLoadAdminSourceVideos(input: {
-  route: AdminRoute;
-  hasData: boolean;
-}): boolean {
-  return input.route === "source-videos" && input.hasData;
-}
-
 function mergeAdminDashboardShellData(
   current: AdminDashboardData,
   next: AdminDashboardData
@@ -341,6 +412,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 interface AdminActionHandlers {
   sourceVideoQuery: string;
   sourceVideoStatusFilter: AdminPreprocessStatus | "all";
+  processHistoryFilters: AdminPreprocessProcessHistoryFilters;
   onInitializeLibrary: () => Promise<void>;
   onScanSourceVideos: () => Promise<void>;
   onQueueUnprocessedVideos: () => Promise<void>;
@@ -370,11 +442,18 @@ interface AdminActionHandlers {
   onApproveCutterUser: (userId: string) => Promise<void>;
   onDisableCutterUser: (userId: string) => Promise<void>;
   onResetCutterUserPassword: (userId: string, input: { new_password: string }) => Promise<void>;
+  onPreviewCommandSnapshotRestore: (snapshotId: string) => Promise<void>;
+  onArmCommandSnapshotRestore: (snapshotId: string) => void;
+  onCancelCommandSnapshotRestore: (snapshotId: string) => void;
+  onExecuteCommandSnapshotRestore: (snapshotId: string) => Promise<void>;
+  onStartReadModelReconcile: () => Promise<void>;
+  onCancelReadModelReconcile: () => Promise<void>;
   onOpenSourceDetail: (sourceVideoId: string) => void;
   onSourceVideoFiltersChange: (filters: {
     query: string;
     status: AdminPreprocessStatus | "all";
   }) => void;
+  onProcessHistoryFiltersChange: (filters: AdminPreprocessProcessHistoryFilters) => void;
   onLoadMoreSourceVideos: () => Promise<void>;
   onExportDoctor: () => Promise<void>;
 }
@@ -603,20 +682,43 @@ function renderPage(
   route: AdminRoute,
   data: AdminDashboardData,
   actions: AdminActionHandlers,
+  surfaceMode: AdminSurfaceMode,
+  sourceVideosRuntime: AdminRuntimeEndpointMeta | null,
   sourceDetail: SourceDetailRenderState,
   cutterUsers: AdminCutterUsersResponse | null,
-  loadingState: {
-    sourceVideos: boolean;
-    sourceVideosMore: boolean;
-    sourceVideosHasMore: boolean;
-    preprocessJobs: boolean;
-  },
+  loadingState: AdminRouteRenderLoadingState,
+  routeErrors: AdminRouteLocalReadErrors,
   preprocessJobLogState: {
     loading: boolean;
     error: string;
     log: AdminPreprocessJobLog | null;
+  },
+  processHistoryState: {
+    loading: boolean;
+    error: string;
+    history: AdminPreprocessProcessHistoryResponse | null;
+  },
+  operationsOverviewState: {
+    overview: AdminOperationsOverview | null;
+    readModelReconcileStatus: AdminReadModelReconcilerStatus | null;
+    readModelReconcileError: string;
+    readModelReconcileCommandLoading: boolean;
+    error: string;
+  },
+  runtimeDiagnosticsState: {
+    history: AdminRuntimeDiagnosticsHistoryResponse | null;
+    loading: boolean;
+    error: string;
+  },
+  operationLogState: {
+    operationLog: AdminOperationLogResponse | null;
+    error: string;
+    restorePlanPreview: CommandSnapshotRestorePlanPreview | null;
+    restoreExecution: CommandSnapshotRestoreExecutionState | null;
   }
 ) {
+  const dockerMvpMode = surfaceMode === "docker-mvp-v0.1";
+
   if (route === "source-videos") {
     return (
       <SourceVideosPage
@@ -624,9 +726,9 @@ function renderPage(
         onQueueSourceVideo={actions.onQueueSourceVideo}
         onRetrySourceVideo={actions.onRetrySourceVideo}
         onRecoverProcessingSourceVideo={actions.onRecoverProcessingSourceVideo}
-        onPublishSourceVideo={actions.onPublishSourceVideo}
-        onUpdateSourceVideoMetadata={actions.onUpdateSourceVideoMetadata}
-        onUpdateSourceVideoCover={actions.onUpdateSourceVideoCover}
+        onPublishSourceVideo={dockerMvpMode ? undefined : actions.onPublishSourceVideo}
+        onUpdateSourceVideoMetadata={dockerMvpMode ? undefined : actions.onUpdateSourceVideoMetadata}
+        onUpdateSourceVideoCover={dockerMvpMode ? undefined : actions.onUpdateSourceVideoCover}
         onOpenSourceDetail={actions.onOpenSourceDetail}
         sourceQuery={actions.sourceVideoQuery}
         sourceStatusFilter={actions.sourceVideoStatusFilter}
@@ -635,6 +737,13 @@ function renderPage(
         isLoadingInitial={loadingState.sourceVideos && data.source_videos.length === 0}
         isLoadingMore={loadingState.sourceVideosMore}
         hasMoreSourceVideos={loadingState.sourceVideosHasMore}
+        sourceVideoRuntime={sourceVideosRuntime}
+        sourceVideoError={routeErrors.sourceVideos}
+        readModelMaintenanceHref={dockerMvpMode ? undefined : routeToHash("protection")}
+        onStartReadModelReconcile={dockerMvpMode ? undefined : actions.onStartReadModelReconcile}
+        readModelMaintenanceBusy={operationsOverviewState.readModelReconcileCommandLoading}
+        readModelReconcileStatus={operationsOverviewState.readModelReconcileStatus}
+        readModelReconcileError={operationsOverviewState.readModelReconcileError}
       />
     );
   }
@@ -651,7 +760,7 @@ function renderPage(
             <EmptyState title="原视频详情加载失败" detail={sourceDetail.error} />
           </div>
           <InspectorPanel title="原视频详情">
-            <p>请返回原视频管理后重新打开详情。</p>
+            <p>请返回素材库后重新打开详情。</p>
           </InspectorPanel>
         </>
       );
@@ -662,7 +771,7 @@ function renderPage(
         <div className="admin-main-column">
           <EmptyState
             title={sourceDetail.loading ? "正在读取原视频详情" : "没有可查看的原视频"}
-            detail={sourceDetail.loading ? "请稍候，正在加载预处理数据。" : "请先在原视频管理中选择一条原视频。"}
+            detail={sourceDetail.loading ? "请稍候，正在加载预处理数据。" : "请先在素材库中选择一条原视频。"}
           />
         </div>
         <InspectorPanel title="原视频详情">
@@ -677,12 +786,18 @@ function renderPage(
       <PreprocessJobsPage
         data={data}
         isLoadingJobs={loadingState.preprocessJobs && data.jobs.jobs.length === 0}
+        jobsError={routeErrors.preprocessJobs}
         onRetryFailedVideos={actions.onRetryFailedVideos}
         onRecoverProcessingVideos={actions.onRecoverProcessingVideos}
         onStartPreprocessSupervisor={actions.onStartPreprocessSupervisor}
         onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
-        onRepairIndex={actions.onRepairIndex}
+        onRepairIndex={dockerMvpMode ? undefined : actions.onRepairIndex}
         selectedJobLog={preprocessJobLogState}
+        processHistory={processHistoryState.history}
+        processHistoryFilters={actions.processHistoryFilters}
+        isLoadingProcessHistory={processHistoryState.loading}
+        processHistoryError={processHistoryState.error}
+        onProcessHistoryFiltersChange={actions.onProcessHistoryFiltersChange}
         onOpenPreprocessJobLog={actions.onOpenPreprocessJobLog}
       />
     );
@@ -690,16 +805,28 @@ function renderPage(
 
   if (route === "index-publish") {
     return (
-      <PreprocessJobsPage
+      <IndexPublishPage
         data={data}
-        isLoadingJobs={loadingState.preprocessJobs && data.jobs.jobs.length === 0}
-        onRetryFailedVideos={actions.onRetryFailedVideos}
-        onRecoverProcessingVideos={actions.onRecoverProcessingVideos}
-        onStartPreprocessSupervisor={actions.onStartPreprocessSupervisor}
-        onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
-        onRepairIndex={actions.onRepairIndex}
-        selectedJobLog={preprocessJobLogState}
-        onOpenPreprocessJobLog={actions.onOpenPreprocessJobLog}
+        isLoadingIndexRequiredVideos={loadingState.sourceVideos && data.source_videos.length === 0}
+        indexRequiredError={routeErrors.indexRequiredVideos}
+        onRepairIndex={dockerMvpMode ? undefined : actions.onRepairIndex}
+        onPublishSourceVideo={dockerMvpMode ? undefined : actions.onPublishSourceVideo}
+        onRunDoctor={actions.onRunDoctor}
+      />
+    );
+  }
+
+  if (route === "protection") {
+    return (
+      <ProtectionCenterPage
+        overview={operationsOverviewState.overview}
+        readModelReconcileStatus={operationsOverviewState.readModelReconcileStatus}
+        readModelReconcileError={operationsOverviewState.readModelReconcileError}
+        readModelReconcileCommandLoading={operationsOverviewState.readModelReconcileCommandLoading}
+        onStartReadModelReconcile={actions.onStartReadModelReconcile}
+        onCancelReadModelReconcile={actions.onCancelReadModelReconcile}
+        loading={loadingState.operationsOverview}
+        error={operationsOverviewState.error}
       />
     );
   }
@@ -708,6 +835,10 @@ function renderPage(
     return (
       <DoctorPage
         data={data}
+        doctorReportError={routeErrors.doctorReport}
+        runtimeDiagnostics={runtimeDiagnosticsState.history}
+        runtimeDiagnosticsLoading={runtimeDiagnosticsState.loading}
+        runtimeDiagnosticsError={runtimeDiagnosticsState.error}
         onRunDoctor={actions.onRunDoctor}
         onExportDoctor={actions.onExportDoctor}
       />
@@ -718,11 +849,29 @@ function renderPage(
     return (
       <SettingsPage
         data={data}
-        onSaveAdminSettings={actions.onSaveAdminSettings}
-        onInitializeLibrary={actions.onInitializeLibrary}
-        onTestAsrConfig={actions.onTestAsrConfig}
+        pathChecksError={routeErrors.settingsPathChecks}
+        runtimeSettingsError={routeErrors.settingsRuntime}
+        onSaveAdminSettings={dockerMvpMode ? undefined : actions.onSaveAdminSettings}
+        onInitializeLibrary={dockerMvpMode ? undefined : actions.onInitializeLibrary}
+        onTestAsrConfig={dockerMvpMode ? undefined : actions.onTestAsrConfig}
         onRunDoctor={actions.onRunDoctor}
         onExportDoctor={actions.onExportDoctor}
+      />
+    );
+  }
+
+  if (route === "operation-log") {
+    return (
+      <OperationLogPage
+        operationLog={operationLogState.operationLog}
+        loading={loadingState.operationLog}
+        error={operationLogState.error}
+        restorePlanPreview={operationLogState.restorePlanPreview}
+        restoreExecution={operationLogState.restoreExecution}
+        onPreviewCommandSnapshotRestore={actions.onPreviewCommandSnapshotRestore}
+        onArmCommandSnapshotRestore={dockerMvpMode ? undefined : actions.onArmCommandSnapshotRestore}
+        onCancelCommandSnapshotRestore={actions.onCancelCommandSnapshotRestore}
+        onExecuteCommandSnapshotRestore={dockerMvpMode ? undefined : actions.onExecuteCommandSnapshotRestore}
       />
     );
   }
@@ -732,10 +881,13 @@ function renderPage(
       return (
         <>
           <div className="admin-main-column">
-            <EmptyState title="正在读取剪辑师用户" detail="请稍候，正在加载登录申请和使用统计。" />
+            <EmptyState
+              title={routeErrors.cutterUsers ? "剪辑师用户加载失败" : "正在读取剪辑师用户"}
+              detail={routeErrors.cutterUsers || "请稍候，正在加载登录申请和使用统计。"}
+            />
           </div>
           <InspectorPanel title="用户统计">
-            <p>加载中</p>
+            <p>{routeErrors.cutterUsers ? "本页面局部处理" : "加载中"}</p>
           </InspectorPanel>
         </>
       );
@@ -756,15 +908,23 @@ function renderPage(
     <DashboardPage
       data={data}
       onRetryFailedVideos={actions.onRetryFailedVideos}
-      onRunSmartScan={actions.onRunSmartScan}
-      onApplySmartScanPrimaryAction={actions.onApplySmartScanPrimaryAction}
+      onRunSmartScan={surfaceMode === "docker-mvp-v0.1" ? undefined : actions.onRunSmartScan}
+      onApplySmartScanPrimaryAction={
+        surfaceMode === "docker-mvp-v0.1" ? undefined : actions.onApplySmartScanPrimaryAction
+      }
       smartScanReport={createAdminSmartScanReport(data)}
     />
   );
 }
 
 export function AdminApp() {
-  const [route, setRoute] = useState<AdminRoute>(() => routeFromHash(window.location.hash));
+  const adminSurfaceMode = useMemo(
+    () => resolveAdminSurfaceMode(import.meta.env?.VITE_MIXLAB_ADMIN_DOCKER_MVP_MODE),
+    []
+  );
+  const [route, setRoute] = useState<AdminRoute>(() =>
+    adminRouteForMode(routeFromHash(window.location.hash), adminSurfaceMode)
+  );
   const apiBaseUrl = useMemo(() => resolveAdminRuntimeApiBaseUrl({
     viteApiBaseUrl: import.meta.env?.VITE_MIXLAB_ADMIN_API_BASE_URL,
     useFixtureData: import.meta.env?.VITE_MIXLAB_USE_FIXTURE_DATA === "true"
@@ -788,35 +948,104 @@ export function AdminApp() {
   const [sourceVideosLoading, setSourceVideosLoading] = useState(false);
   const [sourceVideosLoadingMore, setSourceVideosLoadingMore] = useState(false);
   const [sourceVideosHasMore, setSourceVideosHasMore] = useState(true);
+  const [sourceVideosRuntime, setSourceVideosRuntime] = useState<AdminRuntimeEndpointMeta | null>(null);
   const [sourceVideoQuery, setSourceVideoQuery] = useState("");
   const [sourceVideoStatusFilter, setSourceVideoStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
   const [preprocessJobsLoading, setPreprocessJobsLoading] = useState(false);
+  const [preprocessProcessHistory, setPreprocessProcessHistory] =
+    useState<AdminPreprocessProcessHistoryResponse | null>(null);
+  const [preprocessProcessHistoryLoading, setPreprocessProcessHistoryLoading] = useState(false);
+  const [preprocessProcessHistoryError, setPreprocessProcessHistoryError] = useState("");
+  const [preprocessProcessHistoryFilters, setPreprocessProcessHistoryFilters] =
+    useState<AdminPreprocessProcessHistoryFilters>({
+      source_folder_name: "",
+      preprocess_status: "",
+      event_type: ""
+    });
   const [selectedPreprocessJobLog, setSelectedPreprocessJobLog] = useState<AdminPreprocessJobLog | null>(null);
   const [preprocessJobLogLoading, setPreprocessJobLogLoading] = useState(false);
   const [preprocessJobLogError, setPreprocessJobLogError] = useState("");
+  const [operationsOverview, setOperationsOverview] = useState<AdminOperationsOverview | null>(null);
+  const [readModelReconcileStatus, setReadModelReconcileStatus] =
+    useState<AdminReadModelReconcilerStatus | null>(null);
+  const [readModelReconcileError, setReadModelReconcileError] = useState("");
+  const [readModelReconcileCommandLoading, setReadModelReconcileCommandLoading] = useState(false);
+  const [operationsOverviewLoading, setOperationsOverviewLoading] = useState(false);
+  const [operationsOverviewError, setOperationsOverviewError] = useState("");
+  const [operationLog, setOperationLog] = useState<AdminOperationLogResponse | null>(null);
+  const [operationLogLoading, setOperationLogLoading] = useState(false);
+  const [operationLogError, setOperationLogError] = useState("");
+  const [runtimeDiagnosticsHistory, setRuntimeDiagnosticsHistory] =
+    useState<AdminRuntimeDiagnosticsHistoryResponse | null>(null);
+  const [runtimeDiagnosticsLoading, setRuntimeDiagnosticsLoading] = useState(false);
+  const [runtimeDiagnosticsError, setRuntimeDiagnosticsError] = useState("");
+  const [routeLocalReadErrors, setRouteLocalReadErrors] = useState<AdminRouteLocalReadErrors>({
+    ...EMPTY_ADMIN_ROUTE_LOCAL_READ_ERRORS
+  });
+  const [commandSnapshotRestorePlanPreview, setCommandSnapshotRestorePlanPreview] =
+    useState<CommandSnapshotRestorePlanPreview | null>(null);
+  const [commandSnapshotRestoreExecution, setCommandSnapshotRestoreExecution] =
+    useState<CommandSnapshotRestoreExecutionState | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const dashboardLoadingRef = useRef(false);
   const dashboardLoadedRef = useRef(false);
   const metricsLoadingRef = useRef(false);
   const dashboardPanelLoadingRef = useRef(false);
-  const cutterUsersLoadingRef = useRef(false);
+  const activeAdminCommandLabelRef = useRef("");
+  const cutterUsersPrefetchLoadingRef = useRef(false);
+  const cutterUsersRouteLoadingRef = useRef(false);
   const cutterUsersLoadedTokenRef = useRef(-1);
   const preprocessJobsPrefetchLoadingRef = useRef(false);
   const preprocessJobsPrefetchTokenRef = useRef(-1);
   const pendingPreprocessJobsRef = useRef<AdminPreprocessJobsResponse | null>(null);
   const pendingIndexVersionsRef = useRef<AdminIndexVersionsResponse | null>(null);
+  const pendingDoctorReportRef = useRef<AdminDashboardData["doctor"] | null>(null);
+  const pendingSettingsPathChecksRef = useRef<AdminPathCheck[] | null>(null);
+  const pendingSettingsRuntimeRef = useRef<AdminRuntimeSettings | null>(null);
+  const doctorRouteLoadingRef = useRef(false);
+  const doctorRouteLoadedTokenRef = useRef(-1);
+  const runtimeDiagnosticsLoadingRef = useRef(false);
+  const runtimeDiagnosticsLoadedTokenRef = useRef(-1);
+  const settingsPathChecksLoadingRef = useRef(false);
+  const settingsPathChecksLoadedTokenRef = useRef(-1);
+  const settingsRuntimeLoadingRef = useRef(false);
+  const settingsRuntimeLoadedTokenRef = useRef(-1);
   const hasDashboardData = Boolean(data);
   const client = useMemo(
     () => createRuntimeClient(apiBaseUrl, adminAuthSession),
     [apiBaseUrl, adminAuthSession]
   );
   const canLoadAdminData = !apiMode || adminAuthStatus?.authenticated === true;
+  const clearRouteLocalReadError = (key: AdminRouteLocalReadKey) => {
+    setRouteLocalReadErrors((current) => clearAdminRouteLocalReadError(current, key));
+  };
+  const setRouteLocalReadError = (key: AdminRouteLocalReadKey, error: unknown) => {
+    setRouteLocalReadErrors((current) =>
+      setAdminRouteLocalReadError(
+        current,
+        key,
+        adminActionErrorMessage(adminRouteLocalReadLabel(key), error)
+      )
+    );
+  };
+  const setRouteLocalReadErrorMessage = (key: AdminRouteLocalReadKey, message: string) => {
+    setRouteLocalReadErrors((current) => setAdminRouteLocalReadError(current, key, message));
+  };
 
   useEffect(() => {
-    const listener = () => setRoute(routeFromHash(window.location.hash));
+    const listener = () => {
+      const requestedRoute = routeFromHash(window.location.hash);
+      const nextRoute = adminRouteForMode(requestedRoute, adminSurfaceMode);
+      if (nextRoute !== requestedRoute) {
+        window.location.hash = routeToHash(nextRoute);
+        return;
+      }
+      setRoute(nextRoute);
+    };
     window.addEventListener("hashchange", listener);
+    listener();
     return () => window.removeEventListener("hashchange", listener);
-  }, []);
+  }, [adminSurfaceMode]);
 
   useEffect(() => {
     if (!apiMode) {
@@ -834,9 +1063,10 @@ export function AdminApp() {
     }
 
     let cancelled = false;
+    const requestScope = createRuntimeRequestScope(apiBaseUrl, adminAuthSession);
     setAdminAuthLoading(true);
     setAdminAuthError("");
-    client.getAuthStatus()
+    requestScope.client.getAuthStatus()
       .then((status) => {
         if (cancelled) {
           return;
@@ -862,8 +1092,9 @@ export function AdminApp() {
 
     return () => {
       cancelled = true;
+      requestScope.abort();
     };
-  }, [adminAuthSession, apiMode, client]);
+  }, [adminAuthSession, apiBaseUrl, apiMode, client]);
 
   useEffect(() => {
     if (!canLoadAdminData) {
@@ -875,6 +1106,7 @@ export function AdminApp() {
     }
 
     let cancelled = false;
+    const requestScope = createRuntimeRequestScope(apiBaseUrl, adminAuthSession);
     const showLoading = !dashboardLoadedRef.current;
     dashboardLoadingRef.current = true;
     if (showLoading) {
@@ -882,20 +1114,29 @@ export function AdminApp() {
     }
 
     setError("");
-    loadAdminDashboardData(client, { includeHeavy: false })
+    loadAdminDashboardData(requestScope.client, { includeHeavy: false })
       .then((result) => {
         if (!cancelled) {
           dashboardLoadedRef.current = true;
           setData((current) => {
             const pendingJobs = pendingPreprocessJobsRef.current;
             const pendingIndexes = pendingIndexVersionsRef.current;
+            const pendingDoctor = pendingDoctorReportRef.current;
+            const pendingPathChecks = pendingSettingsPathChecksRef.current;
+            const pendingRuntime = pendingSettingsRuntimeRef.current;
             pendingPreprocessJobsRef.current = null;
             pendingIndexVersionsRef.current = null;
+            pendingDoctorReportRef.current = null;
+            pendingSettingsPathChecksRef.current = null;
+            pendingSettingsRuntimeRef.current = null;
             const next = current ? mergeAdminDashboardShellData(current, result) : result;
             return {
               ...next,
               ...(pendingJobs ? { jobs: pendingJobs } : {}),
-              ...(pendingIndexes ? { indexes: pendingIndexes } : {})
+              ...(pendingIndexes ? { indexes: pendingIndexes } : {}),
+              ...(pendingDoctor ? { doctor: pendingDoctor } : {}),
+              ...(pendingPathChecks ? { path_checks: pendingPathChecks } : {}),
+              ...(pendingRuntime ? { runtime: pendingRuntime } : {})
             };
           });
         }
@@ -914,67 +1155,77 @@ export function AdminApp() {
 
     return () => {
       cancelled = true;
+      requestScope.abort();
     };
-  }, [canLoadAdminData, client, reloadToken]);
+  }, [adminAuthSession, apiBaseUrl, canLoadAdminData, client, reloadToken]);
 
   useEffect(() => {
-    if (!shouldLoadAdminSourceVideos({
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "sourceVideosInitial",
       route,
-      hasData: hasDashboardData
-    })) {
+      loading: false,
+      canLoad: shouldLoadAdminSourceVideos({
+        route,
+        hasData: hasDashboardData
+      }),
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        setSourceVideosLoading(true);
+        setSourceVideosHasMore(true);
+        setSourceVideosRuntime(null);
+        clearRouteLocalReadError("sourceVideos");
+        setData((current) => current ? { ...current, source_videos: [] } : current);
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        requestScope.client.listSourceVideosWithRuntime({
+          limit: ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT,
+          query: sourceVideoQuery,
+          status: sourceVideoStatusFilter,
+          manifest_fallback: adminSourceVideoManifestFallbackPolicy(sourceVideoStatusFilter)
+        }),
+        "原视频列表加载"
+      ),
+      onSuccess: (result) => {
+        const sourceVideos = result.source_videos;
+        setSourceVideosRuntime(result.runtime ?? null);
+        setSourceVideosHasMore(sourceVideos.length >= ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT);
+        setData((current) => current ? { ...current, source_videos: sourceVideos } : current);
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("sourceVideos", loadError);
+      },
+      onSettled: () => {
+        setSourceVideosLoading(false);
+      }
+    });
+
+    if (!routeLoad) {
       return;
     }
-
-    let cancelled = false;
-    setSourceVideosLoading(true);
-    setSourceVideosHasMore(true);
-    setData((current) => current ? { ...current, source_videos: [] } : current);
-
-    withAdminLoadTimeout(
-      client.listSourceVideos({
-        limit: ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT,
-        query: sourceVideoQuery,
-        status: sourceVideoStatusFilter
-      }),
-      "原视频列表加载"
-    )
-      .then((sourceVideos) => {
-        if (!cancelled) {
-          setSourceVideosHasMore(sourceVideos.length >= ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT);
-          setData((current) => current ? { ...current, source_videos: sourceVideos } : current);
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setActionError(adminActionErrorMessage("原视频列表加载", loadError));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setSourceVideosLoading(false);
-        }
-      });
 
     return () => {
-      cancelled = true;
+      routeLoad.cancel();
     };
-  }, [client, hasDashboardData, route, sourceVideoQuery, sourceVideoStatusFilter]);
+  }, [adminAuthSession, apiBaseUrl, client, hasDashboardData, route, sourceVideoQuery, sourceVideoStatusFilter]);
 
   useEffect(() => {
-    if (route !== "preprocess-jobs" && route !== "index-publish") {
-      return;
-    }
-
-    let cancelled = false;
-    setPreprocessJobsLoading(true);
-
-    withAdminLoadTimeout(
-      loadAdminPreprocessRouteData(client),
-      "预处理队列加载"
-    )
-      .then(({ jobs }) => {
-        if (!cancelled) {
-          setActionError("");
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "preprocessJobsInitial",
+      route,
+      loading: false,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        setPreprocessJobsLoading(true);
+        setPreprocessProcessHistoryLoading(true);
+        clearRouteLocalReadError("preprocessJobs");
+      },
+      request: ({ requestScope }) =>
+        loadAdminPreprocessRouteData(requestScope.client, preprocessProcessHistoryFilters),
+      onSuccess: ({ jobs, jobsError, processHistory, processHistoryError }) => {
+        setRouteLocalReadErrorMessage("preprocessJobs", jobsError);
+        setPreprocessProcessHistory(processHistory);
+        setPreprocessProcessHistoryError(processHistoryError);
+        if (jobs) {
           setData((current) => {
             if (!current) {
               pendingPreprocessJobsRef.current = jobs;
@@ -984,24 +1235,27 @@ export function AdminApp() {
             pendingPreprocessJobsRef.current = null;
             return { ...current, jobs };
           });
-          preprocessJobsPrefetchTokenRef.current = reloadToken;
         }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setActionError(adminActionErrorMessage("预处理队列加载", loadError));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setPreprocessJobsLoading(false);
-        }
-      });
+        preprocessJobsPrefetchTokenRef.current = reloadToken;
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("preprocessJobs", loadError);
+        setPreprocessProcessHistoryError(adminActionErrorMessage("处理历史加载", loadError));
+      },
+      onSettled: () => {
+        setPreprocessJobsLoading(false);
+        setPreprocessProcessHistoryLoading(false);
+      }
+    });
+
+    if (!routeLoad) {
+      return;
+    }
 
     return () => {
-      cancelled = true;
+      routeLoad.cancel();
     };
-  }, [client, reloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
 
   useEffect(() => {
     if (route !== "preprocess-jobs" && route !== "index-publish") {
@@ -1009,8 +1263,9 @@ export function AdminApp() {
     }
 
     let cancelled = false;
+    const requestScope = createRuntimeRequestScope(apiBaseUrl, adminAuthSession);
 
-    client.listIndexVersions()
+    requestScope.client.listIndexVersions()
       .then((indexes) => {
         if (!cancelled) {
           setData((current) => {
@@ -1030,160 +1285,404 @@ export function AdminApp() {
 
     return () => {
       cancelled = true;
+      requestScope.abort();
     };
-  }, [client, reloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
 
   useEffect(() => {
-    if (route !== "doctor") {
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "indexRequiredVideos",
+      route,
+      loading: false,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        setSourceVideosLoading(true);
+        clearRouteLocalReadError("indexRequiredVideos");
+        setData((current) => current ? { ...current, source_videos: [] } : current);
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        requestScope.client.listSourceVideos({
+          limit: ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT,
+          status: "index-required"
+        }),
+        "待发布视频加载"
+      ),
+      onSuccess: (sourceVideos) => {
+        setData((current) => current ? { ...current, source_videos: sourceVideos } : current);
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("indexRequiredVideos", loadError);
+      },
+      onSettled: () => {
+        setSourceVideosLoading(false);
+      }
+    });
+
+    if (!routeLoad) {
       return;
     }
 
-    let cancelled = false;
-
-    client.runDoctor()
-      .then((doctor) => {
-        if (!cancelled) {
-          setData((current) => current ? { ...current, doctor } : current);
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setActionError(adminActionErrorMessage("系统检查加载", loadError));
-        }
-      });
-
     return () => {
-      cancelled = true;
+      routeLoad.cancel();
     };
-  }, [client, reloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
 
   useEffect(() => {
-    if (route !== "settings") {
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "operationsOverview",
+      route,
+      loading: false,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        setOperationsOverviewLoading(true);
+        setOperationsOverviewError("");
+        setReadModelReconcileError("");
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        loadProtectionCenterData(requestScope.client),
+        "保护中心加载"
+      ),
+      onSuccess: ({ overview, read_model_reconcile_status, read_model_reconcile_error }) => {
+        setOperationsOverview(overview);
+        setReadModelReconcileStatus(read_model_reconcile_status);
+        setReadModelReconcileError(read_model_reconcile_error);
+      },
+      onError: (loadError) => {
+        setOperationsOverviewError(adminActionErrorMessage("保护中心加载", loadError));
+      },
+      onSettled: () => {
+        setOperationsOverviewLoading(false);
+      }
+    });
+
+    if (!routeLoad) {
       return;
     }
 
-    let cancelled = false;
-
-    client.getPathChecks()
-      .then((pathChecks) => {
-        if (!cancelled) {
-          setData((current) => current ? { ...current, path_checks: pathChecks } : current);
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setActionError(adminActionErrorMessage("路径校验加载", loadError));
-        }
-      });
-
     return () => {
-      cancelled = true;
+      routeLoad.cancel();
     };
-  }, [client, reloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
 
   useEffect(() => {
-    if (route !== "settings") {
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "operationLog",
+      route,
+      loading: false,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        setOperationLogLoading(true);
+        setOperationLogError("");
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        requestScope.client.getOperationLog({ limit: 50 }),
+        "操作记录加载"
+      ),
+      onSuccess: (nextOperationLog) => {
+        setOperationLog(nextOperationLog);
+      },
+      onError: (loadError) => {
+        setOperationLogError(adminActionErrorMessage("操作记录加载", loadError));
+      },
+      onSettled: () => {
+        setOperationLogLoading(false);
+      }
+    });
+
+    if (!routeLoad) {
       return;
     }
 
-    let cancelled = false;
+    return () => {
+      routeLoad.cancel();
+    };
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
 
-    withAdminLoadTimeout(
-      client.getRuntimeSettings(),
-      "运行时状态加载"
-    )
-      .then((runtime) => {
-        if (!cancelled) {
-          setData((current) => current ? { ...current, runtime } : current);
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setActionError(adminActionErrorMessage("运行时状态加载", loadError));
-        }
-      });
+  useEffect(() => {
+    const tokenLoad = startAdminRouteTokenLoad({
+      key: "doctorReport",
+      route,
+      loading: doctorRouteLoadingRef.current,
+      loadedToken: doctorRouteLoadedTokenRef.current,
+      reloadToken,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        doctorRouteLoadingRef.current = true;
+        clearRouteLocalReadError("doctorReport");
+      },
+      request: ({ requestScope }) => requestScope.client.getDoctorReport(),
+      onSuccess: (doctor) => {
+        clearRouteLocalReadError("doctorReport");
+        setData((current) => {
+          doctorRouteLoadedTokenRef.current = reloadToken;
+          if (!current) {
+            pendingDoctorReportRef.current = doctor;
+            return current;
+          }
+
+          pendingDoctorReportRef.current = null;
+          return { ...current, doctor };
+        });
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("doctorReport", loadError);
+      },
+      onSettled: () => {
+        doctorRouteLoadingRef.current = false;
+      }
+    });
+
+    if (!tokenLoad) {
+      return;
+    }
 
     return () => {
-      cancelled = true;
+      tokenLoad.cancel();
     };
-  }, [client, reloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
+
+  useEffect(() => {
+    const tokenLoad = startAdminRouteTokenLoad({
+      key: "runtimeDiagnostics",
+      route,
+      loading: runtimeDiagnosticsLoadingRef.current,
+      loadedToken: runtimeDiagnosticsLoadedTokenRef.current,
+      reloadToken,
+      canLoad: canLoadAdminData,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        runtimeDiagnosticsLoadingRef.current = true;
+        setRuntimeDiagnosticsLoading(true);
+        setRuntimeDiagnosticsError("");
+      },
+      request: ({ requestScope }) => requestScope.client.getRuntimeDiagnosticsHistory({ limit: 20 }),
+      onSuccess: (history) => {
+        runtimeDiagnosticsLoadedTokenRef.current = reloadToken;
+        setRuntimeDiagnosticsHistory(history);
+      },
+      onError: (loadError) => {
+        setRuntimeDiagnosticsError(adminActionErrorMessage("慢接口历史加载", loadError));
+      },
+      onSettled: ({ cancelled }) => {
+        if (!cancelled) {
+          runtimeDiagnosticsLoadingRef.current = false;
+          setRuntimeDiagnosticsLoading(false);
+        }
+      },
+      onCancel: () => {
+        runtimeDiagnosticsLoadingRef.current = false;
+        setRuntimeDiagnosticsLoading(false);
+      }
+    });
+
+    if (!tokenLoad) {
+      return;
+    }
+
+    return () => {
+      tokenLoad.cancel();
+    };
+  }, [adminAuthSession, apiBaseUrl, canLoadAdminData, reloadToken, route]);
+
+  useEffect(() => {
+    const tokenLoad = startAdminRouteTokenLoad({
+      key: "settingsPathChecks",
+      route,
+      loading: settingsPathChecksLoadingRef.current,
+      loadedToken: settingsPathChecksLoadedTokenRef.current,
+      reloadToken,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        settingsPathChecksLoadingRef.current = true;
+        clearRouteLocalReadError("settingsPathChecks");
+      },
+      request: ({ requestScope }) => requestScope.client.getPathChecks(),
+      onSuccess: (pathChecks) => {
+        clearRouteLocalReadError("settingsPathChecks");
+        setData((current) => {
+          settingsPathChecksLoadedTokenRef.current = reloadToken;
+          if (!current) {
+            pendingSettingsPathChecksRef.current = pathChecks;
+            return current;
+          }
+
+          pendingSettingsPathChecksRef.current = null;
+          return { ...current, path_checks: pathChecks };
+        });
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("settingsPathChecks", loadError);
+      },
+      onSettled: () => {
+        settingsPathChecksLoadingRef.current = false;
+      }
+    });
+
+    if (!tokenLoad) {
+      return;
+    }
+
+    return () => {
+      tokenLoad.cancel();
+    };
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
+
+  useEffect(() => {
+    const tokenLoad = startAdminRouteTokenLoad({
+      key: "settingsRuntime",
+      route,
+      loading: settingsRuntimeLoadingRef.current,
+      loadedToken: settingsRuntimeLoadedTokenRef.current,
+      reloadToken,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        settingsRuntimeLoadingRef.current = true;
+        clearRouteLocalReadError("settingsRuntime");
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        requestScope.client.getRuntimeSettings(),
+        "运行时状态加载"
+      ),
+      onSuccess: (runtime) => {
+        clearRouteLocalReadError("settingsRuntime");
+        setData((current) => {
+          settingsRuntimeLoadedTokenRef.current = reloadToken;
+          if (!current) {
+            pendingSettingsRuntimeRef.current = runtime;
+            return current;
+          }
+
+          pendingSettingsRuntimeRef.current = null;
+          return { ...current, runtime };
+        });
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("settingsRuntime", loadError);
+      },
+      onSettled: () => {
+        settingsRuntimeLoadingRef.current = false;
+      }
+    });
+
+    if (!tokenLoad) {
+      return;
+    }
+
+    return () => {
+      tokenLoad.cancel();
+    };
+  }, [adminAuthSession, apiBaseUrl, client, reloadToken, route]);
 
   useEffect(() => {
     if (!data || route === "dashboard") {
       return;
     }
 
-    if (metricsLoadingRef.current) {
+    const backgroundRefresh = startAdminBackgroundRefresh({
+      key: "nonDashboardMetrics",
+      loading: metricsLoadingRef.current,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        metricsLoadingRef.current = true;
+      },
+      request: ({ requestScope }) => requestScope.client.getDashboardMetrics(),
+      onSuccess: (metrics) => {
+        setData((current) => current ? { ...current, metrics } : current);
+      },
+      onError: () => {
+        // Metrics are supplemental; keep the page usable if SMB-backed stats are slow.
+      },
+      onSettled: () => {
+        metricsLoadingRef.current = false;
+      }
+    });
+
+    if (!backgroundRefresh) {
       return;
     }
 
-    let cancelled = false;
-    metricsLoadingRef.current = true;
-
-    client.getDashboardMetrics()
-      .then((metrics) => {
-        if (!cancelled) {
-          setData((current) => current ? { ...current, metrics } : current);
-        }
-      })
-      .catch(() => {
-        // Metrics are supplemental; keep the page usable if SMB-backed stats are slow.
-      })
-      .finally(() => {
-        metricsLoadingRef.current = false;
-      });
-
     return () => {
-      cancelled = true;
+      metricsLoadingRef.current = false;
+      backgroundRefresh.cancel();
     };
-  }, [client, data?.status.updated_at, reloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, data?.status.updated_at, reloadToken, route]);
 
   useEffect(() => {
     if (
-      !hasDashboardData ||
-      cutterUsersLoadingRef.current ||
+      !shouldPrefetchAdminRoute({
+        plan: data?.data_loading_plan,
+        route: "cutter-users",
+        hasData: hasDashboardData
+      }) ||
+      route === "cutter-users" ||
+      cutterUsersPrefetchLoadingRef.current ||
       cutterUsersLoadedTokenRef.current === cutterUsersReloadToken
     ) {
       return;
     }
 
-    let cancelled = false;
-    cutterUsersLoadingRef.current = true;
-
-    client.listCutterUsers()
-      .then((result) => {
-        if (!cancelled) {
-          setCutterUsers(result);
-          cutterUsersLoadedTokenRef.current = cutterUsersReloadToken;
-        }
-      })
-      .catch(() => {
+    const backgroundRefresh = startAdminBackgroundRefresh({
+      key: "cutterUsersPrefetch",
+      loading: cutterUsersPrefetchLoadingRef.current,
+      enabled: true,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        cutterUsersPrefetchLoadingRef.current = true;
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        requestScope.client.listCutterUsers(),
+        "剪辑师用户预加载",
+        ADMIN_CUTTER_USERS_LOAD_TIMEOUT_MS
+      ),
+      onSuccess: (result) => {
+        setCutterUsers(result);
+        cutterUsersLoadedTokenRef.current = cutterUsersReloadToken;
+      },
+      onError: () => {
         // User data is prefetched for route speed; route-level loading handles visible errors.
-      })
-      .finally(() => {
-        cutterUsersLoadingRef.current = false;
-      });
+      },
+      onSettled: () => {
+        cutterUsersPrefetchLoadingRef.current = false;
+      }
+    });
+
+    if (!backgroundRefresh) {
+      return;
+    }
 
     return () => {
-      cancelled = true;
+      cutterUsersPrefetchLoadingRef.current = false;
+      backgroundRefresh.cancel();
     };
-  }, [client, cutterUsersReloadToken, hasDashboardData]);
+  }, [adminAuthSession, apiBaseUrl, cutterUsersReloadToken, data?.data_loading_plan, hasDashboardData, route]);
 
   useEffect(() => {
     if (
-      !hasDashboardData ||
+      !shouldPrefetchAdminRoute({
+        plan: data?.data_loading_plan,
+        route: "preprocess-jobs",
+        hasData: hasDashboardData
+      }) ||
       preprocessJobsPrefetchLoadingRef.current ||
       preprocessJobsPrefetchTokenRef.current === reloadToken
     ) {
       return;
     }
 
-    let cancelled = false;
-    preprocessJobsPrefetchLoadingRef.current = true;
-
-    loadAdminPreprocessRouteData(client)
-      .then(({ jobs }) => {
-        if (!cancelled) {
+    const backgroundRefresh = startAdminBackgroundRefresh({
+      key: "preprocessJobsPrefetch",
+      loading: preprocessJobsPrefetchLoadingRef.current,
+      enabled: true,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        preprocessJobsPrefetchLoadingRef.current = true;
+      },
+      request: ({ requestScope }) =>
+        loadAdminPreprocessRouteData(requestScope.client, preprocessProcessHistoryFilters),
+      onSuccess: ({ jobs, processHistory, processHistoryError }) => {
+        setPreprocessProcessHistory(processHistory);
+        setPreprocessProcessHistoryError(processHistoryError);
+        if (jobs) {
           setData((current) => {
             if (!current) {
               pendingPreprocessJobsRef.current = jobs;
@@ -1193,20 +1692,33 @@ export function AdminApp() {
             pendingPreprocessJobsRef.current = null;
             return { ...current, jobs };
           });
-          preprocessJobsPrefetchTokenRef.current = reloadToken;
         }
-      })
-      .catch(() => {
+        preprocessJobsPrefetchTokenRef.current = reloadToken;
+      },
+      onError: () => {
         // Preprocess jobs are prefetched for route speed; route-level loading handles visible errors.
-      })
-      .finally(() => {
+      },
+      onSettled: () => {
         preprocessJobsPrefetchLoadingRef.current = false;
-      });
+      }
+    });
+
+    if (!backgroundRefresh) {
+      return;
+    }
 
     return () => {
-      cancelled = true;
+      preprocessJobsPrefetchLoadingRef.current = false;
+      backgroundRefresh.cancel();
     };
-  }, [client, hasDashboardData, reloadToken]);
+  }, [
+    adminAuthSession,
+    apiBaseUrl,
+    data?.data_loading_plan,
+    hasDashboardData,
+    preprocessProcessHistoryFilters,
+    reloadToken
+  ]);
 
   useEffect(() => {
     if (
@@ -1232,55 +1744,108 @@ export function AdminApp() {
       return;
     }
 
-    const refreshDashboardPanels = () => {
-      if (dashboardPanelLoadingRef.current) {
-        return;
-      }
+    let activeBackgroundRefresh: AdminBackgroundRefreshExecution<AdminRuntimeRequestScope> | null = null;
 
-      dashboardPanelLoadingRef.current = true;
-      loadAdminDashboardPanelData(client)
-        .then((result) => {
-          setData((current) => current ? mergeAdminDashboardPanelData(current, result) : current);
-        })
-        .catch(() => {
+    const refreshDashboardPanels = () => {
+      const backgroundRefresh = startAdminBackgroundRefresh({
+        key: "dashboardPanelData",
+        loading: dashboardPanelLoadingRef.current,
+        active: Boolean(activeBackgroundRefresh),
+        createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+        onStart: () => {
+          dashboardPanelLoadingRef.current = true;
+        },
+        request: ({ requestScope }) => loadAdminDashboardPanelData(requestScope.client),
+        onSuccess: (result, { requestScope }) => {
+          if (activeBackgroundRefresh?.requestScope === requestScope) {
+            setData((current) => current ? mergeAdminDashboardPanelData(current, result) : current);
+          }
+        },
+        onError: () => {
           // Dashboard panel refresh is background-only; keep the visible page stable.
-        })
-        .finally(() => {
-          dashboardPanelLoadingRef.current = false;
-        });
+        },
+        onSettled: ({ requestScope }) => {
+          if (activeBackgroundRefresh?.requestScope === requestScope) {
+            activeBackgroundRefresh = null;
+            dashboardPanelLoadingRef.current = false;
+          }
+        }
+      });
+
+      if (backgroundRefresh) {
+        activeBackgroundRefresh = backgroundRefresh;
+      }
     };
 
     refreshDashboardPanels();
     const timer = window.setInterval(refreshDashboardPanels, ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS);
 
-    return () => window.clearInterval(timer);
-  }, [client, hasDashboardData, route]);
+    return () => {
+      window.clearInterval(timer);
+      activeBackgroundRefresh?.cancel();
+      activeBackgroundRefresh = null;
+      dashboardPanelLoadingRef.current = false;
+    };
+  }, [adminAuthSession, apiBaseUrl, hasDashboardData, route]);
 
   useEffect(() => {
     if (!data || route !== "preprocess-jobs") {
       return;
     }
 
-    const timer = window.setInterval(() => {
-      if (preprocessJobsLoading) {
-        return;
+    let activeBackgroundRefresh: AdminBackgroundRefreshExecution<AdminRuntimeRequestScope> | null = null;
+
+    const refreshPreprocessJobs = () => {
+      const backgroundRefresh = startAdminBackgroundRefresh({
+        key: "preprocessJobsInterval",
+        loading: preprocessJobsLoading,
+        active: Boolean(activeBackgroundRefresh),
+        createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+        request: ({ requestScope }) =>
+          loadAdminPreprocessRouteData(requestScope.client, preprocessProcessHistoryFilters),
+        onSuccess: ({ jobs, jobsError, processHistory, processHistoryError }, { requestScope }) => {
+          if (activeBackgroundRefresh?.requestScope === requestScope) {
+            setRouteLocalReadErrorMessage("preprocessJobs", jobsError);
+            setPreprocessProcessHistory(processHistory);
+            setPreprocessProcessHistoryError(processHistoryError);
+            if (jobs) {
+              setData((current) => current ? { ...current, jobs } : current);
+            }
+          }
+        },
+        onError: (loadError, { requestScope }) => {
+          if (activeBackgroundRefresh?.requestScope === requestScope) {
+            setRouteLocalReadError("preprocessJobs", loadError);
+            setPreprocessProcessHistoryError(adminActionErrorMessage("处理历史刷新", loadError));
+          }
+        },
+        onSettled: ({ requestScope }) => {
+          if (activeBackgroundRefresh?.requestScope === requestScope) {
+            activeBackgroundRefresh = null;
+          }
+        }
+      });
+
+      if (backgroundRefresh) {
+        activeBackgroundRefresh = backgroundRefresh;
       }
+    };
 
-      withAdminLoadTimeout(
-        loadAdminPreprocessRouteData(client),
-        "预处理队列刷新"
-      )
-        .then(({ jobs }) => {
-          setActionError("");
-          setData((current) => current ? { ...current, jobs } : current);
-        })
-        .catch((loadError) => {
-          setActionError(adminActionErrorMessage("预处理队列刷新", loadError));
-        });
-    }, ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS);
+    const timer = window.setInterval(refreshPreprocessJobs, ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS);
 
-    return () => window.clearInterval(timer);
-  }, [client, data, preprocessJobsLoading, route]);
+    return () => {
+      window.clearInterval(timer);
+      activeBackgroundRefresh?.cancel();
+      activeBackgroundRefresh = null;
+    };
+  }, [
+    adminAuthSession,
+    apiBaseUrl,
+    data,
+    preprocessJobsLoading,
+    preprocessProcessHistoryFilters,
+    route
+  ]);
 
   useEffect(() => {
     const request = sourceDetailRequestForRoute(route, data, selectedSourceVideoId);
@@ -1296,73 +1861,101 @@ export function AdminApp() {
       return;
     }
 
-    let cancelled = false;
-    setSourceDetailLoading(true);
-    setSourceDetailError("");
-    setSourceDetail(null);
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "sourceDetail",
+      route,
+      loading: false,
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        setSourceDetailLoading(true);
+        setSourceDetailError("");
+        setSourceDetail(null);
+      },
+      request: ({ requestScope }) =>
+        requestScope.client.getSourceVideoDetail(request.sourceVideoId),
+      onSuccess: (detail) => {
+        setSourceDetail(detail);
+      },
+      onError: (loadError) => {
+        setSourceDetail(null);
+        setSourceDetailError(sourceDetailLoadErrorMessage(loadError));
+      },
+      onSettled: () => {
+        setSourceDetailLoading(false);
+      }
+    });
 
-    client.getSourceVideoDetail(request.sourceVideoId)
-      .then((detail) => {
-        if (!cancelled) {
-          setSourceDetail(detail);
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setSourceDetail(null);
-          setSourceDetailError(sourceDetailLoadErrorMessage(loadError));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setSourceDetailLoading(false);
-        }
-      });
+    if (!routeLoad) {
+      return;
+    }
 
     return () => {
-      cancelled = true;
+      routeLoad.cancel();
     };
-  }, [client, data?.source_videos, route, selectedSourceVideoId]);
+  }, [adminAuthSession, apiBaseUrl, client, data?.source_videos, route, selectedSourceVideoId]);
 
   useEffect(() => {
-    if (route !== "cutter-users") {
+    const routeLoad = startAdminRouteRequestLoad({
+      key: "cutterUsers",
+      route,
+      loading: cutterUsersRouteLoadingRef.current,
+      hasFreshData: Boolean(cutterUsers && cutterUsersLoadedTokenRef.current === cutterUsersReloadToken),
+      createRequestScope: () => createRuntimeRequestScope(apiBaseUrl, adminAuthSession),
+      onStart: () => {
+        cutterUsersRouteLoadingRef.current = true;
+        clearRouteLocalReadError("cutterUsers");
+      },
+      request: ({ requestScope }) => withAdminLoadTimeout(
+        requestScope.client.listCutterUsers(),
+        "剪辑师用户加载",
+        ADMIN_CUTTER_USERS_LOAD_TIMEOUT_MS
+      ),
+      onSuccess: (result) => {
+        setCutterUsers(result);
+        cutterUsersLoadedTokenRef.current = cutterUsersReloadToken;
+        clearRouteLocalReadError("cutterUsers");
+      },
+      onError: (loadError) => {
+        setRouteLocalReadError("cutterUsers", loadError);
+      },
+      onSettled: () => {
+        cutterUsersRouteLoadingRef.current = false;
+      }
+    });
+
+    if (!routeLoad) {
       return;
     }
-
-    if (cutterUsers && cutterUsersLoadedTokenRef.current === cutterUsersReloadToken) {
-      return;
-    }
-
-    if (cutterUsersLoadingRef.current) {
-      return;
-    }
-
-    let cancelled = false;
-    cutterUsersLoadingRef.current = true;
-    client.listCutterUsers()
-      .then((result) => {
-        if (!cancelled) {
-          setCutterUsers(result);
-          cutterUsersLoadedTokenRef.current = cutterUsersReloadToken;
-        }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          setActionError(adminActionErrorMessage("剪辑师用户加载", loadError));
-        }
-      })
-      .finally(() => {
-        cutterUsersLoadingRef.current = false;
-      });
 
     return () => {
-      cancelled = true;
+      routeLoad.cancel();
     };
-  }, [client, cutterUsers, cutterUsersReloadToken, route]);
+  }, [adminAuthSession, apiBaseUrl, client, cutterUsers, cutterUsersReloadToken, route]);
+
+  const beginAdminCommandAction = (label: string, notice?: string): boolean => {
+    const decision = adminCommandActionStartDecision(activeAdminCommandLabelRef.current, label);
+    if (!decision.allowed) {
+      setActionNotice("");
+      setActionError(decision.message);
+      return false;
+    }
+
+    activeAdminCommandLabelRef.current = label;
+    setActionError("");
+    setActionNotice(notice ?? `${label}中...`);
+    return true;
+  };
+
+  const finishAdminCommandAction = (label: string) => {
+    if (activeAdminCommandLabelRef.current === label) {
+      activeAdminCommandLabelRef.current = "";
+    }
+  };
 
   const runAction = async (label: string, action: (client: AdminApiClient) => Promise<unknown>) => {
-    setActionError("");
-    setActionNotice(`${label}中...`);
+    if (!beginAdminCommandAction(label)) {
+      return;
+    }
 
     try {
       const result = await action(client);
@@ -1371,12 +1964,15 @@ export function AdminApp() {
     } catch (actionFailure) {
       setActionNotice("");
       setActionError(adminActionErrorMessage(label, actionFailure));
+    } finally {
+      finishAdminCommandAction(label);
     }
   };
 
   const runSmartScan = async () => {
-    setActionError("");
-    setActionNotice("正在扫描新增素材、检查系统状态并刷新生产状态...");
+    if (!beginAdminCommandAction("扫描新增素材", "正在扫描新增素材、检查系统状态并刷新生产状态...")) {
+      return;
+    }
 
     try {
       await client.scanSourceVideos();
@@ -1388,6 +1984,8 @@ export function AdminApp() {
     } catch (failure) {
       setActionNotice("");
       setActionError(adminActionErrorMessage("扫描新增素材", failure));
+    } finally {
+      finishAdminCommandAction("扫描新增素材");
     }
   };
 
@@ -1478,9 +2076,187 @@ export function AdminApp() {
     dashboardLoadedRef.current = false;
   };
 
+  const previewCommandSnapshotRestore = async (snapshotId: string) => {
+    setCommandSnapshotRestorePlanPreview({
+      snapshotId,
+      plan: null,
+      loading: true,
+      error: ""
+    });
+    setCommandSnapshotRestoreExecution({
+      snapshotId,
+      armed: false,
+      loading: false,
+      error: "",
+      result: null
+    });
+
+    try {
+      const plan: AdminCommandRestorePlan = await withAdminLoadTimeout(
+        client.getCommandSnapshotRestorePlan(snapshotId),
+        "恢复预检加载"
+      );
+      setCommandSnapshotRestorePlanPreview({
+        snapshotId,
+        plan,
+        loading: false,
+        error: ""
+      });
+    } catch (previewError) {
+      setCommandSnapshotRestorePlanPreview({
+        snapshotId,
+        plan: null,
+        loading: false,
+        error: adminActionErrorMessage("恢复预检加载", previewError)
+      });
+    }
+  };
+
+  const armCommandSnapshotRestore = (snapshotId: string) => {
+    setCommandSnapshotRestoreExecution({
+      snapshotId,
+      armed: true,
+      loading: false,
+      error: "",
+      result: null
+    });
+  };
+
+  const cancelCommandSnapshotRestore = (snapshotId: string) => {
+    setCommandSnapshotRestoreExecution((current) => (
+      current?.snapshotId === snapshotId
+        ? {
+            ...current,
+            armed: false,
+            loading: false,
+            error: "",
+            result: null
+          }
+        : current
+    ));
+  };
+
+  const executeCommandSnapshotRestore = async (snapshotId: string) => {
+    if (!beginAdminCommandAction("命令快照恢复", "命令快照恢复执行中...")) {
+      return;
+    }
+
+    setCommandSnapshotRestoreExecution({
+      snapshotId,
+      armed: true,
+      loading: true,
+      error: "",
+      result: null
+    });
+
+    try {
+      const result = await withAdminLoadTimeout(
+        client.restoreCommandSnapshot(snapshotId),
+        "命令快照恢复"
+      );
+      setCommandSnapshotRestoreExecution({
+        snapshotId,
+        armed: false,
+        loading: false,
+        error: "",
+        result
+      });
+      setActionNotice(`命令快照恢复完成：恢复 ${result.restored_file_count} 个文件，阻断 ${result.blocked_file_count} 个文件`);
+      setReloadToken((current) => current + 1);
+    } catch (restoreError) {
+      setActionNotice("");
+      setCommandSnapshotRestoreExecution({
+        snapshotId,
+        armed: true,
+        loading: false,
+        error: adminActionErrorMessage("命令快照恢复", restoreError),
+        result: null
+      });
+    } finally {
+      finishAdminCommandAction("命令快照恢复");
+    }
+  };
+
+  const startReadModelReconcile = async () => {
+    if (!beginAdminCommandAction("启动后台对账", "后台对账启动中...")) {
+      return;
+    }
+
+    setReadModelReconcileCommandLoading(true);
+    setReadModelReconcileError("");
+
+    try {
+      const result = await withAdminLoadTimeout(
+        client.startReadModelReconcile(),
+        "启动后台对账"
+      );
+      setReadModelReconcileStatus(result.status);
+      setActionNotice(result.accepted ? "后台对账已启动" : "后台对账已在运行");
+      setReloadToken((current) => current + 1);
+    } catch (reconcileError) {
+      setActionNotice("");
+      setReadModelReconcileError(adminActionErrorMessage("启动后台对账", reconcileError));
+      setActionError(adminActionErrorMessage("启动后台对账", reconcileError));
+    } finally {
+      setReadModelReconcileCommandLoading(false);
+      finishAdminCommandAction("启动后台对账");
+    }
+  };
+
+  const cancelReadModelReconcile = async () => {
+    if (!beginAdminCommandAction("请求停止对账", "正在请求停止后台对账...")) {
+      return;
+    }
+
+    setReadModelReconcileCommandLoading(true);
+    setReadModelReconcileError("");
+
+    try {
+      const result = await withAdminLoadTimeout(
+        client.cancelReadModelReconcile(),
+        "请求停止对账"
+      );
+      setReadModelReconcileStatus(result.status);
+      setActionNotice(result.accepted ? "已请求停止后台对账" : "后台对账当前未运行");
+      setReloadToken((current) => current + 1);
+    } catch (cancelError) {
+      setActionNotice("");
+      setReadModelReconcileError(adminActionErrorMessage("请求停止对账", cancelError));
+      setActionError(adminActionErrorMessage("请求停止对账", cancelError));
+    } finally {
+      setReadModelReconcileCommandLoading(false);
+      finishAdminCommandAction("请求停止对账");
+    }
+  };
+
+  const handleProcessHistoryFiltersChange = (filters: AdminPreprocessProcessHistoryFilters) => {
+    setPreprocessProcessHistoryFilters(filters);
+    setPreprocessProcessHistoryLoading(true);
+    setPreprocessProcessHistoryError("");
+
+    void withAdminLoadTimeout(
+      client.listPreprocessProcessHistory({
+        limit: ADMIN_PREPROCESS_PROCESS_HISTORY_INITIAL_LOAD_LIMIT,
+        window_days: 30,
+        ...filters
+      }),
+      "处理历史筛选"
+    )
+      .then((history) => {
+        setPreprocessProcessHistory(history);
+      })
+      .catch((filterError) => {
+        setPreprocessProcessHistoryError(adminActionErrorMessage("处理历史筛选", filterError));
+      })
+      .finally(() => {
+        setPreprocessProcessHistoryLoading(false);
+      });
+  };
+
   const actions: AdminActionHandlers = {
     sourceVideoQuery,
     sourceVideoStatusFilter,
+    processHistoryFilters: preprocessProcessHistoryFilters,
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
     onScanSourceVideos: () => runAction("扫描源视频", (api) => api.scanSourceVideos()),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
@@ -1544,6 +2320,12 @@ export function AdminApp() {
         setCutterUsersReloadToken((current) => current + 1);
         return result;
       }),
+    onPreviewCommandSnapshotRestore: previewCommandSnapshotRestore,
+    onArmCommandSnapshotRestore: armCommandSnapshotRestore,
+    onCancelCommandSnapshotRestore: cancelCommandSnapshotRestore,
+    onExecuteCommandSnapshotRestore: executeCommandSnapshotRestore,
+    onStartReadModelReconcile: startReadModelReconcile,
+    onCancelReadModelReconcile: cancelReadModelReconcile,
     onOpenSourceDetail: (sourceVideoId) => {
       setSelectedSourceVideoId(sourceVideoId);
       setSourceDetail(null);
@@ -1558,7 +2340,9 @@ export function AdminApp() {
       setSourceVideoQuery(filters.query);
       setSourceVideoStatusFilter(filters.status);
       setSourceVideosHasMore(true);
+      clearRouteLocalReadError("sourceVideos");
     },
+    onProcessHistoryFiltersChange: handleProcessHistoryFiltersChange,
     onLoadMoreSourceVideos: async () => {
       if (!data || sourceVideosLoading || sourceVideosLoadingMore || !sourceVideosHasMore) {
         return;
@@ -1569,26 +2353,28 @@ export function AdminApp() {
         return;
       }
 
-      setActionError("");
+      clearRouteLocalReadError("sourceVideos");
       setSourceVideosLoadingMore(true);
 
       try {
-        const nextSourceVideos = await withAdminLoadTimeout(
-          client.listSourceVideos({
+        const nextSourceVideoPage = await withAdminLoadTimeout(
+          client.listSourceVideosWithRuntime({
             offset,
             limit: ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT,
             query: sourceVideoQuery,
-            status: sourceVideoStatusFilter
+            status: sourceVideoStatusFilter,
+            manifest_fallback: adminSourceVideoManifestFallbackPolicy(sourceVideoStatusFilter)
           }),
           "继续加载原视频"
         );
-        setSourceVideosHasMore(nextSourceVideos.length >= ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT);
+        setSourceVideosRuntime(nextSourceVideoPage.runtime ?? null);
+        setSourceVideosHasMore(nextSourceVideoPage.source_videos.length >= ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT);
         setData((current) => current ? {
           ...current,
-          source_videos: mergeAdminSourceVideoPages(current.source_videos, nextSourceVideos)
+          source_videos: mergeAdminSourceVideoPages(current.source_videos, nextSourceVideoPage.source_videos)
         } : current);
       } catch (loadError) {
-        setActionError(adminActionErrorMessage("继续加载原视频", loadError));
+        setRouteLocalReadError("sourceVideos", loadError);
       } finally {
         setSourceVideosLoadingMore(false);
       }
@@ -1596,7 +2382,7 @@ export function AdminApp() {
     onExportDoctor: () => runAction("导出检查报告", (api) => api.exportDoctorReport())
   };
 
-  const navItems = ADMIN_NAV_ITEMS.map((item) => ({
+  const navItems = adminNavItemsForMode(adminSurfaceMode).map((item) => ({
     key: item.route,
     label: item.label,
     icon: item.icon,
@@ -1648,6 +2434,8 @@ export function AdminApp() {
                 route,
                 data,
                 actions,
+                adminSurfaceMode,
+                sourceVideosRuntime,
                 {
                   detail: sourceDetailForRequest(
                     sourceDetail,
@@ -1657,16 +2445,44 @@ export function AdminApp() {
                   error: sourceDetailError
                 },
                 cutterUsers,
-                {
-                  sourceVideos: sourceVideosLoading,
-                  sourceVideosMore: sourceVideosLoadingMore,
+                adminRouteRenderLoadingState({
+                  sourceVideosLoading,
+                  sourceVideosLoadingMore,
                   sourceVideosHasMore,
-                  preprocessJobs: preprocessJobsLoading
+                  preprocessJobsLoading,
+                  operationsOverviewLoading,
+                  operationLogLoading
+                }),
+                {
+                  ...routeLocalReadErrors
                 },
                 {
                   loading: preprocessJobLogLoading,
                   error: preprocessJobLogError,
                   log: selectedPreprocessJobLog
+                },
+                {
+                  loading: preprocessProcessHistoryLoading,
+                  error: preprocessProcessHistoryError,
+                  history: preprocessProcessHistory
+                },
+                {
+                  overview: operationsOverview,
+                  readModelReconcileStatus,
+                  readModelReconcileError,
+                  readModelReconcileCommandLoading,
+                  error: operationsOverviewError
+                },
+                {
+                  history: runtimeDiagnosticsHistory,
+                  loading: runtimeDiagnosticsLoading,
+                  error: runtimeDiagnosticsError
+                },
+                {
+                  operationLog,
+                  error: operationLogError,
+                  restorePlanPreview: commandSnapshotRestorePlanPreview,
+                  restoreExecution: commandSnapshotRestoreExecution
                 }
               )
             ) : (

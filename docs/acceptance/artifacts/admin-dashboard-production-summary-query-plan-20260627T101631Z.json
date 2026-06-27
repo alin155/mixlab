@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T10:16:31.526Z",
+  "slice": "R.241 Dashboard Production Summary Query Path Optimization",
+  "phase": "Phase 3 Admin Read Model and Query API performance",
+  "goal_coverage": "slice",
+  "full_goal_statement": "This advances Admin Architecture v1 by reducing a Dashboard background query cost at the read-model boundary. It does not complete Protection Gate coverage, route-loader restructuring, page information architecture, redundancy cleanup, Docker release gates, or the full Admin Architecture v1 goal.",
+  "role_review": {
+    "project_architect": "approved: the slice keeps Dashboard metrics on the read-model/query mainline and removes page-time SQLite table counting rather than adding UI loading polish.",
+    "delivery_lead": "approved: the change is GET/read-path only, preserves response shape and metadata snapshot gates, and is accepted with focused tests, typecheck, read-only NAS performance evidence, and governance audit."
+  },
+  "implementation": {
+    "files_changed": [
+      "packages/admin-api/src/admin-read-model-store.ts",
+      "packages/admin-api/src/admin-read-model-store.test.ts",
+      "docs/architecture/admin-architecture-v1-next-implementation-plan.md",
+      "docs/architecture/admin-architecture-v1-requirements-traceability.md"
+    ],
+    "summary": [
+      "readAdminDashboardProductionSummaryFromStore now opens admin.sqlite once and reuses metadata/counts for freshness.",
+      "The Dashboard production-summary hot path no longer runs COUNT(*) over preprocess_job_status on every background metrics miss.",
+      "The hot path still refuses missing stores, stale stores, incomplete preprocess job snapshots, and snapshot metadata row-count mismatches.",
+      "A focused regression test covers metadata row-count mismatch returning null."
+    ],
+    "non_goals": [
+      "No Dashboard UI change.",
+      "No NAS data mutation.",
+      "No read-model rebuild or reconcile start.",
+      "No Docker deployment.",
+      "No Cutter release/index/search protocol change.",
+      "No broad cache or fixture substitution."
+    ]
+  },
+  "performance": {
+    "before": {
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T100802Z.md",
+      "dashboard_metrics_p95_ms": 654.4,
+      "production_summary_component_ms": 342.0,
+      "direct_function_probe_stable_range_ms": "344.2-371.5"
+    },
+    "after": {
+      "artifact": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T101631Z.md",
+      "dashboard_metrics_p95_ms": 471.5,
+      "production_summary_component_ms": 156.0,
+      "direct_function_probe_warm_range_ms": "140.6-157.6",
+      "dashboard_metrics_warm_cache_ms": [
+        2.0,
+        1.2
+      ]
+    },
+    "query_plan_findings": [
+      "completed_at, indexed_at, and failed_at day-range queries use existing indexes.",
+      "The dominant avoidable cost was COUNT(*) over preprocess_job_status on the NAS SQLite store.",
+      "Metadata reads and remaining day-range index probes still cost fixed SMB/SQLite time, so material_summary and usage_metrics remain separate candidates."
+    ]
+  },
+  "verification": {
+    "passed": [
+      "node --test --import tsx packages/admin-api/src/admin-read-model-store.test.ts",
+      "node --test --import tsx packages/admin-api/src/admin-dashboard-metrics-query.test.ts packages/admin-api/src/admin-dashboard-read-facade.test.ts packages/admin-api/src/admin-source-video-status-page-query.test.ts packages/admin-api/src/admin-source-video-routes.test.ts",
+      "npm run typecheck",
+      "npm run validate:admin-real-nas-performance-isolated",
+      "npm run audit:admin-redundancy-governance"
+    ],
+    "test_counts": {
+      "read_model_store_tests": 33,
+      "dashboard_and_source_video_focused_tests": 25
+    },
+    "artifacts": {
+      "isolated_performance_json": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T101630Z.json",
+      "isolated_performance_markdown": "docs/acceptance/artifacts/admin-real-nas-performance-isolated-20260627T101630Z.md",
+      "performance_json": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T101631Z.json",
+      "performance_markdown": "docs/acceptance/artifacts/admin-real-nas-performance-20260627T101631Z.md",
+      "redundancy_audit_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T101630Z.json",
+      "redundancy_audit_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T101630Z.md"
+    },
+    "redundancy_audit_note": "The audit command exited successfully and preserved the governance state: cleanup remains blocked until candidates are reviewed. This is expected because R.241 is not a redundancy-cleanup slice."
+  },
+  "safety": {
+    "nas_mutation": false,
+    "docker_mutation": false,
+    "cutter_protocol_change": false,
+    "ready_asset_change": false,
+    "page_time_full_scan": false
+  },
+  "remaining_gaps": [
+    "Dashboard material_summary still costs about 144ms on the observed NAS run.",
+    "usage_metrics still costs about 100ms on the observed NAS run.",
+    "source-video status_store_page remains the dominant source-video status-list cost.",
+    "Route-loader restructuring, UI information architecture, Protection Gate completion, redundancy cleanup, Docker release gates, and full Admin Architecture v1 remain incomplete."
+  ]
+}

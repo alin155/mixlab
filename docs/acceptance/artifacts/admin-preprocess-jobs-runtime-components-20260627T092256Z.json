@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T09:22:56.000Z",
+  "mode": "admin-preprocess-jobs-runtime-components",
+  "scope": {
+    "phase": "Phase 3 Admin Read Model and Query API observability",
+    "primary_endpoint": "/api/admin/preprocess/jobs",
+    "primary_query_facade": "packages/admin-api/src/admin-preprocess-jobs-read-facade.ts",
+    "primary_route": "packages/admin-api/src/admin-slow-read-routes.ts",
+    "coverage_statement": "R.234 adds component-level runtime evidence for the preprocess/jobs slow endpoint. It does not change query semantics, response data shape, read-model schema, NAS data, Docker state, Worker behavior, or Cutter protocols."
+  },
+  "component_contract": {
+    "runtime_meta_field": "meta.runtime.components",
+    "components": [
+      {
+        "name": "concurrency_policy",
+        "purpose": "Measures concurrent-job policy lookup.",
+        "data_source": "admin-settings",
+        "scan_mode": "no-scan"
+      },
+      {
+        "name": "library_counts",
+        "purpose": "Measures bounded library summary read used by paged preprocess/jobs counts.",
+        "data_source": "library-manifest",
+        "scan_mode": "no-scan"
+      },
+      {
+        "name": "preprocess_job_page",
+        "purpose": "Measures the read-model or fallback manifest page that feeds the list.",
+        "data_source": "dynamic: admin-read-model or source-video-manifest",
+        "scan_mode": "paged-list"
+      },
+      {
+        "name": "manifest_fallback",
+        "purpose": "Measures unpaged manifest fallback when no limit is supplied.",
+        "data_source": "source-video-manifest",
+        "scan_mode": "status-scan"
+      },
+      {
+        "name": "job_record_supplement",
+        "purpose": "Measures required per-source-video job-record supplement reads for observable processing/failed/ready rows.",
+        "data_source": "source-video-manifest",
+        "scan_mode": "single-id"
+      },
+      {
+        "name": "runtime_load",
+        "purpose": "Measures runtime load telemetry used for operator advice.",
+        "data_source": "runtime-telemetry",
+        "scan_mode": "no-scan"
+      }
+    ]
+  },
+  "line_count_evidence": {
+    "admin_preprocess_jobs_read_facade_line_count": 231,
+    "admin_preprocess_jobs_read_facade_test_line_count": 197,
+    "admin_slow_read_routes_line_count": 203,
+    "admin_slow_read_routes_test_line_count": 363,
+    "current_line_anchors": {
+      "component_timings_result": "packages/admin-api/src/admin-preprocess-jobs-read-facade.ts:72",
+      "concurrency_policy_component": "packages/admin-api/src/admin-preprocess-jobs-read-facade.ts:82",
+      "preprocess_job_page_component": "packages/admin-api/src/admin-preprocess-jobs-read-facade.ts:122",
+      "runtime_load_component": "packages/admin-api/src/admin-preprocess-jobs-read-facade.ts:197",
+      "job_record_supplement_component": "packages/admin-api/src/admin-preprocess-jobs-read-facade.ts:211",
+      "route_components_passthrough": "packages/admin-api/src/admin-slow-read-routes.ts:160"
+    }
+  },
+  "verification": {
+    "focused_tests": {
+      "command": "node --test --import tsx packages/admin-api/src/admin-preprocess-jobs-read-facade.test.ts packages/admin-api/src/admin-slow-read-routes.test.ts",
+      "result": "8 tests passed"
+    },
+    "broader_backend_tests": {
+      "command": "node --test --import tsx packages/admin-api/src/admin-preprocess-jobs-read-facade.test.ts packages/admin-api/src/admin-preprocess-jobs-read-services.test.ts packages/admin-api/src/admin-preprocess-jobs-query.test.ts packages/admin-api/src/admin-slow-read-routes.test.ts packages/admin-api/src/admin-slow-read-route-deps.test.ts packages/admin-api/src/admin-runtime-observability.test.ts packages/admin-api/src/index.test.ts",
+      "result": "88 tests passed"
+    },
+    "typecheck": {
+      "command": "npm run typecheck -- --pretty false",
+      "result": "passed"
+    },
+    "performance_contract_tests": {
+      "command": "node --test --import tsx scripts/acceptance/admin-real-nas-performance.test.ts scripts/acceptance/admin-real-nas-performance-isolated.test.ts",
+      "result": "6 tests passed"
+    },
+    "redundancy_governance": {
+      "artifact_json": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T092234Z.json",
+      "artifact_markdown": "docs/acceptance/artifacts/admin-redundancy-governance-audit-20260627T092234Z.md",
+      "result": "blocked",
+      "cleanup_allowed": false
+    }
+  },
+  "non_goals_preserved": [
+    "No query semantics change",
+    "No API data shape change",
+    "No read-model schema change",
+    "No NAS mutation",
+    "No Docker upload",
+    "No Worker behavior change",
+    "No Cutter release/index/search protocol change"
+  ],
+  "result": {
+    "status": "pass",
+    "summary": "The preprocess/jobs slow endpoint now exposes component-level runtime timings so future performance work can identify read-model page, supplement, and runtime-load costs instead of guessing."
+  }
+}

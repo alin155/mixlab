@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T18:00:22.197Z",
+  "command": "tsx scripts/acceptance/admin-doctor-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5187/#/doctor",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5187/#/doctor",
+      "load_ms": 28636.2,
+      "screenshot_path": "docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "系统检查": true,
+        "诊断报告": true,
+        "检查结果": true,
+        "检查报告": true,
+        "doctor-probes": true,
+        "doctor-route": true,
+        "状态扫描": true,
+        "本页面局部处理": true,
+        "导出操作": true,
+        "重新检查": true,
+        "导出检查报告": true,
+        "公共素材库根目录": true
+      },
+      "diagnostic_report_text": "诊断报告\n\n系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。\n\n通过\n检查项\t状态\t检查目的\t技术详情\n公共素材库根目录\t通过\t确认管理端能访问公共素材库根目录。\t公共素材库根目录可访问\n素材来源可读性\t通过\t确认原视频目录可以被管理端读取。\t原视频目录可读\n预处理产物库可写性\t通过\t确认文案、索引、封面、日志等产物可以写入。\t预处理产物库可写\n预处理日志目录可写性\t通过\t确认预处理任务日志目录可以创建和写入。\t预处理日志目录可写\n素材库计数\t通过\t确认素材库统计字段和实际状态一致。\t素材库计数一致\n原视频发布清单\t通过\t确认每个原视频的协议文件和产物路径有效。\t原始检查信息已隐藏，可导出检查报告查看。\n当前索引\t通过\t确认剪辑端搜索使用的当前索引存在且可读取。\t当前索引包校验通过\n预处理任务日志\t通过\t确认已进入预处理生命周期的视频都有可读任务日志。\t原始检查信息已隐藏，可导出检查报告查看。\n音视频工具\t通过\t确认本机可执行音视频提取和剪切任务。\t原始检查信息已隐藏，可导出检查报告查看。\n媒体探测工具\t通过\t确认系统可以读取视频编码、时长和分辨率信息。\t原始检查信息已隐藏，可导出检查报告查看。\n语音识别配置\t通过\t确认语音识别所需模型和密钥配置正确。\t原始检查信息已隐藏，可导出检查报告查看。\n本地剪辑片段\t通过\t确认本地剪切后生成的片段清单和媒体文件有效。\t未发现本地剪辑片段",
+      "inspector_text": "检查报告\n\n系统检查\n\n报告\n生成时间\n2026-06-26T18:00:30.307Z\n协议版本\n1.0\n库路径\n/Volumes/MixLab/PublicLibrary\n通过\n12\n警告\n0\n失败\n0\n页面契约\n主工作区\n诊断报告\n辅助区\n检查结果\n数据来源\ndoctor-probes\n扫描原因\ndoctor-route\n扫描模式\n状态扫描\n错误边界\n本页面局部处理\n导出边界\n导出操作",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5187/#/doctor",
+      "load_ms": 14586.7,
+      "screenshot_path": "docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "系统检查": true,
+        "诊断报告": true,
+        "检查结果": true,
+        "检查报告": true,
+        "doctor-probes": true,
+        "doctor-route": true,
+        "状态扫描": true,
+        "本页面局部处理": true,
+        "导出操作": true,
+        "重新检查": true,
+        "导出检查报告": true,
+        "公共素材库根目录": true
+      },
+      "diagnostic_report_text": "诊断报告\n\n系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。\n\n通过\n检查项\t状态\t检查目的\t技术详情\n公共素材库根目录\t通过\t确认管理端能访问公共素材库根目录。\t公共素材库根目录可访问\n素材来源可读性\t通过\t确认原视频目录可以被管理端读取。\t原视频目录可读\n预处理产物库可写性\t通过\t确认文案、索引、封面、日志等产物可以写入。\t预处理产物库可写\n预处理日志目录可写性\t通过\t确认预处理任务日志目录可以创建和写入。\t预处理日志目录可写\n素材库计数\t通过\t确认素材库统计字段和实际状态一致。\t素材库计数一致\n原视频发布清单\t通过\t确认每个原视频的协议文件和产物路径有效。\t原始检查信息已隐藏，可导出检查报告查看。\n当前索引\t通过\t确认剪辑端搜索使用的当前索引存在且可读取。\t当前索引包校验通过\n预处理任务日志\t通过\t确认已进入预处理生命周期的视频都有可读任务日志。\t原始检查信息已隐藏，可导出检查报告查看。\n音视频工具\t通过\t确认本机可执行音视频提取和剪切任务。\t原始检查信息已隐藏，可导出检查报告查看。\n媒体探测工具\t通过\t确认系统可以读取视频编码、时长和分辨率信息。\t原始检查信息已隐藏，可导出检查报告查看。\n语音识别配置\t通过\t确认语音识别所需模型和密钥配置正确。\t原始检查信息已隐藏，可导出检查报告查看。\n本地剪辑片段\t通过\t确认本地剪切后生成的片段清单和媒体文件有效。\t未发现本地剪辑片段",
+      "inspector_text": "检查报告\n\n系统检查\n\n报告\n生成时间\n2026-06-26T18:00:58.854Z\n协议版本\n1.0\n库路径\n/Volumes/MixLab/PublicLibrary\n通过\n12\n警告\n0\n失败\n0\n页面契约\n主工作区\n诊断报告\n辅助区\n检查结果\n数据来源\ndoctor-probes\n扫描原因\ndoctor-route\n扫描模式\n状态扫描\n错误边界\n本页面局部处理\n导出边界\n导出操作",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "diagnostic-report-visible",
+      "passed": true,
+      "detail": "desktop:610; mobile:610"
+    },
+    {
+      "name": "inspector-contract-visible",
+      "passed": true,
+      "detail": "desktop:197; mobile:197"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "doctor browser QA passed for desktop and mobile fixture routes"
+  }
+}

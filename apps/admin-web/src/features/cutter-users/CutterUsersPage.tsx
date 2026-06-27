@@ -1,4 +1,4 @@
-import { InspectorPanel, Table, type TableColumn } from "@mixlab/ui-foundation";
+import { Badge, InspectorPanel, Table, type BadgeTone, type TableColumn } from "@mixlab/ui-foundation";
 import { useState } from "react";
 import type {
   AdminCutterUser,
@@ -6,7 +6,7 @@ import type {
   UsageMetrics,
   UserUsageMetrics
 } from "../../api.ts";
-import { AdminControlButton, AdminPageHeader, EmptyState, MetricBand } from "../shared.tsx";
+import { AdminControlButton, AdminInfoGroups, AdminPageHeader, EmptyState, MetricBand } from "../shared.tsx";
 
 function userStatusLabel(status: AdminCutterUser["status"]): string {
   return {
@@ -34,6 +34,15 @@ function lastUsedLabel(value: string): string {
 
 function statusCount(users: AdminCutterUser[], status: AdminCutterUser["status"]): number {
   return users.filter((user) => user.status === status).length;
+}
+
+function statusTone(status: AdminCutterUser["status"]): BadgeTone {
+  return {
+    pending: "warning",
+    approved: "success",
+    rejected: "neutral",
+    disabled: "danger"
+  }[status] as BadgeTone;
 }
 
 export function CutterUserDisableDialog({
@@ -176,9 +185,17 @@ export function CutterUsersPage({
   const [passwordResetTargetUserId, setPasswordResetTargetUserId] = useState("");
   const disableTargetUser = users.users.find((user) => user.user_id === disableTargetUserId);
   const passwordResetTargetUser = users.users.find((user) => user.user_id === passwordResetTargetUserId);
+  const pendingUserCount = statusCount(users.users, "pending");
+  const approvedUserCount = statusCount(users.users, "approved");
+  const rejectedUserCount = statusCount(users.users, "rejected");
+  const disabledUserCount = statusCount(users.users, "disabled");
   const columns: Array<TableColumn<AdminCutterUser>> = [
     { id: "user", header: "用户", accessor: "display_name" },
-    { id: "status", header: "状态", render: (user) => userStatusLabel(user.status) },
+    {
+      id: "status",
+      header: "状态",
+      render: (user) => <Badge tone={statusTone(user.status)}>{userStatusLabel(user.status)}</Badge>
+    },
     { id: "devices", header: "设备", render: (user) => `${user.devices.length} 台` },
     {
       id: "searches",
@@ -259,29 +276,59 @@ export function CutterUsersPage({
 
   return (
     <>
-      <div className="admin-main-column">
-        <AdminPageHeader title="剪辑师用户" eyebrow="登录申请与使用统计" />
+      <div className="admin-main-column admin-cutter-users-console">
+        <AdminPageHeader
+          title="剪辑师"
+          eyebrow="登录申请与使用统计"
+          description="用户审核按路由加载，账号写操作只通过命令接口执行。"
+        />
         <MetricBand
           items={[
             { label: "活跃剪辑师", value: metrics.active_user_count, caption: "有使用记录" },
             { label: "搜索次数", value: metrics.search_request_count, caption: "全部剪辑端请求" },
-            { label: "搜索失败", value: metrics.search_failure_count, caption: "需要排查的搜索链路错误" },
+            { label: "搜索失败", value: metrics.search_failure_count, caption: "需排查错误" },
             { label: "选段次数", value: metrics.transcript_selection_count, caption: "加入待剪前的文案选择" },
             { label: "剪切成功", value: metrics.cut_success_count, caption: "已生成本地素材" }
           ]}
         />
         <MetricBand
           items={[
-            { label: "待审核", value: statusCount(users.users, "pending"), caption: "等待管理员通过" },
-            { label: "已通过", value: statusCount(users.users, "approved"), caption: "可以进入剪辑端" },
-            { label: "已拒绝", value: statusCount(users.users, "rejected"), caption: "申请未开放" },
-            { label: "已停用", value: statusCount(users.users, "disabled"), caption: "登录凭证失效" }
+            { label: "待审核", value: pendingUserCount, caption: "等待管理员通过" },
+            { label: "已通过", value: approvedUserCount, caption: "可以进入剪辑端" },
+            { label: "已拒绝", value: rejectedUserCount, caption: "申请未开放" },
+            { label: "已停用", value: disabledUserCount, caption: "登录凭证失效" }
           ]}
         />
+        <section className="admin-cutter-users-route-contract" aria-label="剪辑师数据来源">
+          <div>
+            <span>用户表格</span>
+            <strong>用户仓库</strong>
+            <p>路由加载 · 不扫描</p>
+          </div>
+          <div>
+            <span>使用概览</span>
+            <strong>使用指标</strong>
+            <p>只读统计 · 不阻塞审核</p>
+          </div>
+          <div>
+            <span>账号操作</span>
+            <strong>命令操作</strong>
+            <p>通过 / 停用 / 重置密码</p>
+          </div>
+        </section>
         {users.users.length === 0 ? (
           <EmptyState title="暂无剪辑师申请" detail="剪辑端提交用户名后会出现在这里等待审核。" />
         ) : (
-          <section className="admin-list-panel">
+          <section className="admin-list-section admin-cutter-user-table-surface" aria-label="用户表格">
+            <header className="admin-section-header">
+              <div>
+                <h2>用户表格</h2>
+                <p>展示剪辑师准入状态和最近使用指标；审批写操作保留在当前行的命令按钮中。</p>
+              </div>
+              <Badge tone={pendingUserCount > 0 ? "warning" : "success"}>
+                待审核 {pendingUserCount} 人
+              </Badge>
+            </header>
             <Table
               columns={columns}
               rows={users.users}
@@ -291,15 +338,32 @@ export function CutterUsersPage({
           </section>
         )}
       </div>
-      <InspectorPanel title="用户概览">
+      <InspectorPanel title="用户概览" subtitle="剪辑师准入">
         <div className="admin-user-inspector">
-          <section>
-            <h2>审批状态</h2>
-            <p className="admin-note">
-              待审核 {statusCount(users.users, "pending")} 人，已通过 {statusCount(users.users, "approved")} 人，
-              已停用 {statusCount(users.users, "disabled")} 人。
-            </p>
-          </section>
+          <AdminInfoGroups
+            groups={[
+              {
+                title: "审批状态",
+                rows: [
+                  { label: "待审核", value: `${pendingUserCount} 人` },
+                  { label: "已通过", value: `${approvedUserCount} 人` },
+                  { label: "已拒绝", value: `${rejectedUserCount} 人` },
+                  { label: "已停用", value: `${disabledUserCount} 人` }
+                ]
+              },
+              {
+                title: "页面契约",
+                rows: [
+                  { label: "主工作区", value: "用户表格" },
+                  { label: "辅助区", value: "使用概览" },
+                  { label: "用户来源", value: "用户仓库" },
+                  { label: "操作边界", value: "命令操作" },
+                  { label: "扫描模式", value: "不扫描" },
+                  { label: "错误边界", value: "本页面局部处理" }
+                ]
+              }
+            ]}
+          />
           <section>
             <h2>最近使用</h2>
             {metrics.users.length === 0 ? (

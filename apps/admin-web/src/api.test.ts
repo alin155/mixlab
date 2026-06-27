@@ -11,9 +11,31 @@ import {
 } from "./api.ts";
 
 test("unwraps successful admin API envelopes", () => {
-  assert.deepEqual(unwrapAdminResponse({ ok: true, data: { ready: 120 } }), {
-    ready: 120
-  });
+  assert.deepEqual(
+    unwrapAdminResponse({
+      ok: true,
+      data: { ready: 120 },
+      meta: {
+        runtime: {
+          schema_version: "1.0",
+          endpoint: "/api/admin/dashboard/metrics",
+          method: "GET",
+          duration_ms: 12,
+          scan_mode: "status-scan",
+          data_source: "usage-events",
+          scan_reason: "background-metrics",
+          actual_data_source: "usage-events",
+          cache_status: "not-applicable",
+          result_count: 1,
+          offset: 0,
+          limit: 0,
+          slow: false,
+          slow_reason: ""
+        }
+      }
+    }),
+    { ready: 120 }
+  );
 });
 
 test("throws readable admin API errors", () => {
@@ -250,6 +272,14 @@ test("calls admin API endpoints through the typed client", async () => {
   });
 
   await client.getLibraryStatus();
+  await client.getDataLoadingPlan();
+  await client.getOperationsOverview();
+  await client.getReadModelReconcileStatus();
+  await client.startReadModelReconcile();
+  await client.cancelReadModelReconcile();
+  await client.getOperationLog({ limit: 12 });
+  await client.getCommandSnapshotRestorePlan("fixture-source-video-metadata-snapshot");
+  await client.restoreCommandSnapshot("fixture-source-video-metadata-snapshot");
   await client.getAdminSettings();
   await client.getDashboardMetrics();
   await client.listSourceVideos();
@@ -259,9 +289,17 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.disableCutterUser("CU000001");
   await client.resetCutterUserPassword("CU000001", { new_password: "Cutter67890" });
   await client.listPreprocessJobs();
+  await client.listPreprocessProcessHistory({
+    limit: 7,
+    window_days: 14,
+    source_folder_name: "默认素材来源",
+    preprocess_status: "failed",
+    event_type: "failed"
+  });
   await client.getPreprocessJobLog("J000001");
   await client.listIndexVersions();
   await client.getDoctorReport();
+  await client.getRuntimeDiagnosticsHistory({ limit: 20 });
   await client.getRuntimeSettings();
   await client.initializeLibrary();
   await client.scanSourceVideos();
@@ -291,6 +329,14 @@ test("calls admin API endpoints through the typed client", async () => {
     requested.map((url) => new URL(url).pathname),
     [
       "/api/admin/library/status",
+      "/api/admin/data-loading/plan",
+      "/api/admin/operations/overview",
+      "/api/admin/read-model/reconcile/status",
+      "/api/admin/read-model/reconcile",
+      "/api/admin/read-model/reconcile/cancel",
+      "/api/admin/operation-log",
+      "/api/admin/command-snapshots/fixture-source-video-metadata-snapshot/restore-plan",
+      "/api/admin/command-snapshots/fixture-source-video-metadata-snapshot/restore",
       "/api/admin/settings/config",
       "/api/admin/dashboard/metrics",
       "/api/admin/source-videos",
@@ -300,18 +346,20 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/cutter-users/CU000001/disable",
       "/api/admin/cutter-users/CU000001/password",
       "/api/admin/preprocess/jobs",
+      "/api/admin/preprocess/process-history",
       "/api/admin/preprocess/jobs/J000001/log",
       "/api/admin/index/versions",
       "/api/admin/doctor/report",
+      "/api/admin/runtime/diagnostics/history",
       "/api/admin/settings/runtime",
       "/api/admin/library/init",
-    "/api/admin/library/scan",
-    "/api/admin/preprocess/queue-unprocessed",
-    "/api/admin/preprocess/retry-failed",
-    "/api/admin/source-videos/V000001/queue",
-    "/api/admin/source-videos/V000001/retry",
-    "/api/admin/source-videos/V000001/publish",
-    "/api/admin/preprocess/supervisor/status",
+      "/api/admin/library/scan",
+      "/api/admin/preprocess/queue-unprocessed",
+      "/api/admin/preprocess/retry-failed",
+      "/api/admin/source-videos/V000001/queue",
+      "/api/admin/source-videos/V000001/retry",
+      "/api/admin/source-videos/V000001/publish",
+      "/api/admin/preprocess/supervisor/status",
       "/api/admin/preprocess/supervisor/start",
       "/api/admin/preprocess/supervisor/stop",
       "/api/admin/index/repair",
@@ -326,6 +374,137 @@ test("calls admin API endpoints through the typed client", async () => {
     new URL(requested.find((url) => new URL(url).pathname === "/api/admin/preprocess/jobs") ?? "").search,
     "?limit=20"
   );
+  assert.equal(
+    new URL(requested.find((url) => new URL(url).pathname === "/api/admin/preprocess/process-history") ?? "").search,
+    "?limit=7&window_days=14&source_folder_name=%E9%BB%98%E8%AE%A4%E7%B4%A0%E6%9D%90%E6%9D%A5%E6%BA%90&preprocess_status=failed&event_type=failed"
+  );
+  assert.equal(
+    new URL(requested.find((url) => new URL(url).pathname === "/api/admin/operation-log") ?? "").search,
+    "?limit=12"
+  );
+  assert.equal(
+    new URL(requested.find((url) => new URL(url).pathname === "/api/admin/runtime/diagnostics/history") ?? "").search,
+    "?limit=20"
+  );
+});
+
+test("restore command snapshots through POST with the typed client", async () => {
+  const requests: Array<{ pathname: string; method: string; token: string | null; body?: unknown }> = [];
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    auth: { session_token: "admin-session-001" },
+    fetch: async (url, init) => {
+      const pathname = new URL(String(url)).pathname;
+      requests.push({
+        pathname,
+        method: init?.method ?? "GET",
+        token: new Headers(init?.headers).get("x-mixlab-admin-session-token"),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: {
+          schema_version: "1.0",
+          restored_at: "2024-05-07T10:34:00.000Z",
+          status: "restored",
+          restored_file_count: 1,
+          blocked_file_count: 0,
+          blockers: [],
+          plan: {
+            schema_version: "1.0",
+            generated_at: "2024-05-07T10:33:00.000Z",
+            can_restore: true,
+            command: "source-video-metadata",
+            snapshot_id: "fixture-source-video-metadata-snapshot",
+            snapshot_kind: "file-capture",
+            snapshot_manifest_relative_path:
+              ".mixlab-library/admin/command-snapshots/20240507103200-source-video-metadata/snapshot.json",
+            file_count: 1,
+            restorable_file_count: 1,
+            blocked_file_count: 0,
+            blockers: [],
+            files: []
+          },
+          files: [
+            {
+              label: "source-video-V000042-manifest",
+              restored: true,
+              source_relative_path: ".mixlab-library/videos/V000042/source-video.json",
+              snapshot_relative_path:
+                ".mixlab-library/admin/command-snapshots/20240507103200-source-video-metadata/files/001-source-video-V000042-manifest"
+            }
+          ]
+        }
+      }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  const result = await client.restoreCommandSnapshot("fixture-source-video-metadata-snapshot");
+
+  assert.deepEqual(requests, [
+    {
+      pathname: "/api/admin/command-snapshots/fixture-source-video-metadata-snapshot/restore",
+      method: "POST",
+      token: "admin-session-001",
+      body: undefined
+    }
+  ]);
+  assert.equal(result.status, "restored");
+  assert.equal(result.restored_file_count, 1);
+  assert.equal(result.files[0]?.restored, true);
+});
+
+test("read-model reconcile commands use explicit POST endpoints with the typed client", async () => {
+  const requests: Array<{ pathname: string; method: string; token: string | null; body?: unknown }> = [];
+  const status = await createFixtureAdminApiClient().getReadModelReconcileStatus();
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    auth: { session_token: "admin-session-001" },
+    fetch: async (url, init) => {
+      const pathname = new URL(String(url)).pathname;
+      requests.push({
+        pathname,
+        method: init?.method ?? "GET",
+        token: new Headers(init?.headers).get("x-mixlab-admin-session-token"),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      return new Response(JSON.stringify({
+        ok: true,
+        data: {
+          accepted: true,
+          status
+        }
+      }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  const started = await client.startReadModelReconcile();
+  const cancelled = await client.cancelReadModelReconcile();
+
+  assert.deepEqual(requests, [
+    {
+      pathname: "/api/admin/read-model/reconcile",
+      method: "POST",
+      token: "admin-session-001",
+      body: undefined
+    },
+    {
+      pathname: "/api/admin/read-model/reconcile/cancel",
+      method: "POST",
+      token: "admin-session-001",
+      body: undefined
+    }
+  ]);
+  assert.equal(started.accepted, true);
+  assert.equal(cancelled.accepted, true);
+  assert.equal(started.status.command, "read-model-reconcile");
+  assert.equal(cancelled.status.scan_mode, "full-reconcile");
 });
 
 test("calls admin settings mutation endpoints through the typed client", async () => {
@@ -532,6 +711,166 @@ test("client sends source video query and status filters to the admin API", asyn
   assert.equal(url.searchParams.get("limit"), "50");
 });
 
+test("client preserves source video runtime fallback metadata", async () => {
+  const sourceVideo = {
+    source_video_id: "V000001",
+    title: "现金流",
+    file_name: "cashflow.mp4",
+    relative_path: "source-videos/cashflow.mp4",
+    cover_url: "/api/admin/source-videos/V000001/cover",
+    duration_ms: 120_000,
+    file_size: 4096,
+    preprocess_status: "processing",
+    visible_to_cutters: false,
+    tags: [],
+    description: "",
+    lecturer: "",
+    course: "",
+    category: "",
+    updated_at: ""
+  };
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async () =>
+      new Response(JSON.stringify({
+        ok: true,
+        data: [sourceVideo],
+        meta: {
+          runtime: {
+            schema_version: "1.0",
+            endpoint: "/api/admin/source-videos?status=processing&limit=5",
+            method: "GET",
+            duration_ms: 412,
+            scan_mode: "paged-list",
+            data_source: "admin-read-model",
+            scan_reason: "route-owned-page",
+            actual_data_source: "source-video-manifest",
+            cache_status: "miss",
+            result_count: 1,
+            offset: 0,
+            limit: 5,
+            slow: false,
+            slow_reason: "",
+            fallback_reason: "status-store:store-not-fresh"
+          }
+        }
+      }), {
+        headers: { "content-type": "application/json" }
+      })
+  });
+
+  const result = await client.listSourceVideosWithRuntime({
+    status: "processing",
+    limit: 5
+  });
+  const legacyVideos = await client.listSourceVideos({
+    status: "processing",
+    limit: 5
+  });
+
+  assert.equal(result.source_videos.length, 1);
+  assert.equal(result.source_videos[0]?.cover_url, "http://127.0.0.1:4899/api/admin/source-videos/V000001/cover");
+  assert.equal(result.runtime?.actual_data_source, "source-video-manifest");
+  assert.equal(result.runtime?.fallback_reason, "status-store:store-not-fresh");
+  assert.equal(legacyVideos.length, 1);
+});
+
+test("client preserves source video runtime repair metadata", async () => {
+  const sourceVideo = {
+    source_video_id: "V000002",
+    title: "修复命中",
+    file_name: "repair.mp4",
+    relative_path: "source-videos/repair.mp4",
+    cover_url: "/api/admin/source-videos/V000002/cover",
+    duration_ms: 60_000,
+    file_size: 2048,
+    preprocess_status: "processing",
+    visible_to_cutters: false,
+    tags: [],
+    description: "",
+    lecturer: "",
+    course: "",
+    category: "",
+    updated_at: ""
+  };
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async () =>
+      new Response(JSON.stringify({
+        ok: true,
+        data: [sourceVideo],
+        meta: {
+          runtime: {
+            schema_version: "1.0",
+            endpoint: "/api/admin/source-videos?status=processing&limit=5",
+            method: "GET",
+            duration_ms: 128,
+            scan_mode: "paged-list",
+            data_source: "admin-read-model",
+            scan_reason: "route-owned-page",
+            actual_data_source: "admin-read-model",
+            cache_status: "hit",
+            result_count: 1,
+            offset: 0,
+            limit: 5,
+            slow: false,
+            slow_reason: "",
+            fallback_reason: "",
+            repair_reason: "status-store:repaired-incomplete-manifest-rows"
+          }
+        }
+      }), {
+        headers: { "content-type": "application/json" }
+      })
+  });
+
+  const result = await client.listSourceVideosWithRuntime({
+    status: "processing",
+    limit: 5
+  });
+
+  assert.equal(result.runtime?.actual_data_source, "admin-read-model");
+  assert.equal(result.runtime?.repair_reason, "status-store:repaired-incomplete-manifest-rows");
+});
+
+test("client forwards a bound AbortSignal to runtime fetch requests", async () => {
+  const abortController = new AbortController();
+  const requestInits: Array<RequestInit | undefined> = [];
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    signal: abortController.signal,
+    fetch: async (url, init) => {
+      requestInits.push(init);
+      const pathname = new URL(String(url)).pathname;
+      const data = pathname === "/api/admin/source-videos" ? [] : {};
+      return new Response(JSON.stringify({ ok: true, data }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  await client.getLibraryStatus();
+  await client.listSourceVideos({ limit: 5 });
+  await client.initializeLibrary();
+  await client.saveAdminSettings({
+    library_name: "公共素材库",
+    source_folders: [],
+    runtime_policy: {
+      audio_mode: "mp3_16k_mono_64k",
+      concurrent_jobs: 1,
+      auto_scan_enabled: false,
+      auto_queue_enabled: false,
+      auto_publish_index_enabled: false
+    }
+  });
+  await client.removeSourceFolder("SF000001");
+
+  assert.equal(requestInits.length, 5);
+  for (const init of requestInits) {
+    assert.equal(init?.signal, abortController.signal);
+  }
+});
+
 test("client preserves same-origin admin media URLs when API base is root-relative", () => {
   assert.equal(
     resolveMediaUrl("/", "/api/admin/source-videos/V000001/cover"),
@@ -674,6 +1013,306 @@ test("fixture client separates ready, failed, and index-required counts", async 
   assert.equal(data.status.ready_video_count, 120);
   assert.equal(data.status.failed_video_count, 2);
   assert.equal(data.status.index_required_video_count, 5);
+  assert.equal(data.data_loading_plan.strategy, "shell-first-route-owned-v1");
+  assert.equal(data.data_loading_plan.hidden_full_scan_allowed, false);
+  assert.equal(
+    data.data_loading_plan.endpoints.some((endpoint) => endpoint.endpoint === "/api/admin/data-loading/plan"),
+    true
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/source-videos")?.read_model,
+    "source-video-status-read-model-v1"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/source-videos")?.data_source,
+    "admin-read-model"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/source-videos")?.scan_reason,
+    "route-owned-page"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/read-model/status")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/read-model/reconcile/status")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/read-model/reconcile")?.refresh,
+    "command-only"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/read-model/reconcile/cancel")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/preprocess/process-history")?.read_model,
+    "admin-read-model-v1"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/preprocess/process-history")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/preprocess/process-history/readiness")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/operations/overview")?.phase,
+    "route"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/doctor/report")?.scan_mode,
+    "status-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/settings/runtime")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/operation-log")?.scan_mode,
+    "no-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/library/scan")?.scan_mode,
+    "folder-scan"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/library/scan")?.scan_reason,
+    "explicit-scan-apply"
+  );
+  assert.equal(
+    data.data_loading_plan.routes.find((route) => route.route === "protection")?.endpoints.includes("/api/admin/operations/overview"),
+    true
+  );
+  assert.equal(
+    data.data_loading_plan.routes.find((route) => route.route === "protection")?.endpoints.includes("/api/admin/read-model/reconcile/status"),
+    true
+  );
+  assert.equal(
+    data.data_loading_plan.routes.find((route) => route.route === "operation-log")?.endpoints.includes("/api/admin/operation-log"),
+    true
+  );
+  assert.equal(
+    data.data_loading_plan.routes.find((route) => route.route === "preprocess-jobs")?.endpoints.includes("/api/admin/preprocess/process-history"),
+    true
+  );
+  assert.deepEqual(
+    data.data_loading_plan.routes.find((route) => route.route === "index-publish")?.endpoints,
+    ["/api/admin/source-videos", "/api/admin/index/versions"]
+  );
+  assert.deepEqual(
+    data.data_loading_plan.routes.find((route) => route.route === "settings")?.endpoints,
+    ["/api/admin/library/path-checks", "/api/admin/settings/runtime"]
+  );
+});
+
+test("fixture operations overview aggregates release gates and loading plan", async () => {
+  const overview = await createFixtureAdminApiClient().getOperationsOverview();
+
+  assert.equal(overview.title, "管理端运行保护中心");
+  assert.equal(overview.schema_version, "1.0");
+  assert.equal(overview.protection.mode, "preprocess-protection-v1");
+  assert.equal(overview.summary.ready_video_count, 120);
+  assert.equal(
+    overview.summary.processing_video_count,
+    overview.read_model.source_video_status.counts_by_status.processing
+  );
+  assert.equal(overview.release.gates.some((gate) => gate.code === "usage-events-tolerance"), true);
+  assert.equal(overview.release.usage_events_repair.repair_required, false);
+  assert.equal(overview.release.usage_events_repair.safe_scope, "usage-events-only");
+  assert.match(overview.release.usage_events_repair.dry_run_command, /usage-events-repair/);
+  assert.equal(overview.release.processing_recovery.recovery_required, false);
+  assert.equal(overview.release.processing_recovery.safe_scope, "processing-to-queued-only");
+  assert.equal(overview.release.processing_recovery.bulk_recovery_endpoint, "POST /api/admin/preprocess/recover-processing");
+  assert.equal(overview.release.disk_space_protection.status, "healthy");
+  assert.equal(overview.release.disk_space_protection.safe_to_preprocess, true);
+  assert.equal(overview.release.disk_space_protection.write_block_scope, "preprocess-and-docker-upload");
+  assert.equal(overview.release.disk_space_protection.threshold_env_var, "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT");
+  assert.equal(overview.release.disk_space_protection.starts_workers, false);
+  assert.equal(overview.release.disk_space_protection.mutates_ready_assets, false);
+  assert.equal(overview.release.disk_space_protection.mutates_cutter_protocol, false);
+  assert.equal(overview.release.version_health_parity.status, "incomplete");
+  assert.equal(overview.release.version_health_parity.metadata_complete, false);
+  assert.equal(overview.release.version_health_parity.safe_scope, "version-health-only");
+  assert.deepEqual(overview.release.version_health_parity.expected_services, [
+    "admin-web",
+    "admin-api",
+    "admin-worker"
+  ]);
+  assert.equal(overview.release.version_health_parity.starts_workers, false);
+  assert.equal(overview.release.version_health_parity.mutates_ready_assets, false);
+  assert.equal(overview.release.version_health_parity.mutates_cutter_protocol, false);
+  assert.equal(overview.release.gates.some((gate) => gate.code === "admin-worker-env-proof"), true);
+  assert.equal(overview.release.admin_worker_env_proof.proof_required, true);
+  assert.equal(overview.release.admin_worker_env_proof.status, "external-proof-required");
+  assert.equal(overview.release.admin_worker_env_proof.safe_scope, "admin-worker-env-only");
+  assert.equal(overview.release.admin_worker_env_proof.required_env_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+  assert.equal(overview.release.admin_worker_env_proof.required_env_flags.MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER, "0");
+  assert.equal(overview.release.admin_worker_env_proof.required_library_roots.MIXLAB_ADMIN_LIBRARY_ROOT, "/data/PublicLibrary");
+  assert.equal(overview.release.admin_worker_env_proof.records_secrets, false);
+  assert.equal(overview.release.admin_worker_env_proof.starts_workers, false);
+  assert.equal(overview.release.admin_worker_env_proof.mutates_ready_assets, false);
+  assert.equal(overview.release.admin_worker_env_proof.mutates_cutter_protocol, false);
+  assert.equal(overview.release.gates.some((gate) => gate.code === "cutter-compatibility-proof"), true);
+  assert.equal(overview.release.cutter_compatibility_proof.proof_required, true);
+  assert.equal(overview.release.cutter_compatibility_proof.status, "external-proof-required");
+  assert.equal(overview.release.cutter_compatibility_proof.safe_scope, "cutter-compatibility-only");
+  assert.equal(overview.release.cutter_compatibility_proof.expected_ready_count, 10471);
+  assert.equal(overview.release.cutter_compatibility_proof.expected_auth_mode, "reviewed");
+  assert.equal(overview.release.cutter_compatibility_proof.requires_staged_candidate, true);
+  assert.equal(overview.release.cutter_compatibility_proof.contacts_windows_runner, false);
+  assert.equal(overview.release.cutter_compatibility_proof.contacts_docker, false);
+  assert.equal(overview.release.cutter_compatibility_proof.starts_workers, false);
+  assert.equal(overview.release.cutter_compatibility_proof.mutates_ready_assets, false);
+  assert.equal(overview.release.cutter_compatibility_proof.mutates_cutter_protocol, false);
+  assert.equal(overview.release.gates.some((gate) => gate.code === "current-index"), true);
+  assert.equal(overview.release.gates.some((gate) => gate.code === "scan-protection"), true);
+  assert.equal(overview.read_model.source_video_status.name, "source-video-status-read-model-v1");
+  assert.equal(overview.read_model.source_video_status.freshness, "fresh");
+  assert.equal(overview.read_model.admin_read_model.storage, "sqlite");
+  assert.equal(overview.read_model.admin_read_model.freshness, "fresh");
+  assert.equal(overview.read_model.admin_read_model.reconciliation.action, "none");
+  assert.equal(overview.read_model.admin_read_model.reconciliation.scan_mode, "no-scan");
+  assert.equal(overview.data_loading.strategy, "shell-first-route-owned-v1");
+  assert.equal(overview.data_loading.hidden_full_scan_allowed, false);
+});
+
+test("fixture read-model reconcile status exposes step progress", async () => {
+  const client = createFixtureAdminApiClient();
+  const status = await client.getReadModelReconcileStatus();
+  const started = await client.startReadModelReconcile();
+  const cancelled = await client.cancelReadModelReconcile();
+
+  assert.equal(status.command, "read-model-reconcile");
+  assert.equal(status.status, "running");
+  assert.equal(status.phase, "scanning");
+  assert.equal(status.progress.current_step, "preprocess-job-snapshots");
+  assert.equal(status.progress.preprocess_job_snapshot_count, 64);
+  assert.equal(status.progress.total_preprocess_job_snapshot_count, 623);
+  assert.equal(status.progress.step_percent, 10);
+  assert.equal(status.events[0]?.current_step, "preprocess-job-snapshots");
+  assert.equal(started.accepted, true);
+  assert.equal(started.status.command, "read-model-reconcile");
+  assert.equal(cancelled.accepted, true);
+  assert.equal(cancelled.status.cancel_requested, true);
+});
+
+test("fixture operation log exposes command snapshots and read-model maintenance events", async () => {
+  const client = createFixtureAdminApiClient();
+  const operationLog = await client.getOperationLog({ limit: 2 });
+  const dataLoadingPlan = await client.getDataLoadingPlan();
+  const restorePlanEndpoint = dataLoadingPlan.endpoints.find(
+    (endpoint) => endpoint.endpoint === "/api/admin/command-snapshots/:snapshot_id/restore-plan"
+  );
+  const restoreExecutionEndpoint = dataLoadingPlan.endpoints.find(
+    (endpoint) => endpoint.endpoint === "/api/admin/command-snapshots/:snapshot_id/restore"
+  );
+
+  assert.equal(operationLog.schema_version, "1.0");
+  assert.equal(operationLog.events.length, 2);
+  assert.equal(operationLog.events[0]?.area, "protection");
+  assert.equal(operationLog.events[0]?.action, "source-video-metadata");
+  assert.equal(operationLog.events[0]?.event_type, "succeeded");
+  assert.equal(
+    (operationLog.events[0]?.details.command_snapshot as { snapshot_id?: string })?.snapshot_id,
+    "fixture-source-video-metadata-snapshot"
+  );
+  assert.deepEqual(operationLog.events[0]?.details.actor, {
+    kind: "admin-user",
+    source: "admin-session",
+    admin_id: "AU000001",
+    username: "owner",
+    display_name: "Owner",
+    role: "owner"
+  });
+  assert.equal(operationLog.events[1]?.area, "users");
+  assert.equal(operationLog.events[1]?.action, "cutter-user-approve");
+  assert.equal(
+    (operationLog.events[1]?.details.command_snapshot as { snapshot_id?: string })?.snapshot_id,
+    "fixture-cutter-user-approve-snapshot"
+  );
+  assert.equal(operationLog.truncated, true);
+
+  const plan = await client.getCommandSnapshotRestorePlan("fixture-source-video-metadata-snapshot");
+  const restore = await client.restoreCommandSnapshot("fixture-source-video-metadata-snapshot");
+  assert.equal(plan.can_restore, true);
+  assert.equal(plan.snapshot_id, "fixture-source-video-metadata-snapshot");
+  assert.equal(plan.file_count, 1);
+  assert.equal(plan.restorable_file_count, 1);
+  assert.equal(plan.files[0]?.target_status, "exists");
+  assert.equal(plan.files[0]?.snapshot_status, "exists");
+  assert.equal(restore.status, "restored");
+  assert.equal(restore.restored_file_count, 1);
+  assert.equal(restore.files[0]?.restored, true);
+  assert.equal(restorePlanEndpoint?.phase, "command");
+  assert.equal(restorePlanEndpoint?.scan_mode, "no-scan");
+  assert.equal(restorePlanEndpoint?.data_source, "command-snapshot");
+  assert.equal(restorePlanEndpoint?.refresh, "command-only");
+  assert.equal(restoreExecutionEndpoint?.method, "POST");
+  assert.equal(restoreExecutionEndpoint?.phase, "command");
+  assert.equal(restoreExecutionEndpoint?.scan_mode, "no-scan");
+  assert.equal(restoreExecutionEndpoint?.data_source, "command-snapshot");
+  assert.equal(restoreExecutionEndpoint?.refresh, "command-only");
+});
+
+test("dashboard shell loader requests only shell-safe endpoints", async () => {
+  const fixture = await loadAdminDashboardData(createFixtureAdminApiClient(), { includeHeavy: false });
+  const requested: string[] = [];
+  const client = createAdminApiClient({
+    base_url: "http://127.0.0.1:4899",
+    fetch: async (url) => {
+      const pathname = new URL(String(url)).pathname;
+      requested.push(pathname);
+
+      const data = pathname === "/api/admin/library/status"
+        ? fixture.status
+        : pathname === "/api/admin/settings/config"
+          ? fixture.settings
+          : pathname === "/api/admin/preprocess/supervisor/status"
+            ? fixture.jobs.supervisor
+            : pathname === "/api/admin/data-loading/plan"
+              ? fixture.data_loading_plan
+              : null;
+
+      if (!data) {
+        throw new Error(`unexpected dashboard shell request: ${pathname}`);
+      }
+
+      return new Response(JSON.stringify({ ok: true, data }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  const data = await loadAdminDashboardData(client, { includeHeavy: false });
+  const requestedSet = new Set(requested);
+
+  assert.deepEqual(requestedSet, new Set([
+    "/api/admin/library/status",
+    "/api/admin/settings/config",
+    "/api/admin/preprocess/supervisor/status",
+    "/api/admin/data-loading/plan"
+  ]));
+  assert.equal(data.source_videos.length, 0);
+  assert.equal(data.jobs.jobs.length, 0);
+  assert.equal(data.data_loading_plan.background_prefetch_default, false);
+
+  for (const heavyPath of [
+    "/api/admin/source-videos",
+    "/api/admin/preprocess/jobs",
+    "/api/admin/index/versions",
+    "/api/admin/doctor/report",
+    "/api/admin/settings/runtime",
+    "/api/admin/dashboard/metrics",
+    "/api/admin/cutter-users",
+    "/api/admin/operations/overview",
+    "/api/admin/read-model/reconcile/status"
+  ]) {
+    assert.equal(requestedSet.has(heavyPath), false, `${heavyPath} should not be part of shell load`);
+  }
 });
 
 test("fixture client pages source videos like the runtime API", async () => {
@@ -702,6 +1341,89 @@ test("fixture jobs show failed retry without blocking later success", async () =
 
   assert.equal(failed?.retryable, true);
   assert.ok(laterDone, "expected a later successful job after the failed job");
+});
+
+test("fixture preprocess process history exposes bounded no-scan read-model data", async () => {
+  const history = await createFixtureAdminApiClient().listPreprocessProcessHistory({
+    limit: 2,
+    window_days: 7
+  });
+
+  assert.equal(history.history_available, true);
+  assert.equal(history.actual_data_source, "admin-read-model");
+  assert.equal(history.scan_mode, "no-scan");
+  assert.equal(history.cache_status, "hit");
+  assert.equal(history.window_days, 7);
+  assert.equal(history.limit, 2);
+  assert.deepEqual(history.filters, {
+    source_folder_name: "",
+    preprocess_status: "",
+    event_type: ""
+  });
+  assert.deepEqual(history.filter_options, {
+    source_folder_names: ["默认素材来源"],
+    preprocess_statuses: ["processing", "ready", "failed"],
+    event_types: ["failed", "indexed", "claimed"]
+  });
+  assert.equal(history.items.length, 2);
+  assert.equal(history.summary.returned_count, 2);
+  assert.equal(history.summary.tracked_count, 2);
+  assert.equal(history.summary.status_counts.processing, 1);
+  assert.equal(history.summary.event_counts.indexed, 1);
+  assert.deepEqual(history.summary.source_folder_summaries, [
+    {
+      source_folder_name: "默认素材来源",
+      tracked_count: 2,
+      completed_count: 1,
+      failed_count: 0,
+      active_count: 1,
+      average_process_ms: 463_500,
+      newest_event_at: "2024-05-07T10:26:10.000Z"
+    }
+  ]);
+  assert.deepEqual(history.summary.daily_trend, [
+    {
+      date: "2024-05-07",
+      tracked_count: 2,
+      completed_count: 1,
+      failed_count: 0,
+      active_count: 1,
+      average_process_ms: 463_500
+    }
+  ]);
+  assert.equal(history.items[0]?.source_video_id, "V000043");
+
+  const filtered = await createFixtureAdminApiClient().listPreprocessProcessHistory({
+    source_folder_name: "默认素材来源",
+    preprocess_status: "failed",
+    event_type: "failed",
+    limit: 10,
+    window_days: 7
+  });
+
+  assert.deepEqual(filtered.filters, {
+    source_folder_name: "默认素材来源",
+    preprocess_status: "failed",
+    event_type: "failed"
+  });
+  assert.equal(filtered.items.length, 1);
+  assert.equal(filtered.items[0]?.source_video_id, "V000037");
+  assert.equal(filtered.summary.returned_count, 1);
+  assert.equal(filtered.summary.tracked_count, 1);
+  assert.equal(filtered.summary.tracked_failed_count, 1);
+  assert.equal(filtered.summary.status_counts.failed, 1);
+  assert.equal(filtered.summary.event_counts.failed, 1);
+  assert.deepEqual(filtered.summary.source_folder_summaries, [
+    {
+      source_folder_name: "默认素材来源",
+      tracked_count: 1,
+      completed_count: 0,
+      failed_count: 1,
+      active_count: 0,
+      average_process_ms: 38_000,
+      newest_event_at: "2024-05-07T10:18:20.000Z"
+    }
+  ]);
 });
 
 test("fixture runtime settings redact DashScope key values", async () => {
@@ -741,6 +1463,10 @@ test("fixture client includes settings, metrics, cutter users, and source detail
   assert.equal(metrics.usage.users.some((user) => user.add_to_cut_list_count > 0), true);
   assert.equal(metrics.usage.users.some((user) => user.reuse_local_clip_count > 0), true);
   assert.equal(metrics.risk.failed_video_count > 0, true);
+  assert.equal(metrics.sources.material.data_source, "admin-read-model");
+  assert.equal(metrics.sources.production.scan_mode, "no-scan");
+  assert.equal(metrics.sources.transcript.data_source, "current-index");
+  assert.equal(metrics.sources.usage.data_source, "admin-read-model");
 
   const users = await client.listCutterUsers();
   assert.equal(users.users.some((user) => user.status === "pending"), true);

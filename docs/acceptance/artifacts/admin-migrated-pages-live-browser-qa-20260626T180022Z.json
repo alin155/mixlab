@@ -1,0 +1,3403 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T18:00:22.197Z",
+  "command": "tsx scripts/acceptance/admin-migrated-pages-live-browser-qa.ts",
+  "api_base_url": "http://127.0.0.1:3893",
+  "web_base_url": "http://127.0.0.1:5187",
+  "expected_library_root": "/Volumes/MixLab/PublicLibrary",
+  "output_dir": "docs/acceptance/artifacts",
+  "environment": {
+    "auth_mode": "disabled",
+    "authenticated": true,
+    "library_root": "/Volumes/MixLab/PublicLibrary",
+    "current_index_version": "v010471",
+    "video_count": 11394,
+    "ready_video_count": 10471,
+    "admin_read_model": {
+      "freshness": "fresh",
+      "safe_for_page_request": true,
+      "reconciliation_action": "none",
+      "reconciliation_scan_mode": "no-scan"
+    }
+  },
+  "api_probes": [
+    {
+      "name": "health",
+      "path": "/health",
+      "duration_ms": 344.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 792,
+      "data": {
+        "ok": true,
+        "service": "admin-api",
+        "status": "blocked",
+        "build": {
+          "sha": "local",
+          "version": "local",
+          "image_tag": ""
+        },
+        "runtime": {
+          "library_root": "/Volumes/MixLab/PublicLibrary",
+          "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+          "path_profile": "mac-smb"
+        },
+        "preprocess": {
+          "checked_at": "2026-06-26T18:00:22.217Z",
+          "safe_to_start": false,
+          "status": "blocked",
+          "disk": {
+            "total_bytes": 31840459087872,
+            "available_bytes": 674068819968,
+            "used_bytes": 31166390267904,
+            "usage_percent": 98,
+            "block_usage_percent": 92,
+            "status": "blocked",
+            "last_error": ""
+          },
+          "processing": {
+            "checked": false,
+            "processing_count": 0,
+            "source_video_ids": []
+          },
+          "blockers": [
+            {
+              "code": "disk-space-blocked",
+              "message": "公共素材库磁盘空间不足：已使用 98%（门禁 92%），请先释放空间。",
+              "source_video_ids": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "auth_status",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 330.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 133,
+      "data": {
+        "authenticated": true,
+        "auth_mode": "disabled",
+        "user": null,
+        "bootstrap": {
+          "has_admin": true,
+          "registration_open": false
+        }
+      }
+    },
+    {
+      "name": "library_status",
+      "path": "/api/admin/library/status",
+      "duration_ms": 340.6,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 732,
+      "data": {
+        "library_id": "lib_main_001",
+        "name": "主素材库",
+        "root_path": "/Volumes/MixLab/PublicLibrary",
+        "source_videos_path": "/Volumes/MixLab/PublicLibrary/source-videos",
+        "mixlab_library_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+        "protocol_version": "1.0",
+        "version": "1.0",
+        "created_at": "2026-06-24T11:53:43.919Z",
+        "updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "processing_video_count": 0,
+        "queued_video_count": 904,
+        "unprocessed_video_count": 0,
+        "failed_video_count": 0,
+        "index_required_video_count": 19,
+        "disk_total_bytes": 31840459087872,
+        "disk_available_bytes": 674068819968,
+        "index_status": "needs-publish",
+        "current_index_version": "v010471",
+        "active_task_label": "无正在处理任务"
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "path": "/api/admin/data-loading/plan",
+      "duration_ms": 8.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 12615,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.217Z",
+        "strategy": "shell-first-route-owned-v1",
+        "shell_interactive_target_ms": 1000,
+        "route_timeout_ms": 8000,
+        "background_prefetch_default": false,
+        "hidden_full_scan_allowed": false,
+        "endpoints": [
+          {
+            "endpoint": "/api/admin/library/status",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "library-manifest",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "interval",
+            "notes": "Reads library.json summary and current index pointer; does not enumerate videos."
+          },
+          {
+            "endpoint": "/api/admin/settings/config",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-settings",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Small Admin settings file used for shell and route controls."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/supervisor/status",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "supervisor-runtime",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "interval",
+            "notes": "In-memory supervisor state; safe for shell status."
+          },
+          {
+            "endpoint": "/api/admin/data-loading/plan",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "data-loading-contract",
+            "scan_reason": "shell-contract",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Machine-readable route loading contract for Admin web."
+          },
+          {
+            "endpoint": "/api/admin/source-videos",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "paged-list",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 20,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Route-owned paged source-video list. Ready rows use the transcript index; non-ready status filters use source-video-status-read-model-v1."
+          },
+          {
+            "endpoint": "/api/admin/source-videos/:id",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "single-id",
+            "data_source": "source-video-manifest",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Single selected source-video detail and transcript summary."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/jobs",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "status-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 20,
+            "cache_ttl_ms": 30000,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "interval",
+            "notes": "Preprocess route list. The default limit is bounded by source-video-status-read-model-v1 instead of a hidden manifest sweep."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/process-history",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 50,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Bounded preprocess process-history report from complete admin.sqlite snapshots. It must not enumerate preprocess-job files from a page request."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/process-history/readiness",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "No-scan readiness diagnostic explaining whether admin.sqlite has a complete preprocess-job snapshot for process-history rows."
+          },
+          {
+            "endpoint": "/api/admin/read-model/status",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Diagnostic read-model freshness endpoint. It reports state without forcing a rebuild."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile/status",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Diagnostic status for the explicit background read-model reconciler. It never starts a scan."
+          },
+          {
+            "endpoint": "/api/admin/operations/overview",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "data-loading-contract",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Protection Center aggregate for release gates, read-model freshness, data-loading strategy, and ready protection."
+          },
+          {
+            "endpoint": "/api/admin/operation-log",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "operation-log",
+            "scan_reason": "operation-log-tail",
+            "critical": false,
+            "timeout_ms": 1000,
+            "refresh": "route-entry",
+            "notes": "Admin operation log tail from a bounded NDJSON file. It must not enumerate source-video manifests."
+          },
+          {
+            "endpoint": "/api/admin/command-snapshots/:snapshot_id/restore-plan",
+            "method": "GET",
+            "phase": "command",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "command-snapshot",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "command-only",
+            "notes": "Read-only restore preflight for one command snapshot. It inspects only the selected snapshot manifest and captured files; it does not execute restore."
+          },
+          {
+            "endpoint": "/api/admin/command-snapshots/:snapshot_id/restore",
+            "method": "POST",
+            "phase": "command",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "command-snapshot",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "command-only",
+            "notes": "Guarded command-snapshot restore execution for one selected snapshot. It recomputes the restore plan and must never run as part of route or shell loading."
+          },
+          {
+            "endpoint": "/api/admin/runtime/diagnostics/history",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "runtime-diagnostics-history-v1",
+            "timeout_ms": 1000,
+            "refresh": "route-entry",
+            "notes": "Recent runtime endpoint diagnostics from a bounded derived history file; it must not enumerate source-video manifests."
+          },
+          {
+            "endpoint": "/api/admin/index/versions",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "paged-list",
+            "data_source": "index-version-packages",
+            "scan_reason": "index-version-page",
+            "critical": false,
+            "default_limit": 8,
+            "cache_ttl_ms": 30000,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Paged and cached index-version list; current version remains visible even when outside the first page."
+          },
+          {
+            "endpoint": "/api/admin/dashboard/metrics",
+            "method": "GET",
+            "phase": "background",
+            "cost": "expensive",
+            "scan_mode": "status-scan",
+            "data_source": "usage-events",
+            "scan_reason": "background-metrics",
+            "critical": false,
+            "cache_ttl_ms": 30000,
+            "timeout_ms": 8000,
+            "refresh": "interval",
+            "notes": "Supplemental dashboard metrics. Shell must remain usable when this endpoint is slow. Response includes per-section sources for admin-read-model/current-index/usage-events provenance."
+          },
+          {
+            "endpoint": "/api/admin/cutter-users",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "user-store",
+            "scan_reason": "user-management-route",
+            "critical": false,
+            "timeout_ms": 20000,
+            "refresh": "route-entry",
+            "notes": "Route-owned user-management table; do not prefetch from dashboard shell."
+          },
+          {
+            "endpoint": "/api/admin/doctor/report",
+            "method": "GET",
+            "phase": "route",
+            "cost": "expensive",
+            "scan_mode": "status-scan",
+            "data_source": "doctor-probes",
+            "scan_reason": "doctor-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Doctor route report only; full checks are not a shell dependency."
+          },
+          {
+            "endpoint": "/api/admin/library/path-checks",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "path-checks",
+            "scan_reason": "settings-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Settings route path availability checks; reports configured paths without source-video enumeration."
+          },
+          {
+            "endpoint": "/api/admin/settings/runtime",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "runtime-secrets",
+            "scan_reason": "settings-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Settings route runtime probe; not loaded during dashboard shell."
+          },
+          {
+            "endpoint": "/api/admin/library/scan-preview",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "folder-scan",
+            "data_source": "source-folders",
+            "scan_reason": "explicit-scan-preview",
+            "critical": false,
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit scan planning command. It is never a page-open side effect."
+          },
+          {
+            "endpoint": "/api/admin/library/scan",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "folder-scan",
+            "data_source": "source-folders",
+            "scan_reason": "explicit-scan-apply",
+            "critical": false,
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit scan apply command protected by scan-preview and ready blockers."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "full-reconcile",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "explicit-read-model-reconcile",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit background maintenance command. It rebuilds admin.sqlite from a validated manifest snapshot and is never a page-open side effect."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile/cancel",
+            "method": "POST",
+            "phase": "command",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "explicit-reconcile-cancel",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "command-only",
+            "notes": "Explicit cancel request for the background read-model reconciler. It does not scan the library and only stops at safe checkpoints."
+          }
+        ],
+        "routes": [
+          {
+            "route": "dashboard",
+            "load_phase": "shell",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/library/status",
+              "/api/admin/settings/config",
+              "/api/admin/preprocess/supervisor/status",
+              "/api/admin/data-loading/plan"
+            ],
+            "fallback": "Use shell placeholders for metrics, Doctor, source videos, jobs, and indexes until route panels ask for them."
+          },
+          {
+            "route": "source-videos",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos"
+            ],
+            "fallback": "Show route-local loading and keep Admin shell interactive."
+          },
+          {
+            "route": "source-detail",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos/:id"
+            ],
+            "fallback": "Show selected-source error without replacing shell data."
+          },
+          {
+            "route": "preprocess-jobs",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/preprocess/jobs",
+              "/api/admin/preprocess/process-history",
+              "/api/admin/preprocess/process-history/readiness",
+              "/api/admin/index/versions"
+            ],
+            "fallback": "Use summary counts from library status until the route list resolves."
+          },
+          {
+            "route": "index-publish",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos",
+              "/api/admin/index/versions"
+            ],
+            "fallback": "Show route-local pending-publish and index-version loading without blocking the Admin shell."
+          },
+          {
+            "route": "protection",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/operations/overview",
+              "/api/admin/read-model/reconcile/status"
+            ],
+            "fallback": "Use shell library counts until protection details resolve."
+          },
+          {
+            "route": "operation-log",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/operation-log"
+            ],
+            "fallback": "Show route-local operation log loading without blocking the Admin shell."
+          },
+          {
+            "route": "runtime-diagnostics",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/runtime/diagnostics/history"
+            ],
+            "fallback": "Show recent endpoint diagnostics without blocking the Admin shell."
+          },
+          {
+            "route": "cutter-users",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/cutter-users"
+            ],
+            "fallback": "Keep route-local user loading/errors isolated from dashboard shell."
+          },
+          {
+            "route": "doctor",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/doctor/report"
+            ],
+            "fallback": "Use placeholder Doctor summary from shell until explicit report loads."
+          },
+          {
+            "route": "settings",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/library/path-checks",
+              "/api/admin/settings/runtime"
+            ],
+            "fallback": "Settings form can render from shell settings before path/runtime probes finish."
+          }
+        ]
+      }
+    },
+    {
+      "name": "read_model_status",
+      "path": "/api/admin/read-model/status",
+      "duration_ms": 374.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1459,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.217Z",
+        "admin_read_model": {
+          "schema_version": "1.0",
+          "storage": "sqlite",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+          "freshness": "fresh",
+          "exists": true,
+          "generated_at": "2026-06-26T11:21:40.447Z",
+          "library_updated_at": "2026-06-25T19:07:13.162Z",
+          "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+          "video_count": 11394,
+          "current_video_count": 11394,
+          "counts_by_status": {
+            "unprocessed": 0,
+            "queued": 904,
+            "processing": 0,
+            "ready": 10471,
+            "failed": 0,
+            "index-required": 19
+          },
+          "invalidated_at": "",
+          "invalidation_reason": "",
+          "last_error": "",
+          "reconciliation": {
+            "store_path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin-read-model/admin.sqlite",
+            "action": "none",
+            "reason": "fresh",
+            "scan_mode": "no-scan",
+            "requires_background_reconcile": false,
+            "safe_for_page_request": true
+          }
+        },
+        "source_video_status": {
+          "name": "source-video-status-read-model-v1",
+          "storage": "persistent-json",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/admin/read-models/source-video-status-read-model-v1.json",
+          "freshness": "fresh",
+          "memory_cache": "fresh",
+          "persisted": "fresh",
+          "generated_at": "2026-06-26T11:21:40.447Z",
+          "library_updated_at": "2026-06-25T19:07:13.162Z",
+          "current_library_updated_at": "2026-06-25T19:07:13.162Z",
+          "video_count": 11394,
+          "current_video_count": 11394,
+          "counts_by_status": {
+            "unprocessed": 0,
+            "queued": 904,
+            "processing": 0,
+            "ready": 10471,
+            "failed": 0,
+            "index-required": 19
+          },
+          "cache_ttl_ms": 30000
+        }
+      }
+    },
+    {
+      "name": "source_videos_first_page",
+      "path": "/api/admin/source-videos?limit=20",
+      "duration_ms": 429.9,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 9776,
+      "data": [
+        {
+          "source_video_id": "V000001",
+          "title": "1.房产置换与资产优化",
+          "file_name": "1.房产置换与资产优化.mp4",
+          "relative_path": "王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/1.房产置换与资产优化.mp4",
+          "cover_url": "/api/admin/source-videos/V000001/cover",
+          "duration_ms": 517013,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000002",
+          "title": "2.比特币暴涨与投资多元化",
+          "file_name": "2.比特币暴涨与投资多元化.mp4",
+          "relative_path": "王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/2.比特币暴涨与投资多元化.mp4",
+          "cover_url": "/api/admin/source-videos/V000002/cover",
+          "duration_ms": 564352,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000003",
+          "title": "3.理财避险核心资产+核心能力",
+          "file_name": "3.理财避险核心资产+核心能力.mp4",
+          "relative_path": "王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/3.理财避险核心资产+核心能力.mp4",
+          "cover_url": "/api/admin/source-videos/V000003/cover",
+          "duration_ms": 457664,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000004",
+          "title": "4.财富管理的精髓",
+          "file_name": "4.财富管理的精髓.mp4",
+          "relative_path": "王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/4.财富管理的精髓.mp4",
+          "cover_url": "/api/admin/source-videos/V000004/cover",
+          "duration_ms": 646699,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000005",
+          "title": "5.全球风云变幻，把握投资时机",
+          "file_name": "5.全球风云变幻，把握投资时机.mp4",
+          "relative_path": "王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/5.全球风云变幻，把握投资时机.mp4",
+          "cover_url": "/api/admin/source-videos/V000005/cover",
+          "duration_ms": 423403,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000006",
+          "title": "6.货币洪流下的资产配置",
+          "file_name": "6.货币洪流下的资产配置.mp4",
+          "relative_path": "王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/6.货币洪流下的资产配置.mp4",
+          "cover_url": "/api/admin/source-videos/V000006/cover",
+          "duration_ms": 753088,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000007",
+          "title": "C0144",
+          "file_name": "C0144.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0144.MP4",
+          "cover_url": "/api/admin/source-videos/V000007/cover",
+          "duration_ms": 1790790,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000008",
+          "title": "C0145",
+          "file_name": "C0145.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0145.MP4",
+          "cover_url": "/api/admin/source-videos/V000008/cover",
+          "duration_ms": 701205,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000009",
+          "title": "C0146",
+          "file_name": "C0146.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0146.MP4",
+          "cover_url": "/api/admin/source-videos/V000009/cover",
+          "duration_ms": 1770770,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000010",
+          "title": "C0147",
+          "file_name": "C0147.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0147.MP4",
+          "cover_url": "/api/admin/source-videos/V000010/cover",
+          "duration_ms": 1624125,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000011",
+          "title": "C0148",
+          "file_name": "C0148.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0148.MP4",
+          "cover_url": "/api/admin/source-videos/V000011/cover",
+          "duration_ms": 815815,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000012",
+          "title": "C0149",
+          "file_name": "C0149.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0149.MP4",
+          "cover_url": "/api/admin/source-videos/V000012/cover",
+          "duration_ms": 311315,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000013",
+          "title": "C0150",
+          "file_name": "C0150.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0150.MP4",
+          "cover_url": "/api/admin/source-videos/V000013/cover",
+          "duration_ms": 298300,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000014",
+          "title": "C0151",
+          "file_name": "C0151.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0151.MP4",
+          "cover_url": "/api/admin/source-videos/V000014/cover",
+          "duration_ms": 1790790,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000015",
+          "title": "C0152",
+          "file_name": "C0152.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0152.MP4",
+          "cover_url": "/api/admin/source-videos/V000015/cover",
+          "duration_ms": 51555,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000016",
+          "title": "C0153",
+          "file_name": "C0153.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0153.MP4",
+          "cover_url": "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 180\"><rect width=\"320\" height=\"180\" fill=\"%23eef1f5\"/><rect x=\"24\" y=\"112\" width=\"272\" height=\"28\" rx=\"5\" fill=\"%23252b34\"/><text x=\"36\" y=\"132\" font-family=\"Arial\" font-size=\"17\" fill=\"%23fff\">V000016</text></svg>",
+          "duration_ms": 0,
+          "file_size": 10839115142,
+          "preprocess_status": "queued",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000017",
+          "title": "C0154",
+          "file_name": "C0154.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0154.MP4",
+          "cover_url": "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 180\"><rect width=\"320\" height=\"180\" fill=\"%23eef1f5\"/><rect x=\"24\" y=\"112\" width=\"272\" height=\"28\" rx=\"5\" fill=\"%23252b34\"/><text x=\"36\" y=\"132\" font-family=\"Arial\" font-size=\"17\" fill=\"%23fff\">V000017</text></svg>",
+          "duration_ms": 0,
+          "file_size": 11522851566,
+          "preprocess_status": "queued",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000018",
+          "title": "C0155",
+          "file_name": "C0155.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0155.MP4",
+          "cover_url": "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 180\"><rect width=\"320\" height=\"180\" fill=\"%23eef1f5\"/><rect x=\"24\" y=\"112\" width=\"272\" height=\"28\" rx=\"5\" fill=\"%23252b34\"/><text x=\"36\" y=\"132\" font-family=\"Arial\" font-size=\"17\" fill=\"%23fff\">V000018</text></svg>",
+          "duration_ms": 0,
+          "file_size": 11527045870,
+          "preprocess_status": "queued",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000019",
+          "title": "C0156",
+          "file_name": "C0156.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0156.MP4",
+          "cover_url": "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 180\"><rect width=\"320\" height=\"180\" fill=\"%23eef1f5\"/><rect x=\"24\" y=\"112\" width=\"272\" height=\"28\" rx=\"5\" fill=\"%23252b34\"/><text x=\"36\" y=\"132\" font-family=\"Arial\" font-size=\"17\" fill=\"%23fff\">V000019</text></svg>",
+          "duration_ms": 0,
+          "file_size": 3691327692,
+          "preprocess_status": "queued",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V000020",
+          "title": "C0503",
+          "file_name": "C0503.MP4",
+          "relative_path": "王牧笛/2023年素材/20230305-6王牧笛交付课/part2/C0503.MP4",
+          "cover_url": "/api/admin/source-videos/V000020/cover",
+          "duration_ms": 1441945,
+          "file_size": 0,
+          "preprocess_status": "ready",
+          "visible_to_cutters": true,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        }
+      ]
+    },
+    {
+      "name": "source_videos_index_required",
+      "path": "/api/admin/source-videos?status=index-required&limit=20",
+      "duration_ms": 406.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 7824,
+      "data": [
+        {
+          "source_video_id": "V000170",
+          "title": "C1193",
+          "file_name": "C1193.MP4",
+          "relative_path": "王牧笛/2024年素材/牧笛私董会合集20248.03-8.04/803/C1193.MP4",
+          "cover_url": "/api/admin/source-videos/V000170/cover",
+          "duration_ms": 1001,
+          "file_size": 33821332,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V002204",
+          "title": "C0430",
+          "file_name": "C0430.MP4",
+          "relative_path": "陶矜/（30）广州站/出奇守正破局重塑/29号花絮/C0430.MP4",
+          "cover_url": "/api/admin/source-videos/V002204/cover",
+          "duration_ms": 1005,
+          "file_size": 8392798,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V003906",
+          "title": "C0111",
+          "file_name": "C0111.MP4",
+          "relative_path": "陶矜2/2023年素材/20231015上海陶矜/10.13/花絮/C0111.MP4",
+          "cover_url": "/api/admin/source-videos/V003906/cover",
+          "duration_ms": 480,
+          "file_size": 4198128,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V004084",
+          "title": "C0286",
+          "file_name": "C0286.mov",
+          "relative_path": "陶矜2/2023年素材/20231015上海陶矜/10.14/花絮/C0286.mov",
+          "cover_url": "/api/admin/source-videos/V004084/cover",
+          "duration_ms": 480,
+          "file_size": 3662830,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V004085",
+          "title": "C0287",
+          "file_name": "C0287.mov",
+          "relative_path": "陶矜2/2023年素材/20231015上海陶矜/10.14/花絮/C0287.mov",
+          "cover_url": "/api/admin/source-videos/V004085/cover",
+          "duration_ms": 480,
+          "file_size": 3647325,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V004831",
+          "title": "C3013",
+          "file_name": "C3013.MP4",
+          "relative_path": "陶矜2/2023年素材/2310深圳/陶矜股权深圳站/花絮视频/21号/C3013.MP4",
+          "cover_url": "/api/admin/source-videos/V004831/cover",
+          "duration_ms": 1001,
+          "file_size": 33821340,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V005853",
+          "title": "C0054",
+          "file_name": "C0054.MP4",
+          "relative_path": "陶矜2/2024年素材/1.3-口播/！口播—黑色T/C0054.MP4",
+          "cover_url": "/api/admin/source-videos/V005853/cover",
+          "duration_ms": 480,
+          "file_size": 4198127,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V006307",
+          "title": "C0056",
+          "file_name": "C0056.MP4",
+          "relative_path": "陶矜2/2024年素材/240504口播（黑碎卷发）/C0056.MP4",
+          "cover_url": "/api/admin/source-videos/V006307/cover",
+          "duration_ms": 1005,
+          "file_size": 4198459,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V006445",
+          "title": "C8105",
+          "file_name": "C8105.MP4",
+          "relative_path": "陶矜2/2024年素材/240817-18-北京/8.18课程视频/C8105.MP4",
+          "cover_url": "/api/admin/source-videos/V006445/cover",
+          "duration_ms": 1005,
+          "file_size": 8393300,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V007422",
+          "title": "C0985",
+          "file_name": "C0985.MP4",
+          "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第一天/CLIP/C0985.MP4",
+          "cover_url": "/api/admin/source-videos/V007422/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V007434",
+          "title": "C0998",
+          "file_name": "C0998.MP4",
+          "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第一天/CLIP/C0998.MP4",
+          "cover_url": "/api/admin/source-videos/V007434/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V007813",
+          "title": "C2165",
+          "file_name": "C2165.MP4",
+          "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第三天/CLIP/C2165.MP4",
+          "cover_url": "/api/admin/source-videos/V007813/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V008307",
+          "title": "C1453",
+          "file_name": "C1453.MP4",
+          "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第二天/CLIP/C1453.MP4",
+          "cover_url": "/api/admin/source-videos/V008307/cover",
+          "duration_ms": 960,
+          "file_size": 33690075,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V008415",
+          "title": "C1565",
+          "file_name": "C1565.MP4",
+          "relative_path": "陶矜2/2025年素材/2025-06-06北苑酒店/第二天/CLIP/C1565.MP4",
+          "cover_url": "/api/admin/source-videos/V008415/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V008946",
+          "title": "C0231",
+          "file_name": "C0231.MP4",
+          "relative_path": "陶矜2/2025年素材/250411-13北京/C0231.MP4",
+          "cover_url": "/api/admin/source-videos/V008946/cover",
+          "duration_ms": 960,
+          "file_size": 67252717,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V009342",
+          "title": "C7567",
+          "file_name": "C7567.MP4",
+          "relative_path": "陶矜2/2025年素材/花絮/花絮1/CLIP/C7567.MP4",
+          "cover_url": "/api/admin/source-videos/V009342/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V009797",
+          "title": "C8055",
+          "file_name": "C8055.MP4",
+          "relative_path": "陶矜2/2025年素材/花絮/花絮3/CLIP/C8055.MP4",
+          "cover_url": "/api/admin/source-videos/V009797/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V009907",
+          "title": "C8178",
+          "file_name": "C8178.MP4",
+          "relative_path": "陶矜2/2025年素材/花絮/花絮3/CLIP/C8178.MP4",
+          "cover_url": "/api/admin/source-videos/V009907/cover",
+          "duration_ms": 960,
+          "file_size": 33689996,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        },
+        {
+          "source_video_id": "V010013",
+          "title": "C7089",
+          "file_name": "C7089.MP4",
+          "relative_path": "陶矜2/2025年素材/陶矜2503杭州/3.29-3.30外请摄像录课/3.30/C7089.MP4",
+          "cover_url": "/api/admin/source-videos/V010013/cover",
+          "duration_ms": 1001,
+          "file_size": 33690260,
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "tags": [],
+          "description": "",
+          "lecturer": "",
+          "course": "",
+          "category": "",
+          "updated_at": ""
+        }
+      ]
+    },
+    {
+      "name": "index_versions",
+      "path": "/api/admin/index/versions?limit=8",
+      "duration_ms": 3861.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 2420,
+      "data": {
+        "current_version": "v010471",
+        "current_validation_status": "pass",
+        "current_validation_message": "current.json 指向 v010471",
+        "total_count": 10471,
+        "returned_count": 8,
+        "offset": 0,
+        "limit": 8,
+        "has_more": true,
+        "versions": [
+          {
+            "index_version": "v010471",
+            "created_at": "2026-06-21T19:12:11.959Z",
+            "ready_video_count": 10471,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": true,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010470",
+            "created_at": "2026-06-21T19:04:21.501Z",
+            "ready_video_count": 10470,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010469",
+            "created_at": "2026-06-21T18:59:05.874Z",
+            "ready_video_count": 10469,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010468",
+            "created_at": "2026-06-21T18:54:20.121Z",
+            "ready_video_count": 10468,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010467",
+            "created_at": "2026-06-21T18:49:15.396Z",
+            "ready_video_count": 10467,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010466",
+            "created_at": "2026-06-21T18:45:12.940Z",
+            "ready_video_count": 10466,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010465",
+            "created_at": "2026-06-21T18:40:26.900Z",
+            "ready_video_count": 10465,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          },
+          {
+            "index_version": "v010464",
+            "created_at": "2026-06-21T18:35:44.815Z",
+            "ready_video_count": 10464,
+            "schema_version": "1.0",
+            "validation_status": "pass",
+            "validation_message": "索引包校验通过",
+            "is_current": false,
+            "published_by": "admin"
+          }
+        ]
+      }
+    },
+    {
+      "name": "cutter_users",
+      "path": "/api/admin/cutter-users",
+      "duration_ms": 337.3,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 26535,
+      "data": {
+        "users": [
+          {
+            "user_id": "CU000001",
+            "username": "Allen",
+            "display_name": "Allen",
+            "status": "approved",
+            "applied_at": "2026-06-18T12:09:32.955Z",
+            "approved_at": "2026-06-18T12:09:47.336Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-24T11:38:58.297Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-3b7e8bf3-9bba-4e50-a0ba-facc9ce6465d",
+                "device_name": "Mac 剪辑端 · Chrome",
+                "status": "active",
+                "first_seen_at": "2026-06-18T12:09:32.955Z",
+                "last_login_at": "2026-06-24T11:38:58.297Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000002",
+            "username": "MixLabAutomation",
+            "display_name": "MixLabAutomation",
+            "status": "approved",
+            "registered_at": "2026-06-18T13:13:02.960Z",
+            "applied_at": "2026-06-18T13:13:02.960Z",
+            "approved_at": "2026-06-18T13:13:02.960Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-19T00:13:11.100Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "windows-acceptance-runner",
+                "device_name": "Windows Test Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-18T13:13:02.960Z",
+                "last_login_at": "2026-06-19T00:13:11.100Z",
+                "user_agent": "MixLab Windows Test Runner"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000003",
+            "username": "hqh",
+            "display_name": "hqh",
+            "status": "approved",
+            "registered_at": "2026-06-19T16:13:29.770Z",
+            "applied_at": "2026-06-19T16:13:29.770Z",
+            "approved_at": "2026-06-19T16:13:29.770Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T10:28:04.433Z",
+            "last_used_at": "",
+            "note": "测试账号：由 Codex 按用户要求重置为合规密码。",
+            "devices": [
+              {
+                "device_id": "cutter-test-hqh",
+                "device_name": "hqh 测试设备",
+                "status": "active",
+                "first_seen_at": "2026-06-19T16:13:29.770Z",
+                "last_login_at": "",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Codex test account bootstrap"
+              },
+              {
+                "device_id": "cutter-test-hqh-login-check",
+                "device_name": "hqh 登录验证",
+                "status": "active",
+                "first_seen_at": "2026-06-19T16:13:30.044Z",
+                "last_login_at": "2026-06-19T16:15:43.234Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Codex login verification"
+              },
+              {
+                "device_id": "cutter-a3da3e62-c472-4240-a4dd-776b495b8343",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-19T16:21:36.193Z",
+                "last_login_at": "2026-06-22T13:08:17.078Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              },
+              {
+                "device_id": "codex-screenshot",
+                "device_name": "Codex Screenshot",
+                "status": "active",
+                "first_seen_at": "2026-06-19T18:51:55.503Z",
+                "last_login_at": "2026-06-19T18:51:55.503Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "curl/8.7.1"
+              },
+              {
+                "device_id": "codex-ui-polish-screenshot",
+                "device_name": "Codex UI Polish Screenshot",
+                "status": "active",
+                "first_seen_at": "2026-06-19T18:53:10.314Z",
+                "last_login_at": "2026-06-19T18:53:15.496Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-layout-map",
+                "device_name": "Codex Layout Map",
+                "status": "active",
+                "first_seen_at": "2026-06-19T19:34:03.100Z",
+                "last_login_at": "2026-06-19T19:39:04.049Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-home-layout-map",
+                "device_name": "Codex Home Layout Map",
+                "status": "active",
+                "first_seen_at": "2026-06-19T19:42:00.009Z",
+                "last_login_at": "2026-06-19T19:43:35.710Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-gap-check",
+                "device_name": "Codex Gap Check",
+                "status": "active",
+                "first_seen_at": "2026-06-19T20:15:05.002Z",
+                "last_login_at": "2026-06-19T20:15:06.519Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-layout-check",
+                "device_name": "Codex Layout Check",
+                "status": "active",
+                "first_seen_at": "2026-06-19T20:28:13.564Z",
+                "last_login_at": "2026-06-19T20:28:13.564Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "curl/8.7.1"
+              },
+              {
+                "device_id": "codex-project-home-layout-fixed",
+                "device_name": "Codex Project Home Layout Fixed",
+                "status": "active",
+                "first_seen_at": "2026-06-19T20:29:07.292Z",
+                "last_login_at": "2026-06-19T20:29:07.961Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-project-home-card-size-check",
+                "device_name": "Codex Project Home Card Size Check",
+                "status": "active",
+                "first_seen_at": "2026-06-19T20:32:20.450Z",
+                "last_login_at": "2026-06-19T20:32:26.944Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-project-home-shell-flush",
+                "device_name": "Codex Project Home Shell Flush",
+                "status": "active",
+                "first_seen_at": "2026-06-19T20:39:20.541Z",
+                "last_login_at": "2026-06-19T20:39:21.187Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-ui-shell-cleanup",
+                "device_name": "Codex UI Shell Cleanup",
+                "status": "active",
+                "first_seen_at": "2026-06-19T21:10:47.601Z",
+                "last_login_at": "2026-06-19T21:21:35.416Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-ui-shell-debug",
+                "device_name": "Codex UI Shell Debug",
+                "status": "active",
+                "first_seen_at": "2026-06-19T21:16:47.728Z",
+                "last_login_at": "2026-06-19T21:16:49.435Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-ui-shell-test2",
+                "device_name": "Codex UI Shell Test2",
+                "status": "active",
+                "first_seen_at": "2026-06-19T21:20:35.937Z",
+                "last_login_at": "2026-06-19T21:20:36.356Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-ui-shell-content",
+                "device_name": "Codex UI Shell Content",
+                "status": "active",
+                "first_seen_at": "2026-06-19T21:34:03.116Z",
+                "last_login_at": "2026-06-19T21:49:19.065Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-ui-foundation-smoke",
+                "device_name": "Windows UI Foundation Smoke",
+                "status": "active",
+                "first_seen_at": "2026-06-21T19:26:50.772Z",
+                "last_login_at": "2026-06-21T20:07:41.828Z",
+                "last_ip_address": "192.168.1.20",
+                "user_agent": "MixLab Windows Runner 0.1.13"
+              },
+              {
+                "device_id": "windows-runner-hqh",
+                "device_name": "Windows Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-22T03:31:17.104Z",
+                "last_login_at": "2026-06-24T09:11:05.430Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-runner-acceptance",
+                "device_name": "MixLab Windows Acceptance Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-22T11:32:19.980Z",
+                "last_login_at": "2026-06-22T11:45:27.192Z",
+                "last_ip_address": "192.168.1.20",
+                "user_agent": "MixLab Windows Test Runner"
+              },
+              {
+                "device_id": "mixlab-windows-incident-diagnostics",
+                "device_name": "MixLab Windows Incident Diagnostics",
+                "status": "active",
+                "first_seen_at": "2026-06-22T12:33:53.716Z",
+                "last_login_at": "2026-06-22T12:33:54.025Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-install-smoke-e561da9",
+                "device_name": "MixLab Windows Install Smoke e561da9",
+                "status": "active",
+                "first_seen_at": "2026-06-22T13:08:30.212Z",
+                "last_login_at": "2026-06-22T13:08:32.280Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-real-cut-e561da9",
+                "device_name": "MixLab Windows Real Cut e561da9",
+                "status": "active",
+                "first_seen_at": "2026-06-22T13:16:18.718Z",
+                "last_login_at": "2026-06-22T13:16:19.055Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-install-smoke-426f62c",
+                "device_name": "MixLab Windows Install Smoke 426f62c",
+                "status": "active",
+                "first_seen_at": "2026-06-22T13:45:56.405Z",
+                "last_login_at": "2026-06-22T13:45:58.910Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-incident-426f62c",
+                "device_name": "MixLab Windows Incident 426f62c",
+                "status": "active",
+                "first_seen_at": "2026-06-22T13:49:32.046Z",
+                "last_login_at": "2026-06-22T13:49:32.046Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-install-smoke-d137b6a",
+                "device_name": "MixLab Windows Install Smoke d137b6a",
+                "status": "active",
+                "first_seen_at": "2026-06-22T14:19:26.013Z",
+                "last_login_at": "2026-06-22T14:19:28.469Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-acceptance-d137b6a",
+                "device_name": "MixLab Windows Acceptance d137b6a",
+                "status": "active",
+                "first_seen_at": "2026-06-22T14:20:46.019Z",
+                "last_login_at": "2026-06-22T14:20:46.749Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-real-cut-d137b6a",
+                "device_name": "MixLab Windows Real Cut d137b6a",
+                "status": "active",
+                "first_seen_at": "2026-06-22T14:23:44.473Z",
+                "last_login_at": "2026-06-22T14:23:44.845Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-diagnostics-d137b6a",
+                "device_name": "MixLab Windows Diagnostics d137b6a",
+                "status": "active",
+                "first_seen_at": "2026-06-22T14:26:29.231Z",
+                "last_login_at": "2026-06-22T14:26:29.231Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-install-smoke-d899706",
+                "device_name": "MixLab Windows Install Smoke d899706",
+                "status": "active",
+                "first_seen_at": "2026-06-22T15:02:50.946Z",
+                "last_login_at": "2026-06-22T15:02:53.862Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-acceptance-d899706",
+                "device_name": "MixLab Windows Acceptance d899706",
+                "status": "active",
+                "first_seen_at": "2026-06-22T15:04:39.767Z",
+                "last_login_at": "2026-06-22T15:04:42.277Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-real-cut-d899706",
+                "device_name": "MixLab Windows Real Cut d899706",
+                "status": "active",
+                "first_seen_at": "2026-06-22T15:06:10.818Z",
+                "last_login_at": "2026-06-22T15:06:11.143Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-acceptance-after-real-cut-d899706",
+                "device_name": "MixLab Windows Acceptance After Real Cut d899706",
+                "status": "active",
+                "first_seen_at": "2026-06-22T15:07:50.701Z",
+                "last_login_at": "2026-06-22T15:07:51.522Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-foundation",
+                "device_name": "M19 Runtime Foundation",
+                "status": "active",
+                "first_seen_at": "2026-06-22T17:55:50.311Z",
+                "last_login_at": "2026-06-22T20:42:25.468Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "probe",
+                "device_name": "probe",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:08:52.272Z",
+                "last_login_at": "2026-06-22T18:08:52.272Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "probe-api",
+                "device_name": "probe-api",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:09:33.495Z",
+                "last_login_at": "2026-06-22T18:09:33.495Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "probe-net",
+                "device_name": "probe-net",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:10:19.789Z",
+                "last_login_at": "2026-06-22T18:10:19.789Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "queue-probe",
+                "device_name": "queue-probe",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:14:56.651Z",
+                "last_login_at": "2026-06-22T18:14:56.651Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "runtime-probe",
+                "device_name": "runtime-probe",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:20:28.515Z",
+                "last_login_at": "2026-06-22T18:20:28.515Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe",
+                "device_name": "M19 Runtime Probe",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:33:58.333Z",
+                "last_login_at": "2026-06-22T18:33:58.333Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe-2",
+                "device_name": "M19 Runtime Probe 2",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:34:59.858Z",
+                "last_login_at": "2026-06-22T18:34:59.858Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe-3",
+                "device_name": "M19 Runtime Probe 3",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:46:41.366Z",
+                "last_login_at": "2026-06-22T18:46:41.366Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe-4",
+                "device_name": "M19 Runtime Probe 4",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:53:13.463Z",
+                "last_login_at": "2026-06-22T18:53:13.463Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe-5",
+                "device_name": "M19 Runtime Probe 5",
+                "status": "active",
+                "first_seen_at": "2026-06-22T18:59:11.488Z",
+                "last_login_at": "2026-06-22T18:59:11.488Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe-final",
+                "device_name": "M19 Runtime Probe Final",
+                "status": "active",
+                "first_seen_at": "2026-06-22T19:17:01.176Z",
+                "last_login_at": "2026-06-22T19:17:01.176Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-probe-mac",
+                "device_name": "M19 Runtime Probe Mac",
+                "status": "active",
+                "first_seen_at": "2026-06-22T19:31:54.248Z",
+                "last_login_at": "2026-06-22T19:39:29.071Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-source-library-probe-mac",
+                "device_name": "M19 Source Library Probe Mac",
+                "status": "active",
+                "first_seen_at": "2026-06-22T19:43:21.931Z",
+                "last_login_at": "2026-06-22T19:43:21.931Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-runtime-diagnostics-mac",
+                "device_name": "M19 Runtime Diagnostics Mac",
+                "status": "active",
+                "first_seen_at": "2026-06-22T19:51:06.451Z",
+                "last_login_at": "2026-06-22T19:51:06.451Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-post-release-cache-probe",
+                "device_name": "M19 Post Release Cache Probe",
+                "status": "active",
+                "first_seen_at": "2026-06-22T20:05:37.784Z",
+                "last_login_at": "2026-06-22T20:05:37.784Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-probe-mac",
+                "device_name": "M19 Probe Mac",
+                "status": "active",
+                "first_seen_at": "2026-06-22T20:16:43.560Z",
+                "last_login_at": "2026-06-22T20:34:55.903Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-probe-direct",
+                "device_name": "M19 Probe Direct",
+                "status": "active",
+                "first_seen_at": "2026-06-22T20:38:04.424Z",
+                "last_login_at": "2026-06-22T20:38:04.424Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-probe-runtime",
+                "device_name": "M19 Probe Runtime",
+                "status": "active",
+                "first_seen_at": "2026-06-22T20:39:22.350Z",
+                "last_login_at": "2026-06-22T20:39:22.350Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "m19-probe-both",
+                "device_name": "M19 Probe Both",
+                "status": "active",
+                "first_seen_at": "2026-06-22T20:41:55.100Z",
+                "last_login_at": "2026-06-22T20:41:55.100Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner-m19",
+                "device_name": "Windows Runner M19",
+                "status": "active",
+                "first_seen_at": "2026-06-22T21:13:27.805Z",
+                "last_login_at": "2026-06-22T21:13:30.566Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner-m19-0133",
+                "device_name": "Windows Runner M19 0.1.33",
+                "status": "active",
+                "first_seen_at": "2026-06-22T21:37:52.682Z",
+                "last_login_at": "2026-06-22T21:37:52.682Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner-m19-bcceb11",
+                "device_name": "Windows Runner M19 bcceb11",
+                "status": "active",
+                "first_seen_at": "2026-06-22T22:25:54.747Z",
+                "last_login_at": "2026-06-22T22:25:57.786Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner-m19-bcceb11-rerun-49233",
+                "device_name": "Windows Runner M19 bcceb11 rerun 49233",
+                "status": "active",
+                "first_seen_at": "2026-06-22T22:41:31.927Z",
+                "last_login_at": "2026-06-22T22:41:31.927Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "mixlab-windows-runner-m19",
+                "device_name": "MixLab Windows M19 Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-23T03:31:46.746Z",
+                "last_login_at": "2026-06-23T03:50:06.393Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner-codex",
+                "device_name": "MixLab Windows Test Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-23T09:50:19.837Z",
+                "last_login_at": "2026-06-23T12:01:21.637Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner-hqh-diagnostics-24cfc56",
+                "device_name": "Windows Runner Diagnostics",
+                "status": "active",
+                "first_seen_at": "2026-06-24T09:26:27.845Z",
+                "last_login_at": "2026-06-24T09:26:27.845Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-windows-runner-8261a54",
+                "device_name": "Windows Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-24T10:43:48.406Z",
+                "last_login_at": "2026-06-24T10:43:49.374Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "windows-runner",
+                "device_name": "Windows Runner",
+                "status": "active",
+                "first_seen_at": "2026-06-24T11:26:57.872Z",
+                "last_login_at": "2026-06-24T11:27:01.800Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-source-folder-smoke",
+                "device_name": "Codex Source Folder Smoke",
+                "status": "active",
+                "first_seen_at": "2026-06-24T14:57:40.953Z",
+                "last_login_at": "2026-06-24T15:00:41.369Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "codex-windows-source-folder-smoke",
+                "device_name": "Codex Windows Source Folder Smoke",
+                "status": "active",
+                "first_seen_at": "2026-06-24T15:24:33.289Z",
+                "last_login_at": "2026-06-24T15:24:36.014Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "node"
+              },
+              {
+                "device_id": "cutter-00ff8a26-c84d-428a-99d5-0f04bd7e44fe",
+                "device_name": "Mac 剪辑端 · Chrome",
+                "status": "active",
+                "first_seen_at": "2026-06-25T10:28:04.433Z",
+                "last_login_at": "2026-06-25T10:28:04.433Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000004",
+            "username": "ceshi",
+            "display_name": "ceshi",
+            "status": "approved",
+            "applied_at": "2026-06-24T12:37:45.908Z",
+            "approved_at": "2026-06-24T12:38:30.333Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-24T12:41:49.637Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-c7bf26e9-09e4-4a58-8504-1c084161d339",
+                "device_name": "Mac 剪辑端 · Chrome",
+                "status": "active",
+                "first_seen_at": "2026-06-24T12:37:45.908Z",
+                "last_login_at": "2026-06-24T12:39:19.863Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+              },
+              {
+                "device_id": "cutter-00ff8a26-c84d-428a-99d5-0f04bd7e44fe",
+                "device_name": "Mac 剪辑端 · Chrome",
+                "status": "active",
+                "first_seen_at": "2026-06-24T12:41:49.637Z",
+                "last_login_at": "2026-06-24T12:41:49.637Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000005",
+            "username": "陈龙",
+            "display_name": "陈龙",
+            "status": "approved",
+            "registered_at": "2026-06-24T13:20:10.331Z",
+            "applied_at": "2026-06-24T13:20:10.331Z",
+            "approved_at": "2026-06-24T13:21:38.826Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-24T13:21:40.431Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-80b6d9f9-0938-41d4-aeca-214322e6caf8",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-24T13:20:10.331Z",
+                "last_login_at": "2026-06-24T13:21:40.431Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000006",
+            "username": "sunyu",
+            "display_name": "sunyu",
+            "status": "disabled",
+            "registered_at": "2026-06-25T02:10:41.308Z",
+            "applied_at": "2026-06-25T02:10:41.308Z",
+            "approved_at": "2026-06-25T03:04:43.309Z",
+            "rejected_at": "",
+            "disabled_at": "2026-06-25T03:42:33.685Z",
+            "last_login_at": "2026-06-25T03:04:47.612Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-1459e7c4-2eb2-4c69-b2df-1d80825dae05",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T02:10:41.308Z",
+                "last_login_at": "2026-06-25T03:04:47.612Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000007",
+            "username": "孙语",
+            "display_name": "孙语",
+            "status": "approved",
+            "registered_at": "2026-06-25T03:45:14.311Z",
+            "applied_at": "2026-06-25T03:45:14.311Z",
+            "approved_at": "2026-06-25T03:45:56.574Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T03:46:00.101Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-1459e7c4-2eb2-4c69-b2df-1d80825dae05",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T03:45:14.311Z",
+                "last_login_at": "2026-06-25T03:46:00.101Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000008",
+            "username": "阳慧",
+            "display_name": "阳慧",
+            "status": "approved",
+            "registered_at": "2026-06-25T03:55:28.198Z",
+            "applied_at": "2026-06-25T03:55:28.198Z",
+            "approved_at": "2026-06-25T04:01:36.847Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T04:12:07.141Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-05ef4411-8873-4b57-b9cd-f7486c6ee324",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T03:55:28.198Z",
+                "last_login_at": "2026-06-25T04:12:07.141Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000009",
+            "username": "孙子姣",
+            "display_name": "孙子姣",
+            "status": "approved",
+            "applied_at": "2026-06-25T03:55:41.749Z",
+            "approved_at": "2026-06-25T04:01:44.689Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T04:01:38.999Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-104bd8da-591e-4c22-bcde-f1236d2c2060",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T03:55:41.749Z",
+                "last_login_at": "2026-06-25T04:01:38.999Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000010",
+            "username": "黄佳欣",
+            "display_name": "黄佳欣",
+            "status": "approved",
+            "applied_at": "2026-06-25T04:05:31.079Z",
+            "approved_at": "2026-06-25T04:14:29.928Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T04:30:37.451Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-7fd34426-5891-4117-bc8d-3e6333f96ad5",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T04:05:31.079Z",
+                "last_login_at": "2026-06-25T04:30:37.451Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000011",
+            "username": "赵军",
+            "display_name": "赵军",
+            "status": "approved",
+            "registered_at": "2026-06-25T05:05:35.502Z",
+            "applied_at": "2026-06-25T05:05:35.502Z",
+            "approved_at": "2026-06-25T06:15:46.942Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T06:19:12.733Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-325ba26d-001d-4e5f-afa1-cef1cfe3e84f",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T05:05:35.502Z",
+                "last_login_at": "2026-06-25T06:19:12.733Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000012",
+            "username": "梅卓峰",
+            "display_name": "梅卓峰",
+            "status": "approved",
+            "registered_at": "2026-06-25T06:13:37.160Z",
+            "applied_at": "2026-06-25T06:13:37.160Z",
+            "approved_at": "2026-06-25T06:15:40.634Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T06:15:40.634Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-8ecba58d-0db3-4fd2-9398-e6ce03937746",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T06:13:37.160Z",
+                "last_login_at": "2026-06-25T06:15:40.634Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000013",
+            "username": "刘良坤",
+            "display_name": "刘良坤",
+            "status": "approved",
+            "registered_at": "2026-06-25T06:16:28.449Z",
+            "applied_at": "2026-06-25T06:16:28.449Z",
+            "approved_at": "2026-06-25T06:28:42.918Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T06:29:46.737Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-e620d379-66f5-4421-a0f0-431feda20cca",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T06:16:28.449Z",
+                "last_login_at": "2026-06-25T06:29:46.737Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000014",
+            "username": "古清红",
+            "display_name": "古清红",
+            "status": "approved",
+            "registered_at": "2026-06-25T06:27:59.218Z",
+            "applied_at": "2026-06-25T06:27:59.218Z",
+            "approved_at": "2026-06-25T06:28:36.580Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T06:28:40.188Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-35c06718-3c42-4d01-bbeb-38f6180ce7a5",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T06:27:59.218Z",
+                "last_login_at": "2026-06-25T06:28:40.188Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000015",
+            "username": "陶梓杰",
+            "display_name": "陶梓杰",
+            "status": "approved",
+            "registered_at": "2026-06-25T06:28:22.526Z",
+            "applied_at": "2026-06-25T06:28:22.526Z",
+            "approved_at": "2026-06-25T06:28:41.037Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T06:28:41.037Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-a5cd2813-3239-40f6-a135-d9549ac71c09",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T06:28:22.526Z",
+                "last_login_at": "2026-06-25T06:28:41.037Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+              }
+            ]
+          },
+          {
+            "user_id": "CU000016",
+            "username": "朱宇",
+            "display_name": "朱宇",
+            "status": "approved",
+            "registered_at": "2026-06-25T06:59:40.038Z",
+            "applied_at": "2026-06-25T06:59:40.038Z",
+            "approved_at": "2026-06-25T09:29:06.411Z",
+            "rejected_at": "",
+            "disabled_at": "",
+            "last_login_at": "2026-06-25T09:30:57.492Z",
+            "last_used_at": "",
+            "note": "",
+            "devices": [
+              {
+                "device_id": "cutter-a84c7989-7314-4b7b-a5cb-112bc9a6d726",
+                "device_name": "Windows 剪辑端 · Edge",
+                "status": "active",
+                "first_seen_at": "2026-06-25T06:59:40.038Z",
+                "last_login_at": "2026-06-25T09:30:57.492Z",
+                "last_ip_address": "127.0.0.1",
+                "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "doctor_report",
+      "path": "/api/admin/doctor/report",
+      "duration_ms": 7598.6,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 2091,
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.549Z",
+        "library_root": "/Volumes/MixLab/PublicLibrary",
+        "summary": {
+          "pass": 12,
+          "warn": 0,
+          "fail": 0
+        },
+        "checks": [
+          {
+            "check_id": "public-root",
+            "label": "Public Library Root",
+            "status": "pass",
+            "message": "public library root is accessible"
+          },
+          {
+            "check_id": "source-videos-readable",
+            "label": "Source Videos",
+            "status": "pass",
+            "message": "source-videos is readable"
+          },
+          {
+            "check_id": "mixlab-library-writable",
+            "label": ".mixlab-library Writable",
+            "status": "pass",
+            "message": ".mixlab-library is writable"
+          },
+          {
+            "check_id": "preprocess-logs-writable",
+            "label": "Preprocess Logs Writable",
+            "status": "pass",
+            "message": "preprocess log directory is writable"
+          },
+          {
+            "check_id": "library-counts",
+            "label": "Library Counts",
+            "status": "pass",
+            "message": "library counts are consistent",
+            "details": {
+              "video_count": 11394,
+              "ready_video_count": 10471,
+              "failed_video_count": 0,
+              "index_required_video_count": 19
+            }
+          },
+          {
+            "check_id": "source-video-manifests",
+            "label": "Source Video Manifests",
+            "status": "pass",
+            "message": "8 sampled source video manifests are valid in large-library mode",
+            "details": {
+              "mode": "sample",
+              "checked_count": 8,
+              "total_count": 11394,
+              "sample_limit": 8,
+              "file_existence_check": "skipped"
+            }
+          },
+          {
+            "check_id": "current-index",
+            "label": "Current Index",
+            "status": "pass",
+            "message": "current index package is valid",
+            "details": {
+              "current_version": "v010471",
+              "ready_video_count": 10471
+            }
+          },
+          {
+            "check_id": "preprocess-logs",
+            "label": "Preprocess Logs",
+            "status": "pass",
+            "message": "preprocess log directory is readable in large-library mode",
+            "details": {
+              "mode": "summary",
+              "log_file_count": 907,
+              "expected_log_count": 11394
+            }
+          },
+          {
+            "check_id": "ffmpeg",
+            "label": "FFmpeg",
+            "status": "pass",
+            "message": "ffmpeg is available from bundled-static"
+          },
+          {
+            "check_id": "ffprobe",
+            "label": "FFprobe",
+            "status": "pass",
+            "message": "ffprobe is available from bundled-static"
+          },
+          {
+            "check_id": "asr-config",
+            "label": "ASR Config",
+            "status": "pass",
+            "message": "DashScope ASR config is present",
+            "details": {
+              "dashscope_api_key_configured": true,
+              "asr_model": "paraformer-v2"
+            }
+          },
+          {
+            "check_id": "local-clips",
+            "label": "Local Clips",
+            "status": "pass",
+            "message": "no local clips found"
+          }
+        ]
+      }
+    },
+    {
+      "name": "settings_config",
+      "path": "/api/admin/settings/config",
+      "duration_ms": 330.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 629,
+      "data": {
+        "schema_version": "1.0",
+        "library_name": "主素材库",
+        "source_folders": [
+          {
+            "id": "src_default",
+            "name": "默认素材来源",
+            "path": "/Volumes/MixLab/PublicLibrary/source-videos",
+            "enabled": true,
+            "last_scanned_at": "2026-06-02T13:47:37.153Z",
+            "discovered_video_count": 11394,
+            "new_unprocessed_count": 0
+          }
+        ],
+        "artifact_library": {
+          "mode": "default",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+          "migration_required": false
+        },
+        "runtime_policy": {
+          "audio_mode": "mp3_16k_mono_64k",
+          "concurrent_jobs": 1,
+          "auto_scan_enabled": false,
+          "auto_queue_enabled": false,
+          "auto_publish_index_enabled": true
+        },
+        "updated_at": "2026-06-24T12:10:43.973Z"
+      }
+    },
+    {
+      "name": "settings_runtime",
+      "path": "/api/admin/settings/runtime",
+      "duration_ms": 370.3,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 545,
+      "data": {
+        "ffmpeg": {
+          "available": true,
+          "source": "bundled",
+          "version": "ffmpeg version 6.0 Copyright (c) 2000-2023 the FFmpeg developers",
+          "last_error": ""
+        },
+        "ffprobe": {
+          "available": true,
+          "source": "bundled",
+          "version": "available",
+          "last_error": ""
+        },
+        "asr": {
+          "provider": "dashscope",
+          "provider_label": "阿里云百炼 / DashScope",
+          "model": "paraformer-v2",
+          "audio_mode": "mp3_16k_mono_64k",
+          "dashscope_api_key_configured": true,
+          "language_hints": [
+            "zh"
+          ],
+          "speaker_diarization_enabled": false,
+          "object_storage_mode": "dashscope-temporary",
+          "last_failure_reason": ""
+        }
+      }
+    },
+    {
+      "name": "path_checks",
+      "path": "/api/admin/library/path-checks",
+      "duration_ms": 374,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 557,
+      "data": [
+        {
+          "label": "公共素材库",
+          "path": "/Volumes/MixLab/PublicLibrary",
+          "status": "pass",
+          "message": "根路径可读写"
+        },
+        {
+          "label": "素材来源：默认素材来源",
+          "path": "/Volumes/MixLab/PublicLibrary/source-videos",
+          "status": "pass",
+          "message": "素材来源可读"
+        },
+        {
+          "label": ".mixlab-library",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library",
+          "status": "pass",
+          "message": "协议目录可读写"
+        },
+        {
+          "label": "library.json",
+          "path": "/Volumes/MixLab/PublicLibrary/.mixlab-library/library.json",
+          "status": "pass",
+          "message": "library.json 可读写"
+        }
+      ]
+    }
+  ],
+  "route_evidence": [
+    {
+      "route": "index-publish",
+      "label": "发布与索引",
+      "web_url": "http://127.0.0.1:5187/#/index-publish",
+      "expected_route_endpoints": [
+        "/api/admin/source-videos",
+        "/api/admin/index/versions"
+      ],
+      "route_plan_found": true,
+      "route_plan_endpoints": [
+        "/api/admin/source-videos",
+        "/api/admin/index/versions"
+      ],
+      "route_plan_load_phase": "route-entry",
+      "route_plan_prefetch": false,
+      "endpoint_contracts": [
+        {
+          "endpoint": "/api/admin/source-videos",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "paged-list",
+          "data_source": "admin-read-model",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        },
+        {
+          "endpoint": "/api/admin/index/versions",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "paged-list",
+          "data_source": "index-version-packages",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        }
+      ],
+      "browser_report": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.197Z",
+        "command": "tsx scripts/acceptance/admin-index-publish-browser-qa.ts",
+        "web_url": "http://127.0.0.1:5187/#/index-publish",
+        "output_dir": "docs/acceptance/artifacts",
+        "viewports": [
+          {
+            "name": "desktop",
+            "width": 1440,
+            "height": 960,
+            "url": "http://127.0.0.1:5187/#/index-publish",
+            "load_ms": 19712.2,
+            "screenshot_path": "docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180022Z-desktop.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "发布与索引": true,
+              "发布队列": true,
+              "待发布索引": true,
+              "索引版本": true,
+              "版本详情": true,
+              "页面契约": true,
+              "发布队列来源": true,
+              "读模型": true,
+              "版本来源": true,
+              "索引版本包": true,
+              "扫描模式": true,
+              "不扫描": true,
+              "本页面局部处理": true
+            },
+            "publication_queue_text": "发布队列\n\n待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。\n\n摘要 19 条\n\n当前摘要显示仍有待发布视频，待发布首屏尚未返回明细，可刷新本页或检查读模型状态。",
+            "index_version_text": "索引版本\n\n剪辑端搜索读取当前索引指针；历史版本只作为发布与回溯依据。\n\n通过\n版本\t创建时间\t已可用数量\t协议版本\t校验\t校验说明\t当前状态\nv010471\t2026-06-21T19:12:11.959Z\t10471\t1.0\t通过\t索引包校验通过\t当前索引指向\nv010470\t2026-06-21T19:04:21.501Z\t10470\t1.0\t通过\t索引包校验通过\t历史版本\nv010469\t2026-06-21T18:59:05.874Z\t10469\t1.0\t通过\t索引包校验通过\t历史版本\nv010468\t2026-06-21T18:54:20.121Z\t10468\t1.0\t通过\t索引包校验通过\t历史版本\nv010467\t2026-06-21T18:49:15.396Z\t10467\t1.0\t通过\t索引包校验通过\t历史版本\nv010466\t2026-06-21T18:45:12.940Z\t10466\t1.0\t通过\t索引包校验通过\t历史版本\nv010465\t2026-06-21T18:40:26.900Z\t10465\t1.0\t通过\t索引包校验通过\t历史版本\nv010464\t2026-06-21T18:35:44.815Z\t10464\t1.0\t通过\t索引包校验通过\t历史版本",
+            "inspector_text": "版本详情\n\n发布与索引\n\nv010471\n当前索引\nv010471\n当前索引状态\n当前索引已发布 v010471\n已可用数量\n10471\n协议版本\n1.0\n校验\n通过\n校验说明\n索引包校验通过\n发布人\nadmin\n页面契约\n主工作区\n发布队列\n辅助区\n索引版本\n发布队列来源\n读模型\n版本来源\n索引版本包\n扫描模式\n不扫描\n错误边界\n本页面局部处理",
+            "console_errors": [],
+            "failed_api_requests": []
+          },
+          {
+            "name": "mobile",
+            "width": 390,
+            "height": 844,
+            "url": "http://127.0.0.1:5187/#/index-publish",
+            "load_ms": 8873.9,
+            "screenshot_path": "docs/acceptance/artifacts/admin-index-publish-browser-qa-20260626T180022Z-mobile.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "发布与索引": true,
+              "发布队列": true,
+              "待发布索引": true,
+              "索引版本": true,
+              "版本详情": true,
+              "页面契约": true,
+              "发布队列来源": true,
+              "读模型": true,
+              "版本来源": true,
+              "索引版本包": true,
+              "扫描模式": true,
+              "不扫描": true,
+              "本页面局部处理": true
+            },
+            "publication_queue_text": "发布队列\n\n待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。\n\n摘要 19 条\n\n当前摘要显示仍有待发布视频，待发布首屏尚未返回明细，可刷新本页或检查读模型状态。",
+            "index_version_text": "索引版本\n\n剪辑端搜索读取当前索引指针；历史版本只作为发布与回溯依据。\n\n通过\n版本\t创建时间\t已可用数量\t协议版本\t校验\t校验说明\t当前状态\nv010471\t2026-06-21T19:12:11.959Z\t10471\t1.0\t通过\t索引包校验通过\t当前索引指向\nv010470\t2026-06-21T19:04:21.501Z\t10470\t1.0\t通过\t索引包校验通过\t历史版本\nv010469\t2026-06-21T18:59:05.874Z\t10469\t1.0\t通过\t索引包校验通过\t历史版本\nv010468\t2026-06-21T18:54:20.121Z\t10468\t1.0\t通过\t索引包校验通过\t历史版本\nv010467\t2026-06-21T18:49:15.396Z\t10467\t1.0\t通过\t索引包校验通过\t历史版本\nv010466\t2026-06-21T18:45:12.940Z\t10466\t1.0\t通过\t索引包校验通过\t历史版本\nv010465\t2026-06-21T18:40:26.900Z\t10465\t1.0\t通过\t索引包校验通过\t历史版本\nv010464\t2026-06-21T18:35:44.815Z\t10464\t1.0\t通过\t索引包校验通过\t历史版本",
+            "inspector_text": "版本详情\n\n发布与索引\n\nv010471\n当前索引\nv010471\n当前索引状态\n当前索引已发布 v010471\n已可用数量\n10471\n协议版本\n1.0\n校验\n通过\n校验说明\n索引包校验通过\n发布人\nadmin\n页面契约\n主工作区\n发布队列\n辅助区\n索引版本\n发布队列来源\n读模型\n版本来源\n索引版本包\n扫描模式\n不扫描\n错误边界\n本页面局部处理",
+            "console_errors": [],
+            "failed_api_requests": []
+          }
+        ],
+        "gates": [
+          {
+            "name": "browser-renders-required-content",
+            "passed": true,
+            "detail": "desktop:ok; mobile:ok"
+          },
+          {
+            "name": "publication-queue-visible",
+            "passed": true,
+            "detail": "desktop:92; mobile:92"
+          },
+          {
+            "name": "index-version-surface-visible",
+            "passed": true,
+            "detail": "desktop:545; mobile:545"
+          },
+          {
+            "name": "inspector-contract-visible",
+            "passed": true,
+            "detail": "desktop:174; mobile:174"
+          },
+          {
+            "name": "no-console-errors",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-failed-admin-api-requests",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-horizontal-overflow",
+            "passed": true,
+            "detail": "desktop:0px; mobile:0px"
+          }
+        ],
+        "result": {
+          "passed": true,
+          "status": "passed",
+          "summary": "index-publish browser QA passed for desktop and mobile fixture routes"
+        }
+      }
+    },
+    {
+      "route": "source-videos",
+      "label": "素材库",
+      "web_url": "http://127.0.0.1:5187/#/source-videos",
+      "expected_route_endpoints": [
+        "/api/admin/source-videos"
+      ],
+      "route_plan_found": true,
+      "route_plan_endpoints": [
+        "/api/admin/source-videos"
+      ],
+      "route_plan_load_phase": "route-entry",
+      "route_plan_prefetch": false,
+      "endpoint_contracts": [
+        {
+          "endpoint": "/api/admin/source-videos",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "paged-list",
+          "data_source": "admin-read-model",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        }
+      ],
+      "browser_report": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.197Z",
+        "command": "tsx scripts/acceptance/admin-source-videos-browser-qa.ts",
+        "web_url": "http://127.0.0.1:5187/#/source-videos",
+        "output_dir": "docs/acceptance/artifacts",
+        "viewports": [
+          {
+            "name": "desktop",
+            "width": 1440,
+            "height": 960,
+            "url": "http://127.0.0.1:5187/#/source-videos",
+            "load_ms": 19728.1,
+            "screenshot_path": "docs/acceptance/artifacts/admin-source-videos-browser-qa-20260626T180022Z-desktop.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "素材库": true,
+              "素材表格": true,
+              "素材详情": true,
+              "读模型": true,
+              "分页读取": true,
+              "不扫描": true,
+              "状态与搜索": true,
+              "页面控制": true,
+              "路由刷新": true,
+              "不写协议文件": true,
+              "保存素材信息": false
+            },
+            "asset_table_text": "素材表格\n\n首屏和继续加载都走素材库路由；状态筛选不会让页面直接扫描 NAS 大目录。\n\n已载入 0/11394\n没有匹配的原视频\n\n请调整搜索词或状态筛选。",
+            "inspector_text": "",
+            "console_errors": [],
+            "failed_api_requests": []
+          },
+          {
+            "name": "mobile",
+            "width": 390,
+            "height": 844,
+            "url": "http://127.0.0.1:5187/#/source-videos",
+            "load_ms": 9071,
+            "screenshot_path": "docs/acceptance/artifacts/admin-source-videos-browser-qa-20260626T180022Z-mobile.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "素材库": true,
+              "素材表格": true,
+              "素材详情": true,
+              "读模型": true,
+              "分页读取": true,
+              "不扫描": true,
+              "状态与搜索": true,
+              "页面控制": true,
+              "路由刷新": true,
+              "不写协议文件": true,
+              "保存素材信息": true
+            },
+            "asset_table_text": "素材表格\n\n首屏和继续加载都走素材库路由；状态筛选不会让页面直接扫描 NAS 大目录。\n\n已载入 20/11394\n封面\t标题\t时长\t相对路径\t字幕状态\t预处理状态\t搜索可见\t发布版本\t操作\n\n\t\n1.房产置换与资产优化\nV000001 · 1.房产置换与资产优化.mp4\n\t08:37\t王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/1.房产置换与资产优化.mp4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\n2.比特币暴涨与投资多元化\nV000002 · 2.比特币暴涨与投资多元化.mp4\n\t09:24\t王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/2.比特币暴涨与投资多元化.mp4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\n3.理财避险核心资产+核心能力\nV000003 · 3.理财避险核心资产+核心能力.mp4\n\t07:37\t王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/3.理财避险核心资产+核心能力.mp4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\n4.财富管理的精髓\nV000004 · 4.财富管理的精髓.mp4\n\t10:46\t王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/4.财富管理的精髓.mp4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\n5.全球风云变幻，把握投资时机\nV000005 · 5.全球风云变幻，把握投资时机.mp4\n\t07:03\t王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/5.全球风云变幻，把握投资时机.mp4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\n6.货币洪流下的资产配置\nV000006 · 6.货币洪流下的资产配置.mp4\n\t12:33\t王牧笛/12月牧笛视频课365（暂不能剪）/牧笛12月365视频课/6.货币洪流下的资产配置.mp4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0144\nV000007 · C0144.MP4\n\t29:50\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0144.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0145\nV000008 · C0145.MP4\n\t11:41\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0145.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0146\nV000009 · C0146.MP4\n\t29:30\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0146.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0147\nV000010 · C0147.MP4\n\t27:04\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0147.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0148\nV000011 · C0148.MP4\n\t13:35\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0148.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0149\nV000012 · C0149.MP4\n\t05:11\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0149.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0150\nV000013 · C0150.MP4\n\t04:58\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0150.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0151\nV000014 · C0151.MP4\n\t29:50\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0151.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0152\nV000015 · C0152.MP4\n\t00:51\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0152.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n\n\t\nC0153\nV000016 · C0153.MP4\n\t00:00\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0153.MP4\t等待\t队列中\t否\t-\t查看详情\n\n\t\nC0154\nV000017 · C0154.MP4\n\t00:00\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0154.MP4\t等待\t队列中\t否\t-\t查看详情\n\n\t\nC0155\nV000018 · C0155.MP4\n\t00:00\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0155.MP4\t等待\t队列中\t否\t-\t查看详情\n\n\t\nC0156\nV000019 · C0156.MP4\n\t00:00\t王牧笛/2023年素材/20230305-6王牧笛交付课/part1/C0156.MP4\t等待\t队列中\t否\t-\t查看详情\n\n\t\nC0503\nV000020 · C0503.MP4\n\t24:01\t王牧笛/2023年素材/20230305-6王牧笛交付课/part2/C0503.MP4\t已生成\t已可用\t是\tv010471\t查看详情\n显示 1-20 / 已返回 20 · 已载入 20 / 全部 11394\n上一页\n下一页\n继续加载 20 条",
+            "inspector_text": "素材详情\n1.房产置换与资产优化\nV000001 · 已可用\n剪辑师可见：是\n封面图片\n标题\n标签\n说明\n讲师\n课程\n分类\n保存素材信息",
+            "console_errors": [],
+            "failed_api_requests": []
+          }
+        ],
+        "gates": [
+          {
+            "name": "browser-renders-required-content",
+            "passed": false,
+            "detail": "desktop:保存素材信息; mobile:ok"
+          },
+          {
+            "name": "asset-table-visible",
+            "passed": false,
+            "detail": "desktop:79; mobile:2331"
+          },
+          {
+            "name": "metadata-inspector-visible",
+            "passed": false,
+            "detail": "desktop:0; mobile:68"
+          },
+          {
+            "name": "no-console-errors",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-failed-admin-api-requests",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-horizontal-overflow",
+            "passed": true,
+            "detail": "desktop:0px; mobile:0px"
+          }
+        ],
+        "result": {
+          "passed": false,
+          "status": "failed",
+          "summary": "source-videos browser QA failed one or more gates"
+        }
+      }
+    },
+    {
+      "route": "cutter-users",
+      "label": "剪辑师",
+      "web_url": "http://127.0.0.1:5187/#/cutter-users",
+      "expected_route_endpoints": [
+        "/api/admin/cutter-users"
+      ],
+      "route_plan_found": true,
+      "route_plan_endpoints": [
+        "/api/admin/cutter-users"
+      ],
+      "route_plan_load_phase": "route-entry",
+      "route_plan_prefetch": false,
+      "endpoint_contracts": [
+        {
+          "endpoint": "/api/admin/cutter-users",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "no-scan",
+          "data_source": "user-store",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        }
+      ],
+      "browser_report": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.197Z",
+        "command": "tsx scripts/acceptance/admin-cutter-users-browser-qa.ts",
+        "web_url": "http://127.0.0.1:5187/#/cutter-users",
+        "output_dir": "docs/acceptance/artifacts",
+        "viewports": [
+          {
+            "name": "desktop",
+            "width": 1440,
+            "height": 960,
+            "url": "http://127.0.0.1:5187/#/cutter-users",
+            "load_ms": 19715,
+            "screenshot_path": "docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180022Z-desktop.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "剪辑师": true,
+              "用户表格": true,
+              "用户概览": true,
+              "用户仓库": true,
+              "使用指标": true,
+              "命令操作": true,
+              "不扫描": true,
+              "本页面局部处理": true,
+              "通过申请": false,
+              "重置密码": true
+            },
+            "user_table_text": "用户表格\n\n展示剪辑师准入状态和最近使用指标；审批写操作保留在当前行的命令按钮中。\n\n待审核 0 人\n用户\t状态\t设备\t搜索次数\t搜索失败\t剪切成功\t最近使用\t操作\nAllen\t已通过\t1 台\t97\t0\t7\t2026-06-24T11:40:29.092Z\t\n重置密码\n停用用户\n\nMixLabAutomation\t已通过\t1 台\t15\t0\t1\t2026-06-19T00:13:10.974Z\t\n重置密码\n停用用户\n\nhqh\t已通过\t64 台\t264\t0\t13\t2026-06-24T15:24:35.940Z\t\n重置密码\n停用用户\n\nceshi\t已通过\t2 台\t51\t0\t0\t2026-06-25T03:01:01.699Z\t\n重置密码\n停用用户\n\n陈龙\t已通过\t1 台\t29\t0\t0\t2026-06-25T06:12:49.451Z\t\n重置密码\n停用用户\n\nsunyu\t已停用\t1 台\t1\t0\t0\t2026-06-03T17:50:55.202Z\t\n重置密码\n\n孙语\t已通过\t1 台\t42\t0\t0\t2026-06-26T06:38:24.283Z\t\n重置密码\n停用用户\n\n阳慧\t已通过\t1 台\t48\t0\t0\t2026-06-26T09:24:05.602Z\t\n重置密码\n停用用户\n\n孙子姣\t已通过\t1 台\t71\t0\t0\t2026-06-26T06:42:20.533Z\t\n重置密码\n停用用户\n\n黄佳欣\t已通过\t1 台\t31\t0\t0\t2026-06-25T06:35:41.794Z\t\n重置密码\n停用用户\n\n赵军\t已通过\t1 台\t22\t0\t1\t2026-06-26T11:26:29.663Z\t\n重置密码\n停用用户\n\n梅卓峰\t已通过\t1 台\t83\t0\t0\t2026-06-26T10:17:49.256Z\t\n重置密码\n停用用户\n\n刘良坤\t已通过\t1 台\t32\t0\t0\t2026-06-25T06:36:16.755Z\t\n重置密码\n停用用户\n\n古清红\t已通过\t1 台\t27\t0\t0\t2026-06-26T09:35:34.317Z\t\n重置密码\n停用用户\n\n陶梓杰\t已通过\t1 台\t24\t0\t0\t2026-06-25T06:36:37.064Z\t\n重置密码\n停用用户\n\n朱宇\t已通过\t1 台\t37\t0\t0\t2026-06-26T02:42:26.550Z\t\n重置密码\n停用用户",
+            "inspector_text": "用户概览\n\n剪辑师准入\n\n审批状态\n待审核\n0 人\n已通过\n15 人\n已拒绝\n0 人\n已停用\n1 人\n页面契约\n主工作区\n用户表格\n辅助区\n使用概览\n用户来源\n用户仓库\n操作边界\n命令操作\n扫描模式\n不扫描\n错误边界\n本页面局部处理\n最近使用\n\n赵军：搜索 22 次， 剪切成功 1 次， 最近使用 2026-06-26T11:26:29.663Z\n\n梅卓峰：搜索 83 次， 剪切成功 0 次， 最近使用 2026-06-26T10:17:49.256Z\n\n古清红：搜索 27 次， 剪切成功 0 次， 最近使用 2026-06-26T09:35:34.317Z\n\n阳慧：搜索 48 次， 剪切成功 0 次， 最近使用 2026-06-26T09:24:05.602Z\n\n孙子姣：搜索 71 次， 剪切成功 0 次， 最近使用 2026-06-26T06:42:20.533Z\n\n孙语：搜索 42 次， 剪切成功 0 次， 最近使用 2026-06-26T06:38:24.283Z\n\n朱宇：搜索 37 次， 剪切成功 0 次， 最近使用 2026-06-26T02:42:26.550Z\n\n陶梓杰：搜索 24 次， 剪切成功 0 次， 最近使用 2026-06-25T06:36:37.064Z\n\n刘良坤：搜索 32 次， 剪切成功 0 次， 最近使用 2026-06-25T06:36:16.755Z\n\n黄佳欣：搜索 31 次， 剪切成功 0 次， 最近使用 2026-06-25T06:35:41.794Z\n\n陈龙：搜索 29 次， 剪切成功 0 次， 最近使用 2026-06-25T06:12:49.451Z\n\nceshi：搜索 51 次， 剪切成功 0 次， 最近使用 2026-06-25T03:01:01.699Z\n\nhqh：搜索 264 次， 剪切成功 13 次， 最近使用 2026-06-24T15:24:35.940Z\n\nAllen：搜索 97 次， 剪切成功 7 次， 最近使用 2026-06-24T11:40:29.092Z\n\nMixLabAutomation：搜索 15 次， 剪切成功 1 次， 最近使用 2026-06-19T00:13:10.974Z\n\n用户 CU-DESKTOP-LOCAL：搜索 1563 次， 剪切成功 112 次， 最近使用 2026-06-18T11:40:28.304Z\n\n用户 CU-LOCAL-001：搜索 9 次， 剪切成功 1 次， 最近使用 2026-06-17T02:12:29.372Z\n\n用户 local-cutter：搜索 418 次， 剪切成功 32 次， 最近使用 2026-06-13T23:11:45.965Z\n\n用户 CU000018：搜索 1 次， 剪切成功 0 次， 最近使用 2026-06-03T18:25:52.394Z\n\n用户 CU000017：搜索 3 次， 剪切成功 0 次， 最近使用 2026-06-03T18:20:31.330Z\n\nsunyu：搜索 1 次， 剪切成功 0 次， 最近使用 2026-06-03T17:50:55.202Z",
+            "console_errors": [],
+            "failed_api_requests": []
+          },
+          {
+            "name": "mobile",
+            "width": 390,
+            "height": 844,
+            "url": "http://127.0.0.1:5187/#/cutter-users",
+            "load_ms": 8852.8,
+            "screenshot_path": "docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T180022Z-mobile.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "剪辑师": true,
+              "用户表格": true,
+              "用户概览": true,
+              "用户仓库": true,
+              "使用指标": true,
+              "命令操作": true,
+              "不扫描": true,
+              "本页面局部处理": true,
+              "通过申请": false,
+              "重置密码": true
+            },
+            "user_table_text": "用户表格\n\n展示剪辑师准入状态和最近使用指标；审批写操作保留在当前行的命令按钮中。\n\n待审核 0 人\n用户\t状态\t设备\t搜索次数\t搜索失败\t剪切成功\t最近使用\t操作\nAllen\t已通过\t1 台\t97\t0\t7\t2026-06-24T11:40:29.092Z\t\n重置密码\n停用用户\n\nMixLabAutomation\t已通过\t1 台\t15\t0\t1\t2026-06-19T00:13:10.974Z\t\n重置密码\n停用用户\n\nhqh\t已通过\t64 台\t264\t0\t13\t2026-06-24T15:24:35.940Z\t\n重置密码\n停用用户\n\nceshi\t已通过\t2 台\t51\t0\t0\t2026-06-25T03:01:01.699Z\t\n重置密码\n停用用户\n\n陈龙\t已通过\t1 台\t29\t0\t0\t2026-06-25T06:12:49.451Z\t\n重置密码\n停用用户\n\nsunyu\t已停用\t1 台\t1\t0\t0\t2026-06-03T17:50:55.202Z\t\n重置密码\n\n孙语\t已通过\t1 台\t42\t0\t0\t2026-06-26T06:38:24.283Z\t\n重置密码\n停用用户\n\n阳慧\t已通过\t1 台\t48\t0\t0\t2026-06-26T09:24:05.602Z\t\n重置密码\n停用用户\n\n孙子姣\t已通过\t1 台\t71\t0\t0\t2026-06-26T06:42:20.533Z\t\n重置密码\n停用用户\n\n黄佳欣\t已通过\t1 台\t31\t0\t0\t2026-06-25T06:35:41.794Z\t\n重置密码\n停用用户\n\n赵军\t已通过\t1 台\t22\t0\t1\t2026-06-26T11:26:29.663Z\t\n重置密码\n停用用户\n\n梅卓峰\t已通过\t1 台\t83\t0\t0\t2026-06-26T10:17:49.256Z\t\n重置密码\n停用用户\n\n刘良坤\t已通过\t1 台\t32\t0\t0\t2026-06-25T06:36:16.755Z\t\n重置密码\n停用用户\n\n古清红\t已通过\t1 台\t27\t0\t0\t2026-06-26T09:35:34.317Z\t\n重置密码\n停用用户\n\n陶梓杰\t已通过\t1 台\t24\t0\t0\t2026-06-25T06:36:37.064Z\t\n重置密码\n停用用户\n\n朱宇\t已通过\t1 台\t37\t0\t0\t2026-06-26T02:42:26.550Z\t\n重置密码\n停用用户",
+            "inspector_text": "用户概览\n\n剪辑师准入\n\n审批状态\n待审核\n0 人\n已通过\n15 人\n已拒绝\n0 人\n已停用\n1 人\n页面契约\n主工作区\n用户表格\n辅助区\n使用概览\n用户来源\n用户仓库\n操作边界\n命令操作\n扫描模式\n不扫描\n错误边界\n本页面局部处理\n最近使用\n\n赵军：搜索 22 次， 剪切成功 1 次， 最近使用 2026-06-26T11:26:29.663Z\n\n梅卓峰：搜索 83 次， 剪切成功 0 次， 最近使用 2026-06-26T10:17:49.256Z\n\n古清红：搜索 27 次， 剪切成功 0 次， 最近使用 2026-06-26T09:35:34.317Z\n\n阳慧：搜索 48 次， 剪切成功 0 次， 最近使用 2026-06-26T09:24:05.602Z\n\n孙子姣：搜索 71 次， 剪切成功 0 次， 最近使用 2026-06-26T06:42:20.533Z\n\n孙语：搜索 42 次， 剪切成功 0 次， 最近使用 2026-06-26T06:38:24.283Z\n\n朱宇：搜索 37 次， 剪切成功 0 次， 最近使用 2026-06-26T02:42:26.550Z\n\n陶梓杰：搜索 24 次， 剪切成功 0 次， 最近使用 2026-06-25T06:36:37.064Z\n\n刘良坤：搜索 32 次， 剪切成功 0 次， 最近使用 2026-06-25T06:36:16.755Z\n\n黄佳欣：搜索 31 次， 剪切成功 0 次， 最近使用 2026-06-25T06:35:41.794Z\n\n陈龙：搜索 29 次， 剪切成功 0 次， 最近使用 2026-06-25T06:12:49.451Z\n\nceshi：搜索 51 次， 剪切成功 0 次， 最近使用 2026-06-25T03:01:01.699Z\n\nhqh：搜索 264 次， 剪切成功 13 次， 最近使用 2026-06-24T15:24:35.940Z\n\nAllen：搜索 97 次， 剪切成功 7 次， 最近使用 2026-06-24T11:40:29.092Z\n\nMixLabAutomation：搜索 15 次， 剪切成功 1 次， 最近使用 2026-06-19T00:13:10.974Z\n\n用户 CU-DESKTOP-LOCAL：搜索 1563 次， 剪切成功 112 次， 最近使用 2026-06-18T11:40:28.304Z\n\n用户 CU-LOCAL-001：搜索 9 次， 剪切成功 1 次， 最近使用 2026-06-17T02:12:29.372Z\n\n用户 local-cutter：搜索 418 次， 剪切成功 32 次， 最近使用 2026-06-13T23:11:45.965Z\n\n用户 CU000018：搜索 1 次， 剪切成功 0 次， 最近使用 2026-06-03T18:25:52.394Z\n\n用户 CU000017：搜索 3 次， 剪切成功 0 次， 最近使用 2026-06-03T18:20:31.330Z\n\nsunyu：搜索 1 次， 剪切成功 0 次， 最近使用 2026-06-03T17:50:55.202Z",
+            "console_errors": [],
+            "failed_api_requests": []
+          }
+        ],
+        "gates": [
+          {
+            "name": "browser-renders-required-content",
+            "passed": false,
+            "detail": "desktop:通过申请; mobile:通过申请"
+          },
+          {
+            "name": "user-table-visible",
+            "passed": true,
+            "detail": "desktop:988; mobile:988"
+          },
+          {
+            "name": "inspector-contract-visible",
+            "passed": true,
+            "detail": "desktop:1329; mobile:1329"
+          },
+          {
+            "name": "no-console-errors",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-failed-admin-api-requests",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-horizontal-overflow",
+            "passed": true,
+            "detail": "desktop:0px; mobile:0px"
+          }
+        ],
+        "result": {
+          "passed": false,
+          "status": "failed",
+          "summary": "cutter-users browser QA failed one or more gates"
+        }
+      }
+    },
+    {
+      "route": "doctor",
+      "label": "系统检查",
+      "web_url": "http://127.0.0.1:5187/#/doctor",
+      "expected_route_endpoints": [
+        "/api/admin/doctor/report"
+      ],
+      "route_plan_found": true,
+      "route_plan_endpoints": [
+        "/api/admin/doctor/report"
+      ],
+      "route_plan_load_phase": "route-entry",
+      "route_plan_prefetch": false,
+      "endpoint_contracts": [
+        {
+          "endpoint": "/api/admin/doctor/report",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "status-scan",
+          "data_source": "doctor-probes",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        }
+      ],
+      "browser_report": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.197Z",
+        "command": "tsx scripts/acceptance/admin-doctor-browser-qa.ts",
+        "web_url": "http://127.0.0.1:5187/#/doctor",
+        "output_dir": "docs/acceptance/artifacts",
+        "viewports": [
+          {
+            "name": "desktop",
+            "width": 1440,
+            "height": 960,
+            "url": "http://127.0.0.1:5187/#/doctor",
+            "load_ms": 28636.2,
+            "screenshot_path": "docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z-desktop.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "系统检查": true,
+              "诊断报告": true,
+              "检查结果": true,
+              "检查报告": true,
+              "doctor-probes": true,
+              "doctor-route": true,
+              "状态扫描": true,
+              "本页面局部处理": true,
+              "导出操作": true,
+              "重新检查": true,
+              "导出检查报告": true,
+              "公共素材库根目录": true
+            },
+            "diagnostic_report_text": "诊断报告\n\n系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。\n\n通过\n检查项\t状态\t检查目的\t技术详情\n公共素材库根目录\t通过\t确认管理端能访问公共素材库根目录。\t公共素材库根目录可访问\n素材来源可读性\t通过\t确认原视频目录可以被管理端读取。\t原视频目录可读\n预处理产物库可写性\t通过\t确认文案、索引、封面、日志等产物可以写入。\t预处理产物库可写\n预处理日志目录可写性\t通过\t确认预处理任务日志目录可以创建和写入。\t预处理日志目录可写\n素材库计数\t通过\t确认素材库统计字段和实际状态一致。\t素材库计数一致\n原视频发布清单\t通过\t确认每个原视频的协议文件和产物路径有效。\t原始检查信息已隐藏，可导出检查报告查看。\n当前索引\t通过\t确认剪辑端搜索使用的当前索引存在且可读取。\t当前索引包校验通过\n预处理任务日志\t通过\t确认已进入预处理生命周期的视频都有可读任务日志。\t原始检查信息已隐藏，可导出检查报告查看。\n音视频工具\t通过\t确认本机可执行音视频提取和剪切任务。\t原始检查信息已隐藏，可导出检查报告查看。\n媒体探测工具\t通过\t确认系统可以读取视频编码、时长和分辨率信息。\t原始检查信息已隐藏，可导出检查报告查看。\n语音识别配置\t通过\t确认语音识别所需模型和密钥配置正确。\t原始检查信息已隐藏，可导出检查报告查看。\n本地剪辑片段\t通过\t确认本地剪切后生成的片段清单和媒体文件有效。\t未发现本地剪辑片段",
+            "inspector_text": "检查报告\n\n系统检查\n\n报告\n生成时间\n2026-06-26T18:00:30.307Z\n协议版本\n1.0\n库路径\n/Volumes/MixLab/PublicLibrary\n通过\n12\n警告\n0\n失败\n0\n页面契约\n主工作区\n诊断报告\n辅助区\n检查结果\n数据来源\ndoctor-probes\n扫描原因\ndoctor-route\n扫描模式\n状态扫描\n错误边界\n本页面局部处理\n导出边界\n导出操作",
+            "console_errors": [],
+            "failed_api_requests": []
+          },
+          {
+            "name": "mobile",
+            "width": 390,
+            "height": 844,
+            "url": "http://127.0.0.1:5187/#/doctor",
+            "load_ms": 14586.7,
+            "screenshot_path": "docs/acceptance/artifacts/admin-doctor-browser-qa-20260626T180022Z-mobile.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "系统检查": true,
+              "诊断报告": true,
+              "检查结果": true,
+              "检查报告": true,
+              "doctor-probes": true,
+              "doctor-route": true,
+              "状态扫描": true,
+              "本页面局部处理": true,
+              "导出操作": true,
+              "重新检查": true,
+              "导出检查报告": true,
+              "公共素材库根目录": true
+            },
+            "diagnostic_report_text": "诊断报告\n\n系统检查只在本路由读取系统探针结果，用于定位路径、索引、工具和产物问题。\n\n通过\n检查项\t状态\t检查目的\t技术详情\n公共素材库根目录\t通过\t确认管理端能访问公共素材库根目录。\t公共素材库根目录可访问\n素材来源可读性\t通过\t确认原视频目录可以被管理端读取。\t原视频目录可读\n预处理产物库可写性\t通过\t确认文案、索引、封面、日志等产物可以写入。\t预处理产物库可写\n预处理日志目录可写性\t通过\t确认预处理任务日志目录可以创建和写入。\t预处理日志目录可写\n素材库计数\t通过\t确认素材库统计字段和实际状态一致。\t素材库计数一致\n原视频发布清单\t通过\t确认每个原视频的协议文件和产物路径有效。\t原始检查信息已隐藏，可导出检查报告查看。\n当前索引\t通过\t确认剪辑端搜索使用的当前索引存在且可读取。\t当前索引包校验通过\n预处理任务日志\t通过\t确认已进入预处理生命周期的视频都有可读任务日志。\t原始检查信息已隐藏，可导出检查报告查看。\n音视频工具\t通过\t确认本机可执行音视频提取和剪切任务。\t原始检查信息已隐藏，可导出检查报告查看。\n媒体探测工具\t通过\t确认系统可以读取视频编码、时长和分辨率信息。\t原始检查信息已隐藏，可导出检查报告查看。\n语音识别配置\t通过\t确认语音识别所需模型和密钥配置正确。\t原始检查信息已隐藏，可导出检查报告查看。\n本地剪辑片段\t通过\t确认本地剪切后生成的片段清单和媒体文件有效。\t未发现本地剪辑片段",
+            "inspector_text": "检查报告\n\n系统检查\n\n报告\n生成时间\n2026-06-26T18:00:58.854Z\n协议版本\n1.0\n库路径\n/Volumes/MixLab/PublicLibrary\n通过\n12\n警告\n0\n失败\n0\n页面契约\n主工作区\n诊断报告\n辅助区\n检查结果\n数据来源\ndoctor-probes\n扫描原因\ndoctor-route\n扫描模式\n状态扫描\n错误边界\n本页面局部处理\n导出边界\n导出操作",
+            "console_errors": [],
+            "failed_api_requests": []
+          }
+        ],
+        "gates": [
+          {
+            "name": "browser-renders-required-content",
+            "passed": true,
+            "detail": "desktop:ok; mobile:ok"
+          },
+          {
+            "name": "diagnostic-report-visible",
+            "passed": true,
+            "detail": "desktop:610; mobile:610"
+          },
+          {
+            "name": "inspector-contract-visible",
+            "passed": true,
+            "detail": "desktop:197; mobile:197"
+          },
+          {
+            "name": "no-console-errors",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-failed-admin-api-requests",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-horizontal-overflow",
+            "passed": true,
+            "detail": "desktop:0px; mobile:0px"
+          }
+        ],
+        "result": {
+          "passed": true,
+          "status": "passed",
+          "summary": "doctor browser QA passed for desktop and mobile fixture routes"
+        }
+      }
+    },
+    {
+      "route": "settings",
+      "label": "设置",
+      "web_url": "http://127.0.0.1:5187/#/settings",
+      "expected_route_endpoints": [
+        "/api/admin/settings/config",
+        "/api/admin/settings/runtime",
+        "/api/admin/library/path-checks"
+      ],
+      "route_plan_found": true,
+      "route_plan_endpoints": [
+        "/api/admin/library/path-checks",
+        "/api/admin/settings/runtime"
+      ],
+      "route_plan_load_phase": "route-entry",
+      "route_plan_prefetch": false,
+      "endpoint_contracts": [
+        {
+          "endpoint": "/api/admin/settings/config",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "no-scan",
+          "data_source": "admin-settings",
+          "phase": "shell",
+          "refresh": "manual",
+          "full_reconcile": false
+        },
+        {
+          "endpoint": "/api/admin/settings/runtime",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "no-scan",
+          "data_source": "runtime-secrets",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        },
+        {
+          "endpoint": "/api/admin/library/path-checks",
+          "found": true,
+          "method": "GET",
+          "scan_mode": "no-scan",
+          "data_source": "path-checks",
+          "phase": "route",
+          "refresh": "route-entry",
+          "full_reconcile": false
+        }
+      ],
+      "browser_report": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-26T18:00:22.197Z",
+        "command": "tsx scripts/acceptance/admin-settings-browser-qa.ts",
+        "web_url": "http://127.0.0.1:5187/#/settings",
+        "output_dir": "docs/acceptance/artifacts",
+        "viewports": [
+          {
+            "name": "desktop",
+            "width": 1440,
+            "height": 960,
+            "url": "http://127.0.0.1:5187/#/settings",
+            "load_ms": 19719.1,
+            "screenshot_path": "docs/acceptance/artifacts/admin-settings-browser-qa-20260626T180022Z-desktop.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "设置": true,
+              "设置表单": true,
+              "设置概览": true,
+              "素材来源": true,
+              "运行策略": true,
+              "路径检查": true,
+              "admin-settings": true,
+              "path-checks": true,
+              "runtime-secrets": true,
+              "settings-route": true,
+              "不扫描": true,
+              "本地编辑": true,
+              "本页面局部处理": true,
+              "保存设置": true,
+              "检查语音识别": true
+            },
+            "settings_form_text": "设置表单\n\n素材库名称、素材来源和运行策略先在本页面本地编辑，点击保存后才写入管理配置。\n\n本地编辑\n素材库基本信息\n素材库名称\n素材来源\n来源名称\n文件夹路径\n启用素材来源\n已发现 11394 个 · 新增未处理 0 个 · 最近扫描 2026-06-02T13:47:37.153Z\n默认来源不可移除",
+            "runtime_surface_text": "运行策略\n\n预处理并发、音频格式和语音识别密钥状态来自运行时配置；密钥值不会回显。\n\n通过\n预处理设置\n产物路径\n/Volumes/MixLab/PublicLibrary/.mixlab-library\n并发任务数\n音频模式\n压缩单声道\n无损单声道\n音视频工具\n内置 · 可用\n语音识别\n供应商\n阿里云百炼\n模型\n通义语音识别模型\n当前音频\n压缩单声道\n密钥状态\n已配置，已隐藏\n填写密钥",
+            "inspector_text": "设置概览\n\n系统状态\n\n公共素材库/Volumes/MixLab/PublicLibrary · 根路径可读写通过\n素材来源：默认素材来源/Volumes/MixLab/PublicLibrary/source-videos · 素材来源可读通过\n处理结果目录/Volumes/MixLab/PublicLibrary/.mixlab-library · 协议目录可读写通过\n发布清单文件/Volumes/MixLab/PublicLibrary/.mixlab-library/library.json · 发布清单文件可读写通过\n\n新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。\n\n页面契约\n主工作区\n设置表单\n辅助区\n路径检查\n设置来源\nadmin-settings\n路径来源\npath-checks\n运行来源\nruntime-secrets\n扫描原因\nsettings-route\n扫描模式\n不扫描\n编辑边界\n本地编辑\n保存边界\n命令操作\n错误边界\n本页面局部处理\n保存设置\n检查语音识别",
+            "console_errors": [],
+            "failed_api_requests": []
+          },
+          {
+            "name": "mobile",
+            "width": 390,
+            "height": 844,
+            "url": "http://127.0.0.1:5187/#/settings",
+            "load_ms": 8857.7,
+            "screenshot_path": "docs/acceptance/artifacts/admin-settings-browser-qa-20260626T180022Z-mobile.png",
+            "body_horizontal_overflow_px": 0,
+            "visible_checks": {
+              "设置": true,
+              "设置表单": true,
+              "设置概览": true,
+              "素材来源": true,
+              "运行策略": true,
+              "路径检查": true,
+              "admin-settings": true,
+              "path-checks": true,
+              "runtime-secrets": true,
+              "settings-route": true,
+              "不扫描": true,
+              "本地编辑": true,
+              "本页面局部处理": true,
+              "保存设置": true,
+              "检查语音识别": true
+            },
+            "settings_form_text": "设置表单\n\n素材库名称、素材来源和运行策略先在本页面本地编辑，点击保存后才写入管理配置。\n\n本地编辑\n素材库基本信息\n素材库名称\n素材来源\n来源名称\n文件夹路径\n启用素材来源\n已发现 11394 个 · 新增未处理 0 个 · 最近扫描 2026-06-02T13:47:37.153Z\n默认来源不可移除",
+            "runtime_surface_text": "运行策略\n\n预处理并发、音频格式和语音识别密钥状态来自运行时配置；密钥值不会回显。\n\n通过\n预处理设置\n产物路径\n/Volumes/MixLab/PublicLibrary/.mixlab-library\n并发任务数\n音频模式\n压缩单声道\n无损单声道\n音视频工具\n内置 · 可用\n语音识别\n供应商\n阿里云百炼\n模型\n通义语音识别模型\n当前音频\n压缩单声道\n密钥状态\n已配置，已隐藏\n填写密钥",
+            "inspector_text": "设置概览\n\n系统状态\n\n公共素材库/Volumes/MixLab/PublicLibrary · 根路径可读写通过\n素材来源：默认素材来源/Volumes/MixLab/PublicLibrary/source-videos · 素材来源可读通过\n处理结果目录/Volumes/MixLab/PublicLibrary/.mixlab-library · 协议目录可读写通过\n发布清单文件/Volumes/MixLab/PublicLibrary/.mixlab-library/library.json · 发布清单文件可读写通过\n\n新密钥保存后生效，留空不会覆盖当前密钥；页面只显示密钥配置状态。\n\n页面契约\n主工作区\n设置表单\n辅助区\n路径检查\n设置来源\nadmin-settings\n路径来源\npath-checks\n运行来源\nruntime-secrets\n扫描原因\nsettings-route\n扫描模式\n不扫描\n编辑边界\n本地编辑\n保存边界\n命令操作\n错误边界\n本页面局部处理\n保存设置\n检查语音识别",
+            "console_errors": [],
+            "failed_api_requests": []
+          }
+        ],
+        "gates": [
+          {
+            "name": "browser-renders-required-content",
+            "passed": true,
+            "detail": "desktop:ok; mobile:ok"
+          },
+          {
+            "name": "settings-form-visible",
+            "passed": true,
+            "detail": "desktop:152; mobile:152"
+          },
+          {
+            "name": "runtime-surface-visible",
+            "passed": true,
+            "detail": "desktop:195; mobile:195"
+          },
+          {
+            "name": "inspector-contract-visible",
+            "passed": true,
+            "detail": "desktop:457; mobile:457"
+          },
+          {
+            "name": "no-console-errors",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-failed-admin-api-requests",
+            "passed": true,
+            "detail": "desktop:0; mobile:0"
+          },
+          {
+            "name": "no-horizontal-overflow",
+            "passed": true,
+            "detail": "desktop:0px; mobile:0px"
+          }
+        ],
+        "result": {
+          "passed": true,
+          "status": "passed",
+          "summary": "settings browser QA passed for desktop and mobile fixture routes"
+        }
+      }
+    }
+  ],
+  "gates": [
+    {
+      "name": "direct-api-probes-pass",
+      "passed": true,
+      "detail": "all direct live API probes passed"
+    },
+    {
+      "name": "isolated-auth-disabled",
+      "passed": true,
+      "detail": "auth_mode=disabled, authenticated=true"
+    },
+    {
+      "name": "live-library-root",
+      "passed": true,
+      "detail": "actual=/Volumes/MixLab/PublicLibrary, expected=/Volumes/MixLab/PublicLibrary"
+    },
+    {
+      "name": "live-library-counts",
+      "passed": true,
+      "detail": "total=11394, ready=10471, current_index=v010471"
+    },
+    {
+      "name": "admin-read-model-page-safe",
+      "passed": true,
+      "detail": "freshness=fresh, safe=true, scan=no-scan"
+    },
+    {
+      "name": "data-loading-plan-no-hidden-full-scan",
+      "passed": true,
+      "detail": "hidden_full_scan_allowed=false"
+    },
+    {
+      "name": "migrated-route-contracts",
+      "passed": false,
+      "detail": "settings:missing-route-endpoint:/api/admin/settings/config"
+    },
+    {
+      "name": "migrated-browser-reports-pass",
+      "passed": false,
+      "detail": "source-videos:result=failed, cutter-users:result=failed"
+    }
+  ],
+  "result": {
+    "passed": false,
+    "status": "failed",
+    "summary": "migrated Admin pages live browser QA failed one or more gates"
+  }
+}

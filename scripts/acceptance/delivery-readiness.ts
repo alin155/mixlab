@@ -40,6 +40,18 @@ const REQUIRED_FILES = [
   "scripts/acceptance/local-real-nas-phase.ts",
   "scripts/acceptance/local-web-sanity-report.ts",
   "scripts/acceptance/local-web-sanity.ts",
+  "scripts/acceptance/admin-docker-release-gate-dry-run.ts",
+  "scripts/acceptance/admin-docker-release-live-readonly.ts",
+  "scripts/acceptance/admin-docker-version-parity-plan.ts",
+  "scripts/acceptance/admin-docker-candidate-contract-proof.ts",
+  "scripts/acceptance/admin-docker-local-smoke.ts",
+  "scripts/acceptance/admin-worker-env-proof.ts",
+  "scripts/acceptance/admin-docker-staging-runbook.ts",
+  "scripts/acceptance/admin-cutter-compatibility-proof.ts",
+  "scripts/acceptance/admin-docker-release-readiness-summary.ts",
+  "scripts/acceptance/admin-docker-github-artifact-readiness.ts",
+  "scripts/acceptance/admin-docker-github-run-artifact.ts",
+  "scripts/acceptance/admin-docker-candidate-scope.ts",
   "scripts/acceptance/nas-acc-009-collector.sh",
   "scripts/acceptance/nas-docker-compose-static.ts",
   "scripts/acceptance/package-evidence-kit.ts",
@@ -76,6 +88,18 @@ const REQUIRED_SCRIPTS = [
   "validate:evidence-kit-manifest",
   "validate:evidence-kit-drafts",
   "validate:nas-docker-compose-static",
+  "validate:admin-docker-release-gate-dry-run",
+  "validate:admin-docker-release-live-readonly",
+  "validate:admin-docker-version-parity-plan",
+  "validate:admin-docker-candidate-contract-proof",
+  "validate:admin-docker-local-smoke",
+  "validate:admin-worker-env-proof",
+  "validate:admin-docker-staging-runbook",
+  "validate:admin-cutter-compatibility-proof",
+  "validate:admin-docker-release-readiness-summary",
+  "validate:admin-docker-github-artifact-readiness",
+  "collect:admin-docker-github-run-artifact",
+  "audit:admin-docker-candidate-scope",
   "audit:local-real-nas-phase",
   "audit:local-web-sanity",
   "validate:local-web-sanity-report",
@@ -385,8 +409,26 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     ".github/workflows/docker-admin.yml",
-    /Set up Rust[\s\S]*npm run typecheck[\s\S]*npm run test:searchd[\s\S]*npm run test:acceptance-evidence[\s\S]*npm run audit:delivery-readiness[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*docker\/build-push-action@v6/,
-    "Admin Docker workflow must verify TypeScript, searchd, acceptance tooling, delivery readiness, evidence-kit manifest, draft metadata, and packaged self-check before publishing NAS images",
+    /Set up Rust[\s\S]*npm run typecheck[\s\S]*npm run test:searchd[\s\S]*npm run test:acceptance-evidence[\s\S]*npm run audit:delivery-readiness[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*npm run validate:admin-docker-candidate-contract-proof[\s\S]*npm run validate:admin-docker-release-live-readonly[\s\S]*npm run validate:admin-docker-version-parity-plan[\s\S]*npm run validate:admin-worker-env-proof[\s\S]*npm run validate:admin-cutter-compatibility-proof[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness/,
+    "Admin Docker workflow must verify TypeScript, searchd, acceptance tooling, delivery readiness, evidence-kit manifest, draft metadata, packaged self-check, local Docker smoke, release-gate evidence reports, image build, staging runbook, release readiness summary, and GitHub artifact readiness before publishing NAS images",
+    errors
+  );
+  requireText(
+    ".github/workflows/docker-admin.yml",
+    /MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"[\s\S]*MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"[\s\S]*name: mixlab-admin-docker-local-smoke[\s\S]*docs\/acceptance\/artifacts\/admin-docker-local-smoke-\*\.json[\s\S]*MIXLAB_ADMIN_DOCKER_CANDIDATE_FROM_LOCAL_SMOKE: "1"[\s\S]*docker\/login-action@v3/,
+    "Admin Docker workflow must require the local Docker MVP smoke to pass, upload its reports, and derive candidate proof from that smoke before GHCR login/push",
+    errors
+  );
+  requireText(
+    ".github/workflows/docker-admin.yml",
+    /workflow_dispatch:[\s\S]*push_images:[\s\S]*Push Admin Docker images to GHCR after smoke passes[\s\S]*type: boolean[\s\S]*Log in to GHCR[\s\S]*if: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true \}\}[\s\S]*push: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true \}\}/,
+    "Admin Docker workflow must keep GHCR upload behind an explicit workflow_dispatch push_images approval after smoke passes",
+    errors
+  );
+  requireText(
+    ".github/workflows/docker-admin.yml",
+    /current_image_tag:[\s\S]*rollback_image_tag:[\s\S]*MIXLAB_DOCKER_TARGET_IMAGE_TAG: \$\{\{ github\.sha \}\}[\s\S]*MIXLAB_DOCKER_PUSH_APPROVAL: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && 'workflow_dispatch:push_images=true' \|\| '' \}\}[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-staging-runbook-\*\.json[\s\S]*admin-docker-release-readiness-summary-\*\.json[\s\S]*admin-docker-github-artifact-readiness-\*\.json/,
+    "Admin Docker workflow must bind staging target tag to github.sha, record explicit push approval, and upload staging/readiness/GitHub-artifact release-gate reports",
     errors
   );
   requireText(
@@ -399,6 +441,12 @@ function auditEvidenceAutomation(errors: string[]): void {
     "package.json",
     /"validate:nas-docker-compose-static": "tsx scripts\/acceptance\/nas-docker-compose-static\.ts"/,
     "package scripts must expose a NAS Docker compose static validator for non-Docker source-machine checks",
+    errors
+  );
+  requireText(
+    "package.json",
+    /"validate:admin-docker-release-gate-dry-run": "tsx scripts\/acceptance\/admin-docker-release-gate-dry-run\.ts"[\s\S]*"validate:admin-docker-release-live-readonly": "tsx scripts\/acceptance\/admin-docker-release-live-readonly\.ts"[\s\S]*"validate:admin-docker-version-parity-plan": "tsx scripts\/acceptance\/admin-docker-version-parity-plan\.ts"[\s\S]*"validate:admin-docker-candidate-contract-proof": "tsx scripts\/acceptance\/admin-docker-candidate-contract-proof\.ts"[\s\S]*"validate:admin-docker-local-smoke": "tsx scripts\/acceptance\/admin-docker-local-smoke\.ts"[\s\S]*"validate:admin-worker-env-proof": "tsx scripts\/acceptance\/admin-worker-env-proof\.ts"[\s\S]*"validate:admin-docker-staging-runbook": "tsx scripts\/acceptance\/admin-docker-staging-runbook\.ts"[\s\S]*"validate:admin-cutter-compatibility-proof": "tsx scripts\/acceptance\/admin-cutter-compatibility-proof\.ts"[\s\S]*"validate:admin-docker-release-readiness-summary": "tsx scripts\/acceptance\/admin-docker-release-readiness-summary\.ts"[\s\S]*"validate:admin-docker-github-artifact-readiness": "tsx scripts\/acceptance\/admin-docker-github-artifact-readiness\.ts"[\s\S]*"collect:admin-docker-github-run-artifact": "tsx scripts\/acceptance\/admin-docker-github-run-artifact\.ts"[\s\S]*"audit:admin-docker-candidate-scope": "tsx scripts\/acceptance\/admin-docker-candidate-scope\.ts"/,
+    "package scripts must expose the Admin Docker release-gate validators for dry-run, live-readonly, parity, candidate contract, local smoke, worker env, staging runbook, Cutter compatibility, readiness summary, GitHub artifact readiness, GitHub run artifact collection, and candidate scope audit",
     errors
   );
   requireText(
@@ -1489,8 +1537,8 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     ".github/workflows/docker-admin.yml",
-    /deploy\/nas\/mixlab\/\*\*[\s\S]*docs\/deployment\/m19-nas-docker\.md[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*docker\/build-push-action@v6[\s\S]*name: mixlab-target-evidence-kit[\s\S]*dist\/acceptance\/mixlab-evidence-kit/,
-    "must trigger on NAS deployment assets and upload the manifest/draft/self-check-validated evidence kit beside pushed NAS Docker images",
+    /deploy\/nas\/mixlab\/\*\*[\s\S]*docs\/deployment\/m19-nas-docker\.md[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*npm run validate:evidence-kit-drafts[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness[\s\S]*name: mixlab-admin-docker-release-gates[\s\S]*admin-docker-github-artifact-readiness-\*\.json[\s\S]*name: mixlab-target-evidence-kit[\s\S]*dist\/acceptance\/mixlab-evidence-kit/,
+    "must trigger on NAS deployment assets, run local Docker smoke, generate staging/readiness/artifact release reports, build Docker images, and upload the manifest/draft/self-check-validated evidence kit beside the candidate run",
     errors
   );
 }

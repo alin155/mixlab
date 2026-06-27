@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-26T17:18:53.860Z",
+  "command": "tsx scripts/acceptance/admin-cutter-users-browser-qa.ts",
+  "web_url": "http://127.0.0.1:5192/#/cutter-users",
+  "output_dir": "docs/acceptance/artifacts",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 960,
+      "url": "http://127.0.0.1:5192/#/cutter-users",
+      "load_ms": 559.1,
+      "screenshot_path": "docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T171853Z-desktop.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "剪辑师": true,
+        "用户表格": true,
+        "用户概览": true,
+        "用户仓库": true,
+        "使用指标": true,
+        "命令操作": true,
+        "不扫描": true,
+        "本页面局部处理": true,
+        "通过申请": true,
+        "重置密码": true
+      },
+      "user_table_text": "用户表格\n\n展示剪辑师准入状态和最近使用指标；审批写操作保留在当前行的命令按钮中。\n\n待审核 1 人\n用户\t状态\t设备\t搜索次数\t搜索失败\t剪切成功\t最近使用\t操作\n张三\t待审核\t1 台\t0\t0\t0\t暂无\t\n通过申请\n重置密码\n\n王五\t已通过\t1 台\t24\t0\t5\t2024-05-07 10:25:00\t\n重置密码\n停用用户",
+      "inspector_text": "用户概览\n\n剪辑师准入\n\n审批状态\n待审核\n1 人\n已通过\n1 人\n已拒绝\n0 人\n已停用\n0 人\n页面契约\n主工作区\n用户表格\n辅助区\n使用概览\n用户来源\n用户仓库\n操作边界\n命令操作\n扫描模式\n不扫描\n错误边界\n本页面局部处理\n最近使用\n\n王五：搜索 24 次， 剪切成功 5 次， 最近使用 2024-05-07 10:25:00\n\n用户 CU000003：搜索 18 次， 剪切成功 2 次， 最近使用 2024-05-07 10:18:00",
+      "console_errors": [],
+      "failed_api_requests": []
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "url": "http://127.0.0.1:5192/#/cutter-users",
+      "load_ms": 539.6,
+      "screenshot_path": "docs/acceptance/artifacts/admin-cutter-users-browser-qa-20260626T171853Z-mobile.png",
+      "body_horizontal_overflow_px": 0,
+      "visible_checks": {
+        "剪辑师": true,
+        "用户表格": true,
+        "用户概览": true,
+        "用户仓库": true,
+        "使用指标": true,
+        "命令操作": true,
+        "不扫描": true,
+        "本页面局部处理": true,
+        "通过申请": true,
+        "重置密码": true
+      },
+      "user_table_text": "用户表格\n\n展示剪辑师准入状态和最近使用指标；审批写操作保留在当前行的命令按钮中。\n\n待审核 1 人\n用户\t状态\t设备\t搜索次数\t搜索失败\t剪切成功\t最近使用\t操作\n张三\t待审核\t1 台\t0\t0\t0\t暂无\t\n通过申请\n重置密码\n\n王五\t已通过\t1 台\t24\t0\t5\t2024-05-07 10:25:00\t\n重置密码\n停用用户",
+      "inspector_text": "用户概览\n\n剪辑师准入\n\n审批状态\n待审核\n1 人\n已通过\n1 人\n已拒绝\n0 人\n已停用\n0 人\n页面契约\n主工作区\n用户表格\n辅助区\n使用概览\n用户来源\n用户仓库\n操作边界\n命令操作\n扫描模式\n不扫描\n错误边界\n本页面局部处理\n最近使用\n\n王五：搜索 24 次， 剪切成功 5 次， 最近使用 2024-05-07 10:25:00\n\n用户 CU000003：搜索 18 次， 剪切成功 2 次， 最近使用 2024-05-07 10:18:00",
+      "console_errors": [],
+      "failed_api_requests": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "browser-renders-required-content",
+      "passed": true,
+      "detail": "desktop:ok; mobile:ok"
+    },
+    {
+      "name": "user-table-visible",
+      "passed": true,
+      "detail": "desktop:163; mobile:163"
+    },
+    {
+      "name": "inspector-contract-visible",
+      "passed": true,
+      "detail": "desktop:225; mobile:225"
+    },
+    {
+      "name": "no-console-errors",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-failed-admin-api-requests",
+      "passed": true,
+      "detail": "desktop:0; mobile:0"
+    },
+    {
+      "name": "no-horizontal-overflow",
+      "passed": true,
+      "detail": "desktop:0px; mobile:0px"
+    }
+  ],
+  "result": {
+    "passed": true,
+    "status": "passed",
+    "summary": "cutter-users browser QA passed for desktop and mobile fixture routes"
+  }
+}

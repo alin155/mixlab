@@ -621,12 +621,6 @@ h2 {
   font-weight: 650;
 }
 
-.admin-confirm-dialog footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .admin-user-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1550,6 +1544,89 @@ h2 {
   color: #7a8492;
   font-size: 11px;
   white-space: nowrap;
+}
+
+.admin-index-publish-console {
+  align-content: start;
+}
+
+.admin-source-videos-console {
+  align-content: start;
+}
+
+.admin-cutter-users-console {
+  align-content: start;
+}
+
+.admin-doctor-console {
+  align-content: start;
+}
+
+.admin-settings-console {
+  align-content: start;
+}
+
+.admin-index-route-contract,
+.admin-source-route-contract,
+.admin-cutter-users-route-contract,
+.admin-doctor-route-contract,
+.admin-settings-route-contract {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-index-route-contract > div,
+.admin-source-route-contract > div,
+.admin-cutter-users-route-contract > div,
+.admin-doctor-route-contract > div,
+.admin-settings-route-contract > div {
+  min-width: 0;
+  border: 1px solid var(--ml-color-separator);
+  border-radius: var(--ml-radius-panel);
+  padding: 12px;
+  background: var(--ml-color-surface);
+}
+
+.admin-index-route-contract span,
+.admin-index-route-contract p,
+.admin-source-route-contract span,
+.admin-source-route-contract p,
+.admin-cutter-users-route-contract span,
+.admin-cutter-users-route-contract p,
+.admin-doctor-route-contract span,
+.admin-doctor-route-contract p,
+.admin-settings-route-contract span,
+.admin-settings-route-contract p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-index-route-contract strong,
+.admin-source-route-contract strong,
+.admin-cutter-users-route-contract strong,
+.admin-doctor-route-contract strong,
+.admin-settings-route-contract strong {
+  display: block;
+  overflow: hidden;
+  margin: 4px 0;
+  color: var(--ml-color-text);
+  font-size: 16px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-publication-queue,
+.admin-index-version-surface,
+.admin-source-table-surface,
+.admin-cutter-user-table-surface,
+.admin-doctor-report-surface,
+.admin-settings-form-surface,
+.admin-settings-runtime-surface {
+  overflow: hidden;
 }
 
 .admin-sidebar-footer {
@@ -3692,7 +3769,6 @@ body {
 .admin-app .admin-primary-button,
 .admin-app .admin-secondary-button,
 .admin-app .admin-danger-button,
-.admin-app .admin-link-button,
 .admin-app .ml-button,
 .admin-app .admin-select,
 .admin-app .admin-text-input,
@@ -3975,6 +4051,7 @@ body {
 
 .admin-console-hero,
 .admin-dashboard-alert,
+.admin-dashboard-source-line,
 .admin-smart-scan-card,
 .admin-core-path-card,
 .admin-dashboard-panel,
@@ -4060,7 +4137,6 @@ body {
 .admin-app .admin-primary-button,
 .admin-app .admin-secondary-button,
 .admin-app .admin-danger-button,
-.admin-app .admin-link-button,
 .admin-app .ml-button,
 .admin-app .admin-select,
 .admin-app .admin-text-input,
@@ -4085,21 +4161,13 @@ body {
 }
 
 .admin-app .admin-secondary-button,
-.admin-app .admin-link-button,
 .admin-app .ml-button {
   border: 1px solid var(--md-sys-color-outline);
   color: var(--md-sys-color-primary);
   background: transparent;
 }
 
-.admin-app .admin-link-button {
-  min-height: 36px;
-  border-color: transparent;
-  padding: 0 12px;
-}
-
 .admin-app .admin-secondary-button:hover:not(:disabled),
-.admin-app .admin-link-button:hover:not(:disabled),
 .admin-app .ml-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
 }
@@ -4585,6 +4653,25 @@ body {
   line-height: 22px;
 }
 
+.admin-dashboard-source-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  color: #5d6675;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-dashboard-source-line span,
+.admin-dashboard-source-line strong {
+  color: #151a21;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
 .admin-kpi-grid,
 .admin-metric-band,
 .admin-count-strip {
@@ -4792,6 +4879,7 @@ body {
   min-height: 36px;
   border-radius: 6px;
   padding: 0 14px;
+  font-family: var(--md-sys-typescale-label-large-font);
   font-size: 13px;
   font-weight: 650;
   line-height: 20px;
@@ -5660,4 +5748,412 @@ body,
 .admin-pagination-row {
   border-color: color-mix(in srgb, var(--ml-color-border) 58%, transparent);
   box-shadow: none;
+}
+
+.admin-route-protection .admin-main-column {
+  gap: 16px;
+}
+
+.admin-protection-card .ml-card-body {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-protection-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.admin-protection-grid div {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--ml-color-border) 58%, transparent);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--ml-color-surface-subtle);
+}
+
+.admin-protection-grid dt {
+  margin: 0 0 6px;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 16px;
+}
+
+.admin-protection-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ml-color-text);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 18px;
+}
+
+.admin-protection-reconcile {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ml-color-border) 58%, transparent);
+  padding-top: 14px;
+}
+
+.admin-section-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-section-subhead h3 {
+  margin: 0;
+  color: var(--ml-color-text);
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 20px;
+}
+
+.admin-protection-grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-muted {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.admin-protection-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-protection-summary p,
+.admin-protection-actions p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.admin-protection-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.admin-protection-actions strong {
+  color: var(--ml-color-text);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 18px;
+}
+
+.admin-protection-actions ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-protection-actions li {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--ml-color-border) 58%, transparent);
+  padding-top: 10px;
+}
+
+.admin-protection-actions li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.admin-protection-actions span {
+  color: var(--ml-color-text);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 18px;
+}
+
+.admin-protection-actions small {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 18px;
+}
+
+.admin-operation-log-record {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-operation-log-record p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-operation-log-snapshot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.admin-operation-log-snapshot span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-control);
+  padding: 0 8px;
+  color: var(--ml-color-text-secondary);
+  background: color-mix(in srgb, var(--ml-color-surface) 92%, var(--ml-color-border));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.admin-restore-plan-panel {
+  margin-top: 16px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-panel);
+  padding: 12px;
+  background: color-mix(in srgb, var(--ml-color-surface) 92%, var(--ml-color-border));
+}
+
+.admin-restore-plan-panel > strong {
+  display: block;
+  color: var(--ml-color-text);
+  font-size: 13px;
+}
+
+.admin-restore-plan-panel > p {
+  margin: 6px 0 10px;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-restore-plan-panel.is-restorable {
+  border-color: #8ac7a4;
+  background: #f0f8f3;
+}
+
+.admin-restore-plan-panel.is-blocked {
+  border-color: #f0ad9a;
+  background: #fff5f1;
+}
+
+.admin-restore-blockers {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-restore-file-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.admin-restore-file-list article {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid var(--ml-color-border);
+  padding-top: 8px;
+}
+
+.admin-restore-file-list article strong,
+.admin-restore-file-list article span,
+.admin-restore-file-list article small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-restore-file-list article strong {
+  color: var(--ml-color-text);
+  font-size: 12px;
+}
+
+.admin-restore-file-list article span,
+.admin-restore-file-list article small {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-restore-execution {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--ml-color-border);
+  padding-top: 12px;
+}
+
+.admin-restore-execution > strong {
+  color: var(--ml-color-text);
+  font-size: 12px;
+}
+
+.admin-restore-execution > p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.admin-restore-execution.is-armed {
+  border-top-color: #d48a2d;
+}
+
+.admin-restore-execution.is-restored {
+  border-top-color: #2f9e44;
+}
+
+.admin-restore-execution.is-blocked {
+  border-top-color: #c2410c;
+}
+
+.admin-restore-execution-error {
+  color: #9a3412 !important;
+}
+
+.admin-restore-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 1100px) {
+  .admin-protection-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-protection-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* R.79 browser QA: keep the production console usable on narrow screens. */
+@media (max-width: 760px) {
+  body {
+    min-width: 0;
+  }
+
+  .admin-app .admin-shell-v1 {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .admin-app .admin-shell-v1 > .ml-sidebar {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--admin-ref-line);
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .admin-app .ml-sidebar-nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+    overflow: visible;
+  }
+
+  .admin-app .ml-sidebar-item {
+    justify-content: flex-start;
+    min-width: 0;
+    min-height: 36px;
+    gap: 6px;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+
+  .admin-app .admin-shell-v1 > .ml-sidebar .ml-sidebar-footer {
+    display: none;
+  }
+
+  .admin-app .admin-workbench-v1 {
+    height: auto;
+    min-height: 0;
+  }
+
+  .admin-app .admin-workspace {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .admin-app .admin-content-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    height: auto;
+    min-height: 0;
+    padding: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .admin-app .admin-topbar-status {
+    display: none;
+  }
+
+  .admin-console-statusbar,
+  .admin-metric-band,
+  .admin-pipeline-strip,
+  .admin-observability-grid,
+  .admin-index-summary-grid,
+  .admin-index-route-contract,
+  .admin-source-route-contract,
+  .admin-cutter-users-route-contract,
+  .admin-doctor-route-contract,
+  .admin-settings-route-contract {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-index-summary-grid p,
+  .admin-index-summary-grid strong,
+  .admin-index-route-contract p,
+  .admin-index-route-contract strong,
+  .admin-source-route-contract p,
+  .admin-source-route-contract strong,
+  .admin-cutter-users-route-contract p,
+  .admin-cutter-users-route-contract strong,
+  .admin-doctor-route-contract p,
+  .admin-doctor-route-contract strong,
+  .admin-settings-route-contract p,
+  .admin-settings-route-contract strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-app .ml-inspector {
+    position: static;
+    max-height: none;
+  }
+
+  .admin-app .ml-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
 }

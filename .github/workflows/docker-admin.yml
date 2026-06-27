@@ -2,6 +2,20 @@ name: Build Admin Docker Images
 
 on:
   workflow_dispatch:
+    inputs:
+      push_images:
+        description: "Push Admin Docker images to GHCR after smoke passes"
+        required: true
+        default: false
+        type: boolean
+      current_image_tag:
+        description: "Current deployed Admin Docker image tag for rollback/runbook evidence"
+        required: false
+        type: string
+      rollback_image_tag:
+        description: "Rollback Admin Docker image tag, normally matching the current deployed tag"
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -74,32 +88,116 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Run local Docker MVP smoke
+        env:
+          MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"
+          MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"
+          MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_WEB_PORT: "18081"
+          MIXLAB_BUILD_SHA: ${{ github.sha }}
+          MIXLAB_BUILD_VERSION: ${{ github.sha }}
+          MIXLAB_IMAGE_TAG: ${{ github.sha }}
+        run: npm run validate:admin-docker-local-smoke
+
+      - name: Upload local Docker MVP smoke reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-admin-docker-local-smoke
+          path: |
+            docs/acceptance/artifacts/admin-docker-local-smoke-*.json
+            docs/acceptance/artifacts/admin-docker-local-smoke-*.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Generate pre-staging Admin Docker release evidence
+        env:
+          MIXLAB_ADMIN_DOCKER_CANDIDATE_FROM_LOCAL_SMOKE: "1"
+          MIXLAB_ADMIN_DOCKER_CANDIDATE_BASE_URL: ""
+          MIXLAB_ADMIN_DOCKER_CANDIDATE_API_BASE_URL: ""
+          MIXLAB_ADMIN_DOCKER_LIVE_BASE_URL: ""
+          MIXLAB_ADMIN_DOCKER_LIVE_EXPECT_LIBRARY_ROOT: "/data/PublicLibrary"
+          MIXLAB_CUTTER_EXPECTED_READY_COUNT: "10471"
+          MIXLAB_CUTTER_EXPECTED_RELEASE_VERSION: "v010471"
+        run: |
+          npm run validate:admin-docker-candidate-contract-proof
+          npm run validate:admin-docker-release-live-readonly
+          npm run validate:admin-docker-version-parity-plan
+          npm run validate:admin-worker-env-proof
+          npm run validate:admin-cutter-compatibility-proof
+
       - name: Log in to GHCR
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push admin runtime
+      - name: Build admin runtime image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/admin-runtime.Dockerfile
-          push: true
+          push: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true }}
           tags: |
             ghcr.io/alin155/mixlab-admin-runtime:latest
             ghcr.io/alin155/mixlab-admin-runtime:${{ github.sha }}
+          build-args: |
+            MIXLAB_BUILD_SHA=${{ github.sha }}
+            MIXLAB_BUILD_VERSION=${{ github.sha }}
+            MIXLAB_IMAGE_TAG=${{ github.sha }}
+            MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1
 
-      - name: Build and push admin web
+      - name: Build admin web image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/admin-web.Dockerfile
-          push: true
+          push: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true }}
           tags: |
             ghcr.io/alin155/mixlab-admin-web:latest
             ghcr.io/alin155/mixlab-admin-web:${{ github.sha }}
+          build-args: |
+            MIXLAB_BUILD_SHA=${{ github.sha }}
+            MIXLAB_BUILD_VERSION=${{ github.sha }}
+            MIXLAB_IMAGE_TAG=${{ github.sha }}
+            MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1
+
+      - name: Generate Admin Docker staging and release readiness reports
+        env:
+          MIXLAB_DOCKER_CURRENT_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.current_image_tag || '' }}
+          MIXLAB_DOCKER_TARGET_IMAGE_TAG: ${{ github.sha }}
+          MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback_image_tag || '' }}
+          MIXLAB_DOCKER_PUSH_APPROVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true && 'workflow_dispatch:push_images=true' || '' }}
+        run: |
+          npm run validate:admin-docker-staging-runbook
+          npm run validate:admin-docker-release-readiness-summary
+          npm run validate:admin-docker-github-artifact-readiness
+
+      - name: Upload Admin Docker release gate reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-admin-docker-release-gates
+          path: |
+            docs/acceptance/artifacts/admin-docker-candidate-contract-proof-*.json
+            docs/acceptance/artifacts/admin-docker-candidate-contract-proof-*.md
+            docs/acceptance/artifacts/admin-docker-release-live-readonly-*.json
+            docs/acceptance/artifacts/admin-docker-release-live-readonly-*.md
+            docs/acceptance/artifacts/admin-docker-version-parity-plan-*.json
+            docs/acceptance/artifacts/admin-docker-version-parity-plan-*.md
+            docs/acceptance/artifacts/admin-worker-env-proof-*.json
+            docs/acceptance/artifacts/admin-worker-env-proof-*.md
+            docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.json
+            docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.md
+            docs/acceptance/artifacts/admin-docker-staging-runbook-*.json
+            docs/acceptance/artifacts/admin-docker-staging-runbook-*.md
+            docs/acceptance/artifacts/admin-docker-release-readiness-summary-*.json
+            docs/acceptance/artifacts/admin-docker-release-readiness-summary-*.md
+            docs/acceptance/artifacts/admin-docker-github-artifact-readiness-*.json
+            docs/acceptance/artifacts/admin-docker-github-artifact-readiness-*.md
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload target evidence kit
         uses: actions/upload-artifact@v4

@@ -1,0 +1,171 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-27T15:15:16.148Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-version-parity-plan.ts",
+  "mode": "docker-version-api-parity-plan",
+  "source_artifact": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260627T151509Z.json",
+  "target": {
+    "base_url": "",
+    "configured": false,
+    "expected_library_root": "/data/PublicLibrary"
+  },
+  "observations": {
+    "admin_web_reachable": false,
+    "admin_api_proxy_reachable": false,
+    "current_api_contract_ready": false,
+    "missing_current_endpoints": [
+      "/api/admin/auth/status",
+      "/api/admin/release-gates",
+      "/api/admin/data-loading/plan"
+    ],
+    "version_health_parity_contract_ready": false,
+    "version_health_parity_status": "",
+    "admin_worker_env_proof_contract_ready": false,
+    "admin_worker_env_proof_status": "",
+    "library_root": "",
+    "current_index_version": "",
+    "video_count": null,
+    "ready_video_count": null,
+    "disk_usage_percent": null,
+    "disk_status": "",
+    "build_sha": "",
+    "build_version": "",
+    "image_tag": ""
+  },
+  "decision": {
+    "docker_image_update_required": true,
+    "docker_deploy_allowed_now": false,
+    "user_assistance_required": [
+      "Provide or approve NAS Docker image/version parity evidence before any deploy: current image tag, target image tag, and rollback tag.",
+      "Provide external admin-worker environment proof from the NAS host or exported Docker inspect/.env output.",
+      "Run or allow the Windows Cutter compatibility smoke only after a staged Docker release candidate exists.",
+      "Do not provide credentials as a workaround for missing API routes; first point NAS Docker at an image exposing the current Admin API contract."
+    ],
+    "summary": "The source artifact was not collected from an explicit NAS Docker target, so live Docker version/API parity is unproven. Deployment remains blocked until targeted live-readonly evidence and external proofs pass."
+  },
+  "gates": [
+    {
+      "id": "parity-plan-no-deploy",
+      "title": "Parity plan has no deploy side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads an archived live-readonly artifact only; it does not contact NAS Docker, build images, push images, restart containers, or write NAS files.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "live-artifact-targeted",
+      "title": "Live artifact was collected from an explicit target",
+      "category": "live-evidence",
+      "status": "blocked",
+      "evidence": "The source live-readonly artifact did not use an explicit NAS Docker target.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run MIXLAB_ADMIN_DOCKER_LIVE_BASE_URL=<target> npm run validate:admin-docker-release-live-readonly before parity planning."
+    },
+    {
+      "id": "admin-web-root-observed",
+      "title": "Admin Web root observed",
+      "category": "live-evidence",
+      "status": "blocked",
+      "evidence": "request not present",
+      "blocks_docker_upload": true,
+      "required_evidence": "Admin Web root must be reachable before comparing API/image parity."
+    },
+    {
+      "id": "admin-api-proxy-observed",
+      "title": "Admin API proxy observed",
+      "category": "live-evidence",
+      "status": "blocked",
+      "evidence": "auth=request not present; library=request not present; supervisor=request not present",
+      "blocks_docker_upload": true,
+      "required_evidence": "At least one Admin API JSON endpoint must respond through Admin Web before diagnosing image/API parity."
+    },
+    {
+      "id": "current-admin-api-contract-parity",
+      "title": "Current Admin API contract parity",
+      "category": "api-contract",
+      "status": "blocked",
+      "evidence": "Missing current endpoints: /api/admin/auth/status, /api/admin/release-gates, /api/admin/data-loading/plan.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy or stage an Admin image exposing /api/admin/auth/status, /api/admin/release-gates, and /api/admin/data-loading/plan, then rerun the GET-only live-readonly probe."
+    },
+    {
+      "id": "version-health-parity-contract",
+      "title": "Version/health parity contract",
+      "category": "api-contract",
+      "status": "blocked",
+      "evidence": "The archived live-readonly artifact does not include a complete version_health_parity contract.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy or stage an Admin image exposing version_health_parity from /api/admin/release-gates, then rerun the GET-only live-readonly probe."
+    },
+    {
+      "id": "admin-worker-env-proof-contract",
+      "title": "admin-worker env proof contract",
+      "category": "docker-runtime",
+      "status": "blocked",
+      "evidence": "The archived live-readonly artifact does not include a complete admin_worker_env_proof contract.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy or stage an Admin image exposing admin_worker_env_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe."
+    },
+    {
+      "id": "docker-library-root-parity",
+      "title": "Docker library root parity",
+      "category": "docker-runtime",
+      "status": "blocked",
+      "evidence": "library_root=unknown, expected=/data/PublicLibrary",
+      "blocks_docker_upload": true,
+      "required_evidence": "NAS Docker Admin must report /data/PublicLibrary before any release update is allowed."
+    },
+    {
+      "id": "nas-disk-risk",
+      "title": "NAS disk risk remains gated",
+      "category": "nas-risk",
+      "status": "pass",
+      "evidence": "disk_status=unknown",
+      "blocks_docker_upload": false,
+      "required_evidence": "Free space or prove write-block behavior with live release gates before enabling preprocessing in Docker."
+    },
+    {
+      "id": "admin-worker-env-external-proof",
+      "title": "Running admin-worker environment proof",
+      "category": "docker-runtime",
+      "status": "needs-external-proof",
+      "evidence": "The live-readonly Admin API artifact cannot inspect the running admin-worker container environment.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Capture target Docker .env and running admin-worker environment showing standalone workers remain disabled unless explicitly opted in."
+    },
+    {
+      "id": "cutter-compatibility-external-proof",
+      "title": "Cutter compatibility proof after staged candidate",
+      "category": "cutter-compatibility",
+      "status": "needs-external-proof",
+      "evidence": "A Docker Admin parity plan cannot prove Windows Cutter still reads the release/index/search protocol.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run and archive Cutter compatibility smoke after a separately gated Docker release candidate is staged."
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 2,
+    "blocked": 7,
+    "needs_external_proof": 2,
+    "upload_blockers": [
+      "live-artifact-targeted",
+      "admin-web-root-observed",
+      "admin-api-proxy-observed",
+      "current-admin-api-contract-parity",
+      "version-health-parity-contract",
+      "admin-worker-env-proof-contract",
+      "docker-library-root-parity",
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "This parity plan never approves Docker upload; it only identifies whether an image/API parity update is needed and what proof is missing."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260627T151516Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260627T151516Z.md"
+  }
+}

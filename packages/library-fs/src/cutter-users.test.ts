@@ -378,6 +378,66 @@ test("malformed JSON throws Chinese error and does not reset store", async () =>
   assert.equal(await readFile(storePath(root), "utf8"), malformed);
 });
 
+test("transient malformed cutter user store reads recover without resetting data", async () => {
+  const root = await makeRoot();
+  const validStore = `${JSON.stringify({
+    schema_version: "1.0",
+    users: [
+      {
+        user_id: "CU000001",
+        username: "小王",
+        display_name: "小王",
+        status: "approved",
+        applied_at: "2026-05-02T10:00:00.000Z",
+        approved_at: "2026-05-02T10:01:00.000Z",
+        rejected_at: "",
+        disabled_at: "",
+        last_login_at: "2026-05-02T10:01:00.000Z",
+        last_used_at: "",
+        note: "",
+        devices: [
+          {
+            device_id: "device-1",
+            device_name: "Mac",
+            status: "active",
+            first_seen_at: "2026-05-02T10:00:00.000Z",
+            last_login_at: "2026-05-02T10:01:00.000Z"
+          }
+        ]
+      }
+    ],
+    sessions: []
+  })}\n`;
+
+  await writeRawStore(root, "{ 这不是 json");
+  const rewrite = new Promise<void>((resolve, reject) => {
+    setTimeout(() => {
+      writeRawStore(root, validStore).then(resolve, reject);
+    }, 30);
+  });
+
+  const users = await listCutterUsers(root);
+  await rewrite;
+
+  assert.equal(users.users.length, 1);
+  assert.equal(users.users[0]?.user_id, "CU000001");
+  assert.equal(await readFile(storePath(root), "utf8"), validStore);
+});
+
+test("cutter user store tolerates trailing null padding after a complete JSON object", async () => {
+  const root = await makeRoot();
+  await writeRawStore(
+    root,
+    `${JSON.stringify({
+      schema_version: "1.0",
+      users: [],
+      sessions: []
+    })}\n\0\0`
+  );
+
+  assert.deepEqual(await listCutterUsers(root), { users: [] });
+});
+
 test("invalid schema and duplicate identities throw Chinese validation errors", async () => {
   const root = await makeRoot();
   await writeRawStore(
