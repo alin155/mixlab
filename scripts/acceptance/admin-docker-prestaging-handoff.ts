@@ -38,6 +38,7 @@ interface ReleaseInputRequest {
   target_image_tag: string;
   workflow_dispatch_command: string;
   nas_image_proof_command: string;
+  release_inputs_command: string;
   required_operator_inputs: Array<{
     id: string;
     label: string;
@@ -191,6 +192,7 @@ function requestReleaseInputActions(candidateSha: string): string[] {
 
   return [
     "Export the current NAS Admin Docker .env and docker inspect evidence, then run validate:admin-docker-nas-image-proof before choosing release inputs.",
+    "Run validate:admin-docker-release-inputs with the accepted pre-staging handoff and NAS image proof reports to generate the exact push_images=true command.",
     "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
     `After explicit approval, rerun the Admin Docker workflow with push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
     "Do not change NAS .env or restart containers until the pushed-image run completes and produces release-gates artifacts.",
@@ -220,6 +222,11 @@ function buildReleaseInputRequest(input: {
       "MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env",
       "MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<path>/admin-docker-current.inspect.json",
       "npm run validate:admin-docker-nas-image-proof"
+    ].join(" "),
+    release_inputs_command: [
+      "MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=<path>/admin-docker-prestaging-handoff.json",
+      "MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=<path>/admin-docker-nas-image-proof.json",
+      "npm run validate:admin-docker-release-inputs"
     ].join(" "),
     required_operator_inputs: [
       {
@@ -508,6 +515,7 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     `- Target image tag: ${report.release_input_request.target_image_tag}`,
     `- Workflow command: ${report.release_input_request.workflow_dispatch_command}`,
     `- NAS image proof command: ${report.release_input_request.nas_image_proof_command}`,
+    `- Release inputs command: ${report.release_input_request.release_inputs_command}`,
     `- Initial library preprocess worker: ${report.release_input_request.initial_staging_defaults.library_preprocess_worker}`,
     `- Initial ready publish worker: ${report.release_input_request.initial_staging_defaults.ready_publish_worker}`,
     `- Initial DASHSCOPE_API_KEY: ${report.release_input_request.initial_staging_defaults.dashscope_api_key}`,

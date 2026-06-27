@@ -103,6 +103,7 @@ test("pre-staging handoff can request release inputs while keeping staging and d
   assert.match(built.release_input_request.workflow_dispatch_command, /--ref codex\/admin-docker-mvp/);
   assert.match(built.release_input_request.workflow_dispatch_command, /push_images=true/);
   assert.match(built.release_input_request.nas_image_proof_command, /validate:admin-docker-nas-image-proof/);
+  assert.match(built.release_input_request.release_inputs_command, /validate:admin-docker-release-inputs/);
   assert.ok(built.release_input_request.required_operator_inputs.some((input) => input.id === "current_image_tag" && input.status === "required"));
   assert.ok(built.release_input_request.required_operator_inputs.some((input) => input.id === "rollback_image_tag" && input.status === "required"));
   assert.equal(built.release_input_request.initial_staging_defaults.library_preprocess_worker, "0");
@@ -146,6 +147,7 @@ test("pre-staging handoff markdown records candidate and release-input boundarie
   assert.match(markdown, /Release Input Request/);
   assert.match(markdown, /gh workflow run docker-admin\.yml/);
   assert.match(markdown, /validate:admin-docker-nas-image-proof/);
+  assert.match(markdown, /validate:admin-docker-release-inputs/);
   assert.match(markdown, /current_image_tag/);
   assert.match(markdown, /rollback_image_tag/);
   assert.match(markdown, /Initial ready publish worker: 0/);

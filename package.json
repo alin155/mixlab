@@ -73,6 +73,7 @@
     "collect:admin-docker-github-run-artifact": "tsx scripts/acceptance/admin-docker-github-run-artifact.ts",
     "validate:admin-docker-prestaging-handoff": "tsx scripts/acceptance/admin-docker-prestaging-handoff.ts",
     "validate:admin-docker-nas-image-proof": "tsx scripts/acceptance/admin-docker-nas-image-proof.ts",
+    "validate:admin-docker-release-inputs": "tsx scripts/acceptance/admin-docker-release-inputs.ts",
     "audit:admin-docker-candidate-scope": "tsx scripts/acceptance/admin-docker-candidate-scope.ts",
     "validate:admin-real-nas-performance-isolated": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
     "audit:local-web-sanity": "tsx scripts/acceptance/local-web-sanity.ts",

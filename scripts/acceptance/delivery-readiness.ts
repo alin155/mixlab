@@ -53,6 +53,7 @@ const REQUIRED_FILES = [
   "scripts/acceptance/admin-docker-github-run-artifact.ts",
   "scripts/acceptance/admin-docker-prestaging-handoff.ts",
   "scripts/acceptance/admin-docker-nas-image-proof.ts",
+  "scripts/acceptance/admin-docker-release-inputs.ts",
   "scripts/acceptance/admin-docker-candidate-scope.ts",
   "scripts/acceptance/nas-acc-009-collector.sh",
   "scripts/acceptance/nas-docker-compose-static.ts",
@@ -103,6 +104,7 @@ const REQUIRED_SCRIPTS = [
   "collect:admin-docker-github-run-artifact",
   "validate:admin-docker-prestaging-handoff",
   "validate:admin-docker-nas-image-proof",
+  "validate:admin-docker-release-inputs",
   "audit:admin-docker-candidate-scope",
   "audit:local-real-nas-phase",
   "audit:local-web-sanity",
@@ -449,8 +451,8 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     "package.json",
-    /"validate:admin-docker-release-gate-dry-run": "tsx scripts\/acceptance\/admin-docker-release-gate-dry-run\.ts"[\s\S]*"validate:admin-docker-release-live-readonly": "tsx scripts\/acceptance\/admin-docker-release-live-readonly\.ts"[\s\S]*"validate:admin-docker-version-parity-plan": "tsx scripts\/acceptance\/admin-docker-version-parity-plan\.ts"[\s\S]*"validate:admin-docker-candidate-contract-proof": "tsx scripts\/acceptance\/admin-docker-candidate-contract-proof\.ts"[\s\S]*"validate:admin-docker-local-smoke": "tsx scripts\/acceptance\/admin-docker-local-smoke\.ts"[\s\S]*"validate:admin-worker-env-proof": "tsx scripts\/acceptance\/admin-worker-env-proof\.ts"[\s\S]*"validate:admin-docker-staging-runbook": "tsx scripts\/acceptance\/admin-docker-staging-runbook\.ts"[\s\S]*"validate:admin-cutter-compatibility-proof": "tsx scripts\/acceptance\/admin-cutter-compatibility-proof\.ts"[\s\S]*"validate:admin-docker-release-readiness-summary": "tsx scripts\/acceptance\/admin-docker-release-readiness-summary\.ts"[\s\S]*"validate:admin-docker-github-artifact-readiness": "tsx scripts\/acceptance\/admin-docker-github-artifact-readiness\.ts"[\s\S]*"collect:admin-docker-github-run-artifact": "tsx scripts\/acceptance\/admin-docker-github-run-artifact\.ts"[\s\S]*"validate:admin-docker-prestaging-handoff": "tsx scripts\/acceptance\/admin-docker-prestaging-handoff\.ts"[\s\S]*"validate:admin-docker-nas-image-proof": "tsx scripts\/acceptance\/admin-docker-nas-image-proof\.ts"[\s\S]*"audit:admin-docker-candidate-scope": "tsx scripts\/acceptance\/admin-docker-candidate-scope\.ts"/,
-    "package scripts must expose the Admin Docker release-gate validators for dry-run, live-readonly, parity, candidate contract, local smoke, worker env, staging runbook, Cutter compatibility, readiness summary, GitHub artifact readiness, GitHub run artifact collection, pre-staging handoff, NAS image proof, and candidate scope audit",
+    /"validate:admin-docker-release-gate-dry-run": "tsx scripts\/acceptance\/admin-docker-release-gate-dry-run\.ts"[\s\S]*"validate:admin-docker-release-live-readonly": "tsx scripts\/acceptance\/admin-docker-release-live-readonly\.ts"[\s\S]*"validate:admin-docker-version-parity-plan": "tsx scripts\/acceptance\/admin-docker-version-parity-plan\.ts"[\s\S]*"validate:admin-docker-candidate-contract-proof": "tsx scripts\/acceptance\/admin-docker-candidate-contract-proof\.ts"[\s\S]*"validate:admin-docker-local-smoke": "tsx scripts\/acceptance\/admin-docker-local-smoke\.ts"[\s\S]*"validate:admin-worker-env-proof": "tsx scripts\/acceptance\/admin-worker-env-proof\.ts"[\s\S]*"validate:admin-docker-staging-runbook": "tsx scripts\/acceptance\/admin-docker-staging-runbook\.ts"[\s\S]*"validate:admin-cutter-compatibility-proof": "tsx scripts\/acceptance\/admin-cutter-compatibility-proof\.ts"[\s\S]*"validate:admin-docker-release-readiness-summary": "tsx scripts\/acceptance\/admin-docker-release-readiness-summary\.ts"[\s\S]*"validate:admin-docker-github-artifact-readiness": "tsx scripts\/acceptance\/admin-docker-github-artifact-readiness\.ts"[\s\S]*"collect:admin-docker-github-run-artifact": "tsx scripts\/acceptance\/admin-docker-github-run-artifact\.ts"[\s\S]*"validate:admin-docker-prestaging-handoff": "tsx scripts\/acceptance\/admin-docker-prestaging-handoff\.ts"[\s\S]*"validate:admin-docker-nas-image-proof": "tsx scripts\/acceptance\/admin-docker-nas-image-proof\.ts"[\s\S]*"validate:admin-docker-release-inputs": "tsx scripts\/acceptance\/admin-docker-release-inputs\.ts"[\s\S]*"audit:admin-docker-candidate-scope": "tsx scripts\/acceptance\/admin-docker-candidate-scope\.ts"/,
+    "package scripts must expose the Admin Docker release-gate validators for dry-run, live-readonly, parity, candidate contract, local smoke, worker env, staging runbook, Cutter compatibility, readiness summary, GitHub artifact readiness, GitHub run artifact collection, pre-staging handoff, NAS image proof, release inputs, and candidate scope audit",
     errors
   );
   requireText(
