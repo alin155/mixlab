@@ -16,6 +16,27 @@ test("NAS Docker compose static validation accepts the deployment files", async 
   });
 });
 
+test("NAS Docker deployment docs preserve MVP v0.1 disabled-worker staging guidance", async () => {
+  const deploymentDoc = await readFile("docs/deployment/m19-nas-docker.md", "utf8");
+
+  assert.match(deploymentDoc, /Admin Docker MVP v0\.1/);
+  assert.match(deploymentDoc, /MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0/);
+  assert.match(deploymentDoc, /MIXLAB_ENABLE_READY_PUBLISH_WORKER=0/);
+  assert.match(deploymentDoc, /MIXLAB_ADMIN_DOCKER_MVP_MODE=v0\.1/);
+  assert.match(deploymentDoc, /MIXLAB_ADMIN_LIBRARY_ROOT=\/data\/PublicLibrary/);
+  assert.match(deploymentDoc, /Leave `DASHSCOPE_API_KEY` blank for the first MVP v0\.1 staging run/);
+  assert.match(deploymentDoc, /Required only for a separately approved controlled preprocess canary/);
+  assert.match(deploymentDoc, /current ready count remains `10471`/);
+  assert.match(deploymentDoc, /current Cutter index\s+remains `v010471`/);
+  assert.match(deploymentDoc, /Do not add or approve a source video/);
+  assert.match(deploymentDoc, /Do not.*enable workers.*publish\s+ready indexes/s);
+  assert.doesNotMatch(deploymentDoc, /`MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER`\s*\|\s*`1`/);
+  assert.doesNotMatch(deploymentDoc, /`MIXLAB_ENABLE_READY_PUBLISH_WORKER`\s*\|\s*`1`/);
+  assert.doesNotMatch(deploymentDoc, /^6\. Fill `DASHSCOPE_API_KEY`\./m);
+  assert.doesNotMatch(deploymentDoc, /Confirm worker output appears under `\.mixlab-library\/`/);
+  assert.doesNotMatch(deploymentDoc, /Confirm `current\.json` exists after ready publication/);
+});
+
 test("NAS Docker compose static validation rejects drift from target deployment contract", async () => {
   const tempRoot = await mkdtemp(path.join(tmpdir(), "mixlab-nas-compose-static-"));
   const composePath = path.join(tempRoot, "docker-compose.yml");

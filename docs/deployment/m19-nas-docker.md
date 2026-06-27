@@ -4,11 +4,17 @@
 
 Run MixLab management services on the NAS while keeping the Windows cutter desktop app independent.
 
+For Admin Docker MVP v0.1, this deployment is a staged management update first.
+The initial update must keep standalone preprocessing and ready-publish workers
+disabled until the candidate has passed live read-only, worker-env, and Cutter
+compatibility gates.
+
 M19 moves only the management side to NAS Docker:
 
 - `admin-web`: browser UI for the management side.
 - `admin-api`: management API.
-- `admin-worker`: recurring preprocessing and ready-publish worker.
+- `admin-worker`: recurring preprocessing and ready-publish worker, disabled by
+  default in MVP v0.1 through environment gates.
 
 The cutter desktop app and local `cutter-api` remain on the editor's Windows computer.
 
@@ -43,10 +49,15 @@ This validates the expected Compose services, GHCR images, public-library mount,
 3. Copy `deploy/nas/mixlab/.env.example` as `.env` in the same NAS Docker project folder.
 4. Edit `.env`.
 5. Set `PUBLIC_LIBRARY_HOST_PATH` to the NAS absolute path of `MixLab/PublicLibrary`.
-6. Fill `DASHSCOPE_API_KEY`.
-7. Log in to GHCR from the NAS Docker app if private image pull requires authentication.
-8. Start the Compose project.
-9. Open `http://NAS_IP:8080`.
+6. Leave `DASHSCOPE_API_KEY` blank for the first MVP v0.1 staging run unless
+   a separately approved controlled preprocess canary is being run.
+7. Set `MIXLAB_IMAGE_TAG` to the exact Git SHA image tag that passed the
+   Admin Docker GitHub candidate run.
+8. Keep `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0` and
+   `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0` for the first MVP v0.1 staging run.
+9. Log in to GHCR from the NAS Docker app if private image pull requires authentication.
+10. Start the Compose project.
+11. Open `http://NAS_IP:8080`.
 
 ## Environment Variables
 
@@ -56,23 +67,39 @@ This validates the expected Compose services, GHCR images, public-library mount,
 | `MIXLAB_IMAGE_TAG` | `latest` | Docker image tag; use a Git SHA for rollback |
 | `MIXLAB_ADMIN_WEB_PORT` | `8080` | NAS port exposed for the management UI |
 | `MIXLAB_WORKER_POLL_INTERVAL_SECONDS` | `60` | Worker loop interval |
-| `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER` | `1` | Enables source material preprocessing |
-| `MIXLAB_ENABLE_READY_PUBLISH_WORKER` | `1` | Enables ready index publication |
+| `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER` | `0` | Enables standalone source material preprocessing only after explicit controlled-preprocess approval |
+| `MIXLAB_ENABLE_READY_PUBLISH_WORKER` | `0` | Enables automatic ready index publication only after a later release gate |
 | `MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL` | `25` | Refreshes aggregate library counts every N successful preprocessing claims and once at worker-cycle end; failures still refresh immediately |
-| `DASHSCOPE_API_KEY` | empty | Required for speech recognition preprocessing |
+| `DASHSCOPE_API_KEY` | empty | Required only for a separately approved controlled preprocess canary |
 
 For large public libraries, keep `MIXLAB_PREPROCESS_FILE_IDENTITY_MODE=stat` and leave `MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=25` unless the NAS UI needs more frequent progress updates. Lower values make dashboard counts update more often but increase full-library metadata scans during the preprocessing worker cycle; higher values reduce NAS metadata churn during large imports.
 
+MVP v0.1 must not use worker startup as proof that preprocessing is safe. The
+first staging proof is that workers remain disabled, the admin-worker container
+uses `/data/PublicLibrary`, the Admin API exposes current safety gates, and
+Cutter keeps reading the existing release/index.
+
 ## Verify Deployment
 
-After the Compose project starts:
+After the Compose project starts for MVP v0.1 staging:
 
 1. Confirm `admin-web` is reachable at `http://NAS_IP:8080`.
 2. Confirm `admin-api` logs show the server listening on `0.0.0.0:3889`.
-3. Confirm `admin-worker` logs show `admin-worker-loop-started`.
-4. Add or approve a source video for preprocessing.
-5. Confirm worker output appears under `.mixlab-library/`.
-6. Confirm `current.json` exists after ready publication.
+3. Confirm `/health` is reachable through the Admin Web/API path used by the deployment.
+4. Confirm `/api/admin/auth/status`, `/api/admin/data-loading/plan`, and
+   `/api/admin/release-gates` are not legacy `404` responses.
+5. Export admin-worker env/inspect evidence and verify
+   `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0`,
+   `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0`,
+   `MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1`, and
+   `MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary`.
+6. Confirm the current ready count remains `10471` and the current Cutter index
+   remains `v010471`.
+7. Run the Cutter compatibility smoke after staging and archive the Windows
+   acceptance plus real cut reports.
+
+Do not add or approve a source video, run scan/apply, enable workers, publish
+ready indexes, or use `current.json` creation as initial MVP v0.1 staging proof.
 
 ## Final Acceptance Evidence
 
@@ -180,9 +207,11 @@ The validator requires:
 ## Update
 
 1. Pull the latest images in the NAS Docker app.
-2. Restart the Compose project.
-3. Confirm `admin-worker` logs show worker cycle output.
-4. Confirm the management UI still opens.
+2. Restart the Compose project with `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0`
+   and `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0` for the initial MVP v0.1 staging run.
+3. Confirm the management UI still opens and current safety endpoints are present.
+4. Confirm Cutter still reads the existing public library release before any
+   controlled preprocess canary is considered.
 
 ## Rollback
 
