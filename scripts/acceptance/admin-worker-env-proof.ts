@@ -185,10 +185,11 @@ function summarize(gates: WorkerEnvGate[]): WorkerEnvSummary {
 
 function requiredCollectionInstructions(): string[] {
   return [
-    "On the NAS host, export the running admin-worker environment without secrets when possible: docker compose --env-file .env -f docker-compose.yml exec admin-worker env | sort > admin-worker.env",
-    "On the NAS host, export container metadata: docker inspect $(docker compose --env-file .env -f docker-compose.yml ps -q admin-worker) > admin-worker.inspect.json",
+    "Prefer the sanitized collector on the NAS host: copy scripts/acceptance/admin-docker-nas-release-inputs-collector.sh into the Compose project folder, then run sh admin-docker-nas-release-inputs-collector.sh <output-dir>.",
+    "Manual fallback on the NAS host: docker compose --env-file .env -f docker-compose.yml exec -T admin-worker sh -lc 'printf \"%s\\n\" \"MIXLAB_ADMIN_DOCKER_MVP_MODE=${MIXLAB_ADMIN_DOCKER_MVP_MODE:-}\" \"MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-}\" \"MIXLAB_ENABLE_READY_PUBLISH_WORKER=${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-}\"' > admin-worker.env",
+    "On the NAS host, export sanitized admin-worker inspect metadata containing only image, name, required worker flags, and library roots; do not store full Config.Env with secrets.",
     "Copy those files into a local evidence folder and run: MIXLAB_ADMIN_WORKER_ENV_FILE=<path>/admin-worker.env MIXLAB_ADMIN_WORKER_INSPECT_JSON=<path>/admin-worker.inspect.json npm run validate:admin-worker-env-proof",
-    "Do not paste secrets into chat. The report records only required flags, library roots, image, and container name."
+    "Do not paste secrets into chat. Evidence files and reports must record only required flags, library roots, image, and container name."
   ];
 }
 
@@ -264,7 +265,7 @@ export function buildAdminWorkerEnvProofReport(input: {
       title: "Worker env proof has no Docker or NAS side effects",
       category: "safety",
       status: "pass",
-      evidence: "This report reads exported evidence files only; it does not contact Docker, restart containers, enable workers, or write NAS files.",
+      evidence: "This report reads sanitized evidence files only; it does not contact Docker, restart containers, enable workers, or write NAS files.",
       blocks_docker_upload: false
     }),
     gate({
@@ -274,7 +275,7 @@ export function buildAdminWorkerEnvProofReport(input: {
       status: envFilePresent ? "pass" : "blocked",
       evidence: envFilePresent ? `Read ${input.env_file_path}.` : "No MIXLAB_ADMIN_WORKER_ENV_FILE was provided.",
       blocks_docker_upload: !envFilePresent,
-      required_evidence: "Provide an exported admin-worker.env file from the NAS host."
+      required_evidence: "Provide a sanitized admin-worker.env file from the NAS host containing only the required MVP worker flags."
     }),
     gate({
       id: "inspect-json-provided",
@@ -283,7 +284,7 @@ export function buildAdminWorkerEnvProofReport(input: {
       status: inspectJsonPresent ? "pass" : "blocked",
       evidence: inspectJsonPresent ? `Read ${input.inspect_json_path}.` : "No MIXLAB_ADMIN_WORKER_INSPECT_JSON was provided.",
       blocks_docker_upload: !inspectJsonPresent,
-      required_evidence: "Provide docker inspect JSON for the running admin-worker container."
+      required_evidence: "Provide sanitized docker inspect JSON for the running admin-worker container without full Config.Env secrets."
     }),
     flagGate({
       id: "env-file-worker-flags-disabled",

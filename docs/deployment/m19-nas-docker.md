@@ -88,7 +88,10 @@ After the Compose project starts for MVP v0.1 staging:
 3. Confirm `/health` is reachable through the Admin Web/API path used by the deployment.
 4. Confirm `/api/admin/auth/status`, `/api/admin/data-loading/plan`, and
    `/api/admin/release-gates` are not legacy `404` responses.
-5. Export admin-worker env/inspect evidence and verify
+5. Copy `scripts/acceptance/admin-docker-nas-release-inputs-collector.sh`
+   into the NAS Compose project folder, then run
+   `sh admin-docker-nas-release-inputs-collector.sh <output-dir>` or use the
+   equivalent whitelist-only commands. Verify
    `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0`,
    `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0`,
    `MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1`, and

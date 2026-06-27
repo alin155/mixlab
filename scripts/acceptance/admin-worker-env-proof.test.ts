@@ -40,7 +40,10 @@ test("admin worker env proof stays blocked and provides collection instructions 
   assert.equal(report.observations.inspect_json_present, false);
   assert.ok(report.summary.upload_blockers.includes("env-file-provided"));
   assert.ok(report.summary.upload_blockers.includes("inspect-json-provided"));
-  assert.ok(report.collection_instructions.some((item) => item.includes("docker inspect")));
+  assert.ok(report.collection_instructions.some((item) => item.includes("admin-docker-nas-release-inputs-collector.sh")));
+  assert.ok(report.collection_instructions.some((item) => item.includes("MIXLAB_ADMIN_DOCKER_MVP_MODE")));
+  assert.equal(report.collection_instructions.some((item) => item.includes("env | sort")), false);
+  assert.equal(report.collection_instructions.some((item) => item.includes("DASHSCOPE_API_KEY")), false);
 });
 
 test("admin worker env proof accepts disabled worker flags and Docker library roots", () => {
