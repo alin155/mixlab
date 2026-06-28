@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "/mixlab-server-admin-worker-1",
+    "Config": {
+      "Image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "Env": [
+        "MIXLAB_ADMIN_DOCKER_MVP_MODE=",
+        "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1",
+        "MIXLAB_ENABLE_READY_PUBLISH_WORKER=1",
+        "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",
+        "MIXLAB_PREPROCESS_LIBRARY_ROOT="
+      ]
+    }
+  }
+]

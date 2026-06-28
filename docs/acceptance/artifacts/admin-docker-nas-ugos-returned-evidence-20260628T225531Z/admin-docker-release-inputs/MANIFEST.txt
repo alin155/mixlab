@@ -1,0 +1,18 @@
+schema_version=1.0
+mode=admin-docker-nas-release-inputs-collector
+collected_at=2026-06-28T22:55:31.062Z
+push_execution_allowed=false
+docker_deploy_allowed=false
+nas_writes_allowed=false
+worker_start_allowed=false
+secret_sanitization=sanitized-only
+forbidden_full_env=true
+forbidden_full_docker_inspect=true
+forbidden_secrets=true
+file=admin-docker-current.env present=true size_bytes=deferred
+file=admin-docker-current.inspect.json present=true size_bytes=deferred
+file=admin-worker.env present=true size_bytes=deferred
+file=admin-worker.inspect.json present=true size_bytes=deferred
+file=admin-docker-disk-proof.json present=true size_bytes=deferred
+file=README.md present=true size_bytes=deferred
+manifest_file=MANIFEST.txt
