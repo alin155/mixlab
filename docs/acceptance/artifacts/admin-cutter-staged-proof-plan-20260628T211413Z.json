@@ -1,0 +1,190 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T21:14:13.939Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-cutter-staged-proof-plan.ts",
+  "mode": "admin-cutter-staged-proof-plan",
+  "plan_ready": true,
+  "docker_upload_allowed": false,
+  "run_policy": {
+    "plan_only": true,
+    "windows_runner_touched": false,
+    "nas_runtime_touched": false,
+    "docker_touched": false,
+    "cutter_protocol_changed": false,
+    "secrets_recorded": false
+  },
+  "inputs": {
+    "runner_base_url": "http://192.168.1.20:3799",
+    "candidate_image_tag": "25fe2264de7b391a56e770a8acb6bf40ebec3863",
+    "expected_ready_count": 10471,
+    "expected_release_version": "v010471",
+    "real_cut_query": "第一场",
+    "include_desktop_screenshot": true
+  },
+  "request_templates": [
+    {
+      "order": 1,
+      "suite": "windows_acceptance",
+      "purpose": "Prove Cutter public library, search, transcript detail, reviewed auth, and cache remain compatible with the staged Admin Docker candidate.",
+      "method": "POST",
+      "endpoint": "http://192.168.1.20:3799/runs",
+      "body": {
+        "suite": "windows_acceptance",
+        "options": {
+          "auth_headers": {
+            "device_id": "<approved-cutter-device-id>",
+            "session_token": "<approved-cutter-session-token>"
+          }
+        }
+      },
+      "report_path_placeholder": "<share_root>/reports/<windows_acceptance_run_id>/report.json"
+    },
+    {
+      "order": 2,
+      "suite": "real_cut_smoke",
+      "purpose": "Prove Cutter can still create and complete a real public-library cut after the staged Admin Docker candidate.",
+      "method": "POST",
+      "endpoint": "http://192.168.1.20:3799/runs",
+      "body": {
+        "suite": "real_cut_smoke",
+        "options": {
+          "auth_headers": {
+            "device_id": "<approved-cutter-device-id>",
+            "session_token": "<approved-cutter-session-token>"
+          },
+          "query": "第一场",
+          "cut_mode": "copy",
+          "max_duration_ms": 1500
+        }
+      },
+      "report_path_placeholder": "<share_root>/reports/<real_cut_smoke_run_id>/report.json"
+    },
+    {
+      "order": 3,
+      "suite": "desktop_ui_screenshot_smoke",
+      "purpose": "Optional UI smoke evidence for the staged Cutter desktop state.",
+      "method": "POST",
+      "endpoint": "http://192.168.1.20:3799/runs",
+      "body": {
+        "suite": "desktop_ui_screenshot_smoke",
+        "options": {
+          "auth_headers": {
+            "device_id": "<approved-cutter-device-id>",
+            "session_token": "<approved-cutter-session-token>"
+          }
+        }
+      },
+      "report_path_placeholder": "<share_root>/reports/<desktop_ui_screenshot_smoke_run_id>/report.json"
+    }
+  ],
+  "command_templates": {
+    "preflight": [
+      "curl --noproxy '*' -sS 'http://192.168.1.20:3799/health'",
+      "curl --noproxy '*' -sS 'http://192.168.1.20:3799/version'",
+      "Confirm the staged Admin Docker candidate is already deployed to the staging target and live-readonly/parity probes are rerun before starting these Cutter checks."
+    ],
+    "start_runs": [
+      "# Start windows_acceptance; copy the returned run.id into the matching <..._run_id> placeholder below.\ncurl --noproxy '*' -sS -X POST 'http://192.168.1.20:3799/runs' -H 'content-type: application/json' --data-raw '{\"suite\":\"windows_acceptance\",\"options\":{\"auth_headers\":{\"device_id\":\"<approved-cutter-device-id>\",\"session_token\":\"<approved-cutter-session-token>\"}}}'",
+      "# Start real_cut_smoke; copy the returned run.id into the matching <..._run_id> placeholder below.\ncurl --noproxy '*' -sS -X POST 'http://192.168.1.20:3799/runs' -H 'content-type: application/json' --data-raw '{\"suite\":\"real_cut_smoke\",\"options\":{\"auth_headers\":{\"device_id\":\"<approved-cutter-device-id>\",\"session_token\":\"<approved-cutter-session-token>\"},\"query\":\"第一场\",\"cut_mode\":\"copy\",\"max_duration_ms\":1500}}'",
+      "# Start desktop_ui_screenshot_smoke; copy the returned run.id into the matching <..._run_id> placeholder below.\ncurl --noproxy '*' -sS -X POST 'http://192.168.1.20:3799/runs' -H 'content-type: application/json' --data-raw '{\"suite\":\"desktop_ui_screenshot_smoke\",\"options\":{\"auth_headers\":{\"device_id\":\"<approved-cutter-device-id>\",\"session_token\":\"<approved-cutter-session-token>\"}}}'"
+    ],
+    "poll_reports": [
+      "curl --noproxy '*' -sS 'http://192.168.1.20:3799/runs/<windows_acceptance_run_id>/report' > '<share_root>/reports/<windows_acceptance_run_id>/report.json'",
+      "curl --noproxy '*' -sS 'http://192.168.1.20:3799/runs/<real_cut_smoke_run_id>/report' > '<share_root>/reports/<real_cut_smoke_run_id>/report.json'",
+      "curl --noproxy '*' -sS 'http://192.168.1.20:3799/runs/<desktop_ui_screenshot_smoke_run_id>/report' > '<share_root>/reports/<desktop_ui_screenshot_smoke_run_id>/report.json'"
+    ],
+    "validate_proof": "MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT='<share_root>/reports/<windows_acceptance_run_id>/report.json' \\\nMIXLAB_CUTTER_REAL_CUT_REPORT='<share_root>/reports/<real_cut_smoke_run_id>/report.json' \\\nMIXLAB_CUTTER_EXPECTED_READY_COUNT=10471 \\\nMIXLAB_CUTTER_EXPECTED_RELEASE_VERSION=v010471 \\\nMIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT='<share_root>/reports/<desktop_ui_screenshot_smoke_run_id>/report.json' \\\nnpm run validate:admin-cutter-compatibility-proof"
+  },
+  "gates": [
+    {
+      "id": "plan-no-side-effects",
+      "title": "Staged Cutter proof plan has no runtime side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report only writes a local plan artifact; it does not contact Windows Runner, Docker, NAS, Admin API, or Cutter API.",
+      "blocks_plan_ready": false
+    },
+    {
+      "id": "candidate-image-tag-provided",
+      "title": "Staged candidate image tag is explicit",
+      "category": "input",
+      "status": "pass",
+      "evidence": "candidate_image_tag=25fe2264de7b391a56e770a8acb6bf40ebec3863",
+      "blocks_plan_ready": false,
+      "required_evidence": "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG or provide the candidate image tag from the accepted Admin Docker smoke artifact."
+    },
+    {
+      "id": "runner-base-url-mac-reachable",
+      "title": "Windows Runner URL is Mac-reachable",
+      "category": "runner",
+      "status": "pass",
+      "evidence": "runner_base_url=http://192.168.1.20:3799",
+      "blocks_plan_ready": false,
+      "required_evidence": "Use the Windows LAN address from the environment registry, not Mac localhost."
+    },
+    {
+      "id": "expected-ready-count-positive",
+      "title": "Expected ready count is positive",
+      "category": "input",
+      "status": "pass",
+      "evidence": "expected_ready_count=10471",
+      "blocks_plan_ready": false,
+      "required_evidence": "MVP compatibility proof must assert the current ready baseline."
+    },
+    {
+      "id": "expected-release-version-provided",
+      "title": "Expected release/index version is explicit",
+      "category": "input",
+      "status": "pass",
+      "evidence": "expected_release_version=v010471",
+      "blocks_plan_ready": false,
+      "required_evidence": "MVP v0.1 must prove Cutter release/index did not drift."
+    },
+    {
+      "id": "required-suites-planned",
+      "title": "Required Windows Runner suites are planned",
+      "category": "proof",
+      "status": "pass",
+      "evidence": "suites=windows_acceptance, real_cut_smoke, desktop_ui_screenshot_smoke",
+      "blocks_plan_ready": false,
+      "required_evidence": "Plan must include both windows_acceptance and real_cut_smoke."
+    },
+    {
+      "id": "auth-values-not-recorded",
+      "title": "Auth values are not recorded in the plan",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Request templates contain placeholders for approved Cutter auth headers only.",
+      "blocks_plan_ready": false
+    },
+    {
+      "id": "proof-command-prepared",
+      "title": "Final compatibility proof command is prepared",
+      "category": "proof",
+      "status": "pass",
+      "evidence": "validate:admin-cutter-compatibility-proof command template is present.",
+      "blocks_plan_ready": false,
+      "required_evidence": "Plan must end with the existing proof validator."
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "blocked": 0,
+    "plan_blockers": []
+  },
+  "next_actions": [
+    "After the staged Admin Docker candidate 25fe2264de7b391a56e770a8acb6bf40ebec3863 exists, run the preflight commands against the Windows Runner.",
+    "Start windows_acceptance and real_cut_smoke with an already approved Cutter session; do not store auth values in artifacts.",
+    "Validate that Cutter still sees at least 10471 ready videos and release/index v010471.",
+    "Run the generated validate:admin-cutter-compatibility-proof command and archive the accepted proof before Docker MVP final review."
+  ],
+  "result": {
+    "status": "ready-for-staged-cutter-proof",
+    "summary": "Staged Cutter proof plan is ready; it still does not contact Windows Runner or approve Docker upload."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-cutter-staged-proof-plan-20260628T211413Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-cutter-staged-proof-plan-20260628T211413Z.md"
+  }
+}

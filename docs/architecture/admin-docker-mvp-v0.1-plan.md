@@ -102,6 +102,8 @@ MVP v0.1 不做：
 - NAS access preflight refresh：`docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T204410Z.json`，确认 NAS 共享已可见 portable kit，但 `nas_collection_directly_available=false`；阻塞项仍为 SSH 不可用、compose project 未在 SMB 可见、returned evidence 未返回。
 - staging runbook：`docs/acceptance/artifacts/admin-docker-staging-runbook-20260628T204026Z.json`，`staging_execution_ready=false`，`staging_review_ready=false`，`docker_deploy_allowed=false`；仍缺 current/target/rollback tag、显式 push approval、release inputs、NAS disk proof、parity、admin-worker 与 Cutter staged-candidate proof。
 - release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T210825Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `13` 个 gate、`5` 个通过、`8` 个阻塞，阻塞项为 live readonly、parity、worker proof、Cutter proof、NAS returned evidence intake、returned evidence precheck、release inputs、staging runbook；新增 `automation_boundary` 明确本地只读/证据工作可继续，但 NAS runtime 变更、image push、Docker deploy 均不允许。
+- latest read-only refresh：`docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T211731Z.json` 继续证明 `18080` 仍是旧 Admin API 合约，`auth/status`、`release-gates`、`data-loading/plan` 返回 `404`；`library/status` 仍为 `/data/PublicLibrary`、`11394` total、`10471` ready、current index `v010471`。同轮 `docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T211711Z.json` 显示 handoff archive 可见，但 SSH/Compose project/returned evidence 仍不可用；`docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T211711Z.json` 显示 UGOS API 仍不能替代正式 NAS collector。
+- Cutter staged proof plan：`docs/acceptance/artifacts/admin-cutter-staged-proof-plan-20260628T211413Z.json` 为 plan-only，已为候选 `25fe2264de7b391a56e770a8acb6bf40ebec3863` 生成 Windows Runner `windows_acceptance`、`real_cut_smoke` 和可选 `desktop_ui_screenshot_smoke` 的请求/轮询/验证命令模板；它不接触 Windows Runner、NAS、Docker、Admin API 或 Cutter API，不记录 auth 值，也不批准 Docker upload。
 
 这批证据只清除了“当前远端 Docker 候选构建/候选 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。当前总门禁视图显示 NAS 手工采集路径已准备好，但 NAS returned evidence intake、NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof、显式 push approval 和最终发布决策仍未完成。
 
@@ -351,6 +353,12 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - Cutter 详情可用。
 - Cutter 真实剪切 smoke 可用。
 - Cutter 登录/剪辑师准入符合预期。
+
+当前进展：
+
+- 已新增 `plan:admin-cutter-staged-proof`，生成 staged-candidate Cutter proof 的计划产物，不直接运行 Windows Runner，也不触碰 NAS/Docker/Cutter runtime。
+- 当前 plan artifact `docs/acceptance/artifacts/admin-cutter-staged-proof-plan-20260628T211413Z.json` 已准备好候选 `25fe2264de7b391a56e770a8acb6bf40ebec3863` 的 `windows_acceptance`、`real_cut_smoke`、可选 `desktop_ui_screenshot_smoke` 命令模板，并把最终验证收口到 `npm run validate:admin-cutter-compatibility-proof`。
+- 该计划只证明 Phase 5 的执行步骤已收束；真正的 Phase 5 通过仍需要 staged Admin Docker candidate 实际运行后生成 Windows Runner 报告，并验证 ready `10471` 与 current index `v010471` 未漂移。
 
 ### Phase 6: MVP 后中长期架构继续
 
