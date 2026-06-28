@@ -41,6 +41,10 @@ function report(input: {
   dockerUidMessage?: string;
   containerListCode?: string;
   containerListMessage?: string;
+  containerListV2Code?: string;
+  containerListV2Message?: string;
+  overviewCode?: string;
+  overviewMessage?: string;
   cookiePresent?: boolean;
   queryTokenPresent?: boolean;
 } = {}) {
@@ -74,6 +78,20 @@ function report(input: {
         message: input.containerListMessage ?? "",
         shape: "object(app_id)"
       }),
+      probe({
+        name: "docker_container_list_v2",
+        path: "/ugreen/v1/docker/container/ContainerListV2",
+        code: input.containerListV2Code ?? input.loginCode ?? "1024",
+        message: input.containerListV2Message ?? input.loginMessage ?? "Login has expired, please login again!",
+        shape: "object(originalTotal,result,total)"
+      }),
+      probe({
+        name: "docker_overview",
+        path: "/ugreen/v1/docker/view/ObtainOverviewInfo",
+        code: input.overviewCode ?? input.loginCode ?? "1024",
+        message: input.overviewMessage ?? input.loginMessage ?? "Login has expired, please login again!",
+        shape: "object(containerCount,runContainerCount,status)"
+      }),
       probe({ name: "filemgr_share_list", code: input.loginCode ?? "1024", message: input.loginMessage ?? "Login has expired, please login again!" }),
       probe({ name: "machine_common", code: input.loginCode ?? "1024", message: input.loginMessage ?? "Login has expired, please login again!" })
     ]
@@ -100,7 +118,11 @@ test("UGOS API preflight does not treat Docker app context error as collection r
     dockerUidCode: "9405",
     dockerUidMessage: "",
     containerListCode: "9405",
-    containerListMessage: ""
+    containerListMessage: "",
+    containerListV2Code: "1024",
+    containerListV2Message: "Login has expired, please login again!",
+    overviewCode: "1024",
+    overviewMessage: "Login has expired, please login again!"
   });
 
   assert.equal(built.direct_ugos_collection_available, false);
@@ -115,8 +137,12 @@ test("UGOS API preflight can become browserless-collection-ready with authentica
     loginMessage: "ok",
     dockerUidCode: "200",
     dockerUidMessage: "ok",
-    containerListCode: "200",
-    containerListMessage: "ok",
+    containerListCode: "9405",
+    containerListMessage: "",
+    containerListV2Code: "200",
+    containerListV2Message: "ok",
+    overviewCode: "200",
+    overviewMessage: "ok",
     queryTokenPresent: true
   });
 
@@ -124,6 +150,25 @@ test("UGOS API preflight can become browserless-collection-ready with authentica
   assert.equal(built.direct_ugos_collection_available, true);
   assert.equal(built.summary.browserless_collection_blockers.length, 0);
   assert.equal(built.docker_deploy_allowed, false);
+});
+
+test("UGOS API preflight ignores legacy ContainerList when Docker app V2 list is readable", () => {
+  const built = report({
+    loginCode: "200",
+    loginMessage: "ok",
+    dockerUidCode: "200",
+    dockerUidMessage: "ok",
+    containerListCode: "9405",
+    containerListMessage: "",
+    containerListV2Code: "200",
+    containerListV2Message: "ok",
+    overviewCode: "200",
+    overviewMessage: "ok",
+    queryTokenPresent: true
+  });
+
+  assert.equal(built.direct_ugos_collection_available, true);
+  assert.ok(!built.summary.browserless_collection_blockers.includes("docker-container-list-readable"));
 });
 
 test("UGOS API preflight markdown records safety boundary without auth values", () => {

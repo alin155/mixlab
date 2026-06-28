@@ -1,0 +1,284 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T21:39:08.267Z",
+  "command": "authenticated in-memory UGOS API preflight; credentials and token not recorded",
+  "mode": "admin-docker-nas-ugos-api-preflight",
+  "target": {
+    "base_url": "http://192.168.1.27:9999",
+    "normalized_base_url": "http://192.168.1.27:9999"
+  },
+  "no_side_effects": true,
+  "direct_ugos_collection_available": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "docker_runtime_touched": false,
+  "observations": {
+    "desktop_version": "1.15.0.77682",
+    "desktop_build": "4/23/2026",
+    "auth_header_inputs": {
+      "cookie_present": false,
+      "query_token_present": true,
+      "x_ugreen_auth_present": false,
+      "authorization_present": false
+    },
+    "probes": [
+      {
+        "name": "desktop_html",
+        "path": "/desktop/",
+        "expected_json": false,
+        "notes": "UGOS desktop HTML shell.",
+        "url": "http://192.168.1.27:9999/desktop/",
+        "status": "ok",
+        "duration_ms": 4.3,
+        "http_status": 200,
+        "content_type": "text/html",
+        "response_bytes": 3618,
+        "api_code": "",
+        "api_message": "",
+        "data_shape": "html",
+        "error": ""
+      },
+      {
+        "name": "verify_is_login",
+        "path": "/ugreen/v1/verify/is_login",
+        "expected_json": true,
+        "notes": "Current UGOS session status.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/verify/is_login",
+        "status": "ok",
+        "duration_ms": 53.9,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 190,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(avatar,need_bind,support_biometric,wallpaper)",
+        "error": ""
+      },
+      {
+        "name": "current_user",
+        "path": "/ugreen/v1/user/current/user",
+        "expected_json": true,
+        "notes": "Current authenticated user, if a session is available.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/user/current/user",
+        "status": "ok",
+        "duration_ms": 22.2,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 801,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(account_type,auth_list,cloud_backup,clusterId,date_format,deny_change_pwd,description,dir_quota,edev,email,enable_change_pwd,enable_home_dir)",
+        "error": ""
+      },
+      {
+        "name": "docker_app_uid",
+        "path": "/ugreen/v1/docker/app/GetUid",
+        "expected_json": true,
+        "notes": "Docker app context uid used by the UGOS Docker panel.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/docker/app/GetUid",
+        "status": "ok",
+        "duration_ms": 11.3,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 103,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(result)",
+        "error": ""
+      },
+      {
+        "name": "docker_container_list",
+        "path": "/ugreen/v1/docker/container/ContainerList",
+        "expected_json": true,
+        "notes": "Legacy read-only Docker container list endpoint. Kept as a compatibility signal.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/docker/container/ContainerList",
+        "status": "ok",
+        "duration_ms": 32.8,
+        "http_status": 200,
+        "content_type": "application/json",
+        "response_bytes": 75,
+        "api_code": "9405",
+        "api_message": "",
+        "data_shape": "object(no-keys)",
+        "error": ""
+      },
+      {
+        "name": "docker_container_list_v2",
+        "path": "/ugreen/v1/docker/container/ContainerListV2",
+        "method": "POST",
+        "body": {
+          "pageNum": 1,
+          "pageSize": 20
+        },
+        "expected_json": true,
+        "notes": "Docker app read-only container list endpoint used by the UGOS Docker UI.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/docker/container/ContainerListV2",
+        "status": "ok",
+        "duration_ms": 15,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 1174,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(originalTotal,result,total)",
+        "error": ""
+      },
+      {
+        "name": "docker_overview",
+        "path": "/ugreen/v1/docker/view/ObtainOverviewInfo",
+        "expected_json": true,
+        "notes": "Docker app read-only overview endpoint.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/docker/view/ObtainOverviewInfo",
+        "status": "ok",
+        "duration_ms": 39.1,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 1138,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(containerCount,containerCpuUsed,containerMemory,containerTotalMemory,cpuUsed,dataVolume,imageCount,memoryUsed,overviewContainers,projectCounr,runContainerCount,runProjectCounr)",
+        "error": ""
+      },
+      {
+        "name": "filemgr_share_list",
+        "path": "/ugreen/v1/filemgr/getShareList",
+        "expected_json": true,
+        "notes": "Read-only shared-folder list endpoint.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/filemgr/getShareList",
+        "status": "ok",
+        "duration_ms": 43.2,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 1495,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(result)",
+        "error": ""
+      },
+      {
+        "name": "machine_common",
+        "path": "/ugreen/v1/sysinfo/machine/common",
+        "expected_json": true,
+        "notes": "Read-only machine info endpoint.",
+        "url": "http://192.168.1.27:9999/ugreen/v1/sysinfo/machine/common",
+        "status": "ok",
+        "duration_ms": 199,
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "response_bytes": 1008,
+        "api_code": "200",
+        "api_message": "success",
+        "data_shape": "object(common,hardware)",
+        "error": ""
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": "ugos-api-preflight-no-side-effects",
+      "title": "UGOS API preflight is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Only GET requests and Docker UI read-list POST requests are used; no login, upload, Docker mutation, container exec, compose edit, or PublicLibrary write is attempted.",
+      "blocks_browserless_collection": false,
+      "blocks_staging_review": false
+    },
+    {
+      "id": "ugos-auth-inputs-not-recorded",
+      "title": "UGOS auth inputs are not recorded",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "cookie_present=false, query_token_present=true, x_ugreen_auth_present=false, authorization_present=false; values are not written to artifacts.",
+      "blocks_browserless_collection": false,
+      "blocks_staging_review": false
+    },
+    {
+      "id": "ugos-desktop-reachable",
+      "title": "UGOS desktop HTTP shell is reachable",
+      "category": "desktop",
+      "status": "pass",
+      "evidence": "http=200, bytes=3618, error=none",
+      "blocks_browserless_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "NAS desktop /desktop/ must be reachable before trying UGOS API collection."
+    },
+    {
+      "id": "ugos-api-json-reachable",
+      "title": "UGOS JSON API is reachable",
+      "category": "api",
+      "status": "pass",
+      "evidence": "verify_is_login:http=200 code=200, current_user:http=200 code=200, docker_app_uid:http=200 code=200, docker_container_list:http=200 code=9405, docker_container_list_v2:http=200 code=200, docker_overview:http=200 code=200, filemgr_share_list:http=200 code=200, machine_common:http=200 code=200",
+      "blocks_browserless_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "At least one UGOS JSON API endpoint should return HTTP 200."
+    },
+    {
+      "id": "ugos-session-authenticated",
+      "title": "UGOS session is authenticated",
+      "category": "auth",
+      "status": "pass",
+      "evidence": "verify_is_login code=200, message=success",
+      "blocks_browserless_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "Provide an authenticated UGOS session through a temporary Cookie/X-Ugreen-Auth header; do not store NAS password in files or reports."
+    },
+    {
+      "id": "docker-app-context-ready",
+      "title": "UGOS Docker app context is ready",
+      "category": "docker",
+      "status": "pass",
+      "evidence": "docker_app_uid code=200, message=success, shape=object(result)",
+      "blocks_browserless_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "UGOS Docker app uid/context must be readable before browserless Docker evidence collection can replace SSH/desktop handoff."
+    },
+    {
+      "id": "docker-container-list-readable",
+      "title": "Docker container list is readable through UGOS API",
+      "category": "docker",
+      "status": "pass",
+      "evidence": "docker_container_list_v2 code=200, message=success, shape=object(originalTotal,result,total); legacy docker_container_list code=9405",
+      "blocks_browserless_collection": true,
+      "blocks_staging_review": true,
+      "required_evidence": "Docker app ContainerListV2 must be readable before UGOS API can collect current-image and worker proof."
+    },
+    {
+      "id": "docker-overview-readable",
+      "title": "Docker overview is readable through UGOS API",
+      "category": "docker",
+      "status": "pass",
+      "evidence": "docker_overview code=200, message=success, shape=object(containerCount,containerCpuUsed,containerMemory,containerTotalMemory,cpuUsed,dataVolume,imageCount,memoryUsed,overviewContainers,projectCounr,runContainerCount,runProjectCounr)",
+      "blocks_browserless_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "Docker overview should be readable before browserless Docker evidence collection replaces desktop observation."
+    },
+    {
+      "id": "ugos-api-does-not-approve-deploy",
+      "title": "UGOS API preflight does not approve deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "push_execution_allowed=false, docker_deploy_allowed=false, docker_runtime_touched=false",
+      "blocks_browserless_collection": false,
+      "blocks_staging_review": false
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 9,
+    "blocked": 0,
+    "browserless_collection_blockers": [],
+    "staging_review_blockers": []
+  },
+  "next_actions": [
+    "Use the authenticated UGOS API path to implement a browserless NAS Docker evidence collector.",
+    "Keep Docker deploy disabled until returned release inputs, disk proof, worker proof, and Cutter proof are accepted."
+  ],
+  "result": {
+    "status": "browserless-collection-ready",
+    "summary": "UGOS API is authenticated and can be used as a browserless NAS Docker evidence path."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T213908Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T213908Z.md"
+  }
+}

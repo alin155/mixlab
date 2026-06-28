@@ -13,6 +13,8 @@ type GateCategory = "safety" | "desktop" | "api" | "auth" | "docker";
 interface UgosApiProbeDefinition {
   name: string;
   path: string;
+  method?: "GET" | "POST";
+  body?: Record<string, unknown>;
   expected_json: boolean;
   notes: string;
 }
@@ -116,7 +118,24 @@ const PROBES: UgosApiProbeDefinition[] = [
     name: "docker_container_list",
     path: "/ugreen/v1/docker/container/ContainerList",
     expected_json: true,
-    notes: "Read-only Docker container list endpoint."
+    notes: "Legacy read-only Docker container list endpoint. Kept as a compatibility signal."
+  },
+  {
+    name: "docker_container_list_v2",
+    path: "/ugreen/v1/docker/container/ContainerListV2",
+    method: "POST",
+    body: {
+      pageNum: 1,
+      pageSize: 20
+    },
+    expected_json: true,
+    notes: "Docker app read-only container list endpoint used by the UGOS Docker UI."
+  },
+  {
+    name: "docker_overview",
+    path: "/ugreen/v1/docker/view/ObtainOverviewInfo",
+    expected_json: true,
+    notes: "Docker app read-only overview endpoint."
   },
   {
     name: "filemgr_share_list",
@@ -295,12 +314,19 @@ async function probeUgosApi(input: {
   const fetchUrl = input.query_token
     ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(input.query_token)}`
     : url;
+  const requestBody = input.definition.body ? JSON.stringify(input.definition.body) : undefined;
   const started = performance.now();
 
   try {
     const response = await fetch(fetchUrl, {
-      method: "GET",
-      headers: input.headers,
+      method: input.definition.method ?? "GET",
+      headers: requestBody
+        ? {
+            ...input.headers,
+            "Content-Type": "application/json"
+          }
+        : input.headers,
+      body: requestBody,
       redirect: "manual",
       signal: controller.signal
     });
@@ -393,16 +419,20 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
   const loginProbe = byName.get("verify_is_login");
   const dockerUidProbe = byName.get("docker_app_uid");
   const containerListProbe = byName.get("docker_container_list");
+  const containerListV2Probe = byName.get("docker_container_list_v2");
+  const dockerOverviewProbe = byName.get("docker_overview");
   const desktopReachable = Boolean(desktopProbe && desktopProbe.status === "ok" && desktopProbe.http_status === 200);
   const apiReachable = input.probes.some((item) => item.expected_json && item.status === "ok" && item.http_status === 200);
   const sessionAuthenticated = apiPassed(loginProbe);
   const dockerAppContextReady = apiPassed(dockerUidProbe);
-  const dockerContainerListReadable = apiPassed(containerListProbe);
+  const dockerContainerListReadable = apiPassed(containerListV2Probe);
+  const dockerOverviewReadable = apiPassed(dockerOverviewProbe);
   const directCollectionAvailable = desktopReachable &&
     apiReachable &&
     sessionAuthenticated &&
     dockerAppContextReady &&
-    dockerContainerListReadable;
+    dockerContainerListReadable &&
+    dockerOverviewReadable;
   const desktopDetails = desktopProbe ? desktopVersionFromHtml("") : { desktop_version: "", desktop_build: "" };
 
   const gates = [
@@ -411,7 +441,7 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
       title: "UGOS API preflight is read-only",
       category: "safety",
       status: "pass",
-      evidence: "Only GET requests are used; no login, upload, Docker mutation, container exec, compose edit, or PublicLibrary write is attempted.",
+      evidence: "Only GET requests and Docker UI read-list POST requests are used; no login, upload, Docker mutation, container exec, compose edit, or PublicLibrary write is attempted.",
       blocks_browserless_collection: false,
       blocks_staging_review: false
     }),
@@ -474,10 +504,20 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
       title: "Docker container list is readable through UGOS API",
       category: "docker",
       status: dockerContainerListReadable ? "pass" : "blocked",
-      evidence: `docker_container_list code=${apiCode(containerListProbe) || "n/a"}, message=${apiMessage(containerListProbe) || containerListProbe?.error || "none"}, shape=${containerListProbe?.data_shape || "n/a"}`,
+      evidence: `docker_container_list_v2 code=${apiCode(containerListV2Probe) || "n/a"}, message=${apiMessage(containerListV2Probe) || containerListV2Probe?.error || "none"}, shape=${containerListV2Probe?.data_shape || "n/a"}; legacy docker_container_list code=${apiCode(containerListProbe) || "n/a"}`,
       blocks_browserless_collection: true,
       blocks_staging_review: true,
-      required_evidence: "Container list must be readable before UGOS API can collect current-image and worker proof."
+      required_evidence: "Docker app ContainerListV2 must be readable before UGOS API can collect current-image and worker proof."
+    }),
+    gate({
+      id: "docker-overview-readable",
+      title: "Docker overview is readable through UGOS API",
+      category: "docker",
+      status: dockerOverviewReadable ? "pass" : "blocked",
+      evidence: `docker_overview code=${apiCode(dockerOverviewProbe) || "n/a"}, message=${apiMessage(dockerOverviewProbe) || dockerOverviewProbe?.error || "none"}, shape=${dockerOverviewProbe?.data_shape || "n/a"}`,
+      blocks_browserless_collection: true,
+      blocks_staging_review: false,
+      required_evidence: "Docker overview should be readable before browserless Docker evidence collection replaces desktop observation."
     }),
     gate({
       id: "ugos-api-does-not-approve-deploy",
