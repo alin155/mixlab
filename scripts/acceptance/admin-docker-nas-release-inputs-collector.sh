@@ -134,4 +134,26 @@ npm run validate:admin-docker-nas-image-proof
 MIXLAB_ADMIN_WORKER_ENV_FILE=<path>/admin-worker.env \\
 MIXLAB_ADMIN_WORKER_INSPECT_JSON=<path>/admin-worker.inspect.json \\
 npm run validate:admin-worker-env-proof
+
+This collector is read-only evidence collection. Do not edit NAS .env, restart
+NAS containers, enable workers, or run push_images=true from these instructions.
+The admin-worker proof must show MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0 and
+MIXLAB_ENABLE_READY_PUBLISH_WORKER=0 before any Docker upload or staging
+decision.
+
+After those proof reports exist, generate release inputs and bind them into the
+staging runbook from the Mac repo:
+MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=<path>/admin-docker-prestaging-handoff-*.json \\
+MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=<path>/admin-docker-nas-image-proof-*.json \\
+npm run validate:admin-docker-release-inputs
+
+MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=<path>/admin-docker-release-inputs-*.json \\
+MIXLAB_DOCKER_CURRENT_IMAGE_TAG=<current-admin-docker-image-tag> \\
+MIXLAB_DOCKER_TARGET_IMAGE_TAG=<candidate-40-char-commit-sha> \\
+MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG=<same-as-current-image-tag> \\
+npm run validate:admin-docker-staging-runbook
+
+Stop before staging execution if release_inputs_ready=false,
+staging_execution_ready=false, or the staging runbook carries
+nas-disk-risk-carried-forward.
 EOF
