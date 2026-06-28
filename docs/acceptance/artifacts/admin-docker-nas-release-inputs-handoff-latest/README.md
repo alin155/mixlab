@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T20:43:43.862Z
+Generated: 2026-06-28T22:08:01.089Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes
@@ -11,7 +11,7 @@ Docker deploy allowed: no
 
 - Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T203935Z.json
 - Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T203900Z.json
-- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T203944Z.json
+- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T220358Z.json
 - Collector source: /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh
 
 ## Candidate
@@ -102,7 +102,7 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 | handoff-no-side-effects | safety | pass | no | no | no | no | This report reads existing local JSON reports and copies the sanitized NAS collector; it does not contact NAS, Docker, GitHub, Admin API, or Cutter. |
 | prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T203935Z.json |
 | candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T203900Z.json |
-| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T203944Z.json |
+| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T220358Z.json |
 | collector-source-provided | nas-collection | pass | no | no | yes | yes | /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh |
 | candidate-ref-proof-accepted | candidate | pass | no | yes | yes | yes | candidate_ref_proof_accepted=true |
 | candidate-ref-proof-does-not-approve-deploy | safety | pass | yes | yes | yes | yes | candidate_ref_proof.docker_deploy_allowed=false |

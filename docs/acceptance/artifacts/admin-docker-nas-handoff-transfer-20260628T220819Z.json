@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T22:08:19.997Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-handoff-transfer.ts",
+  "mode": "admin-docker-nas-handoff-transfer",
+  "source_archive_path": "dist/acceptance/admin-docker-nas-handoff-kit.tar.gz",
+  "destination_dir": "/Volumes/MixLab/安装包/mixlab-admin-docker-handoff",
+  "destination_archive_path": "/Volumes/MixLab/安装包/mixlab-admin-docker-handoff/admin-docker-nas-handoff-kit.tar.gz",
+  "transfer_completed": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "nas_public_library_writes_allowed": false,
+  "docker_runtime_touched": false,
+  "observations": {
+    "source_archive": {
+      "path": "dist/acceptance/admin-docker-nas-handoff-kit.tar.gz",
+      "sha256": "6e73f0867694a5578baf6fb895d33e8edabe993e10f1fa44e982a4d459891fca",
+      "size_bytes": 9810
+    },
+    "destination_archive": {
+      "path": "/Volumes/MixLab/安装包/mixlab-admin-docker-handoff/admin-docker-nas-handoff-kit.tar.gz",
+      "sha256": "6e73f0867694a5578baf6fb895d33e8edabe993e10f1fa44e982a4d459891fca",
+      "size_bytes": 9810
+    },
+    "destination_is_public_library": false,
+    "destination_is_recycle": false,
+    "dry_run": false
+  },
+  "gates": [
+    {
+      "id": "transfer-is-handoff-only",
+      "title": "Transfer touches only the NAS handoff share",
+      "status": "pass",
+      "evidence": "This report copies a prepared handoff archive only; it does not contact Docker, edit compose/.env, start containers, enable workers, preprocess media, publish indexes, or write PublicLibrary.",
+      "blocks_transfer": false
+    },
+    {
+      "id": "destination-not-public-library",
+      "title": "Destination is not PublicLibrary or recycle",
+      "status": "pass",
+      "evidence": "destination=/Volumes/MixLab/安装包/mixlab-admin-docker-handoff, public_library=false, recycle=false",
+      "blocks_transfer": false,
+      "required_evidence": "Use a handoff destination outside PublicLibrary and #recycle, such as /Volumes/MixLab/安装包/mixlab-admin-docker-handoff."
+    },
+    {
+      "id": "source-archive-present",
+      "title": "Source handoff archive exists",
+      "status": "pass",
+      "evidence": "dist/acceptance/admin-docker-nas-handoff-kit.tar.gz sha256=6e73f0867694a5578baf6fb895d33e8edabe993e10f1fa44e982a4d459891fca size=9810",
+      "blocks_transfer": false,
+      "required_evidence": "Run package:admin-docker-nas-handoff-kit before transferring."
+    },
+    {
+      "id": "destination-archive-written",
+      "title": "Destination archive is written",
+      "status": "pass",
+      "evidence": "/Volumes/MixLab/安装包/mixlab-admin-docker-handoff/admin-docker-nas-handoff-kit.tar.gz sha256=6e73f0867694a5578baf6fb895d33e8edabe993e10f1fa44e982a4d459891fca size=9810",
+      "blocks_transfer": false,
+      "required_evidence": "Copy the handoff archive into the NAS handoff share and verify it is readable."
+    },
+    {
+      "id": "destination-sha-matches-source",
+      "title": "Destination archive matches source",
+      "status": "pass",
+      "evidence": "source_sha=6e73f0867694a5578baf6fb895d33e8edabe993e10f1fa44e982a4d459891fca, destination_sha=6e73f0867694a5578baf6fb895d33e8edabe993e10f1fa44e982a4d459891fca",
+      "blocks_transfer": false,
+      "required_evidence": "Destination archive sha256 and size must match the local source archive."
+    },
+    {
+      "id": "transfer-does-not-approve-deploy",
+      "title": "Transfer does not approve Docker push or deploy",
+      "status": "pass",
+      "evidence": "push_execution_allowed=false, docker_deploy_allowed=false, nas_public_library_writes_allowed=false, docker_runtime_touched=false",
+      "blocks_transfer": false
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "blocked": 0,
+    "transfer_blockers": []
+  },
+  "result": {
+    "status": "transferred",
+    "summary": "Admin Docker NAS handoff kit archive was copied to the NAS handoff share and verified by sha256."
+  },
+  "next_actions": [
+    "NAS share now has /Volumes/MixLab/安装包/mixlab-admin-docker-handoff/admin-docker-nas-handoff-kit.tar.gz.",
+    "From the NAS desktop or NAS shell, extract admin-docker-nas-handoff-kit.tar.gz, run sh ./KIT-SELF-CHECK.sh, then copy its nas/ folder into the Admin Docker Compose project folder.",
+    "Run sh ./nas/RUN_ON_NAS.sh from the Compose project folder, then copy admin-docker-release-inputs/ back to this Mac repo.",
+    "Keep push_images=false, do not edit NAS .env, do not restart containers, and do not enable workers during evidence collection."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-handoff-transfer-20260628T220819Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-handoff-transfer-20260628T220819Z.md"
+  }
+}

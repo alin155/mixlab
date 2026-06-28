@@ -22,15 +22,15 @@ Docker deploy allowed: no
 
 ## NAS Side
 
-- Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest
+- Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z
 - Run from the NAS Compose project folder: sh ./nas/RUN_ON_NAS.sh
 - Copy back: Copy the generated admin-docker-release-inputs/ folder back to the Mac repo without adding full .env, secrets, or full docker inspect output.
 
 ### Quickstart Scripts
 
-- NAS runner: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/RUN_ON_NAS.sh
-- Local installer: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/install-nas-runner.sh
-- Local validator: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh
+- NAS runner: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/nas/RUN_ON_NAS.sh
+- Local installer: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/local/install-nas-runner.sh
+- Local validator: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/local/validate-returned-evidence.sh
 
 ```sh
 sh ./local/install-nas-runner.sh <nas-compose-project-dir>
@@ -130,18 +130,13 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 
 ## Artifacts
 
-- JSON: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.json
-- Markdown: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.md
-- Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest
-- Manifest: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/MANIFEST.json
-- README: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md
-- Operator checklist: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/OPERATOR-CHECKLIST.md
-- Collector: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/admin-docker-nas-release-inputs-collector.sh
-- NAS runner: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/RUN_ON_NAS.sh
-- Local installer: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/install-nas-runner.sh
-- Local validator: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh
-- Latest JSON: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.json
-- Latest Markdown: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.md
-- Latest bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest
-- Latest README: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md
-- Latest operator checklist: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/OPERATOR-CHECKLIST.md
+- JSON: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z.json
+- Markdown: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z.md
+- Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z
+- Manifest: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/MANIFEST.json
+- README: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/README.md
+- Operator checklist: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/OPERATOR-CHECKLIST.md
+- Collector: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/nas/admin-docker-nas-release-inputs-collector.sh
+- NAS runner: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/nas/RUN_ON_NAS.sh
+- Local installer: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/local/install-nas-runner.sh
+- Local validator: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T220801Z/local/validate-returned-evidence.sh
