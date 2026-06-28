@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T10:24:01.678Z
+Generated: 2026-06-28T10:37:48.741Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes
@@ -135,6 +135,7 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 - Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest
 - Manifest: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/MANIFEST.json
 - README: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md
+- Operator checklist: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/OPERATOR-CHECKLIST.md
 - Collector: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/admin-docker-nas-release-inputs-collector.sh
 - NAS runner: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/RUN_ON_NAS.sh
 - Local installer: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/install-nas-runner.sh
@@ -143,3 +144,4 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 - Latest Markdown: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.md
 - Latest bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest
 - Latest README: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md
+- Latest operator checklist: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/OPERATOR-CHECKLIST.md

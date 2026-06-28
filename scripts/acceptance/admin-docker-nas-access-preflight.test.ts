@@ -44,6 +44,7 @@ function report(input: {
       is_directory: handoffReady,
       required_files: [
         "README.md",
+        "OPERATOR-CHECKLIST.md",
         "MANIFEST.json",
         "nas/RUN_ON_NAS.sh",
         "nas/admin-docker-nas-release-inputs-collector.sh",

@@ -87,6 +87,7 @@ export interface AdminDockerNasReleaseInputsHandoffReport {
     bundle_dir: string;
     manifest_path: string;
     readme_path: string;
+    operator_checklist_path: string;
     collector_path: string;
     nas_runner_path: string;
     local_validator_path: string;
@@ -96,6 +97,7 @@ export interface AdminDockerNasReleaseInputsHandoffReport {
     latest_bundle_dir?: string;
     latest_manifest_path?: string;
     latest_readme_path?: string;
+    latest_operator_checklist_path?: string;
   } | null;
   result: {
     status: "ready-for-nas-collection" | "blocked" | "failed";
@@ -492,17 +494,19 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     `- Bundle dir: ${artifacts?.bundle_dir ?? "<not written>"}`,
     `- Manifest: ${artifacts?.manifest_path ?? "<not written>"}`,
     `- README: ${artifacts?.readme_path ?? "<not written>"}`,
+    `- Operator checklist: ${artifacts?.operator_checklist_path ?? "<not written>"}`,
     `- Collector: ${artifacts?.collector_path ?? "<not written>"}`,
     `- NAS runner: ${artifacts?.nas_runner_path ?? "<not written>"}`,
     `- Local installer: ${artifacts?.local_installer_path ?? "<not written>"}`,
     `- Local validator: ${artifacts?.local_validator_path ?? "<not written>"}`
   ];
-  if (artifacts?.latest_json_path || artifacts?.latest_markdown_path || artifacts?.latest_bundle_dir || artifacts?.latest_readme_path) {
+  if (artifacts?.latest_json_path || artifacts?.latest_markdown_path || artifacts?.latest_bundle_dir || artifacts?.latest_readme_path || artifacts?.latest_operator_checklist_path) {
     artifactLines.push(
       `- Latest JSON: ${artifacts.latest_json_path ?? "<not written>"}`,
       `- Latest Markdown: ${artifacts.latest_markdown_path ?? "<not written>"}`,
       `- Latest bundle dir: ${artifacts.latest_bundle_dir ?? "<not written>"}`,
-      `- Latest README: ${artifacts.latest_readme_path ?? "<not written>"}`
+      `- Latest README: ${artifacts.latest_readme_path ?? "<not written>"}`,
+      `- Latest operator checklist: ${artifacts.latest_operator_checklist_path ?? "<not written>"}`
     );
   }
   const lines = [
@@ -595,6 +599,65 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
   return lines.join("\n");
 }
 
+function operatorChecklistMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): string {
+  const candidateSha = report.observations.candidate_sha || "<candidate-sha>";
+  const candidateRef = report.observations.candidate_release_ref || "<candidate-ref>";
+  const returnedDir = "admin-docker-release-inputs";
+
+  return [
+    "# Admin Docker NAS Operator Checklist",
+    "",
+    `Generated: ${report.generated_at}`,
+    `Candidate SHA: ${candidateSha}`,
+    `Candidate ref: ${candidateRef}`,
+    "Push execution allowed: no",
+    "Docker deploy allowed: no",
+    "",
+    "## Before You Start",
+    "",
+    "- Confirm you are on the NAS host or NAS desktop shell.",
+    "- Locate the Admin Docker Compose project folder containing `docker-compose.yml` and `.env`.",
+    "- Do not edit `.env`, restart containers, enable workers, run preprocessing, run scan apply, or run `push_images=true`.",
+    "",
+    "## Collect On NAS",
+    "",
+    "1. Copy the `nas/` folder from this bundle into the Compose project folder.",
+    "2. From the Compose project folder, run:",
+    "",
+    "```sh",
+    "sh ./nas/RUN_ON_NAS.sh",
+    "```",
+    "",
+    `3. Confirm the command created \`${returnedDir}/\` with exactly these files:`,
+    "",
+    "- `admin-docker-current.env`",
+    "- `admin-docker-current.inspect.json`",
+    "- `admin-worker.env`",
+    "- `admin-worker.inspect.json`",
+    "- `admin-docker-disk-proof.json`",
+    "- `MANIFEST.txt`",
+    "- `README.md`",
+    "",
+    "## Bring Back To Mac",
+    "",
+    `1. Copy only the generated \`${returnedDir}/\` folder back to the Mac repo or another local path.`,
+    "2. Do not add full `.env`, full `docker inspect`, passwords, tokens, API keys, ASR credentials, private NAS account data, or private transcript text.",
+    "3. Run the local validator:",
+    "",
+    "```sh",
+    "sh docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>",
+    "```",
+    "",
+    "## Stop Conditions",
+    "",
+    "- Stop if the returned evidence validator reports a missing, unexpected, or sensitive file.",
+    "- Stop if release inputs remain blocked after intake.",
+    "- Stop if disk proof remains blocked or the staging runbook carries `nas-disk-risk-carried-forward`.",
+    "- Stop if any proof attempts to set `push_execution_allowed=true` or `docker_deploy_allowed=true` before the separate release decision.",
+    ""
+  ].join("\n");
+}
+
 async function optionalLoadJson(filePath: string | undefined): Promise<unknown> {
   if (!filePath) {
     return undefined;
@@ -634,6 +697,7 @@ async function writeBundle(input: {
 }): Promise<{
   manifest_path: string;
   readme_path: string;
+  operator_checklist_path: string;
   collector_path: string;
   nas_runner_path: string;
   local_validator_path: string;
@@ -646,6 +710,7 @@ async function writeBundle(input: {
   const localValidatorPath = path.join(localDir, "validate-returned-evidence.sh");
   const localInstallerPath = path.join(localDir, "install-nas-runner.sh");
   const readmePath = path.join(input.bundle_dir, "README.md");
+  const checklistPath = path.join(input.bundle_dir, "OPERATOR-CHECKLIST.md");
   const manifestPath = path.join(input.bundle_dir, "MANIFEST.json");
   const reportBase = path.join(path.dirname(input.bundle_dir), path.basename(input.bundle_dir));
   const reportJsonPath = `${reportBase}.json`;
@@ -662,6 +727,7 @@ async function writeBundle(input: {
       bundle_dir: input.bundle_dir,
       manifest_path: manifestPath,
       readme_path: readmePath,
+      operator_checklist_path: checklistPath,
       collector_path: collectorPath,
       nas_runner_path: nasRunnerPath,
       local_validator_path: localValidatorPath,
@@ -680,6 +746,7 @@ async function writeBundle(input: {
   await writeFile(localValidatorPath, localValidatorContents(bundleReport));
   await chmod(localValidatorPath, 0o755);
   await writeFile(readmePath, toMarkdown(bundleReport));
+  await writeFile(checklistPath, operatorChecklistMarkdown(bundleReport));
   const manifest: BundleManifest = {
     schema_version: "1.0",
     mode: "admin-docker-nas-release-inputs-handoff",
@@ -689,6 +756,7 @@ async function writeBundle(input: {
     source_reports: input.report.sources,
     files: [
       await fileInfo(readmePath, false),
+      await fileInfo(checklistPath, false),
       await fileInfo(collectorPath, true),
       await fileInfo(nasRunnerPath, true),
       await fileInfo(localInstallerPath, true),
@@ -707,6 +775,7 @@ async function writeBundle(input: {
   return {
     manifest_path: manifestPath,
     readme_path: readmePath,
+    operator_checklist_path: checklistPath,
     collector_path: collectorPath,
     nas_runner_path: nasRunnerPath,
     local_validator_path: localValidatorPath,
@@ -890,6 +959,7 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
   const latestMarkdownPath = path.join(outputDir, "admin-docker-nas-release-inputs-handoff-latest.md");
   const latestManifestPath = path.join(latestBundleDir, "MANIFEST.json");
   const latestReadmePath = path.join(latestBundleDir, "README.md");
+  const latestChecklistPath = path.join(latestBundleDir, "OPERATOR-CHECKLIST.md");
   const reportWithArtifacts: AdminDockerNasReleaseInputsHandoffReport = {
     ...report,
     operator_handoff: {
@@ -902,6 +972,7 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       bundle_dir: bundleDir,
       manifest_path: bundleArtifacts.manifest_path,
       readme_path: bundleArtifacts.readme_path,
+      operator_checklist_path: bundleArtifacts.operator_checklist_path,
       collector_path: bundleArtifacts.collector_path,
       nas_runner_path: bundleArtifacts.nas_runner_path,
       local_validator_path: bundleArtifacts.local_validator_path,
@@ -910,7 +981,8 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       latest_markdown_path: latestMarkdownPath,
       latest_bundle_dir: latestBundleDir,
       latest_manifest_path: latestManifestPath,
-      latest_readme_path: latestReadmePath
+      latest_readme_path: latestReadmePath,
+      latest_operator_checklist_path: latestChecklistPath
     }
   };
 
@@ -936,6 +1008,7 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       bundle_dir: latestBundleDir,
       manifest_path: latestBundleArtifacts.manifest_path,
       readme_path: latestBundleArtifacts.readme_path,
+      operator_checklist_path: latestBundleArtifacts.operator_checklist_path,
       collector_path: latestBundleArtifacts.collector_path,
       nas_runner_path: latestBundleArtifacts.nas_runner_path,
       local_validator_path: latestBundleArtifacts.local_validator_path,
@@ -944,7 +1017,8 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       latest_markdown_path: latestMarkdownPath,
       latest_bundle_dir: latestBundleDir,
       latest_manifest_path: latestBundleArtifacts.manifest_path,
-      latest_readme_path: latestBundleArtifacts.readme_path
+      latest_readme_path: latestBundleArtifacts.readme_path,
+      latest_operator_checklist_path: latestBundleArtifacts.operator_checklist_path
     }
   };
 

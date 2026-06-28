@@ -10,6 +10,7 @@ const DEFAULT_HANDOFF_BUNDLE = "docs/acceptance/artifacts/admin-docker-nas-relea
 const PROBE_PORTS = [22, 5000, 5001, 2375, 2376, 8080, 18080, 9999] as const;
 const REQUIRED_HANDOFF_FILES = [
   "README.md",
+  "OPERATOR-CHECKLIST.md",
   "MANIFEST.json",
   "nas/RUN_ON_NAS.sh",
   "nas/admin-docker-nas-release-inputs-collector.sh",
@@ -457,7 +458,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
         : `missing=${input.handoff_bundle_observation.missing_files.join(", ") || "candidate metadata"}`,
       blocks_nas_collection: !handoffBundleReady && !returnedEvidenceVisible,
       blocks_staging_review: false,
-      required_evidence: "Regenerate prepare:admin-docker-nas-release-inputs-handoff and require README, MANIFEST, NAS runner, collector, installer, and local validator."
+      required_evidence: "Regenerate prepare:admin-docker-nas-release-inputs-handoff and require README, operator checklist, MANIFEST, NAS runner, collector, installer, and local validator."
     }),
     gate({
       id: "compose-project-visible-on-smb",

@@ -164,6 +164,7 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.equal(built.artifacts?.json_path, path.join(tempRoot, "admin-docker-nas-release-inputs-handoff-20260628T000000Z.json"));
   assert.match(await readFile(built.artifacts?.markdown_path ?? "", "utf8"), /ready-for-nas-collection/);
   const readme = await readFile(built.artifacts?.readme_path ?? "", "utf8");
+  const checklist = await readFile(built.artifacts?.operator_checklist_path ?? "", "utf8");
   const manifest = await readFile(built.artifacts?.manifest_path ?? "", "utf8");
 
   assert.match(readme, /admin-docker-nas-release-inputs-collector\.sh/);
@@ -171,7 +172,14 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.match(readme, /sh \.\/local\/install-nas-runner\.sh/);
   assert.match(readme, /sh \.\/local\/validate-returned-evidence\.sh/);
   assert.match(readme, /sensitive fields before running intake/);
+  assert.match(checklist, /Admin Docker NAS Operator Checklist/);
+  assert.match(checklist, /Candidate SHA/);
+  assert.match(checklist, /sh \.\/nas\/RUN_ON_NAS\.sh/);
+  assert.match(checklist, /validate-returned-evidence\.sh/);
+  assert.match(checklist, /Stop Conditions/);
+  assert.match(checklist, /Push execution allowed: no/);
   assert.match(manifest, /"nas_writes_allowed": false/);
+  assert.match(manifest, /OPERATOR-CHECKLIST\.md/);
   assert.match(manifest, /RUN_ON_NAS\.sh/);
   assert.match(manifest, /install-nas-runner\.sh/);
   assert.match(manifest, /validate-returned-evidence\.sh/);
@@ -187,6 +195,7 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.equal(built.artifacts?.latest_json_path, path.join(tempRoot, "admin-docker-nas-release-inputs-handoff-latest.json"));
   assert.match(await readFile(built.artifacts?.latest_markdown_path ?? "", "utf8"), /ready-for-nas-collection/);
   assert.match(await readFile(built.artifacts?.latest_readme_path ?? "", "utf8"), /sh \.\/local\/install-nas-runner\.sh/);
+  assert.match(await readFile(built.artifacts?.latest_operator_checklist_path ?? "", "utf8"), /Admin Docker NAS Operator Checklist/);
   assert.ok((await stat(path.join(built.artifacts?.latest_bundle_dir ?? "", "nas", "RUN_ON_NAS.sh"))).mode & 0o111);
   assert.ok((await stat(path.join(built.artifacts?.latest_bundle_dir ?? "", "local", "install-nas-runner.sh"))).mode & 0o111);
 });
