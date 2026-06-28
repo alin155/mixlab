@@ -78,6 +78,7 @@
     "validate:admin-docker-release-inputs": "tsx scripts/acceptance/admin-docker-release-inputs.ts",
     "prepare:admin-docker-nas-release-inputs-handoff": "tsx scripts/acceptance/admin-docker-nas-release-inputs-handoff.ts",
     "intake:admin-docker-nas-release-inputs": "tsx scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",
+    "preflight:admin-docker-nas-access": "tsx scripts/acceptance/admin-docker-nas-access-preflight.ts",
     "audit:admin-docker-candidate-scope": "tsx scripts/acceptance/admin-docker-candidate-scope.ts",
     "validate:admin-real-nas-performance-isolated": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
     "audit:local-web-sanity": "tsx scripts/acceptance/local-web-sanity.ts",
