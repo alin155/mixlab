@@ -284,7 +284,7 @@ export function buildAdminDockerReleaseInputsReport(input: {
         ? `staging blockers=${handoffStagingExecutionBlockers.join(", ")}`
         : "No pre-staging execution blockers were reported.",
       blocks_release_inputs: false,
-      blocks_push_execution: handoffStagingExecutionBlockers.length > 0,
+      blocks_push_execution: false,
       blocks_docker_deploy: true,
       required_evidence: "The release-input package must preserve pre-staging blockers so a generated push_images=true command is not mistaken for staging approval."
     }),

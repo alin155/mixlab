@@ -96,8 +96,9 @@ test("release input package emits exact workflow command but still requires expl
   assert.equal(built.release_decision_required, true);
   assert.equal(built.result.status, "ready-for-release-decision");
   assert.deepEqual(built.summary.release_input_blockers, []);
-  assert.ok(built.summary.push_execution_blockers.includes("handoff-staging-blockers-carried-forward"));
-  assert.ok(built.summary.push_execution_blockers.includes("explicit-release-approval-required"));
+  assert.deepEqual(built.summary.push_execution_blockers, ["explicit-release-approval-required"]);
+  assert.ok(built.summary.docker_deploy_blockers.includes("handoff-staging-blockers-carried-forward"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("explicit-release-approval-required"));
   assert.deepEqual(built.observations.handoff_staging_execution_blockers, [
     "explicit-push-approval-required",
     "current-and-rollback-tags-required"
@@ -130,7 +131,8 @@ test("release input package preserves live NAS disk risk carried by handoff", ()
   });
 
   assert.equal(built.release_inputs_ready, true);
-  assert.ok(built.summary.push_execution_blockers.includes("handoff-staging-blockers-carried-forward"));
+  assert.deepEqual(built.summary.push_execution_blockers, ["explicit-release-approval-required"]);
+  assert.ok(built.summary.docker_deploy_blockers.includes("handoff-staging-blockers-carried-forward"));
   assert.ok(built.observations.handoff_staging_execution_blockers.includes("nas-disk-risk-carried-forward"));
   assert.ok(built.next_actions.some((item) => item.includes("nas-disk-risk-carried-forward")));
 });
