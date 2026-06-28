@@ -92,8 +92,9 @@ MVP v0.1 不做：
 - release inputs：`docs/acceptance/artifacts/admin-docker-release-inputs-20260628T102350Z.json`，因缺 NAS image proof、current/rollback tag 仍 `blocked`，`push_execution_allowed=false`。
 - NAS release-inputs handoff：`docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T103748Z.json`，`handoff_package_ready=true`，最新 bundle 指向 `b062bc387c1fdb2a391320c1c36233b782cb000a`，包含 `OPERATOR-CHECKLIST.md`，但不允许 push/deploy。
 - NAS handoff portable kit：`docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T110013Z.json`，`kit_ready=true`，便携目录为 `dist/acceptance/admin-docker-nas-handoff-kit`，单文件包为 `dist/acceptance/admin-docker-nas-handoff-kit.tar.gz`，sha256 `d633d38dae7cd5c0991c78c4baae4aa7873b0a940a876a7450e4c8374346d3db`；包含 `KIT-SELF-CHECK.sh` 与 `KIT-FILES.sha256`，本机 self-check 与 tar 列表校验通过，可复制到 NAS desktop/NAS shell host 用于只读收集 `admin-docker-release-inputs/` 返回证据。
+- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T110617Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；新增纳入 NAS access preflight 与 handoff kit 证据，其中 `nas-collection-path-prepared` 和 `nas-handoff-kit-ready` 已通过，但仍有 `9` 个 release review blockers。
 
-这批证据只清除了“远端 Docker 候选构建/本地 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof 和显式发布决策仍未完成。
+这批证据只清除了“远端 Docker 候选构建/本地 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。当前总门禁视图显示 NAS 手工采集路径已准备好，但 NAS returned evidence intake、NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof、本机/目标机 Docker smoke 和显式发布决策仍未完成。
 
 ## MVP 功能边界
 

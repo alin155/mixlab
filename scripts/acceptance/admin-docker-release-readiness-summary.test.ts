@@ -110,6 +110,61 @@ function blockedReleaseInputsIntake(): unknown {
   };
 }
 
+function blockedNasAccessPreflight(): unknown {
+  return {
+    nas_collection_directly_available: false,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    result: { status: "blocked" },
+    summary: {
+      nas_collection_blockers: [
+        "ssh-access-available",
+        "compose-project-visible-on-smb",
+        "returned-evidence-visible"
+      ],
+      staging_review_blockers: [
+        "returned-evidence-visible",
+        "staging-admin-port-reachable"
+      ]
+    }
+  };
+}
+
+function readyNasHandoffKit(): unknown {
+  return {
+    kit_ready: true,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    result: { status: "ready-for-transfer" },
+    observations: {
+      archive_file: {
+        path: "dist/acceptance/admin-docker-nas-handoff-kit.tar.gz",
+        sha256: "d".repeat(64),
+        size_bytes: 9706
+      }
+    },
+    artifacts: {
+      kit_archive_path: "dist/acceptance/admin-docker-nas-handoff-kit.tar.gz",
+      kit_archive_sha256: "d".repeat(64)
+    },
+    summary: {
+      kit_blockers: []
+    }
+  };
+}
+
+function blockedNasHandoffKit(): unknown {
+  return {
+    kit_ready: false,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    result: { status: "blocked" },
+    summary: {
+      kit_blockers: ["kit-archive-created"]
+    }
+  };
+}
+
 function readyReleaseInputsIntake(): unknown {
   return {
     result: { status: "intake-complete" },
@@ -188,6 +243,10 @@ function reportInput(overrides: Partial<Parameters<typeof buildAdminDockerReleas
     cutter_compatibility_proof_report: blockedProof(["windows-acceptance-report-provided"]),
     release_inputs_intake_report_path: "intake.json",
     release_inputs_intake_report: blockedReleaseInputsIntake(),
+    nas_access_preflight_report_path: "nas-access.json",
+    nas_access_preflight_report: blockedNasAccessPreflight(),
+    nas_handoff_kit_report_path: "handoff-kit.json",
+    nas_handoff_kit_report: readyNasHandoffKit(),
     staging_runbook_report_path: "runbook.json",
     staging_runbook_report: blockedRunbook(),
     ...overrides
@@ -208,6 +267,10 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(report.summary.release_review_blockers.includes("nas-release-inputs-intake-complete"));
   assert.ok(report.summary.release_review_blockers.includes("release-inputs-ready"));
   assert.ok(report.summary.release_review_blockers.includes("staging-runbook-ready"));
+  assert.ok(!report.summary.release_review_blockers.includes("nas-handoff-kit-ready"));
+  assert.equal(report.observations.nas_handoff_kit_ready, true);
+  assert.equal(report.observations.nas_collection_directly_available, false);
+  assert.ok(report.next_actions.some((item) => item.includes("admin-docker-nas-handoff-kit.tar.gz")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-release-inputs/")));
   assert.ok(report.next_actions.some((item) => item.includes("release-input blockers")));
   assert.ok(report.next_actions.some((item) => item.includes("NAS disk pressure")));
@@ -226,6 +289,7 @@ test("admin Docker release readiness summary can become ready for separate relea
     worker_env_proof_report: acceptedProof(),
     cutter_compatibility_proof_report: acceptedProof(),
     release_inputs_intake_report: readyReleaseInputsIntake(),
+    nas_handoff_kit_report: blockedNasHandoffKit(),
     staging_runbook_report: readyRunbook()
   }));
 
@@ -274,6 +338,17 @@ test("admin Docker release readiness summary blocks old intake artifacts without
   assert.match(toMarkdown(report), /returned_precheck_passed=unknown/);
 });
 
+test("admin Docker release readiness summary blocks when returned evidence and handoff kit are both missing", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    nas_handoff_kit_report: blockedNasHandoffKit()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("nas-collection-path-prepared"));
+  assert.ok(report.summary.release_review_blockers.includes("nas-handoff-kit-ready"));
+  assert.ok(report.next_actions.some((item) => item.includes("package:admin-docker-nas-handoff-kit")));
+});
+
 test("admin Docker release readiness summary markdown records no-side-effect scope", () => {
   const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput());
   const markdown = toMarkdown(report);
@@ -283,6 +358,8 @@ test("admin Docker release readiness summary markdown records no-side-effect sco
   assert.match(markdown, /Local Docker smoke/);
   assert.match(markdown, /Release-inputs intake complete/);
   assert.match(markdown, /Live blockers/);
+  assert.match(markdown, /NAS handoff kit ready/);
+  assert.match(markdown, /admin-docker-nas-handoff-kit\.tar\.gz/);
 });
 
 test("admin Docker release readiness summary fails if release-input intake tries to approve push", () => {

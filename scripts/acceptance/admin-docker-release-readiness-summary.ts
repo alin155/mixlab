@@ -10,6 +10,8 @@ type ReadinessCategory =
   | "safety"
   | "local-smoke"
   | "release-inputs"
+  | "nas-access"
+  | "handoff"
   | "live-nas"
   | "parity"
   | "worker"
@@ -40,6 +42,8 @@ interface ReadinessSources {
   worker_env_proof_report: string;
   cutter_compatibility_proof_report: string;
   release_inputs_intake_report: string;
+  nas_access_preflight_report: string;
+  nas_handoff_kit_report: string;
   staging_runbook_report: string;
 }
 
@@ -71,6 +75,15 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     release_inputs_ready: boolean | null;
     release_inputs_intake_blockers: string[];
     release_input_blockers: string[];
+    nas_access_status: string;
+    nas_collection_directly_available: boolean | null;
+    nas_collection_blockers: string[];
+    nas_access_staging_review_blockers: string[];
+    nas_handoff_kit_status: string;
+    nas_handoff_kit_ready: boolean | null;
+    nas_handoff_kit_blockers: string[];
+    nas_handoff_kit_archive_path: string;
+    nas_handoff_kit_archive_sha256: string;
     staging_status: string;
     staging_review_ready: boolean | null;
     staging_blockers: string[];
@@ -178,6 +191,12 @@ function nextActions(input: {
   releaseInputsReady: boolean | null;
   releaseInputsIntakeBlockers: string[];
   releaseInputBlockers: string[];
+  nasCollectionDirectlyAvailable: boolean | null;
+  nasCollectionBlockers: string[];
+  handoffKitReady: boolean | null;
+  handoffKitArchivePath: string;
+  handoffKitArchiveSha256: string;
+  handoffKitBlockers: string[];
 }): string[] {
   const actions: string[] = [];
 
@@ -214,6 +233,14 @@ function nextActions(input: {
   }
 
   if (!input.releaseInputsIntakeComplete) {
+    if (input.handoffKitReady && input.handoffKitArchivePath) {
+      actions.push(`Transfer ${input.handoffKitArchivePath} to the NAS desktop or NAS shell host, verify sha256=${input.handoffKitArchiveSha256 || "unknown"}, run the kit self-check, then collect returned release inputs.`);
+    } else {
+      actions.push(`Regenerate package:admin-docker-nas-handoff-kit before asking the NAS operator to collect returned evidence. Current kit blockers: ${input.handoffKitBlockers.join(", ") || "unknown"}.`);
+    }
+    if (input.nasCollectionDirectlyAvailable !== true && input.nasCollectionBlockers.length > 0) {
+      actions.push(`Direct Mac-to-NAS collection remains unavailable; current NAS collection blockers: ${input.nasCollectionBlockers.join(", ")}.`);
+    }
     actions.push(`Run the NAS release-inputs collector, copy admin-docker-release-inputs/ back to the Mac repo, then rerun intake:admin-docker-nas-release-inputs. Current intake blockers: ${input.releaseInputsIntakeBlockers.join(", ") || "unknown"}.`);
   }
 
@@ -259,6 +286,10 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   cutter_compatibility_proof_report: unknown;
   release_inputs_intake_report_path: string;
   release_inputs_intake_report: unknown;
+  nas_access_preflight_report_path: string;
+  nas_access_preflight_report: unknown;
+  nas_handoff_kit_report_path: string;
+  nas_handoff_kit_report: unknown;
   staging_runbook_report_path: string;
   staging_runbook_report: unknown;
 }): AdminDockerReleaseReadinessSummaryReport {
@@ -269,6 +300,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
   const releaseInputsIntakeBlockers = summaryBlockers(input.release_inputs_intake_report, "intake_blockers");
   const releaseInputBlockers = summaryBlockers(input.release_inputs_intake_report, "release_input_blockers");
+  const nasCollectionBlockers = summaryBlockers(input.nas_access_preflight_report, "nas_collection_blockers");
+  const nasAccessStagingReviewBlockers = summaryBlockers(input.nas_access_preflight_report, "staging_review_blockers");
+  const handoffKitBlockers = summaryBlockers(input.nas_handoff_kit_report, "kit_blockers");
   const stagingBlockers = summaryBlockers(input.staging_runbook_report, "staging_blockers");
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
@@ -279,6 +313,17 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const releaseInputsReady = asBoolean(asRecord(input.release_inputs_intake_report).release_inputs_ready);
   const releaseInputsPushAllowed = asBoolean(asRecord(input.release_inputs_intake_report).push_execution_allowed);
   const releaseInputsDeployAllowed = asBoolean(asRecord(input.release_inputs_intake_report).docker_deploy_allowed);
+  const nasCollectionDirectlyAvailable = asBoolean(asRecord(input.nas_access_preflight_report).nas_collection_directly_available);
+  const nasAccessPushAllowed = asBoolean(asRecord(input.nas_access_preflight_report).push_execution_allowed);
+  const nasAccessDeployAllowed = asBoolean(asRecord(input.nas_access_preflight_report).docker_deploy_allowed);
+  const handoffKitReady = asBoolean(asRecord(input.nas_handoff_kit_report).kit_ready);
+  const handoffKitPushAllowed = asBoolean(asRecord(input.nas_handoff_kit_report).push_execution_allowed);
+  const handoffKitDeployAllowed = asBoolean(asRecord(input.nas_handoff_kit_report).docker_deploy_allowed);
+  const handoffKitArtifacts = asRecord(asRecord(input.nas_handoff_kit_report).artifacts);
+  const handoffKitArchiveFile = asRecord(asRecord(input.nas_handoff_kit_report).observations).archive_file;
+  const handoffKitArchiveRecord = asRecord(handoffKitArchiveFile);
+  const handoffKitArchivePath = asString(handoffKitArtifacts.kit_archive_path) || asString(handoffKitArchiveRecord.path);
+  const handoffKitArchiveSha256 = asString(handoffKitArtifacts.kit_archive_sha256) || asString(handoffKitArchiveRecord.sha256);
   const localSmokePassed = asBoolean(asRecord(input.local_docker_smoke_report).local_smoke_passed);
   const stagingReviewReady = asBoolean(asRecord(input.staging_runbook_report).staging_review_ready);
   const stagingObservations = asRecord(asRecord(input.staging_runbook_report).observations);
@@ -351,6 +396,28 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       required_evidence: "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
     }),
     gate({
+      id: "nas-collection-path-prepared",
+      title: "NAS release-input collection path is prepared",
+      category: "nas-access",
+      status: releaseInputsIntakeComplete || nasCollectionDirectlyAvailable || handoffKitReady ? "pass" : "blocked",
+      evidence: releaseInputsIntakeComplete
+        ? "returned evidence has already been consumed by intake"
+        : `direct_collection=${String(nasCollectionDirectlyAvailable)}, handoff_kit_ready=${String(handoffKitReady)}, nas_collection_blockers=${nasCollectionBlockers.join(", ") || "none"}`,
+      blocks_release_review: !releaseInputsIntakeComplete && !nasCollectionDirectlyAvailable && !handoffKitReady,
+      required_evidence: "Provide a direct NAS collection path or a ready portable handoff kit before waiting on returned NAS evidence."
+    }),
+    gate({
+      id: "nas-handoff-kit-ready",
+      title: "NAS handoff kit is ready for manual transfer",
+      category: "handoff",
+      status: releaseInputsIntakeComplete || handoffKitReady ? "pass" : "blocked",
+      evidence: releaseInputsIntakeComplete
+        ? "returned evidence has already been consumed by intake"
+        : `kit_ready=${String(handoffKitReady)}, archive=${handoffKitArchivePath || "missing"}, kit_blockers=${handoffKitBlockers.join(", ") || "none"}`,
+      blocks_release_review: !releaseInputsIntakeComplete && !handoffKitReady,
+      required_evidence: "Run package:admin-docker-nas-handoff-kit and require kit_ready=true plus a sha256-pinned .tar.gz archive."
+    }),
+    gate({
       id: "returned-evidence-precheck-passed",
       title: "Returned NAS evidence precheck passed inside intake",
       category: "release-inputs",
@@ -383,9 +450,23 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       id: "summary-does-not-approve-upload",
       title: "Summary does not approve Docker upload by itself",
       category: "safety",
-      status: dockerDeployAllowed === false && releaseInputsPushAllowed === false && releaseInputsDeployAllowed === false ? "pass" : "blocked",
-      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}`,
-      blocks_release_review: dockerDeployAllowed !== false || releaseInputsPushAllowed !== false || releaseInputsDeployAllowed !== false,
+      status: dockerDeployAllowed === false
+        && releaseInputsPushAllowed === false
+        && releaseInputsDeployAllowed === false
+        && nasAccessPushAllowed === false
+        && nasAccessDeployAllowed === false
+        && handoffKitPushAllowed === false
+        && handoffKitDeployAllowed === false
+        ? "pass"
+        : "blocked",
+      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}, nas_access.push_execution_allowed=${nasAccessPushAllowed ?? "unknown"}, nas_access.docker_deploy_allowed=${nasAccessDeployAllowed ?? "unknown"}, handoff_kit.push_execution_allowed=${handoffKitPushAllowed ?? "unknown"}, handoff_kit.docker_deploy_allowed=${handoffKitDeployAllowed ?? "unknown"}`,
+      blocks_release_review: dockerDeployAllowed !== false
+        || releaseInputsPushAllowed !== false
+        || releaseInputsDeployAllowed !== false
+        || nasAccessPushAllowed !== false
+        || nasAccessDeployAllowed !== false
+        || handoffKitPushAllowed !== false
+        || handoffKitDeployAllowed !== false,
       required_evidence: "Docker upload must remain a separate release decision even when evidence gates are ready."
     })
   ];
@@ -404,6 +485,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       worker_env_proof_report: input.worker_env_proof_report_path,
       cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
       release_inputs_intake_report: input.release_inputs_intake_report_path,
+      nas_access_preflight_report: input.nas_access_preflight_report_path,
+      nas_handoff_kit_report: input.nas_handoff_kit_report_path,
       staging_runbook_report: input.staging_runbook_report_path
     },
     release_review_ready: releaseReviewReady,
@@ -428,6 +511,15 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       release_inputs_ready: releaseInputsReady,
       release_inputs_intake_blockers: releaseInputsIntakeBlockers,
       release_input_blockers: releaseInputBlockers,
+      nas_access_status: resultStatus(input.nas_access_preflight_report),
+      nas_collection_directly_available: nasCollectionDirectlyAvailable,
+      nas_collection_blockers: nasCollectionBlockers,
+      nas_access_staging_review_blockers: nasAccessStagingReviewBlockers,
+      nas_handoff_kit_status: resultStatus(input.nas_handoff_kit_report),
+      nas_handoff_kit_ready: handoffKitReady,
+      nas_handoff_kit_blockers: handoffKitBlockers,
+      nas_handoff_kit_archive_path: handoffKitArchivePath,
+      nas_handoff_kit_archive_sha256: handoffKitArchiveSha256,
       staging_status: resultStatus(input.staging_runbook_report),
       staging_review_ready: stagingReviewReady,
       staging_blockers: stagingBlockers,
@@ -455,7 +547,13 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       releaseInputsIntakeComplete,
       releaseInputsReady,
       releaseInputsIntakeBlockers,
-      releaseInputBlockers
+      releaseInputBlockers,
+      nasCollectionDirectlyAvailable,
+      nasCollectionBlockers,
+      handoffKitReady,
+      handoffKitArchivePath,
+      handoffKitArchiveSha256,
+      handoffKitBlockers
     }),
     artifacts: null
   };
@@ -485,6 +583,8 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Worker proof: ${report.sources.worker_env_proof_report}`,
     `- Cutter proof: ${report.sources.cutter_compatibility_proof_report}`,
     `- Release inputs intake: ${report.sources.release_inputs_intake_report}`,
+    `- NAS access preflight: ${report.sources.nas_access_preflight_report}`,
+    `- NAS handoff kit: ${report.sources.nas_handoff_kit_report}`,
     `- Staging runbook: ${report.sources.staging_runbook_report}`,
     "",
     "## Observations",
@@ -496,6 +596,9 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
     `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; returned_precheck_passed=${report.observations.release_inputs_returned_precheck_passed ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
     `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}; blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
+    `- NAS collection directly available: ${report.observations.nas_collection_directly_available ?? "unknown"}; blockers: ${report.observations.nas_collection_blockers.join(", ") || "none"}`,
+    `- NAS access staging blockers: ${report.observations.nas_access_staging_review_blockers.join(", ") || "none"}`,
+    `- NAS handoff kit ready: ${report.observations.nas_handoff_kit_ready ?? "unknown"}; archive: ${report.observations.nas_handoff_kit_archive_path || "none"}; sha256=${report.observations.nas_handoff_kit_archive_sha256 || "none"}; blockers: ${report.observations.nas_handoff_kit_blockers.join(", ") || "none"}`,
     `- Staging ready: ${report.observations.staging_review_ready ?? "unknown"}; blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
     `- Unresolved parity blockers: ${report.observations.unresolved_parity_blockers.join(", ") || "none"}`,
     `- Resolved external parity blockers: ${report.observations.resolved_external_parity_blockers.join(", ") || "none"}`,
@@ -542,6 +645,10 @@ async function main(): Promise<void> {
     ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
   const releaseInputsIntakePath = process.env.MIXLAB_ADMIN_DOCKER_NAS_RELEASE_INPUTS_INTAKE_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-nas-release-inputs-intake-");
+  const nasAccessPreflightPath = process.env.MIXLAB_ADMIN_DOCKER_NAS_ACCESS_PREFLIGHT_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-nas-access-preflight-");
+  const nasHandoffKitPath = process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_KIT_REPORT
+    ?? path.join(artifactDir, "admin-docker-nas-handoff-kit-latest.json");
   const runbookPath = process.env.MIXLAB_DOCKER_STAGING_RUNBOOK_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-staging-runbook-");
   const timestamp = timestampForFile();
@@ -562,6 +669,10 @@ async function main(): Promise<void> {
     cutter_compatibility_proof_report: await loadJson(cutterPath),
     release_inputs_intake_report_path: releaseInputsIntakePath,
     release_inputs_intake_report: await loadJson(releaseInputsIntakePath),
+    nas_access_preflight_report_path: nasAccessPreflightPath,
+    nas_access_preflight_report: await loadJson(nasAccessPreflightPath),
+    nas_handoff_kit_report_path: nasHandoffKitPath,
+    nas_handoff_kit_report: await loadJson(nasHandoffKitPath),
     staging_runbook_report_path: runbookPath,
     staging_runbook_report: await loadJson(runbookPath)
   });
