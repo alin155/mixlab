@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,14 @@ const DEFAULT_NAS_HOST = "192.168.1.27";
 const DEFAULT_SMB_ROOT = "/Volumes/MixLab";
 const DEFAULT_HANDOFF_BUNDLE = "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest";
 const PROBE_PORTS = [22, 5000, 5001, 2375, 2376, 8080, 18080, 9999] as const;
+const REQUIRED_HANDOFF_FILES = [
+  "README.md",
+  "MANIFEST.json",
+  "nas/RUN_ON_NAS.sh",
+  "nas/admin-docker-nas-release-inputs-collector.sh",
+  "local/install-nas-runner.sh",
+  "local/validate-returned-evidence.sh"
+] as const;
 const COMPOSE_FILE_NAMES = new Set(["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]);
 const RETURNED_EVIDENCE_NAMES = new Set([
   "admin-docker-release-inputs",
@@ -20,7 +28,7 @@ const RETURNED_EVIDENCE_NAMES = new Set([
 const PRUNED_DIR_NAMES = new Set(["PublicLibrary", "#recycle"]);
 
 type GateStatus = "pass" | "blocked";
-type GateCategory = "safety" | "network" | "smb" | "returned-evidence" | "staging-target";
+type GateCategory = "safety" | "network" | "smb" | "handoff" | "returned-evidence" | "staging-target";
 
 interface NasAccessGate {
   id: string;
@@ -62,6 +70,16 @@ interface MountedPathObservation {
   top_level_dirs: string[];
 }
 
+interface HandoffBundleObservation {
+  path: string;
+  present: boolean;
+  is_directory: boolean;
+  required_files: string[];
+  missing_files: string[];
+  candidate_sha: string;
+  candidate_release_ref: string;
+}
+
 export interface AdminDockerNasAccessPreflightReport {
   schema_version: "1.0";
   generated_at: string;
@@ -81,6 +99,7 @@ export interface AdminDockerNasAccessPreflightReport {
     ports: PortProbe[];
     http: HttpProbe[];
     smb_root: MountedPathObservation;
+    handoff_bundle: HandoffBundleObservation;
     compose_candidates: string[];
     returned_evidence_candidates: string[];
     scan_limits: {
@@ -219,6 +238,68 @@ async function mountedPathObservation(smbRoot: string): Promise<MountedPathObser
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+async function handoffBundleObservation(bundleDir: string): Promise<HandoffBundleObservation> {
+  let present = false;
+  let isDirectory = false;
+
+  try {
+    const info = await stat(bundleDir);
+    present = true;
+    isDirectory = info.isDirectory();
+  } catch {
+    present = false;
+  }
+
+  const missingFiles: string[] = [];
+  if (!present || !isDirectory) {
+    missingFiles.push(...REQUIRED_HANDOFF_FILES);
+  } else {
+    for (const relativePath of REQUIRED_HANDOFF_FILES) {
+      try {
+        const info = await stat(path.join(bundleDir, relativePath));
+        if (!info.isFile()) {
+          missingFiles.push(relativePath);
+        }
+      } catch {
+        missingFiles.push(relativePath);
+      }
+    }
+  }
+
+  let candidateSha = "";
+  let candidateReleaseRef = "";
+  if (present && isDirectory) {
+    try {
+      const manifest = JSON.parse(await readFile(path.join(bundleDir, "MANIFEST.json"), "utf8")) as unknown;
+      if (isRecord(manifest)) {
+        candidateSha = asString(manifest.candidate_sha);
+        candidateReleaseRef = asString(manifest.candidate_release_ref);
+      }
+    } catch {
+      candidateSha = "";
+      candidateReleaseRef = "";
+    }
+  }
+
+  return {
+    path: bundleDir,
+    present,
+    is_directory: isDirectory,
+    required_files: [...REQUIRED_HANDOFF_FILES],
+    missing_files: missingFiles,
+    candidate_sha: candidateSha,
+    candidate_release_ref: candidateReleaseRef
+  };
+}
+
 async function findCandidatePaths(input: {
   root: string;
   maxDepth: number;
@@ -305,6 +386,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
   ports: PortProbe[];
   http: HttpProbe[];
   smb_root_observation: MountedPathObservation;
+  handoff_bundle_observation: HandoffBundleObservation;
   compose_candidates: string[];
   returned_evidence_candidates: string[];
   max_depth: number;
@@ -313,10 +395,15 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
   const sshOpen = portStatus(input.ports, 22) === "open";
   const composeVisible = input.compose_candidates.length > 0;
   const returnedEvidenceVisible = input.returned_evidence_candidates.length > 0;
+  const handoffBundleReady = input.handoff_bundle_observation.present &&
+    input.handoff_bundle_observation.is_directory &&
+    input.handoff_bundle_observation.missing_files.length === 0 &&
+    Boolean(input.handoff_bundle_observation.candidate_sha) &&
+    Boolean(input.handoff_bundle_observation.candidate_release_ref);
   const stagingPortOpen = portStatus(input.ports, 8080) === "open";
   const legacyAdminOpen = portStatus(input.ports, 18080) === "open";
   const nasDesktopOpen = portStatus(input.ports, 9999) === "open";
-  const nasCollectionDirectlyAvailable = sshOpen || composeVisible || returnedEvidenceVisible;
+  const nasCollectionDirectlyAvailable = returnedEvidenceVisible || (handoffBundleReady && (sshOpen || composeVisible));
 
   const gates = [
     gate({
@@ -359,6 +446,18 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       blocks_nas_collection: false,
       blocks_staging_review: false,
       required_evidence: "Mount the NAS share if using SMB to transfer handoff or returned evidence."
+    }),
+    gate({
+      id: "handoff-bundle-ready",
+      title: "Local NAS handoff bundle is complete",
+      category: "handoff",
+      status: handoffBundleReady ? "pass" : "blocked",
+      evidence: handoffBundleReady
+        ? `candidate=${input.handoff_bundle_observation.candidate_sha}, ref=${input.handoff_bundle_observation.candidate_release_ref}`
+        : `missing=${input.handoff_bundle_observation.missing_files.join(", ") || "candidate metadata"}`,
+      blocks_nas_collection: !handoffBundleReady && !returnedEvidenceVisible,
+      blocks_staging_review: false,
+      required_evidence: "Regenerate prepare:admin-docker-nas-release-inputs-handoff and require README, MANIFEST, NAS runner, collector, installer, and local validator."
     }),
     gate({
       id: "compose-project-visible-on-smb",
@@ -411,6 +510,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       ports: input.ports,
       http: input.http,
       smb_root: input.smb_root_observation,
+      handoff_bundle: input.handoff_bundle_observation,
       compose_candidates: input.compose_candidates,
       returned_evidence_candidates: input.returned_evidence_candidates,
       scan_limits: {
@@ -455,6 +555,13 @@ export function toMarkdown(report: AdminDockerNasAccessPreflightReport): string 
     `- NAS host: ${report.target.nas_host}`,
     `- SMB root: ${report.target.smb_root}`,
     `- Handoff bundle: ${report.target.handoff_bundle_dir}`,
+    "",
+    "## Handoff Bundle",
+    "",
+    `- Present: ${report.observations.handoff_bundle.present && report.observations.handoff_bundle.is_directory ? "yes" : "no"}`,
+    `- Candidate SHA: ${report.observations.handoff_bundle.candidate_sha || "<missing>"}`,
+    `- Candidate ref: ${report.observations.handoff_bundle.candidate_release_ref || "<missing>"}`,
+    `- Missing files: ${report.observations.handoff_bundle.missing_files.join(", ") || "none"}`,
     "",
     "## Ports",
     "",
@@ -535,6 +642,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
     probeHttp(`http://${nasHost}:9999/desktop/`, httpTimeoutMs)
   ]);
   const smbRootObservation = await mountedPathObservation(smbRoot);
+  const handoffObservation = await handoffBundleObservation(handoffBundleDir);
   const found = smbRootObservation.present && smbRootObservation.is_directory
     ? await findCandidatePaths({ root: smbRoot, maxDepth, maxEntries })
     : { compose_candidates: [], returned_evidence_candidates: [] };
@@ -547,6 +655,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
     ports,
     http,
     smb_root_observation: smbRootObservation,
+    handoff_bundle_observation: handoffObservation,
     compose_candidates: found.compose_candidates,
     returned_evidence_candidates: found.returned_evidence_candidates,
     max_depth: maxDepth,
