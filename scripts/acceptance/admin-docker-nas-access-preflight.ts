@@ -381,6 +381,7 @@ function nextActions(report: AdminDockerNasAccessPreflightReport): string[] {
     "Use the NAS desktop or physical NAS shell to locate the Compose project folder that contains docker-compose.yml and .env.",
     "Copy docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/ into that Compose project folder.",
     "On the NAS host, run sh ./nas/RUN_ON_NAS.sh and copy the generated admin-docker-release-inputs/ folder back to this Mac.",
+    "Run preflight:admin-docker-nas-ugos-api to evaluate whether an authenticated UGOS API session can replace browser/SSH evidence collection.",
     "Alternatively enable a temporary SSH or mounted Compose-project read-only workflow, then rerun this preflight."
   ];
 }
