@@ -12,37 +12,37 @@
   },
   "files": [
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md",
-      "sha256": "2c90bb330b946392209e317cba75c17b1277509239e9062540351016b132603e",
-      "size_bytes": 8378,
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/README.md",
+      "sha256": "23315304ce3d8b7fb3c4358231feda8202c73a3de7aa6c062d1c8d3a9f96ffc0",
+      "size_bytes": 8518,
       "executable": false
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/OPERATOR-CHECKLIST.md",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/OPERATOR-CHECKLIST.md",
       "sha256": "31888e9969582449b5e3aee12e643e9363aa03e2509b6e05627e6c3939522ba7",
       "size_bytes": 1968,
       "executable": false
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/admin-docker-nas-release-inputs-collector.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/nas/admin-docker-nas-release-inputs-collector.sh",
       "sha256": "e951945048d43ff33ef58f7d38d16d7b8c7d87fc572b81a644934a585bdffe86",
       "size_bytes": 12507,
       "executable": true
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/RUN_ON_NAS.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/nas/RUN_ON_NAS.sh",
       "sha256": "875f69b54cebc3ef3a5246bd1b60a3c607561287a31213b4b48d6370ec60effc",
       "size_bytes": 557,
       "executable": true
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/install-nas-runner.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/local/install-nas-runner.sh",
       "sha256": "936fbf4f3161427b278984b7015871ee8a3fd46ac0278b8c9f3100fd853807a1",
       "size_bytes": 1412,
       "executable": true
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/local/validate-returned-evidence.sh",
       "sha256": "65278ad6f9754ce0f4209722c425c3c2d31f54575ab809a8ddb4b7941bafeba7",
       "size_bytes": 2406,
       "executable": true

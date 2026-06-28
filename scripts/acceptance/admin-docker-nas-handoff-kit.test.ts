@@ -169,8 +169,10 @@ test("Admin Docker NAS handoff kit CLI writes a portable kit and report", async 
   assert.equal(built.artifacts?.kit_archive_path, archivePath);
   assert.match(built.artifacts?.kit_archive_sha256 ?? "", /^[a-f0-9]{64}$/);
   assert.ok((await stat(archivePath)).size > 0);
-  assert.match(await readFile(path.join(kitDir, "KIT-README.md"), "utf8"), /KIT-SELF-CHECK\.sh/);
-  assert.match(await readFile(path.join(kitDir, "KIT-README.md"), "utf8"), /tar -xzf admin-docker-nas-handoff-kit\.tar\.gz/);
+  const kitReadme = await readFile(path.join(kitDir, "KIT-README.md"), "utf8");
+  assert.match(kitReadme, /KIT-SELF-CHECK\.sh/);
+  assert.match(kitReadme, /tar -xzf admin-docker-nas-handoff-kit\.tar\.gz/);
+  assert.match(kitReadme, /refreshes the release readiness summary/);
   assert.match(await readFile(path.join(kitDir, "KIT-FILES.sha256"), "utf8"), /KIT-SELF-CHECK\.sh/);
   assert.match(await readFile(path.join(kitDir, "KIT-MANIFEST.json"), "utf8"), /KIT-README\.md/);
   assert.match(await readFile(path.join(kitDir, "KIT-MANIFEST.json"), "utf8"), /KIT-FILES\.sha256/);

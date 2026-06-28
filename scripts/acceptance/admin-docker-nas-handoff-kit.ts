@@ -323,6 +323,8 @@ function kitReadme(report: {
     "sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>",
     "```",
     "",
+    "This validates returned evidence, runs local intake, and refreshes the release readiness summary without contacting NAS or approving deploy.",
+    "",
     "## Stop Conditions",
     "",
     "- Stop if the validator reports missing, unexpected, or sensitive files.",

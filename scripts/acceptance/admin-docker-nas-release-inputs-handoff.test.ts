@@ -171,11 +171,12 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.match(readme, /sh \.\/nas\/RUN_ON_NAS\.sh/);
   assert.match(readme, /sh \.\/local\/install-nas-runner\.sh/);
   assert.match(readme, /sh \.\/local\/validate-returned-evidence\.sh/);
-  assert.match(readme, /sensitive fields before running intake/);
+  assert.match(readme, /sensitive fields, then runs intake and refreshes release readiness/);
   assert.match(checklist, /Admin Docker NAS Operator Checklist/);
   assert.match(checklist, /Candidate SHA/);
   assert.match(checklist, /sh \.\/nas\/RUN_ON_NAS\.sh/);
   assert.match(checklist, /validate-returned-evidence\.sh/);
+  assert.match(checklist, /release readiness summary refresh/);
   assert.match(checklist, /Stop Conditions/);
   assert.match(checklist, /Push execution allowed: no/);
   assert.match(manifest, /"nas_writes_allowed": false/);
@@ -188,6 +189,8 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.match(validator, /unexpected file in returned evidence directory/);
   assert.match(validator, /returned evidence appears to contain sensitive fields/);
   assert.match(validator, /precheck:admin-docker-nas-returned-evidence/);
+  assert.match(validator, /intake:admin-docker-nas-release-inputs/);
+  assert.match(validator, /validate:admin-docker-release-readiness-summary/);
   assert.ok((await stat(built.artifacts?.collector_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.nas_runner_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.local_installer_path ?? "")).mode & 0o111);

@@ -556,7 +556,7 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     "sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>",
     "```",
     "",
-    "The local validator first rejects missing required files, unexpected files, and sensitive fields before running intake.",
+    "The local validator first rejects missing required files, unexpected files, and sensitive fields, then runs intake and refreshes release readiness.",
     "",
     "## Local Validation Commands",
     "",
@@ -642,7 +642,7 @@ function operatorChecklistMarkdown(report: AdminDockerNasReleaseInputsHandoffRep
     "",
     `1. Copy only the generated \`${returnedDir}/\` folder back to the Mac repo or another local path.`,
     "2. Do not add full `.env`, full `docker inspect`, passwords, tokens, API keys, ASR credentials, private NAS account data, or private transcript text.",
-    "3. Run the local validator:",
+    "3. Run the local validator. It will run returned-evidence precheck, local intake, and release readiness summary refresh:",
     "",
     "```sh",
     "sh docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>",
@@ -913,6 +913,8 @@ MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=${candidateRef} \\
 MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \\
 MIXLAB_ACCEPTANCE_ARTIFACT_DIR=docs/acceptance/artifacts \\
 npm run intake:admin-docker-nas-release-inputs -- "$RETURNED_DIR"
+
+npm run validate:admin-docker-release-readiness-summary
 `;
 }
 

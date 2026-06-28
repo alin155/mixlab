@@ -43,7 +43,7 @@
     "missing_expected_release_input_blockers": []
   },
   "operator_handoff": {
-    "bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest",
+    "bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z",
     "nas_side_command": "sh ./nas/RUN_ON_NAS.sh",
     "copy_back_expectation": "Copy the generated admin-docker-release-inputs/ folder back to the Mac repo without adding full .env, secrets, or full docker inspect output.",
     "local_validation_commands": [
@@ -190,16 +190,16 @@
     "Stop if any returned proof is blocked, if release_inputs_ready=false, or if the staging runbook carries nas-disk-risk-carried-forward."
   ],
   "artifacts": {
-    "json_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.json",
-    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.md",
-    "bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest",
-    "manifest_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/MANIFEST.json",
-    "readme_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md",
-    "operator_checklist_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/OPERATOR-CHECKLIST.md",
-    "collector_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/admin-docker-nas-release-inputs-collector.sh",
-    "nas_runner_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/RUN_ON_NAS.sh",
-    "local_validator_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh",
-    "local_installer_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/install-nas-runner.sh",
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z.md",
+    "bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z",
+    "manifest_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/MANIFEST.json",
+    "readme_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/README.md",
+    "operator_checklist_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/OPERATOR-CHECKLIST.md",
+    "collector_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/nas/admin-docker-nas-release-inputs-collector.sh",
+    "nas_runner_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/nas/RUN_ON_NAS.sh",
+    "local_validator_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/local/validate-returned-evidence.sh",
+    "local_installer_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z/local/install-nas-runner.sh",
     "latest_json_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.json",
     "latest_markdown_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.md",
     "latest_bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest",

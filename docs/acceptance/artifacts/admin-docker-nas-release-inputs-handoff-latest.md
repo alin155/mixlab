@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T10:37:48.741Z
+Generated: 2026-06-28T11:25:52.349Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes
@@ -44,7 +44,7 @@ sh ./nas/RUN_ON_NAS.sh
 sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>
 ```
 
-The local validator first rejects missing required files, unexpected files, and sensitive fields before running intake.
+The local validator first rejects missing required files, unexpected files, and sensitive fields, then runs intake and refreshes release readiness.
 
 ## Local Validation Commands
 
