@@ -2188,6 +2188,7 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(testerChecklist, /[Dd]o not edit NAS \.env[\s\S]*restart NAS containers[\s\S]*push_images=true/);
     assert.match(testerChecklist, /MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT/);
     assert.match(testerChecklist, /MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT/);
+    assert.match(testerChecklist, /MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT/);
     assert.match(testerChecklist, /MIXLAB_DOCKER_CURRENT_IMAGE_TAG/);
     assert.match(testerChecklist, /MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG/);
     assert.match(testerChecklist, /MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0/);
@@ -2237,6 +2238,10 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(adminDockerNasReleaseInputsCollectorScript, /admin-worker\.inspect\.json/);
     assert.match(adminDockerNasReleaseInputsCollectorScript, /[Dd]o not edit NAS \.env[\s\S]*restart[\s\S]*push_images=true/);
     assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT/);
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /admin-docker-disk-proof\.json/);
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON/);
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /validate:admin-docker-nas-disk-proof/);
+    assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT/);
     assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_DOCKER_CURRENT_IMAGE_TAG/);
     assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG/);
     assert.match(adminDockerNasReleaseInputsCollectorScript, /MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0/);
@@ -2264,11 +2269,15 @@ test("packages a standalone target evidence kit with drafts and collectors", asy
     assert.match(nasReadme, /admin-docker-nas-release-inputs-collector\.sh/);
     assert.match(nasReadme, /admin-docker-current\.env/);
     assert.match(nasReadme, /admin-worker\.inspect\.json/);
+    assert.match(nasReadme, /admin-docker-disk-proof\.json/);
+    assert.match(nasReadme, /df -Pk/);
     assert.match(nasReadme, /does not dump the full `\.env`/);
+    assert.match(nasReadme, /validate:admin-docker-nas-disk-proof/);
     assert.match(nasReadme, /validate:admin-docker-release-inputs/);
     assert.match(nasReadme, /[Dd]o not edit NAS `\.env`[\s\S]*restart NAS containers[\s\S]*push_images=true/);
     assert.match(nasReadme, /MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT/);
     assert.match(nasReadme, /MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT/);
+    assert.match(nasReadme, /MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT/);
     assert.match(nasReadme, /MIXLAB_DOCKER_CURRENT_IMAGE_TAG/);
     assert.match(nasReadme, /MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG/);
     assert.match(nasReadme, /MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0/);

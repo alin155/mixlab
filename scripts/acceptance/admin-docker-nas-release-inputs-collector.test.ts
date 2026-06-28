@@ -15,6 +15,12 @@ test("NAS release-input collector exports only sanitized evidence", () => {
   assert.match(script, /MIXLAB_ADMIN_LIBRARY_ROOT/);
   assert.match(script, /MIXLAB_PREPROCESS_LIBRARY_ROOT/);
   assert.match(script, /docker inspect --format/);
+  assert.match(script, /admin-docker-disk-proof\.json/);
+  assert.match(script, /df -Pk/);
+  assert.match(script, /MIXLAB_PREPROCESS_DISK_ATTENTION_USAGE_PERCENT/);
+  assert.match(script, /MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT/);
+  assert.match(script, /MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON/);
+  assert.match(script, /validate:admin-docker-nas-disk-proof/);
   assert.equal(script.includes("env | sort"), false);
   assert.equal(script.includes("{{json .Config.Env}}"), false);
   assert.equal(script.includes("DASHSCOPE_API_KEY"), false);

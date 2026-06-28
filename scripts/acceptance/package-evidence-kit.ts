@@ -148,7 +148,7 @@ Use this checklist before declaring ACC-008, ACC-009, or final delivery complete
 - Use at least 2,000 indexed source videos and 48,000 indexed transcript segments.
 - Complete the 50+ editor searchd flow: keyword search, full-transcript location, transcript selection, local cut submission, local clip output, zero search failures in metrics.usage.search_failure_count, public-library write protection, and cross-workspace isolation.
 - For Admin Docker MVP release inputs, run admin-docker-nas-release-inputs-collector.sh from the NAS Compose project folder and copy its admin-docker-release-inputs/ output back to the Mac repository before release-input validation. The release-input collector is read-only evidence collection: do not edit NAS .env, restart NAS containers, enable workers, or run push_images=true from these instructions.
-- From the Mac repository, validate the copied NAS image proof and admin-worker proof, then generate release inputs with MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT and MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT. Feed the resulting MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT into validate:admin-docker-staging-runbook together with explicit MIXLAB_DOCKER_CURRENT_IMAGE_TAG, MIXLAB_DOCKER_TARGET_IMAGE_TAG, and MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG.
+- From the Mac repository, validate the copied NAS image proof, admin-worker proof, and NAS disk proof, then generate release inputs with MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT and MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT. Feed the resulting MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT plus MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT into validate:admin-docker-staging-runbook together with explicit MIXLAB_DOCKER_CURRENT_IMAGE_TAG, MIXLAB_DOCKER_TARGET_IMAGE_TAG, and MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG.
 - Stop before any staging execution if release_inputs_ready is false, staging_execution_ready is false, MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0 / MIXLAB_ENABLE_READY_PUBLISH_WORKER=0 is not proven by admin-worker env proof, or the runbook carries nas-disk-risk-carried-forward.
 - Before collector copy, run nas-50-editor-report-self-check.sh ./captures/50-editor-report.json.
 - Run nas-acc-009-collector.sh with EVIDENCE_DIR=./captures, then run nas-evidence-self-check.sh ./nas-acc-009.json before leaving the NAS shell host.
@@ -229,11 +229,12 @@ sh ./admin-docker-nas-release-inputs-collector.sh ./admin-docker-release-inputs
 The Admin Docker release-input collector writes only whitelist-based files for
 repository-side proof: \`admin-docker-current.env\`,
 \`admin-docker-current.inspect.json\`, \`admin-worker.env\`, and
-\`admin-worker.inspect.json\`. It does not dump the full \`.env\`, full container
-environment, ASR keys, bearer tokens, or private data. Copy that output
-directory back to the Mac repository before running
-\`validate:admin-docker-nas-image-proof\`, \`validate:admin-worker-env-proof\`, and
-\`validate:admin-docker-release-inputs\`.
+\`admin-worker.inspect.json\`, plus \`admin-docker-disk-proof.json\` with
+whitelist-only \`df -Pk\` values for the Docker public-library mount. It does not dump the full \`.env\`, full container environment, ASR keys, bearer tokens,
+or private data. Copy that output directory back to the Mac repository before
+running \`validate:admin-docker-nas-image-proof\`,
+\`validate:admin-worker-env-proof\`, \`validate:admin-docker-nas-disk-proof\`,
+and \`validate:admin-docker-release-inputs\`.
 
 This collector is read-only evidence collection. Do not edit NAS \`.env\`,
 restart NAS containers, enable \`admin-worker\`, or run \`push_images=true\` from
@@ -256,12 +257,17 @@ MIXLAB_ADMIN_WORKER_INSPECT_JSON=<copied>/admin-worker.inspect.json \\
 MIXLAB_ACCEPTANCE_OUTPUT_DIR=<local-artifact-dir> \\
 npm run validate:admin-worker-env-proof
 
+MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON=<copied>/admin-docker-disk-proof.json \\
+MIXLAB_ACCEPTANCE_OUTPUT_DIR=<local-artifact-dir> \\
+npm run validate:admin-docker-nas-disk-proof
+
 MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=<local-artifact-dir>/admin-docker-prestaging-handoff-*.json \\
 MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=<local-artifact-dir>/admin-docker-nas-image-proof-*.json \\
 MIXLAB_ACCEPTANCE_OUTPUT_DIR=<local-artifact-dir> \\
 npm run validate:admin-docker-release-inputs
 
 MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=<local-artifact-dir>/admin-docker-release-inputs-*.json \\
+MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT=<local-artifact-dir>/admin-docker-nas-disk-proof-*.json \\
 MIXLAB_DOCKER_CURRENT_IMAGE_TAG=<current-admin-docker-image-tag> \\
 MIXLAB_DOCKER_TARGET_IMAGE_TAG=<candidate-40-char-commit-sha> \\
 MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG=<same-as-current-image-tag> \\

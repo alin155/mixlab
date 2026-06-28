@@ -67,6 +67,18 @@ function acceptedCutterProof(): unknown {
   };
 }
 
+function acceptedDiskProof(): unknown {
+  return {
+    proof_accepted: true,
+    summary: {
+      staging_execution_blockers: []
+    },
+    result: {
+      status: "accepted"
+    }
+  };
+}
+
 function releaseInputsReport(input: {
   ready?: boolean;
   blockers?: string[];
@@ -320,6 +332,46 @@ test("admin Docker staging runbook carries NAS disk risk from release inputs", (
   ]);
   assert.ok(report.summary.staging_execution_blockers.includes("pre-staging-execution-blockers-carried-forward"));
   assert.ok(report.summary.staging_blockers.includes("pre-staging-execution-blockers-carried-forward"));
+});
+
+test("admin Docker staging runbook clears carried NAS disk risk only with accepted disk proof", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: clearParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: acceptedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: acceptedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: acceptedCutterProof(),
+    release_inputs_report_path: "release-inputs.json",
+    release_inputs_report: releaseInputsReport({
+      handoffStagingBlockers: [
+        "nas-disk-risk-carried-forward",
+        "explicit-push-approval-required"
+      ]
+    }),
+    nas_disk_proof_report_path: "disk-proof.json",
+    nas_disk_proof_report: acceptedDiskProof(),
+    current_image_tag: "old-tag",
+    target_image_tag: "new-tag",
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.staging_execution_ready, true);
+  assert.equal(report.staging_review_ready, true);
+  assert.equal(report.observations.nas_disk_proof_accepted, true);
+  assert.deepEqual(report.observations.cleared_pre_staging_execution_blockers, [
+    "nas-disk-risk-carried-forward"
+  ]);
+  assert.deepEqual(report.observations.carried_pre_staging_execution_blockers, []);
+  assert.ok(!report.summary.staging_execution_blockers.includes("nas-disk-proof-accepted"));
+  assert.ok(!report.summary.staging_execution_blockers.includes("pre-staging-execution-blockers-carried-forward"));
 });
 
 test("admin Docker staging runbook accepts release inputs without execution carry-forward blockers", () => {

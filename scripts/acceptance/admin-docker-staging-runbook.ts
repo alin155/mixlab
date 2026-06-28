@@ -52,6 +52,7 @@ interface RunbookSources {
   worker_env_proof_report: string;
   cutter_compatibility_proof_report: string;
   release_inputs_report: string;
+  nas_disk_proof_report: string;
 }
 
 export interface AdminDockerStagingRunbookReport {
@@ -90,6 +91,10 @@ export interface AdminDockerStagingRunbookReport {
     release_inputs_ready: boolean | null;
     release_input_blockers: string[];
     release_input_handoff_staging_blockers: string[];
+    nas_disk_proof_status: string;
+    nas_disk_proof_accepted: boolean | null;
+    nas_disk_proof_blockers: string[];
+    cleared_pre_staging_execution_blockers: string[];
     carried_pre_staging_execution_blockers: string[];
   };
   runbook: {
@@ -162,6 +167,7 @@ function normalizeParityBlockers(input: {
   parity_blockers: string[];
   worker_accepted: boolean | null;
   cutter_accepted: boolean | null;
+  nas_disk_proof_accepted: boolean | null;
 }): { unresolved: string[]; resolved_external: string[] } {
   const resolvedExternal = new Set<string>();
 
@@ -171,6 +177,10 @@ function normalizeParityBlockers(input: {
 
   if (input.cutter_accepted) {
     resolvedExternal.add("cutter-compatibility-external-proof");
+  }
+
+  if (input.nas_disk_proof_accepted) {
+    resolvedExternal.add("nas-disk-risk");
   }
 
   return {
@@ -317,6 +327,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
   cutter_compatibility_proof_report: unknown;
   release_inputs_report_path?: string;
   release_inputs_report?: unknown;
+  nas_disk_proof_report_path?: string;
+  nas_disk_proof_report?: unknown;
   current_image_tag?: string;
   target_image_tag?: string;
   rollback_image_tag?: string;
@@ -343,25 +355,33 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const releaseInputs = asRecord(input.release_inputs_report);
   const releaseInputsResult = asRecord(releaseInputs.result);
   const releaseInputsObservations = asRecord(releaseInputs.observations);
+  const nasDiskProof = asRecord(input.nas_disk_proof_report);
+  const nasDiskProofResult = asRecord(nasDiskProof.result);
   const parityBlockers = summaryBlockers(input.parity_plan_report);
   const candidateBlockers = summaryBlockers(input.candidate_contract_proof_report, "candidate_review_blockers");
   const workerBlockers = summaryBlockers(input.worker_env_proof_report);
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
   const releaseInputBlockers = summaryBlockers(input.release_inputs_report, "release_input_blockers");
+  const nasDiskProofBlockers = summaryBlockers(input.nas_disk_proof_report, "staging_execution_blockers");
   const candidateReady = asBoolean(asRecord(input.candidate_contract_proof_report).candidate_contract_ready);
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
   const releaseInputsReady = asBoolean(releaseInputs.release_inputs_ready);
+  const nasDiskProofAccepted = asBoolean(nasDiskProof.proof_accepted);
   const releaseInputHandoffStagingBlockers = asArray(releaseInputsObservations.handoff_staging_execution_blockers)
     .filter((item): item is string => typeof item === "string");
+  const clearedPreStagingExecutionBlockers = releaseInputHandoffStagingBlockers.filter((item) => (
+    item === "nas-disk-risk-carried-forward" && nasDiskProofAccepted === true
+  ));
   const carriedPreStagingExecutionBlockers = releaseInputHandoffStagingBlockers.filter((item) => (
-    item === "nas-disk-risk-carried-forward"
+    item === "nas-disk-risk-carried-forward" && nasDiskProofAccepted !== true
   ));
   const updateRequired = asBoolean(parityDecision.docker_image_update_required);
   const normalizedParity = normalizeParityBlockers({
     parity_blockers: parityBlockers,
     worker_accepted: workerAccepted,
-    cutter_accepted: cutterAccepted
+    cutter_accepted: cutterAccepted,
+    nas_disk_proof_accepted: nasDiskProofAccepted
   });
   const executionParityBlockers = stagingExecutionParityBlockers({
     parity_blockers: normalizedParity.unresolved,
@@ -459,6 +479,22 @@ export function buildAdminDockerStagingRunbookReport(input: {
         blocks_staging_execution: !releaseInputsReady,
         blocks_staging: !releaseInputsReady,
         required_evidence: "Provide an accepted admin-docker-release-inputs report before using it to constrain staging."
+      }),
+      gate({
+        id: "nas-disk-proof-accepted",
+        title: "NAS disk risk is cleared by explicit disk proof",
+        category: "runtime-risk",
+        status: releaseInputHandoffStagingBlockers.includes("nas-disk-risk-carried-forward")
+          ? nasDiskProofAccepted ? "pass" : "blocked"
+          : "pass",
+        evidence: releaseInputHandoffStagingBlockers.includes("nas-disk-risk-carried-forward")
+          ? nasDiskProofAccepted
+            ? `disk proof accepted: ${input.nas_disk_proof_report_path || "inline"}`
+            : `disk proof status=${asString(nasDiskProofResult.status) || "missing"}, blockers=${nasDiskProofBlockers.join(", ") || "none"}`
+          : "release inputs did not carry nas-disk-risk-carried-forward",
+        blocks_staging_execution: releaseInputHandoffStagingBlockers.includes("nas-disk-risk-carried-forward") && !nasDiskProofAccepted,
+        blocks_staging: releaseInputHandoffStagingBlockers.includes("nas-disk-risk-carried-forward") && !nasDiskProofAccepted,
+        required_evidence: "Run validate:admin-docker-nas-disk-proof with sanitized NAS df evidence and require proof_accepted:true."
       }),
       gate({
         id: "pre-staging-execution-blockers-carried-forward",
@@ -563,7 +599,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
       candidate_contract_proof_report: input.candidate_contract_proof_report_path,
       worker_env_proof_report: input.worker_env_proof_report_path,
       cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
-      release_inputs_report: input.release_inputs_report_path ?? ""
+      release_inputs_report: input.release_inputs_report_path ?? "",
+      nas_disk_proof_report: input.nas_disk_proof_report_path ?? ""
     },
     image_tags: tags,
     image_push_approval: {
@@ -598,6 +635,10 @@ export function buildAdminDockerStagingRunbookReport(input: {
       release_inputs_ready: releaseInputsReady,
       release_input_blockers: releaseInputBlockers,
       release_input_handoff_staging_blockers: releaseInputHandoffStagingBlockers,
+      nas_disk_proof_status: asString(nasDiskProofResult.status),
+      nas_disk_proof_accepted: nasDiskProofAccepted,
+      nas_disk_proof_blockers: nasDiskProofBlockers,
+      cleared_pre_staging_execution_blockers: clearedPreStagingExecutionBlockers,
       carried_pre_staging_execution_blockers: carriedPreStagingExecutionBlockers
     },
     runbook: buildRunbook(tags),
@@ -642,6 +683,7 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Worker env proof: ${report.sources.worker_env_proof_report || "not provided"}`,
     `- Cutter compatibility proof: ${report.sources.cutter_compatibility_proof_report || "not provided"}`,
     `- Release inputs: ${report.sources.release_inputs_report || "not provided"}`,
+    `- NAS disk proof: ${report.sources.nas_disk_proof_report || "not provided"}`,
     "",
     "## Image Tags",
     "",
@@ -676,6 +718,10 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}`,
     `- Release input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
     `- Release input handoff staging blockers: ${report.observations.release_input_handoff_staging_blockers.join(", ") || "none"}`,
+    `- NAS disk proof status: ${report.observations.nas_disk_proof_status || "not provided"}`,
+    `- NAS disk proof accepted: ${report.observations.nas_disk_proof_accepted ?? "unknown"}`,
+    `- NAS disk proof blockers: ${report.observations.nas_disk_proof_blockers.join(", ") || "none"}`,
+    `- Cleared pre-staging execution blockers: ${report.observations.cleared_pre_staging_execution_blockers.join(", ") || "none"}`,
     `- Carried pre-staging execution blockers: ${report.observations.carried_pre_staging_execution_blockers.join(", ") || "none"}`,
     "",
     "## Preflight",
@@ -733,6 +779,8 @@ async function main(): Promise<void> {
     ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
   const releaseInputsPath = process.env.MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT
     ?? await optionalLatestArtifact(artifactDir, "admin-docker-release-inputs-");
+  const nasDiskProofPath = process.env.MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-nas-disk-proof-");
   const timestamp = timestampForFile();
   const jsonPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.md`);
@@ -751,6 +799,8 @@ async function main(): Promise<void> {
     cutter_compatibility_proof_report: await loadJson(cutterPath),
     release_inputs_report_path: releaseInputsPath,
     release_inputs_report: await optionalLoadJson(releaseInputsPath),
+    nas_disk_proof_report_path: nasDiskProofPath,
+    nas_disk_proof_report: await optionalLoadJson(nasDiskProofPath),
     current_image_tag: process.env.MIXLAB_DOCKER_CURRENT_IMAGE_TAG,
     target_image_tag: process.env.MIXLAB_DOCKER_TARGET_IMAGE_TAG,
     rollback_image_tag: process.env.MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG,
