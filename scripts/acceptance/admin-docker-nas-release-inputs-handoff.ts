@@ -88,6 +88,8 @@ export interface AdminDockerNasReleaseInputsHandoffReport {
     manifest_path: string;
     readme_path: string;
     collector_path: string;
+    nas_runner_path: string;
+    local_validator_path: string;
   } | null;
   result: {
     status: "ready-for-nas-collection" | "blocked" | "failed";
@@ -256,10 +258,10 @@ function nextActions(report: AdminDockerNasReleaseInputsHandoffReport): string[]
   }
 
   return [
-    "Copy the handoff bundle's nas/ folder or admin-docker-nas-release-inputs-collector.sh to the NAS Compose project folder that contains docker-compose.yml and .env.",
-    "On the NAS shell host, run: sh ./admin-docker-nas-release-inputs-collector.sh ./admin-docker-release-inputs",
+    "Copy the handoff bundle's nas/ folder to the NAS Compose project folder that contains docker-compose.yml and .env.",
+    "On the NAS shell host, run the quickstart script: sh ./nas/RUN_ON_NAS.sh",
     "Copy the generated admin-docker-release-inputs/ folder back to the Mac repository.",
-    "Run the local validation commands in the bundle README before generating any staging runbook.",
+    "Run the local validator: sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>.",
     "Stop if any returned proof is blocked, if release_inputs_ready=false, or if the staging runbook carries nas-disk-risk-carried-forward."
   ];
 }
@@ -452,7 +454,7 @@ export function buildAdminDockerNasReleaseInputsHandoffReport(input: {
     },
     operator_handoff: {
       bundle_dir: input.bundle_dir ?? "",
-      nas_side_command: "sh ./admin-docker-nas-release-inputs-collector.sh ./admin-docker-release-inputs",
+      nas_side_command: "sh ./nas/RUN_ON_NAS.sh",
       copy_back_expectation: "Copy the generated admin-docker-release-inputs/ folder back to the Mac repo without adding full .env, secrets, or full docker inspect output.",
       local_validation_commands: localCommands,
       forbidden_actions: forbiddenActions()
@@ -505,6 +507,19 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     `- Run from the NAS Compose project folder: ${report.operator_handoff.nas_side_command}`,
     `- Copy back: ${report.operator_handoff.copy_back_expectation}`,
     "",
+    "### Quickstart Scripts",
+    "",
+    `- NAS runner: ${report.artifacts?.nas_runner_path ?? "<not written>"}`,
+    `- Local validator: ${report.artifacts?.local_validator_path ?? "<not written>"}`,
+    "",
+    "```sh",
+    "sh ./nas/RUN_ON_NAS.sh",
+    "```",
+    "",
+    "```sh",
+    "sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>",
+    "```",
+    "",
     "## Local Validation Commands",
     "",
     ...report.operator_handoff.local_validation_commands.flatMap((command) => [
@@ -545,6 +560,8 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     `- Manifest: ${report.artifacts?.manifest_path ?? "<not written>"}`,
     `- README: ${report.artifacts?.readme_path ?? "<not written>"}`,
     `- Collector: ${report.artifacts?.collector_path ?? "<not written>"}`,
+    `- NAS runner: ${report.artifacts?.nas_runner_path ?? "<not written>"}`,
+    `- Local validator: ${report.artifacts?.local_validator_path ?? "<not written>"}`,
     ""
   ];
 
@@ -591,9 +608,14 @@ async function writeBundle(input: {
   manifest_path: string;
   readme_path: string;
   collector_path: string;
+  nas_runner_path: string;
+  local_validator_path: string;
 }> {
   const nasDir = path.join(input.bundle_dir, "nas");
+  const localDir = path.join(input.bundle_dir, "local");
   const collectorPath = path.join(nasDir, "admin-docker-nas-release-inputs-collector.sh");
+  const nasRunnerPath = path.join(nasDir, "RUN_ON_NAS.sh");
+  const localValidatorPath = path.join(localDir, "validate-returned-evidence.sh");
   const readmePath = path.join(input.bundle_dir, "README.md");
   const manifestPath = path.join(input.bundle_dir, "MANIFEST.json");
   const reportBase = path.join(path.dirname(input.bundle_dir), path.basename(input.bundle_dir));
@@ -611,13 +633,20 @@ async function writeBundle(input: {
       bundle_dir: input.bundle_dir,
       manifest_path: manifestPath,
       readme_path: readmePath,
-      collector_path: collectorPath
+      collector_path: collectorPath,
+      nas_runner_path: nasRunnerPath,
+      local_validator_path: localValidatorPath
     }
   };
 
   await mkdir(nasDir, { recursive: true });
+  await mkdir(localDir, { recursive: true });
   await copyFile(input.collector_source_path, collectorPath);
   await chmod(collectorPath, 0o755);
+  await writeFile(nasRunnerPath, nasRunnerContents());
+  await chmod(nasRunnerPath, 0o755);
+  await writeFile(localValidatorPath, localValidatorContents(bundleReport));
+  await chmod(localValidatorPath, 0o755);
   await writeFile(readmePath, toMarkdown(bundleReport));
   const manifest: BundleManifest = {
     schema_version: "1.0",
@@ -628,7 +657,9 @@ async function writeBundle(input: {
     source_reports: input.report.sources,
     files: [
       await fileInfo(readmePath, false),
-      await fileInfo(collectorPath, true)
+      await fileInfo(collectorPath, true),
+      await fileInfo(nasRunnerPath, true),
+      await fileInfo(localValidatorPath, true)
     ],
     safety: {
       push_execution_allowed: false,
@@ -643,8 +674,60 @@ async function writeBundle(input: {
   return {
     manifest_path: manifestPath,
     readme_path: readmePath,
-    collector_path: collectorPath
+    collector_path: collectorPath,
+    nas_runner_path: nasRunnerPath,
+    local_validator_path: localValidatorPath
   };
+}
+
+function nasRunnerContents(): string {
+  return `#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
+  COMPOSE_DIR="$SCRIPT_DIR"
+elif [ -f "$SCRIPT_DIR/../docker-compose.yml" ]; then
+  COMPOSE_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+else
+  echo "error: run this from, or copy this folder into, the NAS Compose project folder containing docker-compose.yml and .env" >&2
+  exit 1
+fi
+
+OUT_DIR="\${1:-admin-docker-release-inputs}"
+cd "$COMPOSE_DIR"
+sh "$SCRIPT_DIR/admin-docker-nas-release-inputs-collector.sh" "$OUT_DIR"
+`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function localValidatorContents(report: AdminDockerNasReleaseInputsHandoffReport): string {
+  const prestaging = shellQuote(report.sources.prestaging_handoff_report);
+  const candidateRef = shellQuote(report.sources.candidate_ref_proof_report);
+
+  return `#!/usr/bin/env sh
+set -eu
+
+RETURNED_DIR="\${1:-\${MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR:-}}"
+if [ -z "$RETURNED_DIR" ]; then
+  echo "usage: sh ./validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>" >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+REPO_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/../../../../.." && pwd)"
+cd "$REPO_ROOT"
+
+MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR="$RETURNED_DIR" \\
+MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=${prestaging} \\
+MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=${candidateRef} \\
+MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \\
+MIXLAB_ACCEPTANCE_ARTIFACT_DIR=docs/acceptance/artifacts \\
+npm run intake:admin-docker-nas-release-inputs -- "$RETURNED_DIR"
+`;
 }
 
 export async function runAdminDockerNasReleaseInputsHandoff(input: {
@@ -697,7 +780,9 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       bundle_dir: bundleDir,
       manifest_path: bundleArtifacts.manifest_path,
       readme_path: bundleArtifacts.readme_path,
-      collector_path: bundleArtifacts.collector_path
+      collector_path: bundleArtifacts.collector_path,
+      nas_runner_path: bundleArtifacts.nas_runner_path,
+      local_validator_path: bundleArtifacts.local_validator_path
     }
   };
 

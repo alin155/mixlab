@@ -163,7 +163,16 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.equal(built.handoff_package_ready, true);
   assert.equal(built.artifacts?.json_path, path.join(tempRoot, "admin-docker-nas-release-inputs-handoff-20260628T000000Z.json"));
   assert.match(await readFile(built.artifacts?.markdown_path ?? "", "utf8"), /ready-for-nas-collection/);
-  assert.match(await readFile(built.artifacts?.readme_path ?? "", "utf8"), /admin-docker-nas-release-inputs-collector\.sh/);
-  assert.match(await readFile(built.artifacts?.manifest_path ?? "", "utf8"), /"nas_writes_allowed": false/);
+  const readme = await readFile(built.artifacts?.readme_path ?? "", "utf8");
+  const manifest = await readFile(built.artifacts?.manifest_path ?? "", "utf8");
+
+  assert.match(readme, /admin-docker-nas-release-inputs-collector\.sh/);
+  assert.match(readme, /sh \.\/nas\/RUN_ON_NAS\.sh/);
+  assert.match(readme, /sh \.\/local\/validate-returned-evidence\.sh/);
+  assert.match(manifest, /"nas_writes_allowed": false/);
+  assert.match(manifest, /RUN_ON_NAS\.sh/);
+  assert.match(manifest, /validate-returned-evidence\.sh/);
   assert.ok((await stat(built.artifacts?.collector_path ?? "")).mode & 0o111);
+  assert.ok((await stat(built.artifacts?.nas_runner_path ?? "")).mode & 0o111);
+  assert.ok((await stat(built.artifacts?.local_validator_path ?? "")).mode & 0o111);
 });
