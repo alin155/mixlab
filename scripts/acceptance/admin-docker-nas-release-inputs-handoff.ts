@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmod, copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -91,6 +91,11 @@ export interface AdminDockerNasReleaseInputsHandoffReport {
     nas_runner_path: string;
     local_validator_path: string;
     local_installer_path: string;
+    latest_json_path?: string;
+    latest_markdown_path?: string;
+    latest_bundle_dir?: string;
+    latest_manifest_path?: string;
+    latest_readme_path?: string;
   } | null;
   result: {
     status: "ready-for-nas-collection" | "blocked" | "failed";
@@ -480,6 +485,26 @@ export function buildAdminDockerNasReleaseInputsHandoffReport(input: {
 }
 
 export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): string {
+  const artifacts = report.artifacts;
+  const artifactLines = [
+    `- JSON: ${artifacts?.json_path ?? "<not written>"}`,
+    `- Markdown: ${artifacts?.markdown_path ?? "<not written>"}`,
+    `- Bundle dir: ${artifacts?.bundle_dir ?? "<not written>"}`,
+    `- Manifest: ${artifacts?.manifest_path ?? "<not written>"}`,
+    `- README: ${artifacts?.readme_path ?? "<not written>"}`,
+    `- Collector: ${artifacts?.collector_path ?? "<not written>"}`,
+    `- NAS runner: ${artifacts?.nas_runner_path ?? "<not written>"}`,
+    `- Local installer: ${artifacts?.local_installer_path ?? "<not written>"}`,
+    `- Local validator: ${artifacts?.local_validator_path ?? "<not written>"}`
+  ];
+  if (artifacts?.latest_json_path || artifacts?.latest_markdown_path || artifacts?.latest_bundle_dir || artifacts?.latest_readme_path) {
+    artifactLines.push(
+      `- Latest JSON: ${artifacts.latest_json_path ?? "<not written>"}`,
+      `- Latest Markdown: ${artifacts.latest_markdown_path ?? "<not written>"}`,
+      `- Latest bundle dir: ${artifacts.latest_bundle_dir ?? "<not written>"}`,
+      `- Latest README: ${artifacts.latest_readme_path ?? "<not written>"}`
+    );
+  }
   const lines = [
     "# Admin Docker NAS Release Inputs Handoff",
     "",
@@ -561,15 +586,7 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     "",
     "## Artifacts",
     "",
-    `- JSON: ${report.artifacts?.json_path ?? "<not written>"}`,
-    `- Markdown: ${report.artifacts?.markdown_path ?? "<not written>"}`,
-    `- Bundle dir: ${report.artifacts?.bundle_dir ?? "<not written>"}`,
-    `- Manifest: ${report.artifacts?.manifest_path ?? "<not written>"}`,
-    `- README: ${report.artifacts?.readme_path ?? "<not written>"}`,
-    `- Collector: ${report.artifacts?.collector_path ?? "<not written>"}`,
-    `- NAS runner: ${report.artifacts?.nas_runner_path ?? "<not written>"}`,
-    `- Local installer: ${report.artifacts?.local_installer_path ?? "<not written>"}`,
-    `- Local validator: ${report.artifacts?.local_validator_path ?? "<not written>"}`,
+    ...artifactLines,
     ""
   ];
 
@@ -827,6 +844,11 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
   });
   const jsonPath = path.join(outputDir, `admin-docker-nas-release-inputs-handoff-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-docker-nas-release-inputs-handoff-${timestamp}.md`);
+  const latestBundleDir = path.join(outputDir, "admin-docker-nas-release-inputs-handoff-latest");
+  const latestJsonPath = path.join(outputDir, "admin-docker-nas-release-inputs-handoff-latest.json");
+  const latestMarkdownPath = path.join(outputDir, "admin-docker-nas-release-inputs-handoff-latest.md");
+  const latestManifestPath = path.join(latestBundleDir, "MANIFEST.json");
+  const latestReadmePath = path.join(latestBundleDir, "README.md");
   const reportWithArtifacts: AdminDockerNasReleaseInputsHandoffReport = {
     ...report,
     operator_handoff: {
@@ -842,12 +864,51 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       collector_path: bundleArtifacts.collector_path,
       nas_runner_path: bundleArtifacts.nas_runner_path,
       local_validator_path: bundleArtifacts.local_validator_path,
-      local_installer_path: bundleArtifacts.local_installer_path
+      local_installer_path: bundleArtifacts.local_installer_path,
+      latest_json_path: latestJsonPath,
+      latest_markdown_path: latestMarkdownPath,
+      latest_bundle_dir: latestBundleDir,
+      latest_manifest_path: latestManifestPath,
+      latest_readme_path: latestReadmePath
     }
   };
 
   await writeFile(jsonPath, `${JSON.stringify(reportWithArtifacts, null, 2)}\n`);
   await writeFile(markdownPath, toMarkdown(reportWithArtifacts));
+  await rm(latestBundleDir, { recursive: true, force: true });
+  await rm(latestJsonPath, { force: true });
+  await rm(latestMarkdownPath, { force: true });
+  const latestBundleArtifacts = await writeBundle({
+    report: reportWithArtifacts,
+    bundle_dir: latestBundleDir,
+    collector_source_path: collectorPath
+  });
+  const latestReportWithArtifacts: AdminDockerNasReleaseInputsHandoffReport = {
+    ...reportWithArtifacts,
+    operator_handoff: {
+      ...reportWithArtifacts.operator_handoff,
+      bundle_dir: latestBundleDir
+    },
+    artifacts: {
+      json_path: latestJsonPath,
+      markdown_path: latestMarkdownPath,
+      bundle_dir: latestBundleDir,
+      manifest_path: latestBundleArtifacts.manifest_path,
+      readme_path: latestBundleArtifacts.readme_path,
+      collector_path: latestBundleArtifacts.collector_path,
+      nas_runner_path: latestBundleArtifacts.nas_runner_path,
+      local_validator_path: latestBundleArtifacts.local_validator_path,
+      local_installer_path: latestBundleArtifacts.local_installer_path,
+      latest_json_path: latestJsonPath,
+      latest_markdown_path: latestMarkdownPath,
+      latest_bundle_dir: latestBundleDir,
+      latest_manifest_path: latestBundleArtifacts.manifest_path,
+      latest_readme_path: latestBundleArtifacts.readme_path
+    }
+  };
+
+  await writeFile(latestJsonPath, `${JSON.stringify(latestReportWithArtifacts, null, 2)}\n`);
+  await writeFile(latestMarkdownPath, toMarkdown(latestReportWithArtifacts));
 
   return reportWithArtifacts;
 }

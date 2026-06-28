@@ -178,4 +178,9 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.ok((await stat(built.artifacts?.nas_runner_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.local_installer_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.local_validator_path ?? "")).mode & 0o111);
+  assert.equal(built.artifacts?.latest_json_path, path.join(tempRoot, "admin-docker-nas-release-inputs-handoff-latest.json"));
+  assert.match(await readFile(built.artifacts?.latest_markdown_path ?? "", "utf8"), /ready-for-nas-collection/);
+  assert.match(await readFile(built.artifacts?.latest_readme_path ?? "", "utf8"), /sh \.\/local\/install-nas-runner\.sh/);
+  assert.ok((await stat(path.join(built.artifacts?.latest_bundle_dir ?? "", "nas", "RUN_ON_NAS.sh"))).mode & 0o111);
+  assert.ok((await stat(path.join(built.artifacts?.latest_bundle_dir ?? "", "local", "install-nas-runner.sh"))).mode & 0o111);
 });
