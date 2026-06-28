@@ -179,6 +179,7 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.match(validator, /REQUIRED_FILES=/);
   assert.match(validator, /unexpected file in returned evidence directory/);
   assert.match(validator, /returned evidence appears to contain sensitive fields/);
+  assert.match(validator, /precheck:admin-docker-nas-returned-evidence/);
   assert.ok((await stat(built.artifacts?.collector_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.nas_runner_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.local_installer_path ?? "")).mode & 0o111);

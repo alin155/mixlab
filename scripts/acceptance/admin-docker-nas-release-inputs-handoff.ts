@@ -836,6 +836,8 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$REPO_ROOT"
 
+npm run precheck:admin-docker-nas-returned-evidence -- "$RETURNED_DIR"
+
 MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR="$RETURNED_DIR" \\
 MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=${prestaging} \\
 MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=${candidateRef} \\
