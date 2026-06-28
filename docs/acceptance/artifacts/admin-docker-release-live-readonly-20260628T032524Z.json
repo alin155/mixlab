@@ -1,0 +1,443 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T03:25:24.184Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-live-readonly.ts",
+  "mode": "live-readonly-get",
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "normalized_base_url": "http://192.168.1.27:18080",
+    "configured": true,
+    "kind": "admin-web-url",
+    "safe_to_probe": true,
+    "classification_evidence": "Target URL shape is compatible with the NAS Docker admin-web root.",
+    "classification_notes": [
+      "This only validates target shape; API/version/disk/worker/Cutter proof gates still decide readiness."
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "session_token_present": false
+  },
+  "live_readiness_ready": false,
+  "docker_upload_allowed": false,
+  "requests": [
+    {
+      "name": "admin_web_root",
+      "method": "GET",
+      "path": "/",
+      "duration_ms": 29.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": null,
+      "response_bytes": 413,
+      "content_type": "text/html",
+      "data": null
+    },
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 11.4,
+      "http_status": 404,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 65,
+      "content_type": "application/json; charset=utf-8",
+      "error_code": "not_found",
+      "message": "路由不存在"
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 986.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 702,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "library_id": "lib_main_001",
+        "name": "主素材库",
+        "root_path": "/data/PublicLibrary",
+        "source_videos_path": "/data/PublicLibrary/source-videos",
+        "mixlab_library_path": "/data/PublicLibrary/.mixlab-library",
+        "protocol_version": "1.0",
+        "version": "1.0",
+        "created_at": "2026-06-24T11:53:43.919Z",
+        "updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "processing_video_count": 0,
+        "queued_video_count": 904,
+        "unprocessed_video_count": 0,
+        "failed_video_count": 0,
+        "index_required_video_count": 19,
+        "disk_total_bytes": 31840459087872,
+        "disk_available_bytes": 681450393600,
+        "index_status": "needs-publish",
+        "current_index_version": "v010471",
+        "active_task_label": "无正在处理任务"
+      }
+    },
+    {
+      "name": "release_gates",
+      "method": "GET",
+      "path": "/api/admin/release-gates",
+      "duration_ms": 5.1,
+      "http_status": 404,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 65,
+      "content_type": "application/json; charset=utf-8",
+      "error_code": "not_found",
+      "message": "路由不存在"
+    },
+    {
+      "name": "dashboard_metrics",
+      "method": "GET",
+      "path": "/api/admin/dashboard/metrics",
+      "duration_ms": 6013.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 7406,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "material": {
+          "video_count": 11394,
+          "ready_video_count": 10471,
+          "total_duration_ms": 6246489561,
+          "ready_duration_ms": 6246472983,
+          "unprocessed_duration_ms": 0,
+          "total_size_bytes": 22909868207182
+        },
+        "transcript": {
+          "transcript_video_count": 10490,
+          "character_count": 28433520,
+          "segment_count": 972795,
+          "current_index_version": "v010471"
+        },
+        "production": {
+          "completed_today_count": 0,
+          "failed_today_count": 0,
+          "average_video_process_ms": 24170,
+          "estimated_queue_done_at": "2026-06-28T09:29:27.837Z"
+        },
+        "risk": {
+          "failed_video_count": 0,
+          "index_required_video_count": 19
+        },
+        "runtime_load": {
+          "overall_status": "blocked",
+          "disk": {
+            "usage_percent": 98,
+            "status": "blocked"
+          }
+        },
+        "usage_summary": {
+          "search_request_count": 5828,
+          "search_hit_count": 5725,
+          "search_empty_count": 92,
+          "source_detail_view_count": 3557,
+          "cut_submission_count": 290,
+          "cut_success_count": 167,
+          "cut_failure_count": 3,
+          "active_user_count": 21,
+          "recent_keyword_count": 8,
+          "user_count": 21
+        }
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "method": "GET",
+      "path": "/api/admin/data-loading/plan",
+      "duration_ms": 12.2,
+      "http_status": 404,
+      "ok": false,
+      "api_ok": false,
+      "response_bytes": 65,
+      "content_type": "application/json; charset=utf-8",
+      "error_code": "not_found",
+      "message": "路由不存在"
+    },
+    {
+      "name": "preprocess_supervisor_status",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 6.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 181,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "idle",
+        "state_label": "未运行",
+        "worker_id": "admin-worker-30",
+        "started_at": "",
+        "stopped_at": "",
+        "last_error": "",
+        "stop_requested": false,
+        "last_result": null
+      }
+    }
+  ],
+  "observed": {
+    "auth_mode": "",
+    "authenticated": null,
+    "library_root": "/data/PublicLibrary",
+    "current_index_version": "v010471",
+    "video_count": 11394,
+    "ready_video_count": 10471,
+    "release_overall_status": "",
+    "release_allowed": null,
+    "runtime_path_profile": "",
+    "build_sha": "",
+    "build_version": "",
+    "image_tag": ""
+  },
+  "gates": [
+    {
+      "id": "target-url-configured",
+      "title": "Explicit NAS Docker Admin target URL configured",
+      "category": "target",
+      "status": "pass",
+      "evidence": "Probe target was supplied explicitly.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "target-url-admin-web-shape",
+      "title": "Target URL is the NAS Docker admin-web root",
+      "category": "target",
+      "status": "pass",
+      "evidence": "admin-web-url: Target URL shape is compatible with the NAS Docker admin-web root.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "get-only-live-probe",
+      "title": "Live probe uses GET only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "methods=GET,GET,GET,GET,GET,GET,GET",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-web-root-live",
+      "title": "Admin Web root reachable",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 413 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-api-proxy-live",
+      "title": "Admin API proxy reachable through Admin Web",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "At least one Admin API JSON endpoint responded; auth=HTTP 404, not_found 路由不存在, library=HTTP 200, ok, supervisor=HTTP 200, ok",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "current-admin-api-contract-live",
+      "title": "Current Admin Architecture v1 API contract is live",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Required current endpoints are missing or blocked: auth=HTTP 404, not_found 路由不存在, release_gates=HTTP 404, not_found 路由不存在, data_loading_plan=HTTP 404, not_found 路由不存在",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy or point to an Admin API image exposing /api/admin/auth/status, /api/admin/release-gates, and /api/admin/data-loading/plan."
+    },
+    {
+      "id": "auth-context-live",
+      "title": "Protected live gate endpoints are readable",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "auth_mode=unknown, authenticated=null; protected endpoints may require MIXLAB_ADMIN_DOCKER_LIVE_SESSION_TOKEN.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Provide a reviewed Admin session token only through MIXLAB_ADMIN_DOCKER_LIVE_SESSION_TOKEN; do not write it into docs."
+    },
+    {
+      "id": "runtime-path-profile-live",
+      "title": "Docker runtime path profile and library root",
+      "category": "live-docker",
+      "status": "pass",
+      "evidence": "runtime_path_profile=unknown, library_root=/data/PublicLibrary, expected=/data/PublicLibrary",
+      "blocks_docker_upload": false,
+      "required_evidence": "Live release gates and library status must show Docker profile with /data/PublicLibrary."
+    },
+    {
+      "id": "build-version-health",
+      "title": "Build version and image tag are live",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "build-version-health was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "version-health-parity-contract-live",
+      "title": "Version and health parity contract is exposed live",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete version_health_parity contract with expected services, GET health preflight endpoints, external Docker proof requirements, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns version_health_parity from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "preprocess-disk",
+      "title": "NAS disk protection passes live gate",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "preprocess-disk was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "disk-space-protection-contract-live",
+      "title": "Disk-space protection preflight contract is exposed live",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete disk_space_protection contract with GET preflight endpoints, threshold env var, no worker start, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns disk_space_protection from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "usage-events-tolerance",
+      "title": "usage-events tolerance passes live gate",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "usage-events-tolerance was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "usage-events-repair-contract-live",
+      "title": "usage-events repair dry-run contract is exposed live",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete usage_events_repair contract with dry-run/apply commands and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns usage_events_repair from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "processing-recovery",
+      "title": "V001440 / processing recovery gate passes",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "processing-recovery was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "processing-recovery-contract-live",
+      "title": "Processing recovery preflight contract is exposed live",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete processing_recovery contract with GET preflight endpoints, idle-supervisor requirement, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns processing_recovery from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "current-index",
+      "title": "Current Cutter index gate passes",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "current-index was not available from live release gates.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run the live-readonly probe against an authenticated NAS Docker Admin target that exposes /api/admin/release-gates."
+    },
+    {
+      "id": "dashboard-metrics-live",
+      "title": "Dashboard metrics read does not fail live",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 7406 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "data-loading-contract-live",
+      "title": "Data-loading contract is readable live",
+      "category": "live-admin",
+      "status": "blocked",
+      "evidence": "Data-loading plan not proven: HTTP 404, not_found 路由不存在",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run GET /api/admin/data-loading/plan successfully against the NAS Docker target."
+    },
+    {
+      "id": "supervisor-status-live",
+      "title": "Supervisor status is readable without starting workers",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 181 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-worker-env-proof-contract-live",
+      "title": "admin-worker env proof contract is exposed live",
+      "category": "live-docker",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete admin_worker_env_proof contract with disabled worker flags, /data/PublicLibrary roots, proof command, no secrets, no worker start, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns admin_worker_env_proof from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "admin-worker-live-flags",
+      "title": "Running admin-worker opt-in flags are externally verified",
+      "category": "live-docker",
+      "status": "needs-external-proof",
+      "evidence": "Admin API GET endpoints cannot prove the running admin-worker container environment.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Capture NAS admin-worker.env and admin-worker.inspect.json, then run admin-worker-env-proof to show standalone workers are disabled, /data/PublicLibrary roots are used, and no secrets are written to reports."
+    },
+    {
+      "id": "cutter-compatibility-proof-contract-live",
+      "title": "Cutter compatibility proof contract is exposed live",
+      "category": "cutter-compatibility",
+      "status": "blocked",
+      "evidence": "Live release gates did not expose a complete cutter_compatibility_proof contract with Windows acceptance and real-cut report requirements, proof command, staged-candidate boundary, and no ready/Cutter mutations.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Deploy an Admin API that returns cutter_compatibility_proof from /api/admin/release-gates before Docker upload review."
+    },
+    {
+      "id": "cutter-release-compatibility-live",
+      "title": "Cutter release/index/search compatibility is externally verified",
+      "category": "cutter-compatibility",
+      "status": "needs-external-proof",
+      "evidence": "Admin API GET endpoints cannot prove Windows Cutter compatibility after a Docker release candidate.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run admin-cutter-compatibility-proof with staged-candidate windows_acceptance and real_cut_smoke reports, then archive the accepted proof."
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "passed": 8,
+    "failed": 0,
+    "blocked": 14,
+    "needs_external_proof": 2,
+    "upload_blockers": [
+      "current-admin-api-contract-live",
+      "auth-context-live",
+      "build-version-health",
+      "version-health-parity-contract-live",
+      "preprocess-disk",
+      "disk-space-protection-contract-live",
+      "usage-events-tolerance",
+      "usage-events-repair-contract-live",
+      "processing-recovery",
+      "processing-recovery-contract-live",
+      "current-index",
+      "data-loading-contract-live",
+      "admin-worker-env-proof-contract-live",
+      "admin-worker-live-flags",
+      "cutter-compatibility-proof-contract-live",
+      "cutter-release-compatibility-live"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Docker upload remains blocked until all live and external proof gates pass."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T032524Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T032524Z.md"
+  }
+}

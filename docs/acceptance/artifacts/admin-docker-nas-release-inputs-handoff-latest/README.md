@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T03:19:28.624Z
+Generated: 2026-06-28T03:25:58.989Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes
@@ -9,9 +9,9 @@ Docker deploy allowed: no
 
 ## Sources
 
-- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T031912Z.json
+- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T032550Z.json
 - Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T031823Z.json
-- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T031920Z.json
+- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T032550Z.json
 - Collector source: /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh
 
 ## Candidate
@@ -67,7 +67,7 @@ MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON=<copied-admin-docker-release-inputs-dir>
 ```
 
 ```sh
-MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T031912Z.json \
+MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T032550Z.json \
   MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T031823Z.json \
   MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-image-proof-*.json \
   MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
@@ -98,9 +98,9 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 | Gate | Category | Status | Blocks Handoff | Blocks Inputs | Blocks Push | Blocks Deploy | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | handoff-no-side-effects | safety | pass | no | no | no | no | This report reads existing local JSON reports and copies the sanitized NAS collector; it does not contact NAS, Docker, GitHub, Admin API, or Cutter. |
-| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T031912Z.json |
+| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T032550Z.json |
 | candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T031823Z.json |
-| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T031920Z.json |
+| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T032550Z.json |
 | collector-source-provided | nas-collection | pass | no | no | yes | yes | /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh |
 | candidate-ref-proof-accepted | candidate | pass | no | yes | yes | yes | candidate_ref_proof_accepted=true |
 | candidate-ref-proof-does-not-approve-deploy | safety | pass | yes | yes | yes | yes | candidate_ref_proof.docker_deploy_allowed=false |
