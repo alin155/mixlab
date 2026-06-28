@@ -105,6 +105,30 @@ function blockedProof(blockers: string[]): unknown {
   };
 }
 
+function readyCutterStagedPlan(): unknown {
+  return {
+    plan_ready: true,
+    result: { status: "ready-for-staged-cutter-proof" },
+    inputs: {
+      candidate_image_tag: TARGET_SHA
+    },
+    summary: {
+      plan_blockers: []
+    }
+  };
+}
+
+function blockedCutterStagedPlan(): unknown {
+  return {
+    plan_ready: false,
+    result: { status: "blocked" },
+    inputs: {},
+    summary: {
+      plan_blockers: ["candidate-image-tag-provided"]
+    }
+  };
+}
+
 function acceptedProof(): unknown {
   return {
     proof_accepted: true,
@@ -266,6 +290,8 @@ function reportInput(overrides: Partial<Parameters<typeof buildAdminDockerReleas
     parity_plan_report: blockedParityReport(),
     worker_env_proof_report_path: "worker.json",
     worker_env_proof_report: blockedProof(["env-file-provided"]),
+    cutter_staged_proof_plan_report_path: "cutter-staged-plan.json",
+    cutter_staged_proof_plan_report: readyCutterStagedPlan(),
     cutter_compatibility_proof_report_path: "cutter.json",
     cutter_compatibility_proof_report: blockedProof(["windows-acceptance-report-provided"]),
     release_inputs_intake_report_path: "intake.json",
@@ -316,8 +342,25 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(report.next_actions.some((item) => item.includes("local smoke")));
   assert.ok(report.next_actions.some((item) => item.includes("push_images=true")));
   assert.ok(report.next_actions.some((item) => item.includes("accepted candidate image tag")));
-  assert.ok(report.next_actions.some((item) => item.includes("cutter_compatibility_proof")));
+  assert.equal(report.observations.cutter_staged_plan_ready, true);
+  assert.equal(report.observations.cutter_staged_plan_candidate_image_tag, TARGET_SHA);
+  assert.ok(report.summary.release_review_blockers.includes("cutter-proof-accepted"));
+  assert.ok(!report.summary.release_review_blockers.includes("cutter-staged-proof-plan-ready"));
+  assert.ok(report.next_actions.some((item) => item.includes("prepared staged Cutter proof plan")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-candidate-contract-proof")));
+});
+
+test("admin Docker release readiness summary records missing staged Cutter plan without clearing final proof", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    cutter_staged_proof_plan_report_path: "",
+    cutter_staged_proof_plan_report: blockedCutterStagedPlan()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.equal(report.observations.cutter_staged_plan_ready, false);
+  assert.deepEqual(report.observations.cutter_staged_plan_blockers, ["candidate-image-tag-provided"]);
+  assert.ok(report.summary.release_review_blockers.includes("cutter-proof-accepted"));
+  assert.ok(report.next_actions.some((item) => item.includes("Prepare a staged Cutter proof plan")));
 });
 
 test("admin Docker release readiness summary accepts GitHub candidate artifact when Mac local Docker is unavailable", () => {
@@ -475,6 +518,8 @@ test("admin Docker release readiness summary markdown records no-side-effect sco
   assert.match(markdown, /does not approve Docker upload/);
   assert.match(markdown, /Local Docker smoke/);
   assert.match(markdown, /GitHub candidate artifact ready/);
+  assert.match(markdown, /Cutter staged proof plan/);
+  assert.match(markdown, /Cutter staged plan ready: true/);
   assert.match(markdown, /Release-inputs intake complete/);
   assert.match(markdown, /Automation Boundary/);
   assert.match(markdown, /NAS runtime changes allowed: no/);

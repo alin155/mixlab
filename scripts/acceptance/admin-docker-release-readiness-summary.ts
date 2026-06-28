@@ -54,6 +54,7 @@ interface ReadinessSources {
   parity_plan_report: string;
   github_artifact_readiness_report: string;
   worker_env_proof_report: string;
+  cutter_staged_proof_plan_report: string;
   cutter_compatibility_proof_report: string;
   release_inputs_intake_report: string;
   nas_access_preflight_report: string;
@@ -85,6 +86,10 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     worker_status: string;
     worker_proof_accepted: boolean | null;
     worker_upload_blockers: string[];
+    cutter_staged_plan_status: string;
+    cutter_staged_plan_ready: boolean | null;
+    cutter_staged_plan_candidate_image_tag: string;
+    cutter_staged_plan_blockers: string[];
     cutter_status: string;
     cutter_proof_accepted: boolean | null;
     cutter_upload_blockers: string[];
@@ -227,6 +232,8 @@ function nextActions(input: {
   parityBlockers: string[];
   workerAccepted: boolean | null;
   cutterAccepted: boolean | null;
+  cutterStagedPlanReady: boolean | null;
+  cutterStagedPlanCandidateImageTag: string;
   stagingBlockers: string[];
   releaseInputsIntakeComplete: boolean | null;
   releaseInputsReady: boolean | null;
@@ -272,7 +279,11 @@ function nextActions(input: {
   }
 
   if (!input.cutterAccepted) {
-    actions.push("After a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.");
+    if (input.cutterStagedPlanReady) {
+      actions.push(`Use the prepared staged Cutter proof plan${input.cutterStagedPlanCandidateImageTag ? ` for candidate ${input.cutterStagedPlanCandidateImageTag}` : ""}: after a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.`);
+    } else {
+      actions.push("Prepare a staged Cutter proof plan, then after a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke and rerun validate:admin-cutter-compatibility-proof.");
+    }
   }
 
   if (candidateSmokeAccepted && input.stagingBlockers.includes("local-docker-smoke-passed")) {
@@ -324,6 +335,7 @@ function buildAutomationBoundary(input: {
   parityBlockers: string[];
   workerAccepted: boolean | null;
   cutterAccepted: boolean | null;
+  cutterStagedPlanReady: boolean | null;
   releaseInputsIntakeComplete: boolean | null;
   releaseInputsReady: boolean | null;
   nasCollectionDirectlyAvailable: boolean | null;
@@ -388,7 +400,9 @@ function buildAutomationBoundary(input: {
   }
 
   if (!input.cutterAccepted) {
-    safeActions.add("Prepare Cutter proof collection commands for the staged candidate; do not count current production Cutter smoke as staged proof.");
+    safeActions.add(input.cutterStagedPlanReady
+      ? "Keep the staged Cutter proof plan current until a real staged candidate can be verified."
+      : "Prepare Cutter proof collection commands for the staged candidate; do not count current production Cutter smoke as staged proof.");
   }
 
   blockedActions.add("Do not mark Admin Docker MVP v0.1 complete.");
@@ -424,6 +438,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   parity_plan_report: unknown;
   worker_env_proof_report_path: string;
   worker_env_proof_report: unknown;
+  cutter_staged_proof_plan_report_path: string;
+  cutter_staged_proof_plan_report: unknown;
   cutter_compatibility_proof_report_path: string;
   cutter_compatibility_proof_report: unknown;
   release_inputs_intake_report_path: string;
@@ -439,6 +455,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const liveBlockers = summaryBlockers(input.live_readonly_report);
   const parityBlockers = summaryBlockers(input.parity_plan_report);
   const workerBlockers = summaryBlockers(input.worker_env_proof_report);
+  const cutterStagedPlanBlockers = summaryBlockers(input.cutter_staged_proof_plan_report, "plan_blockers");
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
   const releaseInputsIntakeBlockers = summaryBlockers(input.release_inputs_intake_report, "intake_blockers");
   const releaseInputBlockers = summaryBlockers(input.release_inputs_intake_report, "release_input_blockers");
@@ -447,6 +464,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const handoffKitBlockers = summaryBlockers(input.nas_handoff_kit_report, "kit_blockers");
   const stagingBlockers = summaryBlockers(input.staging_runbook_report, "staging_blockers");
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
+  const cutterStagedPlanReady = asBoolean(asRecord(input.cutter_staged_proof_plan_report).plan_ready);
+  const cutterStagedPlanInputs = asRecord(asRecord(input.cutter_staged_proof_plan_report).inputs);
+  const cutterStagedPlanCandidateImageTag = asString(cutterStagedPlanInputs.candidate_image_tag);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
   const releaseInputsIntakeComplete = asBoolean(asRecord(input.release_inputs_intake_report).intake_complete);
   const releaseInputsReturnedPrecheckPassed = asBoolean(
@@ -629,6 +649,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     parityBlockers,
     workerAccepted,
     cutterAccepted,
+    cutterStagedPlanReady,
     releaseInputsIntakeComplete,
     releaseInputsReady,
     nasCollectionDirectlyAvailable,
@@ -649,6 +670,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       live_readonly_report: input.live_readonly_report_path,
       parity_plan_report: input.parity_plan_report_path,
       worker_env_proof_report: input.worker_env_proof_report_path,
+      cutter_staged_proof_plan_report: input.cutter_staged_proof_plan_report_path,
       cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
       release_inputs_intake_report: input.release_inputs_intake_report_path,
       nas_access_preflight_report: input.nas_access_preflight_report_path,
@@ -673,6 +695,10 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       worker_status: resultStatus(input.worker_env_proof_report),
       worker_proof_accepted: workerAccepted,
       worker_upload_blockers: workerBlockers,
+      cutter_staged_plan_status: resultStatus(input.cutter_staged_proof_plan_report),
+      cutter_staged_plan_ready: cutterStagedPlanReady,
+      cutter_staged_plan_candidate_image_tag: cutterStagedPlanCandidateImageTag,
+      cutter_staged_plan_blockers: cutterStagedPlanBlockers,
       cutter_status: resultStatus(input.cutter_compatibility_proof_report),
       cutter_proof_accepted: cutterAccepted,
       cutter_upload_blockers: cutterBlockers,
@@ -717,6 +743,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       parityBlockers,
       workerAccepted,
       cutterAccepted,
+      cutterStagedPlanReady,
+      cutterStagedPlanCandidateImageTag,
       stagingBlockers,
       releaseInputsIntakeComplete,
       releaseInputsReady,
@@ -756,6 +784,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Live readonly: ${report.sources.live_readonly_report}`,
     `- Parity plan: ${report.sources.parity_plan_report}`,
     `- Worker proof: ${report.sources.worker_env_proof_report}`,
+    `- Cutter staged proof plan: ${report.sources.cutter_staged_proof_plan_report}`,
     `- Cutter proof: ${report.sources.cutter_compatibility_proof_report}`,
     `- Release inputs intake: ${report.sources.release_inputs_intake_report}`,
     `- NAS access preflight: ${report.sources.nas_access_preflight_report}`,
@@ -769,6 +798,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Live blockers: ${report.observations.live_upload_blockers.join(", ") || "none"}`,
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
     `- Worker accepted: ${report.observations.worker_proof_accepted ?? "unknown"}; blockers: ${report.observations.worker_upload_blockers.join(", ") || "none"}`,
+    `- Cutter staged plan ready: ${report.observations.cutter_staged_plan_ready ?? "unknown"}; candidate=${report.observations.cutter_staged_plan_candidate_image_tag || "none"}; blockers: ${report.observations.cutter_staged_plan_blockers.join(", ") || "none"}`,
     `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
     `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; returned_precheck_passed=${report.observations.release_inputs_returned_precheck_passed ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
     `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}; blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
@@ -839,6 +869,8 @@ async function main(): Promise<void> {
     ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
   const workerPath = process.env.MIXLAB_ADMIN_WORKER_ENV_PROOF_REPORT
     ?? await latestArtifact(artifactDir, "admin-worker-env-proof-");
+  const cutterStagedPlanPath = process.env.MIXLAB_CUTTER_STAGED_PROOF_PLAN_REPORT
+    ?? await optionalLatestArtifact(artifactDir, "admin-cutter-staged-proof-plan-");
   const cutterPath = process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT
     ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
   const releaseInputsIntakePath = process.env.MIXLAB_ADMIN_DOCKER_NAS_RELEASE_INPUTS_INTAKE_REPORT
@@ -865,6 +897,8 @@ async function main(): Promise<void> {
     parity_plan_report: await loadJson(parityPath),
     worker_env_proof_report_path: workerPath,
     worker_env_proof_report: await loadJson(workerPath),
+    cutter_staged_proof_plan_report_path: cutterStagedPlanPath,
+    cutter_staged_proof_plan_report: cutterStagedPlanPath ? await loadJson(cutterStagedPlanPath) : {},
     cutter_compatibility_proof_report_path: cutterPath,
     cutter_compatibility_proof_report: await loadJson(cutterPath),
     release_inputs_intake_report_path: releaseInputsIntakePath,
