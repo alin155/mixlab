@@ -13,6 +13,7 @@ import {
 function runArtifactReport(overrides: Record<string, unknown> = {}): unknown {
   return {
     mode: "admin-docker-github-run-artifact",
+    github_run_candidate_ready: true,
     current_worktree_candidate_ready: true,
     github_run_staging_handoff_ready: false,
     docker_deploy_allowed: false,
@@ -125,13 +126,43 @@ test("pre-staging handoff can request release inputs while keeping staging and d
 test("pre-staging handoff blocks release inputs without a current-worktree candidate", () => {
   const built = report({
     run: runArtifactReport({
-      current_worktree_candidate_ready: false
+      current_worktree_candidate_ready: false,
+      run: {
+        databaseId: 12345,
+        url: "https://github.com/alin155/mixlab/actions/runs/12345",
+        headSha: "abc123",
+        headBranch: "codex/admin-docker-mvp"
+      }
     })
   });
 
   assert.equal(built.ready_to_request_release_inputs, false);
   assert.equal(built.result.status, "blocked");
   assert.ok(built.summary.release_input_blockers.includes("current-worktree-candidate-ready"));
+});
+
+test("pre-staging handoff accepts an immutable candidate tag even after branch worktree moved on", () => {
+  const sha = "b062bc387c1fdb2a391320c1c36233b782cb000a";
+  const built = report({
+    run: runArtifactReport({
+      current_worktree_candidate_ready: false,
+      github_run_candidate_ready: true,
+      run: {
+        databaseId: 28318925718,
+        url: "https://github.com/alin155/mixlab/actions/runs/28318925718",
+        headSha: sha,
+        headBranch: `admin-docker-candidate-${sha}`
+      }
+    })
+  });
+
+  assert.equal(built.ready_to_request_release_inputs, true);
+  assert.equal(built.result.status, "ready-for-release-inputs");
+  assert.equal(built.candidate.current_worktree_candidate_ready, false);
+  assert.equal(built.candidate.github_run_candidate_ready, true);
+  assert.equal(built.candidate.immutable_candidate_ref_ready, true);
+  assert.deepEqual(built.summary.release_input_blockers, []);
+  assert.equal(built.release_input_request.workflow_ref, `admin-docker-candidate-${sha}`);
 });
 
 test("pre-staging handoff fails if an input report tries to approve deploy", () => {

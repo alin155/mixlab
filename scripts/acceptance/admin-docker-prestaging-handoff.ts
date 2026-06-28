@@ -71,6 +71,8 @@ export interface AdminDockerPrestagingHandoffReport {
     github_run_url: string;
     head_sha: string;
     current_worktree_candidate_ready: boolean;
+    github_run_candidate_ready: boolean;
+    immutable_candidate_ref_ready: boolean;
     github_run_staging_handoff_ready: boolean;
     docker_deploy_allowed: false;
   };
@@ -324,6 +326,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
   const liveSummary = asRecord(liveReport.summary);
   const liveUploadBlockers = stringArray(liveSummary.upload_blockers);
   const currentWorktreeCandidateReady = asBoolean(runReport.current_worktree_candidate_ready) === true;
+  const githubRunCandidateReady = asBoolean(runReport.github_run_candidate_ready) === true;
   const githubRunStagingReady = asBoolean(runReport.github_run_staging_handoff_ready) === true;
   const runDeployAllowed = asBoolean(runReport.docker_deploy_allowed) === true;
   const liveDeployAllowed = asBoolean(liveReport.docker_upload_allowed) === true;
@@ -340,6 +343,10 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
   const currentIndexVersion = asString(observed.current_index_version);
   const candidateSha = asString(run.headSha);
   const candidateBranch = asString(run.headBranch);
+  const immutableCandidateRefReady = githubRunCandidateReady &&
+    Boolean(candidateSha) &&
+    candidateBranch === candidateReleaseRef(candidateSha);
+  const smokedCandidateReady = currentWorktreeCandidateReady || immutableCandidateRefReady;
   const currentApiContractBlocked = liveUploadBlockers.includes("current-admin-api-contract-live") ||
     liveUploadBlockers.includes("data-loading-contract-live");
   const liveDiskRiskBlocked = diskStatus === "blocked" ||
@@ -359,14 +366,19 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
     }),
     gate({
       id: "current-worktree-candidate-ready",
-      title: "Current worktree has a smoked Admin Docker candidate",
+      title: "Current worktree or immutable candidate ref has a smoked Admin Docker candidate",
       category: "candidate",
-      status: currentWorktreeCandidateReady ? "pass" : "blocked",
-      evidence: `current_worktree_candidate_ready=${String(currentWorktreeCandidateReady)}, run=${asString(run.url) || asString(runReport.run_url) || "<missing>"}`,
-      blocks_release_inputs: !currentWorktreeCandidateReady,
-      blocks_staging_execution: !currentWorktreeCandidateReady,
+      status: smokedCandidateReady ? "pass" : "blocked",
+      evidence: [
+        `current_worktree_candidate_ready=${String(currentWorktreeCandidateReady)}`,
+        `github_run_candidate_ready=${String(githubRunCandidateReady)}`,
+        `immutable_candidate_ref_ready=${String(immutableCandidateRefReady)}`,
+        `run=${asString(run.url) || asString(runReport.run_url) || "<missing>"}`
+      ].join(", "),
+      blocks_release_inputs: !smokedCandidateReady,
+      blocks_staging_execution: !smokedCandidateReady,
       blocks_docker_deploy: true,
-      required_evidence: "Collect a successful Admin Docker GitHub run artifact report with current_worktree_candidate_ready:true."
+      required_evidence: "Collect a successful Admin Docker GitHub run artifact report with current_worktree_candidate_ready:true, or with github_run_candidate_ready:true from admin-docker-candidate-<sha>."
     }),
     gate({
       id: "handoff-does-not-approve-deploy",
@@ -499,6 +511,8 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       github_run_url: asString(run.url),
       head_sha: candidateSha,
       current_worktree_candidate_ready: currentWorktreeCandidateReady,
+      github_run_candidate_ready: githubRunCandidateReady,
+      immutable_candidate_ref_ready: immutableCandidateRefReady,
       github_run_staging_handoff_ready: githubRunStagingReady,
       docker_deploy_allowed: false
     },
@@ -557,6 +571,8 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     `- GitHub run URL: ${report.candidate.github_run_url || "<missing>"}`,
     `- Head SHA: ${report.candidate.head_sha || "<missing>"}`,
     `- Current worktree candidate ready: ${report.candidate.current_worktree_candidate_ready ? "yes" : "no"}`,
+    `- GitHub run candidate ready: ${report.candidate.github_run_candidate_ready ? "yes" : "no"}`,
+    `- Immutable candidate ref ready: ${report.candidate.immutable_candidate_ref_ready ? "yes" : "no"}`,
     "",
     "## Live Baseline",
     "",
