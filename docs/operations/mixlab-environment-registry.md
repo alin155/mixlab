@@ -60,6 +60,7 @@
 - Windows IP 可能因 DHCP 变化而改变。Codex 远程调用 Runner 前，应重新验证 `http://<Windows-LAN-IP>:3799/health`。
 - Mac 当前 shell 可能设置了 `http_proxy=http://127.0.0.1:1087`。访问局域网 Runner 时必须绕过代理，例如使用 `curl --noproxy '*'`。
 - 2026-06-28 UTC，Mac 侧 GET-only 观察 NAS 管理端候选入口：`http://192.168.1.27:8080/` 仍连接失败；`http://192.168.1.27:18080/` 返回 nginx `HTTP 200`，并通过 `/api/admin/library/status` 读到 NAS Docker 路径 `/data/PublicLibrary`、`11394` 总视频、`10471` ready、当前索引 `v010471`。同一只读探测显示 NAS 当前部署仍是旧管理端 API：`/api/admin/auth/status`、`/api/admin/release-gates`、`/api/admin/data-loading/plan` 返回 `404`，`/api/admin/dashboard/metrics` 耗时约 `5629ms`，磁盘约 `98%` 且 `status=blocked`。证据：`docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T030414Z.json`。
+- 2026-06-28 UTC 后续只读复核：`8080` 仍不可达，证据 `docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T092306Z.json`；`18080` 仍为旧管理端 API，`/api/admin/auth/status`、`/api/admin/release-gates`、`/api/admin/data-loading/plan` 返回 `404`，ready 仍为 `10471`、current index 仍为 `v010471`、磁盘仍 `98% blocked`，证据 `docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T092311Z.json`。同轮 NAS access preflight 显示 SSH/DSM/Docker TCP/8080 关闭，`18080` 与 `9999` 打开，SMB `/Volumes/MixLab` 已挂载但只看到 `#recycle`、`PublicLibrary`、`安装包`，未发现 compose/.env 或 `admin-docker-release-inputs/` 返回证据；证据：`docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T092213Z.json`。
 - 需要确认：当前正式 NAS 公共素材库根目录。代码和文档里存在多个候选路径，实际测试必须以当前启动环境变量和 Doctor 结果为准。
 
 ## 仓库与共享目录

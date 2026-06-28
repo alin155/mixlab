@@ -68,6 +68,10 @@ MVP v0.1 不做：
 | Mac 管理端 API | `http://127.0.0.1:3889` | 本机 API 验证入口。 |
 | NAS 当前可见入口 | `http://192.168.1.27:18080` | 当前为旧管理端观测入口，不等于新版通过。 |
 | NAS Compose 默认入口 | `8080` | 当前从 Mac 侧观测连接失败，后续 staging 需明确端口。 |
+| NAS access preflight | SSH/DSM/Docker TCP/`8080` 关闭；`18080`/`9999` 打开；SMB `/Volumes/MixLab` 已挂载但未发现 compose/.env 或 returned evidence | 当前只能做只读观测，不能直接从 Mac 收集 NAS Docker release inputs。 |
+| NAS release inputs | 未发现 `admin-docker-release-inputs/`、`admin-docker-current.env`、`admin-worker.inspect.json`、`admin-docker-disk-proof.json` | 必须通过 NAS desktop/本机 shell/临时 SSH 跑 collector 并把返回包带回 Mac 后才能继续 release review。 |
+| Mac Docker capability | 未发现 `docker`、`docker compose`、Colima、Podman | 本机不能完成 local Docker smoke；需要 Docker-capable machine 或 GitHub/staging 证据替代。 |
+| Windows Test Runner | `http://192.168.1.20:3799` 可达，runner `0.1.32` | 只能证明 Windows Runner 在线；没有 staged candidate 前不能作为 Docker MVP Cutter 兼容通过证据。 |
 | Docker 公共素材库路径 | `/data/PublicLibrary` | Docker 内唯一正式库路径。 |
 | Mac 公共素材库路径 | `/Volumes/MixLab/PublicLibrary` | Mac 本机验证路径，不能和 Docker 路径混淆。 |
 | 生产 ready 基线 | `10471` | MVP 前后不得减少。 |
