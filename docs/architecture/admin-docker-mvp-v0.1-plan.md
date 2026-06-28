@@ -81,7 +81,7 @@ MVP v0.1 不做：
 
 ## 当前已完成远端候选证据
 
-2026-06-28 已完成 GitHub Docker-capable dry-run 证据收口，但仍不代表 NAS 已发布：
+2026-06-28 已完成 GitHub Docker-capable dry-run 证据收口，但仍不代表 NAS 已发布。注意：下面的 GitHub candidate 证据固定在旧 commit `b062bc387c1fdb2a391320c1c36233b782cb000a`；当前本地 HEAD 已推进到 `b26f41d575ba6e189108c2ee3854f91286a72391`，因此它只能证明历史候选构建曾通过，不能直接作为当前 HEAD 的上线候选证明。
 
 - branch dry-run：GitHub Actions run `28318729283`，ref `codex/windows-first-run-autostart-20260615104835`，head `b062bc387c1fdb2a391320c1c36233b782cb000a`，`push_images=false`，workflow success，`current-worktree-candidate-ready`。
 - branch dry-run 证据：`docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T101106Z.json`，对应 artifact readiness 为 `candidate-ready`，`docker_deploy_allowed=false`。
@@ -93,9 +93,11 @@ MVP v0.1 不做：
 - NAS release-inputs handoff：`docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T112552Z.json`，`handoff_package_ready=true`，最新 bundle 指向 `b062bc387c1fdb2a391320c1c36233b782cb000a`，包含 `OPERATOR-CHECKLIST.md`，本地 `validate-returned-evidence.sh` 会在 returned evidence precheck 和 intake 后自动刷新 release readiness summary，但不允许 push/deploy。
 - NAS handoff portable kit：`docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T112558Z.json`，`kit_ready=true`，便携目录为 `dist/acceptance/admin-docker-nas-handoff-kit`，单文件包为 `dist/acceptance/admin-docker-nas-handoff-kit.tar.gz`，sha256 `25bb400f54800fd3ce33f11c1905a3a22ad46415e39a228f2e8b3ff6a548848a`；包含 `KIT-SELF-CHECK.sh` 与 `KIT-FILES.sha256`，本机 self-check 与 tar 列表校验通过，可复制到 NAS desktop/NAS shell host 用于只读收集 `admin-docker-release-inputs/` 返回证据。
 - staging runbook：`docs/acceptance/artifacts/admin-docker-staging-runbook-20260628T111921Z.json`，`staging_execution_ready=false`，`staging_review_ready=false`，`docker_deploy_allowed=false`；已接受 GitHub candidate artifact 作为 Mac 本机 Docker smoke 与 candidate contract proof 的替代证据，`local-docker-smoke-passed`、`target-tag-matches-smoked-image`、`candidate-contract-proof-accepted` 均通过，但仍缺 current/rollback tag、显式 push approval、NAS returned evidence、NAS disk proof、parity、admin-worker 与 Cutter staged-candidate proof。
-- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T113442Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；已纳入 GitHub candidate artifact、最新 NAS access preflight、最新 handoff kit 与最新 staging runbook 证据，其中 Docker candidate smoke、`nas-collection-path-prepared` 和 `nas-handoff-kit-ready` 已通过，但仍有 `8` 个 release review blockers。
+- live readonly refresh：`docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T182123Z.json`，GET-only 探测 NAS `http://192.168.1.27:18080`；Admin Web root 可达，但 `/api/admin/auth/status`、`/api/admin/release-gates`、`/api/admin/data-loading/plan` 仍缺失，说明 NAS 仍是旧 Admin API 合约；素材统计保持 ready `10471`、current index `v010471`、total `11394`，磁盘仍约 `98%` 且 blocked。
+- version parity plan：`docs/acceptance/artifacts/admin-docker-version-parity-plan-20260628T182253Z.json`，`status=blocked`；确认后续需要 image/API parity 更新，但当前不允许 deploy，阻塞项包括 current Admin API contract、version/health parity、admin-worker env proof、Cutter compatibility proof、NAS disk risk。
+- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T182257Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `13` 个 gate、`5` 个通过、`8` 个阻塞，阻塞项为 live readonly、parity、worker proof、Cutter proof、NAS returned evidence intake、returned evidence precheck、release inputs、staging runbook。
 
-这批证据只清除了“远端 Docker 候选构建/候选 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。当前总门禁视图显示 NAS 手工采集路径已准备好，但 NAS returned evidence intake、NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof、显式 push approval 和最终发布决策仍未完成。
+这批证据只清除了“历史远端 Docker 候选构建/候选 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。当前 HEAD 的候选 ref、GitHub dry-run、candidate-ref proof 仍需要重新刷新；当前总门禁视图显示 NAS 手工采集路径已准备好，但 NAS returned evidence intake、NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof、显式 push approval 和最终发布决策仍未完成。
 
 ## MVP 功能边界
 
