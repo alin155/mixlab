@@ -1,0 +1,195 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T20:37:11.593Z",
+  "command": "/opt/hostedtoolcache/node/22.23.0/x64/bin/node /home/runner/work/mixlab/mixlab/scripts/acceptance/admin-cutter-compatibility-proof.ts",
+  "mode": "admin-cutter-compatibility-proof",
+  "sources": {
+    "windows_acceptance_report": "",
+    "real_cut_report": "",
+    "desktop_screenshot_report": ""
+  },
+  "expected_ready_count": 10471,
+  "expected_release_version": "v010471",
+  "proof_accepted": false,
+  "docker_upload_allowed": false,
+  "observations": {
+    "windows_acceptance_status": "",
+    "runner_version": "",
+    "auth_mode": "",
+    "local_trusted": null,
+    "available_video_count": null,
+    "returned_count": null,
+    "release_version": "",
+    "search_mode": "",
+    "search_returned_count": null,
+    "transcript_character_count": null,
+    "transcript_segment_count": null,
+    "real_cut_status": "",
+    "real_cut_run_next_status": "",
+    "real_cut_output_file": "",
+    "desktop_screenshot_status": "",
+    "desktop_screenshot_captured_count": null
+  },
+  "gates": [
+    {
+      "id": "proof-no-side-effects",
+      "title": "Compatibility proof has no runtime side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads archived Windows Runner JSON reports only; it does not contact Docker, Windows Runner, NAS, Admin API, or Cutter API.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "windows-acceptance-report-provided",
+      "title": "Windows acceptance report is provided",
+      "category": "input",
+      "status": "blocked",
+      "evidence": "MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT is not provided.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Provide an archived windows_acceptance or install_latest_and_smoke report.json."
+    },
+    {
+      "id": "windows-acceptance-passed",
+      "title": "Windows acceptance suite passed",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "status=unknown",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run Windows Runner windows_acceptance and require status=passed."
+    },
+    {
+      "id": "reviewed-auth-mode",
+      "title": "Cutter uses reviewed auth, not local trusted mode",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "auth_mode=unknown, local_trusted=unknown",
+      "blocks_docker_upload": true,
+      "required_evidence": "Acceptance report must show auth_mode=reviewed and local_trusted=false."
+    },
+    {
+      "id": "public-library-ready-count",
+      "title": "Cutter sees the expected public-library ready count",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "available_video_count=unknown, expected_ready_count>=10471",
+      "blocks_docker_upload": true,
+      "required_evidence": "Cutter runtime/source-library must expose the current ready release count."
+    },
+    {
+      "id": "public-library-first-page-readable",
+      "title": "Public library first page is readable",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "returned_count=unknown",
+      "blocks_docker_upload": true,
+      "required_evidence": "Cutter source-library first page must return at least one item."
+    },
+    {
+      "id": "release-version-matches-expected",
+      "title": "Release/search version matches expected value when specified",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "release_version=unknown, expected=v010471",
+      "blocks_docker_upload": true,
+      "required_evidence": "Set MIXLAB_CUTTER_EXPECTED_RELEASE_VERSION only when a specific staged release version must be enforced."
+    },
+    {
+      "id": "search-protocol-readable",
+      "title": "Cutter search returns public-library results",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "search_mode=unknown, returned=unknown",
+      "blocks_docker_upload": true,
+      "required_evidence": "Acceptance report must include a source-search result with returned hits."
+    },
+    {
+      "id": "transcript-detail-readable",
+      "title": "Cutter source detail includes transcript text and segments",
+      "category": "windows-acceptance",
+      "status": "blocked",
+      "evidence": "transcript_character_count=unknown, transcript_segment_count=unknown",
+      "blocks_docker_upload": true,
+      "required_evidence": "Acceptance report must prove a public-library source detail transcript remains readable."
+    },
+    {
+      "id": "real-cut-report-provided",
+      "title": "Real cut smoke report is provided",
+      "category": "input",
+      "status": "blocked",
+      "evidence": "MIXLAB_CUTTER_REAL_CUT_REPORT is not provided.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Provide an archived real_cut_smoke report.json for the same staged candidate."
+    },
+    {
+      "id": "real-cut-smoke-passed",
+      "title": "Real cut smoke suite passed",
+      "category": "real-cut",
+      "status": "blocked",
+      "evidence": "status=unknown",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run Windows Runner real_cut_smoke and require status=passed."
+    },
+    {
+      "id": "real-cut-output-produced",
+      "title": "Real cut produced an output clip",
+      "category": "real-cut",
+      "status": "blocked",
+      "evidence": "run_next_status=unknown, output_file=missing",
+      "blocks_docker_upload": true,
+      "required_evidence": "real_cut_smoke must complete run-next and produce an output_file."
+    },
+    {
+      "id": "real-cut-core-phases-done",
+      "title": "Real cut completed source resolution and media cut phases",
+      "category": "real-cut",
+      "status": "blocked",
+      "evidence": "resolve_source_done=false, cut_media_done=false",
+      "blocks_docker_upload": true,
+      "required_evidence": "real_cut_smoke phase_timings must include resolve_source and cut_media with status=done."
+    },
+    {
+      "id": "desktop-screenshot-report-optional",
+      "title": "Desktop screenshot smoke is attached when available",
+      "category": "optional-ui",
+      "status": "not-provided",
+      "evidence": "No desktop screenshot report provided; this is optional for protocol compatibility proof.",
+      "blocks_docker_upload": false,
+      "required_evidence": "Optional: provide desktop_ui_screenshot_smoke report.json for UI smoke coverage."
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "passed": 1,
+    "blocked": 12,
+    "not_provided": 1,
+    "upload_blockers": [
+      "windows-acceptance-report-provided",
+      "windows-acceptance-passed",
+      "reviewed-auth-mode",
+      "public-library-ready-count",
+      "public-library-first-page-readable",
+      "release-version-matches-expected",
+      "search-protocol-readable",
+      "transcript-detail-readable",
+      "real-cut-report-provided",
+      "real-cut-smoke-passed",
+      "real-cut-output-produced",
+      "real-cut-core-phases-done"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Cutter compatibility proof is blocked until required Windows acceptance and real cut evidence is provided and passes."
+  },
+  "collection_instructions": [
+    "Run Windows Runner windows_acceptance after a staged Docker release candidate exists and archive the report.json path.",
+    "Run Windows Runner real_cut_smoke against the same Cutter installation and archive the report.json path.",
+    "Pass the reports with MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT and MIXLAB_CUTTER_REAL_CUT_REPORT.",
+    "Optionally pass MIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT to attach desktop UI smoke evidence.",
+    "This proof only reads archived reports; it must not deploy Docker, mutate NAS data, or change Cutter protocols."
+  ],
+  "artifacts": {
+    "json_path": ".local-dev/admin-docker-release-gates/admin-cutter-compatibility-proof-20260628T203711Z.json",
+    "markdown_path": ".local-dev/admin-docker-release-gates/admin-cutter-compatibility-proof-20260628T203711Z.md"
+  }
+}

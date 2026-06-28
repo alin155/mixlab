@@ -128,6 +128,31 @@ test("NAS release-inputs handoff blocks unexpected release-input blockers", () =
   assert.deepEqual(built.observations.unexpected_release_input_blockers, ["candidate-ref-proof-accepted"]);
 });
 
+test("NAS release-inputs handoff allows an expected blocker subset after partial NAS evidence", () => {
+  const built = report({
+    release: releaseInputs({
+      summary: {
+        release_input_blockers: [
+          "nas-image-proof-accepted",
+          "current-and-rollback-tags-present",
+          "rollback-tag-matches-current",
+          "target-tag-differs-from-current",
+          "workflow-command-has-no-placeholders"
+        ]
+      }
+    })
+  });
+
+  assert.equal(built.handoff_package_ready, true);
+  assert.equal(built.result.status, "ready-for-nas-collection");
+  assert.deepEqual(built.summary.handoff_blockers, []);
+  assert.deepEqual(built.observations.unexpected_release_input_blockers, []);
+  assert.deepEqual(built.observations.missing_expected_release_input_blockers, [
+    "nas-image-proof-provided",
+    "nas-proof-does-not-approve-deploy"
+  ]);
+});
+
 test("NAS release-inputs handoff fails if source reports approve deploy", () => {
   const built = report({
     candidate: candidateRef({

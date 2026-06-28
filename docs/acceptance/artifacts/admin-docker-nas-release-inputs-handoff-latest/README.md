@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T19:50:36.365Z
+Generated: 2026-06-28T20:43:43.862Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes
@@ -9,15 +9,15 @@ Docker deploy allowed: no
 
 ## Sources
 
-- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T195010Z.json
-- Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T194955Z.json
-- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T195028Z.json
+- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T203935Z.json
+- Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T203900Z.json
+- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T203944Z.json
 - Collector source: /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh
 
 ## Candidate
 
-- candidate_sha: f9aa9bc7dea187dc3029c90389d5c3c08938dd58
-- candidate_release_ref: admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58
+- candidate_sha: 25fe2264de7b391a56e770a8acb6bf40ebec3863
+- candidate_release_ref: admin-docker-candidate-25fe2264de7b391a56e770a8acb6bf40ebec3863
 - candidate_ref_proof_accepted: true
 
 ## NAS Side
@@ -69,8 +69,8 @@ MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON=<copied-admin-docker-release-inputs-dir>
 ```
 
 ```sh
-MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T195010Z.json \
-  MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T194955Z.json \
+MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T203935Z.json \
+  MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T203900Z.json \
   MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-image-proof-*.json \
   MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
   npm run validate:admin-docker-release-inputs
@@ -80,7 +80,7 @@ MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-do
 MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker-release-inputs-*.json \
   MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-disk-proof-*.json \
   MIXLAB_DOCKER_CURRENT_IMAGE_TAG=<accepted-current-image-tag> \
-  MIXLAB_DOCKER_TARGET_IMAGE_TAG=f9aa9bc7dea187dc3029c90389d5c3c08938dd58 \
+  MIXLAB_DOCKER_TARGET_IMAGE_TAG=25fe2264de7b391a56e770a8acb6bf40ebec3863 \
   MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG=<same-as-current-image-tag> \
   MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
   npm run validate:admin-docker-staging-runbook
@@ -100,13 +100,13 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 | Gate | Category | Status | Blocks Handoff | Blocks Inputs | Blocks Push | Blocks Deploy | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | handoff-no-side-effects | safety | pass | no | no | no | no | This report reads existing local JSON reports and copies the sanitized NAS collector; it does not contact NAS, Docker, GitHub, Admin API, or Cutter. |
-| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T195010Z.json |
-| candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T194955Z.json |
-| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T195028Z.json |
+| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T203935Z.json |
+| candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T203900Z.json |
+| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T203944Z.json |
 | collector-source-provided | nas-collection | pass | no | no | yes | yes | /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh |
 | candidate-ref-proof-accepted | candidate | pass | no | yes | yes | yes | candidate_ref_proof_accepted=true |
 | candidate-ref-proof-does-not-approve-deploy | safety | pass | yes | yes | yes | yes | candidate_ref_proof.docker_deploy_allowed=false |
-| release-inputs-still-blocked-for-nas-collection | release-boundary | pass | no | yes | yes | yes | status=blocked, release_input_blockers=nas-image-proof-provided, nas-image-proof-accepted, nas-proof-does-not-approve-deploy, current-and-rollback-tags-present, rollback-tag-matches-current, target-tag-differs-from-current, workflow-command-has-no-placeholders |
+| release-inputs-still-blocked-for-nas-collection | release-boundary | pass | no | yes | yes | yes | status=blocked, release_input_blockers=nas-image-proof-accepted, current-and-rollback-tags-present, rollback-tag-matches-current, target-tag-differs-from-current, workflow-command-has-no-placeholders |
 | release-inputs-do-not-approve-push-or-deploy | safety | pass | yes | yes | yes | yes | push_execution_allowed=false, docker_deploy_allowed=false |
 
 ## Summary
@@ -115,9 +115,9 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 - Release-input gate blockers: none
 - Push-execution gate blockers: none
 - Docker-deploy gate blockers: none
-- Source release-input blockers to resolve by NAS collection: nas-image-proof-provided, nas-image-proof-accepted, nas-proof-does-not-approve-deploy, current-and-rollback-tags-present, rollback-tag-matches-current, target-tag-differs-from-current, workflow-command-has-no-placeholders
+- Source release-input blockers to resolve by NAS collection: nas-image-proof-accepted, current-and-rollback-tags-present, rollback-tag-matches-current, target-tag-differs-from-current, workflow-command-has-no-placeholders
 - Unexpected release-input blockers: none
-- Missing expected release-input blockers: none
+- Missing expected release-input blockers: nas-image-proof-provided, nas-proof-does-not-approve-deploy
 
 ## Next Actions
 

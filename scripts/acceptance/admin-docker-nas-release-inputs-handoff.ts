@@ -310,8 +310,7 @@ export function buildAdminDockerNasReleaseInputsHandoffReport(input: {
   const collectorProvided = Boolean(input.collector_source_path);
   const releaseInputsStatus = resultStatus(releaseInputs);
   const releaseInputsOnlyBlockedByNasCollection = releaseInputBlockers.length > 0 &&
-    unexpectedReleaseInputBlockers.length === 0 &&
-    missingExpectedReleaseInputBlockers.length === 0;
+    unexpectedReleaseInputBlockers.length === 0;
   const gates = [
     gate({
       id: "handoff-no-side-effects",
@@ -406,7 +405,7 @@ export function buildAdminDockerNasReleaseInputsHandoffReport(input: {
       blocks_release_inputs: true,
       blocks_push_execution: true,
       blocks_docker_deploy: true,
-      required_evidence: "The current release-inputs report should be blocked only by nas-image/current/rollback placeholder gates before NAS collection."
+      required_evidence: "The current release-inputs report should be blocked only by nas-image/current/rollback gates before NAS collection."
     }),
     gate({
       id: "release-inputs-do-not-approve-push-or-deploy",
