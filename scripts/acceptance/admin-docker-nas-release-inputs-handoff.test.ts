@@ -170,10 +170,15 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
   assert.match(readme, /sh \.\/nas\/RUN_ON_NAS\.sh/);
   assert.match(readme, /sh \.\/local\/install-nas-runner\.sh/);
   assert.match(readme, /sh \.\/local\/validate-returned-evidence\.sh/);
+  assert.match(readme, /sensitive fields before running intake/);
   assert.match(manifest, /"nas_writes_allowed": false/);
   assert.match(manifest, /RUN_ON_NAS\.sh/);
   assert.match(manifest, /install-nas-runner\.sh/);
   assert.match(manifest, /validate-returned-evidence\.sh/);
+  const validator = await readFile(built.artifacts?.local_validator_path ?? "", "utf8");
+  assert.match(validator, /REQUIRED_FILES=/);
+  assert.match(validator, /unexpected file in returned evidence directory/);
+  assert.match(validator, /returned evidence appears to contain sensitive fields/);
   assert.ok((await stat(built.artifacts?.collector_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.nas_runner_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.local_installer_path ?? "")).mode & 0o111);

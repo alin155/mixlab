@@ -12,31 +12,31 @@
   },
   "files": [
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/README.md",
-      "sha256": "f37656347fd554ff653fc758d5c476fbfe218e2126f87ebc6129e668d46a0463",
-      "size_bytes": 8233,
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T093242Z/README.md",
+      "sha256": "9badd21a0fb0ca92ebd73e1d287be1117e9f5bba1a2ca63d2aee38765826cf57",
+      "size_bytes": 8363,
       "executable": false
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/admin-docker-nas-release-inputs-collector.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T093242Z/nas/admin-docker-nas-release-inputs-collector.sh",
       "sha256": "e951945048d43ff33ef58f7d38d16d7b8c7d87fc572b81a644934a585bdffe86",
       "size_bytes": 12507,
       "executable": true
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/RUN_ON_NAS.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T093242Z/nas/RUN_ON_NAS.sh",
       "sha256": "875f69b54cebc3ef3a5246bd1b60a3c607561287a31213b4b48d6370ec60effc",
       "size_bytes": 557,
       "executable": true
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/install-nas-runner.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T093242Z/local/install-nas-runner.sh",
       "sha256": "936fbf4f3161427b278984b7015871ee8a3fd46ac0278b8c9f3100fd853807a1",
       "size_bytes": 1412,
       "executable": true
     },
     {
-      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh",
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T093242Z/local/validate-returned-evidence.sh",
       "sha256": "4ea497fce9c5b1240208dac88b07f7449c97c44cf6ffaf55b2c51c879c145f98",
       "size_bytes": 2277,
       "executable": true
