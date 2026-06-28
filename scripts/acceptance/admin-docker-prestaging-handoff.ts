@@ -457,7 +457,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       status: "blocked",
       evidence: "Current report only observes the existing NAS Admin target before staging.",
       blocks_release_inputs: false,
-      blocks_staging_execution: true,
+      blocks_staging_execution: false,
       blocks_docker_deploy: true,
       required_evidence: "After staging the candidate, rerun GET-only live-readonly and require current Admin API contract endpoints to pass."
     }),
@@ -468,7 +468,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       status: "blocked",
       evidence: "HTTP probes cannot prove running admin-worker container env flags or image tag.",
       blocks_release_inputs: false,
-      blocks_staging_execution: true,
+      blocks_staging_execution: false,
       blocks_docker_deploy: true,
       required_evidence: "Export admin-worker.env and admin-worker.inspect.json on the NAS and require proof_accepted:true."
     }),
@@ -479,7 +479,7 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
       status: "blocked",
       evidence: "Pre-staging proof cannot prove Windows Cutter behavior after the Docker candidate is staged.",
       blocks_release_inputs: false,
-      blocks_staging_execution: true,
+      blocks_staging_execution: false,
       blocks_docker_deploy: true,
       required_evidence: "After staging, run Windows windows_acceptance and real_cut_smoke, then require admin-cutter-compatibility-proof accepted."
     })

@@ -1,0 +1,264 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T20:12:53.369Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-prestaging-handoff.ts",
+  "mode": "admin-docker-prestaging-handoff",
+  "sources": {
+    "github_run_artifact_report": "docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T194849Z.json",
+    "live_readonly_report": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T190333Z.json"
+  },
+  "candidate": {
+    "github_run_id": 28333837849,
+    "github_run_url": "https://github.com/alin155/mixlab/actions/runs/28333837849",
+    "head_sha": "f9aa9bc7dea187dc3029c90389d5c3c08938dd58",
+    "current_worktree_candidate_ready": true,
+    "github_run_candidate_ready": true,
+    "immutable_candidate_ref_ready": true,
+    "github_run_staging_handoff_ready": false,
+    "docker_deploy_allowed": false
+  },
+  "live_baseline": {
+    "target_url": "http://192.168.1.27:18080",
+    "library_root": "/data/PublicLibrary",
+    "ready_video_count": 10471,
+    "video_count": 11394,
+    "current_index_version": "v010471",
+    "disk_usage_percent": 98,
+    "disk_status": "blocked",
+    "live_upload_blockers": [
+      "current-admin-api-contract-live",
+      "auth-context-live",
+      "build-version-health",
+      "version-health-parity-contract-live",
+      "preprocess-disk",
+      "disk-space-protection-contract-live",
+      "usage-events-tolerance",
+      "usage-events-repair-contract-live",
+      "processing-recovery",
+      "processing-recovery-contract-live",
+      "current-index",
+      "data-loading-contract-live",
+      "admin-worker-env-proof-contract-live",
+      "admin-worker-live-flags",
+      "cutter-compatibility-proof-contract-live",
+      "cutter-release-compatibility-live"
+    ],
+    "current_api_contract_blocked": true
+  },
+  "ready_to_request_release_inputs": true,
+  "staging_execution_ready": false,
+  "docker_deploy_allowed": false,
+  "release_input_request": {
+    "target_image_tag": "f9aa9bc7dea187dc3029c90389d5c3c08938dd58",
+    "candidate_branch": "admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58",
+    "workflow_ref": "admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58",
+    "release_ref_setup_command": "git tag admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58 f9aa9bc7dea187dc3029c90389d5c3c08938dd58 && git push origin refs/tags/admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58:refs/tags/admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58",
+    "workflow_dispatch_command": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58 -f push_images=true -f current_image_tag=<current-admin-docker-image-tag> -f rollback_image_tag=<current-admin-docker-image-tag>",
+    "candidate_ref_proof_command": "MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_SHA=f9aa9bc7dea187dc3029c90389d5c3c08938dd58 MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_TAG=admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58 MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_RUN_ID=<tag-ref-push-images-false-run-id> MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_ARTIFACT_DIR=<downloaded-tag-ref-release-gates-artifact-dir> npm run validate:admin-docker-candidate-ref-proof",
+    "nas_image_proof_command": "MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<path>/admin-docker-current.inspect.json npm run validate:admin-docker-nas-image-proof",
+    "release_inputs_command": "MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=<path>/admin-docker-prestaging-handoff.json MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=<path>/admin-docker-nas-image-proof.json npm run validate:admin-docker-release-inputs",
+    "required_operator_inputs": [
+      {
+        "id": "explicit_push_images_approval",
+        "label": "Run workflow_dispatch with push_images=true only after release approval",
+        "value": "workflow_dispatch:push_images=true",
+        "status": "required",
+        "source": "human release decision"
+      },
+      {
+        "id": "current_image_tag",
+        "label": "Current NAS Admin Docker image tag",
+        "value": "",
+        "status": "required",
+        "source": "accepted admin-docker-nas-image-proof report before staging"
+      },
+      {
+        "id": "rollback_image_tag",
+        "label": "Rollback image tag, normally matching current_image_tag",
+        "value": "",
+        "status": "required",
+        "source": "same accepted admin-docker-nas-image-proof value as current_image_tag for the first update"
+      }
+    ],
+    "initial_staging_defaults": {
+      "library_preprocess_worker": "0",
+      "ready_publish_worker": "0",
+      "dashscope_api_key": "blank-unless-canary-approved",
+      "library_root": "/data/PublicLibrary"
+    },
+    "forbidden_before_staged_proof": [
+      "Do not edit NAS .env or restart NAS containers before the pushed-image workflow succeeds.",
+      "Do not enable library preprocess worker, ready publish worker, scan apply, index repair, or release publish for initial staging.",
+      "Do not treat the existing 18080 legacy Admin target as staged candidate proof.",
+      "Do not mutate Cutter release/index before staged live-readonly and Cutter compatibility proof pass."
+    ],
+    "post_staging_required_proofs": [
+      "Run GET-only live-readonly against the staged Admin Web root and require current Admin API contract endpoints to pass.",
+      "Export staged admin-worker env/inspect evidence and require admin-worker-env-proof accepted.",
+      "Run Windows Cutter compatibility proof with staged-candidate windows_acceptance and real_cut_smoke reports.",
+      "Verify ready count stays at 10471 and current index stays v010471 unless a later separately approved publish phase changes them."
+    ]
+  },
+  "gates": [
+    {
+      "id": "prestaging-handoff-no-side-effects",
+      "title": "Pre-staging handoff reads reports only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Reads archived GitHub run and live-readonly reports only; does not contact NAS, Docker, GHCR, GitHub, Windows Runner, Admin API, or Cutter API.",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "current-worktree-candidate-ready",
+      "title": "Current worktree or immutable candidate ref has a smoked Admin Docker candidate",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "current_worktree_candidate_ready=true, github_run_candidate_ready=true, immutable_candidate_ref_ready=true, run=https://github.com/alin155/mixlab/actions/runs/28333837849",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Collect a successful Admin Docker GitHub run artifact report with current_worktree_candidate_ready:true, or with github_run_candidate_ready:true from admin-docker-candidate-<sha>."
+    },
+    {
+      "id": "handoff-does-not-approve-deploy",
+      "title": "Input handoff does not approve Docker deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "run.docker_deploy_allowed=false, live.docker_upload_allowed=false",
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Pre-staging handoff must remain a planning/input gate and cannot approve deploy."
+    },
+    {
+      "id": "live-baseline-observed",
+      "title": "Current NAS live baseline is observed read-only",
+      "category": "live-baseline",
+      "status": "pass",
+      "evidence": "target=http://192.168.1.27:18080, library_root=/data/PublicLibrary, ready=10471, index=v010471",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-release-live-readonly against the current NAS Admin target before requesting staging inputs."
+    },
+    {
+      "id": "legacy-live-target-not-mistaken-for-staged-candidate",
+      "title": "Live 18080 target is not treated as the staged candidate",
+      "category": "live-baseline",
+      "status": "pass",
+      "evidence": "Current live upload blockers include current API/data-loading contract gaps: current-admin-api-contract-live, version-health-parity-contract-live, disk-space-protection-contract-live, usage-events-repair-contract-live, processing-recovery-contract-live, data-loading-contract-live, admin-worker-env-proof-contract-live, cutter-compatibility-proof-contract-live",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "If this is already a staged candidate, rerun full staging/live-readonly proof instead of using the pre-staging handoff."
+    },
+    {
+      "id": "nas-disk-risk-carried-forward",
+      "title": "Current NAS disk risk is carried forward",
+      "category": "live-baseline",
+      "status": "blocked",
+      "evidence": "disk_usage=98%, disk_status=blocked, live_upload_blockers=current-admin-api-contract-live, auth-context-live, build-version-health, version-health-parity-contract-live, preprocess-disk, disk-space-protection-contract-live, usage-events-tolerance, usage-events-repair-contract-live, processing-recovery, processing-recovery-contract-live, current-index, data-loading-contract-live, admin-worker-env-proof-contract-live, admin-worker-live-flags, cutter-compatibility-proof-contract-live, cutter-release-compatibility-live",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "NAS disk risk must be cleared or explicitly re-proven safe before staging execution; image push input packaging alone is not approval."
+    },
+    {
+      "id": "explicit-push-approval-required",
+      "title": "Explicit image-push approval is still required",
+      "category": "release-input",
+      "status": "blocked",
+      "evidence": "github_run_staging_handoff_ready=false",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "User/release decision must explicitly run workflow_dispatch with push_images=true after candidate readiness is green."
+    },
+    {
+      "id": "current-and-rollback-tags-required",
+      "title": "Current and rollback image tags are still required",
+      "category": "release-input",
+      "status": "blocked",
+      "evidence": "Pre-staging report cannot infer NAS current image tag or rollback tag from HTTP probes.",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide an accepted admin-docker-nas-image-proof report, then use its current_image_tag and rollback_image_tag values with rollback matching current before staging."
+    },
+    {
+      "id": "staged-live-readonly-required",
+      "title": "Staged live-readonly proof is still required",
+      "category": "external-proof",
+      "status": "blocked",
+      "evidence": "Current report only observes the existing NAS Admin target before staging.",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "After staging the candidate, rerun GET-only live-readonly and require current Admin API contract endpoints to pass."
+    },
+    {
+      "id": "admin-worker-env-proof-required",
+      "title": "NAS admin-worker env proof is still required",
+      "category": "external-proof",
+      "status": "blocked",
+      "evidence": "HTTP probes cannot prove running admin-worker container env flags or image tag.",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Export admin-worker.env and admin-worker.inspect.json on the NAS and require proof_accepted:true."
+    },
+    {
+      "id": "cutter-compatibility-proof-required",
+      "title": "Staged Cutter compatibility proof is still required",
+      "category": "external-proof",
+      "status": "blocked",
+      "evidence": "Pre-staging proof cannot prove Windows Cutter behavior after the Docker candidate is staged.",
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "After staging, run Windows windows_acceptance and real_cut_smoke, then require admin-cutter-compatibility-proof accepted."
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 5,
+    "blocked": 6,
+    "failed": 0,
+    "release_input_blockers": [],
+    "staging_execution_blockers": [
+      "nas-disk-risk-carried-forward",
+      "explicit-push-approval-required",
+      "current-and-rollback-tags-required"
+    ],
+    "docker_deploy_blockers": [
+      "nas-disk-risk-carried-forward",
+      "explicit-push-approval-required",
+      "current-and-rollback-tags-required",
+      "staged-live-readonly-required",
+      "admin-worker-env-proof-required",
+      "cutter-compatibility-proof-required"
+    ]
+  },
+  "next_actions": [
+    "Export a sanitized current NAS Admin Docker MIXLAB_IMAGE_TAG evidence file and docker inspect evidence, then run validate:admin-docker-nas-image-proof before choosing release inputs.",
+    "Run validate:admin-docker-release-inputs with the accepted pre-staging handoff and NAS image proof reports to generate the exact push_images=true command.",
+    "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
+    "Resolve the current NAS disk blocked state before staging execution; do not treat a generated push_images=true command as approval while disk risk is carried forward.",
+    "Before explicit push approval, create or verify the immutable release ref admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58 points at candidate SHA f9aa9bc7dea187dc3029c90389d5c3c08938dd58.",
+    "Run the candidate release ref with push_images=false and generate validate:admin-docker-candidate-ref-proof before treating the ref as pinned release evidence.",
+    "After explicit approval, rerun the Admin Docker workflow with --ref admin-docker-candidate-f9aa9bc7dea187dc3029c90389d5c3c08938dd58, push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image f9aa9bc7dea187dc3029c90389d5c3c08938dd58.",
+    "Do not change NAS .env or restart containers until the pushed-image run completes and produces release-gates artifacts.",
+    "For initial staging, keep MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0, MIXLAB_ENABLE_READY_PUBLISH_WORKER=0, and leave DASHSCOPE_API_KEY blank unless a separate controlled-preprocess canary is approved.",
+    "After staging, rerun live-readonly, admin-worker-env-proof, and Cutter compatibility proof before treating the MVP as complete."
+  ],
+  "result": {
+    "status": "ready-for-release-inputs",
+    "summary": "A smoked Admin Docker candidate and current NAS baseline are available; release inputs can be requested, but staging and deploy remain blocked."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T201253Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T201253Z.md"
+  }
+}

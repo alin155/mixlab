@@ -102,7 +102,9 @@ MVP v0.1 不做：
 - NAS access preflight refresh：`docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T195056Z.json`，确认 NAS 共享已可见 portable kit，但 `nas_collection_directly_available=false`；阻塞项仍为 SSH 不可用、compose project 未在 SMB 可见、returned evidence 未返回；next actions 现包含 `preflight:admin-docker-nas-ugos-api` 作为 browserless 采集通道评估。
 - NAS UGOS API preflight：`docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T191949Z.json`，`direct_ugos_collection_available=false`；UGOS desktop 可读，API reachable，但 `ugos-session-authenticated`、`docker-app-context-ready`、`docker-container-list-readable` 仍阻塞。该通道当前不能替代 handoff kit。
 - NAS desktop returned evidence diagnostic：`docs/acceptance/artifacts/admin-docker-nas-desktop-returned-evidence-20260628T200756Z/admin-docker-release-inputs`，由 NAS Docker Desktop 只读观察和 live-readonly 报告转换成标准 returned evidence 目录形状；`precheck` 仍因 `admin-worker.inspect.json` 缺少 `/data/PublicLibrary` 预处理根路径阻断；`admin-worker-env-proof-20260628T200807Z.json` 因 worker flags 仍为 `1`、缺少 `MIXLAB_ADMIN_DOCKER_MVP_MODE`、缺少 `MIXLAB_PREPROCESS_LIBRARY_ROOT` 阻断；`admin-docker-nas-disk-proof-20260628T200807Z.json` 因磁盘 `98%` 高于 `92%` block 阈值阻断；`admin-docker-nas-image-proof-20260628T200807Z.json` 因当前镜像仍为 mutable `latest` 而非稳定 rollback tag 阻断；`admin-docker-nas-release-inputs-intake-20260628T200812Z.json` 维持 `docker_deploy_allowed=false`。
-- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T200830Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `13` 个 gate、`5` 个通过、`8` 个阻塞，阻塞项为 live readonly、parity、worker proof、Cutter proof、NAS returned evidence intake、returned evidence precheck、release inputs、staging runbook。
+- pre-staging gate split：`docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T201253Z.json` 修正了 execution gate 和 post-staging proof 的边界；`staged-live-readonly-required`、`admin-worker-env-proof-required`、`cutter-compatibility-proof-required` 不再作为 staging execution 前置阻断，只保留为 Docker deploy/final review 阻断。当前 staging execution 前置阻断收敛为 `nas-disk-risk-carried-forward`、`explicit-push-approval-required`、`current-and-rollback-tags-required`。
+- refreshed release/staging artifacts：`docs/acceptance/artifacts/admin-docker-release-inputs-20260628T201259Z.json` 仍因 NAS current image proof 不接受 `latest` 而 blocked；`docs/acceptance/artifacts/admin-docker-staging-runbook-20260628T201307Z.json` 仍因 current/target/rollback tag、push approval、release inputs、NAS disk proof 和 parity disk risk blocked，`docker_deploy_allowed=false`。
+- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T201313Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `13` 个 gate、`5` 个通过、`8` 个阻塞，阻塞项为 live readonly、parity、worker proof、Cutter proof、NAS returned evidence intake、returned evidence precheck、release inputs、staging runbook。
 
 这批证据只清除了“当前远端 Docker 候选构建/候选 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。当前总门禁视图显示 NAS 手工采集路径已准备好，但 NAS returned evidence intake、NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof、显式 push approval 和最终发布决策仍未完成。
 
@@ -387,6 +389,7 @@ MVP v0.1 通过后再进入：
 - 已补充对应 route-level 单元测试，覆盖 UI 漏出或旧入口误触发时后端仍返回明确 blocked。
 - Admin Web MVP 导航、隐藏 route fallback 和 control disposition 已有 contract test 覆盖；MVP mode 下只显示总览、素材库、预处理、剪辑师、系统检查。
 - 本切片仍不是完整 MVP：Docker staging、真实 NAS returned evidence、admin-worker 默认关闭 proof、Cutter staged-candidate compatibility proof 仍需继续完成。
+- 2026-06-28 追加修正：pre-staging handoff 已将 post-staging proofs 从 staging execution blockers 中拆出，避免“没 staging 无法拿 proof、没 proof 又不许 staging”的循环阻断；这些 proof 仍然阻断 Docker deploy/final review。
 
 当前本地验证：
 

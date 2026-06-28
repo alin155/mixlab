@@ -98,8 +98,13 @@ test("pre-staging handoff can request release inputs while keeping staging and d
   assert.deepEqual(built.summary.release_input_blockers, []);
   assert.ok(built.summary.staging_execution_blockers.includes("explicit-push-approval-required"));
   assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-risk-carried-forward"));
-  assert.ok(built.summary.staging_execution_blockers.includes("admin-worker-env-proof-required"));
+  assert.ok(!built.summary.staging_execution_blockers.includes("staged-live-readonly-required"));
+  assert.ok(!built.summary.staging_execution_blockers.includes("admin-worker-env-proof-required"));
+  assert.ok(!built.summary.staging_execution_blockers.includes("cutter-compatibility-proof-required"));
   assert.ok(built.summary.docker_deploy_blockers.includes("nas-disk-risk-carried-forward"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("staged-live-readonly-required"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("admin-worker-env-proof-required"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("cutter-compatibility-proof-required"));
   assert.equal(built.candidate.head_sha, "abc123");
   assert.equal(built.live_baseline.ready_video_count, 10471);
   assert.equal(built.live_baseline.current_index_version, "v010471");
@@ -205,6 +210,51 @@ test("pre-staging handoff keeps release inputs requestable while carrying live d
   assert.deepEqual(built.summary.release_input_blockers, []);
   assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-risk-carried-forward"));
   assert.ok(built.gates.some((item) => item.id === "nas-disk-risk-carried-forward" && item.status === "blocked" && !item.blocks_release_inputs));
+});
+
+test("pre-staging handoff does not require post-staging proofs before staging execution", () => {
+  const built = report({
+    run: runArtifactReport({
+      github_run_staging_handoff_ready: true
+    }),
+    live: liveReadonlyReport({
+      requests: [
+        {},
+        {},
+        {
+          data: {
+            ready_video_count: 10471
+          }
+        },
+        {},
+        {
+          data: {
+            runtime_load: {
+              disk: {
+                usage_percent: 60,
+                status: "healthy"
+              }
+            }
+          }
+        }
+      ],
+      summary: {
+        upload_blockers: [
+          "current-admin-api-contract-live",
+          "data-loading-contract-live",
+          "admin-worker-live-flags",
+          "cutter-release-compatibility-live"
+        ]
+      }
+    })
+  });
+
+  assert.equal(built.ready_to_request_release_inputs, true);
+  assert.equal(built.staging_execution_ready, true);
+  assert.deepEqual(built.summary.staging_execution_blockers, []);
+  assert.ok(built.summary.docker_deploy_blockers.includes("staged-live-readonly-required"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("admin-worker-env-proof-required"));
+  assert.ok(built.summary.docker_deploy_blockers.includes("cutter-compatibility-proof-required"));
 });
 
 test("pre-staging handoff CLI writes JSON and Markdown", async () => {
