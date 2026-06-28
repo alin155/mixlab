@@ -1,4 +1,5 @@
 import {
+  adminDockerMvpCommandBlockedRouteError,
   apiError,
   apiOk,
   type AdminApiEnvelope
@@ -74,6 +75,16 @@ export type AdminPreprocessCommandRouteResult =
   | {
       handled: false;
     };
+
+function dockerMvpCommandBlockedResult(error: unknown): AdminPreprocessCommandRouteResult | null {
+  const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+  return dockerMvpBlock
+    ? {
+        handled: true,
+        ...dockerMvpBlock
+      }
+    : null;
+}
 
 export interface HandleAdminPreprocessCommandRoutesInput<
   TApiInput extends AdminPreprocessCommandRouteApiInput,
@@ -192,10 +203,20 @@ async function handleBulkPreprocessRoute<
     }
   }
 
-  const result = await input.route_input.deps.run_bulk_transition_command({
-    api_input: input.route_input.api_input,
-    command: input.command
-  });
+  let result: TBulkTransitionResult;
+  try {
+    result = await input.route_input.deps.run_bulk_transition_command({
+      api_input: input.route_input.api_input,
+      command: input.command
+    });
+  } catch (error) {
+    const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+    if (dockerMvpBlock) {
+      return dockerMvpBlock;
+    }
+
+    throw error;
+  }
   input.route_input.deps.clear_source_video_page_cache(input.route_input.api_input.library_root);
 
   return {
@@ -236,6 +257,11 @@ export async function handleAdminPreprocessCommandRoutes<
       try {
         input.deps.assert_preprocess_safe_to_start(safety);
       } catch (error) {
+        const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+        if (dockerMvpBlock) {
+          return dockerMvpBlock;
+        }
+
         return {
           handled: true,
           status_code: 409,
@@ -256,6 +282,11 @@ export async function handleAdminPreprocessCommandRoutes<
         }))
       };
     } catch (error) {
+      const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+      if (dockerMvpBlock) {
+        return dockerMvpBlock;
+      }
+
       return {
         handled: true,
         status_code: 400,
@@ -268,11 +299,20 @@ export async function handleAdminPreprocessCommandRoutes<
   }
 
   if (input.method === "POST" && matchAdminPreprocessSupervisorStopPath(input.pathname)) {
-    return {
-      handled: true,
-      status_code: 200,
-      body: apiOk(input.deps.stop_preprocess_supervisor())
-    };
+    try {
+      return {
+        handled: true,
+        status_code: 200,
+        body: apiOk(input.deps.stop_preprocess_supervisor())
+      };
+    } catch (error) {
+      const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+      if (dockerMvpBlock) {
+        return dockerMvpBlock;
+      }
+
+      throw error;
+    }
   }
 
   const bulkCommand = bulkCommandForPath(input.pathname);

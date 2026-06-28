@@ -14,6 +14,7 @@ import {
   type AdminPreprocessCommandRouteDeps,
   type AdminPreprocessSupervisorStartInput
 } from "./admin-preprocess-command-routes.ts";
+import { AdminDockerMvpCommandBlockedError } from "./admin-command-guard.ts";
 
 interface TestApiInput extends AdminPreprocessCommandRouteApiInput {
   request_id: string;
@@ -112,6 +113,19 @@ function callRoute(input: {
   });
 }
 
+function dockerMvpBlockedError(): AdminDockerMvpCommandBlockedError {
+  return new AdminDockerMvpCommandBlockedError({
+    error_code: "admin_mvp_command_blocked",
+    message: "Docker MVP v0.1 已阻断高风险管理端命令：source-video-publish",
+    details: {
+      mode: "v0.1",
+      command: "source-video-publish",
+      policy: "docker-mvp-v0.1",
+      allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列", "预处理 worker 状态写入"]
+    }
+  });
+}
+
 test("preprocess command routes dispatch bulk queue and retry commands without changing response shape", async () => {
   const calls: Array<AdminBulkPreprocessRouteCommandInput<TestApiInput>> = [];
   const cleared: string[] = [];
@@ -181,6 +195,50 @@ test("preprocess command routes dispatch bulk queue and retry commands without c
       }
     });
   }
+});
+
+test("preprocess command routes map docker mvp command blocks across start stop and bulk commands", async () => {
+  let bulkCacheClears = 0;
+  const start = await callRoute({
+    pathname: "/api/admin/preprocess/supervisor/start",
+    deps: makeDeps({
+      start_preprocess_supervisor: () => {
+        throw dockerMvpBlockedError();
+      }
+    })
+  });
+  const stop = await callRoute({
+    pathname: "/api/admin/preprocess/supervisor/stop",
+    deps: makeDeps({
+      stop_preprocess_supervisor: () => {
+        throw dockerMvpBlockedError();
+      }
+    })
+  });
+  const bulk = await callRoute({
+    pathname: "/api/admin/preprocess/queue-unprocessed",
+    deps: makeDeps({
+      run_bulk_transition_command: async () => {
+        throw dockerMvpBlockedError();
+      },
+      clear_source_video_page_cache: () => {
+        bulkCacheClears += 1;
+      }
+    })
+  });
+
+  for (const result of [start, stop, bulk]) {
+    assert.equal(result.handled, true);
+    if (result.handled) {
+      assert.equal(result.status_code, 409);
+      assert.equal(result.body.ok, false);
+      if (result.body.ok === false) {
+        assert.equal(result.body.error_code, "admin_mvp_command_blocked");
+        assert.equal(result.body.details?.command, "source-video-publish");
+      }
+    }
+  }
+  assert.equal(bulkCacheClears, 0);
 });
 
 test("preprocess command routes recover processing checks supervisor block before command", async () => {

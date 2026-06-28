@@ -361,13 +361,15 @@ MVP v0.1 通过后再进入：
 
 - `admin-route-adapter` 新增统一 Docker MVP command blocked route envelope，把 `admin_mvp_command_blocked` 映射为稳定 `409`。
 - `library/init`、`library/scan-apply`、`index/repair`、`settings` source folder mutation、`source-videos` metadata/publish/transition、command snapshot restore 均已接入该映射。
+- `preprocess` supervisor start/stop 与 bulk queue/retry/recover routes 已接入同一映射；保留受控预处理入口，但确保底层 MVP gate 被触发时不会被包装成 `400 invalid_request`。
 - 被 MVP gate 阻断时不会清理 source-video page cache，不会把阻断误报为成功写入。
 - 已补充对应 route-level 单元测试，覆盖 UI 漏出或旧入口误触发时后端仍返回明确 blocked。
-- 本切片仍不是完整 Phase 1：Admin Web MVP 导航/危险按钮收敛、预处理 route 的完整 L4/L5 gate 复核、UI 测试和 Docker release readiness gate 仍需继续完成。
+- Admin Web MVP 导航、隐藏 route fallback 和 control disposition 已有 contract test 覆盖；MVP mode 下只显示总览、素材库、预处理、剪辑师、系统检查。
+- 本切片仍不是完整 MVP：Docker staging、真实 NAS returned evidence、admin-worker 默认关闭 proof、Cutter staged-candidate compatibility proof 仍需继续完成。
 
 当前本地验证：
 
-- `node --test --import tsx packages/admin-api/src/admin-library-command-routes.test.ts packages/admin-api/src/admin-index-command-routes.test.ts packages/admin-api/src/admin-settings-command-routes.test.ts packages/admin-api/src/admin-source-video-command-routes.test.ts packages/admin-api/src/admin-command-restore-routes.test.ts`：`37` 项通过。
+- `node --test --import tsx packages/admin-api/src/admin-library-command-routes.test.ts packages/admin-api/src/admin-index-command-routes.test.ts packages/admin-api/src/admin-settings-command-routes.test.ts packages/admin-api/src/admin-source-video-command-routes.test.ts packages/admin-api/src/admin-command-restore-routes.test.ts packages/admin-api/src/admin-preprocess-command-routes.test.ts apps/admin-web/src/features/admin-ui-contract.test.ts`：`53` 项通过。
 - `npm run typecheck`：通过。
 - 已对本轮 NAS 密码特征做本地残留检查：无输出，确认本轮报告和仓库文件未写入 NAS 密码。具体凭据搜索模式不写入文档。
 - 曾误跑 `npm test -- --runInBand ...`，项目 test script 忽略参数后执行全量测试，其中两个既有 `packages/cutter-api/src/index.test.ts` 用例失败；该失败不属于本轮 admin route gate 改动，后续应单独回到 Cutter 测试夹具/期望值排查。
