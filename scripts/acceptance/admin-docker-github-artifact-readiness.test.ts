@@ -112,6 +112,39 @@ function releaseReadinessSummaryReport(uploadAllowed = false, ready = false): un
   };
 }
 
+function releaseInputsIntakeReport(input: {
+  complete?: boolean;
+  ready?: boolean;
+  pushAllowed?: boolean;
+  deployAllowed?: boolean;
+} = {}): unknown {
+  const complete = input.complete ?? false;
+  const ready = input.ready ?? false;
+
+  return {
+    mode: "admin-docker-nas-release-inputs-intake",
+    intake_complete: complete,
+    release_inputs_ready: ready,
+    push_execution_allowed: input.pushAllowed ?? false,
+    docker_deploy_allowed: input.deployAllowed ?? false,
+    result: {
+      status: complete ? "intake-complete" : "blocked"
+    },
+    summary: {
+      intake_blockers: complete ? [] : [
+        "returned-dir-provided",
+        "returned-files-complete",
+        "nas-image-proof-accepted"
+      ],
+      release_input_blockers: ready ? [] : [
+        "returned-dir-provided",
+        "returned-files-complete",
+        "release-inputs-ready"
+      ]
+    }
+  };
+}
+
 function passthroughReport(mode: string): unknown {
   return {
     mode,
@@ -150,6 +183,10 @@ function artifactMap(overrides: Partial<ArtifactMap> = {}): ArtifactMap {
       path: "admin-cutter-compatibility-proof-1.json",
       report: passthroughReport("admin-cutter-compatibility-proof")
     },
+    nas_release_inputs_intake_report: {
+      path: "admin-docker-nas-release-inputs-intake-1.json",
+      report: releaseInputsIntakeReport()
+    },
     staging_runbook_report: {
       path: "admin-docker-staging-runbook-1.json",
       report: stagingRunbookReport()
@@ -179,13 +216,23 @@ test("GitHub artifact readiness can accept a smoked candidate while staging rema
   assert.equal(report.docker_deploy_allowed, false);
   assert.equal(report.result.status, "candidate-ready");
   assert.deepEqual(report.summary.candidate_artifact_blockers, []);
+  assert.ok(report.summary.staging_handoff_blockers.includes("nas-release-inputs-intake-complete"));
+  assert.ok(report.summary.staging_handoff_blockers.includes("release-inputs-ready"));
   assert.ok(report.summary.staging_handoff_blockers.includes("image-push-explicitly-approved"));
   assert.ok(report.summary.staging_handoff_blockers.includes("current-and-rollback-tags-provided"));
   assert.ok(report.summary.staging_handoff_blockers.includes("staging-runbook-ready"));
+  assert.ok(report.next_actions.some((item) => item.includes("NAS release-inputs collector")));
 });
 
 test("GitHub artifact readiness can accept staging handoff without approving deploy", () => {
   const report = buildReport({
+    nas_release_inputs_intake_report: {
+      path: "admin-docker-nas-release-inputs-intake-ready.json",
+      report: releaseInputsIntakeReport({
+        complete: true,
+        ready: true
+      })
+    },
     staging_runbook_report: {
       path: "admin-docker-staging-runbook-2.json",
       report: stagingRunbookReport({
@@ -256,8 +303,30 @@ test("GitHub artifact readiness fails safety if archived reports approve deploy"
   assert.ok(report.summary.candidate_artifact_blockers.includes("release-boundary-does-not-approve-deploy"));
 });
 
+test("GitHub artifact readiness fails safety if intake tries to approve push", () => {
+  const report = buildReport({
+    nas_release_inputs_intake_report: {
+      path: "admin-docker-nas-release-inputs-intake-unsafe.json",
+      report: releaseInputsIntakeReport({
+        complete: true,
+        ready: true,
+        pushAllowed: true
+      })
+    }
+  });
+
+  assert.equal(report.github_candidate_artifact_ready, false);
+  assert.equal(report.staging_handoff_ready, false);
+  assert.equal(report.result.status, "failed");
+  assert.ok(report.summary.candidate_artifact_blockers.includes("release-boundary-does-not-approve-deploy"));
+});
+
 test("GitHub artifact readiness treats missing reports as blocked instead of failed", () => {
   const report = buildReport({
+    nas_release_inputs_intake_report: {
+      path: "",
+      report: null
+    },
     staging_runbook_report: {
       path: "",
       report: null
@@ -270,6 +339,7 @@ test("GitHub artifact readiness treats missing reports as blocked instead of fai
 
   assert.equal(report.result.status, "blocked");
   assert.equal(report.summary.failed, 0);
+  assert.ok(report.summary.candidate_artifact_blockers.includes("artifact-admin-docker-nas-release-inputs-intake-present"));
   assert.ok(report.summary.candidate_artifact_blockers.includes("artifact-admin-docker-staging-runbook-present"));
   assert.ok(report.summary.candidate_artifact_blockers.includes("artifact-admin-docker-release-readiness-summary-present"));
   assert.ok(report.summary.candidate_artifact_blockers.includes("release-boundary-does-not-approve-deploy"));
@@ -297,6 +367,7 @@ test("GitHub artifact readiness CLI writes JSON and Markdown from an artifact di
       "admin-docker-version-parity-plan-20260627T000000Z.json": passthroughReport("admin-docker-version-parity-plan"),
       "admin-worker-env-proof-20260627T000000Z.json": passthroughReport("admin-worker-env-proof"),
       "admin-cutter-compatibility-proof-20260627T000000Z.json": passthroughReport("admin-cutter-compatibility-proof"),
+      "admin-docker-nas-release-inputs-intake-20260627T000000Z.json": releaseInputsIntakeReport(),
       "admin-docker-staging-runbook-20260627T000000Z.json": stagingRunbookReport(),
       "admin-docker-release-readiness-summary-20260627T000000Z.json": releaseReadinessSummaryReport()
     });

@@ -12,11 +12,19 @@ type ArtifactKey =
   | "version_parity_plan_report"
   | "worker_env_proof_report"
   | "cutter_compatibility_proof_report"
+  | "nas_release_inputs_intake_report"
   | "staging_runbook_report"
   | "release_readiness_summary_report";
 
 type GateStatus = "pass" | "blocked" | "fail";
-type GateCategory = "safety" | "artifact" | "candidate" | "image" | "staging" | "release-boundary";
+type GateCategory =
+  | "safety"
+  | "artifact"
+  | "candidate"
+  | "image"
+  | "staging"
+  | "release-inputs"
+  | "release-boundary";
 
 interface ArtifactSpec {
   key: ArtifactKey;
@@ -59,6 +67,7 @@ interface GithubArtifactSources {
   version_parity_plan_report: string;
   worker_env_proof_report: string;
   cutter_compatibility_proof_report: string;
+  nas_release_inputs_intake_report: string;
   staging_runbook_report: string;
   release_readiness_summary_report: string;
 }
@@ -90,6 +99,13 @@ export interface AdminDockerGithubArtifactReadinessReport {
     image_push_approval_accepted: boolean | null;
     current_image_tag: string;
     rollback_image_tag: string;
+    release_inputs_intake_status: string;
+    release_inputs_intake_complete: boolean | null;
+    release_inputs_ready: boolean | null;
+    release_inputs_push_allowed: boolean | null;
+    release_inputs_deploy_allowed: boolean | null;
+    release_inputs_intake_blockers: string[];
+    release_input_blockers: string[];
     staging_review_ready: boolean | null;
     release_review_ready: boolean | null;
     release_review_blockers: string[];
@@ -138,6 +154,11 @@ const ARTIFACT_SPECS: ArtifactSpec[] = [
     key: "cutter_compatibility_proof_report",
     prefix: "admin-cutter-compatibility-proof-",
     title: "Cutter compatibility proof"
+  },
+  {
+    key: "nas_release_inputs_intake_report",
+    prefix: "admin-docker-nas-release-inputs-intake-",
+    title: "Admin Docker NAS release-inputs intake"
   },
   {
     key: "staging_runbook_report",
@@ -203,6 +224,7 @@ function artifactSources(artifacts: Record<ArtifactKey, ArtifactInput>): GithubA
     version_parity_plan_report: artifacts.version_parity_plan_report.path,
     worker_env_proof_report: artifacts.worker_env_proof_report.path,
     cutter_compatibility_proof_report: artifacts.cutter_compatibility_proof_report.path,
+    nas_release_inputs_intake_report: artifacts.nas_release_inputs_intake_report.path,
     staging_runbook_report: artifacts.staging_runbook_report.path,
     release_readiness_summary_report: artifacts.release_readiness_summary_report.path
   };
@@ -310,6 +332,14 @@ function nextActions(summary: GithubArtifactSummary, observations: AdminDockerGi
     actions.push("Ensure candidate contract proof reports the same image_tag/build_sha observed by local Docker smoke.");
   }
 
+  if (summary.staging_handoff_blockers.includes("nas-release-inputs-intake-complete")) {
+    actions.push("Run the NAS release-inputs collector, copy admin-docker-release-inputs/ back to the Mac repo, then rerun intake:admin-docker-nas-release-inputs.");
+  }
+
+  if (summary.staging_handoff_blockers.includes("release-inputs-ready")) {
+    actions.push("Regenerate release inputs from accepted pre-staging, candidate-ref, and NAS current-image proof before staging handoff.");
+  }
+
   if (summary.staging_handoff_blockers.includes("image-push-explicitly-approved")) {
     actions.push("For staging handoff, rerun workflow_dispatch with push_images=true and archive the explicit push approval in the staging runbook.");
   }
@@ -341,6 +371,7 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
 }): AdminDockerGithubArtifactReadinessReport {
   const localSmoke = input.artifacts.local_docker_smoke_report.report;
   const candidate = input.artifacts.candidate_contract_proof_report.report;
+  const releaseInputsIntake = input.artifacts.nas_release_inputs_intake_report.report;
   const staging = input.artifacts.staging_runbook_report.report;
   const releaseSummary = input.artifacts.release_readiness_summary_report.report;
   const localBuild = buildIdentity(localSmoke);
@@ -357,6 +388,12 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
   const stagingReviewReady = asBoolean(asRecord(staging).staging_review_ready);
   const releaseReviewReady = asBoolean(asRecord(releaseSummary).release_review_ready);
   const releaseReviewBlockers = summaryBlockers(releaseSummary, "release_review_blockers");
+  const releaseInputsIntakeComplete = asBoolean(asRecord(releaseInputsIntake).intake_complete);
+  const releaseInputsReady = asBoolean(asRecord(releaseInputsIntake).release_inputs_ready);
+  const releaseInputsPushAllowed = asBoolean(asRecord(releaseInputsIntake).push_execution_allowed);
+  const releaseInputsDeployAllowed = asBoolean(asRecord(releaseInputsIntake).docker_deploy_allowed);
+  const releaseInputsIntakeBlockers = summaryBlockers(releaseInputsIntake, "intake_blockers");
+  const releaseInputBlockers = summaryBlockers(releaseInputsIntake, "release_input_blockers");
   const stagingBlockers = summaryBlockers(staging, "staging_blockers");
   const sourceErrors = artifactSourceErrors(input.artifacts);
   const stagingDeployAllowed = asBoolean(asRecord(staging).docker_deploy_allowed);
@@ -393,12 +430,12 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
       id: "release-boundary-does-not-approve-deploy",
       title: "Archived reports do not approve Docker deploy/upload",
       category: "release-boundary",
-      status: stagingDeployAllowed === true || releaseUploadAllowed === true
+      status: stagingDeployAllowed === true || releaseUploadAllowed === true || releaseInputsPushAllowed === true || releaseInputsDeployAllowed === true
         ? "fail"
-        : stagingDeployAllowed === false && releaseUploadAllowed === false
+        : stagingDeployAllowed === false && releaseUploadAllowed === false && releaseInputsPushAllowed === false && releaseInputsDeployAllowed === false
           ? "pass"
           : "blocked",
-      evidence: `staging.docker_deploy_allowed=${String(stagingDeployAllowed)}, release.docker_upload_allowed=${String(releaseUploadAllowed)}`,
+      evidence: `staging.docker_deploy_allowed=${String(stagingDeployAllowed)}, release.docker_upload_allowed=${String(releaseUploadAllowed)}, release_inputs_intake.push_execution_allowed=${String(releaseInputsPushAllowed)}, release_inputs_intake.docker_deploy_allowed=${String(releaseInputsDeployAllowed)}`,
       blocks_candidate_artifact: true,
       blocks_staging_handoff: true,
       blocks_docker_deploy: true,
@@ -475,6 +512,32 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
       required_evidence: "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact local smoke build_identity.image_tag."
     }),
     gate({
+      id: "nas-release-inputs-intake-complete",
+      title: "NAS release-input returned evidence has been consumed",
+      category: "release-inputs",
+      status: releaseInputsIntakeComplete ? "pass" : "blocked",
+      evidence: releaseInputsIntakeComplete
+        ? "intake_complete=true"
+        : `intake blockers=${releaseInputsIntakeBlockers.join(", ") || "unknown"}`,
+      blocks_candidate_artifact: false,
+      blocks_staging_handoff: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
+    }),
+    gate({
+      id: "release-inputs-ready",
+      title: "Release inputs are ready for a separate release decision",
+      category: "release-inputs",
+      status: releaseInputsReady ? "pass" : "blocked",
+      evidence: releaseInputsReady
+        ? "release_inputs_ready=true"
+        : `release input blockers=${releaseInputBlockers.join(", ") || "unknown"}`,
+      blocks_candidate_artifact: false,
+      blocks_staging_handoff: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Release inputs must be regenerated from accepted pre-staging, candidate-ref, and NAS current-image proof."
+    }),
+    gate({
       id: "image-push-explicitly-approved",
       title: "Image push is explicitly approved for staging handoff",
       category: "staging",
@@ -528,6 +591,13 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
     image_push_approval_accepted: imagePushApproved,
     current_image_tag: tags.current,
     rollback_image_tag: tags.rollback,
+    release_inputs_intake_status: resultStatus(releaseInputsIntake),
+    release_inputs_intake_complete: releaseInputsIntakeComplete,
+    release_inputs_ready: releaseInputsReady,
+    release_inputs_push_allowed: releaseInputsPushAllowed,
+    release_inputs_deploy_allowed: releaseInputsDeployAllowed,
+    release_inputs_intake_blockers: releaseInputsIntakeBlockers,
+    release_input_blockers: releaseInputBlockers,
     staging_review_ready: stagingReviewReady,
     release_review_ready: releaseReviewReady,
     release_review_blockers: releaseReviewBlockers,
@@ -603,6 +673,10 @@ export function toMarkdown(report: AdminDockerGithubArtifactReadinessReport): st
     `- Image push approval accepted: ${String(report.observations.image_push_approval_accepted)}`,
     `- Current image tag: ${report.observations.current_image_tag || "<missing>"}`,
     `- Rollback image tag: ${report.observations.rollback_image_tag || "<missing>"}`,
+    `- Release-inputs intake: ${report.observations.release_inputs_intake_status || "unknown"}, complete=${String(report.observations.release_inputs_intake_complete)}, ready=${String(report.observations.release_inputs_ready)}`,
+    `- Release-inputs push/deploy allowed: push=${String(report.observations.release_inputs_push_allowed)}, deploy=${String(report.observations.release_inputs_deploy_allowed)}`,
+    `- Release-inputs intake blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
+    `- Release-input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
     `- Staging review ready: ${String(report.observations.staging_review_ready)}`,
     `- Release review ready: ${String(report.observations.release_review_ready)}`,
     `- Staging blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,

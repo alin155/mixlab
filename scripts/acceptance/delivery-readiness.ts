@@ -469,6 +469,12 @@ function auditEvidenceAutomation(errors: string[]): void {
     errors
   );
   requireText(
+    "scripts/acceptance/admin-docker-github-artifact-readiness.ts",
+    /nas_release_inputs_intake_report[\s\S]*admin-docker-nas-release-inputs-intake-[\s\S]*nas-release-inputs-intake-complete[\s\S]*release-inputs-ready[\s\S]*release_inputs_intake\.push_execution_allowed[\s\S]*release_inputs_intake\.docker_deploy_allowed/,
+    "Admin Docker GitHub artifact readiness must require NAS release-input intake artifacts, gate intake/release-input readiness for staging handoff, and fail if intake evidence approves push or deploy",
+    errors
+  );
+  requireText(
     "scripts/acceptance/nas-docker-compose-static.ts",
     /deploy\/nas\/mixlab\/docker-compose\.yml[\s\S]*deploy\/nas\/mixlab\/\.env\.example[\s\S]*admin-api[\s\S]*admin-worker[\s\S]*admin-web[\s\S]*\/data\/PublicLibrary[\s\S]*worker:admin-loop[\s\S]*PUBLIC_LIBRARY_HOST_PATH[\s\S]*MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL[\s\S]*DASHSCOPE_API_KEY must be blank/,
     "NAS Docker compose static validator must check services, public-library mount, worker command, count refresh interval, and blank ASR key example",
