@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "mode": "admin-docker-nas-release-inputs-handoff",
+  "generated_at": "2026-06-28T02:26:23.862Z",
+  "candidate_sha": "71d32cd9115e9eec1ba409621c8bceaa7a47b070",
+  "candidate_release_ref": "admin-docker-candidate-71d32cd9115e9eec1ba409621c8bceaa7a47b070",
+  "source_reports": {
+    "prestaging_handoff_report": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T021933Z.json",
+    "candidate_ref_proof_report": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T022500Z.json",
+    "release_inputs_report": "docs/acceptance/artifacts/admin-docker-release-inputs-20260628T022520Z.json",
+    "collector_source": "/Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh"
+  },
+  "files": [
+    {
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T022623Z/README.md",
+      "sha256": "6378d41f3e8a93c42ed3434d326af560aa3820d5421db500375b974d88b38a9b",
+      "size_bytes": 7245,
+      "executable": false
+    },
+    {
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T022623Z/nas/admin-docker-nas-release-inputs-collector.sh",
+      "sha256": "bec7551dc6dcafd097e93fd03bd14c3ba63a6db6c09b0f6182b1bf1fc44e9dc9",
+      "size_bytes": 9066,
+      "executable": true
+    }
+  ],
+  "safety": {
+    "push_execution_allowed": false,
+    "docker_deploy_allowed": false,
+    "nas_writes_allowed": false,
+    "worker_start_allowed": false
+  }
+}
