@@ -194,7 +194,7 @@ function requiredCollectionInstructions(): string[] {
     "On the NAS host, export only the current Compose image tag without secrets: grep '^MIXLAB_IMAGE_TAG=' .env > admin-docker-current.env",
     "On the NAS host, export sanitized running Admin container image metadata containing only service name, container name, and image tag; do not store full docker inspect Config.Env secrets.",
     "Copy those files into a local evidence folder and run: MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<path>/admin-docker-current.inspect.json npm run validate:admin-docker-nas-image-proof",
-    "Do not use MIXLAB_IMAGE_TAG=latest as rollback evidence; the GitHub push updates latest and makes it unsafe for rollback."
+    "Do not use MIXLAB_IMAGE_TAG=latest as rollback evidence; latest is mutable and cannot prove a stable rollback point."
   ];
 }
 

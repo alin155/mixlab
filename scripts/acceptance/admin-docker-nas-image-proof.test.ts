@@ -109,7 +109,7 @@ test("NAS image proof accepts a stable current tag for current and rollback inpu
   assert.equal(JSON.stringify(built).includes("secret-that-must-not-appear"), false);
 });
 
-test("NAS image proof blocks latest because GitHub push updates latest", () => {
+test("NAS image proof blocks latest because it is mutable rollback evidence", () => {
   const built = report({
     env: envFile("latest"),
     inspect: inspectJson({ tag: "latest" })

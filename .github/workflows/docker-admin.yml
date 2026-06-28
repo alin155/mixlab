@@ -143,7 +143,6 @@ jobs:
           file: docker/admin-runtime.Dockerfile
           push: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true }}
           tags: |
-            ghcr.io/alin155/mixlab-admin-runtime:latest
             ghcr.io/alin155/mixlab-admin-runtime:${{ github.sha }}
           build-args: |
             MIXLAB_BUILD_SHA=${{ github.sha }}
@@ -158,7 +157,6 @@ jobs:
           file: docker/admin-web.Dockerfile
           push: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true }}
           tags: |
-            ghcr.io/alin155/mixlab-admin-web:latest
             ghcr.io/alin155/mixlab-admin-web:${{ github.sha }}
           build-args: |
             MIXLAB_BUILD_SHA=${{ github.sha }}

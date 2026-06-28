@@ -451,6 +451,18 @@ function auditEvidenceAutomation(errors: string[]): void {
     errors
   );
   requireText(
+    ".github/workflows/docker-admin.yml",
+    /ghcr\.io\/alin155\/mixlab-admin-runtime:\$\{\{ github\.sha \}\}[\s\S]*ghcr\.io\/alin155\/mixlab-admin-web:\$\{\{ github\.sha \}\}/,
+    "Admin Docker workflow must tag pushed images with immutable github.sha references",
+    errors
+  );
+  rejectText(
+    ".github/workflows/docker-admin.yml",
+    /ghcr\.io\/alin155\/mixlab-admin-(?:runtime|web):latest/,
+    "Admin Docker workflow must not push mutable latest tags for NAS release candidates",
+    errors
+  );
+  requireText(
     "package.json",
     /"server:searchd": "cargo run --manifest-path packages\/searchd\/Cargo\.toml --"[\s\S]*"smoke:cutter-api-web": "tsx scripts\/smoke\/cutter-api-web\.ts"[\s\S]*"smoke:searchd-concurrency": "tsx scripts\/smoke\/searchd-concurrency\.ts"[\s\S]*"smoke:searchd-nas-rehearsal": "tsx scripts\/smoke\/searchd-nas-rehearsal\.ts"[\s\S]*"smoke:searchd-scale": "tsx scripts\/smoke\/searchd-scale\.ts"[\s\S]*"validate:evidence-kit-manifest": "tsx scripts\/acceptance\/evidence-kit-manifest\.ts"[\s\S]*"validate:evidence-kit-drafts": "tsx scripts\/acceptance\/evidence-kit-drafts\.ts"[\s\S]*"validate:local-web-sanity-report": "tsx scripts\/acceptance\/local-web-sanity-report\.ts"[\s\S]*"sync:local-real-nas-record": "tsx scripts\/acceptance\/sync-local-web-real-nas-record\.ts"[\s\S]*"audit:local-real-nas-phase": "tsx scripts\/acceptance\/local-real-nas-phase\.ts"[\s\S]*"build:searchd": "cargo build --manifest-path packages\/searchd\/Cargo\.toml --release"[\s\S]*"test:searchd": "cargo test --manifest-path packages\/searchd\/Cargo\.toml"/,
     "package scripts must keep searchd server, Rust build/test, functional smoke, 50-editor smoke, NAS rehearsal, scale smoke, local web report validation, local real NAS record sync, local real NAS phase audit, evidence-kit manifest validation, and evidence-kit draft validation commands wired to real runners",

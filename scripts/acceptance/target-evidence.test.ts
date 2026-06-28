@@ -3481,6 +3481,8 @@ test("Admin Docker workflow builds, smokes, and only pushes NAS images after exp
   assert.match(workflow, /docker\/build-push-action@v6/);
   assert.match(workflow, /ghcr\.io\/alin155\/mixlab-admin-runtime:\$\{\{ github\.sha \}\}/);
   assert.match(workflow, /ghcr\.io\/alin155\/mixlab-admin-web:\$\{\{ github\.sha \}\}/);
+  assert.doesNotMatch(workflow, /ghcr\.io\/alin155\/mixlab-admin-runtime:latest/);
+  assert.doesNotMatch(workflow, /ghcr\.io\/alin155\/mixlab-admin-web:latest/);
   assert.match(workflow, /name: mixlab-target-evidence-kit/);
   assert.match(workflow, /dist\/acceptance\/mixlab-evidence-kit/);
 });
