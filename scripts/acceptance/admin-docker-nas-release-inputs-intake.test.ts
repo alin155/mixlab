@@ -263,6 +263,20 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   await writeText(path.join(returnedDir, "admin-worker.env"), workerEnv());
   await writeJson(path.join(returnedDir, "admin-worker.inspect.json"), workerInspect());
   await writeJson(path.join(returnedDir, "admin-docker-disk-proof.json"), diskProof());
+  await writeText(path.join(returnedDir, "MANIFEST.txt"), [
+    "schema_version=1.0",
+    "mode=admin-docker-nas-release-inputs-collector",
+    "push_execution_allowed=false",
+    "docker_deploy_allowed=false",
+    "nas_writes_allowed=false",
+    "worker_start_allowed=false"
+  ].join("\n"));
+  await writeText(path.join(returnedDir, "README.md"), [
+    "# Admin Docker NAS Release Inputs",
+    "",
+    "This directory contains sanitized returned evidence.",
+    "Do not copy full .env into this directory."
+  ].join("\n"));
 
   const prestagingPath = await writeJson(path.join(tempRoot, "admin-docker-prestaging-handoff.json"), prestagingHandoff());
   const candidateRefPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-ref-proof.json"), candidateRefProof());
@@ -297,6 +311,8 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   assert.equal(report.observations.nas_image_proof_accepted, true);
   assert.equal(report.observations.worker_proof_accepted, true);
   assert.equal(report.observations.nas_disk_proof_accepted, true);
+  assert.equal(report.returned_files.some((item) => item.expected_name === "MANIFEST.txt" && item.present), true);
+  assert.equal(report.returned_files.some((item) => item.expected_name === "README.md" && item.present), true);
   assert.ok(report.generated_reports.nas_image_proof_report.endsWith("admin-docker-nas-image-proof-20260628T000000Z.json"));
   assert.ok(report.generated_reports.worker_env_proof_report.endsWith("admin-worker-env-proof-20260628T000000Z.json"));
   assert.ok(report.generated_reports.nas_disk_proof_report.endsWith("admin-docker-nas-disk-proof-20260628T000000Z.json"));

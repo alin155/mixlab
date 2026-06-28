@@ -15,7 +15,9 @@ const RETURNED_FILES = {
   nas_inspect: "admin-docker-current.inspect.json",
   worker_env: "admin-worker.env",
   worker_inspect: "admin-worker.inspect.json",
-  disk_proof: "admin-docker-disk-proof.json"
+  disk_proof: "admin-docker-disk-proof.json",
+  returned_manifest: "MANIFEST.txt",
+  returned_readme: "README.md"
 } as const;
 
 type ReturnedFileKey = keyof typeof RETURNED_FILES;
