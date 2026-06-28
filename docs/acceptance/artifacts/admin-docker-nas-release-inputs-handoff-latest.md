@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T11:25:52.349Z
+Generated: 2026-06-28T18:42:21.954Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes
@@ -9,15 +9,15 @@ Docker deploy allowed: no
 
 ## Sources
 
-- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T102339Z.json
-- Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T101658Z.json
-- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T102350Z.json
+- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T184208Z.json
+- Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T184119Z.json
+- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T184215Z.json
 - Collector source: /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh
 
 ## Candidate
 
-- candidate_sha: b062bc387c1fdb2a391320c1c36233b782cb000a
-- candidate_release_ref: admin-docker-candidate-b062bc387c1fdb2a391320c1c36233b782cb000a
+- candidate_sha: 97f2d513a4a27315929b4d964320d4170b4b4631
+- candidate_release_ref: admin-docker-candidate-97f2d513a4a27315929b4d964320d4170b4b4631
 - candidate_ref_proof_accepted: true
 
 ## NAS Side
@@ -69,8 +69,8 @@ MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON=<copied-admin-docker-release-inputs-dir>
 ```
 
 ```sh
-MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T102339Z.json \
-  MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T101658Z.json \
+MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T184208Z.json \
+  MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T184119Z.json \
   MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-image-proof-*.json \
   MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
   npm run validate:admin-docker-release-inputs
@@ -80,7 +80,7 @@ MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-do
 MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker-release-inputs-*.json \
   MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-disk-proof-*.json \
   MIXLAB_DOCKER_CURRENT_IMAGE_TAG=<accepted-current-image-tag> \
-  MIXLAB_DOCKER_TARGET_IMAGE_TAG=b062bc387c1fdb2a391320c1c36233b782cb000a \
+  MIXLAB_DOCKER_TARGET_IMAGE_TAG=97f2d513a4a27315929b4d964320d4170b4b4631 \
   MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG=<same-as-current-image-tag> \
   MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
   npm run validate:admin-docker-staging-runbook
@@ -100,9 +100,9 @@ MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker
 | Gate | Category | Status | Blocks Handoff | Blocks Inputs | Blocks Push | Blocks Deploy | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | handoff-no-side-effects | safety | pass | no | no | no | no | This report reads existing local JSON reports and copies the sanitized NAS collector; it does not contact NAS, Docker, GitHub, Admin API, or Cutter. |
-| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T102339Z.json |
-| candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T101658Z.json |
-| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T102350Z.json |
+| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T184208Z.json |
+| candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T184119Z.json |
+| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T184215Z.json |
 | collector-source-provided | nas-collection | pass | no | no | yes | yes | /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh |
 | candidate-ref-proof-accepted | candidate | pass | no | yes | yes | yes | candidate_ref_proof_accepted=true |
 | candidate-ref-proof-does-not-approve-deploy | safety | pass | yes | yes | yes | yes | candidate_ref_proof.docker_deploy_allowed=false |

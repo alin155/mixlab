@@ -1,0 +1,214 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T18:41:14.558Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-github-run-artifact.ts",
+  "mode": "admin-docker-github-run-artifact",
+  "repo": "alin155/mixlab",
+  "workflow": "docker-admin.yml",
+  "artifact_name": "mixlab-admin-docker-release-gates",
+  "run": {
+    "databaseId": 28332064560,
+    "headSha": "97f2d513a4a27315929b4d964320d4170b4b4631",
+    "headBranch": "admin-docker-candidate-97f2d513a4a27315929b4d964320d4170b4b4631",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/alin155/mixlab/actions/runs/28332064560",
+    "workflowName": "Build Admin Docker Images",
+    "event": "workflow_dispatch",
+    "createdAt": "2026-06-28T18:37:03Z",
+    "updatedAt": "2026-06-28T18:40:58Z"
+  },
+  "source_control": {
+    "current_head_sha": "97f2d513a4a27315929b4d964320d4170b4b4631",
+    "current_branch": "codex/windows-first-run-autostart-20260615104835",
+    "worktree_dirty": true,
+    "porcelain": [
+      "?? docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T183632Z.json",
+      "?? docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T183632Z.md",
+      "?? docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T183632Z.json",
+      "?? docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T183632Z.md"
+    ]
+  },
+  "artifact_dir": ".local-dev/admin-docker-github-runs/28332064560/mixlab-admin-docker-release-gates",
+  "readiness_report": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T184114Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T184114Z.md",
+    "result_status": "candidate-ready",
+    "github_candidate_artifact_ready": true,
+    "staging_handoff_ready": false,
+    "docker_deploy_allowed": false,
+    "failed": 0
+  },
+  "github_run_candidate_ready": true,
+  "current_worktree_candidate_ready": false,
+  "github_run_staging_handoff_ready": false,
+  "current_worktree_staging_handoff_ready": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "run_successful": true,
+    "run_head_matches_current_head": true,
+    "worktree_clean": false,
+    "readiness_failed": false,
+    "readiness_candidate_blockers": [],
+    "readiness_staging_blockers": [
+      "nas-release-inputs-intake-complete",
+      "returned-evidence-precheck-passed",
+      "release-inputs-ready",
+      "image-push-explicitly-approved",
+      "current-and-rollback-tags-provided",
+      "staging-runbook-ready"
+    ]
+  },
+  "gates": [
+    {
+      "id": "github-run-artifact-no-side-effects",
+      "title": "GitHub run artifact collection is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Uses gh run view/download and local JSON validation only; does not contact NAS, Docker daemon, Windows Runner, Cutter, or Admin runtime services.",
+      "blocks_github_run_candidate": false,
+      "blocks_current_worktree_candidate": false,
+      "blocks_github_run_staging_handoff": false,
+      "blocks_current_worktree_staging_handoff": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "github-run-successful",
+      "title": "GitHub Admin Docker workflow completed successfully",
+      "category": "github-run",
+      "status": "pass",
+      "evidence": "status=completed, conclusion=success, url=https://github.com/alin155/mixlab/actions/runs/28332064560",
+      "blocks_github_run_candidate": true,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": true,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run the Build Admin Docker Images workflow to completion with release-gate artifacts uploaded."
+    },
+    {
+      "id": "release-gates-artifact-downloaded",
+      "title": "Release-gates artifact was downloaded",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28332064560/mixlab-admin-docker-release-gates",
+      "blocks_github_run_candidate": true,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": true,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download mixlab-admin-docker-release-gates from the Admin Docker GitHub Actions run."
+    },
+    {
+      "id": "github-artifact-readiness-generated",
+      "title": "GitHub artifact readiness report was generated",
+      "category": "readiness",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T184114Z.json",
+      "blocks_github_run_candidate": true,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": true,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-github-artifact-readiness against the downloaded release-gates artifact."
+    },
+    {
+      "id": "github-artifact-candidate-ready",
+      "title": "Downloaded artifact proves a smoked Docker candidate",
+      "category": "readiness",
+      "status": "pass",
+      "evidence": "github_candidate_artifact_ready=true, result=candidate-ready",
+      "blocks_github_run_candidate": true,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": true,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The artifact readiness report must have github_candidate_artifact_ready:true."
+    },
+    {
+      "id": "github-artifact-staging-handoff-ready",
+      "title": "Downloaded artifact proves staging handoff readiness",
+      "category": "readiness",
+      "status": "blocked",
+      "evidence": "staging_handoff_ready=false, blockers=nas-release-inputs-intake-complete, returned-evidence-precheck-passed, release-inputs-ready, image-push-explicitly-approved, current-and-rollback-tags-provided, staging-runbook-ready",
+      "blocks_github_run_candidate": false,
+      "blocks_current_worktree_candidate": false,
+      "blocks_github_run_staging_handoff": true,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The artifact readiness report must have staging_handoff_ready:true before staging handoff."
+    },
+    {
+      "id": "run-head-matches-current-head",
+      "title": "GitHub run head matches current local HEAD",
+      "category": "source-control",
+      "status": "pass",
+      "evidence": "run.headSha=97f2d513a4a27315929b4d964320d4170b4b4631, local.head=97f2d513a4a27315929b4d964320d4170b4b4631",
+      "blocks_github_run_candidate": false,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": false,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run the workflow against the same commit being reviewed locally."
+    },
+    {
+      "id": "current-worktree-clean",
+      "title": "Current local worktree has no uncommitted candidate drift",
+      "category": "source-control",
+      "status": "blocked",
+      "evidence": "4 changed path(s) are present",
+      "blocks_github_run_candidate": false,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": false,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Commit/archive the candidate changes before treating a remote run as proof for the current worktree."
+    },
+    {
+      "id": "run-artifact-does-not-approve-deploy",
+      "title": "Run artifact report does not approve Docker deploy",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "readiness.docker_deploy_allowed=false",
+      "blocks_github_run_candidate": true,
+      "blocks_current_worktree_candidate": true,
+      "blocks_github_run_staging_handoff": true,
+      "blocks_current_worktree_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Artifact/run reports must remain evidence reports, not deploy approvals."
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 7,
+    "blocked": 2,
+    "failed": 0,
+    "github_run_candidate_blockers": [],
+    "current_worktree_candidate_blockers": [
+      "current-worktree-clean"
+    ],
+    "github_run_staging_handoff_blockers": [
+      "github-artifact-staging-handoff-ready"
+    ],
+    "current_worktree_staging_handoff_blockers": [
+      "github-artifact-staging-handoff-ready",
+      "current-worktree-clean"
+    ],
+    "docker_deploy_blockers": [
+      "github-artifact-staging-handoff-ready",
+      "current-worktree-clean"
+    ]
+  },
+  "result": {
+    "status": "github-run-candidate-ready",
+    "summary": "GitHub run artifact proves its remote commit has a smoked Docker candidate, but it does not yet prove the current local worktree."
+  },
+  "next_actions": [
+    "Archive or commit the current candidate changes before treating a remote run as proof for this exact worktree.",
+    "For staging handoff, rerun workflow_dispatch with push_images=true plus current/rollback tags after candidate artifact readiness is green.",
+    "Staging blockers from readiness: nas-release-inputs-intake-complete, returned-evidence-precheck-passed, release-inputs-ready, image-push-explicitly-approved, current-and-rollback-tags-provided, staging-runbook-ready."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T184114Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T184114Z.md"
+  }
+}
