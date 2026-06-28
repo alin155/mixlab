@@ -1,6 +1,6 @@
 # Admin Docker MVP v0.1 Plan
 
-更新时间：2026-06-27
+更新时间：2026-06-28
 
 ## 决策结论
 
@@ -78,6 +78,18 @@ MVP v0.1 不做：
 | 当前索引 | `v010471` | MVP v0.1 前后不得改变。 |
 | 总视频观测 | `11394` | 用于上线前后只读对账。 |
 | 磁盘风险 | 曾观测约 `98%` 且 blocked | 预处理必须受磁盘门禁约束。 |
+
+## 当前已完成远端候选证据
+
+2026-06-28 已完成 GitHub Docker-capable dry-run 证据收口，但仍不代表 NAS 已发布：
+
+- branch dry-run：GitHub Actions run `28318729283`，ref `codex/windows-first-run-autostart-20260615104835`，head `b062bc387c1fdb2a391320c1c36233b782cb000a`，`push_images=false`，workflow success，`current-worktree-candidate-ready`。
+- branch dry-run 证据：`docs/acceptance/artifacts/admin-docker-github-run-artifact-20260628T101106Z.json`，对应 artifact readiness 为 `candidate-ready`，`docker_deploy_allowed=false`。
+- candidate tag：`admin-docker-candidate-b062bc387c1fdb2a391320c1c36233b782cb000a`，远端 tag 指向 `b062bc387c1fdb2a391320c1c36233b782cb000a`。
+- tag dry-run：GitHub Actions run `28318925718`，ref `admin-docker-candidate-b062bc387c1fdb2a391320c1c36233b782cb000a`，`push_images=false`，workflow success，`github-run-candidate-ready`。
+- candidate-ref proof：`docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T101658Z.json`，`candidate_ref_proof_accepted=true`，`docker_deploy_allowed=false`。
+
+这批证据只清除了“远端 Docker 候选构建/本地 smoke/tag-ref 固定”层面的门禁。NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof 和显式发布决策仍未完成。
 
 ## MVP 功能边界
 
