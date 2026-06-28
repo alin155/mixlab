@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T10:01:00.722Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-candidate-scope.ts",
+  "mode": "admin-docker-candidate-scope",
+  "current_branch": "codex/windows-first-run-autostart-20260615104835",
+  "current_head_sha": "1fd2f899e37fd23f2af27df79d315e8435c44724",
+  "total_changed_paths": 0,
+  "max_paths_per_bucket": 120,
+  "buckets": [
+    {
+      "bucket": "mvp_candidate_code",
+      "severity": "evidence",
+      "count": 0,
+      "paths": [],
+      "omitted_count": 0
+    },
+    {
+      "bucket": "planning_docs",
+      "severity": "evidence",
+      "count": 0,
+      "paths": [],
+      "omitted_count": 0
+    },
+    {
+      "bucket": "acceptance_evidence",
+      "severity": "evidence",
+      "count": 0,
+      "paths": [],
+      "omitted_count": 0
+    },
+    {
+      "bucket": "local_generated_artifact",
+      "severity": "exclude",
+      "count": 0,
+      "paths": [],
+      "omitted_count": 0
+    },
+    {
+      "bucket": "cutter_impact_review",
+      "severity": "review",
+      "count": 0,
+      "paths": [],
+      "omitted_count": 0
+    },
+    {
+      "bucket": "unknown_review",
+      "severity": "review",
+      "count": 0,
+      "paths": [],
+      "omitted_count": 0
+    }
+  ],
+  "decisions": {
+    "current_worktree_clean": true,
+    "candidate_scope_review_ready": true,
+    "candidate_selective_commit_ready": false,
+    "remote_workflow_proof_possible_from_current_worktree": true
+  },
+  "blockers": [],
+  "next_actions": [
+    "Current worktree is clean and scoped; run the GitHub Docker workflow for this HEAD, then collect release-gates artifacts."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-candidate-scope-20260628T100100Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-candidate-scope-20260628T100100Z.md"
+  }
+}
