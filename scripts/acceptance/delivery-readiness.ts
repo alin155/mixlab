@@ -57,6 +57,7 @@ const REQUIRED_FILES = [
   "scripts/acceptance/admin-docker-release-inputs.ts",
   "scripts/acceptance/admin-docker-nas-release-inputs-collector.sh",
   "scripts/acceptance/admin-docker-nas-release-inputs-handoff.ts",
+  "scripts/acceptance/admin-docker-nas-returned-evidence-precheck.ts",
   "scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",
   "scripts/acceptance/admin-docker-candidate-scope.ts",
   "scripts/acceptance/nas-acc-009-collector.sh",
@@ -111,6 +112,7 @@ const REQUIRED_SCRIPTS = [
   "validate:admin-docker-nas-disk-proof",
   "validate:admin-docker-release-inputs",
   "prepare:admin-docker-nas-release-inputs-handoff",
+  "precheck:admin-docker-nas-returned-evidence",
   "intake:admin-docker-nas-release-inputs",
   "audit:admin-docker-candidate-scope",
   "audit:local-real-nas-phase",
@@ -458,20 +460,20 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     "package.json",
-    /"validate:admin-docker-release-gate-dry-run": "tsx scripts\/acceptance\/admin-docker-release-gate-dry-run\.ts"[\s\S]*"validate:admin-docker-release-live-readonly": "tsx scripts\/acceptance\/admin-docker-release-live-readonly\.ts"[\s\S]*"validate:admin-docker-version-parity-plan": "tsx scripts\/acceptance\/admin-docker-version-parity-plan\.ts"[\s\S]*"validate:admin-docker-candidate-contract-proof": "tsx scripts\/acceptance\/admin-docker-candidate-contract-proof\.ts"[\s\S]*"validate:admin-docker-local-smoke": "tsx scripts\/acceptance\/admin-docker-local-smoke\.ts"[\s\S]*"validate:admin-worker-env-proof": "tsx scripts\/acceptance\/admin-worker-env-proof\.ts"[\s\S]*"validate:admin-docker-staging-runbook": "tsx scripts\/acceptance\/admin-docker-staging-runbook\.ts"[\s\S]*"validate:admin-cutter-compatibility-proof": "tsx scripts\/acceptance\/admin-cutter-compatibility-proof\.ts"[\s\S]*"validate:admin-docker-release-readiness-summary": "tsx scripts\/acceptance\/admin-docker-release-readiness-summary\.ts"[\s\S]*"validate:admin-docker-github-artifact-readiness": "tsx scripts\/acceptance\/admin-docker-github-artifact-readiness\.ts"[\s\S]*"collect:admin-docker-github-run-artifact": "tsx scripts\/acceptance\/admin-docker-github-run-artifact\.ts"[\s\S]*"validate:admin-docker-prestaging-handoff": "tsx scripts\/acceptance\/admin-docker-prestaging-handoff\.ts"[\s\S]*"validate:admin-docker-nas-image-proof": "tsx scripts\/acceptance\/admin-docker-nas-image-proof\.ts"[\s\S]*"validate:admin-docker-nas-disk-proof": "tsx scripts\/acceptance\/admin-docker-nas-disk-proof\.ts"[\s\S]*"validate:admin-docker-release-inputs": "tsx scripts\/acceptance\/admin-docker-release-inputs\.ts"[\s\S]*"prepare:admin-docker-nas-release-inputs-handoff": "tsx scripts\/acceptance\/admin-docker-nas-release-inputs-handoff\.ts"[\s\S]*"intake:admin-docker-nas-release-inputs": "tsx scripts\/acceptance\/admin-docker-nas-release-inputs-intake\.ts"[\s\S]*"audit:admin-docker-candidate-scope": "tsx scripts\/acceptance\/admin-docker-candidate-scope\.ts"/,
-    "package scripts must expose the Admin Docker release-gate validators for dry-run, live-readonly, parity, candidate contract, local smoke, worker env, staging runbook, Cutter compatibility, readiness summary, GitHub artifact readiness, GitHub run artifact collection, pre-staging handoff, NAS image proof, NAS disk proof, release inputs, NAS release-input handoff/intake, and candidate scope audit",
+    /"validate:admin-docker-release-gate-dry-run": "tsx scripts\/acceptance\/admin-docker-release-gate-dry-run\.ts"[\s\S]*"validate:admin-docker-release-live-readonly": "tsx scripts\/acceptance\/admin-docker-release-live-readonly\.ts"[\s\S]*"validate:admin-docker-version-parity-plan": "tsx scripts\/acceptance\/admin-docker-version-parity-plan\.ts"[\s\S]*"validate:admin-docker-candidate-contract-proof": "tsx scripts\/acceptance\/admin-docker-candidate-contract-proof\.ts"[\s\S]*"validate:admin-docker-local-smoke": "tsx scripts\/acceptance\/admin-docker-local-smoke\.ts"[\s\S]*"validate:admin-worker-env-proof": "tsx scripts\/acceptance\/admin-worker-env-proof\.ts"[\s\S]*"validate:admin-docker-staging-runbook": "tsx scripts\/acceptance\/admin-docker-staging-runbook\.ts"[\s\S]*"validate:admin-cutter-compatibility-proof": "tsx scripts\/acceptance\/admin-cutter-compatibility-proof\.ts"[\s\S]*"validate:admin-docker-release-readiness-summary": "tsx scripts\/acceptance\/admin-docker-release-readiness-summary\.ts"[\s\S]*"validate:admin-docker-github-artifact-readiness": "tsx scripts\/acceptance\/admin-docker-github-artifact-readiness\.ts"[\s\S]*"collect:admin-docker-github-run-artifact": "tsx scripts\/acceptance\/admin-docker-github-run-artifact\.ts"[\s\S]*"validate:admin-docker-prestaging-handoff": "tsx scripts\/acceptance\/admin-docker-prestaging-handoff\.ts"[\s\S]*"validate:admin-docker-nas-image-proof": "tsx scripts\/acceptance\/admin-docker-nas-image-proof\.ts"[\s\S]*"validate:admin-docker-nas-disk-proof": "tsx scripts\/acceptance\/admin-docker-nas-disk-proof\.ts"[\s\S]*"validate:admin-docker-release-inputs": "tsx scripts\/acceptance\/admin-docker-release-inputs\.ts"[\s\S]*"prepare:admin-docker-nas-release-inputs-handoff": "tsx scripts\/acceptance\/admin-docker-nas-release-inputs-handoff\.ts"[\s\S]*"precheck:admin-docker-nas-returned-evidence": "tsx scripts\/acceptance\/admin-docker-nas-returned-evidence-precheck\.ts"[\s\S]*"intake:admin-docker-nas-release-inputs": "tsx scripts\/acceptance\/admin-docker-nas-release-inputs-intake\.ts"[\s\S]*"audit:admin-docker-candidate-scope": "tsx scripts\/acceptance\/admin-docker-candidate-scope\.ts"/,
+    "package scripts must expose the Admin Docker release-gate validators for dry-run, live-readonly, parity, candidate contract, local smoke, worker env, staging runbook, Cutter compatibility, readiness summary, GitHub artifact readiness, GitHub run artifact collection, pre-staging handoff, NAS image proof, NAS disk proof, release inputs, NAS release-input handoff, returned-evidence precheck, intake, and candidate scope audit",
     errors
   );
   requireText(
     "scripts/acceptance/admin-docker-release-readiness-summary.ts",
-    /release_inputs_intake_report[\s\S]*nas-release-inputs-intake-complete[\s\S]*release-inputs-ready[\s\S]*summary-does-not-approve-upload[\s\S]*MIXLAB_ADMIN_DOCKER_NAS_RELEASE_INPUTS_INTAKE_REPORT/,
-    "Admin Docker release readiness summary must include NAS release-input intake evidence, release-input readiness, an env override, and a no-upload safety gate",
+    /release_inputs_intake_report[\s\S]*nas-release-inputs-intake-complete[\s\S]*returned-evidence-precheck-passed[\s\S]*returned_precheck_passed[\s\S]*release-inputs-ready[\s\S]*summary-does-not-approve-upload[\s\S]*MIXLAB_ADMIN_DOCKER_NAS_RELEASE_INPUTS_INTAKE_REPORT/,
+    "Admin Docker release readiness summary must include NAS release-input intake evidence, returned-evidence precheck proof, release-input readiness, an env override, and a no-upload safety gate",
     errors
   );
   requireText(
     "scripts/acceptance/admin-docker-github-artifact-readiness.ts",
-    /nas_release_inputs_intake_report[\s\S]*admin-docker-nas-release-inputs-intake-[\s\S]*nas-release-inputs-intake-complete[\s\S]*release-inputs-ready[\s\S]*release_inputs_intake\.push_execution_allowed[\s\S]*release_inputs_intake\.docker_deploy_allowed/,
-    "Admin Docker GitHub artifact readiness must require NAS release-input intake artifacts, gate intake/release-input readiness for staging handoff, and fail if intake evidence approves push or deploy",
+    /nas_release_inputs_intake_report[\s\S]*admin-docker-nas-release-inputs-intake-[\s\S]*release_inputs_intake\.push_execution_allowed[\s\S]*release_inputs_intake\.docker_deploy_allowed[\s\S]*nas-release-inputs-intake-complete[\s\S]*returned-evidence-precheck-passed[\s\S]*returned_precheck_passed[\s\S]*release-inputs-ready/,
+    "Admin Docker GitHub artifact readiness must require NAS release-input intake artifacts, gate returned-evidence precheck plus intake/release-input readiness for staging handoff, and fail if intake evidence approves push or deploy",
     errors
   );
   requireText(
