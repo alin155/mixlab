@@ -85,11 +85,19 @@ function releaseInputsReport(input: {
   ready?: boolean;
   blockers?: string[];
   handoffStagingBlockers?: string[];
+  currentTag?: string;
+  targetTag?: string;
+  rollbackTag?: string;
 } = {}): unknown {
   const ready = input.ready ?? true;
 
   return {
     release_inputs_ready: ready,
+    inputs: {
+      current_image_tag: input.currentTag ?? "old-tag",
+      target_image_tag: input.targetTag ?? "new-tag",
+      rollback_image_tag: input.rollbackTag ?? "old-tag"
+    },
     observations: {
       handoff_staging_execution_blockers: input.handoffStagingBlockers ?? []
     },
@@ -460,6 +468,42 @@ test("admin Docker staging runbook accepts release inputs without execution carr
   assert.equal(report.staging_review_ready, true);
   assert.deepEqual(report.observations.carried_pre_staging_execution_blockers, []);
   assert.ok(!report.summary.staging_execution_blockers.includes("pre-staging-execution-blockers-carried-forward"));
+});
+
+test("admin Docker staging runbook blocks when env image tags drift from release inputs", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: clearParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: acceptedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: acceptedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: acceptedCutterProof(),
+    release_inputs_report_path: "release-inputs.json",
+    release_inputs_report: releaseInputsReport({
+      currentTag: "release-old-tag",
+      targetTag: "release-new-tag",
+      rollbackTag: "release-old-tag"
+    }),
+    current_image_tag: "old-tag",
+    target_image_tag: "new-tag",
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.staging_execution_ready, false);
+  assert.equal(report.staging_review_ready, false);
+  assert.equal(report.observations.current_tag_matches_release_inputs, false);
+  assert.equal(report.observations.target_tag_matches_release_inputs, false);
+  assert.equal(report.observations.rollback_tag_matches_release_inputs, false);
+  assert.ok(report.summary.staging_execution_blockers.includes("current-tag-matches-release-inputs"));
+  assert.ok(report.summary.staging_execution_blockers.includes("target-tag-matches-release-inputs"));
+  assert.ok(report.summary.staging_execution_blockers.includes("rollback-tag-matches-release-inputs"));
 });
 
 test("admin Docker staging runbook separates staging execution from post-staging proof", () => {

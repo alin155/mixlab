@@ -97,6 +97,12 @@ export interface AdminDockerStagingRunbookReport {
     cutter_upload_blockers: string[];
     release_inputs_status: string;
     release_inputs_ready: boolean | null;
+    release_inputs_current_image_tag: string;
+    release_inputs_target_image_tag: string;
+    release_inputs_rollback_image_tag: string;
+    current_tag_matches_release_inputs: boolean;
+    target_tag_matches_release_inputs: boolean;
+    rollback_tag_matches_release_inputs: boolean;
     release_input_blockers: string[];
     release_input_handoff_staging_blockers: string[];
     nas_disk_proof_status: string;
@@ -381,6 +387,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const releaseInputs = asRecord(input.release_inputs_report);
   const releaseInputsResult = asRecord(releaseInputs.result);
   const releaseInputsObservations = asRecord(releaseInputs.observations);
+  const releaseInputsTags = asRecord(releaseInputs.inputs);
   const nasDiskProof = asRecord(input.nas_disk_proof_report);
   const nasDiskProofResult = asRecord(nasDiskProof.result);
   const parityBlockers = summaryBlockers(input.parity_plan_report);
@@ -394,6 +401,12 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
   const releaseInputsReady = asBoolean(releaseInputs.release_inputs_ready);
+  const releaseInputsCurrentTag = asString(releaseInputsTags.current_image_tag);
+  const releaseInputsTargetTag = asString(releaseInputsTags.target_image_tag);
+  const releaseInputsRollbackTag = asString(releaseInputsTags.rollback_image_tag);
+  const currentTagMatchesReleaseInputs = Boolean(current && releaseInputsCurrentTag && current === releaseInputsCurrentTag);
+  const targetTagMatchesReleaseInputs = Boolean(target && releaseInputsTargetTag && target === releaseInputsTargetTag);
+  const rollbackTagMatchesReleaseInputs = Boolean(rollback && releaseInputsRollbackTag && rollback === releaseInputsRollbackTag);
   const nasDiskProofAccepted = asBoolean(nasDiskProof.proof_accepted);
   const releaseInputHandoffStagingBlockers = asArray(releaseInputsObservations.handoff_staging_execution_blockers)
     .filter((item): item is string => typeof item === "string");
@@ -506,6 +519,36 @@ export function buildAdminDockerStagingRunbookReport(input: {
         blocks_staging_execution: !releaseInputsReady,
         blocks_staging: !releaseInputsReady,
         required_evidence: "Provide an accepted admin-docker-release-inputs report before using it to constrain staging."
+      }),
+      gate({
+        id: "current-tag-matches-release-inputs",
+        title: "Current image tag matches release inputs",
+        category: "input",
+        status: currentTagMatchesReleaseInputs ? "pass" : "blocked",
+        evidence: `runbook current=${current || "missing"}, release_inputs current=${releaseInputsCurrentTag || "missing"}`,
+        blocks_staging_execution: !currentTagMatchesReleaseInputs,
+        blocks_staging: !currentTagMatchesReleaseInputs,
+        required_evidence: "Set MIXLAB_DOCKER_CURRENT_IMAGE_TAG from the accepted admin-docker-release-inputs report."
+      }),
+      gate({
+        id: "target-tag-matches-release-inputs",
+        title: "Target image tag matches release inputs",
+        category: "input",
+        status: targetTagMatchesReleaseInputs ? "pass" : "blocked",
+        evidence: `runbook target=${target || "missing"}, release_inputs target=${releaseInputsTargetTag || "missing"}`,
+        blocks_staging_execution: !targetTagMatchesReleaseInputs,
+        blocks_staging: !targetTagMatchesReleaseInputs,
+        required_evidence: "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG from the accepted admin-docker-release-inputs report."
+      }),
+      gate({
+        id: "rollback-tag-matches-release-inputs",
+        title: "Rollback image tag matches release inputs",
+        category: "rollback",
+        status: rollbackTagMatchesReleaseInputs ? "pass" : "blocked",
+        evidence: `runbook rollback=${rollback || "missing"}, release_inputs rollback=${releaseInputsRollbackTag || "missing"}`,
+        blocks_staging_execution: !rollbackTagMatchesReleaseInputs,
+        blocks_staging: !rollbackTagMatchesReleaseInputs,
+        required_evidence: "Set MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG from the accepted admin-docker-release-inputs report."
       }),
       gate({
         id: "nas-disk-proof-accepted",
@@ -670,6 +713,12 @@ export function buildAdminDockerStagingRunbookReport(input: {
       cutter_upload_blockers: cutterBlockers,
       release_inputs_status: asString(releaseInputsResult.status),
       release_inputs_ready: releaseInputsReady,
+      release_inputs_current_image_tag: releaseInputsCurrentTag,
+      release_inputs_target_image_tag: releaseInputsTargetTag,
+      release_inputs_rollback_image_tag: releaseInputsRollbackTag,
+      current_tag_matches_release_inputs: currentTagMatchesReleaseInputs,
+      target_tag_matches_release_inputs: targetTagMatchesReleaseInputs,
+      rollback_tag_matches_release_inputs: rollbackTagMatchesReleaseInputs,
       release_input_blockers: releaseInputBlockers,
       release_input_handoff_staging_blockers: releaseInputHandoffStagingBlockers,
       nas_disk_proof_status: asString(nasDiskProofResult.status),
@@ -759,6 +808,12 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Cutter blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
     `- Release inputs status: ${report.observations.release_inputs_status || "not provided"}`,
     `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}`,
+    `- Release inputs current tag: ${report.observations.release_inputs_current_image_tag || "missing"}`,
+    `- Release inputs target tag: ${report.observations.release_inputs_target_image_tag || "missing"}`,
+    `- Release inputs rollback tag: ${report.observations.release_inputs_rollback_image_tag || "missing"}`,
+    `- Current tag matches release inputs: ${report.observations.current_tag_matches_release_inputs ? "yes" : "no"}`,
+    `- Target tag matches release inputs: ${report.observations.target_tag_matches_release_inputs ? "yes" : "no"}`,
+    `- Rollback tag matches release inputs: ${report.observations.rollback_tag_matches_release_inputs ? "yes" : "no"}`,
     `- Release input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
     `- Release input handoff staging blockers: ${report.observations.release_input_handoff_staging_blockers.join(", ") || "none"}`,
     `- NAS disk proof status: ${report.observations.nas_disk_proof_status || "not provided"}`,
