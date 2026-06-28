@@ -13,6 +13,10 @@ import { runAdminWorkerEnvProof, type AdminWorkerEnvProofReport } from "./admin-
 
 const DEFAULT_ARTIFACT_DIR = "docs/acceptance/artifacts";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
+const RETURNED_EVIDENCE_PREFIXES = [
+  "admin-docker-nas-ugos-returned-evidence-",
+  "admin-docker-nas-desktop-returned-evidence-"
+] as const;
 const RETURNED_FILES = {
   nas_env: "admin-docker-current.env",
   nas_inspect: "admin-docker-current.inspect.json",
@@ -189,6 +193,30 @@ async function latestArtifact(dir: string, prefix: string): Promise<string> {
   return path.join(dir, candidates[candidates.length - 1] ?? "");
 }
 
+async function latestReturnedEvidenceDir(artifactDir: string): Promise<string> {
+  const entries = await readdir(artifactDir, { withFileTypes: true }).catch(() => []);
+  const candidates = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => RETURNED_EVIDENCE_PREFIXES.some((prefix) => name.startsWith(prefix)))
+    .sort()
+    .reverse();
+
+  for (const candidate of candidates) {
+    const returnedDir = path.join(artifactDir, candidate, "admin-docker-release-inputs");
+    try {
+      const info = await stat(returnedDir);
+      if (info.isDirectory()) {
+        return returnedDir;
+      }
+    } catch {
+      // Keep looking; older evidence directories may be summaries without a returned bundle.
+    }
+  }
+
+  return "";
+}
+
 async function fileInfo(filePath: string): Promise<{ present: boolean; size_bytes: number | null }> {
   try {
     const info = await stat(filePath);
@@ -348,7 +376,8 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const timestamp = timestampForFile(new Date(generatedAt));
   const outputDir = input.output_dir ?? DEFAULT_OUTPUT_DIR;
   const artifactDir = input.artifact_dir ?? DEFAULT_ARTIFACT_DIR;
-  const returnedDir = input.returned_dir ?? process.env.MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR ?? "";
+  const explicitReturnedDir = input.returned_dir?.trim() || process.env.MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR?.trim() || "";
+  const returnedDir = explicitReturnedDir || await latestReturnedEvidenceDir(artifactDir);
   const prestagingPath = input.prestaging_handoff_report_path ?? await latestArtifact(artifactDir, "admin-docker-prestaging-handoff-");
   const candidateRefPath = input.candidate_ref_proof_report_path ?? await latestArtifact(artifactDir, "admin-docker-candidate-ref-proof-");
   const localSmokePath = input.local_docker_smoke_report_path ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
@@ -647,7 +676,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
 
 async function main(): Promise<void> {
   const report = await runAdminDockerNasReleaseInputsIntake({
-    returned_dir: process.env.MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR ?? process.argv[2],
+    returned_dir: process.env.MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR || process.argv[2],
     prestaging_handoff_report_path: process.env.MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT,
     candidate_ref_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT,
     local_docker_smoke_report_path: process.env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REPORT,

@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
-  buildAdminDockerVersionParityPlanReport
+  buildAdminDockerVersionParityPlanReport,
+  latestLiveReadonlyArtifact
 } from "./admin-docker-version-parity-plan.ts";
 
 function legacyNasLiveReport(): unknown {
   return {
     target: {
       base_url: "http://192.168.1.27:18080",
+      normalized_base_url: "http://192.168.1.27:18080",
       configured: true,
+      kind: "admin-web-url",
+      safe_to_probe: true,
       expected_library_root: "/data/PublicLibrary"
     },
     requests: [
@@ -241,6 +248,24 @@ function nasDesktopTargetLiveReport(): unknown {
   };
 }
 
+async function writeReport(filePath: string, report: unknown): Promise<string> {
+  await writeFile(filePath, `${JSON.stringify(report, null, 2)}\n`);
+  return filePath;
+}
+
+function untargetedLiveReport(): unknown {
+  return {
+    target: {
+      base_url: "",
+      configured: false,
+      kind: "not-configured",
+      safe_to_probe: false
+    },
+    requests: [],
+    observed: {}
+  };
+}
+
 test("admin Docker version parity plan requires API update for legacy NAS Admin contract", () => {
   const report = buildAdminDockerVersionParityPlanReport({
     generated_at: "2026-06-26T00:00:00.000Z",
@@ -280,6 +305,20 @@ test("admin Docker version parity plan requires API update for legacy NAS Admin 
   assert.ok(report.summary.upload_blockers.includes("cutter-compatibility-proof-contract"));
   assert.ok(report.summary.upload_blockers.includes("admin-worker-env-external-proof"));
   assert.ok(report.summary.upload_blockers.includes("cutter-compatibility-external-proof"));
+});
+
+test("admin Docker version parity plan prefers targeted live artifact over newer untargeted output", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-parity-live-picker-"));
+  const targetedPath = await writeReport(
+    path.join(tempRoot, "admin-docker-release-live-readonly-20260628T010000Z.json"),
+    legacyNasLiveReport()
+  );
+  await writeReport(
+    path.join(tempRoot, "admin-docker-release-live-readonly-20260628T020000Z.json"),
+    untargetedLiveReport()
+  );
+
+  assert.equal(await latestLiveReadonlyArtifact(tempRoot), targetedPath);
 });
 
 test("admin Docker version parity plan rejects live artifacts from unsafe NAS desktop targets", () => {

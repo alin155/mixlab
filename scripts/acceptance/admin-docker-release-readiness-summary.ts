@@ -206,6 +206,36 @@ function optionalLatestArtifact(artifactDir: string, prefix: string): Promise<st
   });
 }
 
+function liveReadonlyArtifactIsTargeted(report: unknown): boolean {
+  const target = asRecord(asRecord(report).target);
+  return asBoolean(target.configured) === true && asBoolean(target.safe_to_probe) === true;
+}
+
+export async function latestTargetedLiveReadonlyArtifact(artifactDir: string): Promise<string> {
+  const files = await readdir(artifactDir);
+  const candidates = files
+    .filter((file) => file.startsWith("admin-docker-release-live-readonly-") && file.endsWith(".json"))
+    .sort()
+    .reverse();
+
+  if (candidates.length === 0) {
+    throw new Error(`No admin-docker-release-live-readonly-*.json artifact found in ${artifactDir}`);
+  }
+
+  for (const candidate of candidates) {
+    const candidatePath = path.join(artifactDir, candidate);
+    try {
+      if (liveReadonlyArtifactIsTargeted(await loadJson(candidatePath))) {
+        return candidatePath;
+      }
+    } catch {
+      // Ignore malformed older artifacts while looking for a targeted live proof.
+    }
+  }
+
+  return path.join(artifactDir, candidates[0]);
+}
+
 async function optionalFile(filePath: string): Promise<string> {
   try {
     await access(filePath);
@@ -869,7 +899,7 @@ async function main(): Promise<void> {
   const githubArtifactReadinessPath = process.env.MIXLAB_DOCKER_GITHUB_ARTIFACT_READINESS_REPORT
     ?? await optionalLatestArtifact(artifactDir, "admin-docker-github-artifact-readiness-");
   const livePath = process.env.MIXLAB_DOCKER_LIVE_READONLY_REPORT
-    ?? await latestArtifact(artifactDir, "admin-docker-release-live-readonly-");
+    ?? await latestTargetedLiveReadonlyArtifact(artifactDir);
   const parityPath = process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
   const workerPath = process.env.MIXLAB_ADMIN_WORKER_ENV_PROOF_REPORT

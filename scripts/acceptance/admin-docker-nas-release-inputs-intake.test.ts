@@ -226,6 +226,33 @@ function cutterCompatibility(): unknown {
   };
 }
 
+async function writeReturnedEvidenceBundle(returnedDir: string): Promise<void> {
+  await mkdir(returnedDir, { recursive: true });
+  await writeText(path.join(returnedDir, "admin-docker-current.env"), currentEnv());
+  await writeJson(path.join(returnedDir, "admin-docker-current.inspect.json"), currentInspect());
+  await writeText(path.join(returnedDir, "admin-worker.env"), workerEnv());
+  await writeJson(path.join(returnedDir, "admin-worker.inspect.json"), workerInspect());
+  await writeJson(path.join(returnedDir, "admin-docker-disk-proof.json"), diskProof());
+  await writeText(path.join(returnedDir, "MANIFEST.txt"), [
+    "schema_version=1.0",
+    "mode=admin-docker-nas-release-inputs-collector",
+    "push_execution_allowed=false",
+    "docker_deploy_allowed=false",
+    "nas_writes_allowed=false",
+    "worker_start_allowed=false",
+    "secret_sanitization=sanitized-only",
+    "forbidden_full_env=true",
+    "forbidden_full_docker_inspect=true",
+    "forbidden_secrets=true"
+  ].join("\n"));
+  await writeText(path.join(returnedDir, "README.md"), [
+    "# Admin Docker NAS Release Inputs",
+    "",
+    "This directory contains sanitized returned evidence.",
+    "Do not copy full .env into this directory."
+  ].join("\n"));
+}
+
 test("NAS release-inputs intake stays blocked when returned evidence is missing", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-nas-intake-missing-"));
   const report = await runAdminDockerNasReleaseInputsIntake({
@@ -248,6 +275,49 @@ test("NAS release-inputs intake stays blocked when returned evidence is missing"
   const markdown = await readFile(report.artifacts?.markdown_path ?? "", "utf8");
   assert.match(markdown, /Result: blocked/);
   assert.match(markdown, /If returned evidence is missing/);
+});
+
+test("NAS release-inputs intake auto-discovers the latest sanitized returned evidence bundle", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-nas-intake-autodiscover-"));
+  const staleDir = path.join(
+    tempRoot,
+    "admin-docker-nas-ugos-returned-evidence-20260628T000000Z",
+    "admin-docker-release-inputs"
+  );
+  const freshDir = path.join(
+    tempRoot,
+    "admin-docker-nas-ugos-returned-evidence-20260628T010000Z",
+    "admin-docker-release-inputs"
+  );
+  await mkdir(staleDir, { recursive: true });
+  await writeText(path.join(staleDir, "README.md"), "# stale incomplete bundle\n");
+  await writeReturnedEvidenceBundle(freshDir);
+
+  const prestagingPath = await writeJson(path.join(tempRoot, "admin-docker-prestaging-handoff.json"), prestagingHandoff());
+  const candidateRefPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-ref-proof.json"), candidateRefProof());
+  const localSmokePath = await writeJson(path.join(tempRoot, "admin-docker-local-smoke.json"), localSmoke());
+  const parityPath = await writeJson(path.join(tempRoot, "admin-docker-version-parity-plan.json"), parityPlan());
+  const candidateContractPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-contract-proof.json"), candidateContract());
+  const cutterPath = await writeJson(path.join(tempRoot, "admin-cutter-compatibility-proof.json"), cutterCompatibility());
+
+  const report = await runAdminDockerNasReleaseInputsIntake({
+    prestaging_handoff_report_path: prestagingPath,
+    candidate_ref_proof_report_path: candidateRefPath,
+    local_docker_smoke_report_path: localSmokePath,
+    parity_plan_report_path: parityPath,
+    candidate_contract_proof_report_path: candidateContractPath,
+    cutter_compatibility_proof_report_path: cutterPath,
+    output_dir: tempRoot,
+    artifact_dir: tempRoot,
+    generated_at: "2026-06-28T00:00:00.000Z",
+    command: "test"
+  });
+
+  assert.equal(report.sources.returned_dir, freshDir);
+  assert.equal(report.summary.intake_blockers.includes("returned-dir-provided"), false);
+  assert.equal(report.summary.intake_blockers.includes("returned-files-complete"), false);
+  assert.equal(report.observations.returned_precheck_passed, true);
+  assert.equal(report.generated_reports.nas_image_proof_report.endsWith("admin-docker-nas-image-proof-20260628T000000Z.json"), true);
 });
 
 test("NAS release-inputs intake runs returned evidence precheck before proof generation", async () => {

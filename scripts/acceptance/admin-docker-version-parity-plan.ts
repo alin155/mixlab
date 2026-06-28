@@ -602,18 +602,31 @@ function toMarkdown(report: AdminDockerVersionParityPlanReport): string {
   return `${lines.join("\n")}\n`;
 }
 
-async function latestLiveReadonlyArtifact(artifactDir: string): Promise<string> {
+export async function latestLiveReadonlyArtifact(artifactDir: string): Promise<string> {
   const files = await readdir(artifactDir);
   const candidates = files
     .filter((file) => file.startsWith(LIVE_REPORT_PREFIX) && file.endsWith(LIVE_REPORT_SUFFIX))
     .filter((file) => !file.includes("194617Z"))
-    .sort();
+    .sort()
+    .reverse();
 
   if (candidates.length === 0) {
     throw new Error(`No configured ${LIVE_REPORT_PREFIX}*.json artifact found in ${artifactDir}`);
   }
 
-  return path.join(artifactDir, candidates[candidates.length - 1]);
+  for (const candidate of candidates) {
+    const candidatePath = path.join(artifactDir, candidate);
+    try {
+      const target = asRecord(asRecord(await loadJson(candidatePath)).target);
+      if (asBoolean(target.configured) === true && asBoolean(target.safe_to_probe) === true) {
+        return candidatePath;
+      }
+    } catch {
+      // Keep looking; older generated artifacts may be malformed or incomplete.
+    }
+  }
+
+  return path.join(artifactDir, candidates[0]);
 }
 
 async function loadJson(filePath: string): Promise<unknown> {

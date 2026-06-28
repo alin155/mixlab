@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   buildAdminDockerReleaseReadinessSummaryReport,
+  latestTargetedLiveReadonlyArtifact,
   toMarkdown
 } from "./admin-docker-release-readiness-summary.ts";
 
@@ -13,6 +17,41 @@ function blockedLiveReport(): unknown {
     result: { status: "blocked" },
     summary: {
       upload_blockers: ["current-admin-api-contract-live", "preprocess-disk"]
+    }
+  };
+}
+
+async function writeReport(filePath: string, report: unknown): Promise<string> {
+  await writeFile(filePath, `${JSON.stringify(report, null, 2)}\n`);
+  return filePath;
+}
+
+function targetedLiveReport(): unknown {
+  return {
+    target: {
+      base_url: "http://192.168.1.27:18080",
+      configured: true,
+      kind: "admin-web-url",
+      safe_to_probe: true
+    },
+    result: { status: "blocked" },
+    summary: {
+      upload_blockers: ["current-admin-api-contract-live"]
+    }
+  };
+}
+
+function untargetedLiveReport(): unknown {
+  return {
+    target: {
+      base_url: "",
+      configured: false,
+      kind: "not-configured",
+      safe_to_probe: false
+    },
+    result: { status: "blocked" },
+    summary: {
+      upload_blockers: ["target-url-configured"]
     }
   };
 }
@@ -30,6 +69,20 @@ function blockedLocalSmokeReport(): unknown {
     }
   };
 }
+
+test("admin Docker release readiness summary prefers targeted live artifact over newer untargeted output", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-readiness-live-picker-"));
+  const targetedPath = await writeReport(
+    path.join(tempRoot, "admin-docker-release-live-readonly-20260628T010000Z.json"),
+    targetedLiveReport()
+  );
+  await writeReport(
+    path.join(tempRoot, "admin-docker-release-live-readonly-20260628T020000Z.json"),
+    untargetedLiveReport()
+  );
+
+  assert.equal(await latestTargetedLiveReadonlyArtifact(tempRoot), targetedPath);
+});
 
 function passedLocalSmokeReport(): unknown {
   return {
