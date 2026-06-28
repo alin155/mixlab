@@ -26,6 +26,7 @@ const RETURNED_EVIDENCE_NAMES = new Set([
   "admin-worker.inspect.json",
   "admin-docker-disk-proof.json"
 ]);
+const HANDOFF_ARCHIVE_NAMES = new Set(["admin-docker-nas-handoff-kit.tar.gz"]);
 const PRUNED_DIR_NAMES = new Set(["PublicLibrary", "#recycle"]);
 
 type GateStatus = "pass" | "blocked";
@@ -102,6 +103,7 @@ export interface AdminDockerNasAccessPreflightReport {
     smb_root: MountedPathObservation;
     handoff_bundle: HandoffBundleObservation;
     compose_candidates: string[];
+    handoff_transfer_candidates: string[];
     returned_evidence_candidates: string[];
     scan_limits: {
       max_depth: number;
@@ -305,8 +307,9 @@ async function findCandidatePaths(input: {
   root: string;
   maxDepth: number;
   maxEntries: number;
-}): Promise<{ compose_candidates: string[]; returned_evidence_candidates: string[] }> {
+}): Promise<{ compose_candidates: string[]; handoff_transfer_candidates: string[]; returned_evidence_candidates: string[] }> {
   const composeCandidates: string[] = [];
+  const handoffTransferCandidates: string[] = [];
   const returnedEvidenceCandidates: string[] = [];
   let visitedEntries = 0;
 
@@ -342,6 +345,9 @@ async function findCandidatePaths(input: {
       if (entry.isFile() && COMPOSE_FILE_NAMES.has(entry.name)) {
         composeCandidates.push(entryPath);
       }
+      if (entry.isFile() && HANDOFF_ARCHIVE_NAMES.has(entry.name)) {
+        handoffTransferCandidates.push(entryPath);
+      }
       if (entry.isFile() && RETURNED_EVIDENCE_NAMES.has(entry.name)) {
         returnedEvidenceCandidates.push(entryPath);
       }
@@ -352,6 +358,7 @@ async function findCandidatePaths(input: {
 
   return {
     compose_candidates: composeCandidates.sort(),
+    handoff_transfer_candidates: handoffTransferCandidates.sort(),
     returned_evidence_candidates: returnedEvidenceCandidates.sort()
   };
 }
@@ -389,12 +396,14 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
   smb_root_observation: MountedPathObservation;
   handoff_bundle_observation: HandoffBundleObservation;
   compose_candidates: string[];
+  handoff_transfer_candidates: string[];
   returned_evidence_candidates: string[];
   max_depth: number;
   max_entries: number;
 }): AdminDockerNasAccessPreflightReport {
   const sshOpen = portStatus(input.ports, 22) === "open";
   const composeVisible = input.compose_candidates.length > 0;
+  const handoffTransferVisible = input.handoff_transfer_candidates.length > 0;
   const returnedEvidenceVisible = input.returned_evidence_candidates.length > 0;
   const handoffBundleReady = input.handoff_bundle_observation.present &&
     input.handoff_bundle_observation.is_directory &&
@@ -461,6 +470,18 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       required_evidence: "Regenerate prepare:admin-docker-nas-release-inputs-handoff and require README, operator checklist, MANIFEST, NAS runner, collector, installer, and local validator."
     }),
     gate({
+      id: "handoff-transfer-visible-on-smb",
+      title: "NAS SMB handoff archive is visible",
+      category: "handoff",
+      status: handoffTransferVisible ? "pass" : "blocked",
+      evidence: handoffTransferVisible
+        ? input.handoff_transfer_candidates.join(", ")
+        : "No admin-docker-nas-handoff-kit.tar.gz was found outside PublicLibrary/#recycle.",
+      blocks_nas_collection: false,
+      blocks_staging_review: false,
+      required_evidence: "Run transfer:admin-docker-nas-handoff-kit to place the portable archive in the NAS handoff share."
+    }),
+    gate({
       id: "compose-project-visible-on-smb",
       title: "NAS Compose project is visible on mounted share",
       category: "smb",
@@ -513,6 +534,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       smb_root: input.smb_root_observation,
       handoff_bundle: input.handoff_bundle_observation,
       compose_candidates: input.compose_candidates,
+      handoff_transfer_candidates: input.handoff_transfer_candidates,
       returned_evidence_candidates: input.returned_evidence_candidates,
       scan_limits: {
         max_depth: input.max_depth,
@@ -563,6 +585,10 @@ export function toMarkdown(report: AdminDockerNasAccessPreflightReport): string 
     `- Candidate SHA: ${report.observations.handoff_bundle.candidate_sha || "<missing>"}`,
     `- Candidate ref: ${report.observations.handoff_bundle.candidate_release_ref || "<missing>"}`,
     `- Missing files: ${report.observations.handoff_bundle.missing_files.join(", ") || "none"}`,
+    "",
+    "## NAS Handoff Archive",
+    "",
+    `- Visible archives: ${report.observations.handoff_transfer_candidates.join(", ") || "none"}`,
     "",
     "## Ports",
     "",
@@ -646,7 +672,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
   const handoffObservation = await handoffBundleObservation(handoffBundleDir);
   const found = smbRootObservation.present && smbRootObservation.is_directory
     ? await findCandidatePaths({ root: smbRoot, maxDepth, maxEntries })
-    : { compose_candidates: [], returned_evidence_candidates: [] };
+    : { compose_candidates: [], handoff_transfer_candidates: [], returned_evidence_candidates: [] };
   const report = buildAdminDockerNasAccessPreflightReport({
     generated_at: generatedAt,
     command: input.command ?? "npx tsx scripts/acceptance/admin-docker-nas-access-preflight.ts",
@@ -658,6 +684,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
     smb_root_observation: smbRootObservation,
     handoff_bundle_observation: handoffObservation,
     compose_candidates: found.compose_candidates,
+    handoff_transfer_candidates: found.handoff_transfer_candidates,
     returned_evidence_candidates: found.returned_evidence_candidates,
     max_depth: maxDepth,
     max_entries: maxEntries
@@ -698,6 +725,7 @@ async function main(): Promise<void> {
     nas_collection_blockers: report.summary.nas_collection_blockers,
     staging_review_blockers: report.summary.staging_review_blockers,
     compose_candidates: report.observations.compose_candidates,
+    handoff_transfer_candidates: report.observations.handoff_transfer_candidates,
     returned_evidence_candidates: report.observations.returned_evidence_candidates,
     json_path: report.artifacts?.json_path,
     markdown_path: report.artifacts?.markdown_path

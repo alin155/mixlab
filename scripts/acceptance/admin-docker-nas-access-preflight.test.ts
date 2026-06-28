@@ -13,6 +13,7 @@ function report(input: {
   legacyOpen?: boolean;
   smbMounted?: boolean;
   compose?: string[];
+  handoffTransfer?: string[];
   returned?: string[];
   handoffReady?: boolean;
 } = {}) {
@@ -56,6 +57,7 @@ function report(input: {
       candidate_release_ref: handoffReady ? "admin-docker-candidate-abc123" : ""
     },
     compose_candidates: input.compose ?? [],
+    handoff_transfer_candidates: input.handoffTransfer ?? [],
     returned_evidence_candidates: input.returned ?? [],
     max_depth: 5,
     max_entries: 2000
@@ -71,8 +73,23 @@ test("NAS access preflight records blocked direct collection without approving d
   assert.equal(built.docker_deploy_allowed, false);
   assert.equal(built.observations.handoff_bundle.candidate_sha, "abc123");
   assert.ok(!built.summary.nas_collection_blockers.includes("handoff-bundle-ready"));
+  assert.ok(!built.summary.nas_collection_blockers.includes("handoff-transfer-visible-on-smb"));
   assert.ok(built.summary.nas_collection_blockers.includes("ssh-access-available"));
   assert.ok(built.summary.nas_collection_blockers.includes("compose-project-visible-on-smb"));
+  assert.ok(built.summary.nas_collection_blockers.includes("returned-evidence-visible"));
+});
+
+test("NAS access preflight records visible SMB handoff archive without treating it as returned evidence", () => {
+  const built = report({
+    handoffTransfer: ["/Volumes/MixLab/安装包/mixlab-admin-docker-handoff/admin-docker-nas-handoff-kit.tar.gz"]
+  });
+
+  assert.equal(built.result.status, "blocked");
+  assert.equal(built.nas_collection_directly_available, false);
+  assert.deepEqual(built.observations.handoff_transfer_candidates, [
+    "/Volumes/MixLab/安装包/mixlab-admin-docker-handoff/admin-docker-nas-handoff-kit.tar.gz"
+  ]);
+  assert.ok(!built.summary.nas_collection_blockers.includes("handoff-transfer-visible-on-smb"));
   assert.ok(built.summary.nas_collection_blockers.includes("returned-evidence-visible"));
 });
 
@@ -115,6 +132,7 @@ test("NAS access preflight markdown records read-only boundary", () => {
   assert.match(markdown, /Push execution allowed: no/);
   assert.match(markdown, /Docker deploy allowed: no/);
   assert.match(markdown, /Handoff Bundle/);
+  assert.match(markdown, /NAS Handoff Archive/);
   assert.match(markdown, /Candidate SHA: abc123/);
   assert.doesNotMatch(markdown, /push_images=true/);
 });
