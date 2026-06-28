@@ -49,6 +49,8 @@ export interface AdminDockerReleaseInputsReport {
     current_image_tag: string;
     rollback_image_tag: string;
     branch: string;
+    workflow_ref: string;
+    release_ref_setup_command: string;
     workflow_dispatch_command: string;
   };
   observations: {
@@ -131,33 +133,38 @@ function summarize(gates: ReleaseInputGate[]): ReleaseInputSummary {
 }
 
 function workflowCommand(input: {
-  branch: string;
+  workflowRef: string;
   current: string;
   rollback: string;
 }): string {
-  const branch = input.branch || "<candidate-branch>";
+  const workflowRef = input.workflowRef || "<candidate-release-tag>";
   const current = input.current || "<current-admin-docker-image-tag>";
   const rollback = input.rollback || "<rollback-admin-docker-image-tag>";
 
   return [
     "gh workflow run docker-admin.yml",
     "--repo alin155/mixlab",
-    `--ref ${branch}`,
+    `--ref ${workflowRef}`,
     "-f push_images=true",
     `-f current_image_tag=${current}`,
     `-f rollback_image_tag=${rollback}`
   ].join(" ");
 }
 
-function branchFromWorkflowCommand(command: string): string {
+function refFromWorkflowCommand(command: string): string {
   const match = command.match(/(?:^|\s)--ref\s+([^\s]+)/);
 
   return match?.[1] ?? "";
 }
 
+function candidateReleaseRef(target: string): string {
+  return target ? `admin-docker-candidate-${target}` : "<candidate-release-tag>";
+}
+
 function nextActions(input: {
   release_inputs_ready: boolean;
   workflow_dispatch_command: string;
+  release_ref_setup_command: string;
   release_input_blockers: string[];
   staging_execution_blockers: string[];
 }): string[] {
@@ -179,6 +186,7 @@ function nextActions(input: {
   return [
     "Review this report and the NAS image proof report before any release decision.",
     `Before staging execution, clear handoff staging blockers: ${input.staging_execution_blockers.join(", ") || "none"}.`,
+    `Before running push_images=true, create or verify the candidate release ref: ${input.release_ref_setup_command}`,
     `After explicit release approval only, run: ${input.workflow_dispatch_command}`,
     "Do not edit NAS .env, restart NAS containers, or enable workers until the pushed-image workflow succeeds and staging proof is collected.",
     "After the push workflow succeeds, regenerate GitHub run artifact, staging runbook, live-readonly, admin-worker env proof, and Cutter compatibility proof."
@@ -202,11 +210,16 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const proofSummary = asRecord(proof.summary);
   const target = asString(releaseInputRequest.target_image_tag);
   const branch = asString(candidate.head_branch)
-    || branchFromWorkflowCommand(asString(releaseInputRequest.workflow_dispatch_command))
+    || refFromWorkflowCommand(asString(releaseInputRequest.workflow_dispatch_command))
     || "codex/windows-first-run-autostart-20260615104835";
+  const workflowRef = asString(releaseInputRequest.workflow_ref)
+    || refFromWorkflowCommand(asString(releaseInputRequest.workflow_dispatch_command))
+    || branch;
+  const expectedWorkflowRef = candidateReleaseRef(target);
+  const releaseRefSetupCommand = asString(releaseInputRequest.release_ref_setup_command);
   const current = asString(proofInputs.current_image_tag);
   const rollback = asString(proofInputs.rollback_image_tag);
-  const command = workflowCommand({ branch, current, rollback });
+  const command = workflowCommand({ workflowRef, current, rollback });
   const handoffProvided = Boolean(input.prestaging_handoff_report_path && input.prestaging_handoff_report);
   const proofProvided = Boolean(input.nas_image_proof_report_path && input.nas_image_proof_report);
   const handoffReady = asBoolean(handoff.ready_to_request_release_inputs);
@@ -219,6 +232,15 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const proofBlockers = stringArray(proofSummary.release_input_blockers);
   const targetDiffers = Boolean(target && current && target !== current);
   const rollbackMatchesCurrent = Boolean(current && rollback && current === rollback);
+  const workflowRefPinsTarget = Boolean(target && workflowRef === expectedWorkflowRef);
+  const releaseRefSetupReady = Boolean(
+    target &&
+    releaseRefSetupCommand &&
+    !releaseRefSetupCommand.includes("<") &&
+    !releaseRefSetupCommand.includes(">") &&
+    releaseRefSetupCommand.includes(workflowRef) &&
+    releaseRefSetupCommand.includes(target)
+  );
   const commandHasNoPlaceholders = Boolean(command && !command.includes("<") && !command.includes(">"));
   const gates = [
     gate({
@@ -322,6 +344,30 @@ export function buildAdminDockerReleaseInputsReport(input: {
       required_evidence: "Pre-staging handoff must include release_input_request.target_image_tag."
     }),
     gate({
+      id: "workflow-ref-pins-target-image",
+      title: "Workflow ref pins the target candidate image",
+      category: "release-input",
+      status: workflowRefPinsTarget ? "pass" : "blocked",
+      evidence: workflowRefPinsTarget
+        ? `workflow_ref=${workflowRef}, target=${target}`
+        : `workflow_ref=${workflowRef || "missing"}, expected=${expectedWorkflowRef}`,
+      blocks_release_inputs: !workflowRefPinsTarget,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Use a release tag named admin-docker-candidate-<target SHA> so workflow_dispatch --ref cannot drift with the branch."
+    }),
+    gate({
+      id: "release-ref-setup-command-ready",
+      title: "Release ref setup command pins candidate SHA",
+      category: "release-input",
+      status: releaseRefSetupReady ? "pass" : "blocked",
+      evidence: releaseRefSetupReady ? releaseRefSetupCommand : "Release ref setup command is missing or still contains placeholders.",
+      blocks_release_inputs: !releaseRefSetupReady,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Pre-staging handoff must provide a reproducible git tag + push command for the candidate release ref."
+    }),
+    gate({
       id: "current-and-rollback-tags-present",
       title: "Current and rollback tags are present",
       category: "release-input",
@@ -398,6 +444,8 @@ export function buildAdminDockerReleaseInputsReport(input: {
       current_image_tag: releaseInputsReady ? current : "",
       rollback_image_tag: releaseInputsReady ? rollback : "",
       branch,
+      workflow_ref: releaseInputsReady ? workflowRef : "",
+      release_ref_setup_command: releaseInputsReady ? releaseRefSetupCommand : "",
       workflow_dispatch_command: releaseInputsReady ? command : ""
     },
     observations: {
@@ -417,6 +465,7 @@ export function buildAdminDockerReleaseInputsReport(input: {
     next_actions: nextActions({
       release_inputs_ready: releaseInputsReady,
       workflow_dispatch_command: command,
+      release_ref_setup_command: releaseRefSetupCommand,
       release_input_blockers: summary.release_input_blockers,
       staging_execution_blockers: handoffStagingExecutionBlockers
     }),
@@ -457,6 +506,8 @@ export function toMarkdown(report: AdminDockerReleaseInputsReport): string {
     `- current_image_tag: ${report.inputs.current_image_tag || "<blocked>"}`,
     `- rollback_image_tag: ${report.inputs.rollback_image_tag || "<blocked>"}`,
     `- branch: ${report.inputs.branch || "<blocked>"}`,
+    `- workflow_ref: ${report.inputs.workflow_ref || "<blocked>"}`,
+    `- release_ref_setup_command: ${report.inputs.release_ref_setup_command || "<blocked>"}`,
     `- command: ${report.inputs.workflow_dispatch_command || "<blocked>"}`,
     "",
     "## Gates",

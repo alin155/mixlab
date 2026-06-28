@@ -12,6 +12,8 @@ import {
 
 const TARGET_TAG = "ff05c8a4e4b88463fc0227ee173ba859d85a41be";
 const CURRENT_TAG = "acf896c6d16ec1503237f3afa854afff60a191b3";
+const TARGET_RELEASE_REF = `admin-docker-candidate-${TARGET_TAG}`;
+const CURRENT_RELEASE_REF = `admin-docker-candidate-${CURRENT_TAG}`;
 
 function handoff(overrides: Record<string, unknown> = {}): unknown {
   return {
@@ -23,7 +25,9 @@ function handoff(overrides: Record<string, unknown> = {}): unknown {
       head_branch: "codex/windows-first-run-autostart-20260615104835"
     },
     release_input_request: {
-      target_image_tag: TARGET_TAG
+      target_image_tag: TARGET_TAG,
+      workflow_ref: TARGET_RELEASE_REF,
+      release_ref_setup_command: `git tag ${TARGET_RELEASE_REF} ${TARGET_TAG} && git push origin refs/tags/${TARGET_RELEASE_REF}:refs/tags/${TARGET_RELEASE_REF}`
     },
     summary: {
       staging_execution_blockers: [
@@ -106,7 +110,10 @@ test("release input package emits exact workflow command but still requires expl
   assert.equal(built.inputs.target_image_tag, TARGET_TAG);
   assert.equal(built.inputs.current_image_tag, CURRENT_TAG);
   assert.equal(built.inputs.rollback_image_tag, CURRENT_TAG);
+  assert.equal(built.inputs.workflow_ref, TARGET_RELEASE_REF);
+  assert.match(built.inputs.release_ref_setup_command, new RegExp(`git tag ${TARGET_RELEASE_REF} ${TARGET_TAG}`));
   assert.match(built.inputs.workflow_dispatch_command, /push_images=true/);
+  assert.match(built.inputs.workflow_dispatch_command, new RegExp(`--ref ${TARGET_RELEASE_REF}`));
   assert.match(built.inputs.workflow_dispatch_command, new RegExp(`current_image_tag=${CURRENT_TAG}`));
   assert.match(built.inputs.workflow_dispatch_command, new RegExp(`rollback_image_tag=${CURRENT_TAG}`));
   assert.equal(built.inputs.workflow_dispatch_command.includes("<"), false);
@@ -163,7 +170,9 @@ test("release input package blocks when target tag equals current tag", () => {
   const built = report({
     handoff: handoff({
       release_input_request: {
-        target_image_tag: CURRENT_TAG
+        target_image_tag: CURRENT_TAG,
+        workflow_ref: CURRENT_RELEASE_REF,
+        release_ref_setup_command: `git tag ${CURRENT_RELEASE_REF} ${CURRENT_TAG} && git push origin refs/tags/${CURRENT_RELEASE_REF}:refs/tags/${CURRENT_RELEASE_REF}`
       }
     }),
     proof: nasImageProof()
@@ -173,7 +182,7 @@ test("release input package blocks when target tag equals current tag", () => {
   assert.ok(built.summary.release_input_blockers.includes("target-tag-differs-from-current"));
 });
 
-test("release input package derives branch from handoff workflow command", () => {
+test("release input package blocks old branch-ref workflow commands", () => {
   const built = report({
     handoff: handoff({
       candidate: {},
@@ -185,9 +194,10 @@ test("release input package derives branch from handoff workflow command", () =>
     proof: nasImageProof()
   });
 
-  assert.equal(built.release_inputs_ready, true);
+  assert.equal(built.release_inputs_ready, false);
+  assert.ok(built.summary.release_input_blockers.includes("workflow-ref-pins-target-image"));
+  assert.ok(built.summary.release_input_blockers.includes("release-ref-setup-command-ready"));
   assert.equal(built.inputs.branch, "codex/custom-admin-release");
-  assert.match(built.inputs.workflow_dispatch_command, /--ref codex\/custom-admin-release/);
 });
 
 test("release input package fails if an input report tries to approve staging or deploy", () => {

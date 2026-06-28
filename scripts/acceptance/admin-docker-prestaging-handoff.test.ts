@@ -105,7 +105,10 @@ test("pre-staging handoff can request release inputs while keeping staging and d
   assert.equal(built.live_baseline.current_api_contract_blocked, true);
   assert.ok(built.live_baseline.live_upload_blockers.includes("preprocess-disk"));
   assert.equal(built.release_input_request.target_image_tag, "abc123");
-  assert.match(built.release_input_request.workflow_dispatch_command, /--ref codex\/admin-docker-mvp/);
+  assert.equal(built.release_input_request.candidate_branch, "codex/admin-docker-mvp");
+  assert.equal(built.release_input_request.workflow_ref, "admin-docker-candidate-abc123");
+  assert.match(built.release_input_request.release_ref_setup_command, /git tag admin-docker-candidate-abc123 abc123/);
+  assert.match(built.release_input_request.workflow_dispatch_command, /--ref admin-docker-candidate-abc123/);
   assert.match(built.release_input_request.workflow_dispatch_command, /push_images=true/);
   assert.match(built.release_input_request.nas_image_proof_command, /validate:admin-docker-nas-image-proof/);
   assert.match(built.release_input_request.release_inputs_command, /validate:admin-docker-release-inputs/);

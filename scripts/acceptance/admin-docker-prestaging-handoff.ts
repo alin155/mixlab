@@ -36,6 +36,9 @@ interface HandoffSources {
 
 interface ReleaseInputRequest {
   target_image_tag: string;
+  candidate_branch: string;
+  workflow_ref: string;
+  release_ref_setup_command: string;
   workflow_dispatch_command: string;
   nas_image_proof_command: string;
   release_inputs_command: string;
@@ -190,10 +193,12 @@ function summarize(gates: HandoffGate[]): HandoffSummary {
 
 function requestReleaseInputActions(input: {
   candidateSha: string;
+  workflowRef: string;
   liveDiskRiskBlocked: boolean;
 }): string[] {
   const candidateSha = input.candidateSha;
   const target = candidateSha || "<candidate-sha>";
+  const workflowRef = input.workflowRef || "<candidate-release-tag>";
   const diskAction = input.liveDiskRiskBlocked
     ? [
         "Resolve the current NAS disk blocked state before staging execution; do not treat a generated push_images=true command as approval while disk risk is carried forward."
@@ -205,11 +210,16 @@ function requestReleaseInputActions(input: {
     "Run validate:admin-docker-release-inputs with the accepted pre-staging handoff and NAS image proof reports to generate the exact push_images=true command.",
     "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
     ...diskAction,
-    `After explicit approval, rerun the Admin Docker workflow with push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
+    `Before explicit push approval, create or verify the immutable release ref ${workflowRef} points at candidate SHA ${target}.`,
+    `After explicit approval, rerun the Admin Docker workflow with --ref ${workflowRef}, push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
     "Do not change NAS .env or restart containers until the pushed-image run completes and produces release-gates artifacts.",
     "For initial staging, keep MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0, MIXLAB_ENABLE_READY_PUBLISH_WORKER=0, and leave DASHSCOPE_API_KEY blank unless a separate controlled-preprocess canary is approved.",
     "After staging, rerun live-readonly, admin-worker-env-proof, and Cutter compatibility proof before treating the MVP as complete."
   ];
+}
+
+function candidateReleaseRef(candidateSha: string): string {
+  return candidateSha ? `admin-docker-candidate-${candidateSha}` : "<candidate-release-tag>";
 }
 
 function buildReleaseInputRequest(input: {
@@ -217,10 +227,17 @@ function buildReleaseInputRequest(input: {
   candidate_branch: string;
 }): ReleaseInputRequest {
   const target = input.candidate_sha || "<candidate-sha>";
-  const ref = input.candidate_branch || "<candidate-branch>";
+  const branch = input.candidate_branch || "<candidate-branch>";
+  const ref = candidateReleaseRef(input.candidate_sha);
 
   return {
     target_image_tag: target,
+    candidate_branch: branch,
+    workflow_ref: ref,
+    release_ref_setup_command: [
+      `git tag ${ref} ${target}`,
+      `git push origin refs/tags/${ref}:refs/tags/${ref}`
+    ].join(" && "),
     workflow_dispatch_command: [
       "gh workflow run docker-admin.yml",
       "--repo alin155/mixlab",
@@ -454,6 +471,10 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
     : readyToRequestReleaseInputs
       ? "ready-for-release-inputs"
       : "blocked";
+  const releaseInputRequest = buildReleaseInputRequest({
+    candidate_sha: candidateSha,
+    candidate_branch: candidateBranch
+  });
 
   return {
     schema_version: "1.0",
@@ -486,14 +507,12 @@ export function buildAdminDockerPrestagingHandoffReport(input: {
     ready_to_request_release_inputs: readyToRequestReleaseInputs,
     staging_execution_ready: stagingExecutionReady,
     docker_deploy_allowed: false,
-    release_input_request: buildReleaseInputRequest({
-      candidate_sha: candidateSha,
-      candidate_branch: candidateBranch
-    }),
+    release_input_request: releaseInputRequest,
     gates,
     summary,
     next_actions: requestReleaseInputActions({
       candidateSha,
+      workflowRef: releaseInputRequest.workflow_ref,
       liveDiskRiskBlocked
     }),
     result: {
@@ -545,6 +564,9 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     "## Release Input Request",
     "",
     `- Target image tag: ${report.release_input_request.target_image_tag}`,
+    `- Candidate branch: ${report.release_input_request.candidate_branch}`,
+    `- Workflow ref: ${report.release_input_request.workflow_ref}`,
+    `- Release ref setup: ${report.release_input_request.release_ref_setup_command}`,
     `- Workflow command: ${report.release_input_request.workflow_dispatch_command}`,
     `- NAS image proof command: ${report.release_input_request.nas_image_proof_command}`,
     `- Release inputs command: ${report.release_input_request.release_inputs_command}`,
