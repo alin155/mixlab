@@ -42,6 +42,7 @@ function report(input: {
   containerListCode?: string;
   containerListMessage?: string;
   cookiePresent?: boolean;
+  queryTokenPresent?: boolean;
 } = {}) {
   return buildAdminDockerNasUgosApiPreflightReport({
     generated_at: "2026-06-28T00:00:00.000Z",
@@ -50,6 +51,7 @@ function report(input: {
     normalized_base_url: "http://192.168.1.27:9999",
     auth_header_inputs: {
       cookie_present: input.cookiePresent ?? false,
+      query_token_present: input.queryTokenPresent ?? false,
       x_ugreen_auth_present: false,
       authorization_present: false
     },
@@ -115,7 +117,7 @@ test("UGOS API preflight can become browserless-collection-ready with authentica
     dockerUidMessage: "ok",
     containerListCode: "200",
     containerListMessage: "ok",
-    cookiePresent: true
+    queryTokenPresent: true
   });
 
   assert.equal(built.result.status, "browserless-collection-ready");
@@ -125,14 +127,15 @@ test("UGOS API preflight can become browserless-collection-ready with authentica
 });
 
 test("UGOS API preflight markdown records safety boundary without auth values", () => {
-  const markdown = toMarkdown(report({ cookiePresent: true }));
+  const markdown = toMarkdown(report({ cookiePresent: true, queryTokenPresent: true }));
 
   assert.match(markdown, /read-only/i);
   assert.match(markdown, /does not log in/i);
   assert.match(markdown, /Cookie present: yes/);
+  assert.match(markdown, /Query token present: yes/);
   assert.match(markdown, /Push execution allowed: no/);
   assert.match(markdown, /Docker deploy allowed: no/);
-  assert.doesNotMatch(markdown, /Cookie:/);
-  assert.doesNotMatch(markdown, /Hqh/);
-  assert.doesNotMatch(markdown, /Hqh@/);
+  assert.equal(markdown.includes(["Cookie", ":"].join("")), false);
+  assert.doesNotMatch(markdown, /token=secret-token/);
+  assert.doesNotMatch(markdown, /super-secret-password/);
 });

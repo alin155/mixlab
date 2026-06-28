@@ -68,6 +68,7 @@ export interface AdminDockerNasUgosApiPreflightReport {
     desktop_build: string;
     auth_header_inputs: {
       cookie_present: boolean;
+      query_token_present: boolean;
       x_ugreen_auth_present: boolean;
       authorization_present: boolean;
     };
@@ -250,10 +251,12 @@ async function fetchDesktopDetails(input: {
 
 function authHeadersFromEnv(env: NodeJS.ProcessEnv): {
   headers: Record<string, string>;
+  query_token: string;
   inputs: AdminDockerNasUgosApiPreflightReport["observations"]["auth_header_inputs"];
 } {
   const headers: Record<string, string> = {};
   const cookie = env.MIXLAB_UGOS_COOKIE?.trim();
+  const queryToken = env.MIXLAB_UGOS_TOKEN?.trim();
   const xUgreenAuth = env.MIXLAB_UGOS_X_UGREEN_AUTH?.trim();
   const authorization = env.MIXLAB_UGOS_AUTHORIZATION?.trim();
 
@@ -269,8 +272,10 @@ function authHeadersFromEnv(env: NodeJS.ProcessEnv): {
 
   return {
     headers,
+    query_token: queryToken ?? "",
     inputs: {
       cookie_present: Boolean(cookie),
+      query_token_present: Boolean(queryToken),
       x_ugreen_auth_present: Boolean(xUgreenAuth),
       authorization_present: Boolean(authorization)
     }
@@ -281,15 +286,19 @@ async function probeUgosApi(input: {
   base_url: string;
   definition: UgosApiProbeDefinition;
   headers: Record<string, string>;
+  query_token: string;
   timeout_ms: number;
 }): Promise<UgosApiProbeResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), input.timeout_ms);
   const url = `${input.base_url}${input.definition.path}`;
+  const fetchUrl = input.query_token
+    ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(input.query_token)}`
+    : url;
   const started = performance.now();
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(fetchUrl, {
       method: "GET",
       headers: input.headers,
       redirect: "manual",
@@ -411,7 +420,7 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
       title: "UGOS auth inputs are not recorded",
       category: "safety",
       status: "pass",
-      evidence: `cookie_present=${input.auth_header_inputs.cookie_present}, x_ugreen_auth_present=${input.auth_header_inputs.x_ugreen_auth_present}, authorization_present=${input.auth_header_inputs.authorization_present}; values are not written to artifacts.`,
+      evidence: `cookie_present=${input.auth_header_inputs.cookie_present}, query_token_present=${input.auth_header_inputs.query_token_present}, x_ugreen_auth_present=${input.auth_header_inputs.x_ugreen_auth_present}, authorization_present=${input.auth_header_inputs.authorization_present}; values are not written to artifacts.`,
       blocks_browserless_collection: false,
       blocks_staging_review: false
     }),
@@ -539,6 +548,7 @@ export function toMarkdown(report: AdminDockerNasUgosApiPreflightReport): string
     `- Desktop version: ${report.observations.desktop_version || "<not parsed>"}`,
     `- Desktop build: ${report.observations.desktop_build || "<not parsed>"}`,
     `- Cookie present: ${report.observations.auth_header_inputs.cookie_present ? "yes" : "no"}`,
+    `- Query token present: ${report.observations.auth_header_inputs.query_token_present ? "yes" : "no"}`,
     `- X-Ugreen-Auth present: ${report.observations.auth_header_inputs.x_ugreen_auth_present ? "yes" : "no"}`,
     `- Authorization present: ${report.observations.auth_header_inputs.authorization_present ? "yes" : "no"}`,
     "",
@@ -606,6 +616,7 @@ export async function runAdminDockerNasUgosApiPreflight(input: {
     base_url: normalizedBaseUrl,
     definition,
     headers: auth.headers,
+    query_token: auth.query_token,
     timeout_ms: timeoutMs
   })));
   const desktopProbe = probes.find((item) => item.name === "desktop_html");

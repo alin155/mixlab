@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T20:59:36.403Z",
+  "mode": "nas-docker-desktop-readonly-observation-ugos-authenticated",
+  "target": {
+    "nas_desktop_url": "http://192.168.1.27:9999/desktop/#/",
+    "nas_admin_web_url": "http://192.168.1.27:18080",
+    "desktop_title": "DXP8800PRO-DB07",
+    "observation_method": "Playwright authenticated NAS desktop UI session with sanitized DOM extraction"
+  },
+  "safety": {
+    "credentials_written_to_report": false,
+    "auth_tokens_written_to_report": false,
+    "browser_storage_state_saved": false,
+    "nas_files_written": false,
+    "docker_containers_started_or_stopped": false,
+    "docker_images_pushed_or_pulled": false,
+    "preprocess_started": false,
+    "release_or_index_published": false,
+    "cutter_protocol_changed": false
+  },
+  "docker_desktop_observations": {
+    "docker_service_status": "Service running / Normal",
+    "project_count": "1/1",
+    "container_count": "3/3",
+    "compose_project": "mixlab-server",
+    "container_list_source": "Docker iframe Container page DOM",
+    "worker_env_source": "Docker iframe worker detail Environment variable tab DOM, allowlisted keys only"
+  },
+  "containers": [
+    {
+      "name": "mixlab-server-admin-worker-1",
+      "status": "Running",
+      "image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "project": "mixlab-server",
+      "cpu": "1%",
+      "ram": "90.8MB/7.4GB",
+      "ports": [],
+      "mounts": [
+        {
+          "nas_path": "Shared folder/MixLab/PublicLibrary",
+          "container_path": "/data/PublicLibrary",
+          "permission": "Read/write"
+        }
+      ],
+      "environment": {
+        "MIXLAB_ADMIN_LIBRARY_ROOT": "/data/PublicLibrary",
+        "MIXLAB_FFMPEG_PATH": "/usr/bin/ffmpeg",
+        "MIXLAB_FFPROBE_PATH": "/usr/bin/ffprobe",
+        "MIXLAB_WORKER_POLL_INTERVAL_SECONDS": "60",
+        "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "1",
+        "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "1",
+        "NODE_ENV": "production"
+      }
+    },
+    {
+      "name": "mixlab-server-admin-api-1",
+      "status": "Running",
+      "image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "project": "mixlab-server",
+      "cpu": "1%",
+      "ram": "865.7MB/7.4GB",
+      "ports": [],
+      "mounts": [
+        {
+          "nas_path": "Shared folder/MixLab/PublicLibrary",
+          "container_path": "/data/PublicLibrary",
+          "permission": "Read/write"
+        }
+      ]
+    },
+    {
+      "name": "mixlab-server-admin-web-1",
+      "status": "Running",
+      "image": "ghcr.io/alin155/mixlab-admin-web:latest",
+      "project": "mixlab-server",
+      "cpu": "0%",
+      "ram": "5.5MB/7.4GB",
+      "ports": []
+    }
+  ],
+  "result": {
+    "status": "blocked",
+    "docker_deploy_allowed": false,
+    "summary": "Authenticated DOM observation confirms the NAS is still running the old latest-tagged Admin stack and worker auto preprocess/publish flags remain enabled; no Docker runtime mutation was performed."
+  }
+}
