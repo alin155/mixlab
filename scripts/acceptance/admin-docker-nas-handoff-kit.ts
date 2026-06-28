@@ -7,6 +7,8 @@ const DEFAULT_HANDOFF_REPORT = "docs/acceptance/artifacts/admin-docker-nas-relea
 const DEFAULT_HANDOFF_BUNDLE = "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest";
 const DEFAULT_OUTPUT_DIR = "dist/acceptance/admin-docker-nas-handoff-kit";
 const DEFAULT_ARTIFACT_DIR = "docs/acceptance/artifacts";
+const KIT_SELF_CHECK_FILE = "KIT-SELF-CHECK.sh";
+const KIT_CHECKSUM_FILE = "KIT-FILES.sha256";
 const REQUIRED_HANDOFF_FILES = [
   "README.md",
   "OPERATOR-CHECKLIST.md",
@@ -75,6 +77,8 @@ export interface AdminDockerNasHandoffKitReport {
     kit_dir: string;
     kit_readme_path: string;
     kit_manifest_path: string;
+    kit_self_check_path: string;
+    kit_checksum_path: string;
     latest_json_path?: string;
     latest_markdown_path?: string;
   } | null;
@@ -209,6 +213,10 @@ async function fileInfo(rootDir: string, relativePath: string): Promise<KitFile>
   };
 }
 
+function checksumLine(file: KitFile): string {
+  return `${file.sha256}  ${file.path}`;
+}
+
 async function strictSensitiveScan(rootDir: string, files: string[]): Promise<string[]> {
   const hits: string[] = [];
 
@@ -243,6 +251,12 @@ function kitReadme(report: {
     "",
     "## On The NAS Host",
     "",
+    "0. Run the portable self-check before using the kit:",
+    "",
+    "```sh",
+    "sh ./KIT-SELF-CHECK.sh",
+    "```",
+    "",
     "1. Copy this folder, or only its `nas/` subfolder, to the Admin Docker Compose project folder containing `docker-compose.yml` and `.env`.",
     "2. From that Compose project folder, run:",
     "",
@@ -268,6 +282,43 @@ function kitReadme(report: {
   ].join("\n");
 }
 
+function kitSelfCheckContents(): string {
+  return `#!/usr/bin/env sh
+set -eu
+
+die() {
+  printf '%s\\n' "error: $*" >&2
+  exit 1
+}
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+for file in README.md OPERATOR-CHECKLIST.md MANIFEST.json KIT-README.md KIT-MANIFEST.json ${KIT_CHECKSUM_FILE} ${KIT_SELF_CHECK_FILE} nas/RUN_ON_NAS.sh nas/admin-docker-nas-release-inputs-collector.sh local/install-nas-runner.sh local/validate-returned-evidence.sh; do
+  [ -f "$file" ] || die "missing required kit file: $file"
+done
+
+for file in ${KIT_SELF_CHECK_FILE} nas/RUN_ON_NAS.sh nas/admin-docker-nas-release-inputs-collector.sh local/install-nas-runner.sh local/validate-returned-evidence.sh; do
+  [ -x "$file" ] || die "required script is not executable: $file"
+done
+
+grep -q '"push_execution_allowed": false' KIT-MANIFEST.json || die "KIT-MANIFEST does not prove push_execution_allowed=false"
+grep -q '"docker_deploy_allowed": false' KIT-MANIFEST.json || die "KIT-MANIFEST does not prove docker_deploy_allowed=false"
+grep -q '"nas_writes_allowed": false' KIT-MANIFEST.json || die "KIT-MANIFEST does not prove nas_writes_allowed=false"
+grep -q '"worker_start_allowed": false' KIT-MANIFEST.json || die "KIT-MANIFEST does not prove worker_start_allowed=false"
+
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c ${KIT_CHECKSUM_FILE}
+elif command -v shasum >/dev/null 2>&1; then
+  shasum -a 256 -c ${KIT_CHECKSUM_FILE}
+else
+  printf '%s\\n' "warning: sha256sum/shasum not found; skipped checksum verification"
+fi
+
+printf '%s\\n' "Admin Docker NAS handoff kit self-check passed."
+`;
+}
+
 function nextActions(report: AdminDockerNasHandoffKitReport): string[] {
   if (!report.kit_ready) {
     return [
@@ -278,6 +329,7 @@ function nextActions(report: AdminDockerNasHandoffKitReport): string[] {
 
   return [
     `Transfer ${report.artifacts?.kit_dir ?? DEFAULT_OUTPUT_DIR} to the NAS desktop or NAS shell host.`,
+    "Run sh ./KIT-SELF-CHECK.sh from the transferred kit root.",
     "Copy its nas/ folder into the Admin Docker Compose project folder.",
     "Run sh ./nas/RUN_ON_NAS.sh from the Compose project folder.",
     "Copy admin-docker-release-inputs/ back to the Mac repository.",
@@ -364,10 +416,10 @@ export function buildAdminDockerNasHandoffKitReport(input: {
       id: "kit-files-packaged",
       title: "Portable kit files are packaged",
       category: "package",
-      status: input.packaged_files.length >= REQUIRED_HANDOFF_FILES.length + 2 ? "pass" : "blocked",
+      status: input.packaged_files.length >= REQUIRED_HANDOFF_FILES.length + 4 ? "pass" : "blocked",
       evidence: `file_count=${input.packaged_files.length}`,
       blocks_kit: true,
-      required_evidence: "Package the handoff bundle plus KIT-README.md and KIT-MANIFEST.json."
+      required_evidence: "Package the handoff bundle plus KIT-README.md, KIT-SELF-CHECK.sh, KIT-FILES.sha256, and KIT-MANIFEST.json."
     }),
     gate({
       id: "kit-strict-sensitive-scan",
@@ -471,6 +523,8 @@ export function toMarkdown(report: AdminDockerNasHandoffKitReport): string {
     `- Kit dir: ${report.artifacts?.kit_dir ?? "<not written>"}`,
     `- Kit README: ${report.artifacts?.kit_readme_path ?? "<not written>"}`,
     `- Kit manifest: ${report.artifacts?.kit_manifest_path ?? "<not written>"}`,
+    `- Kit self-check: ${report.artifacts?.kit_self_check_path ?? "<not written>"}`,
+    `- Kit checksums: ${report.artifacts?.kit_checksum_path ?? "<not written>"}`,
     `- Latest JSON: ${report.artifacts?.latest_json_path ?? "<not written>"}`,
     `- Latest Markdown: ${report.artifacts?.latest_markdown_path ?? "<not written>"}`,
     ""
@@ -503,16 +557,24 @@ export async function runAdminDockerNasHandoffKit(input: {
   const handoff = asRecord(handoffReport);
   const handoffObservations = asRecord(handoff.observations);
   const kitReadmePath = path.join(outputDir, "KIT-README.md");
+  const kitSelfCheckPath = path.join(outputDir, KIT_SELF_CHECK_FILE);
+  const kitChecksumPath = path.join(outputDir, KIT_CHECKSUM_FILE);
   const kitManifestPath = path.join(outputDir, "KIT-MANIFEST.json");
   await writeFile(kitReadmePath, kitReadme({
     generated_at: generatedAt,
     candidate_sha: asString(handoffObservations.candidate_sha),
     candidate_release_ref: asString(handoffObservations.candidate_release_ref)
   }));
+  await writeFile(kitSelfCheckPath, kitSelfCheckContents());
+  await chmod(kitSelfCheckPath, 0o755);
 
   const initialFiles = await collectFiles(outputDir);
-  const sensitiveHits = await strictSensitiveScan(outputDir, initialFiles);
-  const filesWithoutManifest = initialFiles.filter((item) => item !== "KIT-MANIFEST.json");
+  const checksumSourceFiles = initialFiles.filter((item) => item !== "KIT-MANIFEST.json" && item !== KIT_CHECKSUM_FILE);
+  const checksumSourceInfos = await Promise.all(checksumSourceFiles.map((item) => fileInfo(outputDir, item)));
+  await writeFile(kitChecksumPath, `${checksumSourceInfos.map(checksumLine).join("\n")}\n`);
+  const filesWithChecksum = await collectFiles(outputDir);
+  const sensitiveHits = await strictSensitiveScan(outputDir, filesWithChecksum);
+  const filesWithoutManifest = filesWithChecksum.filter((item) => item !== "KIT-MANIFEST.json");
   const packagedFiles = await Promise.all(filesWithoutManifest.map((item) => fileInfo(outputDir, item)));
   await writeFile(kitManifestPath, `${JSON.stringify({
     schema_version: "1.0",
@@ -560,6 +622,8 @@ export async function runAdminDockerNasHandoffKit(input: {
       kit_dir: outputDir,
       kit_readme_path: kitReadmePath,
       kit_manifest_path: kitManifestPath,
+      kit_self_check_path: kitSelfCheckPath,
+      kit_checksum_path: kitChecksumPath,
       latest_json_path: latestJsonPath,
       latest_markdown_path: latestMarkdownPath
     }
