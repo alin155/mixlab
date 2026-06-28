@@ -67,6 +67,7 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     cutter_upload_blockers: string[];
     release_inputs_intake_status: string;
     release_inputs_intake_complete: boolean | null;
+    release_inputs_returned_precheck_passed: boolean | null;
     release_inputs_ready: boolean | null;
     release_inputs_intake_blockers: string[];
     release_input_blockers: string[];
@@ -272,6 +273,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
   const releaseInputsIntakeComplete = asBoolean(asRecord(input.release_inputs_intake_report).intake_complete);
+  const releaseInputsReturnedPrecheckPassed = asBoolean(
+    asRecord(asRecord(input.release_inputs_intake_report).observations).returned_precheck_passed
+  );
   const releaseInputsReady = asBoolean(asRecord(input.release_inputs_intake_report).release_inputs_ready);
   const releaseInputsPushAllowed = asBoolean(asRecord(input.release_inputs_intake_report).push_execution_allowed);
   const releaseInputsDeployAllowed = asBoolean(asRecord(input.release_inputs_intake_report).docker_deploy_allowed);
@@ -347,6 +351,15 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       required_evidence: "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
     }),
     gate({
+      id: "returned-evidence-precheck-passed",
+      title: "Returned NAS evidence precheck passed inside intake",
+      category: "release-inputs",
+      status: releaseInputsReturnedPrecheckPassed === true ? "pass" : "blocked",
+      evidence: `returned_precheck_passed=${String(releaseInputsReturnedPrecheckPassed)}`,
+      blocks_release_review: releaseInputsReturnedPrecheckPassed !== true,
+      required_evidence: "Regenerate intake with a current script that records observations.returned_precheck_passed=true before release review."
+    }),
+    gate({
       id: "release-inputs-ready",
       title: "Release inputs are ready for a separate release decision",
       category: "release-inputs",
@@ -411,6 +424,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       cutter_upload_blockers: cutterBlockers,
       release_inputs_intake_status: resultStatus(input.release_inputs_intake_report),
       release_inputs_intake_complete: releaseInputsIntakeComplete,
+      release_inputs_returned_precheck_passed: releaseInputsReturnedPrecheckPassed,
       release_inputs_ready: releaseInputsReady,
       release_inputs_intake_blockers: releaseInputsIntakeBlockers,
       release_input_blockers: releaseInputBlockers,
@@ -480,7 +494,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
     `- Worker accepted: ${report.observations.worker_proof_accepted ?? "unknown"}; blockers: ${report.observations.worker_upload_blockers.join(", ") || "none"}`,
     `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
-    `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
+    `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; returned_precheck_passed=${report.observations.release_inputs_returned_precheck_passed ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
     `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}; blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
     `- Staging ready: ${report.observations.staging_review_ready ?? "unknown"}; blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
     `- Unresolved parity blockers: ${report.observations.unresolved_parity_blockers.join(", ") || "none"}`,

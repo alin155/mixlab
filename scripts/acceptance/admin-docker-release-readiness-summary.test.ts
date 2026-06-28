@@ -117,6 +117,9 @@ function readyReleaseInputsIntake(): unknown {
     release_inputs_ready: true,
     push_execution_allowed: false,
     docker_deploy_allowed: false,
+    observations: {
+      returned_precheck_passed: true
+    },
     summary: {
       intake_blockers: [],
       release_input_blockers: []
@@ -249,6 +252,26 @@ test("admin Docker release readiness summary blocks if a source report tries to 
 
   assert.equal(report.release_review_ready, false);
   assert.ok(report.summary.release_review_blockers.includes("summary-does-not-approve-upload"));
+});
+
+test("admin Docker release readiness summary blocks old intake artifacts without returned precheck proof", () => {
+  const oldIntake = {
+    ...readyReleaseInputsIntake() as Record<string, unknown>,
+    observations: {}
+  };
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    live_readonly_report: clearLiveReport(),
+    parity_plan_report: clearParityReport(),
+    worker_env_proof_report: acceptedProof(),
+    cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: oldIntake,
+    staging_runbook_report: readyRunbook()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("returned-evidence-precheck-passed"));
+  assert.match(toMarkdown(report), /returned_precheck_passed=unknown/);
 });
 
 test("admin Docker release readiness summary markdown records no-side-effect scope", () => {

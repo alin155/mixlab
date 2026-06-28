@@ -115,6 +115,7 @@ function releaseReadinessSummaryReport(uploadAllowed = false, ready = false): un
 function releaseInputsIntakeReport(input: {
   complete?: boolean;
   ready?: boolean;
+  precheckPassed?: boolean;
   pushAllowed?: boolean;
   deployAllowed?: boolean;
 } = {}): unknown {
@@ -127,6 +128,9 @@ function releaseInputsIntakeReport(input: {
     release_inputs_ready: ready,
     push_execution_allowed: input.pushAllowed ?? false,
     docker_deploy_allowed: input.deployAllowed ?? false,
+    observations: {
+      returned_precheck_passed: input.precheckPassed ?? (complete ? true : false)
+    },
     result: {
       status: complete ? "intake-complete" : "blocked"
     },
@@ -319,6 +323,39 @@ test("GitHub artifact readiness fails safety if intake tries to approve push", (
   assert.equal(report.staging_handoff_ready, false);
   assert.equal(report.result.status, "failed");
   assert.ok(report.summary.candidate_artifact_blockers.includes("release-boundary-does-not-approve-deploy"));
+});
+
+test("GitHub artifact readiness blocks old intake artifacts without returned precheck proof", () => {
+  const oldIntake = releaseInputsIntakeReport({
+    complete: true,
+    ready: true
+  }) as Record<string, unknown>;
+  oldIntake.observations = {};
+  const report = buildReport({
+    nas_release_inputs_intake_report: {
+      path: "admin-docker-nas-release-inputs-intake-old.json",
+      report: oldIntake
+    },
+    staging_runbook_report: {
+      path: "admin-docker-staging-runbook-2.json",
+      report: stagingRunbookReport({
+        current: "old-tag",
+        target: "abc123",
+        rollback: "old-tag",
+        pushApproved: true,
+        ready: true
+      })
+    },
+    release_readiness_summary_report: {
+      path: "admin-docker-release-readiness-summary-2.json",
+      report: releaseReadinessSummaryReport(false, true)
+    }
+  });
+
+  assert.equal(report.github_candidate_artifact_ready, true);
+  assert.equal(report.staging_handoff_ready, false);
+  assert.ok(report.summary.staging_handoff_blockers.includes("returned-evidence-precheck-passed"));
+  assert.match(toMarkdown(report), /returned_precheck_passed=null/);
 });
 
 test("GitHub artifact readiness treats missing reports as blocked instead of failed", () => {

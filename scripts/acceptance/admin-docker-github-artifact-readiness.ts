@@ -101,6 +101,7 @@ export interface AdminDockerGithubArtifactReadinessReport {
     rollback_image_tag: string;
     release_inputs_intake_status: string;
     release_inputs_intake_complete: boolean | null;
+    release_inputs_returned_precheck_passed: boolean | null;
     release_inputs_ready: boolean | null;
     release_inputs_push_allowed: boolean | null;
     release_inputs_deploy_allowed: boolean | null;
@@ -389,6 +390,9 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
   const releaseReviewReady = asBoolean(asRecord(releaseSummary).release_review_ready);
   const releaseReviewBlockers = summaryBlockers(releaseSummary, "release_review_blockers");
   const releaseInputsIntakeComplete = asBoolean(asRecord(releaseInputsIntake).intake_complete);
+  const releaseInputsReturnedPrecheckPassed = asBoolean(
+    asRecord(asRecord(releaseInputsIntake).observations).returned_precheck_passed
+  );
   const releaseInputsReady = asBoolean(asRecord(releaseInputsIntake).release_inputs_ready);
   const releaseInputsPushAllowed = asBoolean(asRecord(releaseInputsIntake).push_execution_allowed);
   const releaseInputsDeployAllowed = asBoolean(asRecord(releaseInputsIntake).docker_deploy_allowed);
@@ -525,6 +529,17 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
       required_evidence: "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
     }),
     gate({
+      id: "returned-evidence-precheck-passed",
+      title: "Returned NAS evidence precheck passed inside intake",
+      category: "release-inputs",
+      status: releaseInputsReturnedPrecheckPassed === true ? "pass" : "blocked",
+      evidence: `returned_precheck_passed=${String(releaseInputsReturnedPrecheckPassed)}`,
+      blocks_candidate_artifact: false,
+      blocks_staging_handoff: releaseInputsReturnedPrecheckPassed !== true,
+      blocks_docker_deploy: true,
+      required_evidence: "Regenerate intake with a current script that records observations.returned_precheck_passed=true before staging handoff."
+    }),
+    gate({
       id: "release-inputs-ready",
       title: "Release inputs are ready for a separate release decision",
       category: "release-inputs",
@@ -593,6 +608,7 @@ export function buildAdminDockerGithubArtifactReadinessReport(input: {
     rollback_image_tag: tags.rollback,
     release_inputs_intake_status: resultStatus(releaseInputsIntake),
     release_inputs_intake_complete: releaseInputsIntakeComplete,
+    release_inputs_returned_precheck_passed: releaseInputsReturnedPrecheckPassed,
     release_inputs_ready: releaseInputsReady,
     release_inputs_push_allowed: releaseInputsPushAllowed,
     release_inputs_deploy_allowed: releaseInputsDeployAllowed,
@@ -673,7 +689,7 @@ export function toMarkdown(report: AdminDockerGithubArtifactReadinessReport): st
     `- Image push approval accepted: ${String(report.observations.image_push_approval_accepted)}`,
     `- Current image tag: ${report.observations.current_image_tag || "<missing>"}`,
     `- Rollback image tag: ${report.observations.rollback_image_tag || "<missing>"}`,
-    `- Release-inputs intake: ${report.observations.release_inputs_intake_status || "unknown"}, complete=${String(report.observations.release_inputs_intake_complete)}, ready=${String(report.observations.release_inputs_ready)}`,
+    `- Release-inputs intake: ${report.observations.release_inputs_intake_status || "unknown"}, complete=${String(report.observations.release_inputs_intake_complete)}, returned_precheck_passed=${String(report.observations.release_inputs_returned_precheck_passed)}, ready=${String(report.observations.release_inputs_ready)}`,
     `- Release-inputs push/deploy allowed: push=${String(report.observations.release_inputs_push_allowed)}, deploy=${String(report.observations.release_inputs_deploy_allowed)}`,
     `- Release-inputs intake blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
     `- Release-input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
