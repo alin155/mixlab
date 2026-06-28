@@ -297,6 +297,18 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(!report.summary.release_review_blockers.includes("nas-handoff-kit-ready"));
   assert.equal(report.observations.nas_handoff_kit_ready, true);
   assert.equal(report.observations.nas_collection_directly_available, false);
+  assert.equal(report.automation_boundary.safe_local_progress_allowed, true);
+  assert.equal(report.automation_boundary.nas_runtime_changes_allowed, false);
+  assert.equal(report.automation_boundary.image_push_allowed, false);
+  assert.equal(report.automation_boundary.docker_deploy_allowed, false);
+  assert.equal(report.automation_boundary.release_approval_required, true);
+  assert.equal(report.automation_boundary.nas_operator_or_runtime_action_required, true);
+  assert.equal(report.automation_boundary.windows_staged_candidate_required, true);
+  assert.ok(report.automation_boundary.reasons_requiring_external_action.some((item) => item.includes("Explicit release approval")));
+  assert.ok(report.automation_boundary.reasons_requiring_external_action.some((item) => item.includes("NAS disk pressure")));
+  assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("handoff kit")));
+  assert.ok(report.automation_boundary.blocked_actions.some((item) => item.includes("push_images=true")));
+  assert.ok(report.automation_boundary.blocked_actions.some((item) => item.includes("NAS Docker .env")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-nas-handoff-kit.tar.gz")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-release-inputs/")));
   assert.ok(report.next_actions.some((item) => item.includes("release-input blockers")));
@@ -375,6 +387,14 @@ test("admin Docker release readiness summary can become ready for separate relea
   assert.equal(report.docker_upload_allowed, false);
   assert.equal(report.result.status, "ready-for-release-decision");
   assert.deepEqual(report.summary.release_review_blockers, []);
+  assert.equal(report.automation_boundary.safe_local_progress_allowed, true);
+  assert.equal(report.automation_boundary.image_push_allowed, false);
+  assert.equal(report.automation_boundary.docker_deploy_allowed, false);
+  assert.equal(report.automation_boundary.release_approval_required, true);
+  assert.equal(report.automation_boundary.nas_operator_or_runtime_action_required, false);
+  assert.equal(report.automation_boundary.windows_staged_candidate_required, false);
+  assert.equal(report.automation_boundary.reasons_requiring_external_action.length, 1);
+  assert.ok(report.automation_boundary.reasons_requiring_external_action[0]?.includes("Separate release decision"));
   assert.ok(report.next_actions.some((item) => item.includes("separate release decision")));
 });
 
@@ -456,6 +476,10 @@ test("admin Docker release readiness summary markdown records no-side-effect sco
   assert.match(markdown, /Local Docker smoke/);
   assert.match(markdown, /GitHub candidate artifact ready/);
   assert.match(markdown, /Release-inputs intake complete/);
+  assert.match(markdown, /Automation Boundary/);
+  assert.match(markdown, /NAS runtime changes allowed: no/);
+  assert.match(markdown, /Image push allowed: no/);
+  assert.match(markdown, /Blocked actions/);
   assert.match(markdown, /Live blockers/);
   assert.match(markdown, /NAS handoff kit ready/);
   assert.match(markdown, /admin-docker-nas-handoff-kit\.tar\.gz/);

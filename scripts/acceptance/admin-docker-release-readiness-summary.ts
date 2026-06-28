@@ -35,6 +35,19 @@ interface ReadinessSummary {
   release_review_blockers: string[];
 }
 
+interface AutomationBoundary {
+  safe_local_progress_allowed: boolean;
+  nas_runtime_changes_allowed: false;
+  image_push_allowed: false;
+  docker_deploy_allowed: false;
+  release_approval_required: boolean;
+  nas_operator_or_runtime_action_required: boolean;
+  windows_staged_candidate_required: boolean;
+  reasons_requiring_external_action: string[];
+  safe_local_next_actions: string[];
+  blocked_actions: string[];
+}
+
 interface ReadinessSources {
   local_docker_smoke_report: string;
   live_readonly_report: string;
@@ -98,6 +111,7 @@ export interface AdminDockerReleaseReadinessSummaryReport {
   };
   gates: ReadinessGate[];
   summary: ReadinessSummary;
+  automation_boundary: AutomationBoundary;
   result: {
     status: "ready-for-release-decision" | "blocked";
     summary: string;
@@ -302,6 +316,99 @@ function nextActions(input: {
   }
 
   return actions;
+}
+
+function buildAutomationBoundary(input: {
+  releaseReviewReady: boolean;
+  liveBlockers: string[];
+  parityBlockers: string[];
+  workerAccepted: boolean | null;
+  cutterAccepted: boolean | null;
+  releaseInputsIntakeComplete: boolean | null;
+  releaseInputsReady: boolean | null;
+  nasCollectionDirectlyAvailable: boolean | null;
+  nasCollectionBlockers: string[];
+  handoffKitReady: boolean | null;
+  stagingBlockers: string[];
+  candidateSmokeAccepted: boolean;
+}): AutomationBoundary {
+  const reasons = new Set<string>();
+  const safeActions = new Set<string>();
+  const blockedActions = new Set<string>();
+
+  if (input.releaseReviewReady) {
+    reasons.add("Separate release decision is required before Docker image push or NAS staging.");
+  } else if (input.stagingBlockers.includes("image-push-explicitly-approved") || !input.releaseReviewReady) {
+    reasons.add("Explicit release approval is still required before push_images=true or staging execution.");
+    blockedActions.add("Do not run the Admin Docker workflow with push_images=true.");
+  }
+
+  if (input.liveBlockers.length > 0 || input.parityBlockers.length > 0) {
+    reasons.add("Live NAS evidence still reports old or unsafe Admin Docker runtime gates.");
+    blockedActions.add("Do not edit NAS Docker .env, pull images, restart containers, or replace the 18080 runtime from this summary alone.");
+  }
+
+  if (
+    input.liveBlockers.includes("preprocess-disk") ||
+    input.parityBlockers.includes("nas-disk-risk") ||
+    input.stagingBlockers.includes("nas-disk-proof-accepted")
+  ) {
+    reasons.add("NAS disk pressure must be cleared or reproved before staging.");
+  }
+
+  if (!input.workerAccepted) {
+    reasons.add("admin-worker proof is not accepted; current or staged worker flags/roots still need safe evidence.");
+    blockedActions.add("Do not enable standalone preprocess or ready-publish workers.");
+  }
+
+  if (!input.cutterAccepted) {
+    reasons.add("Cutter compatibility proof must be collected against a staged candidate before final MVP acceptance.");
+  }
+
+  if (!input.releaseInputsIntakeComplete || !input.releaseInputsReady) {
+    reasons.add("NAS returned evidence and release inputs are not ready for a release decision.");
+  }
+
+  if (!input.releaseInputsIntakeComplete && input.nasCollectionDirectlyAvailable !== true && input.nasCollectionBlockers.length > 0) {
+    reasons.add(`Direct Mac-to-NAS collection is unavailable: ${input.nasCollectionBlockers.join(", ")}.`);
+  }
+
+  if (input.candidateSmokeAccepted) {
+    safeActions.add("Refresh read-only evidence summaries, release-readiness summaries, and documentation from archived artifacts.");
+  } else {
+    safeActions.add("Refresh Docker candidate smoke evidence on a Docker-capable runner before any staging decision.");
+  }
+
+  if (input.handoffKitReady && !input.releaseInputsIntakeComplete) {
+    safeActions.add("Keep the NAS handoff kit current and validate any returned evidence package locally when it appears.");
+  }
+
+  if (!input.workerAccepted) {
+    safeActions.add("Improve worker proof validators and rerun them against sanitized returned evidence without touching NAS runtime.");
+  }
+
+  if (!input.cutterAccepted) {
+    safeActions.add("Prepare Cutter proof collection commands for the staged candidate; do not count current production Cutter smoke as staged proof.");
+  }
+
+  blockedActions.add("Do not mark Admin Docker MVP v0.1 complete.");
+
+  return {
+    safe_local_progress_allowed: true,
+    nas_runtime_changes_allowed: false,
+    image_push_allowed: false,
+    docker_deploy_allowed: false,
+    release_approval_required: true,
+    nas_operator_or_runtime_action_required: input.liveBlockers.length > 0 ||
+      input.parityBlockers.length > 0 ||
+      (!input.releaseInputsIntakeComplete && input.nasCollectionDirectlyAvailable !== true) ||
+      !input.releaseInputsIntakeComplete ||
+      !input.releaseInputsReady,
+    windows_staged_candidate_required: !input.cutterAccepted,
+    reasons_requiring_external_action: [...reasons],
+    safe_local_next_actions: [...safeActions],
+    blocked_actions: [...blockedActions]
+  };
 }
 
 export function buildAdminDockerReleaseReadinessSummaryReport(input: {
@@ -516,6 +623,20 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   ];
   const summary = summarize(gates);
   const releaseReviewReady = summary.release_review_blockers.length === 0;
+  const automationBoundary = buildAutomationBoundary({
+    releaseReviewReady,
+    liveBlockers,
+    parityBlockers,
+    workerAccepted,
+    cutterAccepted,
+    releaseInputsIntakeComplete,
+    releaseInputsReady,
+    nasCollectionDirectlyAvailable,
+    nasCollectionBlockers,
+    handoffKitReady,
+    stagingBlockers,
+    candidateSmokeAccepted
+  });
 
   return {
     schema_version: "1.0",
@@ -580,6 +701,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     },
     gates,
     summary,
+    automation_boundary: automationBoundary,
     result: {
       status: releaseReviewReady ? "ready-for-release-decision" : "blocked",
       summary: releaseReviewReady
@@ -656,6 +778,26 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Staging ready: ${report.observations.staging_review_ready ?? "unknown"}; blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
     `- Unresolved parity blockers: ${report.observations.unresolved_parity_blockers.join(", ") || "none"}`,
     `- Resolved external parity blockers: ${report.observations.resolved_external_parity_blockers.join(", ") || "none"}`,
+    "",
+    "## Automation Boundary",
+    "",
+    `- Safe local progress allowed: ${report.automation_boundary.safe_local_progress_allowed ? "yes" : "no"}`,
+    `- NAS runtime changes allowed: ${report.automation_boundary.nas_runtime_changes_allowed ? "yes" : "no"}`,
+    `- Image push allowed: ${report.automation_boundary.image_push_allowed ? "yes" : "no"}`,
+    `- Docker deploy allowed: ${report.automation_boundary.docker_deploy_allowed ? "yes" : "no"}`,
+    `- Release approval required: ${report.automation_boundary.release_approval_required ? "yes" : "no"}`,
+    `- NAS operator/runtime action required: ${report.automation_boundary.nas_operator_or_runtime_action_required ? "yes" : "no"}`,
+    `- Windows staged candidate required: ${report.automation_boundary.windows_staged_candidate_required ? "yes" : "no"}`,
+    "",
+    "External-action reasons:",
+    ...report.automation_boundary.reasons_requiring_external_action.map((item) => `- ${item}`),
+    report.automation_boundary.reasons_requiring_external_action.length === 0 ? "- none" : "",
+    "Safe local next actions:",
+    ...report.automation_boundary.safe_local_next_actions.map((item) => `- ${item}`),
+    report.automation_boundary.safe_local_next_actions.length === 0 ? "- none" : "",
+    "Blocked actions:",
+    ...report.automation_boundary.blocked_actions.map((item) => `- ${item}`),
+    report.automation_boundary.blocked_actions.length === 0 ? "- none" : "",
     "",
     "## Gates",
     "",
