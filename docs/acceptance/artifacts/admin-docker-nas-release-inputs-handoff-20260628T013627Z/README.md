@@ -1,0 +1,117 @@
+# Admin Docker NAS Release Inputs Handoff
+
+Generated: 2026-06-28T01:36:27.873Z
+Mode: admin-docker-nas-release-inputs-handoff
+Result: ready-for-nas-collection
+Handoff package ready: yes
+Push execution allowed: no
+Docker deploy allowed: no
+
+## Sources
+
+- Pre-staging handoff: docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T011802Z.json
+- Candidate ref proof: docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T011610Z.json
+- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260628T012557Z.json
+- Collector source: /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh
+
+## Candidate
+
+- candidate_sha: e94a5bdd8fc981b8112cc372df6f18204bb47528
+- candidate_release_ref: admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528
+- candidate_ref_proof_accepted: true
+
+## NAS Side
+
+- Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z
+- Run from the NAS Compose project folder: sh ./admin-docker-nas-release-inputs-collector.sh ./admin-docker-release-inputs
+- Copy back: Copy the generated admin-docker-release-inputs/ folder back to the Mac repo without adding full .env, secrets, or full docker inspect output.
+
+## Local Validation Commands
+
+```sh
+MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<copied-admin-docker-release-inputs-dir>/admin-docker-current.env \
+  MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<copied-admin-docker-release-inputs-dir>/admin-docker-current.inspect.json \
+  MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
+  npm run validate:admin-docker-nas-image-proof
+```
+
+```sh
+MIXLAB_ADMIN_WORKER_ENV_FILE=<copied-admin-docker-release-inputs-dir>/admin-worker.env \
+  MIXLAB_ADMIN_WORKER_INSPECT_JSON=<copied-admin-docker-release-inputs-dir>/admin-worker.inspect.json \
+  MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
+  npm run validate:admin-worker-env-proof
+```
+
+```sh
+MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_JSON=<copied-admin-docker-release-inputs-dir>/admin-docker-disk-proof.json \
+  MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
+  npm run validate:admin-docker-nas-disk-proof
+```
+
+```sh
+MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT=docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T011802Z.json \
+  MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T011610Z.json \
+  MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-image-proof-*.json \
+  MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
+  npm run validate:admin-docker-release-inputs
+```
+
+```sh
+MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT=docs/acceptance/artifacts/admin-docker-release-inputs-*.json \
+  MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT=docs/acceptance/artifacts/admin-docker-nas-disk-proof-*.json \
+  MIXLAB_DOCKER_CURRENT_IMAGE_TAG=<accepted-current-image-tag> \
+  MIXLAB_DOCKER_TARGET_IMAGE_TAG=e94a5bdd8fc981b8112cc372df6f18204bb47528 \
+  MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG=<same-as-current-image-tag> \
+  MIXLAB_ACCEPTANCE_OUTPUT_DIR=docs/acceptance/artifacts \
+  npm run validate:admin-docker-staging-runbook
+```
+
+## Forbidden Actions
+
+- Do not run push_images=true from this handoff package.
+- Do not edit NAS .env during evidence collection.
+- Do not restart NAS containers during evidence collection.
+- Do not enable admin-worker or ready-publish workers.
+- Do not run scan apply, index repair, snapshot restore, or production preprocessing from these instructions.
+- Do not copy full .env, full docker inspect output, ASR keys, bearer tokens, or private transcript text into the returned evidence.
+
+## Gates
+
+| Gate | Category | Status | Blocks Handoff | Blocks Inputs | Blocks Push | Blocks Deploy | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| handoff-no-side-effects | safety | pass | no | no | no | no | This report reads existing local JSON reports and copies the sanitized NAS collector; it does not contact NAS, Docker, GitHub, Admin API, or Cutter. |
+| prestaging-handoff-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T011802Z.json |
+| candidate-ref-proof-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T011610Z.json |
+| release-inputs-report-provided | source | pass | no | yes | yes | yes | docs/acceptance/artifacts/admin-docker-release-inputs-20260628T012557Z.json |
+| collector-source-provided | nas-collection | pass | no | no | yes | yes | /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-collector.sh |
+| candidate-ref-proof-accepted | candidate | pass | no | yes | yes | yes | candidate_ref_proof_accepted=true |
+| candidate-ref-proof-does-not-approve-deploy | safety | pass | yes | yes | yes | yes | candidate_ref_proof.docker_deploy_allowed=false |
+| release-inputs-still-blocked-for-nas-collection | release-boundary | pass | no | yes | yes | yes | status=blocked, release_input_blockers=nas-image-proof-provided, nas-image-proof-accepted, nas-proof-does-not-approve-deploy, current-and-rollback-tags-present, rollback-tag-matches-current, target-tag-differs-from-current, workflow-command-has-no-placeholders |
+| release-inputs-do-not-approve-push-or-deploy | safety | pass | yes | yes | yes | yes | push_execution_allowed=false, docker_deploy_allowed=false |
+
+## Summary
+
+- Handoff gate blockers: none
+- Release-input gate blockers: none
+- Push-execution gate blockers: none
+- Docker-deploy gate blockers: none
+- Source release-input blockers to resolve by NAS collection: nas-image-proof-provided, nas-image-proof-accepted, nas-proof-does-not-approve-deploy, current-and-rollback-tags-present, rollback-tag-matches-current, target-tag-differs-from-current, workflow-command-has-no-placeholders
+- Unexpected release-input blockers: none
+- Missing expected release-input blockers: none
+
+## Next Actions
+
+- Copy the handoff bundle's nas/ folder or admin-docker-nas-release-inputs-collector.sh to the NAS Compose project folder that contains docker-compose.yml and .env.
+- On the NAS shell host, run: sh ./admin-docker-nas-release-inputs-collector.sh ./admin-docker-release-inputs
+- Copy the generated admin-docker-release-inputs/ folder back to the Mac repository.
+- Run the local validation commands in the bundle README before generating any staging runbook.
+- Stop if any returned proof is blocked, if release_inputs_ready=false, or if the staging runbook carries nas-disk-risk-carried-forward.
+
+## Artifacts
+
+- JSON: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z.json
+- Markdown: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z.md
+- Bundle dir: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z
+- Manifest: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z/MANIFEST.json
+- README: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z/README.md
+- Collector: docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T013627Z/nas/admin-docker-nas-release-inputs-collector.sh
