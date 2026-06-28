@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { runAdminDockerNasReturnedEvidencePrecheck } from "./admin-docker-nas-returned-evidence-precheck.ts";
 import { runAdminDockerNasUgosReturnedEvidence } from "./admin-docker-nas-ugos-returned-evidence.ts";
+import { runAdminWorkerEnvProof } from "./admin-worker-env-proof.ts";
 
 const IMAGE_TAG = "0636039e0fc601af83b88cff9140bf2db8b6fec1";
 const RUNTIME_IMAGE = `ghcr.io/alin155/mixlab-admin-runtime:${IMAGE_TAG}`;
@@ -149,7 +150,7 @@ test("UGOS returned-evidence collector writes sanitized precheck-ready files", a
   assert.equal(precheck.precheck_passed, true);
 });
 
-test("UGOS returned-evidence collector preserves missing worker env values as blockers", async () => {
+test("UGOS returned-evidence collector preserves missing worker env values for worker proof blockers", async () => {
   const outputParent = await mkdtemp(path.join(os.tmpdir(), "mixlab-ugos-returned-missing-"));
   const report = await runAdminDockerNasUgosReturnedEvidence({
     ugos_base_url: "http://192.168.1.27:9999",
@@ -180,6 +181,17 @@ test("UGOS returned-evidence collector preserves missing worker env values as bl
   const precheck = await runAdminDockerNasReturnedEvidencePrecheck({
     returned_dir: returnedDir
   });
-  assert.equal(precheck.precheck_passed, false);
-  assert.ok(precheck.issues.some((issue) => issue.code === "worker-inspect-roots"));
+  assert.equal(precheck.precheck_passed, true);
+
+  const workerProof = await runAdminWorkerEnvProof({
+    env_file_path: path.join(returnedDir, "admin-worker.env"),
+    inspect_json_path: path.join(returnedDir, "admin-worker.inspect.json"),
+    generated_at: "2026-06-28T00:00:00.000Z",
+    command: "test",
+    output_dir: outputParent
+  });
+  assert.equal(workerProof.proof_accepted, false);
+  assert.ok(workerProof.summary.upload_blockers.includes("env-file-worker-flags-disabled"));
+  assert.ok(workerProof.summary.upload_blockers.includes("inspect-worker-flags-disabled"));
+  assert.ok(workerProof.summary.upload_blockers.includes("admin-worker-library-roots"));
 });

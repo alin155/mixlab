@@ -145,6 +145,31 @@ test("returned evidence precheck accepts optional host disk proof path", async (
   assert.deepEqual(report.issues, []);
 });
 
+test("returned evidence precheck accepts unsafe worker root values as proof-level evidence", async () => {
+  const report = await runAdminDockerNasReturnedEvidencePrecheck({
+    returned_dir: await makeReturnedDir({
+      "admin-worker.inspect.json": [
+        {
+          Name: "/mixlab-admin-worker-1",
+          Config: {
+            Image: `ghcr.io/alin155/mixlab-admin-runtime:${IMAGE_TAG}`,
+            Env: [
+              "MIXLAB_ADMIN_DOCKER_MVP_MODE=",
+              "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1",
+              "MIXLAB_ENABLE_READY_PUBLISH_WORKER=1",
+              "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",
+              "MIXLAB_PREPROCESS_LIBRARY_ROOT="
+            ]
+          }
+        }
+      ]
+    })
+  });
+
+  assert.equal(report.precheck_passed, true);
+  assert.deepEqual(report.issues, []);
+});
+
 test("returned evidence precheck requires container disk checks for API and worker", async () => {
   const apiHostCheck = {
     ...hostDiskCheck() as Record<string, unknown>,
@@ -179,7 +204,7 @@ test("returned evidence precheck rejects full current inspect env output", async
             Labels: {
               "com.docker.compose.service": "admin-api"
             },
-            Env: ["DASHSCOPE_API_KEY=should-not-appear"]
+            Env: ["DASHSCOPE_API_KEY"]
           }
         }
       ]

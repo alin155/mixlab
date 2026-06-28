@@ -228,10 +228,6 @@ function validateWorkerInspect(raw: string, issues: PrecheckIssue[]): void {
   if (extra.length > 0) {
     addIssue(issues, "worker-inspect-env", `admin-worker.inspect.json contains unexpected env keys: ${extra.join(", ")}`, "admin-worker.inspect.json");
   }
-  if ((values.get("MIXLAB_ADMIN_LIBRARY_ROOT") ?? "") !== EXPECTED_LIBRARY_ROOT ||
-      (values.get("MIXLAB_PREPROCESS_LIBRARY_ROOT") ?? "") !== EXPECTED_LIBRARY_ROOT) {
-    addIssue(issues, "worker-inspect-roots", `admin-worker.inspect.json must use ${EXPECTED_LIBRARY_ROOT} library roots.`, "admin-worker.inspect.json");
-  }
   if (!asString(config.Image) && !asString(containers[0]?.Image)) {
     addIssue(issues, "worker-inspect-image", "admin-worker.inspect.json is missing image reference.", "admin-worker.inspect.json");
   }

@@ -1,0 +1,135 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T21:55:49.545Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",
+  "mode": "admin-docker-nas-image-proof",
+  "sources": {
+    "env_file": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T215113Z/admin-docker-release-inputs/admin-docker-current.env",
+    "inspect_json": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T215113Z/admin-docker-release-inputs/admin-docker-current.inspect.json"
+  },
+  "proof_accepted": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "env_file_present": true,
+    "inspect_json_present": true,
+    "env_image_tag": "latest",
+    "stable_rollback_tag": false,
+    "services": [
+      {
+        "service": "admin-api",
+        "container_name": "mixlab-server-admin-api-1",
+        "image_reference": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+        "image_repository": "ghcr.io/alin155/mixlab-admin-runtime",
+        "image_tag": "latest"
+      },
+      {
+        "service": "admin-web",
+        "container_name": "mixlab-server-admin-web-1",
+        "image_reference": "ghcr.io/alin155/mixlab-admin-web:latest",
+        "image_repository": "ghcr.io/alin155/mixlab-admin-web",
+        "image_tag": "latest"
+      },
+      {
+        "service": "admin-worker",
+        "container_name": "mixlab-server-admin-worker-1",
+        "image_reference": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+        "image_repository": "ghcr.io/alin155/mixlab-admin-runtime",
+        "image_tag": "latest"
+      }
+    ],
+    "missing_services": [],
+    "inconsistent_tags": []
+  },
+  "release_inputs": {
+    "current_image_tag": "",
+    "rollback_image_tag": "",
+    "workflow_inputs": ""
+  },
+  "collection_instructions": [
+    "Prefer the sanitized collector on the NAS host: copy scripts/acceptance/admin-docker-nas-release-inputs-collector.sh into the Compose project folder, then run sh admin-docker-nas-release-inputs-collector.sh <output-dir>.",
+    "On the NAS host, export only the current Compose image tag without secrets: grep '^MIXLAB_IMAGE_TAG=' .env > admin-docker-current.env",
+    "On the NAS host, export sanitized running Admin container image metadata containing only service name, container name, and image tag; do not store full docker inspect Config.Env secrets.",
+    "Copy those files into a local evidence folder and run: MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env MIXLAB_ADMIN_DOCKER_NAS_INSPECT_JSON=<path>/admin-docker-current.inspect.json npm run validate:admin-docker-nas-image-proof",
+    "Do not use MIXLAB_IMAGE_TAG=latest as rollback evidence; latest is mutable and cannot prove a stable rollback point."
+  ],
+  "gates": [
+    {
+      "id": "nas-image-proof-no-side-effects",
+      "title": "NAS image proof reads sanitized local evidence only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads a sanitized MIXLAB_IMAGE_TAG evidence file and docker inspect JSON only; it does not contact NAS, Docker, GHCR, GitHub, Admin API, or Cutter API.",
+      "blocks_release_inputs": false
+    },
+    {
+      "id": "nas-env-file-provided",
+      "title": "Sanitized NAS image tag evidence is provided",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T215113Z/admin-docker-release-inputs/admin-docker-current.env",
+      "blocks_release_inputs": false,
+      "required_evidence": "Export a sanitized NAS tag evidence file containing only MIXLAB_IMAGE_TAG before staging."
+    },
+    {
+      "id": "nas-inspect-json-provided",
+      "title": "NAS Docker inspect JSON is provided",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T215113Z/admin-docker-release-inputs/admin-docker-current.inspect.json",
+      "blocks_release_inputs": false,
+      "required_evidence": "Export docker inspect JSON for admin-web, admin-api, and admin-worker before staging."
+    },
+    {
+      "id": "current-tag-stable-for-rollback",
+      "title": "Current image tag is stable for rollback",
+      "category": "rollback",
+      "status": "blocked",
+      "evidence": "MIXLAB_IMAGE_TAG=latest",
+      "blocks_release_inputs": true,
+      "required_evidence": "MIXLAB_IMAGE_TAG must be a stable tag such as a Git SHA, not latest, because push_images=true updates latest."
+    },
+    {
+      "id": "all-admin-services-present",
+      "title": "All Admin Docker services are present",
+      "category": "image",
+      "status": "pass",
+      "evidence": "admin-web, admin-api, and admin-worker were found.",
+      "blocks_release_inputs": false,
+      "required_evidence": "The inspect JSON must include running admin-web, admin-api, and admin-worker containers."
+    },
+    {
+      "id": "admin-image-repositories-match",
+      "title": "Admin service images use expected GHCR repositories",
+      "category": "image",
+      "status": "pass",
+      "evidence": "admin-api=ghcr.io/alin155/mixlab-admin-runtime, admin-web=ghcr.io/alin155/mixlab-admin-web, admin-worker=ghcr.io/alin155/mixlab-admin-runtime",
+      "blocks_release_inputs": false,
+      "required_evidence": "admin-api/admin-worker must use mixlab-admin-runtime and admin-web must use mixlab-admin-web."
+    },
+    {
+      "id": "admin-image-tags-consistent",
+      "title": "Admin service image tags match the Compose tag",
+      "category": "rollback",
+      "status": "pass",
+      "evidence": "env=latest, service_tags=latest",
+      "blocks_release_inputs": false,
+      "required_evidence": "MIXLAB_IMAGE_TAG and running admin-web/admin-api/admin-worker image tags must match before using the tag as rollback input."
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 6,
+    "blocked": 1,
+    "release_input_blockers": [
+      "current-tag-stable-for-rollback"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "NAS current Admin Docker image proof is blocked until stable current/rollback image evidence is exported."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260628T215549Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260628T215549Z.md"
+  }
+}
