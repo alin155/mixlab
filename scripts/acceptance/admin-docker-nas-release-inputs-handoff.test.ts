@@ -168,11 +168,14 @@ test("NAS release-inputs handoff CLI writes report and bundle", async () => {
 
   assert.match(readme, /admin-docker-nas-release-inputs-collector\.sh/);
   assert.match(readme, /sh \.\/nas\/RUN_ON_NAS\.sh/);
+  assert.match(readme, /sh \.\/local\/install-nas-runner\.sh/);
   assert.match(readme, /sh \.\/local\/validate-returned-evidence\.sh/);
   assert.match(manifest, /"nas_writes_allowed": false/);
   assert.match(manifest, /RUN_ON_NAS\.sh/);
+  assert.match(manifest, /install-nas-runner\.sh/);
   assert.match(manifest, /validate-returned-evidence\.sh/);
   assert.ok((await stat(built.artifacts?.collector_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.nas_runner_path ?? "")).mode & 0o111);
+  assert.ok((await stat(built.artifacts?.local_installer_path ?? "")).mode & 0o111);
   assert.ok((await stat(built.artifacts?.local_validator_path ?? "")).mode & 0o111);
 });

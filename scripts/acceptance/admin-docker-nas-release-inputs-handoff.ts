@@ -90,6 +90,7 @@ export interface AdminDockerNasReleaseInputsHandoffReport {
     collector_path: string;
     nas_runner_path: string;
     local_validator_path: string;
+    local_installer_path: string;
   } | null;
   result: {
     status: "ready-for-nas-collection" | "blocked" | "failed";
@@ -258,7 +259,8 @@ function nextActions(report: AdminDockerNasReleaseInputsHandoffReport): string[]
   }
 
   return [
-    "Copy the handoff bundle's nas/ folder to the NAS Compose project folder that contains docker-compose.yml and .env.",
+    "If the NAS Compose project folder is mounted on this Mac, run: sh ./local/install-nas-runner.sh <nas-compose-project-dir>.",
+    "Otherwise copy the handoff bundle's nas/ folder to the NAS Compose project folder that contains docker-compose.yml and .env.",
     "On the NAS shell host, run the quickstart script: sh ./nas/RUN_ON_NAS.sh",
     "Copy the generated admin-docker-release-inputs/ folder back to the Mac repository.",
     "Run the local validator: sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>.",
@@ -510,7 +512,12 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     "### Quickstart Scripts",
     "",
     `- NAS runner: ${report.artifacts?.nas_runner_path ?? "<not written>"}`,
+    `- Local installer: ${report.artifacts?.local_installer_path ?? "<not written>"}`,
     `- Local validator: ${report.artifacts?.local_validator_path ?? "<not written>"}`,
+    "",
+    "```sh",
+    "sh ./local/install-nas-runner.sh <nas-compose-project-dir>",
+    "```",
     "",
     "```sh",
     "sh ./nas/RUN_ON_NAS.sh",
@@ -561,6 +568,7 @@ export function toMarkdown(report: AdminDockerNasReleaseInputsHandoffReport): st
     `- README: ${report.artifacts?.readme_path ?? "<not written>"}`,
     `- Collector: ${report.artifacts?.collector_path ?? "<not written>"}`,
     `- NAS runner: ${report.artifacts?.nas_runner_path ?? "<not written>"}`,
+    `- Local installer: ${report.artifacts?.local_installer_path ?? "<not written>"}`,
     `- Local validator: ${report.artifacts?.local_validator_path ?? "<not written>"}`,
     ""
   ];
@@ -610,12 +618,14 @@ async function writeBundle(input: {
   collector_path: string;
   nas_runner_path: string;
   local_validator_path: string;
+  local_installer_path: string;
 }> {
   const nasDir = path.join(input.bundle_dir, "nas");
   const localDir = path.join(input.bundle_dir, "local");
   const collectorPath = path.join(nasDir, "admin-docker-nas-release-inputs-collector.sh");
   const nasRunnerPath = path.join(nasDir, "RUN_ON_NAS.sh");
   const localValidatorPath = path.join(localDir, "validate-returned-evidence.sh");
+  const localInstallerPath = path.join(localDir, "install-nas-runner.sh");
   const readmePath = path.join(input.bundle_dir, "README.md");
   const manifestPath = path.join(input.bundle_dir, "MANIFEST.json");
   const reportBase = path.join(path.dirname(input.bundle_dir), path.basename(input.bundle_dir));
@@ -635,7 +645,8 @@ async function writeBundle(input: {
       readme_path: readmePath,
       collector_path: collectorPath,
       nas_runner_path: nasRunnerPath,
-      local_validator_path: localValidatorPath
+      local_validator_path: localValidatorPath,
+      local_installer_path: localInstallerPath
     }
   };
 
@@ -645,6 +656,8 @@ async function writeBundle(input: {
   await chmod(collectorPath, 0o755);
   await writeFile(nasRunnerPath, nasRunnerContents());
   await chmod(nasRunnerPath, 0o755);
+  await writeFile(localInstallerPath, localInstallerContents());
+  await chmod(localInstallerPath, 0o755);
   await writeFile(localValidatorPath, localValidatorContents(bundleReport));
   await chmod(localValidatorPath, 0o755);
   await writeFile(readmePath, toMarkdown(bundleReport));
@@ -659,6 +672,7 @@ async function writeBundle(input: {
       await fileInfo(readmePath, false),
       await fileInfo(collectorPath, true),
       await fileInfo(nasRunnerPath, true),
+      await fileInfo(localInstallerPath, true),
       await fileInfo(localValidatorPath, true)
     ],
     safety: {
@@ -676,7 +690,8 @@ async function writeBundle(input: {
     readme_path: readmePath,
     collector_path: collectorPath,
     nas_runner_path: nasRunnerPath,
-    local_validator_path: localValidatorPath
+    local_validator_path: localValidatorPath,
+    local_installer_path: localInstallerPath
   };
 }
 
@@ -702,6 +717,50 @@ sh "$SCRIPT_DIR/admin-docker-nas-release-inputs-collector.sh" "$OUT_DIR"
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function localInstallerContents(): string {
+  return `#!/usr/bin/env sh
+set -eu
+
+TARGET_DIR="\${1:-}"
+if [ -z "$TARGET_DIR" ]; then
+  echo "usage: sh ./install-nas-runner.sh <nas-compose-project-dir>" >&2
+  exit 1
+fi
+if [ ! -d "$TARGET_DIR" ]; then
+  echo "error: target directory does not exist: $TARGET_DIR" >&2
+  exit 1
+fi
+if [ ! -f "$TARGET_DIR/docker-compose.yml" ] || [ ! -f "$TARGET_DIR/.env" ]; then
+  echo "error: target must contain docker-compose.yml and .env: $TARGET_DIR" >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+BUNDLE_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+SRC_NAS_DIR="$BUNDLE_DIR/nas"
+if [ ! -f "$SRC_NAS_DIR/RUN_ON_NAS.sh" ] || [ ! -f "$SRC_NAS_DIR/admin-docker-nas-release-inputs-collector.sh" ]; then
+  echo "error: missing nas runner files under $SRC_NAS_DIR" >&2
+  exit 1
+fi
+
+mkdir -p "$TARGET_DIR/nas"
+cp "$SRC_NAS_DIR/RUN_ON_NAS.sh" "$TARGET_DIR/nas/RUN_ON_NAS.sh"
+cp "$SRC_NAS_DIR/admin-docker-nas-release-inputs-collector.sh" "$TARGET_DIR/nas/admin-docker-nas-release-inputs-collector.sh"
+chmod 755 "$TARGET_DIR/nas/RUN_ON_NAS.sh" "$TARGET_DIR/nas/admin-docker-nas-release-inputs-collector.sh"
+
+cat <<EOF
+Installed read-only NAS release-input collector into:
+  $TARGET_DIR/nas
+
+On the NAS host, run from the Compose project folder:
+  sh ./nas/RUN_ON_NAS.sh
+
+This installer copied scripts only. It did not edit .env, restart containers,
+enable workers, run push_images=true, or collect evidence.
+EOF
+`;
 }
 
 function localValidatorContents(report: AdminDockerNasReleaseInputsHandoffReport): string {
@@ -782,7 +841,8 @@ export async function runAdminDockerNasReleaseInputsHandoff(input: {
       readme_path: bundleArtifacts.readme_path,
       collector_path: bundleArtifacts.collector_path,
       nas_runner_path: bundleArtifacts.nas_runner_path,
-      local_validator_path: bundleArtifacts.local_validator_path
+      local_validator_path: bundleArtifacts.local_validator_path,
+      local_installer_path: bundleArtifacts.local_installer_path
     }
   };
 
