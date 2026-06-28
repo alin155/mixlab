@@ -253,6 +253,17 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - 明文密码、session token 不进入日志、审计或报告。
 - 普通 session validation 不重写用户文件。
 
+当前进展：
+
+- `admin-users` 与 `cutter-users` store 已具备读重试、JSON 尾部填充容错、按 store path 串行写入、SMB `rename` 最终失败后的 direct-write fallback。
+- 管理端 session validation 支持默认只读校验，只有显式 touch 时才更新 `last_seen_at`。
+- 剪辑师注册、审批、停用、重置密码、session 失效和设备申请逻辑已在本地 focused tests 覆盖。
+- 密码哈希、明文密码、session token 不进入 command audit 的关键路径已有测试覆盖。
+
+当前本地验证：
+
+- `node --test --import tsx packages/library-fs/src/admin-users.test.ts packages/library-fs/src/cutter-users.test.ts packages/admin-api/src/admin-auth-routes.test.ts packages/admin-api/src/admin-auth-commands.test.ts packages/admin-api/src/admin-auth-route-deps.test.ts packages/admin-api/src/admin-cutter-user-command-routes.test.ts packages/admin-api/src/admin-cutter-user-command-route-deps.test.ts packages/admin-api/src/admin-cutter-user-commands.test.ts`：`47` 项通过。
+
 ### Phase 3: 受控预处理模式闭环
 
 目标：
@@ -284,6 +295,17 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - worker 默认关闭，只有受控启动路径能启用。
 - 预处理完成后进入 `index-required`，不自动进入 Cutter release。
 - ready count 和 current index 不变。
+
+当前进展：
+
+- `Controlled Preprocess Mode` 已存在：Docker MVP mode 会关闭 auto-scan 和 auto-publish-index，但保留 queue/retry/recover 与 worker queued 消费能力。
+- `preprocess-safety` 已阻断磁盘不足、公共库不可用和现存 `processing` 任务；也支持用 processing snapshot 避免为了门禁扫描全部 manifest。
+- Docker compose 与 `.env.example` 默认 `MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1`、`MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0`、`MIXLAB_ENABLE_READY_PUBLISH_WORKER=0`。
+- `runtime-config` 中 `publish-ready` worker 在 Docker MVP mode 下会强制 disabled，即使 env flag 误设为 `1` 也不会运行。
+
+当前本地验证：
+
+- `node --test --import tsx packages/admin-api/src/admin-preprocess-pipeline.test.ts packages/admin-api/src/admin-preprocess-command-route-deps.test.ts packages/admin-api/src/admin-preprocess-command-routes.test.ts packages/library-fs/src/preprocess-safety.test.ts packages/runtime-config/src/docker-worker.test.ts packages/preprocess-core/src/library-worker.test.ts`：`37` 项通过。
 
 ### Phase 4: Docker Staging 候选
 
