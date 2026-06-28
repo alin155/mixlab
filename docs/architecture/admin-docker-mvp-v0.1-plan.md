@@ -68,7 +68,7 @@ MVP v0.1 不做：
 | Mac 管理端 API | `http://127.0.0.1:3889` | 本机 API 验证入口。 |
 | NAS 当前可见入口 | `http://192.168.1.27:18080` | 当前为旧管理端观测入口，不等于新版通过。 |
 | NAS Compose 默认入口 | `8080` | 当前从 Mac 侧观测连接失败，后续 staging 需明确端口。 |
-| NAS access preflight | SSH/DSM/Docker TCP/`8080` 关闭；`18080`/`9999` 打开；SMB `/Volumes/MixLab` 已挂载但未发现 compose/.env 或 returned evidence | 当前只能做只读观测，不能直接从 Mac 收集 NAS Docker release inputs。 |
+| NAS access preflight | SSH/DSM/Docker TCP/`8080` 关闭；`18080`/`9999` 打开；SMB `/Volumes/MixLab` 已挂载但未发现 compose/.env 或 returned evidence；最新证据 `docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T105355Z.json` | 当前只能做只读观测，不能直接从 Mac 收集 NAS Docker release inputs。 |
 | NAS release inputs | 未发现 `admin-docker-release-inputs/`、`admin-docker-current.env`、`admin-worker.inspect.json`、`admin-docker-disk-proof.json` | 必须通过 NAS desktop/本机 shell/临时 SSH 跑 collector 并把返回包带回 Mac 后才能继续 release review。 |
 | Mac Docker capability | 未发现 `docker`、`docker compose`、Colima、Podman | 本机不能完成 local Docker smoke；需要 Docker-capable machine 或 GitHub/staging 证据替代。 |
 | Windows Test Runner | `http://192.168.1.20:3799` 可达，runner `0.1.32` | 只能证明 Windows Runner 在线；没有 staged candidate 前不能作为 Docker MVP Cutter 兼容通过证据。 |
@@ -91,7 +91,7 @@ MVP v0.1 不做：
 - pre-staging handoff：`docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T102339Z.json`，`ready_to_request_release_inputs=true`，但 `staging_execution_ready=false`。
 - release inputs：`docs/acceptance/artifacts/admin-docker-release-inputs-20260628T102350Z.json`，因缺 NAS image proof、current/rollback tag 仍 `blocked`，`push_execution_allowed=false`。
 - NAS release-inputs handoff：`docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T103748Z.json`，`handoff_package_ready=true`，最新 bundle 指向 `b062bc387c1fdb2a391320c1c36233b782cb000a`，包含 `OPERATOR-CHECKLIST.md`，但不允许 push/deploy。
-- NAS handoff portable kit：`docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T105111Z.json`，`kit_ready=true`，便携目录为 `dist/acceptance/admin-docker-nas-handoff-kit`，包含 `KIT-SELF-CHECK.sh` 与 `KIT-FILES.sha256`，可复制到 NAS desktop/NAS shell host 用于只读收集 `admin-docker-release-inputs/` 返回证据。
+- NAS handoff portable kit：`docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T110013Z.json`，`kit_ready=true`，便携目录为 `dist/acceptance/admin-docker-nas-handoff-kit`，单文件包为 `dist/acceptance/admin-docker-nas-handoff-kit.tar.gz`，sha256 `d633d38dae7cd5c0991c78c4baae4aa7873b0a940a876a7450e4c8374346d3db`；包含 `KIT-SELF-CHECK.sh` 与 `KIT-FILES.sha256`，本机 self-check 与 tar 列表校验通过，可复制到 NAS desktop/NAS shell host 用于只读收集 `admin-docker-release-inputs/` 返回证据。
 
 这批证据只清除了“远端 Docker 候选构建/本地 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof 和显式发布决策仍未完成。
 

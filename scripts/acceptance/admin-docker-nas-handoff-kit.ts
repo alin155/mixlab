@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmod, copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -61,6 +62,7 @@ export interface AdminDockerNasHandoffKitReport {
     missing_required_files: string[];
     strict_sensitive_scan_hits: string[];
     packaged_files: KitFile[];
+    archive_file: KitFile | null;
   };
   gates: KitGate[];
   summary: {
@@ -79,6 +81,9 @@ export interface AdminDockerNasHandoffKitReport {
     kit_manifest_path: string;
     kit_self_check_path: string;
     kit_checksum_path: string;
+    kit_archive_path: string;
+    kit_archive_sha256: string;
+    kit_archive_size_bytes: number;
     latest_json_path?: string;
     latest_markdown_path?: string;
   } | null;
@@ -130,6 +135,10 @@ function summarize(gates: KitGate[]): AdminDockerNasHandoffKitReport["summary"] 
 
 function portablePath(filePath: string): string {
   return filePath.split(path.sep).join("/");
+}
+
+function defaultArchivePath(outputDir: string): string {
+  return `${outputDir.replace(/[\\/]$/, "")}.tar.gz`;
 }
 
 async function pathIsFile(filePath: string): Promise<boolean> {
@@ -213,6 +222,17 @@ async function fileInfo(rootDir: string, relativePath: string): Promise<KitFile>
   };
 }
 
+async function fileInfoForPath(filePath: string, displayPath = filePath): Promise<KitFile> {
+  const info = await stat(filePath);
+
+  return {
+    path: portablePath(displayPath),
+    sha256: await sha256File(filePath),
+    size_bytes: info.size,
+    executable: (info.mode & 0o111) !== 0
+  };
+}
+
 function checksumLine(file: KitFile): string {
   return `${file.sha256}  ${file.path}`;
 }
@@ -228,6 +248,36 @@ async function strictSensitiveScan(rootDir: string, files: string[]): Promise<st
   }
 
   return hits;
+}
+
+async function createTarGzArchive(input: { kit_dir: string; archive_path: string }): Promise<void> {
+  const kitDir = path.resolve(input.kit_dir);
+  const archivePath = path.resolve(input.archive_path);
+
+  if (archivePath === kitDir || archivePath.startsWith(`${kitDir}${path.sep}`)) {
+    throw new Error("kit archive path must be outside the kit directory");
+  }
+
+  await mkdir(path.dirname(archivePath), { recursive: true });
+  await rm(archivePath, { force: true });
+
+  const result = spawnSync("tar", [
+    "-czf",
+    archivePath,
+    "-C",
+    path.dirname(kitDir),
+    path.basename(kitDir)
+  ], {
+    encoding: "utf8"
+  });
+
+  if (result.status !== 0) {
+    throw new Error([
+      `failed to create kit archive: ${archivePath}`,
+      result.stdout.trim(),
+      result.stderr.trim()
+    ].filter(Boolean).join("\n"));
+  }
 }
 
 function kitReadme(report: {
@@ -248,6 +298,7 @@ function kitReadme(report: {
     "",
     "This portable folder is generated from the latest Admin Docker NAS release-input handoff bundle.",
     "It is for read-only evidence collection on the NAS Compose host before any separate Docker push or deploy decision.",
+    "If you received this kit as `admin-docker-nas-handoff-kit.tar.gz`, extract it first with `tar -xzf admin-docker-nas-handoff-kit.tar.gz`.",
     "",
     "## On The NAS Host",
     "",
@@ -327,8 +378,18 @@ function nextActions(report: AdminDockerNasHandoffKitReport): string[] {
     ];
   }
 
+  const archivePath = report.artifacts?.kit_archive_path ?? report.observations.archive_file?.path;
+  const archiveSha = report.artifacts?.kit_archive_sha256 ?? report.observations.archive_file?.sha256;
+  const archiveFileName = archivePath ? path.basename(archivePath) : null;
+  const kitDirName = path.basename(report.artifacts?.kit_dir ?? DEFAULT_OUTPUT_DIR);
+
   return [
-    `Transfer ${report.artifacts?.kit_dir ?? DEFAULT_OUTPUT_DIR} to the NAS desktop or NAS shell host.`,
+    archivePath
+      ? `Transfer ${archivePath} to the NAS desktop or NAS shell host, and verify sha256=${archiveSha ?? "<missing>"}.`
+      : `Transfer ${report.artifacts?.kit_dir ?? DEFAULT_OUTPUT_DIR} to the NAS desktop or NAS shell host.`,
+    archivePath
+      ? `Extract it with tar -xzf ${archiveFileName}, then cd ${kitDirName}.`
+      : "Open the transferred kit root.",
     "Run sh ./KIT-SELF-CHECK.sh from the transferred kit root.",
     "Copy its nas/ folder into the Admin Docker Compose project folder.",
     "Run sh ./nas/RUN_ON_NAS.sh from the Compose project folder.",
@@ -346,6 +407,7 @@ export function buildAdminDockerNasHandoffKitReport(input: {
   missing_required_files: string[];
   strict_sensitive_scan_hits: string[];
   packaged_files: KitFile[];
+  archive_file?: KitFile | null;
 }): AdminDockerNasHandoffKitReport {
   const handoff = asRecord(input.handoff_report);
   const handoffObservations = asRecord(handoff.observations);
@@ -358,6 +420,7 @@ export function buildAdminDockerNasHandoffKitReport(input: {
   const deployAllowed = asBoolean(handoff.docker_deploy_allowed);
   const handoffStatus = asString(handoffResult.status);
   const artifactBundleDir = asString(handoffArtifacts.bundle_dir);
+  const archiveFile = input.archive_file ?? null;
   const gates = [
     gate({
       id: "kit-no-side-effects",
@@ -422,6 +485,17 @@ export function buildAdminDockerNasHandoffKitReport(input: {
       required_evidence: "Package the handoff bundle plus KIT-README.md, KIT-SELF-CHECK.sh, KIT-FILES.sha256, and KIT-MANIFEST.json."
     }),
     gate({
+      id: "kit-archive-created",
+      title: "Single-file transfer archive is created",
+      category: "package",
+      status: archiveFile?.path.endsWith(".tar.gz") && archiveFile.sha256 && archiveFile.size_bytes > 0 ? "pass" : "blocked",
+      evidence: archiveFile
+        ? `${archiveFile.path} (${archiveFile.size_bytes} bytes, sha256=${archiveFile.sha256})`
+        : "archive missing",
+      blocks_kit: true,
+      required_evidence: "Create a .tar.gz archive of the portable kit so NAS transfer can be validated as one file."
+    }),
+    gate({
       id: "kit-strict-sensitive-scan",
       title: "Portable kit has no strict sensitive-field hits",
       category: "safety",
@@ -454,7 +528,8 @@ export function buildAdminDockerNasHandoffKitReport(input: {
       handoff_status: handoffStatus,
       missing_required_files: input.missing_required_files,
       strict_sensitive_scan_hits: input.strict_sensitive_scan_hits,
-      packaged_files: input.packaged_files
+      packaged_files: input.packaged_files,
+      archive_file: archiveFile
     },
     gates,
     summary,
@@ -500,6 +575,12 @@ export function toMarkdown(report: AdminDockerNasHandoffKitReport): string {
     "",
     ...report.observations.packaged_files.map((item) => `- ${item.path} (${item.size_bytes} bytes, executable=${String(item.executable)})`),
     "",
+    "## Transfer Archive",
+    "",
+    report.observations.archive_file
+      ? `- ${report.observations.archive_file.path} (${report.observations.archive_file.size_bytes} bytes, sha256=${report.observations.archive_file.sha256})`
+      : "- <not written>",
+    "",
     "## Gates",
     "",
     "| Gate | Category | Status | Blocks Kit | Evidence |",
@@ -525,6 +606,8 @@ export function toMarkdown(report: AdminDockerNasHandoffKitReport): string {
     `- Kit manifest: ${report.artifacts?.kit_manifest_path ?? "<not written>"}`,
     `- Kit self-check: ${report.artifacts?.kit_self_check_path ?? "<not written>"}`,
     `- Kit checksums: ${report.artifacts?.kit_checksum_path ?? "<not written>"}`,
+    `- Kit archive: ${report.artifacts?.kit_archive_path ?? "<not written>"}`,
+    `- Kit archive sha256: ${report.artifacts?.kit_archive_sha256 ?? "<not written>"}`,
     `- Latest JSON: ${report.artifacts?.latest_json_path ?? "<not written>"}`,
     `- Latest Markdown: ${report.artifacts?.latest_markdown_path ?? "<not written>"}`,
     ""
@@ -535,6 +618,7 @@ export async function runAdminDockerNasHandoffKit(input: {
   handoff_report_path?: string;
   handoff_bundle_dir?: string;
   output_dir?: string;
+  archive_path?: string;
   artifact_dir?: string;
   generated_at?: string;
   command?: string;
@@ -544,6 +628,7 @@ export async function runAdminDockerNasHandoffKit(input: {
   const handoffReportPath = input.handoff_report_path ?? DEFAULT_HANDOFF_REPORT;
   const handoffBundleDir = input.handoff_bundle_dir ?? DEFAULT_HANDOFF_BUNDLE;
   const outputDir = input.output_dir ?? DEFAULT_OUTPUT_DIR;
+  const archivePath = input.archive_path ?? defaultArchivePath(outputDir);
   const artifactDir = input.artifact_dir ?? DEFAULT_ARTIFACT_DIR;
   const handoffReport = await readJson(handoffReportPath);
   const missing = await missingRequiredFiles(handoffBundleDir);
@@ -597,6 +682,11 @@ export async function runAdminDockerNasHandoffKit(input: {
     ...packagedFiles,
     await fileInfo(outputDir, "KIT-MANIFEST.json")
   ].sort((a, b) => a.path.localeCompare(b.path));
+  await createTarGzArchive({
+    kit_dir: outputDir,
+    archive_path: archivePath
+  });
+  const archiveFile = await fileInfoForPath(archivePath, archivePath);
   const manifestScanHits = STRICT_SECRET_PATTERN.test(await readFile(kitManifestPath, "utf8"))
     ? ["KIT-MANIFEST.json"]
     : [];
@@ -608,7 +698,8 @@ export async function runAdminDockerNasHandoffKit(input: {
     handoff_report: handoffReport,
     missing_required_files: missing,
     strict_sensitive_scan_hits: [...sensitiveHits, ...manifestScanHits].sort(),
-    packaged_files: packagedFilesWithManifest
+    packaged_files: packagedFilesWithManifest,
+    archive_file: archiveFile
   });
   const jsonPath = path.join(artifactDir, `admin-docker-nas-handoff-kit-${stamp}.json`);
   const markdownPath = path.join(artifactDir, `admin-docker-nas-handoff-kit-${stamp}.md`);
@@ -624,6 +715,9 @@ export async function runAdminDockerNasHandoffKit(input: {
       kit_manifest_path: kitManifestPath,
       kit_self_check_path: kitSelfCheckPath,
       kit_checksum_path: kitChecksumPath,
+      kit_archive_path: archivePath,
+      kit_archive_sha256: archiveFile.sha256,
+      kit_archive_size_bytes: archiveFile.size_bytes,
       latest_json_path: latestJsonPath,
       latest_markdown_path: latestMarkdownPath
     }
@@ -643,6 +737,7 @@ async function main(): Promise<void> {
     handoff_report_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_REPORT,
     handoff_bundle_dir: process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_BUNDLE_DIR,
     output_dir: process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_KIT_DIR,
+    archive_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_KIT_ARCHIVE,
     artifact_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });
@@ -657,6 +752,8 @@ async function main(): Promise<void> {
     candidate_release_ref: report.observations.candidate_release_ref,
     kit_blockers: report.summary.kit_blockers,
     kit_dir: report.artifacts?.kit_dir,
+    kit_archive_path: report.artifacts?.kit_archive_path,
+    kit_archive_sha256: report.artifacts?.kit_archive_sha256,
     json_path: report.artifacts?.json_path,
     markdown_path: report.artifacts?.markdown_path
   }, null, 2));

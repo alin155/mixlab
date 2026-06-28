@@ -39,6 +39,7 @@ function report(input: {
   missing?: string[];
   hits?: string[];
   files?: Array<{ path: string; sha256: string; size_bytes: number; executable: boolean }>;
+  archiveFile?: { path: string; sha256: string; size_bytes: number; executable: boolean } | null;
 } = {}) {
   return buildAdminDockerNasHandoffKitReport({
     generated_at: "2026-06-28T00:00:00.000Z",
@@ -60,7 +61,13 @@ function report(input: {
       { path: "nas/admin-docker-nas-release-inputs-collector.sh", sha256: "1".repeat(64), size_bytes: 1, executable: true },
       { path: "local/install-nas-runner.sh", sha256: "2".repeat(64), size_bytes: 1, executable: true },
       { path: "local/validate-returned-evidence.sh", sha256: "3".repeat(64), size_bytes: 1, executable: true }
-    ]
+    ],
+    archive_file: input.archiveFile ?? {
+      path: "admin-docker-nas-handoff-kit.tar.gz",
+      sha256: "6".repeat(64),
+      size_bytes: 1024,
+      executable: false
+    }
   });
 }
 
@@ -95,6 +102,8 @@ test("Admin Docker NAS handoff kit becomes ready from a ready handoff bundle", (
   assert.deepEqual(built.summary.kit_blockers, []);
   assert.equal(built.observations.candidate_sha, TARGET_SHA);
   assert.equal(built.observations.candidate_release_ref, TARGET_REF);
+  assert.equal(built.observations.archive_file?.path, "admin-docker-nas-handoff-kit.tar.gz");
+  assert.equal(built.gates.find((item) => item.id === "kit-archive-created")?.status, "pass");
 });
 
 test("Admin Docker NAS handoff kit blocks missing bundle files", () => {
@@ -126,6 +135,7 @@ test("Admin Docker NAS handoff kit markdown records transfer boundary", () => {
   assert.match(markdown, /ready-for-transfer/);
   assert.match(markdown, /Push execution allowed: no/);
   assert.match(markdown, /Docker deploy allowed: no/);
+  assert.match(markdown, /admin-docker-nas-handoff-kit\.tar\.gz/);
   assert.match(markdown, /Transfer/);
 });
 
@@ -134,6 +144,7 @@ test("Admin Docker NAS handoff kit CLI writes a portable kit and report", async 
   const handoffPath = path.join(tempRoot, "handoff.json");
   const bundleDir = path.join(tempRoot, "handoff-latest");
   const kitDir = path.join(tempRoot, "kit");
+  const archivePath = path.join(tempRoot, "kit.tar.gz");
   const artifactDir = path.join(tempRoot, "artifacts");
 
   await writeBundle(bundleDir);
@@ -147,6 +158,7 @@ test("Admin Docker NAS handoff kit CLI writes a portable kit and report", async 
     handoff_report_path: handoffPath,
     handoff_bundle_dir: bundleDir,
     output_dir: kitDir,
+    archive_path: archivePath,
     artifact_dir: artifactDir,
     generated_at: "2026-06-28T00:00:00.000Z",
     command: "test"
@@ -154,18 +166,30 @@ test("Admin Docker NAS handoff kit CLI writes a portable kit and report", async 
 
   assert.equal(built.kit_ready, true);
   assert.equal(built.artifacts?.json_path, path.join(artifactDir, "admin-docker-nas-handoff-kit-20260628T000000Z.json"));
+  assert.equal(built.artifacts?.kit_archive_path, archivePath);
+  assert.match(built.artifacts?.kit_archive_sha256 ?? "", /^[a-f0-9]{64}$/);
+  assert.ok((await stat(archivePath)).size > 0);
   assert.match(await readFile(path.join(kitDir, "KIT-README.md"), "utf8"), /KIT-SELF-CHECK\.sh/);
+  assert.match(await readFile(path.join(kitDir, "KIT-README.md"), "utf8"), /tar -xzf admin-docker-nas-handoff-kit\.tar\.gz/);
   assert.match(await readFile(path.join(kitDir, "KIT-FILES.sha256"), "utf8"), /KIT-SELF-CHECK\.sh/);
   assert.match(await readFile(path.join(kitDir, "KIT-MANIFEST.json"), "utf8"), /KIT-README\.md/);
   assert.match(await readFile(path.join(kitDir, "KIT-MANIFEST.json"), "utf8"), /KIT-FILES\.sha256/);
   assert.match(await readFile(path.join(kitDir, "KIT-MANIFEST.json"), "utf8"), /KIT-SELF-CHECK\.sh/);
   assert.match(await readFile(built.artifacts?.markdown_path ?? "", "utf8"), /ready-for-transfer/);
+  assert.match(await readFile(built.artifacts?.markdown_path ?? "", "utf8"), /tar -xzf kit\.tar\.gz/);
   assert.match(await readFile(built.artifacts?.latest_markdown_path ?? "", "utf8"), /ready-for-transfer/);
   assert.ok((await stat(path.join(kitDir, "KIT-SELF-CHECK.sh"))).mode & 0o111);
   assert.ok((await stat(path.join(kitDir, "nas", "RUN_ON_NAS.sh"))).mode & 0o111);
   assert.ok((await stat(path.join(kitDir, "nas", "admin-docker-nas-release-inputs-collector.sh"))).mode & 0o111);
   assert.ok((await stat(path.join(kitDir, "local", "validate-returned-evidence.sh"))).mode & 0o111);
   assert.deepEqual(built.observations.strict_sensitive_scan_hits, []);
+  assert.equal(built.observations.archive_file?.path, archivePath);
+  const tarList = spawnSync("tar", ["-tzf", archivePath], {
+    encoding: "utf8"
+  });
+  assert.equal(tarList.status, 0, `${tarList.stdout}\n${tarList.stderr}`);
+  assert.match(tarList.stdout, /kit\/KIT-SELF-CHECK\.sh/);
+  assert.match(tarList.stdout, /kit\/nas\/RUN_ON_NAS\.sh/);
   const selfCheck = spawnSync("sh", ["./KIT-SELF-CHECK.sh"], {
     cwd: kitDir,
     encoding: "utf8"
