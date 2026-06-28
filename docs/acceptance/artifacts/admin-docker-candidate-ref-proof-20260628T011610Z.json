@@ -1,0 +1,177 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T01:16:10.539Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-candidate-ref-proof.ts",
+  "mode": "admin-docker-candidate-ref-proof",
+  "sources": {
+    "artifact_dir": "/tmp/mixlab-gh-run-28307173676-tag-e94a5bd/mixlab-admin-docker-release-gates",
+    "local_smoke_report": "/tmp/mixlab-gh-run-28307173676-tag-e94a5bd/mixlab-admin-docker-release-gates/admin-docker-local-smoke-20260628T010837Z.json",
+    "staging_runbook_report": "/tmp/mixlab-gh-run-28307173676-tag-e94a5bd/mixlab-admin-docker-release-gates/admin-docker-staging-runbook-20260628T011038Z.json",
+    "github_run_id": "28307173676",
+    "remote_tag_ref": "refs/tags/admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528"
+  },
+  "candidate_ref_proof_accepted": true,
+  "docker_deploy_allowed": false,
+  "candidate": {
+    "expected_sha": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "expected_tag": "admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "remote_tag_sha": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "tag_points_to_expected_sha": true
+  },
+  "github_run": {
+    "databaseId": 28307173676,
+    "headSha": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "headBranch": "admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/alin155/mixlab/actions/runs/28307173676",
+    "workflowName": "Build Admin Docker Images",
+    "event": "workflow_dispatch"
+  },
+  "observations": {
+    "tag_name_matches_sha": true,
+    "run_head_matches_tag": true,
+    "run_head_matches_sha": true,
+    "local_smoke_passed": true,
+    "local_smoke_image_tag": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "local_smoke_build_sha": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "local_smoke_matches_candidate": true,
+    "staging_target_image_tag": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+    "staging_target_matches_candidate": true,
+    "staging_execution_ready": false,
+    "image_push_approval_accepted": false,
+    "staging_docker_deploy_allowed": false
+  },
+  "gates": [
+    {
+      "id": "candidate-ref-proof-no-side-effects",
+      "title": "Candidate ref proof is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Reads git tag, GitHub run metadata, and downloaded artifacts only; does not push images, contact NAS, restart containers, enable workers, or write NAS data.",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "candidate-sha-provided",
+      "title": "Candidate SHA is explicit",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide the exact smoked candidate commit SHA."
+    },
+    {
+      "id": "candidate-tag-pins-sha-name",
+      "title": "Candidate tag name pins the candidate SHA",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "tag=admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528, expected=admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Use tag name admin-docker-candidate-<40-char candidate SHA>."
+    },
+    {
+      "id": "remote-tag-points-to-candidate-sha",
+      "title": "Remote tag points to the candidate SHA",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "remote_tag_sha=e94a5bdd8fc981b8112cc372df6f18204bb47528, expected=e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run git ls-remote --tags origin refs/tags/admin-docker-candidate-<sha> and require it to resolve to the candidate SHA."
+    },
+    {
+      "id": "github-run-succeeded",
+      "title": "GitHub dry-run completed successfully",
+      "category": "github-run",
+      "status": "pass",
+      "evidence": "status=completed, conclusion=success, run=https://github.com/alin155/mixlab/actions/runs/28307173676",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run the Admin Docker workflow from the candidate tag with push_images=false and require success."
+    },
+    {
+      "id": "github-run-head-matches-candidate-tag",
+      "title": "GitHub run was dispatched from the candidate tag",
+      "category": "github-run",
+      "status": "pass",
+      "evidence": "run.headBranch=admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528, expected_tag=admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The GitHub run headBranch must be the candidate release tag, not a moving branch."
+    },
+    {
+      "id": "github-run-head-matches-candidate-sha",
+      "title": "GitHub run head SHA matches candidate SHA",
+      "category": "github-run",
+      "status": "pass",
+      "evidence": "run.headSha=e94a5bdd8fc981b8112cc372df6f18204bb47528, expected_sha=e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The GitHub run headSha must equal the candidate SHA."
+    },
+    {
+      "id": "local-docker-smoke-passed",
+      "title": "Candidate tag run passed local Docker smoke",
+      "category": "smoke",
+      "status": "pass",
+      "evidence": "local_smoke_passed=true",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The downloaded admin-docker-local-smoke report must have local_smoke_passed:true."
+    },
+    {
+      "id": "local-smoke-identity-matches-candidate",
+      "title": "Local smoke build identity matches candidate SHA",
+      "category": "smoke",
+      "status": "pass",
+      "evidence": "image_tag=e94a5bdd8fc981b8112cc372df6f18204bb47528, build_sha=e94a5bdd8fc981b8112cc372df6f18204bb47528, expected=e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The local smoke build_identity.image_tag and build_identity.build_sha must equal the candidate SHA."
+    },
+    {
+      "id": "staging-target-matches-candidate",
+      "title": "Staging target image tag matches candidate SHA",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "staging_target=e94a5bdd8fc981b8112cc372df6f18204bb47528, expected=e94a5bdd8fc981b8112cc372df6f18204bb47528",
+      "blocks_candidate_ref_proof": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The staging runbook target image tag must match the candidate SHA."
+    },
+    {
+      "id": "tag-dry-run-does-not-approve-push-or-deploy",
+      "title": "Tag dry-run does not approve push or deploy",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "image_push_approval.accepted=false, staging.docker_deploy_allowed=false",
+      "blocks_candidate_ref_proof": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The tag-ref dry-run must remain push_images=false evidence only, with Docker deploy still disallowed."
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 11,
+    "blocked": 0,
+    "failed": 0,
+    "candidate_ref_blockers": [],
+    "docker_deploy_blockers": []
+  },
+  "next_actions": [
+    "Candidate release ref admin-docker-candidate-e94a5bdd8fc981b8112cc372df6f18204bb47528 is pinned to e94a5bdd8fc981b8112cc372df6f18204bb47528 and has a successful push_images=false dry-run.",
+    "Do not run push_images=true until NAS image proof, current/rollback tags, disk proof, worker proof, Cutter proof, and explicit release approval are present.",
+    "After any push_images=true run, regenerate GitHub run artifact, staging runbook, live-readonly, admin-worker env proof, and Cutter compatibility proof."
+  ],
+  "result": {
+    "status": "accepted",
+    "summary": "Candidate release ref is pinned to the expected SHA and has a successful push_images=false GitHub dry-run."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T011610Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T011610Z.md"
+  }
+}

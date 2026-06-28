@@ -40,6 +40,7 @@ interface ReleaseInputRequest {
   workflow_ref: string;
   release_ref_setup_command: string;
   workflow_dispatch_command: string;
+  candidate_ref_proof_command: string;
   nas_image_proof_command: string;
   release_inputs_command: string;
   required_operator_inputs: Array<{
@@ -211,6 +212,7 @@ function requestReleaseInputActions(input: {
     "Use the accepted NAS image proof current_image_tag and rollback_image_tag values before staging; both should match for the first update.",
     ...diskAction,
     `Before explicit push approval, create or verify the immutable release ref ${workflowRef} points at candidate SHA ${target}.`,
+    "Run the candidate release ref with push_images=false and generate validate:admin-docker-candidate-ref-proof before treating the ref as pinned release evidence.",
     `After explicit approval, rerun the Admin Docker workflow with --ref ${workflowRef}, push_images=true, current_image_tag=<current-tag>, rollback_image_tag=<current-tag>, and target image ${target}.`,
     "Do not change NAS .env or restart containers until the pushed-image run completes and produces release-gates artifacts.",
     "For initial staging, keep MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0, MIXLAB_ENABLE_READY_PUBLISH_WORKER=0, and leave DASHSCOPE_API_KEY blank unless a separate controlled-preprocess canary is approved.",
@@ -245,6 +247,13 @@ function buildReleaseInputRequest(input: {
       "-f push_images=true",
       "-f current_image_tag=<current-admin-docker-image-tag>",
       "-f rollback_image_tag=<current-admin-docker-image-tag>"
+    ].join(" "),
+    candidate_ref_proof_command: [
+      `MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_SHA=${target}`,
+      `MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_TAG=${ref}`,
+      "MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_RUN_ID=<tag-ref-push-images-false-run-id>",
+      "MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_ARTIFACT_DIR=<downloaded-tag-ref-release-gates-artifact-dir>",
+      "npm run validate:admin-docker-candidate-ref-proof"
     ].join(" "),
     nas_image_proof_command: [
       "MIXLAB_ADMIN_DOCKER_NAS_ENV_FILE=<path>/admin-docker-current.env",
@@ -568,6 +577,7 @@ export function toMarkdown(report: AdminDockerPrestagingHandoffReport): string {
     `- Workflow ref: ${report.release_input_request.workflow_ref}`,
     `- Release ref setup: ${report.release_input_request.release_ref_setup_command}`,
     `- Workflow command: ${report.release_input_request.workflow_dispatch_command}`,
+    `- Candidate ref proof command: ${report.release_input_request.candidate_ref_proof_command}`,
     `- NAS image proof command: ${report.release_input_request.nas_image_proof_command}`,
     `- Release inputs command: ${report.release_input_request.release_inputs_command}`,
     `- Initial library preprocess worker: ${report.release_input_request.initial_staging_defaults.library_preprocess_worker}`,

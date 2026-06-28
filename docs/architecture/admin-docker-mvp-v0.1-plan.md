@@ -266,6 +266,7 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - `docker/admin-web.Dockerfile`
 - `.github/workflows/docker-admin.yml`
 - `scripts/acceptance/admin-docker-candidate-contract-proof.ts`
+- `scripts/acceptance/admin-docker-candidate-ref-proof.ts`
 - `scripts/acceptance/admin-docker-release-readiness-summary.ts`
 - `scripts/acceptance/admin-worker-env-proof.ts`
 
@@ -278,6 +279,7 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - Docker 内 `MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary`。
 - `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0` 默认。
 - `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0` 默认。
+- 候选 release ref 固定到已 smoke 的 commit，tag-ref `push_images=false` dry-run 通过。
 
 ### Phase 5: Cutter 不受影响验收
 

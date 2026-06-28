@@ -70,6 +70,7 @@
     "validate:admin-cutter-compatibility-proof": "tsx scripts/acceptance/admin-cutter-compatibility-proof.ts",
     "validate:admin-docker-release-readiness-summary": "tsx scripts/acceptance/admin-docker-release-readiness-summary.ts",
     "validate:admin-docker-github-artifact-readiness": "tsx scripts/acceptance/admin-docker-github-artifact-readiness.ts",
+    "validate:admin-docker-candidate-ref-proof": "tsx scripts/acceptance/admin-docker-candidate-ref-proof.ts",
     "collect:admin-docker-github-run-artifact": "tsx scripts/acceptance/admin-docker-github-run-artifact.ts",
     "validate:admin-docker-prestaging-handoff": "tsx scripts/acceptance/admin-docker-prestaging-handoff.ts",
     "validate:admin-docker-nas-image-proof": "tsx scripts/acceptance/admin-docker-nas-image-proof.ts",
