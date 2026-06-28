@@ -47,6 +47,7 @@ interface BuildIdentity {
 
 interface RunbookSources {
   local_docker_smoke_report: string;
+  github_artifact_readiness_report: string;
   parity_plan_report: string;
   candidate_contract_proof_report: string;
   worker_env_proof_report: string;
@@ -71,7 +72,14 @@ export interface AdminDockerStagingRunbookReport {
     local_smoke_passed: boolean | null;
     local_smoke_blockers: string[];
     local_smoke_build_identity: BuildIdentity;
+    github_artifact_status: string;
+    github_candidate_artifact_ready: boolean | null;
+    github_candidate_contract_ready: boolean | null;
+    github_staging_handoff_ready: boolean | null;
+    github_candidate_image_tag: string;
+    github_candidate_build_sha: string;
     target_tag_matches_local_smoke: boolean;
+    target_tag_matches_smoked_image: boolean;
     parity_status: string;
     docker_image_update_required: boolean | null;
     parity_upload_blockers: string[];
@@ -317,6 +325,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
   command: string;
   local_docker_smoke_report_path: string;
   local_docker_smoke_report: unknown;
+  github_artifact_readiness_report_path?: string;
+  github_artifact_readiness_report?: unknown;
   parity_plan_report_path: string;
   parity_plan_report: unknown;
   candidate_contract_proof_report_path: string;
@@ -342,10 +352,26 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const localSmokePassed = asBoolean(asRecord(input.local_docker_smoke_report).local_smoke_passed);
   const localSmokeBlockers = summaryBlockers(input.local_docker_smoke_report, "local_smoke_blockers");
   const localSmokeBuildIdentity = buildIdentity(input.local_docker_smoke_report);
-  const targetMatchesLocalSmoke = Boolean(
+  const githubArtifact = asRecord(input.github_artifact_readiness_report);
+  const githubObservations = asRecord(githubArtifact.observations);
+  const githubCandidateArtifactReady = asBoolean(githubArtifact.github_candidate_artifact_ready);
+  const githubStagingHandoffReady = asBoolean(githubArtifact.staging_handoff_ready);
+  const githubCandidateContractReady = asBoolean(githubObservations.candidate_contract_ready);
+  const githubCandidateImageTag = asString(githubObservations.local_smoke_image_tag);
+  const githubCandidateBuildSha = asString(githubObservations.local_smoke_build_sha);
+  const candidateSmokeAccepted = localSmokePassed === true || githubCandidateArtifactReady === true;
+  const acceptedSmokeIdentity: BuildIdentity = localSmokePassed === true
+    ? localSmokeBuildIdentity
+    : {
+      image_tag: githubCandidateImageTag,
+      build_sha: githubCandidateBuildSha,
+      build_version: "",
+      mvp_mode: ""
+    };
+  const targetMatchesSmokedImage = Boolean(
     target &&
-    localSmokeBuildIdentity.image_tag &&
-    target === localSmokeBuildIdentity.image_tag
+    acceptedSmokeIdentity.image_tag &&
+    target === acceptedSmokeIdentity.image_tag
   );
   const parityDecision = asRecord(asRecord(input.parity_plan_report).decision);
   const parityResult = asRecord(input.parity_plan_report).result;
@@ -364,6 +390,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const releaseInputBlockers = summaryBlockers(input.release_inputs_report, "release_input_blockers");
   const nasDiskProofBlockers = summaryBlockers(input.nas_disk_proof_report, "staging_execution_blockers");
   const candidateReady = asBoolean(asRecord(input.candidate_contract_proof_report).candidate_contract_ready);
+  const candidateEvidenceAccepted = candidateReady === true || githubCandidateArtifactReady === true;
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
   const releaseInputsReady = asBoolean(releaseInputs.release_inputs_ready);
@@ -437,25 +464,25 @@ export function buildAdminDockerStagingRunbookReport(input: {
     }),
     gate({
       id: "local-docker-smoke-passed",
-      title: "Target build passed local Docker smoke",
+      title: "Target build passed Docker smoke locally or in GitHub",
       category: "evidence",
-      status: localSmokePassed ? "pass" : "blocked",
-      evidence: localSmokePassed
-        ? `local smoke status=${resultStatus(input.local_docker_smoke_report) || "unknown"}, image_tag=${localSmokeBuildIdentity.image_tag || "missing"}`
-        : `local smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}`,
-      blocks_staging_execution: !localSmokePassed,
-      blocks_staging: !localSmokePassed,
-      required_evidence: "Run validate:admin-docker-local-smoke with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 and require local_smoke_passed:true before staging."
+      status: candidateSmokeAccepted ? "pass" : "blocked",
+      evidence: candidateSmokeAccepted
+        ? `local_smoke_passed=${String(localSmokePassed)}, github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}, image_tag=${acceptedSmokeIdentity.image_tag || "missing"}`
+        : `local smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}; github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}`,
+      blocks_staging_execution: !candidateSmokeAccepted,
+      blocks_staging: !candidateSmokeAccepted,
+      required_evidence: "Run validate:admin-docker-local-smoke on a Docker-capable machine, or archive an Admin Docker GitHub artifact readiness report with github_candidate_artifact_ready=true before staging."
     }),
     gate({
       id: "target-tag-matches-smoked-image",
       title: "Target image tag matches the smoked build",
       category: "input",
-      status: targetMatchesLocalSmoke ? "pass" : "blocked",
-      evidence: `target=${target || "missing"}, smoked_image_tag=${localSmokeBuildIdentity.image_tag || "missing"}`,
-      blocks_staging_execution: !targetMatchesLocalSmoke,
-      blocks_staging: !targetMatchesLocalSmoke,
-      required_evidence: "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact build_identity.image_tag from the accepted local Docker smoke report."
+      status: targetMatchesSmokedImage ? "pass" : "blocked",
+      evidence: `target=${target || "missing"}, smoked_image_tag=${acceptedSmokeIdentity.image_tag || "missing"}`,
+      blocks_staging_execution: !targetMatchesSmokedImage,
+      blocks_staging: !targetMatchesSmokedImage,
+      required_evidence: "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact image tag from the accepted local smoke or GitHub candidate artifact."
     }),
     gate({
       id: "parity-report-present",
@@ -537,11 +564,13 @@ export function buildAdminDockerStagingRunbookReport(input: {
       id: "candidate-contract-proof-accepted",
       title: "Candidate API/version contract proof is accepted",
       category: "evidence",
-      status: candidateReady ? "pass" : "blocked",
-      evidence: `candidate proof status=${asString(candidateResult.status) || "unknown"}, blockers=${candidateBlockers.join(", ") || "none"}`,
-      blocks_staging_execution: !candidateReady,
-      blocks_staging: !candidateReady,
-      required_evidence: "Run validate:admin-docker-candidate-contract-proof against the local or staged candidate and require candidate_contract_ready:true."
+      status: candidateEvidenceAccepted ? "pass" : "blocked",
+      evidence: candidateEvidenceAccepted
+        ? `candidate_contract_ready=${String(candidateReady)}, github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}, github_candidate_contract_ready=${String(githubCandidateContractReady)}`
+        : `candidate proof status=${asString(candidateResult.status) || "unknown"}, blockers=${candidateBlockers.join(", ") || "none"}; github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}`,
+      blocks_staging_execution: !candidateEvidenceAccepted,
+      blocks_staging: !candidateEvidenceAccepted,
+      required_evidence: "Run validate:admin-docker-candidate-contract-proof against the local or staged candidate, or archive an Admin Docker GitHub artifact readiness report with github_candidate_artifact_ready=true."
     }),
     gate({
       id: "worker-env-proof-accepted",
@@ -595,6 +624,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
     mode: "admin-docker-staging-runbook",
     sources: {
       local_docker_smoke_report: input.local_docker_smoke_report_path,
+      github_artifact_readiness_report: input.github_artifact_readiness_report_path ?? "",
       parity_plan_report: input.parity_plan_report_path,
       candidate_contract_proof_report: input.candidate_contract_proof_report_path,
       worker_env_proof_report: input.worker_env_proof_report_path,
@@ -615,7 +645,14 @@ export function buildAdminDockerStagingRunbookReport(input: {
       local_smoke_passed: localSmokePassed,
       local_smoke_blockers: localSmokeBlockers,
       local_smoke_build_identity: localSmokeBuildIdentity,
-      target_tag_matches_local_smoke: targetMatchesLocalSmoke,
+      github_artifact_status: resultStatus(input.github_artifact_readiness_report),
+      github_candidate_artifact_ready: githubCandidateArtifactReady,
+      github_candidate_contract_ready: githubCandidateContractReady,
+      github_staging_handoff_ready: githubStagingHandoffReady,
+      github_candidate_image_tag: githubCandidateImageTag,
+      github_candidate_build_sha: githubCandidateBuildSha,
+      target_tag_matches_local_smoke: targetMatchesSmokedImage,
+      target_tag_matches_smoked_image: targetMatchesSmokedImage,
       parity_status: asString(parityResult.status),
       docker_image_update_required: updateRequired,
       parity_upload_blockers: parityBlockers,
@@ -678,6 +715,7 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     "## Sources",
     "",
     `- Local Docker smoke: ${report.sources.local_docker_smoke_report || "not provided"}`,
+    `- GitHub artifact readiness: ${report.sources.github_artifact_readiness_report || "not provided"}`,
     `- Parity plan: ${report.sources.parity_plan_report || "not provided"}`,
     `- Candidate contract proof: ${report.sources.candidate_contract_proof_report || "not provided"}`,
     `- Worker env proof: ${report.sources.worker_env_proof_report || "not provided"}`,
@@ -698,7 +736,12 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Local smoke passed: ${report.observations.local_smoke_passed ?? "unknown"}`,
     `- Local smoke blockers: ${report.observations.local_smoke_blockers.join(", ") || "none"}`,
     `- Smoked image tag: ${report.observations.local_smoke_build_identity.image_tag || "missing"}`,
-    `- Target tag matches local smoke: ${report.observations.target_tag_matches_local_smoke ? "yes" : "no"}`,
+    `- GitHub candidate artifact ready: ${report.observations.github_candidate_artifact_ready ?? "unknown"}`,
+    `- GitHub candidate contract ready: ${report.observations.github_candidate_contract_ready ?? "unknown"}`,
+    `- GitHub staging handoff ready: ${report.observations.github_staging_handoff_ready ?? "unknown"}`,
+    `- GitHub candidate image tag: ${report.observations.github_candidate_image_tag || "missing"}`,
+    `- GitHub candidate build sha: ${report.observations.github_candidate_build_sha || "missing"}`,
+    `- Target tag matches smoked image: ${report.observations.target_tag_matches_smoked_image ? "yes" : "no"}`,
     `- Parity status: ${report.observations.parity_status || "unknown"}`,
     `- Docker image update required: ${report.observations.docker_image_update_required ?? "unknown"}`,
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
@@ -766,6 +809,7 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
 
 export async function runAdminDockerStagingRunbook(input: {
   local_docker_smoke_report_path?: string;
+  github_artifact_readiness_report_path?: string;
   parity_plan_report_path?: string;
   candidate_contract_proof_report_path?: string;
   worker_env_proof_report_path?: string;
@@ -786,6 +830,8 @@ export async function runAdminDockerStagingRunbook(input: {
   const artifactDir = input.artifact_dir ?? DEFAULT_ARTIFACT_DIR;
   const localSmokePath = input.local_docker_smoke_report_path
     ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
+  const githubArtifactReadinessPath = input.github_artifact_readiness_report_path
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-github-artifact-readiness-");
   const parityPath = input.parity_plan_report_path
     ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
   const candidatePath = input.candidate_contract_proof_report_path
@@ -806,6 +852,8 @@ export async function runAdminDockerStagingRunbook(input: {
     command: input.command ?? process.argv.join(" "),
     local_docker_smoke_report_path: localSmokePath,
     local_docker_smoke_report: await loadJson(localSmokePath),
+    github_artifact_readiness_report_path: githubArtifactReadinessPath,
+    github_artifact_readiness_report: await optionalLoadJson(githubArtifactReadinessPath),
     parity_plan_report_path: parityPath,
     parity_plan_report: await loadJson(parityPath),
     candidate_contract_proof_report_path: candidatePath,
@@ -841,6 +889,7 @@ export async function runAdminDockerStagingRunbook(input: {
 async function main(): Promise<void> {
   const report = await runAdminDockerStagingRunbook({
     local_docker_smoke_report_path: process.env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REPORT,
+    github_artifact_readiness_report_path: process.env.MIXLAB_DOCKER_GITHUB_ARTIFACT_READINESS_REPORT,
     parity_plan_report_path: process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT,
     candidate_contract_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_CONTRACT_PROOF_REPORT,
     worker_env_proof_report_path: process.env.MIXLAB_ADMIN_WORKER_ENV_PROOF_REPORT,
