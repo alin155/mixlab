@@ -30,7 +30,7 @@ const HANDOFF_ARCHIVE_NAMES = new Set(["admin-docker-nas-handoff-kit.tar.gz"]);
 const PRUNED_DIR_NAMES = new Set(["PublicLibrary", "#recycle"]);
 
 type GateStatus = "pass" | "blocked";
-type GateCategory = "safety" | "network" | "smb" | "handoff" | "returned-evidence" | "staging-target";
+type GateCategory = "safety" | "network" | "smb" | "handoff" | "returned-evidence" | "ugos" | "staging-target";
 
 interface NasAccessGate {
   id: string;
@@ -82,6 +82,14 @@ interface HandoffBundleObservation {
   candidate_release_ref: string;
 }
 
+interface UgosPreflightObservation {
+  path: string;
+  present: boolean;
+  status: string;
+  direct_ugos_collection_available: boolean;
+  browserless_collection_blockers: string[];
+}
+
 export interface AdminDockerNasAccessPreflightReport {
   schema_version: "1.0";
   generated_at: string;
@@ -102,6 +110,7 @@ export interface AdminDockerNasAccessPreflightReport {
     http: HttpProbe[];
     smb_root: MountedPathObservation;
     handoff_bundle: HandoffBundleObservation;
+    ugos_preflight: UgosPreflightObservation;
     compose_candidates: string[];
     handoff_transfer_candidates: string[];
     returned_evidence_candidates: string[];
@@ -245,8 +254,68 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function asBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+async function latestArtifact(dir: string, prefix: string): Promise<string> {
+  try {
+    const entries = await readdir(dir);
+    return entries
+      .filter((item) => item.startsWith(prefix) && item.endsWith(".json"))
+      .sort()
+      .at(-1) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function ugosPreflightObservation(artifactDir: string): Promise<UgosPreflightObservation> {
+  const filename = await latestArtifact(artifactDir, "admin-docker-nas-ugos-api-preflight-");
+  if (!filename) {
+    return {
+      path: "",
+      present: false,
+      status: "",
+      direct_ugos_collection_available: false,
+      browserless_collection_blockers: []
+    };
+  }
+
+  const artifactPath = path.join(artifactDir, filename);
+  try {
+    const parsed = JSON.parse(await readFile(artifactPath, "utf8")) as unknown;
+    const report = asRecord(parsed);
+    const result = asRecord(report.result);
+    const summary = asRecord(report.summary);
+    return {
+      path: artifactPath,
+      present: true,
+      status: asString(result.status),
+      direct_ugos_collection_available: asBoolean(report.direct_ugos_collection_available),
+      browserless_collection_blockers: asArray(summary.browserless_collection_blockers).map((item) => asString(item)).filter(Boolean)
+    };
+  } catch {
+    return {
+      path: artifactPath,
+      present: true,
+      status: "unreadable",
+      direct_ugos_collection_available: false,
+      browserless_collection_blockers: ["ugos-preflight-unreadable"]
+    };
+  }
 }
 
 async function handoffBundleObservation(bundleDir: string): Promise<HandoffBundleObservation> {
@@ -370,8 +439,10 @@ function portStatus(ports: PortProbe[], port: number): "open" | "closed" {
 function nextActions(report: AdminDockerNasAccessPreflightReport): string[] {
   if (report.nas_collection_directly_available) {
     return [
-      "Use the discovered NAS collection path, then run or copy the handoff NAS runner from docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.",
-      "Copy the generated admin-docker-release-inputs/ folder back to the Mac repo.",
+      report.observations.ugos_preflight.direct_ugos_collection_available
+        ? "Use collect:admin-docker-nas-ugos-returned-evidence to generate sanitized admin-docker-release-inputs/ directly from UGOS Docker read-only APIs."
+        : "Use the discovered NAS collection path, then run or copy the handoff NAS runner from docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.",
+      "Copy or point to the generated admin-docker-release-inputs/ folder in the Mac repo.",
       "Run sh docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>."
     ];
   }
@@ -396,6 +467,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
   http: HttpProbe[];
   smb_root_observation: MountedPathObservation;
   handoff_bundle_observation: HandoffBundleObservation;
+  ugos_preflight_observation: UgosPreflightObservation;
   compose_candidates: string[];
   handoff_transfer_candidates: string[];
   returned_evidence_candidates: string[];
@@ -406,6 +478,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
   const composeVisible = input.compose_candidates.length > 0;
   const handoffTransferVisible = input.handoff_transfer_candidates.length > 0;
   const returnedEvidenceVisible = input.returned_evidence_candidates.length > 0;
+  const ugosReady = input.ugos_preflight_observation.direct_ugos_collection_available;
   const handoffBundleReady = input.handoff_bundle_observation.present &&
     input.handoff_bundle_observation.is_directory &&
     input.handoff_bundle_observation.missing_files.length === 0 &&
@@ -414,7 +487,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
   const stagingPortOpen = portStatus(input.ports, 8080) === "open";
   const legacyAdminOpen = portStatus(input.ports, 18080) === "open";
   const nasDesktopOpen = portStatus(input.ports, 9999) === "open";
-  const nasCollectionDirectlyAvailable = returnedEvidenceVisible || (handoffBundleReady && (sshOpen || composeVisible));
+  const nasCollectionDirectlyAvailable = ugosReady || returnedEvidenceVisible || (handoffBundleReady && (sshOpen || composeVisible));
 
   const gates = [
     gate({
@@ -442,7 +515,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       category: "network",
       status: sshOpen ? "pass" : "blocked",
       evidence: `port 22 is ${sshOpen ? "open" : "closed"}`,
-      blocks_nas_collection: true,
+      blocks_nas_collection: !ugosReady && !returnedEvidenceVisible && !composeVisible,
       blocks_staging_review: false,
       required_evidence: "Open a temporary SSH path or use the NAS desktop/local shell to run the collector."
     }),
@@ -466,7 +539,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       evidence: handoffBundleReady
         ? `candidate=${input.handoff_bundle_observation.candidate_sha}, ref=${input.handoff_bundle_observation.candidate_release_ref}`
         : `missing=${input.handoff_bundle_observation.missing_files.join(", ") || "candidate metadata"}`,
-      blocks_nas_collection: !handoffBundleReady && !returnedEvidenceVisible,
+      blocks_nas_collection: !ugosReady && !handoffBundleReady && !returnedEvidenceVisible,
       blocks_staging_review: false,
       required_evidence: "Regenerate prepare:admin-docker-nas-release-inputs-handoff and require README, operator checklist, MANIFEST, NAS runner, collector, installer, and local validator."
     }),
@@ -488,7 +561,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       category: "smb",
       status: composeVisible ? "pass" : "blocked",
       evidence: composeVisible ? input.compose_candidates.join(", ") : "No compose file found outside PublicLibrary/#recycle within bounded scan.",
-      blocks_nas_collection: true,
+      blocks_nas_collection: !ugosReady && !returnedEvidenceVisible && !sshOpen,
       blocks_staging_review: false,
       required_evidence: "Mount or locate the NAS Compose project folder containing docker-compose.yml and .env."
     }),
@@ -498,9 +571,21 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       category: "returned-evidence",
       status: returnedEvidenceVisible ? "pass" : "blocked",
       evidence: returnedEvidenceVisible ? input.returned_evidence_candidates.join(", ") : "No returned evidence files or admin-docker-release-inputs directory found outside PublicLibrary/#recycle.",
-      blocks_nas_collection: true,
+      blocks_nas_collection: !ugosReady && !(handoffBundleReady && (sshOpen || composeVisible)),
       blocks_staging_review: true,
       required_evidence: "Run the NAS collector and copy admin-docker-release-inputs/ back to the Mac repo."
+    }),
+    gate({
+      id: "ugos-browserless-collection-ready",
+      title: "UGOS browserless Docker evidence path is ready",
+      category: "ugos",
+      status: ugosReady ? "pass" : "blocked",
+      evidence: input.ugos_preflight_observation.present
+        ? `status=${input.ugos_preflight_observation.status || "n/a"}, direct_ugos_collection_available=${ugosReady}, blockers=${input.ugos_preflight_observation.browserless_collection_blockers.join(", ") || "none"}, path=${input.ugos_preflight_observation.path}`
+        : "No admin-docker-nas-ugos-api-preflight artifact was found.",
+      blocks_nas_collection: !returnedEvidenceVisible && !(handoffBundleReady && (sshOpen || composeVisible)),
+      blocks_staging_review: false,
+      required_evidence: "Run preflight:admin-docker-nas-ugos-api with authenticated in-memory credentials or a temporary auth header until direct_ugos_collection_available=true."
     }),
     gate({
       id: "staging-admin-port-reachable",
@@ -534,6 +619,7 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
       http: input.http,
       smb_root: input.smb_root_observation,
       handoff_bundle: input.handoff_bundle_observation,
+      ugos_preflight: input.ugos_preflight_observation,
       compose_candidates: input.compose_candidates,
       handoff_transfer_candidates: input.handoff_transfer_candidates,
       returned_evidence_candidates: input.returned_evidence_candidates,
@@ -549,8 +635,8 @@ export function buildAdminDockerNasAccessPreflightReport(input: {
     result: {
       status: nasCollectionDirectlyAvailable ? "ready-for-nas-collection" : "blocked",
       summary: nasCollectionDirectlyAvailable
-        ? "A NAS evidence collection path is visible; run the handoff collector and validate returned evidence."
-        : "NAS evidence collection is blocked until a Compose project, SSH path, or returned evidence folder is available."
+        ? "A NAS evidence collection path is visible; run the collector or browserless UGOS returned-evidence flow and validate returned evidence."
+        : "NAS evidence collection is blocked until UGOS browserless collection, a Compose project, SSH path, or returned evidence folder is available."
     },
     artifacts: null
   };
@@ -590,6 +676,14 @@ export function toMarkdown(report: AdminDockerNasAccessPreflightReport): string 
     "## NAS Handoff Archive",
     "",
     `- Visible archives: ${report.observations.handoff_transfer_candidates.join(", ") || "none"}`,
+    "",
+    "## UGOS Browserless",
+    "",
+    `- Present: ${report.observations.ugos_preflight.present ? "yes" : "no"}`,
+    `- Status: ${report.observations.ugos_preflight.status || "n/a"}`,
+    `- Direct collection available: ${report.observations.ugos_preflight.direct_ugos_collection_available ? "yes" : "no"}`,
+    `- Blockers: ${report.observations.ugos_preflight.browserless_collection_blockers.join(", ") || "none"}`,
+    `- Source artifact: ${report.observations.ugos_preflight.path || "none"}`,
     "",
     "## Ports",
     "",
@@ -653,6 +747,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
   http_timeout_ms?: number;
   max_depth?: number;
   max_entries?: number;
+  artifact_dir?: string;
 } = {}): Promise<AdminDockerNasAccessPreflightReport> {
   const nasHost = input.nas_host ?? DEFAULT_NAS_HOST;
   const smbRoot = input.smb_root ?? DEFAULT_SMB_ROOT;
@@ -663,6 +758,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
   const httpTimeoutMs = input.http_timeout_ms ?? 5000;
   const maxDepth = input.max_depth ?? 5;
   const maxEntries = input.max_entries ?? 2000;
+  const artifactDir = input.artifact_dir ?? outputDir;
   const ports = await Promise.all(PROBE_PORTS.map((port) => probePort(nasHost, port, portTimeoutMs)));
   const http = await Promise.all([
     probeHttp(`http://${nasHost}:18080/`, httpTimeoutMs),
@@ -671,6 +767,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
   ]);
   const smbRootObservation = await mountedPathObservation(smbRoot);
   const handoffObservation = await handoffBundleObservation(handoffBundleDir);
+  const ugosObservation = await ugosPreflightObservation(artifactDir);
   const found = smbRootObservation.present && smbRootObservation.is_directory
     ? await findCandidatePaths({ root: smbRoot, maxDepth, maxEntries })
     : { compose_candidates: [], handoff_transfer_candidates: [], returned_evidence_candidates: [] };
@@ -684,6 +781,7 @@ export async function runAdminDockerNasAccessPreflight(input: {
     http,
     smb_root_observation: smbRootObservation,
     handoff_bundle_observation: handoffObservation,
+    ugos_preflight_observation: ugosObservation,
     compose_candidates: found.compose_candidates,
     handoff_transfer_candidates: found.handoff_transfer_candidates,
     returned_evidence_candidates: found.returned_evidence_candidates,
@@ -714,7 +812,8 @@ async function main(): Promise<void> {
     smb_root: process.env.MIXLAB_NAS_SMB_ROOT,
     handoff_bundle_dir: process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_BUNDLE_DIR,
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
-    command: process.argv.join(" ")
+    command: process.argv.join(" "),
+    artifact_dir: process.env.MIXLAB_ACCEPTANCE_ARTIFACT_DIR
   });
 
   console.log(JSON.stringify({
@@ -727,6 +826,7 @@ async function main(): Promise<void> {
     staging_review_blockers: report.summary.staging_review_blockers,
     compose_candidates: report.observations.compose_candidates,
     handoff_transfer_candidates: report.observations.handoff_transfer_candidates,
+    ugos_preflight: report.observations.ugos_preflight,
     returned_evidence_candidates: report.observations.returned_evidence_candidates,
     json_path: report.artifacts?.json_path,
     markdown_path: report.artifacts?.markdown_path

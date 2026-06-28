@@ -16,6 +16,7 @@ function report(input: {
   handoffTransfer?: string[];
   returned?: string[];
   handoffReady?: boolean;
+  ugosReady?: boolean;
 } = {}) {
   const handoffReady = input.handoffReady !== false;
   return buildAdminDockerNasAccessPreflightReport({
@@ -56,6 +57,13 @@ function report(input: {
       candidate_sha: handoffReady ? "abc123" : "",
       candidate_release_ref: handoffReady ? "admin-docker-candidate-abc123" : ""
     },
+    ugos_preflight_observation: {
+      path: input.ugosReady ? "docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-ready.json" : "",
+      present: input.ugosReady ?? false,
+      status: input.ugosReady ? "browserless-collection-ready" : "",
+      direct_ugos_collection_available: input.ugosReady ?? false,
+      browserless_collection_blockers: input.ugosReady ? [] : ["ugos-session-authenticated"]
+    },
     compose_candidates: input.compose ?? [],
     handoff_transfer_candidates: input.handoffTransfer ?? [],
     returned_evidence_candidates: input.returned ?? [],
@@ -77,6 +85,7 @@ test("NAS access preflight records blocked direct collection without approving d
   assert.ok(built.summary.nas_collection_blockers.includes("ssh-access-available"));
   assert.ok(built.summary.nas_collection_blockers.includes("compose-project-visible-on-smb"));
   assert.ok(built.summary.nas_collection_blockers.includes("returned-evidence-visible"));
+  assert.ok(built.summary.nas_collection_blockers.includes("ugos-browserless-collection-ready"));
 });
 
 test("NAS access preflight records visible SMB handoff archive without treating it as returned evidence", () => {
@@ -125,6 +134,20 @@ test("NAS access preflight treats returned evidence as a collection path", () =>
   assert.ok(!built.summary.nas_collection_blockers.includes("returned-evidence-visible"));
 });
 
+test("NAS access preflight treats UGOS browserless readiness as a collection path", () => {
+  const built = report({
+    ugosReady: true
+  });
+
+  assert.equal(built.result.status, "ready-for-nas-collection");
+  assert.equal(built.nas_collection_directly_available, true);
+  assert.ok(!built.summary.nas_collection_blockers.includes("ssh-access-available"));
+  assert.ok(!built.summary.nas_collection_blockers.includes("compose-project-visible-on-smb"));
+  assert.ok(!built.summary.nas_collection_blockers.includes("returned-evidence-visible"));
+  assert.ok(!built.summary.nas_collection_blockers.includes("ugos-browserless-collection-ready"));
+  assert.equal(built.docker_deploy_allowed, false);
+});
+
 test("NAS access preflight markdown records read-only boundary", () => {
   const markdown = toMarkdown(report());
 
@@ -133,6 +156,7 @@ test("NAS access preflight markdown records read-only boundary", () => {
   assert.match(markdown, /Docker deploy allowed: no/);
   assert.match(markdown, /Handoff Bundle/);
   assert.match(markdown, /NAS Handoff Archive/);
+  assert.match(markdown, /UGOS Browserless/);
   assert.match(markdown, /Candidate SHA: abc123/);
   assert.doesNotMatch(markdown, /push_images=true/);
 });

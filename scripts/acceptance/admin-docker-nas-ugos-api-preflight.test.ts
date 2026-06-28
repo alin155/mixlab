@@ -47,6 +47,7 @@ function report(input: {
   overviewMessage?: string;
   cookiePresent?: boolean;
   queryTokenPresent?: boolean;
+  passwordLoginSucceeded?: boolean;
 } = {}) {
   return buildAdminDockerNasUgosApiPreflightReport({
     generated_at: "2026-06-28T00:00:00.000Z",
@@ -57,7 +58,14 @@ function report(input: {
       cookie_present: input.cookiePresent ?? false,
       query_token_present: input.queryTokenPresent ?? false,
       x_ugreen_auth_present: false,
-      authorization_present: false
+      authorization_present: false,
+      username_password_present: input.passwordLoginSucceeded ?? false,
+      password_login_attempted: input.passwordLoginSucceeded ?? false,
+      password_login_succeeded: input.passwordLoginSucceeded ?? false,
+      password_login_code: input.passwordLoginSucceeded ? "200" : "",
+      password_login_message: input.passwordLoginSucceeded ? "success" : "",
+      password_login_token_present: input.passwordLoginSucceeded ?? false,
+      password_login_cookie_present: input.passwordLoginSucceeded ?? false
     },
     probes: [
       probe({ name: "desktop_html", path: "/desktop/", expectedJson: false, http: 200, shape: "html" }),
@@ -171,13 +179,36 @@ test("UGOS API preflight ignores legacy ContainerList when Docker app V2 list is
   assert.ok(!built.summary.browserless_collection_blockers.includes("docker-container-list-readable"));
 });
 
+test("UGOS API preflight accepts password login plus Docker list even when verify and overview are unauthorized", () => {
+  const built = report({
+    loginCode: "1114",
+    loginMessage: "Illegal operation, unauthorized user",
+    dockerUidCode: "200",
+    dockerUidMessage: "ok",
+    containerListCode: "9405",
+    containerListMessage: "",
+    containerListV2Code: "200",
+    containerListV2Message: "ok",
+    overviewCode: "1114",
+    overviewMessage: "Illegal operation, unauthorized user",
+    passwordLoginSucceeded: true
+  });
+
+  assert.equal(built.result.status, "browserless-collection-ready");
+  assert.equal(built.direct_ugos_collection_available, true);
+  assert.ok(!built.summary.browserless_collection_blockers.includes("ugos-session-authenticated"));
+  assert.ok(!built.summary.browserless_collection_blockers.includes("docker-overview-readable"));
+  assert.equal(built.docker_runtime_touched, false);
+});
+
 test("UGOS API preflight markdown records safety boundary without auth values", () => {
   const markdown = toMarkdown(report({ cookiePresent: true, queryTokenPresent: true }));
 
   assert.match(markdown, /read-only/i);
-  assert.match(markdown, /does not log in/i);
+  assert.match(markdown, /temporary UGOS session/i);
   assert.match(markdown, /Cookie present: yes/);
   assert.match(markdown, /Query token present: yes/);
+  assert.match(markdown, /Password login attempted: no/);
   assert.match(markdown, /Push execution allowed: no/);
   assert.match(markdown, /Docker deploy allowed: no/);
   assert.equal(markdown.includes(["Cookie", ":"].join("")), false);

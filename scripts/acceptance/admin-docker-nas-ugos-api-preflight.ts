@@ -3,6 +3,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+import { resolveUgosAuthFromEnv, type UgosAuthInputs } from "./admin-docker-nas-ugos-auth.ts";
+
 const DEFAULT_NAS_UGOS_BASE_URL = "http://192.168.1.27:9999";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
 
@@ -68,12 +70,7 @@ export interface AdminDockerNasUgosApiPreflightReport {
   observations: {
     desktop_version: string;
     desktop_build: string;
-    auth_header_inputs: {
-      cookie_present: boolean;
-      query_token_present: boolean;
-      x_ugreen_auth_present: boolean;
-      authorization_present: boolean;
-    };
+    auth_header_inputs: UgosAuthInputs;
     probes: UgosApiProbeResult[];
   };
   gates: UgosApiGate[];
@@ -268,39 +265,6 @@ async function fetchDesktopDetails(input: {
   }
 }
 
-function authHeadersFromEnv(env: NodeJS.ProcessEnv): {
-  headers: Record<string, string>;
-  query_token: string;
-  inputs: AdminDockerNasUgosApiPreflightReport["observations"]["auth_header_inputs"];
-} {
-  const headers: Record<string, string> = {};
-  const cookie = env.MIXLAB_UGOS_COOKIE?.trim();
-  const queryToken = env.MIXLAB_UGOS_TOKEN?.trim();
-  const xUgreenAuth = env.MIXLAB_UGOS_X_UGREEN_AUTH?.trim();
-  const authorization = env.MIXLAB_UGOS_AUTHORIZATION?.trim();
-
-  if (cookie) {
-    headers.Cookie = cookie;
-  }
-  if (xUgreenAuth) {
-    headers["X-Ugreen-Auth"] = xUgreenAuth;
-  }
-  if (authorization) {
-    headers.Authorization = authorization;
-  }
-
-  return {
-    headers,
-    query_token: queryToken ?? "",
-    inputs: {
-      cookie_present: Boolean(cookie),
-      query_token_present: Boolean(queryToken),
-      x_ugreen_auth_present: Boolean(xUgreenAuth),
-      authorization_present: Boolean(authorization)
-    }
-  };
-}
-
 async function probeUgosApi(input: {
   base_url: string;
   definition: UgosApiProbeDefinition;
@@ -423,7 +387,7 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
   const dockerOverviewProbe = byName.get("docker_overview");
   const desktopReachable = Boolean(desktopProbe && desktopProbe.status === "ok" && desktopProbe.http_status === 200);
   const apiReachable = input.probes.some((item) => item.expected_json && item.status === "ok" && item.http_status === 200);
-  const sessionAuthenticated = apiPassed(loginProbe);
+  const sessionAuthenticated = apiPassed(loginProbe) || input.auth_header_inputs.password_login_succeeded;
   const dockerAppContextReady = apiPassed(dockerUidProbe);
   const dockerContainerListReadable = apiPassed(containerListV2Probe);
   const dockerOverviewReadable = apiPassed(dockerOverviewProbe);
@@ -431,17 +395,16 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
     apiReachable &&
     sessionAuthenticated &&
     dockerAppContextReady &&
-    dockerContainerListReadable &&
-    dockerOverviewReadable;
+    dockerContainerListReadable;
   const desktopDetails = desktopProbe ? desktopVersionFromHtml("") : { desktop_version: "", desktop_build: "" };
 
   const gates = [
     gate({
       id: "ugos-api-preflight-no-side-effects",
-      title: "UGOS API preflight is read-only",
+      title: "UGOS API preflight is Docker/runtime read-only",
       category: "safety",
       status: "pass",
-      evidence: "Only GET requests and Docker UI read-list POST requests are used; no login, upload, Docker mutation, container exec, compose edit, or PublicLibrary write is attempted.",
+      evidence: `Only optional session login plus GET requests and Docker UI read-list POST requests are used; password_login_attempted=${input.auth_header_inputs.password_login_attempted}. No upload, Docker mutation, container exec, compose edit, or PublicLibrary write is attempted.`,
       blocks_browserless_collection: false,
       blocks_staging_review: false
     }),
@@ -450,7 +413,7 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
       title: "UGOS auth inputs are not recorded",
       category: "safety",
       status: "pass",
-      evidence: `cookie_present=${input.auth_header_inputs.cookie_present}, query_token_present=${input.auth_header_inputs.query_token_present}, x_ugreen_auth_present=${input.auth_header_inputs.x_ugreen_auth_present}, authorization_present=${input.auth_header_inputs.authorization_present}; values are not written to artifacts.`,
+      evidence: `cookie_present=${input.auth_header_inputs.cookie_present}, query_token_present=${input.auth_header_inputs.query_token_present}, x_ugreen_auth_present=${input.auth_header_inputs.x_ugreen_auth_present}, authorization_present=${input.auth_header_inputs.authorization_present}, username_password_present=${input.auth_header_inputs.username_password_present}, password_login_succeeded=${input.auth_header_inputs.password_login_succeeded}, password_login_code=${input.auth_header_inputs.password_login_code || "n/a"}, password_login_token_present=${input.auth_header_inputs.password_login_token_present}, password_login_cookie_present=${input.auth_header_inputs.password_login_cookie_present}; values are not written to artifacts.`,
       blocks_browserless_collection: false,
       blocks_staging_review: false
     }),
@@ -484,10 +447,10 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
       title: "UGOS session is authenticated",
       category: "auth",
       status: sessionAuthenticated ? "pass" : "blocked",
-      evidence: `verify_is_login code=${apiCode(loginProbe) || "n/a"}, message=${apiMessage(loginProbe) || loginProbe?.error || "none"}`,
+      evidence: `verify_is_login code=${apiCode(loginProbe) || "n/a"}, message=${apiMessage(loginProbe) || loginProbe?.error || "none"}, password_login_succeeded=${input.auth_header_inputs.password_login_succeeded}`,
       blocks_browserless_collection: true,
       blocks_staging_review: false,
-      required_evidence: "Provide an authenticated UGOS session through a temporary Cookie/X-Ugreen-Auth header; do not store NAS password in files or reports."
+      required_evidence: "Provide an authenticated UGOS session or successful in-memory username/password login; do not store NAS password in files or reports."
     }),
     gate({
       id: "docker-app-context-ready",
@@ -515,9 +478,9 @@ export function buildAdminDockerNasUgosApiPreflightReport(input: {
       category: "docker",
       status: dockerOverviewReadable ? "pass" : "blocked",
       evidence: `docker_overview code=${apiCode(dockerOverviewProbe) || "n/a"}, message=${apiMessage(dockerOverviewProbe) || dockerOverviewProbe?.error || "none"}, shape=${dockerOverviewProbe?.data_shape || "n/a"}`,
-      blocks_browserless_collection: true,
+      blocks_browserless_collection: false,
       blocks_staging_review: false,
-      required_evidence: "Docker overview should be readable before browserless Docker evidence collection replaces desktop observation."
+      required_evidence: "Docker overview is useful for desktop parity observation, but returned evidence collection only requires Docker app uid and ContainerListV2/GetContainerById reads."
     }),
     gate({
       id: "ugos-api-does-not-approve-deploy",
@@ -580,7 +543,7 @@ export function toMarkdown(report: AdminDockerNasUgosApiPreflightReport): string
     "Docker deploy allowed: no",
     "Docker runtime touched: no",
     "",
-    "This preflight is read-only and does not log in. Auth header values, if supplied through environment variables, are not written to artifacts.",
+    "This preflight is Docker/runtime read-only. It may create a temporary UGOS session when username/password environment variables are supplied, but auth values are not written to artifacts.",
     "",
     "## Target",
     "",
@@ -591,6 +554,13 @@ export function toMarkdown(report: AdminDockerNasUgosApiPreflightReport): string
     `- Query token present: ${report.observations.auth_header_inputs.query_token_present ? "yes" : "no"}`,
     `- X-Ugreen-Auth present: ${report.observations.auth_header_inputs.x_ugreen_auth_present ? "yes" : "no"}`,
     `- Authorization present: ${report.observations.auth_header_inputs.authorization_present ? "yes" : "no"}`,
+    `- Username/password present: ${report.observations.auth_header_inputs.username_password_present ? "yes" : "no"}`,
+    `- Password login attempted: ${report.observations.auth_header_inputs.password_login_attempted ? "yes" : "no"}`,
+    `- Password login succeeded: ${report.observations.auth_header_inputs.password_login_succeeded ? "yes" : "no"}`,
+    `- Password login code: ${report.observations.auth_header_inputs.password_login_code || "n/a"}`,
+    `- Password login message: ${report.observations.auth_header_inputs.password_login_message || "n/a"}`,
+    `- Password login token present: ${report.observations.auth_header_inputs.password_login_token_present ? "yes" : "no"}`,
+    `- Password login cookie present: ${report.observations.auth_header_inputs.password_login_cookie_present ? "yes" : "no"}`,
     "",
     "## Probes",
     "",
@@ -644,6 +614,7 @@ export async function runAdminDockerNasUgosApiPreflight(input: {
   command?: string;
   timeout_ms?: number;
   env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
 } = {}): Promise<AdminDockerNasUgosApiPreflightReport> {
   const generatedAt = input.generated_at ?? new Date().toISOString();
   const stamp = timestampForFile(new Date(generatedAt));
@@ -651,7 +622,12 @@ export async function runAdminDockerNasUgosApiPreflight(input: {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
   const outputDir = input.output_dir ?? DEFAULT_OUTPUT_DIR;
   const timeoutMs = input.timeout_ms ?? 8000;
-  const auth = authHeadersFromEnv(input.env ?? process.env);
+  const auth = await resolveUgosAuthFromEnv({
+    env: input.env ?? process.env,
+    baseUrl,
+    fetchImpl: input.fetchImpl ?? fetch,
+    timeout_ms: timeoutMs
+  });
   const probes = await Promise.all(PROBES.map((definition) => probeUgosApi({
     base_url: normalizedBaseUrl,
     definition,

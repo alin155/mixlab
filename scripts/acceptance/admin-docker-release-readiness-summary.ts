@@ -291,7 +291,9 @@ function nextActions(input: {
   }
 
   if (!input.releaseInputsIntakeComplete) {
-    if (input.handoffKitReady && input.handoffKitArchivePath) {
+    if (input.nasCollectionDirectlyAvailable === true) {
+      actions.push("Use collect:admin-docker-nas-ugos-returned-evidence to generate sanitized admin-docker-release-inputs/ directly from UGOS Docker read-only APIs, then rerun intake:admin-docker-nas-release-inputs with MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR pointing to that directory.");
+    } else if (input.handoffKitReady && input.handoffKitArchivePath) {
       actions.push(`Transfer ${input.handoffKitArchivePath} to the NAS desktop or NAS shell host, verify sha256=${input.handoffKitArchiveSha256 || "unknown"}, run the kit self-check, then collect returned release inputs.`);
     } else {
       actions.push(`Regenerate package:admin-docker-nas-handoff-kit before asking the NAS operator to collect returned evidence. Current kit blockers: ${input.handoffKitBlockers.join(", ") || "unknown"}.`);
@@ -299,7 +301,7 @@ function nextActions(input: {
     if (input.nasCollectionDirectlyAvailable !== true && input.nasCollectionBlockers.length > 0) {
       actions.push(`Direct Mac-to-NAS collection remains unavailable; current NAS collection blockers: ${input.nasCollectionBlockers.join(", ")}.`);
     }
-    actions.push(`Run the NAS release-inputs collector, copy admin-docker-release-inputs/ back to the Mac repo, then rerun intake:admin-docker-nas-release-inputs. Current intake blockers: ${input.releaseInputsIntakeBlockers.join(", ") || "unknown"}.`);
+    actions.push(`Rerun intake:admin-docker-nas-release-inputs with the generated admin-docker-release-inputs/ directory after collecting returned evidence. Current intake blockers: ${input.releaseInputsIntakeBlockers.join(", ") || "unknown"}.`);
   }
 
   if (!input.releaseInputsReady) {
@@ -393,6 +395,9 @@ function buildAutomationBoundary(input: {
 
   if (input.handoffKitReady && !input.releaseInputsIntakeComplete) {
     safeActions.add("Keep the NAS handoff kit current and validate any returned evidence package locally when it appears.");
+  }
+  if (input.nasCollectionDirectlyAvailable === true && !input.releaseInputsIntakeComplete) {
+    safeActions.add("Use the UGOS browserless read-only collector to refresh sanitized returned evidence without touching NAS runtime.");
   }
 
   if (!input.workerAccepted) {

@@ -2,6 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveUgosAuthFromEnv } from "./admin-docker-nas-ugos-auth.ts";
+
 const DEFAULT_NAS_UGOS_BASE_URL = "http://192.168.1.27:9999";
 const DEFAULT_ADMIN_LIVE_BASE_URL = "http://192.168.1.27:18080";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
@@ -443,31 +445,6 @@ Safety rules:
 `;
 }
 
-function authHeadersFromEnv(env: NodeJS.ProcessEnv): {
-  headers: Record<string, string>;
-  query_token: string;
-} {
-  const headers: Record<string, string> = {};
-  const cookie = env.MIXLAB_UGOS_COOKIE?.trim();
-  const xUgreenAuth = env.MIXLAB_UGOS_X_UGREEN_AUTH?.trim();
-  const authorization = env.MIXLAB_UGOS_AUTHORIZATION?.trim();
-
-  if (cookie) {
-    headers.Cookie = cookie;
-  }
-  if (xUgreenAuth) {
-    headers["X-Ugreen-Auth"] = xUgreenAuth;
-  }
-  if (authorization) {
-    headers.Authorization = authorization;
-  }
-
-  return {
-    headers,
-    query_token: env.MIXLAB_UGOS_TOKEN?.trim() ?? ""
-  };
-}
-
 function tokenizedUrl(url: string, token: string): string {
   if (!token) {
     return url;
@@ -716,7 +693,12 @@ export async function runAdminDockerNasUgosReturnedEvidence(input: {
   const timeoutMs = input.timeout_ms ?? 8000;
   const fetchImpl = input.fetchImpl ?? fetch;
   const env = input.env ?? process.env;
-  const auth = authHeadersFromEnv(env);
+  const auth = await resolveUgosAuthFromEnv({
+    env,
+    baseUrl: ugosBaseUrl,
+    fetchImpl,
+    timeout_ms: timeoutMs
+  });
   const containers = await collectContainers({
     fetchImpl,
     ugosBaseUrl,
