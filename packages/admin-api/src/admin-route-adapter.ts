@@ -1,4 +1,5 @@
 import type { AdminApiResponseMeta } from "./admin-runtime-observability.ts";
+import { isAdminDockerMvpCommandBlockedError } from "./admin-command-guard.ts";
 
 export interface AdminApiOkEnvelope<T> {
   ok: true;
@@ -31,6 +32,18 @@ export function apiError(
   return details
     ? { ok: false, error_code: errorCode, message, details }
     : { ok: false, error_code: errorCode, message };
+}
+
+export function adminDockerMvpCommandBlockedRouteError(error: unknown): {
+  status_code: 409;
+  body: AdminApiErrorEnvelope;
+} | null {
+  return isAdminDockerMvpCommandBlockedError(error)
+    ? {
+        status_code: 409,
+        body: apiError(error.code, error.message, error.details)
+      }
+    : null;
 }
 
 function positiveIntegerParam(searchParams: URLSearchParams, key: string): number | undefined {

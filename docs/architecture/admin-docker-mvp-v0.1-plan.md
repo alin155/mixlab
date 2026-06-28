@@ -98,11 +98,12 @@ MVP v0.1 不做：
 - NAS handoff transfer：`docs/acceptance/artifacts/admin-docker-nas-handoff-transfer-20260628T190813Z.json`，已将 `admin-docker-nas-handoff-kit.tar.gz` 复制到 `/Volumes/MixLab/安装包/mixlab-admin-docker-handoff/`，目标文件 sha256 同为 `8cd7cb8c8971687210f30c921a029fe85cf6bb272f144984938fc35ff6351666`；本步骤只写 NAS `安装包` 交付目录，不接触 Docker runtime、不写 `PublicLibrary`、不启停容器、不运行预处理。
 - staging runbook：`docs/acceptance/artifacts/admin-docker-staging-runbook-20260628T184229Z.json`，`staging_execution_ready=false`，`staging_review_ready=false`，`docker_deploy_allowed=false`；已接受 GitHub candidate artifact 作为 Mac 本机 Docker smoke 与 candidate contract proof 的替代证据，但仍缺 current/rollback tag、target tag、显式 push approval、NAS returned evidence、NAS disk proof、parity、admin-worker 与 Cutter staged-candidate proof。
 - NAS desktop readonly：`docs/acceptance/artifacts/admin-docker-nas-desktop-readonly-20260628T185410Z.json`，通过 NAS 桌面 Docker UI 只读确认 `mixlab-server-admin-web-1`、`mixlab-server-admin-api-1`、`mixlab-server-admin-worker-1` 均运行中，但镜像均为 mutable `latest`；`admin-web` 暴露 `18080 -> 80/TCP`；`admin-api` 与 `admin-worker` 都读写挂载 `共享文件夹/MixLab/PublicLibrary -> /data/PublicLibrary`；当前 worker 仍为 `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1` 与 `MIXLAB_ENABLE_READY_PUBLISH_WORKER=1`，不符合 MVP-safe 默认。
+- NAS desktop readonly refresh：`docs/acceptance/artifacts/admin-docker-nas-desktop-readonly-refresh-20260628T193000Z.json`，通过同一 NAS 桌面 Docker UI 再次只读复核，确认容器仍运行、仍为 `latest` 镜像、`admin-worker` 仍读写挂载 `/data/PublicLibrary` 且自动 preprocess/publish worker flags 仍开启。本轮未写 NAS 文件、未启停容器、未推送/拉取镜像、未启动预处理、未发布 release/index。
 - live readonly refresh：`docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T190333Z.json`，GET-only 探测 NAS `http://192.168.1.27:18080`；Admin Web root 可达，但 `/api/admin/auth/status`、`/api/admin/release-gates`、`/api/admin/data-loading/plan` 仍缺失，说明 NAS 仍是旧 Admin API 合约；素材统计保持 ready `10471`、current index `v010471`、total `11394`，queued `904`、index-required `19`，磁盘仍约 `98%` 且 blocked。
 - version parity plan：`docs/acceptance/artifacts/admin-docker-version-parity-plan-20260628T182253Z.json`，`status=blocked`；确认后续需要 image/API parity 更新，但当前不允许 deploy，阻塞项包括 current Admin API contract、version/health parity、admin-worker env proof、Cutter compatibility proof、NAS disk risk。
 - NAS access preflight refresh：`docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T191949Z.json`，确认 NAS 共享已可见 portable kit，但 `nas_collection_directly_available=false`；阻塞项仍为 SSH 不可用、compose project 未在 SMB 可见、returned evidence 未返回；next actions 现包含 `preflight:admin-docker-nas-ugos-api` 作为 browserless 采集通道评估。
 - NAS UGOS API preflight：`docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T191949Z.json`，`direct_ugos_collection_available=false`；UGOS desktop 可读，API reachable，但 `ugos-session-authenticated`、`docker-app-context-ready`、`docker-container-list-readable` 仍阻塞。该通道当前不能替代 handoff kit。
-- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T191953Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `13` 个 gate、`5` 个通过、`8` 个阻塞，阻塞项为 live readonly、parity、worker proof、Cutter proof、NAS returned evidence intake、returned evidence precheck、release inputs、staging runbook。
+- release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T193836Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `13` 个 gate、`5` 个通过、`8` 个阻塞，阻塞项为 live readonly、parity、worker proof、Cutter proof、NAS returned evidence intake、returned evidence precheck、release inputs、staging runbook。
 
 这批证据只清除了“当前远端 Docker 候选构建/候选 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。当前总门禁视图显示 NAS 手工采集路径已准备好，但 NAS returned evidence intake、NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof、显式 push approval 和最终发布决策仍未完成。
 
@@ -211,10 +212,13 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - `apps/admin-web/src/features/settings/SettingsPage.tsx`
 - `apps/admin-web/src/features/index-publish/IndexPublishPage.tsx`
 - `packages/admin-api/src/admin-command-guard.ts`
+- `packages/admin-api/src/admin-route-adapter.ts`
 - `packages/admin-api/src/admin-preprocess-command-routes.ts`
 - `packages/admin-api/src/admin-source-video-command-routes.ts`
 - `packages/admin-api/src/admin-library-command-routes.ts`
 - `packages/admin-api/src/admin-index-command-routes.ts`
+- `packages/admin-api/src/admin-settings-command-routes.ts`
+- `packages/admin-api/src/admin-command-restore-routes.ts`
 - `packages/admin-api/src/admin-write-route-audit.ts`
 
 验收：
@@ -350,6 +354,23 @@ MVP v0.1 通过后再进入：
 5. 补充测试，证明 UI 漏出也不能越过后端 gate。
 
 第一批不做 Docker 上传，不跑真实 NAS 写操作，不启动真实 worker。
+
+### 第一批当前进展
+
+2026-06-28 当前 Phase 1 已完成一个后端安全门禁切片：
+
+- `admin-route-adapter` 新增统一 Docker MVP command blocked route envelope，把 `admin_mvp_command_blocked` 映射为稳定 `409`。
+- `library/init`、`library/scan-apply`、`index/repair`、`settings` source folder mutation、`source-videos` metadata/publish/transition、command snapshot restore 均已接入该映射。
+- 被 MVP gate 阻断时不会清理 source-video page cache，不会把阻断误报为成功写入。
+- 已补充对应 route-level 单元测试，覆盖 UI 漏出或旧入口误触发时后端仍返回明确 blocked。
+- 本切片仍不是完整 Phase 1：Admin Web MVP 导航/危险按钮收敛、预处理 route 的完整 L4/L5 gate 复核、UI 测试和 Docker release readiness gate 仍需继续完成。
+
+当前本地验证：
+
+- `node --test --import tsx packages/admin-api/src/admin-library-command-routes.test.ts packages/admin-api/src/admin-index-command-routes.test.ts packages/admin-api/src/admin-settings-command-routes.test.ts packages/admin-api/src/admin-source-video-command-routes.test.ts packages/admin-api/src/admin-command-restore-routes.test.ts`：`37` 项通过。
+- `npm run typecheck`：通过。
+- 已对本轮 NAS 密码特征做本地残留检查：无输出，确认本轮报告和仓库文件未写入 NAS 密码。具体凭据搜索模式不写入文档。
+- 曾误跑 `npm test -- --runInBand ...`，项目 test script 忽略参数后执行全量测试，其中两个既有 `packages/cutter-api/src/index.test.ts` 用例失败；该失败不属于本轮 admin route gate 改动，后续应单独回到 Cutter 测试夹具/期望值排查。
 
 ## 通过标准
 

@@ -294,6 +294,60 @@ test("library scan route maps scan-apply protection blocks to conflict responses
   }
 });
 
+test("library command routes map docker mvp command blocks without cache side effects", async () => {
+  const details = {
+    mode: "v0.1",
+    command: "library-init",
+    policy: "docker-mvp-v0.1",
+    allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+  };
+  let clearCalls = 0;
+  const init = await callRoute({
+    pathname: "/api/admin/library/init",
+    deps: makeDeps({
+      run_library_init_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：library-init"), {
+          code: "admin_mvp_command_blocked",
+          details
+        });
+      },
+      clear_source_video_page_cache: () => {
+        clearCalls += 1;
+      }
+    })
+  });
+  const scan = await callRoute({
+    pathname: "/api/admin/library/scan",
+    deps: makeDeps({
+      run_library_scan_apply_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：library-scan"), {
+          code: "admin_mvp_command_blocked",
+          details: {
+            ...details,
+            command: "library-scan"
+          }
+        });
+      },
+      schedule_read_model_reconcile_after_scan: () => {
+        throw new Error("reconcile should not be scheduled");
+      },
+      clear_source_video_page_cache: () => {
+        clearCalls += 1;
+      }
+    })
+  });
+
+  for (const result of [init, scan]) {
+    assert.equal(result.handled, true);
+    if (result.handled) {
+      assert.equal(result.status_code, 409);
+      assert.equal(result.body.ok, false);
+      assert.equal(result.body.error_code, "admin_mvp_command_blocked");
+    }
+  }
+  assert.equal(clearCalls, 0);
+});
+
 test("library scan route preserves unexpected error bubbling", async () => {
   await assert.rejects(
     () => callRoute({

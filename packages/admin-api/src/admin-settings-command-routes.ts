@@ -5,6 +5,7 @@ import type {
   AdminSourceFolderPatch
 } from "../../library-fs/src/index.ts";
 import {
+  adminDockerMvpCommandBlockedRouteError,
   apiError,
   apiOk,
   type AdminApiEnvelope
@@ -152,6 +153,11 @@ function settingsMutationErrorEnvelope(error: unknown): {
   status_code: number;
   body: AdminApiEnvelope<unknown>;
 } {
+  const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+  if (dockerMvpBlock) {
+    return dockerMvpBlock;
+  }
+
   if (error instanceof SyntaxError) {
     return {
       status_code: 400,

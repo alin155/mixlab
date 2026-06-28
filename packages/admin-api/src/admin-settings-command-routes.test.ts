@@ -315,6 +315,37 @@ test("settings command routes preserve mutation error mapping", async () => {
   );
 });
 
+test("settings command routes map docker mvp command blocks to conflict responses", async () => {
+  const details = {
+    mode: "v0.1",
+    command: "settings-config",
+    policy: "docker-mvp-v0.1",
+    allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+  };
+  const result = await callRoute({
+    pathname: "/api/admin/settings/config",
+    deps: makeDeps({
+      run_settings_config_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：settings-config"), {
+          code: "admin_mvp_command_blocked",
+          details
+        });
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  if (result.handled) {
+    assert.equal(result.status_code, 409);
+    assert.deepEqual(result.body, {
+      ok: false,
+      error_code: "admin_mvp_command_blocked",
+      message: "Docker MVP v0.1 已阻断高风险管理端命令：settings-config",
+      details
+    });
+  }
+});
+
 test("settings command routes ignore reads malformed ids and unrelated paths", async () => {
   let commandCalls = 0;
   const deps = makeDeps({

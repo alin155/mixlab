@@ -10,6 +10,7 @@ import type {
   AdminCommandRestorePlan
 } from "./admin-command-restore-plan.ts";
 import {
+  adminDockerMvpCommandBlockedRouteError,
   apiError,
   apiOk,
   type AdminApiEnvelope
@@ -231,7 +232,20 @@ export async function handleAdminCommandRestoreRoutes<
       });
     }
 
-    const restore = await input.deps.run_restore(restoreInput);
+    let restore: TRestoreResult;
+    try {
+      restore = await input.deps.run_restore(restoreInput);
+    } catch (error) {
+      const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+      if (dockerMvpBlock) {
+        return {
+          handled: true,
+          ...dockerMvpBlock
+        };
+      }
+
+      throw error;
+    }
     if (restore.status === "blocked") {
       return restoreBlockedResult({
         message: "命令快照恢复被阻断。",

@@ -1,11 +1,9 @@
 import {
+  adminDockerMvpCommandBlockedRouteError,
   apiError,
   apiOk,
   type AdminApiEnvelope
 } from "./admin-route-adapter.ts";
-import {
-  isAdminDockerMvpCommandBlockedError
-} from "./admin-command-guard.ts";
 import { matchAdminSourceVideoCoverPath } from "./admin-source-video-media-routes.ts";
 
 export interface AdminSourceVideoCommandRouteApiInput {
@@ -137,6 +135,16 @@ function transitionMessage(input: {
     : `${input.source_video_id} 当前状态不能恢复。`;
 }
 
+function dockerMvpCommandBlockedResult(error: unknown): AdminSourceVideoCommandRouteResult | null {
+  const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+  return dockerMvpBlock
+    ? {
+        handled: true,
+        ...dockerMvpBlock
+      }
+    : null;
+}
+
 async function handleTransitionCommandRoute<
   TApiInput extends AdminSourceVideoCommandRouteApiInput,
   TManifest,
@@ -162,25 +170,34 @@ async function handleTransitionCommandRoute<
     }
   }
 
-  const result = await input.route_input.deps.run_transition_command({
-    api_input: input.route_input.api_input,
-    source_video_id: input.source_video_id,
-    command: input.command
-  });
-  input.route_input.deps.clear_source_video_page_cache(input.route_input.api_input.library_root);
+  try {
+    const result = await input.route_input.deps.run_transition_command({
+      api_input: input.route_input.api_input,
+      source_video_id: input.source_video_id,
+      command: input.command
+    });
+    input.route_input.deps.clear_source_video_page_cache(input.route_input.api_input.library_root);
 
-  return {
-    handled: true,
-    status_code: 200,
-    body: apiOk({
-      ...result,
-      message: transitionMessage({
-        command: input.command,
-        source_video_id: input.source_video_id,
-        affected_count: result.affected_count
+    return {
+      handled: true,
+      status_code: 200,
+      body: apiOk({
+        ...result,
+        message: transitionMessage({
+          command: input.command,
+          source_video_id: input.source_video_id,
+          affected_count: result.affected_count
+        })
       })
-    })
-  };
+    };
+  } catch (error) {
+    const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+    if (dockerMvpBlock) {
+      return dockerMvpBlock;
+    }
+
+    throw error;
+  }
 }
 
 export async function handleAdminSourceVideoCommandRoutes<
@@ -214,12 +231,9 @@ export async function handleAdminSourceVideoCommandRoutes<
         body: apiOk(input.deps.to_public_source_video(updated))
       };
     } catch (error) {
-      if (isAdminDockerMvpCommandBlockedError(error)) {
-        return {
-          handled: true,
-          status_code: 409,
-          body: apiError(error.code, error.message, error.details)
-        };
+      const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+      if (dockerMvpBlock) {
+        return dockerMvpBlock;
       }
 
       const message = error instanceof SyntaxError ? "请求 JSON 格式无效" : (error as Error).message;
@@ -233,26 +247,35 @@ export async function handleAdminSourceVideoCommandRoutes<
 
   const metadataSourceVideoId = matchAdminSourceVideoMetadataPath(input.pathname);
   if (input.method === "PATCH" && metadataSourceVideoId) {
-    const updated = await input.deps.run_metadata_command({
-      api_input: input.api_input,
-      source_video_id: metadataSourceVideoId,
-      body: await input.deps.read_request_json() as Record<string, unknown>
-    });
+    try {
+      const updated = await input.deps.run_metadata_command({
+        api_input: input.api_input,
+        source_video_id: metadataSourceVideoId,
+        body: await input.deps.read_request_json() as Record<string, unknown>
+      });
 
-    if (!updated) {
+      if (!updated) {
+        return {
+          handled: true,
+          status_code: 404,
+          body: apiError("not_found", "原视频不存在")
+        };
+      }
+
+      input.deps.clear_source_video_page_cache(input.api_input.library_root);
       return {
         handled: true,
-        status_code: 404,
-        body: apiError("not_found", "原视频不存在")
+        status_code: 200,
+        body: apiOk(input.deps.to_public_source_video(updated))
       };
-    }
+    } catch (error) {
+      const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+      if (dockerMvpBlock) {
+        return dockerMvpBlock;
+      }
 
-    input.deps.clear_source_video_page_cache(input.api_input.library_root);
-    return {
-      handled: true,
-      status_code: 200,
-      body: apiOk(input.deps.to_public_source_video(updated))
-    };
+      throw error;
+    }
   }
 
   const queueSourceVideoId = matchAdminSourceVideoQueuePath(input.pathname);
@@ -284,17 +307,26 @@ export async function handleAdminSourceVideoCommandRoutes<
 
   const publishSourceVideoId = matchAdminSourceVideoPublishPath(input.pathname);
   if (input.method === "POST" && publishSourceVideoId) {
-    const result = await input.deps.run_publish_command({
-      api_input: input.api_input,
-      source_video_id: publishSourceVideoId
-    });
-    input.deps.clear_source_video_page_cache(input.api_input.library_root);
+    try {
+      const result = await input.deps.run_publish_command({
+        api_input: input.api_input,
+        source_video_id: publishSourceVideoId
+      });
+      input.deps.clear_source_video_page_cache(input.api_input.library_root);
 
-    return {
-      handled: true,
-      status_code: 200,
-      body: apiOk(result)
-    };
+      return {
+        handled: true,
+        status_code: 200,
+        body: apiOk(result)
+      };
+    } catch (error) {
+      const dockerMvpBlock = dockerMvpCommandBlockedResult(error);
+      if (dockerMvpBlock) {
+        return dockerMvpBlock;
+      }
+
+      throw error;
+    }
   }
 
   return { handled: false };

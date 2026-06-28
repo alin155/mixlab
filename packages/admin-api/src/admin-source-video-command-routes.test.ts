@@ -226,6 +226,58 @@ test("source-video command routes preserve docker mvp command blocks through cov
   });
 });
 
+test("source-video command routes preserve docker mvp command blocks for metadata and publish", async () => {
+  const details = {
+    mode: "v0.1",
+    command: "source-video-metadata",
+    policy: "docker-mvp-v0.1",
+    allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+  };
+  const metadata = await callRoute({
+    pathname: "/api/admin/source-videos/V000123/metadata",
+    deps: makeDeps({
+      run_metadata_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：source-video-metadata"), {
+          code: "admin_mvp_command_blocked",
+          details
+        });
+      }
+    })
+  });
+  const publish = await callRoute({
+    method: "POST",
+    pathname: "/api/admin/source-videos/V000123/publish",
+    deps: makeDeps({
+      run_publish_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：source-video-publish"), {
+          code: "admin_mvp_command_blocked",
+          details: {
+            ...details,
+            command: "source-video-publish"
+          }
+        });
+      }
+    })
+  });
+
+  assert.equal(metadata.handled, true);
+  assert.equal(publish.handled, true);
+  if (metadata.handled) {
+    assert.equal(metadata.status_code, 409);
+    assert.equal(metadata.body.ok, false);
+    if (!metadata.body.ok) {
+      assert.equal(metadata.body.error_code, "admin_mvp_command_blocked");
+    }
+  }
+  if (publish.handled) {
+    assert.equal(publish.status_code, 409);
+    assert.equal(publish.body.ok, false);
+    if (!publish.body.ok) {
+      assert.equal(publish.body.error_code, "admin_mvp_command_blocked");
+    }
+  }
+});
+
 test("source-video command routes handle metadata patch with injected command service", async () => {
   let metadataCall:
     | (AdminSourceVideoCommandRouteCommandInput<TestApiInput> & { body: Record<string, unknown> })

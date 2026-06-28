@@ -1,4 +1,5 @@
 import {
+  adminDockerMvpCommandBlockedRouteError,
   apiOk,
   type AdminApiEnvelope
 } from "./admin-route-adapter.ts";
@@ -50,16 +51,28 @@ export async function handleAdminIndexCommandRoutes<
   input: HandleAdminIndexCommandRoutesInput<TApiInput, TIndexRepairResult>
 ): Promise<AdminIndexCommandRouteResult> {
   if (input.method === "POST" && matchAdminIndexRepairPath(input.pathname)) {
-    const result = await input.deps.run_index_repair_command({
-      api_input: input.api_input
-    });
-    input.deps.clear_source_video_page_cache(input.api_input.library_root);
+    try {
+      const result = await input.deps.run_index_repair_command({
+        api_input: input.api_input
+      });
+      input.deps.clear_source_video_page_cache(input.api_input.library_root);
 
-    return {
-      handled: true,
-      status_code: 200,
-      body: apiOk(result)
-    };
+      return {
+        handled: true,
+        status_code: 200,
+        body: apiOk(result)
+      };
+    } catch (error) {
+      const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+      if (dockerMvpBlock) {
+        return {
+          handled: true,
+          ...dockerMvpBlock
+        };
+      }
+
+      throw error;
+    }
   }
 
   return { handled: false };

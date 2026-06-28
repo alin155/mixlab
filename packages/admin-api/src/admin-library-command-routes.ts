@@ -1,4 +1,5 @@
 import {
+  adminDockerMvpCommandBlockedRouteError,
   apiError,
   apiOk,
   type AdminApiEnvelope
@@ -95,16 +96,28 @@ export async function handleAdminLibraryCommandRoutes<
   >
 ): Promise<AdminLibraryCommandRouteResult> {
   if (input.method === "POST" && matchAdminLibraryInitPath(input.pathname)) {
-    const result = await input.deps.run_library_init_command({
-      api_input: input.api_input
-    });
-    input.deps.clear_source_video_page_cache(input.api_input.library_root);
+    try {
+      const result = await input.deps.run_library_init_command({
+        api_input: input.api_input
+      });
+      input.deps.clear_source_video_page_cache(input.api_input.library_root);
 
-    return {
-      handled: true,
-      status_code: 200,
-      body: apiOk(result)
-    };
+      return {
+        handled: true,
+        status_code: 200,
+        body: apiOk(result)
+      };
+    } catch (error) {
+      const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+      if (dockerMvpBlock) {
+        return {
+          handled: true,
+          ...dockerMvpBlock
+        };
+      }
+
+      throw error;
+    }
   }
 
   if (input.method === "POST" && matchAdminLibraryScanApplyPath(input.pathname)) {
@@ -140,6 +153,14 @@ export async function handleAdminLibraryCommandRoutes<
             error.message,
             { preview: error.preview as unknown as Record<string, unknown> }
           )
+        };
+      }
+
+      const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+      if (dockerMvpBlock) {
+        return {
+          handled: true,
+          ...dockerMvpBlock
         };
       }
 

@@ -119,6 +119,46 @@ test("index repair route dispatches through injected command service and clears 
   });
 });
 
+test("index repair route maps docker mvp command blocks without clearing caches", async () => {
+  let clearCalls = 0;
+  const result = await callRoute({
+    pathname: "/api/admin/index/repair",
+    deps: makeDeps({
+      run_index_repair_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：index-repair"), {
+          code: "admin_mvp_command_blocked",
+          details: {
+            mode: "v0.1",
+            command: "index-repair",
+            policy: "docker-mvp-v0.1",
+            allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+          }
+        });
+      },
+      clear_source_video_page_cache: () => {
+        clearCalls += 1;
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.equal(clearCalls, 0);
+  if (result.handled) {
+    assert.equal(result.status_code, 409);
+    assert.deepEqual(result.body, {
+      ok: false,
+      error_code: "admin_mvp_command_blocked",
+      message: "Docker MVP v0.1 已阻断高风险管理端命令：index-repair",
+      details: {
+        mode: "v0.1",
+        command: "index-repair",
+        policy: "docker-mvp-v0.1",
+        allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+      }
+    });
+  }
+});
+
 test("index repair route leaves caches untouched when command fails", async () => {
   let clearCalls = 0;
   await assert.rejects(

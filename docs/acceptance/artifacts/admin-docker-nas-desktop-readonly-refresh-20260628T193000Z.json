@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T19:30:00Z",
+  "mode": "nas-docker-desktop-readonly-observation-refresh",
+  "target": {
+    "nas_desktop_url": "http://192.168.1.27:9999/desktop/#/",
+    "nas_admin_web_url": "http://192.168.1.27:18080",
+    "desktop_title": "DXP8800PRO-DB07",
+    "observation_method": "Playwright-driven NAS desktop UI session"
+  },
+  "safety": {
+    "credentials_written_to_report": false,
+    "browser_storage_state_saved": false,
+    "nas_files_written": false,
+    "docker_containers_started_or_stopped": false,
+    "docker_images_pushed_or_pulled": false,
+    "preprocess_started": false,
+    "release_or_index_published": false,
+    "cutter_protocol_changed": false
+  },
+  "docker_desktop_observations": {
+    "docker_service_status": "服务运行正常",
+    "project_count": "1/1",
+    "container_count": "3/3",
+    "compose_project": "mixlab-server"
+  },
+  "containers": [
+    {
+      "name": "mixlab-server-admin-web-1",
+      "status": "运行中",
+      "image": "ghcr.io/alin155/mixlab-admin-web:latest",
+      "uptime": "Up 2 days",
+      "ram": "5.2MB / 7.4GB"
+    },
+    {
+      "name": "mixlab-server-admin-api-1",
+      "status": "运行中",
+      "image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "uptime": "Up 2 days",
+      "ram": "883.9MB / 7.4GB",
+      "mounts": [
+        {
+          "nas_path": "共享文件夹/MixLab/PublicLibrary",
+          "container_path": "/data/PublicLibrary",
+          "permission": "读写"
+        }
+      ]
+    },
+    {
+      "name": "mixlab-server-admin-worker-1",
+      "status": "运行中",
+      "image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "uptime": "Up 2 days",
+      "ram": "90.7MB / 7.4GB",
+      "mounts": [
+        {
+          "nas_path": "共享文件夹/MixLab/PublicLibrary",
+          "container_path": "/data/PublicLibrary",
+          "permission": "读写"
+        }
+      ],
+      "environment": {
+        "MIXLAB_ADMIN_LIBRARY_ROOT": "/data/PublicLibrary",
+        "MIXLAB_FFMPEG_PATH": "/usr/bin/ffmpeg",
+        "MIXLAB_FFPROBE_PATH": "/usr/bin/ffprobe",
+        "MIXLAB_WORKER_POLL_INTERVAL_SECONDS": "60",
+        "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "1",
+        "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "1",
+        "NODE_ENV": "production"
+      }
+    }
+  ],
+  "result": {
+    "status": "blocked",
+    "docker_deploy_allowed": false,
+    "summary": "Refresh confirmed the NAS is still running the old latest-tagged Admin stack, and the admin-worker still has automatic preprocess/publish worker flags enabled."
+  }
+}

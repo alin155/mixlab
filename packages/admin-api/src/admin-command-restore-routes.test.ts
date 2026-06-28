@@ -341,6 +341,42 @@ test("restore route returns success for restored results and conflict for late b
   }
 });
 
+test("restore route maps docker mvp command blocks without reporting restored state", async () => {
+  const result = await callRoute({
+    method: "POST",
+    pathname: "/api/admin/command-snapshots/snap-7/restore",
+    deps: makeDeps({
+      run_restore: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：command-snapshot-restore"), {
+          code: "admin_mvp_command_blocked",
+          details: {
+            mode: "v0.1",
+            command: "command-snapshot-restore",
+            policy: "docker-mvp-v0.1",
+            allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+          }
+        });
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  if (result.handled) {
+    assert.equal(result.status_code, 409);
+    assert.deepEqual(result.body, {
+      ok: false,
+      error_code: "admin_mvp_command_blocked",
+      message: "Docker MVP v0.1 已阻断高风险管理端命令：command-snapshot-restore",
+      details: {
+        mode: "v0.1",
+        command: "command-snapshot-restore",
+        policy: "docker-mvp-v0.1",
+        allowed_surface: ["管理端登录", "剪辑师管理", "受控预处理队列"]
+      }
+    });
+  }
+});
+
 test("restore route resolver finds a snapshot manifest by snapshot id without absolute path input", async () => {
   const libraryRoot = await makeLibraryRoot();
   const settingsPath = path.join(libraryRoot, ".mixlab-library", "admin-settings.json");
