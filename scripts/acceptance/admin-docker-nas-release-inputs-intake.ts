@@ -6,6 +6,9 @@ import { runAdminDockerNasDiskProof, type AdminDockerNasDiskProofReport } from "
 import { runAdminDockerNasImageProof, type AdminDockerNasImageProofReport } from "./admin-docker-nas-image-proof.ts";
 import { runAdminDockerReleaseInputs, type AdminDockerReleaseInputsReport } from "./admin-docker-release-inputs.ts";
 import { runAdminDockerStagingRunbook, type AdminDockerStagingRunbookReport } from "./admin-docker-staging-runbook.ts";
+import {
+  runAdminDockerNasReturnedEvidencePrecheck
+} from "./admin-docker-nas-returned-evidence-precheck.ts";
 import { runAdminWorkerEnvProof, type AdminWorkerEnvProofReport } from "./admin-worker-env-proof.ts";
 
 const DEFAULT_ARTIFACT_DIR = "docs/acceptance/artifacts";
@@ -92,6 +95,8 @@ export interface AdminDockerNasReleaseInputsIntakeReport {
     current_image_tag: string;
     target_image_tag: string;
     rollback_image_tag: string;
+    returned_precheck_passed: boolean | null;
+    returned_precheck_issues: string[];
     nas_image_proof_status: string;
     nas_image_proof_accepted: boolean | null;
     worker_env_status: string;
@@ -288,6 +293,7 @@ function toMarkdown(report: AdminDockerNasReleaseInputsIntakeReport): string {
     `- current_image_tag: ${report.observations.current_image_tag || "<missing>"}`,
     `- target_image_tag: ${report.observations.target_image_tag || "<missing>"}`,
     `- rollback_image_tag: ${report.observations.rollback_image_tag || "<missing>"}`,
+    `- Returned evidence precheck: ${String(report.observations.returned_precheck_passed)}; issues: ${report.observations.returned_precheck_issues.join(" / ") || "none"}`,
     `- NAS image proof: ${report.observations.nas_image_proof_status || "<not run>"} / accepted=${String(report.observations.nas_image_proof_accepted)}`,
     `- Worker proof: ${report.observations.worker_env_status || "<not run>"} / accepted=${String(report.observations.worker_proof_accepted)}`,
     `- Disk proof: ${report.observations.nas_disk_proof_status || "<not run>"} / accepted=${String(report.observations.nas_disk_proof_accepted)}`,
@@ -352,13 +358,16 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const files = await returnedFiles(returnedDir);
   const missing = missingReturnedFiles(files);
   const runErrors: string[] = [];
+  const returnedPrecheck = await runAdminDockerNasReturnedEvidencePrecheck({
+    returned_dir: returnedDir
+  });
   let nasImageProof: AdminDockerNasImageProofReport | undefined;
   let workerProof: AdminWorkerEnvProofReport | undefined;
   let diskProof: AdminDockerNasDiskProofReport | undefined;
   let releaseInputs: AdminDockerReleaseInputsReport | undefined;
   let stagingRunbook: AdminDockerStagingRunbookReport | undefined;
 
-  if (missing.length === 0) {
+  if (missing.length === 0 && returnedPrecheck.precheck_passed) {
     try {
       nasImageProof = await runAdminDockerNasImageProof({
         env_file_path: requiredFile(files, "nas_env"),
@@ -458,6 +467,20 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       blocks_staging_execution: true,
       blocks_docker_deploy: true,
       required_evidence: `Returned directory must contain ${Object.values(RETURNED_FILES).join(", ")}.`
+    }),
+    gate({
+      id: "returned-evidence-precheck-passed",
+      title: "Returned NAS evidence passes local format and sanitization precheck",
+      category: "returned-evidence",
+      status: returnedPrecheck.precheck_passed ? "pass" : "blocked",
+      evidence: returnedPrecheck.precheck_passed
+        ? "precheck_passed=true"
+        : `precheck issues: ${returnedPrecheck.issues.map((issue) => `${issue.code}${issue.file ? `:${issue.file}` : ""}`).join(", ") || "unknown"}`,
+      blocks_intake: !returnedPrecheck.precheck_passed,
+      blocks_release_inputs: true,
+      blocks_staging_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Run precheck:admin-docker-nas-returned-evidence and ensure precheck_passed=true before consuming returned proof files."
     }),
     gate({
       id: "nas-image-proof-accepted",
@@ -573,6 +596,8 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       current_image_tag: currentTag,
       target_image_tag: targetTag,
       rollback_image_tag: rollbackTag,
+      returned_precheck_passed: asBoolean(returnedPrecheck.precheck_passed),
+      returned_precheck_issues: returnedPrecheck.issues.map((issue) => `${issue.code}${issue.file ? `:${issue.file}` : ""} ${issue.message}`),
       nas_image_proof_status: resultStatus(nasImageProof),
       nas_image_proof_accepted: asBoolean(nasImageProof?.proof_accepted),
       worker_env_status: resultStatus(workerProof),

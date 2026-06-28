@@ -22,8 +22,7 @@ async function writeJson(filePath: string, value: unknown): Promise<string> {
 
 function currentEnv(): string {
   return [
-    `MIXLAB_IMAGE_TAG=${CURRENT_TAG}`,
-    "DASHSCOPE_API_KEY=secret-that-must-not-appear"
+    `MIXLAB_IMAGE_TAG=${CURRENT_TAG}`
   ].join("\n");
 }
 
@@ -63,8 +62,7 @@ function workerEnv(): string {
   return [
     "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
     "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
-    "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
-    "DASHSCOPE_API_KEY=secret-that-must-not-appear"
+    "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0"
   ].join("\n");
 }
 
@@ -79,8 +77,7 @@ function workerInspect(): unknown[] {
           "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
           "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
           "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",
-          "MIXLAB_PREPROCESS_LIBRARY_ROOT=/data/PublicLibrary",
-          "DASHSCOPE_API_KEY=secret-that-must-not-appear"
+          "MIXLAB_PREPROCESS_LIBRARY_ROOT=/data/PublicLibrary"
         ]
       }
     }
@@ -253,6 +250,58 @@ test("NAS release-inputs intake stays blocked when returned evidence is missing"
   assert.match(markdown, /If returned evidence is missing/);
 });
 
+test("NAS release-inputs intake runs returned evidence precheck before proof generation", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-nas-intake-precheck-"));
+  const returnedDir = path.join(tempRoot, "admin-docker-release-inputs");
+  await mkdir(returnedDir);
+  const unsafeInspect = currentInspect() as Array<Record<string, unknown>>;
+  unsafeInspect[0] = {
+    ...unsafeInspect[0],
+    Config: {
+      Image: `ghcr.io/alin155/mixlab-admin-runtime:${CURRENT_TAG}`,
+      Labels: {
+        "com.docker.compose.service": "admin-api"
+      },
+      Env: ["MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary"]
+    }
+  };
+
+  await writeText(path.join(returnedDir, "admin-docker-current.env"), currentEnv());
+  await writeJson(path.join(returnedDir, "admin-docker-current.inspect.json"), unsafeInspect);
+  await writeText(path.join(returnedDir, "admin-worker.env"), workerEnv());
+  await writeJson(path.join(returnedDir, "admin-worker.inspect.json"), workerInspect());
+  await writeJson(path.join(returnedDir, "admin-docker-disk-proof.json"), diskProof());
+  await writeText(path.join(returnedDir, "MANIFEST.txt"), [
+    "schema_version=1.0",
+    "mode=admin-docker-nas-release-inputs-collector",
+    "push_execution_allowed=false",
+    "docker_deploy_allowed=false",
+    "nas_writes_allowed=false",
+    "worker_start_allowed=false",
+    "secret_sanitization=sanitized-only",
+    "forbidden_full_env=true",
+    "forbidden_full_docker_inspect=true",
+    "forbidden_secrets=true"
+  ].join("\n"));
+  await writeText(path.join(returnedDir, "README.md"), "# Admin Docker NAS Release Inputs\n");
+
+  const report = await runAdminDockerNasReleaseInputsIntake({
+    returned_dir: returnedDir,
+    output_dir: tempRoot,
+    artifact_dir: tempRoot,
+    generated_at: "2026-06-28T00:00:00.000Z",
+    command: "test"
+  });
+
+  assert.equal(report.result.status, "blocked");
+  assert.equal(report.intake_complete, false);
+  assert.equal(report.observations.returned_precheck_passed, false);
+  assert.ok(report.summary.intake_blockers.includes("returned-evidence-precheck-passed"));
+  assert.ok(report.observations.returned_precheck_issues.some((issue) => issue.includes("inspect-env-present")));
+  assert.equal(report.generated_reports.nas_image_proof_report, "");
+  assert.equal(report.generated_reports.release_inputs_report, "");
+});
+
 test("NAS release-inputs intake consumes returned proofs without approving push or deploy", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-nas-intake-"));
   const returnedDir = path.join(tempRoot, "admin-docker-release-inputs");
@@ -269,7 +318,11 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
     "push_execution_allowed=false",
     "docker_deploy_allowed=false",
     "nas_writes_allowed=false",
-    "worker_start_allowed=false"
+    "worker_start_allowed=false",
+    "secret_sanitization=sanitized-only",
+    "forbidden_full_env=true",
+    "forbidden_full_docker_inspect=true",
+    "forbidden_secrets=true"
   ].join("\n"));
   await writeText(path.join(returnedDir, "README.md"), [
     "# Admin Docker NAS Release Inputs",
@@ -308,6 +361,8 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   assert.equal(report.observations.current_image_tag, CURRENT_TAG);
   assert.equal(report.observations.target_image_tag, TARGET_TAG);
   assert.equal(report.observations.rollback_image_tag, CURRENT_TAG);
+  assert.equal(report.observations.returned_precheck_passed, true);
+  assert.deepEqual(report.observations.returned_precheck_issues, []);
   assert.equal(report.observations.nas_image_proof_accepted, true);
   assert.equal(report.observations.worker_proof_accepted, true);
   assert.equal(report.observations.nas_disk_proof_accepted, true);
@@ -319,6 +374,5 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   assert.ok(report.generated_reports.release_inputs_report.endsWith("admin-docker-release-inputs-20260628T000000Z.json"));
   assert.ok(report.generated_reports.staging_runbook_report.endsWith("admin-docker-staging-runbook-20260628T000000Z.json"));
   assert.equal(JSON.stringify(report).includes("gh workflow run docker-admin.yml"), false);
-  assert.equal(JSON.stringify(report).includes("secret-that-must-not-appear"), false);
   assert.match(await readFile(report.artifacts?.markdown_path ?? "", "utf8"), /Release inputs ready: yes/);
 });
