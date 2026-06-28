@@ -173,6 +173,7 @@ jobs:
           MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.rollback_image_tag || '' }}
           MIXLAB_DOCKER_PUSH_APPROVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true && 'workflow_dispatch:push_images=true' || '' }}
         run: |
+          npm run intake:admin-docker-nas-release-inputs
           npm run validate:admin-docker-staging-runbook
           npm run validate:admin-docker-release-readiness-summary
           npm run validate:admin-docker-github-artifact-readiness
@@ -195,6 +196,8 @@ jobs:
             .local-dev/admin-docker-release-gates/admin-worker-env-proof-*.md
             .local-dev/admin-docker-release-gates/admin-cutter-compatibility-proof-*.json
             .local-dev/admin-docker-release-gates/admin-cutter-compatibility-proof-*.md
+            .local-dev/admin-docker-release-gates/admin-docker-nas-release-inputs-intake-*.json
+            .local-dev/admin-docker-release-gates/admin-docker-nas-release-inputs-intake-*.md
             .local-dev/admin-docker-release-gates/admin-docker-staging-runbook-*.json
             .local-dev/admin-docker-release-gates/admin-docker-staging-runbook-*.md
             .local-dev/admin-docker-release-gates/admin-docker-release-readiness-summary-*.json

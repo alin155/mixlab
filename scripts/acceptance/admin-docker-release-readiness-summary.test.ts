@@ -88,6 +88,42 @@ function acceptedProof(): unknown {
   };
 }
 
+function blockedReleaseInputsIntake(): unknown {
+  return {
+    result: { status: "blocked" },
+    intake_complete: false,
+    release_inputs_ready: false,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    summary: {
+      intake_blockers: [
+        "returned-dir-provided",
+        "returned-files-complete",
+        "nas-image-proof-accepted"
+      ],
+      release_input_blockers: [
+        "returned-dir-provided",
+        "returned-files-complete",
+        "release-inputs-ready"
+      ]
+    }
+  };
+}
+
+function readyReleaseInputsIntake(): unknown {
+  return {
+    result: { status: "intake-complete" },
+    intake_complete: true,
+    release_inputs_ready: true,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    summary: {
+      intake_blockers: [],
+      release_input_blockers: []
+    }
+  };
+}
+
 function blockedRunbook(): unknown {
   return {
     result: { status: "blocked" },
@@ -147,6 +183,8 @@ function reportInput(overrides: Partial<Parameters<typeof buildAdminDockerReleas
     worker_env_proof_report: blockedProof(["env-file-provided"]),
     cutter_compatibility_proof_report_path: "cutter.json",
     cutter_compatibility_proof_report: blockedProof(["windows-acceptance-report-provided"]),
+    release_inputs_intake_report_path: "intake.json",
+    release_inputs_intake_report: blockedReleaseInputsIntake(),
     staging_runbook_report_path: "runbook.json",
     staging_runbook_report: blockedRunbook(),
     ...overrides
@@ -164,7 +202,11 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(report.summary.release_review_blockers.includes("parity-plan-blockers-clear"));
   assert.ok(report.summary.release_review_blockers.includes("worker-proof-accepted"));
   assert.ok(report.summary.release_review_blockers.includes("cutter-proof-accepted"));
+  assert.ok(report.summary.release_review_blockers.includes("nas-release-inputs-intake-complete"));
+  assert.ok(report.summary.release_review_blockers.includes("release-inputs-ready"));
   assert.ok(report.summary.release_review_blockers.includes("staging-runbook-ready"));
+  assert.ok(report.next_actions.some((item) => item.includes("admin-docker-release-inputs/")));
+  assert.ok(report.next_actions.some((item) => item.includes("release-input blockers")));
   assert.ok(report.next_actions.some((item) => item.includes("NAS disk pressure")));
   assert.ok(report.next_actions.some((item) => item.includes("local smoke")));
   assert.ok(report.next_actions.some((item) => item.includes("push_images=true")));
@@ -180,6 +222,7 @@ test("admin Docker release readiness summary can become ready for separate relea
     parity_plan_report: clearParityReport(),
     worker_env_proof_report: acceptedProof(),
     cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: readyReleaseInputsIntake(),
     staging_runbook_report: readyRunbook()
   }));
 
@@ -200,6 +243,7 @@ test("admin Docker release readiness summary blocks if a source report tries to 
     parity_plan_report: clearParityReport(),
     worker_env_proof_report: acceptedProof(),
     cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: readyReleaseInputsIntake(),
     staging_runbook_report: unsafeRunbook
   }));
 
@@ -214,5 +258,25 @@ test("admin Docker release readiness summary markdown records no-side-effect sco
   assert.match(markdown, /reads archived artifacts only/);
   assert.match(markdown, /does not approve Docker upload/);
   assert.match(markdown, /Local Docker smoke/);
+  assert.match(markdown, /Release-inputs intake complete/);
   assert.match(markdown, /Live blockers/);
+});
+
+test("admin Docker release readiness summary fails if release-input intake tries to approve push", () => {
+  const unsafeIntake = {
+    ...readyReleaseInputsIntake() as Record<string, unknown>,
+    push_execution_allowed: true
+  };
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    live_readonly_report: clearLiveReport(),
+    parity_plan_report: clearParityReport(),
+    worker_env_proof_report: acceptedProof(),
+    cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: unsafeIntake,
+    staging_runbook_report: readyRunbook()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("summary-does-not-approve-upload"));
 });

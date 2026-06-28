@@ -3456,7 +3456,7 @@ test("Admin Docker workflow builds, smokes, and only pushes NAS images after exp
   assert.match(workflow, /npm run audit:delivery-readiness/);
   assert.match(
     workflow,
-    /npm run typecheck[\s\S]*npm run test:searchd[\s\S]*npm run test:acceptance-evidence[\s\S]*npm run audit:delivery-readiness[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*npm run validate:admin-docker-candidate-contract-proof[\s\S]*npm run validate:admin-docker-release-live-readonly[\s\S]*npm run validate:admin-docker-version-parity-plan[\s\S]*npm run validate:admin-worker-env-proof[\s\S]*npm run validate:admin-cutter-compatibility-proof[\s\S]*docker\/build-push-action@v6[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness/
+    /npm run typecheck[\s\S]*npm run test:searchd[\s\S]*npm run test:acceptance-evidence[\s\S]*npm run audit:delivery-readiness[\s\S]*npm run package:evidence-kit[\s\S]*npm run validate:evidence-kit-manifest[\s\S]*evidence-kit-manifest-self-check\.sh[\s\S]*npm run validate:admin-docker-local-smoke[\s\S]*npm run validate:admin-docker-candidate-contract-proof[\s\S]*npm run validate:admin-docker-release-live-readonly[\s\S]*npm run validate:admin-docker-version-parity-plan[\s\S]*npm run validate:admin-worker-env-proof[\s\S]*npm run validate:admin-cutter-compatibility-proof[\s\S]*docker\/build-push-action@v6[\s\S]*npm run intake:admin-docker-nas-release-inputs[\s\S]*npm run validate:admin-docker-staging-runbook[\s\S]*npm run validate:admin-docker-release-readiness-summary[\s\S]*npm run validate:admin-docker-github-artifact-readiness/
   );
   assert.match(workflow, /MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"/);
   assert.match(workflow, /MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"/);
@@ -3471,6 +3471,7 @@ test("Admin Docker workflow builds, smokes, and only pushes NAS images after exp
     workflow,
     /name: mixlab-admin-docker-release-gates[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-local-smoke-\*\.json[\s\S]*\.local-dev\/admin-docker-release-gates\/admin-docker-local-smoke-\*\.md/
   );
+  assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-nas-release-inputs-intake-\*\.json/);
   assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-staging-runbook-\*\.json/);
   assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-release-readiness-summary-\*\.json/);
   assert.match(workflow, /\.local-dev\/admin-docker-release-gates\/admin-docker-github-artifact-readiness-\*\.json/);

@@ -9,6 +9,7 @@ type ReadinessStatus = "pass" | "blocked";
 type ReadinessCategory =
   | "safety"
   | "local-smoke"
+  | "release-inputs"
   | "live-nas"
   | "parity"
   | "worker"
@@ -38,6 +39,7 @@ interface ReadinessSources {
   parity_plan_report: string;
   worker_env_proof_report: string;
   cutter_compatibility_proof_report: string;
+  release_inputs_intake_report: string;
   staging_runbook_report: string;
 }
 
@@ -63,6 +65,11 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     cutter_status: string;
     cutter_proof_accepted: boolean | null;
     cutter_upload_blockers: string[];
+    release_inputs_intake_status: string;
+    release_inputs_intake_complete: boolean | null;
+    release_inputs_ready: boolean | null;
+    release_inputs_intake_blockers: string[];
+    release_input_blockers: string[];
     staging_status: string;
     staging_review_ready: boolean | null;
     staging_blockers: string[];
@@ -166,6 +173,10 @@ function nextActions(input: {
   workerAccepted: boolean | null;
   cutterAccepted: boolean | null;
   stagingBlockers: string[];
+  releaseInputsIntakeComplete: boolean | null;
+  releaseInputsReady: boolean | null;
+  releaseInputsIntakeBlockers: string[];
+  releaseInputBlockers: string[];
 }): string[] {
   const actions: string[] = [];
 
@@ -199,6 +210,14 @@ function nextActions(input: {
 
   if (!input.cutterAccepted) {
     actions.push("After a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.");
+  }
+
+  if (!input.releaseInputsIntakeComplete) {
+    actions.push(`Run the NAS release-inputs collector, copy admin-docker-release-inputs/ back to the Mac repo, then rerun intake:admin-docker-nas-release-inputs. Current intake blockers: ${input.releaseInputsIntakeBlockers.join(", ") || "unknown"}.`);
+  }
+
+  if (!input.releaseInputsReady) {
+    actions.push(`Regenerate release inputs from accepted pre-staging, candidate-ref, and NAS current-image proof before release review. Current release-input blockers: ${input.releaseInputBlockers.join(", ") || "unknown"}.`);
   }
 
   if (input.stagingBlockers.includes("candidate-contract-proof-accepted")) {
@@ -237,6 +256,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   worker_env_proof_report: unknown;
   cutter_compatibility_proof_report_path: string;
   cutter_compatibility_proof_report: unknown;
+  release_inputs_intake_report_path: string;
+  release_inputs_intake_report: unknown;
   staging_runbook_report_path: string;
   staging_runbook_report: unknown;
 }): AdminDockerReleaseReadinessSummaryReport {
@@ -245,9 +266,15 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const parityBlockers = summaryBlockers(input.parity_plan_report);
   const workerBlockers = summaryBlockers(input.worker_env_proof_report);
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
+  const releaseInputsIntakeBlockers = summaryBlockers(input.release_inputs_intake_report, "intake_blockers");
+  const releaseInputBlockers = summaryBlockers(input.release_inputs_intake_report, "release_input_blockers");
   const stagingBlockers = summaryBlockers(input.staging_runbook_report, "staging_blockers");
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
   const cutterAccepted = asBoolean(asRecord(input.cutter_compatibility_proof_report).proof_accepted);
+  const releaseInputsIntakeComplete = asBoolean(asRecord(input.release_inputs_intake_report).intake_complete);
+  const releaseInputsReady = asBoolean(asRecord(input.release_inputs_intake_report).release_inputs_ready);
+  const releaseInputsPushAllowed = asBoolean(asRecord(input.release_inputs_intake_report).push_execution_allowed);
+  const releaseInputsDeployAllowed = asBoolean(asRecord(input.release_inputs_intake_report).docker_deploy_allowed);
   const localSmokePassed = asBoolean(asRecord(input.local_docker_smoke_report).local_smoke_passed);
   const stagingReviewReady = asBoolean(asRecord(input.staging_runbook_report).staging_review_ready);
   const stagingObservations = asRecord(asRecord(input.staging_runbook_report).observations);
@@ -309,6 +336,28 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       required_evidence: "Provide accepted staged-candidate Windows Cutter compatibility proof."
     }),
     gate({
+      id: "nas-release-inputs-intake-complete",
+      title: "NAS release-input returned evidence has been consumed",
+      category: "release-inputs",
+      status: releaseInputsIntakeComplete ? "pass" : "blocked",
+      evidence: releaseInputsIntakeComplete
+        ? "intake_complete=true"
+        : `intake blockers: ${releaseInputsIntakeBlockers.join(", ") || "unknown"}`,
+      blocks_release_review: !releaseInputsIntakeComplete,
+      required_evidence: "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
+    }),
+    gate({
+      id: "release-inputs-ready",
+      title: "Release inputs are ready for a separate release decision",
+      category: "release-inputs",
+      status: releaseInputsReady ? "pass" : "blocked",
+      evidence: releaseInputsReady
+        ? "release_inputs_ready=true"
+        : `release input blockers: ${releaseInputBlockers.join(", ") || "unknown"}`,
+      blocks_release_review: !releaseInputsReady,
+      required_evidence: "Release inputs must be regenerated from accepted pre-staging, candidate-ref, and NAS current-image proof."
+    }),
+    gate({
       id: "staging-runbook-ready",
       title: "Docker staging runbook is ready for release review",
       category: "runbook",
@@ -321,9 +370,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       id: "summary-does-not-approve-upload",
       title: "Summary does not approve Docker upload by itself",
       category: "safety",
-      status: dockerDeployAllowed === false ? "pass" : "blocked",
-      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}`,
-      blocks_release_review: dockerDeployAllowed !== false,
+      status: dockerDeployAllowed === false && releaseInputsPushAllowed === false && releaseInputsDeployAllowed === false ? "pass" : "blocked",
+      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}`,
+      blocks_release_review: dockerDeployAllowed !== false || releaseInputsPushAllowed !== false || releaseInputsDeployAllowed !== false,
       required_evidence: "Docker upload must remain a separate release decision even when evidence gates are ready."
     })
   ];
@@ -341,6 +390,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       parity_plan_report: input.parity_plan_report_path,
       worker_env_proof_report: input.worker_env_proof_report_path,
       cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
+      release_inputs_intake_report: input.release_inputs_intake_report_path,
       staging_runbook_report: input.staging_runbook_report_path
     },
     release_review_ready: releaseReviewReady,
@@ -359,6 +409,11 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       cutter_status: resultStatus(input.cutter_compatibility_proof_report),
       cutter_proof_accepted: cutterAccepted,
       cutter_upload_blockers: cutterBlockers,
+      release_inputs_intake_status: resultStatus(input.release_inputs_intake_report),
+      release_inputs_intake_complete: releaseInputsIntakeComplete,
+      release_inputs_ready: releaseInputsReady,
+      release_inputs_intake_blockers: releaseInputsIntakeBlockers,
+      release_input_blockers: releaseInputBlockers,
       staging_status: resultStatus(input.staging_runbook_report),
       staging_review_ready: stagingReviewReady,
       staging_blockers: stagingBlockers,
@@ -382,7 +437,11 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       parityBlockers,
       workerAccepted,
       cutterAccepted,
-      stagingBlockers
+      stagingBlockers,
+      releaseInputsIntakeComplete,
+      releaseInputsReady,
+      releaseInputsIntakeBlockers,
+      releaseInputBlockers
     }),
     artifacts: null
   };
@@ -411,6 +470,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Parity plan: ${report.sources.parity_plan_report}`,
     `- Worker proof: ${report.sources.worker_env_proof_report}`,
     `- Cutter proof: ${report.sources.cutter_compatibility_proof_report}`,
+    `- Release inputs intake: ${report.sources.release_inputs_intake_report}`,
     `- Staging runbook: ${report.sources.staging_runbook_report}`,
     "",
     "## Observations",
@@ -420,6 +480,8 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
     `- Worker accepted: ${report.observations.worker_proof_accepted ?? "unknown"}; blockers: ${report.observations.worker_upload_blockers.join(", ") || "none"}`,
     `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
+    `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
+    `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}; blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
     `- Staging ready: ${report.observations.staging_review_ready ?? "unknown"}; blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
     `- Unresolved parity blockers: ${report.observations.unresolved_parity_blockers.join(", ") || "none"}`,
     `- Resolved external parity blockers: ${report.observations.resolved_external_parity_blockers.join(", ") || "none"}`,
@@ -448,7 +510,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     ""
   ];
 
-  return `${lines.join("\n")}\n`;
+  return `${lines.join("\n").trimEnd()}\n`;
 }
 
 async function main(): Promise<void> {
@@ -464,6 +526,8 @@ async function main(): Promise<void> {
     ?? await latestArtifact(artifactDir, "admin-worker-env-proof-");
   const cutterPath = process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT
     ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
+  const releaseInputsIntakePath = process.env.MIXLAB_ADMIN_DOCKER_NAS_RELEASE_INPUTS_INTAKE_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-nas-release-inputs-intake-");
   const runbookPath = process.env.MIXLAB_DOCKER_STAGING_RUNBOOK_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-staging-runbook-");
   const timestamp = timestampForFile();
@@ -482,6 +546,8 @@ async function main(): Promise<void> {
     worker_env_proof_report: await loadJson(workerPath),
     cutter_compatibility_proof_report_path: cutterPath,
     cutter_compatibility_proof_report: await loadJson(cutterPath),
+    release_inputs_intake_report_path: releaseInputsIntakePath,
+    release_inputs_intake_report: await loadJson(releaseInputsIntakePath),
     staging_runbook_report_path: runbookPath,
     staging_runbook_report: await loadJson(runbookPath)
   });
