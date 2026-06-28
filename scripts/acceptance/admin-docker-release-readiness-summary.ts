@@ -39,6 +39,7 @@ interface ReadinessSources {
   local_docker_smoke_report: string;
   live_readonly_report: string;
   parity_plan_report: string;
+  github_artifact_readiness_report: string;
   worker_env_proof_report: string;
   cutter_compatibility_proof_report: string;
   release_inputs_intake_report: string;
@@ -59,6 +60,11 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     local_smoke_status: string;
     local_smoke_passed: boolean | null;
     local_smoke_blockers: string[];
+    github_artifact_status: string;
+    github_candidate_artifact_ready: boolean | null;
+    github_candidate_image_tag: string;
+    github_candidate_build_sha: string;
+    github_staging_handoff_ready: boolean | null;
     live_status: string;
     live_upload_blockers: string[];
     parity_status: string;
@@ -182,6 +188,8 @@ async function loadJson(filePath: string): Promise<unknown> {
 function nextActions(input: {
   localSmokePassed: boolean | null;
   localSmokeBlockers: string[];
+  githubCandidateArtifactReady: boolean | null;
+  githubCandidateImageTag: string;
   liveBlockers: string[];
   parityBlockers: string[];
   workerAccepted: boolean | null;
@@ -200,11 +208,13 @@ function nextActions(input: {
 }): string[] {
   const actions: string[] = [];
 
-  if (!input.localSmokePassed) {
+  const candidateSmokeAccepted = input.localSmokePassed === true || input.githubCandidateArtifactReady === true;
+
+  if (!candidateSmokeAccepted) {
     actions.push("Run the Admin Docker local smoke on a Docker-capable machine with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1, then rerun validate:admin-docker-release-readiness-summary.");
   }
 
-  if (input.localSmokeBlockers.includes("docker-cli-available") || input.localSmokeBlockers.includes("docker-compose-available")) {
+  if (!candidateSmokeAccepted && (input.localSmokeBlockers.includes("docker-cli-available") || input.localSmokeBlockers.includes("docker-compose-available"))) {
     actions.push("Provide Docker CLI and Docker Compose on the local/staging validation machine before treating the candidate as Docker-smoked.");
   }
 
@@ -232,6 +242,10 @@ function nextActions(input: {
     actions.push("After a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.");
   }
 
+  if (candidateSmokeAccepted && input.stagingBlockers.includes("local-docker-smoke-passed")) {
+    actions.push("Regenerate the staging runbook from current evidence so the stale local-docker-smoke-passed blocker is replaced by the accepted GitHub candidate artifact.");
+  }
+
   if (!input.releaseInputsIntakeComplete) {
     if (input.handoffKitReady && input.handoffKitArchivePath) {
       actions.push(`Transfer ${input.handoffKitArchivePath} to the NAS desktop or NAS shell host, verify sha256=${input.handoffKitArchiveSha256 || "unknown"}, run the kit self-check, then collect returned release inputs.`);
@@ -253,11 +267,11 @@ function nextActions(input: {
   }
 
   if (input.stagingBlockers.includes("image-push-explicitly-approved")) {
-    actions.push("Run the Admin Docker GitHub workflow manually with push_images=true after local Docker smoke passes, then set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true for the staging runbook.");
+    actions.push("Run the Admin Docker GitHub workflow manually with push_images=true after candidate smoke evidence is green, then set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true for the staging runbook.");
   }
 
   if (input.stagingBlockers.includes("target-tag-matches-smoked-image")) {
-    actions.push("Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact build_identity.image_tag from the accepted local Docker smoke report before staging review.");
+    actions.push(`Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact accepted candidate image tag${input.githubCandidateImageTag ? ` (${input.githubCandidateImageTag})` : ""} before staging review.`);
   }
 
   if (input.stagingBlockers.some((item) => item.includes("image-tag") || item.includes("tag-"))) {
@@ -278,6 +292,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   live_readonly_report: unknown;
   local_docker_smoke_report_path: string;
   local_docker_smoke_report: unknown;
+  github_artifact_readiness_report_path: string;
+  github_artifact_readiness_report: unknown;
   parity_plan_report_path: string;
   parity_plan_report: unknown;
   worker_env_proof_report_path: string;
@@ -313,6 +329,12 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const releaseInputsReady = asBoolean(asRecord(input.release_inputs_intake_report).release_inputs_ready);
   const releaseInputsPushAllowed = asBoolean(asRecord(input.release_inputs_intake_report).push_execution_allowed);
   const releaseInputsDeployAllowed = asBoolean(asRecord(input.release_inputs_intake_report).docker_deploy_allowed);
+  const githubCandidateArtifactReady = asBoolean(asRecord(input.github_artifact_readiness_report).github_candidate_artifact_ready);
+  const githubStagingHandoffReady = asBoolean(asRecord(input.github_artifact_readiness_report).staging_handoff_ready);
+  const githubArtifactDeployAllowed = asBoolean(asRecord(input.github_artifact_readiness_report).docker_deploy_allowed);
+  const githubObservations = asRecord(asRecord(input.github_artifact_readiness_report).observations);
+  const githubCandidateImageTag = asString(githubObservations.local_smoke_image_tag);
+  const githubCandidateBuildSha = asString(githubObservations.local_smoke_build_sha);
   const nasCollectionDirectlyAvailable = asBoolean(asRecord(input.nas_access_preflight_report).nas_collection_directly_available);
   const nasAccessPushAllowed = asBoolean(asRecord(input.nas_access_preflight_report).push_execution_allowed);
   const nasAccessDeployAllowed = asBoolean(asRecord(input.nas_access_preflight_report).docker_deploy_allowed);
@@ -328,6 +350,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const stagingReviewReady = asBoolean(asRecord(input.staging_runbook_report).staging_review_ready);
   const stagingObservations = asRecord(asRecord(input.staging_runbook_report).observations);
   const dockerDeployAllowed = asBoolean(asRecord(input.staging_runbook_report).docker_deploy_allowed);
+  const candidateSmokeAccepted = localSmokePassed === true || githubCandidateArtifactReady === true;
   const gates = [
     gate({
       id: "summary-no-side-effects",
@@ -339,14 +362,14 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     }),
     gate({
       id: "local-docker-smoke-passed",
-      title: "Local Docker candidate smoke has passed",
+      title: "Docker candidate smoke has passed locally or in GitHub",
       category: "local-smoke",
-      status: localSmokePassed ? "pass" : "blocked",
-      evidence: localSmokePassed
-        ? "Local Docker smoke passed with local images, compose stack, endpoint probes, and admin-worker env proof."
-        : `Local Docker smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}`,
-      blocks_release_review: !localSmokePassed,
-      required_evidence: "Run validate:admin-docker-local-smoke with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 on a Docker-capable machine and require local_smoke_passed:true."
+      status: candidateSmokeAccepted ? "pass" : "blocked",
+      evidence: candidateSmokeAccepted
+        ? `local_smoke_passed=${String(localSmokePassed)}, github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}, image_tag=${githubCandidateImageTag || "local-report"}`
+        : `Local Docker smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}; github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}`,
+      blocks_release_review: !candidateSmokeAccepted,
+      required_evidence: "Run validate:admin-docker-local-smoke on a Docker-capable machine, or archive an Admin Docker GitHub artifact readiness report with github_candidate_artifact_ready=true."
     }),
     gate({
       id: "live-readonly-blockers-clear",
@@ -453,16 +476,18 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       status: dockerDeployAllowed === false
         && releaseInputsPushAllowed === false
         && releaseInputsDeployAllowed === false
+        && githubArtifactDeployAllowed === false
         && nasAccessPushAllowed === false
         && nasAccessDeployAllowed === false
         && handoffKitPushAllowed === false
         && handoffKitDeployAllowed === false
         ? "pass"
         : "blocked",
-      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}, nas_access.push_execution_allowed=${nasAccessPushAllowed ?? "unknown"}, nas_access.docker_deploy_allowed=${nasAccessDeployAllowed ?? "unknown"}, handoff_kit.push_execution_allowed=${handoffKitPushAllowed ?? "unknown"}, handoff_kit.docker_deploy_allowed=${handoffKitDeployAllowed ?? "unknown"}`,
+      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}, github_artifact.docker_deploy_allowed=${githubArtifactDeployAllowed ?? "unknown"}, nas_access.push_execution_allowed=${nasAccessPushAllowed ?? "unknown"}, nas_access.docker_deploy_allowed=${nasAccessDeployAllowed ?? "unknown"}, handoff_kit.push_execution_allowed=${handoffKitPushAllowed ?? "unknown"}, handoff_kit.docker_deploy_allowed=${handoffKitDeployAllowed ?? "unknown"}`,
       blocks_release_review: dockerDeployAllowed !== false
         || releaseInputsPushAllowed !== false
         || releaseInputsDeployAllowed !== false
+        || githubArtifactDeployAllowed !== false
         || nasAccessPushAllowed !== false
         || nasAccessDeployAllowed !== false
         || handoffKitPushAllowed !== false
@@ -480,6 +505,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     mode: "admin-docker-release-readiness-summary",
     sources: {
       local_docker_smoke_report: input.local_docker_smoke_report_path,
+      github_artifact_readiness_report: input.github_artifact_readiness_report_path,
       live_readonly_report: input.live_readonly_report_path,
       parity_plan_report: input.parity_plan_report_path,
       worker_env_proof_report: input.worker_env_proof_report_path,
@@ -495,6 +521,11 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       local_smoke_status: resultStatus(input.local_docker_smoke_report),
       local_smoke_passed: localSmokePassed,
       local_smoke_blockers: localSmokeBlockers,
+      github_artifact_status: resultStatus(input.github_artifact_readiness_report),
+      github_candidate_artifact_ready: githubCandidateArtifactReady,
+      github_candidate_image_tag: githubCandidateImageTag,
+      github_candidate_build_sha: githubCandidateBuildSha,
+      github_staging_handoff_ready: githubStagingHandoffReady,
       live_status: resultStatus(input.live_readonly_report),
       live_upload_blockers: liveBlockers,
       parity_status: resultStatus(input.parity_plan_report),
@@ -539,6 +570,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     next_actions: nextActions({
       localSmokePassed,
       localSmokeBlockers,
+      githubCandidateArtifactReady,
+      githubCandidateImageTag,
       liveBlockers,
       parityBlockers,
       workerAccepted,
@@ -578,6 +611,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     "## Sources",
     "",
     `- Local Docker smoke: ${report.sources.local_docker_smoke_report}`,
+    `- GitHub artifact readiness: ${report.sources.github_artifact_readiness_report}`,
     `- Live readonly: ${report.sources.live_readonly_report}`,
     `- Parity plan: ${report.sources.parity_plan_report}`,
     `- Worker proof: ${report.sources.worker_env_proof_report}`,
@@ -590,6 +624,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     "## Observations",
     "",
     `- Local Docker smoke passed: ${report.observations.local_smoke_passed ?? "unknown"}; blockers: ${report.observations.local_smoke_blockers.join(", ") || "none"}`,
+    `- GitHub candidate artifact ready: ${report.observations.github_candidate_artifact_ready ?? "unknown"}; image_tag=${report.observations.github_candidate_image_tag || "none"}; build_sha=${report.observations.github_candidate_build_sha || "none"}; staging_handoff_ready=${report.observations.github_staging_handoff_ready ?? "unknown"}`,
     `- Live blockers: ${report.observations.live_upload_blockers.join(", ") || "none"}`,
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
     `- Worker accepted: ${report.observations.worker_proof_accepted ?? "unknown"}; blockers: ${report.observations.worker_upload_blockers.join(", ") || "none"}`,
@@ -635,6 +670,8 @@ async function main(): Promise<void> {
   const artifactDir = process.env.MIXLAB_ACCEPTANCE_ARTIFACT_DIR ?? DEFAULT_ARTIFACT_DIR;
   const localSmokePath = process.env.MIXLAB_DOCKER_LOCAL_SMOKE_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
+  const githubArtifactReadinessPath = process.env.MIXLAB_DOCKER_GITHUB_ARTIFACT_READINESS_REPORT
+    ?? await latestArtifact(artifactDir, "admin-docker-github-artifact-readiness-");
   const livePath = process.env.MIXLAB_DOCKER_LIVE_READONLY_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-release-live-readonly-");
   const parityPath = process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT
@@ -659,6 +696,8 @@ async function main(): Promise<void> {
     command: process.argv.join(" "),
     local_docker_smoke_report_path: localSmokePath,
     local_docker_smoke_report: await loadJson(localSmokePath),
+    github_artifact_readiness_report_path: githubArtifactReadinessPath,
+    github_artifact_readiness_report: await loadJson(githubArtifactReadinessPath),
     live_readonly_report_path: livePath,
     live_readonly_report: await loadJson(livePath),
     parity_plan_report_path: parityPath,

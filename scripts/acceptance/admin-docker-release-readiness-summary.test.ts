@@ -6,6 +6,8 @@ import {
   toMarkdown
 } from "./admin-docker-release-readiness-summary.ts";
 
+const TARGET_SHA = "b062bc387c1fdb2a391320c1c36233b782cb000a";
+
 function blockedLiveReport(): unknown {
   return {
     result: { status: "blocked" },
@@ -35,6 +37,29 @@ function passedLocalSmokeReport(): unknown {
     result: { status: "accepted" },
     summary: {
       local_smoke_blockers: []
+    }
+  };
+}
+
+function blockedGithubArtifactReadiness(): unknown {
+  return {
+    github_candidate_artifact_ready: false,
+    staging_handoff_ready: false,
+    docker_deploy_allowed: false,
+    result: { status: "blocked" },
+    observations: {}
+  };
+}
+
+function readyGithubArtifactReadiness(): unknown {
+  return {
+    github_candidate_artifact_ready: true,
+    staging_handoff_ready: false,
+    docker_deploy_allowed: false,
+    result: { status: "candidate-ready" },
+    observations: {
+      local_smoke_image_tag: TARGET_SHA,
+      local_smoke_build_sha: TARGET_SHA
     }
   };
 }
@@ -233,6 +258,8 @@ function reportInput(overrides: Partial<Parameters<typeof buildAdminDockerReleas
     command: "test",
     local_docker_smoke_report_path: "local-smoke.json",
     local_docker_smoke_report: blockedLocalSmokeReport(),
+    github_artifact_readiness_report_path: "github-artifact.json",
+    github_artifact_readiness_report: blockedGithubArtifactReadiness(),
     live_readonly_report_path: "live.json",
     live_readonly_report: blockedLiveReport(),
     parity_plan_report_path: "parity.json",
@@ -276,9 +303,24 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(report.next_actions.some((item) => item.includes("NAS disk pressure")));
   assert.ok(report.next_actions.some((item) => item.includes("local smoke")));
   assert.ok(report.next_actions.some((item) => item.includes("push_images=true")));
-  assert.ok(report.next_actions.some((item) => item.includes("build_identity.image_tag")));
+  assert.ok(report.next_actions.some((item) => item.includes("accepted candidate image tag")));
   assert.ok(report.next_actions.some((item) => item.includes("cutter_compatibility_proof")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-candidate-contract-proof")));
+});
+
+test("admin Docker release readiness summary accepts GitHub candidate artifact when Mac local Docker is unavailable", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    github_artifact_readiness_report: readyGithubArtifactReadiness()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(!report.summary.release_review_blockers.includes("local-docker-smoke-passed"));
+  assert.equal(report.observations.local_smoke_passed, false);
+  assert.equal(report.observations.github_candidate_artifact_ready, true);
+  assert.equal(report.observations.github_candidate_image_tag, TARGET_SHA);
+  assert.ok(!report.next_actions.some((item) => item.includes("Docker CLI and Docker Compose")));
+  assert.ok(report.next_actions.some((item) => item.includes("Regenerate the staging runbook")));
+  assert.ok(report.next_actions.some((item) => item.includes(TARGET_SHA)));
 });
 
 test("admin Docker release readiness summary can become ready for separate release decision", () => {
@@ -312,6 +354,26 @@ test("admin Docker release readiness summary blocks if a source report tries to 
     cutter_compatibility_proof_report: acceptedProof(),
     release_inputs_intake_report: readyReleaseInputsIntake(),
     staging_runbook_report: unsafeRunbook
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("summary-does-not-approve-upload"));
+});
+
+test("admin Docker release readiness summary blocks if GitHub artifact tries to approve deploy", () => {
+  const unsafeGithubArtifact = {
+    ...readyGithubArtifactReadiness() as Record<string, unknown>,
+    docker_deploy_allowed: true
+  };
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    github_artifact_readiness_report: unsafeGithubArtifact,
+    live_readonly_report: clearLiveReport(),
+    parity_plan_report: clearParityReport(),
+    worker_env_proof_report: acceptedProof(),
+    cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: readyReleaseInputsIntake(),
+    staging_runbook_report: readyRunbook()
   }));
 
   assert.equal(report.release_review_ready, false);
@@ -356,6 +418,7 @@ test("admin Docker release readiness summary markdown records no-side-effect sco
   assert.match(markdown, /reads archived artifacts only/);
   assert.match(markdown, /does not approve Docker upload/);
   assert.match(markdown, /Local Docker smoke/);
+  assert.match(markdown, /GitHub candidate artifact ready/);
   assert.match(markdown, /Release-inputs intake complete/);
   assert.match(markdown, /Live blockers/);
   assert.match(markdown, /NAS handoff kit ready/);
