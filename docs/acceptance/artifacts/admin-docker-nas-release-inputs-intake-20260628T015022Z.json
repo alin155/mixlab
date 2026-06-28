@@ -1,0 +1,257 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T01:50:22.130Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",
+  "mode": "admin-docker-nas-release-inputs-intake",
+  "sources": {
+    "returned_dir": "",
+    "prestaging_handoff_report": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T011802Z.json",
+    "candidate_ref_proof_report": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T011610Z.json",
+    "local_docker_smoke_report": "docs/acceptance/artifacts/admin-docker-local-smoke-20260627T194719Z.json",
+    "parity_plan_report": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260627T194743Z.json",
+    "candidate_contract_proof_report": "docs/acceptance/artifacts/admin-docker-candidate-contract-proof-20260627T195510Z.json",
+    "cutter_compatibility_proof_report": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260627T194754Z.json"
+  },
+  "returned_files": [
+    {
+      "key": "nas_env",
+      "expected_name": "admin-docker-current.env",
+      "path": "",
+      "present": false,
+      "size_bytes": null
+    },
+    {
+      "key": "nas_inspect",
+      "expected_name": "admin-docker-current.inspect.json",
+      "path": "",
+      "present": false,
+      "size_bytes": null
+    },
+    {
+      "key": "worker_env",
+      "expected_name": "admin-worker.env",
+      "path": "",
+      "present": false,
+      "size_bytes": null
+    },
+    {
+      "key": "worker_inspect",
+      "expected_name": "admin-worker.inspect.json",
+      "path": "",
+      "present": false,
+      "size_bytes": null
+    },
+    {
+      "key": "disk_proof",
+      "expected_name": "admin-docker-disk-proof.json",
+      "path": "",
+      "present": false,
+      "size_bytes": null
+    }
+  ],
+  "generated_reports": {
+    "nas_image_proof_report": "",
+    "worker_env_proof_report": "",
+    "nas_disk_proof_report": "",
+    "release_inputs_report": "",
+    "staging_runbook_report": ""
+  },
+  "intake_complete": false,
+  "release_inputs_ready": false,
+  "staging_execution_ready": false,
+  "staging_review_ready": false,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "current_image_tag": "",
+    "target_image_tag": "",
+    "rollback_image_tag": "",
+    "nas_image_proof_status": "",
+    "nas_image_proof_accepted": null,
+    "worker_env_status": "",
+    "worker_proof_accepted": null,
+    "nas_disk_proof_status": "",
+    "nas_disk_proof_accepted": null,
+    "release_inputs_status": "",
+    "release_input_blockers": [],
+    "staging_runbook_status": "",
+    "staging_execution_blockers": [],
+    "staging_blockers": [],
+    "run_errors": []
+  },
+  "gates": [
+    {
+      "id": "intake-no-side-effects",
+      "title": "NAS release-input intake is local validation only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads returned sanitized files and local artifacts only; it does not contact NAS, Docker, GitHub, Admin API, or Cutter.",
+      "blocks_intake": false,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "returned-dir-provided",
+      "title": "Returned NAS evidence directory is provided",
+      "category": "returned-evidence",
+      "status": "blocked",
+      "evidence": "MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR is not provided.",
+      "blocks_intake": true,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Copy admin-docker-release-inputs/ from the NAS collector back to the Mac repository and provide its path."
+    },
+    {
+      "id": "returned-files-complete",
+      "title": "Returned NAS evidence directory contains all required sanitized files",
+      "category": "returned-evidence",
+      "status": "blocked",
+      "evidence": "missing: admin-docker-current.env, admin-docker-current.inspect.json, admin-worker.env, admin-worker.inspect.json, admin-docker-disk-proof.json",
+      "blocks_intake": true,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Returned directory must contain admin-docker-current.env, admin-docker-current.inspect.json, admin-worker.env, admin-worker.inspect.json, admin-docker-disk-proof.json."
+    },
+    {
+      "id": "nas-image-proof-accepted",
+      "title": "NAS current image proof is accepted",
+      "category": "proof",
+      "status": "blocked",
+      "evidence": "not generated",
+      "blocks_intake": true,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-nas-image-proof with returned admin-docker-current.env and inspect JSON."
+    },
+    {
+      "id": "admin-worker-proof-accepted",
+      "title": "Admin worker disabled-env proof is accepted",
+      "category": "proof",
+      "status": "blocked",
+      "evidence": "not generated",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-worker-env-proof with returned admin-worker.env and inspect JSON."
+    },
+    {
+      "id": "nas-disk-proof-accepted",
+      "title": "NAS disk proof is accepted",
+      "category": "proof",
+      "status": "blocked",
+      "evidence": "not generated",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-nas-disk-proof with returned admin-docker-disk-proof.json."
+    },
+    {
+      "id": "release-inputs-generated",
+      "title": "Release inputs were regenerated with accepted NAS image proof",
+      "category": "release-inputs",
+      "status": "blocked",
+      "evidence": "not generated",
+      "blocks_intake": true,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Regenerate validate:admin-docker-release-inputs with prestaging, candidate-ref, and accepted NAS image proof."
+    },
+    {
+      "id": "release-inputs-ready",
+      "title": "Release inputs are ready for separate release decision",
+      "category": "release-inputs",
+      "status": "blocked",
+      "evidence": "not generated",
+      "blocks_intake": false,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Release inputs must have release_inputs_ready=true before any explicit push_images=true decision."
+    },
+    {
+      "id": "staging-runbook-generated",
+      "title": "Staging runbook was regenerated from returned NAS evidence",
+      "category": "runbook",
+      "status": "blocked",
+      "evidence": "not generated",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Regenerate validate:admin-docker-staging-runbook after release inputs and disk proof are available."
+    },
+    {
+      "id": "staging-runbook-remains-nondeploy",
+      "title": "Staging runbook does not approve deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "staging_runbook.docker_deploy_allowed=false",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Runbook generation must remain a planning gate with docker_deploy_allowed=false."
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 2,
+    "blocked": 8,
+    "failed": 0,
+    "intake_blockers": [
+      "returned-dir-provided",
+      "returned-files-complete",
+      "nas-image-proof-accepted",
+      "admin-worker-proof-accepted",
+      "nas-disk-proof-accepted",
+      "release-inputs-generated",
+      "staging-runbook-generated"
+    ],
+    "release_input_blockers": [
+      "returned-dir-provided",
+      "returned-files-complete",
+      "nas-image-proof-accepted",
+      "release-inputs-generated",
+      "release-inputs-ready"
+    ],
+    "staging_execution_blockers": [
+      "returned-dir-provided",
+      "returned-files-complete",
+      "nas-image-proof-accepted",
+      "nas-disk-proof-accepted",
+      "release-inputs-generated",
+      "release-inputs-ready",
+      "staging-runbook-generated"
+    ],
+    "docker_deploy_blockers": [
+      "returned-dir-provided",
+      "returned-files-complete",
+      "nas-image-proof-accepted",
+      "admin-worker-proof-accepted",
+      "nas-disk-proof-accepted",
+      "release-inputs-generated",
+      "release-inputs-ready",
+      "staging-runbook-generated"
+    ]
+  },
+  "next_actions": [
+    "Keep push_images=false and do not edit NAS .env.",
+    "Resolve intake blockers: returned-dir-provided, returned-files-complete, nas-image-proof-accepted, admin-worker-proof-accepted, nas-disk-proof-accepted, release-inputs-generated, staging-runbook-generated.",
+    "If returned evidence is missing, rerun the NAS collector from the Compose project folder and copy admin-docker-release-inputs/ back to the Mac repo."
+  ],
+  "result": {
+    "status": "blocked",
+    "summary": "NAS release-input returned evidence intake is blocked until the sanitized returned files are complete and accepted."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260628T015022Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260628T015022Z.md"
+  }
+}

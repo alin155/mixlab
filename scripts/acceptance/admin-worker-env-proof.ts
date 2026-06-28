@@ -345,7 +345,7 @@ export function buildAdminWorkerEnvProofReport(input: {
   };
 }
 
-function toMarkdown(report: AdminWorkerEnvProofReport): string {
+export function toMarkdown(report: AdminWorkerEnvProofReport): string {
   const lines = [
     "# Admin Worker Environment Proof",
     "",
@@ -417,20 +417,25 @@ async function optionalReadFile(filePath: string | undefined): Promise<string> {
   return readFile(filePath, "utf8");
 }
 
-async function main(): Promise<void> {
-  const outputDir = process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR ?? DEFAULT_OUTPUT_DIR;
-  const envFilePath = process.env.MIXLAB_ADMIN_WORKER_ENV_FILE ?? "";
-  const inspectJsonPath = process.env.MIXLAB_ADMIN_WORKER_INSPECT_JSON ?? "";
-  const timestamp = timestampForFile();
+export async function runAdminWorkerEnvProof(input: {
+  env_file_path?: string;
+  inspect_json_path?: string;
+  output_dir?: string;
+  generated_at?: string;
+  command?: string;
+}): Promise<AdminWorkerEnvProofReport> {
+  const generatedAt = input.generated_at ?? new Date().toISOString();
+  const outputDir = input.output_dir ?? DEFAULT_OUTPUT_DIR;
+  const timestamp = timestampForFile(new Date(generatedAt));
   const jsonPath = path.join(outputDir, `admin-worker-env-proof-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-worker-env-proof-${timestamp}.md`);
   const report = buildAdminWorkerEnvProofReport({
-    generated_at: new Date().toISOString(),
-    command: process.argv.join(" "),
-    env_file_path: envFilePath,
-    env_file_raw: await optionalReadFile(envFilePath),
-    inspect_json_path: inspectJsonPath,
-    inspect_json_raw: await optionalReadFile(inspectJsonPath)
+    generated_at: generatedAt,
+    command: input.command ?? process.argv.join(" "),
+    env_file_path: input.env_file_path,
+    env_file_raw: await optionalReadFile(input.env_file_path),
+    inspect_json_path: input.inspect_json_path,
+    inspect_json_raw: await optionalReadFile(input.inspect_json_path)
   });
   const reportWithArtifacts: AdminWorkerEnvProofReport = {
     ...report,
@@ -443,7 +448,22 @@ async function main(): Promise<void> {
   await mkdir(outputDir, { recursive: true });
   await writeFile(jsonPath, `${JSON.stringify(reportWithArtifacts, null, 2)}\n`);
   await writeFile(markdownPath, toMarkdown(reportWithArtifacts));
-  console.log(JSON.stringify(reportWithArtifacts, null, 2));
+
+  return reportWithArtifacts;
+}
+
+async function main(): Promise<void> {
+  const outputDir = process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR ?? DEFAULT_OUTPUT_DIR;
+  const envFilePath = process.env.MIXLAB_ADMIN_WORKER_ENV_FILE ?? "";
+  const inspectJsonPath = process.env.MIXLAB_ADMIN_WORKER_INSPECT_JSON ?? "";
+  const report = await runAdminWorkerEnvProof({
+    env_file_path: envFilePath,
+    inspect_json_path: inspectJsonPath,
+    output_dir: outputDir,
+    command: process.argv.join(" ")
+  });
+
+  console.log(JSON.stringify(report, null, 2));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -656,7 +656,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
   };
 }
 
-function toMarkdown(report: AdminDockerStagingRunbookReport): string {
+export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
   const commandList = (items: string[]) => items.map((item) => `- ${item}`);
   const lines = [
     "# Admin Docker Staging/Update Runbook",
@@ -764,29 +764,46 @@ function toMarkdown(report: AdminDockerStagingRunbookReport): string {
   return `${lines.join("\n")}\n`;
 }
 
-async function main(): Promise<void> {
-  const outputDir = process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR ?? DEFAULT_OUTPUT_DIR;
-  const artifactDir = process.env.MIXLAB_ACCEPTANCE_ARTIFACT_DIR ?? DEFAULT_ARTIFACT_DIR;
-  const localSmokePath = process.env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REPORT
+export async function runAdminDockerStagingRunbook(input: {
+  local_docker_smoke_report_path?: string;
+  parity_plan_report_path?: string;
+  candidate_contract_proof_report_path?: string;
+  worker_env_proof_report_path?: string;
+  cutter_compatibility_proof_report_path?: string;
+  release_inputs_report_path?: string;
+  nas_disk_proof_report_path?: string;
+  current_image_tag?: string;
+  target_image_tag?: string;
+  rollback_image_tag?: string;
+  image_push_approval?: string;
+  output_dir?: string;
+  artifact_dir?: string;
+  generated_at?: string;
+  command?: string;
+}): Promise<AdminDockerStagingRunbookReport> {
+  const generatedAt = input.generated_at ?? new Date().toISOString();
+  const outputDir = input.output_dir ?? DEFAULT_OUTPUT_DIR;
+  const artifactDir = input.artifact_dir ?? DEFAULT_ARTIFACT_DIR;
+  const localSmokePath = input.local_docker_smoke_report_path
     ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
-  const parityPath = process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT
+  const parityPath = input.parity_plan_report_path
     ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
-  const candidatePath = process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_CONTRACT_PROOF_REPORT
+  const candidatePath = input.candidate_contract_proof_report_path
     ?? await latestArtifact(artifactDir, "admin-docker-candidate-contract-proof-");
-  const workerPath = process.env.MIXLAB_ADMIN_WORKER_ENV_PROOF_REPORT
+  const workerPath = input.worker_env_proof_report_path
     ?? await latestArtifact(artifactDir, "admin-worker-env-proof-");
-  const cutterPath = process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT
+  const cutterPath = input.cutter_compatibility_proof_report_path
     ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
-  const releaseInputsPath = process.env.MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT
+  const releaseInputsPath = input.release_inputs_report_path
     ?? await optionalLatestArtifact(artifactDir, "admin-docker-release-inputs-");
-  const nasDiskProofPath = process.env.MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT
+  const nasDiskProofPath = input.nas_disk_proof_report_path
     ?? await optionalLatestArtifact(artifactDir, "admin-docker-nas-disk-proof-");
-  const timestamp = timestampForFile();
+  const timestamp = timestampForFile(new Date(generatedAt));
   const jsonPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.md`);
   const report = buildAdminDockerStagingRunbookReport({
-    generated_at: new Date().toISOString(),
-    command: process.argv.join(" "),
+    generated_at: generatedAt,
+    command: input.command ?? process.argv.join(" "),
     local_docker_smoke_report_path: localSmokePath,
     local_docker_smoke_report: await loadJson(localSmokePath),
     parity_plan_report_path: parityPath,
@@ -801,10 +818,10 @@ async function main(): Promise<void> {
     release_inputs_report: await optionalLoadJson(releaseInputsPath),
     nas_disk_proof_report_path: nasDiskProofPath,
     nas_disk_proof_report: await optionalLoadJson(nasDiskProofPath),
-    current_image_tag: process.env.MIXLAB_DOCKER_CURRENT_IMAGE_TAG,
-    target_image_tag: process.env.MIXLAB_DOCKER_TARGET_IMAGE_TAG,
-    rollback_image_tag: process.env.MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG,
-    image_push_approval: process.env.MIXLAB_DOCKER_PUSH_APPROVAL
+    current_image_tag: input.current_image_tag,
+    target_image_tag: input.target_image_tag,
+    rollback_image_tag: input.rollback_image_tag,
+    image_push_approval: input.image_push_approval
   });
   const reportWithArtifacts: AdminDockerStagingRunbookReport = {
     ...report,
@@ -817,7 +834,29 @@ async function main(): Promise<void> {
   await mkdir(outputDir, { recursive: true });
   await writeFile(jsonPath, `${JSON.stringify(reportWithArtifacts, null, 2)}\n`);
   await writeFile(markdownPath, toMarkdown(reportWithArtifacts));
-  console.log(JSON.stringify(reportWithArtifacts, null, 2));
+
+  return reportWithArtifacts;
+}
+
+async function main(): Promise<void> {
+  const report = await runAdminDockerStagingRunbook({
+    local_docker_smoke_report_path: process.env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REPORT,
+    parity_plan_report_path: process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT,
+    candidate_contract_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_CONTRACT_PROOF_REPORT,
+    worker_env_proof_report_path: process.env.MIXLAB_ADMIN_WORKER_ENV_PROOF_REPORT,
+    cutter_compatibility_proof_report_path: process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT,
+    release_inputs_report_path: process.env.MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT,
+    nas_disk_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT,
+    current_image_tag: process.env.MIXLAB_DOCKER_CURRENT_IMAGE_TAG,
+    target_image_tag: process.env.MIXLAB_DOCKER_TARGET_IMAGE_TAG,
+    rollback_image_tag: process.env.MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG,
+    image_push_approval: process.env.MIXLAB_DOCKER_PUSH_APPROVAL,
+    output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
+    artifact_dir: process.env.MIXLAB_ACCEPTANCE_ARTIFACT_DIR,
+    command: process.argv.join(" ")
+  });
+
+  console.log(JSON.stringify(report, null, 2));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
