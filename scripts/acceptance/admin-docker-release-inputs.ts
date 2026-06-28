@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
 
 type GateStatus = "pass" | "blocked" | "fail";
-type GateCategory = "safety" | "handoff" | "image-proof" | "release-input" | "release-decision";
+type GateCategory = "safety" | "handoff" | "candidate-ref" | "image-proof" | "release-input" | "release-decision";
 
 interface ReleaseInputGate {
   id: string;
@@ -31,6 +31,7 @@ interface ReleaseInputSummary {
 
 interface ReleaseInputSources {
   prestaging_handoff_report: string;
+  candidate_ref_proof_report: string;
   nas_image_proof_report: string;
 }
 
@@ -59,6 +60,12 @@ export interface AdminDockerReleaseInputsReport {
     handoff_docker_deploy_allowed: boolean | null;
     handoff_staging_execution_blockers: string[];
     handoff_docker_deploy_blockers: string[];
+    candidate_ref_proof_accepted: boolean | null;
+    candidate_ref_proof_docker_deploy_allowed: boolean | null;
+    candidate_ref_expected_sha: string;
+    candidate_ref_expected_tag: string;
+    candidate_ref_github_run_url: string;
+    candidate_ref_blockers: string[];
     nas_image_proof_accepted: boolean | null;
     nas_image_proof_docker_deploy_allowed: boolean | null;
     nas_image_proof_blockers: string[];
@@ -175,9 +182,17 @@ function nextActions(input: {
     : [];
 
   if (!input.release_inputs_ready) {
+    const needsCandidateRefProof = input.release_input_blockers.some((id) => id.startsWith("candidate-ref"));
+    const needsNasImageProof = input.release_input_blockers.some((id) => id.startsWith("nas-"));
+
     return [
       "Keep push_images=false until release inputs are ready.",
-      "Run validate:admin-docker-nas-image-proof with a sanitized NAS MIXLAB_IMAGE_TAG evidence file and docker inspect evidence.",
+      ...(needsCandidateRefProof
+        ? ["Run validate:admin-docker-candidate-ref-proof against the candidate tag push_images=false GitHub dry-run artifact."]
+        : []),
+      ...(needsNasImageProof
+        ? ["Run validate:admin-docker-nas-image-proof with a sanitized NAS MIXLAB_IMAGE_TAG evidence file and docker inspect evidence."]
+        : []),
       `Resolve release input blockers: ${input.release_input_blockers.join(", ") || "unknown"}.`,
       ...preservedStagingBlockers
     ];
@@ -198,13 +213,19 @@ export function buildAdminDockerReleaseInputsReport(input: {
   command: string;
   prestaging_handoff_report_path?: string;
   prestaging_handoff_report?: unknown;
+  candidate_ref_proof_report_path?: string;
+  candidate_ref_proof_report?: unknown;
   nas_image_proof_report_path?: string;
   nas_image_proof_report?: unknown;
 }): AdminDockerReleaseInputsReport {
   const handoff = asRecord(input.prestaging_handoff_report);
+  const candidateRefProof = asRecord(input.candidate_ref_proof_report);
   const proof = asRecord(input.nas_image_proof_report);
   const releaseInputRequest = asRecord(handoff.release_input_request);
   const candidate = asRecord(handoff.candidate);
+  const candidateRefCandidate = asRecord(candidateRefProof.candidate);
+  const candidateRefGithubRun = asRecord(candidateRefProof.github_run);
+  const candidateRefSummary = asRecord(candidateRefProof.summary);
   const proofInputs = asRecord(proof.release_inputs);
   const handoffSummary = asRecord(handoff.summary);
   const proofSummary = asRecord(proof.summary);
@@ -225,6 +246,12 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const handoffReady = asBoolean(handoff.ready_to_request_release_inputs);
   const handoffStagingReady = asBoolean(handoff.staging_execution_ready);
   const handoffDeployAllowed = asBoolean(handoff.docker_deploy_allowed);
+  const candidateRefProofAccepted = asBoolean(candidateRefProof.candidate_ref_proof_accepted);
+  const candidateRefDeployAllowed = asBoolean(candidateRefProof.docker_deploy_allowed);
+  const candidateRefExpectedSha = asString(candidateRefCandidate.expected_sha);
+  const candidateRefExpectedTag = asString(candidateRefCandidate.expected_tag);
+  const candidateRefGithubRunUrl = asString(candidateRefGithubRun.url);
+  const candidateRefBlockers = stringArray(candidateRefSummary.candidate_ref_blockers);
   const proofAccepted = asBoolean(proof.proof_accepted);
   const proofDeployAllowed = asBoolean(proof.docker_deploy_allowed);
   const handoffStagingExecutionBlockers = stringArray(handoffSummary.staging_execution_blockers);
@@ -241,6 +268,17 @@ export function buildAdminDockerReleaseInputsReport(input: {
     releaseRefSetupCommand.includes(workflowRef) &&
     releaseRefSetupCommand.includes(target)
   );
+  const candidateRefProvided = Boolean(input.candidate_ref_proof_report_path && input.candidate_ref_proof_report);
+  const candidateRefMatchesTarget = Boolean(
+    target &&
+    candidateRefExpectedSha &&
+    candidateRefExpectedSha === target
+  );
+  const candidateRefMatchesWorkflowRef = Boolean(
+    workflowRef &&
+    candidateRefExpectedTag &&
+    candidateRefExpectedTag === workflowRef
+  );
   const commandHasNoPlaceholders = Boolean(command && !command.includes("<") && !command.includes(">"));
   const gates = [
     gate({
@@ -248,7 +286,7 @@ export function buildAdminDockerReleaseInputsReport(input: {
       title: "Release input packaging is read-only",
       category: "safety",
       status: "pass",
-      evidence: "This report reads prestaging handoff and NAS image proof JSON only; it does not contact NAS, Docker, GitHub, Admin API, or Cutter.",
+      evidence: "This report reads prestaging handoff, candidate-ref proof, and NAS image proof JSON only; it does not contact NAS, Docker, GitHub, Admin API, or Cutter.",
       blocks_release_inputs: false,
       blocks_push_execution: false,
       blocks_docker_deploy: false
@@ -263,6 +301,17 @@ export function buildAdminDockerReleaseInputsReport(input: {
       blocks_push_execution: true,
       blocks_docker_deploy: true,
       required_evidence: "Run validate:admin-docker-prestaging-handoff and provide the JSON report path."
+    }),
+    gate({
+      id: "candidate-ref-proof-provided",
+      title: "Candidate ref proof report is provided",
+      category: "candidate-ref",
+      status: candidateRefProvided ? "pass" : "blocked",
+      evidence: input.candidate_ref_proof_report_path || "No MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT path provided.",
+      blocks_release_inputs: !candidateRefProvided,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Run validate:admin-docker-candidate-ref-proof with the candidate tag push_images=false GitHub dry-run artifacts."
     }),
     gate({
       id: "nas-image-proof-provided",
@@ -296,6 +345,50 @@ export function buildAdminDockerReleaseInputsReport(input: {
       blocks_push_execution: true,
       blocks_docker_deploy: true,
       required_evidence: "Release input packaging must be based on a non-deploy pre-staging handoff."
+    }),
+    gate({
+      id: "candidate-ref-proof-accepted",
+      title: "Candidate ref proof is accepted",
+      category: "candidate-ref",
+      status: candidateRefProofAccepted ? "pass" : "blocked",
+      evidence: candidateRefProofAccepted ? "candidate_ref_proof_accepted=true" : `candidate ref blockers=${candidateRefBlockers.join(", ") || "unknown"}`,
+      blocks_release_inputs: !candidateRefProofAccepted,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Candidate ref proof must verify that the release tag points to the smoked candidate SHA and has a successful push_images=false dry-run."
+    }),
+    gate({
+      id: "candidate-ref-proof-does-not-approve-deploy",
+      title: "Candidate ref proof does not approve deploy",
+      category: "safety",
+      status: candidateRefDeployAllowed === true ? "fail" : candidateRefDeployAllowed === false ? "pass" : "blocked",
+      evidence: `candidate_ref_proof.docker_deploy_allowed=${String(candidateRefDeployAllowed)}`,
+      blocks_release_inputs: true,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "Candidate ref proof must remain evidence-only with docker_deploy_allowed=false."
+    }),
+    gate({
+      id: "candidate-ref-target-matches-handoff",
+      title: "Candidate ref target matches handoff target",
+      category: "candidate-ref",
+      status: candidateRefMatchesTarget ? "pass" : "blocked",
+      evidence: `candidate_ref.expected_sha=${candidateRefExpectedSha || "missing"}, handoff.target=${target || "missing"}`,
+      blocks_release_inputs: !candidateRefMatchesTarget,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "The candidate-ref proof expected SHA must match the pre-staging handoff target image tag."
+    }),
+    gate({
+      id: "candidate-ref-tag-matches-workflow-ref",
+      title: "Candidate ref tag matches workflow ref",
+      category: "candidate-ref",
+      status: candidateRefMatchesWorkflowRef ? "pass" : "blocked",
+      evidence: `candidate_ref.expected_tag=${candidateRefExpectedTag || "missing"}, workflow_ref=${workflowRef || "missing"}`,
+      blocks_release_inputs: !candidateRefMatchesWorkflowRef,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "The candidate-ref proof expected tag must match the generated workflow ref."
     }),
     gate({
       id: "handoff-staging-blockers-carried-forward",
@@ -433,6 +526,7 @@ export function buildAdminDockerReleaseInputsReport(input: {
     mode: "admin-docker-release-inputs",
     sources: {
       prestaging_handoff_report: input.prestaging_handoff_report_path ?? "",
+      candidate_ref_proof_report: input.candidate_ref_proof_report_path ?? "",
       nas_image_proof_report: input.nas_image_proof_report_path ?? ""
     },
     release_inputs_ready: releaseInputsReady,
@@ -454,6 +548,12 @@ export function buildAdminDockerReleaseInputsReport(input: {
       handoff_docker_deploy_allowed: handoffDeployAllowed,
       handoff_staging_execution_blockers: handoffStagingExecutionBlockers,
       handoff_docker_deploy_blockers: handoffDockerDeployBlockers,
+      candidate_ref_proof_accepted: candidateRefProofAccepted,
+      candidate_ref_proof_docker_deploy_allowed: candidateRefDeployAllowed,
+      candidate_ref_expected_sha: candidateRefExpectedSha,
+      candidate_ref_expected_tag: candidateRefExpectedTag,
+      candidate_ref_github_run_url: candidateRefGithubRunUrl,
+      candidate_ref_blockers: candidateRefBlockers,
       nas_image_proof_accepted: proofAccepted,
       nas_image_proof_docker_deploy_allowed: proofDeployAllowed,
       nas_image_proof_blockers: proofBlockers,
@@ -477,7 +577,7 @@ export function buildAdminDockerReleaseInputsReport(input: {
           : "blocked",
       summary: releaseInputsReady
         ? "Release inputs are complete and ready for a separate explicit push_images=true release decision."
-        : "Release inputs are blocked until pre-staging handoff and NAS image proof are accepted."
+        : "Release inputs are blocked until pre-staging handoff, candidate-ref proof, and NAS image proof are accepted."
     },
     artifacts: null
   };
@@ -498,6 +598,7 @@ export function toMarkdown(report: AdminDockerReleaseInputsReport): string {
     "## Sources",
     "",
     `- Pre-staging handoff: ${report.sources.prestaging_handoff_report || "<missing>"}`,
+    `- Candidate ref proof: ${report.sources.candidate_ref_proof_report || "<missing>"}`,
     `- NAS image proof: ${report.sources.nas_image_proof_report || "<missing>"}`,
     "",
     "## Workflow Inputs",
@@ -530,6 +631,7 @@ export function toMarkdown(report: AdminDockerReleaseInputsReport): string {
     `- Push execution blockers: ${report.summary.push_execution_blockers.join(", ") || "none"}`,
     `- Docker deploy blockers: ${report.summary.docker_deploy_blockers.join(", ") || "none"}`,
     `- Handoff staging execution blockers: ${report.observations.handoff_staging_execution_blockers.join(", ") || "none"}`,
+    `- Candidate ref blockers: ${report.observations.candidate_ref_blockers.join(", ") || "none"}`,
     "",
     "## Next Actions",
     "",
@@ -555,6 +657,7 @@ async function optionalLoadJson(filePath: string | undefined): Promise<unknown> 
 
 export async function runAdminDockerReleaseInputs(input: {
   prestaging_handoff_report_path?: string;
+  candidate_ref_proof_report_path?: string;
   nas_image_proof_report_path?: string;
   output_dir?: string;
   generated_at?: string;
@@ -567,6 +670,8 @@ export async function runAdminDockerReleaseInputs(input: {
     command: input.command ?? process.argv.join(" "),
     prestaging_handoff_report_path: input.prestaging_handoff_report_path,
     prestaging_handoff_report: await optionalLoadJson(input.prestaging_handoff_report_path),
+    candidate_ref_proof_report_path: input.candidate_ref_proof_report_path,
+    candidate_ref_proof_report: await optionalLoadJson(input.candidate_ref_proof_report_path),
     nas_image_proof_report_path: input.nas_image_proof_report_path,
     nas_image_proof_report: await optionalLoadJson(input.nas_image_proof_report_path)
   });
@@ -591,7 +696,8 @@ export async function runAdminDockerReleaseInputs(input: {
 async function main(): Promise<void> {
   const report = await runAdminDockerReleaseInputs({
     prestaging_handoff_report_path: process.env.MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT ?? process.argv[2],
-    nas_image_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT ?? process.argv[3],
+    candidate_ref_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT ?? process.argv[3],
+    nas_image_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT ?? process.argv[4],
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });
