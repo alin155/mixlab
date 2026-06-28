@@ -1,0 +1,178 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T10:45:30.792Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-handoff-kit.ts",
+  "mode": "admin-docker-nas-handoff-kit",
+  "sources": {
+    "handoff_report_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest.json",
+    "handoff_bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest"
+  },
+  "no_side_effects": true,
+  "kit_ready": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "candidate_sha": "b062bc387c1fdb2a391320c1c36233b782cb000a",
+    "candidate_release_ref": "admin-docker-candidate-b062bc387c1fdb2a391320c1c36233b782cb000a",
+    "handoff_package_ready": true,
+    "handoff_status": "ready-for-nas-collection",
+    "missing_required_files": [],
+    "strict_sensitive_scan_hits": [],
+    "packaged_files": [
+      {
+        "path": "KIT-MANIFEST.json",
+        "sha256": "f06822a31f14a51d2e0d1263da210184e455525c59297f178c15832e25c52f60",
+        "size_bytes": 2177,
+        "executable": false
+      },
+      {
+        "path": "KIT-README.md",
+        "sha256": "06282364c52544202aeff344dfee718b1e5155bbe8f4bc6f6bcb3c2c0205fb55",
+        "size_bytes": 1276,
+        "executable": false
+      },
+      {
+        "path": "local/install-nas-runner.sh",
+        "sha256": "936fbf4f3161427b278984b7015871ee8a3fd46ac0278b8c9f3100fd853807a1",
+        "size_bytes": 1412,
+        "executable": true
+      },
+      {
+        "path": "local/validate-returned-evidence.sh",
+        "sha256": "3e88fd504a5e274c4959a68461653dc0543cba2e13e420692e48fb05fc394155",
+        "size_bytes": 2349,
+        "executable": true
+      },
+      {
+        "path": "MANIFEST.json",
+        "sha256": "f6017c66f592c3b6c15a8c32bd31efad8c0acee8468e5703078014a21f531ce1",
+        "size_bytes": 2548,
+        "executable": false
+      },
+      {
+        "path": "nas/admin-docker-nas-release-inputs-collector.sh",
+        "sha256": "e951945048d43ff33ef58f7d38d16d7b8c7d87fc572b81a644934a585bdffe86",
+        "size_bytes": 12507,
+        "executable": true
+      },
+      {
+        "path": "nas/RUN_ON_NAS.sh",
+        "sha256": "875f69b54cebc3ef3a5246bd1b60a3c607561287a31213b4b48d6370ec60effc",
+        "size_bytes": 557,
+        "executable": true
+      },
+      {
+        "path": "OPERATOR-CHECKLIST.md",
+        "sha256": "7e38ef72e1d03b45cbe955c7b9481003e1963d8c5a1d21fa2b65cf6179350afb",
+        "size_bytes": 1875,
+        "executable": false
+      },
+      {
+        "path": "README.md",
+        "sha256": "77744b960b09f72b3aa96b6f1e36950f150b7462288e9c20532c56cb29c2e9eb",
+        "size_bytes": 8350,
+        "executable": false
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": "kit-no-side-effects",
+      "title": "Handoff kit packaging is local-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Reads and copies the latest local handoff bundle only; does not contact NAS, Docker, GitHub, Admin API, or Cutter.",
+      "blocks_kit": false
+    },
+    {
+      "id": "handoff-report-ready",
+      "title": "Latest handoff report is ready",
+      "category": "source",
+      "status": "pass",
+      "evidence": "handoff_package_ready=true, status=ready-for-nas-collection",
+      "blocks_kit": true,
+      "required_evidence": "Run prepare:admin-docker-nas-release-inputs-handoff until the latest report is ready-for-nas-collection."
+    },
+    {
+      "id": "handoff-safety-flags",
+      "title": "Handoff does not approve push or deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "push_execution_allowed=false, docker_deploy_allowed=false",
+      "blocks_kit": true,
+      "required_evidence": "The handoff report must keep push_execution_allowed=false and docker_deploy_allowed=false."
+    },
+    {
+      "id": "candidate-metadata-present",
+      "title": "Candidate SHA and release ref are present",
+      "category": "source",
+      "status": "pass",
+      "evidence": "candidate=b062bc387c1fdb2a391320c1c36233b782cb000a, ref=admin-docker-candidate-b062bc387c1fdb2a391320c1c36233b782cb000a",
+      "blocks_kit": true,
+      "required_evidence": "The source handoff must be built from accepted candidate-ref proof."
+    },
+    {
+      "id": "bundle-path-matches-report",
+      "title": "Source bundle matches the handoff report",
+      "category": "source",
+      "status": "pass",
+      "evidence": "report_bundle=docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest, input_bundle=docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest",
+      "blocks_kit": true,
+      "required_evidence": "Use the latest bundle path from the handoff report or regenerate the handoff."
+    },
+    {
+      "id": "bundle-required-files-present",
+      "title": "Source handoff bundle has every required file",
+      "category": "source",
+      "status": "pass",
+      "evidence": "none missing",
+      "blocks_kit": true,
+      "required_evidence": "The bundle must include README, operator checklist, manifest, NAS runner, collector, installer, and local validator."
+    },
+    {
+      "id": "kit-files-packaged",
+      "title": "Portable kit files are packaged",
+      "category": "package",
+      "status": "pass",
+      "evidence": "file_count=9",
+      "blocks_kit": true,
+      "required_evidence": "Package the handoff bundle plus KIT-README.md and KIT-MANIFEST.json."
+    },
+    {
+      "id": "kit-strict-sensitive-scan",
+      "title": "Portable kit has no strict sensitive-field hits",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "no strict hits",
+      "blocks_kit": true,
+      "required_evidence": "Remove any actual assignment-style secret, token, authorization, or key values before transfer."
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "blocked": 0,
+    "failed": 0,
+    "kit_blockers": []
+  },
+  "next_actions": [
+    "Transfer dist/acceptance/admin-docker-nas-handoff-kit to the NAS desktop or NAS shell host.",
+    "Copy its nas/ folder into the Admin Docker Compose project folder.",
+    "Run sh ./nas/RUN_ON_NAS.sh from the Compose project folder.",
+    "Copy admin-docker-release-inputs/ back to the Mac repository.",
+    "Run sh ./local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir> from this kit or the latest handoff bundle."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T104530Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T104530Z.md",
+    "kit_dir": "dist/acceptance/admin-docker-nas-handoff-kit",
+    "kit_readme_path": "dist/acceptance/admin-docker-nas-handoff-kit/KIT-README.md",
+    "kit_manifest_path": "dist/acceptance/admin-docker-nas-handoff-kit/KIT-MANIFEST.json",
+    "latest_json_path": "docs/acceptance/artifacts/admin-docker-nas-handoff-kit-latest.json",
+    "latest_markdown_path": "docs/acceptance/artifacts/admin-docker-nas-handoff-kit-latest.md"
+  },
+  "result": {
+    "status": "ready-for-transfer",
+    "summary": "Portable Admin Docker NAS handoff kit is ready to transfer for read-only NAS evidence collection."
+  }
+}

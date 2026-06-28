@@ -90,7 +90,8 @@ MVP v0.1 不做：
 - candidate-ref proof：`docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260628T101658Z.json`，`candidate_ref_proof_accepted=true`，`docker_deploy_allowed=false`。
 - pre-staging handoff：`docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260628T102339Z.json`，`ready_to_request_release_inputs=true`，但 `staging_execution_ready=false`。
 - release inputs：`docs/acceptance/artifacts/admin-docker-release-inputs-20260628T102350Z.json`，因缺 NAS image proof、current/rollback tag 仍 `blocked`，`push_execution_allowed=false`。
-- NAS release-inputs handoff：`docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T102401Z.json`，`handoff_package_ready=true`，最新 bundle 指向 `b062bc387c1fdb2a391320c1c36233b782cb000a`，但不允许 push/deploy。
+- NAS release-inputs handoff：`docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-20260628T103748Z.json`，`handoff_package_ready=true`，最新 bundle 指向 `b062bc387c1fdb2a391320c1c36233b782cb000a`，包含 `OPERATOR-CHECKLIST.md`，但不允许 push/deploy。
+- NAS handoff portable kit：`docs/acceptance/artifacts/admin-docker-nas-handoff-kit-20260628T104530Z.json`，`kit_ready=true`，便携目录为 `dist/acceptance/admin-docker-nas-handoff-kit`，可复制到 NAS desktop/NAS shell host 用于只读收集 `admin-docker-release-inputs/` 返回证据。
 
 这批证据只清除了“远端 Docker 候选构建/本地 smoke/tag-ref 固定”和“NAS 返回证据采集包准备好”层面的门禁。NAS staging、NAS current/rollback image proof、NAS disk proof、admin-worker 外部 proof、Cutter staged-candidate compatibility proof 和显式发布决策仍未完成。
 
