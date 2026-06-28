@@ -323,6 +323,42 @@ test("admin Docker release readiness summary accepts GitHub candidate artifact w
   assert.ok(report.next_actions.some((item) => item.includes(TARGET_SHA)));
 });
 
+test("admin Docker release readiness summary tolerates missing GitHub artifact readiness during workflow generation", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    github_artifact_readiness_report_path: "",
+    github_artifact_readiness_report: {}
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(!report.summary.release_review_blockers.includes("local-docker-smoke-passed"));
+  assert.equal(report.sources.github_artifact_readiness_report, "");
+  assert.equal(report.observations.github_candidate_artifact_ready, null);
+  assert.equal(report.observations.github_candidate_image_tag, "");
+  assert.match(toMarkdown(report), /GitHub artifact readiness: $/m);
+});
+
+test("admin Docker release readiness summary records missing NAS collection evidence as blocked", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    github_artifact_readiness_report_path: "",
+    github_artifact_readiness_report: {},
+    nas_access_preflight_report_path: "",
+    nas_access_preflight_report: {},
+    nas_handoff_kit_report_path: "",
+    nas_handoff_kit_report: {}
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("nas-collection-path-prepared"));
+  assert.ok(report.summary.release_review_blockers.includes("nas-handoff-kit-ready"));
+  assert.ok(report.summary.release_review_blockers.includes("summary-does-not-approve-upload"));
+  assert.equal(report.sources.nas_access_preflight_report, "");
+  assert.equal(report.sources.nas_handoff_kit_report, "");
+  assert.equal(report.observations.nas_collection_directly_available, null);
+  assert.equal(report.observations.nas_handoff_kit_ready, null);
+});
+
 test("admin Docker release readiness summary can become ready for separate release decision", () => {
   const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
     local_docker_smoke_report: passedLocalSmokeReport(),

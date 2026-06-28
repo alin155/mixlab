@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -175,6 +175,25 @@ function latestArtifact(artifactDir: string, prefix: string): Promise<string> {
 
     return path.join(artifactDir, candidates[candidates.length - 1]);
   });
+}
+
+function optionalLatestArtifact(artifactDir: string, prefix: string): Promise<string> {
+  return readdir(artifactDir).then((files) => {
+    const candidates = files
+      .filter((file) => file.startsWith(prefix) && file.endsWith(".json"))
+      .sort();
+
+    return candidates.length === 0 ? "" : path.join(artifactDir, candidates[candidates.length - 1]);
+  });
+}
+
+async function optionalFile(filePath: string): Promise<string> {
+  try {
+    await access(filePath);
+    return filePath;
+  } catch {
+    return "";
+  }
 }
 
 async function loadJson(filePath: string): Promise<unknown> {
@@ -671,7 +690,7 @@ async function main(): Promise<void> {
   const localSmokePath = process.env.MIXLAB_DOCKER_LOCAL_SMOKE_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
   const githubArtifactReadinessPath = process.env.MIXLAB_DOCKER_GITHUB_ARTIFACT_READINESS_REPORT
-    ?? await latestArtifact(artifactDir, "admin-docker-github-artifact-readiness-");
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-github-artifact-readiness-");
   const livePath = process.env.MIXLAB_DOCKER_LIVE_READONLY_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-release-live-readonly-");
   const parityPath = process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT
@@ -683,9 +702,9 @@ async function main(): Promise<void> {
   const releaseInputsIntakePath = process.env.MIXLAB_ADMIN_DOCKER_NAS_RELEASE_INPUTS_INTAKE_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-nas-release-inputs-intake-");
   const nasAccessPreflightPath = process.env.MIXLAB_ADMIN_DOCKER_NAS_ACCESS_PREFLIGHT_REPORT
-    ?? await latestArtifact(artifactDir, "admin-docker-nas-access-preflight-");
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-nas-access-preflight-");
   const nasHandoffKitPath = process.env.MIXLAB_ADMIN_DOCKER_NAS_HANDOFF_KIT_REPORT
-    ?? path.join(artifactDir, "admin-docker-nas-handoff-kit-latest.json");
+    ?? await optionalFile(path.join(artifactDir, "admin-docker-nas-handoff-kit-latest.json"));
   const runbookPath = process.env.MIXLAB_DOCKER_STAGING_RUNBOOK_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-staging-runbook-");
   const timestamp = timestampForFile();
@@ -697,7 +716,7 @@ async function main(): Promise<void> {
     local_docker_smoke_report_path: localSmokePath,
     local_docker_smoke_report: await loadJson(localSmokePath),
     github_artifact_readiness_report_path: githubArtifactReadinessPath,
-    github_artifact_readiness_report: await loadJson(githubArtifactReadinessPath),
+    github_artifact_readiness_report: githubArtifactReadinessPath ? await loadJson(githubArtifactReadinessPath) : {},
     live_readonly_report_path: livePath,
     live_readonly_report: await loadJson(livePath),
     parity_plan_report_path: parityPath,
@@ -709,9 +728,9 @@ async function main(): Promise<void> {
     release_inputs_intake_report_path: releaseInputsIntakePath,
     release_inputs_intake_report: await loadJson(releaseInputsIntakePath),
     nas_access_preflight_report_path: nasAccessPreflightPath,
-    nas_access_preflight_report: await loadJson(nasAccessPreflightPath),
+    nas_access_preflight_report: nasAccessPreflightPath ? await loadJson(nasAccessPreflightPath) : {},
     nas_handoff_kit_report_path: nasHandoffKitPath,
-    nas_handoff_kit_report: await loadJson(nasHandoffKitPath),
+    nas_handoff_kit_report: nasHandoffKitPath ? await loadJson(nasHandoffKitPath) : {},
     staging_runbook_report_path: runbookPath,
     staging_runbook_report: await loadJson(runbookPath)
   });
