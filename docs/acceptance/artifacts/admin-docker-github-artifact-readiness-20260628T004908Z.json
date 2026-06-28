@@ -1,0 +1,298 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T00:49:08.171Z",
+  "command": "downloaded from alin155/mixlab run 28306681028",
+  "mode": "admin-docker-github-artifact-readiness",
+  "artifact_dir": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates",
+  "sources": {
+    "local_docker_smoke_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-local-smoke-20260628T004508Z.json",
+    "candidate_contract_proof_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-candidate-contract-proof-20260628T004614Z.json",
+    "live_readonly_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-release-live-readonly-20260628T004614Z.json",
+    "version_parity_plan_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-version-parity-plan-20260628T004614Z.json",
+    "worker_env_proof_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-worker-env-proof-20260628T004615Z.json",
+    "cutter_compatibility_proof_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-cutter-compatibility-proof-20260628T004615Z.json",
+    "staging_runbook_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-staging-runbook-20260628T004714Z.json",
+    "release_readiness_summary_report": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-release-readiness-summary-20260628T004715Z.json"
+  },
+  "source_errors": {},
+  "github_candidate_artifact_ready": true,
+  "staging_handoff_ready": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "local_smoke_status": "accepted",
+    "local_smoke_passed": true,
+    "local_smoke_image_tag": "a7623b55d949e9798d97b608a3447e2054a9c45d",
+    "local_smoke_build_sha": "a7623b55d949e9798d97b608a3447e2054a9c45d",
+    "candidate_contract_status": "ready-for-candidate-review",
+    "candidate_contract_ready": true,
+    "candidate_source_kind": "local-smoke-report",
+    "candidate_source_local_smoke_passed": true,
+    "candidate_observed_image_tag": "a7623b55d949e9798d97b608a3447e2054a9c45d",
+    "candidate_observed_build_sha": "a7623b55d949e9798d97b608a3447e2054a9c45d",
+    "target_image_tag": "a7623b55d949e9798d97b608a3447e2054a9c45d",
+    "target_tag_matches_smoke": true,
+    "image_push_approval_accepted": false,
+    "current_image_tag": "",
+    "rollback_image_tag": "",
+    "staging_review_ready": false,
+    "release_review_ready": false,
+    "release_review_blockers": [
+      "live-readonly-blockers-clear",
+      "parity-plan-blockers-clear",
+      "worker-proof-accepted",
+      "cutter-proof-accepted",
+      "staging-runbook-ready"
+    ],
+    "staging_blockers": [
+      "current-image-tag-provided",
+      "rollback-image-tag-provided",
+      "target-differs-from-current",
+      "rollback-tag-matches-current",
+      "image-push-explicitly-approved",
+      "parity-report-blockers-clear",
+      "worker-env-proof-accepted",
+      "cutter-compatibility-proof-accepted"
+    ]
+  },
+  "gates": [
+    {
+      "id": "github-artifact-readiness-no-side-effects",
+      "title": "GitHub artifact readiness is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Reads archived release-gate reports only; does not contact Docker, NAS, Windows Runner, Cutter, or Admin services.",
+      "blocks_candidate_artifact": false,
+      "blocks_staging_handoff": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "artifact-admin-docker-local-smoke-present",
+      "title": "Admin Docker local smoke report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-local-smoke-20260628T004508Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-docker-local-smoke-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-docker-candidate-contract-proof-present",
+      "title": "Admin Docker candidate contract proof report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-candidate-contract-proof-20260628T004614Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-docker-candidate-contract-proof-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-docker-release-live-readonly-present",
+      "title": "Admin Docker live read-only probe report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-release-live-readonly-20260628T004614Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-docker-release-live-readonly-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-docker-version-parity-plan-present",
+      "title": "Admin Docker version parity plan report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-version-parity-plan-20260628T004614Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-docker-version-parity-plan-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-worker-env-proof-present",
+      "title": "Admin worker env proof report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-worker-env-proof-20260628T004615Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-worker-env-proof-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-cutter-compatibility-proof-present",
+      "title": "Cutter compatibility proof report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-cutter-compatibility-proof-20260628T004615Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-cutter-compatibility-proof-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-docker-staging-runbook-present",
+      "title": "Admin Docker staging runbook report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-staging-runbook-20260628T004714Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-docker-staging-runbook-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "artifact-admin-docker-release-readiness-summary-present",
+      "title": "Admin Docker release readiness summary report is present and readable",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-github-runs/28306681028/mixlab-admin-docker-release-gates/admin-docker-release-readiness-summary-20260628T004715Z.json",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Download or provide admin-docker-release-readiness-summary-*.json from the mixlab-admin-docker-release-gates artifact."
+    },
+    {
+      "id": "release-boundary-does-not-approve-deploy",
+      "title": "Archived reports do not approve Docker deploy/upload",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "staging.docker_deploy_allowed=false, release.docker_upload_allowed=false",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Staging runbook and release readiness summary must remain decision reports, not deploy approvals."
+    },
+    {
+      "id": "local-docker-smoke-passed",
+      "title": "Local Docker smoke passed in GitHub runner",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "local_smoke_passed=true, status=accepted",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-local-smoke with MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 and MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS=1."
+    },
+    {
+      "id": "local-smoke-build-identity-current",
+      "title": "Local smoke build identity is a real workflow build",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "image_tag=a7623b55d949e9798d97b608a3447e2054a9c45d, build_sha=a7623b55d949e9798d97b608a3447e2054a9c45d",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "GitHub workflow must set MIXLAB_BUILD_SHA, MIXLAB_BUILD_VERSION, and MIXLAB_IMAGE_TAG from github.sha."
+    },
+    {
+      "id": "candidate-derived-from-local-smoke",
+      "title": "Candidate proof is derived from the accepted local smoke report",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "source.kind=local-smoke-report, source.local_smoke_passed=true",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-candidate-contract-proof with MIXLAB_ADMIN_DOCKER_CANDIDATE_FROM_LOCAL_SMOKE=1 after local smoke passes."
+    },
+    {
+      "id": "candidate-contract-ready",
+      "title": "Candidate contract proof is ready",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "candidate_contract_ready=true, status=ready-for-candidate-review",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Candidate proof must report candidate_contract_ready:true."
+    },
+    {
+      "id": "candidate-build-matches-smoke",
+      "title": "Candidate build identity matches local smoke",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "candidate.image_tag=a7623b55d949e9798d97b608a3447e2054a9c45d, smoke.image_tag=a7623b55d949e9798d97b608a3447e2054a9c45d, candidate.build_sha=a7623b55d949e9798d97b608a3447e2054a9c45d, smoke.build_sha=a7623b55d949e9798d97b608a3447e2054a9c45d",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The candidate proof must observe the same image_tag/build_sha already smoked by local Docker."
+    },
+    {
+      "id": "target-tag-matches-smoked-image",
+      "title": "Staging target tag matches smoked image",
+      "category": "image",
+      "status": "pass",
+      "evidence": "target=a7623b55d949e9798d97b608a3447e2054a9c45d, smoke.image_tag=a7623b55d949e9798d97b608a3447e2054a9c45d, runbook.target_tag_matches_local_smoke=true",
+      "blocks_candidate_artifact": true,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact local smoke build_identity.image_tag."
+    },
+    {
+      "id": "image-push-explicitly-approved",
+      "title": "Image push is explicitly approved for staging handoff",
+      "category": "staging",
+      "status": "blocked",
+      "evidence": "image_push_approval.accepted=false",
+      "blocks_candidate_artifact": false,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Use workflow_dispatch push_images=true and record MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true."
+    },
+    {
+      "id": "current-and-rollback-tags-provided",
+      "title": "Current and rollback tags are explicit and match",
+      "category": "staging",
+      "status": "blocked",
+      "evidence": "current=<missing>, rollback=<missing>",
+      "blocks_candidate_artifact": false,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide current_image_tag and rollback_image_tag, and make rollback equal the currently deployed tag."
+    },
+    {
+      "id": "staging-runbook-ready",
+      "title": "Staging runbook is ready for handoff",
+      "category": "staging",
+      "status": "blocked",
+      "evidence": "staging_review_ready=false, blockers=current-image-tag-provided, rollback-image-tag-provided, target-differs-from-current, rollback-tag-matches-current, image-push-explicitly-approved, parity-report-blockers-clear, worker-env-proof-accepted, cutter-compatibility-proof-accepted",
+      "blocks_candidate_artifact": false,
+      "blocks_staging_handoff": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Clear staging runbook blockers before staging handoff."
+    }
+  ],
+  "summary": {
+    "total": 19,
+    "passed": 16,
+    "blocked": 3,
+    "failed": 0,
+    "candidate_artifact_blockers": [],
+    "staging_handoff_blockers": [
+      "image-push-explicitly-approved",
+      "current-and-rollback-tags-provided",
+      "staging-runbook-ready"
+    ],
+    "docker_deploy_blockers": [
+      "image-push-explicitly-approved",
+      "current-and-rollback-tags-provided",
+      "staging-runbook-ready"
+    ]
+  },
+  "result": {
+    "status": "candidate-ready",
+    "summary": "GitHub Admin Docker artifact proves a coherent smoked candidate; staging handoff and deploy remain separately gated."
+  },
+  "next_actions": [
+    "For staging handoff, rerun workflow_dispatch with push_images=true and archive the explicit push approval in the staging runbook.",
+    "Provide current_image_tag and rollback_image_tag, and require rollback to equal the current production image tag.",
+    "Clear staging runbook blockers before treating the GitHub artifact as staging-handoff ready.",
+    "Keep Docker deploy blocked until release readiness blockers are resolved in a separate release decision."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T004908Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T004908Z.md"
+  }
+}
