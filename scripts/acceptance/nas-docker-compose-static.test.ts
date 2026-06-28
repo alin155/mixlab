@@ -50,6 +50,10 @@ test("NAS Docker compose static validation rejects drift from target deployment 
       .replace("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL: ${MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL:-25}", "")
       .replaceAll("MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}", "MIXLAB_ADMIN_DOCKER_MVP_MODE: off")
       .replace("MIXLAB_PREPROCESS_LIBRARY_ROOT: /data/PublicLibrary", "")
+      .replaceAll(
+        "${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}",
+        "${MIXLAB_IMAGE_TAG:-latest}"
+      )
       .replace("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-0}", "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: ${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-1}")
       .replace("MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-0}", "MIXLAB_ENABLE_READY_PUBLISH_WORKER: ${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-1}")
       .replace('command: ["npm", "run", "worker:admin-loop"]', 'command: ["npm", "run", "server:admin-api"]'),
@@ -58,6 +62,7 @@ test("NAS Docker compose static validation rejects drift from target deployment 
   await writeFile(
     envPath,
     env
+      .replace("MIXLAB_IMAGE_TAG=", "MIXLAB_IMAGE_TAG=latest")
       .replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1", "MIXLAB_ADMIN_DOCKER_MVP_MODE=off")
       .replace("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=25", "MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=1")
       .replace("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0", "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1")
@@ -74,6 +79,11 @@ test("NAS Docker compose static validation rejects drift from target deployment 
 
   assert.equal(result.ok, false);
   assert.match(result.errors.join("\n"), /admin-worker must use the mounted \/data\/PublicLibrary root/);
+  assert.match(result.errors.join("\n"), /admin-api must require an explicit immutable GHCR admin runtime image tag/);
+  assert.match(result.errors.join("\n"), /admin-worker must require an explicit immutable GHCR admin runtime image tag/);
+  assert.match(result.errors.join("\n"), /admin-web must require an explicit immutable GHCR admin web image tag/);
+  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_IMAGE_TAG must be ""/);
+  assert.match(result.errors.join("\n"), /must not default MIXLAB_IMAGE_TAG to mutable latest/);
   assert.match(result.errors.join("\n"), /admin-api must default to Docker MVP mode v0\.1/);
   assert.match(result.errors.join("\n"), /admin-worker must default to Docker MVP mode v0\.1/);
   assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_ADMIN_DOCKER_MVP_MODE must be "v0\.1"/);
@@ -101,8 +111,8 @@ test("NAS Docker compose static validation rejects externally exposed runtime se
         "    ports:\n      - \"3889:3889\"\n    volumes:\n      - ${PUBLIC_LIBRARY_HOST_PATH}:/data/PublicLibrary\n    healthcheck:"
       )
       .replace(
-        "  admin-worker:\n    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}\n    restart: unless-stopped\n    depends_on:\n      - admin-api\n    env_file:\n      - .env\n    environment:",
-        "  admin-worker:\n    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}\n    restart: unless-stopped\n    depends_on:\n      - admin-api\n    env_file:\n      - .env\n    expose:\n      - \"3889\"\n    environment:"
+        "  admin-worker:\n    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}\n    restart: unless-stopped\n    depends_on:\n      - admin-api\n    env_file:\n      - .env\n    environment:",
+        "  admin-worker:\n    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}\n    restart: unless-stopped\n    depends_on:\n      - admin-api\n    env_file:\n      - .env\n    expose:\n      - \"3889\"\n    environment:"
       ),
     "utf8"
   );

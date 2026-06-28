@@ -42,7 +42,7 @@ Before copying files to the NAS, run the source-repository static deployment che
 npm run validate:nas-docker-compose-static
 ```
 
-This validates the expected Compose services, GHCR images, public-library mount, worker command, `MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=25`, blank `.env.example` ASR key, and the internal-only boundary that `admin-api` and `admin-worker` do not publish host ports. It does not replace `docker compose config`, image pull/build checks, or real NAS target evidence.
+This validates the expected Compose services, GHCR images with an explicit immutable image tag requirement, public-library mount, worker command, `MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=25`, blank `.env.example` ASR key, and the internal-only boundary that `admin-api` and `admin-worker` do not publish host ports. It does not replace `docker compose config`, image pull/build checks, or real NAS target evidence.
 
 1. Create the NAS folder `共享文件夹/MixLab/PublicLibrary`.
 2. Copy `deploy/nas/mixlab/docker-compose.yml` to the NAS Docker app project folder.
@@ -64,7 +64,7 @@ This validates the expected Compose services, GHCR images, public-library mount,
 | Name | Default | Meaning |
 | --- | --- | --- |
 | `PUBLIC_LIBRARY_HOST_PATH` | `/volume1/MixLab/PublicLibrary` | NAS host path mounted into `/data/PublicLibrary` |
-| `MIXLAB_IMAGE_TAG` | `latest` | Docker image tag; use a Git SHA for rollback |
+| `MIXLAB_IMAGE_TAG` | required, blank in example | Immutable Docker image tag; use the exact accepted Git SHA, never `latest` |
 | `MIXLAB_ADMIN_WEB_PORT` | `8080` | NAS port exposed for the management UI |
 | `MIXLAB_WORKER_POLL_INTERVAL_SECONDS` | `60` | Worker loop interval |
 | `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER` | `0` | Enables standalone source material preprocessing only after explicit controlled-preprocess approval |
@@ -209,7 +209,7 @@ The validator requires:
 
 ## Update
 
-1. Pull the latest images in the NAS Docker app.
+1. Pull the explicitly selected `MIXLAB_IMAGE_TAG` images in the NAS Docker app.
 2. Restart the Compose project with `MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0`
    and `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0` for the initial MVP v0.1 staging run.
 3. Confirm the management UI still opens and current safety endpoints are present.

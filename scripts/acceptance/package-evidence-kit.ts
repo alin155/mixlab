@@ -141,7 +141,7 @@ Use this checklist before declaring ACC-008, ACC-009, or final delivery complete
 
 ## 2. NAS ACC-009
 
-- From the source repository, run npm run validate:nas-docker-compose-static before copying the NAS Docker project. This static check confirms the expected Compose services, public-library mount, worker command, count refresh default, and blank .env.example ASR key; it does not replace docker compose config or real NAS target evidence.
+- From the source repository, run npm run validate:nas-docker-compose-static before copying the NAS Docker project. This static check confirms the expected Compose services, explicit immutable image tag requirement, public-library mount, worker command, count refresh default, and blank .env.example ASR key; it does not replace docker compose config or real NAS target evidence.
 - Confirm the NAS Docker admin web is reachable, the admin API listens, the admin-worker loop starts, current.json is created, and worker logs include count_refresh_interval matching MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL.
 - Verify the deployed NAS admin source-videos page against the real public source path: first source video id is visible, load-more increases visible rows, a keyword query observes the API response and rendered result, and the ready filter observes the API response with only ready rows; copy those values into admin_source_videos_ui.
 - Verify the SMB public library is readable from cutter machines and not writable by cutters.

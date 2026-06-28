@@ -132,7 +132,7 @@ export function buildDockerReleaseGates(
     composePrerequisiteGate({
       id: "image-tag-static-parity",
       title: "Admin image tag parity is statically declared",
-      evidence_when_ok: "admin-api, admin-worker, and admin-web use the same MIXLAB_IMAGE_TAG default contract.",
+      evidence_when_ok: "admin-api, admin-worker, and admin-web use the same explicit immutable MIXLAB_IMAGE_TAG contract.",
       compose_static: composeStatic
     }),
     composePrerequisiteGate({

@@ -125,20 +125,20 @@ export async function validateNasDockerComposeStatic(input: {
   requireMatch(composeRaw, /^\s{2}admin-web:\s*$/m, "docker-compose.yml must define admin-web service", errors);
   requireMatch(
     composeRaw,
-    /admin-api:[\s\S]*image: ghcr\.io\/alin155\/mixlab-admin-runtime:\$\{MIXLAB_IMAGE_TAG:-latest\}/,
-    "admin-api must use the versioned GHCR admin runtime image",
+    /admin-api:[\s\S]*image: ghcr\.io\/alin155\/mixlab-admin-runtime:\$\{MIXLAB_IMAGE_TAG:\?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA\}/,
+    "admin-api must require an explicit immutable GHCR admin runtime image tag",
     errors
   );
   requireMatch(
     composeRaw,
-    /admin-worker:[\s\S]*image: ghcr\.io\/alin155\/mixlab-admin-runtime:\$\{MIXLAB_IMAGE_TAG:-latest\}/,
-    "admin-worker must use the versioned GHCR admin runtime image",
+    /admin-worker:[\s\S]*image: ghcr\.io\/alin155\/mixlab-admin-runtime:\$\{MIXLAB_IMAGE_TAG:\?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA\}/,
+    "admin-worker must require an explicit immutable GHCR admin runtime image tag",
     errors
   );
   requireMatch(
     composeRaw,
-    /admin-web:[\s\S]*image: ghcr\.io\/alin155\/mixlab-admin-web:\$\{MIXLAB_IMAGE_TAG:-latest\}/,
-    "admin-web must use the versioned GHCR admin web image",
+    /admin-web:[\s\S]*image: ghcr\.io\/alin155\/mixlab-admin-web:\$\{MIXLAB_IMAGE_TAG:\?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA\}/,
+    "admin-web must require an explicit immutable GHCR admin web image tag",
     errors
   );
   requireMatch(
@@ -214,7 +214,7 @@ export async function validateNasDockerComposeStatic(input: {
 
   const env = parseEnv(envRaw);
   requireEnvValue(env, "PUBLIC_LIBRARY_HOST_PATH", "/volume1/MixLab/PublicLibrary", errors);
-  requireEnvValue(env, "MIXLAB_IMAGE_TAG", "latest", errors);
+  requireEnvValue(env, "MIXLAB_IMAGE_TAG", "", errors);
   requireEnvValue(env, "MIXLAB_ADMIN_DOCKER_MVP_MODE", "v0.1", errors);
   requireEnvValue(env, "MIXLAB_ADMIN_WEB_PORT", "8080", errors);
   requireEnvValue(env, "MIXLAB_WORKER_POLL_INTERVAL_SECONDS", "60", errors);
@@ -225,6 +225,10 @@ export async function validateNasDockerComposeStatic(input: {
 
   if (env.get("DASHSCOPE_API_KEY") !== "") {
     errors.push(".env.example DASHSCOPE_API_KEY must be blank");
+  }
+
+  if (composeRaw.includes("MIXLAB_IMAGE_TAG:-latest") || env.get("MIXLAB_IMAGE_TAG") === "latest") {
+    errors.push("NAS Docker deployment must not default MIXLAB_IMAGE_TAG to mutable latest");
   }
 
   return {

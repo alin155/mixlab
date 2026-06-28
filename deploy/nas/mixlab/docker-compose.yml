@@ -1,6 +1,6 @@
 services:
   admin-api:
-    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}
+    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}
     restart: unless-stopped
     env_file:
       - .env
@@ -9,7 +9,7 @@ services:
       MIXLAB_ADMIN_API_PORT: 3889
       MIXLAB_ADMIN_LIBRARY_ROOT: /data/PublicLibrary
       MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}
-      MIXLAB_IMAGE_TAG: ${MIXLAB_IMAGE_TAG:-latest}
+      MIXLAB_IMAGE_TAG: ${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}
       MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT: ${MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT:-92}
       MIXLAB_FFMPEG_PATH: /usr/bin/ffmpeg
       MIXLAB_FFPROBE_PATH: /usr/bin/ffprobe
@@ -23,7 +23,7 @@ services:
       start_period: 20s
 
   admin-worker:
-    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:-latest}
+    image: ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}
     restart: unless-stopped
     depends_on:
       - admin-api
@@ -33,7 +33,7 @@ services:
       MIXLAB_ADMIN_LIBRARY_ROOT: /data/PublicLibrary
       MIXLAB_PREPROCESS_LIBRARY_ROOT: /data/PublicLibrary
       MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}
-      MIXLAB_IMAGE_TAG: ${MIXLAB_IMAGE_TAG:-latest}
+      MIXLAB_IMAGE_TAG: ${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}
       MIXLAB_FFMPEG_PATH: /usr/bin/ffmpeg
       MIXLAB_FFPROBE_PATH: /usr/bin/ffprobe
       MIXLAB_WORKER_POLL_INTERVAL_SECONDS: ${MIXLAB_WORKER_POLL_INTERVAL_SECONDS:-60}
@@ -46,7 +46,7 @@ services:
     command: ["npm", "run", "worker:admin-loop"]
 
   admin-web:
-    image: ghcr.io/alin155/mixlab-admin-web:${MIXLAB_IMAGE_TAG:-latest}
+    image: ghcr.io/alin155/mixlab-admin-web:${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}
     restart: unless-stopped
     depends_on:
       - admin-api

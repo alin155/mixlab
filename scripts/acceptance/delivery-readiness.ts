@@ -506,8 +506,14 @@ function auditEvidenceAutomation(errors: string[]): void {
   );
   requireText(
     "scripts/acceptance/nas-docker-compose-static.ts",
-    /deploy\/nas\/mixlab\/docker-compose\.yml[\s\S]*deploy\/nas\/mixlab\/\.env\.example[\s\S]*admin-api[\s\S]*admin-worker[\s\S]*admin-web[\s\S]*\/data\/PublicLibrary[\s\S]*worker:admin-loop[\s\S]*PUBLIC_LIBRARY_HOST_PATH[\s\S]*MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL[\s\S]*DASHSCOPE_API_KEY must be blank/,
-    "NAS Docker compose static validator must check services, public-library mount, worker command, count refresh interval, and blank ASR key example",
+    /deploy\/nas\/mixlab\/docker-compose\.yml[\s\S]*deploy\/nas\/mixlab\/\.env\.example[\s\S]*admin-api[\s\S]*admin-worker[\s\S]*admin-web[\s\S]*immutable GHCR admin runtime image tag[\s\S]*\/data\/PublicLibrary[\s\S]*worker:admin-loop[\s\S]*PUBLIC_LIBRARY_HOST_PATH[\s\S]*MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL[\s\S]*DASHSCOPE_API_KEY must be blank[\s\S]*must not default MIXLAB_IMAGE_TAG to mutable latest/,
+    "NAS Docker compose static validator must check services, immutable image tag requirement, public-library mount, worker command, count refresh interval, and blank ASR key example",
+    errors
+  );
+  rejectText(
+    "deploy/nas/mixlab/docker-compose.yml",
+    /MIXLAB_IMAGE_TAG:-latest/,
+    "NAS Docker compose must not default Admin image tags to mutable latest",
     errors
   );
   requireText(
