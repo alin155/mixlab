@@ -286,6 +286,47 @@ function gate(input: LiveReleaseGate): LiveReleaseGate {
   return input;
 }
 
+function sanitizeDashboardMetricsData(value: unknown): unknown {
+  const data = asRecord(value);
+  const usage = asRecord(data.usage);
+  const runtimeLoad = asRecord(data.runtime_load);
+  const disk = asRecord(runtimeLoad.disk);
+
+  return {
+    material: data.material ?? null,
+    transcript: data.transcript ?? null,
+    production: data.production ?? null,
+    risk: data.risk ?? null,
+    runtime_load: {
+      overall_status: asString(runtimeLoad.overall_status),
+      disk: {
+        usage_percent: asNumber(disk.usage_percent),
+        status: asString(disk.status)
+      }
+    },
+    usage_summary: {
+      search_request_count: asNumber(usage.search_request_count),
+      search_hit_count: asNumber(usage.search_hit_count),
+      search_empty_count: asNumber(usage.search_empty_count),
+      source_detail_view_count: asNumber(usage.source_detail_view_count),
+      cut_submission_count: asNumber(usage.cut_submission_count),
+      cut_success_count: asNumber(usage.cut_success_count),
+      cut_failure_count: asNumber(usage.cut_failure_count),
+      active_user_count: asNumber(usage.active_user_count),
+      recent_keyword_count: Array.isArray(usage.recent_keywords) ? usage.recent_keywords.length : null,
+      user_count: Array.isArray(usage.users) ? usage.users.length : null
+    }
+  };
+}
+
+export function sanitizeLiveProbeData(name: ProbeName, value: unknown): unknown {
+  if (name === "dashboard_metrics") {
+    return sanitizeDashboardMetricsData(value);
+  }
+
+  return value;
+}
+
 export function buildLiveProbeDefinitions(): LiveProbeDefinition[] {
   return [
     {
@@ -982,7 +1023,7 @@ async function requestProbe(input: {
       api_ok: apiOk,
       response_bytes: Buffer.byteLength(text, "utf8"),
       content_type: contentType,
-      data: input.definition.json ? envelope.data : null,
+      data: input.definition.json ? sanitizeLiveProbeData(input.definition.name, envelope.data) : null,
       error_code: typeof envelope.error_code === "string" ? envelope.error_code : undefined,
       message: typeof envelope.message === "string" ? envelope.message : undefined
     };

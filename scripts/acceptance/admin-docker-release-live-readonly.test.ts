@@ -10,6 +10,7 @@ import {
   classifyLiveReadonlyTarget,
   renderMarkdown,
   runLiveReadonlyProbe,
+  sanitizeLiveProbeData,
   type LiveProbeResult
 } from "./admin-docker-release-live-readonly.ts";
 
@@ -368,6 +369,47 @@ test("admin Docker live-readonly probe definitions are GET-only and avoid comman
       "/api/admin/preprocess/supervisor/status"
     ]
   );
+});
+
+test("admin Docker live-readonly dashboard metrics are sanitized before archival", () => {
+  const sanitized = sanitizeLiveProbeData("dashboard_metrics", {
+    material: {
+      video_count: 11394,
+      ready_video_count: 10471
+    },
+    usage: {
+      search_request_count: 10,
+      search_hit_count: 9,
+      search_empty_count: 1,
+      source_detail_view_count: 5,
+      cut_submission_count: 3,
+      cut_success_count: 2,
+      cut_failure_count: 1,
+      active_user_count: 2,
+      recent_keywords: ["private-keyword"],
+      users: [
+        {
+          user_id: "CU000011",
+          username: "Private Editor",
+          last_used_at: "2026-06-28T00:00:00.000Z"
+        }
+      ]
+    },
+    runtime_load: {
+      overall_status: "blocked",
+      disk: {
+        usage_percent: 98,
+        status: "blocked"
+      }
+    }
+  });
+
+  const text = JSON.stringify(sanitized);
+  assert.match(text, /"user_count":1/);
+  assert.match(text, /"recent_keyword_count":1/);
+  assert.equal(text.includes("Private Editor"), false);
+  assert.equal(text.includes("private-keyword"), false);
+  assert.equal(text.includes("CU000011"), false);
 });
 
 test("admin Docker live-readonly report stays blocked when target URL is missing", () => {
