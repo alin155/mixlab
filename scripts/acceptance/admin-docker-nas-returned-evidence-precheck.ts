@@ -249,13 +249,23 @@ function validateDiskProof(raw: string, issues: PrecheckIssue[]): void {
   const checks = asArray(parsed.checks).map((item) => asRecord(item));
   const ids = checks.map((item) => asString(item.id)).filter(Boolean);
   for (const id of ["admin-api-library-root", "admin-worker-library-root"]) {
-    if (!ids.includes(id)) {
-      addIssue(issues, "disk-proof-checks", `admin-docker-disk-proof.json is missing ${id}.`, "admin-docker-disk-proof.json");
+    const hasContainerCheck = checks.some((item) => asString(item.id) === id && asString(item.scope) === "container");
+    if (!ids.includes(id) || !hasContainerCheck) {
+      addIssue(issues, "disk-proof-checks", `admin-docker-disk-proof.json is missing container check ${id}.`, "admin-docker-disk-proof.json");
     }
   }
   for (const check of checks) {
-    if (asString(check.path) !== EXPECTED_LIBRARY_ROOT) {
-      addIssue(issues, "disk-proof-check-path", `disk check ${asString(check.id) || "<unknown>"} must use ${EXPECTED_LIBRARY_ROOT}.`, "admin-docker-disk-proof.json");
+    const id = asString(check.id);
+    const scope = asString(check.scope);
+    const checkPath = asString(check.path);
+    if (scope !== "container" && scope !== "host") {
+      addIssue(issues, "disk-proof-check-scope", `disk check ${id || "<unknown>"} must use scope container or host.`, "admin-docker-disk-proof.json");
+    }
+    if (scope === "container" && checkPath !== EXPECTED_LIBRARY_ROOT) {
+      addIssue(issues, "disk-proof-check-path", `container disk check ${id || "<unknown>"} must use ${EXPECTED_LIBRARY_ROOT}.`, "admin-docker-disk-proof.json");
+    }
+    if (scope === "host" && !checkPath) {
+      addIssue(issues, "disk-proof-check-path", `host disk check ${id || "<unknown>"} must include a non-empty host path.`, "admin-docker-disk-proof.json");
     }
     if (typeof check.usage_percent !== "number") {
       addIssue(issues, "disk-proof-usage", `disk check ${asString(check.id) || "<unknown>"} must include numeric usage_percent.`, "admin-docker-disk-proof.json");

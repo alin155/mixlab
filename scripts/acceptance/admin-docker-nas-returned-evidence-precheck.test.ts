@@ -97,6 +97,20 @@ function diskCheck(id: string, service: string, usagePercent: number): unknown {
   };
 }
 
+function hostDiskCheck(): unknown {
+  return {
+    id: "host-public-library",
+    scope: "host",
+    service: "",
+    path: "/volume1/MixLab/PublicLibrary",
+    filesystem: "/dev/md0",
+    total_1k_blocks: 1000,
+    used_1k_blocks: 600,
+    available_1k_blocks: 400,
+    usage_percent: 60
+  };
+}
+
 test("returned evidence precheck accepts sanitized collector output shape", async () => {
   const report = await runAdminDockerNasReturnedEvidencePrecheck({
     returned_dir: await makeReturnedDir()
@@ -105,6 +119,53 @@ test("returned evidence precheck accepts sanitized collector output shape", asyn
   assert.equal(report.precheck_passed, true);
   assert.equal(report.result.status, "pass");
   assert.deepEqual(report.issues, []);
+});
+
+test("returned evidence precheck accepts optional host disk proof path", async () => {
+  const report = await runAdminDockerNasReturnedEvidencePrecheck({
+    returned_dir: await makeReturnedDir({
+      "admin-docker-disk-proof.json": {
+        schema_version: "1.0",
+        mode: "admin-docker-nas-release-inputs-collector",
+        expected_library_root: "/data/PublicLibrary",
+        thresholds: {
+          attention_usage_percent: 87,
+          block_usage_percent: 92
+        },
+        checks: [
+          diskCheck("admin-api-library-root", "admin-api", 61),
+          diskCheck("admin-worker-library-root", "admin-worker", 62),
+          hostDiskCheck()
+        ]
+      }
+    })
+  });
+
+  assert.equal(report.precheck_passed, true);
+  assert.deepEqual(report.issues, []);
+});
+
+test("returned evidence precheck requires container disk checks for API and worker", async () => {
+  const apiHostCheck = {
+    ...hostDiskCheck() as Record<string, unknown>,
+    id: "admin-api-library-root"
+  };
+  const report = await runAdminDockerNasReturnedEvidencePrecheck({
+    returned_dir: await makeReturnedDir({
+      "admin-docker-disk-proof.json": {
+        schema_version: "1.0",
+        mode: "admin-docker-nas-release-inputs-collector",
+        expected_library_root: "/data/PublicLibrary",
+        checks: [
+          apiHostCheck,
+          diskCheck("admin-worker-library-root", "admin-worker", 62)
+        ]
+      }
+    })
+  });
+
+  assert.equal(report.precheck_passed, false);
+  assert.ok(report.issues.some((issue) => issue.code === "disk-proof-checks"));
 });
 
 test("returned evidence precheck rejects full current inspect env output", async () => {
