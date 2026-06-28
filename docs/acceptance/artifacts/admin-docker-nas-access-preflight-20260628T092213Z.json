@@ -1,0 +1,203 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-28T09:22:13.888Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-access-preflight.ts",
+  "mode": "admin-docker-nas-access-preflight",
+  "target": {
+    "nas_host": "192.168.1.27",
+    "smb_root": "/Volumes/MixLab",
+    "handoff_bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest"
+  },
+  "no_side_effects": true,
+  "nas_collection_directly_available": false,
+  "staging_review_ready": false,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "ports": [
+      {
+        "port": 22,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:22"
+      },
+      {
+        "port": 5000,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:5000"
+      },
+      {
+        "port": 5001,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:5001"
+      },
+      {
+        "port": 2375,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:2375"
+      },
+      {
+        "port": 2376,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:2376"
+      },
+      {
+        "port": 8080,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:8080"
+      },
+      {
+        "port": 18080,
+        "status": "open",
+        "error": ""
+      },
+      {
+        "port": 9999,
+        "status": "open",
+        "error": ""
+      }
+    ],
+    "http": [
+      {
+        "url": "http://192.168.1.27:18080/",
+        "status": "ok",
+        "http_status": 200,
+        "content_type": "text/html",
+        "error": ""
+      },
+      {
+        "url": "http://192.168.1.27:8080/",
+        "status": "error",
+        "http_status": null,
+        "content_type": "",
+        "error": "fetch failed"
+      },
+      {
+        "url": "http://192.168.1.27:9999/desktop/",
+        "status": "ok",
+        "http_status": 200,
+        "content_type": "text/html",
+        "error": ""
+      }
+    ],
+    "smb_root": {
+      "path": "/Volumes/MixLab",
+      "present": true,
+      "is_directory": true,
+      "top_level_dirs": [
+        "#recycle",
+        "PublicLibrary",
+        "安装包"
+      ]
+    },
+    "compose_candidates": [],
+    "returned_evidence_candidates": [],
+    "scan_limits": {
+      "max_depth": 5,
+      "max_entries": 2000,
+      "pruned_dirs": [
+        "PublicLibrary",
+        "#recycle"
+      ]
+    }
+  },
+  "gates": [
+    {
+      "id": "preflight-no-side-effects",
+      "title": "NAS access preflight is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Only TCP connect, HTTP HEAD, and bounded SMB directory metadata reads are used.",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false
+    },
+    {
+      "id": "nas-desktop-or-legacy-admin-reachable",
+      "title": "NAS host is reachable from Mac",
+      "category": "network",
+      "status": "pass",
+      "evidence": "9999=open, 18080=open",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": true,
+      "required_evidence": "At least one NAS management or existing Admin endpoint should be reachable before staging review."
+    },
+    {
+      "id": "ssh-access-available",
+      "title": "SSH path is available for NAS collector",
+      "category": "network",
+      "status": "blocked",
+      "evidence": "port 22 is closed",
+      "blocks_nas_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "Open a temporary SSH path or use the NAS desktop/local shell to run the collector."
+    },
+    {
+      "id": "smb-root-mounted",
+      "title": "NAS SMB share is mounted on Mac",
+      "category": "smb",
+      "status": "pass",
+      "evidence": "/Volumes/MixLab mounted with top-level dirs: #recycle, PublicLibrary, 安装包",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false,
+      "required_evidence": "Mount the NAS share if using SMB to transfer handoff or returned evidence."
+    },
+    {
+      "id": "compose-project-visible-on-smb",
+      "title": "NAS Compose project is visible on mounted share",
+      "category": "smb",
+      "status": "blocked",
+      "evidence": "No compose file found outside PublicLibrary/#recycle within bounded scan.",
+      "blocks_nas_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "Mount or locate the NAS Compose project folder containing docker-compose.yml and .env."
+    },
+    {
+      "id": "returned-evidence-visible",
+      "title": "Returned admin-docker-release-inputs evidence is visible",
+      "category": "returned-evidence",
+      "status": "blocked",
+      "evidence": "No returned evidence files or admin-docker-release-inputs directory found outside PublicLibrary/#recycle.",
+      "blocks_nas_collection": true,
+      "blocks_staging_review": true,
+      "required_evidence": "Run the NAS collector and copy admin-docker-release-inputs/ back to the Mac repo."
+    },
+    {
+      "id": "staging-admin-port-reachable",
+      "title": "Candidate Admin Web staging port is reachable",
+      "category": "staging-target",
+      "status": "blocked",
+      "evidence": "port 8080 is closed",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": true,
+      "required_evidence": "After staging, the configured Admin Web port must be reachable and expose current Admin API endpoints."
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 3,
+    "blocked": 4,
+    "nas_collection_blockers": [
+      "ssh-access-available",
+      "compose-project-visible-on-smb",
+      "returned-evidence-visible"
+    ],
+    "staging_review_blockers": [
+      "returned-evidence-visible",
+      "staging-admin-port-reachable"
+    ]
+  },
+  "next_actions": [
+    "Keep push_images=false; do not edit NAS .env, restart containers, or enable workers.",
+    "Use the NAS desktop or physical NAS shell to locate the Compose project folder that contains docker-compose.yml and .env.",
+    "Copy docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/nas/ into that Compose project folder.",
+    "On the NAS host, run sh ./nas/RUN_ON_NAS.sh and copy the generated admin-docker-release-inputs/ folder back to this Mac.",
+    "Alternatively enable a temporary SSH or mounted Compose-project read-only workflow, then rerun this preflight."
+  ],
+  "result": {
+    "status": "blocked",
+    "summary": "NAS evidence collection is blocked until a Compose project, SSH path, or returned evidence folder is available."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T092213Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260628T092213Z.md"
+  }
+}
