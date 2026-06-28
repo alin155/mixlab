@@ -307,7 +307,11 @@ test("docker mvp command policy allows only login cutter-user and controlled pre
     "preprocess-retry-failed",
     "preprocess-recover-processing",
     "preprocess-worker-claim",
-    "preprocess-worker-complete"
+    "preprocess-worker-stage",
+    "preprocess-worker-complete",
+    "preprocess-worker-fail",
+    "preprocess-worker-refresh-counts",
+    "admin-auth-register"
   ] as const) {
     assert.equal(adminDockerMvpCommandBlock({ command, mode: "v0.1" }), null, command);
     assert.doesNotThrow(() => assertAdminDockerMvpCommandAllowed({ command, mode: "v0.1" }), command);
