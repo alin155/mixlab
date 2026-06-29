@@ -1,0 +1,196 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T10:00:34.866Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-image-push-proof.ts",
+  "mode": "admin-docker-image-push-proof",
+  "sources": {
+    "github_run_artifact_report": "docs/acceptance/artifacts/admin-docker-github-run-artifact-20260629T095804Z.json",
+    "github_artifact_readiness_report": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260629T095804Z.json",
+    "release_inputs_report": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T095931Z.json",
+    "push_decision_package_report": "docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T100027Z.json"
+  },
+  "proof_accepted": false,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "github_run_successful": true,
+    "github_run_event": "workflow_dispatch",
+    "github_run_head_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "github_run_head_branch": "admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "github_run_url": "https://github.com/alin155/mixlab/actions/runs/28363633436",
+    "github_run_candidate_ready": true,
+    "github_run_staging_handoff_ready": false,
+    "github_artifact_status": "candidate-ready",
+    "github_candidate_artifact_ready": true,
+    "github_artifact_staging_handoff_ready": false,
+    "image_push_approval_accepted": false,
+    "artifact_staging_handoff_blockers": [
+      "nas-release-inputs-intake-complete",
+      "returned-evidence-precheck-passed",
+      "release-inputs-ready",
+      "image-push-explicitly-approved",
+      "staging-runbook-ready"
+    ],
+    "release_inputs_ready": true,
+    "push_decision_package_ready": true,
+    "workflow_dispatch_command": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+    "current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "target_image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "rollback_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "workflow_command_ready": true,
+    "run_head_matches_target": true,
+    "source_reports_nondeploy": true
+  },
+  "gates": [
+    {
+      "id": "image-push-proof-no-side-effects",
+      "title": "Image push proof is local and read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Reads archived GitHub run, artifact readiness, release inputs, and push decision reports only; it does not contact GitHub, GHCR, NAS, Docker, Admin API, Cutter API, or Windows Runner.",
+      "blocks_image_push_proof": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "source-reports-do-not-approve-push-or-deploy",
+      "title": "Source reports do not approve push or deploy by themselves",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "run.deploy=false, readiness.deploy=false, release_inputs.push=false, release_inputs.deploy=false, push_package.push=false, push_package.deploy=false",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "All source reports must remain evidence only: push_execution_allowed=false and docker_deploy_allowed=false."
+    },
+    {
+      "id": "release-inputs-ready",
+      "title": "Release inputs are ready",
+      "category": "release-inputs",
+      "status": "pass",
+      "evidence": "release_inputs_ready=true",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Use an accepted admin-docker-release-inputs report before proving a pushed target image."
+    },
+    {
+      "id": "push-decision-package-ready",
+      "title": "Push decision package was ready before push",
+      "category": "release-decision",
+      "status": "pass",
+      "evidence": "push_decision_package_ready=true",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Prepare the push decision package before running workflow_dispatch with push_images=true."
+    },
+    {
+      "id": "workflow-command-ready",
+      "title": "Workflow dispatch command is exact and placeholder-free",
+      "category": "release-decision",
+      "status": "pass",
+      "evidence": "release_inputs_command_ready=true, push_package_command_matches=true",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Release inputs and push decision package must agree on the exact docker-admin workflow_dispatch command."
+    },
+    {
+      "id": "github-run-successful",
+      "title": "GitHub Admin Docker workflow completed successfully",
+      "category": "github-run",
+      "status": "pass",
+      "evidence": "status=completed, conclusion=success, url=https://github.com/alin155/mixlab/actions/runs/28363633436",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Collect a successful workflow_dispatch run artifact after running push_images=true."
+    },
+    {
+      "id": "github-run-is-workflow-dispatch",
+      "title": "GitHub run was manually dispatched",
+      "category": "github-run",
+      "status": "pass",
+      "evidence": "event=workflow_dispatch",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The image push proof must come from workflow_dispatch, not an automatic push run."
+    },
+    {
+      "id": "github-run-target-ref-matches-release-inputs",
+      "title": "GitHub run target matches release inputs target tag",
+      "category": "image",
+      "status": "pass",
+      "evidence": "run.headSha=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, run.headBranch=admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef, target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run the workflow on the admin-docker-candidate tag that points at the target image SHA."
+    },
+    {
+      "id": "github-candidate-artifact-ready",
+      "title": "GitHub artifact still proves the Docker candidate",
+      "category": "artifact",
+      "status": "pass",
+      "evidence": "github_run_candidate_ready=true, github_candidate_artifact_ready=true, readiness_status=candidate-ready",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The same run must still produce accepted Admin Docker candidate smoke evidence."
+    },
+    {
+      "id": "image-push-approval-observed-in-artifact",
+      "title": "Artifact records workflow_dispatch push_images=true",
+      "category": "image",
+      "status": "blocked",
+      "evidence": "image_push_approval_accepted=false",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The GitHub artifact readiness report must observe image_push_approval_accepted=true, which the workflow sets only when push_images=true."
+    },
+    {
+      "id": "image-push-blocker-cleared-from-artifact",
+      "title": "Artifact no longer carries image push blocker",
+      "category": "image",
+      "status": "blocked",
+      "evidence": "artifact_staging_handoff_blockers=nas-release-inputs-intake-complete, returned-evidence-precheck-passed, release-inputs-ready, image-push-explicitly-approved, staging-runbook-ready",
+      "blocks_image_push_proof": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "After push_images=true, artifact readiness staging blockers must not include image-push-explicitly-approved."
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 9,
+    "blocked": 2,
+    "failed": 0,
+    "image_push_proof_blockers": [
+      "image-push-approval-observed-in-artifact",
+      "image-push-blocker-cleared-from-artifact"
+    ],
+    "staging_execution_blockers": [
+      "image-push-approval-observed-in-artifact",
+      "image-push-blocker-cleared-from-artifact"
+    ],
+    "docker_deploy_blockers": [
+      "image-push-approval-observed-in-artifact",
+      "image-push-blocker-cleared-from-artifact"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Image push proof is blocked until a successful workflow_dispatch push_images=true run is archived and matched to release inputs."
+  },
+  "next_actions": [
+    "Resolve image push proof blockers: image-push-approval-observed-in-artifact, image-push-blocker-cleared-from-artifact.",
+    "Keep staging execution blocked until a successful push_images=true workflow run is archived and this proof is accepted."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T100034Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T100034Z.md"
+  }
+}

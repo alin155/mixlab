@@ -1,0 +1,256 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T10:01:21.825Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-owner-runbook.ts",
+  "mode": "admin-docker-release-owner-runbook",
+  "sources": {
+    "push_decision_package_report": "docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T100027Z.json",
+    "staging_runbook_report": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T100100Z.json",
+    "release_inputs_report": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T095931Z.json",
+    "readiness_summary_report": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T100114Z.json"
+  },
+  "release_owner_runbook_ready": true,
+  "release_decision_required": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "preprocess_execution_allowed": false,
+  "mvp_completion_allowed": false,
+  "observations": {
+    "push_decision_package_ready": true,
+    "push_decision_status": "ready-for-external-release-decision",
+    "readiness_ready": false,
+    "readiness_ready_for_release_owner_review": true,
+    "readiness_status": "blocked",
+    "staging_execution_ready": false,
+    "staging_review_ready": false,
+    "staging_ready_for_release_owner_review": true,
+    "staging_only_awaits_explicit_image_push_approval": true,
+    "staging_status": "blocked",
+    "release_inputs_ready": true,
+    "release_inputs_status": "ready-for-release-decision",
+    "current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "target_image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "rollback_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "workflow_dispatch_command": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+    "post_release_smoke_command": "MIXLAB_ADMIN_DOCKER_POST_RELEASE_BASE_URL=\"http://<nas-ip>:<admin-web-port>\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_TARGET_IMAGE_TAG=\"5a50922bc82f1b6728f247ed33e5885ab8cf6bef\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_READY_COUNT=\"10471\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_INDEX_VERSION=\"v010471\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_SESSION_TOKEN=\"<temporary-admin-session-token>\" \\\nnpm run validate:admin-docker-post-release-smoke",
+    "controlled_preprocess_smoke_requires_approval": true,
+    "source_push_or_deploy_allowed": false
+  },
+  "runbook": {
+    "pre_release_review": [
+      "Confirm the latest release-readiness summary is ready-for-release-decision with zero release review blockers.",
+      "Confirm the push decision package is ready-for-external-release-decision and still reports push_execution_allowed=false.",
+      "Confirm current=9c015b9105e97954240020781f79daae3f954bde, target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, rollback=9c015b9105e97954240020781f79daae3f954bde.",
+      "Confirm the current worktree has not introduced runtime/web build inputs that should replace the immutable target candidate.",
+      "Confirm the release owner explicitly accepts this one release decision before any push_images=true workflow dispatch."
+    ],
+    "image_push_after_explicit_approval": [
+      "Run the workflow command exactly as prepared by the push decision package, only after release-owner approval:",
+      "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+      "Do not edit NAS .env, pull/restart containers, enable workers, or run preprocessing as part of image push."
+    ],
+    "after_image_push_refresh": [
+      "Archive the completed GitHub run artifact for the push_images=true workflow.",
+      "Regenerate admin-docker-image-push-proof and require proof_accepted=true.",
+      "Regenerate staging runbook with MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true and the accepted image-push proof.",
+      "Regenerate release-readiness summary before any NAS runtime action."
+    ],
+    "nas_deploy_after_separate_runtime_approval": [
+      "Only after a separate NAS runtime/deploy approval, set the NAS Docker staging .env image tag to the target candidate.",
+      "Pull admin-web, admin-api, and admin-worker images.",
+      "Restart only admin-web, admin-api, and admin-worker with MVP worker flags still controlled.",
+      "Do not enable library preprocess worker or ready publish worker during the initial deploy smoke."
+    ],
+    "post_deploy_readonly_smoke": [
+      "Run the final URL read-only smoke command:",
+      "MIXLAB_ADMIN_DOCKER_POST_RELEASE_BASE_URL=\"http://<nas-ip>:<admin-web-port>\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_TARGET_IMAGE_TAG=\"5a50922bc82f1b6728f247ed33e5885ab8cf6bef\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_READY_COUNT=\"10471\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_INDEX_VERSION=\"v010471\" \\\nMIXLAB_ADMIN_DOCKER_POST_RELEASE_SESSION_TOKEN=\"<temporary-admin-session-token>\" \\\nnpm run validate:admin-docker-post-release-smoke",
+      "Run or refresh live-readonly, version parity, worker proof, Cutter compatibility proof, and readiness summary from post-deploy evidence.",
+      "Do not mark MVP complete unless the final URL smoke, Cutter invariants, ready count, and current index are proven."
+    ],
+    "controlled_preprocess_smoke_after_approval": [
+      "Only after explicit production small-batch preprocess approval, record before ready count, current index, queue counts, disk safety, and worker env.",
+      "Use a tiny non-ready-only batch; do not run scan apply, index repair, ready publish, or broad recovery.",
+      "Verify ready materials cannot be queued/retried/recovered and remain immutable.",
+      "Record after ready count, current index, Cutter smoke, and audit log."
+    ],
+    "rollback": [
+      "Set the NAS Docker image tag back to rollback=9c015b9105e97954240020781f79daae3f954bde.",
+      "Restart admin-api, admin-web, and admin-worker using the rollback image tag.",
+      "Re-run final URL read-only smoke and Cutter compatibility smoke after rollback.",
+      "Do not run scan/apply, index repair, recovery, publish, worker-enable, or preprocessing during rollback unless separately approved."
+    ]
+  },
+  "gates": [
+    {
+      "id": "release-owner-runbook-no-side-effects",
+      "title": "Release owner runbook generation is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads archived JSON reports only; it does not call GitHub, GHCR, NAS, Docker, Admin API, Cutter API, or Windows Runner.",
+      "blocks_runbook": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": false,
+      "blocks_mvp_completion": false
+    },
+    {
+      "id": "source-reports-remain-nondeploy",
+      "title": "Source reports do not grant push or deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "source_push_or_deploy_allowed=false",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "All source reports must keep push_execution_allowed/docker_upload_allowed/docker_deploy_allowed false."
+    },
+    {
+      "id": "readiness-ready-for-release-decision",
+      "title": "Release readiness summary is ready for release-owner review",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "release_review_ready=false, release_owner_review_ready=true, blockers=staging-runbook-ready",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Provide a release-readiness summary with no blockers except the staging runbook waiting for explicit image-push approval."
+    },
+    {
+      "id": "push-decision-package-ready",
+      "title": "Push decision package is ready",
+      "category": "release-decision",
+      "status": "pass",
+      "evidence": "push_decision_package_ready=true, blockers=none",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Provide a ready admin-docker-push-decision-package artifact."
+    },
+    {
+      "id": "staging-runbook-ready",
+      "title": "Staging runbook is ready for release-owner review",
+      "category": "staging",
+      "status": "pass",
+      "evidence": "staging_execution_ready=false, staging_review_ready=false, release_owner_review_ready=true, blockers=image-push-explicitly-approved",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Provide a staging runbook with no blockers except the explicit image-push approval that this release-owner runbook prepares."
+    },
+    {
+      "id": "release-inputs-ready",
+      "title": "Release inputs are ready",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "release_inputs_ready=true, blockers=none",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Provide a release-inputs artifact with current, target, rollback, and workflow command."
+    },
+    {
+      "id": "image-tags-ready",
+      "title": "Current, target, and rollback tags are fixed",
+      "category": "rollback",
+      "status": "pass",
+      "evidence": "current=9c015b9105e97954240020781f79daae3f954bde, target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, rollback=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Current, target, and rollback image tags must be present."
+    },
+    {
+      "id": "workflow-command-ready",
+      "title": "Workflow command is exact",
+      "category": "release-decision",
+      "status": "pass",
+      "evidence": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_runbook": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Workflow command must be placeholder-free and match the accepted image tags."
+    },
+    {
+      "id": "external-release-decision-required",
+      "title": "External release owner decision is required",
+      "category": "release-decision",
+      "status": "blocked",
+      "evidence": "This runbook prepares release-owner review; it does not approve or execute push_images=true.",
+      "blocks_runbook": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Release owner must explicitly approve the workflow dispatch before push execution."
+    },
+    {
+      "id": "separate-nas-runtime-approval-required",
+      "title": "NAS runtime deploy approval is separate",
+      "category": "staging",
+      "status": "blocked",
+      "evidence": "Image push approval does not by itself approve NAS .env edits, image pull, or container restart.",
+      "blocks_runbook": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": true,
+      "blocks_mvp_completion": true,
+      "required_evidence": "After image push proof is accepted, separately approve NAS runtime deployment."
+    },
+    {
+      "id": "post-release-smoke-required",
+      "title": "Final URL read-only smoke remains required",
+      "category": "post-release",
+      "status": "blocked",
+      "evidence": "Final deployed Admin URL has not been proven by admin-docker-post-release-smoke in this runbook.",
+      "blocks_runbook": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": false,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Run validate:admin-docker-post-release-smoke against the final Admin URL after deploy."
+    },
+    {
+      "id": "controlled-preprocess-smoke-requires-approval",
+      "title": "Controlled preprocess smoke requires separate approval",
+      "category": "post-release",
+      "status": "blocked",
+      "evidence": "Production small-batch preprocessing is not part of this release-owner runbook execution.",
+      "blocks_runbook": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": false,
+      "blocks_mvp_completion": true,
+      "required_evidence": "Explicitly approve production small-batch preprocessing, then record before/after ready count, index, Cutter smoke, and audit log."
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "passed": 8,
+    "blocked": 4,
+    "failed": 0,
+    "runbook_blockers": [],
+    "push_execution_blockers": [
+      "external-release-decision-required"
+    ],
+    "docker_deploy_blockers": [
+      "external-release-decision-required",
+      "separate-nas-runtime-approval-required"
+    ],
+    "mvp_completion_blockers": [
+      "external-release-decision-required",
+      "separate-nas-runtime-approval-required",
+      "post-release-smoke-required",
+      "controlled-preprocess-smoke-requires-approval"
+    ]
+  },
+  "result": {
+    "status": "ready-for-release-owner-review",
+    "summary": "Release owner runbook is ready for review. It still does not approve push, deploy, preprocessing, or MVP completion."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T100121Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T100121Z.md"
+  }
+}
