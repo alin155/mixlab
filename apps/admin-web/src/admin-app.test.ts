@@ -768,6 +768,23 @@ test("dashboard renders restrained library status", async () => {
   assert.doesNotMatch(queuedIdleHtml, /data-control-state="read-only"/);
 });
 
+test("dashboard keeps rendering when runtime metrics omit source metadata", async () => {
+  const data = await fixtureData();
+  const dataWithoutMetricSources = {
+    ...data,
+    metrics: {
+      ...data.metrics,
+      sources: undefined as unknown as typeof data.metrics.sources
+    }
+  };
+  const text = visibleText(renderToStaticMarkup(h(DashboardPage, { data: dataWithoutMetricSources })));
+
+  assert.match(text, /总览/);
+  assert.match(text, /素材 素材库账本 · 不扫描/);
+  assert.match(text, /产能 素材库账本 · 不扫描/);
+  assert.match(text, /使用 使用事件 · 状态读取/);
+});
+
 test("dashboard labels unavailable large-library aggregates instead of fake zeroes", async () => {
   const data = await fixtureData();
   const largeLibraryData = {

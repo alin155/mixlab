@@ -207,6 +207,8 @@ export function buildAdminDockerPushDecisionPackageReport(input: {
   const stagingReviewReady = asBoolean(runbook.staging_review_ready);
   const onlyExplicitPushApprovalRemains = stagingExecutionBlockers.length === 1 &&
     stagingExecutionBlockers[0] === "image-push-explicitly-approved";
+  const stagingReadyForReleaseDecision = (stagingExecutionReady && stagingReviewReady && stagingExecutionBlockers.length === 0) ||
+    onlyExplicitPushApprovalRemains;
   const tagsPresent = Boolean(currentTag && targetTag && rollbackTag);
   const workflowCommandReady = commandLooksRunnable(workflowDispatchCommand, targetTag, currentTag, rollbackTag);
   const safetyReportsNondeploy = runbookDeployAllowed === false &&
@@ -283,15 +285,15 @@ export function buildAdminDockerPushDecisionPackageReport(input: {
       required_evidence: "Staging runbook must include accepted no-worker staging disk proof."
     }),
     gate({
-      id: "only-explicit-push-approval-blocks-staging-execution",
-      title: "Only explicit push approval blocks staging execution",
+      id: "staging-ready-for-release-decision",
+      title: "Staging is ready for release decision",
       category: "staging",
-      status: onlyExplicitPushApprovalRemains ? "pass" : "blocked",
-      evidence: `staging_execution_blockers=${stagingExecutionBlockers.join(", ") || "none"}`,
+      status: stagingReadyForReleaseDecision ? "pass" : "blocked",
+      evidence: `staging_execution_ready=${String(stagingExecutionReady)}, staging_review_ready=${String(stagingReviewReady)}, staging_execution_blockers=${stagingExecutionBlockers.join(", ") || "none"}`,
       blocks_push_decision_package: true,
       blocks_push_execution: true,
       blocks_docker_deploy: true,
-      required_evidence: "Staging execution blockers must contain only image-push-explicitly-approved before preparing the external release decision package."
+      required_evidence: "Staging runbook must either be ready with no execution blockers, or be blocked only by image-push-explicitly-approved before preparing the external release decision package."
     }),
     gate({
       id: "source-reports-do-not-approve-push-or-deploy",
@@ -376,7 +378,7 @@ export function buildAdminDockerPushDecisionPackageReport(input: {
           : "blocked",
       summary: packageReady
         ? "Push decision package is ready for an external release owner decision. It does not approve or execute push_images=true."
-        : "Push decision package is blocked until staging execution is only waiting on explicit push approval."
+        : "Push decision package is blocked until staging is ready for a release decision."
     },
     next_actions: packageReady
       ? [

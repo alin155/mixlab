@@ -1,0 +1,16 @@
+{"at":"2026-06-29T08:10:35.112Z","stage":"starting","message":"Run accepted."}
+{"at":"2026-06-29T08:10:35.286Z","stage":"running","message":"Running suite real_cut_smoke."}
+{"at":"2026-06-29T08:10:36.124Z","stage":"real_cut_runtime","message":"Checking app runtime before real cut."}
+{"at":"2026-06-29T08:10:36.473Z","stage":"api_already_ready","message":"Cutter API is already ready before app launch."}
+{"at":"2026-06-29T08:10:36.562Z","stage":"app_runtime_auth","message":"Checking desktop auth mode."}
+{"at":"2026-06-29T08:10:36.782Z","stage":"app_runtime_login","message":"Logging in with supplied Cutter credentials for reviewed auth."}
+{"at":"2026-06-29T08:10:37.352Z","stage":"app_runtime_status","message":"Reading cutter runtime status."}
+{"at":"2026-06-29T08:10:37.586Z","stage":"app_runtime_source_library","message":"Reading public source library first page."}
+{"at":"2026-06-29T08:10:37.882Z","stage":"real_cut_queue_guard","message":"Checking cut queue is idle before creating a smoke cut."}
+{"at":"2026-06-29T08:10:38.124Z","stage":"real_cut_search","message":"Searching public source library for real cut: 第一场"}
+{"at":"2026-06-29T08:10:38.284Z","stage":"real_cut_detail","message":"Reading source detail for real cut.","details":{"source_video_id":"V010574"}}
+{"at":"2026-06-29T08:10:38.564Z","stage":"real_cut_create_clip_list","message":"Creating smoke cut list.","details":{"source_video_id":"V010574","begin_ms":0,"end_ms":1500}}
+{"at":"2026-06-29T08:10:38.701Z","stage":"real_cut_submit_queue","message":"Submitting smoke cut list to queue.","details":{"clip_list_id":"CL20260629-0001"}}
+{"at":"2026-06-29T08:10:39.048Z","stage":"real_cut_run_next","message":"Running smoke cut job.","details":{"cut_job_id":"CJ20260629-0001"}}
+{"at":"2026-06-29T08:10:39.916Z","stage":"writing_report","message":"Writing failure report."}
+{"at":"2026-06-29T08:10:40.181Z","stage":"failed","message":"Real cut smoke finished with status unknown."}

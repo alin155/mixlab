@@ -344,8 +344,8 @@ export function buildLiveProbeDefinitions(): LiveProbeDefinition[] {
       path: "/api/admin/auth/status",
       timeout_ms: 5_000,
       json: true,
-      protected: false,
-      notes: "Public auth/session visibility through admin-web proxy."
+      protected: true,
+      notes: "Auth/session visibility through admin-web proxy; sends the optional session token when provided."
     },
     {
       name: "library_status",

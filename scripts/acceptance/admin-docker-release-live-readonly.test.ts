@@ -369,6 +369,10 @@ test("admin Docker live-readonly probe definitions are GET-only and avoid comman
       "/api/admin/preprocess/supervisor/status"
     ]
   );
+  assert.equal(
+    probes.find((item) => item.name === "auth_status")?.protected,
+    true
+  );
 });
 
 test("admin Docker live-readonly dashboard metrics are sanitized before archival", () => {

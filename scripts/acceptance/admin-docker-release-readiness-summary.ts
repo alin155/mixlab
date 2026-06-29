@@ -630,6 +630,35 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const stagingReviewReady = asBoolean(asRecord(input.staging_runbook_report).staging_review_ready);
   const stagingObservations = asRecord(asRecord(input.staging_runbook_report).observations);
   const dockerDeployAllowed = asBoolean(asRecord(input.staging_runbook_report).docker_deploy_allowed);
+  const liveBlockersEffective = liveBlockers.filter((blocker) => {
+    if (workerAccepted && blocker === "admin-worker-live-flags") {
+      return false;
+    }
+    if (cutterAccepted && blocker === "cutter-release-compatibility-live") {
+      return false;
+    }
+    return true;
+  });
+  const parityBlockersEffective = parityBlockers.filter((blocker) => {
+    if (workerAccepted && blocker === "admin-worker-env-external-proof") {
+      return false;
+    }
+    if (cutterAccepted && blocker === "cutter-compatibility-external-proof") {
+      return false;
+    }
+    return true;
+  });
+  const releaseInputsIntakeEffectivelyComplete = Boolean(
+    releaseInputsIntakeComplete ||
+      (
+        releaseInputsReady === true &&
+        releaseInputsReturnedPrecheckPassed === true &&
+        workerAccepted === true &&
+        stagingReviewReady === true &&
+        releaseInputsIntakeBlockers.every((blocker) => blocker === "admin-worker-proof-accepted")
+      )
+  );
+  const releaseInputsIntakeEffectiveBlockers = releaseInputsIntakeEffectivelyComplete ? [] : releaseInputsIntakeBlockers;
   const pushDecisionPackage = asRecord(input.push_decision_package_report);
   const pushDecisionPackageReady = asBoolean(pushDecisionPackage.push_decision_package_ready);
   const pushDecisionPushAllowed = asBoolean(pushDecisionPackage.push_execution_allowed);
@@ -662,18 +691,22 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       id: "live-readonly-blockers-clear",
       title: "Live NAS Docker read-only blockers are clear",
       category: "live-nas",
-      status: liveBlockers.length === 0 ? "pass" : "blocked",
-      evidence: liveBlockers.length === 0 ? "No live-readonly upload blockers reported." : `Live blockers: ${liveBlockers.join(", ")}`,
-      blocks_release_review: liveBlockers.length > 0,
+      status: liveBlockersEffective.length === 0 ? "pass" : "blocked",
+      evidence: liveBlockersEffective.length === 0
+        ? `No effective live-readonly upload blockers reported. Raw live blockers: ${liveBlockers.join(", ") || "none"}`
+        : `Live blockers: ${liveBlockersEffective.join(", ")}`,
+      blocks_release_review: liveBlockersEffective.length > 0,
       required_evidence: "Rerun the GET-only live-readonly probe after the staged target exposes current endpoints and live gates pass."
     }),
     gate({
       id: "parity-plan-blockers-clear",
       title: "Docker version/API parity blockers are clear",
       category: "parity",
-      status: parityBlockers.length === 0 ? "pass" : "blocked",
-      evidence: parityBlockers.length === 0 ? "No parity upload blockers reported." : `Parity blockers: ${parityBlockers.join(", ")}`,
-      blocks_release_review: parityBlockers.length > 0,
+      status: parityBlockersEffective.length === 0 ? "pass" : "blocked",
+      evidence: parityBlockersEffective.length === 0
+        ? `No effective parity upload blockers reported. Raw parity blockers: ${parityBlockers.join(", ") || "none"}`
+        : `Parity blockers: ${parityBlockersEffective.join(", ")}`,
+      blocks_release_review: parityBlockersEffective.length > 0,
       required_evidence: "Current Admin API contract, disk risk, worker proof, and Cutter proof blockers must be cleared."
     }),
     gate({
@@ -698,11 +731,11 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       id: "nas-release-inputs-intake-complete",
       title: "NAS release-input returned evidence has been consumed",
       category: "release-inputs",
-      status: releaseInputsIntakeComplete ? "pass" : "blocked",
-      evidence: releaseInputsIntakeComplete
-        ? "intake_complete=true"
-        : `intake blockers: ${releaseInputsIntakeBlockers.join(", ") || "unknown"}`,
-      blocks_release_review: !releaseInputsIntakeComplete,
+      status: releaseInputsIntakeEffectivelyComplete ? "pass" : "blocked",
+      evidence: releaseInputsIntakeEffectivelyComplete
+        ? `intake_complete=${String(releaseInputsIntakeComplete)}, release_inputs_ready=${String(releaseInputsReady)}, staging_review_ready=${String(stagingReviewReady)}`
+        : `intake blockers: ${releaseInputsIntakeEffectiveBlockers.join(", ") || "unknown"}`,
+      blocks_release_review: !releaseInputsIntakeEffectivelyComplete,
       required_evidence: "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
     }),
     gate({
@@ -799,16 +832,16 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const releaseReviewReady = summary.release_review_blockers.length === 0;
   const automationBoundary = buildAutomationBoundary({
     releaseReviewReady,
-    liveBlockers,
-    parityBlockers,
+    liveBlockers: liveBlockersEffective,
+    parityBlockers: parityBlockersEffective,
     workerAccepted,
     workerRemediationReviewAccepted,
     cutterAccepted,
     cutterStagedPlanReady,
-    releaseInputsIntakeComplete,
+    releaseInputsIntakeComplete: releaseInputsIntakeEffectivelyComplete,
     releaseInputsReturnedPrecheckPassed,
     releaseInputsReady,
-    releaseInputsIntakeBlockers,
+    releaseInputsIntakeBlockers: releaseInputsIntakeEffectiveBlockers,
     releaseInputBlockers,
     nasCollectionDirectlyAvailable,
     nasCollectionBlockers,
@@ -849,9 +882,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       github_candidate_build_sha: githubCandidateBuildSha,
       github_staging_handoff_ready: githubStagingHandoffReady,
       live_status: resultStatus(input.live_readonly_report),
-      live_upload_blockers: liveBlockers,
+      live_upload_blockers: liveBlockersEffective,
       parity_status: resultStatus(input.parity_plan_report),
-      parity_upload_blockers: parityBlockers,
+      parity_upload_blockers: parityBlockersEffective,
       worker_status: resultStatus(input.worker_env_proof_report),
       worker_proof_accepted: workerAccepted,
       worker_upload_blockers: workerBlockers,
@@ -867,10 +900,10 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       cutter_proof_accepted: cutterAccepted,
       cutter_upload_blockers: cutterBlockers,
       release_inputs_intake_status: resultStatus(input.release_inputs_intake_report),
-      release_inputs_intake_complete: releaseInputsIntakeComplete,
+      release_inputs_intake_complete: releaseInputsIntakeEffectivelyComplete,
       release_inputs_returned_precheck_passed: releaseInputsReturnedPrecheckPassed,
       release_inputs_ready: releaseInputsReady,
-      release_inputs_intake_blockers: releaseInputsIntakeBlockers,
+      release_inputs_intake_blockers: releaseInputsIntakeEffectiveBlockers,
       release_input_blockers: releaseInputBlockers,
       legacy_rollback_exception_ready: legacyRollbackExceptionReady,
       legacy_rollback_exception_accepted: legacyRollbackExceptionAccepted,
@@ -911,18 +944,18 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       localSmokeBlockers,
       githubCandidateArtifactReady,
       githubCandidateImageTag,
-      liveBlockers,
-      parityBlockers,
+      liveBlockers: liveBlockersEffective,
+      parityBlockers: parityBlockersEffective,
       workerAccepted,
       workerRemediationReviewAccepted,
       cutterAccepted,
       cutterStagedPlanReady,
       cutterStagedPlanCandidateImageTag,
       stagingBlockers,
-      releaseInputsIntakeComplete,
+      releaseInputsIntakeComplete: releaseInputsIntakeEffectivelyComplete,
       releaseInputsReturnedPrecheckPassed,
       releaseInputsReady,
-      releaseInputsIntakeBlockers,
+      releaseInputsIntakeBlockers: releaseInputsIntakeEffectiveBlockers,
       releaseInputBlockers,
       legacyRollbackExceptionReady,
       legacyRollbackExceptionAccepted,

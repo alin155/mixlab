@@ -71,6 +71,55 @@ function validRealCut(): unknown {
   };
 }
 
+function failedRealCutWithAsyncDrain(): unknown {
+  return {
+    status: "failed",
+    suite: "real_cut_smoke",
+    failure_category: "cut_failure",
+    failure_message: "Real cut smoke finished with status unknown.",
+    real_cut_smoke: {
+      selected_source_video_id: "V010574",
+      cut_job_id: "CJ20260629-0001",
+      run_next_elapsed_ms: 474,
+      phase_timings: []
+    }
+  };
+}
+
+function realCutSupplement(): unknown {
+  return {
+    status: "failed",
+    suite: "desktop_incident_diagnostics",
+    failure_category: "desktop_incident_diagnostics_failure",
+    failure_message: "Screenshot unavailable.",
+    desktop_incident_diagnostics: {
+      auth_source: "credentials",
+      probes: [
+        {
+          id: "cut_jobs",
+          ok: true,
+          status_code: 200,
+          body: {
+            data: {
+              jobs: [
+                {
+                  cut_job_id: "CJ20260629-0001",
+                  status: "done",
+                  output_file: "export-clips/E000048/001-Windows验收剪切.mp4",
+                  phase_timings: [
+                    { phase_id: "resolve_source", status: "done", duration_ms: 12 },
+                    { phase_id: "cut_media", status: "done", duration_ms: 691 }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  };
+}
+
 function desktopScreenshot(): unknown {
   return {
     status: "passed",
@@ -121,6 +170,28 @@ test("admin Cutter compatibility proof accepts reviewed Windows acceptance plus 
   assert.equal(report.observations.local_trusted, false);
   assert.equal(report.observations.available_video_count, 10471);
   assert.equal(report.observations.real_cut_run_next_status, "done");
+});
+
+test("admin Cutter compatibility proof accepts same-job completion supplement for async queue drain", () => {
+  const report = buildAdminCutterCompatibilityProofReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    windows_acceptance_report_path: "windows.json",
+    windows_acceptance_report: validWindowsAcceptance(),
+    real_cut_report_path: "real-cut.json",
+    real_cut_report: failedRealCutWithAsyncDrain(),
+    real_cut_supplement_report_path: "diagnostics.json",
+    real_cut_supplement_report: realCutSupplement(),
+    expected_ready_count: 10471,
+    expected_release_version: "v010471"
+  });
+
+  assert.equal(report.proof_accepted, true);
+  assert.deepEqual(report.summary.upload_blockers, []);
+  assert.equal(report.observations.real_cut_status, "failed");
+  assert.equal(report.observations.real_cut_completion_status, "done");
+  assert.equal(report.observations.real_cut_output_file, "export-clips/E000048/001-Windows验收剪切.mp4");
+  assert.equal(report.gates.find((item) => item.id === "real-cut-smoke-passed")?.status, "pass");
 });
 
 test("admin Cutter compatibility proof blocks local-trusted auth and stale ready counts", () => {

@@ -1,0 +1,76 @@
+# Admin Docker Version/API Parity Plan
+
+Generated: 2026-06-29T08:07:30.399Z
+
+Mode: docker-version-api-parity-plan
+
+Result: blocked
+
+Docker image/API update required: no
+
+Docker deploy allowed now: no
+
+This report reads an archived live-readonly artifact only. It does not deploy Docker, build images, push images, restart containers, enable workers, write NAS files, repair usage-events, recover jobs, publish indexes, or change Cutter protocols.
+
+## Source
+
+- Artifact: docs/acceptance/artifacts/admin-docker-release-live-readonly-20260629T080718Z.json
+- Target: http://192.168.1.27:18080
+- Normalized target: http://192.168.1.27:18080
+- Target kind: admin-web-url
+- Target safe to probe: yes
+- Expected library root: /data/PublicLibrary
+
+## Observations
+
+- Admin Web reachable: yes
+- Admin API proxy reachable: yes
+- Live target: admin-web-url, safe=yes
+- Current API contract ready: yes
+- Missing current endpoints: none
+- Version/health parity contract: ready (ready)
+- admin-worker env proof contract: ready (external-proof-required)
+- Cutter compatibility proof contract: ready (external-proof-required)
+- Library root: /data/PublicLibrary
+- Current index: v010471
+- Counts: total 11394, ready 10471
+- Disk: status healthy, usage 66%
+- Build: sha 9c015b9105e97954240020781f79daae3f954bde, version 9c015b9105e97954240020781f79daae3f954bde, image tag 9c015b9105e97954240020781f79daae3f954bde
+
+## Decision
+
+The source artifact does not prove a required API-contract update, but deployment still remains blocked until all release and external proof gates pass.
+
+## User Assistance Required Later
+
+- Provide external admin-worker environment proof from the NAS host or exported Docker inspect/.env output.
+- Run or allow the Windows Cutter compatibility smoke only after a staged Docker release candidate exists.
+
+## Summary
+
+- Passed: 10
+- Blocked: 0
+- Needs external proof: 2
+- Upload blockers: admin-worker-env-external-proof, cutter-compatibility-external-proof
+
+## Gates
+
+| Gate | Category | Status | Blocks Docker Upload | Evidence | Required Evidence |
+| --- | --- | --- | --- | --- | --- |
+parity-plan-no-deploy | safety | pass | no | This report reads an archived live-readonly artifact only; it does not contact NAS Docker, build images, push images, restart containers, or write NAS files. | n/a
+live-artifact-targeted | live-evidence | pass | no | Target artifact is explicit and probe-safe: http://192.168.1.27:18080 (admin-web-url). | Run MIXLAB_ADMIN_DOCKER_LIVE_BASE_URL=<target> npm run validate:admin-docker-release-live-readonly before parity planning.
+admin-web-root-observed | live-evidence | pass | no | HTTP 200, ok, 38.7ms | Admin Web root must be reachable before comparing API/image parity.
+admin-api-proxy-observed | live-evidence | pass | no | auth=HTTP 200, ok, 15.2ms; library=HTTP 200, ok, 10.4ms; supervisor=HTTP 200, ok, 8ms | At least one Admin API JSON endpoint must respond through Admin Web before diagnosing image/API parity.
+current-admin-api-contract-parity | api-contract | pass | no | Current Admin Architecture v1 endpoints responded in the source artifact. | Deploy or stage an Admin image exposing /api/admin/auth/status, /api/admin/release-gates, and /api/admin/data-loading/plan, then rerun the GET-only live-readonly probe.
+version-health-parity-contract | api-contract | pass | no | version_health_parity status=ready, image_tag=9c015b9105e97954240020781f79daae3f954bde. | Deploy or stage an Admin image exposing version_health_parity from /api/admin/release-gates, then rerun the GET-only live-readonly probe.
+admin-worker-env-proof-contract | docker-runtime | pass | no | admin_worker_env_proof status=external-proof-required, scope=admin-worker-env-only. | Deploy or stage an Admin image exposing admin_worker_env_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe.
+cutter-compatibility-proof-contract | cutter-compatibility | pass | no | cutter_compatibility_proof status=external-proof-required, expected_ready_count=10471. | Deploy or stage an Admin image exposing cutter_compatibility_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe.
+docker-library-root-parity | docker-runtime | pass | no | library_root=/data/PublicLibrary, expected=/data/PublicLibrary | NAS Docker Admin must report /data/PublicLibrary before any release update is allowed.
+nas-disk-risk | nas-risk | pass | no | disk_status=healthy, usage_percent=66 | Free space or prove write-block behavior with live release gates before enabling preprocessing in Docker.
+admin-worker-env-external-proof | docker-runtime | needs-external-proof | yes | The live-readonly Admin API artifact cannot inspect the running admin-worker container environment. | Capture target Docker .env and running admin-worker environment showing standalone workers remain disabled unless explicitly opted in.
+cutter-compatibility-external-proof | cutter-compatibility | needs-external-proof | yes | A Docker Admin parity plan cannot prove Windows Cutter still reads the release/index/search protocol. | Run and archive Cutter compatibility smoke after a separately gated Docker release candidate is staged.
+
+## Artifacts
+
+- JSON: docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T080730Z.json
+- Markdown: docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T080730Z.md

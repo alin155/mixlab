@@ -114,6 +114,27 @@ test("push decision package is ready when only explicit push approval blocks sta
   assert.ok(built.next_actions.some((item) => item.includes(WORKFLOW_COMMAND)));
 });
 
+test("push decision package is ready when staging is fully ready", () => {
+  const built = report({
+    staging: runbook({
+      staging_execution_ready: true,
+      staging_review_ready: true,
+      summary: {
+        staging_execution_blockers: [],
+        staging_blockers: []
+      },
+      result: {
+        status: "ready-for-staging-review"
+      }
+    })
+  });
+
+  assert.equal(built.push_decision_package_ready, true);
+  assert.equal(built.result.status, "ready-for-external-release-decision");
+  assert.deepEqual(built.summary.package_blockers, []);
+  assert.deepEqual(built.observations.staging_execution_blockers, []);
+});
+
 test("push decision package blocks extra staging execution blockers", () => {
   const built = report({
     staging: runbook({
@@ -131,7 +152,7 @@ test("push decision package blocks extra staging execution blockers", () => {
   });
 
   assert.equal(built.push_decision_package_ready, false);
-  assert.ok(built.summary.package_blockers.includes("only-explicit-push-approval-blocks-staging-execution"));
+  assert.ok(built.summary.package_blockers.includes("staging-ready-for-release-decision"));
 });
 
 test("push decision package fails if source reports approve push or deploy", () => {

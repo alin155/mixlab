@@ -2,6 +2,7 @@ import { InspectorPanel } from "@mixlab/ui-foundation";
 import type {
   AdminDashboardData,
   AdminDashboardMetricSource,
+  AdminDashboardMetricsSources,
   AdminPreprocessJob,
   UsageMetrics
 } from "../../api.ts";
@@ -122,6 +123,46 @@ function dashboardMetricSourceLabel(source: AdminDashboardMetricSource): string 
   };
 
   return `${sourceLabels[source.data_source]} · ${scanLabels[source.scan_mode]}`;
+}
+
+const fallbackDashboardMetricSources: AdminDashboardMetricsSources = {
+  material: {
+    data_source: "library-manifest",
+    scan_mode: "no-scan",
+    scan_reason: "shell-summary"
+  },
+  transcript: {
+    data_source: "current-index",
+    scan_mode: "no-scan",
+    scan_reason: "shell-summary"
+  },
+  production: {
+    data_source: "library-manifest",
+    scan_mode: "no-scan",
+    scan_reason: "shell-summary"
+  },
+  usage: {
+    data_source: "usage-events",
+    scan_mode: "status-scan",
+    scan_reason: "background-metrics"
+  },
+  risk: {
+    data_source: "library-manifest",
+    scan_mode: "no-scan",
+    scan_reason: "shell-summary"
+  },
+  runtime_load: {
+    data_source: "runtime-telemetry",
+    scan_mode: "no-scan",
+    scan_reason: "background-metrics"
+  }
+};
+
+function dashboardMetricSources(data: AdminDashboardData): AdminDashboardMetricsSources {
+  return {
+    ...fallbackDashboardMetricSources,
+    ...(data.metrics.sources ?? {})
+  };
 }
 
 function percentLabel(value: number): string {
@@ -466,6 +507,7 @@ export function DashboardPage({
   const currentIndex = data.indexes.versions.find((version) => version.is_current);
   const usageFunnelRows = adminUsageFunnelRows(data.metrics.usage);
   const corePathHealth = adminCorePathHealth(data);
+  const metricSources = dashboardMetricSources(data);
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
   const readyRatio = data.status.video_count > 0
     ? Math.round((data.status.ready_video_count / data.status.video_count) * 100)
@@ -577,9 +619,9 @@ export function DashboardPage({
         </section>
         <section className="admin-dashboard-source-line" aria-label="总览数据来源">
           <span>数据来源</span>
-          <strong>素材 {dashboardMetricSourceLabel(data.metrics.sources.material)}</strong>
-          <strong>产能 {dashboardMetricSourceLabel(data.metrics.sources.production)}</strong>
-          <strong>使用 {dashboardMetricSourceLabel(data.metrics.sources.usage)}</strong>
+          <strong>素材 {dashboardMetricSourceLabel(metricSources.material)}</strong>
+          <strong>产能 {dashboardMetricSourceLabel(metricSources.production)}</strong>
+          <strong>使用 {dashboardMetricSourceLabel(metricSources.usage)}</strong>
         </section>
         <section className={`admin-dashboard-alert is-${report.severity}`} aria-label="当前最重要状态">
           <span className={`admin-status-badge is-${report.severity === "blocked" ? "failed" : report.severity === "attention" ? "warning" : "ready"}`}>

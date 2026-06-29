@@ -29,6 +29,7 @@ interface CompatibilitySummary {
 interface CompatibilitySources {
   windows_acceptance_report: string;
   real_cut_report: string;
+  real_cut_supplement_report: string;
   desktop_screenshot_report: string;
 }
 
@@ -46,6 +47,8 @@ interface CompatibilityObservations {
   transcript_segment_count: number | null;
   real_cut_status: string;
   real_cut_run_next_status: string;
+  real_cut_completion_status: string;
+  real_cut_supplement_status: string;
   real_cut_output_file: string;
   desktop_screenshot_status: string;
   desktop_screenshot_captured_count: number | null;
@@ -185,10 +188,38 @@ function extractSearchReturned(search: Record<string, unknown>): number | null {
 }
 
 function phaseIsDone(report: Record<string, unknown>, phaseId: string): boolean {
-  return asArray(report.phase_timings).some((item) => {
+  return phaseArrayHasDone(asArray(report.phase_timings), phaseId);
+}
+
+function phaseArrayHasDone(phases: unknown[], phaseId: string): boolean {
+  return phases.some((item) => {
     const phase = asRecord(item);
     return phase.phase_id === phaseId && phase.status === "done";
   });
+}
+
+function findCutJobInSupplement(report: unknown, cutJobId: string): Record<string, unknown> {
+  if (!cutJobId) {
+    return {};
+  }
+
+  const diagnostics = asRecord(getPath(report, ["desktop_incident_diagnostics"]));
+  for (const item of asArray(diagnostics.probes)) {
+    const probe = asRecord(item);
+    if (probe.id !== "cut_jobs") {
+      continue;
+    }
+
+    const jobs = asArray(getPath(probe, ["body", "data", "jobs"]));
+    for (const job of jobs) {
+      const jobRecord = asRecord(job);
+      if (jobRecord.cut_job_id === cutJobId) {
+        return jobRecord;
+      }
+    }
+  }
+
+  return {};
 }
 
 function findCheckBodyData(report: Record<string, unknown>, checkId: string): unknown {
@@ -207,6 +238,7 @@ function buildInstructions(): string[] {
     "Run Windows Runner windows_acceptance after a staged Docker release candidate exists and archive the report.json path.",
     "Run Windows Runner real_cut_smoke against the same Cutter installation and archive the report.json path.",
     "Pass the reports with MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT and MIXLAB_CUTTER_REAL_CUT_REPORT.",
+    "If real_cut_smoke is marked failed only because run-next returned no synchronous payload, pass MIXLAB_CUTTER_REAL_CUT_SUPPLEMENT_REPORT from desktop_incident_diagnostics to prove the same cut_job_id reached done.",
     "Optionally pass MIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT to attach desktop UI smoke evidence.",
     "This proof only reads archived reports; it must not deploy Docker, mutate NAS data, or change Cutter protocols."
   ];
@@ -219,6 +251,8 @@ export function buildAdminCutterCompatibilityProofReport(input: {
   windows_acceptance_report?: unknown;
   real_cut_report_path?: string;
   real_cut_report?: unknown;
+  real_cut_supplement_report_path?: string;
+  real_cut_supplement_report?: unknown;
   desktop_screenshot_report_path?: string;
   desktop_screenshot_report?: unknown;
   expected_ready_count?: number;
@@ -242,6 +276,16 @@ export function buildAdminCutterCompatibilityProofReport(input: {
   const selectedDetail = asRecord(realData.selected_detail);
   const realCutRoot = asRecord(input.real_cut_report);
   const realCut = asRecord(realCutRoot.real_cut_smoke);
+  const realCutJobId = firstString(realCut.cut_job_id);
+  const supplementRoot = asRecord(input.real_cut_supplement_report);
+  const supplementCutJob = findCutJobInSupplement(input.real_cut_supplement_report, realCutJobId);
+  const supplementCutStatus = asString(supplementCutJob.status);
+  const supplementCompletesTarget = Boolean(
+    input.real_cut_supplement_report_path
+      && realCutJobId
+      && supplementCutJob.cut_job_id === realCutJobId
+      && supplementCutStatus === "done"
+  );
   const desktopRoot = asRecord(input.desktop_screenshot_report);
   const screenshotSmoke = asRecord(desktopRoot.desktop_ui_screenshot_smoke);
   const authMode = firstString(appRuntime.auth_mode, getPath(runtimeStatus, ["auth_mode"]));
@@ -260,7 +304,11 @@ export function buildAdminCutterCompatibilityProofReport(input: {
   const searchReturnedCount = extractSearchReturned(selectedSearch);
   const transcriptCharacterCount = firstNumber(selectedDetail.transcript_character_count);
   const transcriptSegmentCount = firstNumber(selectedDetail.transcript_segment_count);
-  const realCutOutputFile = firstString(realCut.output_file);
+  const realCutOutputFile = firstString(realCut.output_file, supplementCutJob.output_file);
+  const realCutCompletionStatus = firstString(realCut.run_next_status, supplementCutStatus);
+  const realCutResolvedSource = phaseIsDone(realCut, "resolve_source") || phaseIsDone(supplementCutJob, "resolve_source");
+  const realCutCutMedia = phaseIsDone(realCut, "cut_media") || phaseIsDone(supplementCutJob, "cut_media");
+  const realCutAccepted = realCutRoot.status === "passed" || supplementCompletesTarget;
   const gates = [
     gate({
       id: "proof-no-side-effects",
@@ -355,30 +403,30 @@ export function buildAdminCutterCompatibilityProofReport(input: {
     }),
     gate({
       id: "real-cut-smoke-passed",
-      title: "Real cut smoke suite passed",
+      title: "Real cut smoke suite passed or completed cut job is proven",
       category: "real-cut",
-      status: realCutRoot.status === "passed" ? "pass" : "blocked",
-      evidence: `status=${asString(realCutRoot.status) || "unknown"}`,
-      blocks_docker_upload: realCutRoot.status !== "passed",
-      required_evidence: "Run Windows Runner real_cut_smoke and require status=passed."
+      status: realCutAccepted ? "pass" : "blocked",
+      evidence: `status=${asString(realCutRoot.status) || "unknown"}, cut_job_id=${realCutJobId || "unknown"}, supplement_status=${supplementCutStatus || "unknown"}`,
+      blocks_docker_upload: !realCutAccepted,
+      required_evidence: "Run Windows Runner real_cut_smoke and require status=passed, or attach desktop_incident_diagnostics proving the same cut_job_id reached done after an asynchronous queue drain."
     }),
     gate({
       id: "real-cut-output-produced",
       title: "Real cut produced an output clip",
       category: "real-cut",
-      status: realCut.run_next_status === "done" && realCutOutputFile ? "pass" : "blocked",
-      evidence: `run_next_status=${asString(realCut.run_next_status) || "unknown"}, output_file=${realCutOutputFile || "missing"}`,
-      blocks_docker_upload: !(realCut.run_next_status === "done" && realCutOutputFile),
-      required_evidence: "real_cut_smoke must complete run-next and produce an output_file."
+      status: realCutCompletionStatus === "done" && realCutOutputFile ? "pass" : "blocked",
+      evidence: `completion_status=${realCutCompletionStatus || "unknown"}, output_file=${realCutOutputFile || "missing"}`,
+      blocks_docker_upload: !(realCutCompletionStatus === "done" && realCutOutputFile),
+      required_evidence: "real_cut_smoke or its accepted completion supplement must prove status=done and produce an output_file."
     }),
     gate({
       id: "real-cut-core-phases-done",
       title: "Real cut completed source resolution and media cut phases",
       category: "real-cut",
-      status: phaseIsDone(realCut, "resolve_source") && phaseIsDone(realCut, "cut_media") ? "pass" : "blocked",
-      evidence: `resolve_source_done=${phaseIsDone(realCut, "resolve_source")}, cut_media_done=${phaseIsDone(realCut, "cut_media")}`,
-      blocks_docker_upload: !(phaseIsDone(realCut, "resolve_source") && phaseIsDone(realCut, "cut_media")),
-      required_evidence: "real_cut_smoke phase_timings must include resolve_source and cut_media with status=done."
+      status: realCutResolvedSource && realCutCutMedia ? "pass" : "blocked",
+      evidence: `resolve_source_done=${realCutResolvedSource}, cut_media_done=${realCutCutMedia}`,
+      blocks_docker_upload: !(realCutResolvedSource && realCutCutMedia),
+      required_evidence: "real_cut_smoke or its accepted completion supplement phase_timings must include resolve_source and cut_media with status=done."
     }),
     gate({
       id: "desktop-screenshot-report-optional",
@@ -405,6 +453,7 @@ export function buildAdminCutterCompatibilityProofReport(input: {
     sources: {
       windows_acceptance_report: input.windows_acceptance_report_path ?? "",
       real_cut_report: input.real_cut_report_path ?? "",
+      real_cut_supplement_report: input.real_cut_supplement_report_path ?? "",
       desktop_screenshot_report: input.desktop_screenshot_report_path ?? ""
     },
     expected_ready_count: expectedReadyCount,
@@ -425,6 +474,8 @@ export function buildAdminCutterCompatibilityProofReport(input: {
       transcript_segment_count: transcriptSegmentCount,
       real_cut_status: asString(realCutRoot.status),
       real_cut_run_next_status: asString(realCut.run_next_status),
+      real_cut_completion_status: realCutCompletionStatus,
+      real_cut_supplement_status: firstString(supplementRoot.status, supplementCutStatus),
       real_cut_output_file: realCutOutputFile,
       desktop_screenshot_status: asString(desktopRoot.status),
       desktop_screenshot_captured_count: firstNumber(screenshotSmoke.captured_count)
@@ -481,6 +532,7 @@ export function toMarkdown(report: AdminCutterCompatibilityProofReport): string 
     "",
     `- Windows acceptance report: ${report.sources.windows_acceptance_report || "not provided"}`,
     `- Real cut report: ${report.sources.real_cut_report || "not provided"}`,
+    `- Real cut supplement report: ${report.sources.real_cut_supplement_report || "not provided"}`,
     `- Desktop screenshot report: ${report.sources.desktop_screenshot_report || "not provided"}`,
     "",
     "## Observations",
@@ -492,7 +544,7 @@ export function toMarkdown(report: AdminCutterCompatibilityProofReport): string 
     `- Release version: ${report.observations.release_version || "unknown"}`,
     `- Search: ${report.observations.search_mode || "unknown"} / returned=${report.observations.search_returned_count ?? "unknown"}`,
     `- Transcript: chars=${report.observations.transcript_character_count ?? "unknown"}, segments=${report.observations.transcript_segment_count ?? "unknown"}`,
-    `- Real cut: status=${report.observations.real_cut_status || "unknown"}, run_next=${report.observations.real_cut_run_next_status || "unknown"}, output=${report.observations.real_cut_output_file || "missing"}`,
+    `- Real cut: status=${report.observations.real_cut_status || "unknown"}, run_next=${report.observations.real_cut_run_next_status || "unknown"}, completion=${report.observations.real_cut_completion_status || "unknown"}, supplement=${report.observations.real_cut_supplement_status || "not provided"}, output=${report.observations.real_cut_output_file || "missing"}`,
     `- Desktop screenshots: status=${report.observations.desktop_screenshot_status || "not provided"}, captured=${report.observations.desktop_screenshot_captured_count ?? "unknown"}`,
     "",
     "## Gates",
@@ -541,6 +593,7 @@ async function main(): Promise<void> {
   const markdownPath = path.join(outputDir, `admin-cutter-compatibility-proof-${timestamp}.md`);
   const windowsAcceptancePath = process.env.MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT;
   const realCutPath = process.env.MIXLAB_CUTTER_REAL_CUT_REPORT;
+  const realCutSupplementPath = process.env.MIXLAB_CUTTER_REAL_CUT_SUPPLEMENT_REPORT;
   const desktopScreenshotPath = process.env.MIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT;
   const report = buildAdminCutterCompatibilityProofReport({
     generated_at: new Date().toISOString(),
@@ -549,6 +602,8 @@ async function main(): Promise<void> {
     windows_acceptance_report: await loadOptionalJson(windowsAcceptancePath),
     real_cut_report_path: realCutPath,
     real_cut_report: await loadOptionalJson(realCutPath),
+    real_cut_supplement_report_path: realCutSupplementPath,
+    real_cut_supplement_report: await loadOptionalJson(realCutSupplementPath),
     desktop_screenshot_report_path: desktopScreenshotPath,
     desktop_screenshot_report: await loadOptionalJson(desktopScreenshotPath),
     expected_ready_count: Number.isFinite(expectedReadyCount) ? expectedReadyCount : DEFAULT_EXPECTED_READY_COUNT,

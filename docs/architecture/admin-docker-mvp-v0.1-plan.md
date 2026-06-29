@@ -58,7 +58,7 @@ MVP v0.1 不做：
 - 不重跑或重建 `10471+` 已 ready 素材。
 - 不做大面积物理删除代码。
 - 不把 `admin.sqlite` 当作资产事实来源；它只是管理端查询优化。
-- 不把当前旧 NAS `18080` 入口当作新版 Docker 通过证据。
+- 不把未认证、旧合约或仅 root 可达的 NAS `18080` 入口当作新版 Docker 通过证据；必须以 authenticated live-readonly、parity、worker proof、Cutter proof 和 staging runbook 共同通过为准。
 
 ## 当前环境基线
 
@@ -67,19 +67,84 @@ MVP v0.1 不做：
 | Mac 管理端 Web | `http://127.0.0.1:5176` | 本机开发验证入口。 |
 | Mac 管理端 API | `http://127.0.0.1:3889` | 本机 API 验证入口。 |
 | NAS 桌面入口 | `http://192.168.1.27:9999/desktop/#/` | 已可通过浏览器只读打开 Docker 面板；只作为观测入口，不等于发布授权。 |
-| NAS 当前可见入口 | `http://192.168.1.27:18080` | 当前为旧管理端观测入口，不等于新版通过。 |
+| NAS 当前可见入口 | `http://192.168.1.27:18080` | 当前只能通过已归档 authenticated live-readonly / parity / readiness artifact 判断，不用单次 root `200` 或未认证请求替代新版通过证据。 |
 | NAS Compose 默认入口 | `8080` | 当前从 Mac 侧观测连接失败，后续 staging 需明确端口。 |
-| NAS access preflight | SSH/DSM/Docker TCP/`8080` 关闭；`18080`/`9999` 打开；当前 Mac 侧 `/Volumes/MixLab` 未挂载，SMB handoff archive 不可见，但 UGOS browserless Docker evidence path 仍可用；最新证据 `docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260629T014929Z.json` 为 `ready-for-nas-collection`，`nas_collection_directly_available=true`。 | 当前已能从 Mac 通过 UGOS 只读 API 自动收集 NAS Docker release inputs；这仍不等于 staging 或发布批准。若要走 SMB handoff/手工包路径，需先恢复 `/Volumes/MixLab` 挂载。 |
+| NAS access preflight | SSH/DSM/Docker TCP/`8080` 关闭；`18080`/`9999` 打开；UGOS browserless Docker evidence path 可用。2026-06-29T09:01Z 本机已恢复 SMB `/Volumes/MixLab` 挂载，`/Volumes/MixLab/PublicLibrary` 存在、可写，容量约 `43TiB`、可用约 `15TiB`。 | 当前已能从 Mac 通过 UGOS 只读 API自动收集 NAS Docker release inputs，也能用 SMB 路径验证本机 Admin；这仍不等于 staging 或发布批准。 |
 | NAS UGOS API preflight | `http://192.168.1.27:9999/desktop/` 可读，UGOS desktop `1.15.0.77682` / build `4/23/2026`；脚本支持内存态 username/password 登录并兼容 NAS 返回的 RSA key 格式。最新证据 `docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260629T035403Z.json` 为 `browserless-collection-ready`，Docker app uid 和 `ContainerListV2` 可读。 | UGOS API 可作为 browserless Docker 只读证据通道。密码、Cookie、token 只允许内存/环境变量传入，artifact 不记录真实值；这仍不批准 push/deploy/启停容器。 |
-| NAS release inputs | Mac 侧已通过 UGOS browserless 只读采集生成 sanitized returned evidence：`docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260629T035403Z/admin-docker-release-inputs`。该证据显示当前旧栈仍为 `latest` 镜像、worker flags 为 `1/1`、缺少 `MIXLAB_ADMIN_DOCKER_MVP_MODE` 与 `MIXLAB_PREPROCESS_LIBRARY_ROOT`，但磁盘已更新为 `65%` healthy。当前 candidate 已刷新为 `9c015b9105e97954240020781f79daae3f954bde`；最新 release inputs `docs/acceptance/artifacts/admin-docker-release-inputs-20260629T035458Z.json` 已生成 current/rollback `latest`、target `9c015b9105e97954240020781f79daae3f954bde`。最新 disk proof `docs/acceptance/artifacts/admin-docker-nas-disk-proof-20260629T035458Z.json` 为 `proof_accepted=true`、`staging_space_accepted=true`、`preprocess_space_accepted=true`；最新 intake `docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260629T035458Z.json` 已使 `release_inputs_ready=true`，但仍因 `admin-worker-proof-accepted` blocked，且明确 returned evidence 已通过 precheck、不要重复采集。最新 readiness `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T041847Z.json` 仍为 `8/14` gate 通过、`docker_upload_allowed=false`。 | UGOS returned evidence 只用于只读诊断和本地门禁输入，不等于正式发布批准；legacy latest rollback exception 只能用于 release-input 生成，不能绕过 worker proof、Cutter staged proof、显式 push approval 和最终 release review。磁盘 proof 只清理空间风险，不开放预处理；预处理仍受 worker flags、live release gates、路径和 supervisor 门禁约束。 |
+| NAS release inputs | 当前 release inputs 仍以 `docs/acceptance/artifacts/admin-docker-release-inputs-20260629T035458Z.json` 为 release-decision 输入：current/rollback `latest`，target `9c015b9105e97954240020781f79daae3f954bde`，`release_inputs_ready=true`，`push_execution_allowed=false`，`docker_deploy_allowed=false`。最新汇总 `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T082636Z.json` 已归一化 accepted worker/Cutter 外部 proof 和最新 push decision package，`14/14` gate 通过，`release_review_ready=true`。 | release readiness 通过只表示可以进入单独 release decision；它仍不自动批准 image push、Docker deploy、worker 启用或预处理。 |
 | Mac Docker capability | 未发现 `docker`、`docker compose`、Colima、Podman | 本机不能完成 local Docker smoke；需要 Docker-capable machine 或 GitHub/staging 证据替代。 |
-| Windows Test Runner | `http://192.168.1.20:3799` 可达，runner `0.1.32` | 只能证明 Windows Runner 在线；没有 staged candidate 前不能作为 Docker MVP Cutter 兼容通过证据。 |
+| Windows Test Runner | `http://192.168.1.20:3799` 可达，runner `0.1.32` | 已用于 staged-candidate Cutter compatibility proof；后续若重建 Docker candidate，必须重新跑 Windows compatibility proof。 |
 | Docker 公共素材库路径 | `/data/PublicLibrary` | Docker 内唯一正式库路径。 |
 | Mac 公共素材库路径 | `/Volumes/MixLab/PublicLibrary` | Mac 本机验证路径，不能和 Docker 路径混淆。 |
 | 生产 ready 基线 | `10471` | MVP 前后不得减少。 |
 | 当前索引 | `v010471` | MVP v0.1 前后不得改变。 |
 | 总视频观测 | `11394` | 用于上线前后只读对账。 |
-| 磁盘风险 | 最新 UGOS returned evidence 和 live-readonly 均显示 `/data/PublicLibrary` 约 `65%` 使用率、约 `16.6TB` 可用；`docs/acceptance/artifacts/admin-docker-nas-disk-proof-20260629T035458Z.json` 已同时接受 staging 和 preprocess space。 | 空间风险已从当前阻断中移除，但这不等于允许预处理；worker flags、旧 API contract、release gates、Cutter staged proof 和显式发布决策仍阻断上线/预处理。 |
+| 磁盘风险 | 最新 accepted disk proof `docs/acceptance/artifacts/admin-docker-nas-disk-proof-20260629T080002Z.json` 为 `11/11` pass，staging 与 preprocess execution blocker 均为空；live/parity 观测 `/data/PublicLibrary` 约 `66%`、healthy。 | 空间风险已从当前阻断中移除，但这不等于允许绕过受控预处理门禁；worker、release gates、路径和 supervisor 仍必须逐项通过。 |
+
+## 当前最新收敛状态（2026-06-29T09:01Z）
+
+本节覆盖上方历史流水中的旧阻断结论，作为继续执行本 Goal 时的当前事实入口。
+
+- 当前已归档 release-decision Docker target candidate：`9c015b9105e97954240020781f79daae3f954bde`。
+- 最新 release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T082636Z.json`，`14/14` gate 通过，`release_review_ready=true`，`release_review_blockers=[]`，`docker_upload_allowed=false`。
+- 最新 staging runbook：`docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T081717Z.json`，`24/24` gate 通过，`staging_review_ready=true`，`staging_execution_ready=true`，`staging_blockers=[]`，`docker_deploy_allowed=false`。
+- 最新 push decision package：`docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T082616Z.json`，`push_decision_package_ready=true`，`push_execution_allowed=false`，`docker_deploy_allowed=false`，只准备外部 release owner 审阅的精确 workflow 命令。
+- 最新 worker proof：`docs/acceptance/artifacts/admin-worker-env-proof-20260629T080002Z.json`，`7/7` gate 通过，`proof_accepted=true`。
+- 最新 Cutter compatibility proof：`docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260629T081635Z.json`，`13/14` gate 通过，1 个 desktop screenshot 可选项未提供，`proof_accepted=true`，`available_video_count=10471`，`release_version=v010471`，真实剪切 completion 为 `done`。
+- 最新 live-readonly 与 parity 原始报告仍保留 `needs_external_proof` 状态，但其外部 proof 已由 accepted worker/Cutter proof 和 ready staging runbook 归一化清零；不要再把 `admin-worker-live-flags`、`cutter-release-compatibility-live`、`admin-worker-env-external-proof`、`cutter-compatibility-external-proof` 当作当前未解决 blocker。
+- `9c015...` 可进入 release decision，但仍不能从 summary 自动推导出 Docker upload/deploy 许可；任何新的 runtime/web build 输入变化都必须重新创建 candidate tag 并重新跑 `push_images=false` dry-run 与后续 proof。
+- 最新 candidate scope audit：`docs/acceptance/artifacts/admin-docker-candidate-scope-20260629T090419Z.json` 显示当前工作树并不干净，`98` 个 changed paths 中有 `15` 个 `mvp_candidate_code`、`2` 个 planning docs、`81` 个 acceptance evidence。新增候选代码范围包括 `apps/admin-web/src/features/dashboard/DashboardPage.tsx` 与 `apps/admin-web/src/admin-app.test.ts` 的本机 Dashboard 防崩修复，以及此前的 `package.json`、release tooling 和新增 `admin-docker-post-release-smoke` / `admin-docker-release-owner-runbook` 脚本；`remote_workflow_proof_possible_from_current_worktree=false`。因此 `9c015b9105e97954240020781f79daae3f954bde` 只能代表已归档 release-decision 输入，不能代表当前工作树；如果要把本机 Dashboard 修复或当前验收工具纳入 Docker 镜像，必须先重新提交、重新创建 candidate tag，并重新跑 `push_images=false` dry-run / smoke。
+
+当前本地发布工具边界：
+
+- `scripts/acceptance/admin-docker-post-release-smoke.ts` 和 `scripts/acceptance/admin-docker-release-owner-runbook.ts` 是本地 release/acceptance tooling，用于规范发布负责人审核和上线后最终 URL 验证。
+- 因为 Docker runtime image 会复制 `package.json` 与 `scripts/`，这些新增工具一旦作为候选镜像内容交付，就不再能继承 `9c015...` 的 dry-run/smoke 证据。
+- 本轮 release decision 输入仍绑定 `9c015...`；新增 release tooling 可以在 Mac 本地执行，不要求已存在于 NAS Docker 镜像内。
+- 当前本机 Dashboard 防崩修复属于 `apps/admin-web`，是 Docker web image 输入，不属于“仅本地 release tooling”；若要发布这个修复，下一步必须创建新 candidate、运行 `push_images=false` GitHub dry-run、重算 candidate-ref proof、staging runbook、Cutter proof 和 readiness summary。
+
+### 当前本机 Admin 验证
+
+2026-06-29T09:01Z，本机 `/Volumes/MixLab` SMB 挂载已恢复，`http://127.0.0.1:3889` 指向 `/Volumes/MixLab/PublicLibrary`。本机真实库验证结果：
+
+- 管理端账号可登录，`auth/status` 显示 authenticated。
+- Dashboard 可渲染真实库，不再因 `metrics.sources` 缺失触发 `undefined.material` 空白页；显示 ready `10471`、current index `v010471`。
+- `#/cutter-users` 可加载，页面显示剪辑师列表和使用统计。
+- `#/preprocess-jobs` 可加载，显示 `904` queued 任务；本轮未点击“启动预处理”，未执行 queue/retry/recover/publish/scan/repair。
+- 新增回归测试 `dashboard keeps rendering when runtime metrics omit source metadata`，防止旧 API 或真实 runtime 缺少 `metrics.sources` 时拖垮 Admin Shell。
+
+本机真实库只读性能证据：`docs/acceptance/artifacts/admin-real-nas-performance-20260629T090135Z.json` / `.md`。该报告显示登录后的 `cutter_users` p95 `383ms`、`dashboard_metrics` p95 `1535.1ms`，但慢点仍存在：`source_videos_queued` p95 `5870.7ms`、`preprocess_jobs` p95 `3690.1ms`、`index_versions` p95 `1119.5ms`，`source_videos_index_required` 出现 `15s` timeout；这些慢点进入下一轮 read model / 慢列表架构优化，不视为本轮登录/页面空白修复完成证据。
+
+### Release Owner Runbook
+
+发布负责人审核层新增单一 runbook 生成命令：
+
+```bash
+npm run prepare:admin-docker-release-owner-runbook
+```
+
+该命令只读取已归档的 `push decision package`、`staging runbook`、`release inputs` 和 `release readiness summary`，输出 `docs/acceptance/artifacts/admin-docker-release-owner-runbook-*.json/md`。它把以下顺序收敛到一个 artifact：
+
+1. 发布前复核：readiness、push decision package、staging runbook、current/target/rollback tag。
+2. release owner 明确批准后，执行唯一的 `gh workflow run docker-admin.yml ... push_images=true ...` 命令。
+3. 推镜像成功后，重新生成 GitHub run artifact、image-push proof、staging runbook 和 readiness summary。
+4. 另行批准 NAS runtime deploy 后，才允许改 NAS staging `.env`、pull/restart `admin-web/admin-api/admin-worker`。
+5. 部署后先跑最终 URL 只读 smoke，再刷新 live-readonly、parity、worker proof、Cutter proof 和 readiness summary。
+6. 生产小批量预处理 smoke 仍是单独批准项，必须记录 before/after ready count、current index、Cutter smoke 和 audit log。
+7. 回滚只恢复 image tag 并重启 Admin 容器，不运行 scan/apply、repair、recover、publish、worker enable 或 preprocessing。
+
+该 runbook 的 `release_owner_runbook_ready=true` 只表示可以交给 release owner 审核；它仍固定输出 `push_execution_allowed=false`、`docker_deploy_allowed=false`、`preprocess_execution_allowed=false`、`mvp_completion_allowed=false`。
+
+当前 artifact：`docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T084515Z.json` / `docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T084515Z.md`。该 artifact 已验证：
+
+- `release_owner_runbook_ready=true`
+- `runbook_blockers=[]`
+- `push_execution_blockers=["external-release-decision-required"]`
+- `docker_deploy_blockers=["external-release-decision-required","separate-nas-runtime-approval-required"]`
+- `mvp_completion_blockers=["external-release-decision-required","separate-nas-runtime-approval-required","post-release-smoke-required","controlled-preprocess-smoke-requires-approval"]`
+- `push_execution_allowed=false`
+- `docker_deploy_allowed=false`
+- `preprocess_execution_allowed=false`
+- `mvp_completion_allowed=false`
 
 ## 当前已完成远端候选证据
 
@@ -114,7 +179,7 @@ MVP v0.1 不做：
 - current release readiness summary：`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T041847Z.json`，`release_review_ready=false`，`docker_upload_allowed=false`；最新汇总仍为 `14` 个 gate、`8` 个通过、`6` 个阻塞，且 observations 已记录 `release_inputs_ready=true`、`release_inputs_returned_precheck_passed=true`、`worker_remediation_review_status=accepted-for-runtime-owner-action`、`worker_remediation_runtime_action_allowed=false`、`push_decision_package_ready=true`；`next_actions` 明确剩余 intake blocker 为 `admin-worker-proof-accepted`，且 returned evidence 已通过 precheck、不应重复采集；`automation_boundary` 明确本地只读/证据工作可继续，但 NAS runtime 变更、image push、Docker deploy 均不允许。
 - 2026-06-29 GET-only live/parity refresh：只读探测 `http://192.168.1.27:18080` 生成 `docs/acceptance/artifacts/admin-docker-release-live-readonly-20260629T041744Z.json` 和 `docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T041744Z.json`；该轮继续确认 NAS `18080` 仍是旧 Admin API 合约，`/api/admin/auth/status`、`/api/admin/release-gates`、`/api/admin/data-loading/plan` 缺失，素材基线仍为 `11394` total、`10471` ready、current index `v010471`，磁盘 `65% healthy`，dashboard metrics 约 `6.1s`。重算 staging runbook `docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T041828Z.json`、push decision package `docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T041836Z.json` 和 readiness `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T041847Z.json` 后，总门禁仍为 `8/14` 通过、`6` 个阻塞，`image_push_allowed=false`、`docker_deploy_allowed=false`；本轮未启停容器、未推送/拉取镜像、未写 NAS runtime、未写 `PublicLibrary`、未启动预处理。
 - 2026-06-29 release-readiness next-action convergence：`admin-docker-release-readiness-summary` 已区分“returned evidence 未采集”和“returned evidence 已通过 precheck 但 intake 仍被后续 proof 阻断”。最新报告 `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T031242Z.json` 不再把 `collect:admin-docker-nas-ugos-returned-evidence` 作为当前下一步，避免在 `release_inputs_ready=true`、`returned_precheck_passed=true` 时重复回到 NAS 只读取证；该更新只影响本地 release/acceptance tooling，不批准 push/deploy，不接触 NAS runtime。
-- current push decision package：`docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T041836Z.json`，`push_decision_package_ready=true`，`push_execution_allowed=false`，`docker_deploy_allowed=false`；staging execution 当前只剩 `image-push-explicitly-approved`，并已准备精确 `push_images=true` workflow 命令供外部发布负责人审阅。该 package 只作为发布决策输入，不批准 NAS `.env` 编辑、容器 pull/restart、Docker deploy、worker 启用或预处理。
+- earlier push decision package：`docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T041836Z.json`，`push_decision_package_ready=true`，`push_execution_allowed=false`，`docker_deploy_allowed=false`；当时 staging execution 只剩 `image-push-explicitly-approved`，并已准备精确 `push_images=true` workflow 命令供外部发布负责人审阅。该 package 只作为历史发布决策输入，不批准 NAS `.env` 编辑、容器 pull/restart、Docker deploy、worker 启用或预处理。
 - 2026-06-29 worker remediation handoff review：`admin-worker-env-proof` 新增 `remediation_review` 与 `operator_handoff`，把旧 NAS worker flags/root 阻断收敛成专业角色审评过的 runtime-owner checklist；`intake:admin-docker-nas-release-inputs` 同步把 `MIXLAB_ADMIN_DOCKER_IMAGE_PUSH_PROOF_REPORT` 传入生成的 staging runbook，避免后续证据链丢失。重算 artifacts 为 `admin-worker-env-proof-20260629T024459Z.json`、`admin-docker-nas-release-inputs-intake-20260629T024459Z.json`、`admin-docker-staging-runbook-20260629T024459Z.json`、`admin-docker-push-decision-package-20260629T024515Z.json`、`admin-docker-release-readiness-summary-20260629T024727Z.json`；所有报告仍保持 `push_execution_allowed=false`、`docker_upload_allowed=false`/`docker_deploy_allowed=false`。本轮未登录、未启停容器、未推送/拉取镜像、未写 NAS runtime、未写 `PublicLibrary`、未启动预处理。
 - 2026-06-29 worker remediation/intake/readiness refresh：基于旧 NAS returned evidence 重新生成 `docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260629T021804Z.json`、`docs/acceptance/artifacts/admin-docker-release-inputs-20260629T021804Z.json`、`docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T021804Z.json`、`docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T021843Z.json`、`docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T021851Z.json`。该轮把 `admin-worker-proof-accepted` 阻断收敛成可审计 remediation plan，但仍保持 `proof_accepted=false`、`push_execution_allowed=false`、`docker_deploy_allowed=false`；本轮未登录、未启停容器、未推送/拉取镜像、未写 NAS runtime、未写 `PublicLibrary`、未启动预处理。
 - 2026-06-29 image-push-proof gate refresh：新增 `validate:admin-docker-image-push-proof` 和 staging runbook 集成；该 proof 只读取已归档 GitHub run、GitHub artifact readiness、release inputs 和 push decision package，不调用 GitHub/GHCR/NAS/Docker。当前 dry-run 生成 blocked proof 后，重新生成 staging runbook、push decision package 和 readiness summary，确认新增 gate 不改变当前发布边界：`push_execution_allowed=false`、`docker_deploy_allowed=false`，且未启停容器、未推送/拉取镜像、未写 NAS runtime、未写 `PublicLibrary`、未启动预处理。
@@ -142,7 +207,7 @@ MVP v0.1 不做：
 - UGOS credentialed readonly refresh after NAS credential handoff：使用内存态 NAS 登录信息再次采集只读证据，UGOS preflight `docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T225530Z.json` 为 `browserless-collection-ready`；UGOS returned evidence `docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T225531Z.json` 已生成 sanitized `admin-docker-release-inputs/`；intake `docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260628T225559Z.json` 预检通过但仍被 `nas-image-proof-accepted`、`admin-worker-proof-accepted`、`nas-disk-proof-accepted` 阻断；live-readonly `docs/acceptance/artifacts/admin-docker-release-live-readonly-20260628T225611Z.json` 继续证明 `18080` 是旧 Admin API 合约，`auth/status`、`release-gates`、`data-loading/plan` 返回 `404`，素材基线仍为 `11394` total、`10471` ready、current index `v010471`；readiness `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260628T225612Z.json` 仍 `6/13` gate 通过、`release_review_ready=false`、`docker_upload_allowed=false`。本轮未启停容器、未推送/拉取镜像、未写 NAS runtime、未写 `PublicLibrary`、未启动预处理。
 - Release tooling guard refresh：`intake:admin-docker-nas-release-inputs` 在未显式传 `MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR` 时，会自动选择最新 sanitized returned evidence bundle；`admin-docker-version-parity-plan` 与 `admin-docker-release-readiness-summary` 会优先选择显式配置且 `safe_to_probe=true` 的 live-readonly artifact，避免后续无目标 dry-run 覆盖真实 NAS 只读证据。该更新只影响本地 release/acceptance tooling，不批准 push/deploy，不接触 NAS runtime。
 
-这批证据只清除了“当前远端 Docker 候选构建/候选 smoke/tag-ref 固定”、“NAS returned evidence 已通过预检”、“release inputs 已 ready”、“磁盘空间 proof 已接受”和“push decision package 已准备好待外部发布审阅”层面的门禁。当前总门禁仍显示 `release_review_ready=false`、`docker_upload_allowed=false`：live/parity 仍指向旧 NAS API，admin-worker proof 仍未接受，Cutter staged-candidate compatibility proof 尚未执行，intake 仍被 `admin-worker-proof-accepted` 阻断，且 `push_images=true`、NAS runtime 变更、Docker deploy、worker 启用和预处理都仍被禁止。
+以上远端候选证据流水包含多个历史中间状态，其中 `release_review_ready=false`、worker proof 未接受、Cutter proof 未执行等结论已被 2026-06-29T09:01Z 的最新收敛状态覆盖。继续执行本 Goal 时，以本文件“当前最新收敛状态”一节和 `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T082636Z.json` 为 `9c015...` release decision 输入；历史流水只用于审计与回滚追踪。当前工作树已经包含 `apps/admin-web` 本机 Dashboard 修复，若要把该修复纳入 Docker 镜像，必须重建 candidate 证据链。`push_images=true`、NAS runtime 变更、Docker deploy、worker 启用和预处理仍需要单独 release decision 或运行批准。
 
 ## MVP 功能边界
 
@@ -375,6 +440,14 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 - `MIXLAB_ENABLE_READY_PUBLISH_WORKER=0` 默认。
 - 候选 release ref 固定到已 smoke 的 commit，tag-ref `push_images=false` dry-run 通过。
 
+当前进展：
+
+- target candidate 已固定为 `9c015b9105e97954240020781f79daae3f954bde`，并已有 GitHub `push_images=false` tag dry-run 与候选 ref proof。
+- live-readonly `docs/acceptance/artifacts/admin-docker-release-live-readonly-20260629T080718Z.json` 观测到 `/data/PublicLibrary`、`11394` total、`10471` ready、current index `v010471`；原始状态只因需外部 worker/Cutter proof 保持 `needs_external_proof`。
+- parity `docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T080730Z.json` 观测到 image/build SHA `9c015b9105e97954240020781f79daae3f954bde`、disk usage 约 `66%` 且 healthy；原始状态只因需外部 worker/Cutter proof 保持 blocked。
+- worker proof `docs/acceptance/artifacts/admin-worker-env-proof-20260629T080002Z.json` 已接受，`7/7` gate 通过。
+- staging runbook `docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T081717Z.json` 已达到 `24/24` gate 通过，`staging_review_ready=true`、`staging_execution_ready=true`，但 `docker_deploy_allowed=false` 仍保留安全边界。
+
 ### Phase 5: Cutter 不受影响验收
 
 目标：
@@ -393,10 +466,10 @@ MVP v0.1 的预处理不是“完全开放预处理”，而是 `Controlled Prep
 
 当前进展：
 
-- 已新增 `plan:admin-cutter-staged-proof`，生成 staged-candidate Cutter proof 的计划产物，不直接运行 Windows Runner，也不触碰 NAS/Docker/Cutter runtime。
-- 当前 plan artifact `docs/acceptance/artifacts/admin-cutter-staged-proof-plan-20260629T034732Z.json` 已准备好候选 `9c015b9105e97954240020781f79daae3f954bde` 的 `windows_acceptance`、`real_cut_smoke`、可选 `desktop_ui_screenshot_smoke` 命令模板，并把最终验证收口到 `npm run validate:admin-cutter-compatibility-proof`。
-- `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T035624Z.json` 已把该 staged plan 记入 sources/observations；这只清理“证明步骤是否准备好”的追踪缺口，不清理最终 `cutter-proof-accepted` 门禁。
-- 该计划只证明 Phase 5 的执行步骤已收束；真正的 Phase 5 通过仍需要 staged Admin Docker candidate 实际运行后生成 Windows Runner 报告，并验证 ready `10471` 与 current index `v010471` 未漂移。
+- Windows Runner `windows_acceptance-20260629T080956Z-fb782766` 已通过 staged-candidate 兼容性检查：auth 通过、`local_trusted=false`、ready `10471`、release `v010471`、公共素材首屏/search/detail/cut jobs 均可用。
+- `real_cut_smoke-20260629T081035Z-a7f1268a` 原始 Runner 状态失败，原因是 `/run-next` 在自动队列消费后没有同步返回 job payload；该失败已由后续 `desktop_incident_diagnostics-20260629T081206Z-bd79fd9c` 对同一 `CJ20260629-0001` 的完成状态补充证明。
+- `desktop_incident_diagnostics-20260629T081206Z-bd79fd9c` 证明 `CJ20260629-0001` 已完成，输出文件位于 `E000048/...mp4`，`resolve_source` 与 `cut_media` 阶段均为 done。
+- `docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260629T081635Z.json` 已接受，`proof_accepted=true`，无 upload blocker；ready `10471` 与 current index `v010471` 未漂移。
 
 ### Phase 6: MVP 后中长期架构继续
 
@@ -455,6 +528,69 @@ MVP v0.1 只有在以下全部满足时才算完成：
 - 高风险命令默认禁用或隐藏。
 - worker 默认不自动写生产库。
 - 回滚路径明确。
+
+### 当前完成度审计（2026-06-29T09:01Z）
+
+| 要求 | 当前证据 | 当前判定 |
+| --- | --- | --- |
+| 管理端登录可用 | Phase 2 本地 auth/store 测试 `47` 项通过；Docker release readiness 已到 `14/14`；2026-06-29T09:01Z 本机 SMB 恢复挂载后，`3889` 真实库登录成功。 | release-decision ready；当前工作树新增 Dashboard 修复需新 candidate；仍缺最终 Docker URL 登录 smoke。 |
+| 剪辑师管理可用 | Phase 2 cutter-user command tests 通过；Cutter compatibility proof 已 accepted；本机 `#/cutter-users` 浏览器 smoke 可加载用户表和统计。 | release-decision ready；当前工作树新增 Dashboard 修复需新 candidate；仍缺最终 Docker URL 剪辑师管理 smoke。 |
+| 预处理受控可用 | Phase 3 预处理/worker/safety 测试 `37` 项通过；worker proof accepted；staging runbook `24/24`；本机 `#/preprocess-jobs` 可读 `904` queued 任务但未执行任何写操作。 | release-decision ready；生产预处理运行仍需上线后在受控门禁下单独验收。 |
+| ready 素材不被误改 | Cutter proof 显示 ready `10471`、release `v010471`；live/parity 保持 `10471` / `v010471`。 | 当前证据通过；上线后仍需 before/after 对账。 |
+| current index 不变 | `admin-cutter-compatibility-proof-20260629T081635Z.json` 与 latest readiness 均保持 `v010471`。 | 当前证据通过；上线后仍需复核。 |
+| Cutter smoke 通过 | Windows Runner `windows_acceptance-20260629T080956Z-fb782766` 通过；真实剪切由 `desktop_incident_diagnostics-20260629T081206Z-bd79fd9c` 补充证明 done。 | 当前证据通过。 |
+| Docker health/version/path/gate 通过 | staging runbook `admin-docker-staging-runbook-20260629T081717Z.json` 为 `24/24` pass。 | release-decision ready；仍缺最终 deployed URL smoke。 |
+| 高风险命令默认禁用或隐藏 | Phase 1 Admin Web / Admin API gate tests `53` 项通过。 | 当前证据通过；若当前验收工具改动纳入候选需重新 dry-run。 |
+| worker 默认不自动写生产库 | `admin-worker-env-proof-20260629T080002Z.json` 为 accepted；目标 flags/root 已验收。 | release-decision ready；上线后仍需容器 env/inspect 复核。 |
+| 回滚路径明确 | release inputs 使用 current/rollback `latest`、target `9c015b9105e97954240020781f79daae3f954bde`；push decision package 准备精确命令。 | release-decision ready；真实替换前仍需保留旧 compose/env/tag 记录。 |
+| 候选与当前工作树一致 | `admin-docker-candidate-scope-20260629T090419Z.json` 显示当前工作树 dirty，`98` 个 changed paths，`15` 个 `mvp_candidate_code`，`remote_workflow_proof_possible_from_current_worktree=false`。 | 未满足；当前 release package 只绑定 immutable candidate `9c015...`，不能代表当前工作树；新增 Dashboard 修复和 release tooling 若要纳入镜像需重切 candidate。 |
+| 正式发布决策 | `admin-docker-push-decision-package-20260629T082616Z.json` 已 ready，但 `push_execution_allowed=false`。 | 未满足；需要单独 release owner decision。 |
+| 上线后用户可见 smoke | 尚未替换/部署最终 URL。 | 未满足；必须在最终 URL 上验收登录、剪辑师、预处理、health/version/path/gate。 |
+
+### 上线后最终 Smoke 矩阵
+
+发布后 smoke 必须先跑只读层，再决定是否进入受控预处理写入层。不能把“页面能打开”当作 MVP 完成。
+
+只读层已有可重复执行脚本：
+
+```bash
+MIXLAB_ADMIN_DOCKER_POST_RELEASE_BASE_URL="http://<nas-ip>:<admin-web-port>" \
+MIXLAB_ADMIN_DOCKER_POST_RELEASE_EXPECT_TARGET_IMAGE_TAG="9c015b9105e97954240020781f79daae3f954bde" \
+MIXLAB_ADMIN_DOCKER_POST_RELEASE_SESSION_TOKEN="<temporary-admin-session-token>" \
+npm run validate:admin-docker-post-release-smoke
+```
+
+该脚本只发送 `GET` 请求，覆盖 `/`、`/health`、auth status、release gates、data loading plan、cutter users、preprocess safety、supervisor status、`preprocess/jobs?limit=20` 和 library status。它不会记录账号密码或 session token，也不会批准 image push、重启 Docker、启动 worker、queue/retry/recover/publish 视频、repair index、scan apply 或写 NAS 文件。若需要验证“输入账号密码登录”，应作为单独的受控浏览器 smoke 执行，不把凭据写入 artifact。
+
+#### A. 必须立即通过的只读 smoke
+
+| 范围 | 检查 | 完成条件 |
+| --- | --- | --- |
+| Docker health | `GET /health` | `200`，返回 build/version/path profile，目标镜像 tag 与发布决策一致。 |
+| Auth/session | `GET /api/admin/auth/status`，管理端账号登录，刷新后保持 session | 登录可用；普通 status validation 不重写用户文件；不出现用户存储写入错误。 |
+| Release gates | `GET /api/admin/release-gates` | version/path/disk/worker/Cutter proof 均为 MVP 安全状态；`docker_upload_allowed` 不被接口误设为 true。 |
+| Data loading | `GET /api/admin/data-loading/plan` | 路由加载策略可读；不存在打开首页触发全库扫描的计划。 |
+| Cutter users | `GET /api/admin/cutter-users` 与 `#/cutter-users` | 列表可加载，错误局部化；审批/停用/重置按钮只对真实操作显式触发，不在 smoke 中误写真实用户。 |
+| Preprocess read-only | `GET /api/admin/preprocess/safety`、`GET /api/admin/preprocess/supervisor/status`、`GET /api/admin/preprocess/jobs?limit=20` | safety、supervisor、队列/日志可读；worker 默认不自动运行；ready 行不可写规则可见。 |
+| Public library invariants | `library/status`、Cutter runtime status、Windows Runner smoke | ready count 仍为 `10471`，current index 仍为 `v010471`，Cutter 首屏/search/detail/真实剪切仍可用。 |
+
+#### B. 受控预处理写入 smoke
+
+这一层只有在 release owner 明确允许“生产库小批量受控预处理验证”后才执行。
+
+| 范围 | 检查 | 完成条件 |
+| --- | --- | --- |
+| Baseline | 记录 before ready count、current index、queued/failed/index-required 数量、disk safety、worker env | before baseline 归档，ready=`10471`，index=`v010471`。 |
+| 单批小流量 | 只允许非 ready 素材；limit 必须很小；不允许 scan apply、index repair、publish | 任务进入 processing/finished/index-required；不自动发布到 Cutter。 |
+| Protection | 尝试对 ready 素材 queue/retry/recover 必须被阻断 | 返回明确 blocked/409 类错误；ready 不重新入队、不降级、不下线。 |
+| After 对账 | 复查 ready count、current index、Cutter smoke、audit log | ready count 与 current index 不被受控预处理改变；Cutter 仍正常；操作记录可追踪。 |
+
+当前状态：
+
+- 截至 `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T082636Z.json`，Docker release-readiness、worker proof、Cutter compatibility proof、NAS disk proof、version parity、staging runbook 和 push decision package 已达到 release review 输入要求。
+- 这份 release review 输入绑定的是 immutable target candidate `9c015b9105e97954240020781f79daae3f954bde`。当前工作树已有 `apps/admin-web` Dashboard 修复、`package.json` 与 `scripts/acceptance/*` 验收工具改动，不能把当前工作树静默当成该候选的继续版本；最新 scope audit 为 `docs/acceptance/artifacts/admin-docker-candidate-scope-20260629T090419Z.json`。
+- 这不等于整个 MVP 已自动完成或已上线。最终完成仍需要单独确认 release decision 结果，并在最终目标 URL/端口上补一轮用户可见管理端 smoke：登录、剪辑师管理、预处理素材管理、health/version/path/gate。
+- 本机真实库 smoke 已证明 Mac 本地登录、Dashboard、剪辑师、预处理读页恢复，但该修复触碰 Docker web image 输入；若用户希望新版 Docker 包含该修复，下一步不是推 `9c015...`，而是收敛当前 candidate commit 并重跑 `push_images=false` 干跑证据链。
 
 ## 回滚策略
 

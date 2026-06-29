@@ -126,6 +126,18 @@ function clearLiveReport(): unknown {
   };
 }
 
+function externalProofOnlyLiveReport(): unknown {
+  return {
+    result: { status: "blocked" },
+    summary: {
+      upload_blockers: [
+        "admin-worker-live-flags",
+        "cutter-release-compatibility-live"
+      ]
+    }
+  };
+}
+
 function blockedParityReport(): unknown {
   return {
     result: { status: "blocked" },
@@ -146,6 +158,18 @@ function clearParityReport(): unknown {
     result: { status: "blocked" },
     summary: {
       upload_blockers: []
+    }
+  };
+}
+
+function externalProofOnlyParityReport(): unknown {
+  return {
+    result: { status: "blocked" },
+    summary: {
+      upload_blockers: [
+        "admin-worker-env-external-proof",
+        "cutter-compatibility-external-proof"
+      ]
     }
   };
 }
@@ -522,6 +546,30 @@ test("admin Docker release readiness summary does not recollect NAS evidence aft
   assert.ok(!report.next_actions.some((item) => item.includes("after collecting returned evidence")));
   assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("already consumed NAS returned evidence")));
   assert.ok(!report.automation_boundary.safe_local_next_actions.some((item) => item.includes("UGOS browserless read-only collector")));
+});
+
+test("admin Docker release readiness summary normalizes accepted external worker and Cutter proofs", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    github_artifact_readiness_report: readyGithubArtifactReadiness(),
+    live_readonly_report: externalProofOnlyLiveReport(),
+    parity_plan_report: externalProofOnlyParityReport(),
+    worker_env_proof_report: acceptedProof(),
+    cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: releaseInputsReadyButWorkerBlockedIntake(),
+    nas_access_preflight_report: readyNasAccessPreflight(),
+    staging_runbook_report: readyRunbook(),
+    push_decision_package_report_path: "push-decision.json",
+    push_decision_package_report: readyPushDecisionPackage()
+  }));
+
+  assert.equal(report.release_review_ready, true);
+  assert.deepEqual(report.summary.release_review_blockers, []);
+  assert.deepEqual(report.observations.live_upload_blockers, []);
+  assert.deepEqual(report.observations.parity_upload_blockers, []);
+  assert.equal(report.observations.release_inputs_intake_complete, true);
+  assert.deepEqual(report.observations.release_inputs_intake_blockers, []);
+  assert.equal(report.result.status, "ready-for-release-decision");
 });
 
 test("admin Docker release readiness summary surfaces accepted worker remediation handoff without clearing proof", () => {
