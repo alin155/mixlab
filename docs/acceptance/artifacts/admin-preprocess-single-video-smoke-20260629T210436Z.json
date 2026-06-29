@@ -1,0 +1,741 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T21:04:36.875Z",
+  "command": "batch:window:/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-single-video-smoke",
+  "execution_mode": "execute",
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "normalized_base_url": "http://192.168.1.27:18080",
+    "safe_to_probe": true,
+    "classification": "Target URL shape is compatible with the NAS Docker admin-web root.",
+    "notes": [
+      "This only validates target shape; API/version/disk/worker/Cutter proof gates still decide readiness."
+    ],
+    "session_token_present": true,
+    "source_video_id": "V006180",
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471"
+  },
+  "allowed_write_boundary": {
+    "execute_requested": true,
+    "allowed_post_paths": [
+      "/api/admin/preprocess/supervisor/start"
+    ],
+    "allowed_start_body": {
+      "limit": 1,
+      "source_video_id": "V006180"
+    },
+    "publish_allowed": false,
+    "batch_preprocess_allowed": false
+  },
+  "dry_run_ready": true,
+  "single_video_smoke_passed": false,
+  "production_batch_allowed": false,
+  "publish_allowed": false,
+  "docker_deploy_allowed": false,
+  "mutates_nas_files": true,
+  "post_file_check_policy": {
+    "allow_smb_stale_post_file_view": true
+  },
+  "observed": {
+    "authenticated": true,
+    "library_root_before": "/data/PublicLibrary",
+    "ready_video_count_before": 10471,
+    "processing_video_count_before": 0,
+    "current_index_version_before": "v010471",
+    "source_status_before": "queued",
+    "source_visible_before": false,
+    "source_relative_path": "陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2822.MP4",
+    "source_file_size": 13119016,
+    "safety_status": "healthy",
+    "safe_to_start": true,
+    "supervisor_state_before": "idle",
+    "start_http_status": 200,
+    "supervisor_state_after": "idle",
+    "last_result_total_claimed_count": 1,
+    "last_result_succeeded_count": 0,
+    "last_result_failed_count": 1,
+    "source_status_after": "failed",
+    "source_visible_after": false,
+    "ready_video_count_after": 10471,
+    "processing_video_count_after": 0,
+    "current_index_version_after": "v010471"
+  },
+  "readiness_report": {
+    "path": "docs/acceptance/artifacts/admin-preprocess-production-readiness-20260629T200816Z.json",
+    "status": "ready-for-single-video-review",
+    "phase_0_1_readiness_ready": true,
+    "single_video_smoke_review_ready": true,
+    "ready_video_count": 10471,
+    "current_index_version": "v010471"
+  },
+  "snapshot": {
+    "status": "captured",
+    "library_mount_root": "/Volumes/MixLab/PublicLibrary",
+    "snapshot_dir": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210436Z/pre-smoke-snapshot",
+    "copied_files": [
+      {
+        "label": "library-ledger",
+        "relative_path": ".mixlab-library/library.json",
+        "snapshot_relative_path": ".mixlab-library/library.json",
+        "bytes": 472,
+        "required": true
+      },
+      {
+        "label": "source-video-manifest",
+        "relative_path": ".mixlab-library/videos/V006180/source-video.json",
+        "snapshot_relative_path": ".mixlab-library/videos/V006180/source-video.json",
+        "bytes": 621,
+        "required": true
+      },
+      {
+        "label": "preprocess-job",
+        "relative_path": ".mixlab-library/videos/V006180/preprocess-job.json",
+        "snapshot_relative_path": ".mixlab-library/videos/V006180/preprocess-job.json",
+        "bytes": 141,
+        "required": false
+      },
+      {
+        "label": "preprocess-log",
+        "relative_path": ".mixlab-library/logs/V006180.log",
+        "snapshot_relative_path": ".mixlab-library/logs/V006180.log",
+        "bytes": 65,
+        "required": false
+      },
+      {
+        "label": "admin-read-model",
+        "relative_path": ".mixlab-library/admin-read-model/admin.sqlite",
+        "snapshot_relative_path": ".mixlab-library/admin-read-model/admin.sqlite",
+        "bytes": 21536768,
+        "required": false
+      }
+    ],
+    "missing_required_files": [],
+    "missing_optional_files": [
+      ".mixlab-library/admin-read-model/admin.sqlite-wal",
+      ".mixlab-library/admin-read-model/admin.sqlite-shm"
+    ],
+    "error": ""
+  },
+  "post_file_check": {
+    "status": "checked",
+    "library_mount_root": "/Volumes/MixLab/PublicLibrary",
+    "source_video_id": "V006180",
+    "source_video_manifest": {
+      "relative_path": ".mixlab-library/videos/V006180/source-video.json",
+      "exists": true,
+      "bytes": 621,
+      "contains_nul": false,
+      "parsed": true,
+      "fields": {
+        "source_video_id": "V006180",
+        "preprocess_status": "queued",
+        "visible_to_cutters": false,
+        "transcript_path": "",
+        "srt_path": "",
+        "cover_path": "",
+        "keyframes_path": ""
+      },
+      "error": ""
+    },
+    "preprocess_job": {
+      "relative_path": ".mixlab-library/videos/V006180/preprocess-job.json",
+      "exists": true,
+      "bytes": 1615,
+      "contains_nul": true,
+      "parsed": true,
+      "fields": {
+        "source_video_id": "V006180",
+        "status": "queued",
+        "attempt": 3,
+        "worker_id": "admin",
+        "claimed_at": "2026-06-24T12:49:15.282Z"
+      },
+      "error": ""
+    },
+    "library_manifest": {
+      "relative_path": ".mixlab-library/library.json",
+      "exists": true,
+      "bytes": 472,
+      "contains_nul": false,
+      "parsed": true,
+      "fields": {
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "queued_video_count": 876,
+        "processing_video_count": 0,
+        "index_required_video_count": 47,
+        "updated_at": "2026-06-29T20:49:24.535Z"
+      },
+      "error": ""
+    },
+    "attempt_count": 37,
+    "wait_elapsed_ms": 180030,
+    "refresh_command_configured": false,
+    "refresh_attempted": false,
+    "refresh_exit_code": null,
+    "refresh_error": "",
+    "error": ""
+  },
+  "requests": [
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 14.9,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 336,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "auth_mode": "password",
+        "authenticated": true,
+        "user_present": true
+      }
+    },
+    {
+      "name": "library_status_before",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 14.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 790,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "root_path": "/data/PublicLibrary",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "queued_video_count": 874,
+        "processing_video_count": 0,
+        "index_required_video_count": 49,
+        "current_index_version": "v010471"
+      }
+    },
+    {
+      "name": "preprocess_safety",
+      "method": "GET",
+      "path": "/api/admin/preprocess/safety",
+      "duration_ms": 6.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 365,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "status": "healthy",
+        "safe_to_start": true,
+        "disk": {
+          "status": "healthy",
+          "usage_percent": 68,
+          "block_usage_percent": 92
+        },
+        "processing": {
+          "processing_count": 0,
+          "source_video_ids": []
+        },
+        "blockers": []
+      }
+    },
+    {
+      "name": "supervisor_status_before",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 6,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 287,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "idle",
+        "worker_id": "admin-worker-30",
+        "started_at": "2026-06-29T21:06:51.024Z",
+        "stopped_at": "2026-06-29T21:07:02.732Z",
+        "last_error_present": false,
+        "stop_requested": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 1,
+          "failed_count": 0
+        }
+      }
+    },
+    {
+      "name": "source_videos_processing_before",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=processing&limit=20",
+      "duration_ms": 38.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 831,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "returned_count": 0,
+        "source_video_ids": []
+      }
+    },
+    {
+      "name": "source_video_before",
+      "method": "GET",
+      "path": "/api/admin/source-videos/V006180",
+      "duration_ms": 8.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1536,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "source_video": {
+          "source_video_id": "V006180",
+          "title": "0Q9A2822",
+          "relative_path": "陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2822.MP4",
+          "file_size": 13119016,
+          "preprocess_status": "queued",
+          "visible_to_cutters": false
+        },
+        "technical": {
+          "duration_ms": 0,
+          "width": 0,
+          "height": 0,
+          "fps": 0,
+          "codec": "",
+          "file_size": 13119016,
+          "relative_path": "陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2822.MP4"
+        },
+        "preprocess": {
+          "status": "queued",
+          "job_id": "J006180",
+          "stage": "extract-audio",
+          "attempt": 3,
+          "started_at": "2026-06-24T12:49:15.282Z",
+          "completed_at": "",
+          "failed_at": "",
+          "error_stage": "",
+          "error_message_present": false
+        },
+        "artifacts": {
+          "transcript_exists": false,
+          "subtitles_exists": false,
+          "cover_exists": false,
+          "keyframes_exists": false,
+          "index_version": ""
+        },
+        "transcript": {
+          "segment_count": 0,
+          "character_count": 0
+        }
+      }
+    },
+    {
+      "name": "supervisor_start",
+      "method": "POST",
+      "path": "/api/admin/preprocess/supervisor/start",
+      "duration_ms": 13,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 266,
+      "content_type": "application/json; charset=utf-8",
+      "request_body": {
+        "limit": 1,
+        "source_video_id": "V006180"
+      },
+      "data": {
+        "state": "running",
+        "state_label": "运行中",
+        "worker_id": "admin-worker-30",
+        "started_at": "2026-06-29T21:10:06.781Z",
+        "stopped_at": "",
+        "last_error": "",
+        "stop_requested": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 1,
+          "failed_count": 0
+        }
+      }
+    },
+    {
+      "name": "supervisor_status_poll",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 5.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 266,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "running",
+        "worker_id": "admin-worker-30",
+        "started_at": "2026-06-29T21:10:06.781Z",
+        "stopped_at": "",
+        "last_error_present": false,
+        "stop_requested": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 1,
+          "failed_count": 0
+        }
+      }
+    },
+    {
+      "name": "supervisor_status_poll",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 15.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 266,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "running",
+        "worker_id": "admin-worker-30",
+        "started_at": "2026-06-29T21:10:06.781Z",
+        "stopped_at": "",
+        "last_error_present": false,
+        "stop_requested": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 1,
+          "failed_count": 0
+        }
+      }
+    },
+    {
+      "name": "supervisor_status_poll",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 19.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 287,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "idle",
+        "worker_id": "admin-worker-30",
+        "started_at": "2026-06-29T21:10:06.781Z",
+        "stopped_at": "2026-06-29T21:10:13.878Z",
+        "last_error_present": false,
+        "stop_requested": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 0,
+          "failed_count": 1
+        }
+      }
+    },
+    {
+      "name": "supervisor_status_after",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 10.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 287,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "idle",
+        "worker_id": "admin-worker-30",
+        "started_at": "2026-06-29T21:10:06.781Z",
+        "stopped_at": "2026-06-29T21:10:13.878Z",
+        "last_error_present": false,
+        "stop_requested": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 0,
+          "failed_count": 1
+        }
+      }
+    },
+    {
+      "name": "library_status_after",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 9.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 790,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "root_path": "/data/PublicLibrary",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "queued_video_count": 873,
+        "processing_video_count": 0,
+        "index_required_video_count": 49,
+        "current_index_version": "v010471"
+      }
+    },
+    {
+      "name": "source_videos_processing_after",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=processing&limit=20",
+      "duration_ms": 62.5,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 831,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "returned_count": 0,
+        "source_video_ids": []
+      }
+    },
+    {
+      "name": "source_video_after",
+      "method": "GET",
+      "path": "/api/admin/source-videos/V006180",
+      "duration_ms": 14.2,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 2975,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "source_video": {
+          "source_video_id": "V006180",
+          "title": "0Q9A2822",
+          "relative_path": "陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2822.MP4",
+          "file_size": 13119016,
+          "preprocess_status": "failed",
+          "visible_to_cutters": false
+        },
+        "technical": {
+          "duration_ms": 0,
+          "width": 0,
+          "height": 0,
+          "fps": 0,
+          "codec": "",
+          "file_size": 13119016,
+          "relative_path": "陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2822.MP4"
+        },
+        "preprocess": {
+          "status": "failed",
+          "job_id": "J006180",
+          "stage": "text-preprocess",
+          "attempt": 4,
+          "started_at": "2026-06-29T21:10:08.334Z",
+          "completed_at": "",
+          "failed_at": "2026-06-29T21:10:11.113Z",
+          "error_stage": "text-preprocess",
+          "error_message_present": true
+        },
+        "artifacts": {
+          "transcript_exists": false,
+          "subtitles_exists": false,
+          "cover_exists": false,
+          "keyframes_exists": false,
+          "index_version": ""
+        },
+        "transcript": {
+          "segment_count": 0,
+          "character_count": 0
+        }
+      }
+    },
+    {
+      "name": "preprocess_job_log_after",
+      "method": "GET",
+      "path": "/api/admin/preprocess/jobs/J006180/log",
+      "duration_ms": 18.8,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1968,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "source_video_id": "V006180",
+        "path": ".mixlab-library/logs/V006180.log",
+        "exists": true,
+        "content_bytes": 1698,
+        "tail": [
+          "  Stream #0:0[0x1](eng): Video: h264 (High) (avc1 / 0x31637661), yuvj420p(pc, bt709, progressive), 1920x1080, 60352 kb/s, 50 fps, 50 tbr, 50k tbn (default)",
+          "    Metadata:",
+          "      creation_time   : 2024-03-17T00:53:13.000000Z",
+          "      vendor_id       : [0][0][0][0]",
+          "  Stream #0:1[0x2](eng): Data: none (tmcd / 0x64636D74), 1 kb/s (default)",
+          "    Metadata:",
+          "      creation_time   : 2024-03-17T00:53:13.000000Z",
+          "      timecode        : 23:51:06:40",
+          "Output #0, mp3, to '/data/PublicLibrary/.mixlab-library/videos/V006180/asr-audio/audio.tmp-30-1782767410920-zr2cwe8d9mc.mp3':",
+          "Output file #0 does not contain any stream"
+        ]
+      }
+    }
+  ],
+  "gates": [
+    {
+      "id": "single-video-scope-only",
+      "title": "Smoke scope is exactly one source video",
+      "category": "scope",
+      "status": "pass",
+      "evidence": "source_video_id=V006180.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "nas-docker-admin-target",
+      "title": "Target URL is a NAS Docker Admin root",
+      "category": "target",
+      "status": "pass",
+      "evidence": "Target URL shape is compatible with the NAS Docker admin-web root.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "readiness-report-green",
+      "title": "Phase 0/1 readiness report is green",
+      "category": "target",
+      "status": "pass",
+      "evidence": "status=ready-for-single-video-review, ready=true, smoke_review=true, ready_count=10471, index=v010471.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "admin-session-authenticated",
+      "title": "Admin session is authenticated",
+      "category": "auth",
+      "status": "pass",
+      "evidence": "auth/status returned authenticated=true.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "baseline-before-preserved",
+      "title": "Ready assets and current Cutter index baseline are preserved before smoke",
+      "category": "library",
+      "status": "pass",
+      "evidence": "root=/data/PublicLibrary, ready=10471, index=v010471.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "candidate-is-queued-and-hidden",
+      "title": "Selected candidate is queued and hidden from Cutter before smoke",
+      "category": "library",
+      "status": "pass",
+      "evidence": "status=queued, visible_to_cutters=false, path=陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2822.MP4, size=13119016.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "no-processing-before-smoke",
+      "title": "No active processing exists before smoke",
+      "category": "preprocess",
+      "status": "pass",
+      "evidence": "library_processing=0.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true,
+      "required_evidence": "processing_count must be 0 and the bounded processing list must respond before any smoke."
+    },
+    {
+      "id": "preprocess-safety-healthy",
+      "title": "Preprocess safety gate is healthy",
+      "category": "preprocess",
+      "status": "pass",
+      "evidence": "status=healthy, safe_to_start=true, disk=healthy.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true,
+      "required_evidence": "preprocess/safety must report healthy and safe_to_start=true."
+    },
+    {
+      "id": "supervisor-idle-before-smoke",
+      "title": "Preprocess supervisor is idle before smoke",
+      "category": "preprocess",
+      "status": "pass",
+      "evidence": "supervisor_idle=true, state=idle.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true,
+      "required_evidence": "Supervisor must be idle before single-video smoke."
+    },
+    {
+      "id": "pre-smoke-snapshot-captured",
+      "title": "Pre-smoke rollback snapshot is captured",
+      "category": "snapshot",
+      "status": "pass",
+      "evidence": "Copied 5 files to docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210436Z/pre-smoke-snapshot.",
+      "blocks_dry_run_ready": true,
+      "blocks_execute": true
+    },
+    {
+      "id": "dry-run-does-not-post",
+      "title": "Dry-run mode does not send command requests",
+      "category": "execution",
+      "status": "needs-follow-up",
+      "evidence": "Execution mode was explicitly requested.",
+      "blocks_dry_run_ready": false,
+      "blocks_execute": false
+    },
+    {
+      "id": "execute-body-is-single-target",
+      "title": "Execution start body is limited to one selected source video",
+      "category": "execution",
+      "status": "pass",
+      "evidence": "start_body={\"limit\":1,\"source_video_id\":\"V006180\"}.",
+      "blocks_dry_run_ready": false,
+      "blocks_execute": true
+    },
+    {
+      "id": "single-video-execution-succeeded",
+      "title": "Exactly one video was claimed and succeeded",
+      "category": "execution",
+      "status": "blocked",
+      "evidence": "start_http=200, final_state=idle, claimed=1, succeeded=0, failed=1.",
+      "blocks_dry_run_ready": false,
+      "blocks_execute": true,
+      "required_evidence": "After execute, supervisor must return idle with last_result total=1 succeeded=1 failed=0."
+    },
+    {
+      "id": "post-smoke-baseline-preserved",
+      "title": "Post-smoke ready/index baseline is preserved and target moved only to index-required",
+      "category": "postcheck",
+      "status": "fail",
+      "evidence": "ready_after=10471, index_after=v010471, processing_after=0, source_status_after=failed, source_visible_after=false.",
+      "blocks_dry_run_ready": false,
+      "blocks_execute": true,
+      "required_evidence": "After execute, ready/index must remain at the expected baseline and the target should be index-required but hidden."
+    },
+    {
+      "id": "post-smoke-nas-file-persistence",
+      "title": "Post-smoke NAS files persisted the same single-video state",
+      "category": "postcheck",
+      "status": "fail",
+      "evidence": "status=checked, attempts=37, wait_ms=180030, refresh_configured=false, refresh_attempted=false, refresh_exit=null, source=queued, source_visible=false, job=queued, direct_ready=10471, direct_processing=0, direct_index_required=47, api_index_required=49, direct_queued=876, no_nul=false, diagnosis=mismatch, stale_policy_enabled=true.",
+      "blocks_dry_run_ready": false,
+      "blocks_execute": true,
+      "required_evidence": "After execute, direct source-video.json, preprocess-job.json, and library.json on the NAS mount must match API postcheck and contain no NUL padding."
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "passed": 11,
+    "blocked": 1,
+    "failed": 2,
+    "needs_follow_up": 1,
+    "dry_run_blockers": [],
+    "execute_blockers": [
+      "single-video-execution-succeeded",
+      "post-smoke-baseline-preserved",
+      "post-smoke-nas-file-persistence"
+    ]
+  },
+  "result": {
+    "status": "failed",
+    "summary": "Single-video smoke failed because a hard safety invariant was violated."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210436Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210436Z.md"
+  }
+}

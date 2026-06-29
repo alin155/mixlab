@@ -665,3 +665,96 @@ test("cleans temporary audio when extraction fails before upload", async () => {
   assert.equal(await pathExists(temporaryAudioPath), false);
   assert.equal(await pathExists(finalAudioPath), false);
 });
+
+test("writes empty transcript artifacts when extraction reports no audio stream", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const sourceVideoPath = path.join(libraryRoot, "source-videos", "花絮", "无音频短视频.mp4");
+  const finalAudioPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "asr-audio",
+    "audio.mp3"
+  );
+  const stages: string[] = [];
+  let temporaryAudioPath = "";
+
+  await mkdir(path.dirname(sourceVideoPath), { recursive: true });
+  await writeFile(sourceVideoPath, "fake-video-without-audio");
+
+  const result = await runSourceVideoTextPreprocess({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    source_video_id: "V000001",
+    source_video_path: sourceVideoPath,
+    ffmpeg_path: "/bin/ffmpeg",
+    audio_format: "mp3",
+    now: "2026-05-02T00:00:00Z",
+    async on_stage(stage) {
+      stages.push(stage);
+    },
+    command_runner: {
+      async run(_executable, args) {
+        const outputPath = args.at(-1);
+
+        if (!outputPath) {
+          throw new Error("missing output path");
+        }
+
+        temporaryAudioPath = outputPath;
+        await mkdir(path.dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, "partial-audio");
+        throw new Error("Output file #0 does not contain any stream");
+      }
+    },
+    uploader: {
+      async uploadAsrAudio() {
+        throw new Error("upload should not run for no-audio videos");
+      }
+    },
+    asr_http: {
+      async requestJson() {
+        throw new Error("ASR submit should not run for no-audio videos");
+      },
+      async getJson() {
+        throw new Error("ASR result fetch should not run for no-audio videos");
+      }
+    },
+    asr: {
+      api_key: "sk-test-secret",
+      model: "paraformer-v2"
+    }
+  });
+
+  assert.match(temporaryAudioPath, /audio\.tmp-.+\.mp3$/);
+  assert.equal(await pathExists(temporaryAudioPath), false);
+  assert.equal(await pathExists(finalAudioPath), false);
+  assert.deepEqual(stages, ["extract-audio", "write-transcript"]);
+  assert.deepEqual(result, {
+    source_video_id: "V000001",
+    audio_path: "",
+    audio_object_key: "",
+    audio_file_url: "",
+    asr_task_id: "no-audio",
+    transcription_url: "",
+    transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+    srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+    duration_ms: 0,
+    segment_count: 0
+  });
+  assert.deepEqual(
+    JSON.parse(await readFile(path.join(libraryRoot, result.transcript_path), "utf8")),
+    {
+      schema_version: "1.0",
+      source_video_id: "V000001",
+      provider: "dashscope",
+      model: "paraformer-v2",
+      generated_at: "2026-05-02T00:00:00Z",
+      duration_ms: 0,
+      full_text: "",
+      segments: []
+    }
+  );
+  assert.equal(await readFile(path.join(libraryRoot, result.srt_path), "utf8"), "");
+});

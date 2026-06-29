@@ -1,0 +1,181 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T21:04:21.758Z",
+  "command": "window:/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-small-batch-smoke",
+  "execution_mode": "dry-run",
+  "status": "dry-run-ready",
+  "mutates_nas_files": false,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "source_video_ids": [
+      "V005167",
+      "V006278",
+      "V006180",
+      "V006276",
+      "V006160"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "max_count": 5,
+    "stop_on_failure": true,
+    "session_token_present": true
+  },
+  "allowed_write_boundary": {
+    "execute_requested": false,
+    "allowed_post_paths": [],
+    "publish_allowed": false,
+    "docker_deploy_allowed": false,
+    "automatic_worker_allowed": false
+  },
+  "summary": {
+    "requested_count": 5,
+    "attempted_count": 5,
+    "passed_count": 5,
+    "failed_count": 0,
+    "stopped_on_failure": false,
+    "blockers": []
+  },
+  "items": [
+    {
+      "source_video_id": "V005167",
+      "status": "dry-run-ready",
+      "dry_run_ready": true,
+      "single_video_smoke_passed": false,
+      "ready_video_count_after": null,
+      "processing_video_count_after": null,
+      "current_index_version_after": "",
+      "source_status_after": "queued",
+      "source_visible_after": false,
+      "direct_source_status": "",
+      "direct_job_status": "",
+      "direct_ready_count": null,
+      "direct_queued_count": null,
+      "direct_processing_count": null,
+      "direct_index_required_count": null,
+      "post_file_attempts": 0,
+      "post_file_refresh_attempted": false,
+      "dry_run_blockers": [],
+      "execute_blockers": [
+        "execute-body-is-single-target",
+        "single-video-execution-succeeded",
+        "post-smoke-baseline-preserved"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210422Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210422Z.md"
+    },
+    {
+      "source_video_id": "V006278",
+      "status": "dry-run-ready",
+      "dry_run_ready": true,
+      "single_video_smoke_passed": false,
+      "ready_video_count_after": null,
+      "processing_video_count_after": null,
+      "current_index_version_after": "",
+      "source_status_after": "queued",
+      "source_visible_after": false,
+      "direct_source_status": "",
+      "direct_job_status": "",
+      "direct_ready_count": null,
+      "direct_queued_count": null,
+      "direct_processing_count": null,
+      "direct_index_required_count": null,
+      "post_file_attempts": 0,
+      "post_file_refresh_attempted": false,
+      "dry_run_blockers": [],
+      "execute_blockers": [
+        "execute-body-is-single-target",
+        "single-video-execution-succeeded",
+        "post-smoke-baseline-preserved"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210423Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210423Z.md"
+    },
+    {
+      "source_video_id": "V006180",
+      "status": "dry-run-ready",
+      "dry_run_ready": true,
+      "single_video_smoke_passed": false,
+      "ready_video_count_after": null,
+      "processing_video_count_after": null,
+      "current_index_version_after": "",
+      "source_status_after": "queued",
+      "source_visible_after": false,
+      "direct_source_status": "",
+      "direct_job_status": "",
+      "direct_ready_count": null,
+      "direct_queued_count": null,
+      "direct_processing_count": null,
+      "direct_index_required_count": null,
+      "post_file_attempts": 0,
+      "post_file_refresh_attempted": false,
+      "dry_run_blockers": [],
+      "execute_blockers": [
+        "execute-body-is-single-target",
+        "single-video-execution-succeeded",
+        "post-smoke-baseline-preserved"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210424Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210424Z.md"
+    },
+    {
+      "source_video_id": "V006276",
+      "status": "dry-run-ready",
+      "dry_run_ready": true,
+      "single_video_smoke_passed": false,
+      "ready_video_count_after": null,
+      "processing_video_count_after": null,
+      "current_index_version_after": "",
+      "source_status_after": "queued",
+      "source_visible_after": false,
+      "direct_source_status": "",
+      "direct_job_status": "",
+      "direct_ready_count": null,
+      "direct_queued_count": null,
+      "direct_processing_count": null,
+      "direct_index_required_count": null,
+      "post_file_attempts": 0,
+      "post_file_refresh_attempted": false,
+      "dry_run_blockers": [],
+      "execute_blockers": [
+        "execute-body-is-single-target",
+        "single-video-execution-succeeded",
+        "post-smoke-baseline-preserved"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210425Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210425Z.md"
+    },
+    {
+      "source_video_id": "V006160",
+      "status": "dry-run-ready",
+      "dry_run_ready": true,
+      "single_video_smoke_passed": false,
+      "ready_video_count_after": null,
+      "processing_video_count_after": null,
+      "current_index_version_after": "",
+      "source_status_after": "queued",
+      "source_visible_after": false,
+      "direct_source_status": "",
+      "direct_job_status": "",
+      "direct_ready_count": null,
+      "direct_queued_count": null,
+      "direct_processing_count": null,
+      "direct_index_required_count": null,
+      "post_file_attempts": 0,
+      "post_file_refresh_attempted": false,
+      "dry_run_blockers": [],
+      "execute_blockers": [
+        "execute-body-is-single-target",
+        "single-video-execution-succeeded",
+        "post-smoke-baseline-preserved"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210426Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T210426Z.md"
+    }
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T210421Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T210421Z.md"
+  }
+}

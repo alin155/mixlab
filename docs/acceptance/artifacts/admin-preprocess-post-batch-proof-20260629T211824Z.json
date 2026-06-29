@@ -1,0 +1,430 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T21:18:24.285Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-post-batch-proof.ts",
+  "mode": "admin-preprocess-post-batch-proof",
+  "status": "passed-with-follow-up",
+  "mutates_nas_files": false,
+  "next_small_batch_allowed": true,
+  "scale_up_allowed": false,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "normalized_base_url": "http://192.168.1.27:18080",
+    "safe_to_probe": true,
+    "classification": "Target URL shape is compatible with the NAS Docker admin-web root.",
+    "session_token_present": true,
+    "source_video_ids": [
+      "V005167",
+      "V006278"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "expected_queued_count": 873,
+    "expected_index_required_count": 49,
+    "library_mount_root": "/Volumes/MixLab/PublicLibrary",
+    "windows_acceptance_report_path": "docs/acceptance/artifacts/windows_acceptance-20260629T211810Z-bf821d39/report.json"
+  },
+  "observed": {
+    "library_root": "/data/PublicLibrary",
+    "ready_video_count": 10471,
+    "queued_video_count": 873,
+    "processing_video_count": 0,
+    "index_required_video_count": 49,
+    "current_index_version": "v010471",
+    "supervisor_state": "idle",
+    "processing_list_count": 0,
+    "windows_acceptance": {
+      "report_path": "docs/acceptance/artifacts/windows_acceptance-20260629T211810Z-bf821d39/report.json",
+      "provided": true,
+      "status": "passed",
+      "runner_version": "0.1.32",
+      "available_video_count": 10471,
+      "release_version": "v010471",
+      "search_index_version": "v010471"
+    }
+  },
+  "requests": [
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 33.6,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 336,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "auth_mode": "password",
+        "authenticated": true,
+        "user_present": true
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 14.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 790,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "root_path": "/data/PublicLibrary",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "queued_video_count": 873,
+        "processing_video_count": 0,
+        "index_required_video_count": 49,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T21:10:11.113Z"
+      }
+    },
+    {
+      "name": "supervisor_status",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 16.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 287,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "idle",
+        "running": null,
+        "worker_id": "admin-worker-30",
+        "last_error_present": false,
+        "last_result": {
+          "total_claimed_count": 1,
+          "succeeded_count": 0,
+          "failed_count": 1
+        }
+      }
+    },
+    {
+      "name": "source_videos_processing",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=processing&limit=20",
+      "duration_ms": 64.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 831,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "returned_count": 0,
+        "source_video_ids": []
+      }
+    },
+    {
+      "name": "source_video:V005167",
+      "method": "GET",
+      "path": "/api/admin/source-videos/V005167",
+      "duration_ms": 7.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1861,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "source_video": {
+          "source_video_id": "V005167",
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "relative_path": "陶矜2/2023年素材/2311北京/17号视频/稳定器/100EOS5D/0M4A4126.MOV"
+        },
+        "preprocess": {
+          "status": "index-required",
+          "job_id": "J005167",
+          "current_stage": "build-index"
+        },
+        "artifacts": {
+          "index_version": "",
+          "artifact_complete": null
+        }
+      }
+    },
+    {
+      "name": "source_video:V006278",
+      "method": "GET",
+      "path": "/api/admin/source-videos/V006278",
+      "duration_ms": 7.4,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 1829,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "source_video": {
+          "source_video_id": "V006278",
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "relative_path": "陶矜2/2024年素材/2403上海花絮/100CANON/0Q9A2921.MP4"
+        },
+        "preprocess": {
+          "status": "index-required",
+          "job_id": "J006278",
+          "current_stage": "build-index"
+        },
+        "artifacts": {
+          "index_version": "",
+          "artifact_complete": null
+        }
+      }
+    }
+  ],
+  "source_items": [
+    {
+      "source_video_id": "V005167",
+      "api_request_ok": true,
+      "api_preprocess_status": "index-required",
+      "api_visible_to_cutters": false,
+      "api_index_version": "",
+      "api_artifact_complete": null,
+      "api_passed": true,
+      "smb_status": "stale-follow-up",
+      "smb_source_status": "index-required",
+      "smb_source_visible": false,
+      "smb_job_status": "index-required",
+      "smb_contains_nul": false,
+      "smb_error": ""
+    },
+    {
+      "source_video_id": "V006278",
+      "api_request_ok": true,
+      "api_preprocess_status": "index-required",
+      "api_visible_to_cutters": false,
+      "api_index_version": "",
+      "api_artifact_complete": null,
+      "api_passed": true,
+      "smb_status": "stale-follow-up",
+      "smb_source_status": "index-required",
+      "smb_source_visible": false,
+      "smb_job_status": "index-required",
+      "smb_contains_nul": false,
+      "smb_error": ""
+    }
+  ],
+  "smb_checks": [
+    {
+      "status": "checked",
+      "library_mount_root": "/Volumes/MixLab/PublicLibrary",
+      "source_video_id": "V005167",
+      "source_video_manifest": {
+        "relative_path": ".mixlab-library/videos/V005167/source-video.json",
+        "exists": true,
+        "bytes": 785,
+        "contains_nul": false,
+        "parsed": true,
+        "fields": {
+          "source_video_id": "V005167",
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "transcript_path": ".mixlab-library/videos/V005167/transcript.json",
+          "srt_path": ".mixlab-library/videos/V005167/subtitles.srt",
+          "cover_path": "",
+          "keyframes_path": ""
+        },
+        "error": ""
+      },
+      "preprocess_job": {
+        "relative_path": ".mixlab-library/videos/V005167/preprocess-job.json",
+        "exists": true,
+        "bytes": 205,
+        "contains_nul": false,
+        "parsed": true,
+        "fields": {
+          "source_video_id": "V005167",
+          "status": "index-required",
+          "attempt": 4,
+          "worker_id": "admin-worker-30",
+          "claimed_at": "2026-06-29T21:03:36.147Z",
+          "completed_at": "2026-06-29T21:03:43.120Z"
+        },
+        "error": ""
+      },
+      "library_manifest": {
+        "relative_path": ".mixlab-library/library.json",
+        "exists": true,
+        "bytes": 472,
+        "contains_nul": false,
+        "parsed": true,
+        "fields": {
+          "video_count": 11394,
+          "ready_video_count": 10471,
+          "queued_video_count": 873,
+          "processing_video_count": 0,
+          "index_required_video_count": 49,
+          "updated_at": "2026-06-29T21:10:11.113Z"
+        },
+        "error": ""
+      },
+      "attempt_count": 1,
+      "wait_elapsed_ms": 0,
+      "refresh_command_configured": false,
+      "refresh_attempted": false,
+      "refresh_exit_code": null,
+      "refresh_error": "",
+      "error": ""
+    },
+    {
+      "status": "checked",
+      "library_mount_root": "/Volumes/MixLab/PublicLibrary",
+      "source_video_id": "V006278",
+      "source_video_manifest": {
+        "relative_path": ".mixlab-library/videos/V006278/source-video.json",
+        "exists": true,
+        "bytes": 753,
+        "contains_nul": false,
+        "parsed": true,
+        "fields": {
+          "source_video_id": "V006278",
+          "preprocess_status": "index-required",
+          "visible_to_cutters": false,
+          "transcript_path": ".mixlab-library/videos/V006278/transcript.json",
+          "srt_path": ".mixlab-library/videos/V006278/subtitles.srt",
+          "cover_path": "",
+          "keyframes_path": ""
+        },
+        "error": ""
+      },
+      "preprocess_job": {
+        "relative_path": ".mixlab-library/videos/V006278/preprocess-job.json",
+        "exists": true,
+        "bytes": 205,
+        "contains_nul": false,
+        "parsed": true,
+        "fields": {
+          "source_video_id": "V006278",
+          "status": "index-required",
+          "attempt": 4,
+          "worker_id": "admin-worker-30",
+          "claimed_at": "2026-06-29T21:06:52.475Z",
+          "completed_at": "2026-06-29T21:06:59.022Z"
+        },
+        "error": ""
+      },
+      "library_manifest": {
+        "relative_path": ".mixlab-library/library.json",
+        "exists": true,
+        "bytes": 472,
+        "contains_nul": false,
+        "parsed": true,
+        "fields": {
+          "video_count": 11394,
+          "ready_video_count": 10471,
+          "queued_video_count": 873,
+          "processing_video_count": 0,
+          "index_required_video_count": 49,
+          "updated_at": "2026-06-29T21:10:11.113Z"
+        },
+        "error": ""
+      },
+      "attempt_count": 1,
+      "wait_elapsed_ms": 0,
+      "refresh_command_configured": false,
+      "refresh_attempted": false,
+      "refresh_exit_code": null,
+      "refresh_error": "",
+      "error": ""
+    }
+  ],
+  "gates": [
+    {
+      "id": "source-video-ids-provided",
+      "title": "Post-batch proof has explicit source video ids",
+      "category": "scope",
+      "status": "pass",
+      "evidence": "source_video_ids=V005167, V006278.",
+      "blocks_next_small_batch": true,
+      "blocks_scale_up": true
+    },
+    {
+      "id": "nas-docker-admin-target",
+      "title": "Target URL is a NAS Docker Admin root",
+      "category": "target",
+      "status": "pass",
+      "evidence": "Target URL shape is compatible with the NAS Docker admin-web root.",
+      "blocks_next_small_batch": true,
+      "blocks_scale_up": true
+    },
+    {
+      "id": "api-library-baseline-preserved",
+      "title": "Admin API library baseline preserves ready/index and no active processing",
+      "category": "api",
+      "status": "pass",
+      "evidence": "root=/data/PublicLibrary, ready=10471, queued=873, processing=0, index_required=49, index=v010471.",
+      "blocks_next_small_batch": true,
+      "blocks_scale_up": true
+    },
+    {
+      "id": "api-selected-sources-index-required-hidden",
+      "title": "Selected post-batch sources are index-required and hidden from Cutter",
+      "category": "api",
+      "status": "pass",
+      "evidence": "V005167:index-required/visible=false, V006278:index-required/visible=false",
+      "blocks_next_small_batch": true,
+      "blocks_scale_up": true
+    },
+    {
+      "id": "api-processing-list-empty",
+      "title": "Processing list is empty after the batch",
+      "category": "api",
+      "status": "pass",
+      "evidence": "processing_list_count=0.",
+      "blocks_next_small_batch": true,
+      "blocks_scale_up": true
+    },
+    {
+      "id": "api-supervisor-idle",
+      "title": "Preprocess supervisor is idle after the batch",
+      "category": "api",
+      "status": "pass",
+      "evidence": "state=idle, running=null.",
+      "blocks_next_small_batch": true,
+      "blocks_scale_up": true
+    },
+    {
+      "id": "smb-direct-post-files",
+      "title": "Mac SMB direct files match API post-batch state",
+      "category": "smb",
+      "status": "needs-follow-up",
+      "evidence": "V005167:stale-follow-up,source=index-required,job=index-required,nul=false, V006278:stale-follow-up,source=index-required,job=index-required,nul=false",
+      "blocks_next_small_batch": false,
+      "blocks_scale_up": true,
+      "required_evidence": "Mac SMB direct view appears stale while Admin API is safe. Recheck through a fresh SMB/container-side view before increasing batch size."
+    },
+    {
+      "id": "windows-cutter-acceptance",
+      "title": "Windows Cutter still sees the preserved release",
+      "category": "windows-cutter",
+      "status": "pass",
+      "evidence": "status=passed, runner=0.1.32, available=10471, release=v010471, search_index=v010471.",
+      "blocks_next_small_batch": false,
+      "blocks_scale_up": false
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 7,
+    "failed": 0,
+    "blocked": 0,
+    "needs_follow_up": 1,
+    "not_provided": 0,
+    "next_small_batch_blockers": [],
+    "scale_up_blockers": [
+      "smb-direct-post-files"
+    ]
+  },
+  "result": {
+    "status": "passed-with-follow-up",
+    "summary": "Post-batch API safety passed, but SMB or Windows scale-up evidence still needs follow-up before increasing batch size."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-post-batch-proof-20260629T211824Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-post-batch-proof-20260629T211824Z.md"
+  }
+}

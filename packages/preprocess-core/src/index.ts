@@ -4,6 +4,7 @@ import {
   runDashScopeRecordedAudioAsr,
   type DashScopeAsrModel,
   type DashScopeJsonHttpClient,
+  type MixlabTranscriptArtifact,
   type DashScopeSleep,
   type DashScopeSubmitParameters
 } from "../../asr-core/src/index.ts";
@@ -108,6 +109,35 @@ function contentType(format: AudioExtractionFormat): string {
   return "audio/wav";
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isNoAudioStreamExtractionError(error: unknown): boolean {
+  const message = errorMessage(error);
+
+  return /Output file #\d+ does not contain any stream/i.test(message) ||
+    /Stream map .*matches no streams/i.test(message) ||
+    /does not contain any audio stream/i.test(message);
+}
+
+function buildNoAudioTranscriptArtifact(input: {
+  source_video_id: string;
+  model: DashScopeAsrModel;
+  generated_at: string;
+}): MixlabTranscriptArtifact {
+  return {
+    schema_version: "1.0",
+    source_video_id: input.source_video_id,
+    provider: "dashscope",
+    model: input.model,
+    generated_at: input.generated_at,
+    duration_ms: 0,
+    full_text: "",
+    segments: []
+  };
+}
+
 function resolveLegacyAudioSettings(
   audioFormat: AudioExtractionFormat,
   audioBitrate: string | undefined
@@ -177,6 +207,32 @@ export async function runSourceVideoTextPreprocess(
     await rename(temporaryAudioPath, absoluteAudioPath);
   } catch (error) {
     await rm(temporaryAudioPath, { force: true }).catch(() => {});
+    if (isNoAudioStreamExtractionError(error)) {
+      await input.on_stage?.("write-transcript");
+      const textArtifactPaths = await writeAsrTextArtifacts({
+        library_root: input.library_root,
+        source_video_id: input.source_video_id,
+        transcript_artifact: buildNoAudioTranscriptArtifact({
+          source_video_id: input.source_video_id,
+          model: input.asr.model,
+          generated_at: input.now
+        }),
+        srt: ""
+      });
+
+      return {
+        source_video_id: input.source_video_id,
+        audio_path: "",
+        audio_object_key: "",
+        audio_file_url: "",
+        asr_task_id: "no-audio",
+        transcription_url: "",
+        transcript_path: textArtifactPaths.transcript_path,
+        srt_path: textArtifactPaths.srt_path,
+        duration_ms: 0,
+        segment_count: 0
+      };
+    }
     throw error;
   }
 
