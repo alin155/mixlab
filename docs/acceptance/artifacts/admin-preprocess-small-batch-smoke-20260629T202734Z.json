@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T20:27:34.919Z",
+  "command": "window:/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-small-batch-smoke",
+  "execution_mode": "execute",
+  "status": "failed",
+  "mutates_nas_files": true,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "source_video_ids": [
+      "V001843"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "max_count": 1,
+    "stop_on_failure": true,
+    "session_token_present": true
+  },
+  "allowed_write_boundary": {
+    "execute_requested": true,
+    "allowed_post_paths": [
+      "/api/admin/preprocess/supervisor/start"
+    ],
+    "publish_allowed": false,
+    "docker_deploy_allowed": false,
+    "automatic_worker_allowed": false
+  },
+  "summary": {
+    "requested_count": 1,
+    "attempted_count": 1,
+    "passed_count": 0,
+    "failed_count": 1,
+    "stopped_on_failure": false,
+    "blockers": [
+      "V001843:post-smoke-nas-file-persistence"
+    ]
+  },
+  "items": [
+    {
+      "source_video_id": "V001843",
+      "status": "failed",
+      "dry_run_ready": true,
+      "single_video_smoke_passed": false,
+      "ready_video_count_after": 10471,
+      "processing_video_count_after": 0,
+      "current_index_version_after": "v010471",
+      "source_status_after": "index-required",
+      "source_visible_after": false,
+      "direct_source_status": "queued",
+      "direct_job_status": "queued",
+      "direct_ready_count": 10471,
+      "direct_queued_count": 882,
+      "direct_processing_count": 0,
+      "direct_index_required_count": 41,
+      "post_file_attempts": 32,
+      "post_file_refresh_attempted": true,
+      "dry_run_blockers": [],
+      "execute_blockers": [
+        "post-smoke-nas-file-persistence"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T202735Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-single-video-smoke-20260629T202735Z.md"
+    }
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T202734Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T202734Z.md"
+  }
+}

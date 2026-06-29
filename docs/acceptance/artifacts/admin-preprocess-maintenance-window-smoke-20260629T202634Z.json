@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T20:26:34.919Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-maintenance-window-smoke",
+  "execution_mode": "execute",
+  "status": "failed",
+  "mutates_nas_files": true,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "source_video_ids": [
+      "V001843"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "batch_size": 1,
+    "max_batches": 1,
+    "stop_on_failure": true,
+    "session_token_present": true
+  },
+  "allowed_write_boundary": {
+    "execute_requested": true,
+    "allowed_post_paths": [
+      "/api/admin/preprocess/supervisor/start"
+    ],
+    "publish_allowed": false,
+    "docker_deploy_allowed": false,
+    "automatic_worker_allowed": false
+  },
+  "summary": {
+    "requested_count": 1,
+    "attempted_batches": 1,
+    "passed_batches": 0,
+    "failed_batches": 1,
+    "stopped_on_failure": false,
+    "blockers": [
+      "batch-1:V001843:post-smoke-nas-file-persistence"
+    ]
+  },
+  "batches": [
+    {
+      "batch_index": 1,
+      "source_video_ids": [
+        "V001843"
+      ],
+      "status": "failed",
+      "before": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 882,
+        "processing_video_count": 0,
+        "index_required_video_count": 41,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T20:14:41.685Z"
+      },
+      "after": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 881,
+        "processing_video_count": 0,
+        "index_required_video_count": 42,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T20:26:43.512Z"
+      },
+      "blockers": [
+        "batch-1:V001843:post-smoke-nas-file-persistence"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T202734Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T202734Z.md"
+    }
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T202634Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T202634Z.md"
+  }
+}

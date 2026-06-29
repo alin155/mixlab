@@ -1,0 +1,13 @@
+{"at":"2026-06-29T20:32:59.144Z","stage":"starting","message":"Run accepted."}
+{"at":"2026-06-29T20:32:59.177Z","stage":"running","message":"Running suite windows_acceptance."}
+{"at":"2026-06-29T20:32:59.252Z","stage":"api_already_ready","message":"Cutter API is already ready before app launch."}
+{"at":"2026-06-29T20:32:59.322Z","stage":"app_runtime_auth","message":"Checking desktop auth mode."}
+{"at":"2026-06-29T20:32:59.386Z","stage":"app_runtime_status","message":"Reading cutter runtime status."}
+{"at":"2026-06-29T20:32:59.783Z","stage":"app_runtime_source_library","message":"Reading public source library first page."}
+{"at":"2026-06-29T20:32:59.838Z","stage":"real_data_source_library","message":"Reading public source library."}
+{"at":"2026-06-29T20:32:59.899Z","stage":"real_data_search","message":"Searching public source library: 第一场"}
+{"at":"2026-06-29T20:32:59.963Z","stage":"real_data_detail","message":"Reading selected source video full transcript.","details":{"source_video_id":"V010574"}}
+{"at":"2026-06-29T20:33:00.046Z","stage":"real_data_cut_jobs","message":"Reading cut job queue."}
+{"at":"2026-06-29T20:33:00.102Z","stage":"cache_runtime_status","message":"Reading cache status from cutter runtime."}
+{"at":"2026-06-29T20:33:00.161Z","stage":"writing_report","message":"Writing report."}
+{"at":"2026-06-29T20:33:00.305Z","stage":"passed","message":"Run passed."}

@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T20:09:55.232Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-maintenance-window-smoke",
+  "execution_mode": "execute",
+  "status": "failed",
+  "mutates_nas_files": true,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "source_video_ids": [
+      "V005615",
+      "V002357",
+      "V001843",
+      "V005166",
+      "V002985",
+      "V006161",
+      "V005104",
+      "V006260",
+      "V005167",
+      "V006278",
+      "V006180",
+      "V006276",
+      "V006160",
+      "V006185",
+      "V006277",
+      "V006183",
+      "V006176",
+      "V006158",
+      "V006194",
+      "V006191",
+      "V006178",
+      "V002428",
+      "V002049",
+      "V002054",
+      "V002089"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "batch_size": 5,
+    "max_batches": 5,
+    "stop_on_failure": true,
+    "session_token_present": true
+  },
+  "allowed_write_boundary": {
+    "execute_requested": true,
+    "allowed_post_paths": [
+      "/api/admin/preprocess/supervisor/start"
+    ],
+    "publish_allowed": false,
+    "docker_deploy_allowed": false,
+    "automatic_worker_allowed": false
+  },
+  "summary": {
+    "requested_count": 25,
+    "attempted_batches": 1,
+    "passed_batches": 0,
+    "failed_batches": 1,
+    "stopped_on_failure": true,
+    "blockers": [
+      "batch-1:V005615:post-smoke-nas-file-persistence"
+    ]
+  },
+  "batches": [
+    {
+      "batch_index": 1,
+      "source_video_ids": [
+        "V005615",
+        "V002357",
+        "V001843",
+        "V005166",
+        "V002985"
+      ],
+      "status": "failed",
+      "before": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 884,
+        "processing_video_count": 0,
+        "index_required_video_count": 39,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T19:43:38.116Z"
+      },
+      "after": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 883,
+        "processing_video_count": 0,
+        "index_required_video_count": 40,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T20:10:03.348Z"
+      },
+      "blockers": [
+        "batch-1:V005615:post-smoke-nas-file-persistence"
+      ],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T201055Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T201055Z.md"
+    }
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T200955Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T200955Z.md"
+  }
+}
