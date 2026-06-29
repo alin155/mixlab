@@ -79,6 +79,7 @@ export interface AdminDockerStagingRunbookReport {
     github_candidate_image_tag: string;
     github_candidate_build_sha: string;
     target_tag_matches_local_smoke: boolean;
+    target_tag_matches_github_candidate: boolean;
     target_tag_matches_smoked_image: boolean;
     parity_status: string;
     docker_image_update_required: boolean | null;
@@ -366,19 +367,23 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const githubCandidateImageTag = asString(githubObservations.local_smoke_image_tag);
   const githubCandidateBuildSha = asString(githubObservations.local_smoke_build_sha);
   const candidateSmokeAccepted = localSmokePassed === true || githubCandidateArtifactReady === true;
-  const acceptedSmokeIdentity: BuildIdentity = localSmokePassed === true
-    ? localSmokeBuildIdentity
-    : {
-      image_tag: githubCandidateImageTag,
-      build_sha: githubCandidateBuildSha,
-      build_version: "",
-      mvp_mode: ""
-    };
-  const targetMatchesSmokedImage = Boolean(
+  const acceptedSmokeTags = [
+    localSmokePassed === true ? localSmokeBuildIdentity.image_tag : "",
+    githubCandidateArtifactReady === true ? githubCandidateImageTag : ""
+  ].filter(Boolean);
+  const targetMatchesLocalSmoke = Boolean(
     target &&
-    acceptedSmokeIdentity.image_tag &&
-    target === acceptedSmokeIdentity.image_tag
+    localSmokePassed === true &&
+    localSmokeBuildIdentity.image_tag &&
+    target === localSmokeBuildIdentity.image_tag
   );
+  const targetMatchesGithubCandidate = Boolean(
+    target &&
+    githubCandidateArtifactReady === true &&
+    githubCandidateImageTag &&
+    target === githubCandidateImageTag
+  );
+  const targetMatchesSmokedImage = targetMatchesLocalSmoke || targetMatchesGithubCandidate;
   const parityDecision = asRecord(asRecord(input.parity_plan_report).decision);
   const parityResult = asRecord(input.parity_plan_report).result;
   const candidateResult = asRecord(input.candidate_contract_proof_report).result;
@@ -481,7 +486,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       category: "evidence",
       status: candidateSmokeAccepted ? "pass" : "blocked",
       evidence: candidateSmokeAccepted
-        ? `local_smoke_passed=${String(localSmokePassed)}, github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}, image_tag=${acceptedSmokeIdentity.image_tag || "missing"}`
+        ? `local_smoke_passed=${String(localSmokePassed)}, github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}, image_tags=${acceptedSmokeTags.join(", ") || "missing"}`
         : `local smoke blockers: ${localSmokeBlockers.join(", ") || "unknown"}; github_candidate_artifact_ready=${String(githubCandidateArtifactReady)}`,
       blocks_staging_execution: !candidateSmokeAccepted,
       blocks_staging: !candidateSmokeAccepted,
@@ -492,7 +497,7 @@ export function buildAdminDockerStagingRunbookReport(input: {
       title: "Target image tag matches the smoked build",
       category: "input",
       status: targetMatchesSmokedImage ? "pass" : "blocked",
-      evidence: `target=${target || "missing"}, smoked_image_tag=${acceptedSmokeIdentity.image_tag || "missing"}`,
+      evidence: `target=${target || "missing"}, smoked_image_tags=${acceptedSmokeTags.join(", ") || "missing"}`,
       blocks_staging_execution: !targetMatchesSmokedImage,
       blocks_staging: !targetMatchesSmokedImage,
       required_evidence: "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact image tag from the accepted local smoke or GitHub candidate artifact."
@@ -694,7 +699,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
       github_staging_handoff_ready: githubStagingHandoffReady,
       github_candidate_image_tag: githubCandidateImageTag,
       github_candidate_build_sha: githubCandidateBuildSha,
-      target_tag_matches_local_smoke: targetMatchesSmokedImage,
+      target_tag_matches_local_smoke: targetMatchesLocalSmoke,
+      target_tag_matches_github_candidate: targetMatchesGithubCandidate,
       target_tag_matches_smoked_image: targetMatchesSmokedImage,
       parity_status: asString(parityResult.status),
       docker_image_update_required: updateRequired,

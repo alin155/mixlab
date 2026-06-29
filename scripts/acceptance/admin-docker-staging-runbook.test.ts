@@ -354,11 +354,45 @@ test("admin Docker staging runbook accepts GitHub candidate artifact when Mac lo
   assert.equal(report.observations.github_candidate_contract_ready, true);
   assert.equal(report.observations.github_candidate_image_tag, TARGET_SHA);
   assert.equal(report.observations.github_candidate_build_sha, TARGET_SHA);
+  assert.equal(report.observations.target_tag_matches_local_smoke, false);
+  assert.equal(report.observations.target_tag_matches_github_candidate, true);
   assert.equal(report.observations.target_tag_matches_smoked_image, true);
   assert.equal(report.sources.github_artifact_readiness_report, "github-artifact.json");
   assert.ok(!report.summary.staging_blockers.includes("local-docker-smoke-passed"));
   assert.ok(!report.summary.staging_blockers.includes("target-tag-matches-smoked-image"));
   assert.ok(!report.summary.staging_blockers.includes("candidate-contract-proof-accepted"));
+});
+
+test("admin Docker staging runbook accepts current GitHub candidate when older local smoke also exists", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-28T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport("older-local-smoke-tag"),
+    github_artifact_readiness_report_path: "github-artifact.json",
+    github_artifact_readiness_report: readyGithubArtifactReadiness(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: clearParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: blockedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: acceptedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: acceptedCutterProof(),
+    current_image_tag: "old-tag",
+    target_image_tag: TARGET_SHA,
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.staging_execution_ready, true);
+  assert.equal(report.staging_review_ready, true);
+  assert.equal(report.observations.local_smoke_passed, true);
+  assert.equal(report.observations.github_candidate_artifact_ready, true);
+  assert.equal(report.observations.target_tag_matches_local_smoke, false);
+  assert.equal(report.observations.target_tag_matches_github_candidate, true);
+  assert.equal(report.observations.target_tag_matches_smoked_image, true);
+  assert.ok(!report.summary.staging_blockers.includes("target-tag-matches-smoked-image"));
 });
 
 test("admin Docker staging runbook carries NAS disk risk from release inputs", () => {
