@@ -1,0 +1,248 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T01:13:12.670Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-access-preflight.ts",
+  "mode": "admin-docker-nas-access-preflight",
+  "target": {
+    "nas_host": "192.168.1.27",
+    "smb_root": "/Volumes/MixLab",
+    "handoff_bundle_dir": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest"
+  },
+  "no_side_effects": true,
+  "nas_collection_directly_available": true,
+  "staging_review_ready": false,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "ports": [
+      {
+        "port": 22,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:22"
+      },
+      {
+        "port": 5000,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:5000"
+      },
+      {
+        "port": 5001,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:5001"
+      },
+      {
+        "port": 2375,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:2375"
+      },
+      {
+        "port": 2376,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:2376"
+      },
+      {
+        "port": 8080,
+        "status": "closed",
+        "error": "connect ECONNREFUSED 192.168.1.27:8080"
+      },
+      {
+        "port": 18080,
+        "status": "open",
+        "error": ""
+      },
+      {
+        "port": 9999,
+        "status": "open",
+        "error": ""
+      }
+    ],
+    "http": [
+      {
+        "url": "http://192.168.1.27:18080/",
+        "status": "ok",
+        "http_status": 200,
+        "content_type": "text/html",
+        "error": ""
+      },
+      {
+        "url": "http://192.168.1.27:8080/",
+        "status": "error",
+        "http_status": null,
+        "content_type": "",
+        "error": "fetch failed"
+      },
+      {
+        "url": "http://192.168.1.27:9999/desktop/",
+        "status": "ok",
+        "http_status": 200,
+        "content_type": "text/html",
+        "error": ""
+      }
+    ],
+    "smb_root": {
+      "path": "/Volumes/MixLab",
+      "present": false,
+      "is_directory": false,
+      "top_level_dirs": []
+    },
+    "handoff_bundle": {
+      "path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest",
+      "present": true,
+      "is_directory": true,
+      "required_files": [
+        "README.md",
+        "OPERATOR-CHECKLIST.md",
+        "MANIFEST.json",
+        "nas/RUN_ON_NAS.sh",
+        "nas/admin-docker-nas-release-inputs-collector.sh",
+        "local/install-nas-runner.sh",
+        "local/validate-returned-evidence.sh"
+      ],
+      "missing_files": [],
+      "candidate_sha": "4cb5b18262e49894d4272b0fc940be6c1d2102b4",
+      "candidate_release_ref": "admin-docker-candidate-4cb5b18262e49894d4272b0fc940be6c1d2102b4"
+    },
+    "ugos_preflight": {
+      "path": "docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T225530Z.json",
+      "present": true,
+      "status": "browserless-collection-ready",
+      "direct_ugos_collection_available": true,
+      "browserless_collection_blockers": []
+    },
+    "compose_candidates": [],
+    "handoff_transfer_candidates": [],
+    "returned_evidence_candidates": [],
+    "scan_limits": {
+      "max_depth": 5,
+      "max_entries": 2000,
+      "pruned_dirs": [
+        "PublicLibrary",
+        "#recycle"
+      ]
+    }
+  },
+  "gates": [
+    {
+      "id": "preflight-no-side-effects",
+      "title": "NAS access preflight is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "Only TCP connect, HTTP HEAD, and bounded SMB directory metadata reads are used.",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false
+    },
+    {
+      "id": "nas-desktop-or-legacy-admin-reachable",
+      "title": "NAS host is reachable from Mac",
+      "category": "network",
+      "status": "pass",
+      "evidence": "9999=open, 18080=open",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": true,
+      "required_evidence": "At least one NAS management or existing Admin endpoint should be reachable before staging review."
+    },
+    {
+      "id": "ssh-access-available",
+      "title": "SSH path is available for NAS collector",
+      "category": "network",
+      "status": "blocked",
+      "evidence": "port 22 is closed",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false,
+      "required_evidence": "Open a temporary SSH path or use the NAS desktop/local shell to run the collector."
+    },
+    {
+      "id": "smb-root-mounted",
+      "title": "NAS SMB share is mounted on Mac",
+      "category": "smb",
+      "status": "blocked",
+      "evidence": "/Volumes/MixLab is not mounted",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false,
+      "required_evidence": "Mount the NAS share if using SMB to transfer handoff or returned evidence."
+    },
+    {
+      "id": "handoff-bundle-ready",
+      "title": "Local NAS handoff bundle is complete",
+      "category": "handoff",
+      "status": "pass",
+      "evidence": "candidate=4cb5b18262e49894d4272b0fc940be6c1d2102b4, ref=admin-docker-candidate-4cb5b18262e49894d4272b0fc940be6c1d2102b4",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false,
+      "required_evidence": "Regenerate prepare:admin-docker-nas-release-inputs-handoff and require README, operator checklist, MANIFEST, NAS runner, collector, installer, and local validator."
+    },
+    {
+      "id": "handoff-transfer-visible-on-smb",
+      "title": "NAS SMB handoff archive is visible",
+      "category": "handoff",
+      "status": "blocked",
+      "evidence": "No admin-docker-nas-handoff-kit.tar.gz was found outside PublicLibrary/#recycle.",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false,
+      "required_evidence": "Run transfer:admin-docker-nas-handoff-kit to place the portable archive in the NAS handoff share."
+    },
+    {
+      "id": "compose-project-visible-on-smb",
+      "title": "NAS Compose project is visible on mounted share",
+      "category": "smb",
+      "status": "blocked",
+      "evidence": "No compose file found outside PublicLibrary/#recycle within bounded scan.",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": false,
+      "required_evidence": "Mount or locate the NAS Compose project folder containing docker-compose.yml and .env."
+    },
+    {
+      "id": "returned-evidence-visible",
+      "title": "Returned admin-docker-release-inputs evidence is visible",
+      "category": "returned-evidence",
+      "status": "blocked",
+      "evidence": "No returned evidence files or admin-docker-release-inputs directory found outside PublicLibrary/#recycle.",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": true,
+      "required_evidence": "Run the NAS collector and copy admin-docker-release-inputs/ back to the Mac repo."
+    },
+    {
+      "id": "ugos-browserless-collection-ready",
+      "title": "UGOS browserless Docker evidence path is ready",
+      "category": "ugos",
+      "status": "pass",
+      "evidence": "status=browserless-collection-ready, direct_ugos_collection_available=true, blockers=none, path=docs/acceptance/artifacts/admin-docker-nas-ugos-api-preflight-20260628T225530Z.json",
+      "blocks_nas_collection": true,
+      "blocks_staging_review": false,
+      "required_evidence": "Run preflight:admin-docker-nas-ugos-api with authenticated in-memory credentials or a temporary auth header until direct_ugos_collection_available=true."
+    },
+    {
+      "id": "staging-admin-port-reachable",
+      "title": "Candidate Admin Web staging port is reachable",
+      "category": "staging-target",
+      "status": "blocked",
+      "evidence": "port 8080 is closed",
+      "blocks_nas_collection": false,
+      "blocks_staging_review": true,
+      "required_evidence": "After staging, the configured Admin Web port must be reachable and expose current Admin API endpoints."
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 4,
+    "blocked": 6,
+    "nas_collection_blockers": [],
+    "staging_review_blockers": [
+      "returned-evidence-visible",
+      "staging-admin-port-reachable"
+    ]
+  },
+  "next_actions": [
+    "Use collect:admin-docker-nas-ugos-returned-evidence to generate sanitized admin-docker-release-inputs/ directly from UGOS Docker read-only APIs.",
+    "Copy or point to the generated admin-docker-release-inputs/ folder in the Mac repo.",
+    "Run sh docs/acceptance/artifacts/admin-docker-nas-release-inputs-handoff-latest/local/validate-returned-evidence.sh <copied-admin-docker-release-inputs-dir>."
+  ],
+  "result": {
+    "status": "ready-for-nas-collection",
+    "summary": "A NAS evidence collection path is visible; run the collector or browserless UGOS returned-evidence flow and validate returned evidence."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260629T011312Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260629T011312Z.md"
+  }
+}
