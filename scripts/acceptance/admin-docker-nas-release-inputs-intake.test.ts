@@ -460,6 +460,9 @@ test("NAS release-inputs intake runs returned evidence precheck before proof gen
   assert.ok(report.observations.returned_precheck_issues.some((issue) => issue.includes("inspect-env-present")));
   assert.equal(report.generated_reports.nas_image_proof_report, "");
   assert.equal(report.generated_reports.release_inputs_report, "");
+  const markdown = await readFile(report.artifacts?.markdown_path ?? "", "utf8");
+  assert.match(markdown, /Returned evidence is present but failed precheck/);
+  assert.doesNotMatch(markdown, /Returned NAS evidence has already passed intake precheck/);
 });
 
 test("NAS release-inputs intake consumes returned proofs without approving push or deploy", async () => {
@@ -598,6 +601,8 @@ test("NAS release-inputs intake supports legacy latest exception only after rele
   assert.equal(blocked.observations.legacy_rollback_exception_accepted, false);
   assert.ok(blocked.observations.release_input_blockers.includes("legacy-rollback-exception-approved"));
   assert.ok(blocked.summary.release_input_blockers.includes("nas-image-proof-accepted"));
+  assert.ok(blocked.next_actions.includes("Returned NAS evidence has already passed intake precheck; do not recollect it just to clear unrelated proof blockers."));
+  assert.equal(blocked.next_actions.some((item) => item.includes("If returned evidence is missing")), false);
 
   const approved = await runAdminDockerNasReleaseInputsIntake({
     returned_dir: returnedDir,

@@ -268,10 +268,21 @@ function missingReturnedFiles(files: ReturnedFileObservation[]): string[] {
 
 function nextActions(report: AdminDockerNasReleaseInputsIntakeReport): string[] {
   if (!report.intake_complete) {
+    const returnedEvidenceMissing =
+      report.summary.intake_blockers.includes("returned-dir-provided")
+      || report.summary.intake_blockers.includes("returned-files-complete");
+    const returnedEvidencePrecheckFailed =
+      report.summary.intake_blockers.includes("returned-evidence-precheck-passed");
+    const returnedEvidenceAction = returnedEvidenceMissing
+      ? "If returned evidence is missing, rerun the NAS collector from the Compose project folder and copy admin-docker-release-inputs/ back to the Mac repo."
+      : returnedEvidencePrecheckFailed
+        ? "Returned evidence is present but failed precheck; fix the sanitized returned bundle or rerun the NAS collector before clearing downstream proof blockers."
+        : "Returned NAS evidence has already passed intake precheck; do not recollect it just to clear unrelated proof blockers.";
+
     return [
       "Keep push_images=false and do not edit NAS .env.",
       `Resolve intake blockers: ${report.summary.intake_blockers.join(", ") || "unknown"}.`,
-      "If returned evidence is missing, rerun the NAS collector from the Compose project folder and copy admin-docker-release-inputs/ back to the Mac repo."
+      returnedEvidenceAction
     ];
   }
 
