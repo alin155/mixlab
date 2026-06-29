@@ -335,6 +335,21 @@ function readyRunbook(): unknown {
   };
 }
 
+function readyPushDecisionPackage(): unknown {
+  return {
+    push_decision_package_ready: true,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    release_decision_required: true,
+    result: { status: "ready-for-external-release-decision" },
+    summary: {
+      package_blockers: [],
+      push_execution_blockers: ["external-release-decision-required"],
+      docker_deploy_blockers: ["external-release-decision-required"]
+    }
+  };
+}
+
 function reportInput(overrides: Partial<Parameters<typeof buildAdminDockerReleaseReadinessSummaryReport>[0]> = {}) {
   return {
     generated_at: "2026-06-26T00:00:00.000Z",
@@ -410,6 +425,27 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(!report.summary.release_review_blockers.includes("cutter-staged-proof-plan-ready"));
   assert.ok(report.next_actions.some((item) => item.includes("prepared staged Cutter proof plan")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-candidate-contract-proof")));
+});
+
+test("admin Docker release readiness summary records the prepared push decision package without approving upload", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    github_artifact_readiness_report: readyGithubArtifactReadiness(),
+    release_inputs_intake_report: readyReleaseInputsIntake(),
+    push_decision_package_report_path: "push-decision.json",
+    push_decision_package_report: readyPushDecisionPackage()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.equal(report.docker_upload_allowed, false);
+  assert.equal(report.sources.push_decision_package_report, "push-decision.json");
+  assert.equal(report.observations.push_decision_package_ready, true);
+  assert.equal(report.observations.push_decision_push_allowed, false);
+  assert.equal(report.observations.push_decision_deploy_allowed, false);
+  assert.ok(!report.summary.release_review_blockers.includes("push-decision-package-prepared"));
+  assert.ok(report.summary.release_review_blockers.includes("staging-runbook-ready"));
+  assert.ok(report.next_actions.some((item) => item.includes("push decision package")));
+  assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("push decision package")));
+  assert.match(toMarkdown(report), /Push decision package ready: true/);
 });
 
 test("admin Docker release readiness summary records missing staged Cutter plan without clearing final proof", () => {
@@ -539,6 +575,28 @@ test("admin Docker release readiness summary blocks if GitHub artifact tries to 
 
   assert.equal(report.release_review_ready, false);
   assert.ok(report.summary.release_review_blockers.includes("summary-does-not-approve-upload"));
+});
+
+test("admin Docker release readiness summary blocks if push decision package tries to approve upload", () => {
+  const unsafePackage = {
+    ...readyPushDecisionPackage() as Record<string, unknown>,
+    push_execution_allowed: true
+  };
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    local_docker_smoke_report: passedLocalSmokeReport(),
+    live_readonly_report: clearLiveReport(),
+    parity_plan_report: clearParityReport(),
+    worker_env_proof_report: acceptedProof(),
+    cutter_compatibility_proof_report: acceptedProof(),
+    release_inputs_intake_report: readyReleaseInputsIntake(),
+    staging_runbook_report: readyRunbook(),
+    push_decision_package_report_path: "push-decision.json",
+    push_decision_package_report: unsafePackage
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("summary-does-not-approve-upload"));
+  assert.match(toMarkdown(report), /push_allowed=true/);
 });
 
 test("admin Docker release readiness summary blocks old intake artifacts without returned precheck proof", () => {

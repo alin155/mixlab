@@ -16,6 +16,7 @@ type ReadinessCategory =
   | "parity"
   | "worker"
   | "cutter"
+  | "release-decision"
   | "runbook";
 
 interface ReadinessGate {
@@ -60,6 +61,7 @@ interface ReadinessSources {
   nas_access_preflight_report: string;
   nas_handoff_kit_report: string;
   staging_runbook_report: string;
+  push_decision_package_report: string;
 }
 
 export interface AdminDockerReleaseReadinessSummaryReport {
@@ -111,6 +113,11 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     nas_handoff_kit_blockers: string[];
     nas_handoff_kit_archive_path: string;
     nas_handoff_kit_archive_sha256: string;
+    push_decision_package_status: string;
+    push_decision_package_ready: boolean | null;
+    push_decision_package_blockers: string[];
+    push_decision_push_allowed: boolean | null;
+    push_decision_deploy_allowed: boolean | null;
     staging_status: string;
     staging_review_ready: boolean | null;
     staging_blockers: string[];
@@ -284,6 +291,8 @@ function nextActions(input: {
   handoffKitArchivePath: string;
   handoffKitArchiveSha256: string;
   handoffKitBlockers: string[];
+  pushDecisionPackageReady: boolean | null;
+  pushDecisionPackageBlockers: string[];
 }): string[] {
   const actions: string[] = [];
 
@@ -357,7 +366,11 @@ function nextActions(input: {
   }
 
   if (input.stagingBlockers.includes("image-push-explicitly-approved")) {
-    actions.push("Run the Admin Docker GitHub workflow manually with push_images=true after candidate smoke evidence is green, then set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true for the staging runbook.");
+    if (input.pushDecisionPackageReady) {
+      actions.push("Have the release owner review the prepared Admin Docker push decision package; only after explicit approval, run its exact push_images=true workflow command and then set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true for the staging runbook.");
+    } else {
+      actions.push(`Prepare or repair the Admin Docker push decision package before any push_images=true decision. Current package blockers: ${input.pushDecisionPackageBlockers.join(", ") || "unknown"}.`);
+    }
   }
 
   if (input.stagingBlockers.includes("target-tag-matches-smoked-image")) {
@@ -389,6 +402,7 @@ function buildAutomationBoundary(input: {
   handoffKitReady: boolean | null;
   stagingBlockers: string[];
   candidateSmokeAccepted: boolean;
+  pushDecisionPackageReady: boolean | null;
 }): AutomationBoundary {
   const reasons = new Set<string>();
   const safeActions = new Set<string>();
@@ -421,7 +435,9 @@ function buildAutomationBoundary(input: {
     reasons.add("Cutter compatibility proof must be collected against a staged candidate before final MVP acceptance.");
   }
 
-  if (!input.releaseInputsIntakeComplete || !input.releaseInputsReady) {
+  if (!input.releaseInputsIntakeComplete && input.releaseInputsReady) {
+    reasons.add("NAS returned evidence intake is not complete for final release review, although release inputs are ready.");
+  } else if (!input.releaseInputsIntakeComplete || !input.releaseInputsReady) {
     reasons.add("NAS returned evidence and release inputs are not ready for a release decision.");
   }
 
@@ -433,6 +449,10 @@ function buildAutomationBoundary(input: {
     safeActions.add("Refresh read-only evidence summaries, release-readiness summaries, and documentation from archived artifacts.");
   } else {
     safeActions.add("Refresh Docker candidate smoke evidence on a Docker-capable runner before any staging decision.");
+  }
+
+  if (input.stagingBlockers.includes("image-push-explicitly-approved") && input.pushDecisionPackageReady) {
+    safeActions.add("Use the prepared push decision package as the release-owner review handoff; it does not approve image push by itself.");
   }
 
   if (input.handoffKitReady && !input.releaseInputsIntakeComplete) {
@@ -497,6 +517,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   nas_handoff_kit_report: unknown;
   staging_runbook_report_path: string;
   staging_runbook_report: unknown;
+  push_decision_package_report_path?: string;
+  push_decision_package_report?: unknown;
 }): AdminDockerReleaseReadinessSummaryReport {
   const localSmokeBlockers = summaryBlockers(input.local_docker_smoke_report, "local_smoke_blockers");
   const liveBlockers = summaryBlockers(input.live_readonly_report);
@@ -547,6 +569,13 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const stagingReviewReady = asBoolean(asRecord(input.staging_runbook_report).staging_review_ready);
   const stagingObservations = asRecord(asRecord(input.staging_runbook_report).observations);
   const dockerDeployAllowed = asBoolean(asRecord(input.staging_runbook_report).docker_deploy_allowed);
+  const pushDecisionPackage = asRecord(input.push_decision_package_report);
+  const pushDecisionPackageReady = asBoolean(pushDecisionPackage.push_decision_package_ready);
+  const pushDecisionPushAllowed = asBoolean(pushDecisionPackage.push_execution_allowed);
+  const pushDecisionDeployAllowed = asBoolean(pushDecisionPackage.docker_deploy_allowed);
+  const pushDecisionPackageBlockers = summaryBlockers(pushDecisionPackage, "package_blockers");
+  const pushDecisionSourceIsSafe = !input.push_decision_package_report_path ||
+    (pushDecisionPushAllowed === false && pushDecisionDeployAllowed === false);
   const candidateSmokeAccepted = localSmokePassed === true || githubCandidateArtifactReady === true;
   const gates = [
     gate({
@@ -667,6 +696,17 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       required_evidence: "Regenerate the staging runbook after explicit tags and evidence gates are satisfied."
     }),
     gate({
+      id: "push-decision-package-prepared",
+      title: "Push decision package is prepared when image push is the remaining staging execution blocker",
+      category: "release-decision",
+      status: !input.push_decision_package_report_path || pushDecisionPackageReady ? "pass" : "blocked",
+      evidence: input.push_decision_package_report_path
+        ? `push_decision_package_ready=${String(pushDecisionPackageReady)}, blockers=${pushDecisionPackageBlockers.join(", ") || "none"}`
+        : "push decision package not provided",
+      blocks_release_review: false,
+      required_evidence: "Generate prepare:admin-docker-push-decision-package before asking a release owner to review push_images=true."
+    }),
+    gate({
       id: "summary-does-not-approve-upload",
       title: "Summary does not approve Docker upload by itself",
       category: "safety",
@@ -678,9 +718,10 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
         && nasAccessDeployAllowed === false
         && handoffKitPushAllowed === false
         && handoffKitDeployAllowed === false
+        && pushDecisionSourceIsSafe
         ? "pass"
         : "blocked",
-      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}, github_artifact.docker_deploy_allowed=${githubArtifactDeployAllowed ?? "unknown"}, nas_access.push_execution_allowed=${nasAccessPushAllowed ?? "unknown"}, nas_access.docker_deploy_allowed=${nasAccessDeployAllowed ?? "unknown"}, handoff_kit.push_execution_allowed=${handoffKitPushAllowed ?? "unknown"}, handoff_kit.docker_deploy_allowed=${handoffKitDeployAllowed ?? "unknown"}`,
+      evidence: `staging_runbook.docker_deploy_allowed=${dockerDeployAllowed ?? "unknown"}, release_inputs_intake.push_execution_allowed=${releaseInputsPushAllowed ?? "unknown"}, release_inputs_intake.docker_deploy_allowed=${releaseInputsDeployAllowed ?? "unknown"}, github_artifact.docker_deploy_allowed=${githubArtifactDeployAllowed ?? "unknown"}, nas_access.push_execution_allowed=${nasAccessPushAllowed ?? "unknown"}, nas_access.docker_deploy_allowed=${nasAccessDeployAllowed ?? "unknown"}, handoff_kit.push_execution_allowed=${handoffKitPushAllowed ?? "unknown"}, handoff_kit.docker_deploy_allowed=${handoffKitDeployAllowed ?? "unknown"}, push_decision.push_execution_allowed=${pushDecisionPushAllowed ?? "not-provided"}, push_decision.docker_deploy_allowed=${pushDecisionDeployAllowed ?? "not-provided"}`,
       blocks_release_review: dockerDeployAllowed !== false
         || releaseInputsPushAllowed !== false
         || releaseInputsDeployAllowed !== false
@@ -688,7 +729,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
         || nasAccessPushAllowed !== false
         || nasAccessDeployAllowed !== false
         || handoffKitPushAllowed !== false
-        || handoffKitDeployAllowed !== false,
+        || handoffKitDeployAllowed !== false
+        || !pushDecisionSourceIsSafe,
       required_evidence: "Docker upload must remain a separate release decision even when evidence gates are ready."
     })
   ];
@@ -707,7 +749,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     nasCollectionBlockers,
     handoffKitReady,
     stagingBlockers,
-    candidateSmokeAccepted
+    candidateSmokeAccepted,
+    pushDecisionPackageReady
   });
 
   return {
@@ -726,7 +769,8 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       release_inputs_intake_report: input.release_inputs_intake_report_path,
       nas_access_preflight_report: input.nas_access_preflight_report_path,
       nas_handoff_kit_report: input.nas_handoff_kit_report_path,
-      staging_runbook_report: input.staging_runbook_report_path
+      staging_runbook_report: input.staging_runbook_report_path,
+      push_decision_package_report: input.push_decision_package_report_path ?? ""
     },
     release_review_ready: releaseReviewReady,
     docker_upload_allowed: false,
@@ -771,6 +815,11 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       nas_handoff_kit_blockers: handoffKitBlockers,
       nas_handoff_kit_archive_path: handoffKitArchivePath,
       nas_handoff_kit_archive_sha256: handoffKitArchiveSha256,
+      push_decision_package_status: resultStatus(pushDecisionPackage),
+      push_decision_package_ready: pushDecisionPackageReady,
+      push_decision_package_blockers: pushDecisionPackageBlockers,
+      push_decision_push_allowed: pushDecisionPushAllowed,
+      push_decision_deploy_allowed: pushDecisionDeployAllowed,
       staging_status: resultStatus(input.staging_runbook_report),
       staging_review_ready: stagingReviewReady,
       staging_blockers: stagingBlockers,
@@ -812,7 +861,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       handoffKitReady,
       handoffKitArchivePath,
       handoffKitArchiveSha256,
-      handoffKitBlockers
+      handoffKitBlockers,
+      pushDecisionPackageReady,
+      pushDecisionPackageBlockers
     }),
     artifacts: null
   };
@@ -847,6 +898,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- NAS access preflight: ${report.sources.nas_access_preflight_report}`,
     `- NAS handoff kit: ${report.sources.nas_handoff_kit_report}`,
     `- Staging runbook: ${report.sources.staging_runbook_report}`,
+    `- Push decision package: ${report.sources.push_decision_package_report}`,
     "",
     "## Observations",
     "",
@@ -863,6 +915,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- NAS collection directly available: ${report.observations.nas_collection_directly_available ?? "unknown"}; blockers: ${report.observations.nas_collection_blockers.join(", ") || "none"}`,
     `- NAS access staging blockers: ${report.observations.nas_access_staging_review_blockers.join(", ") || "none"}`,
     `- NAS handoff kit ready: ${report.observations.nas_handoff_kit_ready ?? "unknown"}; archive: ${report.observations.nas_handoff_kit_archive_path || "none"}; sha256=${report.observations.nas_handoff_kit_archive_sha256 || "none"}; blockers: ${report.observations.nas_handoff_kit_blockers.join(", ") || "none"}`,
+    `- Push decision package ready: ${report.observations.push_decision_package_ready ?? "unknown"}; blockers: ${report.observations.push_decision_package_blockers.join(", ") || "none"}; push_allowed=${report.observations.push_decision_push_allowed ?? "unknown"}; deploy_allowed=${report.observations.push_decision_deploy_allowed ?? "unknown"}`,
     `- Staging ready: ${report.observations.staging_review_ready ?? "unknown"}; blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
     `- Unresolved parity blockers: ${report.observations.unresolved_parity_blockers.join(", ") || "none"}`,
     `- Resolved external parity blockers: ${report.observations.resolved_external_parity_blockers.join(", ") || "none"}`,
@@ -939,6 +992,8 @@ async function main(): Promise<void> {
     ?? await optionalFile(path.join(artifactDir, "admin-docker-nas-handoff-kit-latest.json"));
   const runbookPath = process.env.MIXLAB_DOCKER_STAGING_RUNBOOK_REPORT
     ?? await latestArtifact(artifactDir, "admin-docker-staging-runbook-");
+  const pushDecisionPackagePath = process.env.MIXLAB_ADMIN_DOCKER_PUSH_DECISION_PACKAGE_REPORT
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-push-decision-package-");
   const timestamp = timestampForFile();
   const jsonPath = path.join(outputDir, `admin-docker-release-readiness-summary-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-docker-release-readiness-summary-${timestamp}.md`);
@@ -966,7 +1021,9 @@ async function main(): Promise<void> {
     nas_handoff_kit_report_path: nasHandoffKitPath,
     nas_handoff_kit_report: nasHandoffKitPath ? await loadJson(nasHandoffKitPath) : {},
     staging_runbook_report_path: runbookPath,
-    staging_runbook_report: await loadJson(runbookPath)
+    staging_runbook_report: await loadJson(runbookPath),
+    push_decision_package_report_path: pushDecisionPackagePath,
+    push_decision_package_report: pushDecisionPackagePath ? await loadJson(pushDecisionPackagePath) : {}
   });
   const reportWithArtifacts: AdminDockerReleaseReadinessSummaryReport = {
     ...report,
