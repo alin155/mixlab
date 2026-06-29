@@ -305,6 +305,48 @@ test("fails fast when DashScope returns a failed task status", async () => {
   );
 });
 
+test("converts DashScope no-valid-fragment results into an empty transcript", async () => {
+  const downloadedUrls: string[] = [];
+  const result = await runDashScopeRecordedAudioAsr({
+    api_key: "sk-test-secret",
+    model: "paraformer-v2",
+    source_video_id: "V000001",
+    file_url: "https://example.com/audio.mp3",
+    generated_at: "2026-05-02T00:00:00Z",
+    http: {
+      async requestJson(request) {
+        if (request.url === DASHSCOPE_TRANSCRIPTION_URL) {
+          return {
+            output: {
+              task_id: "task-123"
+            }
+          };
+        }
+
+        return {
+          output: {
+            task_status: "FAILED",
+            message: "SUCCESS_WITH_NO_VALID_FRAGMENT"
+          }
+        };
+      },
+      async getJson(url) {
+        downloadedUrls.push(url);
+        throw new Error("no-valid-fragment results should not download JSON");
+      }
+    }
+  });
+
+  assert.equal(result.task_id, "task-123");
+  assert.equal(result.transcription_url, "dashscope://no-valid-fragment/task-123");
+  assert.equal(result.transcript.source_video_id, "V000001");
+  assert.equal(result.transcript.full_text, "");
+  assert.equal(result.transcript.duration_ms, 0);
+  assert.deepEqual(result.transcript.segments, []);
+  assert.equal(result.srt, "");
+  assert.deepEqual(downloadedUrls, []);
+});
+
 test("rejects completed tasks without a transcription URL", async () => {
   await assert.rejects(
     () =>

@@ -294,6 +294,90 @@ test("supports DashScope temporary uploaders without caller-provided object keys
   assert.equal(result.audio_file_url, "oss://dashscope-instant/dir/audio.mp3");
 });
 
+test("writes empty text artifacts when DashScope reports no valid fragment", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const sourceVideoPath = path.join(libraryRoot, "source-videos", "花絮", "无可识别语音.mp4");
+  const downloadedUrls: string[] = [];
+
+  await mkdir(path.dirname(sourceVideoPath), { recursive: true });
+  await writeFile(sourceVideoPath, "fake-video");
+
+  const result = await runSourceVideoTextPreprocess({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    source_video_id: "V000001",
+    source_video_path: sourceVideoPath,
+    ffmpeg_path: "/bin/ffmpeg",
+    now: "2026-05-02T00:00:00Z",
+    command_runner: {
+      async run(_executable, args) {
+        const outputPath = args.at(-1);
+
+        if (!outputPath) {
+          throw new Error("missing output path");
+        }
+
+        await mkdir(path.dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, "fake-audio");
+      }
+    },
+    uploader: {
+      async uploadAsrAudio(input) {
+        return {
+          object_key: "dashscope-instant/dir/audio.mp3",
+          file_url: "oss://dashscope-instant/dir/audio.mp3",
+          url_mode: "dashscope-temporary-oss"
+        };
+      }
+    },
+    asr_http: {
+      async requestJson(request) {
+        if (request.url.endsWith("/transcription")) {
+          return {
+            output: {
+              task_id: "task-123"
+            }
+          };
+        }
+
+        return {
+          output: {
+            task_status: "FAILED",
+            message: "SUCCESS_WITH_NO_VALID_FRAGMENT"
+          }
+        };
+      },
+      async getJson(url) {
+        downloadedUrls.push(url);
+        throw new Error("no-valid-fragment results should not download JSON");
+      }
+    },
+    asr: {
+      api_key: "sk-test-secret",
+      model: "paraformer-v2"
+    }
+  });
+
+  assert.equal(result.segment_count, 0);
+  assert.equal(result.duration_ms, 0);
+  assert.equal(result.transcription_url, "dashscope://no-valid-fragment/task-123");
+  assert.equal(await readFile(path.join(libraryRoot, result.srt_path), "utf8"), "");
+  assert.deepEqual(
+    JSON.parse(await readFile(path.join(libraryRoot, result.transcript_path), "utf8")),
+    {
+      schema_version: "1.0",
+      source_video_id: "V000001",
+      provider: "dashscope",
+      model: "paraformer-v2",
+      generated_at: "2026-05-02T00:00:00Z",
+      duration_ms: 0,
+      full_text: "",
+      segments: []
+    }
+  );
+  assert.deepEqual(downloadedUrls, []);
+});
+
 test("uses audio/mp4 content type for m4a audio extraction", async () => {
   const libraryRoot = await makeLibraryRoot();
   const sourceVideoPath = path.join(libraryRoot, "source-videos", "课程", "老板现金流.mp4");

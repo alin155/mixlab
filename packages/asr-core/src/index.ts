@@ -673,6 +673,27 @@ function extractTaskMessage(response: DashScopeTaskResponse): string {
   return response.output?.message ?? response.message ?? "unknown error";
 }
 
+function isNoValidFragmentMessage(message: string): boolean {
+  return message.trim() === "SUCCESS_WITH_NO_VALID_FRAGMENT";
+}
+
+function emptyTranscriptArtifact(input: {
+  source_video_id: string;
+  model: string;
+  generated_at: string;
+}): MixlabTranscriptArtifact {
+  return {
+    schema_version: "1.0",
+    source_video_id: input.source_video_id,
+    provider: "dashscope",
+    model: input.model,
+    generated_at: input.generated_at,
+    duration_ms: 0,
+    full_text: "",
+    segments: []
+  };
+}
+
 function extractTranscriptionUrl(response: DashScopeTaskResponse): string | undefined {
   return response.output?.results?.find((result) => result.transcription_url)?.transcription_url;
 }
@@ -724,7 +745,24 @@ export async function runDashScopeRecordedAudioAsr(
     }
 
     if (status === "FAILED") {
-      throw new Error(`DashScope ASR task ${taskId} failed: ${extractTaskMessage(queryResponse)}`);
+      const message = extractTaskMessage(queryResponse);
+
+      if (isNoValidFragmentMessage(message)) {
+        const transcript = emptyTranscriptArtifact({
+          source_video_id: input.source_video_id,
+          model: input.model,
+          generated_at: input.generated_at
+        });
+
+        return {
+          task_id: taskId,
+          transcription_url: `dashscope://no-valid-fragment/${encodeURIComponent(taskId)}`,
+          transcript,
+          srt: buildSrtFromTranscriptArtifact(transcript)
+        };
+      }
+
+      throw new Error(`DashScope ASR task ${taskId} failed: ${message}`);
     }
 
     if (pollIntervalMs > 0 && attempt < maxPollAttempts - 1) {
