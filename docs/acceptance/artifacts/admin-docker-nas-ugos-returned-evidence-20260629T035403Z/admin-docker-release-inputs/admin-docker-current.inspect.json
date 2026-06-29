@@ -1,0 +1,29 @@
+[
+  {
+    "Name": "/mixlab-server-admin-api-1",
+    "Config": {
+      "Image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "Labels": {
+        "com.docker.compose.service": "admin-api"
+      }
+    }
+  },
+  {
+    "Name": "/mixlab-server-admin-web-1",
+    "Config": {
+      "Image": "ghcr.io/alin155/mixlab-admin-web:latest",
+      "Labels": {
+        "com.docker.compose.service": "admin-web"
+      }
+    }
+  },
+  {
+    "Name": "/mixlab-server-admin-worker-1",
+    "Config": {
+      "Image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+      "Labels": {
+        "com.docker.compose.service": "admin-worker"
+      }
+    }
+  }
+]
