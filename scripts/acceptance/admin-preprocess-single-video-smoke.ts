@@ -148,6 +148,9 @@ export interface AdminPreprocessSingleVideoSmokeReport {
   publish_allowed: false;
   docker_deploy_allowed: false;
   mutates_nas_files: boolean;
+  post_file_check_policy: {
+    allow_smb_stale_post_file_view: boolean;
+  };
   observed: {
     authenticated: boolean | null;
     library_root_before: string;
@@ -265,6 +268,13 @@ function parseExpectedReadyCount(value: string | undefined): number {
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 function getPath(root: unknown, parts: string[]): unknown {
@@ -1107,6 +1117,7 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
   expected_index_version: string;
   session_token_present: boolean;
   execute_requested: boolean;
+  allow_smb_stale_post_file_view: boolean;
   requests: SingleVideoSmokeRequestResult[];
   snapshot: SingleVideoSmokeSnapshot;
   post_file_check?: SingleVideoSmokePostFileCheck;
@@ -1135,7 +1146,9 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
   const authenticated = asBoolean(auth.authenticated);
   const readyBefore = readyCount(libraryBefore);
   const readyAfter = readyCount(libraryAfter);
+  const queuedBefore = asNumber(asRecord(libraryBefore).queued_video_count);
   const indexRequiredAfter = indexRequiredCount(libraryAfter);
+  const indexRequiredBefore = indexRequiredCount(libraryBefore);
   const indexBefore = currentIndexVersion(libraryBefore);
   const indexAfter = currentIndexVersion(libraryAfter);
   const rootBefore = libraryRoot(libraryBefore);
@@ -1213,13 +1226,38 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
     directReadyCount === input.expected_ready_count &&
     directProcessingCount === 0 &&
     directIndexRequiredCount === indexRequiredAfter;
+  const directVideoLooksLikeBeforeState = sourceStatusBefore === "queued" &&
+    directSourceStatus === sourceStatusBefore &&
+    directJobStatus === sourceStatusBefore;
+  const directLibraryLooksLikeBeforeState = directReadyCount === readyBefore &&
+    directProcessingCount === processingCount(libraryBefore) &&
+    directQueuedCount === queuedBefore &&
+    directIndexRequiredCount === indexRequiredBefore;
+  const directPostFileContainsNul = directSource.contains_nul === true ||
+    directJob.contains_nul === true ||
+    directLibrary.contains_nul === true;
+  const smbStalePostFileViewSuspected = input.allow_smb_stale_post_file_view &&
+    input.execute_requested &&
+    executionResultOk &&
+    postcheckOk &&
+    postFilesChecked &&
+    !directPostcheckOk &&
+    (
+      directPostFileContainsNul ||
+      (directVideoLooksLikeBeforeState && directLibraryLooksLikeBeforeState)
+    );
   const directPostcheckStatus: GateStatus = !input.execute_requested
     ? "needs-follow-up"
     : directPostcheckOk
       ? "pass"
+      : smbStalePostFileViewSuspected
+        ? "needs-follow-up"
       : postFilesChecked
         ? "fail"
         : "blocked";
+  const directPostcheckBlocksExecute = input.execute_requested &&
+    directPostcheckStatus !== "pass" &&
+    !smbStalePostFileViewSuspected;
 
   const gates = [
     gate({
@@ -1385,13 +1423,15 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
       category: "postcheck",
       status: directPostcheckStatus,
       evidence: input.execute_requested
-        ? `status=${postFileCheck.status}, attempts=${postFileCheck.attempt_count}, wait_ms=${postFileCheck.wait_elapsed_ms}, refresh_configured=${String(postFileCheck.refresh_command_configured)}, refresh_attempted=${String(postFileCheck.refresh_attempted)}, refresh_exit=${String(postFileCheck.refresh_exit_code)}, source=${directSourceStatus || "unknown"}, source_visible=${String(directSourceVisible)}, job=${directJobStatus || "unknown"}, direct_ready=${String(directReadyCount)}, direct_processing=${String(directProcessingCount)}, direct_index_required=${String(directIndexRequiredCount)}, api_index_required=${String(indexRequiredAfter)}, direct_queued=${String(directQueuedCount)}, no_nul=${String(postFilesNoNul)}.`
+        ? `status=${postFileCheck.status}, attempts=${postFileCheck.attempt_count}, wait_ms=${postFileCheck.wait_elapsed_ms}, refresh_configured=${String(postFileCheck.refresh_command_configured)}, refresh_attempted=${String(postFileCheck.refresh_attempted)}, refresh_exit=${String(postFileCheck.refresh_exit_code)}, source=${directSourceStatus || "unknown"}, source_visible=${String(directSourceVisible)}, job=${directJobStatus || "unknown"}, direct_ready=${String(directReadyCount)}, direct_processing=${String(directProcessingCount)}, direct_index_required=${String(directIndexRequiredCount)}, api_index_required=${String(indexRequiredAfter)}, direct_queued=${String(directQueuedCount)}, no_nul=${String(postFilesNoNul)}, diagnosis=${smbStalePostFileViewSuspected ? "smb-stale-post-file-view-suspected" : directPostcheckOk ? "matched" : "mismatch"}, stale_policy_enabled=${String(input.allow_smb_stale_post_file_view)}.`
         : "Dry-run only; direct NAS post-file persistence check runs after execute.",
       blocks_dry_run_ready: false,
-      blocks_execute: true,
+      blocks_execute: directPostcheckBlocksExecute,
       required_evidence: directPostcheckOk
         ? undefined
-        : "After execute, direct source-video.json, preprocess-job.json, and library.json on the NAS mount must match API postcheck and contain no NUL padding."
+        : smbStalePostFileViewSuspected
+          ? "API and supervisor evidence passed, but the long-running Mac SMB file view looked stale. Run a fresh-process or container-side NAS file check before increasing batch size."
+          : "After execute, direct source-video.json, preprocess-job.json, and library.json on the NAS mount must match API postcheck and contain no NUL padding."
     })
   ];
 
@@ -1441,6 +1481,9 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
     publish_allowed: false,
     docker_deploy_allowed: false,
     mutates_nas_files: input.execute_requested,
+    post_file_check_policy: {
+      allow_smb_stale_post_file_view: input.allow_smb_stale_post_file_view
+    },
     observed: {
       authenticated,
       library_root_before: rootBefore,
@@ -1712,6 +1755,10 @@ Docker deploy allowed: ${report.docker_deploy_allowed ? "yes" : "no"}
 
 This script is intentionally narrow. Dry-run mode sends only GET requests and writes local acceptance artifacts. Execute mode is allowed to POST only /api/admin/preprocess/supervisor/start with { limit: 1, source_video_id }. It never publishes a Cutter index, never runs a batch, and never records session tokens.
 
+## Post-File Check Policy
+
+- Allow SMB stale post-file view: ${report.post_file_check_policy.allow_smb_stale_post_file_view ? "yes" : "no"}
+
 ## Target
 
 - Base URL: ${report.target.base_url || "not configured"}
@@ -1841,6 +1888,7 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
   post_file_wait_timeout_ms?: number;
   post_file_wait_interval_ms?: number;
   post_file_refresh_command?: string;
+  allow_smb_stale_post_file_view?: boolean;
   refresh_post_file_view?: () => Promise<SingleVideoSmokePostFileRefreshResult>;
   output_dir?: string;
   command?: string;
@@ -1915,6 +1963,7 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
     expected_index_version: optionalTrimmed(input.expected_index_version) || DEFAULT_EXPECTED_INDEX_VERSION,
     session_token_present: Boolean(sessionToken),
     execute_requested: input.execute === true,
+    allow_smb_stale_post_file_view: input.allow_smb_stale_post_file_view === true,
     requests,
     snapshot,
     post_file_check: postFileCheck,
@@ -1945,6 +1994,7 @@ async function main(): Promise<void> {
     post_file_wait_timeout_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_TIMEOUT_MS, DEFAULT_POST_FILE_WAIT_TIMEOUT_MS),
     post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
     post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_REFRESH_COMMAND,
+    allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_ALLOW_SMB_STALE_POST_FILE_VIEW, false),
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });

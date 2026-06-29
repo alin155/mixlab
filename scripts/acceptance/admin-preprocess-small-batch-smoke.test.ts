@@ -78,10 +78,12 @@ test("small-batch smoke dry-run requires explicit ids and aggregates single repo
       base_url: "http://192.168.1.27:18080",
       source_video_ids: ["V000167", "V000421"],
       session_token: "fixture-session",
+      allow_smb_stale_post_file_view: true,
       output_dir: tempDir,
       date: new Date("2026-06-29T00:00:00.000Z"),
       run_single_video_smoke: async (input) => {
         calls.push(input.source_video_id ?? "");
+        assert.equal(input.allow_smb_stale_post_file_view, true);
         return singleReport({
           source_video_id: input.source_video_id ?? ""
         });

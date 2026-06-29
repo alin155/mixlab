@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T20:43:57.120Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-maintenance-window-smoke",
+  "execution_mode": "dry-run",
+  "status": "dry-run-ready",
+  "mutates_nas_files": false,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "source_video_ids": [
+      "V005166",
+      "V002985",
+      "V006161",
+      "V005104",
+      "V006260"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "batch_size": 5,
+    "max_batches": 1,
+    "stop_on_failure": true,
+    "session_token_present": true
+  },
+  "allowed_write_boundary": {
+    "execute_requested": false,
+    "allowed_post_paths": [],
+    "publish_allowed": false,
+    "docker_deploy_allowed": false,
+    "automatic_worker_allowed": false
+  },
+  "summary": {
+    "requested_count": 5,
+    "attempted_batches": 1,
+    "passed_batches": 1,
+    "failed_batches": 0,
+    "stopped_on_failure": false,
+    "blockers": []
+  },
+  "batches": [
+    {
+      "batch_index": 1,
+      "source_video_ids": [
+        "V005166",
+        "V002985",
+        "V006161",
+        "V005104",
+        "V006260"
+      ],
+      "status": "dry-run-ready",
+      "before": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 881,
+        "processing_video_count": 0,
+        "index_required_video_count": 42,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T20:26:43.512Z"
+      },
+      "after": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 881,
+        "processing_video_count": 0,
+        "index_required_video_count": 42,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T20:26:43.512Z"
+      },
+      "blockers": [],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T204457Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T204457Z.md"
+    }
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T204357Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T204357Z.md"
+  }
+}

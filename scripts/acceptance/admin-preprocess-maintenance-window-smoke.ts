@@ -318,6 +318,7 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
   post_file_wait_timeout_ms?: number;
   post_file_wait_interval_ms?: number;
   post_file_refresh_command?: string;
+  allow_smb_stale_post_file_view?: boolean;
   output_dir?: string;
   command?: string;
   date?: Date;
@@ -392,6 +393,7 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
         post_file_wait_timeout_ms: input.post_file_wait_timeout_ms ?? DEFAULT_POST_FILE_WAIT_TIMEOUT_MS,
         post_file_wait_interval_ms: input.post_file_wait_interval_ms ?? DEFAULT_POST_FILE_WAIT_INTERVAL_MS,
         post_file_refresh_command: input.post_file_refresh_command,
+        allow_smb_stale_post_file_view: input.allow_smb_stale_post_file_view === true,
         output_dir: input.output_dir,
         command: `window:${input.command ?? "tsx scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts"}`,
         date: new Date(date.getTime() + (batchIndex + 1) * 60_000)
@@ -503,6 +505,7 @@ async function main(): Promise<void> {
     post_file_wait_timeout_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_POST_FILE_WAIT_TIMEOUT_MS, DEFAULT_POST_FILE_WAIT_TIMEOUT_MS),
     post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
     post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_POST_FILE_REFRESH_COMMAND,
+    allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_ALLOW_SMB_STALE_POST_FILE_VIEW, false),
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });

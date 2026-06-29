@@ -479,6 +479,106 @@ test("single-video smoke fails execute when API succeeds but direct NAS files do
   }
 });
 
+test("single-video smoke can classify an API-safe old direct NAS view as SMB stale follow-up", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-single-smoke-"));
+  const { mountRoot, readinessPath } = await createFixtureFiles(tempDir);
+  let supervisorCalls = 0;
+  let libraryCalls = 0;
+  let detailCalls = 0;
+  const fakeFetch: typeof fetch = async (resource, init) => {
+    const url = new URL(String(resource));
+    const requestPath = `${url.pathname}${url.search}`;
+
+    if (url.pathname === "/api/admin/auth/status") {
+      return jsonResponse({ auth_mode: "password", authenticated: true });
+    }
+    if (url.pathname === "/api/admin/library/status") {
+      libraryCalls += 1;
+      return jsonResponse(libraryStatus(libraryCalls === 1
+        ? {}
+        : {
+            queued_video_count: 903,
+            index_required_video_count: 20
+          }));
+    }
+    if (url.pathname === "/api/admin/preprocess/safety") {
+      return jsonResponse({
+        status: "healthy",
+        safe_to_start: true,
+        disk: { status: "healthy" },
+        processing: { processing_count: 0, source_video_ids: [] },
+        blockers: []
+      });
+    }
+    if (url.pathname === "/api/admin/preprocess/supervisor/status") {
+      supervisorCalls += 1;
+      return jsonResponse(supervisorCalls === 1
+        ? { state: "idle" }
+        : {
+            state: "idle",
+            last_result: {
+              total_claimed_count: 1,
+              succeeded_count: 1,
+              failed_count: 0
+            }
+          });
+    }
+    if (requestPath === "/api/admin/source-videos?status=processing&limit=20") {
+      return jsonResponse([]);
+    }
+    if (url.pathname === `/api/admin/source-videos/${SOURCE_VIDEO_ID}`) {
+      detailCalls += 1;
+      return jsonResponse(detailCalls === 1
+        ? sourceDetail()
+        : sourceDetail({ status: "index-required", visible: false }));
+    }
+    if (url.pathname === "/api/admin/preprocess/supervisor/start") {
+      return jsonResponse({ state: "running" });
+    }
+    if (url.pathname === `/api/admin/preprocess/jobs/J${SOURCE_VIDEO_ID.slice(1)}/log`) {
+      return jsonResponse({
+        source_video_id: SOURCE_VIDEO_ID,
+        path: `.mixlab-library/logs/${SOURCE_VIDEO_ID}.log`,
+        exists: true,
+        content: "queued\nprocessing\nindex-required\n"
+      });
+    }
+
+    return jsonResponse({}, 404);
+  };
+
+  try {
+    const report = await runAdminPreprocessSingleVideoSmoke({
+      base_url: BASE_URL,
+      source_video_id: SOURCE_VIDEO_ID,
+      session_token: "fixture-admin-session-token",
+      readiness_report_path: readinessPath,
+      library_mount_root: mountRoot,
+      execute: true,
+      allow_smb_stale_post_file_view: true,
+      poll_interval_ms: 1,
+      poll_timeout_ms: 1000,
+      post_file_wait_interval_ms: 1,
+      post_file_wait_timeout_ms: 5,
+      output_dir: tempDir,
+      date: new Date("2026-06-29T00:00:00.000Z"),
+      fetch_impl: fakeFetch
+    });
+    const postFileGate = report.gates.find((item) => item.id === "post-smoke-nas-file-persistence");
+
+    assert.equal(report.result.status, "passed");
+    assert.equal(report.single_video_smoke_passed, true);
+    assert.equal(report.post_file_check_policy.allow_smb_stale_post_file_view, true);
+    assert.equal(postFileGate?.status, "needs-follow-up");
+    assert.equal(postFileGate?.blocks_execute, false);
+    assert.ok(report.summary.needs_follow_up >= 1);
+    assert.deepEqual(report.summary.execute_blockers, []);
+    assert.match(postFileGate?.evidence ?? "", /diagnosis=smb-stale-post-file-view-suspected/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("single-video smoke postcheck can refresh a stale SMB view once", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-single-smoke-"));
   const { mountRoot } = await createFixtureFiles(tempDir);

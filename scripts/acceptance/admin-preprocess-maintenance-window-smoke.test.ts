@@ -68,11 +68,13 @@ test("maintenance-window smoke dry-run splits explicit ids into safe batches", a
       batch_size: 2,
       max_batches: 2,
       session_token: "fixture-session",
+      allow_smb_stale_post_file_view: true,
       output_dir: tempDir,
       date: new Date("2026-06-29T00:00:00.000Z"),
       fetch_impl: fakeFetch,
       run_small_batch_smoke: async (input) => {
         batches.push(input.source_video_ids ?? []);
+        assert.equal(input.allow_smb_stale_post_file_view, true);
         return batchReport({
           source_video_ids: input.source_video_ids ?? []
         });
