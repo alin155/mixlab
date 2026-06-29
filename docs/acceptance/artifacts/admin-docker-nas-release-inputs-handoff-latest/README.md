@@ -1,6 +1,6 @@
 # Admin Docker NAS Release Inputs Handoff
 
-Generated: 2026-06-28T23:14:11.635Z
+Generated: 2026-06-29T03:01:47.771Z
 Mode: admin-docker-nas-release-inputs-handoff
 Result: ready-for-nas-collection
 Handoff package ready: yes

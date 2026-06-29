@@ -326,7 +326,7 @@ function nextActions(input: {
   if (input.stagingBlockers.includes("nas-disk-proof-accepted")) {
     actions.push("Resolve NAS disk pressure before staging; do not treat low free space as a cosmetic warning.");
   } else if (input.parityBlockers.includes("nas-disk-risk") || input.liveBlockers.includes("preprocess-disk")) {
-    actions.push("Keep preprocessing and sustained write-heavy workers blocked until NAS disk pressure is resolved or separately reproved; no-worker staging disk proof is evaluated separately.");
+    actions.push("Keep preprocessing and sustained write-heavy workers blocked until live disk/preprocess gates are exposed and accepted; standalone disk proof may already be cleaner than the live API contract.");
   }
 
   if (!input.workerAccepted) {
@@ -433,7 +433,7 @@ function buildAutomationBoundary(input: {
   if (input.stagingBlockers.includes("nas-disk-proof-accepted")) {
     reasons.add("NAS disk pressure must be cleared or reproved before staging.");
   } else if (input.liveBlockers.includes("preprocess-disk") || input.parityBlockers.includes("nas-disk-risk")) {
-    reasons.add("NAS disk pressure still blocks preprocessing or final live parity, but current no-worker staging disk proof is evaluated separately.");
+    reasons.add("Preprocessing remains blocked until live disk/preprocess gates and final parity are accepted; standalone disk proof is evaluated separately.");
   }
 
   if (!input.workerAccepted) {

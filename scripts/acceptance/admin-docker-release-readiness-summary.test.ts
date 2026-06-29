@@ -426,7 +426,7 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.equal(report.automation_boundary.nas_operator_or_runtime_action_required, true);
   assert.equal(report.automation_boundary.windows_staged_candidate_required, true);
   assert.ok(report.automation_boundary.reasons_requiring_external_action.some((item) => item.includes("Explicit release approval")));
-  assert.ok(report.automation_boundary.reasons_requiring_external_action.some((item) => item.includes("NAS disk pressure")));
+  assert.ok(report.automation_boundary.reasons_requiring_external_action.some((item) => item.includes("live disk/preprocess gates")));
   assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("handoff kit")));
   assert.ok(report.automation_boundary.blocked_actions.some((item) => item.includes("push_images=true")));
   assert.ok(report.automation_boundary.blocked_actions.some((item) => item.includes("NAS Docker .env")));
@@ -436,7 +436,7 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.equal(report.observations.legacy_rollback_exception_ready, true);
   assert.equal(report.observations.legacy_rollback_exception_accepted, false);
   assert.ok(report.next_actions.some((item) => item.includes("release-manager role review")));
-  assert.ok(report.next_actions.some((item) => item.includes("NAS disk pressure")));
+  assert.ok(report.next_actions.some((item) => item.includes("live disk/preprocess gates")));
   assert.ok(report.next_actions.some((item) => item.includes("local smoke")));
   assert.ok(report.next_actions.some((item) => item.includes("push_images=true")));
   assert.ok(report.next_actions.some((item) => item.includes("accepted candidate image tag")));
