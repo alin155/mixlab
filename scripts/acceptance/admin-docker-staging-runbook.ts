@@ -38,6 +38,12 @@ interface PushApproval {
   accepted: boolean;
 }
 
+interface ImagePushProof {
+  report: string;
+  accepted: boolean | null;
+  required: boolean;
+}
+
 interface BuildIdentity {
   image_tag: string;
   build_sha: string;
@@ -54,6 +60,7 @@ interface RunbookSources {
   cutter_compatibility_proof_report: string;
   release_inputs_report: string;
   nas_disk_proof_report: string;
+  image_push_proof_report: string;
 }
 
 export interface AdminDockerStagingRunbookReport {
@@ -64,6 +71,7 @@ export interface AdminDockerStagingRunbookReport {
   sources: RunbookSources;
   image_tags: ImageTags;
   image_push_approval: PushApproval;
+  image_push_proof: ImagePushProof;
   staging_execution_ready: boolean;
   staging_review_ready: boolean;
   docker_deploy_allowed: false;
@@ -109,6 +117,9 @@ export interface AdminDockerStagingRunbookReport {
     nas_disk_proof_status: string;
     nas_disk_proof_accepted: boolean | null;
     nas_disk_proof_blockers: string[];
+    image_push_proof_status: string;
+    image_push_proof_accepted: boolean | null;
+    image_push_proof_blockers: string[];
     cleared_pre_staging_execution_blockers: string[];
     carried_pre_staging_execution_blockers: string[];
   };
@@ -346,6 +357,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
   release_inputs_report?: unknown;
   nas_disk_proof_report_path?: string;
   nas_disk_proof_report?: unknown;
+  image_push_proof_report_path?: string;
+  image_push_proof_report?: unknown;
   current_image_tag?: string;
   target_image_tag?: string;
   rollback_image_tag?: string;
@@ -395,12 +408,15 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const releaseInputsTags = asRecord(releaseInputs.inputs);
   const nasDiskProof = asRecord(input.nas_disk_proof_report);
   const nasDiskProofResult = asRecord(nasDiskProof.result);
+  const imagePushProof = asRecord(input.image_push_proof_report);
+  const imagePushProofResult = asRecord(imagePushProof.result);
   const parityBlockers = summaryBlockers(input.parity_plan_report);
   const candidateBlockers = summaryBlockers(input.candidate_contract_proof_report, "candidate_review_blockers");
   const workerBlockers = summaryBlockers(input.worker_env_proof_report);
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
   const releaseInputBlockers = summaryBlockers(input.release_inputs_report, "release_input_blockers");
   const nasDiskProofBlockers = summaryBlockers(input.nas_disk_proof_report, "staging_execution_blockers");
+  const imagePushProofBlockers = summaryBlockers(input.image_push_proof_report, "image_push_proof_blockers");
   const candidateReady = asBoolean(asRecord(input.candidate_contract_proof_report).candidate_contract_ready);
   const candidateEvidenceAccepted = candidateReady === true || githubCandidateArtifactReady === true;
   const workerAccepted = asBoolean(asRecord(input.worker_env_proof_report).proof_accepted);
@@ -413,6 +429,8 @@ export function buildAdminDockerStagingRunbookReport(input: {
   const targetTagMatchesReleaseInputs = Boolean(target && releaseInputsTargetTag && target === releaseInputsTargetTag);
   const rollbackTagMatchesReleaseInputs = Boolean(rollback && releaseInputsRollbackTag && rollback === releaseInputsRollbackTag);
   const nasDiskProofAccepted = asBoolean(nasDiskProof.proof_accepted);
+  const imagePushProofAccepted = asBoolean(imagePushProof.proof_accepted);
+  const imagePushProofRequired = imagePushApproved;
   const releaseInputHandoffStagingBlockers = asArray(releaseInputsObservations.handoff_staging_execution_blockers)
     .filter((item): item is string => typeof item === "string");
   const clearedPreStagingExecutionBlockers = releaseInputHandoffStagingBlockers.filter((item) => (
@@ -479,6 +497,18 @@ export function buildAdminDockerStagingRunbookReport(input: {
       blocks_staging_execution: !imagePushApproved,
       blocks_staging: !imagePushApproved,
       required_evidence: "Set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true only after the GitHub Admin Docker workflow was manually dispatched with push_images=true and its smoke gate passed."
+    }),
+    gate({
+      id: "image-push-proof-accepted",
+      title: "Image push proof is accepted after explicit approval",
+      category: "evidence",
+      status: !imagePushProofRequired || imagePushProofAccepted === true ? "pass" : "blocked",
+      evidence: imagePushProofRequired
+        ? `image_push_proof=${input.image_push_proof_report_path || "missing"}, proof_accepted=${String(imagePushProofAccepted)}, blockers=${imagePushProofBlockers.join(", ") || "none"}`
+        : "Not required until MIXLAB_DOCKER_PUSH_APPROVAL is accepted.",
+      blocks_staging_execution: imagePushProofRequired && imagePushProofAccepted !== true,
+      blocks_staging: imagePushProofRequired && imagePushProofAccepted !== true,
+      required_evidence: "After workflow_dispatch push_images=true succeeds, run validate:admin-docker-image-push-proof and pass MIXLAB_ADMIN_DOCKER_IMAGE_PUSH_PROOF_REPORT to the staging runbook."
     }),
     gate({
       id: "local-docker-smoke-passed",
@@ -678,12 +708,18 @@ export function buildAdminDockerStagingRunbookReport(input: {
       worker_env_proof_report: input.worker_env_proof_report_path,
       cutter_compatibility_proof_report: input.cutter_compatibility_proof_report_path,
       release_inputs_report: input.release_inputs_report_path ?? "",
-      nas_disk_proof_report: input.nas_disk_proof_report_path ?? ""
+      nas_disk_proof_report: input.nas_disk_proof_report_path ?? "",
+      image_push_proof_report: input.image_push_proof_report_path ?? ""
     },
     image_tags: tags,
     image_push_approval: {
       value: imagePushApproval,
       accepted: imagePushApproved
+    },
+    image_push_proof: {
+      report: input.image_push_proof_report_path ?? "",
+      accepted: imagePushProofAccepted,
+      required: imagePushProofRequired
     },
     staging_execution_ready: stagingExecutionReady,
     staging_review_ready: stagingReviewReady,
@@ -730,6 +766,9 @@ export function buildAdminDockerStagingRunbookReport(input: {
       nas_disk_proof_status: asString(nasDiskProofResult.status),
       nas_disk_proof_accepted: nasDiskProofAccepted,
       nas_disk_proof_blockers: nasDiskProofBlockers,
+      image_push_proof_status: asString(imagePushProofResult.status),
+      image_push_proof_accepted: imagePushProofAccepted,
+      image_push_proof_blockers: imagePushProofBlockers,
       cleared_pre_staging_execution_blockers: clearedPreStagingExecutionBlockers,
       carried_pre_staging_execution_blockers: carriedPreStagingExecutionBlockers
     },
@@ -777,6 +816,7 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Cutter compatibility proof: ${report.sources.cutter_compatibility_proof_report || "not provided"}`,
     `- Release inputs: ${report.sources.release_inputs_report || "not provided"}`,
     `- NAS disk proof: ${report.sources.nas_disk_proof_report || "not provided"}`,
+    `- Image push proof: ${report.sources.image_push_proof_report || "not provided"}`,
     "",
     "## Image Tags",
     "",
@@ -784,6 +824,7 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- Target: ${report.image_tags.target || "missing"}`,
     `- Rollback: ${report.image_tags.rollback || "missing"}`,
     `- Image push approval: ${report.image_push_approval.accepted ? "accepted" : "missing/blocked"} (${report.image_push_approval.value || "missing"})`,
+    `- Image push proof: ${report.image_push_proof.accepted === true ? "accepted" : report.image_push_proof.required ? "missing/blocked" : "not required"} (${report.image_push_proof.report || "missing"})`,
     "",
     "## Observations",
     "",
@@ -825,6 +866,9 @@ export function toMarkdown(report: AdminDockerStagingRunbookReport): string {
     `- NAS disk proof status: ${report.observations.nas_disk_proof_status || "not provided"}`,
     `- NAS disk proof accepted: ${report.observations.nas_disk_proof_accepted ?? "unknown"}`,
     `- NAS disk proof blockers: ${report.observations.nas_disk_proof_blockers.join(", ") || "none"}`,
+    `- Image push proof status: ${report.observations.image_push_proof_status || "not provided"}`,
+    `- Image push proof accepted: ${report.observations.image_push_proof_accepted ?? "unknown"}`,
+    `- Image push proof blockers: ${report.observations.image_push_proof_blockers.join(", ") || "none"}`,
     `- Cleared pre-staging execution blockers: ${report.observations.cleared_pre_staging_execution_blockers.join(", ") || "none"}`,
     `- Carried pre-staging execution blockers: ${report.observations.carried_pre_staging_execution_blockers.join(", ") || "none"}`,
     "",
@@ -877,6 +921,7 @@ export async function runAdminDockerStagingRunbook(input: {
   cutter_compatibility_proof_report_path?: string;
   release_inputs_report_path?: string;
   nas_disk_proof_report_path?: string;
+  image_push_proof_report_path?: string;
   current_image_tag?: string;
   target_image_tag?: string;
   rollback_image_tag?: string;
@@ -905,6 +950,8 @@ export async function runAdminDockerStagingRunbook(input: {
     ?? await optionalLatestArtifact(artifactDir, "admin-docker-release-inputs-");
   const nasDiskProofPath = input.nas_disk_proof_report_path
     ?? await optionalLatestArtifact(artifactDir, "admin-docker-nas-disk-proof-");
+  const imagePushProofPath = input.image_push_proof_report_path
+    ?? await optionalLatestArtifact(artifactDir, "admin-docker-image-push-proof-");
   const timestamp = timestampForFile(new Date(generatedAt));
   const jsonPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `admin-docker-staging-runbook-${timestamp}.md`);
@@ -927,6 +974,8 @@ export async function runAdminDockerStagingRunbook(input: {
     release_inputs_report: await optionalLoadJson(releaseInputsPath),
     nas_disk_proof_report_path: nasDiskProofPath,
     nas_disk_proof_report: await optionalLoadJson(nasDiskProofPath),
+    image_push_proof_report_path: imagePushProofPath,
+    image_push_proof_report: await optionalLoadJson(imagePushProofPath),
     current_image_tag: input.current_image_tag,
     target_image_tag: input.target_image_tag,
     rollback_image_tag: input.rollback_image_tag,
@@ -957,6 +1006,7 @@ async function main(): Promise<void> {
     cutter_compatibility_proof_report_path: process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT,
     release_inputs_report_path: process.env.MIXLAB_ADMIN_DOCKER_RELEASE_INPUTS_REPORT,
     nas_disk_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_DISK_PROOF_REPORT,
+    image_push_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_IMAGE_PUSH_PROOF_REPORT,
     current_image_tag: process.env.MIXLAB_DOCKER_CURRENT_IMAGE_TAG,
     target_image_tag: process.env.MIXLAB_DOCKER_TARGET_IMAGE_TAG,
     rollback_image_tag: process.env.MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG,

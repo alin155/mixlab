@@ -74,6 +74,7 @@
     "validate:admin-docker-github-artifact-readiness": "tsx scripts/acceptance/admin-docker-github-artifact-readiness.ts",
     "validate:admin-docker-candidate-ref-proof": "tsx scripts/acceptance/admin-docker-candidate-ref-proof.ts",
     "collect:admin-docker-github-run-artifact": "tsx scripts/acceptance/admin-docker-github-run-artifact.ts",
+    "validate:admin-docker-image-push-proof": "tsx scripts/acceptance/admin-docker-image-push-proof.ts",
     "validate:admin-docker-prestaging-handoff": "tsx scripts/acceptance/admin-docker-prestaging-handoff.ts",
     "plan:admin-docker-legacy-rollback": "tsx scripts/acceptance/admin-docker-legacy-rollback-plan.ts",
     "review:admin-docker-legacy-rollback-exception": "tsx scripts/acceptance/admin-docker-legacy-rollback-exception-review.ts",

@@ -81,6 +81,26 @@ function acceptedDiskProof(): unknown {
   };
 }
 
+function acceptedImagePushProof(): unknown {
+  return {
+    proof_accepted: true,
+    summary: {
+      image_push_proof_blockers: [],
+      staging_execution_blockers: []
+    },
+    result: {
+      status: "accepted"
+    }
+  };
+}
+
+function acceptedImagePushProofInput() {
+  return {
+    image_push_proof_report_path: "image-push-proof.json",
+    image_push_proof_report: acceptedImagePushProof()
+  };
+}
+
 function releaseInputsReport(input: {
   ready?: boolean;
   blockers?: string[];
@@ -280,7 +300,8 @@ test("admin Docker staging runbook requires rollback tag to match current tag", 
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "different-old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_review_ready, false);
@@ -306,13 +327,15 @@ test("admin Docker staging runbook can become ready for staging review without a
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, true);
   assert.equal(report.staging_review_ready, true);
   assert.equal(report.docker_deploy_allowed, false);
   assert.equal(report.image_push_approval.accepted, true);
+  assert.equal(report.image_push_proof.accepted, true);
   assert.equal(report.observations.target_tag_matches_local_smoke, true);
   assert.equal(report.observations.target_tag_matches_smoked_image, true);
   assert.equal(report.result.status, "ready-for-staging-review");
@@ -344,7 +367,8 @@ test("admin Docker staging runbook accepts GitHub candidate artifact when Mac lo
     current_image_tag: "old-tag",
     target_image_tag: TARGET_SHA,
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, true);
@@ -382,7 +406,8 @@ test("admin Docker staging runbook accepts current GitHub candidate when older l
     current_image_tag: "old-tag",
     target_image_tag: TARGET_SHA,
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, true);
@@ -419,7 +444,8 @@ test("admin Docker staging runbook carries NAS disk risk from release inputs", (
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, false);
@@ -457,7 +483,8 @@ test("admin Docker staging runbook clears carried NAS disk risk only with accept
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, true);
@@ -495,7 +522,8 @@ test("admin Docker staging runbook accepts release inputs without execution carr
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, true);
@@ -527,7 +555,8 @@ test("admin Docker staging runbook blocks when env image tags drift from release
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, false);
@@ -557,7 +586,8 @@ test("admin Docker staging runbook separates staging execution from post-staging
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_execution_ready, true);
@@ -595,7 +625,8 @@ test("admin Docker staging runbook resolves external parity blockers only when a
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_review_ready, false);
@@ -632,7 +663,8 @@ test("admin Docker staging runbook blocks when Cutter compatibility proof is mis
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_review_ready, false);
@@ -662,7 +694,8 @@ test("admin Docker staging runbook blocks when candidate contract proof is missi
     current_image_tag: "old-tag",
     target_image_tag: "new-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_review_ready, false);
@@ -699,6 +732,36 @@ test("admin Docker staging runbook blocks without explicit workflow push approva
   assert.equal(report.image_push_approval.accepted, false);
   assert.ok(report.summary.staging_blockers.includes("image-push-explicitly-approved"));
   assert.ok(report.summary.staging_execution_blockers.includes("image-push-explicitly-approved"));
+  assert.ok(!report.summary.staging_execution_blockers.includes("image-push-proof-accepted"));
+  assert.equal(report.image_push_proof.required, false);
+});
+
+test("admin Docker staging runbook blocks explicit push approval without image push proof", () => {
+  const report = buildAdminDockerStagingRunbookReport({
+    generated_at: "2026-06-26T00:00:00.000Z",
+    command: "test",
+    local_docker_smoke_report_path: "local-smoke.json",
+    local_docker_smoke_report: acceptedLocalSmokeReport(),
+    parity_plan_report_path: "parity.json",
+    parity_plan_report: clearParityReport(),
+    candidate_contract_proof_report_path: "candidate.json",
+    candidate_contract_proof_report: acceptedCandidateProof(),
+    worker_env_proof_report_path: "worker.json",
+    worker_env_proof_report: acceptedWorkerProof(),
+    cutter_compatibility_proof_report_path: "cutter.json",
+    cutter_compatibility_proof_report: acceptedCutterProof(),
+    current_image_tag: "old-tag",
+    target_image_tag: "new-tag",
+    rollback_image_tag: "old-tag",
+    image_push_approval: "workflow_dispatch:push_images=true"
+  });
+
+  assert.equal(report.image_push_approval.accepted, true);
+  assert.equal(report.image_push_proof.required, true);
+  assert.equal(report.image_push_proof.accepted, null);
+  assert.equal(report.staging_execution_ready, false);
+  assert.ok(report.summary.staging_blockers.includes("image-push-proof-accepted"));
+  assert.ok(report.summary.staging_execution_blockers.includes("image-push-proof-accepted"));
 });
 
 test("admin Docker staging runbook blocks when target tag differs from smoked image tag", () => {
@@ -718,7 +781,8 @@ test("admin Docker staging runbook blocks when target tag differs from smoked im
     current_image_tag: "old-tag",
     target_image_tag: "different-target-tag",
     rollback_image_tag: "old-tag",
-    image_push_approval: "workflow_dispatch:push_images=true"
+    image_push_approval: "workflow_dispatch:push_images=true",
+    ...acceptedImagePushProofInput()
   });
 
   assert.equal(report.staging_review_ready, false);
