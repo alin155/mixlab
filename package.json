@@ -67,6 +67,7 @@
     "validate:admin-docker-local-smoke": "tsx scripts/acceptance/admin-docker-local-smoke.ts",
     "validate:admin-worker-env-proof": "tsx scripts/acceptance/admin-worker-env-proof.ts",
     "validate:admin-docker-staging-runbook": "tsx scripts/acceptance/admin-docker-staging-runbook.ts",
+    "prepare:admin-docker-push-decision-package": "tsx scripts/acceptance/admin-docker-push-decision-package.ts",
     "validate:admin-cutter-compatibility-proof": "tsx scripts/acceptance/admin-cutter-compatibility-proof.ts",
     "plan:admin-cutter-staged-proof": "tsx scripts/acceptance/admin-cutter-staged-proof-plan.ts",
     "validate:admin-docker-release-readiness-summary": "tsx scripts/acceptance/admin-docker-release-readiness-summary.ts",
