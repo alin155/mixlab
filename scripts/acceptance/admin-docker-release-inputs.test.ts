@@ -12,6 +12,7 @@ import {
 
 const TARGET_TAG = "ff05c8a4e4b88463fc0227ee173ba859d85a41be";
 const CURRENT_TAG = "acf896c6d16ec1503237f3afa854afff60a191b3";
+const LEGACY_APPROVAL = "release-manager:legacy-latest-rollback-exception=accepted";
 const TARGET_RELEASE_REF = `admin-docker-candidate-${TARGET_TAG}`;
 const CURRENT_RELEASE_REF = `admin-docker-candidate-${CURRENT_TAG}`;
 
@@ -59,6 +60,41 @@ function nasImageProof(overrides: Record<string, unknown> = {}): unknown {
   };
 }
 
+function legacyLatestNasImageProof(overrides: Record<string, unknown> = {}): unknown {
+  return nasImageProof({
+    proof_accepted: false,
+    release_inputs: {
+      current_image_tag: "",
+      rollback_image_tag: ""
+    },
+    observations: {
+      env_image_tag: "latest"
+    },
+    summary: {
+      release_input_blockers: ["current-tag-stable-for-rollback"]
+    },
+    ...overrides
+  });
+}
+
+function legacyRollbackPlan(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    mode: "admin-docker-legacy-rollback-plan",
+    exception_plan_ready: true,
+    release_execution_allowed: false,
+    docker_deploy_allowed: false,
+    observations: {
+      current_image_tag: "latest",
+      target_image_tag: TARGET_TAG,
+      current_image_proof_blockers: ["current-tag-stable-for-rollback"]
+    },
+    summary: {
+      release_decision_blockers: ["explicit-legacy-rollback-exception-approval"]
+    },
+    ...overrides
+  };
+}
+
 function candidateRefProof(overrides: Record<string, unknown> = {}): unknown {
   return {
     mode: "admin-docker-candidate-ref-proof",
@@ -84,9 +120,12 @@ function report(input: {
   handoff?: unknown;
   candidateProof?: unknown;
   proof?: unknown;
+  legacyPlan?: unknown;
+  legacyApproval?: string;
   handoffPath?: string;
   candidateProofPath?: string;
   proofPath?: string;
+  legacyPlanPath?: string;
 } = {}) {
   return buildAdminDockerReleaseInputsReport({
     generated_at: "2026-06-27T00:00:00.000Z",
@@ -96,7 +135,10 @@ function report(input: {
     candidate_ref_proof_report_path: input.candidateProofPath ?? (input.candidateProof === undefined ? undefined : "candidate-ref-proof.json"),
     candidate_ref_proof_report: input.candidateProof,
     nas_image_proof_report_path: input.proofPath ?? (input.proof === undefined ? undefined : "proof.json"),
-    nas_image_proof_report: input.proof
+    nas_image_proof_report: input.proof,
+    legacy_rollback_plan_report_path: input.legacyPlanPath ?? (input.legacyPlan === undefined ? undefined : "legacy-rollback-plan.json"),
+    legacy_rollback_plan_report: input.legacyPlan,
+    legacy_rollback_exception_approval: input.legacyApproval
   });
 }
 
@@ -197,6 +239,80 @@ test("release input package blocks a rejected NAS image proof", () => {
   assert.ok(built.summary.release_input_blockers.includes("current-and-rollback-tags-present"));
   assert.equal(built.inputs.current_image_tag, "");
   assert.ok(built.next_actions.some((item) => item.includes("Preserved pre-staging execution blockers")));
+});
+
+test("legacy latest rollback plan is reviewable but blocked without release-manager approval", () => {
+  const built = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan()
+  });
+
+  assert.equal(built.release_inputs_ready, false);
+  assert.equal(built.result.status, "blocked");
+  assert.equal(built.observations.legacy_rollback_exception_ready, true);
+  assert.equal(built.observations.legacy_rollback_exception_accepted, false);
+  assert.ok(built.summary.release_input_blockers.includes("legacy-rollback-exception-approved"));
+  assert.ok(built.summary.release_input_blockers.includes("nas-image-proof-accepted"));
+  assert.equal(built.inputs.current_image_tag, "");
+  assert.equal(built.inputs.workflow_dispatch_command, "");
+  assert.ok(built.next_actions.some((item) => item.includes("MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL")));
+});
+
+test("legacy latest rollback approval fills current and rollback tags without approving push or deploy", () => {
+  const built = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan(),
+    legacyApproval: LEGACY_APPROVAL
+  });
+
+  assert.equal(built.release_inputs_ready, true);
+  assert.equal(built.push_execution_allowed, false);
+  assert.equal(built.docker_deploy_allowed, false);
+  assert.equal(built.observations.nas_image_proof_accepted, false);
+  assert.equal(built.observations.legacy_rollback_exception_ready, true);
+  assert.equal(built.observations.legacy_rollback_exception_accepted, true);
+  assert.deepEqual(built.summary.release_input_blockers, []);
+  assert.deepEqual(built.summary.push_execution_blockers, ["explicit-release-approval-required"]);
+  assert.equal(built.inputs.current_image_tag, "latest");
+  assert.equal(built.inputs.rollback_image_tag, "latest");
+  assert.match(built.inputs.workflow_dispatch_command, /current_image_tag=latest/);
+  assert.match(built.inputs.workflow_dispatch_command, /rollback_image_tag=latest/);
+});
+
+test("legacy latest rollback plan must match target and stay nondeploy", () => {
+  const targetMismatch = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan({
+      observations: {
+        current_image_tag: "latest",
+        target_image_tag: CURRENT_TAG
+      }
+    }),
+    legacyApproval: LEGACY_APPROVAL
+  });
+
+  assert.equal(targetMismatch.release_inputs_ready, false);
+  assert.ok(targetMismatch.summary.release_input_blockers.includes("legacy-rollback-exception-ready"));
+
+  const unsafePlan = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan({
+      release_execution_allowed: true
+    }),
+    legacyApproval: LEGACY_APPROVAL
+  });
+
+  assert.equal(unsafePlan.release_inputs_ready, false);
+  assert.equal(unsafePlan.result.status, "failed");
+  assert.ok(unsafePlan.summary.release_input_blockers.includes("legacy-rollback-plan-does-not-approve-release-or-deploy"));
 });
 
 test("release input package blocks when target tag equals current tag", () => {

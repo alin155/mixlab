@@ -59,6 +59,7 @@ interface IntakeSources {
   returned_dir: string;
   prestaging_handoff_report: string;
   candidate_ref_proof_report: string;
+  legacy_rollback_plan_report: string;
   local_docker_smoke_report: string;
   parity_plan_report: string;
   candidate_contract_proof_report: string;
@@ -109,6 +110,9 @@ export interface AdminDockerNasReleaseInputsIntakeReport {
     nas_disk_proof_accepted: boolean | null;
     release_inputs_status: string;
     release_input_blockers: string[];
+    legacy_rollback_exception_ready: boolean | null;
+    legacy_rollback_exception_accepted: boolean | null;
+    legacy_rollback_exception_blockers: string[];
     staging_runbook_status: string;
     staging_execution_blockers: string[];
     staging_blockers: string[];
@@ -297,6 +301,7 @@ function toMarkdown(report: AdminDockerNasReleaseInputsIntakeReport): string {
     `- Returned dir: ${report.sources.returned_dir || "<missing>"}`,
     `- Pre-staging handoff: ${report.sources.prestaging_handoff_report || "<missing>"}`,
     `- Candidate ref proof: ${report.sources.candidate_ref_proof_report || "<missing>"}`,
+    `- Legacy rollback plan: ${report.sources.legacy_rollback_plan_report || "<not provided>"}`,
     `- Local Docker smoke: ${report.sources.local_docker_smoke_report || "<missing>"}`,
     `- Parity plan: ${report.sources.parity_plan_report || "<missing>"}`,
     `- Candidate contract proof: ${report.sources.candidate_contract_proof_report || "<missing>"}`,
@@ -327,6 +332,7 @@ function toMarkdown(report: AdminDockerNasReleaseInputsIntakeReport): string {
     `- Disk proof: ${report.observations.nas_disk_proof_status || "<not run>"} / accepted=${String(report.observations.nas_disk_proof_accepted)}`,
     `- Release inputs: ${report.observations.release_inputs_status || "<not run>"}`,
     `- Release input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
+    `- Legacy rollback exception: ready=${String(report.observations.legacy_rollback_exception_ready)}, accepted=${String(report.observations.legacy_rollback_exception_accepted)}, blockers=${report.observations.legacy_rollback_exception_blockers.join(", ") || "none"}`,
     `- Staging runbook: ${report.observations.staging_runbook_status || "<not run>"}`,
     `- Staging execution blockers: ${report.observations.staging_execution_blockers.join(", ") || "none"}`,
     `- Staging review blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
@@ -363,6 +369,8 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   returned_dir?: string;
   prestaging_handoff_report_path?: string;
   candidate_ref_proof_report_path?: string;
+  legacy_rollback_plan_report_path?: string;
+  legacy_rollback_exception_approval?: string;
   local_docker_smoke_report_path?: string;
   parity_plan_report_path?: string;
   candidate_contract_proof_report_path?: string;
@@ -380,6 +388,8 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const returnedDir = explicitReturnedDir || await latestReturnedEvidenceDir(artifactDir);
   const prestagingPath = input.prestaging_handoff_report_path ?? await latestArtifact(artifactDir, "admin-docker-prestaging-handoff-");
   const candidateRefPath = input.candidate_ref_proof_report_path ?? await latestArtifact(artifactDir, "admin-docker-candidate-ref-proof-");
+  const legacyRollbackPath = input.legacy_rollback_plan_report_path ?? process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_PLAN_REPORT ?? "";
+  const legacyRollbackApproval = input.legacy_rollback_exception_approval ?? process.env.MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL;
   const localSmokePath = input.local_docker_smoke_report_path ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
   const parityPath = input.parity_plan_report_path ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
   const candidateContractPath = input.candidate_contract_proof_report_path ?? await latestArtifact(artifactDir, "admin-docker-candidate-contract-proof-");
@@ -422,6 +432,8 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
         prestaging_handoff_report_path: prestagingPath,
         candidate_ref_proof_report_path: candidateRefPath,
         nas_image_proof_report_path: nasImageProof.artifacts?.json_path,
+        legacy_rollback_plan_report_path: legacyRollbackPath || undefined,
+        legacy_rollback_exception_approval: legacyRollbackApproval,
         output_dir: outputDir,
         generated_at: generatedAt,
         command: input.command ?? process.argv.join(" ")
@@ -450,6 +462,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   }
 
   const releaseInputsSummary = asRecord(releaseInputs?.summary);
+  const releaseInputsObservations = asRecord(releaseInputs?.observations);
   const stagingSummary = asRecord(stagingRunbook?.summary);
   const generatedReports: GeneratedReports = {
     nas_image_proof_report: nasImageProof?.artifacts?.json_path ?? "",
@@ -461,6 +474,10 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const currentTag = asString(asRecord(releaseInputs?.inputs).current_image_tag);
   const targetTag = asString(asRecord(releaseInputs?.inputs).target_image_tag);
   const rollbackTag = asString(asRecord(releaseInputs?.inputs).rollback_image_tag);
+  const legacyRollbackExceptionReady = asBoolean(releaseInputsObservations.legacy_rollback_exception_ready);
+  const legacyRollbackExceptionAccepted = asBoolean(releaseInputsObservations.legacy_rollback_exception_accepted);
+  const legacyRollbackExceptionBlockers = stringArray(releaseInputsObservations.legacy_rollback_exception_blockers);
+  const nasImageProofAcceptedForInputs = Boolean(nasImageProof?.proof_accepted || legacyRollbackExceptionAccepted);
   const gates = [
     gate({
       id: "intake-no-side-effects",
@@ -515,13 +532,17 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       id: "nas-image-proof-accepted",
       title: "NAS current image proof is accepted",
       category: "proof",
-      status: nasImageProof?.proof_accepted ? "pass" : "blocked",
-      evidence: nasImageProof ? `status=${nasImageProof.result.status}, blockers=${nasImageProof.summary.release_input_blockers.join(", ") || "none"}` : "not generated",
+      status: nasImageProofAcceptedForInputs ? "pass" : "blocked",
+      evidence: nasImageProof
+        ? legacyRollbackExceptionAccepted
+          ? `status=${nasImageProof.result.status}, accepted_via_legacy_latest_exception=true`
+          : `status=${nasImageProof.result.status}, blockers=${nasImageProof.summary.release_input_blockers.join(", ") || "none"}`
+        : "not generated",
       blocks_intake: true,
-      blocks_release_inputs: !nasImageProof?.proof_accepted,
+      blocks_release_inputs: !nasImageProofAcceptedForInputs,
       blocks_staging_execution: true,
       blocks_docker_deploy: true,
-      required_evidence: "Run validate:admin-docker-nas-image-proof with returned admin-docker-current.env and inspect JSON."
+      required_evidence: "Run validate:admin-docker-nas-image-proof with returned admin-docker-current.env and inspect JSON, or provide an accepted legacy latest rollback exception."
     }),
     gate({
       id: "admin-worker-proof-accepted",
@@ -608,6 +629,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       returned_dir: returnedDir,
       prestaging_handoff_report: prestagingPath,
       candidate_ref_proof_report: candidateRefPath,
+      legacy_rollback_plan_report: legacyRollbackPath,
       local_docker_smoke_report: localSmokePath,
       parity_plan_report: parityPath,
       candidate_contract_proof_report: candidateContractPath,
@@ -635,6 +657,9 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       nas_disk_proof_accepted: asBoolean(diskProof?.proof_accepted),
       release_inputs_status: resultStatus(releaseInputs),
       release_input_blockers: stringArray(releaseInputsSummary.release_input_blockers),
+      legacy_rollback_exception_ready: legacyRollbackExceptionReady,
+      legacy_rollback_exception_accepted: legacyRollbackExceptionAccepted,
+      legacy_rollback_exception_blockers: legacyRollbackExceptionBlockers,
       staging_runbook_status: resultStatus(stagingRunbook),
       staging_execution_blockers: stringArray(stagingSummary.staging_execution_blockers),
       staging_blockers: stringArray(stagingSummary.staging_blockers),
@@ -679,6 +704,8 @@ async function main(): Promise<void> {
     returned_dir: process.env.MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR || process.argv[2],
     prestaging_handoff_report_path: process.env.MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT,
     candidate_ref_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT,
+    legacy_rollback_plan_report_path: process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_PLAN_REPORT,
+    legacy_rollback_exception_approval: process.env.MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL,
     local_docker_smoke_report_path: process.env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REPORT,
     parity_plan_report_path: process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT,
     candidate_contract_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_CONTRACT_PROOF_REPORT,

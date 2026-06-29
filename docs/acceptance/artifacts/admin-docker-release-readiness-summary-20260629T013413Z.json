@@ -1,0 +1,331 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T01:34:13.270Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-readiness-summary.ts",
+  "mode": "admin-docker-release-readiness-summary",
+  "sources": {
+    "local_docker_smoke_report": "docs/acceptance/artifacts/admin-docker-local-smoke-20260628T203603Z.json",
+    "github_artifact_readiness_report": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260628T231156Z.json",
+    "live_readonly_report": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260629T011306Z.json",
+    "parity_plan_report": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T011312Z.json",
+    "worker_env_proof_report": "docs/acceptance/artifacts/admin-worker-env-proof-20260629T013145Z.json",
+    "cutter_staged_proof_plan_report": "docs/acceptance/artifacts/admin-cutter-staged-proof-plan-20260628T231319Z.json",
+    "cutter_compatibility_proof_report": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260628T203711Z.json",
+    "release_inputs_intake_report": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260629T013145Z.json",
+    "nas_access_preflight_report": "docs/acceptance/artifacts/admin-docker-nas-access-preflight-20260629T011312Z.json",
+    "nas_handoff_kit_report": "docs/acceptance/artifacts/admin-docker-nas-handoff-kit-latest.json",
+    "staging_runbook_report": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T013145Z.json"
+  },
+  "release_review_ready": false,
+  "docker_upload_allowed": false,
+  "observations": {
+    "local_smoke_status": "accepted",
+    "local_smoke_passed": true,
+    "local_smoke_blockers": [],
+    "github_artifact_status": "candidate-ready",
+    "github_candidate_artifact_ready": true,
+    "github_candidate_image_tag": "4cb5b18262e49894d4272b0fc940be6c1d2102b4",
+    "github_candidate_build_sha": "4cb5b18262e49894d4272b0fc940be6c1d2102b4",
+    "github_staging_handoff_ready": false,
+    "live_status": "blocked",
+    "live_upload_blockers": [
+      "current-admin-api-contract-live",
+      "auth-context-live",
+      "build-version-health",
+      "version-health-parity-contract-live",
+      "preprocess-disk",
+      "disk-space-protection-contract-live",
+      "usage-events-tolerance",
+      "usage-events-repair-contract-live",
+      "processing-recovery",
+      "processing-recovery-contract-live",
+      "current-index",
+      "dashboard-metrics-live",
+      "data-loading-contract-live",
+      "admin-worker-env-proof-contract-live",
+      "admin-worker-live-flags",
+      "cutter-compatibility-proof-contract-live",
+      "cutter-release-compatibility-live"
+    ],
+    "parity_status": "blocked",
+    "parity_upload_blockers": [
+      "current-admin-api-contract-parity",
+      "version-health-parity-contract",
+      "admin-worker-env-proof-contract",
+      "cutter-compatibility-proof-contract",
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ],
+    "worker_status": "blocked",
+    "worker_proof_accepted": false,
+    "worker_upload_blockers": [
+      "env-file-worker-flags-disabled",
+      "inspect-worker-flags-disabled",
+      "admin-worker-library-roots"
+    ],
+    "cutter_staged_plan_status": "ready-for-staged-cutter-proof",
+    "cutter_staged_plan_ready": true,
+    "cutter_staged_plan_candidate_image_tag": "4cb5b18262e49894d4272b0fc940be6c1d2102b4",
+    "cutter_staged_plan_blockers": [],
+    "cutter_status": "blocked",
+    "cutter_proof_accepted": false,
+    "cutter_upload_blockers": [
+      "windows-acceptance-report-provided",
+      "windows-acceptance-passed",
+      "reviewed-auth-mode",
+      "public-library-ready-count",
+      "public-library-first-page-readable",
+      "release-version-matches-expected",
+      "search-protocol-readable",
+      "transcript-detail-readable",
+      "real-cut-report-provided",
+      "real-cut-smoke-passed",
+      "real-cut-output-produced",
+      "real-cut-core-phases-done"
+    ],
+    "release_inputs_intake_status": "blocked",
+    "release_inputs_intake_complete": false,
+    "release_inputs_returned_precheck_passed": true,
+    "release_inputs_ready": false,
+    "release_inputs_intake_blockers": [
+      "nas-image-proof-accepted",
+      "admin-worker-proof-accepted",
+      "nas-disk-proof-accepted"
+    ],
+    "release_input_blockers": [
+      "nas-image-proof-accepted",
+      "release-inputs-ready"
+    ],
+    "legacy_rollback_exception_ready": true,
+    "legacy_rollback_exception_accepted": false,
+    "legacy_rollback_exception_blockers": [
+      "legacy-rollback-exception-approved"
+    ],
+    "nas_access_status": "ready-for-nas-collection",
+    "nas_collection_directly_available": true,
+    "nas_collection_blockers": [],
+    "nas_access_staging_review_blockers": [
+      "returned-evidence-visible",
+      "staging-admin-port-reachable"
+    ],
+    "nas_handoff_kit_status": "ready-for-transfer",
+    "nas_handoff_kit_ready": true,
+    "nas_handoff_kit_blockers": [],
+    "nas_handoff_kit_archive_path": "dist/acceptance/admin-docker-nas-handoff-kit.tar.gz",
+    "nas_handoff_kit_archive_sha256": "a668803edb2e609546ac116826ff61076ffd75fea57a1b1b5b0526b0ac0b4841",
+    "staging_status": "blocked",
+    "staging_review_ready": false,
+    "staging_blockers": [
+      "current-image-tag-provided",
+      "target-image-tag-provided",
+      "rollback-image-tag-provided",
+      "target-differs-from-current",
+      "rollback-tag-matches-current",
+      "image-push-explicitly-approved",
+      "target-tag-matches-smoked-image",
+      "release-inputs-ready-for-decision",
+      "current-tag-matches-release-inputs",
+      "target-tag-matches-release-inputs",
+      "rollback-tag-matches-release-inputs",
+      "nas-disk-proof-accepted",
+      "pre-staging-execution-blockers-carried-forward",
+      "parity-report-blockers-clear",
+      "worker-env-proof-accepted",
+      "cutter-compatibility-proof-accepted"
+    ],
+    "unresolved_parity_blockers": [
+      "current-admin-api-contract-parity",
+      "version-health-parity-contract",
+      "admin-worker-env-proof-contract",
+      "cutter-compatibility-proof-contract",
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ],
+    "resolved_external_parity_blockers": []
+  },
+  "gates": [
+    {
+      "id": "summary-no-side-effects",
+      "title": "Readiness summary has no runtime side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This summary reads archived artifacts only; it does not contact Docker, NAS, Windows Runner, Admin API, or Cutter API.",
+      "blocks_release_review": false
+    },
+    {
+      "id": "local-docker-smoke-passed",
+      "title": "Docker candidate smoke has passed locally or in GitHub",
+      "category": "local-smoke",
+      "status": "pass",
+      "evidence": "local_smoke_passed=true, github_candidate_artifact_ready=true, image_tag=4cb5b18262e49894d4272b0fc940be6c1d2102b4",
+      "blocks_release_review": false,
+      "required_evidence": "Run validate:admin-docker-local-smoke on a Docker-capable machine, or archive an Admin Docker GitHub artifact readiness report with github_candidate_artifact_ready=true."
+    },
+    {
+      "id": "live-readonly-blockers-clear",
+      "title": "Live NAS Docker read-only blockers are clear",
+      "category": "live-nas",
+      "status": "blocked",
+      "evidence": "Live blockers: current-admin-api-contract-live, auth-context-live, build-version-health, version-health-parity-contract-live, preprocess-disk, disk-space-protection-contract-live, usage-events-tolerance, usage-events-repair-contract-live, processing-recovery, processing-recovery-contract-live, current-index, dashboard-metrics-live, data-loading-contract-live, admin-worker-env-proof-contract-live, admin-worker-live-flags, cutter-compatibility-proof-contract-live, cutter-release-compatibility-live",
+      "blocks_release_review": true,
+      "required_evidence": "Rerun the GET-only live-readonly probe after the staged target exposes current endpoints and live gates pass."
+    },
+    {
+      "id": "parity-plan-blockers-clear",
+      "title": "Docker version/API parity blockers are clear",
+      "category": "parity",
+      "status": "blocked",
+      "evidence": "Parity blockers: current-admin-api-contract-parity, version-health-parity-contract, admin-worker-env-proof-contract, cutter-compatibility-proof-contract, admin-worker-env-external-proof, cutter-compatibility-external-proof",
+      "blocks_release_review": true,
+      "required_evidence": "Current Admin API contract, disk risk, worker proof, and Cutter proof blockers must be cleared."
+    },
+    {
+      "id": "worker-proof-accepted",
+      "title": "admin-worker env proof is accepted",
+      "category": "worker",
+      "status": "blocked",
+      "evidence": "worker status=blocked, blockers=env-file-worker-flags-disabled, inspect-worker-flags-disabled, admin-worker-library-roots",
+      "blocks_release_review": true,
+      "required_evidence": "Provide accepted NAS admin-worker env and inspect proof."
+    },
+    {
+      "id": "cutter-proof-accepted",
+      "title": "Cutter compatibility proof is accepted",
+      "category": "cutter",
+      "status": "blocked",
+      "evidence": "cutter status=blocked, blockers=windows-acceptance-report-provided, windows-acceptance-passed, reviewed-auth-mode, public-library-ready-count, public-library-first-page-readable, release-version-matches-expected, search-protocol-readable, transcript-detail-readable, real-cut-report-provided, real-cut-smoke-passed, real-cut-output-produced, real-cut-core-phases-done",
+      "blocks_release_review": true,
+      "required_evidence": "Provide accepted staged-candidate Windows Cutter compatibility proof."
+    },
+    {
+      "id": "nas-release-inputs-intake-complete",
+      "title": "NAS release-input returned evidence has been consumed",
+      "category": "release-inputs",
+      "status": "blocked",
+      "evidence": "intake blockers: nas-image-proof-accepted, admin-worker-proof-accepted, nas-disk-proof-accepted",
+      "blocks_release_review": true,
+      "required_evidence": "Run the NAS collector, copy admin-docker-release-inputs/ back locally, then run intake:admin-docker-nas-release-inputs until intake_complete=true."
+    },
+    {
+      "id": "nas-collection-path-prepared",
+      "title": "NAS release-input collection path is prepared",
+      "category": "nas-access",
+      "status": "pass",
+      "evidence": "direct_collection=true, handoff_kit_ready=true, nas_collection_blockers=none",
+      "blocks_release_review": false,
+      "required_evidence": "Provide a direct NAS collection path or a ready portable handoff kit before waiting on returned NAS evidence."
+    },
+    {
+      "id": "nas-handoff-kit-ready",
+      "title": "NAS handoff kit is ready for manual transfer",
+      "category": "handoff",
+      "status": "pass",
+      "evidence": "kit_ready=true, archive=dist/acceptance/admin-docker-nas-handoff-kit.tar.gz, kit_blockers=none",
+      "blocks_release_review": false,
+      "required_evidence": "Run package:admin-docker-nas-handoff-kit and require kit_ready=true plus a sha256-pinned .tar.gz archive."
+    },
+    {
+      "id": "returned-evidence-precheck-passed",
+      "title": "Returned NAS evidence precheck passed inside intake",
+      "category": "release-inputs",
+      "status": "pass",
+      "evidence": "returned_precheck_passed=true",
+      "blocks_release_review": false,
+      "required_evidence": "Regenerate intake with a current script that records observations.returned_precheck_passed=true before release review."
+    },
+    {
+      "id": "release-inputs-ready",
+      "title": "Release inputs are ready for a separate release decision",
+      "category": "release-inputs",
+      "status": "blocked",
+      "evidence": "release input blockers: nas-image-proof-accepted, release-inputs-ready",
+      "blocks_release_review": true,
+      "required_evidence": "Release inputs must be regenerated from accepted pre-staging, candidate-ref, and NAS current-image proof."
+    },
+    {
+      "id": "staging-runbook-ready",
+      "title": "Docker staging runbook is ready for release review",
+      "category": "runbook",
+      "status": "blocked",
+      "evidence": "staging blockers: current-image-tag-provided, target-image-tag-provided, rollback-image-tag-provided, target-differs-from-current, rollback-tag-matches-current, image-push-explicitly-approved, target-tag-matches-smoked-image, release-inputs-ready-for-decision, current-tag-matches-release-inputs, target-tag-matches-release-inputs, rollback-tag-matches-release-inputs, nas-disk-proof-accepted, pre-staging-execution-blockers-carried-forward, parity-report-blockers-clear, worker-env-proof-accepted, cutter-compatibility-proof-accepted",
+      "blocks_release_review": true,
+      "required_evidence": "Regenerate the staging runbook after explicit tags and evidence gates are satisfied."
+    },
+    {
+      "id": "summary-does-not-approve-upload",
+      "title": "Summary does not approve Docker upload by itself",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "staging_runbook.docker_deploy_allowed=false, release_inputs_intake.push_execution_allowed=false, release_inputs_intake.docker_deploy_allowed=false, github_artifact.docker_deploy_allowed=false, nas_access.push_execution_allowed=false, nas_access.docker_deploy_allowed=false, handoff_kit.push_execution_allowed=false, handoff_kit.docker_deploy_allowed=false",
+      "blocks_release_review": false,
+      "required_evidence": "Docker upload must remain a separate release decision even when evidence gates are ready."
+    }
+  ],
+  "summary": {
+    "total": 13,
+    "passed": 6,
+    "blocked": 7,
+    "release_review_blockers": [
+      "live-readonly-blockers-clear",
+      "parity-plan-blockers-clear",
+      "worker-proof-accepted",
+      "cutter-proof-accepted",
+      "nas-release-inputs-intake-complete",
+      "release-inputs-ready",
+      "staging-runbook-ready"
+    ]
+  },
+  "automation_boundary": {
+    "safe_local_progress_allowed": true,
+    "nas_runtime_changes_allowed": false,
+    "image_push_allowed": false,
+    "docker_deploy_allowed": false,
+    "release_approval_required": true,
+    "nas_operator_or_runtime_action_required": true,
+    "windows_staged_candidate_required": true,
+    "reasons_requiring_external_action": [
+      "Explicit release approval is still required before push_images=true or staging execution.",
+      "Live NAS evidence still reports old or unsafe Admin Docker runtime gates.",
+      "NAS disk pressure must be cleared or reproved before staging.",
+      "admin-worker proof is not accepted; current or staged worker flags/roots still need safe evidence.",
+      "Cutter compatibility proof must be collected against a staged candidate before final MVP acceptance.",
+      "NAS returned evidence and release inputs are not ready for a release decision."
+    ],
+    "safe_local_next_actions": [
+      "Refresh read-only evidence summaries, release-readiness summaries, and documentation from archived artifacts.",
+      "Keep the NAS handoff kit current and validate any returned evidence package locally when it appears.",
+      "Use the UGOS browserless read-only collector to refresh sanitized returned evidence without touching NAS runtime.",
+      "Improve worker proof validators and rerun them against sanitized returned evidence without touching NAS runtime.",
+      "Keep the staged Cutter proof plan current until a real staged candidate can be verified."
+    ],
+    "blocked_actions": [
+      "Do not run the Admin Docker workflow with push_images=true.",
+      "Do not edit NAS Docker .env, pull images, restart containers, or replace the 18080 runtime from this summary alone.",
+      "Do not enable standalone preprocess or ready-publish workers.",
+      "Do not mark Admin Docker MVP v0.1 complete."
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Docker release review remains blocked by archived evidence gates."
+  },
+  "next_actions": [
+    "Update or stage a NAS Docker image exposing the current Admin API contract endpoints, then rerun the GET-only live-readonly probe and parity plan.",
+    "Update or stage a NAS Docker image exposing admin_worker_env_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.",
+    "Update or stage a NAS Docker image exposing cutter_compatibility_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.",
+    "Resolve NAS disk pressure before staging; do not treat low free space as a cosmetic warning.",
+    "Collect NAS-exported admin-worker env and inspect evidence, then rerun validate:admin-worker-env-proof.",
+    "Use the prepared staged Cutter proof plan for candidate 4cb5b18262e49894d4272b0fc940be6c1d2102b4: after a separately gated staged candidate exists, run Windows Cutter windows_acceptance and real_cut_smoke, then rerun validate:admin-cutter-compatibility-proof.",
+    "Use collect:admin-docker-nas-ugos-returned-evidence to generate sanitized admin-docker-release-inputs/ directly from UGOS Docker read-only APIs, then rerun intake:admin-docker-nas-release-inputs with MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR pointing to that directory.",
+    "Rerun intake:admin-docker-nas-release-inputs with the generated admin-docker-release-inputs/ directory after collecting returned evidence. Current intake blockers: nas-image-proof-accepted, admin-worker-proof-accepted, nas-disk-proof-accepted.",
+    "Regenerate release inputs from accepted pre-staging, candidate-ref, and NAS current-image proof before release review. Current release-input blockers: nas-image-proof-accepted, release-inputs-ready.",
+    "Legacy latest rollback exception evidence is ready but not accepted; have a release-manager role review it before treating current/rollback tag latest as valid. Current legacy blockers: legacy-rollback-exception-approved.",
+    "Run the Admin Docker GitHub workflow manually with push_images=true after candidate smoke evidence is green, then set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true for the staging runbook.",
+    "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact accepted candidate image tag (4cb5b18262e49894d4272b0fc940be6c1d2102b4) before staging review.",
+    "Provide explicit current, target, and rollback Docker image tags before release review."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T013413Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T013413Z.md"
+  }
+}

@@ -99,6 +99,9 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     release_inputs_ready: boolean | null;
     release_inputs_intake_blockers: string[];
     release_input_blockers: string[];
+    legacy_rollback_exception_ready: boolean | null;
+    legacy_rollback_exception_accepted: boolean | null;
+    legacy_rollback_exception_blockers: string[];
     nas_access_status: string;
     nas_collection_directly_available: boolean | null;
     nas_collection_blockers: string[];
@@ -148,6 +151,10 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function stringArray(value: unknown): string[] {
+  return asArray(value).filter((item): item is string => typeof item === "string");
+}
+
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -157,8 +164,7 @@ function asBoolean(value: unknown): boolean | null {
 }
 
 function summaryBlockers(report: unknown, key = "upload_blockers"): string[] {
-  return asArray(asRecord(asRecord(report).summary)[key])
-    .filter((item): item is string => typeof item === "string");
+  return stringArray(asRecord(asRecord(report).summary)[key]);
 }
 
 function resultStatus(report: unknown): string {
@@ -269,6 +275,9 @@ function nextActions(input: {
   releaseInputsReady: boolean | null;
   releaseInputsIntakeBlockers: string[];
   releaseInputBlockers: string[];
+  legacyRollbackExceptionReady: boolean | null;
+  legacyRollbackExceptionAccepted: boolean | null;
+  legacyRollbackExceptionBlockers: string[];
   nasCollectionDirectlyAvailable: boolean | null;
   nasCollectionBlockers: string[];
   handoffKitReady: boolean | null;
@@ -336,6 +345,9 @@ function nextActions(input: {
 
   if (!input.releaseInputsReady) {
     actions.push(`Regenerate release inputs from accepted pre-staging, candidate-ref, and NAS current-image proof before release review. Current release-input blockers: ${input.releaseInputBlockers.join(", ") || "unknown"}.`);
+    if (input.legacyRollbackExceptionReady && !input.legacyRollbackExceptionAccepted) {
+      actions.push(`Legacy latest rollback exception evidence is ready but not accepted; have a release-manager role review it before treating current/rollback tag latest as valid. Current legacy blockers: ${input.legacyRollbackExceptionBlockers.join(", ") || "unknown"}.`);
+    }
   }
 
   if (input.stagingBlockers.includes("candidate-contract-proof-accepted")) {
@@ -507,6 +519,10 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const releaseInputsReturnedPrecheckPassed = asBoolean(
     asRecord(asRecord(input.release_inputs_intake_report).observations).returned_precheck_passed
   );
+  const releaseInputsIntakeObservations = asRecord(asRecord(input.release_inputs_intake_report).observations);
+  const legacyRollbackExceptionReady = asBoolean(releaseInputsIntakeObservations.legacy_rollback_exception_ready);
+  const legacyRollbackExceptionAccepted = asBoolean(releaseInputsIntakeObservations.legacy_rollback_exception_accepted);
+  const legacyRollbackExceptionBlockers = stringArray(releaseInputsIntakeObservations.legacy_rollback_exception_blockers);
   const releaseInputsReady = asBoolean(asRecord(input.release_inputs_intake_report).release_inputs_ready);
   const releaseInputsPushAllowed = asBoolean(asRecord(input.release_inputs_intake_report).push_execution_allowed);
   const releaseInputsDeployAllowed = asBoolean(asRecord(input.release_inputs_intake_report).docker_deploy_allowed);
@@ -743,6 +759,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       release_inputs_ready: releaseInputsReady,
       release_inputs_intake_blockers: releaseInputsIntakeBlockers,
       release_input_blockers: releaseInputBlockers,
+      legacy_rollback_exception_ready: legacyRollbackExceptionReady,
+      legacy_rollback_exception_accepted: legacyRollbackExceptionAccepted,
+      legacy_rollback_exception_blockers: legacyRollbackExceptionBlockers,
       nas_access_status: resultStatus(input.nas_access_preflight_report),
       nas_collection_directly_available: nasCollectionDirectlyAvailable,
       nas_collection_blockers: nasCollectionBlockers,
@@ -785,6 +804,9 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       releaseInputsReady,
       releaseInputsIntakeBlockers,
       releaseInputBlockers,
+      legacyRollbackExceptionReady,
+      legacyRollbackExceptionAccepted,
+      legacyRollbackExceptionBlockers,
       nasCollectionDirectlyAvailable,
       nasCollectionBlockers,
       handoffKitReady,
@@ -837,6 +859,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
     `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; returned_precheck_passed=${report.observations.release_inputs_returned_precheck_passed ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,
     `- Release inputs ready: ${report.observations.release_inputs_ready ?? "unknown"}; blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
+    `- Legacy rollback exception: ready=${report.observations.legacy_rollback_exception_ready ?? "unknown"}; accepted=${report.observations.legacy_rollback_exception_accepted ?? "unknown"}; blockers: ${report.observations.legacy_rollback_exception_blockers.join(", ") || "none"}`,
     `- NAS collection directly available: ${report.observations.nas_collection_directly_available ?? "unknown"}; blockers: ${report.observations.nas_collection_blockers.join(", ") || "none"}`,
     `- NAS access staging blockers: ${report.observations.nas_access_staging_review_blockers.join(", ") || "none"}`,
     `- NAS handoff kit ready: ${report.observations.nas_handoff_kit_ready ?? "unknown"}; archive: ${report.observations.nas_handoff_kit_archive_path || "none"}; sha256=${report.observations.nas_handoff_kit_archive_sha256 || "none"}; blockers: ${report.observations.nas_handoff_kit_blockers.join(", ") || "none"}`,

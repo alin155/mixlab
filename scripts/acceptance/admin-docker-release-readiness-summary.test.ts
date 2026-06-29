@@ -197,6 +197,12 @@ function blockedReleaseInputsIntake(): unknown {
     release_inputs_ready: false,
     push_execution_allowed: false,
     docker_deploy_allowed: false,
+    observations: {
+      returned_precheck_passed: true,
+      legacy_rollback_exception_ready: true,
+      legacy_rollback_exception_accepted: false,
+      legacy_rollback_exception_blockers: ["legacy-rollback-exception-approved"]
+    },
     summary: {
       intake_blockers: [
         "returned-dir-provided",
@@ -391,6 +397,9 @@ test("admin Docker release readiness summary stays blocked when evidence gates a
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-nas-handoff-kit.tar.gz")));
   assert.ok(report.next_actions.some((item) => item.includes("admin-docker-release-inputs/")));
   assert.ok(report.next_actions.some((item) => item.includes("release-input blockers")));
+  assert.equal(report.observations.legacy_rollback_exception_ready, true);
+  assert.equal(report.observations.legacy_rollback_exception_accepted, false);
+  assert.ok(report.next_actions.some((item) => item.includes("release-manager role review")));
   assert.ok(report.next_actions.some((item) => item.includes("NAS disk pressure")));
   assert.ok(report.next_actions.some((item) => item.includes("local smoke")));
   assert.ok(report.next_actions.some((item) => item.includes("push_images=true")));

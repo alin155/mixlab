@@ -9,6 +9,7 @@ import { runAdminDockerNasReleaseInputsIntake } from "./admin-docker-nas-release
 const TARGET_TAG = "ff05c8a4e4b88463fc0227ee173ba859d85a41be";
 const CURRENT_TAG = "acf896c6d16ec1503237f3afa854afff60a191b3";
 const CANDIDATE_REF = `admin-docker-candidate-${TARGET_TAG}`;
+const LEGACY_APPROVAL = "release-manager:legacy-latest-rollback-exception=accepted";
 
 async function writeText(filePath: string, content: string): Promise<string> {
   await writeFile(filePath, content);
@@ -50,6 +51,42 @@ function currentInspect(): unknown[] {
       Name: "/mixlab-admin-web-1",
       Config: {
         Image: `ghcr.io/alin155/mixlab-admin-web:${CURRENT_TAG}`,
+        Labels: {
+          "com.docker.compose.service": "admin-web"
+        }
+      }
+    }
+  ];
+}
+
+function legacyCurrentEnv(): string {
+  return "MIXLAB_IMAGE_TAG=latest";
+}
+
+function legacyCurrentInspect(): unknown[] {
+  return [
+    {
+      Name: "/mixlab-admin-api-1",
+      Config: {
+        Image: "ghcr.io/alin155/mixlab-admin-runtime:latest",
+        Labels: {
+          "com.docker.compose.service": "admin-api"
+        }
+      }
+    },
+    {
+      Name: "/mixlab-admin-worker-1",
+      Config: {
+        Image: "ghcr.io/alin155/mixlab-admin-runtime:latest",
+        Labels: {
+          "com.docker.compose.service": "admin-worker"
+        }
+      }
+    },
+    {
+      Name: "/mixlab-admin-web-1",
+      Config: {
+        Image: "ghcr.io/alin155/mixlab-admin-web:latest",
         Labels: {
           "com.docker.compose.service": "admin-web"
         }
@@ -222,6 +259,23 @@ function cutterCompatibility(): unknown {
     },
     result: {
       status: "accepted"
+    }
+  };
+}
+
+function legacyRollbackPlan(): unknown {
+  return {
+    mode: "admin-docker-legacy-rollback-plan",
+    exception_plan_ready: true,
+    release_execution_allowed: false,
+    docker_deploy_allowed: false,
+    observations: {
+      current_image_tag: "latest",
+      target_image_tag: TARGET_TAG,
+      current_image_proof_blockers: ["current-tag-stable-for-rollback"]
+    },
+    summary: {
+      release_decision_blockers: ["explicit-legacy-rollback-exception-approval"]
     }
   };
 }
@@ -445,4 +499,84 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   assert.ok(report.generated_reports.staging_runbook_report.endsWith("admin-docker-staging-runbook-20260628T000000Z.json"));
   assert.equal(JSON.stringify(report).includes("gh workflow run docker-admin.yml"), false);
   assert.match(await readFile(report.artifacts?.markdown_path ?? "", "utf8"), /Release inputs ready: yes/);
+});
+
+test("NAS release-inputs intake supports legacy latest exception only after release-manager approval", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-nas-intake-legacy-"));
+  const returnedDir = path.join(tempRoot, "admin-docker-release-inputs");
+  await mkdir(returnedDir);
+
+  await writeText(path.join(returnedDir, "admin-docker-current.env"), legacyCurrentEnv());
+  await writeJson(path.join(returnedDir, "admin-docker-current.inspect.json"), legacyCurrentInspect());
+  await writeText(path.join(returnedDir, "admin-worker.env"), workerEnv());
+  await writeJson(path.join(returnedDir, "admin-worker.inspect.json"), workerInspect());
+  await writeJson(path.join(returnedDir, "admin-docker-disk-proof.json"), diskProof());
+  await writeText(path.join(returnedDir, "MANIFEST.txt"), [
+    "schema_version=1.0",
+    "mode=admin-docker-nas-release-inputs-collector",
+    "push_execution_allowed=false",
+    "docker_deploy_allowed=false",
+    "nas_writes_allowed=false",
+    "worker_start_allowed=false",
+    "secret_sanitization=sanitized-only",
+    "forbidden_full_env=true",
+    "forbidden_full_docker_inspect=true",
+    "forbidden_secrets=true"
+  ].join("\n"));
+  await writeText(path.join(returnedDir, "README.md"), "# Admin Docker NAS Release Inputs\n");
+
+  const prestagingPath = await writeJson(path.join(tempRoot, "admin-docker-prestaging-handoff.json"), prestagingHandoff());
+  const candidateRefPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-ref-proof.json"), candidateRefProof());
+  const legacyPath = await writeJson(path.join(tempRoot, "admin-docker-legacy-rollback-plan.json"), legacyRollbackPlan());
+  const localSmokePath = await writeJson(path.join(tempRoot, "admin-docker-local-smoke.json"), localSmoke());
+  const parityPath = await writeJson(path.join(tempRoot, "admin-docker-version-parity-plan.json"), parityPlan());
+  const candidateContractPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-contract-proof.json"), candidateContract());
+  const cutterPath = await writeJson(path.join(tempRoot, "admin-cutter-compatibility-proof.json"), cutterCompatibility());
+
+  const blocked = await runAdminDockerNasReleaseInputsIntake({
+    returned_dir: returnedDir,
+    prestaging_handoff_report_path: prestagingPath,
+    candidate_ref_proof_report_path: candidateRefPath,
+    legacy_rollback_plan_report_path: legacyPath,
+    local_docker_smoke_report_path: localSmokePath,
+    parity_plan_report_path: parityPath,
+    candidate_contract_proof_report_path: candidateContractPath,
+    cutter_compatibility_proof_report_path: cutterPath,
+    output_dir: tempRoot,
+    artifact_dir: tempRoot,
+    generated_at: "2026-06-28T00:01:00.000Z",
+    command: "test"
+  });
+
+  assert.equal(blocked.intake_complete, false);
+  assert.equal(blocked.release_inputs_ready, false);
+  assert.equal(blocked.observations.legacy_rollback_exception_ready, true);
+  assert.equal(blocked.observations.legacy_rollback_exception_accepted, false);
+  assert.ok(blocked.observations.release_input_blockers.includes("legacy-rollback-exception-approved"));
+  assert.ok(blocked.summary.release_input_blockers.includes("nas-image-proof-accepted"));
+
+  const approved = await runAdminDockerNasReleaseInputsIntake({
+    returned_dir: returnedDir,
+    prestaging_handoff_report_path: prestagingPath,
+    candidate_ref_proof_report_path: candidateRefPath,
+    legacy_rollback_plan_report_path: legacyPath,
+    legacy_rollback_exception_approval: LEGACY_APPROVAL,
+    local_docker_smoke_report_path: localSmokePath,
+    parity_plan_report_path: parityPath,
+    candidate_contract_proof_report_path: candidateContractPath,
+    cutter_compatibility_proof_report_path: cutterPath,
+    output_dir: tempRoot,
+    artifact_dir: tempRoot,
+    generated_at: "2026-06-28T00:02:00.000Z",
+    command: "test"
+  });
+
+  assert.equal(approved.intake_complete, true);
+  assert.equal(approved.release_inputs_ready, true);
+  assert.equal(approved.push_execution_allowed, false);
+  assert.equal(approved.docker_deploy_allowed, false);
+  assert.equal(approved.observations.current_image_tag, "latest");
+  assert.equal(approved.observations.rollback_image_tag, "latest");
+  assert.equal(approved.observations.legacy_rollback_exception_accepted, true);
+  assert.equal(approved.summary.release_input_blockers.includes("nas-image-proof-accepted"), false);
 });
