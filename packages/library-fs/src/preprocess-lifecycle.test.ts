@@ -203,6 +203,49 @@ test("claims queued source videos before unprocessed source videos", async () =>
   assert.equal(secondManifest.preprocess_status, "processing");
 });
 
+test("claims only requested queued source video ids when provided", async () => {
+  const libraryRoot = await makeScannedLibrary();
+  const firstManifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "source-video.json"
+  );
+  const secondManifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000002",
+    "source-video.json"
+  );
+  const firstManifest = await readJson<Record<string, unknown>>(firstManifestPath);
+  const secondManifest = await readJson<Record<string, unknown>>(secondManifestPath);
+
+  await writeFile(
+    firstManifestPath,
+    `${JSON.stringify({ ...firstManifest, preprocess_status: "queued" }, null, 2)}\n`
+  );
+  await writeFile(
+    secondManifestPath,
+    `${JSON.stringify({ ...secondManifest, preprocess_status: "queued" }, null, 2)}\n`
+  );
+
+  const job = await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-01T00:01:00Z",
+    claim_statuses: ["queued"],
+    source_video_ids: ["V000002"]
+  });
+  const firstAfter = await readJson<Record<string, unknown>>(firstManifestPath);
+  const secondAfter = await readJson<Record<string, unknown>>(secondManifestPath);
+
+  assert.equal(job?.source_video_id, "V000002");
+  assert.equal(firstAfter.preprocess_status, "queued");
+  assert.equal(secondAfter.preprocess_status, "processing");
+});
+
 test("queued-only claiming does not claim unprocessed source videos", async () => {
   const libraryRoot = await makeScannedLibrary();
 

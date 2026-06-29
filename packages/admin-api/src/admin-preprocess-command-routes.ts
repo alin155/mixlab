@@ -15,6 +15,7 @@ export interface AdminPreprocessCommandRouteSettings<TRuntimePolicy> {
 
 export interface AdminPreprocessSupervisorStartInput<TRuntimePolicy> {
   limit?: number;
+  source_video_ids?: string[];
   runtime_policy: TRuntimePolicy;
 }
 
@@ -149,6 +150,30 @@ function parseOptionalPositiveInteger(value: unknown, label: string): number | u
   return Number(value);
 }
 
+function parseOptionalSourceVideoIds(body: Record<string, unknown>): string[] | undefined {
+  const single = body.source_video_id;
+  const multiple = body.source_video_ids;
+  const values = Array.isArray(multiple)
+    ? multiple
+    : typeof single === "string" ? [single] : [];
+  const ids = values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (ids.length === 0) {
+    return undefined;
+  }
+
+  for (const id of ids) {
+    if (!/^V\d{6}$/.test(id)) {
+      throw new Error("指定素材ID必须是 V000001 格式");
+    }
+  }
+
+  return [...new Set(ids)];
+}
+
 function bulkCommandForPath(pathname: string): AdminBulkPreprocessRouteCommand | null {
   if (matchAdminPreprocessQueueUnprocessedPath(pathname)) {
     return "preprocess-queue-unprocessed";
@@ -273,11 +298,13 @@ export async function handleAdminPreprocessCommandRoutes<
         };
       }
 
+      const sourceVideoIds = parseOptionalSourceVideoIds(body);
       return {
         handled: true,
         status_code: 200,
         body: apiOk(input.deps.start_preprocess_supervisor({
           limit: parseOptionalPositiveInteger(body.limit, "本次限制"),
+          ...(sourceVideoIds ? { source_video_ids: sourceVideoIds } : {}),
           runtime_policy: settings.runtime_policy
         }))
       };

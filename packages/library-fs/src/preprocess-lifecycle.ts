@@ -12,6 +12,7 @@ export interface ClaimNextPreprocessJobInput {
   worker_id: string;
   now: string;
   claim_statuses?: Array<"queued" | "unprocessed">;
+  source_video_ids?: string[];
   refresh_library_counts?: boolean;
 }
 
@@ -392,8 +393,14 @@ export async function claimNextPreprocessJob(
 ): Promise<PreprocessJobSummary | null> {
   const manifests = await readAllSourceVideoManifests(input.library_root);
   const claimStatuses = input.claim_statuses ?? ["queued", "unprocessed"];
+  const requestedIds = input.source_video_ids && input.source_video_ids.length > 0
+    ? new Set(input.source_video_ids)
+    : null;
   const manifest = claimStatuses
-    .map((status) => manifests.find((candidate) => candidate.preprocess_status === status))
+    .map((status) => manifests.find((candidate) =>
+      candidate.preprocess_status === status &&
+      (!requestedIds || requestedIds.has(candidate.source_video_id))
+    ))
     .find((candidate): candidate is SourceVideoManifest => Boolean(candidate));
 
   if (!manifest) {

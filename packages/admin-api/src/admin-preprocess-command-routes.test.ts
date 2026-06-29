@@ -444,6 +444,35 @@ test("preprocess command routes start supervisor after settings secrets and safe
   }
 });
 
+test("preprocess command routes can start supervisor for requested source video ids", async () => {
+  let startInput: AdminPreprocessSupervisorStartInput<TestRuntimePolicy> | undefined;
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/supervisor/start",
+    deps: makeDeps({
+      read_request_json: async () => ({
+        limit: 1,
+        source_video_id: "V006190"
+      }),
+      start_preprocess_supervisor: (input) => {
+        startInput = input;
+        return {
+          state: "running",
+          state_label: "运行中"
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(startInput, {
+    limit: 1,
+    source_video_ids: ["V006190"],
+    runtime_policy: {
+      concurrency: 1
+    }
+  });
+});
+
 test("preprocess command routes block supervisor start when safety gate fails", async () => {
   let startCalls = 0;
   const result = await callRoute({

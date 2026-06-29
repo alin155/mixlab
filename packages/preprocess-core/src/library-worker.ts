@@ -44,6 +44,7 @@ export interface RunLibraryTextPreprocessWorkerInput {
   audio_mode?: PreprocessAudioModeId;
   scan_before_claim?: boolean;
   claim_statuses?: Array<"queued" | "unprocessed">;
+  source_video_ids?: string[];
   count_refresh_interval?: number;
   now?: () => string;
   probe_source_video(input: ProbeSourceVideoInput): Promise<SourceVideoMediaMetadata>;
@@ -180,6 +181,7 @@ export async function runLibraryTextPreprocessWorker(
       worker_id: input.worker_id,
       now: now(),
       claim_statuses: input.claim_statuses,
+      source_video_ids: input.source_video_ids,
       refresh_library_counts: false
     });
 

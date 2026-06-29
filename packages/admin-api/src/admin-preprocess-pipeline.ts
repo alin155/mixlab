@@ -109,6 +109,7 @@ export interface RunAdminPreprocessPipelineInput {
   env?: Record<string, string | undefined>;
   docker_mvp_mode?: AdminDockerMvpMode;
   limit?: number;
+  source_video_ids?: string[];
   now: () => string;
   media: ReadyPublishMedia;
   should_stop?: () => boolean;
@@ -233,6 +234,7 @@ export async function runAdminPreprocessPipeline(
       library_name: input.library_name,
       worker_id: `admin-worker-${process.pid}`,
       limit: input.limit ?? runtimePolicy.concurrent_jobs,
+      source_video_ids: input.source_video_ids,
       audio_mode: runtimePolicy.audio_mode,
       now: input.now,
       scan_before_claim: false,
@@ -310,6 +312,7 @@ export function createRealPreprocessRunner(input: {
         runtime_policy: runInput.runtime_policy,
         env: input.env,
         limit: runInput.limit,
+        source_video_ids: runInput.source_video_ids,
         now: input.now,
         media: input.media,
         should_stop: runInput.should_stop,

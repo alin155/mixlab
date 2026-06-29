@@ -101,9 +101,15 @@ async function claimCandidateSourceVideoId(
   input: ClaimNextPreprocessJobInput
 ): Promise<string | null> {
   const claimStatuses = input.claim_statuses ?? ["queued", "unprocessed"];
+  const requestedIds = input.source_video_ids && input.source_video_ids.length > 0
+    ? new Set(input.source_video_ids)
+    : null;
   const manifests = await readAllSourceVideoManifests(input.library_root);
   const manifest = claimStatuses
-    .map((status) => manifests.find((candidate) => candidate.preprocess_status === status))
+    .map((status) => manifests.find((candidate) =>
+      candidate.preprocess_status === status &&
+      (!requestedIds || requestedIds.has(candidate.source_video_id))
+    ))
     .find((candidate): candidate is SourceVideoManifest => Boolean(candidate));
 
   return manifest?.source_video_id ?? null;
