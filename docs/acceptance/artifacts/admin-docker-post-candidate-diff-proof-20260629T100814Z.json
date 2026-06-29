@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T10:08:14Z",
+  "mode": "admin-docker-post-candidate-diff-proof",
+  "base_candidate_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+  "base_candidate_tag": "admin-docker-candidate-5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+  "observed_head_sha": "573065481eee8fe6843915e9d0cd471ed75a8b2a",
+  "current_branch": "codex/windows-first-run-autostart-20260615104835",
+  "command_summary": [
+    "git diff --name-status 5a50922bc82f1b6728f247ed33e5885ab8cf6bef..HEAD",
+    "git diff --name-only 5a50922bc82f1b6728f247ed33e5885ab8cf6bef..HEAD | awk '!($0 ~ /^docs\\\\//){print}'",
+    "git diff --name-only 5a50922bc82f1b6728f247ed33e5885ab8cf6bef..HEAD | awk '($0 ~ /^(apps\\\\/|packages\\\\/|scripts\\\\/|docker\\\\/|deploy\\\\/|\\\\.github\\\\/workflows\\\\/docker-admin\\\\.yml$|package\\\\.json$|package-lock\\\\.json$|tsconfig\\\\.json$)/){print}'",
+    "inspect docker/admin-runtime.Dockerfile and docker/admin-web.Dockerfile COPY inputs"
+  ],
+  "scope": {
+    "changed_path_count": 24,
+    "allowed_path_prefixes": [
+      "docs/"
+    ],
+    "non_docs_paths": [],
+    "runtime_or_web_build_input_patterns": [
+      "apps/",
+      "packages/",
+      "scripts/",
+      "docker/",
+      "deploy/",
+      ".github/workflows/docker-admin.yml",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json"
+    ],
+    "runtime_or_web_build_input_paths": [],
+    "docs_only_since_candidate": true,
+    "runtime_candidate_refresh_required": false
+  },
+  "dockerfile_copy_summary": {
+    "admin_runtime_copies": [
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "apps/",
+      "packages/",
+      "scripts/"
+    ],
+    "admin_web_build_copies": [
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "apps/",
+      "packages/",
+      "docker/nginx/admin-web.conf"
+    ],
+    "docs_copied_into_images": false
+  },
+  "supporting_artifacts": {
+    "candidate_scope_audit_json": "docs/acceptance/artifacts/admin-docker-candidate-scope-20260629T095303Z.json",
+    "candidate_scope_audit_markdown": "docs/acceptance/artifacts/admin-docker-candidate-scope-20260629T095303Z.md",
+    "github_artifact_readiness": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260629T095804Z.json",
+    "candidate_ref_proof": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260629T095825Z.json",
+    "latest_release_readiness_summary": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T100114Z.json",
+    "release_owner_runbook": "docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T100121Z.json"
+  },
+  "changed_path_sample": [
+    "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260629T095825Z.json",
+    "docs/acceptance/artifacts/admin-docker-candidate-scope-20260629T095303Z.json",
+    "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260629T095804Z.json",
+    "docs/acceptance/artifacts/admin-docker-github-run-artifact-20260629T095804Z.json",
+    "docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T100034Z.json",
+    "docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T100027Z.json",
+    "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T095931Z.json",
+    "docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T100121Z.json",
+    "docs/architecture/admin-docker-mvp-v0.1-plan.md",
+    "docs/operations/mixlab-environment-registry.md"
+  ],
+  "decisions": {
+    "target_image_tag_remains": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "current_head_must_not_replace_target_image_tag_without_new_dry_run": true,
+    "post_candidate_commits_are_evidence_only": true,
+    "image_push_allowed": false,
+    "docker_deploy_allowed": false,
+    "nas_runtime_changes_allowed": false,
+    "preprocess_execution_allowed": false,
+    "mvp_completion_allowed": false
+  },
+  "result": {
+    "status": "accepted",
+    "summary": "Post-candidate changes through 5730654 are docs/evidence only and do not refresh the Admin Docker runtime/web candidate image tag."
+  },
+  "next_actions": [
+    "Keep target image tag pinned to 5a50922bc82f1b6728f247ed33e5885ab8cf6bef until a later commit touching runtime/web build inputs gets a new candidate tag and push_images=false dry-run.",
+    "Do not treat this proof as image push, NAS deploy, worker enablement, preprocessing approval, or release approval.",
+    "Continue only after the release owner explicitly decides whether to run the exact push_images=true workflow command from the release-owner runbook."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-post-candidate-diff-proof-20260629T100814Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-post-candidate-diff-proof-20260629T100814Z.md"
+  }
+}
