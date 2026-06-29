@@ -1,0 +1,395 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T09:38:48.104Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-inputs.ts",
+  "mode": "admin-docker-release-inputs",
+  "sources": {
+    "prestaging_handoff_report": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260629T093839Z.json",
+    "candidate_ref_proof_report": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260629T093721Z.json",
+    "nas_image_proof_report": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260629T080002Z.json",
+    "legacy_rollback_plan_report": "",
+    "legacy_rollback_exception_review_report": ""
+  },
+  "release_inputs_ready": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "release_decision_required": true,
+  "inputs": {
+    "target_image_tag": "8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "rollback_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "branch": "admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "workflow_ref": "admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "release_ref_setup_command": "git tag admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d 8a7939c1e8b2220d45d52c5fe329692516c32e4d && git push origin refs/tags/admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d:refs/tags/admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "workflow_dispatch_command": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde"
+  },
+  "observations": {
+    "handoff_ready_to_request_release_inputs": true,
+    "handoff_staging_execution_ready": false,
+    "handoff_docker_deploy_allowed": false,
+    "handoff_staging_execution_blockers": [
+      "legacy-live-target-not-mistaken-for-staged-candidate",
+      "explicit-push-approval-required",
+      "current-and-rollback-tags-required"
+    ],
+    "handoff_docker_deploy_blockers": [
+      "legacy-live-target-not-mistaken-for-staged-candidate",
+      "explicit-push-approval-required",
+      "current-and-rollback-tags-required",
+      "staged-live-readonly-required",
+      "admin-worker-env-proof-required",
+      "cutter-compatibility-proof-required"
+    ],
+    "candidate_ref_proof_accepted": true,
+    "candidate_ref_proof_docker_deploy_allowed": false,
+    "candidate_ref_expected_sha": "8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "candidate_ref_expected_tag": "admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "candidate_ref_github_run_url": "https://github.com/alin155/mixlab/actions/runs/28362489637",
+    "candidate_ref_blockers": [],
+    "nas_image_proof_accepted": true,
+    "nas_image_proof_docker_deploy_allowed": false,
+    "nas_image_proof_blockers": [],
+    "legacy_rollback_plan_ready": null,
+    "legacy_rollback_release_execution_allowed": null,
+    "legacy_rollback_docker_deploy_allowed": null,
+    "legacy_rollback_current_image_tag": "",
+    "legacy_rollback_target_image_tag": "",
+    "legacy_rollback_exception_approval": "",
+    "legacy_rollback_exception_review_accepted": null,
+    "legacy_rollback_exception_review_role": "",
+    "legacy_rollback_exception_review_blockers": [],
+    "legacy_rollback_exception_ready": false,
+    "legacy_rollback_exception_accepted": false,
+    "legacy_rollback_exception_blockers": [],
+    "target_differs_from_current": true,
+    "rollback_matches_current": true
+  },
+  "gates": [
+    {
+      "id": "release-inputs-no-side-effects",
+      "title": "Release input packaging is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads prestaging handoff, candidate-ref proof, and NAS image proof JSON only; it does not contact NAS, Docker, GitHub, Admin API, or Cutter.",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "prestaging-handoff-provided",
+      "title": "Pre-staging handoff report is provided",
+      "category": "handoff",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260629T093839Z.json",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-prestaging-handoff and provide the JSON report path."
+    },
+    {
+      "id": "candidate-ref-proof-provided",
+      "title": "Candidate ref proof report is provided",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260629T093721Z.json",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-candidate-ref-proof with the candidate tag push_images=false GitHub dry-run artifacts."
+    },
+    {
+      "id": "nas-image-proof-provided",
+      "title": "NAS image proof report is provided",
+      "category": "image-proof",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260629T080002Z.json",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-nas-image-proof with exported NAS .env and docker inspect evidence."
+    },
+    {
+      "id": "handoff-ready-to-request-release-inputs",
+      "title": "Handoff is ready to request release inputs",
+      "category": "handoff",
+      "status": "pass",
+      "evidence": "ready_to_request_release_inputs=true",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Pre-staging handoff must have ready_to_request_release_inputs=true."
+    },
+    {
+      "id": "handoff-does-not-approve-staging-or-deploy",
+      "title": "Handoff still does not approve staging or deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "staging_execution_ready=false, docker_deploy_allowed=false",
+      "blocks_release_inputs": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Release input packaging must be based on a non-deploy pre-staging handoff."
+    },
+    {
+      "id": "candidate-ref-proof-accepted",
+      "title": "Candidate ref proof is accepted",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "candidate_ref_proof_accepted=true",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Candidate ref proof must verify that the release tag points to the smoked candidate SHA and has a successful push_images=false dry-run."
+    },
+    {
+      "id": "candidate-ref-proof-does-not-approve-deploy",
+      "title": "Candidate ref proof does not approve deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "candidate_ref_proof.docker_deploy_allowed=false",
+      "blocks_release_inputs": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Candidate ref proof must remain evidence-only with docker_deploy_allowed=false."
+    },
+    {
+      "id": "candidate-ref-target-matches-handoff",
+      "title": "Candidate ref target matches handoff target",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "candidate_ref.expected_sha=8a7939c1e8b2220d45d52c5fe329692516c32e4d, handoff.target=8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The candidate-ref proof expected SHA must match the pre-staging handoff target image tag."
+    },
+    {
+      "id": "candidate-ref-tag-matches-workflow-ref",
+      "title": "Candidate ref tag matches workflow ref",
+      "category": "candidate-ref",
+      "status": "pass",
+      "evidence": "candidate_ref.expected_tag=admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d, workflow_ref=admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The candidate-ref proof expected tag must match the generated workflow ref."
+    },
+    {
+      "id": "handoff-staging-blockers-carried-forward",
+      "title": "Pre-staging execution blockers are carried forward",
+      "category": "handoff",
+      "status": "blocked",
+      "evidence": "staging blockers=legacy-live-target-not-mistaken-for-staged-candidate, explicit-push-approval-required, current-and-rollback-tags-required",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The release-input package must preserve pre-staging blockers so a generated push_images=true command is not mistaken for staging approval."
+    },
+    {
+      "id": "legacy-rollback-plan-provided",
+      "title": "Legacy latest rollback exception plan is provided when needed",
+      "category": "legacy-rollback",
+      "status": "pass",
+      "evidence": "not required",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "When the current NAS stack is legacy latest, provide an accepted admin-docker-legacy-rollback-plan report."
+    },
+    {
+      "id": "legacy-rollback-exception-ready",
+      "title": "Legacy latest rollback exception evidence is ready",
+      "category": "legacy-rollback",
+      "status": "pass",
+      "evidence": "not required",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Legacy rollback plan must be ready, current must be latest, target must match the handoff target, and only release-decision blockers may remain."
+    },
+    {
+      "id": "legacy-rollback-plan-does-not-approve-release-or-deploy",
+      "title": "Legacy rollback plan does not approve release or deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "not provided",
+      "blocks_release_inputs": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The legacy rollback plan must remain review-only with release_execution_allowed=false and docker_deploy_allowed=false."
+    },
+    {
+      "id": "legacy-rollback-exception-review-accepted",
+      "title": "Release-manager exception review is accepted when provided",
+      "category": "legacy-rollback",
+      "status": "pass",
+      "evidence": "not provided",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide an accepted admin-docker-legacy-rollback-exception-review report with reviewer.role=release-manager, current=latest, matching target, and no review blockers."
+    },
+    {
+      "id": "legacy-rollback-exception-review-does-not-approve-release-or-deploy",
+      "title": "Release-manager exception review does not approve release or deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "not provided",
+      "blocks_release_inputs": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The exception review must be limited to release-input generation and keep release_execution_allowed=false plus docker_deploy_allowed=false."
+    },
+    {
+      "id": "legacy-rollback-exception-approved",
+      "title": "Release-manager accepted the one-time legacy latest rollback exception",
+      "category": "release-decision",
+      "status": "pass",
+      "evidence": "not required",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide an accepted release-manager exception review report, or set MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL only as an explicit fallback."
+    },
+    {
+      "id": "nas-image-proof-accepted",
+      "title": "NAS current image proof is accepted",
+      "category": "image-proof",
+      "status": "pass",
+      "evidence": "proof_accepted=true",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "NAS image proof must accept a stable current image tag for current and rollback inputs."
+    },
+    {
+      "id": "nas-proof-does-not-approve-deploy",
+      "title": "NAS image proof does not approve deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "nas_image_proof.docker_deploy_allowed=false",
+      "blocks_release_inputs": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "NAS image proof must remain evidence-only with docker_deploy_allowed=false."
+    },
+    {
+      "id": "target-image-tag-present",
+      "title": "Target image tag is present",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "target_image_tag=8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Pre-staging handoff must include release_input_request.target_image_tag."
+    },
+    {
+      "id": "workflow-ref-pins-target-image",
+      "title": "Workflow ref pins the target candidate image",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "workflow_ref=admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d, target=8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Use a release tag named admin-docker-candidate-<target SHA> so workflow_dispatch --ref cannot drift with the branch."
+    },
+    {
+      "id": "release-ref-setup-command-ready",
+      "title": "Release ref setup command pins candidate SHA",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "git tag admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d 8a7939c1e8b2220d45d52c5fe329692516c32e4d && git push origin refs/tags/admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d:refs/tags/admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Pre-staging handoff must provide a reproducible git tag + push command for the candidate release ref."
+    },
+    {
+      "id": "current-and-rollback-tags-present",
+      "title": "Current and rollback tags are present",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "current=9c015b9105e97954240020781f79daae3f954bde, rollback=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "NAS image proof must provide current_image_tag and rollback_image_tag."
+    },
+    {
+      "id": "rollback-tag-matches-current",
+      "title": "Rollback tag matches current deployed tag",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "current=9c015b9105e97954240020781f79daae3f954bde, rollback=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Rollback tag must match current image tag for the first Admin Docker update."
+    },
+    {
+      "id": "target-tag-differs-from-current",
+      "title": "Target tag differs from current deployed tag",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "target=8a7939c1e8b2220d45d52c5fe329692516c32e4d, current=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Target image tag must differ from the currently deployed Admin Docker tag."
+    },
+    {
+      "id": "workflow-command-has-no-placeholders",
+      "title": "Workflow command has concrete image tags",
+      "category": "release-input",
+      "status": "pass",
+      "evidence": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide accepted NAS image proof before generating the workflow command."
+    },
+    {
+      "id": "explicit-release-approval-required",
+      "title": "Explicit release approval is still required",
+      "category": "release-decision",
+      "status": "blocked",
+      "evidence": "This report prepares release inputs only; it is not approval to run push_images=true.",
+      "blocks_release_inputs": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "A separate human release decision must explicitly authorize running the generated push_images=true command."
+    }
+  ],
+  "summary": {
+    "total": 27,
+    "passed": 25,
+    "blocked": 2,
+    "failed": 0,
+    "release_input_blockers": [],
+    "push_execution_blockers": [
+      "explicit-release-approval-required"
+    ],
+    "docker_deploy_blockers": [
+      "handoff-staging-blockers-carried-forward",
+      "explicit-release-approval-required"
+    ]
+  },
+  "next_actions": [
+    "Review this report and the NAS image proof report before any release decision.",
+    "Before staging execution, clear handoff staging blockers: legacy-live-target-not-mistaken-for-staged-candidate, explicit-push-approval-required, current-and-rollback-tags-required.",
+    "Before running push_images=true, create or verify the candidate release ref: git tag admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d 8a7939c1e8b2220d45d52c5fe329692516c32e4d && git push origin refs/tags/admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d:refs/tags/admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "After explicit release approval only, run: gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+    "Do not edit NAS .env, restart NAS containers, or enable workers until the pushed-image workflow succeeds and staging proof is collected.",
+    "After the push workflow succeeds, regenerate GitHub run artifact, staging runbook, live-readonly, admin-worker env proof, and Cutter compatibility proof."
+  ],
+  "result": {
+    "status": "ready-for-release-decision",
+    "summary": "Release inputs are complete and ready for a separate explicit push_images=true release decision."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T093848Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T093848Z.md"
+  }
+}

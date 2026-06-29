@@ -1,0 +1,181 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T09:40:58.913Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-push-decision-package.ts",
+  "mode": "admin-docker-push-decision-package",
+  "sources": {
+    "staging_runbook_report": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T093945Z.json",
+    "release_inputs_report": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T093848Z.json",
+    "readiness_summary_report": "docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T094050Z.json"
+  },
+  "push_decision_package_ready": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "release_decision_required": true,
+  "observations": {
+    "staging_runbook_status": "blocked",
+    "staging_execution_ready": false,
+    "staging_review_ready": false,
+    "runbook_docker_deploy_allowed": false,
+    "staging_execution_blockers": [
+      "image-push-explicitly-approved"
+    ],
+    "staging_blockers": [
+      "image-push-explicitly-approved"
+    ],
+    "release_inputs_status": "ready-for-release-decision",
+    "release_inputs_ready": true,
+    "release_inputs_push_execution_allowed": false,
+    "release_inputs_docker_deploy_allowed": false,
+    "current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "target_image_tag": "8a7939c1e8b2220d45d52c5fe329692516c32e4d",
+    "rollback_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "workflow_dispatch_command": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+    "target_tag_matches_smoked_image": true,
+    "nas_disk_proof_accepted": true,
+    "worker_proof_accepted": true,
+    "cutter_proof_accepted": true,
+    "readiness_status": "blocked",
+    "release_review_ready": false,
+    "readiness_release_review_blockers": [
+      "staging-runbook-ready"
+    ]
+  },
+  "gates": [
+    {
+      "id": "push-decision-package-no-side-effects",
+      "title": "Push decision package is local and read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This package reads archived reports only; it does not contact NAS, Docker, GitHub, Admin API, Cutter API, or Windows Runner.",
+      "blocks_push_decision_package": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "release-inputs-ready",
+      "title": "Release inputs are ready",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "release_inputs_ready=true, blockers=none",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide an accepted admin-docker-release-inputs report."
+    },
+    {
+      "id": "image-tags-present",
+      "title": "Current, target, and rollback image tags are present",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "current=9c015b9105e97954240020781f79daae3f954bde, target=8a7939c1e8b2220d45d52c5fe329692516c32e4d, rollback=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Release inputs must include current, target, and rollback image tags."
+    },
+    {
+      "id": "workflow-command-ready",
+      "title": "Workflow dispatch command is exact and placeholder-free",
+      "category": "release-decision",
+      "status": "pass",
+      "evidence": "gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Release inputs must include an exact docker-admin workflow_dispatch command with push_images=true and current/rollback tags."
+    },
+    {
+      "id": "target-image-smoked",
+      "title": "Target image tag matches accepted smoke evidence",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "target_tag_matches_smoked_image=true",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Staging runbook must prove the target tag matches accepted local or GitHub candidate smoke evidence."
+    },
+    {
+      "id": "no-worker-staging-disk-ready",
+      "title": "No-worker staging disk proof is accepted",
+      "category": "staging",
+      "status": "pass",
+      "evidence": "nas_disk_proof_accepted=true",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Staging runbook must include accepted no-worker staging disk proof."
+    },
+    {
+      "id": "staging-ready-for-release-decision",
+      "title": "Staging is ready for release decision",
+      "category": "staging",
+      "status": "pass",
+      "evidence": "staging_execution_ready=false, staging_review_ready=false, staging_execution_blockers=image-push-explicitly-approved",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Staging runbook must either be ready with no execution blockers, or be blocked only by image-push-explicitly-approved before preparing the external release decision package."
+    },
+    {
+      "id": "source-reports-do-not-approve-push-or-deploy",
+      "title": "Source reports do not approve push or deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "runbook_deploy=false, release_inputs_push=false, release_inputs_deploy=false",
+      "blocks_push_decision_package": true,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "This package must remain decision prep only: push_execution_allowed=false and docker_deploy_allowed=false in all source reports."
+    },
+    {
+      "id": "external-release-decision-required",
+      "title": "External release owner decision is still required",
+      "category": "release-decision",
+      "status": "blocked",
+      "evidence": "release_decision_required=true; this package prepares the exact command but does not approve or execute it.",
+      "blocks_push_decision_package": false,
+      "blocks_push_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "A separate release owner decision is required before running push_images=true or changing NAS runtime."
+    },
+    {
+      "id": "post-staging-proofs-remain-required",
+      "title": "Post-staging worker and Cutter proofs remain required",
+      "category": "staging",
+      "status": "pass",
+      "evidence": "worker_proof_accepted=true, cutter_proof_accepted=true, staging_review_ready=false",
+      "blocks_push_decision_package": false,
+      "blocks_push_execution": false,
+      "blocks_docker_deploy": false
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 9,
+    "blocked": 1,
+    "failed": 0,
+    "package_blockers": [],
+    "push_execution_blockers": [
+      "external-release-decision-required"
+    ],
+    "docker_deploy_blockers": [
+      "external-release-decision-required"
+    ]
+  },
+  "result": {
+    "status": "ready-for-external-release-decision",
+    "summary": "Push decision package is ready for an external release owner decision. It does not approve or execute push_images=true."
+  },
+  "next_actions": [
+    "Have the release owner review this package, the staging runbook, and release inputs before any workflow dispatch.",
+    "If explicitly approved, run exactly: gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-8a7939c1e8b2220d45d52c5fe329692516c32e4d -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde",
+    "After the workflow succeeds, regenerate GitHub run artifact, staging runbook, live-readonly, worker proof, Cutter compatibility proof, and readiness summary.",
+    "Do not edit NAS .env, pull/restart containers, enable workers, run preprocessing, or deploy from this package alone."
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T094058Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T094058Z.md"
+  }
+}
