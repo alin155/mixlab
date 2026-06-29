@@ -95,6 +95,7 @@
     "validate:admin-docker-post-release-smoke": "tsx scripts/acceptance/admin-docker-post-release-smoke.ts",
     "validate:admin-preprocess-production-readiness": "tsx scripts/acceptance/admin-preprocess-production-readiness.ts",
     "validate:admin-preprocess-single-video-smoke": "tsx scripts/acceptance/admin-preprocess-single-video-smoke.ts",
+    "validate:admin-preprocess-small-batch-smoke": "tsx scripts/acceptance/admin-preprocess-small-batch-smoke.ts",
     "validate:admin-real-nas-performance-isolated": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
     "audit:local-web-sanity": "tsx scripts/acceptance/local-web-sanity.ts",
     "status:local-real-nas": "tsx scripts/acceptance/local-real-nas-status.ts",
