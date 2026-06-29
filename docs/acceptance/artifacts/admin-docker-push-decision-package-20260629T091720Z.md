@@ -1,0 +1,61 @@
+# Admin Docker Push Decision Package
+
+Generated: 2026-06-29T09:17:20.063Z
+Mode: admin-docker-push-decision-package
+Result: ready-for-external-release-decision
+Package ready: yes
+Push execution allowed: no
+Docker deploy allowed: no
+Release decision required: yes
+
+## Sources
+
+- Staging runbook: docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T091616Z.json
+- Release inputs: docs/acceptance/artifacts/admin-docker-release-inputs-20260629T091542Z.json
+- Readiness summary: docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T091707Z.json
+
+## Decision Command
+
+```sh
+gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-be81398b3ade1b591122ee36a0a9566a889b1b2a -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde
+```
+
+## Observations
+
+- Staging execution blockers: image-push-explicitly-approved
+- Staging blockers: image-push-explicitly-approved
+- Current image tag: 9c015b9105e97954240020781f79daae3f954bde
+- Target image tag: be81398b3ade1b591122ee36a0a9566a889b1b2a
+- Rollback image tag: 9c015b9105e97954240020781f79daae3f954bde
+- Target tag matches smoked image: true
+- No-worker staging disk proof accepted: true
+- Worker proof accepted: true
+- Cutter proof accepted: true
+- Readiness release-review blockers: staging-runbook-ready
+
+## Gates
+
+| Gate | Category | Status | Blocks Package | Blocks Push | Blocks Deploy | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+push-decision-package-no-side-effects | safety | pass | no | no | no | This package reads archived reports only; it does not contact NAS, Docker, GitHub, Admin API, Cutter API, or Windows Runner.
+release-inputs-ready | evidence | pass | yes | yes | yes | release_inputs_ready=true, blockers=none
+image-tags-present | evidence | pass | yes | yes | yes | current=9c015b9105e97954240020781f79daae3f954bde, target=be81398b3ade1b591122ee36a0a9566a889b1b2a, rollback=9c015b9105e97954240020781f79daae3f954bde
+workflow-command-ready | release-decision | pass | yes | yes | yes | gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-be81398b3ade1b591122ee36a0a9566a889b1b2a -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde
+target-image-smoked | evidence | pass | yes | yes | yes | target_tag_matches_smoked_image=true
+no-worker-staging-disk-ready | staging | pass | yes | yes | yes | nas_disk_proof_accepted=true
+staging-ready-for-release-decision | staging | pass | yes | yes | yes | staging_execution_ready=false, staging_review_ready=false, staging_execution_blockers=image-push-explicitly-approved
+source-reports-do-not-approve-push-or-deploy | safety | pass | yes | yes | yes | runbook_deploy=false, release_inputs_push=false, release_inputs_deploy=false
+external-release-decision-required | release-decision | blocked | no | yes | yes | release_decision_required=true; this package prepares the exact command but does not approve or execute it.
+post-staging-proofs-remain-required | staging | pass | no | no | no | worker_proof_accepted=true, cutter_proof_accepted=true, staging_review_ready=false
+
+## Next Actions
+
+- Have the release owner review this package, the staging runbook, and release inputs before any workflow dispatch.
+- If explicitly approved, run exactly: gh workflow run docker-admin.yml --repo alin155/mixlab --ref admin-docker-candidate-be81398b3ade1b591122ee36a0a9566a889b1b2a -f push_images=true -f current_image_tag=9c015b9105e97954240020781f79daae3f954bde -f rollback_image_tag=9c015b9105e97954240020781f79daae3f954bde
+- After the workflow succeeds, regenerate GitHub run artifact, staging runbook, live-readonly, worker proof, Cutter compatibility proof, and readiness summary.
+- Do not edit NAS .env, pull/restart containers, enable workers, run preprocessing, or deploy from this package alone.
+
+## Artifacts
+
+- JSON: docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T091720Z.json
+- Markdown: docs/acceptance/artifacts/admin-docker-push-decision-package-20260629T091720Z.md

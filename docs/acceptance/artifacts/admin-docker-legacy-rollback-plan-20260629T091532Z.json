@@ -1,0 +1,185 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T09:15:32.825Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-legacy-rollback-plan.ts",
+  "mode": "admin-docker-legacy-rollback-plan",
+  "sources": {
+    "nas_image_proof_report": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260629T080002Z.json",
+    "github_artifact_readiness_report": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260629T091324Z.json",
+    "workflow_file": ".github/workflows/docker-admin.yml",
+    "compose_file": "deploy/nas/mixlab/docker-compose.yml"
+  },
+  "exception_plan_ready": false,
+  "release_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "current_image_proof_status": "accepted",
+    "current_image_proof_blockers": [],
+    "current_services": [
+      {
+        "service": "admin-api",
+        "image_reference": "ghcr.io/alin155/mixlab-admin-runtime:9c015b9105e97954240020781f79daae3f954bde",
+        "image_tag": "9c015b9105e97954240020781f79daae3f954bde"
+      },
+      {
+        "service": "admin-worker",
+        "image_reference": "ghcr.io/alin155/mixlab-admin-runtime:9c015b9105e97954240020781f79daae3f954bde",
+        "image_tag": "9c015b9105e97954240020781f79daae3f954bde"
+      },
+      {
+        "service": "admin-web",
+        "image_reference": "ghcr.io/alin155/mixlab-admin-web:9c015b9105e97954240020781f79daae3f954bde",
+        "image_tag": "9c015b9105e97954240020781f79daae3f954bde"
+      }
+    ],
+    "target_image_tag": "be81398b3ade1b591122ee36a0a9566a889b1b2a",
+    "github_candidate_ready": true,
+    "workflow_pushes_latest": false,
+    "workflow_pushes_sha_tag": true,
+    "compose_requires_explicit_image_tag": true,
+    "compose_defaults_latest": false,
+    "legacy_exception_reason": "Current evidence is not sufficient to consider a legacy latest rollback exception."
+  },
+  "plan": {
+    "pre_push_proof": [
+      "Archive the current NAS image proof, worker env proof, disk proof, live-readonly report, and this legacy rollback plan.",
+      "Record that the current production Admin stack is legacy latest and that no immutable rollback tag exists.",
+      "Do not edit NAS .env, pull images, restart containers, enable workers, or run preprocess during this proof step."
+    ],
+    "push_candidate": [
+      "After explicit approval only, run the Admin Docker workflow with push_images=true for immutable candidate be81398b3ade1b591122ee36a0a9566a889b1b2a.",
+      "Do not pass latest as the target image tag; the candidate images must be published with the Git SHA tag only.",
+      "Recollect GitHub run artifact/readiness after the push workflow completes."
+    ],
+    "stage_candidate": [
+      "Set MIXLAB_IMAGE_TAG=be81398b3ade1b591122ee36a0a9566a889b1b2a only in the NAS staging .env copy.",
+      "Keep MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0 and MIXLAB_ENABLE_READY_PUBLISH_WORKER=0 for initial staging.",
+      "Run the normal staging runbook only after release inputs, disk proof, and explicit approval gates are satisfied."
+    ],
+    "rollback": [
+      "Rollback exception candidate: restore the prior staging .env value MIXLAB_IMAGE_TAG=latest only if the release owner accepted this one-time legacy rollback path.",
+      "After rollback, rerun live-readonly and Cutter compatibility proof before declaring service restored.",
+      "Do not use latest as a continuing steady-state tag after MVP v0.1; replace it with immutable current/rollback tags in the next release cycle."
+    ],
+    "post_stage_acceptance": [
+      "Rerun GET-only live-readonly and version/API parity against the staged Admin target.",
+      "Collect accepted admin-worker env proof with standalone workers disabled and /data/PublicLibrary roots.",
+      "Run Windows Cutter staged-candidate compatibility proof, including windows_acceptance and real_cut_smoke.",
+      "Verify ready count remains 10471 and current index remains v010471 before any final acceptance."
+    ]
+  },
+  "gates": [
+    {
+      "id": "legacy-rollback-plan-no-side-effects",
+      "title": "Legacy rollback plan is read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads archived evidence and local deployment templates only; it does not contact NAS, Docker, GHCR, GitHub, Admin API, or Cutter.",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": false
+    },
+    {
+      "id": "nas-image-proof-provided",
+      "title": "NAS image proof report is provided",
+      "category": "current-image",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260629T080002Z.json",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": true,
+      "required_evidence": "Provide the latest admin-docker-nas-image-proof report."
+    },
+    {
+      "id": "current-state-is-legacy-latest",
+      "title": "Current NAS Admin stack is the legacy latest-tag state",
+      "category": "current-image",
+      "status": "blocked",
+      "evidence": "env=9c015b9105e97954240020781f79daae3f954bde, service_tags=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_exception_plan": true,
+      "blocks_release_decision": true,
+      "required_evidence": "The exception plan only applies when current NAS evidence consistently shows admin-web/admin-api/admin-worker on latest."
+    },
+    {
+      "id": "only-stable-rollback-tag-blocker",
+      "title": "NAS image proof is blocked only by mutable rollback tag",
+      "category": "current-image",
+      "status": "blocked",
+      "evidence": "image proof status=accepted, blockers=none",
+      "blocks_exception_plan": true,
+      "blocks_release_decision": true,
+      "required_evidence": "Other image proof blockers must be cleared before considering a one-time legacy rollback exception."
+    },
+    {
+      "id": "github-candidate-ready",
+      "title": "GitHub candidate artifact is ready",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "github_candidate_artifact_ready=true, target=be81398b3ade1b591122ee36a0a9566a889b1b2a",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": true,
+      "required_evidence": "Use a GitHub candidate artifact readiness report with github_candidate_artifact_ready=true."
+    },
+    {
+      "id": "target-tag-immutable",
+      "title": "Target image tag is immutable",
+      "category": "candidate",
+      "status": "pass",
+      "evidence": "target=be81398b3ade1b591122ee36a0a9566a889b1b2a",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": true,
+      "required_evidence": "Target image tag must be the accepted 40-character Git SHA."
+    },
+    {
+      "id": "workflow-does-not-push-latest",
+      "title": "Candidate push workflow does not mutate latest",
+      "category": "workflow",
+      "status": "pass",
+      "evidence": "pushes_sha_tag=true, pushes_latest=false",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": true,
+      "required_evidence": "The Admin Docker workflow must push only immutable SHA tags before latest can be treated as a legacy rollback reference."
+    },
+    {
+      "id": "compose-requires-explicit-target-tag",
+      "title": "NAS compose template requires explicit target tag",
+      "category": "compose",
+      "status": "pass",
+      "evidence": "explicit_tag=true, defaults_latest=false",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": true,
+      "required_evidence": "NAS compose must not default to latest for the new staged target."
+    },
+    {
+      "id": "explicit-legacy-rollback-exception-approval",
+      "title": "Explicit approval is required for the one-time legacy latest rollback exception",
+      "category": "release-decision",
+      "status": "blocked",
+      "evidence": "This plan intentionally does not approve using latest as rollback; it only makes the exception reviewable.",
+      "blocks_exception_plan": false,
+      "blocks_release_decision": true,
+      "required_evidence": "A release owner must explicitly accept or reject the legacy latest rollback exception before push_images=true or NAS staging."
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 6,
+    "blocked": 3,
+    "exception_plan_blockers": [
+      "current-state-is-legacy-latest",
+      "only-stable-rollback-tag-blocker"
+    ],
+    "release_decision_blockers": [
+      "current-state-is-legacy-latest",
+      "only-stable-rollback-tag-blocker",
+      "explicit-legacy-rollback-exception-approval"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Legacy latest rollback exception planning is blocked by missing or unsafe evidence."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-legacy-rollback-plan-20260629T091532Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-legacy-rollback-plan-20260629T091532Z.md"
+  }
+}

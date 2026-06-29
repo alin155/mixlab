@@ -1,0 +1,265 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T09:16:56.956Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",
+  "mode": "admin-docker-nas-release-inputs-intake",
+  "sources": {
+    "returned_dir": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll",
+    "prestaging_handoff_report": "docs/acceptance/artifacts/admin-docker-prestaging-handoff-20260629T091502Z.json",
+    "candidate_ref_proof_report": "docs/acceptance/artifacts/admin-docker-candidate-ref-proof-20260629T091350Z.json",
+    "legacy_rollback_plan_report": "",
+    "legacy_rollback_exception_review_report": "",
+    "local_docker_smoke_report": ".local-dev/admin-docker-github-runs/28361098922/mixlab-admin-docker-release-gates/admin-docker-local-smoke-20260629T091051Z.json",
+    "parity_plan_report": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T080730Z.json",
+    "candidate_contract_proof_report": ".local-dev/admin-docker-github-runs/28361098922/mixlab-admin-docker-release-gates/admin-docker-candidate-contract-proof-20260629T091155Z.json",
+    "cutter_compatibility_proof_report": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260629T081635Z.json",
+    "image_push_proof_report": "docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T064248Z.json"
+  },
+  "returned_files": [
+    {
+      "key": "nas_env",
+      "expected_name": "admin-docker-current.env",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/admin-docker-current.env",
+      "present": true,
+      "size_bytes": 58
+    },
+    {
+      "key": "nas_inspect",
+      "expected_name": "admin-docker-current.inspect.json",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/admin-docker-current.inspect.json",
+      "present": true,
+      "size_bytes": 739
+    },
+    {
+      "key": "worker_env",
+      "expected_name": "admin-worker.env",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/admin-worker.env",
+      "present": true,
+      "size_bytes": 113
+    },
+    {
+      "key": "worker_inspect",
+      "expected_name": "admin-worker.inspect.json",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/admin-worker.inspect.json",
+      "present": true,
+      "size_bytes": 462
+    },
+    {
+      "key": "disk_proof",
+      "expected_name": "admin-docker-disk-proof.json",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/admin-docker-disk-proof.json",
+      "present": true,
+      "size_bytes": 1011
+    },
+    {
+      "key": "returned_manifest",
+      "expected_name": "MANIFEST.txt",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/MANIFEST.txt",
+      "present": true,
+      "size_bytes": 522
+    },
+    {
+      "key": "returned_readme",
+      "expected_name": "README.md",
+      "path": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll/README.md",
+      "present": true,
+      "size_bytes": 126
+    }
+  ],
+  "generated_reports": {
+    "nas_image_proof_report": "docs/acceptance/artifacts/admin-docker-nas-image-proof-20260629T091656Z.json",
+    "worker_env_proof_report": "docs/acceptance/artifacts/admin-worker-env-proof-20260629T091656Z.json",
+    "nas_disk_proof_report": "docs/acceptance/artifacts/admin-docker-nas-disk-proof-20260629T091656Z.json",
+    "release_inputs_report": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T091656Z.json",
+    "staging_runbook_report": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T091656Z.json"
+  },
+  "intake_complete": true,
+  "release_inputs_ready": true,
+  "staging_execution_ready": false,
+  "staging_review_ready": false,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "target_image_tag": "be81398b3ade1b591122ee36a0a9566a889b1b2a",
+    "rollback_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "returned_precheck_passed": true,
+    "returned_precheck_issues": [],
+    "nas_image_proof_status": "accepted",
+    "nas_image_proof_accepted": true,
+    "worker_env_status": "accepted",
+    "worker_proof_accepted": true,
+    "nas_disk_proof_status": "accepted",
+    "nas_disk_proof_accepted": true,
+    "release_inputs_status": "ready-for-release-decision",
+    "release_input_blockers": [],
+    "legacy_rollback_exception_ready": false,
+    "legacy_rollback_exception_accepted": false,
+    "legacy_rollback_exception_review_accepted": null,
+    "legacy_rollback_exception_blockers": [],
+    "staging_runbook_status": "blocked",
+    "staging_execution_blockers": [
+      "image-push-explicitly-approved"
+    ],
+    "staging_blockers": [
+      "image-push-explicitly-approved"
+    ],
+    "run_errors": []
+  },
+  "gates": [
+    {
+      "id": "intake-no-side-effects",
+      "title": "NAS release-input intake is local validation only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads returned sanitized files and local artifacts only; it does not contact NAS, Docker, GitHub, Admin API, or Cutter.",
+      "blocks_intake": false,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "returned-dir-provided",
+      "title": "Returned NAS evidence directory is provided",
+      "category": "returned-evidence",
+      "status": "pass",
+      "evidence": ".local-dev/admin-docker-staging/20260629T065634Z/returned-evidence-from-staging-poll",
+      "blocks_intake": false,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Copy admin-docker-release-inputs/ from the NAS collector back to the Mac repository and provide its path."
+    },
+    {
+      "id": "returned-files-complete",
+      "title": "Returned NAS evidence directory contains all required sanitized files",
+      "category": "returned-evidence",
+      "status": "pass",
+      "evidence": "all required files present",
+      "blocks_intake": false,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Returned directory must contain admin-docker-current.env, admin-docker-current.inspect.json, admin-worker.env, admin-worker.inspect.json, admin-docker-disk-proof.json, MANIFEST.txt, README.md."
+    },
+    {
+      "id": "returned-evidence-precheck-passed",
+      "title": "Returned NAS evidence passes local format and sanitization precheck",
+      "category": "returned-evidence",
+      "status": "pass",
+      "evidence": "precheck_passed=true",
+      "blocks_intake": false,
+      "blocks_release_inputs": true,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run precheck:admin-docker-nas-returned-evidence and ensure precheck_passed=true before consuming returned proof files."
+    },
+    {
+      "id": "nas-image-proof-accepted",
+      "title": "NAS current image proof is accepted",
+      "category": "proof",
+      "status": "pass",
+      "evidence": "status=accepted, blockers=none",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-nas-image-proof with returned admin-docker-current.env and inspect JSON, or provide an accepted legacy latest rollback exception."
+    },
+    {
+      "id": "admin-worker-proof-accepted",
+      "title": "Admin worker disabled-env proof is accepted",
+      "category": "proof",
+      "status": "pass",
+      "evidence": "status=accepted, blockers=none",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-worker-env-proof with returned admin-worker.env and inspect JSON."
+    },
+    {
+      "id": "nas-disk-proof-accepted",
+      "title": "NAS disk proof is accepted",
+      "category": "proof",
+      "status": "pass",
+      "evidence": "status=accepted, blockers=none",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Run validate:admin-docker-nas-disk-proof with returned admin-docker-disk-proof.json."
+    },
+    {
+      "id": "release-inputs-generated",
+      "title": "Release inputs were regenerated with accepted NAS image proof",
+      "category": "release-inputs",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T091656Z.json",
+      "blocks_intake": false,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Regenerate validate:admin-docker-release-inputs with prestaging, candidate-ref, and accepted NAS image proof."
+    },
+    {
+      "id": "release-inputs-ready",
+      "title": "Release inputs are ready for separate release decision",
+      "category": "release-inputs",
+      "status": "pass",
+      "evidence": "status=ready-for-release-decision, blockers=none",
+      "blocks_intake": false,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Release inputs must have release_inputs_ready=true before any explicit push_images=true decision."
+    },
+    {
+      "id": "staging-runbook-generated",
+      "title": "Staging runbook was regenerated from returned NAS evidence",
+      "category": "runbook",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T091656Z.json",
+      "blocks_intake": false,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": false,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Regenerate validate:admin-docker-staging-runbook after release inputs and disk proof are available."
+    },
+    {
+      "id": "staging-runbook-remains-nondeploy",
+      "title": "Staging runbook does not approve deploy",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "staging_runbook.docker_deploy_allowed=false",
+      "blocks_intake": true,
+      "blocks_release_inputs": false,
+      "blocks_staging_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Runbook generation must remain a planning gate with docker_deploy_allowed=false."
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "passed": 11,
+    "blocked": 0,
+    "failed": 0,
+    "intake_blockers": [],
+    "release_input_blockers": [],
+    "staging_execution_blockers": [],
+    "docker_deploy_blockers": []
+  },
+  "next_actions": [
+    "Release inputs are ready for a separate explicit push_images=true release decision, but this intake report does not approve that decision.",
+    "Staging execution remains blocked: image-push-explicitly-approved.",
+    "Do not stage Docker until push_images=true has been explicitly approved, the GitHub pushed-image workflow succeeds, and staged live-readonly/Cutter proofs are collected."
+  ],
+  "result": {
+    "status": "intake-complete",
+    "summary": "NAS release-input returned evidence has been fully consumed into local proof reports; release and staging gates still require their own approval."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260629T091656Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-release-inputs-intake-20260629T091656Z.md"
+  }
+}
