@@ -5,7 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-  runAdminPreprocessSingleVideoSmoke
+  runAdminPreprocessSingleVideoSmoke,
+  waitForSingleVideoSmokePostFiles
 } from "./admin-preprocess-single-video-smoke.ts";
 
 const BASE_URL = "http://192.168.1.27:18080";
@@ -353,6 +354,8 @@ test("single-video smoke execute posts only the selected source video and verifi
       execute: true,
       poll_interval_ms: 1,
       poll_timeout_ms: 1000,
+      post_file_wait_interval_ms: 1,
+      post_file_wait_timeout_ms: 5,
       output_dir: tempDir,
       date: new Date("2026-06-29T00:00:00.000Z"),
       fetch_impl: fakeFetch
@@ -457,6 +460,8 @@ test("single-video smoke fails execute when API succeeds but direct NAS files do
       execute: true,
       poll_interval_ms: 1,
       poll_timeout_ms: 1000,
+      post_file_wait_interval_ms: 1,
+      post_file_wait_timeout_ms: 5,
       output_dir: tempDir,
       date: new Date("2026-06-29T00:00:00.000Z"),
       fetch_impl: fakeFetch
@@ -469,6 +474,41 @@ test("single-video smoke fails execute when API succeeds but direct NAS files do
       "fail"
     );
     assert.equal(report.post_file_check.source_video_manifest.fields.preprocess_status, "queued");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("single-video smoke postcheck can refresh a stale SMB view once", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-single-smoke-"));
+  const { mountRoot } = await createFixtureFiles(tempDir);
+
+  try {
+    const check = await waitForSingleVideoSmokePostFiles({
+      library_mount_root: mountRoot,
+      source_video_id: SOURCE_VIDEO_ID,
+      expected_ready_count: 10471,
+      expected_index_required_count: 20,
+      timeout_ms: 50,
+      interval_ms: 1,
+      refresh_post_file_view: async () => {
+        await writePostExecuteFixtureFiles(mountRoot);
+        return {
+          attempted: true,
+          exit_code: 0,
+          error: ""
+        };
+      }
+    });
+
+    assert.equal(check.status, "checked");
+    assert.equal(check.attempt_count, 2);
+    assert.equal(check.refresh_command_configured, true);
+    assert.equal(check.refresh_attempted, true);
+    assert.equal(check.refresh_exit_code, 0);
+    assert.equal(check.source_video_manifest.fields.preprocess_status, "index-required");
+    assert.equal(check.preprocess_job.fields.status, "index-required");
+    assert.equal(check.library_manifest.fields.index_required_video_count, 20);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

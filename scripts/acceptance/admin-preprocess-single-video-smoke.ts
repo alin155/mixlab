@@ -6,9 +6,11 @@ import {
   stat,
   writeFile
 } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 import { classifyLiveReadonlyTarget } from "./admin-docker-release-live-readonly.ts";
 
@@ -18,6 +20,9 @@ const DEFAULT_EXPECTED_READY_COUNT = 10471;
 const DEFAULT_EXPECTED_INDEX_VERSION = "v010471";
 const DEFAULT_POLL_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 5000;
+const DEFAULT_POST_FILE_WAIT_TIMEOUT_MS = 60 * 1000;
+const DEFAULT_POST_FILE_WAIT_INTERVAL_MS = 2000;
+const execFileAsync = promisify(execFile);
 
 type HttpMethod = "GET" | "POST";
 type GateStatus = "pass" | "blocked" | "fail" | "needs-follow-up";
@@ -89,6 +94,12 @@ export interface SingleVideoSmokePostFileCheck {
   source_video_manifest: SingleVideoSmokeDirectJsonFile;
   preprocess_job: SingleVideoSmokeDirectJsonFile;
   library_manifest: SingleVideoSmokeDirectJsonFile;
+  attempt_count: number;
+  wait_elapsed_ms: number;
+  refresh_command_configured: boolean;
+  refresh_attempted: boolean;
+  refresh_exit_code: number | null;
+  refresh_error: string;
   error: string;
 }
 
@@ -694,6 +705,12 @@ function notRunPostFileCheck(input: {
     source_video_manifest: emptyDirectJsonFile(sourcePath),
     preprocess_job: emptyDirectJsonFile(jobPath),
     library_manifest: emptyDirectJsonFile(".mixlab-library/library.json"),
+    attempt_count: 0,
+    wait_elapsed_ms: 0,
+    refresh_command_configured: false,
+    refresh_attempted: false,
+    refresh_exit_code: null,
+    refresh_error: "",
     error: ""
   };
 }
@@ -714,6 +731,12 @@ export async function checkSingleVideoSmokePostFiles(input: {
       source_video_manifest: emptyDirectJsonFile(sourcePath),
       preprocess_job: emptyDirectJsonFile(jobPath),
       library_manifest: emptyDirectJsonFile(".mixlab-library/library.json"),
+      attempt_count: 1,
+      wait_elapsed_ms: 0,
+      refresh_command_configured: false,
+      refresh_attempted: false,
+      refresh_exit_code: null,
+      refresh_error: "",
       error: "MIXLAB_ADMIN_PREPROCESS_SMOKE_LIBRARY_MOUNT is not set."
     };
   }
@@ -769,6 +792,12 @@ export async function checkSingleVideoSmokePostFiles(input: {
     source_video_manifest: sourceManifest,
     preprocess_job: preprocessJob,
     library_manifest: libraryManifest,
+    attempt_count: 1,
+    wait_elapsed_ms: 0,
+    refresh_command_configured: false,
+    refresh_attempted: false,
+    refresh_exit_code: null,
+    refresh_error: "",
     error: blocked
       ? files
           .filter((file) => !file.exists || !file.parsed)
@@ -776,6 +805,124 @@ export async function checkSingleVideoSmokePostFiles(input: {
           .join("; ")
       : ""
   };
+}
+
+export interface SingleVideoSmokePostFileRefreshResult {
+  attempted: boolean;
+  exit_code: number | null;
+  error: string;
+}
+
+async function runPostFileRefreshCommand(command: string): Promise<SingleVideoSmokePostFileRefreshResult> {
+  try {
+    await execFileAsync("/bin/zsh", ["-lc", command], {
+      timeout: 60_000,
+      maxBuffer: 1024 * 1024
+    });
+    return {
+      attempted: true,
+      exit_code: 0,
+      error: ""
+    };
+  } catch (error) {
+    return {
+      attempted: true,
+      exit_code: typeof asRecord(error).code === "number" ? asRecord(error).code : null,
+      error: errorMessage(error)
+    };
+  }
+}
+
+function singleVideoSmokePostFilesMatch(input: {
+  check: SingleVideoSmokePostFileCheck;
+  expected_ready_count: number;
+  expected_index_required_count: number | null;
+}): boolean {
+  const directSource = input.check.source_video_manifest;
+  const directJob = input.check.preprocess_job;
+  const directLibrary = input.check.library_manifest;
+
+  return input.check.status === "checked" &&
+    directSource.contains_nul === false &&
+    directJob.contains_nul === false &&
+    directLibrary.contains_nul === false &&
+    asString(directSource.fields.preprocess_status) === "index-required" &&
+    asBoolean(directSource.fields.visible_to_cutters) === false &&
+    asString(directJob.fields.status) === "index-required" &&
+    asNumber(directLibrary.fields.ready_video_count) === input.expected_ready_count &&
+    asNumber(directLibrary.fields.processing_video_count) === 0 &&
+    (
+      input.expected_index_required_count === null ||
+      asNumber(directLibrary.fields.index_required_video_count) === input.expected_index_required_count
+    );
+}
+
+export async function waitForSingleVideoSmokePostFiles(input: {
+  library_mount_root?: string;
+  source_video_id: string;
+  expected_ready_count: number;
+  expected_index_required_count: number | null;
+  timeout_ms?: number;
+  interval_ms?: number;
+  post_file_refresh_command?: string;
+  refresh_post_file_view?: () => Promise<SingleVideoSmokePostFileRefreshResult>;
+  now_ms?: () => number;
+  sleep_ms?: (ms: number) => Promise<void>;
+}): Promise<SingleVideoSmokePostFileCheck> {
+  const timeoutMs = input.timeout_ms ?? DEFAULT_POST_FILE_WAIT_TIMEOUT_MS;
+  const intervalMs = input.interval_ms ?? DEFAULT_POST_FILE_WAIT_INTERVAL_MS;
+  const nowMs = input.now_ms ?? (() => Date.now());
+  const sleepMs = input.sleep_ms ?? sleep;
+  const refreshCommand = optionalTrimmed(input.post_file_refresh_command);
+  const refreshPostFileView = input.refresh_post_file_view
+    ?? (refreshCommand ? () => runPostFileRefreshCommand(refreshCommand) : undefined);
+  const startedAt = nowMs();
+  const deadline = startedAt + timeoutMs;
+  let attempts = 0;
+  let refreshResult: SingleVideoSmokePostFileRefreshResult = {
+    attempted: false,
+    exit_code: null,
+    error: ""
+  };
+  let lastCheck = notRunPostFileCheck({
+    library_mount_root: input.library_mount_root,
+    source_video_id: input.source_video_id
+  });
+
+  while (true) {
+    attempts += 1;
+    const checkedAt = nowMs();
+    lastCheck = {
+      ...await checkSingleVideoSmokePostFiles({
+        library_mount_root: input.library_mount_root,
+        source_video_id: input.source_video_id
+      }),
+      attempt_count: attempts,
+      wait_elapsed_ms: Math.max(0, checkedAt - startedAt),
+      refresh_command_configured: Boolean(refreshPostFileView),
+      refresh_attempted: refreshResult.attempted,
+      refresh_exit_code: refreshResult.exit_code,
+      refresh_error: refreshResult.error
+    };
+
+    if (
+      singleVideoSmokePostFilesMatch({
+        check: lastCheck,
+        expected_ready_count: input.expected_ready_count,
+        expected_index_required_count: input.expected_index_required_count
+      }) ||
+      checkedAt >= deadline
+    ) {
+      return lastCheck;
+    }
+
+    if (refreshPostFileView && !refreshResult.attempted) {
+      refreshResult = await refreshPostFileView();
+      continue;
+    }
+
+    await sleepMs(Math.min(intervalMs, Math.max(0, deadline - checkedAt)));
+  }
 }
 
 async function copySnapshotFile(input: {
@@ -1238,7 +1385,7 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
       category: "postcheck",
       status: directPostcheckStatus,
       evidence: input.execute_requested
-        ? `status=${postFileCheck.status}, source=${directSourceStatus || "unknown"}, source_visible=${String(directSourceVisible)}, job=${directJobStatus || "unknown"}, direct_ready=${String(directReadyCount)}, direct_processing=${String(directProcessingCount)}, direct_index_required=${String(directIndexRequiredCount)}, api_index_required=${String(indexRequiredAfter)}, direct_queued=${String(directQueuedCount)}, no_nul=${String(postFilesNoNul)}.`
+        ? `status=${postFileCheck.status}, attempts=${postFileCheck.attempt_count}, wait_ms=${postFileCheck.wait_elapsed_ms}, refresh_configured=${String(postFileCheck.refresh_command_configured)}, refresh_attempted=${String(postFileCheck.refresh_attempted)}, refresh_exit=${String(postFileCheck.refresh_exit_code)}, source=${directSourceStatus || "unknown"}, source_visible=${String(directSourceVisible)}, job=${directJobStatus || "unknown"}, direct_ready=${String(directReadyCount)}, direct_processing=${String(directProcessingCount)}, direct_index_required=${String(directIndexRequiredCount)}, api_index_required=${String(indexRequiredAfter)}, direct_queued=${String(directQueuedCount)}, no_nul=${String(postFilesNoNul)}.`
         : "Dry-run only; direct NAS post-file persistence check runs after execute.",
       blocks_dry_run_ready: false,
       blocks_execute: true,
@@ -1614,6 +1761,12 @@ ${renderSnapshotRows(report.snapshot)}
 
 - Status: ${report.post_file_check.status}
 - Mount root: ${report.post_file_check.library_mount_root || "not configured"}
+- Attempts: ${report.post_file_check.attempt_count}
+- Wait elapsed: ${report.post_file_check.wait_elapsed_ms}ms
+- Refresh command configured: ${String(report.post_file_check.refresh_command_configured)}
+- Refresh attempted: ${String(report.post_file_check.refresh_attempted)}
+- Refresh exit code: ${String(report.post_file_check.refresh_exit_code)}
+- Refresh error: ${report.post_file_check.refresh_error || "none"}
 - Error: ${report.post_file_check.error || "none"}
 
 | Relative Path | Exists | Parsed | Contains NUL | Bytes | Fields | Error |
@@ -1685,6 +1838,10 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
   execute?: boolean;
   poll_timeout_ms?: number;
   poll_interval_ms?: number;
+  post_file_wait_timeout_ms?: number;
+  post_file_wait_interval_ms?: number;
+  post_file_refresh_command?: string;
+  refresh_post_file_view?: () => Promise<SingleVideoSmokePostFileRefreshResult>;
   output_dir?: string;
   command?: string;
   date?: Date;
@@ -1736,9 +1893,15 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
       poll_interval_ms: input.poll_interval_ms ?? DEFAULT_POLL_INTERVAL_MS,
       fetch_impl: input.fetch_impl
     }));
-    postFileCheck = await checkSingleVideoSmokePostFiles({
+    postFileCheck = await waitForSingleVideoSmokePostFiles({
       library_mount_root: input.library_mount_root,
-      source_video_id: sourceVideoId
+      source_video_id: sourceVideoId,
+      expected_ready_count: input.expected_ready_count ?? DEFAULT_EXPECTED_READY_COUNT,
+      expected_index_required_count: indexRequiredCount(requestData(requests, "library_status_after")),
+      timeout_ms: input.post_file_wait_timeout_ms,
+      interval_ms: input.post_file_wait_interval_ms,
+      post_file_refresh_command: input.post_file_refresh_command,
+      refresh_post_file_view: input.refresh_post_file_view
     });
   }
 
@@ -1779,6 +1942,9 @@ async function main(): Promise<void> {
     execute: process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_EXECUTE === "1",
     poll_timeout_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POLL_TIMEOUT_MS, DEFAULT_POLL_TIMEOUT_MS),
     poll_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POLL_INTERVAL_MS, DEFAULT_POLL_INTERVAL_MS),
+    post_file_wait_timeout_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_TIMEOUT_MS, DEFAULT_POST_FILE_WAIT_TIMEOUT_MS),
+    post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
+    post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_REFRESH_COMMAND,
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });
