@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   validateSourceVideoManifest,
@@ -112,6 +112,34 @@ interface LibraryManifestMetadata {
 
 function jsonBytes(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function stripTrailingNulls(text: string): string {
+  return text.replace(/\u0000+$/u, "");
+}
+
+function parseJsonText<T>(text: string): T {
+  return JSON.parse(stripTrailingNulls(text)) as T;
+}
+
+function temporaryWritePath(targetPath: string): string {
+  const parsed = path.parse(targetPath);
+  const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return path.join(parsed.dir, `.${parsed.base}.tmp-${nonce}`);
+}
+
+async function writeTextAtomically(targetPath: string, text: string): Promise<void> {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  const tempPath = temporaryWritePath(targetPath);
+
+  try {
+    await writeFile(tempPath, text, "utf8");
+    await rename(tempPath, targetPath);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 function videosRoot(libraryRoot: string): string {
@@ -266,9 +294,9 @@ export async function readSourceVideoManifest(
   libraryRoot: string,
   sourceVideoId: string
 ): Promise<SourceVideoManifest> {
-  return JSON.parse(
+  return parseJsonText(
     await readFile(sourceVideoManifestPath(libraryRoot, sourceVideoId), "utf8")
-  ) as SourceVideoManifest;
+  );
 }
 
 async function writeSourceVideoManifest(
@@ -277,7 +305,7 @@ async function writeSourceVideoManifest(
 ): Promise<void> {
   const targetDir = videoDir(libraryRoot, manifest.source_video_id);
   await mkdir(targetDir, { recursive: true });
-  await writeFile(sourceVideoManifestPath(libraryRoot, manifest.source_video_id), jsonBytes(manifest));
+  await writeTextAtomically(sourceVideoManifestPath(libraryRoot, manifest.source_video_id), jsonBytes(manifest));
 }
 
 async function readExistingJob(
@@ -285,9 +313,9 @@ async function readExistingJob(
   sourceVideoId: string
 ): Promise<PreprocessJobRecord | undefined> {
   try {
-    return JSON.parse(
+    return parseJsonText(
       await readFile(preprocessJobPath(libraryRoot, sourceVideoId), "utf8")
-    ) as PreprocessJobRecord;
+    );
   } catch {
     return undefined;
   }
@@ -298,7 +326,7 @@ async function writePreprocessJob(
   job: PreprocessJobRecord
 ): Promise<void> {
   await mkdir(videoDir(libraryRoot, job.source_video_id), { recursive: true });
-  await writeFile(preprocessJobPath(libraryRoot, job.source_video_id), jsonBytes(job));
+  await writeTextAtomically(preprocessJobPath(libraryRoot, job.source_video_id), jsonBytes(job));
 }
 
 export async function readAllSourceVideoManifests(
@@ -359,9 +387,9 @@ function countByStatus(manifests: SourceVideoManifest[]): LibraryCounts {
 
 async function readLibraryMetadata(libraryRoot: string): Promise<LibraryManifestMetadata> {
   try {
-    return JSON.parse(
+    return parseJsonText(
       await readFile(path.join(libraryRoot, ".mixlab-library", "library.json"), "utf8")
-    ) as LibraryManifestMetadata;
+    );
   } catch {
     return {};
   }
@@ -381,8 +409,7 @@ export async function refreshLibraryCounts(libraryRoot: string, now: string): Pr
     ...countByStatus(manifests)
   };
 
-  await mkdir(path.join(libraryRoot, ".mixlab-library"), { recursive: true });
-  await writeFile(
+  await writeTextAtomically(
     path.join(libraryRoot, ".mixlab-library", "library.json"),
     jsonBytes(libraryManifest)
   );
@@ -577,14 +604,12 @@ export async function completeReadyVisualArtifacts(
   }
 
   const keyframesPath = `.mixlab-library/videos/${input.source_video_id}/keyframes.json`;
-  await mkdir(path.dirname(path.join(input.library_root, keyframesPath)), { recursive: true });
-  await writeFile(
+  await writeTextAtomically(
     path.join(input.library_root, keyframesPath),
     jsonBytes({
       source_video_id: input.source_video_id,
       keyframes_ms: input.keyframes_ms
-    }),
-    "utf8"
+    })
   );
   await writeSourceVideoManifest(input.library_root, {
     ...manifest,

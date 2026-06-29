@@ -72,6 +72,26 @@ export interface SingleVideoSmokeSnapshot {
   error: string;
 }
 
+export interface SingleVideoSmokeDirectJsonFile {
+  relative_path: string;
+  exists: boolean;
+  bytes: number | null;
+  contains_nul: boolean | null;
+  parsed: boolean;
+  fields: Record<string, unknown>;
+  error: string;
+}
+
+export interface SingleVideoSmokePostFileCheck {
+  status: "not-run" | "checked" | "blocked";
+  library_mount_root: string;
+  source_video_id: string;
+  source_video_manifest: SingleVideoSmokeDirectJsonFile;
+  preprocess_job: SingleVideoSmokeDirectJsonFile;
+  library_manifest: SingleVideoSmokeDirectJsonFile;
+  error: string;
+}
+
 export interface SingleVideoSmokeGate {
   id: string;
   title: string;
@@ -150,6 +170,7 @@ export interface AdminPreprocessSingleVideoSmokeReport {
     current_index_version: string;
   };
   snapshot: SingleVideoSmokeSnapshot;
+  post_file_check: SingleVideoSmokePostFileCheck;
   requests: SingleVideoSmokeRequestResult[];
   gates: SingleVideoSmokeGate[];
   summary: {
@@ -287,6 +308,10 @@ function readyCount(data: unknown): number | null {
 
 function processingCount(data: unknown): number | null {
   return asNumber(asRecord(data).processing_video_count);
+}
+
+function indexRequiredCount(data: unknown): number | null {
+  return asNumber(asRecord(data).index_required_video_count);
 }
 
 function currentIndexVersion(data: unknown): string {
@@ -607,6 +632,152 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+function emptyDirectJsonFile(relativePath: string, error = ""): SingleVideoSmokeDirectJsonFile {
+  return {
+    relative_path: relativePath,
+    exists: false,
+    bytes: null,
+    contains_nul: null,
+    parsed: false,
+    fields: {},
+    error
+  };
+}
+
+function stripTrailingNulls(text: string): string {
+  return text.replace(/\u0000+$/u, "");
+}
+
+function selectFields(record: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
+}
+
+async function readDirectJsonFile(input: {
+  library_mount_root: string;
+  relative_path: string;
+  fields: string[];
+}): Promise<SingleVideoSmokeDirectJsonFile> {
+  const filePath = path.join(input.library_mount_root, input.relative_path);
+
+  try {
+    const raw = await readFile(filePath, "utf8");
+    const parsed = JSON.parse(stripTrailingNulls(raw)) as unknown;
+
+    return {
+      relative_path: input.relative_path,
+      exists: true,
+      bytes: Buffer.byteLength(raw, "utf8"),
+      contains_nul: raw.includes("\u0000"),
+      parsed: true,
+      fields: selectFields(asRecord(parsed), input.fields),
+      error: ""
+    };
+  } catch (error) {
+    return {
+      ...emptyDirectJsonFile(input.relative_path, errorMessage(error)),
+      exists: await fileExists(filePath)
+    };
+  }
+}
+
+function notRunPostFileCheck(input: {
+  library_mount_root?: string;
+  source_video_id: string;
+}): SingleVideoSmokePostFileCheck {
+  const sourcePath = `.mixlab-library/videos/${input.source_video_id}/source-video.json`;
+  const jobPath = `.mixlab-library/videos/${input.source_video_id}/preprocess-job.json`;
+
+  return {
+    status: "not-run",
+    library_mount_root: optionalTrimmed(input.library_mount_root),
+    source_video_id: input.source_video_id,
+    source_video_manifest: emptyDirectJsonFile(sourcePath),
+    preprocess_job: emptyDirectJsonFile(jobPath),
+    library_manifest: emptyDirectJsonFile(".mixlab-library/library.json"),
+    error: ""
+  };
+}
+
+export async function checkSingleVideoSmokePostFiles(input: {
+  library_mount_root?: string;
+  source_video_id: string;
+}): Promise<SingleVideoSmokePostFileCheck> {
+  const mountRoot = optionalTrimmed(input.library_mount_root);
+  const sourcePath = `.mixlab-library/videos/${input.source_video_id}/source-video.json`;
+  const jobPath = `.mixlab-library/videos/${input.source_video_id}/preprocess-job.json`;
+
+  if (!mountRoot) {
+    return {
+      status: "blocked",
+      library_mount_root: "",
+      source_video_id: input.source_video_id,
+      source_video_manifest: emptyDirectJsonFile(sourcePath),
+      preprocess_job: emptyDirectJsonFile(jobPath),
+      library_manifest: emptyDirectJsonFile(".mixlab-library/library.json"),
+      error: "MIXLAB_ADMIN_PREPROCESS_SMOKE_LIBRARY_MOUNT is not set."
+    };
+  }
+
+  const [sourceManifest, preprocessJob, libraryManifest] = await Promise.all([
+    readDirectJsonFile({
+      library_mount_root: mountRoot,
+      relative_path: sourcePath,
+      fields: [
+        "source_video_id",
+        "preprocess_status",
+        "visible_to_cutters",
+        "transcript_path",
+        "srt_path",
+        "cover_path",
+        "keyframes_path"
+      ]
+    }),
+    readDirectJsonFile({
+      library_mount_root: mountRoot,
+      relative_path: jobPath,
+      fields: [
+        "source_video_id",
+        "status",
+        "attempt",
+        "worker_id",
+        "claimed_at",
+        "completed_at",
+        "current_stage"
+      ]
+    }),
+    readDirectJsonFile({
+      library_mount_root: mountRoot,
+      relative_path: ".mixlab-library/library.json",
+      fields: [
+        "video_count",
+        "ready_video_count",
+        "queued_video_count",
+        "processing_video_count",
+        "index_required_video_count",
+        "current_index_version",
+        "updated_at"
+      ]
+    })
+  ]);
+  const files = [sourceManifest, preprocessJob, libraryManifest];
+  const blocked = files.some((file) => !file.exists || !file.parsed);
+
+  return {
+    status: blocked ? "blocked" : "checked",
+    library_mount_root: mountRoot,
+    source_video_id: input.source_video_id,
+    source_video_manifest: sourceManifest,
+    preprocess_job: preprocessJob,
+    library_manifest: libraryManifest,
+    error: blocked
+      ? files
+          .filter((file) => !file.exists || !file.parsed)
+          .map((file) => `${file.relative_path}: ${file.error || "missing or unreadable"}`)
+          .join("; ")
+      : ""
+  };
+}
+
 async function copySnapshotFile(input: {
   library_mount_root: string;
   snapshot_dir: string;
@@ -791,6 +962,7 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
   execute_requested: boolean;
   requests: SingleVideoSmokeRequestResult[];
   snapshot: SingleVideoSmokeSnapshot;
+  post_file_check?: SingleVideoSmokePostFileCheck;
   readiness_report_path?: string;
   readiness_report?: unknown;
 }): AdminPreprocessSingleVideoSmokeReport {
@@ -816,6 +988,7 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
   const authenticated = asBoolean(auth.authenticated);
   const readyBefore = readyCount(libraryBefore);
   const readyAfter = readyCount(libraryAfter);
+  const indexRequiredAfter = indexRequiredCount(libraryAfter);
   const indexBefore = currentIndexVersion(libraryBefore);
   const indexAfter = currentIndexVersion(libraryAfter);
   const rootBefore = libraryRoot(libraryBefore);
@@ -823,6 +996,20 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
   const sourceStatusAfter = sourceVideoStatus(sourceAfter);
   const sourceVisibleBefore = sourceVideoVisible(sourceBefore);
   const sourceVisibleAfter = sourceVideoVisible(sourceAfter);
+  const postFileCheck = input.post_file_check ?? notRunPostFileCheck({
+    library_mount_root: input.snapshot.library_mount_root,
+    source_video_id: input.source_video_id
+  });
+  const directSource = postFileCheck.source_video_manifest;
+  const directJob = postFileCheck.preprocess_job;
+  const directLibrary = postFileCheck.library_manifest;
+  const directSourceStatus = asString(directSource.fields.preprocess_status);
+  const directSourceVisible = asBoolean(directSource.fields.visible_to_cutters);
+  const directJobStatus = asString(directJob.fields.status);
+  const directReadyCount = asNumber(directLibrary.fields.ready_video_count);
+  const directProcessingCount = asNumber(directLibrary.fields.processing_video_count);
+  const directIndexRequiredCount = asNumber(directLibrary.fields.index_required_video_count);
+  const directQueuedCount = asNumber(directLibrary.fields.queued_video_count);
   const noProcessingBefore = processingCount(libraryBefore) === 0;
   const safetyHealthy = requestOk(input.requests, "preprocess_safety") &&
     asString(safety.status) === "healthy" &&
@@ -866,6 +1053,26 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
     processingCount(libraryAfter) === 0 &&
     sourceStatusAfter === "index-required" &&
     sourceVisibleAfter === false;
+  const postFilesChecked = postFileCheck.status === "checked";
+  const postFilesNoNul = directSource.contains_nul === false &&
+    directJob.contains_nul === false &&
+    directLibrary.contains_nul === false;
+  const directPostcheckOk = input.execute_requested &&
+    postFilesChecked &&
+    postFilesNoNul &&
+    directSourceStatus === "index-required" &&
+    directSourceVisible === false &&
+    directJobStatus === "index-required" &&
+    directReadyCount === input.expected_ready_count &&
+    directProcessingCount === 0 &&
+    directIndexRequiredCount === indexRequiredAfter;
+  const directPostcheckStatus: GateStatus = !input.execute_requested
+    ? "needs-follow-up"
+    : directPostcheckOk
+      ? "pass"
+      : postFilesChecked
+        ? "fail"
+        : "blocked";
 
   const gates = [
     gate({
@@ -1024,6 +1231,20 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
       blocks_dry_run_ready: false,
       blocks_execute: true,
       required_evidence: "After execute, ready/index must remain at the expected baseline and the target should be index-required but hidden."
+    }),
+    gate({
+      id: "post-smoke-nas-file-persistence",
+      title: "Post-smoke NAS files persisted the same single-video state",
+      category: "postcheck",
+      status: directPostcheckStatus,
+      evidence: input.execute_requested
+        ? `status=${postFileCheck.status}, source=${directSourceStatus || "unknown"}, source_visible=${String(directSourceVisible)}, job=${directJobStatus || "unknown"}, direct_ready=${String(directReadyCount)}, direct_processing=${String(directProcessingCount)}, direct_index_required=${String(directIndexRequiredCount)}, api_index_required=${String(indexRequiredAfter)}, direct_queued=${String(directQueuedCount)}, no_nul=${String(postFilesNoNul)}.`
+        : "Dry-run only; direct NAS post-file persistence check runs after execute.",
+      blocks_dry_run_ready: false,
+      blocks_execute: true,
+      required_evidence: directPostcheckOk
+        ? undefined
+        : "After execute, direct source-video.json, preprocess-job.json, and library.json on the NAS mount must match API postcheck and contain no NUL padding."
     })
   ];
 
@@ -1099,6 +1320,7 @@ export function buildAdminPreprocessSingleVideoSmokeReport(input: {
     },
     readiness_report: readiness,
     snapshot: input.snapshot,
+    post_file_check: postFileCheck,
     requests: input.requests,
     gates,
     summary,
@@ -1298,6 +1520,26 @@ function renderSnapshotRows(snapshot: SingleVideoSmokeSnapshot): string {
   ].map((cell) => escapeMarkdownCell(cell)).join(" | ")).join("\n");
 }
 
+function renderDirectJsonFile(file: SingleVideoSmokeDirectJsonFile): string {
+  return [
+    file.relative_path,
+    file.exists ? "yes" : "no",
+    file.parsed ? "yes" : "no",
+    file.contains_nul === null ? "n/a" : file.contains_nul ? "yes" : "no",
+    String(file.bytes ?? "n/a"),
+    JSON.stringify(file.fields),
+    file.error || "none"
+  ].map((cell) => escapeMarkdownCell(cell)).join(" | ");
+}
+
+function renderPostFileCheckRows(check: SingleVideoSmokePostFileCheck): string {
+  return [
+    renderDirectJsonFile(check.source_video_manifest),
+    renderDirectJsonFile(check.preprocess_job),
+    renderDirectJsonFile(check.library_manifest)
+  ].join("\n");
+}
+
 export function renderMarkdown(report: AdminPreprocessSingleVideoSmokeReport): string {
   return `# Admin Preprocess Single Video Smoke
 
@@ -1367,6 +1609,16 @@ This script is intentionally narrow. Dry-run mode sends only GET requests and wr
 | Label | Required | Relative Path | Bytes |
 | --- | --- | --- | --- |
 ${renderSnapshotRows(report.snapshot)}
+
+## Post-Execute NAS Files
+
+- Status: ${report.post_file_check.status}
+- Mount root: ${report.post_file_check.library_mount_root || "not configured"}
+- Error: ${report.post_file_check.error || "none"}
+
+| Relative Path | Exists | Parsed | Contains NUL | Bytes | Fields | Error |
+| --- | --- | --- | --- | --- | --- | --- |
+${renderPostFileCheckRows(report.post_file_check)}
 
 ## Summary
 
@@ -1446,6 +1698,10 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
   const outputDir = input.output_dir ?? DEFAULT_OUTPUT_DIR;
   const snapshotDir = path.join(outputDir, `admin-preprocess-single-video-smoke-${stamp}`, "pre-smoke-snapshot");
   const readinessReport = await loadOptionalJson(input.readiness_report_path);
+  let postFileCheck = notRunPostFileCheck({
+    library_mount_root: input.library_mount_root,
+    source_video_id: sourceVideoId
+  });
   const classification = classifyLiveReadonlyTarget(baseUrl);
   const requests = classification.safe_to_probe && sourceVideoId
     ? await runPreflightRequests({
@@ -1480,6 +1736,10 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
       poll_interval_ms: input.poll_interval_ms ?? DEFAULT_POLL_INTERVAL_MS,
       fetch_impl: input.fetch_impl
     }));
+    postFileCheck = await checkSingleVideoSmokePostFiles({
+      library_mount_root: input.library_mount_root,
+      source_video_id: sourceVideoId
+    });
   }
 
   const report = buildAdminPreprocessSingleVideoSmokeReport({
@@ -1494,6 +1754,7 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
     execute_requested: input.execute === true,
     requests,
     snapshot,
+    post_file_check: postFileCheck,
     readiness_report_path: input.readiness_report_path,
     readiness_report: readinessReport
   });

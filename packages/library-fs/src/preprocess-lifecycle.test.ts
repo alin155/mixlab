@@ -10,6 +10,7 @@ import {
   failPreprocessJob,
   preprocessJobLogPath,
   publishReadySourceVideo,
+  readSourceVideoManifest,
   readPreprocessJobLog,
   refreshLibraryCounts,
   scanSourceVideos,
@@ -92,6 +93,81 @@ test("claims unprocessed source videos as invisible processing jobs", async () =
   assert.equal(log.path, preprocessJobLogPath("V000001"));
   assert.equal(log.exists, true);
   assert.match(log.content, /2026-05-01T00:01:00Z\tV000001\tprocessing\tworker worker-a claimed attempt 1/);
+});
+
+test("preprocess lifecycle writes atomically replace stale nul-padded JSON files", async () => {
+  const libraryRoot = await makeScannedLibrary();
+  const manifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "source-video.json"
+  );
+  const jobPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "preprocess-job.json"
+  );
+  const libraryManifestPath = path.join(libraryRoot, ".mixlab-library", "library.json");
+  const staleManifest = await readJson<Record<string, unknown>>(manifestPath);
+
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify({
+      ...staleManifest,
+      description: "x".repeat(2048)
+    }, null, 2)}\n${"\u0000".repeat(64)}`,
+    "utf8"
+  );
+
+  assert.equal(
+    (await readSourceVideoManifest(libraryRoot, "V000001")).preprocess_status,
+    "unprocessed"
+  );
+
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-01T00:01:00Z"
+  });
+  await completePreprocessArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    now: "2026-05-01T00:10:00Z",
+    media: {
+      duration_ms: 123_000,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264",
+      content_hash: "sha256:test"
+    },
+    artifacts: {
+      transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+      srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+      keyframes_path: "",
+      cover_path: ""
+    }
+  });
+
+  const rawManifest = await readFile(manifestPath, "utf8");
+  const rawJob = await readFile(jobPath, "utf8");
+  const rawLibrary = await readFile(libraryManifestPath, "utf8");
+  assert.equal(rawManifest.includes("\u0000"), false);
+  assert.equal(rawJob.includes("\u0000"), false);
+  assert.equal(rawLibrary.includes("\u0000"), false);
+
+  const manifest = JSON.parse(rawManifest) as Record<string, unknown>;
+  const job = JSON.parse(rawJob) as Record<string, unknown>;
+  const library = JSON.parse(rawLibrary) as Record<string, unknown>;
+  assert.equal(manifest.preprocess_status, "index-required");
+  assert.equal(manifest.visible_to_cutters, false);
+  assert.equal(manifest.transcript_path, ".mixlab-library/videos/V000001/transcript.json");
+  assert.equal(job.status, "index-required");
+  assert.equal(library.index_required_video_count, 1);
 });
 
 test("updates a claimed preprocessing job with the current live stage", async () => {
