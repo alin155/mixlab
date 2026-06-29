@@ -132,7 +132,7 @@ npm run prepare:admin-docker-release-owner-runbook
 
 该 runbook 的 `release_owner_runbook_ready=true` 只表示可以交给 release owner 审核；它仍固定输出 `push_execution_allowed=false`、`docker_deploy_allowed=false`、`preprocess_execution_allowed=false`、`mvp_completion_allowed=false`。
 
-当前 artifact：`docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T084515Z.json` / `docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T084515Z.md`。该 artifact 已验证：
+当前 artifact：`docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T092858Z.json` / `docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T092858Z.md`。该 artifact 已验证：
 
 - `release_owner_runbook_ready=true`
 - `runbook_blockers=[]`
@@ -143,6 +143,8 @@ npm run prepare:admin-docker-release-owner-runbook
 - `docker_deploy_allowed=false`
 - `preprocess_execution_allowed=false`
 - `mvp_completion_allowed=false`
+
+该 artifact 允许进入 release-owner 审阅，是因为当前 `staging-runbook-ready` 的唯一根因是 `image-push-explicitly-approved`。这不是自动发布授权，仍必须在执行 `push_images=true` 前做单独 release decision。
 
 ## 当前已完成远端候选证据
 
@@ -587,6 +589,7 @@ npm run validate:admin-docker-post-release-smoke
 
 - 截至 `docs/acceptance/artifacts/admin-docker-release-readiness-summary-20260629T091747Z.json`，当前 target candidate `be81398b3ade1b591122ee36a0a9566a889b1b2a` 已通过 GitHub `push_images=false` dry-run、candidate-ref proof、release inputs、NAS intake、worker proof、Cutter compatibility proof、NAS disk proof、version parity 和 push decision package 收敛。
 - 当前 release readiness 为 `13/14`，唯一 release review blocker 是 `staging-runbook-ready`；其根因是 `image-push-explicitly-approved`。这表示本地可继续的候选证据已收口，下一步不是继续代码修改，而是单独 release-owner 决策是否允许执行 `push_images=true`。
+- 当前 release-owner runbook `docs/acceptance/artifacts/admin-docker-release-owner-runbook-20260629T092858Z.json` 已收敛为 `ready-for-release-owner-review`，`runbook_blockers=[]`，但 `push_execution_allowed=false`、`docker_deploy_allowed=false`、`preprocess_execution_allowed=false`、`mvp_completion_allowed=false` 仍保持关闭。
 - 这不等于整个 MVP 已自动完成或已上线。最终完成仍需要 push_images=true 成功后的 image-push proof、staging runbook、live-readonly/parity、worker/Cutter proof，以及最终目标 URL/端口上的用户可见管理端 smoke：登录、剪辑师管理、预处理素材管理、health/version/path/gate。
 - 本机真实库 smoke 已证明 Mac 本地登录、Dashboard、剪辑师、预处理读页恢复；该修复已纳入当前 Docker candidate `be81398...` 的 dry-run 证据链。
 

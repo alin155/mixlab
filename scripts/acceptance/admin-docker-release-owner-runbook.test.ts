@@ -147,6 +147,41 @@ test("release owner runbook blocks if readiness is not ready", () => {
   assert.ok(built.summary.runbook_blockers.includes("readiness-ready-for-release-decision"));
 });
 
+test("release owner runbook is ready when staging only awaits explicit image push approval", () => {
+  const built = report({
+    staging: stagingRunbook({
+      staging_execution_ready: false,
+      staging_review_ready: false,
+      summary: {
+        staging_execution_blockers: ["image-push-explicitly-approved"],
+        staging_blockers: ["image-push-explicitly-approved"]
+      },
+      result: {
+        status: "blocked"
+      }
+    }),
+    summary: readiness({
+      release_review_ready: false,
+      summary: {
+        release_review_blockers: ["staging-runbook-ready"]
+      },
+      result: {
+        status: "blocked"
+      }
+    })
+  });
+
+  assert.equal(built.release_owner_runbook_ready, true);
+  assert.equal(built.result.status, "ready-for-release-owner-review");
+  assert.equal(built.push_execution_allowed, false);
+  assert.equal(built.docker_deploy_allowed, false);
+  assert.deepEqual(built.summary.runbook_blockers, []);
+  assert.deepEqual(built.summary.push_execution_blockers, ["external-release-decision-required"]);
+  assert.equal(built.observations.readiness_ready_for_release_owner_review, true);
+  assert.equal(built.observations.staging_ready_for_release_owner_review, true);
+  assert.equal(built.observations.staging_only_awaits_explicit_image_push_approval, true);
+});
+
 test("release owner runbook fails if source reports try to approve push or deploy", () => {
   const built = report({
     inputs: releaseInputs({

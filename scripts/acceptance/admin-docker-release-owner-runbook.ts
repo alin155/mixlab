@@ -6,6 +6,8 @@ const DEFAULT_ARTIFACT_DIR = "docs/acceptance/artifacts";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
 const DEFAULT_EXPECTED_READY_COUNT = 10471;
 const DEFAULT_EXPECTED_INDEX_VERSION = "v010471";
+const IMAGE_PUSH_APPROVAL_BLOCKER = "image-push-explicitly-approved";
+const READINESS_STAGING_BLOCKER = "staging-runbook-ready";
 
 type GateStatus = "pass" | "blocked" | "fail";
 type GateCategory = "safety" | "evidence" | "release-decision" | "staging" | "post-release" | "rollback";
@@ -55,9 +57,12 @@ export interface AdminDockerReleaseOwnerRunbookReport {
     push_decision_package_ready: boolean | null;
     push_decision_status: string;
     readiness_ready: boolean | null;
+    readiness_ready_for_release_owner_review: boolean;
     readiness_status: string;
     staging_execution_ready: boolean | null;
     staging_review_ready: boolean | null;
+    staging_ready_for_release_owner_review: boolean;
+    staging_only_awaits_explicit_image_push_approval: boolean;
     staging_status: string;
     release_inputs_ready: boolean | null;
     release_inputs_status: string;
@@ -132,6 +137,17 @@ function sourceAllowsPushOrDeploy(...reports: unknown[]): boolean {
     asBoolean(asRecord(report).docker_deploy_allowed) === true ||
     asBoolean(asRecord(report).docker_upload_allowed) === true
   ));
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function blockersMatchExactly(blockers: string[], expected: string[]): boolean {
+  const actual = uniqueStrings(blockers).sort();
+  const wanted = uniqueStrings(expected).sort();
+
+  return actual.length === wanted.length && actual.every((item, index) => item === wanted[index]);
 }
 
 async function latestArtifact(artifactDir: string, prefix: string): Promise<string> {
@@ -310,6 +326,16 @@ export function buildAdminDockerReleaseOwnerRunbookReport(input: {
   const releaseInputBlockers = stringArray(releaseInputsSummary.release_input_blockers);
   const workflowCommandReady = commandLooksRunnable(workflowCommand, targetTag, currentTag, rollbackTag);
   const tagsPresent = Boolean(currentTag && targetTag && rollbackTag);
+  const allStagingBlockers = uniqueStrings([...stagingExecutionBlockers, ...stagingBlockers]);
+  const stagingOnlyAwaitsExplicitImagePushApproval =
+    allStagingBlockers.length > 0 &&
+    blockersMatchExactly(allStagingBlockers, [IMAGE_PUSH_APPROVAL_BLOCKER]);
+  const stagingReadyForReleaseOwnerReview =
+    (stagingExecutionReady === true && stagingReviewReady === true && allStagingBlockers.length === 0) ||
+    stagingOnlyAwaitsExplicitImagePushApproval;
+  const readinessReadyForReleaseOwnerReview =
+    (readinessReady === true && readinessBlockers.length === 0) ||
+    (blockersMatchExactly(readinessBlockers, [READINESS_STAGING_BLOCKER]) && stagingReadyForReleaseOwnerReview);
   const gates = [
     gate({
       id: "release-owner-runbook-no-side-effects",
@@ -336,15 +362,15 @@ export function buildAdminDockerReleaseOwnerRunbookReport(input: {
     }),
     gate({
       id: "readiness-ready-for-release-decision",
-      title: "Release readiness summary is ready",
+      title: "Release readiness summary is ready for release-owner review",
       category: "evidence",
-      status: readinessReady && readinessBlockers.length === 0 ? "pass" : "blocked",
-      evidence: `release_review_ready=${String(readinessReady)}, blockers=${readinessBlockers.join(", ") || "none"}`,
+      status: readinessReadyForReleaseOwnerReview ? "pass" : "blocked",
+      evidence: `release_review_ready=${String(readinessReady)}, release_owner_review_ready=${String(readinessReadyForReleaseOwnerReview)}, blockers=${readinessBlockers.join(", ") || "none"}`,
       blocks_runbook: true,
       blocks_push_execution: true,
       blocks_docker_deploy: true,
       blocks_mvp_completion: true,
-      required_evidence: "Provide a release-readiness summary with release_review_ready=true and no release_review_blockers."
+      required_evidence: "Provide a release-readiness summary with no blockers except the staging runbook waiting for explicit image-push approval."
     }),
     gate({
       id: "push-decision-package-ready",
@@ -360,15 +386,15 @@ export function buildAdminDockerReleaseOwnerRunbookReport(input: {
     }),
     gate({
       id: "staging-runbook-ready",
-      title: "Staging runbook is ready for review",
+      title: "Staging runbook is ready for release-owner review",
       category: "staging",
-      status: stagingExecutionReady && stagingReviewReady && stagingBlockers.length === 0 && stagingExecutionBlockers.length === 0 ? "pass" : "blocked",
-      evidence: `staging_execution_ready=${String(stagingExecutionReady)}, staging_review_ready=${String(stagingReviewReady)}, blockers=${[...stagingExecutionBlockers, ...stagingBlockers].join(", ") || "none"}`,
+      status: stagingReadyForReleaseOwnerReview ? "pass" : "blocked",
+      evidence: `staging_execution_ready=${String(stagingExecutionReady)}, staging_review_ready=${String(stagingReviewReady)}, release_owner_review_ready=${String(stagingReadyForReleaseOwnerReview)}, blockers=${allStagingBlockers.join(", ") || "none"}`,
       blocks_runbook: true,
       blocks_push_execution: true,
       blocks_docker_deploy: true,
       blocks_mvp_completion: true,
-      required_evidence: "Provide a staging runbook with staging_execution_ready=true, staging_review_ready=true, and no blockers."
+      required_evidence: "Provide a staging runbook with no blockers except the explicit image-push approval that this release-owner runbook prepares."
     }),
     gate({
       id: "release-inputs-ready",
@@ -486,9 +512,12 @@ export function buildAdminDockerReleaseOwnerRunbookReport(input: {
       push_decision_package_ready: pushPackageReady,
       push_decision_status: resultStatus(pushPackage),
       readiness_ready: readinessReady,
+      readiness_ready_for_release_owner_review: readinessReadyForReleaseOwnerReview,
       readiness_status: resultStatus(readiness),
       staging_execution_ready: stagingExecutionReady,
       staging_review_ready: stagingReviewReady,
+      staging_ready_for_release_owner_review: stagingReadyForReleaseOwnerReview,
+      staging_only_awaits_explicit_image_push_approval: stagingOnlyAwaitsExplicitImagePushApproval,
       staging_status: resultStatus(staging),
       release_inputs_ready: releaseInputsReady,
       release_inputs_status: resultStatus(releaseInputs),
@@ -590,8 +619,11 @@ ${report.observations.post_release_smoke_command}
 - Rollback image tag: ${report.observations.rollback_image_tag || "missing"}
 - Push decision package ready: ${String(report.observations.push_decision_package_ready)}
 - Readiness ready: ${String(report.observations.readiness_ready)}
+- Readiness ready for release-owner review: ${String(report.observations.readiness_ready_for_release_owner_review)}
 - Staging execution ready: ${String(report.observations.staging_execution_ready)}
 - Staging review ready: ${String(report.observations.staging_review_ready)}
+- Staging ready for release-owner review: ${String(report.observations.staging_ready_for_release_owner_review)}
+- Staging only awaits explicit image-push approval: ${String(report.observations.staging_only_awaits_explicit_image_push_approval)}
 - Release inputs ready: ${String(report.observations.release_inputs_ready)}
 - Source push/deploy allowed: ${String(report.observations.source_push_or_deploy_allowed)}
 
