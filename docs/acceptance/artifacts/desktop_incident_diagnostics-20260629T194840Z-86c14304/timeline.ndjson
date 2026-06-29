@@ -1,0 +1,9 @@
+{"at":"2026-06-29T19:48:40.554Z","stage":"starting","message":"Run accepted."}
+{"at":"2026-06-29T19:48:40.585Z","stage":"running","message":"Running suite desktop_incident_diagnostics."}
+{"at":"2026-06-29T19:48:40.665Z","stage":"incident_launch_probe","message":"Checking Cutter sidecar without changing app state."}
+{"at":"2026-06-29T19:48:40.738Z","stage":"api_already_ready","message":"Cutter API is already ready before app launch."}
+{"at":"2026-06-29T19:48:40.794Z","stage":"incident_screenshot","message":"Capturing current MixLab Cutter window."}
+{"at":"2026-06-29T19:48:40.868Z","stage":"incident_logs","message":"Collecting Cutter desktop logs."}
+{"at":"2026-06-29T19:48:40.932Z","stage":"incident_api_probes","message":"Probing Cutter API incident endpoints."}
+{"at":"2026-06-29T19:48:41.454Z","stage":"writing_report","message":"Writing report."}
+{"at":"2026-06-29T19:48:41.578Z","stage":"passed","message":"Run passed."}

@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T19:40:11.083Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+  "mode": "admin-preprocess-maintenance-window-smoke",
+  "execution_mode": "dry-run",
+  "status": "dry-run-ready",
+  "mutates_nas_files": false,
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "source_video_ids": [
+      "V000428",
+      "V000435",
+      "V000462",
+      "V000465",
+      "V000474",
+      "V000475",
+      "V000483",
+      "V000488",
+      "V000489",
+      "V000492"
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "expected_ready_count": 10471,
+    "expected_index_version": "v010471",
+    "batch_size": 5,
+    "max_batches": 2,
+    "stop_on_failure": true,
+    "session_token_present": true
+  },
+  "allowed_write_boundary": {
+    "execute_requested": false,
+    "allowed_post_paths": [],
+    "publish_allowed": false,
+    "docker_deploy_allowed": false,
+    "automatic_worker_allowed": false
+  },
+  "summary": {
+    "requested_count": 10,
+    "attempted_batches": 2,
+    "passed_batches": 2,
+    "failed_batches": 0,
+    "stopped_on_failure": false,
+    "blockers": []
+  },
+  "batches": [
+    {
+      "batch_index": 1,
+      "source_video_ids": [
+        "V000428",
+        "V000435",
+        "V000462",
+        "V000465",
+        "V000474"
+      ],
+      "status": "dry-run-ready",
+      "before": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 894,
+        "processing_video_count": 0,
+        "index_required_video_count": 29,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T19:33:31.168Z"
+      },
+      "after": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 894,
+        "processing_video_count": 0,
+        "index_required_video_count": 29,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T19:33:31.168Z"
+      },
+      "blockers": [],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T194111Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T194111Z.md"
+    },
+    {
+      "batch_index": 2,
+      "source_video_ids": [
+        "V000475",
+        "V000483",
+        "V000488",
+        "V000489",
+        "V000492"
+      ],
+      "status": "dry-run-ready",
+      "before": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 894,
+        "processing_video_count": 0,
+        "index_required_video_count": 29,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T19:33:31.168Z"
+      },
+      "after": {
+        "ok": true,
+        "error": "",
+        "ready_video_count": 10471,
+        "queued_video_count": 894,
+        "processing_video_count": 0,
+        "index_required_video_count": 29,
+        "current_index_version": "v010471",
+        "updated_at": "2026-06-29T19:33:31.168Z"
+      },
+      "blockers": [],
+      "json_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T194211Z.json",
+      "markdown_path": "docs/acceptance/artifacts/admin-preprocess-small-batch-smoke-20260629T194211Z.md"
+    }
+  ],
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T194011Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-preprocess-maintenance-window-smoke-20260629T194011Z.md"
+  }
+}
