@@ -453,6 +453,78 @@ function runNextSummary(body: unknown): Record<string, unknown> {
   return dataRecord(body);
 }
 
+function findCutJobRecord(body: unknown, cutJobId: string): Record<string, unknown> | undefined {
+  const data = dataRecord(body);
+  return getArray(data, ["jobs", "items"]).find((job) =>
+    isRecord(job) && getString(job, ["cut_job_id", "id"]) === cutJobId
+  ) as Record<string, unknown> | undefined;
+}
+
+function applyCutJobCompletion(
+  report: RealCutSmokeReport,
+  job: Record<string, unknown>,
+  completionSource: NonNullable<RealCutSmokeReport["completion_source"]>
+): void {
+  report.completion_source = completionSource;
+  report.run_next_status = getString(job, ["status"]);
+  report.export_clip_id = getString(job, ["export_clip_id"]);
+  report.output_file = getString(job, ["output_file"]);
+  report.phase_timings = phaseTimingSummary(job.phase_timings);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function pollCutJobCompletion(input: {
+  baseUrl: string;
+  auth?: CutterAuthHeaders;
+  cutJobId: string;
+  requestTimeoutMs: number;
+  pollTimeoutMs: number;
+  pollIntervalMs: number;
+  checks: ApiProbeResult[];
+  onEvent?: (stage: string, message: string, details?: unknown) => Promise<void>;
+}): Promise<{ attempts: number; job?: Record<string, unknown> }> {
+  const started = Date.now();
+  let attempts = 0;
+  let lastSeenJob: Record<string, unknown> | undefined;
+
+  while (Date.now() - started <= input.pollTimeoutMs) {
+    attempts += 1;
+    await input.onEvent?.("real_cut_poll_cut_jobs", "Polling cut job completion after async queue drain.", {
+      cut_job_id: input.cutJobId,
+      attempt: attempts
+    });
+    const result = await requestJson({
+      id: "real_cut_poll_cut_jobs",
+      path: "/cutter/cut-jobs?limit=120",
+      baseUrl: input.baseUrl,
+      timeoutMs: input.requestTimeoutMs,
+      auth: input.auth
+    });
+    input.checks.push(result.check);
+    const job = findCutJobRecord(result.body, input.cutJobId);
+    if (job) {
+      lastSeenJob = job;
+      const status = getString(job, ["status"]);
+      if (status === "done" || status === "failed" || status === "cancelled") {
+        return { attempts, job };
+      }
+    }
+
+    const remainingMs = input.pollTimeoutMs - (Date.now() - started);
+    if (remainingMs <= 0) {
+      break;
+    }
+    await delay(Math.min(input.pollIntervalMs, remainingMs));
+  }
+
+  return { attempts, job: lastSeenJob };
+}
+
 function cutJobsSummary(body: unknown, elapsedMs: number): CutJobsSmokeSummary {
   const data = dataRecord(body);
   const jobs = getArray(data, ["jobs", "items"]);
@@ -844,6 +916,8 @@ export async function runRealCutSmoke(input: {
 }): Promise<SmokeResult<RealCutSmokeReport>> {
   const timeoutMs = readPositiveNumber(input.options?.api_probe_timeout_ms, 5000);
   const cutTimeoutMs = readPositiveNumber(input.options?.cut_timeout_ms, 180_000);
+  const postRunQueuePollTimeoutMs = readPositiveNumber(input.options?.post_run_queue_poll_timeout_ms, 30_000);
+  const postRunQueuePollIntervalMs = readPositiveNumber(input.options?.post_run_queue_poll_interval_ms, 1000);
   const query = typeof input.options?.query === "string" && input.options.query.trim()
     ? input.options.query.trim()
     : "第一场";
@@ -1089,9 +1163,28 @@ export async function runRealCutSmoke(input: {
   const runData = runNextSummary(runNext.body);
   report.run_next_elapsed_ms = runNext.check.elapsed_ms;
   report.run_next_status = getString(runData, ["status"]);
+  report.completion_source = "run-next";
   report.export_clip_id = getString(runData, ["export_clip_id"]);
   report.output_file = getString(runData, ["output_file"]);
   report.phase_timings = phaseTimingSummary(runData.phase_timings);
+  let completedCutJobId = getString(runData, ["cut_job_id"]);
+  if (runNext.check.ok && report.run_next_status !== "done") {
+    const polled = await pollCutJobCompletion({
+      baseUrl: input.apiBaseUrl,
+      auth: authHeaders,
+      cutJobId,
+      requestTimeoutMs: timeoutMs,
+      pollTimeoutMs: postRunQueuePollTimeoutMs,
+      pollIntervalMs: postRunQueuePollIntervalMs,
+      checks,
+      onEvent: input.onEvent
+    });
+    report.cut_jobs_poll_attempts = polled.attempts;
+    if (polled.job) {
+      applyCutJobCompletion(report, polled.job, "cut-jobs-poll");
+      completedCutJobId = getString(polled.job, ["cut_job_id", "id"]);
+    }
+  }
   if (!runNext.check.ok || report.run_next_status !== "done") {
     return {
       report,
@@ -1100,7 +1193,7 @@ export async function runRealCutSmoke(input: {
       failure_message: runNext.check.error ?? `Real cut smoke finished with status ${report.run_next_status ?? "unknown"}.`
     };
   }
-  if (getString(runData, ["cut_job_id"]) !== cutJobId) {
+  if (completedCutJobId !== cutJobId) {
     return {
       report,
       passed: false,

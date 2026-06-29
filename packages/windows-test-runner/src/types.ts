@@ -263,6 +263,8 @@ export interface RealCutSmokeReport {
   project_title?: string;
   clip_list_id?: string;
   cut_job_id?: string;
+  completion_source?: "run-next" | "cut-jobs-poll";
+  cut_jobs_poll_attempts?: number;
   run_next_status?: string;
   run_next_elapsed_ms?: number;
   export_clip_id?: string;
