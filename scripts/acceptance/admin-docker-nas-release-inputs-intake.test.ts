@@ -9,7 +9,6 @@ import { runAdminDockerNasReleaseInputsIntake } from "./admin-docker-nas-release
 const TARGET_TAG = "ff05c8a4e4b88463fc0227ee173ba859d85a41be";
 const CURRENT_TAG = "acf896c6d16ec1503237f3afa854afff60a191b3";
 const CANDIDATE_REF = `admin-docker-candidate-${TARGET_TAG}`;
-const LEGACY_APPROVAL = "release-manager:legacy-latest-rollback-exception=accepted";
 
 async function writeText(filePath: string, content: string): Promise<string> {
   await writeFile(filePath, content);
@@ -280,6 +279,26 @@ function legacyRollbackPlan(): unknown {
   };
 }
 
+function legacyExceptionReview(): unknown {
+  return {
+    mode: "admin-docker-legacy-rollback-exception-review",
+    exception_review_accepted: true,
+    release_execution_allowed: false,
+    docker_deploy_allowed: false,
+    reviewer: {
+      role: "release-manager",
+      scope: "legacy-latest-rollback-exception"
+    },
+    observations: {
+      current_image_tag: "latest",
+      target_image_tag: TARGET_TAG
+    },
+    summary: {
+      exception_review_blockers: []
+    }
+  };
+}
+
 async function writeReturnedEvidenceBundle(returnedDir: string): Promise<void> {
   await mkdir(returnedDir, { recursive: true });
   await writeText(path.join(returnedDir, "admin-docker-current.env"), currentEnv());
@@ -528,6 +547,7 @@ test("NAS release-inputs intake supports legacy latest exception only after rele
   const prestagingPath = await writeJson(path.join(tempRoot, "admin-docker-prestaging-handoff.json"), prestagingHandoff());
   const candidateRefPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-ref-proof.json"), candidateRefProof());
   const legacyPath = await writeJson(path.join(tempRoot, "admin-docker-legacy-rollback-plan.json"), legacyRollbackPlan());
+  const legacyReviewPath = await writeJson(path.join(tempRoot, "admin-docker-legacy-rollback-exception-review.json"), legacyExceptionReview());
   const localSmokePath = await writeJson(path.join(tempRoot, "admin-docker-local-smoke.json"), localSmoke());
   const parityPath = await writeJson(path.join(tempRoot, "admin-docker-version-parity-plan.json"), parityPlan());
   const candidateContractPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-contract-proof.json"), candidateContract());
@@ -560,7 +580,7 @@ test("NAS release-inputs intake supports legacy latest exception only after rele
     prestaging_handoff_report_path: prestagingPath,
     candidate_ref_proof_report_path: candidateRefPath,
     legacy_rollback_plan_report_path: legacyPath,
-    legacy_rollback_exception_approval: LEGACY_APPROVAL,
+    legacy_rollback_exception_review_report_path: legacyReviewPath,
     local_docker_smoke_report_path: localSmokePath,
     parity_plan_report_path: parityPath,
     candidate_contract_proof_report_path: candidateContractPath,
@@ -577,6 +597,7 @@ test("NAS release-inputs intake supports legacy latest exception only after rele
   assert.equal(approved.docker_deploy_allowed, false);
   assert.equal(approved.observations.current_image_tag, "latest");
   assert.equal(approved.observations.rollback_image_tag, "latest");
+  assert.equal(approved.observations.legacy_rollback_exception_review_accepted, true);
   assert.equal(approved.observations.legacy_rollback_exception_accepted, true);
   assert.equal(approved.summary.release_input_blockers.includes("nas-image-proof-accepted"), false);
 });

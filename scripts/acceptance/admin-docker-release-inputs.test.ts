@@ -95,6 +95,27 @@ function legacyRollbackPlan(overrides: Record<string, unknown> = {}): unknown {
   };
 }
 
+function legacyExceptionReview(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    mode: "admin-docker-legacy-rollback-exception-review",
+    exception_review_accepted: true,
+    release_execution_allowed: false,
+    docker_deploy_allowed: false,
+    reviewer: {
+      role: "release-manager",
+      scope: "legacy-latest-rollback-exception"
+    },
+    observations: {
+      current_image_tag: "latest",
+      target_image_tag: TARGET_TAG
+    },
+    summary: {
+      exception_review_blockers: []
+    },
+    ...overrides
+  };
+}
+
 function candidateRefProof(overrides: Record<string, unknown> = {}): unknown {
   return {
     mode: "admin-docker-candidate-ref-proof",
@@ -121,11 +142,13 @@ function report(input: {
   candidateProof?: unknown;
   proof?: unknown;
   legacyPlan?: unknown;
+  legacyReview?: unknown;
   legacyApproval?: string;
   handoffPath?: string;
   candidateProofPath?: string;
   proofPath?: string;
   legacyPlanPath?: string;
+  legacyReviewPath?: string;
 } = {}) {
   return buildAdminDockerReleaseInputsReport({
     generated_at: "2026-06-27T00:00:00.000Z",
@@ -138,6 +161,8 @@ function report(input: {
     nas_image_proof_report: input.proof,
     legacy_rollback_plan_report_path: input.legacyPlanPath ?? (input.legacyPlan === undefined ? undefined : "legacy-rollback-plan.json"),
     legacy_rollback_plan_report: input.legacyPlan,
+    legacy_rollback_exception_review_report_path: input.legacyReviewPath ?? (input.legacyReview === undefined ? undefined : "legacy-rollback-exception-review.json"),
+    legacy_rollback_exception_review_report: input.legacyReview,
     legacy_rollback_exception_approval: input.legacyApproval
   });
 }
@@ -257,7 +282,62 @@ test("legacy latest rollback plan is reviewable but blocked without release-mana
   assert.ok(built.summary.release_input_blockers.includes("nas-image-proof-accepted"));
   assert.equal(built.inputs.current_image_tag, "");
   assert.equal(built.inputs.workflow_dispatch_command, "");
-  assert.ok(built.next_actions.some((item) => item.includes("MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL")));
+  assert.ok(built.next_actions.some((item) => item.includes("review:admin-docker-legacy-rollback-exception")));
+});
+
+test("legacy latest rollback review report fills current and rollback tags without env approval", () => {
+  const built = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan(),
+    legacyReview: legacyExceptionReview()
+  });
+
+  assert.equal(built.release_inputs_ready, true);
+  assert.equal(built.push_execution_allowed, false);
+  assert.equal(built.docker_deploy_allowed, false);
+  assert.equal(built.observations.legacy_rollback_exception_review_accepted, true);
+  assert.equal(built.observations.legacy_rollback_exception_review_role, "release-manager");
+  assert.equal(built.observations.legacy_rollback_exception_accepted, true);
+  assert.deepEqual(built.summary.release_input_blockers, []);
+  assert.deepEqual(built.summary.push_execution_blockers, ["explicit-release-approval-required"]);
+  assert.equal(built.inputs.current_image_tag, "latest");
+  assert.equal(built.inputs.rollback_image_tag, "latest");
+  assert.match(built.inputs.workflow_dispatch_command, /current_image_tag=latest/);
+  assert.match(built.inputs.workflow_dispatch_command, /rollback_image_tag=latest/);
+});
+
+test("legacy latest rollback review report must be accepted and nondeploy", () => {
+  const rejectedReview = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan(),
+    legacyReview: legacyExceptionReview({
+      exception_review_accepted: false,
+      summary: {
+        exception_review_blockers: ["workflow-and-compose-are-hardened"]
+      }
+    })
+  });
+
+  assert.equal(rejectedReview.release_inputs_ready, false);
+  assert.ok(rejectedReview.summary.release_input_blockers.includes("legacy-rollback-exception-review-accepted"));
+
+  const deployReview = report({
+    handoff: handoff(),
+    candidateProof: candidateRefProof(),
+    proof: legacyLatestNasImageProof(),
+    legacyPlan: legacyRollbackPlan(),
+    legacyReview: legacyExceptionReview({
+      docker_deploy_allowed: true
+    })
+  });
+
+  assert.equal(deployReview.release_inputs_ready, false);
+  assert.equal(deployReview.result.status, "failed");
+  assert.ok(deployReview.summary.release_input_blockers.includes("legacy-rollback-exception-review-does-not-approve-release-or-deploy"));
 });
 
 test("legacy latest rollback approval fills current and rollback tags without approving push or deploy", () => {

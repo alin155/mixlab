@@ -60,6 +60,7 @@ interface IntakeSources {
   prestaging_handoff_report: string;
   candidate_ref_proof_report: string;
   legacy_rollback_plan_report: string;
+  legacy_rollback_exception_review_report: string;
   local_docker_smoke_report: string;
   parity_plan_report: string;
   candidate_contract_proof_report: string;
@@ -112,6 +113,7 @@ export interface AdminDockerNasReleaseInputsIntakeReport {
     release_input_blockers: string[];
     legacy_rollback_exception_ready: boolean | null;
     legacy_rollback_exception_accepted: boolean | null;
+    legacy_rollback_exception_review_accepted: boolean | null;
     legacy_rollback_exception_blockers: string[];
     staging_runbook_status: string;
     staging_execution_blockers: string[];
@@ -302,6 +304,7 @@ function toMarkdown(report: AdminDockerNasReleaseInputsIntakeReport): string {
     `- Pre-staging handoff: ${report.sources.prestaging_handoff_report || "<missing>"}`,
     `- Candidate ref proof: ${report.sources.candidate_ref_proof_report || "<missing>"}`,
     `- Legacy rollback plan: ${report.sources.legacy_rollback_plan_report || "<not provided>"}`,
+    `- Legacy rollback exception review: ${report.sources.legacy_rollback_exception_review_report || "<not provided>"}`,
     `- Local Docker smoke: ${report.sources.local_docker_smoke_report || "<missing>"}`,
     `- Parity plan: ${report.sources.parity_plan_report || "<missing>"}`,
     `- Candidate contract proof: ${report.sources.candidate_contract_proof_report || "<missing>"}`,
@@ -332,7 +335,7 @@ function toMarkdown(report: AdminDockerNasReleaseInputsIntakeReport): string {
     `- Disk proof: ${report.observations.nas_disk_proof_status || "<not run>"} / accepted=${String(report.observations.nas_disk_proof_accepted)}`,
     `- Release inputs: ${report.observations.release_inputs_status || "<not run>"}`,
     `- Release input blockers: ${report.observations.release_input_blockers.join(", ") || "none"}`,
-    `- Legacy rollback exception: ready=${String(report.observations.legacy_rollback_exception_ready)}, accepted=${String(report.observations.legacy_rollback_exception_accepted)}, blockers=${report.observations.legacy_rollback_exception_blockers.join(", ") || "none"}`,
+    `- Legacy rollback exception: ready=${String(report.observations.legacy_rollback_exception_ready)}, accepted=${String(report.observations.legacy_rollback_exception_accepted)}, review_accepted=${String(report.observations.legacy_rollback_exception_review_accepted)}, blockers=${report.observations.legacy_rollback_exception_blockers.join(", ") || "none"}`,
     `- Staging runbook: ${report.observations.staging_runbook_status || "<not run>"}`,
     `- Staging execution blockers: ${report.observations.staging_execution_blockers.join(", ") || "none"}`,
     `- Staging review blockers: ${report.observations.staging_blockers.join(", ") || "none"}`,
@@ -370,6 +373,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   prestaging_handoff_report_path?: string;
   candidate_ref_proof_report_path?: string;
   legacy_rollback_plan_report_path?: string;
+  legacy_rollback_exception_review_report_path?: string;
   legacy_rollback_exception_approval?: string;
   local_docker_smoke_report_path?: string;
   parity_plan_report_path?: string;
@@ -389,6 +393,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const prestagingPath = input.prestaging_handoff_report_path ?? await latestArtifact(artifactDir, "admin-docker-prestaging-handoff-");
   const candidateRefPath = input.candidate_ref_proof_report_path ?? await latestArtifact(artifactDir, "admin-docker-candidate-ref-proof-");
   const legacyRollbackPath = input.legacy_rollback_plan_report_path ?? process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_PLAN_REPORT ?? "";
+  const legacyRollbackReviewPath = input.legacy_rollback_exception_review_report_path ?? process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_EXCEPTION_REVIEW_REPORT ?? "";
   const legacyRollbackApproval = input.legacy_rollback_exception_approval ?? process.env.MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL;
   const localSmokePath = input.local_docker_smoke_report_path ?? await latestArtifact(artifactDir, "admin-docker-local-smoke-");
   const parityPath = input.parity_plan_report_path ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
@@ -433,6 +438,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
         candidate_ref_proof_report_path: candidateRefPath,
         nas_image_proof_report_path: nasImageProof.artifacts?.json_path,
         legacy_rollback_plan_report_path: legacyRollbackPath || undefined,
+        legacy_rollback_exception_review_report_path: legacyRollbackReviewPath || undefined,
         legacy_rollback_exception_approval: legacyRollbackApproval,
         output_dir: outputDir,
         generated_at: generatedAt,
@@ -476,6 +482,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const rollbackTag = asString(asRecord(releaseInputs?.inputs).rollback_image_tag);
   const legacyRollbackExceptionReady = asBoolean(releaseInputsObservations.legacy_rollback_exception_ready);
   const legacyRollbackExceptionAccepted = asBoolean(releaseInputsObservations.legacy_rollback_exception_accepted);
+  const legacyRollbackExceptionReviewAccepted = asBoolean(releaseInputsObservations.legacy_rollback_exception_review_accepted);
   const legacyRollbackExceptionBlockers = stringArray(releaseInputsObservations.legacy_rollback_exception_blockers);
   const nasImageProofAcceptedForInputs = Boolean(nasImageProof?.proof_accepted || legacyRollbackExceptionAccepted);
   const gates = [
@@ -630,6 +637,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       prestaging_handoff_report: prestagingPath,
       candidate_ref_proof_report: candidateRefPath,
       legacy_rollback_plan_report: legacyRollbackPath,
+      legacy_rollback_exception_review_report: legacyRollbackReviewPath,
       local_docker_smoke_report: localSmokePath,
       parity_plan_report: parityPath,
       candidate_contract_proof_report: candidateContractPath,
@@ -659,6 +667,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       release_input_blockers: stringArray(releaseInputsSummary.release_input_blockers),
       legacy_rollback_exception_ready: legacyRollbackExceptionReady,
       legacy_rollback_exception_accepted: legacyRollbackExceptionAccepted,
+      legacy_rollback_exception_review_accepted: legacyRollbackExceptionReviewAccepted,
       legacy_rollback_exception_blockers: legacyRollbackExceptionBlockers,
       staging_runbook_status: resultStatus(stagingRunbook),
       staging_execution_blockers: stringArray(stagingSummary.staging_execution_blockers),
@@ -705,6 +714,7 @@ async function main(): Promise<void> {
     prestaging_handoff_report_path: process.env.MIXLAB_ADMIN_DOCKER_PRESTAGING_HANDOFF_REPORT,
     candidate_ref_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT,
     legacy_rollback_plan_report_path: process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_PLAN_REPORT,
+    legacy_rollback_exception_review_report_path: process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_EXCEPTION_REVIEW_REPORT,
     legacy_rollback_exception_approval: process.env.MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL,
     local_docker_smoke_report_path: process.env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REPORT,
     parity_plan_report_path: process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT,

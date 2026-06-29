@@ -42,6 +42,7 @@ interface ReleaseInputSources {
   candidate_ref_proof_report: string;
   nas_image_proof_report: string;
   legacy_rollback_plan_report: string;
+  legacy_rollback_exception_review_report: string;
 }
 
 export interface AdminDockerReleaseInputsReport {
@@ -84,6 +85,9 @@ export interface AdminDockerReleaseInputsReport {
     legacy_rollback_current_image_tag: string;
     legacy_rollback_target_image_tag: string;
     legacy_rollback_exception_approval: string;
+    legacy_rollback_exception_review_accepted: boolean | null;
+    legacy_rollback_exception_review_role: string;
+    legacy_rollback_exception_review_blockers: string[];
     legacy_rollback_exception_ready: boolean;
     legacy_rollback_exception_accepted: boolean;
     legacy_rollback_exception_blockers: string[];
@@ -214,7 +218,7 @@ function nextActions(input: {
         ? ["Run validate:admin-docker-nas-image-proof with a sanitized NAS MIXLAB_IMAGE_TAG evidence file and docker inspect evidence."]
         : []),
       ...(input.legacy_rollback_exception_ready && !input.legacy_rollback_exception_accepted
-        ? [`Have a release-manager role review the legacy latest rollback exception, then set MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL=${LEGACY_ROLLBACK_EXCEPTION_APPROVAL_VALUE} only if accepted.`]
+        ? ["Run review:admin-docker-legacy-rollback-exception and pass MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_EXCEPTION_REVIEW_REPORT to release inputs if the release-manager review accepts the one-time legacy latest rollback exception."]
         : []),
       `Resolve release input blockers: ${input.release_input_blockers.join(", ") || "unknown"}.`,
       ...preservedStagingBlockers
@@ -242,12 +246,15 @@ export function buildAdminDockerReleaseInputsReport(input: {
   nas_image_proof_report?: unknown;
   legacy_rollback_plan_report_path?: string;
   legacy_rollback_plan_report?: unknown;
+  legacy_rollback_exception_review_report_path?: string;
+  legacy_rollback_exception_review_report?: unknown;
   legacy_rollback_exception_approval?: string;
 }): AdminDockerReleaseInputsReport {
   const handoff = asRecord(input.prestaging_handoff_report);
   const candidateRefProof = asRecord(input.candidate_ref_proof_report);
   const proof = asRecord(input.nas_image_proof_report);
   const legacyRollbackPlan = asRecord(input.legacy_rollback_plan_report);
+  const legacyRollbackReview = asRecord(input.legacy_rollback_exception_review_report);
   const releaseInputRequest = asRecord(handoff.release_input_request);
   const candidate = asRecord(handoff.candidate);
   const candidateRefCandidate = asRecord(candidateRefProof.candidate);
@@ -258,6 +265,9 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const proofSummary = asRecord(proof.summary);
   const legacyRollbackObservations = asRecord(legacyRollbackPlan.observations);
   const legacyRollbackSummary = asRecord(legacyRollbackPlan.summary);
+  const legacyRollbackReviewReviewer = asRecord(legacyRollbackReview.reviewer);
+  const legacyRollbackReviewObservations = asRecord(legacyRollbackReview.observations);
+  const legacyRollbackReviewSummary = asRecord(legacyRollbackReview.summary);
   const target = asString(releaseInputRequest.target_image_tag);
   const branch = asString(candidate.head_branch)
     || refFromWorkflowCommand(asString(releaseInputRequest.workflow_dispatch_command))
@@ -292,8 +302,30 @@ export function buildAdminDockerReleaseInputsReport(input: {
   const legacyRollbackCurrentTag = asString(legacyRollbackObservations.current_image_tag);
   const legacyRollbackTargetTag = asString(legacyRollbackObservations.target_image_tag);
   const legacyRollbackDecisionBlockers = stringArray(legacyRollbackSummary.release_decision_blockers);
+  const legacyRollbackReviewAccepted = asBoolean(legacyRollbackReview.exception_review_accepted);
+  const legacyRollbackReviewReleaseAllowed = asBoolean(legacyRollbackReview.release_execution_allowed);
+  const legacyRollbackReviewDeployAllowed = asBoolean(legacyRollbackReview.docker_deploy_allowed);
+  const legacyRollbackReviewRole = asString(legacyRollbackReviewReviewer.role);
+  const legacyRollbackReviewTargetTag = asString(legacyRollbackReviewObservations.target_image_tag);
+  const legacyRollbackReviewCurrentTag = asString(legacyRollbackReviewObservations.current_image_tag);
+  const legacyRollbackReviewBlockers = stringArray(legacyRollbackReviewSummary.exception_review_blockers);
+  const legacyRollbackReviewProvided = Boolean(
+    input.legacy_rollback_exception_review_report_path && input.legacy_rollback_exception_review_report
+  );
+  const legacyRollbackReviewMatches = Boolean(
+    legacyRollbackReviewAccepted === true &&
+    legacyRollbackReviewRole === "release-manager" &&
+    legacyRollbackReviewCurrentTag === "latest" &&
+    target &&
+    legacyRollbackReviewTargetTag === target &&
+    legacyRollbackReviewReleaseAllowed === false &&
+    legacyRollbackReviewDeployAllowed === false &&
+    legacyRollbackReviewBlockers.length === 0
+  );
   const legacyRollbackExceptionApproval = input.legacy_rollback_exception_approval?.trim() ?? "";
-  const legacyRollbackExceptionAccepted = legacyRollbackExceptionApproval === LEGACY_ROLLBACK_EXCEPTION_APPROVAL_VALUE;
+  const legacyRollbackExceptionAccepted =
+    legacyRollbackExceptionApproval === LEGACY_ROLLBACK_EXCEPTION_APPROVAL_VALUE ||
+    legacyRollbackReviewMatches;
   const proofOnlyLegacyLatestBlocker = proofAccepted === false &&
     proofBlockers.length === 1 &&
     proofBlockers[0] === "current-tag-stable-for-rollback";
@@ -314,11 +346,12 @@ export function buildAdminDockerReleaseInputsReport(input: {
     ...(proofOnlyLegacyLatestBlocker && !legacyRollbackProvided ? ["legacy-rollback-plan-provided"] : []),
     ...(proofOnlyLegacyLatestBlocker && legacyRollbackProvided && !legacyRollbackPlanReady ? ["legacy-rollback-exception-ready"] : []),
     ...(legacyRollbackProvided && !legacyRollbackPlanNondestructive ? ["legacy-rollback-plan-does-not-approve-release-or-deploy"] : []),
+    ...(legacyRollbackReviewProvided && !legacyRollbackReviewMatches ? ["legacy-rollback-exception-review-accepted"] : []),
     ...(proofOnlyLegacyLatestBlocker && legacyRollbackProvided && !legacyRollbackPlanMatchesTarget ? ["legacy-rollback-plan-matches-target"] : []),
     ...(legacyRollbackExceptionReady && !legacyRollbackExceptionAccepted ? ["legacy-rollback-exception-approved"] : [])
   ];
-  const current = legacyRollbackExceptionReady ? legacyRollbackCurrentTag : currentFromProof;
-  const rollback = legacyRollbackExceptionReady ? legacyRollbackCurrentTag : rollbackFromProof;
+  const current = legacyRollbackExceptionReady && legacyRollbackExceptionAccepted ? legacyRollbackCurrentTag : currentFromProof;
+  const rollback = legacyRollbackExceptionReady && legacyRollbackExceptionAccepted ? legacyRollbackCurrentTag : rollbackFromProof;
   const command = workflowCommand({ workflowRef, current, rollback });
   const nasImageProofAcceptedForInputs = proofAccepted === true ||
     (legacyRollbackExceptionReady && legacyRollbackExceptionAccepted);
@@ -508,17 +541,43 @@ export function buildAdminDockerReleaseInputsReport(input: {
       required_evidence: "The legacy rollback plan must remain review-only with release_execution_allowed=false and docker_deploy_allowed=false."
     }),
     gate({
+      id: "legacy-rollback-exception-review-accepted",
+      title: "Release-manager exception review is accepted when provided",
+      category: "legacy-rollback",
+      status: !legacyRollbackReviewProvided || legacyRollbackReviewMatches ? "pass" : "blocked",
+      evidence: legacyRollbackReviewProvided
+        ? `accepted=${String(legacyRollbackReviewAccepted)}, role=${legacyRollbackReviewRole || "missing"}, current=${legacyRollbackReviewCurrentTag || "missing"}, target=${legacyRollbackReviewTargetTag || "missing"}, blockers=${legacyRollbackReviewBlockers.join(", ") || "none"}`
+        : "not provided",
+      blocks_release_inputs: legacyRollbackReviewProvided && !legacyRollbackReviewMatches,
+      blocks_push_execution: legacyRollbackReviewProvided && !legacyRollbackReviewMatches,
+      blocks_docker_deploy: true,
+      required_evidence: "Provide an accepted admin-docker-legacy-rollback-exception-review report with reviewer.role=release-manager, current=latest, matching target, and no review blockers."
+    }),
+    gate({
+      id: "legacy-rollback-exception-review-does-not-approve-release-or-deploy",
+      title: "Release-manager exception review does not approve release or deploy",
+      category: "safety",
+      status: legacyRollbackReviewProvided && (legacyRollbackReviewReleaseAllowed === true || legacyRollbackReviewDeployAllowed === true) ? "fail" : "pass",
+      evidence: legacyRollbackReviewProvided
+        ? `release_execution_allowed=${String(legacyRollbackReviewReleaseAllowed)}, docker_deploy_allowed=${String(legacyRollbackReviewDeployAllowed)}`
+        : "not provided",
+      blocks_release_inputs: true,
+      blocks_push_execution: true,
+      blocks_docker_deploy: true,
+      required_evidence: "The exception review must be limited to release-input generation and keep release_execution_allowed=false plus docker_deploy_allowed=false."
+    }),
+    gate({
       id: "legacy-rollback-exception-approved",
       title: "Release-manager accepted the one-time legacy latest rollback exception",
       category: "release-decision",
       status: !legacyRollbackExceptionReady || legacyRollbackExceptionAccepted ? "pass" : "blocked",
       evidence: legacyRollbackExceptionReady
-        ? `approval=${legacyRollbackExceptionAccepted ? "accepted" : "missing-or-invalid"}`
+        ? `approval=${legacyRollbackExceptionAccepted ? "accepted" : "missing-or-invalid"}, review=${legacyRollbackReviewMatches ? "accepted" : "not-accepted"}`
         : "not required",
       blocks_release_inputs: legacyRollbackExceptionReady && !legacyRollbackExceptionAccepted,
       blocks_push_execution: legacyRollbackExceptionReady && !legacyRollbackExceptionAccepted,
       blocks_docker_deploy: true,
-      required_evidence: `Set MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL=${LEGACY_ROLLBACK_EXCEPTION_APPROVAL_VALUE} only after release-manager review accepts this one-time exception.`
+      required_evidence: "Provide an accepted release-manager exception review report, or set MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL only as an explicit fallback."
     }),
     gate({
       id: "nas-image-proof-accepted",
@@ -649,7 +708,8 @@ export function buildAdminDockerReleaseInputsReport(input: {
       prestaging_handoff_report: input.prestaging_handoff_report_path ?? "",
       candidate_ref_proof_report: input.candidate_ref_proof_report_path ?? "",
       nas_image_proof_report: input.nas_image_proof_report_path ?? "",
-      legacy_rollback_plan_report: input.legacy_rollback_plan_report_path ?? ""
+      legacy_rollback_plan_report: input.legacy_rollback_plan_report_path ?? "",
+      legacy_rollback_exception_review_report: input.legacy_rollback_exception_review_report_path ?? ""
     },
     release_inputs_ready: releaseInputsReady,
     push_execution_allowed: false,
@@ -685,6 +745,9 @@ export function buildAdminDockerReleaseInputsReport(input: {
       legacy_rollback_current_image_tag: legacyRollbackCurrentTag,
       legacy_rollback_target_image_tag: legacyRollbackTargetTag,
       legacy_rollback_exception_approval: legacyRollbackExceptionApproval ? "provided" : "",
+      legacy_rollback_exception_review_accepted: legacyRollbackReviewAccepted,
+      legacy_rollback_exception_review_role: legacyRollbackReviewRole,
+      legacy_rollback_exception_review_blockers: legacyRollbackReviewBlockers,
       legacy_rollback_exception_ready: legacyRollbackExceptionReady,
       legacy_rollback_exception_accepted: legacyRollbackExceptionAccepted,
       legacy_rollback_exception_blockers: legacyRollbackExceptionBlockers,
@@ -734,6 +797,7 @@ export function toMarkdown(report: AdminDockerReleaseInputsReport): string {
     `- Candidate ref proof: ${report.sources.candidate_ref_proof_report || "<missing>"}`,
     `- NAS image proof: ${report.sources.nas_image_proof_report || "<missing>"}`,
     `- Legacy rollback plan: ${report.sources.legacy_rollback_plan_report || "<not provided>"}`,
+    `- Legacy rollback exception review: ${report.sources.legacy_rollback_exception_review_report || "<not provided>"}`,
     "",
     "## Workflow Inputs",
     "",
@@ -766,7 +830,7 @@ export function toMarkdown(report: AdminDockerReleaseInputsReport): string {
     `- Docker deploy blockers: ${report.summary.docker_deploy_blockers.join(", ") || "none"}`,
     `- Handoff staging execution blockers: ${report.observations.handoff_staging_execution_blockers.join(", ") || "none"}`,
     `- Candidate ref blockers: ${report.observations.candidate_ref_blockers.join(", ") || "none"}`,
-    `- Legacy rollback exception: ready=${String(report.observations.legacy_rollback_exception_ready)}, accepted=${String(report.observations.legacy_rollback_exception_accepted)}, blockers=${report.observations.legacy_rollback_exception_blockers.join(", ") || "none"}`,
+    `- Legacy rollback exception: ready=${String(report.observations.legacy_rollback_exception_ready)}, accepted=${String(report.observations.legacy_rollback_exception_accepted)}, review_accepted=${String(report.observations.legacy_rollback_exception_review_accepted)}, review_role=${report.observations.legacy_rollback_exception_review_role || "none"}, blockers=${report.observations.legacy_rollback_exception_blockers.join(", ") || "none"}`,
     "",
     "## Next Actions",
     "",
@@ -795,6 +859,7 @@ export async function runAdminDockerReleaseInputs(input: {
   candidate_ref_proof_report_path?: string;
   nas_image_proof_report_path?: string;
   legacy_rollback_plan_report_path?: string;
+  legacy_rollback_exception_review_report_path?: string;
   legacy_rollback_exception_approval?: string;
   output_dir?: string;
   generated_at?: string;
@@ -813,6 +878,8 @@ export async function runAdminDockerReleaseInputs(input: {
     nas_image_proof_report: await optionalLoadJson(input.nas_image_proof_report_path),
     legacy_rollback_plan_report_path: input.legacy_rollback_plan_report_path,
     legacy_rollback_plan_report: await optionalLoadJson(input.legacy_rollback_plan_report_path),
+    legacy_rollback_exception_review_report_path: input.legacy_rollback_exception_review_report_path,
+    legacy_rollback_exception_review_report: await optionalLoadJson(input.legacy_rollback_exception_review_report_path),
     legacy_rollback_exception_approval: input.legacy_rollback_exception_approval
   });
   const timestamp = timestampForFile(new Date(generatedAt));
@@ -839,6 +906,7 @@ async function main(): Promise<void> {
     candidate_ref_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_REF_PROOF_REPORT ?? process.argv[3],
     nas_image_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_NAS_IMAGE_PROOF_REPORT ?? process.argv[4],
     legacy_rollback_plan_report_path: process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_PLAN_REPORT ?? process.argv[5],
+    legacy_rollback_exception_review_report_path: process.env.MIXLAB_ADMIN_DOCKER_LEGACY_ROLLBACK_EXCEPTION_REVIEW_REPORT ?? process.argv[6],
     legacy_rollback_exception_approval: process.env.MIXLAB_DOCKER_LEGACY_ROLLBACK_EXCEPTION_APPROVAL,
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
@@ -856,6 +924,7 @@ async function main(): Promise<void> {
     workflow_dispatch_command: report.inputs.workflow_dispatch_command,
     legacy_rollback_exception_ready: report.observations.legacy_rollback_exception_ready,
     legacy_rollback_exception_accepted: report.observations.legacy_rollback_exception_accepted,
+    legacy_rollback_exception_review_accepted: report.observations.legacy_rollback_exception_review_accepted,
     release_input_blockers: report.summary.release_input_blockers,
     push_execution_blockers: report.summary.push_execution_blockers,
     json_path: report.artifacts?.json_path,

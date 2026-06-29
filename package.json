@@ -75,6 +75,7 @@
     "collect:admin-docker-github-run-artifact": "tsx scripts/acceptance/admin-docker-github-run-artifact.ts",
     "validate:admin-docker-prestaging-handoff": "tsx scripts/acceptance/admin-docker-prestaging-handoff.ts",
     "plan:admin-docker-legacy-rollback": "tsx scripts/acceptance/admin-docker-legacy-rollback-plan.ts",
+    "review:admin-docker-legacy-rollback-exception": "tsx scripts/acceptance/admin-docker-legacy-rollback-exception-review.ts",
     "validate:admin-docker-nas-image-proof": "tsx scripts/acceptance/admin-docker-nas-image-proof.ts",
     "validate:admin-docker-nas-disk-proof": "tsx scripts/acceptance/admin-docker-nas-disk-proof.ts",
     "validate:admin-docker-release-inputs": "tsx scripts/acceptance/admin-docker-release-inputs.ts",

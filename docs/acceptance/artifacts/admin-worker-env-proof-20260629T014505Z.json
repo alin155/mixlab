@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T01:45:05.994Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",
+  "mode": "admin-worker-env-proof",
+  "sources": {
+    "env_file": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T225531Z/admin-docker-release-inputs/admin-worker.env",
+    "inspect_json": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T225531Z/admin-docker-release-inputs/admin-worker.inspect.json"
+  },
+  "proof_accepted": false,
+  "docker_upload_allowed": false,
+  "observations": {
+    "env_file_present": true,
+    "inspect_json_present": true,
+    "env_file_flags": {
+      "MIXLAB_ADMIN_DOCKER_MVP_MODE": "",
+      "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "1",
+      "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "1"
+    },
+    "inspect_flags": {
+      "MIXLAB_ADMIN_DOCKER_MVP_MODE": "",
+      "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "1",
+      "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "1"
+    },
+    "library_roots": {
+      "MIXLAB_ADMIN_LIBRARY_ROOT": "/data/PublicLibrary",
+      "MIXLAB_PREPROCESS_LIBRARY_ROOT": ""
+    },
+    "image": "ghcr.io/alin155/mixlab-admin-runtime:latest",
+    "container_name": "mixlab-server-admin-worker-1"
+  },
+  "collection_instructions": [
+    "Prefer the sanitized collector on the NAS host: copy scripts/acceptance/admin-docker-nas-release-inputs-collector.sh into the Compose project folder, then run sh admin-docker-nas-release-inputs-collector.sh <output-dir>.",
+    "Manual fallback on the NAS host: docker compose --env-file .env -f docker-compose.yml exec -T admin-worker sh -lc 'printf \"%s\\n\" \"MIXLAB_ADMIN_DOCKER_MVP_MODE=${MIXLAB_ADMIN_DOCKER_MVP_MODE:-}\" \"MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=${MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER:-}\" \"MIXLAB_ENABLE_READY_PUBLISH_WORKER=${MIXLAB_ENABLE_READY_PUBLISH_WORKER:-}\"' > admin-worker.env",
+    "On the NAS host, export sanitized admin-worker inspect metadata containing only image, name, required worker flags, and library roots; do not store full Config.Env with secrets.",
+    "Copy those files into a local evidence folder and run: MIXLAB_ADMIN_WORKER_ENV_FILE=<path>/admin-worker.env MIXLAB_ADMIN_WORKER_INSPECT_JSON=<path>/admin-worker.inspect.json npm run validate:admin-worker-env-proof",
+    "Do not paste secrets into chat. Evidence files and reports must record only required flags, library roots, image, and container name."
+  ],
+  "gates": [
+    {
+      "id": "worker-env-proof-no-side-effects",
+      "title": "Worker env proof has no Docker or NAS side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads sanitized evidence files only; it does not contact Docker, restart containers, enable workers, or write NAS files.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "env-file-provided",
+      "title": "Exported admin-worker env file provided",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "Read docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T225531Z/admin-docker-release-inputs/admin-worker.env.",
+      "blocks_docker_upload": false,
+      "required_evidence": "Provide a sanitized admin-worker.env file from the NAS host containing only the required MVP worker flags."
+    },
+    {
+      "id": "inspect-json-provided",
+      "title": "Exported admin-worker inspect JSON provided",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "Read docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260628T225531Z/admin-docker-release-inputs/admin-worker.inspect.json.",
+      "blocks_docker_upload": false,
+      "required_evidence": "Provide sanitized docker inspect JSON for the running admin-worker container without full Config.Env secrets."
+    },
+    {
+      "id": "env-file-worker-flags-disabled",
+      "title": "Exported env file keeps standalone workers disabled",
+      "category": "worker-flags",
+      "status": "blocked",
+      "evidence": "env file: MIXLAB_ADMIN_DOCKER_MVP_MODE=missing, MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1, MIXLAB_ENABLE_READY_PUBLISH_WORKER=1",
+      "blocks_docker_upload": true,
+      "required_evidence": "Admin worker must run in Docker MVP v0.1 mode and both standalone admin-worker flags must be 0 before Docker release gates allow upload or staging."
+    },
+    {
+      "id": "inspect-worker-flags-disabled",
+      "title": "Running container keeps standalone workers disabled",
+      "category": "worker-flags",
+      "status": "blocked",
+      "evidence": "docker inspect: MIXLAB_ADMIN_DOCKER_MVP_MODE=missing, MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1, MIXLAB_ENABLE_READY_PUBLISH_WORKER=1",
+      "blocks_docker_upload": true,
+      "required_evidence": "Admin worker must run in Docker MVP v0.1 mode and both standalone admin-worker flags must be 0 before Docker release gates allow upload or staging."
+    },
+    {
+      "id": "admin-worker-library-roots",
+      "title": "admin-worker uses Docker library roots",
+      "category": "runtime-paths",
+      "status": "blocked",
+      "evidence": "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary, MIXLAB_PREPROCESS_LIBRARY_ROOT=missing, expected=/data/PublicLibrary",
+      "blocks_docker_upload": true,
+      "required_evidence": "Running admin-worker must use /data/PublicLibrary for both Admin and preprocess library roots."
+    },
+    {
+      "id": "admin-worker-image-observed",
+      "title": "Running admin-worker image is observed",
+      "category": "image",
+      "status": "pass",
+      "evidence": "image=ghcr.io/alin155/mixlab-admin-runtime:latest, container=mixlab-server-admin-worker-1",
+      "blocks_docker_upload": false,
+      "required_evidence": "docker inspect evidence must include the running admin-worker image."
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 4,
+    "blocked": 3,
+    "upload_blockers": [
+      "env-file-worker-flags-disabled",
+      "inspect-worker-flags-disabled",
+      "admin-worker-library-roots"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "admin-worker environment proof is missing or unsafe; Docker upload remains blocked."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-worker-env-proof-20260629T014505Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-worker-env-proof-20260629T014505Z.md"
+  }
+}
