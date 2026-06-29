@@ -277,8 +277,8 @@ Windows 日志默认目录：
 | 项目 | 值 |
 | --- | --- |
 | 包 | `packages/windows-test-runner` / `@mixlab/windows-test-runner` |
-| 当前共享版本 | `0.1.33` |
-| 当前实机运行版本 | 主入口 `0.1.32` on `3799`；2026-06-23 M19 验收通过主入口 `launch_runner` 启动备用 Runner `0.1.33` on Windows local port `49334`。 |
+| 当前共享版本 | `0.1.34` |
+| 当前实机运行版本 | 主入口 `0.1.32` on `3799`；2026-06-29 通过主入口 `launch_runner` 启动备用 Runner `0.1.34` on Windows local port `49336`，并用 startup-run 完成 `real_cut_smoke-20260629T200145Z-3f3a86d2`。Mac 侧直连高端口仍可能被防火墙阻断。 |
 | 发布记录 | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/LATEST.txt` |
 | 共享目录 Runner | `/Users/huaqihang/Public/MixLabWindowsBuilds/runner/MixLabWindowsTestRunner.exe` |
 | Windows 本地 Runner | `%LOCALAPPDATA%\MixLab\TestRunner\MixLabWindowsTestRunner.exe` |
@@ -289,10 +289,10 @@ Windows 日志默认目录：
 | Mac 远程健康检查 | `http://192.168.1.20:3799/health` |
 | 共享 bootstrap 日志 | `/Users/huaqihang/Public/MixLabWindowsBuilds/logs/runner/bootstrap-<port>.log`，默认 `bootstrap-3799.log` |
 
-2026-06-23 UTC 当前共享发布记录：
+2026-06-29 UTC 当前共享发布记录：
 
 ```text
-0.1.33 a0dcd74 27985347100 4e0ae93c37bc662e2536b01da60bcd15a40a3aeb8d5862fc1171392cbcdfa82b
+0.1.34 b536359 28398888689 037ee732d9b627f916232ea1cdf3ad4f7fc435cd3fbbed04484fff6ff84ed2f1
 ```
 
 `0.1.2` 修复内容：共享目录报告/timeline 写入失败时，Runner 不再崩溃；终态报告可从内存通过 HTTP 返回。
@@ -320,6 +320,8 @@ Windows 日志默认目录：
 `0.1.32` 修复内容：新增 `desktop_incident_diagnostics` suite，并把 `launch_app_probe` 的 incident 采集能力抽出复用。用于 Windows 桌面端出现全屏加载失败、sidecar/searchd 异常或日志需要回传时，自动收集桌面端日志、sidecar/searchd 输出尾部、运行时状态和最近报告线索。共享目录已发布 `0.1.32`，主入口 `3799` 截至 2026-06-22 已验证为 `0.1.32`。
 
 `0.1.33` 修复内容：新增 `m19_runtime_foundation` 验收 suite，并支持 startup-run 指针报告，用于在高端口 Runner 受防火墙限制时仍能通过共享目录读取 M19 硬指标结果。`m19_runtime_foundation-20260623T035006Z-8dad91a6` 已通过，覆盖 30 次快速切换、1 万级公共素材分页、搜索首屏、候选快速切换、连续 5 条剪切队列和剪切期间响应。
+
+`0.1.34` 修复内容：`real_cut_smoke` 在 `/cutter/cut-jobs/run-next` 返回 `data:null` 时，会按同一个 `cut_job_id` 轮询 `/cutter/cut-jobs`，接受桌面端自动 drain 已完成的真实剪切结果。GitHub Actions `28398888689` 产物已发布到共享目录，备用 Runner `0.1.34` startup-run `real_cut_smoke-20260629T200145Z-3f3a86d2` 已通过，输出 `export-clips/E000051/001-Windows验收剪切-20260629200145-C0728.mp4`。
 
 `0.1.10` 修复内容：修正 `install_latest_and_smoke` 的 `Unblock-File` 调用方式，确保本机临时安装包路径带空格时仍能安全解除 Windows 下载标记。
 

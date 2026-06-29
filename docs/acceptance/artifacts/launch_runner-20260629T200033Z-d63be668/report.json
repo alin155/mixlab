@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "run_id": "launch_runner-20260629T200033Z-d63be668",
+  "suite": "launch_runner",
+  "status": "passed",
+  "runner_version": "0.1.32",
+  "started_at": "2026-06-29T20:00:33.143Z",
+  "updated_at": "2026-06-29T20:00:50.455Z",
+  "finished_at": "2026-06-29T20:00:50.408Z",
+  "report_dir": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\launch_runner-20260629T200033Z-d63be668",
+  "timeline_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\launch_runner-20260629T200033Z-d63be668\\timeline.ndjson",
+  "summary_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\launch_runner-20260629T200033Z-d63be668\\summary.md",
+  "launch_runner": {
+    "requested_port": 49335,
+    "host": "0.0.0.0",
+    "health_url": "http://127.0.0.1:49335/health",
+    "version_url": "http://127.0.0.1:49335/version",
+    "already_ready": false,
+    "ready": true,
+    "ready_elapsed_ms": 316,
+    "expected_runner_version": "0.1.34",
+    "shared_manifest_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\runner\\latest.json",
+    "shared_manifest_version": "0.1.34",
+    "source_runner_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\runner\\MixLabWindowsTestRunner.exe",
+    "local_runner_path": "C:\\Users\\ASUS\\AppData\\Local\\MixLab\\TestRunner\\runner-0.1.34-port-49335\\MixLabWindowsTestRunner.exe",
+    "copied_runner": true,
+    "child_pid": 1440,
+    "observed_runner_version": "0.1.34"
+  }
+}
