@@ -311,6 +311,39 @@ function readyReleaseInputsIntake(): unknown {
   };
 }
 
+function releaseInputsReadyButWorkerBlockedIntake(): unknown {
+  return {
+    result: { status: "blocked" },
+    intake_complete: false,
+    release_inputs_ready: true,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    observations: {
+      returned_precheck_passed: true,
+      legacy_rollback_exception_ready: true,
+      legacy_rollback_exception_accepted: true,
+      legacy_rollback_exception_blockers: []
+    },
+    summary: {
+      intake_blockers: ["admin-worker-proof-accepted"],
+      release_input_blockers: []
+    }
+  };
+}
+
+function readyNasAccessPreflight(): unknown {
+  return {
+    nas_collection_directly_available: true,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    result: { status: "ready-for-nas-collection" },
+    summary: {
+      nas_collection_blockers: [],
+      staging_review_blockers: ["returned-evidence-visible", "staging-admin-port-reachable"]
+    }
+  };
+}
+
 function blockedRunbook(): unknown {
   return {
     result: { status: "blocked" },
@@ -467,6 +500,28 @@ test("admin Docker release readiness summary records the prepared push decision 
   assert.ok(report.next_actions.some((item) => item.includes("push decision package")));
   assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("push decision package")));
   assert.match(toMarkdown(report), /Push decision package ready: true/);
+});
+
+test("admin Docker release readiness summary does not recollect NAS evidence after intake precheck and release inputs are ready", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    github_artifact_readiness_report: readyGithubArtifactReadiness(),
+    release_inputs_intake_report: releaseInputsReadyButWorkerBlockedIntake(),
+    nas_access_preflight_report: readyNasAccessPreflight(),
+    push_decision_package_report_path: "push-decision.json",
+    push_decision_package_report: readyPushDecisionPackage()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.equal(report.docker_upload_allowed, false);
+  assert.equal(report.observations.release_inputs_ready, true);
+  assert.equal(report.observations.release_inputs_returned_precheck_passed, true);
+  assert.deepEqual(report.observations.release_inputs_intake_blockers, ["admin-worker-proof-accepted"]);
+  assert.ok(report.next_actions.some((item) => item.includes("already passed intake precheck")));
+  assert.ok(report.next_actions.some((item) => item.includes("admin-worker-proof-accepted")));
+  assert.ok(!report.next_actions.some((item) => item.includes("collect:admin-docker-nas-ugos-returned-evidence")));
+  assert.ok(!report.next_actions.some((item) => item.includes("after collecting returned evidence")));
+  assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("already consumed NAS returned evidence")));
+  assert.ok(!report.automation_boundary.safe_local_next_actions.some((item) => item.includes("UGOS browserless read-only collector")));
 });
 
 test("admin Docker release readiness summary surfaces accepted worker remediation handoff without clearing proof", () => {
