@@ -517,6 +517,12 @@ function auditEvidenceAutomation(errors: string[]): void {
     errors
   );
   requireText(
+    "docker/nginx/admin-web.conf",
+    /location \/api\/admin\/[\s\S]*proxy_pass http:\/\/admin-api:3889\/api\/admin\/;[\s\S]*location = \/health[\s\S]*proxy_pass http:\/\/admin-api:3889\/health;/,
+    "Admin web nginx must proxy both /api/admin/ and exact /health to admin-api so final public URL smoke can read build/version health",
+    errors
+  );
+  requireText(
     "scripts/acceptance/local-web-sanity.ts",
     /MIXLAB_ADMIN_WEB_URL[\s\S]*MIXLAB_ADMIN_API_BASE_URL[\s\S]*MIXLAB_CUTTER_WEB_URL[\s\S]*MIXLAB_CUTTER_API_BASE_URL[\s\S]*MIXLAB_SEARCHD_BASE_URL[\s\S]*MIXLAB_LOCAL_WEB_SANITY_QUERY[\s\S]*MIXLAB_LOCAL_WEB_SANITY_MATRIX_QUERIES/,
     "local web sanity audit must support configurable admin/cutter web/API/searchd endpoints, query text, and matrix keywords",
