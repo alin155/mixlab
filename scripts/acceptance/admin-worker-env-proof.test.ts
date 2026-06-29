@@ -85,6 +85,16 @@ test("admin worker env proof blocks when standalone workers are enabled", () => 
   });
 
   assert.equal(report.proof_accepted, false);
+  assert.equal(report.remediation_plan.status, "required");
+  assert.ok(report.remediation_plan.required_changes.some((item) => (
+    item.key === "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER" &&
+    item.required_value === "0"
+  )));
+  assert.ok(report.remediation_plan.required_changes.some((item) => (
+    item.key === "MIXLAB_ENABLE_READY_PUBLISH_WORKER" &&
+    item.required_value === "0"
+  )));
+  assert.ok(report.remediation_plan.forbidden_actions.some((item) => item.includes("Do not start preprocessing")));
   assert.equal(
     report.gates.find((gate) => gate.id === "env-file-worker-flags-disabled")?.status,
     "blocked"
@@ -118,4 +128,44 @@ test("admin worker env proof blocks when docker mvp mode is disabled", () => {
   );
   assert.ok(report.summary.upload_blockers.includes("env-file-worker-flags-disabled"));
   assert.ok(report.summary.upload_blockers.includes("inspect-worker-flags-disabled"));
+});
+
+test("admin worker env proof remediation plan is not needed for safe worker evidence", () => {
+  const report = buildAdminWorkerEnvProofReport({
+    generated_at: "2026-06-27T00:00:00.000Z",
+    command: "test",
+    env_file_path: "admin-worker.env",
+    env_file_raw: SAFE_ENV,
+    inspect_json_path: "admin-worker.inspect.json",
+    inspect_json_raw: SAFE_INSPECT
+  });
+
+  assert.equal(report.proof_accepted, true);
+  assert.equal(report.remediation_plan.status, "not-needed");
+  assert.deepEqual(report.remediation_plan.required_changes, []);
+  assert.equal(report.remediation_plan.target_env.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+  assert.equal(report.remediation_plan.target_env.MIXLAB_PREPROCESS_LIBRARY_ROOT, "/data/PublicLibrary");
+});
+
+test("admin worker env proof remediation plan identifies missing preprocess root", () => {
+  const inspectWithoutPreprocessRoot = SAFE_INSPECT.replace(
+    "\"MIXLAB_PREPROCESS_LIBRARY_ROOT=/data/PublicLibrary\",",
+    ""
+  );
+  const report = buildAdminWorkerEnvProofReport({
+    generated_at: "2026-06-27T00:00:00.000Z",
+    command: "test",
+    env_file_path: "admin-worker.env",
+    env_file_raw: SAFE_ENV,
+    inspect_json_path: "admin-worker.inspect.json",
+    inspect_json_raw: inspectWithoutPreprocessRoot
+  });
+
+  assert.equal(report.proof_accepted, false);
+  assert.equal(report.remediation_plan.status, "required");
+  assert.ok(report.remediation_plan.required_changes.some((item) => (
+    item.key === "MIXLAB_PREPROCESS_LIBRARY_ROOT" &&
+    item.running_value === "missing" &&
+    item.required_value === "/data/PublicLibrary"
+  )));
 });

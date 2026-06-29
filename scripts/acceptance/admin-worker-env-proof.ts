@@ -42,6 +42,23 @@ interface WorkerEnvObservations {
   container_name: string;
 }
 
+interface WorkerEnvRequiredChange {
+  key: string;
+  required_value: string;
+  env_file_value: string;
+  running_value: string;
+  reason: string;
+}
+
+interface WorkerEnvRemediationPlan {
+  status: "not-needed" | "required";
+  no_side_effects: true;
+  target_env: Record<string, string>;
+  required_changes: WorkerEnvRequiredChange[];
+  forbidden_actions: string[];
+  validation_commands: string[];
+}
+
 export interface AdminWorkerEnvProofReport {
   schema_version: "1.0";
   generated_at: string;
@@ -51,6 +68,7 @@ export interface AdminWorkerEnvProofReport {
   proof_accepted: boolean;
   docker_upload_allowed: false;
   observations: WorkerEnvObservations;
+  remediation_plan: WorkerEnvRemediationPlan;
   collection_instructions: string[];
   gates: WorkerEnvGate[];
   summary: WorkerEnvSummary;
@@ -233,6 +251,61 @@ function libraryRootGate(libraryRoots: Record<string, string>): WorkerEnvGate {
   });
 }
 
+function buildRemediationPlan(input: {
+  env_file_flags: Record<string, string>;
+  inspect_flags: Record<string, string>;
+  library_roots: Record<string, string>;
+}): WorkerEnvRemediationPlan {
+  const targetEnv = {
+    MIXLAB_ADMIN_DOCKER_MVP_MODE: EXPECTED_MVP_MODE,
+    MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: EXPECTED_DISABLED,
+    MIXLAB_ENABLE_READY_PUBLISH_WORKER: EXPECTED_DISABLED,
+    MIXLAB_ADMIN_LIBRARY_ROOT: EXPECTED_LIBRARY_ROOT,
+    MIXLAB_PREPROCESS_LIBRARY_ROOT: EXPECTED_LIBRARY_ROOT
+  };
+  const requiredChanges: WorkerEnvRequiredChange[] = [];
+  const addChange = (key: keyof typeof targetEnv, reason: string, options?: { require_env_file?: boolean }): void => {
+    const requireEnvFile = options?.require_env_file ?? true;
+    const envFileValue = input.env_file_flags[key] ?? "";
+    const runningValue = input.inspect_flags[key] ?? input.library_roots[key] ?? "";
+    if ((!requireEnvFile || envFileValue === targetEnv[key]) && runningValue === targetEnv[key]) {
+      return;
+    }
+
+    requiredChanges.push({
+      key,
+      required_value: targetEnv[key],
+      env_file_value: envFileValue || "missing",
+      running_value: runningValue || "missing",
+      reason
+    });
+  };
+
+  addChange("MIXLAB_ADMIN_DOCKER_MVP_MODE", "Admin Docker staging must run in MVP v0.1 mode before worker proof can be accepted.");
+  addChange("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", "Standalone preprocess worker must remain disabled during initial Docker MVP staging.");
+  addChange("MIXLAB_ENABLE_READY_PUBLISH_WORKER", "Ready publish worker must remain disabled so the current Cutter release/index is not changed.");
+  addChange("MIXLAB_ADMIN_LIBRARY_ROOT", "Admin worker must resolve the Docker public library root explicitly.", { require_env_file: false });
+  addChange("MIXLAB_PREPROCESS_LIBRARY_ROOT", "Preprocess safety checks must use the Docker public library root explicitly.", { require_env_file: false });
+
+  return {
+    status: requiredChanges.length === 0 ? "not-needed" : "required",
+    no_side_effects: true,
+    target_env: targetEnv,
+    required_changes: requiredChanges,
+    forbidden_actions: [
+      "Do not enable MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER during initial staging.",
+      "Do not enable MIXLAB_ENABLE_READY_PUBLISH_WORKER during initial staging.",
+      "Do not start preprocessing from this remediation plan.",
+      "Do not treat this plan as image push, Docker deploy, NAS .env edit, or container restart approval."
+    ],
+    validation_commands: [
+      "MIXLAB_ADMIN_WORKER_ENV_FILE=<returned-dir>/admin-worker.env MIXLAB_ADMIN_WORKER_INSPECT_JSON=<returned-dir>/admin-worker.inspect.json npm run validate:admin-worker-env-proof",
+      "MIXLAB_ADMIN_DOCKER_NAS_RETURNED_DIR=<returned-dir> npm run intake:admin-docker-nas-release-inputs",
+      "MIXLAB_DOCKER_PARITY_PLAN_REPORT=<parity-report> MIXLAB_DOCKER_STAGING_RUNBOOK_REPORT=<runbook-report> npm run validate:admin-docker-release-readiness-summary"
+    ]
+  };
+}
+
 export function buildAdminWorkerEnvProofReport(input: {
   generated_at: string;
   command: string;
@@ -259,6 +332,11 @@ export function buildAdminWorkerEnvProofReport(input: {
   const libraryRoots = pick(inspectValues, rootKeys);
   const image = imageFromInspectJson(input.inspect_json_raw ?? "");
   const containerName = nameFromInspectJson(input.inspect_json_raw ?? "");
+  const remediationPlan = buildRemediationPlan({
+    env_file_flags: envFileFlags,
+    inspect_flags: inspectFlags,
+    library_roots: libraryRoots
+  });
   const gates = [
     gate({
       id: "worker-env-proof-no-side-effects",
@@ -332,6 +410,7 @@ export function buildAdminWorkerEnvProofReport(input: {
       image,
       container_name: containerName
     },
+    remediation_plan: remediationPlan,
     collection_instructions: requiredCollectionInstructions(),
     gates,
     summary,
@@ -375,6 +454,29 @@ export function toMarkdown(report: AdminWorkerEnvProofReport): string {
     `- Library roots: admin=${report.observations.library_roots.MIXLAB_ADMIN_LIBRARY_ROOT || "missing"}, preprocess=${report.observations.library_roots.MIXLAB_PREPROCESS_LIBRARY_ROOT || "missing"}`,
     `- Image: ${report.observations.image || "unknown"}`,
     `- Container: ${report.observations.container_name || "unknown"}`,
+    "",
+    "## Remediation Plan",
+    "",
+    `- Status: ${report.remediation_plan.status}`,
+    `- No side effects: ${report.remediation_plan.no_side_effects ? "yes" : "no"}`,
+    "",
+    "### Target Env",
+    "",
+    ...Object.entries(report.remediation_plan.target_env).map(([key, value]) => `- ${key}=${value}`),
+    "",
+    "### Required Changes",
+    "",
+    ...(report.remediation_plan.required_changes.length > 0
+      ? report.remediation_plan.required_changes.map((item) => `- ${item.key}: env_file=${item.env_file_value}, running=${item.running_value}, required=${item.required_value}; ${item.reason}`)
+      : ["- none"]),
+    "",
+    "### Forbidden Actions",
+    "",
+    ...report.remediation_plan.forbidden_actions.map((item) => `- ${item}`),
+    "",
+    "### Validation Commands",
+    "",
+    ...report.remediation_plan.validation_commands.map((item) => `- ${item}`),
     "",
     "## Collection Instructions",
     "",
