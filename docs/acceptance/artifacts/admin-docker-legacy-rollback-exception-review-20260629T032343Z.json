@@ -1,0 +1,151 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T03:23:43.806Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-legacy-rollback-exception-review.ts",
+  "mode": "admin-docker-legacy-rollback-exception-review",
+  "sources": {
+    "legacy_rollback_plan_report": "docs/acceptance/artifacts/admin-docker-legacy-rollback-plan-20260629T032337Z.json"
+  },
+  "reviewer": {
+    "role": "release-manager",
+    "scope": "legacy-latest-rollback-exception"
+  },
+  "exception_review_accepted": true,
+  "release_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "plan_status": "ready-for-release-decision",
+    "exception_plan_ready": true,
+    "plan_release_execution_allowed": false,
+    "plan_docker_deploy_allowed": false,
+    "current_image_tag": "latest",
+    "target_image_tag": "73ab7b355051d7325174111f955cd8356d42787d",
+    "current_image_proof_blockers": [
+      "current-tag-stable-for-rollback"
+    ],
+    "workflow_pushes_latest": false,
+    "workflow_pushes_sha_tag": true,
+    "compose_requires_explicit_image_tag": true,
+    "compose_defaults_latest": false,
+    "plan_exception_blockers": [],
+    "plan_release_decision_blockers": [
+      "explicit-legacy-rollback-exception-approval"
+    ]
+  },
+  "gates": [
+    {
+      "id": "exception-review-no-side-effects",
+      "title": "Exception review is local and read-only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This release-manager review reads archived evidence only; it does not contact NAS, Docker, GHCR, GitHub, Admin API, Cutter API, or Windows Runner.",
+      "blocks_exception_review": false,
+      "blocks_release_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "release-manager-role-assigned",
+      "title": "A release-manager role performs this exception review",
+      "category": "release-manager",
+      "status": "pass",
+      "evidence": "reviewer.role=release-manager, scope=legacy-latest-rollback-exception",
+      "blocks_exception_review": false,
+      "blocks_release_execution": false,
+      "blocks_docker_deploy": false
+    },
+    {
+      "id": "legacy-rollback-plan-provided",
+      "title": "Legacy rollback plan report is provided",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-legacy-rollback-plan-20260629T032337Z.json",
+      "blocks_exception_review": false,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Provide the current admin-docker-legacy-rollback-plan JSON report."
+    },
+    {
+      "id": "legacy-rollback-plan-ready",
+      "title": "Legacy rollback exception plan is ready",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "exception_plan_ready=true, blockers=none",
+      "blocks_exception_review": false,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The legacy rollback plan must have exception_plan_ready=true and no exception_plan_blockers."
+    },
+    {
+      "id": "review-plan-does-not-approve-release-or-deploy",
+      "title": "Source plan remains review-only",
+      "category": "release-boundary",
+      "status": "pass",
+      "evidence": "release_execution_allowed=false, docker_deploy_allowed=false",
+      "blocks_exception_review": true,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The source plan must keep release_execution_allowed=false and docker_deploy_allowed=false."
+    },
+    {
+      "id": "current-state-is-legacy-latest",
+      "title": "Current NAS state is the legacy latest state",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "current=latest, proof_blockers=current-tag-stable-for-rollback",
+      "blocks_exception_review": false,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The one-time exception only applies when the current NAS tag is latest and the only image-proof blocker is current-tag-stable-for-rollback."
+    },
+    {
+      "id": "target-tag-is-immutable",
+      "title": "Target image tag is immutable",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "target=73ab7b355051d7325174111f955cd8356d42787d",
+      "blocks_exception_review": false,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "The staged target must be a 40-character immutable candidate SHA, not latest or a branch name."
+    },
+    {
+      "id": "workflow-and-compose-are-hardened",
+      "title": "Workflow and compose no longer mutate latest",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "workflow_pushes_latest=false, workflow_pushes_sha=true, compose_explicit_tag=true, compose_defaults_latest=false",
+      "blocks_exception_review": false,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Workflow must push immutable SHA tags only, and compose must require an explicit target tag without latest fallback."
+    },
+    {
+      "id": "only-explicit-exception-approval-remains",
+      "title": "Only the explicit exception approval blocker remains in the source plan",
+      "category": "release-manager",
+      "status": "pass",
+      "evidence": "release_decision_blockers=explicit-legacy-rollback-exception-approval",
+      "blocks_exception_review": false,
+      "blocks_release_execution": true,
+      "blocks_docker_deploy": true,
+      "required_evidence": "Before release-manager acceptance, the plan may only be blocked by explicit-legacy-rollback-exception-approval."
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 9,
+    "blocked": 0,
+    "failed": 0,
+    "exception_review_blockers": [],
+    "release_execution_blockers": [],
+    "docker_deploy_blockers": []
+  },
+  "result": {
+    "status": "accepted",
+    "summary": "Release-manager review accepts the one-time legacy latest rollback exception for release-input generation only; push/deploy remain separately blocked."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-legacy-rollback-exception-review-20260629T032343Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-legacy-rollback-exception-review-20260629T032343Z.md"
+  }
+}
