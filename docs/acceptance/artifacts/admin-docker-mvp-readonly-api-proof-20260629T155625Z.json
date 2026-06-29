@@ -1,0 +1,371 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T15:56:25.316Z",
+  "mode": "admin-docker-mvp-readonly-api-proof",
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "library_root": "/data/PublicLibrary"
+  },
+  "mutates_nas_files": false,
+  "preprocess_execution_allowed": false,
+  "note": "This proof uses protected GET endpoints only. It does not start workers, queue videos, recover jobs, publish indexes, or run ASR/FFmpeg.",
+  "observed": {
+    "library_root": "/data/PublicLibrary",
+    "ready_video_count": 10471,
+    "total_video_count": 11394,
+    "processing_video_count": 0,
+    "current_index_version": "v010471",
+    "preprocess_safety_status": "healthy",
+    "preprocess_supervisor_state": "idle",
+    "queued_first_page_count": 5,
+    "index_required_first_page_count": 5,
+    "processing_first_page_count": 0,
+    "cutter_user_count": 16,
+    "data_loading_strategy": "shell-first-route-owned-v1",
+    "slowest_request_ms": 273.9
+  },
+  "requests": [
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 11.1,
+      "response_bytes": 336,
+      "summary": {
+        "keys": [
+          "authenticated",
+          "auth_mode",
+          "user",
+          "bootstrap",
+          "message"
+        ]
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 6.4,
+      "response_bytes": 704,
+      "summary": {
+        "keys": [
+          "library_id",
+          "name",
+          "root_path",
+          "source_videos_path",
+          "mixlab_library_path",
+          "protocol_version",
+          "version",
+          "created_at",
+          "updated_at",
+          "video_count",
+          "ready_video_count",
+          "processing_video_count",
+          "queued_video_count",
+          "unprocessed_video_count",
+          "failed_video_count",
+          "index_required_video_count",
+          "disk_total_bytes",
+          "disk_available_bytes",
+          "index_status",
+          "current_index_version"
+        ],
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "processing_video_count": 0,
+        "queued_video_count": 904,
+        "index_required_video_count": 19,
+        "root_path": "/data/PublicLibrary",
+        "current_index_version": "v010471"
+      }
+    },
+    {
+      "name": "preprocess_safety",
+      "method": "GET",
+      "path": "/api/admin/preprocess/safety",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 16.5,
+      "response_bytes": 365,
+      "summary": {
+        "keys": [
+          "checked_at",
+          "safe_to_start",
+          "status",
+          "disk",
+          "processing",
+          "blockers"
+        ],
+        "status": "healthy",
+        "safe_to_start": true
+      }
+    },
+    {
+      "name": "preprocess_supervisor_status",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 5.6,
+      "response_bytes": 181,
+      "summary": {
+        "keys": [
+          "state",
+          "state_label",
+          "worker_id",
+          "started_at",
+          "stopped_at",
+          "last_error",
+          "stop_requested",
+          "last_result"
+        ],
+        "state": "idle"
+      }
+    },
+    {
+      "name": "preprocess_jobs",
+      "method": "GET",
+      "path": "/api/admin/preprocess/jobs?limit=20",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 273.9,
+      "response_bytes": 11163,
+      "summary": {
+        "keys": [
+          "active_count",
+          "queued_count",
+          "completed_count",
+          "failed_count",
+          "jobs",
+          "observability",
+          "supervisor"
+        ],
+        "jobs": {
+          "count": 20,
+          "status_counts": {
+            "queued": 20
+          }
+        }
+      }
+    },
+    {
+      "name": "source_videos_queued",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=queued&limit=5",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 15.1,
+      "response_bytes": 4182,
+      "summary": {
+        "item_count": 5,
+        "status_counts": {
+          "queued": 5
+        }
+      }
+    },
+    {
+      "name": "source_videos_index_required",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=index-required&limit=5",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 14.4,
+      "response_bytes": 2811,
+      "summary": {
+        "item_count": 5,
+        "status_counts": {
+          "index-required": 5
+        }
+      }
+    },
+    {
+      "name": "source_videos_processing",
+      "method": "GET",
+      "path": "/api/admin/source-videos?status=processing&limit=5",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 18.9,
+      "response_bytes": 828,
+      "summary": {
+        "item_count": 0,
+        "status_counts": {}
+      }
+    },
+    {
+      "name": "source_videos_default",
+      "method": "GET",
+      "path": "/api/admin/source-videos?limit=5",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 21.7,
+      "response_bytes": 2799,
+      "summary": {
+        "item_count": 5,
+        "status_counts": {
+          "ready": 5
+        }
+      }
+    },
+    {
+      "name": "cutter_users",
+      "method": "GET",
+      "path": "/api/admin/cutter-users",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 15.5,
+      "response_bytes": 27310,
+      "summary": {
+        "keys": [
+          "users"
+        ],
+        "users": {
+          "count": 16,
+          "status_counts": {
+            "approved": 15,
+            "disabled": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "method": "GET",
+      "path": "/api/admin/data-loading/plan",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 9.6,
+      "response_bytes": 12679,
+      "summary": {
+        "keys": [
+          "schema_version",
+          "generated_at",
+          "strategy",
+          "shell_interactive_target_ms",
+          "route_timeout_ms",
+          "background_prefetch_default",
+          "hidden_full_scan_allowed",
+          "endpoints",
+          "routes"
+        ],
+        "strategy": "shell-first-route-owned-v1",
+        "hidden_full_scan_allowed": false
+      }
+    },
+    {
+      "name": "release_gates",
+      "method": "GET",
+      "path": "/api/admin/release-gates",
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "duration_ms": 71.2,
+      "response_bytes": 17878,
+      "summary": {
+        "keys": [
+          "checked_at",
+          "overall_status",
+          "release_allowed",
+          "gates",
+          "build",
+          "runtime",
+          "safety",
+          "usage_event_store",
+          "usage_events_repair",
+          "processing_recovery",
+          "disk_space_protection",
+          "version_health_parity",
+          "admin_worker_env_proof",
+          "cutter_compatibility_proof"
+        ],
+        "overall_status": "attention",
+        "release_allowed": false
+      }
+    }
+  ],
+  "gates": [
+    {
+      "id": "all-readonly-api-endpoints-200",
+      "status": "pass",
+      "evidence": "12/12 protected GET probes returned ok:true",
+      "blocks_mvp": false
+    },
+    {
+      "id": "library-baseline-preserved",
+      "status": "pass",
+      "evidence": "root=/data/PublicLibrary, ready=10471, current_index=v010471",
+      "blocks_mvp": false
+    },
+    {
+      "id": "processing-list-empty",
+      "status": "pass",
+      "evidence": "processing list count=0, library processing=0",
+      "blocks_mvp": false
+    },
+    {
+      "id": "preprocess-supervisor-idle",
+      "status": "pass",
+      "evidence": "supervisor state=idle",
+      "blocks_mvp": false
+    },
+    {
+      "id": "preprocess-safety-readable",
+      "status": "pass",
+      "evidence": "preprocess safety status=healthy, safe_to_start=true",
+      "blocks_mvp": false
+    },
+    {
+      "id": "preprocess-jobs-readable",
+      "status": "pass",
+      "evidence": "jobs first page count=20",
+      "blocks_mvp": false
+    },
+    {
+      "id": "source-video-status-lists-readable",
+      "status": "pass",
+      "evidence": "queued first page=5, index-required first page=5",
+      "blocks_mvp": false
+    },
+    {
+      "id": "cutter-users-readable",
+      "status": "pass",
+      "evidence": "cutter user count=16",
+      "blocks_mvp": false
+    },
+    {
+      "id": "data-loading-plan-live",
+      "status": "pass",
+      "evidence": "strategy=shell-first-route-owned-v1, hidden_full_scan_allowed=false",
+      "blocks_mvp": false
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "passed": 9,
+    "blocked": 0,
+    "mvp_blockers": []
+  },
+  "result": {
+    "status": "ready",
+    "summary": "Admin Docker MVP readonly API proof passed; no preprocess write was executed."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-mvp-readonly-api-proof-20260629T155625Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-mvp-readonly-api-proof-20260629T155625Z.md"
+  }
+}

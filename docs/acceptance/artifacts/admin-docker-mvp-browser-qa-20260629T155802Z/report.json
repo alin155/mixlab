@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T15:58:17.492Z",
+  "mode": "admin-docker-mvp-browser-qa",
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef"
+  },
+  "mutates_nas_files": false,
+  "pages": [
+    {
+      "route": "#/dashboard",
+      "status": "pass",
+      "evidence": "Logged-in dashboard rendered with /data/PublicLibrary, v010471, ready 10471, preprocess idle.",
+      "screenshot": "docs/acceptance/artifacts/admin-docker-mvp-browser-qa-20260629T155802Z/dashboard.png"
+    },
+    {
+      "route": "#/cutter-users",
+      "status": "pass",
+      "evidence": "Cutter users page rendered user table: 16 users, 15 approved, 1 disabled, 0 pending.",
+      "screenshot": "docs/acceptance/artifacts/admin-docker-mvp-browser-qa-20260629T155802Z/cutter-users.png"
+    },
+    {
+      "route": "#/preprocess-jobs",
+      "status": "pass",
+      "evidence": "Preprocess page rendered queue and index status: 904 queued, 0 processing, 0 failed, v010471 current index.",
+      "screenshot": "docs/acceptance/artifacts/admin-docker-mvp-browser-qa-20260629T155802Z/preprocess-jobs.png"
+    },
+    {
+      "route": "#/source-videos",
+      "status": "pass",
+      "evidence": "Source videos page rendered read-model paginated list: 11394 total, 10471 searchable, first 20 loaded.",
+      "screenshot": "docs/acceptance/artifacts/admin-docker-mvp-browser-qa-20260629T155802Z/source-videos.png"
+    }
+  ],
+  "result": {
+    "status": "ready",
+    "summary": "Admin Docker MVP browser QA passed for login, cutter user management, preprocess management, and source-video management surfaces."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-mvp-browser-qa-20260629T155802Z/report.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-mvp-browser-qa-20260629T155802Z/summary.md"
+  }
+}

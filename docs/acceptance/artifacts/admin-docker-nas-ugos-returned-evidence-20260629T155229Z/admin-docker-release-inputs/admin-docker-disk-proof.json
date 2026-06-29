@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "mode": "admin-docker-nas-release-inputs-collector",
+  "collected_at": "2026-06-29T15:52:29.679Z",
+  "expected_library_root": "/data/PublicLibrary",
+  "thresholds": {
+    "attention_usage_percent": 87,
+    "block_usage_percent": 92
+  },
+  "checks": [
+    {
+      "id": "admin-api-library-root",
+      "scope": "container",
+      "service": "admin-api",
+      "path": "/data/PublicLibrary",
+      "filesystem": "nas-ugos-browserless-live-readonly-library-status",
+      "total_bytes": 47761388298240,
+      "used_bytes": 32649431564288,
+      "available_bytes": 15111956733952,
+      "usage_percent": 68
+    },
+    {
+      "id": "admin-worker-library-root",
+      "scope": "container",
+      "service": "admin-worker",
+      "path": "/data/PublicLibrary",
+      "filesystem": "nas-ugos-browserless-live-readonly-library-status",
+      "total_bytes": 47761388298240,
+      "used_bytes": 32649431564288,
+      "available_bytes": 15111956733952,
+      "usage_percent": 68
+    }
+  ]
+}

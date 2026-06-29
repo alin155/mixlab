@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T15:52:29.679Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-nas-ugos-returned-evidence.ts",
+  "mode": "admin-docker-nas-ugos-returned-evidence",
+  "sources": {
+    "ugos_base_url": "http://192.168.1.27:9999",
+    "admin_live_base_url": "http://192.168.1.27:18080"
+  },
+  "output_dir": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260629T155229Z/admin-docker-release-inputs",
+  "no_side_effects": true,
+  "push_execution_allowed": false,
+  "docker_deploy_allowed": false,
+  "docker_runtime_touched": false,
+  "observations": {
+    "admin_containers": [
+      {
+        "service": "admin-api",
+        "name": "mixlab-server-admin-api-1",
+        "image": "ghcr.io/alin155/mixlab-admin-runtime:5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+        "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef"
+      },
+      {
+        "service": "admin-web",
+        "name": "mixlab-server-admin-web-1",
+        "image": "ghcr.io/alin155/mixlab-admin-web:5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+        "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef"
+      },
+      {
+        "service": "admin-worker",
+        "name": "mixlab-server-admin-worker-1",
+        "image": "ghcr.io/alin155/mixlab-admin-runtime:5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+        "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef"
+      }
+    ],
+    "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "worker_allowlisted_env": {
+      "MIXLAB_ADMIN_DOCKER_MVP_MODE": "v0.1",
+      "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "0",
+      "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "0",
+      "MIXLAB_ADMIN_LIBRARY_ROOT": "/data/PublicLibrary",
+      "MIXLAB_PREPROCESS_LIBRARY_ROOT": "/data/PublicLibrary"
+    },
+    "disk_usage_percent": 68
+  },
+  "gates": [
+    {
+      "id": "ugos-returned-evidence-no-side-effects",
+      "title": "UGOS returned evidence collection is read-only",
+      "status": "pass",
+      "evidence": "Uses UGOS Docker read endpoints and Admin live-readonly GET endpoints only; it does not start/stop containers, push/pull images, exec into containers, edit NAS files, or run preprocess.",
+      "blocks_collection": false
+    },
+    {
+      "id": "admin-containers-discovered",
+      "title": "Admin Docker containers are discovered",
+      "status": "pass",
+      "evidence": "admin-web, admin-api, admin-worker found",
+      "blocks_collection": false
+    },
+    {
+      "id": "admin-worker-detail-readable",
+      "title": "Admin worker detail is readable",
+      "status": "pass",
+      "evidence": "mixlab-server-admin-worker-1",
+      "blocks_collection": false
+    },
+    {
+      "id": "disk-readonly-status-readable",
+      "title": "NAS disk readonly status is numeric",
+      "status": "pass",
+      "evidence": "usage_percent=68",
+      "blocks_collection": false
+    },
+    {
+      "id": "docker-deploy-not-approved",
+      "title": "Collector does not approve Docker deploy",
+      "status": "pass",
+      "evidence": "push_execution_allowed=false, docker_deploy_allowed=false, docker_runtime_touched=false",
+      "blocks_collection": false
+    }
+  ],
+  "result": {
+    "status": "generated",
+    "summary": "UGOS browserless returned evidence collection generated a sanitized local evidence directory."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260629T155229Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260629T155229Z.md",
+    "returned_dir": "docs/acceptance/artifacts/admin-docker-nas-ugos-returned-evidence-20260629T155229Z/admin-docker-release-inputs"
+  }
+}

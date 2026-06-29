@@ -1,0 +1,382 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T11:17:55.278Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-staging-runbook.ts",
+  "mode": "admin-docker-staging-runbook",
+  "sources": {
+    "local_docker_smoke_report": ".local-dev/admin-docker-github-runs/28367816458/mixlab-admin-docker-release-gates/admin-docker-local-smoke-20260629T111321Z.json",
+    "github_artifact_readiness_report": "docs/acceptance/artifacts/admin-docker-github-artifact-readiness-20260629T111651Z.json",
+    "parity_plan_report": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T080730Z.json",
+    "candidate_contract_proof_report": ".local-dev/admin-docker-github-runs/28367816458/mixlab-admin-docker-release-gates/admin-docker-candidate-contract-proof-20260629T111424Z.json",
+    "worker_env_proof_report": "docs/acceptance/artifacts/admin-worker-env-proof-20260629T091656Z.json",
+    "cutter_compatibility_proof_report": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-20260629T081635Z.json",
+    "release_inputs_report": "docs/acceptance/artifacts/admin-docker-release-inputs-20260629T095931Z.json",
+    "nas_disk_proof_report": "docs/acceptance/artifacts/admin-docker-nas-disk-proof-20260629T080002Z.json",
+    "image_push_proof_report": "docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T111722Z.json"
+  },
+  "image_tags": {
+    "current": "9c015b9105e97954240020781f79daae3f954bde",
+    "target": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "rollback": "9c015b9105e97954240020781f79daae3f954bde"
+  },
+  "image_push_approval": {
+    "value": "workflow_dispatch:push_images=true",
+    "accepted": true
+  },
+  "image_push_proof": {
+    "report": "docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T111722Z.json",
+    "accepted": true,
+    "required": true
+  },
+  "staging_execution_ready": true,
+  "staging_review_ready": true,
+  "docker_deploy_allowed": false,
+  "observations": {
+    "local_smoke_status": "accepted",
+    "local_smoke_passed": true,
+    "local_smoke_blockers": [],
+    "local_smoke_build_identity": {
+      "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "build_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "build_version": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "mvp_mode": "v0.1"
+    },
+    "github_artifact_status": "candidate-ready",
+    "github_candidate_artifact_ready": true,
+    "github_candidate_contract_ready": true,
+    "github_staging_handoff_ready": false,
+    "github_candidate_image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "github_candidate_build_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "target_tag_matches_local_smoke": true,
+    "target_tag_matches_github_candidate": true,
+    "target_tag_matches_smoked_image": true,
+    "parity_status": "blocked",
+    "docker_image_update_required": false,
+    "parity_upload_blockers": [
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ],
+    "staging_execution_parity_blockers": [],
+    "unresolved_parity_upload_blockers": [],
+    "resolved_external_parity_blockers": [
+      "admin-worker-env-external-proof",
+      "cutter-compatibility-external-proof"
+    ],
+    "candidate_contract_status": "ready-for-candidate-review",
+    "candidate_contract_ready": true,
+    "candidate_contract_blockers": [],
+    "worker_env_status": "accepted",
+    "worker_proof_accepted": true,
+    "worker_upload_blockers": [],
+    "cutter_compatibility_status": "accepted",
+    "cutter_proof_accepted": true,
+    "cutter_upload_blockers": [],
+    "release_inputs_status": "ready-for-release-decision",
+    "release_inputs_ready": true,
+    "release_inputs_current_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "release_inputs_target_image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "release_inputs_rollback_image_tag": "9c015b9105e97954240020781f79daae3f954bde",
+    "current_tag_matches_release_inputs": true,
+    "target_tag_matches_release_inputs": true,
+    "rollback_tag_matches_release_inputs": true,
+    "release_input_blockers": [],
+    "release_input_handoff_staging_blockers": [
+      "legacy-live-target-not-mistaken-for-staged-candidate",
+      "explicit-push-approval-required",
+      "current-and-rollback-tags-required"
+    ],
+    "nas_disk_proof_status": "accepted",
+    "nas_disk_proof_accepted": true,
+    "nas_disk_proof_blockers": [],
+    "image_push_proof_status": "accepted",
+    "image_push_proof_accepted": true,
+    "image_push_proof_blockers": [],
+    "cleared_pre_staging_execution_blockers": [],
+    "carried_pre_staging_execution_blockers": []
+  },
+  "runbook": {
+    "preflight": [
+      "Confirm a current backup exists for admin-users, cutter-users, usage-events, current index, and .mixlab-library admin state.",
+      "Confirm candidate API/version contract proof is accepted for the target image before staging.",
+      "Confirm NAS disk gate is not blocked and RAID/storage warnings are resolved or explicitly accepted by the release gate.",
+      "Confirm admin-worker env proof is accepted with standalone workers disabled.",
+      "Confirm Windows Cutter compatibility smoke is ready to run after staging."
+    ],
+    "stage_update": [
+      "Set MIXLAB_IMAGE_TAG=5a50922bc82f1b6728f247ed33e5885ab8cf6bef in the NAS Docker .env staging copy.",
+      "Run docker compose pull for admin-web, admin-api, and admin-worker images.",
+      "Run docker compose up -d admin-api admin-web admin-worker with standalone worker flags still disabled.",
+      "Do not enable MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER or MIXLAB_ENABLE_READY_PUBLISH_WORKER during initial staging."
+    ],
+    "post_update_validation": [
+      "Run GET-only live-readonly probe against the staged Admin Web target.",
+      "Run candidate contract proof against the staged Admin Web target and require candidate_contract_ready=true.",
+      "Run Docker version/API parity plan and require current Admin API contract endpoints to pass.",
+      "Run admin-worker env proof against exported staged container evidence.",
+      "Run Cutter release/index/search compatibility smoke and archive the report.",
+      "Keep Docker upload/release blocked if any gate reports blocked or needs external proof."
+    ],
+    "rollback": [
+      "Set MIXLAB_IMAGE_TAG=9c015b9105e97954240020781f79daae3f954bde in the NAS Docker .env rollback copy.",
+      "Run docker compose up -d admin-api admin-web admin-worker using the rollback tag.",
+      "Re-run GET-only live-readonly probe and Cutter compatibility smoke after rollback.",
+      "Do not run scan/apply, recovery, publish, or worker-enable commands as part of rollback unless separately approved."
+    ]
+  },
+  "gates": [
+    {
+      "id": "runbook-no-side-effects",
+      "title": "Runbook generation has no Docker or NAS side effects",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "This report reads archived artifacts and env inputs only; it does not run Docker, push images, restart containers, or write NAS files.",
+      "blocks_staging_execution": false,
+      "blocks_staging": false
+    },
+    {
+      "id": "current-image-tag-provided",
+      "title": "Current image tag is explicit",
+      "category": "input",
+      "status": "pass",
+      "evidence": "MIXLAB_DOCKER_CURRENT_IMAGE_TAG=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_CURRENT_IMAGE_TAG before producing a staging runbook."
+    },
+    {
+      "id": "target-image-tag-provided",
+      "title": "Target image tag is explicit",
+      "category": "input",
+      "status": "pass",
+      "evidence": "MIXLAB_DOCKER_TARGET_IMAGE_TAG=5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG before producing a staging runbook."
+    },
+    {
+      "id": "rollback-image-tag-provided",
+      "title": "Rollback image tag is explicit",
+      "category": "input",
+      "status": "pass",
+      "evidence": "MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG before producing a staging runbook."
+    },
+    {
+      "id": "target-differs-from-current",
+      "title": "Target tag differs from current tag",
+      "category": "input",
+      "status": "pass",
+      "evidence": "current=9c015b9105e97954240020781f79daae3f954bde, target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Target tag must differ from current tag so the staging action is explicit."
+    },
+    {
+      "id": "rollback-tag-matches-current",
+      "title": "Rollback tag matches current deployed tag",
+      "category": "rollback",
+      "status": "pass",
+      "evidence": "current=9c015b9105e97954240020781f79daae3f954bde, rollback=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Rollback tag must match the current deployed tag before staging."
+    },
+    {
+      "id": "image-push-explicitly-approved",
+      "title": "Target images were pushed by explicit release approval",
+      "category": "input",
+      "status": "pass",
+      "evidence": "MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_PUSH_APPROVAL=workflow_dispatch:push_images=true only after the GitHub Admin Docker workflow was manually dispatched with push_images=true and its smoke gate passed."
+    },
+    {
+      "id": "image-push-proof-accepted",
+      "title": "Image push proof is accepted after explicit approval",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "image_push_proof=docs/acceptance/artifacts/admin-docker-image-push-proof-20260629T111722Z.json, proof_accepted=true, blockers=none",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "After workflow_dispatch push_images=true succeeds, run validate:admin-docker-image-push-proof and pass MIXLAB_ADMIN_DOCKER_IMAGE_PUSH_PROOF_REPORT to the staging runbook."
+    },
+    {
+      "id": "local-docker-smoke-passed",
+      "title": "Target build passed Docker smoke locally or in GitHub",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "local_smoke_passed=true, github_candidate_artifact_ready=true, image_tags=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, 5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Run validate:admin-docker-local-smoke on a Docker-capable machine, or archive an Admin Docker GitHub artifact readiness report with github_candidate_artifact_ready=true before staging."
+    },
+    {
+      "id": "target-tag-matches-smoked-image",
+      "title": "Target image tag matches the smoked build",
+      "category": "input",
+      "status": "pass",
+      "evidence": "target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, smoked_image_tags=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, 5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG to the exact image tag from the accepted local smoke or GitHub candidate artifact."
+    },
+    {
+      "id": "parity-report-present",
+      "title": "Docker parity report is present",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "docs/acceptance/artifacts/admin-docker-version-parity-plan-20260629T080730Z.json",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Provide the Docker version/API parity plan artifact."
+    },
+    {
+      "id": "release-inputs-ready-for-decision",
+      "title": "Release inputs package is ready for a separate release decision",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "release_inputs_ready=true",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Provide an accepted admin-docker-release-inputs report before using it to constrain staging."
+    },
+    {
+      "id": "current-tag-matches-release-inputs",
+      "title": "Current image tag matches release inputs",
+      "category": "input",
+      "status": "pass",
+      "evidence": "runbook current=9c015b9105e97954240020781f79daae3f954bde, release_inputs current=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_CURRENT_IMAGE_TAG from the accepted admin-docker-release-inputs report."
+    },
+    {
+      "id": "target-tag-matches-release-inputs",
+      "title": "Target image tag matches release inputs",
+      "category": "input",
+      "status": "pass",
+      "evidence": "runbook target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, release_inputs target=5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_TARGET_IMAGE_TAG from the accepted admin-docker-release-inputs report."
+    },
+    {
+      "id": "rollback-tag-matches-release-inputs",
+      "title": "Rollback image tag matches release inputs",
+      "category": "rollback",
+      "status": "pass",
+      "evidence": "runbook rollback=9c015b9105e97954240020781f79daae3f954bde, release_inputs rollback=9c015b9105e97954240020781f79daae3f954bde",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Set MIXLAB_DOCKER_ROLLBACK_IMAGE_TAG from the accepted admin-docker-release-inputs report."
+    },
+    {
+      "id": "nas-disk-proof-accepted",
+      "title": "NAS disk risk is cleared by explicit disk proof",
+      "category": "runtime-risk",
+      "status": "pass",
+      "evidence": "release inputs did not carry nas-disk-risk-carried-forward",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Run validate:admin-docker-nas-disk-proof with sanitized NAS df evidence and require proof_accepted:true."
+    },
+    {
+      "id": "pre-staging-execution-blockers-carried-forward",
+      "title": "Pre-staging execution blockers carried by release inputs are clear",
+      "category": "runtime-risk",
+      "status": "pass",
+      "evidence": "handoff_staging_blockers=legacy-live-target-not-mistaken-for-staged-candidate, explicit-push-approval-required, current-and-rollback-tags-required",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Clear or explicitly re-prove NAS disk safety before staging execution."
+    },
+    {
+      "id": "parity-report-staging-execution-safe",
+      "title": "Docker parity blockers do not prevent staging execution",
+      "category": "runtime-risk",
+      "status": "pass",
+      "evidence": "Only post-update parity proof remains before final review: none.",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Before staging execution, live target/proxy/root/disk blockers must be clear. Current API and proof-contract blockers may remain only when docker_image_update_required=true because staging is the update that should resolve them."
+    },
+    {
+      "id": "parity-report-blockers-clear",
+      "title": "Docker parity blockers are clear",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "No unresolved parity upload blockers after external proof normalization. Resolved external blockers: admin-worker-env-external-proof, cutter-compatibility-external-proof",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Resolve current API contract parity and disk blockers, and provide accepted worker/Cutter external proof for their external-proof blockers."
+    },
+    {
+      "id": "candidate-contract-proof-accepted",
+      "title": "Candidate API/version contract proof is accepted",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "candidate_contract_ready=true, github_candidate_artifact_ready=true, github_candidate_contract_ready=true",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Run validate:admin-docker-candidate-contract-proof against the local or staged candidate, or archive an Admin Docker GitHub artifact readiness report with github_candidate_artifact_ready=true."
+    },
+    {
+      "id": "worker-env-proof-accepted",
+      "title": "admin-worker env proof is accepted",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "worker proof status=accepted, blockers=none",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Run validate:admin-worker-env-proof with exported NAS evidence after staging and require proof_accepted:true before final MVP acceptance."
+    },
+    {
+      "id": "cutter-compatibility-proof-accepted",
+      "title": "Cutter compatibility proof is accepted",
+      "category": "evidence",
+      "status": "pass",
+      "evidence": "cutter proof status=accepted, blockers=none",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Run validate:admin-cutter-compatibility-proof with staged-candidate Windows reports and require proof_accepted:true before final MVP acceptance."
+    },
+    {
+      "id": "current-api-update-needed-is-known",
+      "title": "API/image update need is explicit",
+      "category": "runtime-risk",
+      "status": "pass",
+      "evidence": "docker_image_update_required=false",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "Run Docker version/API parity plan before staging."
+    },
+    {
+      "id": "parity-result-remains-nondeploy",
+      "title": "Parity result does not approve deploy by itself",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "parity_result=blocked",
+      "blocks_staging_execution": false,
+      "blocks_staging": false,
+      "required_evidence": "The parity plan should remain a non-deploy gate; actual staging needs a separate release decision."
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "passed": 24,
+    "blocked": 0,
+    "staging_execution_blockers": [],
+    "staging_blockers": []
+  },
+  "result": {
+    "status": "ready-for-staging-review",
+    "summary": "Runbook is ready for a separate human release decision; this report still does not deploy Docker."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T111755Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-staging-runbook-20260629T111755Z.md"
+  }
+}

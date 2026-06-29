@@ -1,0 +1,1384 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-29T15:52:19.674Z",
+  "command": "/opt/homebrew/Cellar/node/26.0.0/bin/node /Users/huaqihang/Documents/mixlab/scripts/acceptance/admin-docker-release-live-readonly.ts",
+  "mode": "live-readonly-get",
+  "target": {
+    "base_url": "http://192.168.1.27:18080",
+    "normalized_base_url": "http://192.168.1.27:18080",
+    "configured": true,
+    "kind": "admin-web-url",
+    "safe_to_probe": true,
+    "classification_evidence": "Target URL shape is compatible with the NAS Docker admin-web root.",
+    "classification_notes": [
+      "This only validates target shape; API/version/disk/worker/Cutter proof gates still decide readiness."
+    ],
+    "expected_library_root": "/data/PublicLibrary",
+    "session_token_present": true
+  },
+  "live_readiness_ready": false,
+  "docker_upload_allowed": false,
+  "requests": [
+    {
+      "name": "admin_web_root",
+      "method": "GET",
+      "path": "/",
+      "duration_ms": 30.3,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": null,
+      "response_bytes": 681,
+      "content_type": "text/html",
+      "data": null
+    },
+    {
+      "name": "auth_status",
+      "method": "GET",
+      "path": "/api/admin/auth/status",
+      "duration_ms": 15.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 336,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "authenticated": true,
+        "auth_mode": "password",
+        "user": {
+          "admin_id": "AU000001",
+          "username": "hqh",
+          "display_name": "hqh",
+          "role": "owner",
+          "status": "active",
+          "created_at": "2026-06-24T11:34:00.434Z",
+          "last_login_at": "2026-06-29T15:52:18.858Z",
+          "disabled_at": ""
+        },
+        "bootstrap": {
+          "has_admin": true,
+          "registration_open": false
+        },
+        "message": ""
+      }
+    },
+    {
+      "name": "library_status",
+      "method": "GET",
+      "path": "/api/admin/library/status",
+      "duration_ms": 9.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 704,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "library_id": "lib_main_001",
+        "name": "主素材库",
+        "root_path": "/data/PublicLibrary",
+        "source_videos_path": "/data/PublicLibrary/source-videos",
+        "mixlab_library_path": "/data/PublicLibrary/.mixlab-library",
+        "protocol_version": "1.0",
+        "version": "1.0",
+        "created_at": "2026-06-24T11:53:43.919Z",
+        "updated_at": "2026-06-25T19:07:13.162Z",
+        "video_count": 11394,
+        "ready_video_count": 10471,
+        "processing_video_count": 0,
+        "queued_video_count": 904,
+        "unprocessed_video_count": 0,
+        "failed_video_count": 0,
+        "index_required_video_count": 19,
+        "disk_total_bytes": 47761388298240,
+        "disk_available_bytes": 15111956955136,
+        "index_status": "needs-publish",
+        "current_index_version": "v010471",
+        "active_task_label": "无正在处理任务"
+      }
+    },
+    {
+      "name": "release_gates",
+      "method": "GET",
+      "path": "/api/admin/release-gates",
+      "duration_ms": 64,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 17878,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "checked_at": "2026-06-29T15:52:19.277Z",
+        "overall_status": "attention",
+        "release_allowed": false,
+        "gates": [
+          {
+            "code": "runtime-path-profile",
+            "status": "pass",
+            "message": "Docker 公共素材库路径使用 /data 配置。",
+            "details": {
+              "library_root": "/data/PublicLibrary",
+              "source_videos_path": "/data/PublicLibrary/source-videos",
+              "path_profile": "docker"
+            }
+          },
+          {
+            "code": "build-version-health",
+            "status": "pass",
+            "message": "构建版本信息完整。",
+            "details": {
+              "sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+              "version": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+              "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+              "version_health_parity": {
+                "status": "ready",
+                "metadata_complete": true,
+                "build_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+                "build_version": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+                "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+                "expected_services": [
+                  "admin-web",
+                  "admin-api",
+                  "admin-worker"
+                ],
+                "health_preflight_endpoints": [
+                  "GET /",
+                  "GET /health",
+                  "GET /api/admin/release-gates"
+                ],
+                "live_probe_command": "npx tsx scripts/acceptance/admin-docker-release-live-readonly.ts",
+                "external_proof_required": [
+                  "docker compose ps admin-web admin-api admin-worker",
+                  "docker inspect admin-web/admin-api/admin-worker image tags and health state",
+                  "admin-worker env proof for standalone worker flags and /data/PublicLibrary roots",
+                  "rollback image tag recorded before any deploy rehearsal"
+                ],
+                "static_compose_gate": "image-tag-static-parity",
+                "safe_scope": "version-health-only",
+                "starts_workers": false,
+                "mutates_ready_assets": false,
+                "mutates_cutter_protocol": false,
+                "notes": [
+                  "The Admin API exposes build sha, build version, and image tag metadata.",
+                  "Live Docker parity still requires external admin-web/admin-api/admin-worker image and health proof before upload review.",
+                  "This contract is read-only and does not start containers, enable workers, mutate NAS data, or change Cutter protocols."
+                ]
+              }
+            }
+          },
+          {
+            "code": "admin-worker-env-proof",
+            "status": "attention",
+            "message": "Docker 发布前需要外部 admin-worker env/inspect 证明，确认独立 worker 默认关闭且容器路径为 /data/PublicLibrary。",
+            "details": {
+              "env_proof_readiness": {
+                "proof_required": true,
+                "status": "external-proof-required",
+                "expected_service": "admin-worker",
+                "required_env_flags": {
+                  "MIXLAB_ADMIN_DOCKER_MVP_MODE": "v0.1",
+                  "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "0",
+                  "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "0"
+                },
+                "required_library_roots": {
+                  "MIXLAB_ADMIN_LIBRARY_ROOT": "/data/PublicLibrary",
+                  "MIXLAB_PREPROCESS_LIBRARY_ROOT": "/data/PublicLibrary"
+                },
+                "env_file_name": "admin-worker.env",
+                "inspect_json_name": "admin-worker.inspect.json",
+                "env_file_variable": "MIXLAB_ADMIN_WORKER_ENV_FILE",
+                "inspect_json_variable": "MIXLAB_ADMIN_WORKER_INSPECT_JSON",
+                "proof_command": "npx tsx scripts/acceptance/admin-worker-env-proof.ts",
+                "collection_commands": [
+                  "docker compose --env-file .env -f docker-compose.yml exec admin-worker env | sort > admin-worker.env",
+                  "docker inspect $(docker compose --env-file .env -f docker-compose.yml ps -q admin-worker) > admin-worker.inspect.json",
+                  "MIXLAB_ADMIN_WORKER_ENV_FILE=<path>/admin-worker.env MIXLAB_ADMIN_WORKER_INSPECT_JSON=<path>/admin-worker.inspect.json npm run validate:admin-worker-env-proof"
+                ],
+                "artifacts_pattern": "docs/acceptance/artifacts/admin-worker-env-proof-*.{json,md}",
+                "safe_scope": "admin-worker-env-only",
+                "starts_workers": false,
+                "records_secrets": false,
+                "mutates_ready_assets": false,
+                "mutates_cutter_protocol": false,
+                "notes": [
+                  "Admin API GET endpoints cannot prove the running admin-worker container environment.",
+                  "Export env and docker inspect evidence on the NAS host, then run the proof command locally without pasting secrets into reports or chat.",
+                  "The proof only validates disabled standalone worker flags and Docker /data/PublicLibrary roots; it does not start workers, deploy Docker, mutate ready assets, or change Cutter protocols."
+                ]
+              }
+            }
+          },
+          {
+            "code": "cutter-compatibility-proof",
+            "status": "attention",
+            "message": "Docker 发布前需要外部 Cutter 兼容性证明，确认 Windows Cutter 仍可读取 release/index/search 并完成真实剪切。",
+            "details": {
+              "cutter_proof_readiness": {
+                "proof_required": true,
+                "status": "external-proof-required",
+                "expected_ready_count": 10471,
+                "expected_auth_mode": "reviewed",
+                "required_reports": {
+                  "windows_acceptance_env_var": "MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT",
+                  "real_cut_env_var": "MIXLAB_CUTTER_REAL_CUT_REPORT",
+                  "optional_desktop_screenshot_env_var": "MIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT",
+                  "expected_ready_count_env_var": "MIXLAB_CUTTER_EXPECTED_READY_COUNT",
+                  "expected_release_version_env_var": "MIXLAB_CUTTER_EXPECTED_RELEASE_VERSION"
+                },
+                "required_evidence": [
+                  "Windows Runner windows_acceptance report with status=passed.",
+                  "Cutter runtime/auth evidence showing auth_mode=reviewed and local_trusted=false.",
+                  "Public library evidence showing at least 10471 ready videos are visible to Cutter.",
+                  "Source-library first page, public search, and transcript detail evidence.",
+                  "Windows Runner real_cut_smoke report with status=passed, run-next done, output file produced, and resolve_source/cut_media phases done."
+                ],
+                "proof_command": "npx tsx scripts/acceptance/admin-cutter-compatibility-proof.ts",
+                "artifacts_pattern": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.{json,md}",
+                "safe_scope": "cutter-compatibility-only",
+                "requires_staged_candidate": true,
+                "contacts_windows_runner": false,
+                "contacts_docker": false,
+                "starts_workers": false,
+                "mutates_ready_assets": false,
+                "mutates_cutter_protocol": false,
+                "notes": [
+                  "Admin API GET endpoints cannot prove Windows Cutter compatibility after a Docker release candidate.",
+                  "Run Windows acceptance and real cut smoke only after a separately gated staged candidate exists; this contract only describes the archived evidence required.",
+                  "The proof reads archived reports and must not mutate NAS data, ready assets, release indexes, or Cutter protocols."
+                ]
+              }
+            }
+          },
+          {
+            "code": "preprocess-disk",
+            "status": "pass",
+            "message": "公共素材库磁盘空间通过门禁。",
+            "details": {
+              "total_bytes": 47761388298240,
+              "available_bytes": 15111956955136,
+              "used_bytes": 32649431343104,
+              "usage_percent": 68,
+              "block_usage_percent": 92,
+              "status": "healthy",
+              "last_error": "",
+              "disk_space_protection": {
+                "status": "healthy",
+                "safe_to_preprocess": true,
+                "preprocess_write_blocked": false,
+                "release_blocked": false,
+                "library_root": "/data/PublicLibrary",
+                "total_bytes": 47761388298240,
+                "available_bytes": 15111956955136,
+                "used_bytes": 32649431343104,
+                "usage_percent": 68,
+                "block_usage_percent": 92,
+                "attention_usage_percent": 87,
+                "last_error": "",
+                "threshold_env_var": "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT",
+                "write_block_scope": "preprocess-and-docker-upload",
+                "preflight_endpoints": [
+                  "GET /api/admin/release-gates",
+                  "GET /api/admin/preprocess/safety",
+                  "GET /api/admin/library/status"
+                ],
+                "starts_workers": false,
+                "mutates_ready_assets": false,
+                "mutates_cutter_protocol": false,
+                "notes": [
+                  "Disk usage is below the attention and block thresholds.",
+                  "The same GET-only preflight endpoints should be archived before Docker upload review.",
+                  "This protection does not mutate ready assets, source-video manifests, release indexes, or Cutter protocols."
+                ]
+              }
+            }
+          },
+          {
+            "code": "processing-recovery",
+            "status": "pass",
+            "message": "没有需要恢复的 processing 任务。",
+            "details": {
+              "checked": true,
+              "processing_count": 0,
+              "source_video_ids": [],
+              "recovery_readiness": {
+                "recovery_required": false,
+                "status": "clear",
+                "processing_count": 0,
+                "source_video_ids": [],
+                "sample_truncated": false,
+                "preflight_endpoints": [
+                  "GET /api/admin/preprocess/safety",
+                  "GET /api/admin/source-videos?status=processing&limit=20",
+                  "GET /api/admin/preprocess/jobs?limit=20"
+                ],
+                "bulk_recovery_endpoint": "POST /api/admin/preprocess/recover-processing",
+                "single_recovery_endpoints": [],
+                "supervisor_must_be_idle": true,
+                "safe_scope": "processing-to-queued-only",
+                "mutates_ready_assets": false,
+                "mutates_cutter_protocol": false,
+                "notes": [
+                  "No processing rows currently require recovery.",
+                  "The recovery command remains available as a separately reviewed maintenance action if processing rows appear later."
+                ]
+              }
+            }
+          },
+          {
+            "code": "usage-events-tolerance",
+            "status": "pass",
+            "message": "usage-events 可正常读取，修复工具处于待命状态。",
+            "details": {
+              "line_count": 11070,
+              "valid_line_count": 11070,
+              "malformed_line_count": 0,
+              "malformed_lines": [],
+              "warning": "",
+              "repair_readiness": {
+                "repair_required": false,
+                "status": "clean",
+                "events_path": "/data/PublicLibrary/.mixlab-library/usage-events/events.ndjson",
+                "projection_path": "/data/PublicLibrary/.mixlab-library/admin-read-model/usage-metrics.sqlite",
+                "dry_run_command": "npx tsx scripts/acceptance/usage-events-repair.ts --library-root '/data/PublicLibrary'",
+                "apply_command": "npx tsx scripts/acceptance/usage-events-repair.ts --library-root '/data/PublicLibrary' --apply",
+                "artifacts_pattern": "docs/acceptance/artifacts/usage-events-repair-*.{json,md}",
+                "backup_directory": "/data/PublicLibrary/.mixlab-library/usage-events/backups",
+                "quarantine_directory": "/data/PublicLibrary/.mixlab-library/usage-events/quarantine",
+                "safe_scope": "usage-events-only",
+                "mutates_ready_assets": false,
+                "mutates_cutter_protocol": false,
+                "notes": [
+                  "No malformed usage-events rows were found.",
+                  "The repair tool remains available for future dry-run evidence without changing NAS data.",
+                  "The usage metrics projection is derived and rebuildable; source-video manifests and Cutter protocols remain the facts for assets."
+                ]
+              }
+            }
+          },
+          {
+            "code": "current-index",
+            "status": "pass",
+            "message": "当前索引指针通过基础门禁。",
+            "details": {
+              "ready_video_count": 10471,
+              "index_required_video_count": 19,
+              "current_index_version": "v010471"
+            }
+          },
+          {
+            "code": "scan-protection",
+            "status": "pass",
+            "message": "扫描 apply 已接入 scan-preview 和 ready manifest 删除阻断。",
+            "details": {
+              "scan_preview_endpoint": "/api/admin/library/scan-preview",
+              "scan_apply_endpoint": "/api/admin/library/scan"
+            }
+          }
+        ],
+        "build": {
+          "sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+          "version": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+          "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef"
+        },
+        "runtime": {
+          "library_root": "/data/PublicLibrary",
+          "source_videos_path": "/data/PublicLibrary/source-videos",
+          "path_profile": "docker"
+        },
+        "safety": {
+          "checked_at": "2026-06-29T15:52:19.280Z",
+          "safe_to_start": true,
+          "status": "healthy",
+          "disk": {
+            "total_bytes": 47761388298240,
+            "available_bytes": 15111956955136,
+            "used_bytes": 32649431343104,
+            "usage_percent": 68,
+            "block_usage_percent": 92,
+            "status": "healthy",
+            "last_error": ""
+          },
+          "processing": {
+            "checked": true,
+            "processing_count": 0,
+            "source_video_ids": []
+          },
+          "blockers": []
+        },
+        "usage_event_store": {
+          "line_count": 11070,
+          "valid_line_count": 11070,
+          "malformed_line_count": 0,
+          "malformed_lines": [],
+          "warning": ""
+        },
+        "usage_events_repair": {
+          "repair_required": false,
+          "status": "clean",
+          "events_path": "/data/PublicLibrary/.mixlab-library/usage-events/events.ndjson",
+          "projection_path": "/data/PublicLibrary/.mixlab-library/admin-read-model/usage-metrics.sqlite",
+          "dry_run_command": "npx tsx scripts/acceptance/usage-events-repair.ts --library-root '/data/PublicLibrary'",
+          "apply_command": "npx tsx scripts/acceptance/usage-events-repair.ts --library-root '/data/PublicLibrary' --apply",
+          "artifacts_pattern": "docs/acceptance/artifacts/usage-events-repair-*.{json,md}",
+          "backup_directory": "/data/PublicLibrary/.mixlab-library/usage-events/backups",
+          "quarantine_directory": "/data/PublicLibrary/.mixlab-library/usage-events/quarantine",
+          "safe_scope": "usage-events-only",
+          "mutates_ready_assets": false,
+          "mutates_cutter_protocol": false,
+          "notes": [
+            "No malformed usage-events rows were found.",
+            "The repair tool remains available for future dry-run evidence without changing NAS data.",
+            "The usage metrics projection is derived and rebuildable; source-video manifests and Cutter protocols remain the facts for assets."
+          ]
+        },
+        "processing_recovery": {
+          "recovery_required": false,
+          "status": "clear",
+          "processing_count": 0,
+          "source_video_ids": [],
+          "sample_truncated": false,
+          "preflight_endpoints": [
+            "GET /api/admin/preprocess/safety",
+            "GET /api/admin/source-videos?status=processing&limit=20",
+            "GET /api/admin/preprocess/jobs?limit=20"
+          ],
+          "bulk_recovery_endpoint": "POST /api/admin/preprocess/recover-processing",
+          "single_recovery_endpoints": [],
+          "supervisor_must_be_idle": true,
+          "safe_scope": "processing-to-queued-only",
+          "mutates_ready_assets": false,
+          "mutates_cutter_protocol": false,
+          "notes": [
+            "No processing rows currently require recovery.",
+            "The recovery command remains available as a separately reviewed maintenance action if processing rows appear later."
+          ]
+        },
+        "disk_space_protection": {
+          "status": "healthy",
+          "safe_to_preprocess": true,
+          "preprocess_write_blocked": false,
+          "release_blocked": false,
+          "library_root": "/data/PublicLibrary",
+          "total_bytes": 47761388298240,
+          "available_bytes": 15111956955136,
+          "used_bytes": 32649431343104,
+          "usage_percent": 68,
+          "block_usage_percent": 92,
+          "attention_usage_percent": 87,
+          "last_error": "",
+          "threshold_env_var": "MIXLAB_PREPROCESS_DISK_BLOCK_USAGE_PERCENT",
+          "write_block_scope": "preprocess-and-docker-upload",
+          "preflight_endpoints": [
+            "GET /api/admin/release-gates",
+            "GET /api/admin/preprocess/safety",
+            "GET /api/admin/library/status"
+          ],
+          "starts_workers": false,
+          "mutates_ready_assets": false,
+          "mutates_cutter_protocol": false,
+          "notes": [
+            "Disk usage is below the attention and block thresholds.",
+            "The same GET-only preflight endpoints should be archived before Docker upload review.",
+            "This protection does not mutate ready assets, source-video manifests, release indexes, or Cutter protocols."
+          ]
+        },
+        "version_health_parity": {
+          "status": "ready",
+          "metadata_complete": true,
+          "build_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+          "build_version": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+          "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+          "expected_services": [
+            "admin-web",
+            "admin-api",
+            "admin-worker"
+          ],
+          "health_preflight_endpoints": [
+            "GET /",
+            "GET /health",
+            "GET /api/admin/release-gates"
+          ],
+          "live_probe_command": "npx tsx scripts/acceptance/admin-docker-release-live-readonly.ts",
+          "external_proof_required": [
+            "docker compose ps admin-web admin-api admin-worker",
+            "docker inspect admin-web/admin-api/admin-worker image tags and health state",
+            "admin-worker env proof for standalone worker flags and /data/PublicLibrary roots",
+            "rollback image tag recorded before any deploy rehearsal"
+          ],
+          "static_compose_gate": "image-tag-static-parity",
+          "safe_scope": "version-health-only",
+          "starts_workers": false,
+          "mutates_ready_assets": false,
+          "mutates_cutter_protocol": false,
+          "notes": [
+            "The Admin API exposes build sha, build version, and image tag metadata.",
+            "Live Docker parity still requires external admin-web/admin-api/admin-worker image and health proof before upload review.",
+            "This contract is read-only and does not start containers, enable workers, mutate NAS data, or change Cutter protocols."
+          ]
+        },
+        "admin_worker_env_proof": {
+          "proof_required": true,
+          "status": "external-proof-required",
+          "expected_service": "admin-worker",
+          "required_env_flags": {
+            "MIXLAB_ADMIN_DOCKER_MVP_MODE": "v0.1",
+            "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER": "0",
+            "MIXLAB_ENABLE_READY_PUBLISH_WORKER": "0"
+          },
+          "required_library_roots": {
+            "MIXLAB_ADMIN_LIBRARY_ROOT": "/data/PublicLibrary",
+            "MIXLAB_PREPROCESS_LIBRARY_ROOT": "/data/PublicLibrary"
+          },
+          "env_file_name": "admin-worker.env",
+          "inspect_json_name": "admin-worker.inspect.json",
+          "env_file_variable": "MIXLAB_ADMIN_WORKER_ENV_FILE",
+          "inspect_json_variable": "MIXLAB_ADMIN_WORKER_INSPECT_JSON",
+          "proof_command": "npx tsx scripts/acceptance/admin-worker-env-proof.ts",
+          "collection_commands": [
+            "docker compose --env-file .env -f docker-compose.yml exec admin-worker env | sort > admin-worker.env",
+            "docker inspect $(docker compose --env-file .env -f docker-compose.yml ps -q admin-worker) > admin-worker.inspect.json",
+            "MIXLAB_ADMIN_WORKER_ENV_FILE=<path>/admin-worker.env MIXLAB_ADMIN_WORKER_INSPECT_JSON=<path>/admin-worker.inspect.json npm run validate:admin-worker-env-proof"
+          ],
+          "artifacts_pattern": "docs/acceptance/artifacts/admin-worker-env-proof-*.{json,md}",
+          "safe_scope": "admin-worker-env-only",
+          "starts_workers": false,
+          "records_secrets": false,
+          "mutates_ready_assets": false,
+          "mutates_cutter_protocol": false,
+          "notes": [
+            "Admin API GET endpoints cannot prove the running admin-worker container environment.",
+            "Export env and docker inspect evidence on the NAS host, then run the proof command locally without pasting secrets into reports or chat.",
+            "The proof only validates disabled standalone worker flags and Docker /data/PublicLibrary roots; it does not start workers, deploy Docker, mutate ready assets, or change Cutter protocols."
+          ]
+        },
+        "cutter_compatibility_proof": {
+          "proof_required": true,
+          "status": "external-proof-required",
+          "expected_ready_count": 10471,
+          "expected_auth_mode": "reviewed",
+          "required_reports": {
+            "windows_acceptance_env_var": "MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT",
+            "real_cut_env_var": "MIXLAB_CUTTER_REAL_CUT_REPORT",
+            "optional_desktop_screenshot_env_var": "MIXLAB_CUTTER_DESKTOP_SCREENSHOT_REPORT",
+            "expected_ready_count_env_var": "MIXLAB_CUTTER_EXPECTED_READY_COUNT",
+            "expected_release_version_env_var": "MIXLAB_CUTTER_EXPECTED_RELEASE_VERSION"
+          },
+          "required_evidence": [
+            "Windows Runner windows_acceptance report with status=passed.",
+            "Cutter runtime/auth evidence showing auth_mode=reviewed and local_trusted=false.",
+            "Public library evidence showing at least 10471 ready videos are visible to Cutter.",
+            "Source-library first page, public search, and transcript detail evidence.",
+            "Windows Runner real_cut_smoke report with status=passed, run-next done, output file produced, and resolve_source/cut_media phases done."
+          ],
+          "proof_command": "npx tsx scripts/acceptance/admin-cutter-compatibility-proof.ts",
+          "artifacts_pattern": "docs/acceptance/artifacts/admin-cutter-compatibility-proof-*.{json,md}",
+          "safe_scope": "cutter-compatibility-only",
+          "requires_staged_candidate": true,
+          "contacts_windows_runner": false,
+          "contacts_docker": false,
+          "starts_workers": false,
+          "mutates_ready_assets": false,
+          "mutates_cutter_protocol": false,
+          "notes": [
+            "Admin API GET endpoints cannot prove Windows Cutter compatibility after a Docker release candidate.",
+            "Run Windows acceptance and real cut smoke only after a separately gated staged candidate exists; this contract only describes the archived evidence required.",
+            "The proof reads archived reports and must not mutate NAS data, ready assets, release indexes, or Cutter protocols."
+          ]
+        }
+      }
+    },
+    {
+      "name": "dashboard_metrics",
+      "method": "GET",
+      "path": "/api/admin/dashboard/metrics",
+      "duration_ms": 454.7,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 10925,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "material": {
+          "video_count": 11394,
+          "ready_video_count": 10471,
+          "total_duration_ms": 6246489561,
+          "ready_duration_ms": 6246472983,
+          "unprocessed_duration_ms": 0,
+          "total_size_bytes": 22909868207182
+        },
+        "transcript": {
+          "transcript_video_count": 10471,
+          "character_count": 0,
+          "segment_count": 972776,
+          "current_index_version": "v010471"
+        },
+        "production": {
+          "completed_today_count": 0,
+          "failed_today_count": 0,
+          "average_video_process_ms": 24170,
+          "estimated_queue_done_at": "2026-06-29T21:56:29.021Z"
+        },
+        "risk": {
+          "failed_video_count": 0,
+          "index_required_video_count": 19
+        },
+        "runtime_load": {
+          "overall_status": "healthy",
+          "disk": {
+            "usage_percent": 68,
+            "status": "healthy"
+          }
+        },
+        "usage_summary": {
+          "search_request_count": 3017,
+          "search_hit_count": 2901,
+          "search_empty_count": 116,
+          "source_detail_view_count": 4197,
+          "cut_submission_count": 330,
+          "cut_success_count": 167,
+          "cut_failure_count": 3,
+          "active_user_count": 21,
+          "recent_keyword_count": 8,
+          "user_count": 21
+        }
+      }
+    },
+    {
+      "name": "data_loading_plan",
+      "method": "GET",
+      "path": "/api/admin/data-loading/plan",
+      "duration_ms": 13.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 12679,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "schema_version": "1.0",
+        "generated_at": "2026-06-29T15:52:19.798Z",
+        "strategy": "shell-first-route-owned-v1",
+        "shell_interactive_target_ms": 1000,
+        "route_timeout_ms": 8000,
+        "background_prefetch_default": false,
+        "hidden_full_scan_allowed": false,
+        "endpoints": [
+          {
+            "endpoint": "/api/admin/library/status",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "library-manifest",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "interval",
+            "notes": "Reads library.json summary and current index pointer; does not enumerate videos."
+          },
+          {
+            "endpoint": "/api/admin/settings/config",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-settings",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Small Admin settings file used for shell and route controls."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/supervisor/status",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "supervisor-runtime",
+            "scan_reason": "shell-summary",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "interval",
+            "notes": "In-memory supervisor state; safe for shell status."
+          },
+          {
+            "endpoint": "/api/admin/data-loading/plan",
+            "method": "GET",
+            "phase": "shell",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "data-loading-contract",
+            "scan_reason": "shell-contract",
+            "critical": true,
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Machine-readable route loading contract for Admin web."
+          },
+          {
+            "endpoint": "/api/admin/source-videos",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "paged-list",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 20,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Route-owned paged source-video list. Ready rows use the transcript index; non-ready status filters use source-video-status-read-model-v1."
+          },
+          {
+            "endpoint": "/api/admin/source-videos/:id",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "single-id",
+            "data_source": "source-video-manifest",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Single selected source-video detail and transcript summary."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/jobs",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "status-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 20,
+            "cache_ttl_ms": 30000,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "interval",
+            "notes": "Preprocess route list. The default limit is bounded by source-video-status-read-model-v1 instead of a hidden manifest sweep."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/process-history",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "default_limit": 50,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Bounded preprocess process-history report from complete admin.sqlite snapshots. It must not enumerate preprocess-job files from a page request."
+          },
+          {
+            "endpoint": "/api/admin/preprocess/process-history/readiness",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "No-scan readiness diagnostic explaining whether admin.sqlite has a complete preprocess-job snapshot for process-history rows."
+          },
+          {
+            "endpoint": "/api/admin/read-model/status",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Diagnostic read-model freshness endpoint. It reports state without forcing a rebuild."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile/status",
+            "method": "GET",
+            "phase": "route",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "manual",
+            "notes": "Diagnostic status for the explicit background read-model reconciler. It never starts a scan."
+          },
+          {
+            "endpoint": "/api/admin/operations/overview",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "data-loading-contract",
+            "scan_reason": "route-owned-page",
+            "critical": false,
+            "read_model": "source-video-status-read-model-v1",
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Protection Center aggregate for release gates, read-model freshness, data-loading strategy, and ready protection."
+          },
+          {
+            "endpoint": "/api/admin/operation-log",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "operation-log",
+            "scan_reason": "operation-log-tail",
+            "critical": false,
+            "timeout_ms": 1000,
+            "refresh": "route-entry",
+            "notes": "Admin operation log tail from a bounded NDJSON file. It must not enumerate source-video manifests."
+          },
+          {
+            "endpoint": "/api/admin/command-snapshots/:snapshot_id/restore-plan",
+            "method": "GET",
+            "phase": "command",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "command-snapshot",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "command-only",
+            "notes": "Read-only restore preflight for one command snapshot. It inspects only the selected snapshot manifest and captured files; it does not execute restore."
+          },
+          {
+            "endpoint": "/api/admin/command-snapshots/:snapshot_id/restore",
+            "method": "POST",
+            "phase": "command",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "command-snapshot",
+            "scan_reason": "selected-record",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "command-only",
+            "notes": "Guarded command-snapshot restore execution for one selected snapshot. It recomputes the restore plan and must never run as part of route or shell loading."
+          },
+          {
+            "endpoint": "/api/admin/runtime/diagnostics/history",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "admin-read-model",
+            "scan_reason": "read-model-health",
+            "critical": false,
+            "read_model": "runtime-diagnostics-history-v1",
+            "timeout_ms": 1000,
+            "refresh": "route-entry",
+            "notes": "Recent runtime endpoint diagnostics from a bounded derived history file; it must not enumerate source-video manifests."
+          },
+          {
+            "endpoint": "/api/admin/index/versions",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "paged-list",
+            "data_source": "index-version-packages",
+            "scan_reason": "index-version-page",
+            "critical": false,
+            "default_limit": 8,
+            "cache_ttl_ms": 30000,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Paged and cached index-version list; current version remains visible even when outside the first page."
+          },
+          {
+            "endpoint": "/api/admin/dashboard/metrics",
+            "method": "GET",
+            "phase": "background",
+            "cost": "expensive",
+            "scan_mode": "status-scan",
+            "data_source": "usage-events",
+            "scan_reason": "background-metrics",
+            "critical": false,
+            "cache_ttl_ms": 30000,
+            "timeout_ms": 8000,
+            "refresh": "interval",
+            "notes": "Supplemental dashboard metrics. Shell must remain usable when this endpoint is slow. Response includes per-section sources for admin-read-model/current-index/usage-events provenance."
+          },
+          {
+            "endpoint": "/api/admin/cutter-users",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "user-store",
+            "scan_reason": "user-management-route",
+            "critical": false,
+            "timeout_ms": 20000,
+            "refresh": "route-entry",
+            "notes": "Route-owned user-management table; do not prefetch from dashboard shell."
+          },
+          {
+            "endpoint": "/api/admin/doctor/report",
+            "method": "GET",
+            "phase": "route",
+            "cost": "expensive",
+            "scan_mode": "status-scan",
+            "data_source": "doctor-probes",
+            "scan_reason": "doctor-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Doctor route report only; full checks are not a shell dependency."
+          },
+          {
+            "endpoint": "/api/admin/library/path-checks",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "path-checks",
+            "scan_reason": "settings-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Settings route path availability checks; reports configured paths without source-video enumeration."
+          },
+          {
+            "endpoint": "/api/admin/settings/runtime",
+            "method": "GET",
+            "phase": "route",
+            "cost": "bounded",
+            "scan_mode": "no-scan",
+            "data_source": "runtime-secrets",
+            "scan_reason": "settings-route",
+            "critical": false,
+            "timeout_ms": 8000,
+            "refresh": "route-entry",
+            "notes": "Settings route runtime probe; not loaded during dashboard shell."
+          },
+          {
+            "endpoint": "/api/admin/library/scan-preview",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "folder-scan",
+            "data_source": "source-folders",
+            "scan_reason": "explicit-scan-preview",
+            "critical": false,
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit scan planning command. It is never a page-open side effect."
+          },
+          {
+            "endpoint": "/api/admin/library/scan",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "folder-scan",
+            "data_source": "source-folders",
+            "scan_reason": "explicit-scan-apply",
+            "critical": false,
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit scan apply command protected by scan-preview and ready blockers."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile",
+            "method": "POST",
+            "phase": "command",
+            "cost": "expensive",
+            "scan_mode": "full-reconcile",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "explicit-read-model-reconcile",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 30000,
+            "refresh": "command-only",
+            "notes": "Explicit background maintenance command. It rebuilds admin.sqlite from a validated manifest snapshot and is never a page-open side effect."
+          },
+          {
+            "endpoint": "/api/admin/read-model/reconcile/cancel",
+            "method": "POST",
+            "phase": "command",
+            "cost": "cheap",
+            "scan_mode": "no-scan",
+            "data_source": "read-model-reconcile",
+            "scan_reason": "explicit-reconcile-cancel",
+            "critical": false,
+            "read_model": "admin-read-model-v1",
+            "timeout_ms": 1000,
+            "refresh": "command-only",
+            "notes": "Explicit cancel request for the background read-model reconciler. It does not scan the library and only stops at safe checkpoints."
+          }
+        ],
+        "routes": [
+          {
+            "route": "dashboard",
+            "load_phase": "shell",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/library/status",
+              "/api/admin/settings/config",
+              "/api/admin/preprocess/supervisor/status",
+              "/api/admin/data-loading/plan"
+            ],
+            "fallback": "Use shell placeholders for metrics, Doctor, source videos, jobs, and indexes until route panels ask for them."
+          },
+          {
+            "route": "source-videos",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos"
+            ],
+            "fallback": "Show route-local loading and keep Admin shell interactive."
+          },
+          {
+            "route": "source-detail",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos/:id"
+            ],
+            "fallback": "Show selected-source error without replacing shell data."
+          },
+          {
+            "route": "preprocess-jobs",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/preprocess/jobs",
+              "/api/admin/preprocess/process-history",
+              "/api/admin/preprocess/process-history/readiness",
+              "/api/admin/index/versions"
+            ],
+            "fallback": "Use summary counts from library status until the route list resolves."
+          },
+          {
+            "route": "index-publish",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/source-videos",
+              "/api/admin/index/versions"
+            ],
+            "fallback": "Show route-local pending-publish and index-version loading without blocking the Admin shell."
+          },
+          {
+            "route": "protection",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/operations/overview",
+              "/api/admin/read-model/reconcile/status"
+            ],
+            "fallback": "Use shell library counts until protection details resolve."
+          },
+          {
+            "route": "operation-log",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/operation-log"
+            ],
+            "fallback": "Show route-local operation log loading without blocking the Admin shell."
+          },
+          {
+            "route": "runtime-diagnostics",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/runtime/diagnostics/history"
+            ],
+            "fallback": "Show recent endpoint diagnostics without blocking the Admin shell."
+          },
+          {
+            "route": "cutter-users",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/cutter-users"
+            ],
+            "fallback": "Keep route-local user loading/errors isolated from dashboard shell."
+          },
+          {
+            "route": "doctor",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/doctor/report",
+              "/api/admin/runtime/diagnostics/history"
+            ],
+            "fallback": "Use placeholder Doctor summary from shell until explicit report and runtime diagnostics load."
+          },
+          {
+            "route": "settings",
+            "load_phase": "route-entry",
+            "prefetch": false,
+            "endpoints": [
+              "/api/admin/library/path-checks",
+              "/api/admin/settings/runtime"
+            ],
+            "fallback": "Settings form can render from shell settings before path/runtime probes finish."
+          }
+        ]
+      }
+    },
+    {
+      "name": "preprocess_supervisor_status",
+      "method": "GET",
+      "path": "/api/admin/preprocess/supervisor/status",
+      "duration_ms": 9.1,
+      "http_status": 200,
+      "ok": true,
+      "api_ok": true,
+      "response_bytes": 181,
+      "content_type": "application/json; charset=utf-8",
+      "data": {
+        "state": "idle",
+        "state_label": "未运行",
+        "worker_id": "admin-worker-30",
+        "started_at": "",
+        "stopped_at": "",
+        "last_error": "",
+        "stop_requested": false,
+        "last_result": null
+      }
+    }
+  ],
+  "observed": {
+    "auth_mode": "password",
+    "authenticated": true,
+    "library_root": "/data/PublicLibrary",
+    "current_index_version": "v010471",
+    "video_count": 11394,
+    "ready_video_count": 10471,
+    "release_overall_status": "attention",
+    "release_allowed": false,
+    "runtime_path_profile": "docker",
+    "build_sha": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "build_version": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef",
+    "image_tag": "5a50922bc82f1b6728f247ed33e5885ab8cf6bef"
+  },
+  "gates": [
+    {
+      "id": "target-url-configured",
+      "title": "Explicit NAS Docker Admin target URL configured",
+      "category": "target",
+      "status": "pass",
+      "evidence": "Probe target was supplied explicitly.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "target-url-admin-web-shape",
+      "title": "Target URL is the NAS Docker admin-web root",
+      "category": "target",
+      "status": "pass",
+      "evidence": "admin-web-url: Target URL shape is compatible with the NAS Docker admin-web root.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "get-only-live-probe",
+      "title": "Live probe uses GET only",
+      "category": "safety",
+      "status": "pass",
+      "evidence": "methods=GET,GET,GET,GET,GET,GET,GET",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-web-root-live",
+      "title": "Admin Web root reachable",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 681 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-api-proxy-live",
+      "title": "Admin API proxy reachable through Admin Web",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "At least one Admin API JSON endpoint responded; auth=HTTP 200, ok, library=HTTP 200, ok, supervisor=HTTP 200, ok",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "current-admin-api-contract-live",
+      "title": "Current Admin Architecture v1 API contract is live",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "auth/status, release-gates, and data-loading/plan all responded.",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "auth-context-live",
+      "title": "Protected live gate endpoints are readable",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "auth_mode=password, authenticated=true",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "runtime-path-profile-live",
+      "title": "Docker runtime path profile and library root",
+      "category": "live-docker",
+      "status": "pass",
+      "evidence": "runtime_path_profile=docker, library_root=/data/PublicLibrary, expected=/data/PublicLibrary",
+      "blocks_docker_upload": false,
+      "required_evidence": "Live release gates and library status must show Docker profile with /data/PublicLibrary."
+    },
+    {
+      "id": "build-version-health",
+      "title": "Build version and image tag are live",
+      "category": "live-docker",
+      "status": "pass",
+      "evidence": "构建版本信息完整。",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "version-health-parity-contract-live",
+      "title": "Version and health parity contract is exposed live",
+      "category": "live-docker",
+      "status": "pass",
+      "evidence": "status=ready, image_tag=5a50922bc82f1b6728f247ed33e5885ab8cf6bef, services=admin-web,admin-api,admin-worker",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "preprocess-disk",
+      "title": "NAS disk protection passes live gate",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "公共素材库磁盘空间通过门禁。",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "disk-space-protection-contract-live",
+      "title": "Disk-space protection preflight contract is exposed live",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "status=healthy, usage=68%, threshold=92%, scope=preprocess-and-docker-upload",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "usage-events-tolerance",
+      "title": "usage-events tolerance passes live gate",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "usage-events 可正常读取，修复工具处于待命状态。",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "usage-events-repair-contract-live",
+      "title": "usage-events repair dry-run contract is exposed live",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "scope=usage-events-only, dry_run_command=npx tsx scripts/acceptance/usage-events-repair.ts --library-root '/data/PublicLibrary', projection=/data/PublicLibrary/.mixlab-library/admin-read-model/usage-metrics.sqlite",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "processing-recovery",
+      "title": "V001440 / processing recovery gate passes",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "没有需要恢复的 processing 任务。",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "processing-recovery-contract-live",
+      "title": "Processing recovery preflight contract is exposed live",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "scope=processing-to-queued-only, bulk=POST /api/admin/preprocess/recover-processing, count=0",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "current-index",
+      "title": "Current Cutter index gate passes",
+      "category": "live-nas",
+      "status": "pass",
+      "evidence": "当前索引指针通过基础门禁。",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "dashboard-metrics-live",
+      "title": "Dashboard metrics read does not fail live",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 10925 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "data-loading-contract-live",
+      "title": "Data-loading contract is readable live",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 12679 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "supervisor-status-live",
+      "title": "Supervisor status is readable without starting workers",
+      "category": "live-admin",
+      "status": "pass",
+      "evidence": "HTTP 200, 181 bytes",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-worker-env-proof-contract-live",
+      "title": "admin-worker env proof contract is exposed live",
+      "category": "live-docker",
+      "status": "pass",
+      "evidence": "status=external-proof-required, scope=admin-worker-env-only, service=admin-worker",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "admin-worker-live-flags",
+      "title": "Running admin-worker opt-in flags are externally verified",
+      "category": "live-docker",
+      "status": "needs-external-proof",
+      "evidence": "Admin API GET endpoints cannot prove the running admin-worker container environment.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Capture NAS admin-worker.env and admin-worker.inspect.json, then run admin-worker-env-proof to show standalone workers are disabled, /data/PublicLibrary roots are used, and no secrets are written to reports."
+    },
+    {
+      "id": "cutter-compatibility-proof-contract-live",
+      "title": "Cutter compatibility proof contract is exposed live",
+      "category": "cutter-compatibility",
+      "status": "pass",
+      "evidence": "status=external-proof-required, scope=cutter-compatibility-only, expected_ready_count=10471",
+      "blocks_docker_upload": false
+    },
+    {
+      "id": "cutter-release-compatibility-live",
+      "title": "Cutter release/index/search compatibility is externally verified",
+      "category": "cutter-compatibility",
+      "status": "needs-external-proof",
+      "evidence": "Admin API GET endpoints cannot prove Windows Cutter compatibility after a Docker release candidate.",
+      "blocks_docker_upload": true,
+      "required_evidence": "Run admin-cutter-compatibility-proof with staged-candidate windows_acceptance and real_cut_smoke reports, then archive the accepted proof."
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "passed": 22,
+    "failed": 0,
+    "blocked": 0,
+    "needs_external_proof": 2,
+    "upload_blockers": [
+      "admin-worker-live-flags",
+      "cutter-release-compatibility-live"
+    ]
+  },
+  "result": {
+    "status": "blocked",
+    "summary": "Docker upload remains blocked until all live and external proof gates pass."
+  },
+  "artifacts": {
+    "json_path": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260629T155219Z.json",
+    "markdown_path": "docs/acceptance/artifacts/admin-docker-release-live-readonly-20260629T155219Z.md"
+  }
+}
