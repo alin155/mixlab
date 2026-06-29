@@ -309,8 +309,10 @@ function nextActions(input: {
     actions.push("Update or stage a NAS Docker image exposing cutter_compatibility_proof from /api/admin/release-gates, then rerun the GET-only live-readonly probe and parity plan.");
   }
 
-  if (input.parityBlockers.includes("nas-disk-risk") || input.liveBlockers.includes("preprocess-disk")) {
+  if (input.stagingBlockers.includes("nas-disk-proof-accepted")) {
     actions.push("Resolve NAS disk pressure before staging; do not treat low free space as a cosmetic warning.");
+  } else if (input.parityBlockers.includes("nas-disk-risk") || input.liveBlockers.includes("preprocess-disk")) {
+    actions.push("Keep preprocessing and sustained write-heavy workers blocked until NAS disk pressure is resolved or separately reproved; no-worker staging disk proof is evaluated separately.");
   }
 
   if (!input.workerAccepted) {
@@ -404,12 +406,10 @@ function buildAutomationBoundary(input: {
     blockedActions.add("Do not edit NAS Docker .env, pull images, restart containers, or replace the 18080 runtime from this summary alone.");
   }
 
-  if (
-    input.liveBlockers.includes("preprocess-disk") ||
-    input.parityBlockers.includes("nas-disk-risk") ||
-    input.stagingBlockers.includes("nas-disk-proof-accepted")
-  ) {
+  if (input.stagingBlockers.includes("nas-disk-proof-accepted")) {
     reasons.add("NAS disk pressure must be cleared or reproved before staging.");
+  } else if (input.liveBlockers.includes("preprocess-disk") || input.parityBlockers.includes("nas-disk-risk")) {
+    reasons.add("NAS disk pressure still blocks preprocessing or final live parity, but current no-worker staging disk proof is evaluated separately.");
   }
 
   if (!input.workerAccepted) {

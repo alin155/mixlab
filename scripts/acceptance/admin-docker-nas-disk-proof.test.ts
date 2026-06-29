@@ -131,9 +131,53 @@ test("NAS disk proof blocks high usage and wrong Docker library root", () => {
 
   assert.equal(built.proof_accepted, false);
   assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-library-root-is-docker-root"));
-  assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-below-attention-threshold"));
-  assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-below-block-threshold"));
+  assert.ok(built.summary.staging_execution_blockers.includes("nas-disk-staging-space-available"));
+  assert.ok(built.summary.preprocess_execution_blockers.includes("nas-disk-below-block-threshold"));
   assert.equal(built.observations.max_usage_percent, 93);
+});
+
+test("NAS disk proof can clear no-worker staging while keeping preprocessing blocked", () => {
+  const built = report({
+    path: "admin-docker-disk-proof.json",
+    raw: diskProof({
+      thresholds: {
+        attention_usage_percent: 87,
+        block_usage_percent: 92,
+        staging_min_available_bytes: 100
+      },
+      checks: [
+        {
+          id: "admin-api-library-root",
+          scope: "container",
+          service: "admin-api",
+          path: "/data/PublicLibrary",
+          filesystem: "/dev/md0",
+          total_bytes: 100000,
+          used_bytes: 98000,
+          available_bytes: 2000,
+          usage_percent: 98
+        },
+        {
+          id: "admin-worker-library-root",
+          scope: "container",
+          service: "admin-worker",
+          path: "/data/PublicLibrary",
+          filesystem: "/dev/md0",
+          total_bytes: 100000,
+          used_bytes: 98000,
+          available_bytes: 2000,
+          usage_percent: 98
+        }
+      ]
+    })
+  });
+
+  assert.equal(built.proof_accepted, true);
+  assert.deepEqual(built.summary.staging_execution_blockers, []);
+  assert.equal(built.observations.staging_space_accepted, true);
+  assert.equal(built.observations.preprocess_space_accepted, false);
+  assert.ok(built.summary.preprocess_execution_blockers.includes("nas-disk-below-block-threshold"));
+  assert.match(toMarkdown(built), /Preprocess space accepted: no/);
 });
 
 test("NAS disk proof CLI writes JSON and Markdown", async () => {
