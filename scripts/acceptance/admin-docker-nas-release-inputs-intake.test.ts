@@ -262,6 +262,21 @@ function cutterCompatibility(): unknown {
   };
 }
 
+function imagePushProof(): unknown {
+  return {
+    mode: "admin-docker-image-push-proof",
+    proof_accepted: false,
+    push_execution_allowed: false,
+    docker_deploy_allowed: false,
+    summary: {
+      image_push_proof_blockers: ["image-push-approval-observed-in-artifact"]
+    },
+    result: {
+      status: "blocked"
+    }
+  };
+}
+
 function legacyRollbackPlan(): unknown {
   return {
     mode: "admin-docker-legacy-rollback-plan",
@@ -372,6 +387,7 @@ test("NAS release-inputs intake auto-discovers the latest sanitized returned evi
   const parityPath = await writeJson(path.join(tempRoot, "admin-docker-version-parity-plan.json"), parityPlan());
   const candidateContractPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-contract-proof.json"), candidateContract());
   const cutterPath = await writeJson(path.join(tempRoot, "admin-cutter-compatibility-proof.json"), cutterCompatibility());
+  const imagePushProofPath = await writeJson(path.join(tempRoot, "admin-docker-image-push-proof.json"), imagePushProof());
 
   const report = await runAdminDockerNasReleaseInputsIntake({
     prestaging_handoff_report_path: prestagingPath,
@@ -380,6 +396,7 @@ test("NAS release-inputs intake auto-discovers the latest sanitized returned evi
     parity_plan_report_path: parityPath,
     candidate_contract_proof_report_path: candidateContractPath,
     cutter_compatibility_proof_report_path: cutterPath,
+    image_push_proof_report_path: imagePushProofPath,
     output_dir: tempRoot,
     artifact_dir: tempRoot,
     generated_at: "2026-06-28T00:00:00.000Z",
@@ -480,6 +497,7 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   const parityPath = await writeJson(path.join(tempRoot, "admin-docker-version-parity-plan.json"), parityPlan());
   const candidateContractPath = await writeJson(path.join(tempRoot, "admin-docker-candidate-contract-proof.json"), candidateContract());
   const cutterPath = await writeJson(path.join(tempRoot, "admin-cutter-compatibility-proof.json"), cutterCompatibility());
+  const imagePushProofPath = await writeJson(path.join(tempRoot, "admin-docker-image-push-proof.json"), imagePushProof());
 
   const report = await runAdminDockerNasReleaseInputsIntake({
     returned_dir: returnedDir,
@@ -489,6 +507,7 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
     parity_plan_report_path: parityPath,
     candidate_contract_proof_report_path: candidateContractPath,
     cutter_compatibility_proof_report_path: cutterPath,
+    image_push_proof_report_path: imagePushProofPath,
     output_dir: tempRoot,
     artifact_dir: tempRoot,
     generated_at: "2026-06-28T00:00:00.000Z",
@@ -516,6 +535,11 @@ test("NAS release-inputs intake consumes returned proofs without approving push 
   assert.ok(report.generated_reports.nas_disk_proof_report.endsWith("admin-docker-nas-disk-proof-20260628T000000Z.json"));
   assert.ok(report.generated_reports.release_inputs_report.endsWith("admin-docker-release-inputs-20260628T000000Z.json"));
   assert.ok(report.generated_reports.staging_runbook_report.endsWith("admin-docker-staging-runbook-20260628T000000Z.json"));
+  assert.equal(report.sources.image_push_proof_report, imagePushProofPath);
+  const runbook = JSON.parse(await readFile(report.generated_reports.staging_runbook_report, "utf8")) as {
+    sources: { image_push_proof_report: string };
+  };
+  assert.equal(runbook.sources.image_push_proof_report, imagePushProofPath);
   assert.equal(JSON.stringify(report).includes("gh workflow run docker-admin.yml"), false);
   assert.match(await readFile(report.artifacts?.markdown_path ?? "", "utf8"), /Release inputs ready: yes/);
 });

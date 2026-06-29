@@ -88,6 +88,10 @@ export interface AdminDockerReleaseReadinessSummaryReport {
     worker_status: string;
     worker_proof_accepted: boolean | null;
     worker_upload_blockers: string[];
+    worker_remediation_review_status: string;
+    worker_remediation_review_accepted: boolean | null;
+    worker_remediation_review_blockers: string[];
+    worker_remediation_runtime_action_allowed: boolean | null;
     cutter_staged_plan_status: string;
     cutter_staged_plan_ready: boolean | null;
     cutter_staged_plan_candidate_image_tag: string;
@@ -274,6 +278,7 @@ function nextActions(input: {
   liveBlockers: string[];
   parityBlockers: string[];
   workerAccepted: boolean | null;
+  workerRemediationReviewAccepted: boolean | null;
   cutterAccepted: boolean | null;
   cutterStagedPlanReady: boolean | null;
   cutterStagedPlanCandidateImageTag: string;
@@ -325,7 +330,11 @@ function nextActions(input: {
   }
 
   if (!input.workerAccepted) {
-    actions.push("Collect NAS-exported admin-worker env and inspect evidence, then rerun validate:admin-worker-env-proof.");
+    if (input.workerRemediationReviewAccepted) {
+      actions.push("Use the accepted admin-worker remediation handoff from the latest worker proof as the runtime-owner action checklist, then recollect sanitized worker env/inspect evidence and rerun validate:admin-worker-env-proof.");
+    } else {
+      actions.push("Collect NAS-exported admin-worker env and inspect evidence, then rerun validate:admin-worker-env-proof.");
+    }
   }
 
   if (!input.cutterAccepted) {
@@ -393,6 +402,7 @@ function buildAutomationBoundary(input: {
   liveBlockers: string[];
   parityBlockers: string[];
   workerAccepted: boolean | null;
+  workerRemediationReviewAccepted: boolean | null;
   cutterAccepted: boolean | null;
   cutterStagedPlanReady: boolean | null;
   releaseInputsIntakeComplete: boolean | null;
@@ -463,7 +473,9 @@ function buildAutomationBoundary(input: {
   }
 
   if (!input.workerAccepted) {
-    safeActions.add("Improve worker proof validators and rerun them against sanitized returned evidence without touching NAS runtime.");
+    safeActions.add(input.workerRemediationReviewAccepted
+      ? "Use the accepted admin-worker remediation handoff as a runtime-owner checklist, then validate the returned sanitized worker evidence locally."
+      : "Improve worker proof validators and rerun them against sanitized returned evidence without touching NAS runtime.");
   }
 
   if (!input.cutterAccepted) {
@@ -524,6 +536,11 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
   const liveBlockers = summaryBlockers(input.live_readonly_report);
   const parityBlockers = summaryBlockers(input.parity_plan_report);
   const workerBlockers = summaryBlockers(input.worker_env_proof_report);
+  const workerRemediationReview = asRecord(asRecord(input.worker_env_proof_report).remediation_review);
+  const workerRemediationReviewAccepted = asBoolean(workerRemediationReview.accepted);
+  const workerRemediationReviewStatus = asString(workerRemediationReview.status);
+  const workerRemediationReviewBlockers = stringArray(workerRemediationReview.blockers);
+  const workerRemediationRuntimeActionAllowed = asBoolean(workerRemediationReview.runtime_action_allowed);
   const cutterStagedPlanBlockers = summaryBlockers(input.cutter_staged_proof_plan_report, "plan_blockers");
   const cutterBlockers = summaryBlockers(input.cutter_compatibility_proof_report);
   const releaseInputsIntakeBlockers = summaryBlockers(input.release_inputs_intake_report, "intake_blockers");
@@ -741,6 +758,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
     liveBlockers,
     parityBlockers,
     workerAccepted,
+    workerRemediationReviewAccepted,
     cutterAccepted,
     cutterStagedPlanReady,
     releaseInputsIntakeComplete,
@@ -790,6 +808,10 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       worker_status: resultStatus(input.worker_env_proof_report),
       worker_proof_accepted: workerAccepted,
       worker_upload_blockers: workerBlockers,
+      worker_remediation_review_status: workerRemediationReviewStatus,
+      worker_remediation_review_accepted: workerRemediationReviewAccepted,
+      worker_remediation_review_blockers: workerRemediationReviewBlockers,
+      worker_remediation_runtime_action_allowed: workerRemediationRuntimeActionAllowed,
       cutter_staged_plan_status: resultStatus(input.cutter_staged_proof_plan_report),
       cutter_staged_plan_ready: cutterStagedPlanReady,
       cutter_staged_plan_candidate_image_tag: cutterStagedPlanCandidateImageTag,
@@ -845,6 +867,7 @@ export function buildAdminDockerReleaseReadinessSummaryReport(input: {
       liveBlockers,
       parityBlockers,
       workerAccepted,
+      workerRemediationReviewAccepted,
       cutterAccepted,
       cutterStagedPlanReady,
       cutterStagedPlanCandidateImageTag,
@@ -907,6 +930,7 @@ export function toMarkdown(report: AdminDockerReleaseReadinessSummaryReport): st
     `- Live blockers: ${report.observations.live_upload_blockers.join(", ") || "none"}`,
     `- Parity blockers: ${report.observations.parity_upload_blockers.join(", ") || "none"}`,
     `- Worker accepted: ${report.observations.worker_proof_accepted ?? "unknown"}; blockers: ${report.observations.worker_upload_blockers.join(", ") || "none"}`,
+    `- Worker remediation review: status=${report.observations.worker_remediation_review_status || "unknown"}; accepted=${report.observations.worker_remediation_review_accepted ?? "unknown"}; runtime_action_allowed=${report.observations.worker_remediation_runtime_action_allowed ?? "unknown"}; blockers=${report.observations.worker_remediation_review_blockers.join(", ") || "none"}`,
     `- Cutter staged plan ready: ${report.observations.cutter_staged_plan_ready ?? "unknown"}; candidate=${report.observations.cutter_staged_plan_candidate_image_tag || "none"}; blockers: ${report.observations.cutter_staged_plan_blockers.join(", ") || "none"}`,
     `- Cutter accepted: ${report.observations.cutter_proof_accepted ?? "unknown"}; blockers: ${report.observations.cutter_upload_blockers.join(", ") || "none"}`,
     `- Release-inputs intake complete: ${report.observations.release_inputs_intake_complete ?? "unknown"}; returned_precheck_passed=${report.observations.release_inputs_returned_precheck_passed ?? "unknown"}; blockers: ${report.observations.release_inputs_intake_blockers.join(", ") || "none"}`,

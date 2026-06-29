@@ -59,6 +59,24 @@ interface WorkerEnvRemediationPlan {
   validation_commands: string[];
 }
 
+interface WorkerEnvRemediationReview {
+  reviewer_role: "docker-release-safety-reviewer";
+  status: "not-needed" | "accepted-for-runtime-owner-action" | "blocked";
+  accepted: boolean;
+  runtime_action_allowed: false;
+  docker_deploy_allowed: false;
+  blockers: string[];
+  rationale: string;
+}
+
+interface WorkerEnvOperatorHandoff {
+  action_type: "nas-env-remediation";
+  required_target_env: Record<string, string>;
+  required_env_changes: WorkerEnvRequiredChange[];
+  post_change_validation_commands: string[];
+  rollback_notes: string[];
+}
+
 export interface AdminWorkerEnvProofReport {
   schema_version: "1.0";
   generated_at: string;
@@ -69,6 +87,8 @@ export interface AdminWorkerEnvProofReport {
   docker_upload_allowed: false;
   observations: WorkerEnvObservations;
   remediation_plan: WorkerEnvRemediationPlan;
+  remediation_review: WorkerEnvRemediationReview;
+  operator_handoff: WorkerEnvOperatorHandoff;
   collection_instructions: string[];
   gates: WorkerEnvGate[];
   summary: WorkerEnvSummary;
@@ -306,6 +326,79 @@ function buildRemediationPlan(input: {
   };
 }
 
+function buildRemediationReview(input: {
+  proof_accepted: boolean;
+  env_file_present: boolean;
+  inspect_json_present: boolean;
+  image: string;
+  remediation_plan: WorkerEnvRemediationPlan;
+}): WorkerEnvRemediationReview {
+  const allowedKeys = new Set(Object.keys(input.remediation_plan.target_env));
+  const blockers: string[] = [];
+
+  if (!input.env_file_present) {
+    blockers.push("env-file-required-before-remediation-review");
+  }
+
+  if (!input.inspect_json_present) {
+    blockers.push("inspect-json-required-before-remediation-review");
+  }
+
+  if (!input.image) {
+    blockers.push("running-admin-worker-image-required");
+  }
+
+  if (!input.remediation_plan.no_side_effects) {
+    blockers.push("remediation-plan-must-be-no-side-effect");
+  }
+
+  for (const change of input.remediation_plan.required_changes) {
+    if (!allowedKeys.has(change.key)) {
+      blockers.push(`unexpected-remediation-key:${change.key}`);
+    }
+  }
+
+  if (input.proof_accepted) {
+    return {
+      reviewer_role: "docker-release-safety-reviewer",
+      status: "not-needed",
+      accepted: true,
+      runtime_action_allowed: false,
+      docker_deploy_allowed: false,
+      blockers: [],
+      rationale: "admin-worker evidence already satisfies the Docker MVP worker gate; no remediation action is needed from this report."
+    };
+  }
+
+  const accepted = blockers.length === 0 && input.remediation_plan.status === "required";
+
+  return {
+    reviewer_role: "docker-release-safety-reviewer",
+    status: accepted ? "accepted-for-runtime-owner-action" : "blocked",
+    accepted,
+    runtime_action_allowed: false,
+    docker_deploy_allowed: false,
+    blockers,
+    rationale: accepted
+      ? "The required worker-env changes are limited to Docker MVP mode, disabled standalone workers, and /data/PublicLibrary roots. This review does not authorize editing NAS .env, restarting containers, image push, Docker deploy, or preprocessing."
+      : "Remediation review is blocked until sanitized env and inspect evidence are complete and the required changes are limited to the approved Docker MVP worker keys."
+  };
+}
+
+function buildOperatorHandoff(remediationPlan: WorkerEnvRemediationPlan): WorkerEnvOperatorHandoff {
+  return {
+    action_type: "nas-env-remediation",
+    required_target_env: remediationPlan.target_env,
+    required_env_changes: remediationPlan.required_changes,
+    post_change_validation_commands: remediationPlan.validation_commands,
+    rollback_notes: [
+      "Record the current NAS .env and compose project values before any separate runtime-owner-approved edit.",
+      "If staging fails before replacing the old entrypoint, revert the edited .env values and keep the old running containers unchanged.",
+      "Do not use rollback notes from this report to change Cutter release/index; MVP v0.1 must keep current index unchanged."
+    ]
+  };
+}
+
 export function buildAdminWorkerEnvProofReport(input: {
   generated_at: string;
   command: string;
@@ -389,6 +482,13 @@ export function buildAdminWorkerEnvProofReport(input: {
   ];
   const summary = summarize(gates);
   const proofAccepted = summary.upload_blockers.length === 0;
+  const remediationReview = buildRemediationReview({
+    proof_accepted: proofAccepted,
+    env_file_present: envFilePresent,
+    inspect_json_present: inspectJsonPresent,
+    image,
+    remediation_plan: remediationPlan
+  });
 
   return {
     schema_version: "1.0",
@@ -411,6 +511,8 @@ export function buildAdminWorkerEnvProofReport(input: {
       container_name: containerName
     },
     remediation_plan: remediationPlan,
+    remediation_review: remediationReview,
+    operator_handoff: buildOperatorHandoff(remediationPlan),
     collection_instructions: requiredCollectionInstructions(),
     gates,
     summary,
@@ -477,6 +579,38 @@ export function toMarkdown(report: AdminWorkerEnvProofReport): string {
     "### Validation Commands",
     "",
     ...report.remediation_plan.validation_commands.map((item) => `- ${item}`),
+    "",
+    "## Remediation Review",
+    "",
+    `- Reviewer role: ${report.remediation_review.reviewer_role}`,
+    `- Status: ${report.remediation_review.status}`,
+    `- Accepted: ${report.remediation_review.accepted ? "yes" : "no"}`,
+    `- Runtime action allowed: ${report.remediation_review.runtime_action_allowed ? "yes" : "no"}`,
+    `- Docker deploy allowed: ${report.remediation_review.docker_deploy_allowed ? "yes" : "no"}`,
+    `- Blockers: ${report.remediation_review.blockers.join(", ") || "none"}`,
+    `- Rationale: ${report.remediation_review.rationale}`,
+    "",
+    "## Operator Handoff",
+    "",
+    `- Action type: ${report.operator_handoff.action_type}`,
+    "",
+    "### Required Target Env",
+    "",
+    ...Object.entries(report.operator_handoff.required_target_env).map(([key, value]) => `- ${key}=${value}`),
+    "",
+    "### Required Env Changes",
+    "",
+    ...(report.operator_handoff.required_env_changes.length > 0
+      ? report.operator_handoff.required_env_changes.map((item) => `- ${item.key}: current_env=${item.env_file_value}, running=${item.running_value}, required=${item.required_value}`)
+      : ["- none"]),
+    "",
+    "### Post-change Validation",
+    "",
+    ...report.operator_handoff.post_change_validation_commands.map((item) => `- ${item}`),
+    "",
+    "### Rollback Notes",
+    "",
+    ...report.operator_handoff.rollback_notes.map((item) => `- ${item}`),
     "",
     "## Collection Instructions",
     "",

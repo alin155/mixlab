@@ -44,6 +44,9 @@ test("admin worker env proof stays blocked and provides collection instructions 
   assert.ok(report.collection_instructions.some((item) => item.includes("MIXLAB_ADMIN_DOCKER_MVP_MODE")));
   assert.equal(report.collection_instructions.some((item) => item.includes("env | sort")), false);
   assert.equal(report.collection_instructions.some((item) => item.includes("DASHSCOPE_API_KEY")), false);
+  assert.equal(report.remediation_review.status, "blocked");
+  assert.ok(report.remediation_review.blockers.includes("env-file-required-before-remediation-review"));
+  assert.ok(report.remediation_review.blockers.includes("inspect-json-required-before-remediation-review"));
 });
 
 test("admin worker env proof accepts disabled worker flags and Docker library roots", () => {
@@ -72,6 +75,8 @@ test("admin worker env proof accepts disabled worker flags and Docker library ro
   );
   assert.equal(JSON.stringify(report).includes("DASHSCOPE_API_KEY"), false);
   assert.equal(JSON.stringify(report).includes("not-recorded-by-report"), false);
+  assert.equal(report.remediation_review.status, "not-needed");
+  assert.equal(report.remediation_review.accepted, true);
 });
 
 test("admin worker env proof blocks when standalone workers are enabled", () => {
@@ -105,6 +110,12 @@ test("admin worker env proof blocks when standalone workers are enabled", () => 
   );
   assert.ok(report.summary.upload_blockers.includes("env-file-worker-flags-disabled"));
   assert.ok(report.summary.upload_blockers.includes("inspect-worker-flags-disabled"));
+  assert.equal(report.remediation_review.status, "accepted-for-runtime-owner-action");
+  assert.equal(report.remediation_review.accepted, true);
+  assert.equal(report.remediation_review.runtime_action_allowed, false);
+  assert.equal(report.remediation_review.docker_deploy_allowed, false);
+  assert.equal(report.operator_handoff.required_target_env.MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER, "0");
+  assert.ok(report.operator_handoff.rollback_notes.some((item) => item.includes("current index unchanged")));
 });
 
 test("admin worker env proof blocks when docker mvp mode is disabled", () => {
@@ -142,6 +153,8 @@ test("admin worker env proof remediation plan is not needed for safe worker evid
 
   assert.equal(report.proof_accepted, true);
   assert.equal(report.remediation_plan.status, "not-needed");
+  assert.equal(report.remediation_review.status, "not-needed");
+  assert.equal(report.remediation_review.accepted, true);
   assert.deepEqual(report.remediation_plan.required_changes, []);
   assert.equal(report.remediation_plan.target_env.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
   assert.equal(report.remediation_plan.target_env.MIXLAB_PREPROCESS_LIBRARY_ROOT, "/data/PublicLibrary");

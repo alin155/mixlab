@@ -158,6 +158,27 @@ function blockedProof(blockers: string[]): unknown {
   };
 }
 
+function workerProofWithAcceptedRemediationReview(): unknown {
+  return {
+    proof_accepted: false,
+    result: { status: "blocked" },
+    remediation_review: {
+      status: "accepted-for-runtime-owner-action",
+      accepted: true,
+      runtime_action_allowed: false,
+      docker_deploy_allowed: false,
+      blockers: []
+    },
+    summary: {
+      upload_blockers: [
+        "env-file-worker-flags-disabled",
+        "inspect-worker-flags-disabled",
+        "admin-worker-library-roots"
+      ]
+    }
+  };
+}
+
 function readyCutterStagedPlan(): unknown {
   return {
     plan_ready: true,
@@ -446,6 +467,21 @@ test("admin Docker release readiness summary records the prepared push decision 
   assert.ok(report.next_actions.some((item) => item.includes("push decision package")));
   assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("push decision package")));
   assert.match(toMarkdown(report), /Push decision package ready: true/);
+});
+
+test("admin Docker release readiness summary surfaces accepted worker remediation handoff without clearing proof", () => {
+  const report = buildAdminDockerReleaseReadinessSummaryReport(reportInput({
+    worker_env_proof_report: workerProofWithAcceptedRemediationReview()
+  }));
+
+  assert.equal(report.release_review_ready, false);
+  assert.ok(report.summary.release_review_blockers.includes("worker-proof-accepted"));
+  assert.equal(report.observations.worker_remediation_review_status, "accepted-for-runtime-owner-action");
+  assert.equal(report.observations.worker_remediation_review_accepted, true);
+  assert.equal(report.observations.worker_remediation_runtime_action_allowed, false);
+  assert.ok(report.next_actions.some((item) => item.includes("accepted admin-worker remediation handoff")));
+  assert.ok(report.automation_boundary.safe_local_next_actions.some((item) => item.includes("accepted admin-worker remediation handoff")));
+  assert.match(toMarkdown(report), /Worker remediation review: status=accepted-for-runtime-owner-action/);
 });
 
 test("admin Docker release readiness summary records missing staged Cutter plan without clearing final proof", () => {

@@ -65,6 +65,7 @@ interface IntakeSources {
   parity_plan_report: string;
   candidate_contract_proof_report: string;
   cutter_compatibility_proof_report: string;
+  image_push_proof_report: string;
 }
 
 interface ReturnedFileObservation {
@@ -309,6 +310,7 @@ function toMarkdown(report: AdminDockerNasReleaseInputsIntakeReport): string {
     `- Parity plan: ${report.sources.parity_plan_report || "<missing>"}`,
     `- Candidate contract proof: ${report.sources.candidate_contract_proof_report || "<missing>"}`,
     `- Cutter compatibility proof: ${report.sources.cutter_compatibility_proof_report || "<missing>"}`,
+    `- Image push proof: ${report.sources.image_push_proof_report || "<not provided>"}`,
     "",
     "## Returned Files",
     "",
@@ -379,6 +381,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   parity_plan_report_path?: string;
   candidate_contract_proof_report_path?: string;
   cutter_compatibility_proof_report_path?: string;
+  image_push_proof_report_path?: string;
   output_dir?: string;
   artifact_dir?: string;
   generated_at?: string;
@@ -399,6 +402,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
   const parityPath = input.parity_plan_report_path ?? await latestArtifact(artifactDir, "admin-docker-version-parity-plan-");
   const candidateContractPath = input.candidate_contract_proof_report_path ?? await latestArtifact(artifactDir, "admin-docker-candidate-contract-proof-");
   const cutterPath = input.cutter_compatibility_proof_report_path ?? await latestArtifact(artifactDir, "admin-cutter-compatibility-proof-");
+  const imagePushProofPath = input.image_push_proof_report_path ?? process.env.MIXLAB_ADMIN_DOCKER_IMAGE_PUSH_PROOF_REPORT ?? "";
   const files = await returnedFiles(returnedDir);
   const missing = missingReturnedFiles(files);
   const runErrors: string[] = [];
@@ -453,6 +457,7 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
         cutter_compatibility_proof_report_path: cutterPath,
         release_inputs_report_path: releaseInputs.artifacts?.json_path,
         nas_disk_proof_report_path: diskProof.artifacts?.json_path,
+        image_push_proof_report_path: imagePushProofPath,
         current_image_tag: asString(inputs.current_image_tag),
         target_image_tag: asString(inputs.target_image_tag),
         rollback_image_tag: asString(inputs.rollback_image_tag),
@@ -641,7 +646,8 @@ export async function runAdminDockerNasReleaseInputsIntake(input: {
       local_docker_smoke_report: localSmokePath,
       parity_plan_report: parityPath,
       candidate_contract_proof_report: candidateContractPath,
-      cutter_compatibility_proof_report: cutterPath
+      cutter_compatibility_proof_report: cutterPath,
+      image_push_proof_report: imagePushProofPath
     },
     returned_files: files,
     generated_reports: generatedReports,
@@ -720,6 +726,7 @@ async function main(): Promise<void> {
     parity_plan_report_path: process.env.MIXLAB_DOCKER_PARITY_PLAN_REPORT,
     candidate_contract_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_CANDIDATE_CONTRACT_PROOF_REPORT,
     cutter_compatibility_proof_report_path: process.env.MIXLAB_CUTTER_COMPATIBILITY_PROOF_REPORT,
+    image_push_proof_report_path: process.env.MIXLAB_ADMIN_DOCKER_IMAGE_PUSH_PROOF_REPORT,
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     artifact_dir: process.env.MIXLAB_ACCEPTANCE_ARTIFACT_DIR,
     command: process.argv.join(" ")
