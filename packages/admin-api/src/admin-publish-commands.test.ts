@@ -125,13 +125,14 @@ function sourceVideoManifest(input: {
   source_video_id: string;
   relative_path: string;
   preprocess_status?: SourceVideoManifest["preprocess_status"];
+  duration_ms?: number;
 }): SourceVideoManifest {
   return {
     source_video_id: input.source_video_id,
     title: input.source_video_id,
     relative_path: input.relative_path,
     logical_uri: `library://source-video/${input.source_video_id}`,
-    duration_ms: 60_000,
+    duration_ms: input.duration_ms ?? 60_000,
     width: 1920,
     height: 1080,
     fps: 25,
@@ -207,6 +208,87 @@ function fakeMedia(createdCovers: string[]): ReadyPublishMedia {
     }
   };
 }
+
+test("single source-video publish uses a midpoint cover frame for sub-second videos", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const manifest = sourceVideoManifest({
+    source_video_id: "V000003",
+    relative_path: "short.mp4",
+    duration_ms: 960
+  });
+  await seedPublishLibrary({
+    library_root: libraryRoot,
+    manifests: [manifest],
+    counts: counts({
+      video_count: 1,
+      index_required_video_count: 1
+    }),
+    updated_at: "2026-06-26T10:12:00.000Z"
+  });
+
+  const coverTimes: number[] = [];
+  const result = await runAdminSourceVideoPublishCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    command_now: "2026-06-26T10:13:00.000Z",
+    now: () => "2026-06-26T10:13:01.000Z",
+    source_video_id: "V000003",
+    media: {
+      async create_cover(input) {
+        coverTimes.push(input.at_ms);
+        await mkdir(path.dirname(input.output_path), { recursive: true });
+        await writeFile(input.output_path, "cover", "utf8");
+      }
+    }
+  });
+
+  assert.deepEqual(coverTimes, [480]);
+  assert.equal(result.published_count, 1);
+  assert.deepEqual(result.published_source_video_ids, ["V000003"]);
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000003")).preprocess_status, "ready");
+});
+
+test("publish preparation does not mark visual artifacts complete when cover output is missing", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const manifest = sourceVideoManifest({
+    source_video_id: "V000004",
+    relative_path: "missing-cover.mp4"
+  });
+  await seedPublishLibrary({
+    library_root: libraryRoot,
+    manifests: [manifest],
+    counts: counts({
+      video_count: 1,
+      index_required_video_count: 1
+    }),
+    updated_at: "2026-06-26T10:14:00.000Z"
+  });
+
+  let createCoverCalls = 0;
+  const result = await runAdminSourceVideoPublishCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    command_now: "2026-06-26T10:15:00.000Z",
+    now: () => "2026-06-26T10:15:01.000Z",
+    source_video_id: "V000004",
+    media: {
+      async create_cover() {
+        createCoverCalls += 1;
+      }
+    }
+  });
+
+  assert.equal(createCoverCalls, 1);
+  assert.equal(result.published_count, 0);
+  assert.deepEqual(result.prepared_source_video_ids, []);
+  assert.deepEqual(result.skipped_source_video_ids, ["V000004"]);
+
+  const nextManifest = await readSourceVideoManifest(libraryRoot, "V000004");
+  assert.equal(nextManifest.preprocess_status, "index-required");
+  assert.equal(nextManifest.visible_to_cutters, false);
+  assert.equal(nextManifest.cover_path, "");
+  assert.equal(nextManifest.keyframes_path, "");
+});
 
 test("index repair command runs under writer lease prepares artifacts publishes and writes through sqlite", async () => {
   const libraryRoot = await makeLibraryRoot();

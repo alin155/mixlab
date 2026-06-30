@@ -179,6 +179,16 @@ function buildReadyPublishKeyframesMs(input: {
   return Array.from(sampled).sort((left, right) => left - right);
 }
 
+function buildReadyPublishCoverAtMs(durationMs: number): number {
+  const normalizedDurationMs = Math.max(0, Math.trunc(durationMs));
+
+  if (normalizedDurationMs <= 1) {
+    return 0;
+  }
+
+  return Math.min(1_000, Math.floor(normalizedDurationMs / 2));
+}
+
 async function prepareReadyPublishArtifacts(input: {
   library_root: string;
   source_video_ids?: string[];
@@ -206,9 +216,13 @@ async function prepareReadyPublishArtifacts(input: {
       await input.media.create_cover({
         source_path: sourcePath,
         output_path: absoluteCoverPath,
-        at_ms: Math.min(1_000, Math.max(0, manifest.duration_ms - 1)),
+        at_ms: buildReadyPublishCoverAtMs(manifest.duration_ms),
         width: 640
       });
+    }
+
+    if (!(await fileExists(absoluteCoverPath))) {
+      continue;
     }
 
     await completeReadyVisualArtifacts({
