@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  createAppendedSourceTranscriptSqliteIndexBytes,
+  appendSourceTranscriptSqliteIndex,
   createSourceTranscriptSqliteIndexBytes,
   type SourceTranscriptSqliteVideo
 } from "../../search-sqlite/src/index.ts";
@@ -142,6 +142,14 @@ export interface PublishIndexPackageInput {
   index_sqlite_bytes: Buffer;
 }
 
+interface PublishAppendedIndexPackageInput {
+  library_root: string;
+  manifest: IndexPackageManifest;
+  source_index_file_path: string;
+  videos: SourceTranscriptSqliteVideo[];
+  ordered_source_video_ids: string[];
+}
+
 export interface PublishIndexRequiredSourceVideosInput {
   library_root: string;
   library_id: string;
@@ -245,6 +253,62 @@ export async function publishIndexPackage(input: PublishIndexPackageInput): Prom
   try {
     await mkdir(tempDir, { recursive: false });
     await writeFile(path.join(tempDir, "index.sqlite"), input.index_sqlite_bytes);
+    await writeFile(
+      path.join(tempDir, "index-manifest.json"),
+      jsonBytes(input.manifest),
+      "utf8"
+    );
+
+    await rename(tempDir, versionDir);
+
+    const pointer: IndexCurrentPointer = {
+      library_id: input.manifest.library_id,
+      current_version: input.manifest.index_version,
+      updated_at: input.manifest.created_at
+    };
+
+    await writeFile(tempCurrentPath, jsonBytes(pointer), "utf8");
+    await rename(tempCurrentPath, path.join(root, "current.json"));
+  } catch (error) {
+    await rm(tempDir, { recursive: true, force: true });
+    await rm(tempCurrentPath, { force: true });
+    throw error;
+  }
+}
+
+async function publishAppendedIndexPackage(
+  input: PublishAppendedIndexPackageInput
+): Promise<void> {
+  const validation = validateIndexPackageManifest(input.manifest);
+
+  if (!validation.ok) {
+    throw new Error(validation.errors.join("; "));
+  }
+
+  const root = indexRoot(input.library_root);
+  const versionDir = path.join(root, input.manifest.index_version);
+  const tempDir = path.join(
+    root,
+    `${input.manifest.index_version}.tmp-${process.pid}-${Date.now()}`
+  );
+  const tempCurrentPath = path.join(
+    root,
+    `current.tmp-${process.pid}-${Date.now()}.json`
+  );
+
+  await mkdir(root, { recursive: true });
+
+  try {
+    await mkdir(tempDir, { recursive: false });
+    await appendSourceTranscriptSqliteIndex({
+      source_index_file_path: input.source_index_file_path,
+      index_file_path: path.join(tempDir, "index.sqlite"),
+      library_id: input.manifest.library_id,
+      index_version: input.manifest.index_version,
+      created_at: input.manifest.created_at,
+      videos: input.videos,
+      ordered_source_video_ids: input.ordered_source_video_ids
+    });
     await writeFile(
       path.join(tempDir, "index-manifest.json"),
       jsonBytes(input.manifest),
@@ -407,20 +471,29 @@ export async function publishIndexRequiredSourceVideos(
     alreadyReadyIds.length > 0
   );
 
-  const indexSqliteBytes = canAppendToCurrentIndex
-    ? await createAppendedSourceTranscriptSqliteIndexBytes({
+  const indexManifest: IndexPackageManifest = {
+    index_version: indexVersion,
+    library_id: input.library_id,
+    created_at: input.now,
+    ready_video_count: nextReadyIds.length,
+    source_video_ids: nextReadyIds,
+    schema_version: "1.0"
+  };
+
+  if (canAppendToCurrentIndex) {
+    await publishAppendedIndexPackage({
+      library_root: input.library_root,
+      manifest: indexManifest,
       source_index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root),
-      library_id: input.library_id,
-      index_version: indexVersion,
-      created_at: input.now,
       ordered_source_video_ids: nextReadyIds,
       videos: await buildSearchSqliteVideosFromManifests({
         library_root: input.library_root,
         manifests_by_id: manifestsById,
         source_video_ids: publishedSourceVideoIds
       })
-    })
-    : await createSourceTranscriptSqliteIndexBytes({
+    });
+  } else {
+    const indexSqliteBytes = await createSourceTranscriptSqliteIndexBytes({
       library_id: input.library_id,
       index_version: indexVersion,
       created_at: input.now,
@@ -431,18 +504,12 @@ export async function publishIndexRequiredSourceVideos(
       })
     });
 
-  await publishIndexPackage({
-    library_root: input.library_root,
-    manifest: {
-      index_version: indexVersion,
-      library_id: input.library_id,
-      created_at: input.now,
-      ready_video_count: nextReadyIds.length,
-      source_video_ids: nextReadyIds,
-      schema_version: "1.0"
-    },
-    index_sqlite_bytes: indexSqliteBytes
-  });
+    await publishIndexPackage({
+      library_root: input.library_root,
+      manifest: indexManifest,
+      index_sqlite_bytes: indexSqliteBytes
+    });
+  }
 
   for (const sourceVideoId of publishedSourceVideoIds) {
     await publishReadySourceVideo({

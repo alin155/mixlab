@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   isVideoVisibleToCutters,
@@ -516,7 +516,11 @@ async function copyIfPresent(sourcePath: string, targetPath: string): Promise<bo
   }
 
   await mkdir(path.dirname(targetPath), { recursive: true });
-  await copyFile(sourcePath, targetPath);
+  try {
+    await link(sourcePath, targetPath);
+  } catch {
+    await copyFile(sourcePath, targetPath);
+  }
   return true;
 }
 
