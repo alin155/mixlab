@@ -204,6 +204,24 @@ test("bulk preprocess transition command runs under writer lease and writes thro
     }),
     updated_at: "2026-06-26T10:00:00.000Z"
   });
+  await writeFile(
+    path.join(videoDir(libraryRoot, "V000001"), "source-video.json"),
+    `${JSON.stringify({
+      ...first,
+      description: "stale-before-queue".repeat(128)
+    }, null, 2)}\n${"\u0000".repeat(32)}`,
+    "utf8"
+  );
+  await writeFile(
+    path.join(videoDir(libraryRoot, "V000001"), "preprocess-job.json"),
+    `${JSON.stringify({
+      source_video_id: "V000001",
+      status: "failed",
+      attempt: 8,
+      worker_id: "old-worker"
+    }, null, 2)}\n${"\u0000".repeat(32)}`,
+    "utf8"
+  );
 
   let observedLeaseReason = "";
   const result = await runAdminBulkTransitionCommand({
@@ -233,9 +251,21 @@ test("bulk preprocess transition command runs under writer lease and writes thro
 
   const job = await readJob(libraryRoot, "V000001");
   assert.equal(job.status, "queued");
-  assert.equal(job.attempt, 1);
+  assert.equal(job.attempt, 9);
   assert.equal(job.worker_id, "admin");
   assert.equal(job.claimed_at, "2026-06-26T10:01:01.000Z");
+  const rawFirstManifest = await readFile(
+    path.join(videoDir(libraryRoot, "V000001"), "source-video.json"),
+    "utf8"
+  );
+  const rawFirstJob = await readFile(
+    path.join(videoDir(libraryRoot, "V000001"), "preprocess-job.json"),
+    "utf8"
+  );
+  assert.equal(rawFirstManifest.includes("\u0000"), false);
+  assert.equal(rawFirstJob.includes("\u0000"), false);
+  assert.equal((JSON.parse(rawFirstManifest) as SourceVideoManifest).preprocess_status, "queued");
+  assert.equal((JSON.parse(rawFirstJob) as { status: string }).status, "queued");
 
   const log = await readPreprocessJobLog(libraryRoot, "V000001");
   assert.match(log.content, /queued-by-admin\tunprocessed -> queued/);
@@ -272,15 +302,18 @@ test("bulk preprocess transition command runs under writer lease and writes thro
   assert.equal(snapshot?.snapshot_kind, "file-capture");
   assert.deepEqual(snapshot?.file_summary, {
     requested_file_count: 5,
-    captured_file_count: 3,
-    missing_file_count: 2,
+    captured_file_count: 4,
+    missing_file_count: 1,
     skipped_file_count: 0,
     failed_file_count: 0
   });
   const capturedFirst = snapshot?.files.find((file) => file.label === "source-video-V000001-manifest");
   assert.equal(capturedFirst?.status, "captured");
   assert.equal(
-    (JSON.parse(await readFile(path.join(libraryRoot, capturedFirst!.snapshot_relative_path!), "utf8")) as {
+    (JSON.parse(
+      (await readFile(path.join(libraryRoot, capturedFirst!.snapshot_relative_path!), "utf8"))
+        .replace(/\u0000+$/u, "")
+    ) as {
       preprocess_status: string;
     }).preprocess_status,
     "unprocessed"

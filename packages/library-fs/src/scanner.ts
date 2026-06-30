@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryCounts, PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
 import {
@@ -6,6 +6,7 @@ import {
   writeAdminSettings,
   type AdminSourceFolder
 } from "./admin-settings.ts";
+import { writeJsonFileAtomically } from "./atomic-json.ts";
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".m4v", ".avi", ".webm"]);
 
@@ -69,10 +70,6 @@ interface SourceVideoScanPlan extends ScanSourceVideosResult {
   inactive_manifests: SourceVideoManifest[];
   folder_stats: Map<string, SourceFolderScanStats>;
   skipped_source_folder_ids: Set<string>;
-}
-
-function jsonBytes(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 function videosRoot(libraryRoot: string): string {
@@ -266,7 +263,7 @@ async function writeSourceVideoManifest(
 ): Promise<void> {
   const targetDir = path.join(videosRoot(libraryRoot), manifest.source_video_id);
   await mkdir(targetDir, { recursive: true });
-  await writeFile(path.join(targetDir, "source-video.json"), jsonBytes(manifest), "utf8");
+  await writeJsonFileAtomically(path.join(targetDir, "source-video.json"), manifest);
 }
 
 async function pruneInactiveManifestDirectories(input: {
@@ -395,10 +392,9 @@ async function writeLibraryManifest(input: {
   };
 
   await mkdir(path.join(input.library_root, ".mixlab-library"), { recursive: true });
-  await writeFile(
+  await writeJsonFileAtomically(
     path.join(input.library_root, ".mixlab-library", "library.json"),
-    jsonBytes(libraryManifest),
-    "utf8"
+    libraryManifest
   );
 }
 

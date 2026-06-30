@@ -63,6 +63,13 @@ export {
   writeLocalClipManifest
 } from "./local-clips.ts";
 export { writeAsrTextArtifacts } from "./asr-artifacts.ts";
+export {
+  jsonBytes,
+  parseJsonText,
+  stripTrailingNulls,
+  writeJsonFileAtomically,
+  writeTextAtomically
+} from "./atomic-json.ts";
 export { getFileIdentity, hashFileSha256 } from "./file-hash.ts";
 export * from "./admin-settings.ts";
 export * from "./admin-users.ts";

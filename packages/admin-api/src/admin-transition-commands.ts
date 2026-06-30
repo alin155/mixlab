@@ -1,9 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   appendPreprocessJobLog,
+  parseJsonText,
   readAllSourceVideoManifests,
-  readSourceVideoManifest
+  readSourceVideoManifest,
+  writeJsonFileAtomically
 } from "../../library-fs/src/index.ts";
 import {
   validateSourceVideoManifest,
@@ -127,12 +129,8 @@ async function transitionSnapshotFiles(input: {
   ];
 }
 
-function jsonBytes(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
 async function readJsonFile<T>(filePath: string): Promise<T> {
-  return JSON.parse(await readFile(filePath, "utf8")) as T;
+  return parseJsonText<T>(await readFile(filePath, "utf8"));
 }
 
 function currentTime(input: AdminTransitionCommandContext): string {
@@ -186,7 +184,10 @@ async function writeSourceVideoManifest(libraryRoot: string, manifest: SourceVid
   await mkdir(path.dirname(sourceVideoManifestPath(libraryRoot, manifest.source_video_id)), {
     recursive: true
   });
-  await writeFile(sourceVideoManifestPath(libraryRoot, manifest.source_video_id), jsonBytes(manifest), "utf8");
+  await writeJsonFileAtomically(
+    sourceVideoManifestPath(libraryRoot, manifest.source_video_id),
+    manifest
+  );
 }
 
 async function readPreprocessJob(libraryRoot: string, sourceVideoId: string): Promise<PreprocessJobRecord | null> {
@@ -199,7 +200,7 @@ async function readPreprocessJob(libraryRoot: string, sourceVideoId: string): Pr
 
 async function writePreprocessJob(libraryRoot: string, job: PreprocessJobRecord): Promise<void> {
   await mkdir(path.dirname(preprocessJobPath(libraryRoot, job.source_video_id)), { recursive: true });
-  await writeFile(preprocessJobPath(libraryRoot, job.source_video_id), jsonBytes(job), "utf8");
+  await writeJsonFileAtomically(preprocessJobPath(libraryRoot, job.source_video_id), job);
 }
 
 async function readTransitionSourceVideoManifestsByIds(

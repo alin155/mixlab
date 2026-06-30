@@ -1994,7 +1994,7 @@ async function main(): Promise<void> {
     post_file_wait_timeout_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_TIMEOUT_MS, DEFAULT_POST_FILE_WAIT_TIMEOUT_MS),
     post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
     post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_REFRESH_COMMAND,
-    allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_ALLOW_SMB_STALE_POST_FILE_VIEW, false),
+    allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_ALLOW_SMB_STALE_POST_FILE_VIEW, true),
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });

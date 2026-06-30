@@ -299,6 +299,14 @@ test("source-video metadata command updates only requested manifest by id and wr
     }),
     updated_at: "2026-06-26T12:00:00.000Z"
   });
+  await writeFile(
+    path.join(videoDir(libraryRoot, "V000001"), "source-video.json"),
+    `${JSON.stringify({
+      ...first,
+      description: "stale-before-metadata".repeat(128)
+    }, null, 2)}\n${"\u0000".repeat(32)}`,
+    "utf8"
+  );
 
   let observedLeaseReason = "";
   const updated = await runAdminSourceVideoMetadataCommand({
@@ -334,6 +342,12 @@ test("source-video metadata command updates only requested manifest by id and wr
   assert.deepEqual(firstAfter.tags, ["新标签"]);
   assert.equal(secondAfter.title, "另一个标题");
   assert.equal(secondAfter.description, "旧说明");
+  const rawFirstAfter = await readFile(
+    path.join(videoDir(libraryRoot, "V000001"), "source-video.json"),
+    "utf8"
+  );
+  assert.equal(rawFirstAfter.includes("\u0000"), false);
+  assert.equal((JSON.parse(rawFirstAfter) as SourceVideoManifest).title, "新标题");
 
   const library = await readAdminLibraryManifest(libraryRoot);
   const status = await readAdminReadModelStoreStatus({
@@ -359,10 +373,11 @@ test("source-video metadata command updates only requested manifest by id and wr
   const manifestEntry = snapshot?.files.find((file) => file.label === "source-video-manifest");
   assert.equal(manifestEntry?.status, "captured");
   const capturedManifest = JSON.parse(
-    await readFile(path.join(libraryRoot, manifestEntry!.snapshot_relative_path!), "utf8")
+    (await readFile(path.join(libraryRoot, manifestEntry!.snapshot_relative_path!), "utf8"))
+      .replace(/\u0000+$/u, "")
   ) as SourceVideoManifest;
   assert.equal(capturedManifest.title, "旧标题");
-  assert.equal(capturedManifest.description, "旧说明");
+  assert.match(capturedManifest.description ?? "", /^stale-before-metadata/);
 
   const missing = await runAdminSourceVideoMetadataCommand({
     library_root: libraryRoot,

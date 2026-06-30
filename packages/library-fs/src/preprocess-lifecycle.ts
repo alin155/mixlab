@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import {
   validateSourceVideoManifest,
@@ -6,6 +6,7 @@ import {
   type PreprocessStatus,
   type SourceVideoManifest
 } from "../../protocol/src/index.ts";
+import { jsonBytes, parseJsonText, writeTextAtomically } from "./atomic-json.ts";
 
 export interface ClaimNextPreprocessJobInput {
   library_root: string;
@@ -108,38 +109,6 @@ interface LibraryManifestMetadata {
   created_at?: string;
   source_root?: string;
   preprocess_root?: string;
-}
-
-function jsonBytes(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
-function stripTrailingNulls(text: string): string {
-  return text.replace(/\u0000+$/u, "");
-}
-
-function parseJsonText<T>(text: string): T {
-  return JSON.parse(stripTrailingNulls(text)) as T;
-}
-
-function temporaryWritePath(targetPath: string): string {
-  const parsed = path.parse(targetPath);
-  const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-  return path.join(parsed.dir, `.${parsed.base}.tmp-${nonce}`);
-}
-
-async function writeTextAtomically(targetPath: string, text: string): Promise<void> {
-  await mkdir(path.dirname(targetPath), { recursive: true });
-  const tempPath = temporaryWritePath(targetPath);
-
-  try {
-    await writeFile(tempPath, text, "utf8");
-    await rename(tempPath, targetPath);
-  } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => {});
-    throw error;
-  }
 }
 
 function videosRoot(libraryRoot: string): string {

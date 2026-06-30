@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { readSourceVideoManifest } from "../../library-fs/src/index.ts";
+import { readSourceVideoManifest, writeJsonFileAtomically } from "../../library-fs/src/index.ts";
 import {
   validateSourceVideoManifest,
   type SourceVideoManifest
@@ -63,10 +63,6 @@ function sourceVideoCoverSnapshotFiles(libraryRoot: string, sourceVideoId: strin
       file_path: path.join(sourceVideoDirectory, "cover.webp")
     }
   ];
-}
-
-function jsonBytes(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 function currentTime(input: AdminSourceVideoCommandContext): string {
@@ -205,7 +201,10 @@ async function writeSourceVideoManifest(libraryRoot: string, manifest: SourceVid
   await mkdir(path.dirname(sourceVideoManifestPath(libraryRoot, manifest.source_video_id)), {
     recursive: true
   });
-  await writeFile(sourceVideoManifestPath(libraryRoot, manifest.source_video_id), jsonBytes(manifest), "utf8");
+  await writeJsonFileAtomically(
+    sourceVideoManifestPath(libraryRoot, manifest.source_video_id),
+    manifest
+  );
 }
 
 async function readSourceVideoManifestOrNull(

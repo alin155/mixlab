@@ -87,6 +87,8 @@
     "transfer:admin-docker-nas-handoff-kit": "tsx scripts/acceptance/admin-docker-nas-handoff-transfer.ts",
     "preflight:admin-docker-nas-ugos-api": "tsx scripts/acceptance/admin-docker-nas-ugos-api-preflight.ts",
     "collect:admin-docker-nas-ugos-returned-evidence": "tsx scripts/acceptance/admin-docker-nas-ugos-returned-evidence.ts",
+    "load:admin-docker-nas-ugos-image-archives": "tsx scripts/acceptance/admin-docker-nas-ugos-load-image-archives.ts",
+    "update:admin-docker-nas-ugos-project": "tsx scripts/acceptance/admin-docker-nas-ugos-update-project.ts",
     "collect:admin-docker-nas-desktop-returned-evidence": "tsx scripts/acceptance/admin-docker-nas-desktop-returned-evidence.ts",
     "precheck:admin-docker-nas-returned-evidence": "tsx scripts/acceptance/admin-docker-nas-returned-evidence-precheck.ts",
     "intake:admin-docker-nas-release-inputs": "tsx scripts/acceptance/admin-docker-nas-release-inputs-intake.ts",

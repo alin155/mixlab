@@ -1,9 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import {
+  parseJsonText,
   readAllSourceVideoManifests,
   previewSourceVideoScan,
   scanSourceVideos,
-  type ScanSourceVideosResult
+  type ScanSourceVideosResult,
+  writeJsonFileAtomically
 } from "../../library-fs/src/index.ts";
 import type { LibraryCounts, PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
 import { adminCommandContract } from "./admin-command-guard.ts";
@@ -105,12 +107,8 @@ async function libraryScanSnapshotFiles(
   ];
 }
 
-function jsonBytes(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
 async function readJsonFile<T>(filePath: string): Promise<T> {
-  return JSON.parse(await readFile(filePath, "utf8")) as T;
+  return parseJsonText<T>(await readFile(filePath, "utf8"));
 }
 
 export async function readAdminLibraryManifest(libraryRoot: string): Promise<AdminLibraryManifest | null> {
@@ -165,7 +163,7 @@ export async function writeAdminLibraryManifest(input: {
   };
 
   await mkdir(mixlabRoot(input.library_root), { recursive: true });
-  await writeFile(libraryManifestPath(input.library_root), jsonBytes(manifest), "utf8");
+  await writeJsonFileAtomically(libraryManifestPath(input.library_root), manifest);
   return manifest;
 }
 
