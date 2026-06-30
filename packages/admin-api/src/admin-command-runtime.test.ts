@@ -130,7 +130,8 @@ test("admin command runtime blocks high-risk commands in docker mvp mode before 
       command: "source-video-publish",
       now: "2026-06-27T00:00:00.000Z",
       holder: "test-admin-api",
-      docker_mvp_mode: "v0.1"
+      docker_mvp_mode: "v0.1",
+      docker_mvp_allowed_commands: []
     }, async () => {
       operationExecuted = true;
       return "unexpected";
@@ -155,6 +156,35 @@ test("admin command runtime blocks high-risk commands in docker mvp mode before 
   assert.equal(log.events[0]?.action, "source-video-publish");
   assert.equal(log.events[0]?.details.error_code, "admin_mvp_command_blocked");
   assert.equal("command_snapshot" in log.events[0]!.details, false);
+});
+
+test("admin command runtime accepts explicit docker mvp command allowlist", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  let operationExecuted = false;
+
+  const result = await runAdminCommand({
+    library_root: libraryRoot,
+    command: "source-video-publish",
+    now: "2026-06-27T00:00:00.000Z",
+    holder: "test-admin-api",
+    docker_mvp_mode: "v0.1",
+    docker_mvp_allowed_commands: ["source-video-publish"]
+  }, async () => {
+    operationExecuted = true;
+    return "published";
+  });
+
+  assert.equal(result, "published");
+  assert.equal(operationExecuted, true);
+
+  const log = await readAdminOperationLog({
+    library_root: libraryRoot,
+    generated_at: "2026-06-27T00:00:01.000Z",
+    limit: 10
+  });
+  assert.deepEqual(log.events.map((event) => event.event_type), ["succeeded", "started"]);
+  assert.equal(log.events[0]?.action, "source-video-publish");
+  assert.equal(log.events[0]?.details.lease_reason, "source-video-publish");
 });
 
 test("admin command runtime keeps existing writer lease conflict behavior", async () => {

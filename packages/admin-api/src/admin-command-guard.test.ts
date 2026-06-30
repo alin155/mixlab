@@ -15,6 +15,7 @@ import {
   assertAdminDockerMvpCommandAllowed,
   assertAdminTransitionAllowed,
   AdminDockerMvpCommandBlockedError,
+  resolveAdminDockerMvpAllowedCommands,
   resolveAdminDockerMvpMode
 } from "./admin-command-guard.ts";
 
@@ -340,6 +341,35 @@ test("docker mvp command policy allows only login cutter-user and controlled pre
   }
 
   assert.equal(adminDockerMvpCommandBlock({ command: "source-video-publish", mode: "off" }), null);
+});
+
+test("docker mvp command policy supports explicit per-command allowlist", () => {
+  assert.deepEqual(resolveAdminDockerMvpAllowedCommands({}), []);
+  assert.deepEqual(resolveAdminDockerMvpAllowedCommands({
+    MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS: " source-video-publish,missing-command,source-video-publish "
+  }), ["source-video-publish"]);
+
+  assert.equal(adminDockerMvpCommandBlock({
+    command: "source-video-publish",
+    mode: "v0.1",
+    allowed_commands: ["source-video-publish"]
+  }), null);
+
+  const block = adminDockerMvpCommandBlock({
+    command: "index-repair",
+    mode: "v0.1",
+    allowed_commands: ["source-video-publish"]
+  });
+  assert.equal(block?.error_code, "admin_mvp_command_blocked");
+  assert.deepEqual(block?.details.allowed_commands, ["source-video-publish"]);
+  assert.throws(
+    () => assertAdminDockerMvpCommandAllowed({
+      command: "index-repair",
+      mode: "v0.1",
+      allowed_commands: ["source-video-publish"]
+    }),
+    AdminDockerMvpCommandBlockedError
+  );
 });
 
 test("read-model invalidation policy separates source-folder scope changes from single-id write-through commands", () => {

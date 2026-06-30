@@ -102,6 +102,7 @@ export interface AdminDockerMvpCommandBlock extends AdminCommandBlock {
     command: AdminCommandName;
     policy: "docker-mvp-v0.1";
     allowed_surface: string[];
+    allowed_commands?: AdminCommandName[];
   };
 }
 
@@ -684,11 +685,34 @@ export function resolveAdminDockerMvpMode(
     : "off";
 }
 
+export function resolveAdminDockerMvpAllowedCommands(
+  env: Record<string, string | undefined> = process.env
+): AdminCommandName[] {
+  const rawCommands = env.MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS ?? "";
+  const knownCommands = new Set<AdminCommandName>(adminCommandNames);
+  const allowedCommands: AdminCommandName[] = [];
+
+  for (const rawCommand of rawCommands.split(",")) {
+    const command = rawCommand.trim() as AdminCommandName;
+    if (knownCommands.has(command) && !allowedCommands.includes(command)) {
+      allowedCommands.push(command);
+    }
+  }
+
+  return allowedCommands;
+}
+
 export function adminDockerMvpCommandBlock(input: {
   command: AdminCommandName;
   mode: AdminDockerMvpMode;
+  allowed_commands?: readonly AdminCommandName[];
 }): AdminDockerMvpCommandBlock | null {
-  if (input.mode === "off" || dockerMvpAllowedCommands.has(input.command)) {
+  const allowedCommands = input.allowed_commands ?? [];
+  if (
+    input.mode === "off" ||
+    dockerMvpAllowedCommands.has(input.command) ||
+    allowedCommands.includes(input.command)
+  ) {
     return null;
   }
 
@@ -699,7 +723,8 @@ export function adminDockerMvpCommandBlock(input: {
       mode: input.mode,
       command: input.command,
       policy: "docker-mvp-v0.1",
-      allowed_surface: dockerMvpAllowedSurface
+      allowed_surface: dockerMvpAllowedSurface,
+      allowed_commands: [...allowedCommands]
     }
   };
 }
@@ -707,6 +732,7 @@ export function adminDockerMvpCommandBlock(input: {
 export function assertAdminDockerMvpCommandAllowed(input: {
   command: AdminCommandName;
   mode: AdminDockerMvpMode;
+  allowed_commands?: readonly AdminCommandName[];
 }): void {
   const block = adminDockerMvpCommandBlock(input);
   if (block) {

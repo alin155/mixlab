@@ -8,6 +8,7 @@ import {
 import {
   assertAdminDockerMvpCommandAllowed,
   adminCommandContract,
+  resolveAdminDockerMvpAllowedCommands,
   resolveAdminDockerMvpMode,
   type AdminDockerMvpMode,
   type AdminCommandName
@@ -31,6 +32,7 @@ export interface RunAdminCommandInput {
   holder?: string;
   actor?: AdminCommandActor;
   docker_mvp_mode?: AdminDockerMvpMode;
+  docker_mvp_allowed_commands?: readonly AdminCommandName[];
   snapshot_files?: AdminCommandSnapshotFileInput[];
   snapshot_files_provider?: () => Promise<AdminCommandSnapshotFileInput[]>;
   append_operation_log_event?: (input: AdminOperationLogAppendInput) => Promise<AdminOperationLogEvent>;
@@ -48,6 +50,7 @@ export async function runAdminCommand<T>(
   const contract = adminCommandContract(input.command);
   const holder = input.holder ?? adminCommandHolder();
   const dockerMvpMode = input.docker_mvp_mode ?? resolveAdminDockerMvpMode();
+  const dockerMvpAllowedCommands = input.docker_mvp_allowed_commands ?? resolveAdminDockerMvpAllowedCommands();
   const baseAuditInput = {
     library_root: input.library_root,
     command: input.command,
@@ -61,7 +64,8 @@ export async function runAdminCommand<T>(
   try {
     assertAdminDockerMvpCommandAllowed({
       command: input.command,
-      mode: dockerMvpMode
+      mode: dockerMvpMode,
+      allowed_commands: dockerMvpAllowedCommands
     });
 
     const result = await withAdminWriterLease({
