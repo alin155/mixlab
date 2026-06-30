@@ -970,6 +970,7 @@ export async function captureSingleVideoSmokeSnapshot(input: {
   library_mount_root?: string;
   source_video_id: string;
   snapshot_dir: string;
+  include_read_model?: boolean;
 }): Promise<SingleVideoSmokeSnapshot> {
   const mountRoot = optionalTrimmed(input.library_mount_root);
   if (!mountRoot) {
@@ -1005,23 +1006,27 @@ export async function captureSingleVideoSmokeSnapshot(input: {
         label: "preprocess-log",
         relative_path: `.mixlab-library/logs/${input.source_video_id}.log`,
         required: false
-      },
-      {
-        label: "admin-read-model",
-        relative_path: ".mixlab-library/admin-read-model/admin.sqlite",
-        required: false
-      },
-      {
-        label: "admin-read-model-wal",
-        relative_path: ".mixlab-library/admin-read-model/admin.sqlite-wal",
-        required: false
-      },
-      {
-        label: "admin-read-model-shm",
-        relative_path: ".mixlab-library/admin-read-model/admin.sqlite-shm",
-        required: false
       }
     ];
+    if (input.include_read_model !== false) {
+      files.push(
+        {
+          label: "admin-read-model",
+          relative_path: ".mixlab-library/admin-read-model/admin.sqlite",
+          required: false
+        },
+        {
+          label: "admin-read-model-wal",
+          relative_path: ".mixlab-library/admin-read-model/admin.sqlite-wal",
+          required: false
+        },
+        {
+          label: "admin-read-model-shm",
+          relative_path: ".mixlab-library/admin-read-model/admin.sqlite-shm",
+          required: false
+        }
+      );
+    }
     const copiedFiles: SingleVideoSmokeSnapshotFile[] = [];
     const missingRequired: string[] = [];
     const missingOptional: string[] = [];
@@ -1889,6 +1894,7 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
   post_file_wait_interval_ms?: number;
   post_file_refresh_command?: string;
   allow_smb_stale_post_file_view?: boolean;
+  snapshot_read_model?: boolean;
   refresh_post_file_view?: () => Promise<SingleVideoSmokePostFileRefreshResult>;
   output_dir?: string;
   command?: string;
@@ -1920,7 +1926,8 @@ export async function runAdminPreprocessSingleVideoSmoke(input: {
     ? await captureSingleVideoSmokeSnapshot({
         library_mount_root: input.library_mount_root,
         source_video_id: sourceVideoId,
-        snapshot_dir: snapshotDir
+        snapshot_dir: snapshotDir,
+        include_read_model: input.snapshot_read_model !== false
       })
     : {
         status: "blocked" as const,
@@ -1995,6 +2002,7 @@ async function main(): Promise<void> {
     post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
     post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_POST_FILE_REFRESH_COMMAND,
     allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_ALLOW_SMB_STALE_POST_FILE_VIEW, true),
+    snapshot_read_model: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_SMOKE_SNAPSHOT_READ_MODEL, true),
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });

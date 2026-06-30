@@ -69,12 +69,14 @@ test("maintenance-window smoke dry-run splits explicit ids into safe batches", a
       max_batches: 2,
       session_token: "fixture-session",
       allow_smb_stale_post_file_view: true,
+      snapshot_read_model: false,
       output_dir: tempDir,
       date: new Date("2026-06-29T00:00:00.000Z"),
       fetch_impl: fakeFetch,
       run_small_batch_smoke: async (input) => {
         batches.push(input.source_video_ids ?? []);
         assert.equal(input.allow_smb_stale_post_file_view, true);
+        assert.equal(input.snapshot_read_model, false);
         return batchReport({
           source_video_ids: input.source_video_ids ?? []
         });
@@ -86,10 +88,56 @@ test("maintenance-window smoke dry-run splits explicit ids into safe batches", a
     assert.deepEqual(batches, [["V1", "V2"], ["V3", "V4"]]);
     assert.equal(report.summary.attempted_batches, 2);
     assert.equal(report.summary.passed_batches, 2);
+    assert.equal(report.target.snapshot_read_model, false);
     assert.deepEqual(report.summary.blockers, []);
     assert.equal(report.allowed_write_boundary.allowed_post_paths.length, 0);
     const saved = JSON.parse(await readFile(report.artifacts?.json_path ?? "", "utf8"));
     assert.equal(saved.status, "dry-run-ready");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("maintenance-window smoke blocks tiny candidates before running a batch", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-window-"));
+  let calls = 0;
+  const fakeFetch: typeof fetch = async (resource) => {
+    const url = new URL(String(resource));
+    assert.equal(url.pathname, "/api/admin/source-videos/V000354");
+    return jsonResponse({
+      source_video: {
+        source_video_id: "V000354",
+        preprocess_status: "queued",
+        visible_to_cutters: false,
+        file_size: 1241
+      },
+      technical: {
+        file_size: 1241
+      }
+    });
+  };
+
+  try {
+    const report = await runAdminPreprocessMaintenanceWindowSmoke({
+      base_url: "http://192.168.1.27:18080",
+      source_video_ids: ["V000354"],
+      min_source_file_size_bytes: 10_000_000,
+      output_dir: tempDir,
+      date: new Date("2026-06-29T00:00:00.000Z"),
+      fetch_impl: fakeFetch,
+      run_small_batch_smoke: async () => {
+        calls += 1;
+        return batchReport({ source_video_ids: [] });
+      }
+    });
+
+    assert.equal(report.status, "failed");
+    assert.equal(calls, 0);
+    assert.equal(report.summary.attempted_batches, 0);
+    assert.equal(report.target.min_source_file_size_bytes, 10_000_000);
+    assert.deepEqual(report.summary.blockers, ["V000354:candidate-file-too-small"]);
+    assert.equal(report.candidate_checks[0]?.ok, false);
+    assert.equal(report.candidate_checks[0]?.file_size, 1241);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

@@ -60,6 +60,7 @@ export interface AdminPreprocessSmallBatchSmokeReport {
     max_count: number;
     stop_on_failure: boolean;
     session_token_present: boolean;
+    snapshot_read_model: boolean;
   };
   allowed_write_boundary: {
     execute_requested: boolean;
@@ -276,6 +277,7 @@ export async function runAdminPreprocessSmallBatchSmoke(input: {
   post_file_wait_interval_ms?: number;
   post_file_refresh_command?: string;
   allow_smb_stale_post_file_view?: boolean;
+  snapshot_read_model?: boolean;
   output_dir?: string;
   command?: string;
   date?: Date;
@@ -307,6 +309,7 @@ export async function runAdminPreprocessSmallBatchSmoke(input: {
         post_file_wait_interval_ms: input.post_file_wait_interval_ms ?? DEFAULT_POST_FILE_WAIT_INTERVAL_MS,
         post_file_refresh_command: input.post_file_refresh_command,
         allow_smb_stale_post_file_view: input.allow_smb_stale_post_file_view === true,
+        snapshot_read_model: input.snapshot_read_model !== false,
         output_dir: input.output_dir,
         command: `batch:${input.command ?? "tsx scripts/acceptance/admin-preprocess-small-batch-smoke.ts"}`,
         date: new Date(date.getTime() + (index + 1) * 1000)
@@ -349,7 +352,8 @@ export async function runAdminPreprocessSmallBatchSmoke(input: {
       expected_index_version: optionalTrimmed(input.expected_index_version) || DEFAULT_EXPECTED_INDEX_VERSION,
       max_count: maxCount,
       stop_on_failure: stopOnFailure,
-      session_token_present: Boolean(optionalTrimmed(input.session_token))
+      session_token_present: Boolean(optionalTrimmed(input.session_token)),
+      snapshot_read_model: input.snapshot_read_model !== false
     },
     allowed_write_boundary: {
       execute_requested: execute,
@@ -398,6 +402,7 @@ async function main(): Promise<void> {
     post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_BATCH_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
     post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_BATCH_POST_FILE_REFRESH_COMMAND,
     allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_BATCH_ALLOW_SMB_STALE_POST_FILE_VIEW, false),
+    snapshot_read_model: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_BATCH_SNAPSHOT_READ_MODEL, true),
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });

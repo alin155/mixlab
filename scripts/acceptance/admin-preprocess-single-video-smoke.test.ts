@@ -266,6 +266,33 @@ test("single-video smoke dry-run captures snapshot and never sends POST or leaks
   }
 });
 
+test("single-video smoke can skip read-model snapshot for maintenance windows", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-single-smoke-"));
+  const { mountRoot, readinessPath } = await createFixtureFiles(tempDir);
+
+  try {
+    const report = await runAdminPreprocessSingleVideoSmoke({
+      base_url: BASE_URL,
+      source_video_id: SOURCE_VIDEO_ID,
+      session_token: "fixture-admin-session-token",
+      readiness_report_path: readinessPath,
+      library_mount_root: mountRoot,
+      snapshot_read_model: false,
+      output_dir: tempDir,
+      date: new Date("2026-06-29T00:00:00.000Z"),
+      fetch_impl: dryRunFetch()
+    });
+
+    assert.equal(report.result.status, "dry-run-ready");
+    assert.equal(report.dry_run_ready, true);
+    assert.ok(report.snapshot.copied_files.some((item) => item.relative_path === ".mixlab-library/library.json"));
+    assert.ok(report.snapshot.copied_files.some((item) => item.relative_path === `.mixlab-library/videos/${SOURCE_VIDEO_ID}/source-video.json`));
+    assert.equal(report.snapshot.copied_files.some((item) => item.relative_path === ".mixlab-library/admin-read-model/admin.sqlite"), false);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("single-video smoke execute posts only the selected source video and verifies postcheck", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-single-smoke-"));
   const { mountRoot, readinessPath } = await createFixtureFiles(tempDir);

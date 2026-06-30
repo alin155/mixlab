@@ -42,6 +42,17 @@ interface WindowBatchItem {
   markdown_path: string;
 }
 
+interface WindowCandidateCheck {
+  source_video_id: string;
+  ok: boolean;
+  http_status: number | null;
+  preprocess_status: string;
+  visible_to_cutters: boolean | null;
+  file_size: number | null;
+  blockers: string[];
+  error: string;
+}
+
 export interface AdminPreprocessMaintenanceWindowSmokeReport {
   schema_version: "1.0";
   generated_at: string;
@@ -60,6 +71,8 @@ export interface AdminPreprocessMaintenanceWindowSmokeReport {
     max_batches: number;
     stop_on_failure: boolean;
     session_token_present: boolean;
+    snapshot_read_model: boolean;
+    min_source_file_size_bytes: number | null;
   };
   allowed_write_boundary: {
     execute_requested: boolean;
@@ -76,6 +89,7 @@ export interface AdminPreprocessMaintenanceWindowSmokeReport {
     stopped_on_failure: boolean;
     blockers: string[];
   };
+  candidate_checks: WindowCandidateCheck[];
   batches: WindowBatchItem[];
   artifacts: {
     json_path: string;
@@ -104,6 +118,11 @@ function parseExpectedReadyCount(value: string | undefined): number {
   return parsePositiveInteger(value, DEFAULT_EXPECTED_READY_COUNT);
 }
 
+function parseOptionalNonNegativeInteger(value: string | undefined): number | null {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined || value.trim() === "") {
     return fallback;
@@ -128,6 +147,10 @@ function asNumber(value: unknown): number | null {
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function errorMessage(error: unknown): string {
@@ -198,6 +221,89 @@ async function fetchLibraryStatus(input: {
   }
 }
 
+function sourceDetailFromJson(value: unknown): Record<string, unknown> {
+  const data = asRecord(dataFromJson(value));
+  return Object.keys(asRecord(data.source_video)).length > 0 ? data : asRecord(data);
+}
+
+async function fetchCandidateCheck(input: {
+  base_url?: string;
+  source_video_id: string;
+  session_token?: string;
+  min_source_file_size_bytes: number;
+  fetch_impl?: typeof fetch;
+}): Promise<WindowCandidateCheck> {
+  const baseUrl = trimTrailingSlash(optionalTrimmed(input.base_url));
+  if (!baseUrl) {
+    return {
+      source_video_id: input.source_video_id,
+      ok: false,
+      http_status: null,
+      preprocess_status: "",
+      visible_to_cutters: null,
+      file_size: null,
+      blockers: [`${input.source_video_id}:candidate-base-url-required`],
+      error: "base URL is not configured."
+    };
+  }
+
+  const headers: Record<string, string> = {};
+  if (input.session_token) {
+    headers["X-MixLab-Admin-Session-Token"] = input.session_token;
+  }
+
+  try {
+    const fetchImpl = input.fetch_impl ?? fetch;
+    const response = await fetchImpl(`${baseUrl}/api/admin/source-videos/${input.source_video_id}`, { headers });
+    const json = await response.json().catch(() => null) as unknown;
+    const data = sourceDetailFromJson(json);
+    const sourceVideo = asRecord(data.source_video);
+    const technical = asRecord(data.technical);
+    const preprocess = asRecord(data.preprocess);
+    const fileSize = asNumber(sourceVideo.file_size) ?? asNumber(technical.file_size) ?? asNumber(data.file_size);
+    const preprocessStatus = asString(sourceVideo.preprocess_status) || asString(preprocess.status) || asString(data.preprocess_status);
+    const visible = asBoolean(sourceVideo.visible_to_cutters) ?? asBoolean(data.visible_to_cutters);
+    const blockers: string[] = [];
+
+    if (!response.ok) {
+      blockers.push(`${input.source_video_id}:candidate-detail-unavailable`);
+    }
+    if (response.ok && preprocessStatus !== "queued") {
+      blockers.push(`${input.source_video_id}:candidate-not-queued`);
+    }
+    if (response.ok && visible !== false) {
+      blockers.push(`${input.source_video_id}:candidate-visible-to-cutters`);
+    }
+    if (response.ok && fileSize === null) {
+      blockers.push(`${input.source_video_id}:candidate-file-size-unavailable`);
+    } else if (response.ok && fileSize !== null && fileSize < input.min_source_file_size_bytes) {
+      blockers.push(`${input.source_video_id}:candidate-file-too-small`);
+    }
+
+    return {
+      source_video_id: input.source_video_id,
+      ok: blockers.length === 0,
+      http_status: response.status,
+      preprocess_status: preprocessStatus,
+      visible_to_cutters: visible,
+      file_size: fileSize,
+      blockers,
+      error: ""
+    };
+  } catch (error) {
+    return {
+      source_video_id: input.source_video_id,
+      ok: false,
+      http_status: null,
+      preprocess_status: "",
+      visible_to_cutters: null,
+      file_size: null,
+      blockers: [`${input.source_video_id}:candidate-detail-unavailable`],
+      error: errorMessage(error)
+    };
+  }
+}
+
 function statusBlockers(input: {
   snapshot: LibraryStatusSnapshot;
   expected_ready_count: number;
@@ -261,6 +367,8 @@ function renderMarkdown(report: AdminPreprocessMaintenanceWindowSmokeReport): st
 - Expected ready count: ${report.target.expected_ready_count}
 - Expected index version: ${report.target.expected_index_version}
 - Stop on failure: ${String(report.target.stop_on_failure)}
+- Snapshot read model: ${String(report.target.snapshot_read_model)}
+- Min source file size: ${String(report.target.min_source_file_size_bytes)}
 - Blockers: ${report.summary.blockers.join(", ") || "none"}
 
 ## Write Boundary
@@ -275,6 +383,19 @@ function renderMarkdown(report: AdminPreprocessMaintenanceWindowSmokeReport): st
 batch | source_video_ids | status | ready_before | queued_before | index_required_before | ready_after | queued_after | index_required_after | blockers | json
 --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
 ${rows.join("\n") || "none | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a"}
+
+## Candidate Checks
+
+source_video_id | ok | status | visible | file_size | blockers
+--- | --- | --- | --- | --- | ---
+${report.candidate_checks.map((check) => [
+  check.source_video_id,
+  String(check.ok),
+  check.preprocess_status || "unknown",
+  String(check.visible_to_cutters),
+  String(check.file_size),
+  check.blockers.join(", ") || "none"
+].join(" | ")).join("\n") || "not configured | n/a | n/a | n/a | n/a | n/a"}
 `;
 }
 
@@ -319,6 +440,8 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
   post_file_wait_interval_ms?: number;
   post_file_refresh_command?: string;
   allow_smb_stale_post_file_view?: boolean;
+  snapshot_read_model?: boolean;
+  min_source_file_size_bytes?: number | null;
   output_dir?: string;
   command?: string;
   date?: Date;
@@ -333,9 +456,12 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
   const expectedIndexVersion = input.expected_index_version ?? DEFAULT_EXPECTED_INDEX_VERSION;
   const execute = input.execute === true;
   const stopOnFailure = input.stop_on_failure ?? true;
+  const snapshotReadModel = input.snapshot_read_model !== false;
+  const minSourceFileSizeBytes = input.min_source_file_size_bytes ?? null;
   const capacity = batchSize * maxBatches;
   const runSmallBatch = input.run_small_batch_smoke ?? runAdminPreprocessSmallBatchSmoke;
   const topLevelBlockers: string[] = [];
+  const candidateChecks: WindowCandidateCheck[] = [];
   const batches: WindowBatchItem[] = [];
 
   if (sourceVideoIds.length === 0) {
@@ -343,6 +469,19 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
   }
   if (sourceVideoIds.length > capacity) {
     topLevelBlockers.push("source-video-id-count-exceeds-window-capacity");
+  }
+  if (minSourceFileSizeBytes !== null && sourceVideoIds.length > 0 && sourceVideoIds.length <= capacity) {
+    for (const sourceVideoId of sourceVideoIds) {
+      const candidateCheck = await fetchCandidateCheck({
+        base_url: input.base_url,
+        source_video_id: sourceVideoId,
+        session_token: input.session_token,
+        min_source_file_size_bytes: minSourceFileSizeBytes,
+        fetch_impl: input.fetch_impl
+      });
+      candidateChecks.push(candidateCheck);
+      topLevelBlockers.push(...candidateCheck.blockers);
+    }
   }
 
   if (topLevelBlockers.length === 0) {
@@ -394,6 +533,7 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
         post_file_wait_interval_ms: input.post_file_wait_interval_ms ?? DEFAULT_POST_FILE_WAIT_INTERVAL_MS,
         post_file_refresh_command: input.post_file_refresh_command,
         allow_smb_stale_post_file_view: input.allow_smb_stale_post_file_view === true,
+        snapshot_read_model: snapshotReadModel,
         output_dir: input.output_dir,
         command: `window:${input.command ?? "tsx scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts"}`,
         date: new Date(date.getTime() + (batchIndex + 1) * 60_000)
@@ -458,7 +598,9 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
       batch_size: batchSize,
       max_batches: maxBatches,
       stop_on_failure: stopOnFailure,
-      session_token_present: Boolean(optionalTrimmed(input.session_token))
+      session_token_present: Boolean(optionalTrimmed(input.session_token)),
+      snapshot_read_model: snapshotReadModel,
+      min_source_file_size_bytes: minSourceFileSizeBytes
     },
     allowed_write_boundary: {
       execute_requested: execute,
@@ -475,6 +617,7 @@ export async function runAdminPreprocessMaintenanceWindowSmoke(input: {
       stopped_on_failure: stopOnFailure && batches.length < Math.ceil(Math.min(sourceVideoIds.length, capacity) / batchSize),
       blockers
     },
+    candidate_checks: candidateChecks,
     batches,
     artifacts: null
   };
@@ -506,6 +649,8 @@ async function main(): Promise<void> {
     post_file_wait_interval_ms: parsePositiveInteger(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_POST_FILE_WAIT_INTERVAL_MS, DEFAULT_POST_FILE_WAIT_INTERVAL_MS),
     post_file_refresh_command: process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_POST_FILE_REFRESH_COMMAND,
     allow_smb_stale_post_file_view: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_ALLOW_SMB_STALE_POST_FILE_VIEW, false),
+    snapshot_read_model: parseBoolean(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_SNAPSHOT_READ_MODEL, true),
+    min_source_file_size_bytes: parseOptionalNonNegativeInteger(process.env.MIXLAB_ADMIN_PREPROCESS_WINDOW_MIN_SOURCE_FILE_SIZE_BYTES),
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });
