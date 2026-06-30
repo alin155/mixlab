@@ -137,6 +137,36 @@ test("UGOS project update dry-run retags compose without submitting UpdateProjec
   assert.doesNotMatch(json, /redacted-test-token/);
 });
 
+test("UGOS project update can apply explicit docker mvp command allowlist", async () => {
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-ugos-update-allowlist-"));
+  const fake = fakeFetch();
+  const report = await runAdminDockerNasUgosUpdateProject({
+    target_image_tag: TARGET_TAG,
+    execute: true,
+    output_dir: outputDir,
+    generated_at: "2026-06-30T00:00:00.000Z",
+    command: "test",
+    fetchImpl: fake.fetchImpl,
+    health_poll_attempts: 2,
+    health_poll_interval_ms: 1,
+    env: {
+      MIXLAB_UGOS_TOKEN: "redacted-test-token",
+      MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS: "source-video-publish"
+    } as NodeJS.ProcessEnv
+  });
+
+  assert.equal(report.result.status, "updated");
+  assert.equal(report.target.docker_mvp_allow_commands, "source-video-publish");
+  assert.equal(fake.updateBodies.length, 1);
+  const projectContent = String(fake.updateBodies[0]?.projectContent);
+  assert.equal((projectContent.match(/MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS: "source-video-publish"/g) ?? []).length, 2);
+  assert.ok(report.observations.worker_lines_after.some((line) => line.includes("MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS: \"source-video-publish\"")));
+  assert.deepEqual(report.summary.update_blockers, []);
+
+  const json = await readFile(report.artifacts?.json_path ?? "", "utf8");
+  assert.doesNotMatch(json, /redacted-test-token/);
+});
+
 test("UGOS project update submits UpdateProject with latestImages false and verifies target health", async () => {
   const outputDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-ugos-update-exec-"));
   const fake = fakeFetch();

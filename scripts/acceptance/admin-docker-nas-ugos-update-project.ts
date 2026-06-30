@@ -49,6 +49,7 @@ export interface AdminDockerNasUgosUpdateProjectReport {
     admin_live_base_url: string;
     project_name: string;
     target_image_tag: string;
+    docker_mvp_allow_commands: string;
   };
   execution: {
     execute_requested: boolean;
@@ -138,16 +139,63 @@ function workerLines(content: string): string[] {
     .split("\n")
     .filter((line) => line.includes("MIXLAB_ENABLE_") ||
       line.includes("MIXLAB_ADMIN_DOCKER_MVP_MODE") ||
+      line.includes("MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS") ||
       line.includes("MIXLAB_PREPROCESS_LIBRARY_ROOT") ||
       line.includes("MIXLAB_IMAGE_TAG"))
     .map((line) => line.trim());
 }
 
-function retagProjectContent(content: string, targetTag: string): string {
-  return content
+function yamlQuoted(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+}
+
+function upsertEnvironmentValue(content: string, key: string, value: string, anchorKey: string): string {
+  const lines = content.split("\n");
+  const keyPattern = new RegExp(`^(\\s*)${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`);
+  const anchorPattern = new RegExp(`^(\\s*)${anchorKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`);
+  let replaced = false;
+  const nextLines: string[] = [];
+
+  for (const line of lines) {
+    const keyMatch = line.match(keyPattern);
+    if (keyMatch) {
+      nextLines.push(`${keyMatch[1]}${key}: ${yamlQuoted(value)}`);
+      replaced = true;
+      continue;
+    }
+    nextLines.push(line);
+  }
+
+  if (replaced) {
+    return nextLines.join("\n");
+  }
+
+  const insertedLines: string[] = [];
+  for (const line of nextLines) {
+    insertedLines.push(line);
+    const anchorMatch = line.match(anchorPattern);
+    if (anchorMatch) {
+      insertedLines.push(`${anchorMatch[1]}${key}: ${yamlQuoted(value)}`);
+    }
+  }
+
+  return insertedLines.join("\n");
+}
+
+function retagProjectContent(content: string, targetTag: string, dockerMvpAllowCommands: string): string {
+  const retagged = content
     .replace(/ghcr\.io\/alin155\/mixlab-admin-runtime:[^\s"']+/g, `ghcr.io/alin155/mixlab-admin-runtime:${targetTag}`)
     .replace(/ghcr\.io\/alin155\/mixlab-admin-web:[^\s"']+/g, `ghcr.io/alin155/mixlab-admin-web:${targetTag}`)
     .replace(/(MIXLAB_IMAGE_TAG:\s*["']?)[a-f0-9]{7,40}(["']?)/g, `$1${targetTag}$2`);
+
+  return dockerMvpAllowCommands
+    ? upsertEnvironmentValue(
+      retagged,
+      "MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS",
+      dockerMvpAllowCommands,
+      "MIXLAB_ADMIN_DOCKER_MVP_MODE"
+    )
+    : retagged;
 }
 
 function hasLineValue(content: string, key: string, expected: string): boolean {
@@ -260,6 +308,7 @@ function buildGates(input: {
   beforeContent: string;
   afterContent: string;
   health: HealthProbe[];
+  dockerMvpAllowCommands: string;
 }): Gate[] {
   const projectOk = input.projectProbe?.status === "ok" && input.projectProbe.http_status === 200 && input.projectProbe.api_code === "200";
   const afterImages = adminImages(input.afterContent);
@@ -306,6 +355,15 @@ function buildGates(input: {
       status: hasLineValue(input.afterContent, "MIXLAB_ADMIN_DOCKER_MVP_MODE", "v0.1") &&
         hasLineValue(input.afterContent, "MIXLAB_PREPROCESS_LIBRARY_ROOT", "/data/PublicLibrary") ? "pass" : "blocked",
       evidence: workerLines(input.afterContent).join("; "),
+      blocks_update: true
+    },
+    {
+      id: "mvp-command-allowlist-applied",
+      status: !input.dockerMvpAllowCommands ||
+        hasLineValue(input.afterContent, "MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS", input.dockerMvpAllowCommands) ? "pass" : "blocked",
+      evidence: input.dockerMvpAllowCommands
+        ? workerLines(input.afterContent).join("; ")
+        : "no explicit command allowlist requested",
       blocks_update: true
     },
     {
@@ -396,6 +454,7 @@ export async function runAdminDockerNasUgosUpdateProject(input: {
   const ugosBaseUrl = normalizeBaseUrl(input.ugos_base_url ?? env.MIXLAB_NAS_UGOS_BASE_URL ?? DEFAULT_NAS_UGOS_BASE_URL);
   const adminLiveBaseUrl = normalizeBaseUrl(input.admin_live_base_url ?? env.MIXLAB_ADMIN_DOCKER_LIVE_BASE_URL ?? DEFAULT_ADMIN_LIVE_BASE_URL);
   const targetTag = input.target_image_tag ?? env.MIXLAB_DOCKER_TARGET_IMAGE_TAG?.trim() ?? "";
+  const dockerMvpAllowCommands = env.MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS?.trim() ?? "";
   const execute = input.execute ?? env.MIXLAB_ADMIN_DOCKER_UPDATE_PROJECT_EXECUTE === "1";
   const timeoutMs = input.timeout_ms ?? asNumber(env.MIXLAB_ADMIN_DOCKER_UPDATE_PROJECT_TIMEOUT_MS, 600000);
   const healthPollAttempts = input.health_poll_attempts ?? asNumber(env.MIXLAB_ADMIN_DOCKER_UPDATE_HEALTH_POLL_ATTEMPTS, 60);
@@ -419,7 +478,7 @@ export async function runAdminDockerNasUgosUpdateProject(input: {
   });
   const projectData = asRecord(project.data);
   const beforeContent = asString(projectData.content);
-  const afterContent = targetTag ? retagProjectContent(beforeContent, targetTag) : beforeContent;
+  const afterContent = targetTag ? retagProjectContent(beforeContent, targetTag, dockerMvpAllowCommands) : beforeContent;
   let updateProbe: UgosProbe | null = null;
   let updateSubmitted = false;
 
@@ -430,7 +489,8 @@ export async function runAdminDockerNasUgosUpdateProject(input: {
     updateProbe: null,
     beforeContent,
     afterContent,
-    health: []
+    health: [],
+    dockerMvpAllowCommands
   });
   const preflightSummary = summarize(preflightGates);
 
@@ -480,7 +540,8 @@ export async function runAdminDockerNasUgosUpdateProject(input: {
     updateProbe,
     beforeContent,
     afterContent,
-    health
+    health,
+    dockerMvpAllowCommands
   });
   const summary = summarize(gates);
   const resultStatus: ResultStatus = summary.update_blockers.length > 0
@@ -499,7 +560,8 @@ export async function runAdminDockerNasUgosUpdateProject(input: {
       ugos_base_url: ugosBaseUrl,
       admin_live_base_url: adminLiveBaseUrl,
       project_name: PROJECT_NAME,
-      target_image_tag: targetTag
+      target_image_tag: targetTag,
+      docker_mvp_allow_commands: dockerMvpAllowCommands
     },
     execution: {
       execute_requested: execute,
