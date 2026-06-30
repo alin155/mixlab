@@ -1996,7 +1996,7 @@ export function AdminApp() {
     }
 
     if (action === "start-preprocess") {
-      await runAction("启动预处理", (api) => api.startPreprocessSupervisor());
+      await runAction("启动预处理", (api) => api.startPreprocessSupervisor(1));
       return;
     }
 
@@ -2288,7 +2288,7 @@ export function AdminApp() {
       }
     },
     onStartPreprocessSupervisor: () =>
-      runAction("启动预处理", (api) => api.startPreprocessSupervisor()),
+      runAction("启动预处理", (api) => api.startPreprocessSupervisor(1)),
     onStopPreprocessSupervisor: () =>
       runAction("暂停预处理", (api) => api.stopPreprocessSupervisor()),
     onRepairIndex: () => runAction("发布到剪辑端", (api) => api.repairIndex()),

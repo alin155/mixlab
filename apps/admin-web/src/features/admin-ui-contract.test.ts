@@ -96,6 +96,12 @@ test("docker mvp control contract keeps core writes and disables or hides high-r
   assert.ok(disabled.includes("发布到剪辑端"));
   assert.equal(adminDockerMvpControlDisposition({
     route: "source-videos",
+    label: "发布到剪辑端",
+    state: "m9b-api",
+    reason: ""
+  }), "enabled");
+  assert.equal(adminDockerMvpControlDisposition({
+    route: "source-videos",
     label: "加入预处理",
     state: "m9b-api",
     reason: ""

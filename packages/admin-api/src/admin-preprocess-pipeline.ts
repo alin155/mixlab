@@ -33,7 +33,7 @@ import {
   runAdminLibraryScanCommand
 } from "./admin-library-commands.ts";
 import {
-  runAdminSupervisorPublishCommand,
+  runAdminSourceVideoPublishCommand,
   type ReadyPublishMedia
 } from "./admin-publish-commands.ts";
 import {
@@ -127,8 +127,7 @@ export interface RunAdminPreprocessPipelineResult extends RunLibraryTextPreproce
 }
 
 export type AdminControlledPreprocessDisabledAction =
-  | "auto-scan"
-  | "auto-publish-index";
+  | "auto-scan";
 
 export interface AdminControlledPreprocessPolicy {
   docker_mvp_mode: AdminDockerMvpMode;
@@ -164,10 +163,6 @@ export function resolveAdminControlledPreprocessPolicy(input: {
       disabledActions.push("auto-scan");
     }
 
-    if (runtimePolicy.auto_publish_index_enabled) {
-      runtimePolicy.auto_publish_index_enabled = false;
-      disabledActions.push("auto-publish-index");
-    }
   }
 
   return {
@@ -228,12 +223,21 @@ export async function runAdminPreprocessPipeline(
   let failedCount = 0;
 
   while (input.should_stop?.() !== true) {
+    const remainingLimit = input.limit ? input.limit - totalClaimedCount : undefined;
+    if (remainingLimit !== undefined && remainingLimit <= 0) {
+      break;
+    }
+
+    const cycleLimit = remainingLimit === undefined
+      ? runtimePolicy.concurrent_jobs
+      : Math.min(remainingLimit, runtimePolicy.concurrent_jobs);
+
     const cycleResult = await input.run_worker_cycle({
       library_root: input.library_root,
       library_id: input.library_id,
       library_name: input.library_name,
       worker_id: `admin-worker-${process.pid}`,
-      limit: input.limit ?? runtimePolicy.concurrent_jobs,
+      limit: cycleLimit,
       source_video_ids: input.source_video_ids,
       audio_mode: runtimePolicy.audio_mode,
       now: input.now,
@@ -246,18 +250,25 @@ export async function runAdminPreprocessPipeline(
     items.push(...cycleResult.items);
 
     if (runtimePolicy.auto_publish_index_enabled) {
-      const publishResult = await runAdminSupervisorPublishCommand({
-        library_root: input.library_root,
-        library_id: input.library_id,
-        command_now: input.now(),
-        now: input.now,
-        media: input.media,
-        actor: adminCommandSystemActor("预处理流水线自动发布", "system-task"),
-        invalidate_index_version_cache: () => clearAdminIndexVersionCache(input.library_root)
-      });
-      preparedSourceVideoIds.push(...publishResult.prepared_source_video_ids);
-      publishedSourceVideoIds.push(...publishResult.published_source_video_ids);
-      skippedSourceVideoIds.push(...publishResult.skipped_source_video_ids);
+      const succeededSourceVideoIds = [...new Set(cycleResult.items
+        .filter((item) => item.status === "succeeded")
+        .map((item) => item.source_video_id))];
+
+      for (const sourceVideoId of succeededSourceVideoIds) {
+        const publishResult = await runAdminSourceVideoPublishCommand({
+          library_root: input.library_root,
+          library_id: input.library_id,
+          command_now: input.now(),
+          now: input.now,
+          media: input.media,
+          source_video_id: sourceVideoId,
+          actor: adminCommandSystemActor("预处理流水线自动发布", "system-task"),
+          invalidate_index_version_cache: () => clearAdminIndexVersionCache(input.library_root)
+        });
+        preparedSourceVideoIds.push(...publishResult.prepared_source_video_ids);
+        publishedSourceVideoIds.push(...publishResult.published_source_video_ids);
+        skippedSourceVideoIds.push(...publishResult.skipped_source_video_ids);
+      }
     }
 
     if (cycleResult.total_claimed_count === 0) {

@@ -112,7 +112,6 @@ export const ADMIN_DOCKER_MVP_UI_ROUTES = [
 const adminDockerMvpDisabledControls = new Set<string>([
   "dashboard:扫描新增素材",
   "dashboard:执行下一步建议",
-  "source-videos:发布到剪辑端",
   "source-videos:保存封面",
   "source-videos:保存素材信息",
   "preprocess-jobs:发布到剪辑端"
