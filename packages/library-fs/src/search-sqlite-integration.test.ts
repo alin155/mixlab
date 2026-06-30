@@ -417,3 +417,91 @@ test("cutter search keeps a warm index available while refreshing current index 
   });
   assert.deepEqual(stillHidden.groups, []);
 });
+
+test("single source publication appends to the current SQLite index without rereading ready transcripts", async () => {
+  const libraryRoot = await prepareLibrary();
+
+  await completeVideoToIndexRequired({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    duration_ms: 123_000,
+    full_text: "现金流，是企业的血液。",
+    segments: [
+      segment({
+        source_video_id: "V000001",
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 3600,
+        text: "现金流，是企业的血液。",
+        normalized_text: "现金流是企业的血液"
+      })
+    ]
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:20:00Z"
+  });
+  await rm(path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "transcript.json"));
+
+  await completeVideoToIndexRequired({
+    library_root: libraryRoot,
+    source_video_id: "V000002",
+    duration_ms: 88_000,
+    full_text: "组织效率决定增长。",
+    segments: [
+      segment({
+        source_video_id: "V000002",
+        index: 0,
+        begin_ms: 2000,
+        end_ms: 5200,
+        text: "组织效率决定增长。",
+        normalized_text: "组织效率决定增长"
+      })
+    ]
+  });
+
+  const secondPublish = await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:40:00Z",
+    source_video_ids: ["V000002"]
+  });
+
+  assert.deepEqual(secondPublish.published_source_video_ids, ["V000002"]);
+  assert.equal(secondPublish.index_version, "v000002");
+  assert.deepEqual(
+    readSourceTranscriptSqliteIndexMetadata(
+      await resolveCurrentSourceTranscriptIndexFilePath(libraryRoot)
+    ),
+    {
+      library_id: "lib_main_001",
+      index_version: "v000002",
+      created_at: "2026-05-02T00:40:00Z",
+      source_video_count: 2,
+      segment_count: 2,
+      schema_version: "1.0"
+    }
+  );
+
+  await waitForSearchResult(
+    {
+      library_root: libraryRoot,
+      query: "组织效率",
+      limit: 20
+    },
+    (result) => result.index_version === "v000002" && result.groups.length === 1
+  );
+
+  const oldVideoStillIndexed = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现金流",
+    limit: 20
+  });
+
+  assert.equal(oldVideoStillIndexed.index_version, "v000002");
+  assert.deepEqual(
+    oldVideoStillIndexed.groups.map((group) => group.source_video_id),
+    ["V000001"]
+  );
+});

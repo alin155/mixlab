@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -32,6 +32,21 @@ export interface WriteSourceTranscriptSqliteIndexInput {
 
 export type CreateSourceTranscriptSqliteIndexBytesInput = Omit<
   WriteSourceTranscriptSqliteIndexInput,
+  "index_file_path"
+>;
+
+export interface AppendSourceTranscriptSqliteIndexInput {
+  source_index_file_path: string;
+  index_file_path: string;
+  library_id: string;
+  index_version: string;
+  created_at: string;
+  videos: SourceTranscriptSqliteVideo[];
+  ordered_source_video_ids?: string[];
+}
+
+export type CreateAppendedSourceTranscriptSqliteIndexBytesInput = Omit<
+  AppendSourceTranscriptSqliteIndexInput,
   "index_file_path"
 >;
 
@@ -172,6 +187,212 @@ function createSchema(db: DatabaseSync): void {
   `);
 }
 
+function readExistingSourceVideoIds(db: DatabaseSync): string[] {
+  const rows = db.prepare(`
+    SELECT source_video_id
+    FROM source_videos
+    ORDER BY position ASC, source_video_id ASC
+  `).all() as Array<{ source_video_id: string }>;
+
+  return rows.map((row) => row.source_video_id);
+}
+
+function assertNoDuplicateSourceVideoIds(sourceVideoIds: string[]): void {
+  const seen = new Set<string>();
+
+  for (const sourceVideoId of sourceVideoIds) {
+    if (seen.has(sourceVideoId)) {
+      throw new Error(`duplicate source video id in appended index: ${sourceVideoId}`);
+    }
+    seen.add(sourceVideoId);
+  }
+}
+
+function assertOrderedSourceVideoIds(input: {
+  existing_source_video_ids: string[];
+  appended_source_video_ids: string[];
+  ordered_source_video_ids: string[];
+}): void {
+  assertNoDuplicateSourceVideoIds(input.ordered_source_video_ids);
+
+  const expected = new Set([
+    ...input.existing_source_video_ids,
+    ...input.appended_source_video_ids
+  ]);
+
+  if (input.ordered_source_video_ids.length !== expected.size) {
+    throw new Error("ordered source video ids do not match appended index contents");
+  }
+
+  for (const sourceVideoId of expected) {
+    if (!input.ordered_source_video_ids.includes(sourceVideoId)) {
+      throw new Error(`ordered source video ids are missing ${sourceVideoId}`);
+    }
+  }
+}
+
+function ensureAppendableSchema(db: DatabaseSync): void {
+  if (!sourceVideoColumnExists(db, "source_folder_name")) {
+    db.exec("ALTER TABLE source_videos ADD COLUMN source_folder_name TEXT NOT NULL DEFAULT ''");
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_source_videos_source_folder
+      ON source_videos(source_folder_name, position)
+  `);
+}
+
+function segmentCount(db: DatabaseSync): number {
+  const row = db.prepare("SELECT COUNT(*) AS count FROM segments").get() as {
+    count: number;
+  };
+
+  return Number(row.count ?? 0);
+}
+
+function upsertMetadataRows(input: {
+  db: DatabaseSync;
+  library_id: string;
+  index_version: string;
+  created_at: string;
+  source_video_count: number;
+  segment_count: number;
+}): void {
+  const rows: Array<[string, string]> = [
+    ["schema_version", "1.0"],
+    ["library_id", input.library_id],
+    ["index_version", input.index_version],
+    ["created_at", input.created_at],
+    ["source_video_count", String(input.source_video_count)],
+    ["segment_count", String(input.segment_count)]
+  ];
+  const upsertMetadata = input.db.prepare(`
+    INSERT INTO metadata (key, value)
+    VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `);
+
+  for (const [key, value] of rows) {
+    upsertMetadata.run(key, value);
+  }
+}
+
+export async function appendSourceTranscriptSqliteIndex(
+  input: AppendSourceTranscriptSqliteIndexInput
+): Promise<void> {
+  await mkdir(path.dirname(input.index_file_path), { recursive: true });
+  await rm(input.index_file_path, { force: true });
+  await rm(`${input.index_file_path}-wal`, { force: true });
+  await rm(`${input.index_file_path}-shm`, { force: true });
+  await copyFile(input.source_index_file_path, input.index_file_path);
+
+  const db = openDatabase(input.index_file_path);
+
+  try {
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
+    ensureAppendableSchema(db);
+
+    const existingSourceVideoIds = readExistingSourceVideoIds(db);
+    const appendedSourceVideoIds = input.videos.map((video) => video.source_video_id);
+    assertNoDuplicateSourceVideoIds(appendedSourceVideoIds);
+
+    const existingSourceVideoIdSet = new Set(existingSourceVideoIds);
+    for (const sourceVideoId of appendedSourceVideoIds) {
+      if (existingSourceVideoIdSet.has(sourceVideoId)) {
+        throw new Error(`source video already exists in index: ${sourceVideoId}`);
+      }
+    }
+
+    const orderedSourceVideoIds = input.ordered_source_video_ids ??
+      [...existingSourceVideoIds, ...appendedSourceVideoIds];
+    assertOrderedSourceVideoIds({
+      existing_source_video_ids: existingSourceVideoIds,
+      appended_source_video_ids: appendedSourceVideoIds,
+      ordered_source_video_ids: orderedSourceVideoIds
+    });
+    const positionsBySourceVideoId = new Map(
+      orderedSourceVideoIds.map((sourceVideoId, index) => [sourceVideoId, index])
+    );
+
+    db.exec("BEGIN");
+
+    const insertVideo = db.prepare(`
+      INSERT INTO source_videos
+        (position, source_video_id, title, duration_ms, relative_path, source_folder_name, cover_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertSegment = db.prepare(`
+      INSERT INTO segments
+        (source_video_id, segment_id, segment_index, begin_ms, end_ms, text, normalized_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertGram = db.prepare(`
+      INSERT INTO segment_ngrams (gram, segment_id, source_video_id)
+      VALUES (?, ?, ?)
+    `);
+
+    for (const video of input.videos) {
+      insertVideo.run(
+        positionsBySourceVideoId.get(video.source_video_id) ?? orderedSourceVideoIds.length,
+        video.source_video_id,
+        video.title,
+        video.duration_ms,
+        video.relative_path ?? "",
+        video.source_folder_name ?? "",
+        video.cover_path ?? ""
+      );
+
+      for (const segment of video.segments) {
+        const normalizedText = segment.normalized_text || normalizeTranscriptText(segment.text);
+
+        insertSegment.run(
+          video.source_video_id,
+          segment.segment_id,
+          segment.index,
+          segment.begin_ms,
+          segment.end_ms,
+          segment.text,
+          normalizedText
+        );
+
+        for (const gram of ngrams(normalizedText)) {
+          insertGram.run(gram, segment.segment_id, video.source_video_id);
+        }
+      }
+    }
+
+    const updatePosition = db.prepare(`
+      UPDATE source_videos
+      SET position = ?
+      WHERE source_video_id = ?
+    `);
+    for (const [sourceVideoId, position] of positionsBySourceVideoId) {
+      updatePosition.run(position, sourceVideoId);
+    }
+
+    upsertMetadataRows({
+      db,
+      library_id: input.library_id,
+      index_version: input.index_version,
+      created_at: input.created_at,
+      source_video_count: orderedSourceVideoIds.length,
+      segment_count: segmentCount(db)
+    });
+
+    db.exec("COMMIT");
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // Transaction may not have started.
+    }
+    throw error;
+  } finally {
+    db.close();
+  }
+}
+
 export async function writeSourceTranscriptSqliteIndex(
   input: WriteSourceTranscriptSqliteIndexInput
 ): Promise<void> {
@@ -258,6 +479,23 @@ export async function createSourceTranscriptSqliteIndexBytes(
 
   try {
     await writeSourceTranscriptSqliteIndex({
+      ...input,
+      index_file_path: indexFilePath
+    });
+    return await readFile(indexFilePath);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+export async function createAppendedSourceTranscriptSqliteIndexBytes(
+  input: CreateAppendedSourceTranscriptSqliteIndexBytesInput
+): Promise<Buffer> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-search-sqlite-append-"));
+  const indexFilePath = path.join(tempDir, "index.sqlite");
+
+  try {
+    await appendSourceTranscriptSqliteIndex({
       ...input,
       index_file_path: indexFilePath
     });

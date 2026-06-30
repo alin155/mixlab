@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  createAppendedSourceTranscriptSqliteIndexBytes,
   createSourceTranscriptSqliteIndexBytes,
   type SourceTranscriptSqliteVideo
 } from "../../search-sqlite/src/index.ts";
@@ -8,7 +9,8 @@ import { sourceFolderNameFromRelativePath } from "./source-folders.ts";
 import {
   validateIndexPackageManifest,
   type IndexCurrentPointer,
-  type IndexPackageManifest
+  type IndexPackageManifest,
+  type SourceVideoManifest
 } from "../../protocol/src/index.ts";
 import {
   publishReadySourceVideo,
@@ -288,16 +290,15 @@ async function readJsonArtifact<T>(libraryRoot: string, relativePath: string): P
   return JSON.parse(await readFile(path.join(libraryRoot, relativePath), "utf8")) as T;
 }
 
-async function buildSearchSqliteVideos(input: {
+async function buildSearchSqliteVideosFromManifests(input: {
   library_root: string;
+  manifests_by_id: Map<string, SourceVideoManifest>;
   source_video_ids: string[];
 }): Promise<SourceTranscriptSqliteVideo[]> {
-  const manifests = await readAllSourceVideoManifests(input.library_root);
-  const manifestsById = new Map(manifests.map((manifest) => [manifest.source_video_id, manifest]));
   const videos: SourceTranscriptSqliteVideo[] = [];
 
   for (const sourceVideoId of input.source_video_ids) {
-    const manifest = manifestsById.get(sourceVideoId);
+    const manifest = input.manifests_by_id.get(sourceVideoId);
 
     if (!manifest) {
       throw new Error(`source video manifest not found for ${sourceVideoId}`);
@@ -319,6 +320,19 @@ async function buildSearchSqliteVideos(input: {
   }
 
   return videos;
+}
+
+async function buildSearchSqliteVideos(input: {
+  library_root: string;
+  source_video_ids: string[];
+}): Promise<SourceTranscriptSqliteVideo[]> {
+  const manifests = await readAllSourceVideoManifests(input.library_root);
+
+  return buildSearchSqliteVideosFromManifests({
+    library_root: input.library_root,
+    manifests_by_id: new Map(manifests.map((manifest) => [manifest.source_video_id, manifest])),
+    source_video_ids: input.source_video_ids
+  });
 }
 
 export async function publishIndexRequiredSourceVideos(
@@ -386,16 +400,36 @@ export async function publishIndexRequiredSourceVideos(
   }
 
   const indexVersion = nextIndexVersion(currentVersion);
+  const manifestsById = new Map(manifests.map((manifest) => [manifest.source_video_id, manifest]));
+  const canAppendToCurrentIndex = Boolean(
+    input.source_video_ids &&
+    currentVersion &&
+    alreadyReadyIds.length > 0
+  );
 
-  const indexSqliteBytes = await createSourceTranscriptSqliteIndexBytes({
-    library_id: input.library_id,
-    index_version: indexVersion,
-    created_at: input.now,
-    videos: await buildSearchSqliteVideos({
-      library_root: input.library_root,
-      source_video_ids: nextReadyIds
+  const indexSqliteBytes = canAppendToCurrentIndex
+    ? await createAppendedSourceTranscriptSqliteIndexBytes({
+      source_index_file_path: await resolveCurrentSourceTranscriptIndexFilePath(input.library_root),
+      library_id: input.library_id,
+      index_version: indexVersion,
+      created_at: input.now,
+      ordered_source_video_ids: nextReadyIds,
+      videos: await buildSearchSqliteVideosFromManifests({
+        library_root: input.library_root,
+        manifests_by_id: manifestsById,
+        source_video_ids: publishedSourceVideoIds
+      })
     })
-  });
+    : await createSourceTranscriptSqliteIndexBytes({
+      library_id: input.library_id,
+      index_version: indexVersion,
+      created_at: input.now,
+      videos: await buildSearchSqliteVideosFromManifests({
+        library_root: input.library_root,
+        manifests_by_id: manifestsById,
+        source_video_ids: nextReadyIds
+      })
+    });
 
   await publishIndexPackage({
     library_root: input.library_root,
