@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   appendSourceTranscriptSqliteIndex,
@@ -173,6 +173,12 @@ function indexRoot(libraryRoot: string): string {
   );
 }
 
+async function makeFileReadable(filePath: string): Promise<void> {
+  await chmod(filePath, 0o666).catch(() => {
+    // Best effort for SMB/NAS filesystems that may not support chmod.
+  });
+}
+
 function jsonBytes(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
@@ -252,7 +258,9 @@ export async function publishIndexPackage(input: PublishIndexPackageInput): Prom
 
   try {
     await mkdir(tempDir, { recursive: false });
-    await writeFile(path.join(tempDir, "index.sqlite"), input.index_sqlite_bytes);
+    const indexFilePath = path.join(tempDir, "index.sqlite");
+    await writeFile(indexFilePath, input.index_sqlite_bytes);
+    await makeFileReadable(indexFilePath);
     await writeFile(
       path.join(tempDir, "index-manifest.json"),
       jsonBytes(input.manifest),
@@ -300,15 +308,17 @@ async function publishAppendedIndexPackage(
 
   try {
     await mkdir(tempDir, { recursive: false });
+    const indexFilePath = path.join(tempDir, "index.sqlite");
     await appendSourceTranscriptSqliteIndex({
       source_index_file_path: input.source_index_file_path,
-      index_file_path: path.join(tempDir, "index.sqlite"),
+      index_file_path: indexFilePath,
       library_id: input.manifest.library_id,
       index_version: input.manifest.index_version,
       created_at: input.manifest.created_at,
       videos: input.videos,
       ordered_source_video_ids: input.ordered_source_video_ids
     });
+    await makeFileReadable(indexFilePath);
     await writeFile(
       path.join(tempDir, "index-manifest.json"),
       jsonBytes(input.manifest),

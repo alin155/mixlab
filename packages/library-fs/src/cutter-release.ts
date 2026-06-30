@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { copyFile, link, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, copyFile, link, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   isVideoVisibleToCutters,
@@ -521,6 +521,9 @@ async function copyIfPresent(sourcePath: string, targetPath: string): Promise<bo
   } catch {
     await copyFile(sourcePath, targetPath);
   }
+  await chmod(targetPath, 0o666).catch(() => {
+    // Best effort for SMB/NAS filesystems that may not support chmod.
+  });
   return true;
 }
 

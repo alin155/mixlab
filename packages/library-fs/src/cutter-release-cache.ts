@@ -1,4 +1,4 @@
-import { cp, copyFile, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
+import { chmod, cp, copyFile, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type {
   CutterReleaseCurrentPointer,
@@ -278,6 +278,26 @@ async function releaseFilesReady(root: string, releaseVersion: string): Promise<
   }
 }
 
+async function makeReleaseTreeReadable(root: string): Promise<void> {
+  await chmod(root, 0o777).catch(() => {
+    // Best effort for filesystems that do not support chmod.
+  });
+
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+  await Promise.all(entries.map(async (entry) => {
+    const entryPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      await makeReleaseTreeReadable(entryPath);
+      return;
+    }
+    if (entry.isFile()) {
+      await chmod(entryPath, 0o666).catch(() => {
+        // Best effort for filesystems that do not support chmod.
+      });
+    }
+  }));
+}
+
 async function readCurrentPointer(root: string): Promise<CutterReleaseCurrentPointer> {
   const pointer = await readJsonFile<CutterReleaseCurrentPointer>(currentReleasePointerPath(root));
 
@@ -309,6 +329,7 @@ async function copyReleaseFiles(input: {
       force: true,
       errorOnExist: false
     });
+    await makeReleaseTreeReadable(tempReleaseRoot);
     await rm(targetReleaseRoot, { recursive: true, force: true });
     await rename(tempReleaseRoot, targetReleaseRoot);
     return true;
@@ -328,6 +349,9 @@ async function writeCachePointer(input: {
 
   await mkdir(path.dirname(targetPointerPath), { recursive: true });
   await copyFile(sourcePointerPath, tempPointerPath);
+  await chmod(tempPointerPath, 0o666).catch(() => {
+    // Best effort for filesystems that do not support chmod.
+  });
   await rename(tempPointerPath, targetPointerPath);
 }
 
