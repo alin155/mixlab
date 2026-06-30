@@ -3464,6 +3464,19 @@ test("Admin Docker workflow builds, smokes, and only pushes NAS images after exp
   assert.match(workflow, /name: mixlab-admin-docker-local-smoke/);
   assert.match(workflow, /Log in to GHCR[\s\S]*if: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true \}\}/);
   assert.match(workflow, /push: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true \}\}/);
+  assert.match(workflow, /export_image_archives:[\s\S]*Export docker-loadable Admin image archives as workflow artifacts after push[\s\S]*type: boolean/);
+  assert.match(
+    workflow,
+    /Export Admin Docker image archives[\s\S]*if: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && inputs\.export_image_archives == true \}\}/
+  );
+  assert.match(workflow, /docker pull "\$runtime_image"[\s\S]*docker pull "\$web_image"/);
+  assert.match(workflow, /docker save "\$runtime_image" \| gzip -1[\s\S]*docker save "\$web_image" \| gzip -1/);
+  assert.match(workflow, /sha256sum \*\.tar\.gz > SHA256SUMS/);
+  assert.match(workflow, /load_command: "docker load -i <archive>\.tar\.gz"/);
+  assert.match(
+    workflow,
+    /Upload Admin Docker image archives[\s\S]*if: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && inputs\.export_image_archives == true \}\}[\s\S]*name: mixlab-admin-docker-image-archives-\$\{\{ github\.sha \}\}[\s\S]*dist\/admin-docker-images\/\*\.tar\.gz[\s\S]*dist\/admin-docker-images\/SHA256SUMS[\s\S]*dist\/admin-docker-images\/manifest\.json/
+  );
   assert.match(workflow, /MIXLAB_DOCKER_TARGET_IMAGE_TAG: \$\{\{ github\.sha \}\}/);
   assert.match(workflow, /MIXLAB_DOCKER_PUSH_APPROVAL: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.push_images == true && 'workflow_dispatch:push_images=true' \|\| '' \}\}/);
   assert.match(workflow, /name: mixlab-admin-docker-release-gates/);

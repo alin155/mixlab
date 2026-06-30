@@ -16,6 +16,11 @@ on:
         description: "Rollback Admin Docker image tag, normally matching the current deployed tag"
         required: false
         type: string
+      export_image_archives:
+        description: "Export docker-loadable Admin image archives as workflow artifacts after push"
+        required: true
+        default: false
+        type: boolean
   push:
     branches:
       - main
@@ -163,6 +168,89 @@ jobs:
             MIXLAB_BUILD_VERSION=${{ github.sha }}
             MIXLAB_IMAGE_TAG=${{ github.sha }}
             MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1
+
+      - name: Export Admin Docker image archives
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true && inputs.export_image_archives == true }}
+        env:
+          MIXLAB_DOCKER_IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          archive_dir="dist/admin-docker-images"
+          mkdir -p "$archive_dir"
+
+          runtime_image="ghcr.io/alin155/mixlab-admin-runtime:${MIXLAB_DOCKER_IMAGE_TAG}"
+          web_image="ghcr.io/alin155/mixlab-admin-web:${MIXLAB_DOCKER_IMAGE_TAG}"
+
+          docker pull "$runtime_image"
+          docker pull "$web_image"
+
+          docker save "$runtime_image" | gzip -1 > "$archive_dir/mixlab-admin-runtime-${MIXLAB_DOCKER_IMAGE_TAG}.tar.gz"
+          docker save "$web_image" | gzip -1 > "$archive_dir/mixlab-admin-web-${MIXLAB_DOCKER_IMAGE_TAG}.tar.gz"
+
+          (
+            cd "$archive_dir"
+            sha256sum *.tar.gz > SHA256SUMS
+          )
+
+          node <<'NODE'
+          const { readdirSync, readFileSync, statSync, writeFileSync } = require("node:fs");
+          const { join } = require("node:path");
+          const archiveDir = "dist/admin-docker-images";
+          const imageTag = process.env.MIXLAB_DOCKER_IMAGE_TAG;
+          const checksums = new Map(
+            readFileSync(join(archiveDir, "SHA256SUMS"), "utf8")
+              .trim()
+              .split(/\n/)
+              .filter(Boolean)
+              .map((line) => {
+                const [sha256, file] = line.trim().split(/\s+/, 2);
+                return [file, sha256];
+              })
+          );
+          const archives = readdirSync(archiveDir)
+            .filter((file) => file.endsWith(".tar.gz"))
+            .sort()
+            .map((file) => ({
+              file,
+              image_tag: imageTag,
+              image:
+                file.includes("runtime")
+                  ? `ghcr.io/alin155/mixlab-admin-runtime:${imageTag}`
+                  : `ghcr.io/alin155/mixlab-admin-web:${imageTag}`,
+              sha256: checksums.get(file),
+              size_bytes: statSync(join(archiveDir, file)).size
+            }));
+          writeFileSync(
+            join(archiveDir, "manifest.json"),
+            JSON.stringify(
+              {
+                schema_version: 1,
+                generated_by: "Build Admin Docker Images",
+                github_sha: imageTag,
+                artifact_name: `mixlab-admin-docker-image-archives-${imageTag}`,
+                format: "docker save gzip",
+                load_command: "docker load -i <archive>.tar.gz",
+                archives
+              },
+              null,
+              2
+            ) + "\n"
+          );
+          NODE
+
+          ls -lh "$archive_dir"
+
+      - name: Upload Admin Docker image archives
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true && inputs.export_image_archives == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-admin-docker-image-archives-${{ github.sha }}
+          path: |
+            dist/admin-docker-images/*.tar.gz
+            dist/admin-docker-images/SHA256SUMS
+            dist/admin-docker-images/manifest.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Generate Admin Docker staging and release readiness reports
         env:
