@@ -171,7 +171,7 @@ async function writeWindowsAcceptanceReport(input: {
   return reportPath;
 }
 
-test("post-batch proof treats API-safe stale SMB direct reads as follow-up, not next-batch blocker", async () => {
+test("post-batch proof treats API-safe stale SMB direct reads as follow-up, not scale-up blocker", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-post-batch-"));
   const secret = "fixture-secret-token";
 
@@ -200,8 +200,8 @@ test("post-batch proof treats API-safe stale SMB direct reads as follow-up, not 
 
     assert.equal(report.status, "passed-with-follow-up");
     assert.equal(report.next_small_batch_allowed, true);
-    assert.equal(report.scale_up_allowed, false);
-    assert.equal(report.summary.scale_up_blockers.includes("smb-direct-post-files"), true);
+    assert.equal(report.scale_up_allowed, true);
+    assert.equal(report.summary.scale_up_blockers.includes("smb-direct-post-files"), false);
     assert.equal(report.source_items.every((item) => item.smb_status === "stale-follow-up"), true);
     const saved = await readFile(report.artifacts?.json_path ?? "", "utf8");
     assert.equal(saved.includes(secret), false);

@@ -932,7 +932,7 @@ function buildGates(input: {
             .map((item) => `${item.source_video_id}:${item.smb_status},source=${item.smb_source_status || "unknown"},job=${item.smb_job_status || "unknown"},nul=${String(item.smb_contains_nul)}`)
             .join(", "),
       blocks_next_small_batch: smbHardProblem,
-      blocks_scale_up: !smbClean,
+      blocks_scale_up: smbHardProblem,
       required_evidence: smbClean
         ? undefined
         : smbFollowUp
@@ -1201,7 +1201,9 @@ export async function runAdminPreprocessPostBatchProof(input: {
     status,
     mutates_nas_files: false,
     next_small_batch_allowed: summary.next_small_batch_blockers.length === 0 && summary.failed === 0,
-    scale_up_allowed: summary.scale_up_blockers.length === 0 && status === "passed",
+    scale_up_allowed: summary.scale_up_blockers.length === 0 &&
+      summary.failed === 0 &&
+      summary.blocked === 0,
     target: {
       base_url: baseUrl,
       normalized_base_url: classification.normalized_base_url,
