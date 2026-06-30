@@ -24,12 +24,14 @@ function buildFetch(input: {
   ready_count?: number;
   queued_count?: number;
   index_required_count?: number;
+  index_version?: string;
   source_status?: string;
   source_visible?: boolean;
 } = {}): typeof fetch {
   const readyCount = input.ready_count ?? 10471;
   const queuedCount = input.queued_count ?? 876;
   const indexRequiredCount = input.index_required_count ?? 47;
+  const indexVersion = input.index_version ?? "v010471";
   const sourceStatus = input.source_status ?? "index-required";
   const sourceVisible = input.source_visible ?? false;
 
@@ -52,7 +54,7 @@ function buildFetch(input: {
         queued_video_count: queuedCount,
         processing_video_count: 0,
         index_required_video_count: indexRequiredCount,
-        current_index_version: "v010471"
+        current_index_version: indexVersion
       });
     }
     if (route === "/api/admin/preprocess/supervisor/status") {
@@ -76,7 +78,7 @@ function buildFetch(input: {
           status: sourceStatus
         },
         artifacts: {
-          index_version: "",
+          index_version: indexVersion,
           artifact_complete: true
         }
       });
@@ -96,24 +98,34 @@ async function writeSmbFixture(input: {
   root: string;
   source_status: string;
   job_status: string;
+  source_visible?: boolean;
+  ready_count?: number;
   queued_count: number;
   index_required_count: number;
+  current_index_version?: string;
+  omit_current_index_version?: boolean;
   nul_suffix?: boolean;
 }): Promise<void> {
-  await writeJson(input.root, ".mixlab-library/library.json", {
+  const readyCount = input.ready_count ?? 10471;
+  const currentIndexVersion = input.current_index_version ?? "v010471";
+  const sourceVisible = input.source_visible ?? false;
+  const libraryManifest: Record<string, unknown> = {
     video_count: 11394,
-    ready_video_count: 10471,
+    ready_video_count: readyCount,
     queued_video_count: input.queued_count,
     processing_video_count: 0,
-    index_required_video_count: input.index_required_count,
-    current_index_version: "v010471"
-  }, input.nul_suffix ? "\u0000" : "");
+    index_required_video_count: input.index_required_count
+  };
+  if (!input.omit_current_index_version) {
+    libraryManifest.current_index_version = currentIndexVersion;
+  }
+  await writeJson(input.root, ".mixlab-library/library.json", libraryManifest, input.nul_suffix ? "\u0000" : "");
 
   for (const sourceVideoId of IDS) {
     await writeJson(input.root, `.mixlab-library/videos/${sourceVideoId}/source-video.json`, {
       source_video_id: sourceVideoId,
       preprocess_status: input.source_status,
-      visible_to_cutters: false
+      visible_to_cutters: sourceVisible
     }, input.nul_suffix ? "\u0000" : "");
     await writeJson(input.root, `.mixlab-library/videos/${sourceVideoId}/preprocess-job.json`, {
       source_video_id: sourceVideoId,
@@ -166,6 +178,39 @@ async function writeWindowsAcceptanceReport(input: {
     windows_acceptance: {
       api_base_url: "http://127.0.0.1:3789",
       app_runtime_smoke: appRuntimeSmoke
+    }
+  }, null, 2)}\n`, "utf8");
+  return reportPath;
+}
+
+async function writeRealCutReport(input: {
+  dir: string;
+  status?: string;
+  source_video_id?: string;
+  run_next_status?: string;
+  output_file?: string;
+}): Promise<string> {
+  const reportPath = path.join(input.dir, "real-cut.json");
+  await writeFile(reportPath, `${JSON.stringify({
+    schema_version: "1.0",
+    suite: "real_cut_smoke",
+    status: input.status ?? "passed",
+    runner_version: "0.1.34",
+    real_cut_smoke: {
+      selected_source_video_id: input.source_video_id ?? IDS[0],
+      query: "fixture query",
+      run_next_status: input.run_next_status ?? "done",
+      output_file: input.output_file ?? "export-clips/E000001/001-fixture.mp4",
+      phase_timings: [
+        {
+          phase_id: "resolve_source",
+          status: "done"
+        },
+        {
+          phase_id: "cut_media",
+          status: "done"
+        }
+      ]
     }
   }, null, 2)}\n`, "utf8");
   return reportPath;
@@ -308,6 +353,116 @@ test("post-batch proof passes when API, SMB and Windows evidence all match", asy
     assert.equal(report.next_small_batch_allowed, true);
     assert.equal(report.scale_up_allowed, true);
     assert.equal(report.summary.next_small_batch_blockers.length, 0);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("post-batch proof supports post-publish ready visible evidence", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-post-batch-"));
+
+  try {
+    await writeSmbFixture({
+      root: tempDir,
+      source_status: "ready",
+      job_status: "ready",
+      source_visible: true,
+      ready_count: 10475,
+      queued_count: 794,
+      index_required_count: 114,
+      current_index_version: "v010475",
+      omit_current_index_version: true
+    });
+    const windowsReport = await writeWindowsAcceptanceReport({
+      dir: tempDir,
+      available_video_count: 10475,
+      release_version: "v010475"
+    });
+    const realCutReport = await writeRealCutReport({
+      dir: tempDir,
+      source_video_id: IDS[1]
+    });
+    const report = await runAdminPreprocessPostBatchProof({
+      base_url: BASE_URL,
+      source_video_ids: IDS,
+      proof_phase: "post-publish",
+      expected_ready_count: 10475,
+      expected_index_version: "v010475",
+      expected_queued_count: 794,
+      expected_index_required_count: 114,
+      library_mount_root: tempDir,
+      windows_acceptance_report_path: windowsReport,
+      real_cut_report_path: realCutReport,
+      output_dir: tempDir,
+      date: new Date("2026-06-30T14:40:00.000Z"),
+      fetch_impl: buildFetch({
+        ready_count: 10475,
+        queued_count: 794,
+        index_required_count: 114,
+        index_version: "v010475",
+        source_status: "ready",
+        source_visible: true
+      })
+    });
+
+    assert.equal(report.status, "passed");
+    assert.equal(report.target.proof_phase, "post-publish");
+    assert.equal(report.next_small_batch_allowed, true);
+    assert.equal(report.scale_up_allowed, true);
+    assert.equal(report.summary.next_small_batch_blockers.length, 0);
+    assert.equal(report.gates.some((item) => item.id === "api-selected-sources-ready-visible" && item.status === "pass"), true);
+    assert.equal(report.gates.some((item) => item.id === "windows-real-cut-published-source" && item.status === "pass"), true);
+    assert.equal(report.source_items.every((item) => item.api_preprocess_status === "ready" && item.api_visible_to_cutters === true), true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("post-publish proof blocks when real cut evidence is missing", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mixlab-post-batch-"));
+
+  try {
+    await writeSmbFixture({
+      root: tempDir,
+      source_status: "ready",
+      job_status: "ready",
+      source_visible: true,
+      ready_count: 10475,
+      queued_count: 794,
+      index_required_count: 114,
+      current_index_version: "v010475",
+      omit_current_index_version: true
+    });
+    const windowsReport = await writeWindowsAcceptanceReport({
+      dir: tempDir,
+      available_video_count: 10475,
+      release_version: "v010475"
+    });
+    const report = await runAdminPreprocessPostBatchProof({
+      base_url: BASE_URL,
+      source_video_ids: IDS,
+      proof_phase: "post-publish",
+      expected_ready_count: 10475,
+      expected_index_version: "v010475",
+      expected_queued_count: 794,
+      expected_index_required_count: 114,
+      library_mount_root: tempDir,
+      windows_acceptance_report_path: windowsReport,
+      output_dir: tempDir,
+      date: new Date("2026-06-30T14:41:00.000Z"),
+      fetch_impl: buildFetch({
+        ready_count: 10475,
+        queued_count: 794,
+        index_required_count: 114,
+        index_version: "v010475",
+        source_status: "ready",
+        source_visible: true
+      })
+    });
+
+    assert.equal(report.status, "blocked");
+    assert.equal(report.next_small_batch_allowed, false);
+    assert.equal(report.summary.next_small_batch_blockers.includes("windows-real-cut-published-source"), true);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

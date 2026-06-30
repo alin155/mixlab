@@ -99,6 +99,7 @@
     "validate:admin-preprocess-single-video-smoke": "tsx scripts/acceptance/admin-preprocess-single-video-smoke.ts",
     "validate:admin-preprocess-small-batch-smoke": "tsx scripts/acceptance/admin-preprocess-small-batch-smoke.ts",
     "validate:admin-preprocess-maintenance-window-smoke": "tsx scripts/acceptance/admin-preprocess-maintenance-window-smoke.ts",
+    "prepare:admin-preprocess-execution-runbook": "tsx scripts/acceptance/admin-preprocess-execution-runbook.ts",
     "validate:admin-preprocess-post-batch-proof": "tsx scripts/acceptance/admin-preprocess-post-batch-proof.ts",
     "validate:admin-real-nas-performance-isolated": "tsx scripts/acceptance/admin-real-nas-performance-isolated.ts",
     "audit:local-web-sanity": "tsx scripts/acceptance/local-web-sanity.ts",

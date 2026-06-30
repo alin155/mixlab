@@ -18,6 +18,7 @@ type HttpMethod = "GET";
 type ProofStatus = "passed" | "passed-with-follow-up" | "blocked" | "failed";
 type GateStatus = "pass" | "fail" | "blocked" | "needs-follow-up" | "not-provided";
 type GateCategory = "scope" | "target" | "api" | "smb" | "windows-cutter";
+type PostBatchProofPhase = "pre-publish" | "post-publish";
 
 interface ApiEnvelope {
   ok?: unknown;
@@ -78,6 +79,19 @@ interface WindowsAcceptanceObservation {
   search_index_version: string;
 }
 
+interface RealCutObservation {
+  report_path: string;
+  provided: boolean;
+  status: string;
+  runner_version: string;
+  selected_source_video_id: string;
+  query: string;
+  run_next_status: string;
+  output_file: string;
+  resolve_source_done: boolean;
+  cut_media_done: boolean;
+}
+
 interface PostBatchProofSummary {
   total: number;
   passed: number;
@@ -103,6 +117,7 @@ export interface AdminPreprocessPostBatchProofReport {
     normalized_base_url: string;
     safe_to_probe: boolean;
     classification: string;
+    proof_phase: PostBatchProofPhase;
     session_token_present: boolean;
     source_video_ids: string[];
     expected_library_root: string;
@@ -112,6 +127,7 @@ export interface AdminPreprocessPostBatchProofReport {
     expected_index_required_count: number | null;
     library_mount_root: string;
     windows_acceptance_report_path: string;
+    real_cut_report_path: string;
   };
   observed: {
     library_root: string;
@@ -123,6 +139,7 @@ export interface AdminPreprocessPostBatchProofReport {
     supervisor_state: string;
     processing_list_count: number | null;
     windows_acceptance: WindowsAcceptanceObservation;
+    real_cut: RealCutObservation;
   };
   requests: PostBatchProofRequestResult[];
   source_items: PostBatchSourceItem[];
@@ -162,6 +179,10 @@ function parseOptionalInteger(value: string | undefined): number | null {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseProofPhase(value: string | undefined): PostBatchProofPhase {
+  return value === "post-publish" ? "post-publish" : "pre-publish";
 }
 
 function parseSourceVideoIds(value: string | undefined): string[] {
@@ -531,9 +552,10 @@ function directLibraryMatches(input: {
   expected_index_required_count: number | null;
 }): boolean {
   const fields = input.check.library_manifest.fields;
+  const directIndexVersion = asString(fields.current_index_version);
   return asNumber(fields.ready_video_count) === input.expected_ready_count &&
     asNumber(fields.processing_video_count) === 0 &&
-    asString(fields.current_index_version) === input.expected_index_version &&
+    (!directIndexVersion || directIndexVersion === input.expected_index_version) &&
     (
       input.expected_queued_count === null ||
       asNumber(fields.queued_video_count) === input.expected_queued_count
@@ -544,9 +566,48 @@ function directLibraryMatches(input: {
     );
 }
 
+function sourceExpectation(input: {
+  phase: PostBatchProofPhase;
+}): {
+  status: string;
+  visible_to_cutters: boolean;
+  gate_id: string;
+  title: string;
+  required_evidence: string;
+} {
+  return input.phase === "post-publish"
+    ? {
+        status: "ready",
+        visible_to_cutters: true,
+        gate_id: "api-selected-sources-ready-visible",
+        title: "Selected post-publish sources are ready and visible to Cutter",
+        required_evidence: "Every selected id must be ready and visible_to_cutters=true through Admin API."
+      }
+    : {
+        status: "index-required",
+        visible_to_cutters: false,
+        gate_id: "api-selected-sources-index-required-hidden",
+        title: "Selected post-batch sources are index-required and hidden from Cutter",
+        required_evidence: "Every selected id must be index-required and visible_to_cutters=false through Admin API."
+      };
+}
+
+function directSourceMatchesPhase(input: {
+  check: SingleVideoSmokePostFileCheck;
+  phase: PostBatchProofPhase;
+}): boolean {
+  const expectation = sourceExpectation({ phase: input.phase });
+  const sourceFields = input.check.source_video_manifest.fields;
+  const jobFields = input.check.preprocess_job.fields;
+  return asString(sourceFields.preprocess_status) === expectation.status &&
+    readDirectBoolean(sourceFields.visible_to_cutters) === expectation.visible_to_cutters &&
+    asString(jobFields.status) === expectation.status;
+}
+
 function classifySmbCheck(input: {
   check: SingleVideoSmokePostFileCheck | undefined;
   api_passed: boolean;
+  phase: PostBatchProofPhase;
   expected_ready_count: number;
   expected_index_version: string;
   expected_queued_count: number | null;
@@ -559,11 +620,10 @@ function classifySmbCheck(input: {
     return "blocked";
   }
 
-  const sourceFields = input.check.source_video_manifest.fields;
-  const jobFields = input.check.preprocess_job.fields;
-  const sourceOk = asString(sourceFields.preprocess_status) === "index-required" &&
-    readDirectBoolean(sourceFields.visible_to_cutters) === false;
-  const jobOk = asString(jobFields.status) === "index-required";
+  const sourceOk = directSourceMatchesPhase({
+    check: input.check,
+    phase: input.phase
+  });
   const noNul = directFileContainsNul(input.check) === false;
   const libraryOk = directLibraryMatches({
     check: input.check,
@@ -573,7 +633,7 @@ function classifySmbCheck(input: {
     expected_index_required_count: input.expected_index_required_count
   });
 
-  if (sourceOk && jobOk && noNul && libraryOk) {
+  if (sourceOk && noNul && libraryOk) {
     return "clean";
   }
   if (input.api_passed) {
@@ -648,6 +708,48 @@ async function loadWindowsAcceptanceObservation(reportPath?: string): Promise<Wi
       releaseCache.search_index_version,
       searchBackend.index_version
     )
+  };
+}
+
+function phaseDone(root: unknown, phaseId: string): boolean {
+  return asArray(asRecord(root).phase_timings)
+    .some((item) => {
+      const phase = asRecord(item);
+      return phase.phase_id === phaseId && phase.status === "done";
+    });
+}
+
+async function loadRealCutObservation(reportPath?: string): Promise<RealCutObservation> {
+  const trimmedPath = optionalTrimmed(reportPath);
+  if (!trimmedPath) {
+    return {
+      report_path: "",
+      provided: false,
+      status: "",
+      runner_version: "",
+      selected_source_video_id: "",
+      query: "",
+      run_next_status: "",
+      output_file: "",
+      resolve_source_done: false,
+      cut_media_done: false
+    };
+  }
+
+  const report = JSON.parse(await readFile(trimmedPath, "utf8")) as unknown;
+  const root = asRecord(report);
+  const realCut = asRecord(root.real_cut_smoke);
+  return {
+    report_path: trimmedPath,
+    provided: true,
+    status: asString(root.status),
+    runner_version: asString(root.runner_version),
+    selected_source_video_id: asString(realCut.selected_source_video_id),
+    query: asString(realCut.query),
+    run_next_status: asString(realCut.run_next_status),
+    output_file: asString(realCut.output_file),
+    resolve_source_done: phaseDone(realCut, "resolve_source"),
+    cut_media_done: phaseDone(realCut, "cut_media")
   };
 }
 
@@ -746,23 +848,26 @@ function buildSourceItems(input: {
   source_video_ids: string[];
   requests: PostBatchProofRequestResult[];
   smb_checks: SingleVideoSmokePostFileCheck[];
+  proof_phase: PostBatchProofPhase;
   expected_ready_count: number;
   expected_index_version: string;
   expected_queued_count: number | null;
   expected_index_required_count: number | null;
 }): PostBatchSourceItem[] {
+  const expectation = sourceExpectation({ phase: input.proof_phase });
   return input.source_video_ids.map((sourceVideoId) => {
     const requestName = `source_video:${sourceVideoId}`;
     const detail = requestData(input.requests, requestName);
     const apiStatus = sourceVideoStatus(detail);
     const apiVisible = sourceVideoVisible(detail);
     const apiPassed = requestOk(input.requests, requestName) &&
-      apiStatus === "index-required" &&
-      apiVisible === false;
+      apiStatus === expectation.status &&
+      apiVisible === expectation.visible_to_cutters;
     const check = input.smb_checks.find((item) => item.source_video_id === sourceVideoId);
     const smbStatus = classifySmbCheck({
       check,
       api_passed: apiPassed,
+      phase: input.proof_phase,
       expected_ready_count: input.expected_ready_count,
       expected_index_version: input.expected_index_version,
       expected_queued_count: input.expected_queued_count,
@@ -791,6 +896,7 @@ function buildGates(input: {
   source_video_ids: string[];
   classification_safe: boolean;
   classification_evidence: string;
+  proof_phase: PostBatchProofPhase;
   library: unknown;
   supervisor: unknown;
   processing_list: unknown;
@@ -798,6 +904,7 @@ function buildGates(input: {
   source_items: PostBatchSourceItem[];
   smb_checks: SingleVideoSmokePostFileCheck[];
   windows: WindowsAcceptanceObservation;
+  real_cut: RealCutObservation;
   expected_library_root: string;
   expected_ready_count: number;
   expected_index_version: string;
@@ -805,6 +912,7 @@ function buildGates(input: {
   expected_index_required_count: number | null;
   library_mount_root: string;
 }): PostBatchProofGate[] {
+  const expectation = sourceExpectation({ phase: input.proof_phase });
   const libraryOk = requestOk(input.requests, "library_status");
   const root = libraryRoot(input.library);
   const ready = readyCount(input.library);
@@ -848,8 +956,17 @@ function buildGates(input: {
       !input.windows.search_index_version ||
       input.windows.search_index_version === input.expected_index_version
     );
+  const realCutRequired = input.proof_phase === "post-publish";
+  const realCutSelectedMatches = input.source_video_ids.includes(input.real_cut.selected_source_video_id);
+  const realCutOk = input.real_cut.provided &&
+    input.real_cut.status === "passed" &&
+    input.real_cut.run_next_status === "done" &&
+    Boolean(input.real_cut.output_file) &&
+    realCutSelectedMatches &&
+    input.real_cut.resolve_source_done &&
+    input.real_cut.cut_media_done;
 
-  return [
+  const gates = [
     gate({
       id: "source-video-ids-provided",
       title: "Post-batch proof has explicit source video ids",
@@ -882,8 +999,8 @@ function buildGates(input: {
         : `Expected root=${input.expected_library_root}, ready=${input.expected_ready_count}, processing=0, index=${input.expected_index_version}.`
     }),
     gate({
-      id: "api-selected-sources-index-required-hidden",
-      title: "Selected post-batch sources are index-required and hidden from Cutter",
+      id: expectation.gate_id,
+      title: expectation.title,
       category: "api",
       status: sourceApiOk ? "pass" : "fail",
       evidence: input.source_items
@@ -891,7 +1008,7 @@ function buildGates(input: {
         .join(", ") || "none",
       blocks_next_small_batch: true,
       blocks_scale_up: true,
-      required_evidence: sourceApiOk ? undefined : "Every selected id must be index-required and visible_to_cutters=false through Admin API."
+      required_evidence: sourceApiOk ? undefined : expectation.required_evidence
     }),
     gate({
       id: "api-processing-list-empty",
@@ -941,7 +1058,7 @@ function buildGates(input: {
     }),
     gate({
       id: "windows-cutter-acceptance",
-      title: "Windows Cutter still sees the preserved release",
+      title: "Windows Cutter sees the expected release",
       category: "windows-cutter",
       status: !windowsProvided
         ? "not-provided"
@@ -955,9 +1072,28 @@ function buildGates(input: {
       blocks_scale_up: !windowsOk,
       required_evidence: windowsOk
         ? undefined
-        : "Provide a passing Windows acceptance report with available_video_count=10471 and release/index v010471 before scale-up."
+        : `Provide a passing Windows acceptance report with available_video_count=${input.expected_ready_count} and release/index ${input.expected_index_version} before scale-up.`
     })
   ];
+
+  if (realCutRequired || input.real_cut.provided) {
+    gates.push(gate({
+      id: "windows-real-cut-published-source",
+      title: "Windows Cutter can cut one selected published source",
+      category: "windows-cutter",
+      status: realCutOk ? "pass" : input.real_cut.provided ? "fail" : "blocked",
+      evidence: input.real_cut.provided
+        ? `status=${input.real_cut.status || "unknown"}, runner=${input.real_cut.runner_version || "unknown"}, source=${input.real_cut.selected_source_video_id || "unknown"}, query=${input.real_cut.query || "unknown"}, run_next=${input.real_cut.run_next_status || "unknown"}, output=${input.real_cut.output_file || "missing"}, resolve_source_done=${String(input.real_cut.resolve_source_done)}, cut_media_done=${String(input.real_cut.cut_media_done)}.`
+        : "No real_cut_smoke report path was provided.",
+      blocks_next_small_batch: realCutRequired && !realCutOk,
+      blocks_scale_up: realCutRequired && !realCutOk,
+      required_evidence: realCutOk
+        ? undefined
+        : "For post-publish proof, provide a passing real_cut_smoke report whose selected_source_video_id is one of the selected published ids, run_next=done, output_file is present, and resolve_source/cut_media phases are done."
+    }));
+  }
+
+  return gates;
 }
 
 function buildStatus(summary: PostBatchProofSummary): ProofStatus {
@@ -1047,6 +1183,7 @@ This proof is read-only. It sends GET requests to Admin API, optionally reads di
 - Normalized base URL: ${report.target.normalized_base_url || "n/a"}
 - Safe to probe: ${report.target.safe_to_probe ? "yes" : "no"}
 - Classification: ${report.target.classification}
+- Proof phase: ${report.target.proof_phase}
 - Session token present: ${report.target.session_token_present ? "yes" : "no"}
 - Source videos: ${report.target.source_video_ids.join(", ") || "none"}
 - Expected root: ${report.target.expected_library_root}
@@ -1056,6 +1193,7 @@ This proof is read-only. It sends GET requests to Admin API, optionally reads di
 - Expected index-required count: ${String(report.target.expected_index_required_count)}
 - Library mount root: ${report.target.library_mount_root || "not provided"}
 - Windows acceptance report: ${report.target.windows_acceptance_report_path || "not provided"}
+- Real cut report: ${report.target.real_cut_report_path || "not provided"}
 
 ## Observed
 
@@ -1063,6 +1201,7 @@ This proof is read-only. It sends GET requests to Admin API, optionally reads di
 - Supervisor: ${report.observed.supervisor_state || "unknown"}
 - Processing list count: ${String(report.observed.processing_list_count)}
 - Windows: status=${report.observed.windows_acceptance.status || "not provided"}, runner=${report.observed.windows_acceptance.runner_version || "n/a"}, available=${String(report.observed.windows_acceptance.available_video_count)}, release=${report.observed.windows_acceptance.release_version || "n/a"}, search_index=${report.observed.windows_acceptance.search_index_version || "n/a"}
+- Real cut: status=${report.observed.real_cut.status || "not provided"}, runner=${report.observed.real_cut.runner_version || "n/a"}, source=${report.observed.real_cut.selected_source_video_id || "n/a"}, run_next=${report.observed.real_cut.run_next_status || "n/a"}, output=${report.observed.real_cut.output_file || "missing"}
 
 ## Source Items
 
@@ -1125,6 +1264,7 @@ async function writeArtifacts(input: {
 export async function runAdminPreprocessPostBatchProof(input: {
   base_url?: string;
   source_video_ids?: string[];
+  proof_phase?: PostBatchProofPhase;
   expected_library_root?: string;
   expected_ready_count?: number;
   expected_index_version?: string;
@@ -1133,6 +1273,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
   session_token?: string;
   library_mount_root?: string;
   windows_acceptance_report_path?: string;
+  real_cut_report_path?: string;
   output_dir?: string;
   command?: string;
   date?: Date;
@@ -1141,6 +1282,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
   const date = input.date ?? new Date();
   const baseUrl = trimTrailingSlash(optionalTrimmed(input.base_url));
   const sourceVideoIds = input.source_video_ids ?? [];
+  const proofPhase = input.proof_phase ?? "pre-publish";
   const sessionToken = optionalTrimmed(input.session_token);
   const expectedLibraryRoot = optionalTrimmed(input.expected_library_root) || DEFAULT_EXPECTED_LIBRARY_ROOT;
   const expectedReadyCount = input.expected_ready_count ?? DEFAULT_EXPECTED_READY_COUNT;
@@ -1149,6 +1291,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
   const expectedIndexRequiredCount = input.expected_index_required_count ?? null;
   const classification = classifyLiveReadonlyTarget(baseUrl);
   const windows = await loadWindowsAcceptanceObservation(input.windows_acceptance_report_path);
+  const realCut = await loadRealCutObservation(input.real_cut_report_path);
   const requests = classification.safe_to_probe
     ? await runReadonlyRequests({
         base_url: classification.normalized_base_url,
@@ -1168,6 +1311,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
     source_video_ids: sourceVideoIds,
     requests,
     smb_checks: smbChecks,
+    proof_phase: proofPhase,
     expected_ready_count: expectedReadyCount,
     expected_index_version: expectedIndexVersion,
     expected_queued_count: expectedQueuedCount,
@@ -1177,6 +1321,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
     source_video_ids: sourceVideoIds,
     classification_safe: classification.safe_to_probe,
     classification_evidence: classification.evidence,
+    proof_phase: proofPhase,
     library,
     supervisor,
     processing_list: processingList,
@@ -1184,6 +1329,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
     source_items: sourceItems,
     smb_checks: smbChecks,
     windows,
+    real_cut: realCut,
     expected_library_root: expectedLibraryRoot,
     expected_ready_count: expectedReadyCount,
     expected_index_version: expectedIndexVersion,
@@ -1209,6 +1355,7 @@ export async function runAdminPreprocessPostBatchProof(input: {
       normalized_base_url: classification.normalized_base_url,
       safe_to_probe: classification.safe_to_probe,
       classification: classification.evidence,
+      proof_phase: proofPhase,
       session_token_present: Boolean(sessionToken),
       source_video_ids: sourceVideoIds,
       expected_library_root: expectedLibraryRoot,
@@ -1217,7 +1364,8 @@ export async function runAdminPreprocessPostBatchProof(input: {
       expected_queued_count: expectedQueuedCount,
       expected_index_required_count: expectedIndexRequiredCount,
       library_mount_root: optionalTrimmed(input.library_mount_root),
-      windows_acceptance_report_path: optionalTrimmed(input.windows_acceptance_report_path)
+      windows_acceptance_report_path: optionalTrimmed(input.windows_acceptance_report_path),
+      real_cut_report_path: optionalTrimmed(input.real_cut_report_path)
     },
     observed: {
       library_root: libraryRoot(library),
@@ -1228,7 +1376,8 @@ export async function runAdminPreprocessPostBatchProof(input: {
       current_index_version: currentIndexVersion(library),
       supervisor_state: supervisorState(supervisor),
       processing_list_count: processingListCount(processingList),
-      windows_acceptance: windows
+      windows_acceptance: windows,
+      real_cut: realCut
     },
     requests,
     source_items: sourceItems,
@@ -1259,6 +1408,7 @@ async function main(): Promise<void> {
   const report = await runAdminPreprocessPostBatchProof({
     base_url: process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_BASE_URL,
     source_video_ids: parseSourceVideoIds(process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_SOURCE_VIDEO_IDS),
+    proof_phase: parseProofPhase(process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_PROOF_PHASE),
     expected_library_root: process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_EXPECT_LIBRARY_ROOT,
     expected_ready_count: parsePositiveInteger(
       process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_EXPECT_READY_COUNT,
@@ -1270,6 +1420,7 @@ async function main(): Promise<void> {
     session_token: process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_SESSION_TOKEN,
     library_mount_root: process.env.MIXLAB_ADMIN_PREPROCESS_POST_BATCH_LIBRARY_MOUNT,
     windows_acceptance_report_path: process.env.MIXLAB_CUTTER_WINDOWS_ACCEPTANCE_REPORT,
+    real_cut_report_path: process.env.MIXLAB_CUTTER_REAL_CUT_REPORT,
     output_dir: process.env.MIXLAB_ACCEPTANCE_OUTPUT_DIR,
     command: process.argv.join(" ")
   });

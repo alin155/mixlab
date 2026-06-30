@@ -251,6 +251,8 @@ export interface RealCutSmokeReport {
   app_runtime_smoke?: AppRuntimeSmokeReport;
   checks: ApiProbeResult[];
   query: string;
+  selection_mode?: "search-first-result" | "source-video-id";
+  target_source_video_id?: string;
   selected_source_video_id?: string;
   selected_title?: string;
   selected_segment_id?: string;

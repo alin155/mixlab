@@ -921,6 +921,7 @@ export async function runRealCutSmoke(input: {
   const query = typeof input.options?.query === "string" && input.options.query.trim()
     ? input.options.query.trim()
     : "第一场";
+  const targetSourceVideoId = getString(input.options ?? {}, ["source_video_id", "sourceVideoId"]);
   const cutMode = typeof input.options?.cut_mode === "string" && input.options.cut_mode.trim()
     ? input.options.cut_mode.trim()
     : "copy";
@@ -933,6 +934,8 @@ export async function runRealCutSmoke(input: {
     api_base_url: input.apiBaseUrl,
     checks,
     query,
+    selection_mode: targetSourceVideoId ? "source-video-id" : "search-first-result",
+    target_source_video_id: targetSourceVideoId,
     cut_mode: cutMode,
     project_id: projectId,
     project_title: projectTitle
@@ -999,30 +1002,41 @@ export async function runRealCutSmoke(input: {
     };
   }
 
-  await input.onEvent?.("real_cut_search", `Searching public source library for real cut: ${query}`);
-  const search = await requestJson({
-    id: "real_cut_search",
-    path: `/cutter/source-search?query=${encodeURIComponent(query)}&limit=10`,
-    baseUrl: input.apiBaseUrl,
-    timeoutMs,
-    auth: authHeaders
-  });
-  checks.push(search.check);
-  const searchInfo = searchSummary(query, search.body, search.check.elapsed_ms);
-  if (!search.check.ok || !searchInfo.first_source_video_id) {
-    return {
-      report,
-      passed: false,
-      failure_category: "search_failure",
-      failure_message: search.check.error ?? `No searchable source video found for ${query}.`
-    };
-  }
-  report.selected_source_video_id = searchInfo.first_source_video_id;
-  report.selected_title = searchInfo.first_title;
+  let selectedSourceVideoId = targetSourceVideoId ?? "";
+  let selectedTitle: string | undefined;
+  let detailPath = targetSourceVideoId
+    ? `/cutter/source-videos/${encodeURIComponent(targetSourceVideoId)}`
+    : "";
 
-  const detailPath = searchInfo.first_detail_url ?? `/cutter/source-videos/${encodeURIComponent(searchInfo.first_source_video_id)}`;
+  if (!targetSourceVideoId) {
+    await input.onEvent?.("real_cut_search", `Searching public source library for real cut: ${query}`);
+    const search = await requestJson({
+      id: "real_cut_search",
+      path: `/cutter/source-search?query=${encodeURIComponent(query)}&limit=10`,
+      baseUrl: input.apiBaseUrl,
+      timeoutMs,
+      auth: authHeaders
+    });
+    checks.push(search.check);
+    const searchInfo = searchSummary(query, search.body, search.check.elapsed_ms);
+    if (!search.check.ok || !searchInfo.first_source_video_id) {
+      return {
+        report,
+        passed: false,
+        failure_category: "search_failure",
+        failure_message: search.check.error ?? `No searchable source video found for ${query}.`
+      };
+    }
+    selectedSourceVideoId = searchInfo.first_source_video_id;
+    selectedTitle = searchInfo.first_title;
+    detailPath = searchInfo.first_detail_url ?? `/cutter/source-videos/${encodeURIComponent(searchInfo.first_source_video_id)}`;
+  }
+
+  report.selected_source_video_id = selectedSourceVideoId;
+  report.selected_title = selectedTitle;
+
   await input.onEvent?.("real_cut_detail", "Reading source detail for real cut.", {
-    source_video_id: searchInfo.first_source_video_id
+    source_video_id: selectedSourceVideoId
   });
   const detail = await requestJson({
     id: "real_cut_source_detail",
@@ -1068,7 +1082,7 @@ export async function runRealCutSmoke(input: {
 
   const endMs = Math.min(segmentEndMs, beginMs + maxDurationMs);
   const selectedText = text.slice(0, 120);
-  const sourceTitle = getString(detailData, ["title", "name"]) ?? searchInfo.first_title ?? searchInfo.first_source_video_id;
+  const sourceTitle = getString(detailData, ["title", "name"]) ?? selectedTitle ?? selectedSourceVideoId;
   const sourceRelativePath = getString(detailData, ["source_relative_path", "relative_path", "path"]) ?? sourceTitle;
   report.selected_title = sourceTitle;
   report.selected_segment_id = segmentId;
@@ -1078,7 +1092,7 @@ export async function runRealCutSmoke(input: {
   report.selected_duration_ms = endMs - beginMs;
 
   await input.onEvent?.("real_cut_create_clip_list", "Creating smoke cut list.", {
-    source_video_id: searchInfo.first_source_video_id,
+    source_video_id: selectedSourceVideoId,
     begin_ms: beginMs,
     end_ms: endMs
   });
@@ -1094,7 +1108,7 @@ export async function runRealCutSmoke(input: {
       project_id: projectId,
       title: projectTitle,
       items: [{
-        source_video_id: searchInfo.first_source_video_id,
+        source_video_id: selectedSourceVideoId,
         source_title: sourceTitle,
         source_relative_path: sourceRelativePath,
         start_segment_id: segmentId,

@@ -74,6 +74,8 @@ function createMockCutterApi(input: {
   username?: string;
   password?: string;
   asyncRunNext?: boolean;
+  targetSourceVideoId?: string;
+  expectedClipSourceVideoId?: string;
 } = {}): Server {
   const authMode = input.authMode ?? "local_trusted";
   const deviceId = input.deviceId ?? "acceptance-device";
@@ -246,8 +248,47 @@ function createMockCutterApi(input: {
       }));
       return;
     }
+    if (input.targetSourceVideoId && url.pathname === `/cutter/source-videos/${input.targetSourceVideoId}`) {
+      response.end(JSON.stringify({
+        schema_version: "1.0",
+        data: {
+          source_video_id: input.targetSourceVideoId,
+          title: "刚发布素材",
+          relative_path: "发布验证/C0998.MP4",
+          duration_ms: 940,
+          transcript: {
+            full_text: "分为四个。",
+            segments: [{
+              segment_id: `${input.targetSourceVideoId}-S000001`,
+              begin_ms: 0,
+              end_ms: 940,
+              text: "分为四个。"
+            }]
+          },
+          keyframes: {
+            keyframes_ms: []
+          }
+        }
+      }));
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/cutter/clip-lists") {
-      await readMockRequestBody(request);
+      const body = await readMockRequestBody(request) as {
+        items?: Array<{ source_video_id?: string }>;
+      };
+      if (
+        input.expectedClipSourceVideoId &&
+        body.items?.[0]?.source_video_id !== input.expectedClipSourceVideoId
+      ) {
+        response.statusCode = 400;
+        response.end(JSON.stringify({
+          error: {
+            code: "unexpected_source_video_id",
+            message: `Expected ${input.expectedClipSourceVideoId}`
+          }
+        }));
+        return;
+      }
       response.statusCode = 201;
       response.end(JSON.stringify({
         schema_version: "1.0",
@@ -826,6 +867,67 @@ test("runner supports real cut smoke with a generated cut job", async () => {
       report.real_cut_smoke.phase_timings.map((phase) => phase.phase_id),
       ["resolve_source", "cut_media"]
     );
+  } finally {
+    await close(api);
+    if (runner) {
+      await close(runner.server);
+    }
+    await rmRoot(root);
+  }
+});
+
+test("runner supports real cut smoke targeting an explicit source video id", async () => {
+  const root = await tempRoot();
+  const api = createMockCutterApi({
+    targetSourceVideoId: "V007434",
+    expectedClipSourceVideoId: "V007434"
+  });
+  let apiBaseUrl = "";
+  let runnerBaseUrl = "";
+  let runner: ReturnType<typeof createWindowsTestRunnerServer> | undefined;
+  try {
+    apiBaseUrl = await listen(api);
+    runner = createWindowsTestRunnerServer(runnerConfig({
+      reportsRoot: path.join(root, "reports"),
+      cutterApiBaseUrl: apiBaseUrl
+    }));
+    runnerBaseUrl = await listen(runner.server);
+
+    const createResponse = await fetch(`${runnerBaseUrl}/runs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suite: "real_cut_smoke",
+        options: {
+          query: "a query that would otherwise hit C0001",
+          source_video_id: "V007434",
+          max_duration_ms: 1500
+        }
+      })
+    });
+    assert.equal(createResponse.status, 202);
+    const created = await createResponse.json() as { run: RunSummary };
+    const finished = await waitForRun(runnerBaseUrl, created.run.run_id);
+    assert.equal(finished.status, "passed");
+
+    const report = await (await fetch(`${runnerBaseUrl}/runs/${created.run.run_id}/report`)).json() as {
+      real_cut_smoke: {
+        selection_mode: string;
+        target_source_video_id: string;
+        selected_source_video_id: string;
+        selected_text_preview: string;
+        clip_list_id: string;
+        cut_job_id: string;
+        run_next_status: string;
+      };
+    };
+    assert.equal(report.real_cut_smoke.selection_mode, "source-video-id");
+    assert.equal(report.real_cut_smoke.target_source_video_id, "V007434");
+    assert.equal(report.real_cut_smoke.selected_source_video_id, "V007434");
+    assert.equal(report.real_cut_smoke.selected_text_preview, "分为四个。");
+    assert.equal(report.real_cut_smoke.clip_list_id, "CLSMOKE");
+    assert.equal(report.real_cut_smoke.cut_job_id, "CJSMOKE");
+    assert.equal(report.real_cut_smoke.run_next_status, "done");
   } finally {
     await close(api);
     if (runner) {
