@@ -36,6 +36,7 @@ export interface AdminPublishReadyResult {
   published_source_video_ids: string[];
   ready_video_count: number;
   skipped_source_video_ids: string[];
+  remaining_index_required_count?: number;
   prepared_source_video_ids: string[];
   published_count: number;
   skipped_count: number;
@@ -48,6 +49,7 @@ interface AdminPublishCommandContext {
   library_id: string;
   command_now: string;
   media: ReadyPublishMedia;
+  limit?: number;
   now?: () => string;
   invalidate_index_version_cache?: () => void;
   actor?: AdminCommandActor;
@@ -95,6 +97,7 @@ function publishCandidateSnapshotFiles(
 async function publishSnapshotFiles(input: {
   library_root: string;
   source_video_ids?: string[];
+  limit?: number;
 }): Promise<AdminCommandSnapshotFileInput[]> {
   const manifests = await readAllSourceVideoManifests(input.library_root);
   const manifestsById = new Map(manifests.map((manifest) => [manifest.source_video_id, manifest]));
@@ -104,7 +107,7 @@ async function publishSnapshotFiles(input: {
         manifests
           .filter((manifest) => manifest.preprocess_status === "index-required")
           .map((manifest) => manifest.source_video_id)
-      );
+      ).slice(0, input.limit);
 
   return [
     {
@@ -240,6 +243,22 @@ async function prepareReadyPublishArtifacts(input: {
   return preparedSourceVideoIds;
 }
 
+async function selectIndexRequiredSourceVideoIds(input: {
+  library_root: string;
+  limit?: number;
+}): Promise<string[] | undefined> {
+  if (!input.limit || input.limit <= 0) {
+    return undefined;
+  }
+
+  const manifests = await readAllSourceVideoManifests(input.library_root);
+  return uniqueSourceVideoIds(
+    manifests
+      .filter((manifest) => manifest.preprocess_status === "index-required")
+      .map((manifest) => manifest.source_video_id)
+  ).slice(0, input.limit);
+}
+
 async function writeThroughPublishedSourceVideos(input: {
   library_root: string;
   source_video_ids: string[];
@@ -271,11 +290,16 @@ export async function publishReadyPreparedVideos(input: {
   now: string;
   media: ReadyPublishMedia;
   source_video_ids?: string[];
+  limit?: number;
   invalidate_index_version_cache?: () => void;
 }): Promise<AdminPublishReadyResult> {
+  const sourceVideoIds = input.source_video_ids ?? await selectIndexRequiredSourceVideoIds({
+    library_root: input.library_root,
+    limit: input.limit
+  });
   const preparedSourceVideoIds = await prepareReadyPublishArtifacts({
     library_root: input.library_root,
-    source_video_ids: input.source_video_ids,
+    source_video_ids: sourceVideoIds,
     now: input.now,
     media: input.media
   });
@@ -283,7 +307,7 @@ export async function publishReadyPreparedVideos(input: {
     library_root: input.library_root,
     library_id: input.library_id,
     now: input.now,
-    ...(input.source_video_ids ? { source_video_ids: input.source_video_ids } : {})
+    ...(sourceVideoIds ? { source_video_ids: sourceVideoIds } : {})
   });
   const publishedCount = result.published_source_video_ids.length;
   const skippedCount = result.skipped_source_video_ids.length;
@@ -295,14 +319,19 @@ export async function publishReadyPreparedVideos(input: {
       generated_at: input.now
     });
   }
+  const latestLibrary = await readAdminLibraryManifest(input.library_root);
+  const remainingIndexRequiredCount = latestLibrary?.index_required_video_count ?? 0;
   const message = publishedCount > 0
-    ? `已发布 ${publishedCount} 个原视频，当前可用 ${result.ready_video_count} 个。`
+    ? remainingIndexRequiredCount > 0
+      ? `已上线 ${publishedCount} 个素材，当前可用 ${result.ready_video_count} 个，还有 ${remainingIndexRequiredCount} 个待上线。`
+      : `已上线 ${publishedCount} 个素材，当前可用 ${result.ready_video_count} 个。`
     : skippedCount > 0
       ? `没有发布新视频，${skippedCount} 个待发布视频缺少文案、字幕、封面或关键帧产物。`
       : "没有需要发布的待索引视频。";
 
   return {
     ...result,
+    remaining_index_required_count: remainingIndexRequiredCount,
     prepared_source_video_ids: preparedSourceVideoIds,
     published_count: publishedCount,
     skipped_count: skippedCount,
@@ -346,7 +375,8 @@ export async function runAdminIndexRepairCommand(
     now: input.command_now,
     actor: input.actor,
     snapshot_files_provider: () => publishSnapshotFiles({
-      library_root: input.library_root
+      library_root: input.library_root,
+      limit: input.limit
     })
   }, () =>
     publishReadyPreparedVideos({
@@ -354,6 +384,7 @@ export async function runAdminIndexRepairCommand(
       library_id: input.library_id,
       now: currentTime(input),
       media: input.media,
+      limit: input.limit,
       invalidate_index_version_cache: input.invalidate_index_version_cache
     })
   );

@@ -3867,7 +3867,7 @@ test("command actions use stable command policy instead of abortable request sco
     "onInitializeLibrary: () => runAction(\"初始化素材库\"",
     "onScanSourceVideos: () => runAction(\"扫描源视频\"",
     "onQueueUnprocessedVideos: () => runAction(\"加入预处理队列\"",
-    "onRepairIndex: () => runAction(\"上线到剪辑端\"",
+    "onRepairIndex: runRepairIndexInBatches",
     "onRunDoctor: () => runAction(\"运行系统检查\"",
     "onSaveAdminSettings: (settings) =>",
     "onApproveCutterUser: (userId) =>",

@@ -3311,7 +3311,7 @@ test("admin index publish prepares missing cover and keyframes before publishing
       assert.equal(published.data.published_count, 1);
       assert.equal(published.data.skipped_count, 0);
       assert.deepEqual(published.data.published_source_video_ids, ["V000001"]);
-      assert.match(published.data.message, /已发布 1 个原视频/);
+      assert.match(published.data.message, /已上线 1 个素材/);
 
       const detail = await getJson(baseUrl, "/api/admin/source-videos/V000001");
       assert.equal(detail.data.preprocess.status, "ready");

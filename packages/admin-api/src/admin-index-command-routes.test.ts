@@ -31,6 +31,7 @@ function makeDeps(overrides: Partial<TestDeps> = {}): TestDeps {
       published_source_video_ids: ["V000001"],
       message: "已发布 1 个原视频，当前可用 1 个。"
     }),
+    read_request_json: async () => ({}),
     clear_source_video_page_cache: () => undefined,
     ...overrides
   };
@@ -102,7 +103,8 @@ test("index repair route dispatches through injected command service and clears 
       api_input: {
         library_root: "/tmp/PublicLibrary",
         request_id: "req-1"
-      }
+      },
+      limit: 10
     }
   ]);
   assert.deepEqual(cleared, ["/tmp/PublicLibrary"]);
@@ -117,6 +119,29 @@ test("index repair route dispatches through injected command service and clears 
       message: "已发布 2 个原视频，当前可用 2 个。"
     }
   });
+});
+
+test("index repair route clamps requested batch limit before dispatch", async () => {
+  const calls: Array<AdminIndexRepairRouteCommandInput<TestApiInput>> = [];
+
+  await callRoute({
+    pathname: "/api/admin/index/repair",
+    deps: makeDeps({
+      read_request_json: async () => ({ limit: 999 }),
+      run_index_repair_command: async (input) => {
+        calls.push(input);
+        return {
+          published_count: 1,
+          skipped_count: 0,
+          affected_count: 1,
+          published_source_video_ids: ["V000001"],
+          message: "已发布 1 个原视频，当前可用 1 个。"
+        };
+      }
+    })
+  });
+
+  assert.equal(calls[0]?.limit, 10);
 });
 
 test("index repair route maps docker mvp command blocks without clearing caches", async () => {

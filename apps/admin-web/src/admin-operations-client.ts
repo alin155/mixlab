@@ -76,7 +76,7 @@ export interface AdminOperationsClientMethods {
   getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
   startPreprocessSupervisor(limit?: number): Promise<AdminPreprocessSupervisorStatus>;
   stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
-  repairIndex(): Promise<AdminActionResult>;
+  repairIndex(options?: { limit?: number }): Promise<AdminActionResult>;
   runDoctor(): Promise<MixlabDoctorReport>;
   exportDoctorReport(): Promise<MixlabDoctorExport>;
   testAsrConfig(): Promise<AdminActionResult>;
@@ -321,8 +321,15 @@ export function createAdminOperationsClientMethods({
         undefined,
         protectedHeaders
       ),
-    repairIndex: () =>
-      sendJson<AdminActionResult>(fetchImpl, baseUrl, "/api/admin/index/repair", "POST", undefined, protectedHeaders),
+    repairIndex: (options) =>
+      sendJson<AdminActionResult>(
+        fetchImpl,
+        baseUrl,
+        "/api/admin/index/repair",
+        "POST",
+        options?.limit ? { limit: options.limit } : undefined,
+        protectedHeaders
+      ),
     runDoctor: () =>
       sendJson<MixlabDoctorReport>(fetchImpl, baseUrl, "/api/admin/doctor/run", "POST", undefined, protectedHeaders),
     exportDoctorReport: () =>

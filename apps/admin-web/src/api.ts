@@ -658,6 +658,7 @@ export interface AdminActionResult {
   published_count?: number;
   skipped_count?: number;
   ready_video_count?: number;
+  remaining_index_required_count?: number;
   passed?: boolean;
   message?: string;
 }
@@ -1573,7 +1574,7 @@ export interface AdminApiClient {
   getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
   startPreprocessSupervisor(limit?: number): Promise<AdminPreprocessSupervisorStatus>;
   stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
-  repairIndex(): Promise<AdminActionResult>;
+  repairIndex(options?: { limit?: number }): Promise<AdminActionResult>;
   runDoctor(): Promise<MixlabDoctorReport>;
   exportDoctorReport(): Promise<MixlabDoctorExport>;
   testAsrConfig(): Promise<AdminActionResult>;

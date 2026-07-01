@@ -598,6 +598,7 @@ function formatActionNotice(label: string, result: unknown): string {
       typeof result.published_count === "number" ? `发布 ${result.published_count} 个` : "",
       typeof result.skipped_count === "number" ? `跳过 ${result.skipped_count} 个` : "",
       typeof result.ready_video_count === "number" ? `当前可用 ${result.ready_video_count} 个` : "",
+      typeof result.remaining_index_required_count === "number" ? `待上线 ${result.remaining_index_required_count} 个` : "",
       typeof result.passed === "boolean" ? (result.passed ? "检测通过" : "检测未通过") : ""
     ].filter(Boolean);
 
@@ -1982,6 +1983,49 @@ export function AdminApp() {
     }
   };
 
+  const runRepairIndexInBatches = async () => {
+    const batchLimit = 10;
+    const maxBatches = 100;
+
+    return runAction("上线全部已处理素材", async (api) => {
+      let publishedCount = 0;
+      let skippedCount = 0;
+      let readyVideoCount = 0;
+      let remainingIndexRequiredCount = 0;
+      const publishedSourceVideoIds: string[] = [];
+      const skippedSourceVideoIds: string[] = [];
+
+      for (let batchIndex = 0; batchIndex < maxBatches; batchIndex += 1) {
+        const result = await api.repairIndex({ limit: batchLimit });
+        publishedCount += result.published_count ?? 0;
+        skippedCount += result.skipped_count ?? 0;
+        readyVideoCount = result.ready_video_count ?? readyVideoCount;
+        remainingIndexRequiredCount = result.remaining_index_required_count ?? 0;
+        publishedSourceVideoIds.push(...(result.published_source_video_ids ?? []));
+        skippedSourceVideoIds.push(...(result.skipped_source_video_ids ?? []));
+
+        if (remainingIndexRequiredCount <= 0 || (result.published_count ?? 0) <= 0) {
+          break;
+        }
+      }
+
+      return {
+        affected_count: publishedCount,
+        published_count: publishedCount,
+        skipped_count: skippedCount,
+        ready_video_count: readyVideoCount,
+        remaining_index_required_count: remainingIndexRequiredCount,
+        published_source_video_ids: publishedSourceVideoIds,
+        skipped_source_video_ids: skippedSourceVideoIds,
+        message: remainingIndexRequiredCount > 0
+          ? `已分批上线 ${publishedCount} 个素材，还有 ${remainingIndexRequiredCount} 个待上线。`
+          : publishedCount > 0
+            ? `已分批上线 ${publishedCount} 个素材，全部已处理素材都可以在剪辑端使用。`
+            : "没有需要上线的已处理素材。"
+      } satisfies AdminActionResult;
+    });
+  };
+
   const runSmartScan = async () => {
     if (!beginAdminCommandAction("扫描新增素材", "正在扫描新增素材、检查系统状态并刷新生产状态...")) {
       return;
@@ -2304,7 +2348,7 @@ export function AdminApp() {
       runAction("启动预处理", (api) => api.startPreprocessSupervisor(1)),
     onStopPreprocessSupervisor: () =>
       runAction("暂停预处理", (api) => api.stopPreprocessSupervisor()),
-    onRepairIndex: () => runAction("上线到剪辑端", (api) => api.repairIndex()),
+    onRepairIndex: runRepairIndexInBatches,
     onRunDoctor: () => runAction("运行系统检查", (api) => api.runDoctor()),
     onTestAsrConfig: () => runAction("检查语音识别", (api) => api.testAsrConfig()),
     onSaveAdminSettings: (settings) =>

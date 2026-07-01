@@ -10,6 +10,7 @@ interface IndexRepairCommandContext<TMedia, TActor> {
   actor?: TActor;
   now?: () => string;
   media: TMedia;
+  limit?: number;
   invalidate_index_version_cache(): void;
 }
 
@@ -25,6 +26,7 @@ export interface CreateAdminIndexCommandRouteDepsInput<
   now?: () => string;
   media: TMedia;
   run_index_repair_command(input: IndexRepairCommandContext<TMedia, TActor>): Promise<TIndexRepairResult>;
+  read_request_json(): Promise<unknown>;
   clear_index_version_cache(libraryRoot: string): void;
   clear_source_video_page_cache(libraryRoot: string): void;
 }
@@ -38,7 +40,7 @@ export function createAdminIndexCommandRouteDeps<
   input: CreateAdminIndexCommandRouteDepsInput<TApiInput, TMedia, TIndexRepairResult, TActor>
 ): AdminIndexCommandRouteDeps<TApiInput, TIndexRepairResult> {
   return {
-    run_index_repair_command({ api_input }) {
+    run_index_repair_command({ api_input, limit }) {
       return input.run_index_repair_command({
         library_root: api_input.library_root,
         library_id: input.library_id,
@@ -46,11 +48,13 @@ export function createAdminIndexCommandRouteDeps<
         actor: input.actor,
         now: input.now,
         media: input.media,
+        limit,
         invalidate_index_version_cache() {
           input.clear_index_version_cache(api_input.library_root);
         }
       });
     },
+    read_request_json: input.read_request_json,
     clear_source_video_page_cache: input.clear_source_video_page_cache
   };
 }

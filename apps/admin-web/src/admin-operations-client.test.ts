@@ -94,7 +94,7 @@ test("calls operations endpoints with session headers and stable query defaults"
   await client.getPreprocessSupervisorStatus();
   await client.startPreprocessSupervisor(1);
   await client.stopPreprocessSupervisor();
-  await client.repairIndex();
+  await client.repairIndex({ limit: 10 });
   await client.runDoctor();
   await client.exportDoctorReport();
   await client.testAsrConfig();
@@ -166,6 +166,10 @@ test("calls operations endpoints with session headers and stable query defaults"
   assert.equal(
     requests.find((request) => request.pathname === "/api/admin/runtime/diagnostics/history")?.search,
     "?limit=20"
+  );
+  assert.deepEqual(
+    requests.find((request) => request.pathname === "/api/admin/index/repair")?.body,
+    { limit: 10 }
   );
   assert.deepEqual(
     requests.find((request) => request.pathname === "/api/admin/settings/config" && request.method === "PATCH")?.body,

@@ -59,6 +59,7 @@ test("index command route deps preserve repair command context and cache helpers
     clear_index_version_cache(libraryRoot) {
       clearedIndexVersions.push(libraryRoot);
     },
+    read_request_json: async () => ({ limit: 10 }),
     clear_source_video_page_cache(libraryRoot) {
       clearedSourceVideos.push(libraryRoot);
     }
@@ -69,7 +70,8 @@ test("index command route deps preserve repair command context and cache helpers
     request_id: "req-1"
   };
   const result = await deps.run_index_repair_command({
-    api_input: apiInput
+    api_input: apiInput,
+    limit: 10
   });
   deps.clear_source_video_page_cache(apiInput.library_root);
 
@@ -89,6 +91,7 @@ test("index command route deps preserve repair command context and cache helpers
         actor,
         now,
         media,
+        limit: 10,
         invalidate_index_version_cache: "function"
       }
     }
@@ -114,6 +117,7 @@ test("index command route deps leave cache invalidation under command control", 
         published_source_video_ids: []
       };
     },
+    read_request_json: async () => ({}),
     clear_index_version_cache(libraryRoot) {
       clearedIndexVersions.push(libraryRoot);
     },
@@ -168,6 +172,7 @@ test("index command route server deps wire direct repair service and cache helpe
     clear_index_version_cache(libraryRoot) {
       clearedIndexVersions.push(libraryRoot);
     },
+    read_request_json: async () => ({ limit: 8 }),
     clear_source_video_page_cache(libraryRoot) {
       clearedSourceVideos.push(libraryRoot);
     }
@@ -178,7 +183,8 @@ test("index command route server deps wire direct repair service and cache helpe
     request_id: "req-2"
   };
   const result = await deps.run_index_repair_command({
-    api_input: apiInput
+    api_input: apiInput,
+    limit: 8
   });
   deps.clear_source_video_page_cache(apiInput.library_root);
 
@@ -198,6 +204,7 @@ test("index command route server deps wire direct repair service and cache helpe
         actor,
         now,
         media,
+        limit: 8,
         invalidate_index_version_cache: "function"
       }
     }

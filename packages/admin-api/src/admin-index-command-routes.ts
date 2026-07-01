@@ -10,6 +10,7 @@ export interface AdminIndexCommandRouteApiInput {
 
 export interface AdminIndexRepairRouteCommandInput<TApiInput extends AdminIndexCommandRouteApiInput> {
   api_input: TApiInput;
+  limit?: number;
 }
 
 export interface AdminIndexCommandRouteDeps<
@@ -17,6 +18,7 @@ export interface AdminIndexCommandRouteDeps<
   TIndexRepairResult
 > {
   run_index_repair_command(input: AdminIndexRepairRouteCommandInput<TApiInput>): Promise<TIndexRepairResult>;
+  read_request_json(): Promise<unknown>;
   clear_source_video_page_cache(libraryRoot: string): void;
 }
 
@@ -44,6 +46,26 @@ export function matchAdminIndexRepairPath(pathname: string): boolean {
   return pathname === "/api/admin/index/repair";
 }
 
+export const ADMIN_INDEX_REPAIR_DEFAULT_BATCH_LIMIT = 10;
+const ADMIN_INDEX_REPAIR_MAX_BATCH_LIMIT = 10;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function indexRepairBatchLimitFromBody(body: unknown): number {
+  const rawLimit = asRecord(body).limit;
+  const numericLimit = typeof rawLimit === "string" ? Number(rawLimit) : rawLimit;
+
+  if (typeof numericLimit !== "number" || !Number.isFinite(numericLimit) || numericLimit <= 0) {
+    return ADMIN_INDEX_REPAIR_DEFAULT_BATCH_LIMIT;
+  }
+
+  return Math.min(Math.floor(numericLimit), ADMIN_INDEX_REPAIR_MAX_BATCH_LIMIT);
+}
+
 export async function handleAdminIndexCommandRoutes<
   TApiInput extends AdminIndexCommandRouteApiInput,
   TIndexRepairResult
@@ -52,8 +74,10 @@ export async function handleAdminIndexCommandRoutes<
 ): Promise<AdminIndexCommandRouteResult> {
   if (input.method === "POST" && matchAdminIndexRepairPath(input.pathname)) {
     try {
+      const body = await input.deps.read_request_json();
       const result = await input.deps.run_index_repair_command({
-        api_input: input.api_input
+        api_input: input.api_input,
+        limit: indexRepairBatchLimitFromBody(body)
       });
       input.deps.clear_source_video_page_cache(input.api_input.library_root);
 

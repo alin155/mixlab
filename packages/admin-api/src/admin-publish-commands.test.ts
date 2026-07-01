@@ -335,7 +335,8 @@ test("index repair command runs under writer lease prepares artifacts publishes 
   assert.equal(result.skipped_count, 0);
   assert.deepEqual(result.prepared_source_video_ids, ["V000001", "V000002"]);
   assert.deepEqual(result.published_source_video_ids, ["V000001", "V000002"]);
-  assert.match(result.message, /已发布 2 个原视频/);
+  assert.equal(result.remaining_index_required_count, 0);
+  assert.match(result.message, /已上线 2 个素材/);
   assert.equal(createdCovers.length, 2);
 
   const firstManifest = await readSourceVideoManifest(libraryRoot, "V000001");
@@ -379,6 +380,50 @@ test("index repair command runs under writer lease prepares artifacts publishes 
     }).preprocess_status,
     "index-required"
   );
+});
+
+test("index repair command limits each manual batch and reports remaining index-required videos", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedPublishLibrary({
+    library_root: libraryRoot,
+    manifests: [
+      sourceVideoManifest({
+        source_video_id: "V000001",
+        relative_path: "cashflow.mp4"
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000002",
+        relative_path: "growth.mp4"
+      })
+    ],
+    counts: counts({
+      video_count: 2,
+      index_required_video_count: 2
+    }),
+    updated_at: "2026-06-26T10:02:00.000Z"
+  });
+
+  const createdCovers: string[] = [];
+  const result = await runAdminIndexRepairCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    command_now: "2026-06-26T10:03:00.000Z",
+    now: () => "2026-06-26T10:03:01.000Z",
+    media: fakeMedia(createdCovers),
+    limit: 1
+  });
+
+  assert.equal(result.published_count, 1);
+  assert.deepEqual(result.published_source_video_ids, ["V000001"]);
+  assert.equal(result.remaining_index_required_count, 1);
+  assert.match(result.message, /还有 1 个待上线/);
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000001")).preprocess_status, "ready");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000002")).preprocess_status, "index-required");
+
+  const snapshot = (await readCommandSnapshotManifests(libraryRoot)).find(
+    (manifest) => manifest.command === "index-repair"
+  );
+  assert.equal(snapshot?.file_summary.requested_file_count, 6);
 });
 
 test("supervisor publish command runs under writer lease snapshots and audits system actor", async () => {

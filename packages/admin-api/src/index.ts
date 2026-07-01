@@ -904,6 +904,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           actor: requestActor,
           now,
           media: readyPublishMedia,
+          read_request_json: () => readRequestJson(request),
           run_index_repair_service: runAdminIndexRepairCommand,
           clear_index_version_cache: clearAdminIndexVersionCache,
           clear_source_video_page_cache: clearAdminSourceVideoPageCache
