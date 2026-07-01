@@ -9,6 +9,8 @@ export interface AdminPreprocessCommandRouteApiInput {
   library_root: string;
 }
 
+export const ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT = 5;
+
 export interface AdminPreprocessCommandRouteSettings<TRuntimePolicy> {
   runtime_policy: TRuntimePolicy;
 }
@@ -27,6 +29,7 @@ export type AdminBulkPreprocessRouteCommand =
 export interface AdminBulkPreprocessRouteCommandInput<TApiInput extends AdminPreprocessCommandRouteApiInput> {
   api_input: TApiInput;
   command: AdminBulkPreprocessRouteCommand;
+  limit?: number;
 }
 
 export interface AdminBulkPreprocessRouteResult {
@@ -148,6 +151,20 @@ function parseOptionalPositiveInteger(value: unknown, label: string): number | u
   }
 
   return Number(value);
+}
+
+function supervisorStartLimit(body: Record<string, unknown>, sourceVideoIds?: string[]): number {
+  const requestedLimit = parseOptionalPositiveInteger(body.limit, "本次限制");
+
+  if (requestedLimit !== undefined) {
+    return requestedLimit;
+  }
+
+  return sourceVideoIds?.length || ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT;
+}
+
+function queueUnprocessedLimit(body: Record<string, unknown>): number | undefined {
+  return parseOptionalPositiveInteger(body.queue_unprocessed_limit, "未处理素材入队数量");
 }
 
 function parseOptionalSourceVideoIds(body: Record<string, unknown>): string[] | undefined {
@@ -299,11 +316,23 @@ export async function handleAdminPreprocessCommandRoutes<
       }
 
       const sourceVideoIds = parseOptionalSourceVideoIds(body);
+      const queueLimit = queueUnprocessedLimit(body);
+      if (queueLimit !== undefined) {
+        const queued = await input.deps.run_bulk_transition_command({
+          api_input: input.api_input,
+          command: "preprocess-queue-unprocessed",
+          limit: queueLimit
+        });
+        if (queued.affected_count > 0) {
+          input.deps.clear_source_video_page_cache(input.api_input.library_root);
+        }
+      }
+
       return {
         handled: true,
         status_code: 200,
         body: apiOk(input.deps.start_preprocess_supervisor({
-          limit: parseOptionalPositiveInteger(body.limit, "本次限制"),
+          limit: supervisorStartLimit(body, sourceVideoIds),
           ...(sourceVideoIds ? { source_video_ids: sourceVideoIds } : {}),
           runtime_policy: settings.runtime_policy
         }))

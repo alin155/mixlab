@@ -320,6 +320,62 @@ test("bulk preprocess transition command runs under writer lease and writes thro
   );
 });
 
+test("bulk preprocess transition command respects batch limit", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedLibrary({
+    library_root: libraryRoot,
+    manifests: [
+      sourceVideoManifest({
+        source_video_id: "V000001",
+        preprocess_status: "unprocessed",
+        visible_to_cutters: false
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000002",
+        preprocess_status: "unprocessed",
+        visible_to_cutters: false
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000003",
+        preprocess_status: "unprocessed",
+        visible_to_cutters: false
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000004",
+        preprocess_status: "ready",
+        visible_to_cutters: true
+      })
+    ],
+    counts: counts({
+      video_count: 4,
+      unprocessed_video_count: 3,
+      ready_video_count: 1
+    }),
+    updated_at: "2026-06-26T10:10:00.000Z"
+  });
+
+  const result = await runAdminBulkTransitionCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command: "preprocess-queue-unprocessed",
+    command_now: "2026-06-26T10:11:00.000Z",
+    now: () => "2026-06-26T10:11:01.000Z",
+    limit: 2
+  });
+
+  assert.equal(result.affected_count, 2);
+  assert.deepEqual(result.source_video_ids, ["V000001", "V000002"]);
+  assert.equal(result.library_counts?.queued_video_count, 2);
+  assert.equal(result.library_counts?.unprocessed_video_count, 1);
+  assert.equal(result.library_counts?.ready_video_count, 1);
+
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000001")).preprocess_status, "queued");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000002")).preprocess_status, "queued");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000003")).preprocess_status, "unprocessed");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000004")).preprocess_status, "ready");
+});
+
 test("pipeline queue command has its own writer lease reason job log and sqlite write-through", async () => {
   const libraryRoot = await makeLibraryRoot();
   const unprocessed = sourceVideoManifest({

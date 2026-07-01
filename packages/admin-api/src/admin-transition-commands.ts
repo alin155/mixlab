@@ -65,6 +65,8 @@ interface AdminTransitionCommandContext {
   command_now: string;
   now?: () => string;
   actor?: AdminCommandActor;
+  limit?: number;
+  source_video_ids?: string[];
 }
 
 interface PreprocessJobRecord {
@@ -109,6 +111,7 @@ async function transitionSnapshotFiles(input: {
   library_root: string;
   from: PreprocessStatus[];
   source_video_ids?: string[];
+  limit?: number;
 }): Promise<AdminCommandSnapshotFileInput[]> {
   const requestedIds = input.source_video_ids ? uniqueSourceVideoIds(input.source_video_ids) : null;
   const manifests = requestedIds
@@ -116,6 +119,7 @@ async function transitionSnapshotFiles(input: {
     : await readAllSourceVideoManifests(input.library_root);
   const snapshotIds = requestedIds ?? manifests
     .filter((manifest) => input.from.includes(manifest.preprocess_status))
+    .slice(0, input.limit)
     .map((manifest) => manifest.source_video_id);
 
   return [
@@ -272,6 +276,7 @@ async function transitionManifests(input: {
   now: string;
   reason: string;
   source_video_ids?: string[];
+  limit?: number;
 }): Promise<AdminTransitionCommandResult> {
   const requestedIds = input.source_video_ids ? new Set(input.source_video_ids) : null;
   const manifests = requestedIds
@@ -287,7 +292,7 @@ async function transitionManifests(input: {
   const affected = manifests.filter((manifest) =>
     input.from.includes(manifest.preprocess_status) &&
     (!requestedIds || requestedIds.has(manifest.source_video_id))
-  );
+  ).slice(0, input.limit);
 
   for (const manifest of affected) {
     await writeSourceVideoManifest(input.library_root, {
@@ -380,7 +385,6 @@ async function writeThroughAdminSourceVideoIdsReadModelStore(input: {
 
 async function runTransitionCommand(input: AdminTransitionCommandContext & {
   command: AdminTransitionCommandName;
-  source_video_ids?: string[];
 }): Promise<AdminTransitionCommandResult> {
   const transition = adminTransitionCommandSpec(input.command);
   return runAdminCommand({
@@ -391,7 +395,8 @@ async function runTransitionCommand(input: AdminTransitionCommandContext & {
     snapshot_files_provider: () => transitionSnapshotFiles({
       library_root: input.library_root,
       from: transition.from,
-      source_video_ids: input.source_video_ids
+      source_video_ids: input.source_video_ids,
+      limit: input.limit
     })
   }, async () => {
     const transitioned = await transitionManifests({
@@ -400,7 +405,8 @@ async function runTransitionCommand(input: AdminTransitionCommandContext & {
       to: transition.to,
       now: currentTime(input),
       reason: transition.reason,
-      source_video_ids: input.source_video_ids
+      source_video_ids: input.source_video_ids,
+      limit: input.limit
     });
     const library = await writeAdminLibraryManifest({
       library_root: input.library_root,

@@ -15,6 +15,7 @@ interface PreprocessBulkCommandContext<TActor> {
   command_now: string;
   actor?: TActor;
   now?: () => string;
+  limit?: number;
 }
 
 export interface CreateAdminPreprocessCommandRouteDepsInput<
@@ -124,7 +125,7 @@ export function createAdminPreprocessCommandRouteDeps<
     assert_preprocess_safe_to_start: input.assert_preprocess_safe_to_start,
     start_preprocess_supervisor: input.start_preprocess_supervisor,
     stop_preprocess_supervisor: input.stop_preprocess_supervisor,
-    run_bulk_transition_command({ api_input, command }) {
+    run_bulk_transition_command({ api_input, command, limit }) {
       return input.run_bulk_transition_command({
         library_root: api_input.library_root,
         library_id: input.library_id,
@@ -132,7 +133,8 @@ export function createAdminPreprocessCommandRouteDeps<
         command,
         command_now: input.command_now,
         actor: input.actor,
-        now: input.now
+        now: input.now,
+        ...(limit !== undefined ? { limit } : {})
       });
     },
     read_preprocess_supervisor_status: input.read_preprocess_supervisor_status,

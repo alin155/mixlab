@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT,
   handleAdminPreprocessCommandRoutes,
   matchAdminPreprocessQueueUnprocessedPath,
   matchAdminPreprocessRecoverProcessingPath,
@@ -442,6 +443,110 @@ test("preprocess command routes start supervisor after settings secrets and safe
       }
     });
   }
+});
+
+test("preprocess command routes default supervisor starts to a bounded batch", async () => {
+  let startInput: AdminPreprocessSupervisorStartInput<TestRuntimePolicy> | undefined;
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/supervisor/start",
+    deps: makeDeps({
+      read_request_json: async () => ({}),
+      start_preprocess_supervisor: (input) => {
+        startInput = input;
+        return {
+          state: "running",
+          state_label: "运行中"
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(startInput, {
+    limit: ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT,
+    runtime_policy: {
+      concurrency: 1
+    }
+  });
+});
+
+test("preprocess command routes can queue a bounded unprocessed batch before supervisor start", async () => {
+  const bulkInputs: Array<AdminBulkPreprocessRouteCommandInput<TestApiInput>> = [];
+  const cleared: string[] = [];
+  let startInput: AdminPreprocessSupervisorStartInput<TestRuntimePolicy> | undefined;
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/supervisor/start",
+    deps: makeDeps({
+      read_request_json: async () => ({
+        limit: 5,
+        queue_unprocessed_limit: 5
+      }),
+      run_bulk_transition_command: async (input) => {
+        bulkInputs.push(input);
+        return {
+          affected_count: 3,
+          source_video_ids: ["V000001", "V000002", "V000003"]
+        };
+      },
+      clear_source_video_page_cache: (libraryRoot) => {
+        cleared.push(libraryRoot);
+      },
+      start_preprocess_supervisor: (input) => {
+        startInput = input;
+        return {
+          state: "running",
+          state_label: "运行中"
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(bulkInputs, [
+    {
+      api_input: {
+        library_root: "/tmp/PublicLibrary",
+        request_id: "req-1"
+      },
+      command: "preprocess-queue-unprocessed",
+      limit: 5
+    }
+  ]);
+  assert.deepEqual(cleared, ["/tmp/PublicLibrary"]);
+  assert.deepEqual(startInput, {
+    limit: 5,
+    runtime_policy: {
+      concurrency: 1
+    }
+  });
+});
+
+test("preprocess command routes default supervisor limit follows explicit source video ids", async () => {
+  let startInput: AdminPreprocessSupervisorStartInput<TestRuntimePolicy> | undefined;
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/supervisor/start",
+    deps: makeDeps({
+      read_request_json: async () => ({
+        source_video_ids: ["V000001", "V000002", "V000002"]
+      }),
+      start_preprocess_supervisor: (input) => {
+        startInput = input;
+        return {
+          state: "running",
+          state_label: "运行中"
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(startInput, {
+    limit: 2,
+    source_video_ids: ["V000001", "V000002"],
+    runtime_policy: {
+      concurrency: 1
+    }
+  });
 });
 
 test("preprocess command routes can start supervisor for requested source video ids", async () => {

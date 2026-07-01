@@ -1572,7 +1572,10 @@ export interface AdminApiClient {
   recoverProcessingSourceVideo(sourceVideoId: string): Promise<AdminActionResult>;
   publishSourceVideo(sourceVideoId: string): Promise<AdminActionResult>;
   getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
-  startPreprocessSupervisor(limit?: number): Promise<AdminPreprocessSupervisorStatus>;
+  startPreprocessSupervisor(
+    limit?: number,
+    options?: { queue_unprocessed_limit?: number }
+  ): Promise<AdminPreprocessSupervisorStatus>;
   stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
   repairIndex(options?: { limit?: number }): Promise<AdminActionResult>;
   runDoctor(): Promise<MixlabDoctorReport>;

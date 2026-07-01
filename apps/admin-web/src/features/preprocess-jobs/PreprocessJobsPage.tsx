@@ -528,7 +528,7 @@ export function PreprocessJobsPage({
                     <AdminControlButton
                       label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
                       state={nasWriteState}
-                      reason={canStopSupervisor ? "暂停当前预处理流水线。" : "继续处理排队和未处理素材。"}
+                      reason={canStopSupervisor ? "暂停当前预处理流水线。" : "小批量处理排队和未处理素材，成功后自动上线。"}
                       variant="primary"
                       onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
                     />
@@ -1019,7 +1019,7 @@ export function PreprocessJobsPage({
             <AdminControlButton
               label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
               state={nasWriteState}
-              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "发现素材、加入队列、预处理，并在安全时上线。"}
+              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "小批量处理排队和未处理素材，成功后自动上线。"}
               variant="primary"
               onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
             />

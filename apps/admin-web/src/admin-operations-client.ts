@@ -74,7 +74,10 @@ export interface AdminOperationsClientMethods {
   retryFailedVideos(): Promise<AdminActionResult>;
   recoverProcessingVideos(): Promise<AdminActionResult>;
   getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
-  startPreprocessSupervisor(limit?: number): Promise<AdminPreprocessSupervisorStatus>;
+  startPreprocessSupervisor(
+    limit?: number,
+    options?: { queue_unprocessed_limit?: number }
+  ): Promise<AdminPreprocessSupervisorStatus>;
   stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
   repairIndex(options?: { limit?: number }): Promise<AdminActionResult>;
   runDoctor(): Promise<MixlabDoctorReport>;
@@ -303,13 +306,16 @@ export function createAdminOperationsClientMethods({
         "/api/admin/preprocess/supervisor/status",
         protectedHeaders
       ),
-    startPreprocessSupervisor: (limit) =>
+    startPreprocessSupervisor: (limit, options) =>
       sendJson<AdminPreprocessSupervisorStatus>(
         fetchImpl,
         baseUrl,
         "/api/admin/preprocess/supervisor/start",
         "POST",
-        limit ? { limit } : {},
+        {
+          ...(limit ? { limit } : {}),
+          ...(options?.queue_unprocessed_limit ? { queue_unprocessed_limit: options.queue_unprocessed_limit } : {})
+        },
         protectedHeaders
       ),
     stopPreprocessSupervisor: () =>

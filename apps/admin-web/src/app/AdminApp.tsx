@@ -96,6 +96,7 @@ import {
 } from "./route-loading-runtime.ts";
 
 const DEFAULT_LOCAL_ADMIN_API_BASE_URL = "http://127.0.0.1:3889/";
+const ADMIN_PREPROCESS_START_BATCH_LIMIT = 5;
 
 export function resolveAdminRuntimeApiBaseUrl(input: {
   viteApiBaseUrl?: string;
@@ -2026,6 +2027,17 @@ export function AdminApp() {
     });
   };
 
+  const startPreprocessBatch = async (api: AdminApiClient): Promise<AdminActionResult> => {
+    await api.startPreprocessSupervisor(ADMIN_PREPROCESS_START_BATCH_LIMIT, {
+      queue_unprocessed_limit: ADMIN_PREPROCESS_START_BATCH_LIMIT
+    });
+
+    return {
+      affected_count: 0,
+      message: `已启动小批量预处理。本次最多处理 ${ADMIN_PREPROCESS_START_BATCH_LIMIT} 个素材，成功后会自动上线到剪辑端。`
+    };
+  };
+
   const runSmartScan = async () => {
     if (!beginAdminCommandAction("扫描新增素材", "正在扫描新增素材、检查系统状态并刷新生产状态...")) {
       return;
@@ -2053,7 +2065,7 @@ export function AdminApp() {
     }
 
     if (action === "start-preprocess") {
-      await runAction("启动预处理", (api) => api.startPreprocessSupervisor(1));
+      await runAction("启动预处理", startPreprocessBatch);
       return;
     }
 
@@ -2345,7 +2357,7 @@ export function AdminApp() {
       }
     },
     onStartPreprocessSupervisor: () =>
-      runAction("启动预处理", (api) => api.startPreprocessSupervisor(1)),
+      runAction("启动预处理", startPreprocessBatch),
     onStopPreprocessSupervisor: () =>
       runAction("暂停预处理", (api) => api.stopPreprocessSupervisor()),
     onRepairIndex: runRepairIndexInBatches,

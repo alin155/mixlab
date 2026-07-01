@@ -238,6 +238,35 @@ test("omits all-status and empty process-history filters", async () => {
   assert.equal(url.search, "?limit=10&window_days=7");
 });
 
+test("starts preprocess supervisor with bounded unprocessed queue option", async () => {
+  const requests: Array<{ pathname: string; body?: unknown }> = [];
+  const client = createAdminOperationsClientMethods({
+    baseUrl: "http://127.0.0.1:4899",
+    fetchImpl: async (url, init) => {
+      requests.push({
+        pathname: new URL(String(url)).pathname,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      return new Response(JSON.stringify({ ok: true, data: {} }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  await client.startPreprocessSupervisor(5, { queue_unprocessed_limit: 5 });
+
+  assert.deepEqual(requests, [
+    {
+      pathname: "/api/admin/preprocess/supervisor/start",
+      body: {
+        limit: 5,
+        queue_unprocessed_limit: 5
+      }
+    }
+  ]);
+});
+
 test("operations client preserves preprocess jobs runtime metadata", async () => {
   const client = createAdminOperationsClientMethods({
     baseUrl: "http://127.0.0.1:4899",

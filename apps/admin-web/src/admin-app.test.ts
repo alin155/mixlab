@@ -3679,7 +3679,7 @@ test("shared admin UI primitives expose control states and empty state language"
       h(AdminControlButton, {
         label: "启动预处理",
         state: "m9b-api",
-        reason: "发现素材、加入队列、预处理，并在安全时上线。",
+        reason: "小批量处理排队和未处理素材，成功后自动上线。",
         variant: "primary"
       }),
       h(EmptyState, {
@@ -3691,7 +3691,7 @@ test("shared admin UI primitives expose control states and empty state language"
 
   assert.match(html, /data-control-state="m9b-api"/);
   assert.match(html, /启动预处理/);
-  assert.match(html, /发现素材、加入队列、预处理，并在安全时上线/);
+  assert.match(html, /小批量处理排队和未处理素材，成功后自动上线/);
   assert.match(html, /没有匹配的原视频/);
   assert.match(html, /对剪辑师可见/);
 });

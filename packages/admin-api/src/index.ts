@@ -845,7 +845,8 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
             command,
             command_now,
             actor,
-            now: commandNow
+            now: commandNow,
+            limit
           }) {
             return runAdminBulkTransitionCommand({
               library_root,
@@ -854,7 +855,8 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
               command,
               command_now,
               actor,
-              now: commandNow
+              now: commandNow,
+              ...(limit !== undefined ? { limit } : {})
             });
           },
           recover_processing_supervisor_block({ command, supervisor_state }) {
