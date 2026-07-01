@@ -118,3 +118,18 @@ test("admin writer lease reclaims expired locks", async () => {
   assert.equal(result, "reclaimed");
   assert.equal(await exists(lockDir(root)), false);
 });
+
+test("admin writer lease reclaims empty lock directories", async () => {
+  const root = await makeRoot();
+  await mkdir(lockDir(root), { recursive: true });
+
+  const result = await withAdminWriterLease({
+    library_root: root,
+    holder: "new-process",
+    reason: "new-write",
+    now: "2026-06-25T00:00:02.000Z"
+  }, async () => "reclaimed");
+
+  assert.equal(result, "reclaimed");
+  assert.equal(await exists(lockDir(root)), false);
+});

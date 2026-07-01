@@ -85,7 +85,7 @@ async function acquireAdminWriterLease(input: Required<WithAdminWriterLeaseInput
 
     const existing = await readLease(input.library_root);
     const nowMs = timestampMs(input.now) || Date.now();
-    if (existing?.expires_at && timestampMs(existing.expires_at) <= nowMs) {
+    if (!existing || (existing.expires_at && timestampMs(existing.expires_at) <= nowMs)) {
       await rm(lockDir(input.library_root), { recursive: true, force: true });
       await mkdir(lockDir(input.library_root));
     } else {
