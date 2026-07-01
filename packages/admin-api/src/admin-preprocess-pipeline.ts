@@ -113,6 +113,7 @@ export interface RunAdminPreprocessPipelineInput {
   now: () => string;
   media: ReadyPublishMedia;
   should_stop?: () => boolean;
+  on_progress?: (result: RunLibraryTextPreprocessWorkerResult) => void;
   clear_source_video_page_cache?: (libraryRoot: string) => void;
   run_worker_cycle(input: AdminPreprocessWorkerCycleInput): Promise<RunLibraryTextPreprocessWorkerResult>;
 }
@@ -271,6 +272,14 @@ export async function runAdminPreprocessPipeline(
       }
     }
 
+    input.on_progress?.({
+      scan_result: scanResult,
+      total_claimed_count: totalClaimedCount,
+      succeeded_count: succeededCount,
+      failed_count: failedCount,
+      items
+    });
+
     if (cycleResult.total_claimed_count === 0) {
       break;
     }
@@ -327,10 +336,12 @@ export function createRealPreprocessRunner(input: {
         now: input.now,
         media: input.media,
         should_stop: runInput.should_stop,
+        on_progress: runInput.on_progress,
         clear_source_video_page_cache: input.clear_source_video_page_cache,
         run_worker_cycle(workerInput) {
           return runLibraryTextPreprocessWorker({
             ...workerInput,
+            should_stop: runInput.should_stop,
             lifecycle: createAdminWorkerLifecycleCommands({
               actor: adminCommandSystemActor("预处理工作器生命周期", "system-task")
             }),

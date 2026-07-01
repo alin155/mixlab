@@ -242,7 +242,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
       dashboard_coupling: "forbidden"
     },
     controls: [
-      { route: "preprocess-jobs", label: "启动预处理", state: "m9b-api", reason: "小批量处理排队和未处理素材，成功后自动上线。" },
+      { route: "preprocess-jobs", label: "启动预处理", state: "m9b-api", reason: "持续处理队列，直到全部完成或手动暂停，成功后自动上线。" },
       { route: "preprocess-jobs", label: "暂停预处理", state: "m9b-api", reason: "暂停当前预处理。" },
       { route: "preprocess-jobs", label: "重试失败视频", state: "m9b-api", reason: "将失败视频重新加入预处理队列。" },
       { route: "preprocess-jobs", label: "恢复卡住任务", state: "m9b-api", reason: "将停留在处理中的任务恢复到队列。" },

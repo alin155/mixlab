@@ -47,6 +47,7 @@ export interface RunLibraryTextPreprocessWorkerInput {
   source_video_ids?: string[];
   count_refresh_interval?: number;
   now?: () => string;
+  should_stop?: () => boolean;
   probe_source_video(input: ProbeSourceVideoInput): Promise<SourceVideoMediaMetadata>;
   get_content_hash?(source_video_path: string): Promise<string>;
   preprocess_source_video(
@@ -175,7 +176,7 @@ export async function runLibraryTextPreprocessWorker(
     pendingCountRefresh = false;
   }
 
-  while (items.length < maxClaimCount) {
+  while (items.length < maxClaimCount && input.should_stop?.() !== true) {
     const job = await lifecycle.claim_next_preprocess_job({
       library_root: input.library_root,
       worker_id: input.worker_id,

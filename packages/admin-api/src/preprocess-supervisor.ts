@@ -8,6 +8,7 @@ export interface PreprocessSupervisorRunInput {
   source_video_ids?: string[];
   runtime_policy: AdminRuntimePolicy;
   should_stop?: () => boolean;
+  on_progress?: (result: RunLibraryTextPreprocessWorkerResult) => void;
 }
 
 export interface PreprocessSupervisorRunner {
@@ -77,10 +78,15 @@ export function createPreprocessSupervisor(input: CreatePreprocessSupervisorInpu
       status.stopped_at = "";
       status.last_error = "";
       status.stop_requested = false;
+      status.last_result = null;
 
       void input.runner.runOnce({
         ...runInput,
-        should_stop: () => status.stop_requested || runInput.should_stop?.() === true
+        should_stop: () => status.stop_requested || runInput.should_stop?.() === true,
+        on_progress: (result) => {
+          status.last_result = result;
+          runInput.on_progress?.(result);
+        }
       })
         .then((result) => {
           status.last_result = result;

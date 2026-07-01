@@ -9,8 +9,6 @@ export interface AdminPreprocessCommandRouteApiInput {
   library_root: string;
 }
 
-export const ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT = 5;
-
 export interface AdminPreprocessCommandRouteSettings<TRuntimePolicy> {
   runtime_policy: TRuntimePolicy;
 }
@@ -153,14 +151,14 @@ function parseOptionalPositiveInteger(value: unknown, label: string): number | u
   return Number(value);
 }
 
-function supervisorStartLimit(body: Record<string, unknown>, sourceVideoIds?: string[]): number {
+function supervisorStartLimit(body: Record<string, unknown>, sourceVideoIds?: string[]): number | undefined {
   const requestedLimit = parseOptionalPositiveInteger(body.limit, "本次限制");
 
   if (requestedLimit !== undefined) {
     return requestedLimit;
   }
 
-  return sourceVideoIds?.length || ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT;
+  return sourceVideoIds?.length;
 }
 
 function queueUnprocessedLimit(body: Record<string, unknown>): number | undefined {
@@ -328,11 +326,12 @@ export async function handleAdminPreprocessCommandRoutes<
         }
       }
 
+      const limit = supervisorStartLimit(body, sourceVideoIds);
       return {
         handled: true,
         status_code: 200,
         body: apiOk(input.deps.start_preprocess_supervisor({
-          limit: supervisorStartLimit(body, sourceVideoIds),
+          ...(limit !== undefined ? { limit } : {}),
           ...(sourceVideoIds ? { source_video_ids: sourceVideoIds } : {}),
           runtime_policy: settings.runtime_policy
         }))

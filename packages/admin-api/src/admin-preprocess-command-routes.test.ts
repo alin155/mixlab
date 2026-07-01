@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT,
   handleAdminPreprocessCommandRoutes,
   matchAdminPreprocessQueueUnprocessedPath,
   matchAdminPreprocessRecoverProcessingPath,
@@ -445,7 +444,7 @@ test("preprocess command routes start supervisor after settings secrets and safe
   }
 });
 
-test("preprocess command routes default supervisor starts to a bounded batch", async () => {
+test("preprocess command routes default supervisor starts continuous processing", async () => {
   let startInput: AdminPreprocessSupervisorStartInput<TestRuntimePolicy> | undefined;
   const result = await callRoute({
     pathname: "/api/admin/preprocess/supervisor/start",
@@ -463,7 +462,6 @@ test("preprocess command routes default supervisor starts to a bounded batch", a
 
   assert.equal(result.handled, true);
   assert.deepEqual(startInput, {
-    limit: ADMIN_PREPROCESS_SUPERVISOR_DEFAULT_BATCH_LIMIT,
     runtime_policy: {
       concurrency: 1
     }

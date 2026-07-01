@@ -82,6 +82,14 @@ function percentLabel(value: number): string {
   return `${Math.round(value)}%`;
 }
 
+function boundedPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 function timeLabel(value: string): string {
   if (!value) {
     return "暂无估算";
@@ -324,6 +332,52 @@ export function PreprocessJobsPage({
     { label: "封面关键帧", value: running.filter((job) => job.stage === "build-keyframes").length, caption: runningStageCaption },
     { label: "上线剪辑端", value: data.status.index_required_video_count, caption: "待上线" }
   ];
+  const overallProgressPercent = boundedPercent(
+    data.status.video_count > 0
+      ? (data.status.ready_video_count / data.status.video_count) * 100
+      : 0
+  );
+  const currentRunClaimed = supervisorRunning ? lastResult?.total_claimed_count ?? 0 : 0;
+  const currentRunTotal = currentRunClaimed + data.jobs.queued_count + data.jobs.active_count;
+  const currentRunProgressPercent = boundedPercent(
+    currentRunTotal > 0 ? (currentRunClaimed / currentRunTotal) * 100 : 0
+  );
+  const currentTaskLabel = currentJob
+    ? `${currentJob.source_video_id} · ${safeJobStageLabel(currentJob)}`
+    : supervisorRunning
+      ? "正在领取下一个视频"
+      : "空闲";
+  const currentTaskProgress = currentJob
+    ? currentJob.progress
+    : supervisorRunning
+      ? currentRunProgressPercent
+      : 0;
+  const flowCards = [
+    {
+      label: "当前任务",
+      value: currentTaskLabel,
+      caption: currentJob ? `${currentJob.progress}%` : supervisorRunning ? "等待任务状态刷新" : "没有正在处理的视频"
+    },
+    {
+      label: "本次运行",
+      value: lastResult
+        ? `已处理 ${lastResult.total_claimed_count}`
+        : supervisorRunning ? "刚启动" : "暂无",
+      caption: lastResult
+        ? `成功 ${lastResult.succeeded_count} · 失败 ${lastResult.failed_count}`
+        : supervisorRunning ? "正在准备第一条视频" : "启动后开始累计"
+    },
+    {
+      label: "剩余队列",
+      value: data.jobs.queued_count,
+      caption: supervisorRunning ? "会持续处理到队列为空" : "启动后继续处理"
+    },
+    {
+      label: "剪辑端可用",
+      value: data.status.ready_video_count,
+      caption: `当前索引 ${data.indexes.current_version || "暂无"}`
+    }
+  ];
   const indexRequiredVideos = data.source_videos.filter(
     (video) => video.preprocess_status === "index-required"
   );
@@ -528,7 +582,7 @@ export function PreprocessJobsPage({
                     <AdminControlButton
                       label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
                       state={nasWriteState}
-                      reason={canStopSupervisor ? "暂停当前预处理流水线。" : "小批量处理排队和未处理素材，成功后自动上线。"}
+                      reason={canStopSupervisor ? "暂停当前预处理流水线。" : "持续处理队列，直到全部完成或手动暂停。"}
                       variant="primary"
                       onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
                     />
@@ -566,7 +620,13 @@ export function PreprocessJobsPage({
             items={[
               { label: "剪辑端可用", value: data.status.ready_video_count, caption: "已上线素材" },
               { label: "队列中", value: data.jobs.queued_count, caption: "等待自动处理" },
-              { label: "处理中", value: data.status.processing_video_count, caption: supervisorRunning ? "正在生产" : "可能需恢复" },
+              {
+                label: "当前处理",
+                value: data.status.processing_video_count,
+                caption: data.status.processing_video_count === 0
+                  ? "当前没有任务"
+                  : supervisorRunning ? "正在生产" : "可能卡住"
+              },
               { label: "待上线", value: data.status.index_required_video_count, caption: "上线后剪辑端可用" },
               { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
             ]}
@@ -577,12 +637,43 @@ export function PreprocessJobsPage({
           {processHistoryError ? (
             <EmptyState title="处理记录加载失败" detail={processHistoryError} />
           ) : null}
-          <section className="admin-simple-flow" aria-label="自动处理流程">
-            {pipelineStages.map((stage, index) => (
+          <section className="admin-preprocess-progress-panel" aria-label="预处理进度">
+            <div className="admin-preprocess-progress-row">
+              <div>
+                <strong>总体进度</strong>
+                <p>{data.status.ready_video_count} / {data.status.video_count} 个素材已上线剪辑端</p>
+              </div>
+              <meter min={0} max={100} value={overallProgressPercent}>{overallProgressPercent}%</meter>
+              <span>{overallProgressPercent}%</span>
+            </div>
+            <div className="admin-preprocess-progress-row">
+              <div>
+                <strong>本次运行</strong>
+                <p>
+                  {supervisorRunning
+                    ? `已处理 ${currentRunClaimed} 个，剩余 ${data.jobs.queued_count} 个`
+                    : "启动后会持续处理，直到队列为空或手动暂停"}
+                </p>
+              </div>
+              <meter min={0} max={100} value={currentRunProgressPercent}>{currentRunProgressPercent}%</meter>
+              <span>{supervisorRunning ? `${currentRunProgressPercent}%` : "待启动"}</span>
+            </div>
+            <div className="admin-preprocess-progress-row">
+              <div>
+                <strong>当前视频</strong>
+                <p>{currentTaskLabel}</p>
+              </div>
+              <meter min={0} max={100} value={currentTaskProgress}>{currentTaskProgress}%</meter>
+              <span>{supervisorRunning ? `${boundedPercent(currentTaskProgress)}%` : "空闲"}</span>
+            </div>
+          </section>
+          <section className="admin-simple-flow" aria-label="预处理状态概览">
+            {flowCards.map((stage, index) => (
               <article className="admin-simple-flow-step" key={stage.label}>
                 <span>{index + 1}</span>
                 <strong>{stage.label}</strong>
-                <p>{stage.value} 个</p>
+                <p>{stage.value}</p>
+                <small>{stage.caption}</small>
               </article>
             ))}
           </section>
@@ -644,7 +735,8 @@ export function PreprocessJobsPage({
                 rows: [
                   { label: "服务", value: supervisor.state_label },
                   { label: "当前阶段", value: currentStageSummary },
-                  { label: "上次处理", value: lastResult ? `领取 ${lastResult.total_claimed_count}，成功 ${lastResult.succeeded_count}，失败 ${lastResult.failed_count}` : "暂无记录" }
+                  { label: "当前视频", value: currentTaskLabel },
+                  { label: supervisorRunning ? "本次处理" : "上次处理", value: lastResult ? `领取 ${lastResult.total_claimed_count}，成功 ${lastResult.succeeded_count}，失败 ${lastResult.failed_count}` : "暂无记录" }
                 ]
               },
               {
@@ -1019,7 +1111,7 @@ export function PreprocessJobsPage({
             <AdminControlButton
               label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
               state={nasWriteState}
-              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "小批量处理排队和未处理素材，成功后自动上线。"}
+              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "持续处理队列，直到全部完成或手动暂停。"}
               variant="primary"
               onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
             />

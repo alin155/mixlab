@@ -237,6 +237,124 @@ test("preprocess pipeline treats explicit limit as total claimed count for the r
   assert.equal(result.succeeded_count, 3);
 });
 
+test("preprocess pipeline keeps running without a limit until the queue is empty", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await mkdir(path.join(libraryRoot, "source-videos"), { recursive: true });
+  const workerLimits: Array<number | undefined> = [];
+  const progressTotals: number[] = [];
+  let cycle = 0;
+
+  const result = await runAdminPreprocessPipeline({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "测试素材库",
+    runtime_policy: {
+      audio_mode: "mp3_16k_mono_64k",
+      concurrent_jobs: 1,
+      auto_scan_enabled: false,
+      auto_queue_enabled: false,
+      auto_publish_index_enabled: false
+    },
+    now: () => "2026-07-01T12:00:00.000Z",
+    media: {
+      async create_cover() {
+        throw new Error("unexpected cover generation");
+      }
+    },
+    on_progress(progress) {
+      progressTotals.push(progress.total_claimed_count);
+    },
+    async run_worker_cycle(workerInput) {
+      workerLimits.push(workerInput.limit);
+      cycle += 1;
+      const claimedCount = cycle <= 3 ? 1 : 0;
+      return {
+        scan_result: {
+          total_video_count: 3,
+          new_video_count: 0,
+          existing_video_count: 3,
+          source_video_ids: ["V000001", "V000002", "V000003"]
+        },
+        total_claimed_count: claimedCount,
+        succeeded_count: claimedCount,
+        failed_count: 0,
+        items: claimedCount
+          ? [{
+              status: "succeeded",
+              source_video_id: `V00000${cycle}`,
+              source_video_path: `/tmp/V00000${cycle}.mp4`,
+              result: {
+                source_video_id: `V00000${cycle}`,
+                audio_path: "",
+                audio_object_key: "",
+                audio_file_url: "",
+                asr_task_id: "",
+                transcription_url: "",
+                transcript_path: "",
+                srt_path: "",
+                duration_ms: 1_000,
+                segment_count: 1
+              }
+            }]
+          : []
+      };
+    }
+  });
+
+  assert.deepEqual(workerLimits, [1, 1, 1, 1]);
+  assert.deepEqual(progressTotals, [1, 2, 3, 3]);
+  assert.equal(result.total_claimed_count, 3);
+  assert.equal(result.succeeded_count, 3);
+});
+
+test("preprocess pipeline stops after the current cycle when stop is requested", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await mkdir(path.join(libraryRoot, "source-videos"), { recursive: true });
+  let shouldStop = false;
+  let workerCycleCount = 0;
+
+  const result = await runAdminPreprocessPipeline({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "测试素材库",
+    runtime_policy: {
+      audio_mode: "mp3_16k_mono_64k",
+      concurrent_jobs: 1,
+      auto_scan_enabled: false,
+      auto_queue_enabled: false,
+      auto_publish_index_enabled: false
+    },
+    now: () => "2026-07-01T12:05:00.000Z",
+    media: {
+      async create_cover() {
+        throw new Error("unexpected cover generation");
+      }
+    },
+    should_stop: () => shouldStop,
+    on_progress() {
+      shouldStop = true;
+    },
+    async run_worker_cycle() {
+      workerCycleCount += 1;
+      return {
+        scan_result: {
+          total_video_count: 2,
+          new_video_count: 0,
+          existing_video_count: 2,
+          source_video_ids: ["V000001", "V000002"]
+        },
+        total_claimed_count: 1,
+        succeeded_count: 1,
+        failed_count: 0,
+        items: []
+      };
+    }
+  });
+
+  assert.equal(workerCycleCount, 1);
+  assert.equal(result.total_claimed_count, 1);
+});
+
 test("controlled preprocess policy disables scan but keeps scoped auto publish in docker mvp mode", () => {
   const result = resolveAdminControlledPreprocessPolicy({
     docker_mvp_mode: "v0.1",

@@ -96,7 +96,6 @@ import {
 } from "./route-loading-runtime.ts";
 
 const DEFAULT_LOCAL_ADMIN_API_BASE_URL = "http://127.0.0.1:3889/";
-const ADMIN_PREPROCESS_START_BATCH_LIMIT = 5;
 
 export function resolveAdminRuntimeApiBaseUrl(input: {
   viteApiBaseUrl?: string;
@@ -253,6 +252,7 @@ function AdminSidebarStatus({ data }: { data: AdminDashboardData }) {
 }
 
 export const ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS = 30_000;
+export const ADMIN_PREPROCESS_RUNNING_REFRESH_INTERVAL_MS = 5_000;
 const ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT = 20;
 const ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT = 20;
 const ADMIN_PREPROCESS_PROCESS_HISTORY_INITIAL_LOAD_LIMIT = 20;
@@ -1846,7 +1846,15 @@ export function AdminApp() {
       }
     };
 
-    const timer = window.setInterval(refreshPreprocessJobs, ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS);
+    const preprocessIsActive =
+      data.jobs.supervisor.state === "running" ||
+      data.jobs.supervisor.state === "stopping" ||
+      data.jobs.active_count > 0 ||
+      data.status.processing_video_count > 0;
+    const timer = window.setInterval(
+      refreshPreprocessJobs,
+      preprocessIsActive ? ADMIN_PREPROCESS_RUNNING_REFRESH_INTERVAL_MS : ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS
+    );
 
     return () => {
       window.clearInterval(timer);
@@ -2028,13 +2036,11 @@ export function AdminApp() {
   };
 
   const startPreprocessBatch = async (api: AdminApiClient): Promise<AdminActionResult> => {
-    await api.startPreprocessSupervisor(ADMIN_PREPROCESS_START_BATCH_LIMIT, {
-      queue_unprocessed_limit: ADMIN_PREPROCESS_START_BATCH_LIMIT
-    });
+    await api.startPreprocessSupervisor();
 
     return {
       affected_count: 0,
-      message: `已启动小批量预处理。本次最多处理 ${ADMIN_PREPROCESS_START_BATCH_LIMIT} 个素材，成功后会自动上线到剪辑端。`
+      message: "已启动预处理。系统会持续处理队列，直到全部处理完或手动暂停。"
     };
   };
 

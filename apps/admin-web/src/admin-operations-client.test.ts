@@ -267,6 +267,32 @@ test("starts preprocess supervisor with bounded unprocessed queue option", async
   ]);
 });
 
+test("starts preprocess supervisor without a limit for continuous processing", async () => {
+  const requests: Array<{ pathname: string; body?: unknown }> = [];
+  const client = createAdminOperationsClientMethods({
+    baseUrl: "http://127.0.0.1:4899",
+    fetchImpl: async (url, init) => {
+      requests.push({
+        pathname: new URL(String(url)).pathname,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined
+      });
+
+      return new Response(JSON.stringify({ ok: true, data: {} }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  await client.startPreprocessSupervisor();
+
+  assert.deepEqual(requests, [
+    {
+      pathname: "/api/admin/preprocess/supervisor/start",
+      body: {}
+    }
+  ]);
+});
+
 test("operations client preserves preprocess jobs runtime metadata", async () => {
   const client = createAdminOperationsClientMethods({
     baseUrl: "http://127.0.0.1:4899",

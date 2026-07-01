@@ -46,6 +46,7 @@ import {
 } from "./app/route-loading-runtime.ts";
 import {
   ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS,
+  ADMIN_PREPROCESS_RUNNING_REFRESH_INTERVAL_MS,
   AdminApp,
   adminActionErrorMessage,
   adminLoadErrorMessage,
@@ -1688,29 +1689,28 @@ test("preprocess jobs render failure retry and later success", async () => {
     "素材处理",
     "自动处理与上线",
     "启动后系统会自动发现素材",
-    "素材处理状态",
-    "剪辑端可用",
-    "正在处理",
-    "队列中",
-    "待上线",
-    "失败可重试",
-    "自动处理流程",
-    "扫描素材",
-    "提取音频",
-    "语音识别",
-    "生成文案",
-    "封面关键帧",
-    "上线剪辑端",
-    "已处理待上线",
+	    "素材处理状态",
+	    "剪辑端可用",
+	    "当前处理",
+	    "队列中",
+	    "待上线",
+	    "失败可重试",
+	    "预处理进度",
+	    "总体进度",
+	    "本次运行",
+	    "当前视频",
+	    "预处理状态概览",
+	    "剩余队列",
+	    "已处理待上线",
     "上线到剪辑端",
     "当前索引",
     "系统检查",
     "处理控制",
-    "当前状态",
-    "运行中",
-    "暂停预处理",
-    "上次处理",
-    "自动上线",
+	    "当前状态",
+	    "运行中",
+	    "暂停预处理",
+	    "本次处理",
+	    "自动上线",
     "安全保护",
     "已上线素材",
     "不会重跑或下线",
@@ -2071,6 +2071,8 @@ test("admin data auto refresh stays active while preprocessing can change page s
 
   assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS >= 8_000, true);
   assert.equal(ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS <= 60_000, true);
+  assert.equal(ADMIN_PREPROCESS_RUNNING_REFRESH_INTERVAL_MS < ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS, true);
+  assert.equal(ADMIN_PREPROCESS_RUNNING_REFRESH_INTERVAL_MS >= 3_000, true);
   assert.equal(shouldAutoRefreshAdminData("preprocess-jobs", queuedData), true);
   assert.equal(shouldAutoRefreshAdminData("dashboard", queuedData), false);
   assert.equal(shouldAutoRefreshAdminData("source-videos", queuedData), false);
@@ -3676,12 +3678,12 @@ test("shared admin UI primitives expose control states and empty state language"
           { label: "处理失败", value: 2, caption: "失败可重试" }
         ]
       }),
-      h(AdminControlButton, {
-        label: "启动预处理",
-        state: "m9b-api",
-        reason: "小批量处理排队和未处理素材，成功后自动上线。",
-        variant: "primary"
-      }),
+	      h(AdminControlButton, {
+	        label: "启动预处理",
+	        state: "m9b-api",
+	        reason: "持续处理队列，直到全部完成或手动暂停。",
+	        variant: "primary"
+	      }),
       h(EmptyState, {
         title: "没有匹配的原视频",
         detail: "请调整搜索词或状态筛选。"
@@ -3689,9 +3691,9 @@ test("shared admin UI primitives expose control states and empty state language"
     )
   );
 
-  assert.match(html, /data-control-state="m9b-api"/);
-  assert.match(html, /启动预处理/);
-  assert.match(html, /小批量处理排队和未处理素材，成功后自动上线/);
+	  assert.match(html, /data-control-state="m9b-api"/);
+	  assert.match(html, /启动预处理/);
+	  assert.match(html, /持续处理队列，直到全部完成或手动暂停/);
   assert.match(html, /没有匹配的原视频/);
   assert.match(html, /对剪辑师可见/);
 });
