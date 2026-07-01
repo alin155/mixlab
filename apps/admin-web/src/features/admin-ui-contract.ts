@@ -103,7 +103,6 @@ export const ADMIN_UI_ROUTES = [
 
 export const ADMIN_DOCKER_MVP_UI_ROUTES = [
   "dashboard",
-  "source-videos",
   "preprocess-jobs",
   "cutter-users",
   "doctor"
@@ -111,13 +110,13 @@ export const ADMIN_DOCKER_MVP_UI_ROUTES = [
 
 const adminDockerMvpDisabledControls = new Set<string>([
   "dashboard:扫描新增素材",
-  "dashboard:执行下一步建议",
   "source-videos:保存封面",
   "source-videos:保存素材信息",
   "preprocess-jobs:上线全部已处理素材"
 ]);
 
 const adminDockerMvpHiddenRoutes = new Set<AdminRoute>([
+  "source-videos",
   "protection",
   "index-publish",
   "settings",
@@ -232,6 +231,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
       route_plan: "preprocess-jobs",
       load_phase: "route-entry",
       expected_endpoints: [
+        "/api/admin/source-videos",
         "/api/admin/preprocess/jobs",
         "/api/admin/preprocess/process-history",
         "/api/admin/preprocess/process-history/readiness",

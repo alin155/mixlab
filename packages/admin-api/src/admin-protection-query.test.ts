@@ -188,7 +188,7 @@ test("release gate query assembles runtime, safety, library, and usage evidence"
   assert.equal(gates.admin_worker_env_proof.proof_required, true);
   assert.equal(gates.admin_worker_env_proof.status, "external-proof-required");
   assert.equal(gates.admin_worker_env_proof.safe_scope, "admin-worker-env-only");
-  assert.equal(gates.admin_worker_env_proof.required_env_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+  assert.equal(gates.admin_worker_env_proof.required_env_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "off");
   assert.equal(gates.admin_worker_env_proof.required_env_flags.MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER, "0");
   assert.equal(gates.admin_worker_env_proof.required_env_flags.MIXLAB_ENABLE_READY_PUBLISH_WORKER, "0");
   assert.equal(gates.admin_worker_env_proof.required_library_roots.MIXLAB_ADMIN_LIBRARY_ROOT, "/data/PublicLibrary");

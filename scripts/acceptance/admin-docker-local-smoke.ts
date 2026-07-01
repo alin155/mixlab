@@ -9,7 +9,7 @@ import { validateNasDockerComposeStatic } from "./nas-docker-compose-static.ts";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
 const DEFAULT_WORK_ROOT = ".local-dev/admin-docker-local-smoke";
 const DEFAULT_WEB_PORT = "18081";
-const EXPECTED_MVP_MODE = "v0.1";
+const EXPECTED_MVP_MODE = "off";
 const EXPECTED_LIBRARY_ROOT = "/data/PublicLibrary";
 const LOCAL_RUNTIME_IMAGE = "mixlab-admin-runtime:local-mvp-smoke";
 const LOCAL_WEB_IMAGE = "mixlab-admin-web:local-mvp-smoke";
@@ -407,7 +407,7 @@ export async function evaluateAdminDockerLocalSmokeStaticContract(input: {
     id: "nas-compose-static-contract",
     status: statusOf(composeReport.ok),
     evidence: composeReport.ok
-      ? "NAS compose static contract passes, including MVP mode, disabled standalone workers, /data/PublicLibrary roots, and admin-web-only port publication."
+      ? "NAS compose static contract passes, including production Docker mode, disabled standalone workers, /data/PublicLibrary roots, and admin-web-only port publication."
       : composeReport.errors.join("; ")
   });
 
@@ -416,9 +416,9 @@ export async function evaluateAdminDockerLocalSmokeStaticContract(input: {
       checks,
       id: "runtime-dockerfile-mvp-arg",
       raw: runtimeRaw,
-      needle: "ARG MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
-      passEvidence: "admin-runtime Dockerfile defaults MIXLAB_ADMIN_DOCKER_MVP_MODE to v0.1.",
-      failEvidence: "admin-runtime Dockerfile must default MIXLAB_ADMIN_DOCKER_MVP_MODE to v0.1."
+      needle: "ARG MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
+      passEvidence: "admin-runtime Dockerfile defaults MIXLAB_ADMIN_DOCKER_MVP_MODE to off.",
+      failEvidence: "admin-runtime Dockerfile must default MIXLAB_ADMIN_DOCKER_MVP_MODE to off."
     });
     addContainsCheck({
       checks,
@@ -435,9 +435,9 @@ export async function evaluateAdminDockerLocalSmokeStaticContract(input: {
       checks,
       id: "web-dockerfile-mvp-arg",
       raw: webRaw,
-      needle: "ARG MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
-      passEvidence: "admin-web Dockerfile defaults MIXLAB_ADMIN_DOCKER_MVP_MODE to v0.1.",
-      failEvidence: "admin-web Dockerfile must default MIXLAB_ADMIN_DOCKER_MVP_MODE to v0.1."
+      needle: "ARG MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
+      passEvidence: "admin-web Dockerfile defaults MIXLAB_ADMIN_DOCKER_MVP_MODE to off.",
+      failEvidence: "admin-web Dockerfile must default MIXLAB_ADMIN_DOCKER_MVP_MODE to off."
     });
     addContainsCheck({
       checks,
@@ -890,13 +890,13 @@ function buildGates(input: {
     }),
     gate({
       id: "release-gates-mvp-contract",
-      title: "Release gates expose Docker MVP contract",
+      title: "Release gates expose Docker production contract",
       category: "probe",
       status: endpointProbesStatus !== "pass" ? "skipped" : releaseGateMvpReady ? "pass" : "fail",
       evidence: endpointProbesStatus !== "pass"
         ? "Release-gates contract was not evaluated because endpoint probes did not pass."
         : releaseGateMvpReady
-          ? "release-gates admin_worker_env_proof requires MVP mode v0.1, disabled standalone workers, and /data/PublicLibrary roots."
+          ? "release-gates admin_worker_env_proof requires Docker mode off, disabled standalone workers, and /data/PublicLibrary roots."
           : "release-gates admin_worker_env_proof is missing the MVP mode/worker/root contract.",
       blocks_local_smoke: endpointProbesStatus === "pass" && !releaseGateMvpReady,
       blocks_docker_upload: endpointProbesStatus === "pass" && !releaseGateMvpReady
@@ -960,34 +960,34 @@ function resultSummary(input: {
   if (input.localSmokePassed) {
     return {
       status: "accepted",
-      summary: "Local Docker MVP smoke passed. This validates the local candidate shape only; Docker upload remains blocked until NAS/staging release gates pass."
+      summary: "Local Docker production smoke passed. This validates the local candidate shape only; Docker upload remains blocked until NAS/staging release gates pass."
     };
   }
 
   if (!input.staticContract.ok || input.summary.failed > 0) {
     return {
       status: "failed",
-      summary: "Local Docker MVP smoke failed a static, build, compose, endpoint, or worker-env gate. Docker upload remains blocked."
+      summary: "Local Docker production smoke failed a static, build, compose, endpoint, or worker-env gate. Docker upload remains blocked."
     };
   }
 
   if (!input.runRequested) {
     return {
       status: "blocked",
-      summary: "Local Docker MVP smoke was not executed because MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 was not set. Static checks still ran."
+      summary: "Local Docker production smoke was not executed because MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN=1 was not set. Static checks still ran."
     };
   }
 
   if (!input.dockerCliAvailable || !input.dockerComposeAvailable) {
     return {
       status: "blocked",
-      summary: "Local Docker MVP smoke is blocked because Docker CLI/Compose is unavailable on this machine."
+      summary: "Local Docker production smoke is blocked because Docker CLI/Compose is unavailable on this machine."
     };
   }
 
   return {
     status: "blocked",
-    summary: "Local Docker MVP smoke is blocked by missing runtime evidence. Docker upload remains blocked."
+    summary: "Local Docker production smoke is blocked by missing runtime evidence. Docker upload remains blocked."
   };
 }
 
@@ -1001,8 +1001,8 @@ export async function runAdminDockerLocalSmoke(input: RunLocalSmokeInput = {}): 
   const webPort = env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_WEB_PORT || DEFAULT_WEB_PORT;
   const workRoot = env.MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_WORK_ROOT || DEFAULT_WORK_ROOT;
   const buildSha = env.MIXLAB_BUILD_SHA || "local-docker-smoke";
-  const buildVersion = env.MIXLAB_BUILD_VERSION || "admin-docker-mvp-v0.1";
-  const imageTag = env.MIXLAB_IMAGE_TAG || "local-admin-docker-mvp-v0.1";
+  const buildVersion = env.MIXLAB_BUILD_VERSION || "admin-docker-production";
+  const imageTag = env.MIXLAB_IMAGE_TAG || "local-admin-docker-production";
   const workDir = path.join(workRoot, stamp);
   const publicLibraryHostPath = path.join(workDir, "PublicLibrary");
   const composeFile = path.join(workDir, "docker-compose.yml");

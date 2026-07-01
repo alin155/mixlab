@@ -336,7 +336,7 @@ export function buildAdminDockerLegacyRollbackPlanReport(input: {
     rollback: [
       "Rollback exception candidate: restore the prior staging .env value MIXLAB_IMAGE_TAG=latest only if the release owner accepted this one-time legacy rollback path.",
       "After rollback, rerun live-readonly and Cutter compatibility proof before declaring service restored.",
-      "Do not use latest as a continuing steady-state tag after MVP v0.1; replace it with immutable current/rollback tags in the next release cycle."
+      "Do not use latest as a continuing steady-state tag after Docker staging; replace it with immutable current/rollback tags in the next release cycle."
     ],
     post_stage_acceptance: [
       "Rerun GET-only live-readonly and version/API parity against the staged Admin target.",

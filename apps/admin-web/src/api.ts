@@ -964,7 +964,7 @@ export interface AdminWorkerEnvProofReadiness {
   status: "external-proof-required";
   expected_service: "admin-worker";
   required_env_flags: {
-    MIXLAB_ADMIN_DOCKER_MVP_MODE: "v0.1";
+    MIXLAB_ADMIN_DOCKER_MVP_MODE: "off";
     MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: "0";
     MIXLAB_ENABLE_READY_PUBLISH_WORKER: "0";
   };
@@ -1543,6 +1543,7 @@ export interface AdminApiClient {
   removeSourceFolder(sourceFolderId: string): Promise<AdminSettingsConfig>;
   getDashboardMetrics(): Promise<AdminDashboardMetrics>;
   listSourceVideos(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideo[]>;
+  listSourceVideosReadOnly(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideo[]>;
   listSourceVideosWithRuntime(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideoListResult>;
   getSourceVideoDetail(sourceVideoId: string): Promise<AdminSourceVideoDetail>;
   listCutterUsers(): Promise<AdminCutterUsersResponse>;
@@ -2078,6 +2079,7 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     removeSourceFolder: async (sourceFolderId) => removeFixtureSourceFolder(sourceFolderId),
     getDashboardMetrics: async () => cloneDashboardMetrics(fixtureMetrics),
     listSourceVideos: async (options) => listFixtureSourceVideos(options),
+    listSourceVideosReadOnly: async (options) => listFixtureSourceVideos(options),
     listSourceVideosWithRuntime: async (options) => {
       const sourceVideoList = listFixtureSourceVideos(options);
       return {

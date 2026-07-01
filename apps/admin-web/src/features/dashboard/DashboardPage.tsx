@@ -1,4 +1,5 @@
 import { InspectorPanel } from "@mixlab/ui-foundation";
+import type { ReactNode } from "react";
 import type {
   AdminDashboardData,
   AdminPreprocessJob,
@@ -382,6 +383,66 @@ function statusToneText(tone: "healthy" | "attention" | "blocked"): string {
   return "正常";
 }
 
+function oneClickActionLabel(report: AdminSmartScanReport): string {
+  if (report.primary_action === "none") {
+    return "系统正常";
+  }
+
+  if (report.primary_action === "publish-index") {
+    return "去上线素材";
+  }
+
+  return report.primary_label;
+}
+
+function dashboardHealthLabel(data: AdminDashboardData, report: AdminSmartScanReport): string {
+  if (report.severity === "blocked") {
+    return "需要处理";
+  }
+
+  if (report.severity === "attention") {
+    return "可以继续";
+  }
+
+  if (data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping") {
+    return "正在自动处理";
+  }
+
+  return "运行正常";
+}
+
+function statusSentence(data: AdminDashboardData, report: AdminSmartScanReport): string {
+  if (report.primary_action !== "none") {
+    return report.detail;
+  }
+
+  if (data.status.index_required_video_count > 0) {
+    return `${data.status.index_required_video_count} 个素材已经处理完成，进入素材处理页后可以安全上线到剪辑端。`;
+  }
+
+  return "剪辑端可以继续使用当前已上线素材；管理端没有发现必须立即处理的动作。";
+}
+
+function DashboardSimpleTile({
+  label,
+  value,
+  detail,
+  tone = "neutral"
+}: {
+  label: string;
+  value: ReactNode;
+  detail: string;
+  tone?: "healthy" | "attention" | "blocked" | "neutral";
+}) {
+  return (
+    <article className={`admin-simple-tile is-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </article>
+  );
+}
+
 function recentJobDetail(
   job: AdminPreprocessJob,
   queuePosition: number,
@@ -506,6 +567,124 @@ export function DashboardPage({
         tone: "blocked" as const
       }))
   ].slice(0, 5);
+  const showDetailedDashboard = import.meta.env?.VITE_MIXLAB_ADMIN_SHOW_DETAILED_DASHBOARD === "true";
+
+  if (!showDetailedDashboard) {
+    return (
+      <>
+        <div className="admin-main-column">
+          <section className="admin-console-hero admin-simple-dashboard-hero" aria-label="管理端总览">
+            <AdminPageHeader
+              title="首页"
+              eyebrow="素材生产驾驶舱"
+              description="只看当前能不能继续处理素材、剪辑端能不能正常使用。"
+              action={
+                <section className="admin-action-row" aria-label="首页主操作">
+                  {report.primary_action !== "none" ? (
+                    <AdminControlButton
+                      label={oneClickActionLabel(report)}
+                      state={dashboardWriteState}
+                      reason="按当前状态执行最合适的下一步。"
+                      variant="primary"
+                      onClick={
+                        onApplySmartScanPrimaryAction
+                          ? () => onApplySmartScanPrimaryAction(report.primary_action)
+                          : undefined
+                      }
+                    />
+                  ) : null}
+                </section>
+              }
+            />
+          </section>
+          <section className={`admin-simple-status is-${report.severity}`} aria-label="当前状态">
+            <span className={`admin-status-badge is-${report.severity === "blocked" ? "failed" : report.severity === "attention" ? "warning" : "ready"}`}>
+              {dashboardHealthLabel(data, report)}
+            </span>
+            <div>
+              <h2>{report.title}</h2>
+              <p>{statusSentence(data, report)}</p>
+            </div>
+          </section>
+          <section className="admin-simple-grid" aria-label="关键数字">
+            <DashboardSimpleTile
+              label="剪辑端可用素材"
+              value={data.status.ready_video_count}
+              detail={`当前索引 ${data.indexes.current_version || "暂无索引"}，占全部 ${readyRatio}%`}
+              tone="healthy"
+            />
+            <DashboardSimpleTile
+              label="等待自动处理"
+              value={data.status.unprocessed_video_count + data.jobs.queued_count}
+              detail={`${data.jobs.queued_count} 个已排队，${data.status.unprocessed_video_count} 个待发现入队`}
+              tone={data.status.unprocessed_video_count + data.jobs.queued_count > 0 ? "attention" : "healthy"}
+            />
+            <DashboardSimpleTile
+              label={supervisorRunning ? "正在处理" : data.status.processing_video_count > 0 ? "需要恢复" : "处理服务"}
+              value={supervisorRunning ? data.jobs.active_count : data.status.processing_video_count > 0 ? data.status.processing_video_count : data.jobs.supervisor.state_label}
+              detail={supervisorRunning ? "系统正在自动生成文案、封面和索引产物" : data.status.processing_video_count > 0 ? "有任务停留在处理中，请到素材处理页恢复" : "需要处理素材时可在素材处理页启动"}
+              tone={data.status.processing_video_count > 0 && !supervisorRunning ? "blocked" : supervisorRunning ? "healthy" : "neutral"}
+            />
+            <DashboardSimpleTile
+              label="已处理待上线"
+              value={data.status.index_required_video_count}
+              detail={data.status.index_required_video_count > 0 ? "进入素材处理页后可以安全上线到剪辑端" : "当前已处理素材都已上线"}
+              tone={data.status.index_required_video_count > 0 ? "attention" : "healthy"}
+            />
+            <DashboardSimpleTile
+              label="失败可重试"
+              value={data.jobs.failed_count}
+              detail={data.jobs.failed_count > 0 ? "失败素材可以单独重试，不影响其他队列" : "当前没有失败阻塞"}
+              tone={data.jobs.failed_count > 0 ? "blocked" : "healthy"}
+            />
+            <DashboardSimpleTile
+              label="系统状态"
+              value={data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "正常"}
+              detail={`检查通过 ${data.doctor.summary.pass}，警告 ${data.doctor.summary.warn}，失败 ${data.doctor.summary.fail}`}
+              tone={data.doctor.summary.fail > 0 ? "blocked" : data.doctor.summary.warn > 0 ? "attention" : "healthy"}
+            />
+          </section>
+          <section className="admin-simple-flow" aria-label="自动处理流程">
+            {[
+              { label: "发现素材", value: data.status.video_count },
+              { label: "自动预处理", value: data.jobs.queued_count + data.status.processing_video_count },
+              { label: "自动上线", value: data.status.index_required_video_count },
+              { label: "剪辑端可用", value: data.status.ready_video_count }
+            ].map((step, index) => (
+              <article className="admin-simple-flow-step" key={step.label}>
+                <span>{index + 1}</span>
+                <strong>{step.label}</strong>
+                <p>{step.value} 个</p>
+              </article>
+            ))}
+          </section>
+        </div>
+        <InspectorPanel title="当前建议">
+          <AdminInfoGroups
+            groups={[
+              {
+                title: "现在该做什么",
+                rows: [
+                  { label: "建议", value: report.title },
+                  { label: "剪辑端", value: corePathHealth.status_label },
+                  { label: "素材库", value: data.status.root_path ? "已连接" : "待配置" },
+                  { label: "磁盘", value: `${formatAdminFileSize(data.status.disk_available_bytes)} 可用` }
+                ]
+              },
+              {
+                title: "保护规则",
+                rows: [
+                  { label: "已上线素材", value: "不会重跑或下线" },
+                  { label: "剪辑端协议", value: "保持不变" },
+                  { label: "NAS 目录", value: "保持不迁移" }
+                ]
+              }
+            ]}
+          />
+        </InspectorPanel>
+      </>
+    );
+  }
 
   return (
     <>

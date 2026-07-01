@@ -284,7 +284,7 @@ function stagingImageTags(report: unknown): { current: string; target: string; r
 function isCurrentBuildIdentity(identity: { image_tag: string; build_sha: string }): boolean {
   return Boolean(identity.image_tag)
     && Boolean(identity.build_sha)
-    && identity.image_tag !== "local-admin-docker-mvp-v0.1"
+    && identity.image_tag !== "local-admin-docker-production"
     && identity.build_sha !== "local-docker-smoke";
 }
 

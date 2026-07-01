@@ -21,6 +21,7 @@ export interface AdminSourceVideoClientContext {
 
 export interface AdminSourceVideoClientMethods {
   listSourceVideos(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideo[]>;
+  listSourceVideosReadOnly(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideo[]>;
   listSourceVideosWithRuntime(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideoListResult>;
   getSourceVideoDetail(sourceVideoId: string): Promise<AdminSourceVideoDetail>;
   queueSourceVideo(sourceVideoId: string): Promise<AdminActionResult>;
@@ -42,6 +43,11 @@ export function createAdminSourceVideoClientMethods({
   baseUrl,
   protectedHeaders
 }: AdminSourceVideoClientContext): AdminSourceVideoClientMethods {
+  const readOnlyProbeHeaders = (): Headers => {
+    const headers = new Headers(protectedHeaders);
+    headers.set("X-MixLab-Admin-Read-Only-Probe", "true");
+    return headers;
+  };
   const listSourceVideosWithRuntime = (options?: AdminSourceVideoListOptions) =>
     getJsonWithMeta<AdminSourceVideo[]>(
       fetchImpl,
@@ -57,6 +63,14 @@ export function createAdminSourceVideoClientMethods({
   return {
     listSourceVideos: (options) =>
       listSourceVideosWithRuntime(options).then((result) => result.source_videos),
+    listSourceVideosReadOnly: (options) =>
+      getJsonWithMeta<AdminSourceVideo[]>(
+        fetchImpl,
+        baseUrl,
+        `/api/admin/source-videos${listQuery(options)}`,
+        readOnlyProbeHeaders()
+      )
+        .then((result) => result.data.map((video) => resolveSourceVideoMedia(baseUrl, video))),
     listSourceVideosWithRuntime,
     getSourceVideoDetail: (sourceVideoId) =>
       getJson<AdminSourceVideoDetail>(fetchImpl, baseUrl, `/api/admin/source-videos/${sourceVideoId}`, protectedHeaders)

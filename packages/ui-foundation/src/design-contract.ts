@@ -54,10 +54,8 @@ export const CUTTER_REQUIRED_PAGES = [
 export const ADMIN_REQUIRED_PAGES = [
   "首页",
   "素材处理",
-  "素材库",
   "剪辑师",
-  "系统状态",
-  "设置"
+  "系统状态"
 ] as const;
 
 export const FORBIDDEN_UI_PATTERNS = [

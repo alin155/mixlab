@@ -39,7 +39,7 @@ function releaseGates(): unknown {
   return {
     admin_worker_env_proof: {
       required_env_flags: {
-        MIXLAB_ADMIN_DOCKER_MVP_MODE: "v0.1",
+        MIXLAB_ADMIN_DOCKER_MVP_MODE: "off",
         MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER: "0",
         MIXLAB_ENABLE_READY_PUBLISH_WORKER: "0"
       },
@@ -93,8 +93,8 @@ test("local Docker smoke reports blocked when Docker is unavailable and run is n
     assert.equal(report.local_smoke_passed, false);
     assert.equal(report.docker_upload_allowed, false);
     assert.equal(report.nas_live_evidence, false);
-    assert.equal(report.build_identity.image_tag, "local-admin-docker-mvp-v0.1");
-    assert.equal(report.build_identity.mvp_mode, "v0.1");
+    assert.equal(report.build_identity.image_tag, "local-admin-docker-production");
+    assert.equal(report.build_identity.mvp_mode, "off");
     assert.equal(report.probes.length, 0);
     assert.ok(report.summary.local_smoke_blockers.includes("explicit-run-requested"));
     assert.ok(report.summary.local_smoke_blockers.includes("docker-cli-available"));
@@ -149,7 +149,7 @@ test("local Docker smoke can pass full build compose probe flow with mocked Dock
             command,
             args,
             stdout: [
-              "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+              "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
               "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
               "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
               "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",
@@ -211,11 +211,11 @@ test("local Docker smoke can pass full build compose probe flow with mocked Dock
       image_tag: "smoked-image-tag",
       build_sha: "smoked-sha",
       build_version: "smoked-version",
-      mvp_mode: "v0.1"
+      mvp_mode: "off"
     });
     assert.equal(report.observations.web_url, "http://127.0.0.1:18082/");
     assert.equal(report.probes.length, 5);
-    assert.equal(report.worker_env.flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+    assert.equal(report.worker_env.flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "off");
     assert.ok(commands.some((command) => command.includes("docker/admin-runtime.Dockerfile")));
     assert.ok(commands.some((command) => command.includes("docker/admin-web.Dockerfile")));
     assert.ok(commands.some((command) => command.includes("compose") && command.includes("up")));

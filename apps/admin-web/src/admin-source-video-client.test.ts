@@ -155,6 +155,47 @@ test("source-video client preserves list query, runtime meta, and media URL reso
   ]);
 });
 
+test("source-video client can request source videos as a read-only probe", async () => {
+  const requests: Array<{ search: string; token: string | null; readOnlyProbe: string | null }> = [];
+  const client = createAdminSourceVideoClientMethods({
+    baseUrl: "http://127.0.0.1:3889",
+    protectedHeaders: {
+      "X-MixLab-Admin-Session-Token": "admin-session-001"
+    },
+    fetchImpl: async (url, init) => {
+      const parsed = new URL(String(url));
+      const headers = new Headers(init?.headers);
+      requests.push({
+        search: parsed.search,
+        token: headers.get("x-mixlab-admin-session-token"),
+        readOnlyProbe: headers.get("x-mixlab-admin-read-only-probe")
+      });
+
+      const envelope: AdminApiEnvelope<AdminSourceVideo[]> = {
+        ok: true,
+        data: [sourceVideo({ preprocess_status: "index-required", visible_to_cutters: false })]
+      };
+      return new Response(JSON.stringify(envelope), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  const result = await client.listSourceVideosReadOnly({
+    limit: 20,
+    status: "index-required"
+  });
+
+  assert.equal(result[0]?.preprocess_status, "index-required");
+  assert.deepEqual(requests, [
+    {
+      search: "?limit=20&status=index-required",
+      token: "admin-session-001",
+      readOnlyProbe: "true"
+    }
+  ]);
+});
+
 test("source-video client forwards explicit manifest fallback policy", async () => {
   const requests: Array<{ search: string }> = [];
   const client = createAdminSourceVideoClientMethods({

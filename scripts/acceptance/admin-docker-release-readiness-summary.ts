@@ -528,7 +528,7 @@ function buildAutomationBoundary(input: {
       : "Prepare Cutter proof collection commands for the staged candidate; do not count current production Cutter smoke as staged proof.");
   }
 
-  blockedActions.add("Do not mark Admin Docker MVP v0.1 complete.");
+  blockedActions.add("Do not mark Admin Docker production release complete.");
 
   return {
     safe_local_progress_allowed: true,

@@ -10,6 +10,7 @@ const DEFAULT_NAS_UGOS_BASE_URL = "http://192.168.1.27:9999";
 const DEFAULT_ADMIN_LIVE_BASE_URL = "http://192.168.1.27:18080";
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
 const PROJECT_NAME = "mixlab-server";
+const TARGET_DOCKER_MODE = "off";
 
 type FetchLike = typeof fetch;
 type ResultStatus = "dry-run-ready" | "updated" | "submitted" | "blocked";
@@ -188,14 +189,18 @@ function retagProjectContent(content: string, targetTag: string, dockerMvpAllowC
     .replace(/ghcr\.io\/alin155\/mixlab-admin-web:[^\s"']+/g, `ghcr.io/alin155/mixlab-admin-web:${targetTag}`)
     .replace(/(MIXLAB_IMAGE_TAG:\s*["']?)[a-f0-9]{7,40}(["']?)/g, `$1${targetTag}$2`);
 
-  return dockerMvpAllowCommands
-    ? upsertEnvironmentValue(
-      retagged,
+  const withDockerMode = upsertEnvironmentValue(
+    retagged,
+    "MIXLAB_ADMIN_DOCKER_MVP_MODE",
+    TARGET_DOCKER_MODE,
+    "MIXLAB_IMAGE_TAG"
+  );
+  return upsertEnvironmentValue(
+    withDockerMode,
       "MIXLAB_ADMIN_DOCKER_MVP_ALLOW_COMMANDS",
       dockerMvpAllowCommands,
       "MIXLAB_ADMIN_DOCKER_MVP_MODE"
-    )
-    : retagged;
+  );
 }
 
 function hasLineValue(content: string, key: string, expected: string): boolean {
@@ -352,7 +357,7 @@ function buildGates(input: {
     },
     {
       id: "mvp-mode-and-preprocess-root",
-      status: hasLineValue(input.afterContent, "MIXLAB_ADMIN_DOCKER_MVP_MODE", "v0.1") &&
+      status: hasLineValue(input.afterContent, "MIXLAB_ADMIN_DOCKER_MVP_MODE", TARGET_DOCKER_MODE) &&
         hasLineValue(input.afterContent, "MIXLAB_PREPROCESS_LIBRARY_ROOT", "/data/PublicLibrary") ? "pass" : "blocked",
       evidence: workerLines(input.afterContent).join("; "),
       blocks_update: true

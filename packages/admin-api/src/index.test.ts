@@ -2689,7 +2689,7 @@ test("admin preprocess pipeline keeps cycling with concurrency one and auto publ
   const operationLog = await readAdminOperationLog({
     library_root: libraryRoot,
     generated_at: "2026-05-02T12:10:00.000Z",
-    limit: 20
+    limit: 50
   });
   const scanSucceeded = operationLog.events.find(
     (event) => event.action === "library-scan" && event.event_type === "succeeded"
@@ -2719,13 +2719,15 @@ test("admin preprocess pipeline keeps cycling with concurrency one and auto publ
   assert.equal(scanDetails?.command_snapshot?.snapshot_kind, "file-capture");
 
   const publishEvents = operationLog.events.filter(
-    (event) => event.action === "preprocess-supervisor-publish-ready"
+    (event) => event.action === "source-video-publish"
   );
   assert.equal(
-    publishEvents.some((event) => event.event_type === "started"),
-    true
+    publishEvents.filter((event) => event.event_type === "started").length,
+    2
   );
-  const succeeded = publishEvents.find((event) => event.event_type === "succeeded");
+  const succeededEvents = publishEvents.filter((event) => event.event_type === "succeeded");
+  assert.equal(succeededEvents.length, 2);
+  const succeeded = succeededEvents[0];
   const details = succeeded?.details as {
     actor?: {
       kind?: string;
@@ -2740,8 +2742,8 @@ test("admin preprocess pipeline keeps cycling with concurrency one and auto publ
     };
   } | undefined;
   assert.equal(succeeded?.area, "release");
-  assert.equal(details?.lease_reason, "preprocess-supervisor-publish-ready");
-  assert.equal(details?.scan_mode, "status-scan");
+  assert.equal(details?.lease_reason, "source-video-publish");
+  assert.equal(details?.scan_mode, "single-id");
   assert.deepEqual(details?.actor, {
     kind: "system",
     source: "system-task",

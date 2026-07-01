@@ -45,7 +45,7 @@ function fakeFetch(input: {
   diskUsage?: number;
 } = {}): typeof fetch {
   const workerEnv = input.workerEnv ?? [
-    { variable: "MIXLAB_ADMIN_DOCKER_MVP_MODE", price: "v0.1" },
+    { variable: "MIXLAB_ADMIN_DOCKER_MVP_MODE", price: "off" },
     { variable: "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", price: "0" },
     { variable: "MIXLAB_ENABLE_READY_PUBLISH_WORKER", price: "0" },
     { variable: "MIXLAB_ADMIN_LIBRARY_ROOT", price: "/data/PublicLibrary" },

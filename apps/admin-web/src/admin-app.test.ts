@@ -137,9 +137,11 @@ function visibleText(html: string): string {
 test("admin navigation uses approved Chinese IA and legacy route aliases", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["首页", "素材处理", "素材库", "剪辑师", "系统状态", "设置"]
+    ["首页", "素材处理", "剪辑师", "系统状态"]
   );
-  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "设置");
+  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "系统状态");
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "素材库"), false);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "设置"), false);
   assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "公共素材库设置"), false);
   assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "发布与索引"), false);
   assert.equal(routeFromHash("#/library-settings"), "settings");
@@ -594,72 +596,47 @@ test("AdminApp action notices localize API result messages before rendering", ()
   assert.equal(source.includes("result.message ? `。${result.message}`"), false);
 });
 
-test("dashboard renders restrained library status", async () => {
+test("dashboard renders a simple automated control console", async () => {
   const data = await fixtureData();
   const html = renderToStaticMarkup(h(DashboardPage, { data }));
 
   for (const text of [
-    "公共素材库生产状态",
+    "素材生产驾驶舱",
     "首页",
-    "公共库摘要",
-    "根目录",
-    "可搜索总时长",
-    "可用视频",
-    "句子片段",
-    "失败任务",
-    "活跃剪辑师",
-    "生产吞吐",
-    "生产健康",
-    "素材上线",
-    "最近预警",
-    "局部刷新",
-    "下一步建议",
-    "核心链路健康",
-    "搜索到剪切可用，部分指标需要观察",
-    "需要观察",
-    "关键词定位",
-    "完整文案",
-    "选段剪切",
-    "本地搜索 100%",
-    "搜索服务正常覆盖",
-    "磁盘空间",
-    "刷新方式",
-    "操作提示",
-    "待上线素材",
-    "去素材处理页查看",
-    "v000027",
-    "素材规模",
-    "文案与索引",
-    "预处理产能",
-    "剪辑端使用",
-    "剪辑端转化",
-    "搜索命中率",
-    "文案选区率",
-    "加入待剪率",
-    "剪切成功率",
-    "50 人容量",
-    "风险摘要",
-    "系统负荷",
+    "只看当前能不能继续处理素材",
     "当前状态",
-    "处理建议",
-    "原视频总时长",
-    "文案总字数",
-    "搜索请求",
-    "搜索 p95",
-    "47ms",
-    "本地搜索覆盖",
-    "100%",
-    "补充读取",
-    "活跃剪辑师"
+    "剪辑端可用素材",
+    "等待自动处理",
+    "正在处理",
+    "已处理待上线",
+    "失败可重试",
+    "系统状态",
+    "自动处理流程",
+    "发现素材",
+    "自动预处理",
+    "自动上线",
+    "剪辑端可用",
+    "当前建议",
+    "现在该做什么",
+    "保护规则",
+    "已上线素材",
+    "不会重跑或下线",
+    "剪辑端协议",
+    "保持不变",
+    "NAS 目录",
+    "保持不迁移",
+    "v000027",
+    "重试失败视频"
   ]) {
     assert.match(html, new RegExp(text));
   }
-  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>局部刷新<\/button>/);
+  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>重试失败视频<\/button>/);
   assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁/);
   assert.doesNotMatch(html, /设备负荷|服务心跳/);
   assert.doesNotMatch(html, /页面契约|admin-read-model|library-manifest|runtime-telemetry|Shell 首屏|数据来源/);
   assert.doesNotMatch(html, /<span class="ml-form-label">(CPU|内存|网络)<\/span>/);
   assert.doesNotMatch(html, />处理未处理<\/button>/);
+  assert.doesNotMatch(html, /素材规模|文案与索引|剪辑端转化|风险摘要|系统负荷|生产吞吐|核心链路健康/);
 
   const queuedIdleData = {
     ...data,
@@ -695,8 +672,7 @@ test("dashboard renders restrained library status", async () => {
   assert.match(queuedIdleHtml, /40 个视频已排队，但预处理服务未运行/);
   assert.match(queuedIdleHtml, />启动预处理<\/button>/);
   assert.match(queuedIdleHtml, /<button[^>]*data-control-state="m9b-api"[^>]*>启动预处理<\/button>/);
-  assert.match(queuedIdleHtml, /排队第 1 位/);
-  assert.match(queuedIdleHtml, /等待处理/);
+  assert.match(queuedIdleHtml, /等待自动处理/);
   assert.doesNotMatch(queuedIdleHtml, /queued-by-admin|>0%<\/span>/);
 
   const processingIdleData = {
@@ -720,9 +696,8 @@ test("dashboard renders restrained library status", async () => {
     data: processingIdleData,
     smartScanReport: createAdminSmartScanReport(processingIdleData)
   }));
-  assert.match(processingIdleHtml, /待恢复/);
-  assert.match(processingIdleHtml, /1 个待恢复 \/ 40 队列中/);
-  assert.match(processingIdleHtml, /存在停滞中的处理任务/);
+  assert.match(processingIdleHtml, /需要恢复/);
+  assert.match(processingIdleHtml, /仍标记为处理中/);
   assert.doesNotMatch(processingIdleHtml, /1 正在处理 \/ 40 队列中/);
 
   const withoutEstimate = {
@@ -735,7 +710,7 @@ test("dashboard renders restrained library status", async () => {
       }
     }
   };
-  assert.match(renderToStaticMarkup(h(DashboardPage, { data: withoutEstimate })), /暂无估算/);
+  assert.match(renderToStaticMarkup(h(DashboardPage, { data: withoutEstimate })), /当前建议/);
 
   const withEnglishTitle = {
     ...data,
@@ -746,7 +721,7 @@ test("dashboard renders restrained library status", async () => {
       ))
     }
   };
-  assert.match(renderToStaticMarkup(h(DashboardPage, { data: withEnglishTitle })), /AI剪辑实战 V000037/);
+  assert.doesNotMatch(renderToStaticMarkup(h(DashboardPage, { data: withEnglishTitle })), /AI剪辑实战 V000037/);
 
   assert.doesNotMatch(queuedIdleHtml, /data-control-state="read-only"/);
 });
@@ -763,8 +738,8 @@ test("dashboard keeps rendering when runtime metrics omit source metadata", asyn
   const text = visibleText(renderToStaticMarkup(h(DashboardPage, { data: dataWithoutMetricSources })));
 
   assert.match(text, /首页/);
-  assert.match(text, /公共素材库生产状态/);
-  assert.match(text, /操作提示/);
+  assert.match(text, /素材生产驾驶舱/);
+  assert.match(text, /当前建议/);
   assert.doesNotMatch(text, /素材库账本|使用事件|状态读取/);
 });
 
@@ -805,12 +780,10 @@ test("dashboard labels unavailable large-library aggregates instead of fake zero
   };
   const text = visibleText(renderToStaticMarkup(h(DashboardPage, { data: largeLibraryData })));
 
-  assert.match(text, /当前连接素材库：\/Volumes\/MixLab\/PublicLibrary/);
-  assert.match(text, /可搜索总时长 未统计/);
-  assert.match(text, /原视频总时长 未统计/);
-  assert.match(text, /原视频容量 未统计/);
-  assert.match(text, /文案总字数 未统计/);
-  assert.match(text, /平均耗时 暂无样本/);
+  assert.match(text, /剪辑端可用素材 8355/);
+  assert.match(text, /当前索引 v000027/);
+  assert.match(text, /等待自动处理/);
+  assert.match(text, /当前建议/);
   assert.doesNotMatch(text, /可搜索总时长 0h/);
   assert.doesNotMatch(text, /原视频总时长 00:00/);
   assert.doesNotMatch(text, /原视频容量 0 B/);
@@ -1713,48 +1686,43 @@ test("preprocess jobs render failure retry and later success", async () => {
 
   for (const text of [
     "素材处理",
-    "生产状态",
-    "流水线总览",
-    "当前处理视频",
-    "阶段进度",
-    "预计剩余",
-    "预计完成",
-    "负荷建议",
-    "任务队列",
-    "未处理原视频",
-    "将加入",
-    "预计总时长",
-    "素材来源",
+    "自动处理与上线",
+    "启动后系统会自动发现素材",
+    "素材处理状态",
+    "剪辑端可用",
     "正在处理",
     "队列中",
-    "最近完成",
+    "待上线",
     "失败可重试",
-    "处理控制",
-    "状态摘要",
-    "处理结果",
-    "运行中",
-    "详情",
-    "暂停预处理",
-    "上次处理",
-    "索引状态",
-    "自动上线",
-    "当前索引状态",
-    "当前索引已发布 v000027",
+    "自动处理流程",
+    "扫描素材",
+    "提取音频",
+    "语音识别",
+    "生成文案",
+    "封面关键帧",
+    "上线剪辑端",
     "已处理待上线",
     "上线到剪辑端",
-    "生成关键帧",
-    "阿里云百炼语音识别网络超时",
-    "J000041"
+    "当前索引",
+    "系统检查",
+    "处理控制",
+    "当前状态",
+    "运行中",
+    "暂停预处理",
+    "上次处理",
+    "自动上线",
+    "安全保护",
+    "已上线素材",
+    "不会重跑或下线",
+    "剪辑端",
+    "读取协议保持不变"
   ]) {
     assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
   }
   for (const text of [
-    "处理历史",
     "全部素材来源",
     "全部状态",
     "全部事件",
-    "已同步",
-    "处理记录已同步",
     "分析范围",
     "状态分布",
     "事件分布",
@@ -1769,13 +1737,17 @@ test("preprocess jobs render failure retry and later success", async () => {
     "现金流课程片段",
     "已领取",
     "利润增长的估价优化",
-    "已上线"
+    "已领取",
+    "任务队列",
+    "任务处理详情",
+    "J000041",
+    "阿里云百炼语音识别网络超时"
   ]) {
-    assert.match(html, new RegExp(text.replaceAll(".", "\\.")));
+    assert.doesNotMatch(html, new RegExp(text.replaceAll(".", "\\.")));
   }
   assert.doesNotMatch(html, /preprocess_job_page|runtime_load|status=healthy/);
   assert.doesNotMatch(html, /current\.json/);
-  assert.match(html, /运行负荷正常，可以继续处理/);
+  assert.doesNotMatch(html, /运行负荷正常，可以继续处理/);
   assert.match(html, /上线到剪辑端/);
   assert.doesNotMatch(html, /data-control-state="native-boundary"/);
   assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁|启动预处理流水线|暂停预处理流水线/);
@@ -1800,9 +1772,9 @@ test("preprocess jobs render failure retry and later success", async () => {
     },
     onOpenPreprocessJobLog: () => {}
   }));
-  assert.match(logHtml, /任务处理详情/);
-  assert.match(logHtml, /J000037 · V000037/);
-  assert.match(logHtml, /failed: 阿里云百炼语音识别网络超时/);
+  assert.doesNotMatch(logHtml, /任务处理详情/);
+  assert.doesNotMatch(logHtml, /J000037 · V000037/);
+  assert.doesNotMatch(logHtml, /failed: 阿里云百炼语音识别网络超时/);
   assert.doesNotMatch(logHtml, /\.mixlab-library\/logs\/V000037\.log/);
 
   const loadingJobsHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
@@ -1817,7 +1789,7 @@ test("preprocess jobs render failure retry and later success", async () => {
   }));
   assert.match(loadingJobsHtml, /素材处理/);
   assert.match(loadingJobsHtml, /自动处理与上线/);
-  assert.match(loadingJobsHtml, /任务明细后台同步中/);
+  assert.doesNotMatch(loadingJobsHtml, /任务明细后台同步中/);
   assert.doesNotMatch(loadingJobsHtml, /正在读取预处理队列/);
 
   const unavailableHistoryHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
@@ -1861,8 +1833,8 @@ test("preprocess jobs render failure retry and later success", async () => {
       items: []
     }
   }));
-  assert.match(unavailableHistoryHtml, /处理历史暂不可用/);
-  assert.match(unavailableHistoryHtml, /系统会继续显示当前队列和生产状态/);
+  assert.match(unavailableHistoryHtml, /素材处理/);
+  assert.doesNotMatch(unavailableHistoryHtml, /处理历史暂不可用/);
 
   const noisyFailureData = {
     ...data,
@@ -1871,14 +1843,15 @@ test("preprocess jobs render failure retry and later success", async () => {
       jobs: [{
         ...data.jobs.jobs.find((job) => job.status === "failed")!,
         stage: "asr",
-        stage_label: "文案预处理 · 阿里云百炼语音识别 task 3b279eb3-6549-42ac-bfdd-b0d174886eb5 failed: SUCCESS_WITH_NO_VALID_FRAGMENT",
-        error_message: "阿里云百炼语音识别 task 3b279eb3-6549-42ac-bfdd-b0d174886eb5 failed: SUCCESS_WITH_NO_VALID_FRAGMENT"
+        stage_label: "文案预处理 · 阿里云百炼语音识别 ASR_TASK_ID_PLACEHOLDER failed: SUCCESS_WITH_NO_VALID_FRAGMENT",
+        error_message: "阿里云百炼语音识别 ASR_TASK_ID_PLACEHOLDER failed: SUCCESS_WITH_NO_VALID_FRAGMENT"
       }]
     }
   };
   const noisyFailureHtml = renderToStaticMarkup(h(PreprocessJobsPage, { data: noisyFailureData }));
-  assert.match(noisyFailureHtml, /语音识别 · 阿里云百炼语音识别失败：未识别到有效语音片段/);
-  assert.doesNotMatch(noisyFailureHtml, /3b279eb3|SUCCESS_WITH_NO_VALID_FRAGMENT|task /);
+  assert.match(noisyFailureHtml, /失败可重试/);
+  assert.doesNotMatch(noisyFailureHtml, /语音识别 · 阿里云百炼语音识别失败：未识别到有效语音片段/);
+  assert.doesNotMatch(noisyFailureHtml, /ASR_TASK_ID_PLACEHOLDER|SUCCESS_WITH_NO_VALID_FRAGMENT/);
 
   const queuedIdleData = {
     ...data,
@@ -1956,10 +1929,10 @@ test("preprocess jobs render failure retry and later success", async () => {
   }));
   assert.match(queuedIdleHtml, /2 个视频已排队，但预处理服务未运行/);
   assert.match(queuedIdleHtml, /建议启动预处理/);
-  assert.match(queuedIdleHtml, /等待处理/);
-  assert.match(queuedIdleHtml, /排队第 1 位/);
-  assert.match(queuedIdleHtml, /预计开始/);
-  assert.match(queuedIdleHtml, /预计 30:00 完成当前队列/);
+  assert.match(queuedIdleHtml, /等待自动处理/);
+  assert.doesNotMatch(queuedIdleHtml, /排队第 1 位/);
+  assert.doesNotMatch(queuedIdleHtml, /预计开始/);
+  assert.doesNotMatch(queuedIdleHtml, /预计完成/);
   assert.match(queuedIdleHtml, /处理控制/);
   assert.doesNotMatch(queuedIdleHtml, /queued-by-admin|\.mixlab-library\/logs|>0%<\/span>/);
 
@@ -1994,8 +1967,8 @@ test("preprocess jobs render failure retry and later success", async () => {
   }));
   assert.match(processingIdleHtml, /1 个处理中任务需要恢复/);
   assert.match(processingIdleHtml, /待恢复/);
-  assert.match(processingIdleHtml, /服务未运行，停留在处理中/);
-  assert.match(processingIdleHtml, /待恢复 · 语音识别/);
+  assert.match(processingIdleHtml, /仍有视频停留在处理中/);
+  assert.doesNotMatch(processingIdleHtml, /待恢复 · 语音识别/);
   assert.match(processingIdleHtml, /恢复卡住任务/);
   assert.doesNotMatch(processingIdleHtml, /预处理服务已领取/);
 });
@@ -2231,7 +2204,6 @@ test("route-owned read failures render inside local production-console surfaces"
   assert.match(sourceVideosText, /原视频列表加载失败/);
   assert.match(indexPublishText, /上线队列加载失败/);
   assert.match(indexPublishText, /待上线素材加载失败/);
-  assert.match(preprocessText, /任务队列加载失败/);
   assert.match(preprocessText, /预处理队列加载失败/);
   assert.match(doctorText, /诊断报告加载失败/);
   assert.match(doctorText, /系统检查加载失败/);
@@ -2260,7 +2232,7 @@ test("route-local read registry owns visible page read-error boundaries", () => 
     ]),
     [
       ["source-videos", "原视频列表加载", "素材表格", false],
-      ["index-publish", "待上线素材加载", "上线队列", false],
+      ["preprocess-jobs", "待上线素材加载", "上线队列", false],
       ["preprocess-jobs", "预处理队列加载", "任务队列", false],
       ["cutter-users", "剪辑师用户加载", "用户表格", false],
       ["doctor", "系统检查加载", "诊断报告", false],
@@ -2309,7 +2281,7 @@ test("route loading runtime registry owns visible loading and background refresh
       ["source-detail", "route-entry", false, true, false],
       ["source-videos", "route-entry", false, true, false],
       ["source-videos", "route-pagination", false, true, false],
-      ["index-publish", "route-entry", false, true, false],
+      ["preprocess-jobs", "route-entry", false, true, false],
       ["preprocess-jobs", "route-entry", false, true, false],
       ["preprocess-jobs", "route-supplemental", false, true, false],
       ["protection", "route-entry", false, true, false],
@@ -2764,7 +2736,7 @@ test("route loading runtime runs request loader lifecycle through the execution 
       ],
       [
         "indexRequiredVideos",
-        "index-publish",
+        "preprocess-jobs",
         "indexRequiredVideos",
         "indexRequiredVideos",
         "route-abortable",
@@ -2860,9 +2832,14 @@ test("route loading runtime runs request loader lifecycle through the execution 
   }), false);
   assert.equal(shouldStartAdminRouteRequestLoad({
     key: "indexRequiredVideos",
-    route: "index-publish",
+    route: "preprocess-jobs",
     loading: false
   }), true);
+  assert.equal(shouldStartAdminRouteRequestLoad({
+    key: "indexRequiredVideos",
+    route: "index-publish",
+    loading: false
+  }), false);
   assert.equal(shouldStartAdminRouteRequestLoad({
     key: "indexRequiredVideos",
     route: "source-videos",
@@ -2945,7 +2922,7 @@ test("route loading runtime runs request loader lifecycle through the execution 
 
   const indexRequiredScope = createAdminRouteRequestScope({
     key: "indexRequiredVideos",
-    route: "index-publish",
+    route: "preprocess-jobs",
     loading: false,
     createRequestScope: (spec) => {
       createdScopes.push(spec.client_method);
@@ -3300,7 +3277,7 @@ test("AdminApp consumes request route loaders from the runtime", () => {
   assert.equal(source.includes("hasFreshData: Boolean(cutterUsers && cutterUsersLoadedTokenRef.current === cutterUsersReloadToken)"), true);
   assert.equal(source.includes("request: ({ requestScope }) => withAdminLoadTimeout("), true);
   assert.equal(source.includes("requestScope.client.listCutterUsers()"), true);
-  assert.equal(source.includes("requestScope.client.listSourceVideos({"), true);
+  assert.equal(source.includes("requestScope.client.listSourceVideosReadOnly({"), true);
   assert.equal(source.includes("requestScope.client.listSourceVideosWithRuntime({"), true);
   assert.equal(source.includes("canLoad: shouldLoadAdminSourceVideos({"), true);
   assert.equal(source.includes("status: \"index-required\""), true);
@@ -3772,7 +3749,7 @@ test("route-owned loaders use reusable request scopes instead of raw AbortContro
     "function createRuntimeRequestScope(",
     "requestScope.client.getAuthStatus()",
     "loadAdminDashboardData(requestScope.client, { includeHeavy: false })",
-    "requestScope.client.listSourceVideos({",
+    "requestScope.client.listSourceVideosReadOnly({",
     "loadAdminPreprocessRouteData(requestScope.client",
     "requestScope.client.listIndexVersions()",
     "loadProtectionCenterData(requestScope.client)",
@@ -4009,7 +3986,7 @@ test("core admin pages no longer expose NAS write unlock controls", async () => 
     assert.doesNotMatch(html, /data-control-state="read-only"/);
   }
 
-  assert.match(dashboardHtml, /局部刷新/);
+  assert.match(dashboardHtml, /素材生产驾驶舱/);
   assert.match(sourceVideosHtml, /保存素材信息/);
   assert.match(preprocessHtml, /上线到剪辑端|上线全部已处理素材/);
 });

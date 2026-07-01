@@ -395,6 +395,7 @@ export function createAdminFixtureDataLoadingPlan(input: {
         route: "preprocess-jobs",
         load_phase: "route-entry",
         endpoints: [
+          "/api/admin/source-videos",
           "/api/admin/preprocess/jobs",
           "/api/admin/preprocess/process-history",
           "/api/admin/preprocess/process-history/readiness",

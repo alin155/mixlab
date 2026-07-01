@@ -4,7 +4,7 @@ import test from "node:test";
 import { buildAdminWorkerEnvProofReport } from "./admin-worker-env-proof.ts";
 
 const SAFE_ENV = [
-  "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+  "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
   "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
   "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
   "DASHSCOPE_API_KEY=not-recorded-by-report"
@@ -16,7 +16,7 @@ const SAFE_INSPECT = JSON.stringify([
     Config: {
       Image: "ghcr.io/alin155/mixlab-admin-runtime:test-tag",
       Env: [
-        "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+        "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
         "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
         "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
         "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",
@@ -63,9 +63,9 @@ test("admin worker env proof accepts disabled worker flags and Docker library ro
   assert.equal(report.docker_upload_allowed, false);
   assert.equal(report.result.status, "accepted");
   assert.deepEqual(report.summary.upload_blockers, []);
-  assert.equal(report.observations.env_file_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+  assert.equal(report.observations.env_file_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "off");
   assert.equal(report.observations.env_file_flags.MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER, "0");
-  assert.equal(report.observations.inspect_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+  assert.equal(report.observations.inspect_flags.MIXLAB_ADMIN_DOCKER_MVP_MODE, "off");
   assert.equal(report.observations.inspect_flags.MIXLAB_ENABLE_READY_PUBLISH_WORKER, "0");
   assert.equal(report.observations.library_roots.MIXLAB_ADMIN_LIBRARY_ROOT, "/data/PublicLibrary");
   assert.equal(report.observations.image, "ghcr.io/alin155/mixlab-admin-runtime:test-tag");
@@ -118,14 +118,14 @@ test("admin worker env proof blocks when standalone workers are enabled", () => 
   assert.ok(report.operator_handoff.rollback_notes.some((item) => item.includes("current index unchanged")));
 });
 
-test("admin worker env proof blocks when docker mvp mode is disabled", () => {
+test("admin worker env proof blocks when legacy docker mvp mode is enabled", () => {
   const report = buildAdminWorkerEnvProofReport({
     generated_at: "2026-06-27T00:00:00.000Z",
     command: "test",
     env_file_path: "admin-worker.env",
-    env_file_raw: SAFE_ENV.replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1", "MIXLAB_ADMIN_DOCKER_MVP_MODE=off"),
+    env_file_raw: SAFE_ENV.replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=off", "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1"),
     inspect_json_path: "admin-worker.inspect.json",
-    inspect_json_raw: SAFE_INSPECT.replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1", "MIXLAB_ADMIN_DOCKER_MVP_MODE=off")
+    inspect_json_raw: SAFE_INSPECT.replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=off", "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1")
   });
 
   assert.equal(report.proof_accepted, false);
@@ -156,7 +156,7 @@ test("admin worker env proof remediation plan is not needed for safe worker evid
   assert.equal(report.remediation_review.status, "not-needed");
   assert.equal(report.remediation_review.accepted, true);
   assert.deepEqual(report.remediation_plan.required_changes, []);
-  assert.equal(report.remediation_plan.target_env.MIXLAB_ADMIN_DOCKER_MVP_MODE, "v0.1");
+  assert.equal(report.remediation_plan.target_env.MIXLAB_ADMIN_DOCKER_MVP_MODE, "off");
   assert.equal(report.remediation_plan.target_env.MIXLAB_PREPROCESS_LIBRARY_ROOT, "/data/PublicLibrary");
 });
 

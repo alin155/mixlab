@@ -793,6 +793,8 @@ function renderPage(
         onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
         onRepairIndex={dockerMvpMode ? undefined : actions.onRepairIndex}
         onPublishSourceVideo={actions.onPublishSourceVideo}
+        isLoadingIndexRequiredVideos={loadingState.sourceVideos}
+        indexRequiredError={routeErrors.indexRequiredVideos}
         selectedJobLog={preprocessJobLogState}
         processHistory={processHistoryState.history}
         processHistoryFilters={actions.processHistoryFilters}
@@ -910,9 +912,7 @@ function renderPage(
       data={data}
       onRetryFailedVideos={actions.onRetryFailedVideos}
       onRunSmartScan={surfaceMode === "docker-mvp-v0.1" ? undefined : actions.onRunSmartScan}
-      onApplySmartScanPrimaryAction={
-        surfaceMode === "docker-mvp-v0.1" ? undefined : actions.onApplySmartScanPrimaryAction
-      }
+      onApplySmartScanPrimaryAction={actions.onApplySmartScanPrimaryAction}
       smartScanReport={createAdminSmartScanReport(data)}
     />
   );
@@ -1000,6 +1000,7 @@ export function AdminApp() {
   const preprocessJobsPrefetchTokenRef = useRef(-1);
   const pendingPreprocessJobsRef = useRef<AdminPreprocessJobsResponse | null>(null);
   const pendingIndexVersionsRef = useRef<AdminIndexVersionsResponse | null>(null);
+  const pendingIndexRequiredVideosRef = useRef<AdminSourceVideo[] | null>(null);
   const pendingDoctorReportRef = useRef<AdminDashboardData["doctor"] | null>(null);
   const pendingSettingsPathChecksRef = useRef<AdminPathCheck[] | null>(null);
   const pendingSettingsRuntimeRef = useRef<AdminRuntimeSettings | null>(null);
@@ -1122,11 +1123,13 @@ export function AdminApp() {
           setData((current) => {
             const pendingJobs = pendingPreprocessJobsRef.current;
             const pendingIndexes = pendingIndexVersionsRef.current;
+            const pendingIndexRequiredVideos = pendingIndexRequiredVideosRef.current;
             const pendingDoctor = pendingDoctorReportRef.current;
             const pendingPathChecks = pendingSettingsPathChecksRef.current;
             const pendingRuntime = pendingSettingsRuntimeRef.current;
             pendingPreprocessJobsRef.current = null;
             pendingIndexVersionsRef.current = null;
+            pendingIndexRequiredVideosRef.current = null;
             pendingDoctorReportRef.current = null;
             pendingSettingsPathChecksRef.current = null;
             pendingSettingsRuntimeRef.current = null;
@@ -1135,6 +1138,7 @@ export function AdminApp() {
               ...next,
               ...(pendingJobs ? { jobs: pendingJobs } : {}),
               ...(pendingIndexes ? { indexes: pendingIndexes } : {}),
+              ...(pendingIndexRequiredVideos ? { source_videos: pendingIndexRequiredVideos } : {}),
               ...(pendingDoctor ? { doctor: pendingDoctor } : {}),
               ...(pendingPathChecks ? { path_checks: pendingPathChecks } : {}),
               ...(pendingRuntime ? { runtime: pendingRuntime } : {})
@@ -1302,14 +1306,22 @@ export function AdminApp() {
         setData((current) => current ? { ...current, source_videos: [] } : current);
       },
       request: ({ requestScope }) => withAdminLoadTimeout(
-        requestScope.client.listSourceVideos({
+        requestScope.client.listSourceVideosReadOnly({
           limit: ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT,
           status: "index-required"
         }),
         "待上线素材加载"
       ),
       onSuccess: (sourceVideos) => {
-        setData((current) => current ? { ...current, source_videos: sourceVideos } : current);
+        setData((current) => {
+          if (!current) {
+            pendingIndexRequiredVideosRef.current = sourceVideos;
+            return current;
+          }
+
+          pendingIndexRequiredVideosRef.current = null;
+          return { ...current, source_videos: sourceVideos };
+        });
       },
       onError: (loadError) => {
         setRouteLocalReadError("indexRequiredVideos", loadError);

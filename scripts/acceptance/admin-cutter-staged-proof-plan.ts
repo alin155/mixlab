@@ -340,7 +340,7 @@ export function buildAdminCutterStagedProofPlanReport(input: {
       status: expectedReleaseVersion ? "pass" : "blocked",
       evidence: `expected_release_version=${expectedReleaseVersion || "missing"}`,
       blocks_plan_ready: !expectedReleaseVersion,
-      required_evidence: "MVP v0.1 must prove Cutter release/index did not drift."
+      required_evidence: "Docker staging must prove Cutter release/index did not drift."
     }),
     gate({
       id: "required-suites-planned",

@@ -22,7 +22,7 @@ async function makeReturnedDir(overrides: Partial<Record<string, string | unknow
     serviceInspect("admin-worker", `ghcr.io/alin155/mixlab-admin-runtime:${IMAGE_TAG}`)
   ]);
   await writeFile(path.join(dir, "admin-worker.env"), String(overrides["admin-worker.env"] ?? [
-    "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+    "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
     "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
     "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0"
   ].join("\n")));
@@ -32,7 +32,7 @@ async function makeReturnedDir(overrides: Partial<Record<string, string | unknow
       Config: {
         Image: `ghcr.io/alin155/mixlab-admin-runtime:${IMAGE_TAG}`,
         Env: [
-          "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+          "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
           "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
           "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
           "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",
@@ -220,7 +220,7 @@ test("returned evidence precheck rejects unexpected worker env keys", async () =
   const report = await runAdminDockerNasReturnedEvidencePrecheck({
     returned_dir: await makeReturnedDir({
       "admin-worker.env": [
-        "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+        "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
         "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
         "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
         "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary"

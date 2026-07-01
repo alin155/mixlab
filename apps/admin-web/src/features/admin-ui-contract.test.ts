@@ -47,18 +47,18 @@ test("admin UI contract defines the Admin Architecture v1 production-console pag
 test("navigation uses product-approved page labels", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["首页", "素材处理", "素材库", "剪辑师", "系统状态", "设置"]
+    ["首页", "素材处理", "剪辑师", "系统状态"]
   );
 });
 
 test("docker mvp surface narrows navigation without shrinking the full admin architecture contract", () => {
   assert.deepEqual(
     ADMIN_DOCKER_MVP_UI_ROUTES,
-    ["dashboard", "source-videos", "preprocess-jobs", "cutter-users", "doctor"]
+    ["dashboard", "preprocess-jobs", "cutter-users", "doctor"]
   );
   assert.deepEqual(
     ADMIN_DOCKER_MVP_NAV_ITEMS.map((item) => item.label),
-    ["首页", "素材处理", "素材库", "剪辑师", "系统状态"]
+    ["首页", "素材处理", "剪辑师", "系统状态"]
   );
   assert.deepEqual(
     adminNavItemsForMode("full").map((item) => item.label),
@@ -70,7 +70,8 @@ test("docker mvp surface narrows navigation without shrinking the full admin arc
   );
   assert.equal(adminRouteForMode("settings", "docker-mvp-v0.1"), "dashboard");
   assert.equal(adminRouteForMode("index-publish", "docker-mvp-v0.1"), "dashboard");
-  assert.equal(adminRouteForMode("source-detail", "docker-mvp-v0.1"), "source-detail");
+  assert.equal(adminRouteForMode("source-videos", "docker-mvp-v0.1"), "dashboard");
+  assert.equal(adminRouteForMode("source-detail", "docker-mvp-v0.1"), "dashboard");
   assert.deepEqual(ADMIN_UI_ROUTES, [
     "dashboard",
     "protection",
@@ -90,25 +91,26 @@ test("docker mvp control contract keeps core writes and disables or hides high-r
   const enabled = listAdminDockerMvpControlsByDisposition("enabled").map((control) => control.label);
 
   assert.ok(disabled.includes("扫描新增素材"));
-  assert.ok(disabled.includes("执行下一步建议"));
-  assert.ok(disabled.includes("保存封面"));
-  assert.ok(disabled.includes("保存素材信息"));
   assert.ok(disabled.includes("上线全部已处理素材"));
+  assert.ok(enabled.includes("执行下一步建议"));
+  assert.ok(hidden.includes("source-videos:保存封面"));
+  assert.ok(hidden.includes("source-videos:保存素材信息"));
   assert.equal(adminDockerMvpControlDisposition({
     route: "source-videos",
     label: "上线到剪辑端",
     state: "m9b-api",
     reason: ""
-  }), "enabled");
+  }), "hidden");
   assert.equal(adminDockerMvpControlDisposition({
     route: "source-videos",
     label: "加入预处理",
     state: "m9b-api",
     reason: ""
-  }), "enabled");
-  assert.ok(enabled.includes("加入预处理"));
-  assert.ok(enabled.includes("重新处理"));
-  assert.ok(enabled.includes("恢复到队列"));
+  }), "hidden");
+  assert.ok(hidden.includes("source-videos:加入预处理"));
+  assert.ok(hidden.includes("source-videos:重新处理"));
+  assert.ok(hidden.includes("source-videos:恢复到队列"));
+  assert.ok(hidden.includes("source-videos:上线到剪辑端"));
   assert.ok(enabled.includes("启动预处理"));
   assert.ok(enabled.includes("暂停预处理"));
   assert.ok(enabled.includes("通过申请"));

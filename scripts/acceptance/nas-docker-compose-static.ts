@@ -155,8 +155,8 @@ export async function validateNasDockerComposeStatic(input: {
   );
   requireMatch(
     composeRaw,
-    /admin-api:[\s\S]*MIXLAB_ADMIN_DOCKER_MVP_MODE: \$\{MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0\.1\}/,
-    "admin-api must default to Docker MVP mode v0.1",
+    /admin-api:[\s\S]*MIXLAB_ADMIN_DOCKER_MVP_MODE: \$\{MIXLAB_ADMIN_DOCKER_MVP_MODE:-off\}/,
+    "admin-api must default to Docker production mode off",
     errors
   );
   requireMatch(
@@ -173,8 +173,8 @@ export async function validateNasDockerComposeStatic(input: {
   );
   requireMatch(
     composeRaw,
-    /admin-worker:[\s\S]*MIXLAB_ADMIN_DOCKER_MVP_MODE: \$\{MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0\.1\}/,
-    "admin-worker must default to Docker MVP mode v0.1",
+    /admin-worker:[\s\S]*MIXLAB_ADMIN_DOCKER_MVP_MODE: \$\{MIXLAB_ADMIN_DOCKER_MVP_MODE:-off\}/,
+    "admin-worker must default to Docker production mode off",
     errors
   );
   requireMatch(
@@ -215,7 +215,7 @@ export async function validateNasDockerComposeStatic(input: {
   const env = parseEnv(envRaw);
   requireEnvValue(env, "PUBLIC_LIBRARY_HOST_PATH", "/volume1/MixLab/PublicLibrary", errors);
   requireEnvValue(env, "MIXLAB_IMAGE_TAG", "", errors);
-  requireEnvValue(env, "MIXLAB_ADMIN_DOCKER_MVP_MODE", "v0.1", errors);
+  requireEnvValue(env, "MIXLAB_ADMIN_DOCKER_MVP_MODE", "off", errors);
   requireEnvValue(env, "MIXLAB_ADMIN_WEB_PORT", "8080", errors);
   requireEnvValue(env, "MIXLAB_WORKER_POLL_INTERVAL_SECONDS", "60", errors);
   requireEnvValue(env, "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", "0", errors);

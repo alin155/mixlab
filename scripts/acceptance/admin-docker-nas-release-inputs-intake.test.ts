@@ -96,7 +96,7 @@ function legacyCurrentInspect(): unknown[] {
 
 function workerEnv(): string {
   return [
-    "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+    "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
     "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
     "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0"
   ].join("\n");
@@ -109,7 +109,7 @@ function workerInspect(): unknown[] {
       Config: {
         Image: `ghcr.io/alin155/mixlab-admin-runtime:${CURRENT_TAG}`,
         Env: [
-          "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1",
+          "MIXLAB_ADMIN_DOCKER_MVP_MODE=off",
           "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0",
           "MIXLAB_ENABLE_READY_PUBLISH_WORKER=0",
           "MIXLAB_ADMIN_LIBRARY_ROOT=/data/PublicLibrary",

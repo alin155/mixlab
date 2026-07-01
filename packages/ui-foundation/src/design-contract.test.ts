@@ -34,10 +34,8 @@ test("defines required admin pages from the visual spec", () => {
   assert.deepEqual(ADMIN_REQUIRED_PAGES, [
     "首页",
     "素材处理",
-    "素材库",
     "剪辑师",
-    "系统状态",
-    "设置"
+    "系统状态"
   ]);
 
   assert.deepEqual(validateRequiredPages("admin", ADMIN_REQUIRED_PAGES), {

@@ -96,7 +96,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Run local Docker MVP smoke
+      - name: Run local Docker production smoke
         env:
           MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_RUN: "1"
           MIXLAB_ADMIN_DOCKER_LOCAL_SMOKE_REQUIRE_PASS: "1"
@@ -153,7 +153,7 @@ jobs:
             MIXLAB_BUILD_SHA=${{ github.sha }}
             MIXLAB_BUILD_VERSION=${{ github.sha }}
             MIXLAB_IMAGE_TAG=${{ github.sha }}
-            MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1
+            MIXLAB_ADMIN_DOCKER_MVP_MODE=off
 
       - name: Build admin web image
         uses: docker/build-push-action@v6
@@ -167,7 +167,7 @@ jobs:
             MIXLAB_BUILD_SHA=${{ github.sha }}
             MIXLAB_BUILD_VERSION=${{ github.sha }}
             MIXLAB_IMAGE_TAG=${{ github.sha }}
-            MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1
+            MIXLAB_ADMIN_DOCKER_MVP_MODE=off
 
       - name: Export Admin Docker image archives
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_images == true && inputs.export_image_archives == true }}

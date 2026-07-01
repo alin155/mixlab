@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const DEFAULT_OUTPUT_DIR = "docs/acceptance/artifacts";
 const EXPECTED_LIBRARY_ROOT = "/data/PublicLibrary";
-const EXPECTED_MVP_MODE = "v0.1";
+const EXPECTED_MVP_MODE = "off";
 const EXPECTED_DISABLED = "0";
 
 type WorkerEnvProofStatus = "pass" | "blocked";
@@ -251,7 +251,7 @@ function flagGate(input: {
     status: pass ? "pass" : "blocked",
     evidence: `${input.sourceName}: MIXLAB_ADMIN_DOCKER_MVP_MODE=${mvpMode || "missing"}, MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=${preprocess || "missing"}, MIXLAB_ENABLE_READY_PUBLISH_WORKER=${publish || "missing"}`,
     blocks_docker_upload: !pass,
-    required_evidence: "Admin worker must run in Docker MVP v0.1 mode and both standalone admin-worker flags must be 0 before Docker release gates allow upload or staging."
+    required_evidence: "Admin worker must run in Docker production mode off and both standalone admin-worker flags must be 0 before Docker release gates allow upload or staging."
   });
 }
 
@@ -301,8 +301,8 @@ function buildRemediationPlan(input: {
     });
   };
 
-  addChange("MIXLAB_ADMIN_DOCKER_MVP_MODE", "Admin Docker staging must run in MVP v0.1 mode before worker proof can be accepted.");
-  addChange("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", "Standalone preprocess worker must remain disabled during initial Docker MVP staging.");
+  addChange("MIXLAB_ADMIN_DOCKER_MVP_MODE", "Admin Docker staging must run in production mode off before worker proof can be accepted.");
+  addChange("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER", "Standalone preprocess worker must remain disabled during initial Docker staging.");
   addChange("MIXLAB_ENABLE_READY_PUBLISH_WORKER", "Ready publish worker must remain disabled so the current Cutter release/index is not changed.");
   addChange("MIXLAB_ADMIN_LIBRARY_ROOT", "Admin worker must resolve the Docker public library root explicitly.", { require_env_file: false });
   addChange("MIXLAB_PREPROCESS_LIBRARY_ROOT", "Preprocess safety checks must use the Docker public library root explicitly.", { require_env_file: false });
@@ -394,7 +394,7 @@ function buildOperatorHandoff(remediationPlan: WorkerEnvRemediationPlan): Worker
     rollback_notes: [
       "Record the current NAS .env and compose project values before any separate runtime-owner-approved edit.",
       "If staging fails before replacing the old entrypoint, revert the edited .env values and keep the old running containers unchanged.",
-      "Do not use rollback notes from this report to change Cutter release/index; MVP v0.1 must keep current index unchanged."
+      "Do not use rollback notes from this report to change Cutter release/index; Docker staging must keep current index unchanged."
     ]
   };
 }

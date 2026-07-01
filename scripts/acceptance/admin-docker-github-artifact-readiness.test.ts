@@ -17,7 +17,7 @@ function localSmokeReport(imageTag = "abc123", passed = true): unknown {
     mode: "admin-docker-local-smoke",
     local_smoke_passed: passed,
     build_identity: {
-      image_tag: passed ? imageTag : "local-admin-docker-mvp-v0.1",
+      image_tag: passed ? imageTag : "local-admin-docker-production",
       build_sha: passed ? imageTag : "local-docker-smoke",
       build_version: imageTag,
       mvp_mode: "v0.1"

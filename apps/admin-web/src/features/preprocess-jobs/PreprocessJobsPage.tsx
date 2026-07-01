@@ -257,6 +257,8 @@ export function PreprocessJobsPage({
   data,
   isLoadingJobs = false,
   jobsError = "",
+  isLoadingIndexRequiredVideos = false,
+  indexRequiredError = "",
   processHistory = null,
   processHistoryFilters,
   isLoadingProcessHistory = false,
@@ -274,6 +276,8 @@ export function PreprocessJobsPage({
   data: AdminDashboardData;
   isLoadingJobs?: boolean;
   jobsError?: string;
+  isLoadingIndexRequiredVideos?: boolean;
+  indexRequiredError?: string;
   processHistory?: AdminPreprocessProcessHistoryResponse | null;
   processHistoryFilters?: AdminPreprocessProcessHistoryFilters;
   isLoadingProcessHistory?: boolean;
@@ -341,7 +345,7 @@ export function PreprocessJobsPage({
   const currentStageSummary = running[0]
     ? supervisorRunning
       ? safeJobStageLabel(running[0])
-      : `待恢复 · ${safeJobStageLabel(running[0])}`
+      : "待恢复"
     : "暂无待恢复或正在处理";
   const jobStageText = (job: AdminPreprocessJob): string => {
     const stage = safeJobStageLabel(job);
@@ -506,6 +510,157 @@ export function PreprocessJobsPage({
     historyFilters.event_type
   );
   const processHistoryFiltersDisabled = !onProcessHistoryFiltersChange || isLoadingProcessHistory;
+  const showDetailedPreprocess =
+    import.meta.env?.VITE_MIXLAB_ADMIN_SHOW_DETAILED_PREPROCESS === "true";
+
+  if (!showDetailedPreprocess) {
+    return (
+      <>
+        <div className="admin-main-column">
+          <section className="admin-console-hero admin-simple-preprocess-hero">
+            <AdminPageHeader
+              title="素材处理"
+              eyebrow="自动处理与上线"
+              description="启动后系统会自动发现素材、生成文案和封面，并把已处理素材上线到剪辑端。"
+              action={
+                <section className="admin-action-row" aria-label="素材处理主操作">
+                  {canStartSupervisor || canStopSupervisor ? (
+                    <AdminControlButton
+                      label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
+                      state={nasWriteState}
+                      reason={canStopSupervisor ? "暂停当前预处理流水线。" : "继续处理排队和未处理素材。"}
+                      variant="primary"
+                      onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
+                    />
+                  ) : null}
+                  {data.jobs.failed_count > 0 ? (
+                    <AdminControlButton
+                      label="重试失败视频"
+                      state={nasWriteState}
+                      reason="将失败视频重新加入预处理队列。"
+                      onClick={gatedNasWriteAction(onRetryFailedVideos)}
+                    />
+                  ) : null}
+                  {data.jobs.active_count > 0 && supervisor.state !== "running" && supervisor.state !== "stopping" ? (
+                    <AdminControlButton
+                      label="恢复卡住任务"
+                      state={nasWriteState}
+                      reason="预处理服务未运行时，将停留在处理中的任务恢复到队列。"
+                      onClick={gatedNasWriteAction(onRecoverProcessingVideos)}
+                    />
+                  ) : null}
+                </section>
+              }
+            />
+          </section>
+          <section className={`admin-simple-status is-${status.tone}`} aria-label="素材处理状态">
+            <span className={`admin-status-badge is-${status.tone === "blocked" ? "failed" : status.tone === "attention" ? "warning" : "ready"}`}>
+              {status.tone === "blocked" ? "需要处理" : status.tone === "attention" ? "等待操作" : "正常"}
+            </span>
+            <div>
+              <h2>{status.title}</h2>
+              <p>{status.detail}</p>
+            </div>
+          </section>
+          <MetricBand
+            items={[
+              { label: "剪辑端可用", value: data.status.ready_video_count, caption: "已上线素材" },
+              { label: "队列中", value: data.jobs.queued_count, caption: "等待自动处理" },
+              { label: "处理中", value: data.status.processing_video_count, caption: supervisorRunning ? "正在生产" : "可能需恢复" },
+              { label: "待上线", value: data.status.index_required_video_count, caption: "上线后剪辑端可用" },
+              { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
+            ]}
+          />
+          {jobsError ? (
+            <EmptyState title="预处理队列加载失败" detail={jobsError} />
+          ) : null}
+          {processHistoryError ? (
+            <EmptyState title="处理记录加载失败" detail={processHistoryError} />
+          ) : null}
+          <section className="admin-simple-flow" aria-label="自动处理流程">
+            {pipelineStages.map((stage, index) => (
+              <article className="admin-simple-flow-step" key={stage.label}>
+                <span>{index + 1}</span>
+                <strong>{stage.label}</strong>
+                <p>{stage.value} 个</p>
+              </article>
+            ))}
+          </section>
+          <section className="admin-list-section admin-index-publish-panel" aria-label="已处理待上线">
+            <header className="admin-section-header">
+              <h2>已处理待上线</h2>
+              <p>这些素材已经处理完成，上线后剪辑师就可以在剪辑端搜索和使用。</p>
+            </header>
+            <div className="admin-index-summary-grid">
+              <article>
+                <span>当前索引</span>
+                <strong>{data.indexes.current_version || "暂无索引"}</strong>
+                <p>{currentIndex?.ready_video_count ?? data.status.ready_video_count} 个可搜索视频</p>
+              </article>
+              <article>
+                <span>待上线素材</span>
+                <strong>{data.status.index_required_video_count}</strong>
+                <p>{data.status.index_required_video_count > 0 ? "可以上线到剪辑端" : "没有待上线素材"}</p>
+              </article>
+              <article>
+                <span>系统检查</span>
+                <strong>{data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "通过"}</strong>
+                <p>失败 {data.doctor.summary.fail} · 警告 {data.doctor.summary.warn}</p>
+              </article>
+            </div>
+            {indexRequiredError ? (
+              <EmptyState title="待上线素材加载失败" detail={indexRequiredError} />
+            ) : indexRequiredVideos.length ? (
+              <Table
+                columns={indexRequiredColumns}
+                rows={indexRequiredVideos}
+                getRowKey={(video) => video.source_video_id}
+                stickyHeader
+              />
+            ) : isLoadingIndexRequiredVideos && data.status.index_required_video_count > 0 ? (
+              <p className="admin-note">正在读取待上线素材明细，请稍候。</p>
+            ) : data.status.index_required_video_count > 0 ? (
+              <p className="admin-note">待上线素材明细暂未加载，请刷新本页。</p>
+            ) : (
+              <p className="admin-note">已处理素材都已经上线到剪辑端。</p>
+            )}
+            {onRepairIndex && data.status.index_required_video_count > 0 ? (
+              <section className="admin-action-row">
+                <AdminControlButton
+                  label="上线全部已处理素材"
+                  state={nasWriteState}
+                  reason={nasWriteReason("批量上线所有已处理待上线素材，适合确认系统状态正常后使用。")}
+                  onClick={gatedNasWriteAction(onRepairIndex)}
+                />
+              </section>
+            ) : null}
+          </section>
+        </div>
+        <InspectorPanel title="处理控制">
+          <AdminInfoGroups
+            groups={[
+              {
+                title: "当前状态",
+                rows: [
+                  { label: "服务", value: supervisor.state_label },
+                  { label: "当前阶段", value: currentStageSummary },
+                  { label: "上次处理", value: lastResult ? `领取 ${lastResult.total_claimed_count}，成功 ${lastResult.succeeded_count}，失败 ${lastResult.failed_count}` : "暂无记录" }
+                ]
+              },
+              {
+                title: "安全保护",
+                rows: [
+                  { label: "已上线素材", value: "不会重跑或下线" },
+                  { label: "自动上线", value: "只发布已处理完成素材" },
+                  { label: "剪辑端", value: "读取协议保持不变" }
+                ]
+              }
+            ]}
+          />
+        </InspectorPanel>
+      </>
+    );
+  }
 
   return (
     <>

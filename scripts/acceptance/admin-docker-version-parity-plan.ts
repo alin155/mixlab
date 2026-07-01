@@ -222,7 +222,7 @@ function adminWorkerEnvProofContractReady(liveReport: unknown): boolean {
   return asString(readiness.status) === "external-proof-required" &&
     asString(readiness.expected_service) === "admin-worker" &&
     asString(readiness.safe_scope) === "admin-worker-env-only" &&
-    asString(requiredFlags.MIXLAB_ADMIN_DOCKER_MVP_MODE) === "v0.1" &&
+    asString(requiredFlags.MIXLAB_ADMIN_DOCKER_MVP_MODE) === "off" &&
     asString(requiredFlags.MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER) === "0" &&
     asString(requiredFlags.MIXLAB_ENABLE_READY_PUBLISH_WORKER) === "0" &&
     asString(requiredRoots.MIXLAB_ADMIN_LIBRARY_ROOT) === "/data/PublicLibrary" &&

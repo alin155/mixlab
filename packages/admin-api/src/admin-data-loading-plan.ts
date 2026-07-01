@@ -459,6 +459,7 @@ export function buildAdminDataLoadingPlan(input: {
       load_phase: "route-entry",
       prefetch: false,
       endpoints: [
+        "/api/admin/source-videos",
         "/api/admin/preprocess/jobs",
         "/api/admin/preprocess/process-history",
         "/api/admin/preprocess/process-history/readiness",

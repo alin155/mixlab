@@ -43,7 +43,7 @@ export async function readAdminRequestJson(request: IncomingMessage): Promise<un
 export function writeAdminJson(response: ServerResponse, statusCode: number, body: unknown): void {
   response.writeHead(statusCode, {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-MixLab-Admin-Session-Token",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-MixLab-Admin-Session-Token,X-MixLab-Admin-Read-Only-Probe",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Content-Type": "application/json; charset=utf-8"
   });
@@ -53,7 +53,7 @@ export function writeAdminJson(response: ServerResponse, statusCode: number, bod
 export function writeAdminNoContent(response: ServerResponse): void {
   response.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-MixLab-Admin-Session-Token",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-MixLab-Admin-Session-Token,X-MixLab-Admin-Read-Only-Probe",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS"
   });
   response.end();

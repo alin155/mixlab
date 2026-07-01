@@ -21,23 +21,19 @@ export type AdminSurfaceMode = "full" | "docker-mvp-v0.1";
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { route: "dashboard", label: "首页", icon: "dashboard" },
   { route: "preprocess-jobs", label: "素材处理", icon: "queue" },
-  { route: "source-videos", label: "素材库", icon: "video" },
   { route: "cutter-users", label: "剪辑师", icon: "users" },
-  { route: "doctor", label: "系统状态", icon: "doctor" },
-  { route: "settings", label: "设置", icon: "settings" }
+  { route: "doctor", label: "系统状态", icon: "doctor" }
 ];
 
 export const ADMIN_DOCKER_MVP_NAV_ITEMS: AdminNavItem[] = [
   { route: "dashboard", label: "首页", icon: "dashboard" },
   { route: "preprocess-jobs", label: "素材处理", icon: "queue" },
-  { route: "source-videos", label: "素材库", icon: "video" },
   { route: "cutter-users", label: "剪辑师", icon: "users" },
   { route: "doctor", label: "系统状态", icon: "doctor" }
 ];
 
 const ADMIN_DOCKER_MVP_ROUTES = new Set<AdminRoute>([
-  ...ADMIN_DOCKER_MVP_NAV_ITEMS.map((item) => item.route),
-  "source-detail"
+  ...ADMIN_DOCKER_MVP_NAV_ITEMS.map((item) => item.route)
 ]);
 
 const ROUTES = new Set<AdminRoute>([

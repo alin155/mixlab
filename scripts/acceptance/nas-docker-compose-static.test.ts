@@ -16,25 +16,21 @@ test("NAS Docker compose static validation accepts the deployment files", async 
   });
 });
 
-test("NAS Docker deployment docs preserve MVP v0.1 disabled-worker staging guidance", async () => {
+test("NAS Docker deployment docs preserve production-mode Docker guidance", async () => {
   const deploymentDoc = await readFile("docs/deployment/m19-nas-docker.md", "utf8");
 
-  assert.match(deploymentDoc, /Admin Docker MVP v0\.1/);
+  assert.match(deploymentDoc, /Admin Docker production candidate/);
   assert.match(deploymentDoc, /MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0/);
   assert.match(deploymentDoc, /MIXLAB_ENABLE_READY_PUBLISH_WORKER=0/);
-  assert.match(deploymentDoc, /MIXLAB_ADMIN_DOCKER_MVP_MODE=v0\.1/);
+  assert.match(deploymentDoc, /MIXLAB_ADMIN_DOCKER_MVP_MODE=off/);
   assert.match(deploymentDoc, /MIXLAB_ADMIN_LIBRARY_ROOT=\/data\/PublicLibrary/);
-  assert.match(deploymentDoc, /Leave `DASHSCOPE_API_KEY` blank for the first MVP v0\.1 staging run/);
-  assert.match(deploymentDoc, /Required only for a separately approved controlled preprocess canary/);
+  assert.match(deploymentDoc, /Fill `DASHSCOPE_API_KEY` when the Docker Admin should run real preprocessing/);
+  assert.match(deploymentDoc, /Required for real preprocessing/);
   assert.match(deploymentDoc, /current ready count remains `10471`/);
   assert.match(deploymentDoc, /current Cutter index\s+remains `v010471`/);
-  assert.match(deploymentDoc, /Do not add or approve a source video/);
-  assert.match(deploymentDoc, /Do not.*enable workers.*publish\s+ready indexes/s);
+  assert.match(deploymentDoc, /normal product flow/);
   assert.doesNotMatch(deploymentDoc, /`MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER`\s*\|\s*`1`/);
   assert.doesNotMatch(deploymentDoc, /`MIXLAB_ENABLE_READY_PUBLISH_WORKER`\s*\|\s*`1`/);
-  assert.doesNotMatch(deploymentDoc, /^6\. Fill `DASHSCOPE_API_KEY`\./m);
-  assert.doesNotMatch(deploymentDoc, /Confirm worker output appears under `\.mixlab-library\/`/);
-  assert.doesNotMatch(deploymentDoc, /Confirm `current\.json` exists after ready publication/);
 });
 
 test("NAS Docker compose static validation rejects drift from target deployment contract", async () => {
@@ -48,7 +44,7 @@ test("NAS Docker compose static validation rejects drift from target deployment 
     composePath,
     compose
       .replace("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL: ${MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL:-25}", "")
-      .replaceAll("MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-v0.1}", "MIXLAB_ADMIN_DOCKER_MVP_MODE: off")
+      .replaceAll("MIXLAB_ADMIN_DOCKER_MVP_MODE: ${MIXLAB_ADMIN_DOCKER_MVP_MODE:-off}", "MIXLAB_ADMIN_DOCKER_MVP_MODE: v0.1")
       .replace("MIXLAB_PREPROCESS_LIBRARY_ROOT: /data/PublicLibrary", "")
       .replaceAll(
         "${MIXLAB_IMAGE_TAG:?Set MIXLAB_IMAGE_TAG to an immutable candidate SHA}",
@@ -63,7 +59,7 @@ test("NAS Docker compose static validation rejects drift from target deployment 
     envPath,
     env
       .replace("MIXLAB_IMAGE_TAG=", "MIXLAB_IMAGE_TAG=latest")
-      .replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1", "MIXLAB_ADMIN_DOCKER_MVP_MODE=off")
+      .replace("MIXLAB_ADMIN_DOCKER_MVP_MODE=off", "MIXLAB_ADMIN_DOCKER_MVP_MODE=v0.1")
       .replace("MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=25", "MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL=1")
       .replace("MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=0", "MIXLAB_ENABLE_LIBRARY_PREPROCESS_WORKER=1")
       .replace("MIXLAB_ENABLE_READY_PUBLISH_WORKER=0", "MIXLAB_ENABLE_READY_PUBLISH_WORKER=1")
@@ -84,9 +80,9 @@ test("NAS Docker compose static validation rejects drift from target deployment 
   assert.match(result.errors.join("\n"), /admin-web must require an explicit immutable GHCR admin web image tag/);
   assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_IMAGE_TAG must be ""/);
   assert.match(result.errors.join("\n"), /must not default MIXLAB_IMAGE_TAG to mutable latest/);
-  assert.match(result.errors.join("\n"), /admin-api must default to Docker MVP mode v0\.1/);
-  assert.match(result.errors.join("\n"), /admin-worker must default to Docker MVP mode v0\.1/);
-  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_ADMIN_DOCKER_MVP_MODE must be "v0\.1"/);
+  assert.match(result.errors.join("\n"), /admin-api must default to Docker production mode off/);
+  assert.match(result.errors.join("\n"), /admin-worker must default to Docker production mode off/);
+  assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_ADMIN_DOCKER_MVP_MODE must be "off"/);
   assert.match(result.errors.join("\n"), /admin-worker standalone workers must default disabled/);
   assert.match(result.errors.join("\n"), /admin-worker must depend on admin-api and run worker:admin-loop/);
   assert.match(result.errors.join("\n"), /\.env\.example MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL must be "25"/);
