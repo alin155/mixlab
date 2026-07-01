@@ -1691,7 +1691,7 @@ test("preprocess jobs render failure retry and later success", async () => {
     "启动后系统会自动发现素材",
 	    "素材处理状态",
 	    "剪辑端可用",
-	    "当前处理",
+	    "处理服务",
 	    "队列中",
 	    "待上线",
 	    "失败可重试",
@@ -2015,6 +2015,35 @@ test("preprocess start and pause controls follow supervisor state", async () => 
   assert.equal(buttonMarkup(runningHtml, "启动预处理"), "");
   assert.match(buttonMarkup(runningHtml, "暂停预处理"), /data-control-state="m9b-api"/);
   assert.equal(buttonMarkup(runningHtml, "恢复卡住任务"), "");
+
+  const runningBetweenJobsData = {
+    ...data,
+    status: {
+      ...data.status,
+      processing_video_count: 0,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...data.jobs,
+      active_count: 0,
+      queued_count: 4,
+      supervisor: {
+        ...data.jobs.supervisor,
+        state: "running" as const,
+        state_label: "运行中",
+        last_result: {
+          total_claimed_count: 2,
+          succeeded_count: 2,
+          failed_count: 0
+        }
+      },
+      jobs: data.jobs.jobs.filter((job) => job.status !== "running")
+    }
+  };
+  const runningBetweenJobsText = visibleText(render(runningBetweenJobsData));
+  assert.match(runningBetweenJobsText, /运行中 处理服务 正在领取下一个视频/);
+  assert.match(runningBetweenJobsText, /0 待上线 已自动上线/);
+  assert.match(runningBetweenJobsText, /当前视频 正在领取下一个视频 .* 等待中/);
 });
 
 test("admin data auto refresh stays active while preprocessing can change page state", async () => {

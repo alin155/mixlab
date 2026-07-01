@@ -317,6 +317,7 @@ export function PreprocessJobsPage({
   const runtimeLoad = data.metrics.runtime_load;
   const observability = data.jobs.observability;
   const currentJob = running[0];
+  const autoPublishIndexEnabled = data.settings.runtime_policy.auto_publish_index_enabled;
   const canStartSupervisor = supervisor.state === "idle" || supervisor.state === "failed";
   const canStopSupervisor = supervisor.state === "running" || supervisor.state === "stopping";
   const nasWriteState = "m9b-api" as const;
@@ -330,7 +331,13 @@ export function PreprocessJobsPage({
     { label: "语音识别", value: running.filter((job) => job.stage === "asr").length, caption: runningStageCaption },
     { label: "生成文案", value: data.metrics.transcript.transcript_video_count, caption: "已有文案" },
     { label: "封面关键帧", value: running.filter((job) => job.stage === "build-keyframes").length, caption: runningStageCaption },
-    { label: "上线剪辑端", value: data.status.index_required_video_count, caption: "待上线" }
+    {
+      label: "上线剪辑端",
+      value: data.status.index_required_video_count,
+      caption: data.status.index_required_video_count > 0
+        ? "待上线"
+        : autoPublishIndexEnabled ? "自动上线" : "无待上线"
+    }
   ];
   const overallProgressPercent = boundedPercent(
     data.status.video_count > 0
@@ -347,16 +354,30 @@ export function PreprocessJobsPage({
     : supervisorRunning
       ? "正在领取下一个视频"
       : "空闲";
-  const currentTaskProgress = currentJob
-    ? currentJob.progress
-    : supervisorRunning
-      ? currentRunProgressPercent
-      : 0;
+  const currentTaskProgress = currentJob ? boundedPercent(currentJob.progress) : 0;
+  const currentTaskProgressLabel = currentJob
+    ? `${currentTaskProgress}%`
+    : supervisorRunning ? "等待中" : "空闲";
+  const processingServiceValue = supervisorRunning
+    ? "运行中"
+    : data.status.processing_video_count > 0
+      ? data.status.processing_video_count
+      : "空闲";
+  const processingServiceCaption = supervisorRunning
+    ? currentJob
+      ? `${currentJob.source_video_id} 正在处理`
+      : "正在领取下一个视频"
+    : data.status.processing_video_count > 0
+      ? "可能需要恢复"
+      : "当前没有任务";
+  const indexRequiredCaption = data.status.index_required_video_count > 0
+    ? "等待上线剪辑端"
+    : autoPublishIndexEnabled ? "已自动上线" : "没有待上线素材";
   const flowCards = [
     {
       label: "当前任务",
       value: currentTaskLabel,
-      caption: currentJob ? `${currentJob.progress}%` : supervisorRunning ? "等待任务状态刷新" : "没有正在处理的视频"
+      caption: currentJob ? currentTaskProgressLabel : supervisorRunning ? "等待任务状态刷新" : "没有正在处理的视频"
     },
     {
       label: "本次运行",
@@ -621,13 +642,11 @@ export function PreprocessJobsPage({
               { label: "剪辑端可用", value: data.status.ready_video_count, caption: "已上线素材" },
               { label: "队列中", value: data.jobs.queued_count, caption: "等待自动处理" },
               {
-                label: "当前处理",
-                value: data.status.processing_video_count,
-                caption: data.status.processing_video_count === 0
-                  ? "当前没有任务"
-                  : supervisorRunning ? "正在生产" : "可能卡住"
+                label: "处理服务",
+                value: processingServiceValue,
+                caption: processingServiceCaption
               },
-              { label: "待上线", value: data.status.index_required_video_count, caption: "上线后剪辑端可用" },
+              { label: "待上线", value: data.status.index_required_video_count, caption: indexRequiredCaption },
               { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
             ]}
           />
@@ -664,7 +683,7 @@ export function PreprocessJobsPage({
                 <p>{currentTaskLabel}</p>
               </div>
               <meter min={0} max={100} value={currentTaskProgress}>{currentTaskProgress}%</meter>
-              <span>{supervisorRunning ? `${boundedPercent(currentTaskProgress)}%` : "空闲"}</span>
+              <span>{currentTaskProgressLabel}</span>
             </div>
           </section>
           <section className="admin-simple-flow" aria-label="预处理状态概览">
