@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-  validateAdminSession
+  validateAdminSession,
+  withAdminWriterLease
 } from "../../library-fs/src/index.ts";
 import {
   adminCommandSnapshotRoot
@@ -168,4 +169,55 @@ test("admin auth login and logout commands preserve auth behavior without token 
   assert.equal(operationLogText.includes(loginToken), false);
   assert.equal(operationLogText.includes("password_hash"), false);
   assert.equal(operationLogText.includes("session_token"), false);
+});
+
+test("admin auth login does not take the global material writer lease", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await runAdminAuthRegisterCommand({
+    library_root: libraryRoot,
+    username: "owner",
+    password: "Owner12345",
+    display_name: "Owner",
+    now: "2026-06-26T10:00:00.000Z"
+  });
+
+  let releaseLease!: () => void;
+  let leaseAcquired!: () => void;
+  const leaseReady = new Promise<void>((resolve) => {
+    leaseAcquired = resolve;
+  });
+  const releaseRequested = new Promise<void>((resolve) => {
+    releaseLease = resolve;
+  });
+  const holdingLease = withAdminWriterLease({
+    library_root: libraryRoot,
+    holder: "preprocess-worker",
+    reason: "preprocess-worker-refresh-counts",
+    now: "2026-06-26T10:01:00.000Z"
+  }, async () => {
+    leaseAcquired();
+    await releaseRequested;
+  });
+
+  await leaseReady;
+  const login = await runAdminAuthLoginCommand({
+    library_root: libraryRoot,
+    username: "owner",
+    password: "Owner12345",
+    now: "2026-06-26T10:01:10.000Z"
+  });
+  releaseLease();
+  await holdingLease;
+
+  assert.equal(login.ok, true);
+
+  const log = await readAdminOperationLog({
+    library_root: libraryRoot,
+    generated_at: "2026-06-26T10:01:11.000Z",
+    limit: 10
+  });
+  assert.equal(
+    log.events.some((event) => event.event_type === "succeeded" && event.action === "admin-auth-login"),
+    true
+  );
 });

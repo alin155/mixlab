@@ -68,12 +68,7 @@ export async function runAdminCommand<T>(
       allowed_commands: dockerMvpAllowedCommands
     });
 
-    const result = await withAdminWriterLease({
-      library_root: input.library_root,
-      holder,
-      reason: contract.command,
-      now: input.now
-    }, async () => {
+    const executeCommand = async () => {
       try {
         const snapshotInput = {
           library_root: input.library_root,
@@ -98,7 +93,16 @@ export async function runAdminCommand<T>(
       });
 
       return operation();
-    });
+    };
+
+    const result = contract.requires_writer_lease
+      ? await withAdminWriterLease({
+        library_root: input.library_root,
+        holder,
+        reason: contract.command,
+        now: input.now
+      }, executeCommand)
+      : await executeCommand();
 
     await appendAdminCommandAuditEventBestEffort({
       ...baseAuditInput,

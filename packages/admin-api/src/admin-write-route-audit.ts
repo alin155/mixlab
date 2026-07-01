@@ -52,10 +52,10 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     command: "admin-auth-register",
     command_runtime: "direct",
     scan_mode: "no-scan",
-    uses_writer_lease: true,
+    uses_writer_lease: false,
     audit_surface: "command-audit",
     mutation_targets: ["admin-user-store", "admin-session-store"],
-    notes: "First-admin bootstrap writes the Admin user/session store through Auth Command v1 with metadata-only snapshots so credentials and session tokens are not copied into command details."
+    notes: "First-admin bootstrap writes the Admin user/session store through Auth Command v1 with metadata-only snapshots and does not take the material writer lease."
   },
   {
     endpoint: "/api/admin/auth/login",
@@ -64,10 +64,10 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     command: "admin-auth-login",
     command_runtime: "direct",
     scan_mode: "no-scan",
-    uses_writer_lease: true,
+    uses_writer_lease: false,
     audit_surface: "command-audit",
     mutation_targets: ["admin-user-store", "admin-session-store"],
-    notes: "Login may write last-login and session metadata through Auth Command v1 but stays separate from source-video and release command semantics."
+    notes: "Login may write last-login and session metadata through Auth Command v1 but stays separate from source-video, release, and preprocess writer leases."
   },
   {
     endpoint: "/api/admin/auth/logout",
@@ -76,10 +76,10 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     command: "admin-auth-logout",
     command_runtime: "direct",
     scan_mode: "no-scan",
-    uses_writer_lease: true,
+    uses_writer_lease: false,
     audit_surface: "command-audit",
     mutation_targets: ["admin-session-store"],
-    notes: "Logout removes one Admin session through Auth Command v1 without touching library assets or source-video read models."
+    notes: "Logout removes one Admin session through Auth Command v1 without touching library assets, source-video read models, or the material writer lease."
   },
   {
     endpoint: "/api/admin/settings/config",
@@ -369,10 +369,10 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     command: "cutter-user-approve",
     command_runtime: "direct",
     scan_mode: "no-scan",
-    uses_writer_lease: true,
+    uses_writer_lease: false,
     audit_surface: "command-audit",
     mutation_targets: ["cutter-user-store"],
-    notes: "Cutter user approval is command-gated but does not invalidate source-video read models."
+    notes: "Cutter user approval is command-gated but stays separate from source-video, release, and preprocess writer leases."
   },
   {
     endpoint: "/api/admin/cutter-users/:user_id/disable",
@@ -381,10 +381,10 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     command: "cutter-user-disable",
     command_runtime: "direct",
     scan_mode: "no-scan",
-    uses_writer_lease: true,
+    uses_writer_lease: false,
     audit_surface: "command-audit",
     mutation_targets: ["cutter-user-store"],
-    notes: "Cutter user disable is command-gated and keeps password/session details redacted."
+    notes: "Cutter user disable is command-gated, keeps password/session details redacted, and does not take the material writer lease."
   },
   {
     endpoint: "/api/admin/cutter-users/:user_id/password",
@@ -393,10 +393,10 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     command: "cutter-user-password-reset",
     command_runtime: "direct",
     scan_mode: "no-scan",
-    uses_writer_lease: true,
+    uses_writer_lease: false,
     audit_surface: "command-audit",
     mutation_targets: ["cutter-user-store"],
-    notes: "Cutter password reset is command-gated and must never log plaintext passwords."
+    notes: "Cutter password reset is command-gated, must never log plaintext passwords, and does not take the material writer lease."
   },
   {
     endpoint: "/api/admin/command-snapshots/:snapshot_id/restore",

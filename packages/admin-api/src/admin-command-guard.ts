@@ -65,7 +65,7 @@ export interface AdminCommandContract {
   method: "POST" | "PATCH" | "DELETE";
   scope: "library" | "bulk" | "single";
   scan_mode: AdminCommandScanMode;
-  requires_writer_lease: true;
+  requires_writer_lease: boolean;
   requires_scan_preview: boolean;
   requires_inactive_supervisor: boolean;
   invalidates_source_video_read_model: boolean;
@@ -433,7 +433,7 @@ const commandContracts = {
     method: "POST",
     scope: "single",
     scan_mode: "no-scan",
-    requires_writer_lease: true,
+    requires_writer_lease: false,
     requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
@@ -444,7 +444,7 @@ const commandContracts = {
     method: "POST",
     scope: "single",
     scan_mode: "no-scan",
-    requires_writer_lease: true,
+    requires_writer_lease: false,
     requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
@@ -455,7 +455,7 @@ const commandContracts = {
     method: "POST",
     scope: "single",
     scan_mode: "no-scan",
-    requires_writer_lease: true,
+    requires_writer_lease: false,
     requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
@@ -466,7 +466,7 @@ const commandContracts = {
     method: "POST",
     scope: "single",
     scan_mode: "no-scan",
-    requires_writer_lease: true,
+    requires_writer_lease: false,
     requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
@@ -477,7 +477,7 @@ const commandContracts = {
     method: "POST",
     scope: "single",
     scan_mode: "no-scan",
-    requires_writer_lease: true,
+    requires_writer_lease: false,
     requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
@@ -488,7 +488,7 @@ const commandContracts = {
     method: "POST",
     scope: "single",
     scan_mode: "no-scan",
-    requires_writer_lease: true,
+    requires_writer_lease: false,
     requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
