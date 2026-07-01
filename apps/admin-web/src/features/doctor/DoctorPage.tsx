@@ -57,7 +57,7 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
     name: "素材库计数",
     purpose: "确认素材库统计字段和实际状态一致。",
     impact: "计数异常会让总览、队列和剪辑端可见数量失真。",
-    suggestion: "重新扫描并发布索引，必要时检查 library.json。"
+    suggestion: "重新扫描并上线到剪辑端，必要时检查 library.json。"
   },
   "source-video-manifests": {
     name: "原视频发布清单",
@@ -69,7 +69,7 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
     name: "当前索引",
     purpose: "确认剪辑端搜索使用的当前索引存在且可读取。",
     impact: "当前索引异常时，已可用原视频可能无法被搜索到。",
-    suggestion: "发布到剪辑端，或重新运行系统检查。"
+    suggestion: "上线到剪辑端，或重新运行系统检查。"
   },
   "preprocess-logs": {
     name: "预处理任务日志",
@@ -111,7 +111,7 @@ const DOCTOR_EXPLANATIONS: Record<string, DoctorExplanation> = {
     name: "状态计数",
     purpose: "确认素材状态统计与当前索引边界一致。",
     impact: "状态不一致时，剪辑端看到的素材和搜索结果可能不同步。",
-    suggestion: "发布到剪辑端，并重新运行系统检查。"
+    suggestion: "上线到剪辑端，并重新运行系统检查。"
   },
   "local-clips": {
     name: "本地剪辑片段",
@@ -125,10 +125,10 @@ type DoctorCheckRow = AdminDashboardData["doctor"]["checks"][number];
 
 export function doctorExplanation(checkId: string, label: string): DoctorExplanation {
   return DOCTOR_EXPLANATIONS[checkId] ?? {
-    name: "技术检查项",
-    purpose: "技术检查项用于确认系统运行条件。",
+    name: "未知检查项",
+    purpose: "该检查项用于确认系统运行条件。",
     impact: "异常时可能影响素材管理、预处理或剪辑端使用。",
-    suggestion: "查看技术详情并结合日志定位问题。"
+    suggestion: "查看检查详情并结合日志定位问题。"
   };
 }
 
@@ -152,7 +152,7 @@ function runtimeEndpointLabel(endpoint: string): string {
     "/api/admin/source-videos": "素材列表",
     "/api/admin/preprocess/jobs": "预处理队列",
     "/api/admin/index/versions": "索引版本",
-    "/api/admin/runtime/diagnostics/history": "慢接口历史"
+    "/api/admin/runtime/diagnostics/history": "加载速度记录"
   };
 
   return labels[endpoint] ?? endpoint;
@@ -173,9 +173,9 @@ function runtimeScanModeLabel(scanMode: AdminRuntimeEndpointMeta["scan_mode"]): 
 
 function runtimeDataSourceLabel(dataSource: AdminRuntimeEndpointMeta["data_source"]): string {
   const labels: Partial<Record<AdminRuntimeEndpointMeta["data_source"], string>> = {
-    "admin-read-model": "管理端读模型",
+    "admin-read-model": "同步数据",
     "current-index": "当前索引",
-    "doctor-probes": "系统探针",
+    "doctor-probes": "系统检查",
     "index-version-packages": "索引版本包",
     "library-manifest": "素材库清单",
     "operation-log": "操作记录",
@@ -228,7 +228,19 @@ function runtimeResultLabel(runtime: AdminRuntimeEndpointMeta): string {
 }
 
 function runtimeReasonLabel(runtime: AdminRuntimeEndpointMeta): string {
-  return runtime.slow_reason || runtime.repair_reason || runtime.fallback_reason || "未记录异常原因";
+  if (runtime.slow_reason) {
+    return "加载超过目标耗时";
+  }
+
+  if (runtime.repair_reason) {
+    return "系统已自动修复";
+  }
+
+  if (runtime.fallback_reason) {
+    return "已切换备用读取";
+  }
+
+  return "未发现异常";
 }
 
 function runtimeComponentLabel(name: string): string {
@@ -245,7 +257,7 @@ function runtimeComponentLabel(name: string): string {
 
 function runtimeComponentSummary(runtime: AdminRuntimeEndpointMeta): string {
   if (!runtime.components?.length) {
-    return "未记录组件耗时";
+    return "未记录步骤耗时";
   }
 
   return [...runtime.components]
@@ -301,7 +313,7 @@ export function DoctorPage({
     },
     {
       id: "detail",
-      header: "技术详情",
+      header: "检查详情",
       render: (item) => strictChineseDiagnosticText(item.message)
     }
   ];
@@ -314,11 +326,10 @@ export function DoctorPage({
   const runtimeColumns: Array<TableColumn<RuntimeDiagnosticEntry>> = [
     {
       id: "endpoint",
-      header: "接口",
+      header: "页面",
       render: (item) => (
         <div>
           <strong>{runtimeEndpointLabel(item.runtime.endpoint)}</strong>
-          <p>{item.runtime.endpoint}</p>
         </div>
       )
     },
@@ -333,23 +344,23 @@ export function DoctorPage({
     },
     {
       id: "source",
-      header: "来源与扫描",
+      header: "读取方式",
       render: (item) =>
-        `${runtimeDataSourceLabel(item.runtime.actual_data_source)} · ${runtimeScanModeLabel(item.runtime.scan_mode)}`
+        `${runtimeScanModeLabel(item.runtime.scan_mode)} · ${runtimeDataSourceLabel(item.runtime.actual_data_source)}`
     },
     {
       id: "cache",
-      header: "缓存",
+      header: "同步",
       render: (item) => runtimeCacheLabel(item.runtime.cache_status)
     },
     {
       id: "reason",
-      header: "原因",
+      header: "状态",
       render: (item) => runtimeReasonLabel(item.runtime)
     },
     {
       id: "components",
-      header: "组件耗时",
+      header: "步骤耗时",
       render: (item) => runtimeComponentSummary(item.runtime)
     }
   ];
@@ -358,9 +369,9 @@ export function DoctorPage({
     <>
       <div className="admin-main-column admin-doctor-console">
         <AdminPageHeader
-          title="系统检查"
+          title="系统状态"
           eyebrow="检查系统状态"
-          description="诊断报告按路由加载，系统探针只在系统检查路由执行。"
+          description="集中查看路径、索引、工具和素材处理是否正常。"
           action={(
             <div className="admin-page-header-actions">
               <AdminControlButton label="重新检查" state="m9b-api" reason="重新检查路径、索引、工具和预处理产物。" variant="primary" onClick={onRunDoctor} />
@@ -376,42 +387,20 @@ export function DoctorPage({
             { label: "需处理项", value: attentionCount, caption: "警告与失败合计" }
           ]}
         />
-        <section className="admin-doctor-route-contract" aria-label="系统检查数据来源">
-          <div>
-            <span>诊断报告</span>
-            <strong>doctor-probes</strong>
-            <p>状态扫描 · doctor-route</p>
-          </div>
-          <div>
-            <span>检查结果</span>
-            <strong>路由加载</strong>
-            <p>本页面局部处理</p>
-          </div>
-          <div>
-            <span>报告导出</span>
-            <strong>导出操作</strong>
-            <p>不改变素材状态</p>
-          </div>
-          <div>
-            <span>慢接口历史</span>
-            <strong>admin-read-model</strong>
-            <p>不扫描 · route-entry</p>
-          </div>
-        </section>
-        <section className="admin-list-section admin-runtime-diagnostics-history" aria-label="慢接口历史">
+        <section className="admin-list-section admin-runtime-diagnostics-history" aria-label="加载速度记录">
           <header className="admin-section-header">
             <div>
-              <h2>慢接口历史</h2>
-              <p>读取运行时诊断历史，定位接口耗时、数据来源、扫描模式、缓存状态和阻塞原因。</p>
+              <h2>加载速度记录</h2>
+              <p>查看管理端页面最近是否加载过慢，方便判断卡顿是否还在发生。</p>
             </div>
             <Badge tone={slowRuntimeCount > 0 ? "warning" : "success"}>
-              {slowRuntimeCount > 0 ? `${slowRuntimeCount} 个慢接口` : "无慢接口"}
+              {slowRuntimeCount > 0 ? `${slowRuntimeCount} 个加载较慢` : "加载正常"}
             </Badge>
           </header>
           <MetricBand
             items={[
               { label: "最近样本", value: runtimeEntries.length, caption: "历史记录" },
-              { label: "慢接口", value: slowRuntimeCount, caption: "超过目标" },
+              { label: "加载较慢", value: slowRuntimeCount, caption: "超过目标" },
               { label: "降级或修复", value: fallbackRuntimeCount, caption: "需关注" },
               {
                 label: "异常行",
@@ -423,7 +412,7 @@ export function DoctorPage({
           {runtimeDiagnosticsError ? (
             <AdminStatusLine
               tone="failed"
-              label="慢接口历史加载失败"
+              label="加载速度记录读取失败"
               detail={runtimeDiagnosticsError}
               value="局部错误"
             />
@@ -437,7 +426,7 @@ export function DoctorPage({
             />
           ) : null}
           {runtimeDiagnosticsLoading && !runtimeDiagnostics ? (
-            <EmptyState title="正在读取慢接口历史" detail="该请求只读取有界诊断历史，不会触发全库扫描。" />
+            <EmptyState title="正在读取加载速度记录" detail="该请求只读取最近记录，不会触发全库扫描。" />
           ) : runtimeEntries.length > 0 ? (
             <Table
               columns={runtimeColumns}
@@ -446,7 +435,7 @@ export function DoctorPage({
               stickyHeader
             />
           ) : (
-            <EmptyState title="暂无慢接口历史" detail="系统检查仍可使用；后续页面请求会逐步写入运行时诊断样本。" />
+            <EmptyState title="暂无加载速度记录" detail="系统状态仍可使用；后续页面请求会逐步写入加载样本。" />
           )}
         </section>
         <section className="admin-list-section admin-doctor-report-surface" aria-label="诊断报告">
@@ -497,7 +486,7 @@ export function DoctorPage({
                   { label: "检查目的", value: explanation.purpose },
                   { label: "失败影响", value: explanation.impact },
                   { label: "处理建议", value: explanation.suggestion },
-                  { label: "技术详情", value: strictChineseDiagnosticText(item.message) }
+                  { label: "检查详情", value: strictChineseDiagnosticText(item.message) }
                 ]
               };
             })}
@@ -511,7 +500,7 @@ export function DoctorPage({
               title: "报告",
               rows: [
                 { label: "生成时间", value: data.doctor.generated_at },
-                { label: "协议版本", value: data.doctor.schema_version },
+                { label: "报告版本", value: data.doctor.schema_version },
                 { label: "库路径", value: data.doctor.library_root },
                 { label: "通过", value: data.doctor.summary.pass },
                 { label: "警告", value: data.doctor.summary.warn },
@@ -519,10 +508,10 @@ export function DoctorPage({
               ]
             },
             {
-              title: "慢接口历史",
+              title: "加载速度记录",
               rows: [
                 { label: "最近样本", value: runtimeEntries.length },
-                { label: "慢接口", value: slowRuntimeCount },
+                { label: "加载较慢", value: slowRuntimeCount },
                 { label: "降级或修复", value: fallbackRuntimeCount },
                 { label: "异常行", value: runtimeDiagnostics?.malformed_line_count ?? 0 },
                 {
@@ -538,23 +527,11 @@ export function DoctorPage({
                     : "-"
                 },
                 {
-                  label: "最近来源",
+                  label: "最近读取",
                   value: latestRuntimeEntry
                     ? runtimeDataSourceLabel(latestRuntimeEntry.runtime.actual_data_source)
                     : "-"
                 }
-              ]
-            },
-            {
-              title: "页面契约",
-              rows: [
-                { label: "主工作区", value: "诊断报告" },
-                { label: "辅助区", value: "检查结果与慢接口历史" },
-                { label: "数据来源", value: "doctor-probes / admin-read-model" },
-                { label: "扫描原因", value: "doctor-route / read-model-health" },
-                { label: "扫描模式", value: "状态扫描 / 不扫描" },
-                { label: "错误边界", value: "本页面局部处理" },
-                { label: "导出边界", value: "导出操作" }
               ]
             }
           ]}

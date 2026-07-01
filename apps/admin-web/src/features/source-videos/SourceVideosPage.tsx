@@ -9,16 +9,6 @@ import type {
 } from "../../api.ts";
 import { preprocessStatusLabel } from "../../app/chinese.ts";
 import {
-  adminRuntimeCacheStatusLabel,
-  adminRuntimeComponentSummary,
-  adminRuntimeDataSourceLabel,
-  adminRuntimeFallbackReasonLabel,
-  adminRuntimeScanModeLabel,
-  adminRuntimeScanReasonLabel,
-  adminRuntimeSlowReasonLabel
-} from "../../app/runtime-observability-labels.ts";
-import { formatAdminDuration } from "../../app/view-model.ts";
-import {
   AdminPageHeader,
   EmptyState,
   MetricBand,
@@ -69,45 +59,25 @@ function statusFilterLabel(
     : option.label;
 }
 
-function runtimeSourceLabel(runtime?: AdminRuntimeEndpointMeta | null): string {
-  if (!runtime) {
-    return "读模型";
+function sourceRuntimeFallbackReasonLabel(reason?: string): string {
+  switch (reason) {
+    case "status-store:store-not-fresh":
+      return "同步数据过期";
+    case "status-store:incomplete-manifest-rows":
+      return "同步数据不完整";
+    case "status-store:unsupported-status":
+      return "当前筛选暂不支持快速同步";
+    case "status-store:unreadable-store":
+      return "同步数据不可读";
+    case "status-store:miss":
+      return "同步数据未命中";
+    case "status-read-model:id-fallback":
+      return "备用清单补全";
+    case "manifest-fallback:forbidden":
+      return "备用清单已阻断";
+    default:
+      return reason ? "已切换备用读取" : "";
   }
-
-  if (runtime.actual_data_source === "admin-read-model") {
-    return "读模型命中";
-  }
-
-  if (
-    runtime.data_source === "admin-read-model" &&
-    runtime.actual_data_source === "source-video-manifest"
-  ) {
-    return "读模型回退";
-  }
-
-  if (runtime.actual_data_source === "source-video-manifest") {
-    return "清单回退";
-  }
-
-  return "运行时诊断";
-}
-
-function runtimeDetailLabel(runtime?: AdminRuntimeEndpointMeta | null): string {
-  if (!runtime) {
-    return "分页读取 · 不扫描";
-  }
-
-  const fallbackReason = adminRuntimeFallbackReasonLabel(runtime.fallback_reason);
-  const scanLabel = runtime.scan_mode === "no-scan" || runtime.scan_mode === "paged-list"
-    ? "不扫描"
-    : "受控扫描";
-  const timing = `${runtime.duration_ms}ms`;
-
-  if (fallbackReason) {
-    return `原因：${fallbackReason} · ${timing}`;
-  }
-
-  return `分页读取 · ${scanLabel} · ${timing}`;
 }
 
 function runtimeNeedsReadModelMaintenance(runtime?: AdminRuntimeEndpointMeta | null): boolean {
@@ -132,7 +102,7 @@ function reconcilePhaseLabel(phase: AdminReadModelReconcilerStatus["phase"]): st
     idle: "空闲",
     starting: "启动中",
     scanning: "读取快照",
-    writing: "写入读模型",
+    writing: "写入同步数据",
     completed: "完成",
     cancelled: "取消",
     failed: "失败"
@@ -148,7 +118,7 @@ function reconcileStepLabel(step: AdminReadModelReconcilerStatus["progress"]["cu
     "library-manifest": "读取 library.json",
     "source-video-manifests": "读取素材清单",
     "preprocess-job-snapshots": "读取任务快照",
-    writing: "写入读模型",
+    writing: "写入同步数据",
     completed: "完成",
     cancelled: "取消",
     failed: "失败"
@@ -291,11 +261,8 @@ export function SourceVideosPage({
   const loadedCountLabel = canLoadMoreSourceVideos
     ? `${loadedSourceVideoCount}/${totalSourceVideoCount}`
     : `${loadedSourceVideoCount}`;
-  const filterModeLabel = serverFiltered ? "路由刷新" : "本地筛选";
-  const runtimeSource = runtimeSourceLabel(sourceVideoRuntime);
-  const runtimeDetail = runtimeDetailLabel(sourceVideoRuntime);
   const needsReadModelMaintenance = runtimeNeedsReadModelMaintenance(sourceVideoRuntime);
-  const runtimeFallbackReason = adminRuntimeFallbackReasonLabel(sourceVideoRuntime?.fallback_reason);
+  const runtimeFallbackReason = sourceRuntimeFallbackReasonLabel(sourceVideoRuntime?.fallback_reason);
   const reconcileStateLabel = readModelReconcileStatus
     ? reconcileStatusLabel(readModelReconcileStatus.status)
     : "未读取";
@@ -327,109 +294,28 @@ export function SourceVideosPage({
           <AdminPageHeader
             title="素材库"
             eyebrow="公共素材资产清单"
-            description="素材表格按路由加载，页面打开不触发全库扫描。"
+            description="查看公共素材状态，搜索和编辑素材信息；打开页面不会修改素材文件。"
           />
           <MetricBand
             items={[
-              { label: "全部原视频", value: totalSourceVideoCount, caption: "读模型统计" },
+              { label: "全部原视频", value: totalSourceVideoCount, caption: "已同步统计" },
               { label: "可搜索", value: data.status.ready_video_count, caption: "对剪辑师可见" },
-              { label: "生产待处理", value: productionBacklogCount, caption: "待处理项" },
-              { label: "已载入", value: loadedCountLabel, caption: "当前路由分页" }
+              { label: "待处理", value: productionBacklogCount, caption: "需要处理或上线" },
+              { label: "已载入", value: loadedCountLabel, caption: "当前列表" }
             ]}
           />
-          <div className="admin-console-statusbar" aria-label="原视频库状态">
-            <span>
-              <strong>素材来源</strong>
-              {data.status.source_videos_path}
-            </span>
-            <span>
-              <strong>全部原视频</strong>
-              {data.status.video_count}
-            </span>
-            <span>
-              <strong>可搜索</strong>
-              {data.status.ready_video_count}
-            </span>
-            <span>
-              <strong>预处理状态</strong>
-              {data.status.ready_video_count} 可用 / {data.status.queued_video_count} 队列 / {data.status.failed_video_count} 失败
-            </span>
-            <span>
-              <strong>搜索可见</strong>
-              {data.status.ready_video_count} 个对剪辑师可见
-            </span>
-            <span>
-              <strong>总时长</strong>
-              {formatAdminDuration(data.metrics.material.total_duration_ms)}
-            </span>
-            <span>
-              <strong>已载入</strong>
-              {loadedSourceVideoCount} / {totalSourceVideoCount}
-            </span>
-          </div>
         </section>
-        <section className="admin-source-route-contract" aria-label="素材库数据来源">
-          <div>
-            <span>素材表格</span>
-            <strong>{runtimeSource}</strong>
-            <p>{runtimeDetail}</p>
-          </div>
-          <div>
-            <span>状态与搜索</span>
-            <strong>页面控制</strong>
-            <p>{filterModeLabel} · 不写协议文件</p>
-          </div>
-          <div>
-            <span>素材详情</span>
-            <strong>Inspector</strong>
-            <p>选中素材局部处理</p>
-          </div>
-        </section>
-        {sourceVideoRuntime ? (
-          <section className="admin-source-route-contract" aria-label="素材库扫描证据">
-            <div>
-              <span>扫描模式</span>
-              <strong>{adminRuntimeScanModeLabel(sourceVideoRuntime.scan_mode)}</strong>
-              <p>{adminRuntimeScanReasonLabel(sourceVideoRuntime.scan_reason)} · {sourceVideoRuntime.duration_ms}ms</p>
-            </div>
-            <div>
-              <span>数据来源</span>
-              <strong>{adminRuntimeDataSourceLabel(sourceVideoRuntime.actual_data_source)}</strong>
-              <p>计划来源 {adminRuntimeDataSourceLabel(sourceVideoRuntime.data_source)} · {adminRuntimeCacheStatusLabel(sourceVideoRuntime.cache_status)}</p>
-            </div>
-            <div>
-              <span>返回窗口</span>
-              <strong>{sourceVideoRuntime.result_count}</strong>
-              <p>偏移 {sourceVideoRuntime.offset} · 上限 {sourceVideoRuntime.limit}</p>
-            </div>
-            <div>
-              <span>慢请求</span>
-              <strong>{sourceVideoRuntime.slow ? "需处理" : "正常"}</strong>
-              <p>{adminRuntimeSlowReasonLabel(sourceVideoRuntime)}</p>
-            </div>
-            <div>
-              <span>回退原因</span>
-              <strong>{runtimeFallbackReason || "无"}</strong>
-              <p>{sourceVideoRuntime.repair_reason ? "已带修复提示" : "未触发自动修复"}</p>
-            </div>
-            <div>
-              <span>组件耗时</span>
-              <strong>{sourceVideoRuntime.components?.length ?? 0} 个组件</strong>
-              <p>{adminRuntimeComponentSummary(sourceVideoRuntime)}</p>
-            </div>
-          </section>
-        ) : null}
         {needsReadModelMaintenance ? (
-          <section className="admin-source-route-contract" aria-label="读模型维护入口">
+          <section className="admin-source-route-contract" aria-label="数据同步维护入口">
             <div>
-              <span>读模型维护</span>
+              <span>数据同步</span>
               <strong>需要对账</strong>
-              <p>当前筛选已阻断清单回退，避免页面扫描 NAS 大目录。</p>
+              <p>{runtimeFallbackReason || "当前筛选需要后台同步后再显示完整结果。"}</p>
             </div>
             <div>
               <span>处理入口</span>
               <strong>保护中心</strong>
-              <p>检查读模型状态、对账计划和保护门禁。</p>
+              <p>检查同步状态、对账计划和保护门禁。</p>
             </div>
             <div>
               <span>对账状态</span>
@@ -491,7 +377,7 @@ export function SourceVideosPage({
           <header className="admin-section-header">
             <div>
               <h2>素材表格</h2>
-              <p>首屏和继续加载都走素材库路由；状态筛选不会让页面直接扫描 NAS 大目录。</p>
+              <p>按需加载素材，搜索和状态筛选不会修改素材文件。</p>
             </div>
             <Badge tone={canLoadMoreSourceVideos ? "warning" : "success"}>
               已载入 {loadedCountLabel}
@@ -501,7 +387,7 @@ export function SourceVideosPage({
             <p className="admin-note admin-route-error">{sourceVideoError}</p>
           ) : null}
           {isLoadingInitial ? (
-            <EmptyState title="正在读取首批原视频" detail="页面已载入，首批 20 条素材正在加载，数据来自读模型分页。" />
+            <EmptyState title="正在读取首批原视频" detail="页面已载入，首批 20 条素材正在分页加载。" />
           ) : sourceVideoError && !filteredVideos.length ? (
             <EmptyState title="素材表格加载失败" detail={sourceVideoError} />
           ) : filteredVideos.length ? (
@@ -511,6 +397,7 @@ export function SourceVideosPage({
                 selectedSourceVideoId={selected?.source_video_id}
                 currentIndexVersion={data.indexes.current_version}
                 processingIsStale={processingIsStale}
+                compact
                 onSelect={setSelectedSourceVideoId}
                 onOpenSourceDetail={onOpenSourceDetail}
               />

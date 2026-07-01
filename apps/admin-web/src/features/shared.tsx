@@ -190,7 +190,7 @@ export function CountStrip({ data }: { data: AdminDashboardData }) {
         { label: "队列中", value: data.status.queued_video_count, caption: "等待预处理" },
         { label: "未处理", value: data.status.unprocessed_video_count, caption: "等待入队" },
         { label: "处理失败", value: data.status.failed_video_count, caption: "失败可重试" },
-        { label: "待发布索引", value: data.status.index_required_video_count, caption: "待发布索引" }
+        { label: "已处理待上线", value: data.status.index_required_video_count, caption: "上线后剪辑端可用" }
       ]}
     />
   );
@@ -201,6 +201,7 @@ export function SourceVideoTable({
   selectedSourceVideoId,
   currentIndexVersion,
   processingIsStale = false,
+  compact = false,
   onSelect,
   onOpenSourceDetail
 }: {
@@ -208,6 +209,7 @@ export function SourceVideoTable({
   selectedSourceVideoId?: string;
   currentIndexVersion?: string;
   processingIsStale?: boolean;
+  compact?: boolean;
   onSelect?: (sourceVideoId: string) => void;
   onOpenSourceDetail?: (sourceVideoId: string) => void;
 }) {
@@ -234,7 +236,7 @@ export function SourceVideoTable({
     }
 
     if (video.preprocess_status === "index-required") {
-      return "待发布";
+      return "待上线";
     }
 
     return "-";
@@ -264,10 +266,18 @@ export function SourceVideoTable({
           <span>{video.source_video_id} · {video.file_name}</span>
         </button>
       )
-    },
-    { id: "duration", header: "时长", render: (video) => formatAdminDuration(video.duration_ms) },
-    { id: "path", header: "相对路径", accessor: "relative_path" },
-    { id: "subtitle", header: "字幕状态", render: (video) => subtitleStatus(video.preprocess_status) },
+    }
+  ];
+
+  if (!compact) {
+    columns.push(
+      { id: "duration", header: "时长", render: (video) => formatAdminDuration(video.duration_ms) },
+      { id: "path", header: "相对路径", accessor: "relative_path" },
+      { id: "subtitle", header: "字幕状态", render: (video) => subtitleStatus(video.preprocess_status) }
+    );
+  }
+
+  columns.push(
     {
       id: "status",
       header: "预处理状态",
@@ -283,19 +293,20 @@ export function SourceVideoTable({
       render: (video) => booleanLabel(video.visible_to_cutters)
     },
     { id: "version", header: "发布版本", render: publishVersion }
-  ];
+  );
 
   if (hasActions) {
     columns.push({
       id: "actions",
       header: "操作",
+      width: 96,
       render: (video) => (
         <button
           className="admin-link-button"
           type="button"
           onClick={() => onOpenSourceDetail?.(video.source_video_id)}
         >
-          查看详情
+          详情
         </button>
       )
     });
@@ -396,8 +407,8 @@ export function SourceMetadataInspector({
 
     if (video.preprocess_status === "index-required") {
       return {
-        label: "发布到剪辑端",
-        reason: "将当前视频发布到剪辑端搜索索引。",
+        label: "上线到剪辑端",
+        reason: "将当前已处理视频上线到剪辑端。",
         onClick: onPublishSourceVideo
       };
     }

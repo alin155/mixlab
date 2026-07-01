@@ -1365,7 +1365,7 @@ function smartScanActionLabel(action: AdminSmartScanAction): string {
     "start-preprocess": "启动预处理",
     "retry-failed": "重试失败视频",
     "recover-processing": "恢复卡住任务",
-    "publish-index": "发布到剪辑端",
+    "publish-index": "查看待上线素材",
     "run-doctor": "查看系统检查"
   };
 
@@ -1432,7 +1432,7 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
     suggestions.push({
       key: "queued-idle",
       label: "队列已准备但服务未运行",
-      detail: `${queuedCount} 个视频已排队，启动预处理后会继续提取音频、语音识别、生成产物并自动发布索引。`,
+      detail: `${queuedCount} 个视频已排队，启动预处理后会继续提取音频、识别文案、生成产物，并在安全时上线。`,
       action: "start-preprocess"
     });
   }
@@ -1449,9 +1449,9 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
   if (indexRequiredCount > 0) {
     suggestions.push({
       key: "index",
-      label: "存在待发布索引视频",
-      detail: `${indexRequiredCount} 个视频已完成预处理但尚未进入当前索引，预处理流水线会自动增量发布。`,
-      action: "start-preprocess"
+      label: "存在已处理待上线素材",
+      detail: `${indexRequiredCount} 个视频已经处理完成，点击上线后剪辑端即可搜索和使用。`,
+      action: "publish-index"
     });
   }
 
@@ -1474,9 +1474,9 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
         ? "recover-processing"
       : queuedCount > 0 && !supervisorRunning
         ? "start-preprocess"
-        : unprocessedCount > 0
-          ? "start-preprocess"
-          : indexRequiredCount > 0
+        : indexRequiredCount > 0
+          ? "publish-index"
+          : unprocessedCount > 0
             ? "start-preprocess"
             : "none";
 
@@ -1494,12 +1494,14 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
       ? `有 ${failedCount} 个失败视频可重试`
       : primaryAction === "recover-processing"
       ? `${activeCount} 个处理中任务需要恢复`
+      : primaryAction === "publish-index"
+        ? `有 ${indexRequiredCount} 个已处理素材待上线`
       : primaryAction === "start-preprocess"
         ? queuedCount > 0 && !supervisorRunning
           ? `${queuedCount} 个视频已排队，但预处理服务未运行`
           : unprocessedCount > 0
             ? `发现 ${unprocessedCount} 个视频可进入预处理流水线`
-            : `有 ${indexRequiredCount} 个视频等待自动发布`
+            : "素材处理可继续"
         : supervisorRunning
           ? "预处理服务正在运行"
           : "素材库当前无需处理";

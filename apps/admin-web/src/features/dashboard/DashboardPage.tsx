@@ -1,8 +1,6 @@
 import { InspectorPanel } from "@mixlab/ui-foundation";
 import type {
   AdminDashboardData,
-  AdminDashboardMetricSource,
-  AdminDashboardMetricsSources,
   AdminPreprocessJob,
   UsageMetrics
 } from "../../api.ts";
@@ -89,80 +87,6 @@ function optionalCountLabel(value: number): string {
 
 function optionalAverageDurationLabel(ms: number): string {
   return ms > 0 ? formatAdminDuration(ms) : "暂无样本";
-}
-
-function dashboardMetricSourceLabel(source: AdminDashboardMetricSource): string {
-  const sourceLabels: Record<AdminDashboardMetricSource["data_source"], string> = {
-    "admin-settings": "设置",
-    "admin-read-model": "读模型",
-    "command-snapshot": "命令快照",
-    "current-index": "当前索引",
-    "data-loading-contract": "加载契约",
-    "doctor-probes": "系统检查",
-    "index-version-packages": "索引包",
-    "library-manifest": "素材库账本",
-    "operation-log": "操作记录",
-    "path-checks": "路径检查",
-    "read-model-reconcile": "后台对账",
-    "runtime-telemetry": "运行时",
-    "runtime-secrets": "运行配置",
-    "source-folders": "素材来源",
-    "source-video-manifest": "视频清单",
-    "supervisor-runtime": "预处理服务",
-    "transcript-artifacts": "文案产物",
-    "usage-events": "使用事件",
-    "user-store": "用户存储"
-  };
-  const scanLabels: Record<AdminDashboardMetricSource["scan_mode"], string> = {
-    "no-scan": "不扫描",
-    "single-id": "单条读取",
-    "paged-list": "分页读取",
-    "folder-scan": "目录扫描",
-    "status-scan": "状态读取",
-    "full-reconcile": "全量对账"
-  };
-
-  return `${sourceLabels[source.data_source]} · ${scanLabels[source.scan_mode]}`;
-}
-
-const fallbackDashboardMetricSources: AdminDashboardMetricsSources = {
-  material: {
-    data_source: "library-manifest",
-    scan_mode: "no-scan",
-    scan_reason: "shell-summary"
-  },
-  transcript: {
-    data_source: "current-index",
-    scan_mode: "no-scan",
-    scan_reason: "shell-summary"
-  },
-  production: {
-    data_source: "library-manifest",
-    scan_mode: "no-scan",
-    scan_reason: "shell-summary"
-  },
-  usage: {
-    data_source: "usage-events",
-    scan_mode: "status-scan",
-    scan_reason: "background-metrics"
-  },
-  risk: {
-    data_source: "library-manifest",
-    scan_mode: "no-scan",
-    scan_reason: "shell-summary"
-  },
-  runtime_load: {
-    data_source: "runtime-telemetry",
-    scan_mode: "no-scan",
-    scan_reason: "background-metrics"
-  }
-};
-
-function dashboardMetricSources(data: AdminDashboardData): AdminDashboardMetricsSources {
-  return {
-    ...fallbackDashboardMetricSources,
-    ...(data.metrics.sources ?? {})
-  };
 }
 
 function percentLabel(value: number): string {
@@ -369,7 +293,7 @@ export function adminCorePathHealth(data: AdminDashboardData): AdminCorePathHeal
       value: data.metrics.transcript.segment_count > 0
         ? `${data.metrics.transcript.segment_count.toLocaleString("zh-CN")} 段`
         : "未统计",
-      detail: `${data.status.ready_video_count} 个可用视频 · 当前索引 ${data.indexes.current_version || "暂无"} · 待发布 ${data.status.index_required_video_count}`,
+      detail: `${data.status.ready_video_count} 个可用视频 · 当前索引 ${data.indexes.current_version || "暂无"} · 待上线 ${data.status.index_required_video_count}`,
       tone: transcriptTone
     },
     {
@@ -507,7 +431,6 @@ export function DashboardPage({
   const currentIndex = data.indexes.versions.find((version) => version.is_current);
   const usageFunnelRows = adminUsageFunnelRows(data.metrics.usage);
   const corePathHealth = adminCorePathHealth(data);
-  const metricSources = dashboardMetricSources(data);
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
   const readyRatio = data.status.video_count > 0
     ? Math.round((data.status.ready_video_count / data.status.video_count) * 100)
@@ -548,10 +471,10 @@ export function DashboardPage({
       tone: preprocessHealthTone
     },
     {
-      label: "索引发布",
+      label: "素材上线",
       value: data.indexes.current_version || "暂无索引",
       detail: data.status.index_required_video_count > 0
-        ? `${data.status.index_required_video_count} 个视频等待自动增量发布`
+        ? `${data.status.index_required_video_count} 个素材已处理待上线`
         : "当前可搜索索引已同步",
       tone: data.status.index_required_video_count > 0 ? "attention" : "healthy"
     },
@@ -589,9 +512,9 @@ export function DashboardPage({
       <div className="admin-main-column">
         <section className="admin-console-hero" aria-label="管理端总览">
           <AdminPageHeader
-            title="总览"
+            title="首页"
             eyebrow="公共素材库生产状态"
-            description={`让管理员先判断“剪辑团队现在能不能用”。当前连接真实素材库：${data.status.root_path}`}
+            description={`先看系统能不能继续处理素材、剪辑端能不能正常使用。当前连接素材库：${data.status.root_path}`}
             action={
               <section className="admin-action-row" aria-label="总览操作">
                 <AdminControlButton
@@ -616,12 +539,6 @@ export function DashboardPage({
               </section>
             }
           />
-        </section>
-        <section className="admin-dashboard-source-line" aria-label="总览数据来源">
-          <span>数据来源</span>
-          <strong>素材 {dashboardMetricSourceLabel(metricSources.material)}</strong>
-          <strong>产能 {dashboardMetricSourceLabel(metricSources.production)}</strong>
-          <strong>使用 {dashboardMetricSourceLabel(metricSources.usage)}</strong>
         </section>
         <section className={`admin-dashboard-alert is-${report.severity}`} aria-label="当前最重要状态">
           <span className={`admin-status-badge is-${report.severity === "blocked" ? "failed" : report.severity === "attention" ? "warning" : "ready"}`}>
@@ -875,7 +792,7 @@ export function DashboardPage({
             title="风险摘要"
             rows={[
               { label: "处理失败", value: data.metrics.risk.failed_video_count },
-              { label: "待发布索引", value: data.metrics.risk.index_required_video_count },
+              { label: "已处理待上线", value: data.metrics.risk.index_required_video_count },
               { label: "空搜索", value: data.metrics.usage.search_empty_count },
               { label: "搜索失败", value: coreSearchFailureCount(data.metrics.usage) },
               { label: "剪切失败", value: data.metrics.usage.cut_failure_count }
@@ -954,27 +871,16 @@ export function DashboardPage({
         <AdminInfoGroups
           groups={[
             {
-              title: "页面契约",
+              title: "操作提示",
               rows: [
-                { label: "主工作区", value: "状态总览" },
-                { label: "辅助区", value: "后台指标" },
-                { label: "首屏来源", value: "library-manifest / admin-settings / supervisor-runtime" },
-                { label: "后台来源", value: "admin-read-model / usage-events / runtime-telemetry" },
-                { label: "扫描模式", value: "不扫描 / 后台状态扫描" },
-                { label: "刷新边界", value: "Shell 首屏可用，指标卡片局部刷新" },
-                { label: "错误边界", value: "Shell 保留，显示加载失败" }
+                { label: "处理失败", value: data.jobs.failed_count > 0 ? "去素材处理页重试" : "当前无失败" },
+                { label: "待上线素材", value: data.status.index_required_video_count > 0 ? "去素材处理页查看" : "当前无待上线" },
+                { label: "剪辑师", value: `${data.metrics.usage.active_user_count}/${TARGET_CUTTER_SEAT_COUNT} 正在使用` },
+                { label: "系统状态", value: data.doctor.summary.fail > 0 ? "需要处理" : data.doctor.summary.warn > 0 ? "需要关注" : "正常" }
               ]
             }
           ]}
         />
-        <div className="admin-dashboard-note">
-          <strong>空状态</strong>
-          <p>首次未初始化时只显示设置入口和素材库初始化说明。</p>
-        </div>
-        <div className="admin-dashboard-note is-danger">
-          <strong>错误状态</strong>
-          <p>服务不可连接时保留 shell，提供重试与系统检查入口。</p>
-        </div>
       </InspectorPanel>
     </>
   );

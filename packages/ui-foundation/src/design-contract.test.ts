@@ -32,15 +32,12 @@ test("defines required cutter pages from the visual spec", () => {
 
 test("defines required admin pages from the visual spec", () => {
   assert.deepEqual(ADMIN_REQUIRED_PAGES, [
-    "总览",
-    "保护中心",
+    "首页",
+    "素材处理",
     "素材库",
-    "预处理",
-    "发布与索引",
     "剪辑师",
-    "系统检查",
-    "设置",
-    "操作记录"
+    "系统状态",
+    "设置"
   ]);
 
   assert.deepEqual(validateRequiredPages("admin", ADMIN_REQUIRED_PAGES), {

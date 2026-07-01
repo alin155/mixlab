@@ -10,7 +10,8 @@ import type {
   AdminPreprocessProcessHistoryEvent,
   AdminPreprocessProcessHistoryFilters,
   AdminPreprocessProcessHistoryItem,
-  AdminPreprocessProcessHistoryResponse
+  AdminPreprocessProcessHistoryResponse,
+  AdminSourceVideo
 } from "../../api.ts";
 import {
   chineseDiagnosticText,
@@ -18,21 +19,12 @@ import {
   jobStageLabel,
   strictChineseDiagnosticText
 } from "../../app/chinese.ts";
-import {
-  adminRuntimeCacheStatusLabel,
-  adminRuntimeComponentSummary,
-  adminRuntimeDataSourceLabel,
-  adminRuntimeScanModeLabel,
-  adminRuntimeScanReasonLabel,
-  adminRuntimeSlowReasonLabel
-} from "../../app/runtime-observability-labels.ts";
 import { formatAdminDuration } from "../../app/view-model.ts";
 import {
   AdminControlButton,
   AdminInfoGroups,
   AdminPageHeader,
   EmptyState,
-  IndexTable,
   MetricBand
 } from "../shared.tsx";
 
@@ -50,7 +42,7 @@ function productionStatus(data: AdminDashboardData): { title: string; detail: st
   if (data.jobs.queued_count > 0 && data.jobs.active_count === 0 && !supervisorRunning) {
     return {
       title: `${data.jobs.queued_count} 个视频已排队，但预处理服务未运行`,
-      detail: "建议启动预处理。启动后系统会继续提取音频、上传语音识别、生成文案、封面和关键帧。",
+      detail: "建议启动预处理。启动后系统会继续提取音频、识别文案、生成封面，并在安全时上线。",
       tone: "attention"
     };
   }
@@ -66,7 +58,7 @@ function productionStatus(data: AdminDashboardData): { title: string; detail: st
   if (data.status.unprocessed_video_count > 0 && data.jobs.queued_count === 0) {
     return {
       title: `${data.status.unprocessed_video_count} 个视频尚未加入队列`,
-      detail: "建议启动预处理，系统会先扫描素材来源，再自动入队和持续预处理。",
+      detail: "建议启动预处理，系统会先发现素材，再自动入队和持续处理。",
       tone: "attention"
     };
   }
@@ -144,7 +136,7 @@ function safeJobStageLabel(job: AdminPreprocessJob): string {
 function processHistoryEventLabel(event: AdminPreprocessProcessHistoryItem["last_event_type"]): string {
   const labels: Record<AdminPreprocessProcessHistoryItem["last_event_type"], string> = {
     failed: "失败",
-    indexed: "已入索引",
+    indexed: "已上线",
     completed: "已完成",
     claimed: "已领取",
     status: "状态更新"
@@ -160,7 +152,7 @@ function processHistoryStatusLabel(status: AdminPreprocessProcessHistoryItem["pr
     queued: "队列中",
     unprocessed: "未处理",
     failed: "失败",
-    "index-required": "待发布"
+    "index-required": "待上线"
   };
 
   return labels[status];
@@ -172,10 +164,10 @@ function processHistoryAvailabilityLabel(history: AdminPreprocessProcessHistoryR
   }
 
   if (!history.history_available) {
-    return "读模型未命中";
+    return "暂不可用";
   }
 
-  return history.cache_status === "hit" ? "读模型命中" : "读模型未命中";
+  return history.cache_status === "hit" ? "已同步" : "同步中";
 }
 
 function processHistoryTrackedRangeLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
@@ -201,7 +193,7 @@ function processHistoryStatusDistributionLabel(history: AdminPreprocessProcessHi
   const counts = history.summary.status_counts;
   const active = counts.processing + counts.queued;
 
-  return `处理中 ${active} · 待发布 ${counts["index-required"]} · 失败 ${counts.failed}`;
+  return `处理中 ${active} · 待上线 ${counts["index-required"]} · 失败 ${counts.failed}`;
 }
 
 function processHistoryEventDistributionLabel(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
@@ -211,7 +203,7 @@ function processHistoryEventDistributionLabel(history: AdminPreprocessProcessHis
 
   const counts = history.summary.event_counts;
 
-  return `入索引 ${counts.indexed} · 完成 ${counts.completed} · 失败 ${counts.failed} · 领取 ${counts.claimed}`;
+  return `上线 ${counts.indexed} · 完成 ${counts.completed} · 失败 ${counts.failed} · 领取 ${counts.claimed}`;
 }
 
 function processHistorySourceFolderName(history: AdminPreprocessProcessHistoryResponse | null | undefined): string {
@@ -275,6 +267,7 @@ export function PreprocessJobsPage({
   onStartPreprocessSupervisor,
   onStopPreprocessSupervisor,
   onRepairIndex,
+  onPublishSourceVideo,
   onProcessHistoryFiltersChange,
   onOpenPreprocessJobLog
 }: {
@@ -295,6 +288,7 @@ export function PreprocessJobsPage({
   onStartPreprocessSupervisor?: () => void;
   onStopPreprocessSupervisor?: () => void;
   onRepairIndex?: () => void;
+  onPublishSourceVideo?: (sourceVideoId: string) => void;
   onProcessHistoryFiltersChange?: (filters: AdminPreprocessProcessHistoryFilters) => void;
   onOpenPreprocessJobLog?: (jobId: string) => void;
 }) {
@@ -324,8 +318,11 @@ export function PreprocessJobsPage({
     { label: "语音识别", value: running.filter((job) => job.stage === "asr").length, caption: runningStageCaption },
     { label: "生成文案", value: data.metrics.transcript.transcript_video_count, caption: "已有文案" },
     { label: "封面关键帧", value: running.filter((job) => job.stage === "build-keyframes").length, caption: runningStageCaption },
-    { label: "发布索引", value: data.status.index_required_video_count, caption: "待发布" }
+    { label: "上线剪辑端", value: data.status.index_required_video_count, caption: "待上线" }
   ];
+  const indexRequiredVideos = data.source_videos.filter(
+    (video) => video.preprocess_status === "index-required"
+  );
   const compactJobs = [...running, ...queued, ...failed, ...done].slice(0, 12);
   const throughputLabel = preprocessThroughputLabel(data, supervisorRunning);
   const currentValidationMessage = indexValidationMessageLabel(data.indexes.current_validation_message);
@@ -459,13 +456,39 @@ export function PreprocessJobsPage({
       render: (item) => item.elapsed_ms > 0 ? formatAdminDuration(item.elapsed_ms) : "-"
     }
   ];
-  const processHistorySourceLabel = processHistory
-    ? `${adminRuntimeDataSourceLabel(processHistory.actual_data_source)} · ${adminRuntimeScanModeLabel(processHistory.scan_mode)} · ${adminRuntimeCacheStatusLabel(processHistory.cache_status)}`
-    : "读模型 · 不扫描";
-  const preprocessJobsRuntime = data.jobs.runtime;
-  const preprocessJobsRuntimeSourceLabel = preprocessJobsRuntime
-    ? `${adminRuntimeDataSourceLabel(preprocessJobsRuntime.actual_data_source)} · ${adminRuntimeScanModeLabel(preprocessJobsRuntime.scan_mode)} · ${adminRuntimeCacheStatusLabel(preprocessJobsRuntime.cache_status)}`
-    : "等待路由数据";
+  const indexRequiredColumns: Array<TableColumn<AdminSourceVideo>> = [
+    {
+      id: "title",
+      header: "已处理素材",
+      render: (video) => `${video.source_video_id} · ${video.title || video.file_name}`
+    },
+    {
+      id: "file",
+      header: "文件",
+      render: (video) => video.file_name
+    },
+    {
+      id: "status",
+      header: "状态",
+      render: () => "已处理待上线"
+    },
+    {
+      id: "actions",
+      header: "操作",
+      render: (video) => (
+        <AdminControlButton
+          label="上线到剪辑端"
+          state={nasWriteState}
+          reason={nasWriteReason("只上线这一条已处理素材，成功后剪辑端可以搜索和使用。")}
+          variant="primary"
+          onClick={gatedNasWriteAction(
+            onPublishSourceVideo ? () => onPublishSourceVideo(video.source_video_id) : undefined
+          )}
+        />
+      )
+    }
+  ];
+  const processHistorySourceLabel = processHistory ? "处理记录已同步" : "处理记录同步中";
   const historyFilters = activeProcessHistoryFilters({
     history: processHistory,
     filters: processHistoryFilters
@@ -489,8 +512,8 @@ export function PreprocessJobsPage({
       <div className="admin-main-column">
         <section className="admin-console-hero">
           <AdminPageHeader
-            title="预处理"
-            eyebrow="预处理流水线与索引发布"
+            title="素材处理"
+            eyebrow="自动处理与上线"
           />
           <div className="admin-console-statusbar" aria-label="预处理状态">
             <span>
@@ -558,38 +581,6 @@ export function PreprocessJobsPage({
             <span>{observability.load_advice}</span>
           </article>
         </section>
-        <section className="admin-index-summary-grid" aria-label="预处理扫描证据">
-          <article>
-            <span>任务队列</span>
-            <strong>{preprocessJobsRuntime ? adminRuntimeScanModeLabel(preprocessJobsRuntime.scan_mode) : "等待路由数据"}</strong>
-            <p>{preprocessJobsRuntime ? `${adminRuntimeScanReasonLabel(preprocessJobsRuntime.scan_reason)} · ${preprocessJobsRuntime.duration_ms}ms` : "路由数据返回后显示扫描证据"}</p>
-          </article>
-          <article>
-            <span>任务来源</span>
-            <strong>{preprocessJobsRuntime ? adminRuntimeDataSourceLabel(preprocessJobsRuntime.actual_data_source) : "读模型"}</strong>
-            <p>{preprocessJobsRuntimeSourceLabel}</p>
-          </article>
-          <article>
-            <span>任务窗口</span>
-            <strong>{preprocessJobsRuntime?.result_count ?? compactJobs.length}</strong>
-            <p>偏移 {preprocessJobsRuntime?.offset ?? 0} · 上限 {preprocessJobsRuntime?.limit ?? compactJobs.length}</p>
-          </article>
-          <article>
-            <span>任务慢请求</span>
-            <strong>{preprocessJobsRuntime?.slow ? "需处理" : "正常"}</strong>
-            <p>{preprocessJobsRuntime ? adminRuntimeSlowReasonLabel(preprocessJobsRuntime) : "未收到慢请求标记"}</p>
-          </article>
-          <article>
-            <span>任务组件耗时</span>
-            <strong>{preprocessJobsRuntime?.components?.length ?? 0} 个组件</strong>
-            <p>{preprocessJobsRuntime ? adminRuntimeComponentSummary(preprocessJobsRuntime) : "暂无组件耗时"}</p>
-          </article>
-          <article>
-            <span>处理历史</span>
-            <strong>{processHistory ? adminRuntimeScanModeLabel(processHistory.scan_mode) : "不扫描"}</strong>
-            <p>{processHistory ? `${adminRuntimeScanReasonLabel(processHistory.scan_reason)} · ${processHistorySourceLabel}` : "读模型 · 不扫描"}</p>
-          </article>
-        </section>
         <section className="admin-current-job-card" aria-label="当前处理视频">
           <div>
             <p>{supervisorRunning ? "当前处理视频" : "待恢复视频"}</p>
@@ -638,7 +629,7 @@ export function PreprocessJobsPage({
         <section className="admin-list-section admin-process-history-panel" aria-label="预处理历史">
           <header className="admin-section-header">
             <h2>处理历史</h2>
-            <p>按最近事件展示完成、失败、入索引和处理中记录，数据来自管理端读模型。</p>
+            <p>按最近事件展示完成、失败、上线和处理中记录。</p>
           </header>
           <div className="admin-source-filter-bar admin-source-filter-card" aria-label="筛选处理历史">
             <select
@@ -735,8 +726,8 @@ export function PreprocessJobsPage({
             <EmptyState title="处理历史后台同步中" detail="队列仍可操作，历史记录回来后会自动补上。" />
           ) : processHistory && !processHistory.history_available ? (
             <EmptyState
-              title="处理历史读模型暂不可用"
-              detail="接口返回安全空结果，没有触发预处理任务文件扫描。"
+              title="处理历史暂不可用"
+              detail="系统会继续显示当前队列和生产状态。"
             />
           ) : processHistoryRows.length ? (
             <Table
@@ -746,13 +737,13 @@ export function PreprocessJobsPage({
               stickyHeader
             />
           ) : (
-            <EmptyState title="暂无处理历史" detail="当前读模型没有返回最近处理事件。" />
+            <EmptyState title="暂无处理历史" detail="当前没有返回最近处理事件。" />
           )}
         </section>
-        <section className="admin-list-section admin-index-publish-panel" aria-label="索引发布">
+        <section className="admin-list-section admin-index-publish-panel" aria-label="已处理待上线">
           <header className="admin-section-header">
-            <h2>索引发布</h2>
-            <p>剪辑端搜索只读取当前索引。预处理完成但待发布的视频需要进入索引后才可搜索。</p>
+            <h2>已处理待上线</h2>
+            <p>这些素材已经处理完成，上线后剪辑师就可以在剪辑端搜索和使用。</p>
           </header>
           <div className="admin-index-summary-grid">
             <article>
@@ -763,9 +754,9 @@ export function PreprocessJobsPage({
               </p>
             </article>
             <article>
-              <span>待发布视频</span>
+              <span>待上线素材</span>
               <strong>{data.status.index_required_video_count}</strong>
-              <p>{data.settings.runtime_policy.auto_publish_index_enabled ? "自动增量发布已开启" : "需要手动发布"}</p>
+              <p>{data.settings.runtime_policy.auto_publish_index_enabled ? "系统会自动上线新处理素材" : "需要手动上线"}</p>
             </article>
             <article>
               <span>系统检查</span>
@@ -773,19 +764,31 @@ export function PreprocessJobsPage({
               <p>警告 {data.doctor.summary.warn} · 失败 {data.doctor.summary.fail}</p>
             </article>
           </div>
-          <section className="admin-action-row">
-            <AdminControlButton
-              label="发布到剪辑端"
-              state={nasWriteState}
-              reason={nasWriteReason("发布完成预处理但尚未进入搜索索引的视频。")}
-              variant="primary"
-              onClick={gatedNasWriteAction(onRepairIndex)}
+          {indexRequiredVideos.length ? (
+            <Table
+              columns={indexRequiredColumns}
+              rows={indexRequiredVideos}
+              getRowKey={(video) => video.source_video_id}
+              stickyHeader
             />
-          </section>
-          {data.status.index_required_video_count === 0 ? (
-            <p className="admin-note">没有待发布索引的视频。</p>
+          ) : data.status.index_required_video_count > 0 ? (
+            <p className="admin-note">还有已处理待上线素材，明细正在后台同步；可稍后刷新本页。</p>
+          ) : (
+            <p className="admin-note">没有已处理待上线素材。</p>
+          )}
+          {onRepairIndex && data.status.index_required_video_count > 0 ? (
+            <section className="admin-action-row">
+              <AdminControlButton
+                label="上线全部已处理素材"
+                state={nasWriteState}
+                reason={nasWriteReason("批量上线所有已处理待上线素材，适合确认系统状态正常后使用。")}
+                onClick={gatedNasWriteAction(onRepairIndex)}
+              />
+            </section>
           ) : null}
-          <IndexTable versions={data.indexes.versions} />
+          {data.status.index_required_video_count === 0 ? (
+            <p className="admin-note">已处理素材都已经上线到剪辑端。</p>
+          ) : null}
         </section>
         <AdminInfoGroups
           groups={[{
@@ -800,12 +803,12 @@ export function PreprocessJobsPage({
               { label: "当前索引", value: data.indexes.current_version || "暂无索引" },
               { label: "当前索引状态", value: currentValidationMessage },
               { label: "已发布可用视频", value: currentIndex?.ready_video_count ?? data.status.ready_video_count },
-              { label: "待发布索引", value: data.status.index_required_video_count },
+              { label: "已处理待上线", value: data.status.index_required_video_count },
               {
-                label: "自动增量发布",
+                label: "自动上线",
                 value: data.status.index_required_video_count > 0
-                  ? "流水线会在产物完成后自动发布"
-                  : "当前没有待发布视频"
+                  ? "流水线会在产物完成后自动上线"
+                  : "当前没有待上线素材"
               }
             ]
           }]}
@@ -828,25 +831,13 @@ export function PreprocessJobsPage({
               title: "处理结果",
               rows: [
                 { label: "最近完成", value: data.jobs.completed_count },
-                { label: "待发布索引", value: data.status.index_required_video_count },
+                { label: "已处理待上线", value: data.status.index_required_video_count },
                 {
                   label: "上次处理",
                   value: lastResult
                     ? `领取 ${lastResult.total_claimed_count}，成功 ${lastResult.succeeded_count}，失败 ${lastResult.failed_count}`
                   : "暂无记录"
                 }
-              ]
-            },
-            {
-              title: "页面契约",
-              rows: [
-                { label: "主工作区", value: "预处理队列" },
-                { label: "辅助区", value: "处理历史与任务日志" },
-                { label: "数据来源", value: "admin-read-model / supervisor-runtime" },
-                { label: "扫描模式", value: "不扫描 / 分页读取" },
-                { label: "加载边界", value: "路由加载，任务日志按需读取" },
-                { label: "命令边界", value: "预处理命令经过后端门禁" },
-                { label: "错误边界", value: "本页面局部处理" }
               ]
             }
           ]}
@@ -873,7 +864,7 @@ export function PreprocessJobsPage({
             <AdminControlButton
               label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
               state={nasWriteState}
-              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "扫描、入队、预处理并自动发布索引。"}
+              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "发现素材、加入队列、预处理，并在安全时上线。"}
               variant="primary"
               onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
             />

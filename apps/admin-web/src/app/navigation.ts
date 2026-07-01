@@ -19,23 +19,20 @@ export interface AdminNavItem {
 export type AdminSurfaceMode = "full" | "docker-mvp-v0.1";
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
-  { route: "dashboard", label: "总览", icon: "dashboard" },
-  { route: "protection", label: "保护中心", icon: "shield" },
+  { route: "dashboard", label: "首页", icon: "dashboard" },
+  { route: "preprocess-jobs", label: "素材处理", icon: "queue" },
   { route: "source-videos", label: "素材库", icon: "video" },
-  { route: "preprocess-jobs", label: "预处理", icon: "queue" },
-  { route: "index-publish", label: "发布与索引", icon: "index" },
   { route: "cutter-users", label: "剪辑师", icon: "users" },
-  { route: "doctor", label: "系统检查", icon: "doctor" },
-  { route: "settings", label: "设置", icon: "settings" },
-  { route: "operation-log", label: "操作记录", icon: "list" }
+  { route: "doctor", label: "系统状态", icon: "doctor" },
+  { route: "settings", label: "设置", icon: "settings" }
 ];
 
 export const ADMIN_DOCKER_MVP_NAV_ITEMS: AdminNavItem[] = [
-  { route: "dashboard", label: "总览", icon: "dashboard" },
+  { route: "dashboard", label: "首页", icon: "dashboard" },
+  { route: "preprocess-jobs", label: "素材处理", icon: "queue" },
   { route: "source-videos", label: "素材库", icon: "video" },
-  { route: "preprocess-jobs", label: "预处理", icon: "queue" },
   { route: "cutter-users", label: "剪辑师", icon: "users" },
-  { route: "doctor", label: "系统检查", icon: "doctor" }
+  { route: "doctor", label: "系统状态", icon: "doctor" }
 ];
 
 const ADMIN_DOCKER_MVP_ROUTES = new Set<AdminRoute>([

@@ -51,11 +51,11 @@ test("command start decisions block duplicate frontend command submissions", () 
     duplicate_submission: "block-while-running"
   });
 
-  assert.deepEqual(canStartAdminCommandAction("扫描源视频", "发布到剪辑端"), {
+  assert.deepEqual(canStartAdminCommandAction("扫描源视频", "上线到剪辑端"), {
     allowed: false,
-    message: "已有管理端命令「扫描源视频」执行中，请等待完成后再执行「发布到剪辑端」。",
+    message: "已有管理端命令「扫描源视频」执行中，请等待完成后再执行「上线到剪辑端」。",
     active_label: "扫描源视频",
-    next_label: "发布到剪辑端",
+    next_label: "上线到剪辑端",
     duplicate_submission: "block-while-running"
   });
 

@@ -174,7 +174,7 @@ export function SettingsPage({
         <AdminPageHeader
           title="设置"
           eyebrow="素材来源与预处理设置"
-          description="设置表单按路由加载，路径和运行时探针只在设置页刷新。"
+          description="管理素材来源、预处理并发和语音识别配置。"
           action={(
             <AdminControlButton
               label="新增素材来源"
@@ -192,21 +192,21 @@ export function SettingsPage({
             { label: "路径问题", value: pathIssueCount, caption: "路径检查需关注" }
           ]}
         />
-        <section className="admin-settings-route-contract" aria-label="设置数据来源">
+        <section className="admin-settings-route-contract" aria-label="设置保存说明">
           <div>
             <span>设置表单</span>
-            <strong>admin-settings</strong>
-            <p>本地编辑 · 不扫描</p>
+            <strong>本地编辑</strong>
+            <p>点击保存后才生效</p>
           </div>
           <div>
             <span>路径检查</span>
-            <strong>path-checks</strong>
-            <p>settings-route · 不枚举素材</p>
+            <strong>只检查路径</strong>
+            <p>不会枚举全部素材</p>
           </div>
           <div>
             <span>运行状态</span>
-            <strong>runtime-secrets</strong>
-            <p>密钥隐藏 · 本页面局部处理</p>
+            <strong>密钥隐藏</strong>
+            <p>只显示配置状态，不显示密钥值</p>
           </div>
         </section>
         <section className="admin-list-section admin-settings-form-surface" aria-label="设置表单">
@@ -456,18 +456,12 @@ export function SettingsPage({
         <AdminInfoGroups
           groups={[
             {
-              title: "页面契约",
+              title: "保存说明",
               rows: [
-                { label: "主工作区", value: "设置表单" },
-                { label: "辅助区", value: "路径检查" },
-                { label: "设置来源", value: "admin-settings" },
-                { label: "路径来源", value: "path-checks" },
-                { label: "运行来源", value: "runtime-secrets" },
-                { label: "扫描原因", value: "settings-route" },
-                { label: "扫描模式", value: "不扫描" },
-                { label: "编辑边界", value: "本地编辑" },
-                { label: "保存边界", value: "命令操作" },
-                { label: "错误边界", value: "本页面局部处理" }
+                { label: "编辑方式", value: "本页面先编辑，点击保存后才写入配置" },
+                { label: "路径检查", value: "只检查路径是否可用，不会扫描全部素材" },
+                { label: "语音识别密钥", value: "页面只显示是否配置，不显示密钥内容" },
+                { label: "保存影响", value: "影响后续处理，不会重跑已完成素材" }
               ]
             }
           ]}

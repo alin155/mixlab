@@ -598,7 +598,7 @@ export function ProtectionCenterPage({
             <dd>{overview.summary.ready_video_count}</dd>
           </div>
           <div>
-            <dt>待发布索引</dt>
+            <dt>已处理待上线</dt>
             <dd>{overview.summary.index_required_video_count}</dd>
           </div>
         </dl>

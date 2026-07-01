@@ -30,13 +30,13 @@ test("admin UI contract defines the Admin Architecture v1 production-console pag
     "settings",
     "operation-log"
   ]);
-  assert.equal(ADMIN_UI_PAGES.dashboard.goal, "看全局风险和产能");
+  assert.equal(ADMIN_UI_PAGES.dashboard.goal, "让小白用户一眼看懂素材生产是否正常");
   assert.equal(ADMIN_UI_PAGES["source-videos"].goal, "管理公共素材资产与元数据");
-  assert.equal(ADMIN_UI_PAGES["preprocess-jobs"].label, "预处理");
-  assert.equal(ADMIN_UI_PAGES["preprocess-jobs"].goal, "监控预处理流水线和自动增量发布");
+  assert.equal(ADMIN_UI_PAGES["preprocess-jobs"].label, "素材处理");
+  assert.equal(ADMIN_UI_PAGES["preprocess-jobs"].goal, "让小白用户用一个页面继续处理素材并上线给剪辑端");
   assert.equal(ADMIN_UI_PAGES.protection.goal, "集中查看发布门禁和运行保护");
   assert.equal(ADMIN_UI_PAGES["index-publish"].goal, "保证已处理素材进入剪辑端搜索");
-  assert.equal(ADMIN_UI_PAGES.doctor.goal, "检查系统状态");
+  assert.equal(ADMIN_UI_PAGES.doctor.goal, "用红黄绿告诉小白用户系统是否能继续生产");
   assert.equal(ADMIN_UI_PAGES["cutter-users"].goal, "管理剪辑师准入");
   assert.equal(ADMIN_UI_PAGES.settings.goal, "配置素材来源和预处理参数");
   assert.equal(ADMIN_UI_PAGES["operation-log"].goal, "查看管理端维护和审计轨迹");
@@ -47,7 +47,7 @@ test("admin UI contract defines the Admin Architecture v1 production-console pag
 test("navigation uses product-approved page labels", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["总览", "保护中心", "素材库", "预处理", "发布与索引", "剪辑师", "系统检查", "设置", "操作记录"]
+    ["首页", "素材处理", "素材库", "剪辑师", "系统状态", "设置"]
   );
 });
 
@@ -58,7 +58,7 @@ test("docker mvp surface narrows navigation without shrinking the full admin arc
   );
   assert.deepEqual(
     ADMIN_DOCKER_MVP_NAV_ITEMS.map((item) => item.label),
-    ["总览", "素材库", "预处理", "剪辑师", "系统检查"]
+    ["首页", "素材处理", "素材库", "剪辑师", "系统状态"]
   );
   assert.deepEqual(
     adminNavItemsForMode("full").map((item) => item.label),
@@ -93,10 +93,10 @@ test("docker mvp control contract keeps core writes and disables or hides high-r
   assert.ok(disabled.includes("执行下一步建议"));
   assert.ok(disabled.includes("保存封面"));
   assert.ok(disabled.includes("保存素材信息"));
-  assert.ok(disabled.includes("发布到剪辑端"));
+  assert.ok(disabled.includes("上线全部已处理素材"));
   assert.equal(adminDockerMvpControlDisposition({
     route: "source-videos",
-    label: "发布到剪辑端",
+    label: "上线到剪辑端",
     state: "m9b-api",
     reason: ""
   }), "enabled");
@@ -116,7 +116,7 @@ test("docker mvp control contract keeps core writes and disables or hides high-r
   assert.ok(enabled.includes("停用用户"));
   assert.ok(hidden.includes("settings:初始化素材库"));
   assert.ok(hidden.includes("settings:保存设置"));
-  assert.ok(hidden.includes("index-publish:发布到剪辑端"));
+  assert.ok(hidden.includes("index-publish:上线全部已处理素材"));
   assert.ok(hidden.includes("operation-log:确认执行恢复"));
 });
 
@@ -131,7 +131,8 @@ test("every visible control is classified before implementation", () => {
   assert.ok(apiControls.includes("暂停预处理"));
   assert.ok(apiControls.includes("详情"));
   assert.equal(apiControls.includes("查看日志"), false);
-  assert.ok(apiControls.includes("发布到剪辑端"));
+  assert.ok(apiControls.includes("上线到剪辑端"));
+  assert.ok(apiControls.includes("上线全部已处理素材"));
   assert.ok(apiControls.includes("校验索引"));
   assert.ok(apiControls.includes("通过申请"));
   assert.ok(apiControls.includes("停用用户"));

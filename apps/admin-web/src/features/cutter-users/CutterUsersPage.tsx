@@ -299,11 +299,11 @@ export function CutterUsersPage({
             { label: "已停用", value: disabledUserCount, caption: "登录凭证失效" }
           ]}
         />
-        <section className="admin-cutter-users-route-contract" aria-label="剪辑师数据来源">
+        <section className="admin-cutter-users-route-contract" aria-label="剪辑师管理提示">
           <div>
             <span>用户表格</span>
             <strong>用户仓库</strong>
-            <p>路由加载 · 不扫描</p>
+            <p>只显示剪辑师账号和审核状态</p>
           </div>
           <div>
             <span>使用概览</span>
@@ -352,14 +352,12 @@ export function CutterUsersPage({
                 ]
               },
               {
-                title: "页面契约",
+                title: "管理提示",
                 rows: [
-                  { label: "主工作区", value: "用户表格" },
-                  { label: "辅助区", value: "使用概览" },
-                  { label: "用户来源", value: "用户仓库" },
-                  { label: "操作边界", value: "命令操作" },
-                  { label: "扫描模式", value: "不扫描" },
-                  { label: "错误边界", value: "本页面局部处理" }
+                  { label: "待审核", value: pendingUserCount > 0 ? "请逐个确认后通过" : "当前无待审核" },
+                  { label: "账号操作", value: "通过、停用、重置密码都只影响当前账号" },
+                  { label: "使用记录", value: "只用于判断剪辑端是否正常使用" },
+                  { label: "异常处理", value: "搜索失败或剪切失败增多时查看系统状态" }
                 ]
               }
             ]}

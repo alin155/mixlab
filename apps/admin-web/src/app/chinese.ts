@@ -10,7 +10,7 @@ export function preprocessStatusLabel(status: AdminPreprocessStatus | string): s
     queued: "队列中",
     unprocessed: "未处理",
     failed: "处理失败",
-    "index-required": "待发布索引",
+    "index-required": "已处理待上线",
     running: "处理中",
     done: "已完成"
   };
@@ -27,7 +27,7 @@ export function jobStageLabel(stage: string): string {
     asr: "语音识别",
     "write-transcript": "写入文案",
     "publish-ready": "发布可用产物",
-    "publish-index": "发布索引",
+    "publish-index": "上线到剪辑端",
     "transcode-preview": "生成预览",
     "queued-by-admin": "等待处理",
     queued: "等待处理"
@@ -198,8 +198,8 @@ const DIAGNOSTIC_TEXT_REPLACEMENTS: Array<[string, string]> = [
   ["config is present", "配置已存在"],
   ["no local clips found", "未发现本地剪辑片段"],
   ["local clip manifests are valid", "个本地剪辑片段清单有效"],
-  ["index-required 与 ready 边界需发布", "待发布索引与已可用边界需发布"],
-  ["index-required", "待发布索引"],
+  ["index-required 与 ready 边界需发布", "已处理待上线与已可用边界需上线"],
+  ["index-required", "已处理待上线"],
   ["current.json", "当前索引指针"],
   ["library.json", "发布清单文件"],
   ["EACCES", "权限不足"],

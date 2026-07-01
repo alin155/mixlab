@@ -146,13 +146,13 @@ function createRuntimeRequestScope(
 
 function routeTitle(route: AdminRoute): string {
   const labels: Record<AdminRoute, string> = {
-    dashboard: "总览",
+    dashboard: "首页",
     "source-videos": "素材库",
     "source-detail": "原视频详情",
-    "preprocess-jobs": "预处理",
+    "preprocess-jobs": "素材处理",
     protection: "保护中心",
     "index-publish": "发布与索引",
-    doctor: "系统检查",
+    doctor: "系统状态",
     "cutter-users": "剪辑师",
     settings: "设置",
     "operation-log": "操作记录"
@@ -204,7 +204,7 @@ function AdminTopbar({
         <span className="admin-topbar-mark">ML</span>
         <span>
           <strong>MixLab Admin</strong>
-          <small>公共素材库管理</small>
+          <small>素材生产驾驶舱</small>
         </span>
       </a>
       <div className="admin-topbar-status" aria-label="管理端状态">
@@ -214,7 +214,7 @@ function AdminTopbar({
         </span>
         <span>
           <small>当前索引</small>
-          <strong>{data?.indexes.current_version || data?.status.current_index_version || "待发布"}</strong>
+          <strong>{data?.indexes.current_version || data?.status.current_index_version || "暂无索引"}</strong>
         </span>
         <span>
           <small>系统状态</small>
@@ -726,7 +726,7 @@ function renderPage(
         onQueueSourceVideo={actions.onQueueSourceVideo}
         onRetrySourceVideo={actions.onRetrySourceVideo}
         onRecoverProcessingSourceVideo={actions.onRecoverProcessingSourceVideo}
-        onPublishSourceVideo={dockerMvpMode ? undefined : actions.onPublishSourceVideo}
+        onPublishSourceVideo={actions.onPublishSourceVideo}
         onUpdateSourceVideoMetadata={dockerMvpMode ? undefined : actions.onUpdateSourceVideoMetadata}
         onUpdateSourceVideoCover={dockerMvpMode ? undefined : actions.onUpdateSourceVideoCover}
         onOpenSourceDetail={actions.onOpenSourceDetail}
@@ -792,6 +792,7 @@ function renderPage(
         onStartPreprocessSupervisor={actions.onStartPreprocessSupervisor}
         onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
         onRepairIndex={dockerMvpMode ? undefined : actions.onRepairIndex}
+        onPublishSourceVideo={actions.onPublishSourceVideo}
         selectedJobLog={preprocessJobLogState}
         processHistory={processHistoryState.history}
         processHistoryFilters={actions.processHistoryFilters}
@@ -810,7 +811,7 @@ function renderPage(
         isLoadingIndexRequiredVideos={loadingState.sourceVideos && data.source_videos.length === 0}
         indexRequiredError={routeErrors.indexRequiredVideos}
         onRepairIndex={dockerMvpMode ? undefined : actions.onRepairIndex}
-        onPublishSourceVideo={dockerMvpMode ? undefined : actions.onPublishSourceVideo}
+        onPublishSourceVideo={actions.onPublishSourceVideo}
         onRunDoctor={actions.onRunDoctor}
       />
     );
@@ -1305,7 +1306,7 @@ export function AdminApp() {
           limit: ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT,
           status: "index-required"
         }),
-        "待发布视频加载"
+        "待上线素材加载"
       ),
       onSuccess: (sourceVideos) => {
         setData((current) => current ? { ...current, source_videos: sourceVideos } : current);
@@ -2011,7 +2012,7 @@ export function AdminApp() {
     }
 
     if (action === "publish-index") {
-      await runAction("发布到剪辑端", (api) => api.repairIndex());
+      window.location.hash = routeToHash("preprocess-jobs");
       return;
     }
 
@@ -2272,7 +2273,7 @@ export function AdminApp() {
     onRecoverProcessingSourceVideo: (sourceVideoId) =>
       runAction("恢复到队列", (api) => api.recoverProcessingSourceVideo(sourceVideoId)),
     onPublishSourceVideo: (sourceVideoId) =>
-      runAction("发布到剪辑端", (api) => api.publishSourceVideo(sourceVideoId)),
+      runAction("上线到剪辑端", (api) => api.publishSourceVideo(sourceVideoId)),
     onOpenPreprocessJobLog: async (jobId) => {
       setPreprocessJobLogLoading(true);
       setPreprocessJobLogError("");
@@ -2291,7 +2292,7 @@ export function AdminApp() {
       runAction("启动预处理", (api) => api.startPreprocessSupervisor(1)),
     onStopPreprocessSupervisor: () =>
       runAction("暂停预处理", (api) => api.stopPreprocessSupervisor()),
-    onRepairIndex: () => runAction("发布到剪辑端", (api) => api.repairIndex()),
+    onRepairIndex: () => runAction("上线到剪辑端", (api) => api.repairIndex()),
     onRunDoctor: () => runAction("运行系统检查", (api) => api.runDoctor()),
     onTestAsrConfig: () => runAction("检查语音识别", (api) => api.testAsrConfig()),
     onSaveAdminSettings: (settings) =>
@@ -2407,7 +2408,7 @@ export function AdminApp() {
         ariaLabel="MixLab 管理端导航"
         brand={{
           title: "MixLab",
-          subtitle: "素材库管理端",
+          subtitle: "素材生产驾驶舱",
           mark: "ML",
           href: routeToHash("dashboard")
         }}

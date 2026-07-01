@@ -42,10 +42,10 @@ export function IndexPublishPage({
     (video) => video.preprocess_status === "index-required"
   );
   const indexRequiredLabel = indexRequiredVideos.length > 0
-    ? `${indexRequiredVideos.length} 条待发布`
+    ? `${indexRequiredVideos.length} 条待上线`
     : data.status.index_required_video_count > 0
       ? `摘要 ${data.status.index_required_video_count} 条`
-      : "无待发布";
+      : "无待上线";
   const returnedVersionCount = data.indexes.returned_count ?? data.indexes.versions.length;
   const totalVersionCount = data.indexes.total_count ?? returnedVersionCount;
   const indexRuntime = data.indexes.runtime;
@@ -55,7 +55,7 @@ export function IndexPublishPage({
   const indexRequiredColumns: Array<TableColumn<(typeof indexRequiredVideos)[number]>> = [
     { id: "id", header: "ID", accessor: "source_video_id" },
     { id: "file", header: "文件名", accessor: "file_name" },
-    { id: "status", header: "状态", render: () => "待发布索引" },
+    { id: "status", header: "状态", render: () => "已处理待上线" },
     {
       id: "visibility",
       header: "可见性",
@@ -66,9 +66,9 @@ export function IndexPublishPage({
       header: "操作",
       render: (video) => (
         <AdminControlButton
-          label="发布到剪辑端"
+          label="上线到剪辑端"
           state="m9b-api"
-          reason="发布当前待索引视频，发布前会补齐封面和关键帧。"
+          reason="上线当前已处理素材，成功后剪辑端可以搜索和使用。"
           onClick={() => onPublishSourceVideo?.(video.source_video_id)}
         />
       )
@@ -80,11 +80,11 @@ export function IndexPublishPage({
       <div className="admin-main-column admin-index-publish-console">
         <AdminPageHeader
           title="发布与索引"
-          eyebrow="保证已可用视频可搜索"
-          description="发布队列和索引版本按路由加载，页面打开不触发全库扫描。"
+          eyebrow="维护模式"
+          description="已处理素材上线后，剪辑师才能在剪辑端搜索和使用。"
           action={(
             <div className="admin-page-header-actions">
-              <AdminControlButton label="发布到剪辑端" state="m9b-api" reason="发布完成预处理但尚未进入搜索索引的视频。" variant="primary" onClick={onRepairIndex} />
+              <AdminControlButton label="上线全部已处理素材" state="m9b-api" reason="批量上线所有已处理待上线素材。" variant="primary" onClick={onRepairIndex} />
               <AdminControlButton label="校验索引" state="m9b-api" reason="运行系统检查并校验当前索引。" onClick={onRunDoctor} />
             </div>
           )}
@@ -93,13 +93,13 @@ export function IndexPublishPage({
           items={[
             { label: "当前索引", value: data.indexes.current_version, caption: "当前搜索索引指针" },
             { label: "已可用数量", value: current?.ready_video_count ?? 0, caption: "当前索引中可搜索视频" },
-            { label: "待发布索引", value: data.status.index_required_video_count, caption: "发布后可见" },
+            { label: "已处理待上线", value: data.status.index_required_video_count, caption: "上线后可见" },
             { label: "索引版本", value: `${returnedVersionCount}/${totalVersionCount}`, caption: "当前页 / 全部版本" }
           ]}
         />
         <section className="admin-index-route-contract" aria-label="发布与索引数据来源">
           <div>
-            <span>发布队列</span>
+            <span>上线队列</span>
             <strong>读模型</strong>
             <p>路由加载 · 不扫描</p>
           </div>
@@ -141,20 +141,20 @@ export function IndexPublishPage({
             <p>{indexRuntime ? adminRuntimeComponentSummary(indexRuntime) : "暂无组件耗时"}</p>
           </div>
         </section>
-        <section className="admin-list-section admin-publication-queue" aria-label="发布队列">
+        <section className="admin-list-section admin-publication-queue" aria-label="上线队列">
           <header className="admin-section-header">
             <div>
-              <h2>发布队列</h2>
-              <p>待发布索引的视频来自路由状态查询；发布成功后剪辑端才可搜索和进入详情。</p>
+              <h2>已处理待上线</h2>
+              <p>这些素材已经处理完成，上线成功后剪辑端才可搜索和进入详情。</p>
             </div>
             <Badge tone={data.status.index_required_video_count > 0 ? "warning" : "success"}>
               {indexRequiredLabel}
             </Badge>
           </header>
           {isLoadingIndexRequiredVideos ? (
-            <EmptyState title="正在读取待发布视频" detail="页面框架已可用，待发布首屏会通过状态查询补上。" />
+            <EmptyState title="正在读取待上线素材" detail="页面框架已可用，待上线首屏会通过状态查询补上。" />
           ) : indexRequiredError ? (
-            <EmptyState title="发布队列加载失败" detail={indexRequiredError} />
+            <EmptyState title="上线队列加载失败" detail={indexRequiredError} />
           ) : indexRequiredVideos.length ? (
             <Table
               columns={indexRequiredColumns}
@@ -163,9 +163,9 @@ export function IndexPublishPage({
               stickyHeader
             />
           ) : data.status.index_required_video_count > 0 ? (
-            <p className="admin-note">当前摘要显示仍有待发布视频，待发布首屏尚未返回明细，可刷新本页或检查读模型状态。</p>
+            <p className="admin-note">当前摘要显示仍有待上线素材，待上线首屏尚未返回明细，可刷新本页或检查系统状态。</p>
           ) : (
-            <p className="admin-note">没有待发布索引的视频。</p>
+            <p className="admin-note">没有已处理待上线素材。</p>
           )}
         </section>
         <section className="admin-list-section admin-index-version-surface" aria-label="索引版本">
@@ -197,9 +197,9 @@ export function IndexPublishPage({
             {
               title: "页面契约",
               rows: [
-                { label: "主工作区", value: "发布队列" },
+                { label: "主工作区", value: "上线队列" },
                 { label: "辅助区", value: "索引版本" },
-                { label: "发布队列来源", value: "读模型" },
+                { label: "上线队列来源", value: "读模型" },
                 { label: "版本来源", value: "索引版本包" },
                 { label: "扫描模式", value: "不扫描" },
                 { label: "错误边界", value: "本页面局部处理" }

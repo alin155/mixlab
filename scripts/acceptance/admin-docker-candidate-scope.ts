@@ -167,6 +167,7 @@ const RULES: ScopeRule[] = [
         "scripts/acceptance",
         "scripts/dev",
         "scripts/docker",
+        "scripts/visual",
         "scripts/servers/admin-api-server.ts",
         "scripts/workers/preprocess-library-worker.ts",
         "scripts/workers/publish-ready-worker.ts"

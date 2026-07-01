@@ -10,9 +10,10 @@ const baseUrl = `http://127.0.0.1:${port}`;
 
 const routes = [
   ["dashboard", "dashboard.png"],
-  ["source-videos", "source-videos.png"],
   ["preprocess-jobs", "preprocess-jobs.png"],
+  ["source-videos", "source-videos.png"],
   ["cutter-users", "cutter-users.png"],
+  ["doctor", "doctor.png"],
   ["settings", "settings.png"]
 ] as const;
 
@@ -126,8 +127,8 @@ async function captureRoute(
   await assertNoSecret(page);
 
   if (route === "dashboard") {
-    await requireText(page, "仪表盘");
-    await requireText(page, "公共素材库仪表盘");
+    await requireText(page, "首页");
+    await requireText(page, "公共素材库生产状态");
     await requireText(page, "预处理进度");
     await requireText(page, "素材库状态");
     await requireText(page, "核心链路健康");
@@ -135,37 +136,43 @@ async function captureRoute(
     await requireText(page, "完整文案");
     await requireText(page, "选段剪切");
     await requireText(page, "活跃剪辑师");
-    await requireText(page, "剪辑端转化");
-    await requireText(page, "搜索命中率");
     await requireText(page, "搜索 p95");
-    await requireText(page, "本地搜索覆盖");
-    await requireText(page, "素材规模");
-    await requireText(page, "风险摘要");
-    await requireText(page, "生产吞吐");
+    await requireText(page, "下一步建议");
   }
 
   if (route === "source-videos") {
-    await requireText(page, "原视频管理");
+    await requireText(page, "素材库");
     await requireText(page, "全部原视频");
+    await requireText(page, "素材表格");
     await requireText(page, "保存素材信息");
   }
 
   if (route === "preprocess-jobs") {
-    await requireText(page, "预处理");
-    await requireText(page, "预处理流水线与索引发布");
+    await requireText(page, "素材处理");
+    await requireText(page, "自动处理与上线");
     await requireText(page, "未处理原视频");
-    await requireText(page, "任务队列");
+    await requireText(page, "上线剪辑端");
+    await requireText(page, "处理控制");
   }
 
   if (route === "cutter-users") {
-    await requireText(page, "剪辑师用户");
+    await requireText(page, "剪辑师");
+    await requireText(page, "用户表格");
     await requireText(page, "通过申请");
+  }
+
+  if (route === "doctor") {
+    await requireText(page, "系统状态");
+    await requireText(page, "加载速度记录");
+    await requireText(page, "诊断报告");
+    await requireText(page, "重新检查");
   }
 
   if (route === "settings") {
     await requireText(page, "设置");
-    await requireText(page, "素材来源与预处理设置");
-    await requireText(page, "新增素材来源");
+    await requireText(page, "管理素材来源");
+    await requireText(page, "保存说明");
+    await requireText(page, "保存设置");
   }
 
   await page.screenshot({

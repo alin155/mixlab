@@ -149,7 +149,7 @@ function commandLabel(command: string): string {
     "preprocess-queue-unprocessed": "加入预处理队列",
     "preprocess-retry-failed": "重试失败视频",
     "preprocess-recover-processing": "恢复卡住任务",
-    "index-repair": "发布索引",
+    "index-repair": "批量上线素材",
     "command-snapshot-restore": "命令快照恢复"
   };
 
@@ -711,7 +711,7 @@ export function OperationLogPage({
         />
         <Card
           title="最近事件"
-          subtitle="读模型维护和失效标记的审计轨迹"
+          subtitle="数据同步和失效标记的审计轨迹"
           className="admin-operation-log-card"
         >
           <Table

@@ -350,8 +350,8 @@ export const ADMIN_ROUTE_LOCAL_READ_SPECS: Record<AdminRouteLocalReadKey, AdminR
   indexRequiredVideos: {
     key: "indexRequiredVideos",
     route: "index-publish",
-    label: "待发布视频加载",
-    surface: "发布队列",
+    label: "待上线素材加载",
+    surface: "上线队列",
     global_action_notice: false
   },
   preprocessJobs: {
@@ -425,8 +425,8 @@ export const ADMIN_ROUTE_LOADING_SPECS: Record<AdminRouteLoadingKey, AdminRouteL
   indexRequiredVideos: {
     key: "indexRequiredVideos",
     route: "index-publish",
-    label: "待发布视频加载",
-    surface: "发布队列",
+    label: "待上线素材加载",
+    surface: "上线队列",
     phase: "route-entry",
     shell_blocking: false,
     abortable: true,
