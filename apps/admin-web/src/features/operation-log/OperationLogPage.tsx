@@ -147,7 +147,7 @@ function commandLabel(command: string): string {
     "source-video-recover-processing": "恢复到队列",
     "source-video-publish": "发布单条素材",
     "preprocess-queue-unprocessed": "加入预处理队列",
-    "preprocess-retry-failed": "重试失败视频",
+    "preprocess-retry-failed": "重试可继续处理的视频",
     "preprocess-recover-processing": "恢复卡住任务",
     "index-repair": "批量上线素材",
     "command-snapshot-restore": "命令快照恢复"

@@ -156,7 +156,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
     },
     controls: [
       { route: "dashboard", label: "扫描新增素材", state: "m9b-api", reason: "扫描素材来源、检查系统状态并生成下一步建议。" },
-      { route: "dashboard", label: "执行下一步建议", state: "m9b-api", reason: "根据当前生产状态执行启动预处理、重试失败、恢复任务或上线素材。" }
+      { route: "dashboard", label: "执行下一步建议", state: "m9b-api", reason: "根据当前生产状态执行启动预处理、重试可继续处理的视频、恢复任务或上线素材。" }
     ]
   },
   "source-videos": {
@@ -244,7 +244,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
     controls: [
       { route: "preprocess-jobs", label: "启动预处理", state: "m9b-api", reason: "持续处理队列，直到全部完成或手动暂停，成功后自动上线。" },
       { route: "preprocess-jobs", label: "暂停预处理", state: "m9b-api", reason: "暂停当前预处理。" },
-      { route: "preprocess-jobs", label: "重试失败视频", state: "m9b-api", reason: "将失败视频重新加入预处理队列。" },
+      { route: "preprocess-jobs", label: "重试可继续处理的视频", state: "m9b-api", reason: "只重试临时失败或可继续处理的视频，不处理异常素材。" },
       { route: "preprocess-jobs", label: "恢复卡住任务", state: "m9b-api", reason: "将停留在处理中的任务恢复到队列。" },
       { route: "preprocess-jobs", label: "上线到剪辑端", state: "m9b-api", reason: "上线单条已处理待上线素材。" },
       { route: "preprocess-jobs", label: "上线全部已处理素材", state: "m9b-api", reason: "批量上线所有已处理待上线素材。" },

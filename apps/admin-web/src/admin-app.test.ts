@@ -627,11 +627,11 @@ test("dashboard renders a simple automated control console", async () => {
     "NAS 目录",
     "保持不迁移",
     "v000027",
-    "重试失败视频"
+    "重试可继续处理的视频"
   ]) {
     assert.match(html, new RegExp(text));
   }
-  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>重试失败视频<\/button>/);
+  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>重试可继续处理的视频<\/button>/);
   assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁/);
   assert.doesNotMatch(html, /设备负荷|服务心跳/);
   assert.doesNotMatch(html, /页面契约|admin-read-model|library-manifest|runtime-telemetry|Shell 首屏|数据来源/);
@@ -1067,7 +1067,7 @@ test("smart scan report recommends the next production action", async () => {
     }
   });
   assert.equal(failed.primary_action, "retry-failed");
-  assert.equal(failed.primary_label, "重试失败视频");
+  assert.equal(failed.primary_label, "重试可继续处理的视频");
 
   const blockedLoad = createAdminSmartScanReport({
     ...base,
@@ -1836,12 +1836,13 @@ test("preprocess jobs render failure retry and later success", async () => {
   assert.match(unavailableHistoryHtml, /素材处理/);
   assert.doesNotMatch(unavailableHistoryHtml, /处理历史暂不可用/);
 
+  const failedFixtureJob = data.jobs.jobs.find((job) => job.status === "failed")!;
   const noisyFailureData = {
     ...data,
     jobs: {
       ...data.jobs,
       jobs: [{
-        ...data.jobs.jobs.find((job) => job.status === "failed")!,
+        ...failedFixtureJob,
         stage: "asr",
         stage_label: "文案预处理 · 阿里云百炼语音识别 ASR_TASK_ID_PLACEHOLDER failed: SUCCESS_WITH_NO_VALID_FRAGMENT",
         retryable: false,
@@ -1855,8 +1856,34 @@ test("preprocess jobs render failure retry and later success", async () => {
   };
   const noisyFailureHtml = renderToStaticMarkup(h(PreprocessJobsPage, { data: noisyFailureData }));
   assert.match(noisyFailureHtml, /异常素材/);
+  assert.match(noisyFailureHtml, new RegExp(failedFixtureJob.source_video_id));
+  assert.match(noisyFailureHtml, /语音识别无有效文案/);
+  assert.doesNotMatch(noisyFailureHtml, /<button[^>]*>重试可继续处理的视频<\/button>/);
   assert.doesNotMatch(noisyFailureHtml, /语音识别 · 阿里云百炼语音识别失败：未识别到有效语音片段/);
   assert.doesNotMatch(noisyFailureHtml, /ASR_TASK_ID_PLACEHOLDER|SUCCESS_WITH_NO_VALID_FRAGMENT/);
+
+  const retryableFailureData = {
+    ...data,
+    jobs: {
+      ...data.jobs,
+      jobs: [{
+        ...failedFixtureJob,
+        retryable: true,
+        failure_kind: "temporary-error",
+        failure_label: "临时错误，可重新处理",
+        recommended_action: "retry",
+        long_task_recommended: false,
+        error_message: "网络超时"
+      }]
+    }
+  };
+  const retryableFailureHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
+    data: retryableFailureData,
+    onRetryFailedVideos: () => {}
+  }));
+  assert.match(retryableFailureHtml, /可重试失败/);
+  assert.match(retryableFailureHtml, /重试可继续处理的视频/);
+  assert.match(retryableFailureHtml, /临时错误，可重新处理/);
 
   const queuedIdleData = {
     ...data,

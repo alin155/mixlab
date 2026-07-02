@@ -164,6 +164,18 @@ function safeJobStageLabel(job: AdminPreprocessJob): string {
   return label;
 }
 
+function preprocessFailureReason(job: AdminPreprocessJob): string {
+  if (job.failure_label?.trim()) {
+    return strictChineseDiagnosticText(job.failure_label.trim());
+  }
+
+  if (job.error_message?.trim()) {
+    return safePreprocessErrorText(job.error_message);
+  }
+
+  return safeJobStageLabel(job);
+}
+
 function processHistoryEventLabel(event: AdminPreprocessProcessHistoryItem["last_event_type"]): string {
   const labels: Record<AdminPreprocessProcessHistoryItem["last_event_type"], string> = {
     failed: "失败",
@@ -506,6 +518,44 @@ export function PreprocessJobsPage({
 
     return <span className="admin-row-actions">{actions}</span>;
   };
+  const renderPreprocessIssueList = ({
+    badge,
+    title,
+    detail,
+    jobs,
+    tone
+  }: {
+    badge: string;
+    title: string;
+    detail: string;
+    jobs: AdminPreprocessJob[];
+    tone: "attention" | "blocked";
+  }) => {
+    const visibleJobs = jobs.slice(0, 8);
+    const hiddenCount = Math.max(0, jobs.length - visibleJobs.length);
+
+    return (
+      <section className={`admin-simple-status admin-preprocess-issue-panel is-${tone}`} aria-label={badge}>
+        <span className={`admin-status-badge is-${tone === "blocked" ? "failed" : "warning"}`}>{badge}</span>
+        <div>
+          <h2>{title}</h2>
+          <p>{detail}</p>
+          <ul className="admin-preprocess-issue-list" aria-label={`${badge}清单`}>
+            {visibleJobs.map((job) => (
+              <li key={job.job_id}>
+                <strong>{job.source_video_id}</strong>
+                <span>{job.title || "未命名素材"}</span>
+                <small>{preprocessFailureReason(job)}</small>
+              </li>
+            ))}
+          </ul>
+          {hiddenCount > 0 ? (
+            <p className="admin-note">还有 {hiddenCount} 个未显示，可按素材编号在素材库中搜索定位。</p>
+          ) : null}
+        </div>
+      </section>
+    );
+  };
   const jobColumns: Array<TableColumn<AdminPreprocessJob>> = [
     { id: "job", header: "任务", accessor: "job_id" },
     {
@@ -663,9 +713,9 @@ export function PreprocessJobsPage({
                   ) : null}
                   {retryableFailed.length > 0 ? (
                     <AdminControlButton
-                      label="重试失败视频"
+                      label="重试可继续处理的视频"
                       state={nasWriteState}
-                      reason={nasWriteReason("只将可重试失败视频重新加入预处理队列。")}
+                      reason={nasWriteReason("只重试临时失败或可继续处理的视频，不处理异常素材。")}
                       onClick={gatedNasWriteAction(onRetryFailedVideos)}
                     />
                   ) : null}
@@ -700,27 +750,32 @@ export function PreprocessJobsPage({
                 caption: processingServiceCaption
               },
               { label: "待上线", value: data.status.index_required_video_count, caption: indexRequiredCaption },
-              { label: failureMetricLabel, value: failureMetricValue, caption: failureMetricCaption }
+              { label: "异常素材", value: abnormalJobs.length, caption: "不自动重试" },
+              { label: "长任务", value: longAsrJobs.length, caption: "专用识别" },
+              { label: "可重试失败", value: retryableFailed.length, caption: "可重新处理" }
             ]}
           />
-          {abnormalJobs.length > 0 ? (
-            <section className="admin-simple-status is-blocked" aria-label="异常素材说明">
-              <span className="admin-status-badge is-failed">异常素材</span>
-              <div>
-                <h2>{abnormalJobs.length} 个素材需检查源文件</h2>
-                <p>这些素材不会自动重试。请按定位清单确认源文件缺失、视频损坏、无视频流或无有效语音。</p>
-              </div>
-            </section>
-          ) : null}
-          {longAsrJobs.length > 0 ? (
-            <section className="admin-simple-status is-attention" aria-label="长任务语音识别">
-              <span className="admin-status-badge is-warning">长任务语音识别</span>
-              <div>
-                <h2>{longAsrJobs.length} 个超长素材可继续处理</h2>
-                <p>这些素材需要更长的语音识别等待时间，点击“长任务语音识别”后只处理这些素材。</p>
-              </div>
-            </section>
-          ) : null}
+          {abnormalJobs.length > 0 ? renderPreprocessIssueList({
+            badge: "异常素材",
+            title: `${abnormalJobs.length} 个素材需检查源文件`,
+            detail: "这些素材不会自动重试，也不会被“重试可继续处理的视频”处理。请按编号和原因检查源文件缺失、损坏、无视频流或无有效语音。",
+            jobs: abnormalJobs,
+            tone: "blocked"
+          }) : null}
+          {longAsrJobs.length > 0 ? renderPreprocessIssueList({
+            badge: "长任务语音识别",
+            title: `${longAsrJobs.length} 个超长素材可继续处理`,
+            detail: "这些素材不是坏文件，需要点击“长任务语音识别”，用更长等待时间继续处理。",
+            jobs: longAsrJobs,
+            tone: "attention"
+          }) : null}
+          {retryableFailed.length > 0 ? renderPreprocessIssueList({
+            badge: "可重试失败",
+            title: `${retryableFailed.length} 个素材可重新处理`,
+            detail: "这些是临时失败或可恢复失败，点击“重试可继续处理的视频”后会重新加入队列。",
+            jobs: retryableFailed,
+            tone: "attention"
+          }) : null}
           {jobsError ? (
             <EmptyState title="预处理队列加载失败" detail={jobsError} />
           ) : null}
@@ -1216,9 +1271,9 @@ export function PreprocessJobsPage({
           ) : null}
           {retryableFailed.length > 0 ? (
             <AdminControlButton
-              label="重试失败视频"
+              label="重试可继续处理的视频"
               state={nasWriteState}
-              reason={nasWriteReason("只将可重试失败视频重新加入预处理队列。")}
+              reason={nasWriteReason("只重试临时失败或可继续处理的视频，不处理异常素材。")}
               onClick={gatedNasWriteAction(onRetryFailedVideos)}
             />
           ) : null}

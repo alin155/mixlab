@@ -2121,7 +2121,7 @@ export function AdminApp() {
     }
 
     if (action === "retry-failed") {
-      await runAction("重试失败视频", (api) => api.retryFailedVideos());
+      await runAction("重试可继续处理的视频", (api) => api.retryFailedVideos());
       return;
     }
 
@@ -2380,7 +2380,7 @@ export function AdminApp() {
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
     onScanSourceVideos: () => runAction("扫描源视频", (api) => api.scanSourceVideos()),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
-    onRetryFailedVideos: () => runAction("重试失败视频", (api) => api.retryFailedVideos()),
+    onRetryFailedVideos: () => runAction("重试可继续处理的视频", (api) => api.retryFailedVideos()),
     onStartLongAsrVideos: () => runAction("长任务语音识别", startLongAsrBatch),
     onRecoverProcessingVideos: () =>
       runAction("恢复卡住任务", (api) => api.recoverProcessingVideos()),

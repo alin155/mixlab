@@ -771,9 +771,9 @@ export function DashboardPage({
                 />
                 {data.status.failed_video_count > 0 ? (
                   <AdminControlButton
-                    label="重试失败视频"
+                    label="重试可继续处理的视频"
                     state={dashboardWriteState}
-                    reason="将失败视频重新加入预处理队列。"
+                    reason="只重试临时失败或可继续处理的视频，不处理异常素材。"
                     variant="primary"
                     onClick={onRetryFailedVideos}
                   />

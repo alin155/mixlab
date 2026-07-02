@@ -1369,7 +1369,7 @@ function smartScanActionLabel(action: AdminSmartScanAction): string {
     none: "无需处理",
     "queue-unprocessed": "加入预处理队列",
     "start-preprocess": "启动预处理",
-    "retry-failed": "重试失败视频",
+    "retry-failed": "重试可继续处理的视频",
     "recover-processing": "恢复卡住任务",
     "publish-index": "查看待上线素材",
     "run-doctor": "查看系统检查"
@@ -2258,7 +2258,7 @@ export function createFixtureAdminApiClient(): AdminApiClient {
     queueUnprocessedVideos: async () =>
       queueVideos(["unprocessed"], "已将未处理视频加入预处理队列"),
     retryFailedVideos: async () =>
-      queueVideos(["failed"], "已将失败视频重新加入预处理队列"),
+      queueVideos(["failed"], "已将可继续处理的视频重新加入预处理队列"),
     recoverProcessingVideos: async () =>
       queueVideos(["processing"], "已恢复停滞中的处理任务"),
     queueSourceVideo: async (sourceVideoId) =>

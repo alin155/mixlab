@@ -547,9 +547,9 @@ export function JobRows({
               job.status === "failed" && job.retryable
                 ? (
                   <AdminControlButton
-                    label="重试失败"
+                    label="重试可继续处理"
                     state="m9b-api"
-                    reason="将失败视频重新加入预处理队列。"
+                    reason="只重试临时失败或可继续处理的视频，不处理异常素材。"
                     onClick={onRetryFailed}
                   />
                 )

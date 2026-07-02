@@ -1218,6 +1218,53 @@ h2 {
   line-height: 1.5;
 }
 
+.admin-preprocess-issue-panel > div {
+  min-width: 0;
+  width: 100%;
+}
+
+.admin-preprocess-issue-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-preprocess-issue-list li {
+  display: grid;
+  grid-template-columns: minmax(76px, 96px) minmax(120px, 1fr) minmax(160px, 1.2fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  border-top: 1px solid color-mix(in oklch, var(--ml-color-separator) 72%, transparent);
+  padding-top: 8px;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-preprocess-issue-list strong,
+.admin-preprocess-issue-list span,
+.admin-preprocess-issue-list small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-preprocess-issue-list strong {
+  color: var(--ml-color-text);
+  font-weight: 800;
+}
+
+.admin-preprocess-issue-list span {
+  color: var(--ml-color-text);
+}
+
+.admin-preprocess-issue-list small {
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
 .admin-simple-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3530,6 +3577,11 @@ body {
   .admin-console-statusbar,
   .admin-smart-scan-suggestions {
     grid-template-columns: 1fr;
+  }
+
+  .admin-preprocess-issue-list li {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .admin-page-header {
