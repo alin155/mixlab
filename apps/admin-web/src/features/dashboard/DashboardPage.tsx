@@ -632,9 +632,9 @@ export function DashboardPage({
               tone={data.status.index_required_video_count > 0 ? "attention" : "healthy"}
             />
             <DashboardSimpleTile
-              label="失败可重试"
+              label="异常素材"
               value={data.jobs.failed_count}
-              detail={data.jobs.failed_count > 0 ? "失败素材可以单独重试，不影响其他队列" : "当前没有失败阻塞"}
+              detail={data.jobs.failed_count > 0 ? "去素材处理页区分源文件异常和长任务语音识别" : "当前没有异常素材"}
               tone={data.jobs.failed_count > 0 ? "blocked" : "healthy"}
             />
             <DashboardSimpleTile
@@ -737,11 +737,11 @@ export function DashboardPage({
               value: data.status.processing_video_count,
               detail: supervisorRunning ? "正在生成产物" : "预处理服务未运行"
             },
-            { label: "处理失败", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "可重试处理" : "当前无阻塞" },
+            { label: "异常素材", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "去素材处理页查看" : "当前无异常" },
             { label: "可搜索总时长", value: optionalHoursLabel(data.metrics.material.ready_duration_ms), detail: `总时长 ${optionalHoursLabel(data.metrics.material.total_duration_ms)}` },
             { label: "句子片段", value: optionalCountLabel(data.metrics.transcript.segment_count), detail: `${data.metrics.transcript.transcript_video_count} 个视频有文案` },
             { label: "当前索引", value: data.indexes.current_version, detail: currentIndex ? `协议 ${currentIndex.schema_version}` : "暂无版本详情" },
-            { label: "失败任务", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "可重试处理" : "当前无阻塞" },
+            { label: "异常任务", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "去素材处理页查看" : "当前无异常" },
             {
               label: "活跃剪辑师",
               value: `${data.metrics.usage.active_user_count}/${TARGET_CUTTER_SEAT_COUNT}`,
@@ -997,7 +997,7 @@ export function DashboardPage({
               detail={recentJobDetail(job, queuedPositionByJobId.get(job.job_id) ?? 1, averageProcessMs, supervisorRunning)}
               value={
                 job.status === "failed" && job.retryable
-                  ? "失败可重试"
+                  ? "可继续处理"
                   : job.status === "queued"
                     ? "等待处理"
                   : job.status === "running" && !supervisorRunning
@@ -1052,7 +1052,7 @@ export function DashboardPage({
             {
               title: "操作提示",
               rows: [
-                { label: "处理失败", value: data.jobs.failed_count > 0 ? "去素材处理页重试" : "当前无失败" },
+                { label: "异常素材", value: data.jobs.failed_count > 0 ? "去素材处理页查看" : "当前无异常" },
                 { label: "待上线素材", value: data.status.index_required_video_count > 0 ? "去素材处理页查看" : "当前无待上线" },
                 { label: "剪辑师", value: `${data.metrics.usage.active_user_count}/${TARGET_CUTTER_SEAT_COUNT} 正在使用` },
                 { label: "系统状态", value: data.doctor.summary.fail > 0 ? "需要处理" : data.doctor.summary.warn > 0 ? "需要关注" : "正常" }

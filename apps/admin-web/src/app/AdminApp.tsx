@@ -418,6 +418,7 @@ interface AdminActionHandlers {
   onScanSourceVideos: () => Promise<void>;
   onQueueUnprocessedVideos: () => Promise<void>;
   onRetryFailedVideos: () => Promise<void>;
+  onStartLongAsrVideos: () => Promise<void>;
   onRecoverProcessingVideos: () => Promise<void>;
   onRunSmartScan: () => Promise<void>;
   onApplySmartScanPrimaryAction: (action: AdminSmartScanAction) => Promise<void>;
@@ -791,6 +792,7 @@ function renderPage(
         isLoadingJobs={loadingState.preprocessJobs && data.jobs.jobs.length === 0}
         jobsError={routeErrors.preprocessJobs}
         onRetryFailedVideos={actions.onRetryFailedVideos}
+        onStartLongAsrVideos={actions.onStartLongAsrVideos}
         onRecoverProcessingVideos={actions.onRecoverProcessingVideos}
         onStartPreprocessSupervisor={actions.onStartPreprocessSupervisor}
         onStopPreprocessSupervisor={actions.onStopPreprocessSupervisor}
@@ -2049,6 +2051,44 @@ export function AdminApp() {
     };
   };
 
+  const startLongAsrBatch = async (api: AdminApiClient): Promise<AdminActionResult> => {
+    const sourceVideoIds = [...new Set((data?.jobs.jobs ?? [])
+      .filter((job) =>
+        job.long_task_recommended &&
+        (job.status === "failed" || job.status === "queued")
+      )
+      .map((job) => job.source_video_id))];
+
+    if (sourceVideoIds.length === 0) {
+      return {
+        affected_count: 0,
+        message: "当前没有需要长任务语音识别处理的素材。"
+      };
+    }
+
+    const failedLongAsrIds = (data?.jobs.jobs ?? [])
+      .filter((job) =>
+        sourceVideoIds.includes(job.source_video_id) &&
+        job.status === "failed"
+      )
+      .map((job) => job.source_video_id);
+
+    for (const sourceVideoId of failedLongAsrIds) {
+      await api.retrySourceVideo(sourceVideoId);
+    }
+
+    await api.startPreprocessSupervisor(undefined, {
+      source_video_ids: sourceVideoIds,
+      asr_mode: "long-task"
+    });
+
+    return {
+      affected_count: sourceVideoIds.length,
+      source_video_ids: sourceVideoIds,
+      message: "已用长任务语音识别启动这些超长素材，系统会等待更久，不会按普通短任务超时。"
+    };
+  };
+
   const runSmartScan = async () => {
     if (!beginAdminCommandAction("扫描新增素材", "正在扫描新增素材、检查系统状态并刷新生产状态...")) {
       return;
@@ -2341,6 +2381,7 @@ export function AdminApp() {
     onScanSourceVideos: () => runAction("扫描源视频", (api) => api.scanSourceVideos()),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试失败视频", (api) => api.retryFailedVideos()),
+    onStartLongAsrVideos: () => runAction("长任务语音识别", startLongAsrBatch),
     onRecoverProcessingVideos: () =>
       runAction("恢复卡住任务", (api) => api.recoverProcessingVideos()),
     onRunSmartScan: runSmartScan,

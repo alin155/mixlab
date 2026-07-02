@@ -16,6 +16,7 @@ export interface AdminPreprocessCommandRouteSettings<TRuntimePolicy> {
 export interface AdminPreprocessSupervisorStartInput<TRuntimePolicy> {
   limit?: number;
   source_video_ids?: string[];
+  asr_mode?: "default" | "long-task";
   runtime_policy: TRuntimePolicy;
 }
 
@@ -192,6 +193,18 @@ function parseOptionalSourceVideoIds(body: Record<string, unknown>): string[] | 
   return [...new Set(ids)];
 }
 
+function parseOptionalAsrMode(body: Record<string, unknown>): "default" | "long-task" | undefined {
+  if (body.asr_mode === undefined) {
+    return undefined;
+  }
+
+  if (body.asr_mode === "default" || body.asr_mode === "long-task") {
+    return body.asr_mode;
+  }
+
+  throw new Error("语音识别模式必须是 default 或 long-task");
+}
+
 function bulkCommandForPath(pathname: string): AdminBulkPreprocessRouteCommand | null {
   if (matchAdminPreprocessQueueUnprocessedPath(pathname)) {
     return "preprocess-queue-unprocessed";
@@ -330,12 +343,14 @@ export async function handleAdminPreprocessCommandRoutes<
       }
 
       const limit = supervisorStartLimit(body, sourceVideoIds);
+      const asrMode = parseOptionalAsrMode(body);
       return {
         handled: true,
         status_code: 200,
         body: apiOk(input.deps.start_preprocess_supervisor({
           ...(limit !== undefined ? { limit } : {}),
           ...(sourceVideoIds ? { source_video_ids: sourceVideoIds } : {}),
+          ...(asrMode ? { asr_mode: asrMode } : {}),
           runtime_policy: settings.runtime_policy
         }))
       };

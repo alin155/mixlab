@@ -1,4 +1,5 @@
 export type AdminPreprocessFailureKind =
+  | "asr-timeout"
   | "missing-source"
   | "invalid-media"
   | "no-video-stream"
@@ -14,6 +15,18 @@ export function classifyAdminPreprocessFailure(message: string | undefined): Adm
 
   if (!normalized) {
     return "unknown";
+  }
+
+  if (
+    normalized.includes("did not complete within") ||
+    normalized.includes("dashscope task timeout") ||
+    normalized.includes("dashscope asr task timeout") ||
+    (
+      normalized.includes("dashscope asr task") &&
+      normalized.includes("poll attempts")
+    )
+  ) {
+    return "asr-timeout";
   }
 
   if (
@@ -55,13 +68,15 @@ export function classifyAdminPreprocessFailure(message: string | undefined): Adm
 }
 
 export function isAdminPreprocessFailureRetryable(message: string | undefined): boolean {
-  return classifyAdminPreprocessFailure(message) === "unknown";
+  const kind = classifyAdminPreprocessFailure(message);
+  return kind === "unknown" || kind === "asr-timeout";
 }
 
 export function adminPreprocessFailureSkipReason(message: string | undefined): string {
   const kind = classifyAdminPreprocessFailure(message);
 
   const labels = {
+    "asr-timeout": "语音识别等待超时，可用长任务语音识别继续处理。",
     "missing-source": "源文件缺失，已跳过自动重试。",
     "invalid-media": "源文件损坏或格式不可读，已跳过自动重试。",
     "no-video-stream": "源文件没有可处理的视频流，已跳过自动重试。",

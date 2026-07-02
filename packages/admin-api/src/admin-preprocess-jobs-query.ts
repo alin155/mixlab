@@ -7,6 +7,7 @@ import type {
 import { numericSourceVideoId } from "./admin-source-video-query.ts";
 import {
   adminPreprocessFailureSkipReason,
+  classifyAdminPreprocessFailure,
   isAdminPreprocessFailureRetryable
 } from "./admin-preprocess-failure-classification.ts";
 
@@ -63,6 +64,11 @@ export interface AdminPreprocessJobsResponse {
     log_path: string;
     log_url: string;
     retryable: boolean;
+    failure_kind: string;
+    failure_label: string;
+    recommended_action: string;
+    duration_ms: number;
+    long_task_recommended: boolean;
     error_message?: string;
   }>;
   observability: {
@@ -123,16 +129,68 @@ function preprocessJobStatusLabel(status: AdminPreprocessJobPublicStatus): strin
     running: "正在处理",
     queued: "等待处理",
     done: "已完成",
-    failed: "失败可重试"
+    failed: "可重新处理"
   } satisfies Record<AdminPreprocessJobPublicStatus, string>;
 
   return labels[status];
 }
 
 function failedPreprocessJobStatusLabel(job: AdminPreprocessJobRecord | null): string {
+  if (classifyAdminPreprocessFailure(job?.error_message) === "asr-timeout") {
+    return "长任务语音识别待处理";
+  }
+
   return isAdminPreprocessFailureRetryable(job?.error_message)
-    ? "失败可重试"
-    : "失败需检查源文件";
+    ? "可重新处理"
+    : "异常素材";
+}
+
+function preprocessFailureLabel(job: AdminPreprocessJobRecord | null): string {
+  const kind = classifyAdminPreprocessFailure(job?.error_message);
+  const labels: Record<string, string> = {
+    "asr-timeout": "语音识别等待超时",
+    "missing-source": "源文件缺失",
+    "invalid-media": "源文件损坏或格式不可读",
+    "no-video-stream": "没有可处理的视频流",
+    "no-speech": "语音识别无有效文案",
+    unknown: "失败原因待确认"
+  };
+
+  return labels[kind] ?? labels.unknown;
+}
+
+const LONG_ASR_DURATION_THRESHOLD_MS = 3 * 60 * 60 * 1000;
+
+function isLongTaskRecommended(input: {
+  manifest: SourceVideoManifest;
+  status: AdminPreprocessJobPublicStatus;
+  failureKind: string;
+}): boolean {
+  if (input.failureKind === "asr-timeout") {
+    return true;
+  }
+
+  return input.status === "queued" && input.manifest.duration_ms >= LONG_ASR_DURATION_THRESHOLD_MS;
+}
+
+function recommendedAction(input: {
+  status: AdminPreprocessJobPublicStatus;
+  retryable: boolean;
+  longTaskRecommended: boolean;
+}): string {
+  if (input.longTaskRecommended) {
+    return "long-asr";
+  }
+
+  if (input.status === "failed" && !input.retryable) {
+    return "inspect-source";
+  }
+
+  if (input.status === "failed" && input.retryable) {
+    return "retry";
+  }
+
+  return "none";
 }
 
 function preprocessStageLabel(stage: string, status?: AdminPreprocessJobPublicStatus): string {
@@ -314,7 +372,13 @@ export async function listAdminPreprocessJobs(
     const job = jobRecords[index] ?? null;
     const status = jobStatusFromManifest(manifest.preprocess_status);
     const stage = adminPreprocessJobStageFromManifest(manifest, job);
+    const failureKind = status === "failed" ? classifyAdminPreprocessFailure(job?.error_message) : "";
     const retryable = status === "failed" && isAdminPreprocessFailureRetryable(job?.error_message);
+    const longTaskRecommended = isLongTaskRecommended({
+      manifest,
+      status,
+      failureKind
+    });
     const completedAt = job?.completed_at ?? job?.indexed_at;
     const failedAt = job?.failed_at;
     const elapsedMs = status === "running"
@@ -350,6 +414,15 @@ export async function listAdminPreprocessJobs(
       log_path: preprocessJobLogPath(manifest.source_video_id),
       log_url: `/api/admin/preprocess/jobs/J${manifest.source_video_id.slice(1)}/log`,
       retryable,
+      failure_kind: failureKind,
+      failure_label: status === "failed" ? preprocessFailureLabel(job) : "",
+      recommended_action: recommendedAction({
+        status,
+        retryable,
+        longTaskRecommended
+      }),
+      duration_ms: manifest.duration_ms,
+      long_task_recommended: longTaskRecommended,
       error_message: job?.error_message ?? (status === "failed" && !retryable
         ? adminPreprocessFailureSkipReason(job?.error_message)
         : undefined)

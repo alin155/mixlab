@@ -68,6 +68,34 @@ function parsePositiveIntegerEnv(
   return parsed;
 }
 
+export function resolveAdminAsrPollingConfig(input: {
+  env: NodeJS.ProcessEnv;
+  asr_mode?: "default" | "long-task";
+}): { max_poll_attempts: number; poll_interval_ms: number } {
+  const defaultMaxPollAttempts = parsePositiveIntegerEnv(input.env, "MIXLAB_ASR_MAX_POLL_ATTEMPTS", 60);
+  const defaultPollIntervalMs = parsePositiveIntegerEnv(input.env, "MIXLAB_ASR_POLL_INTERVAL_MS", 3000);
+
+  if (input.asr_mode !== "long-task") {
+    return {
+      max_poll_attempts: defaultMaxPollAttempts,
+      poll_interval_ms: defaultPollIntervalMs
+    };
+  }
+
+  return {
+    max_poll_attempts: parsePositiveIntegerEnv(
+      input.env,
+      "MIXLAB_ASR_LONG_TASK_MAX_POLL_ATTEMPTS",
+      Math.max(defaultMaxPollAttempts, 9600)
+    ),
+    poll_interval_ms: parsePositiveIntegerEnv(
+      input.env,
+      "MIXLAB_ASR_LONG_TASK_POLL_INTERVAL_MS",
+      defaultPollIntervalMs
+    )
+  };
+}
+
 function runProcess(executable: string, args: string[]): void {
   const result = spawnSync(executable, args, {
     encoding: "utf8"
@@ -317,8 +345,10 @@ export function createRealPreprocessRunner(input: {
       const dashscopeHttp = createFetchDashScopeHttpClient();
       const apiKey = optionalTrimmed(input.env.DASHSCOPE_API_KEY);
       const asrModel = (optionalTrimmed(input.env.MIXLAB_ASR_MODEL) || "paraformer-v2") as DashScopeAsrModel;
-      const maxPollAttempts = parsePositiveIntegerEnv(input.env, "MIXLAB_ASR_MAX_POLL_ATTEMPTS", 60);
-      const pollIntervalMs = parsePositiveIntegerEnv(input.env, "MIXLAB_ASR_POLL_INTERVAL_MS", 3000);
+      const asrPolling = resolveAdminAsrPollingConfig({
+        env: input.env,
+        asr_mode: runInput.asr_mode
+      });
       const uploader = createDashScopeTemporaryFileAudioUploader({
         api_key: apiKey,
         model: asrModel,
@@ -377,8 +407,8 @@ export function createRealPreprocessRunner(input: {
                 asr: {
                   api_key: apiKey,
                   model: asrModel,
-                  max_poll_attempts: maxPollAttempts,
-                  poll_interval_ms: pollIntervalMs,
+                  max_poll_attempts: asrPolling.max_poll_attempts,
+                  poll_interval_ms: asrPolling.poll_interval_ms,
                   parameters: {
                     channel_id: [0],
                     language_hints: ["zh", "en"],

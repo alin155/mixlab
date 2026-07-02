@@ -525,7 +525,8 @@ test("preprocess command routes default supervisor limit follows explicit source
     pathname: "/api/admin/preprocess/supervisor/start",
     deps: makeDeps({
       read_request_json: async () => ({
-        source_video_ids: ["V000001", "V000002", "V000002"]
+        source_video_ids: ["V000001", "V000002", "V000002"],
+        asr_mode: "long-task"
       }),
       start_preprocess_supervisor: (input) => {
         startInput = input;
@@ -541,6 +542,7 @@ test("preprocess command routes default supervisor limit follows explicit source
   assert.deepEqual(startInput, {
     limit: 2,
     source_video_ids: ["V000001", "V000002"],
+    asr_mode: "long-task",
     runtime_policy: {
       concurrency: 1
     }

@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   createRealPreprocessRunner,
+  resolveAdminAsrPollingConfig,
   resolveAdminControlledPreprocessPolicy,
   runAdminPreprocessPipeline
 } from "./admin-preprocess-pipeline.ts";
@@ -49,6 +50,35 @@ function sourceVideoManifest(input: {
     category: "测试分类"
   };
 }
+
+test("admin ASR polling config keeps normal jobs short and long task ASR patient", () => {
+  assert.deepEqual(resolveAdminAsrPollingConfig({
+    env: {},
+    asr_mode: "default"
+  }), {
+    max_poll_attempts: 60,
+    poll_interval_ms: 3000
+  });
+  assert.deepEqual(resolveAdminAsrPollingConfig({
+    env: {},
+    asr_mode: "long-task"
+  }), {
+    max_poll_attempts: 9600,
+    poll_interval_ms: 3000
+  });
+  assert.deepEqual(resolveAdminAsrPollingConfig({
+    env: {
+      MIXLAB_ASR_MAX_POLL_ATTEMPTS: "80",
+      MIXLAB_ASR_POLL_INTERVAL_MS: "2500",
+      MIXLAB_ASR_LONG_TASK_MAX_POLL_ATTEMPTS: "12000",
+      MIXLAB_ASR_LONG_TASK_POLL_INTERVAL_MS: "5000"
+    },
+    asr_mode: "long-task"
+  }), {
+    max_poll_attempts: 12000,
+    poll_interval_ms: 5000
+  });
+});
 
 async function writeSourceVideoManifest(
   libraryRoot: string,

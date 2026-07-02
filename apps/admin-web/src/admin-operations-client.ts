@@ -76,7 +76,11 @@ export interface AdminOperationsClientMethods {
   getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
   startPreprocessSupervisor(
     limit?: number,
-    options?: { queue_unprocessed_limit?: number }
+    options?: {
+      queue_unprocessed_limit?: number;
+      source_video_ids?: string[];
+      asr_mode?: "default" | "long-task";
+    }
   ): Promise<AdminPreprocessSupervisorStatus>;
   stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
   repairIndex(options?: { limit?: number }): Promise<AdminActionResult>;
@@ -314,7 +318,9 @@ export function createAdminOperationsClientMethods({
         "POST",
         {
           ...(limit ? { limit } : {}),
-          ...(options?.queue_unprocessed_limit ? { queue_unprocessed_limit: options.queue_unprocessed_limit } : {})
+          ...(options?.queue_unprocessed_limit ? { queue_unprocessed_limit: options.queue_unprocessed_limit } : {}),
+          ...(options?.source_video_ids?.length ? { source_video_ids: options.source_video_ids } : {}),
+          ...(options?.asr_mode ? { asr_mode: options.asr_mode } : {})
         },
         protectedHeaders
       ),

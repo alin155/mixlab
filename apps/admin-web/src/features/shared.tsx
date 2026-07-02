@@ -189,7 +189,7 @@ export function CountStrip({ data }: { data: AdminDashboardData }) {
         },
         { label: "队列中", value: data.status.queued_video_count, caption: "等待预处理" },
         { label: "未处理", value: data.status.unprocessed_video_count, caption: "等待入队" },
-        { label: "处理失败", value: data.status.failed_video_count, caption: "失败可重试" },
+        { label: "异常素材", value: data.status.failed_video_count, caption: "需检查或长任务处理" },
         { label: "已处理待上线", value: data.status.index_required_video_count, caption: "上线后剪辑端可用" }
       ]}
     />

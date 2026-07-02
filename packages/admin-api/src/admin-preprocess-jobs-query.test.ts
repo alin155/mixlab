@@ -209,9 +209,14 @@ test("preprocess jobs query marks permanent source failures as non-retryable", a
   const temporary = result.jobs.find((job) => job.source_video_id === "V000002");
 
   assert.equal(damaged?.retryable, false);
-  assert.equal(damaged?.status_label, "失败需检查源文件");
+  assert.equal(damaged?.status_label, "异常素材");
+  assert.equal(damaged?.failure_kind, "invalid-media");
+  assert.equal(damaged?.recommended_action, "inspect-source");
   assert.equal(temporary?.retryable, true);
-  assert.equal(temporary?.status_label, "失败可重试");
+  assert.equal(temporary?.status_label, "长任务语音识别待处理");
+  assert.equal(temporary?.failure_kind, "asr-timeout");
+  assert.equal(temporary?.recommended_action, "long-asr");
+  assert.equal(temporary?.long_task_recommended, true);
 });
 
 test("preprocess jobs query skips unprocessed rows and only reads job records for observable histories", async () => {

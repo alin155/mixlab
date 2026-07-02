@@ -610,7 +610,7 @@ test("dashboard renders a simple automated control console", async () => {
     "等待自动处理",
     "正在处理",
     "已处理待上线",
-    "失败可重试",
+    "异常素材",
     "系统状态",
     "自动处理流程",
     "发现素材",
@@ -1694,7 +1694,7 @@ test("preprocess jobs render failure retry and later success", async () => {
 	    "处理服务",
 	    "队列中",
 	    "待上线",
-	    "失败可重试",
+	    "长任务语音识别",
 	    "预处理进度",
 	    "总体进度",
 	    "本次运行",
@@ -1844,12 +1844,17 @@ test("preprocess jobs render failure retry and later success", async () => {
         ...data.jobs.jobs.find((job) => job.status === "failed")!,
         stage: "asr",
         stage_label: "文案预处理 · 阿里云百炼语音识别 ASR_TASK_ID_PLACEHOLDER failed: SUCCESS_WITH_NO_VALID_FRAGMENT",
+        retryable: false,
+        failure_kind: "no-speech",
+        failure_label: "语音识别无有效文案",
+        recommended_action: "inspect-source",
+        long_task_recommended: false,
         error_message: "阿里云百炼语音识别 ASR_TASK_ID_PLACEHOLDER failed: SUCCESS_WITH_NO_VALID_FRAGMENT"
       }]
     }
   };
   const noisyFailureHtml = renderToStaticMarkup(h(PreprocessJobsPage, { data: noisyFailureData }));
-  assert.match(noisyFailureHtml, /失败可重试/);
+  assert.match(noisyFailureHtml, /异常素材/);
   assert.doesNotMatch(noisyFailureHtml, /语音识别 · 阿里云百炼语音识别失败：未识别到有效语音片段/);
   assert.doesNotMatch(noisyFailureHtml, /ASR_TASK_ID_PLACEHOLDER|SUCCESS_WITH_NO_VALID_FRAGMENT/);
 
@@ -3701,12 +3706,12 @@ test("settings render runtime and redacted speech recognition key state", async 
 test("shared admin UI primitives expose control states and empty state language", () => {
   const html = renderToStaticMarkup(
     h("section", null,
-      h(MetricBand, {
-        items: [
-          { label: "已可用", value: 120, caption: "对剪辑师可见" },
-          { label: "处理失败", value: 2, caption: "失败可重试" }
-        ]
-      }),
+	      h(MetricBand, {
+	        items: [
+	          { label: "已可用", value: 120, caption: "对剪辑师可见" },
+	          { label: "异常素材", value: 2, caption: "需检查或长任务处理" }
+	        ]
+	      }),
 	      h(AdminControlButton, {
 	        label: "启动预处理",
 	        state: "m9b-api",

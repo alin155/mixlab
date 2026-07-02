@@ -6,6 +6,7 @@ export type PreprocessSupervisorState = "idle" | "running" | "stopping" | "faile
 export interface PreprocessSupervisorRunInput {
   limit?: number;
   source_video_ids?: string[];
+  asr_mode?: "default" | "long-task";
   runtime_policy: AdminRuntimePolicy;
   should_stop?: () => boolean;
   on_progress?: (result: RunLibraryTextPreprocessWorkerResult) => void;

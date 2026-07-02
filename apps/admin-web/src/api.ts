@@ -159,6 +159,11 @@ export interface AdminPreprocessJob {
   log_path: string;
   log_url?: string;
   retryable: boolean;
+  failure_kind?: string;
+  failure_label?: string;
+  recommended_action?: string;
+  duration_ms?: number;
+  long_task_recommended?: boolean;
   error_message?: string;
 }
 
@@ -1414,8 +1419,8 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
   if (failedCount > 0) {
     suggestions.push({
       key: "failed",
-      label: "存在失败视频",
-      detail: `${failedCount} 个视频失败可重试，单个视频失败不会阻塞其他队列。`,
+      label: "存在异常素材",
+      detail: `${failedCount} 个素材处理异常，请到素材处理页区分异常源文件和长任务语音识别。`,
       action: "retry-failed"
     });
   }
@@ -1492,7 +1497,7 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
     : primaryAction === "run-doctor"
       ? `系统检查存在 ${doctorFailureCount} 个需处理项`
     : primaryAction === "retry-failed"
-      ? `有 ${failedCount} 个失败视频可重试`
+      ? `有 ${failedCount} 个异常素材需处理`
       : primaryAction === "recover-processing"
       ? `${activeCount} 个处理中任务需要恢复`
       : primaryAction === "publish-index"
@@ -1574,7 +1579,11 @@ export interface AdminApiClient {
   getPreprocessSupervisorStatus(): Promise<AdminPreprocessSupervisorStatus>;
   startPreprocessSupervisor(
     limit?: number,
-    options?: { queue_unprocessed_limit?: number }
+    options?: {
+      queue_unprocessed_limit?: number;
+      source_video_ids?: string[];
+      asr_mode?: "default" | "long-task";
+    }
   ): Promise<AdminPreprocessSupervisorStatus>;
   stopPreprocessSupervisor(): Promise<AdminPreprocessSupervisorStatus>;
   repairIndex(options?: { limit?: number }): Promise<AdminActionResult>;

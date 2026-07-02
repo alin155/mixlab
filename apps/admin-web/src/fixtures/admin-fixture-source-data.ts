@@ -178,7 +178,7 @@ export const jobs: AdminPreprocessJobsResponse = {
       source_video_id: "V000037",
       title: "客户筛选与品牌定价",
       status: "failed",
-      status_label: "失败可重试",
+      status_label: "长任务语音识别待处理",
       stage: "asr",
       stage_label: "语音识别",
       progress: 0,
@@ -190,6 +190,10 @@ export const jobs: AdminPreprocessJobsResponse = {
       queue_position: 0,
       log_path: ".mixlab-library/logs/V000037.log",
       retryable: true,
+      failure_kind: "asr-timeout",
+      failure_label: "语音识别等待超时",
+      recommended_action: "long-asr",
+      long_task_recommended: true,
       error_message: "DashScope ASR 网络超时"
     },
     {

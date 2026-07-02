@@ -30,6 +30,11 @@ import {
 
 function productionStatus(data: AdminDashboardData): { title: string; detail: string; tone: "healthy" | "attention" | "blocked" } {
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
+  const abnormalCount = data.jobs.jobs.filter((job) => job.status === "failed" && !job.retryable).length;
+  const longAsrCount = data.jobs.jobs.filter((job) =>
+    job.long_task_recommended &&
+    (job.status === "failed" || job.status === "queued")
+  ).length;
 
   if (data.jobs.active_count > 0 && !supervisorRunning) {
     return {
@@ -64,6 +69,24 @@ function productionStatus(data: AdminDashboardData): { title: string; detail: st
   }
 
   if (data.jobs.failed_count > 0) {
+    if (abnormalCount > 0 && longAsrCount === 0) {
+      return {
+        title: `${abnormalCount} 个异常素材需检查`,
+        detail: "这些素材不是普通失败重试，需要确认源文件是否缺失、损坏或没有可识别内容。",
+        tone: "blocked"
+      };
+    }
+
+    if (longAsrCount > 0) {
+      return {
+        title: `${longAsrCount} 个超长素材需长任务语音识别`,
+        detail: abnormalCount > 0
+          ? `另有 ${abnormalCount} 个异常素材需检查源文件。`
+          : "这些素材不是坏文件，需要用更长等待时间继续语音识别。",
+        tone: "attention"
+      };
+    }
+
     return {
       title: `${data.jobs.failed_count} 个视频处理失败`,
       detail: "失败视频可单独重试，不影响后续队列继续处理。",
@@ -273,6 +296,7 @@ export function PreprocessJobsPage({
   processHistoryError = "",
   selectedJobLog,
   onRetryFailedVideos,
+  onStartLongAsrVideos,
   onRecoverProcessingVideos,
   onStartPreprocessSupervisor,
   onStopPreprocessSupervisor,
@@ -297,6 +321,7 @@ export function PreprocessJobsPage({
     log: AdminPreprocessJobLog | null;
   };
   onRetryFailedVideos?: () => void;
+  onStartLongAsrVideos?: () => void;
   onRecoverProcessingVideos?: () => void;
   onStartPreprocessSupervisor?: () => void;
   onStopPreprocessSupervisor?: () => void;
@@ -310,6 +335,12 @@ export function PreprocessJobsPage({
   const queued = data.jobs.jobs.filter((job) => job.status === "queued");
   const done = data.jobs.jobs.filter((job) => job.status === "done");
   const failed = data.jobs.jobs.filter((job) => job.status === "failed");
+  const abnormalJobs = failed.filter((job) => !job.retryable);
+  const retryableFailed = failed.filter((job) => job.retryable);
+  const longAsrJobs = data.jobs.jobs.filter((job) =>
+    job.long_task_recommended &&
+    (job.status === "failed" || job.status === "queued")
+  );
   const supervisor = data.jobs.supervisor;
   const supervisorRunning = supervisor.state === "running" || supervisor.state === "stopping";
   const lastResult = supervisor.last_result;
@@ -378,6 +409,15 @@ export function PreprocessJobsPage({
   const indexRequiredCaption = data.status.index_required_video_count > 0
     ? "等待上线剪辑端"
     : autoPublishIndexEnabled ? "已自动上线" : "没有待上线素材";
+  const failureMetricLabel = abnormalJobs.length > 0
+    ? "异常素材"
+    : longAsrJobs.length > 0 ? "长任务素材" : "可继续处理";
+  const failureMetricValue = abnormalJobs.length > 0
+    ? abnormalJobs.length
+    : longAsrJobs.length > 0 ? longAsrJobs.length : retryableFailed.length;
+  const failureMetricCaption = abnormalJobs.length > 0
+    ? "需检查源文件"
+    : longAsrJobs.length > 0 ? "需更长识别时间" : retryableFailed.length > 0 ? "可重新处理" : "当前无异常";
   const flowCards = [
     {
       label: "当前任务",
@@ -613,11 +653,19 @@ export function PreprocessJobsPage({
                       onClick={gatedNasWriteAction(canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor)}
                     />
                   ) : null}
-                  {data.jobs.failed_count > 0 ? (
+                  {longAsrJobs.length > 0 ? (
+                    <AdminControlButton
+                      label="长任务语音识别"
+                      state={nasWriteState}
+                      reason={nasWriteReason("只处理超长或语音识别等待超时素材，使用更长等待时间继续识别。")}
+                      onClick={gatedNasWriteAction(onStartLongAsrVideos)}
+                    />
+                  ) : null}
+                  {retryableFailed.length > 0 ? (
                     <AdminControlButton
                       label="重试失败视频"
                       state={nasWriteState}
-                      reason={nasWriteReason("将失败视频重新加入预处理队列。")}
+                      reason={nasWriteReason("只将可重试失败视频重新加入预处理队列。")}
                       onClick={gatedNasWriteAction(onRetryFailedVideos)}
                     />
                   ) : null}
@@ -652,9 +700,27 @@ export function PreprocessJobsPage({
                 caption: processingServiceCaption
               },
               { label: "待上线", value: data.status.index_required_video_count, caption: indexRequiredCaption },
-              { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
+              { label: failureMetricLabel, value: failureMetricValue, caption: failureMetricCaption }
             ]}
           />
+          {abnormalJobs.length > 0 ? (
+            <section className="admin-simple-status is-blocked" aria-label="异常素材说明">
+              <span className="admin-status-badge is-failed">异常素材</span>
+              <div>
+                <h2>{abnormalJobs.length} 个素材需检查源文件</h2>
+                <p>这些素材不会自动重试。请按定位清单确认源文件缺失、视频损坏、无视频流或无有效语音。</p>
+              </div>
+            </section>
+          ) : null}
+          {longAsrJobs.length > 0 ? (
+            <section className="admin-simple-status is-attention" aria-label="长任务语音识别">
+              <span className="admin-status-badge is-warning">长任务语音识别</span>
+              <div>
+                <h2>{longAsrJobs.length} 个超长素材可继续处理</h2>
+                <p>这些素材需要更长的语音识别等待时间，点击“长任务语音识别”后只处理这些素材。</p>
+              </div>
+            </section>
+          ) : null}
           {jobsError ? (
             <EmptyState title="预处理队列加载失败" detail={jobsError} />
           ) : null}
@@ -818,7 +884,7 @@ export function PreprocessJobsPage({
             { label: activeMetricLabel, value: data.jobs.active_count, caption: activeMetricCaption },
             { label: "队列中", value: data.jobs.queued_count, caption: "等待预处理" },
             { label: "最近完成", value: data.jobs.completed_count, caption: "已产生可发布产物" },
-            { label: "失败可重试", value: data.jobs.failed_count, caption: "单个失败不阻塞队列" }
+            { label: failureMetricLabel, value: failureMetricValue, caption: failureMetricCaption }
           ]}
         />
         <section className="admin-pipeline-strip" aria-label="流水线阶段">
@@ -1094,7 +1160,7 @@ export function PreprocessJobsPage({
                 { label: "服务状态", value: supervisor.state_label },
                 { label: "当前阶段", value: currentStageSummary },
                 { label: "队列中", value: data.jobs.queued_count },
-                { label: "失败任务", value: data.jobs.failed_count },
+                { label: failureMetricLabel, value: failureMetricValue },
                 { label: "预计完成", value: timeLabel(observability.estimated_all_done_at) }
               ]
             },
@@ -1140,11 +1206,19 @@ export function PreprocessJobsPage({
               onClick={gatedNasWriteAction(canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor)}
             />
           ) : null}
-          {data.jobs.failed_count > 0 ? (
+          {longAsrJobs.length > 0 ? (
+            <AdminControlButton
+              label="长任务语音识别"
+              state={nasWriteState}
+              reason={nasWriteReason("只处理超长或语音识别等待超时素材，使用更长等待时间继续识别。")}
+              onClick={gatedNasWriteAction(onStartLongAsrVideos)}
+            />
+          ) : null}
+          {retryableFailed.length > 0 ? (
             <AdminControlButton
               label="重试失败视频"
               state={nasWriteState}
-              reason={nasWriteReason("将失败视频重新加入预处理队列。")}
+              reason={nasWriteReason("只将可重试失败视频重新加入预处理队列。")}
               onClick={gatedNasWriteAction(onRetryFailedVideos)}
             />
           ) : null}
