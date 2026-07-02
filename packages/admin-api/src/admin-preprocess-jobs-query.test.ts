@@ -219,6 +219,59 @@ test("preprocess jobs query marks permanent source failures as non-retryable", a
   assert.equal(temporary?.long_task_recommended, true);
 });
 
+test("preprocess jobs query recommends long speech recognition for repeatedly queued zero-duration jobs", async () => {
+  const requestedJobRecords: string[] = [];
+  const result = await listAdminPreprocessJobs({
+    now: "2026-05-02T12:00:00.000Z",
+    concurrency: 1,
+    manifests: [
+      sourceVideoManifest({
+        source_video_id: "V000010",
+        title: "超长排队素材",
+        preprocess_status: "queued",
+        duration_ms: 0
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000011",
+        title: "首次排队素材",
+        preprocess_status: "queued",
+        duration_ms: 0
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000012",
+        title: "已知时长素材",
+        preprocess_status: "queued",
+        duration_ms: 60_000
+      })
+    ],
+    async read_preprocess_job(sourceVideoId) {
+      requestedJobRecords.push(sourceVideoId);
+      return {
+        source_video_id: sourceVideoId,
+        status: "queued",
+        attempt: sourceVideoId === "V000010" ? 7 : 1,
+        claimed_at: "2026-05-02T11:30:00.000Z"
+      };
+    },
+    async read_runtime_load() {
+      return healthyRuntimeLoad();
+    }
+  });
+
+  const longTask = result.jobs.find((job) => job.source_video_id === "V000010");
+  const firstQueued = result.jobs.find((job) => job.source_video_id === "V000011");
+  const knownDuration = result.jobs.find((job) => job.source_video_id === "V000012");
+
+  assert.deepEqual(requestedJobRecords, ["V000010", "V000011"]);
+  assert.equal(longTask?.status_label, "长任务语音识别待处理");
+  assert.equal(longTask?.recommended_action, "long-asr");
+  assert.equal(longTask?.long_task_recommended, true);
+  assert.equal(firstQueued?.recommended_action, "none");
+  assert.equal(firstQueued?.long_task_recommended, false);
+  assert.equal(knownDuration?.recommended_action, "none");
+  assert.equal(knownDuration?.long_task_recommended, false);
+});
+
 test("preprocess jobs query skips unprocessed rows and only reads job records for observable histories", async () => {
   const requestedJobRecords: string[] = [];
 

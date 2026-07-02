@@ -165,8 +165,17 @@ function isLongTaskRecommended(input: {
   manifest: SourceVideoManifest;
   status: AdminPreprocessJobPublicStatus;
   failureKind: string;
+  job: AdminPreprocessJobRecord | null;
 }): boolean {
   if (input.failureKind === "asr-timeout") {
+    return true;
+  }
+
+  if (
+    input.status === "queued" &&
+    input.manifest.duration_ms <= 0 &&
+    (input.job?.attempt ?? 0) >= 3
+  ) {
     return true;
   }
 
@@ -339,6 +348,7 @@ export function adminPreprocessJobStageFromManifest(
 
 export function shouldReadAdminPreprocessJobRecordForList(manifest: SourceVideoManifest): boolean {
   return manifest.preprocess_status === "processing" ||
+    (manifest.preprocess_status === "queued" && manifest.duration_ms <= 0) ||
     manifest.preprocess_status === "failed" ||
     manifest.preprocess_status === "ready";
 }
@@ -377,7 +387,8 @@ export async function listAdminPreprocessJobs(
     const longTaskRecommended = isLongTaskRecommended({
       manifest,
       status,
-      failureKind
+      failureKind,
+      job
     });
     const completedAt = job?.completed_at ?? job?.indexed_at;
     const failedAt = job?.failed_at;
@@ -397,7 +408,9 @@ export async function listAdminPreprocessJobs(
       source_video_id: manifest.source_video_id,
       title: manifest.title,
       status,
-      status_label: status === "failed" ? failedPreprocessJobStatusLabel(job) : preprocessJobStatusLabel(status),
+      status_label: longTaskRecommended ? "长任务语音识别待处理" : status === "failed"
+        ? failedPreprocessJobStatusLabel(job)
+        : preprocessJobStatusLabel(status),
       stage,
       stage_label: preprocessStageLabel(stage, status),
       progress: status === "running"
