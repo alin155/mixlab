@@ -36,6 +36,10 @@ import {
 } from "./admin-read-model-store.ts";
 import { numericSourceVideoId } from "./admin-source-video-query.ts";
 import { libraryCountFieldForPreprocessStatus } from "./admin-source-video-read-model.ts";
+import {
+  adminPreprocessFailureSkipReason,
+  isAdminPreprocessFailureRetryable
+} from "./admin-preprocess-failure-classification.ts";
 
 export type AdminBulkTransitionCommandName =
   | "preprocess-queue-unprocessed"
@@ -55,6 +59,9 @@ type AdminTransitionCommandName =
 export interface AdminTransitionCommandResult {
   affected_count: number;
   source_video_ids: string[];
+  skipped_count?: number;
+  skipped_source_video_ids?: string[];
+  skipped_reasons?: Record<string, string>;
   library_counts?: LibraryCounts;
 }
 
@@ -202,6 +209,14 @@ async function readPreprocessJob(libraryRoot: string, sourceVideoId: string): Pr
   }
 }
 
+function shouldSkipRetryTransition(input: {
+  reason: string;
+  job: PreprocessJobRecord | null;
+}): boolean {
+  return input.reason === "retry-by-admin" &&
+    !isAdminPreprocessFailureRetryable(input.job?.error_message);
+}
+
 async function writePreprocessJob(libraryRoot: string, job: PreprocessJobRecord): Promise<void> {
   await mkdir(path.dirname(preprocessJobPath(libraryRoot, job.source_video_id)), { recursive: true });
   await writeJsonFileAtomically(preprocessJobPath(libraryRoot, job.source_video_id), job);
@@ -289,12 +304,24 @@ async function transitionManifests(input: {
     requested_source_video_ids: requestedIds
   });
 
-  const affected = manifests.filter((manifest) =>
+  const candidates = manifests.filter((manifest) =>
     input.from.includes(manifest.preprocess_status) &&
     (!requestedIds || requestedIds.has(manifest.source_video_id))
   ).slice(0, input.limit);
+  const affected: SourceVideoManifest[] = [];
+  const skipped: Array<{ manifest: SourceVideoManifest; reason: string }> = [];
 
-  for (const manifest of affected) {
+  for (const manifest of candidates) {
+    const previousJob = await readPreprocessJob(input.library_root, manifest.source_video_id);
+    if (shouldSkipRetryTransition({ reason: input.reason, job: previousJob })) {
+      skipped.push({
+        manifest,
+        reason: adminPreprocessFailureSkipReason(previousJob?.error_message)
+      });
+      continue;
+    }
+
+    affected.push(manifest);
     await writeSourceVideoManifest(input.library_root, {
       ...manifest,
       preprocess_status: input.to,
@@ -303,7 +330,7 @@ async function transitionManifests(input: {
     await writePreprocessJob(input.library_root, {
       source_video_id: manifest.source_video_id,
       status: input.to === "queued" ? "queued" : "processing",
-      attempt: ((await readPreprocessJob(input.library_root, manifest.source_video_id))?.attempt ?? 0) + 1,
+      attempt: (previousJob?.attempt ?? 0) + 1,
       claimed_at: input.now,
       worker_id: "admin"
     });
@@ -316,7 +343,7 @@ async function transitionManifests(input: {
     });
   }
 
-  return {
+  const result: AdminTransitionCommandResult = {
     affected_count: affected.length,
     source_video_ids: affected.map((manifest) => manifest.source_video_id),
     library_counts: await transitionLibraryCounts({
@@ -327,6 +354,16 @@ async function transitionManifests(input: {
       targeted: Boolean(requestedIds)
     })
   };
+
+  if (skipped.length > 0) {
+    result.skipped_count = skipped.length;
+    result.skipped_source_video_ids = skipped.map(({ manifest }) => manifest.source_video_id);
+    result.skipped_reasons = Object.fromEntries(
+      skipped.map(({ manifest, reason }) => [manifest.source_video_id, reason])
+    );
+  }
+
+  return result;
 }
 
 async function writeThroughAdminSourceVideoReadModelStore(input: {

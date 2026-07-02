@@ -279,7 +279,8 @@ export function PreprocessJobsPage({
   onRepairIndex,
   onPublishSourceVideo,
   onProcessHistoryFiltersChange,
-  onOpenPreprocessJobLog
+  onOpenPreprocessJobLog,
+  activeAdminCommandLabel = ""
 }: {
   data: AdminDashboardData;
   isLoadingJobs?: boolean;
@@ -303,6 +304,7 @@ export function PreprocessJobsPage({
   onPublishSourceVideo?: (sourceVideoId: string) => void;
   onProcessHistoryFiltersChange?: (filters: AdminPreprocessProcessHistoryFilters) => void;
   onOpenPreprocessJobLog?: (jobId: string) => void;
+  activeAdminCommandLabel?: string;
 }) {
   const running = data.jobs.jobs.filter((job) => job.status === "running");
   const queued = data.jobs.jobs.filter((job) => job.status === "queued");
@@ -321,9 +323,12 @@ export function PreprocessJobsPage({
   const canStartSupervisor = supervisor.state === "idle" || supervisor.state === "failed";
   const canStopSupervisor = supervisor.state === "running" || supervisor.state === "stopping";
   const nasWriteState = "m9b-api" as const;
+  const commandBusyReason = activeAdminCommandLabel
+    ? `${activeAdminCommandLabel}正在执行，请稍候。`
+    : "";
   const gatedNasWriteAction = <T extends (...args: never[]) => void>(handler?: T): T | undefined =>
-    handler;
-  const nasWriteReason = (reason: string) => reason;
+    activeAdminCommandLabel ? undefined : handler;
+  const nasWriteReason = (reason: string) => commandBusyReason || reason;
   const runningStageCaption = supervisorRunning ? "当前阶段" : "停留阶段";
   const pipelineStages = [
     { label: "扫描素材", value: data.status.video_count, caption: "已发现" },
@@ -603,16 +608,16 @@ export function PreprocessJobsPage({
                     <AdminControlButton
                       label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
                       state={nasWriteState}
-                      reason={canStopSupervisor ? "暂停当前预处理流水线。" : "持续处理队列，直到全部完成或手动暂停。"}
+                      reason={nasWriteReason(canStopSupervisor ? "暂停当前预处理流水线。" : "持续处理队列，直到全部完成或手动暂停。")}
                       variant="primary"
-                      onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
+                      onClick={gatedNasWriteAction(canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor)}
                     />
                   ) : null}
                   {data.jobs.failed_count > 0 ? (
                     <AdminControlButton
                       label="重试失败视频"
                       state={nasWriteState}
-                      reason="将失败视频重新加入预处理队列。"
+                      reason={nasWriteReason("将失败视频重新加入预处理队列。")}
                       onClick={gatedNasWriteAction(onRetryFailedVideos)}
                     />
                   ) : null}
@@ -620,7 +625,7 @@ export function PreprocessJobsPage({
                     <AdminControlButton
                       label="恢复卡住任务"
                       state={nasWriteState}
-                      reason="预处理服务未运行时，将停留在处理中的任务恢复到队列。"
+                      reason={nasWriteReason("预处理服务未运行时，将停留在处理中的任务恢复到队列。")}
                       onClick={gatedNasWriteAction(onRecoverProcessingVideos)}
                     />
                   ) : null}
@@ -1130,16 +1135,16 @@ export function PreprocessJobsPage({
             <AdminControlButton
               label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
               state={nasWriteState}
-              reason={canStopSupervisor ? "暂停当前预处理流水线。" : "持续处理队列，直到全部完成或手动暂停。"}
+              reason={nasWriteReason(canStopSupervisor ? "暂停当前预处理流水线。" : "持续处理队列，直到全部完成或手动暂停。")}
               variant="primary"
-              onClick={canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor}
+              onClick={gatedNasWriteAction(canStopSupervisor ? onStopPreprocessSupervisor : onStartPreprocessSupervisor)}
             />
           ) : null}
           {data.jobs.failed_count > 0 ? (
             <AdminControlButton
               label="重试失败视频"
               state={nasWriteState}
-              reason="将失败视频重新加入预处理队列。"
+              reason={nasWriteReason("将失败视频重新加入预处理队列。")}
               onClick={gatedNasWriteAction(onRetryFailedVideos)}
             />
           ) : null}
@@ -1147,7 +1152,7 @@ export function PreprocessJobsPage({
             <AdminControlButton
               label="恢复卡住任务"
               state={nasWriteState}
-              reason="预处理服务未运行时，将停留在处理中的任务恢复到队列。"
+              reason={nasWriteReason("预处理服务未运行时，将停留在处理中的任务恢复到队列。")}
               onClick={gatedNasWriteAction(onRecoverProcessingVideos)}
             />
           ) : null}

@@ -193,10 +193,12 @@ export async function runLibraryTextPreprocessWorker(
     claimedSinceCountRefresh += 1;
     pendingCountRefresh = true;
     let sourceVideoPath = "";
+    let failureStage = "text-preprocess";
 
     try {
       const manifest = await readSourceVideoManifest(input.library_root, job.source_video_id);
       sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
+      failureStage = "probe-media";
       await lifecycle.update_preprocess_job_stage({
         library_root: input.library_root,
         source_video_id: job.source_video_id,
@@ -208,6 +210,7 @@ export async function runLibraryTextPreprocessWorker(
         source_video_path: sourceVideoPath
       });
       const contentHash = await getContentHash(sourceVideoPath);
+      failureStage = "text-preprocess";
       const textPreprocess = await input.preprocess_source_video({
         library_root: input.library_root,
         library_id: input.library_id,
@@ -216,6 +219,7 @@ export async function runLibraryTextPreprocessWorker(
         audio_mode: input.audio_mode,
         now: now(),
         on_stage(stage) {
+          failureStage = stage;
           return lifecycle.update_preprocess_job_stage({
             library_root: input.library_root,
             source_video_id: job.source_video_id,
@@ -256,7 +260,7 @@ export async function runLibraryTextPreprocessWorker(
         library_root: input.library_root,
         source_video_id: job.source_video_id,
         now: now(),
-        error_stage: "text-preprocess",
+        error_stage: failureStage,
         error_message: message
       });
       claimedSinceCountRefresh = 0;

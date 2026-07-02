@@ -161,6 +161,59 @@ test("preprocess jobs query builds ordered observable queue state from a store-p
   assert.equal(result.observability.load_advice, "网络不可用，建议暂停流水线并检查语音识别网络。");
 });
 
+test("preprocess jobs query marks permanent source failures as non-retryable", async () => {
+  const result = await listAdminPreprocessJobs({
+    now: "2026-05-02T12:00:00.000Z",
+    concurrency: 1,
+    manifests: [
+      sourceVideoManifest({
+        source_video_id: "V000001",
+        title: "损坏视频",
+        preprocess_status: "failed"
+      }),
+      sourceVideoManifest({
+        source_video_id: "V000002",
+        title: "临时失败视频",
+        preprocess_status: "failed"
+      })
+    ],
+    async read_preprocess_job(sourceVideoId) {
+      if (sourceVideoId === "V000001") {
+        return {
+          source_video_id: sourceVideoId,
+          status: "failed",
+          attempt: 3,
+          claimed_at: "2026-05-02T11:20:00.000Z",
+          failed_at: "2026-05-02T11:21:00.000Z",
+          error_stage: "probe-media",
+          error_message: "moov atom not found"
+        };
+      }
+
+      return {
+        source_video_id: sourceVideoId,
+        status: "failed",
+        attempt: 1,
+        claimed_at: "2026-05-02T11:30:00.000Z",
+        failed_at: "2026-05-02T11:31:00.000Z",
+        error_stage: "asr",
+        error_message: "DashScope task timeout"
+      };
+    },
+    async read_runtime_load() {
+      return healthyRuntimeLoad();
+    }
+  });
+
+  const damaged = result.jobs.find((job) => job.source_video_id === "V000001");
+  const temporary = result.jobs.find((job) => job.source_video_id === "V000002");
+
+  assert.equal(damaged?.retryable, false);
+  assert.equal(damaged?.status_label, "失败需检查源文件");
+  assert.equal(temporary?.retryable, true);
+  assert.equal(temporary?.status_label, "失败可重试");
+});
+
 test("preprocess jobs query skips unprocessed rows and only reads job records for observable histories", async () => {
   const requestedJobRecords: string[] = [];
 

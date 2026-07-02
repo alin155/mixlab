@@ -32,6 +32,9 @@ export interface AdminBulkPreprocessRouteCommandInput<TApiInput extends AdminPre
 
 export interface AdminBulkPreprocessRouteResult {
   affected_count: number;
+  skipped_count?: number;
+  skipped_source_video_ids?: string[];
+  skipped_reasons?: Record<string, string>;
 }
 
 export interface AdminPreprocessRecoverSupervisorStatus {

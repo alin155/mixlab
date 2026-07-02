@@ -34,6 +34,9 @@ export interface AdminSourceVideoPublishRouteCommandInput<TApiInput extends Admi
 
 export interface AdminSourceVideoTransitionRouteResult {
   affected_count: number;
+  skipped_count?: number;
+  skipped_source_video_ids?: string[];
+  skipped_reasons?: Record<string, string>;
 }
 
 export interface AdminSourceVideoRecoverSupervisorStatus {
@@ -117,6 +120,7 @@ function transitionMessage(input: {
   command: AdminSourceVideoTransitionRouteCommand;
   source_video_id: string;
   affected_count: number;
+  skipped_reasons?: Record<string, string>;
 }): string {
   if (input.command === "source-video-queue") {
     return input.affected_count > 0
@@ -125,6 +129,11 @@ function transitionMessage(input: {
   }
 
   if (input.command === "source-video-retry") {
+    const skippedReason = input.skipped_reasons?.[input.source_video_id];
+    if (skippedReason) {
+      return `${input.source_video_id} ${skippedReason}`;
+    }
+
     return input.affected_count > 0
       ? `已将 ${input.source_video_id} 重新加入预处理队列。`
       : `${input.source_video_id} 当前状态不能重试。`;
@@ -186,7 +195,8 @@ async function handleTransitionCommandRoute<
         message: transitionMessage({
           command: input.command,
           source_video_id: input.source_video_id,
-          affected_count: result.affected_count
+          affected_count: result.affected_count,
+          skipped_reasons: result.skipped_reasons
         })
       })
     };

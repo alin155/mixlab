@@ -5,6 +5,10 @@ import type {
   SourceVideoManifest
 } from "../../protocol/src/index.ts";
 import { numericSourceVideoId } from "./admin-source-video-query.ts";
+import {
+  adminPreprocessFailureSkipReason,
+  isAdminPreprocessFailureRetryable
+} from "./admin-preprocess-failure-classification.ts";
 
 export interface AdminPreprocessJobRecord {
   source_video_id: string;
@@ -123,6 +127,12 @@ function preprocessJobStatusLabel(status: AdminPreprocessJobPublicStatus): strin
   } satisfies Record<AdminPreprocessJobPublicStatus, string>;
 
   return labels[status];
+}
+
+function failedPreprocessJobStatusLabel(job: AdminPreprocessJobRecord | null): string {
+  return isAdminPreprocessFailureRetryable(job?.error_message)
+    ? "失败可重试"
+    : "失败需检查源文件";
 }
 
 function preprocessStageLabel(stage: string, status?: AdminPreprocessJobPublicStatus): string {
@@ -304,6 +314,7 @@ export async function listAdminPreprocessJobs(
     const job = jobRecords[index] ?? null;
     const status = jobStatusFromManifest(manifest.preprocess_status);
     const stage = adminPreprocessJobStageFromManifest(manifest, job);
+    const retryable = status === "failed" && isAdminPreprocessFailureRetryable(job?.error_message);
     const completedAt = job?.completed_at ?? job?.indexed_at;
     const failedAt = job?.failed_at;
     const elapsedMs = status === "running"
@@ -322,7 +333,7 @@ export async function listAdminPreprocessJobs(
       source_video_id: manifest.source_video_id,
       title: manifest.title,
       status,
-      status_label: preprocessJobStatusLabel(status),
+      status_label: status === "failed" ? failedPreprocessJobStatusLabel(job) : preprocessJobStatusLabel(status),
       stage,
       stage_label: preprocessStageLabel(stage, status),
       progress: status === "running"
@@ -338,8 +349,10 @@ export async function listAdminPreprocessJobs(
       queue_position: 0,
       log_path: preprocessJobLogPath(manifest.source_video_id),
       log_url: `/api/admin/preprocess/jobs/J${manifest.source_video_id.slice(1)}/log`,
-      retryable: status === "failed",
-      error_message: job?.error_message
+      retryable,
+      error_message: job?.error_message ?? (status === "failed" && !retryable
+        ? adminPreprocessFailureSkipReason(job?.error_message)
+        : undefined)
     });
   }
 

@@ -102,6 +102,22 @@ async function readJob(libraryRoot: string, sourceVideoId: string): Promise<{
   };
 }
 
+async function writeJob(
+  libraryRoot: string,
+  sourceVideoId: string,
+  job: Record<string, unknown>
+): Promise<void> {
+  await mkdir(videoDir(libraryRoot, sourceVideoId), { recursive: true });
+  await writeFile(
+    path.join(videoDir(libraryRoot, sourceVideoId), "preprocess-job.json"),
+    `${JSON.stringify({
+      source_video_id: sourceVideoId,
+      ...job
+    }, null, 2)}\n`,
+    "utf8"
+  );
+}
+
 function sourceVideoManifest(input: {
   source_video_id: string;
   preprocess_status: SourceVideoManifest["preprocess_status"];
@@ -446,6 +462,80 @@ test("pipeline queue command has its own writer lease reason job log and sqlite 
   assert.equal(storeStatus.counts_by_status.failed, 1);
 });
 
+test("retry failed transition skips permanent source failures", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const corrupted = sourceVideoManifest({
+    source_video_id: "V000001",
+    preprocess_status: "failed",
+    visible_to_cutters: false
+  });
+  const retryable = sourceVideoManifest({
+    source_video_id: "V000002",
+    preprocess_status: "failed",
+    visible_to_cutters: false
+  });
+  const missing = sourceVideoManifest({
+    source_video_id: "V000003",
+    preprocess_status: "failed",
+    visible_to_cutters: false
+  });
+  const noSpeech = sourceVideoManifest({
+    source_video_id: "V000004",
+    preprocess_status: "failed",
+    visible_to_cutters: false
+  });
+  await seedLibrary({
+    library_root: libraryRoot,
+    manifests: [corrupted, retryable, missing, noSpeech],
+    counts: counts({
+      video_count: 4,
+      failed_video_count: 4
+    }),
+    updated_at: "2026-06-26T10:30:00.000Z"
+  });
+  await writeJob(libraryRoot, "V000001", {
+    status: "failed",
+    attempt: 3,
+    error_message: "moov atom not found"
+  });
+  await writeJob(libraryRoot, "V000002", {
+    status: "failed",
+    attempt: 2,
+    error_message: "DashScope task timeout"
+  });
+  await writeJob(libraryRoot, "V000003", {
+    status: "failed",
+    attempt: 1,
+    error_message: "No such file or directory"
+  });
+  await writeJob(libraryRoot, "V000004", {
+    status: "failed",
+    attempt: 1,
+    error_message: "ASR_RESPONSE_HAVE_NO_WORDS"
+  });
+
+  const result = await runAdminBulkTransitionCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command: "preprocess-retry-failed",
+    command_now: "2026-06-26T10:31:00.000Z",
+    now: () => "2026-06-26T10:31:01.000Z"
+  });
+
+  assert.equal(result.affected_count, 1);
+  assert.deepEqual(result.source_video_ids, ["V000002"]);
+  assert.equal(result.skipped_count, 3);
+  assert.deepEqual(result.skipped_source_video_ids, ["V000001", "V000003", "V000004"]);
+  assert.equal(result.library_counts?.queued_video_count, 1);
+  assert.equal(result.library_counts?.failed_video_count, 3);
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000001")).preprocess_status, "failed");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000002")).preprocess_status, "queued");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000003")).preprocess_status, "failed");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000004")).preprocess_status, "failed");
+  assert.equal((await readJob(libraryRoot, "V000002")).attempt, 3);
+});
+
 test("single source-video transition command updates only requested id and preserves ready guard", async () => {
   const libraryRoot = await makeLibraryRoot();
   const failed = sourceVideoManifest({
@@ -539,4 +629,46 @@ test("single source-video transition command updates only requested id and prese
     }).preprocess_status,
     "ready"
   );
+});
+
+test("single source-video retry skips permanent source failure", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const failed = sourceVideoManifest({
+    source_video_id: "V000001",
+    preprocess_status: "failed",
+    visible_to_cutters: false
+  });
+  await seedLibrary({
+    library_root: libraryRoot,
+    manifests: [failed],
+    counts: counts({
+      video_count: 1,
+      failed_video_count: 1
+    }),
+    updated_at: "2026-06-26T10:40:00.000Z"
+  });
+  await writeJob(libraryRoot, "V000001", {
+    status: "failed",
+    attempt: 2,
+    error_message: "ffprobe output did not include a video stream"
+  });
+
+  const result = await runAdminSourceVideoTransitionCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command: "source-video-retry",
+    source_video_id: "V000001",
+    command_now: "2026-06-26T10:41:00.000Z",
+    now: () => "2026-06-26T10:41:01.000Z"
+  });
+
+  assert.equal(result.affected_count, 0);
+  assert.equal(result.skipped_count, 1);
+  assert.deepEqual(result.skipped_source_video_ids, ["V000001"]);
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000001")).preprocess_status, "failed");
+  assert.equal((await readJob(libraryRoot, "V000001")).attempt, 2);
+  const library = await readAdminLibraryManifest(libraryRoot);
+  assert.equal(library?.failed_video_count, 1);
+  assert.equal(library?.queued_video_count, 0);
 });

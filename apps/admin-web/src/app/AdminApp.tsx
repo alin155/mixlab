@@ -717,7 +717,8 @@ function renderPage(
     error: string;
     restorePlanPreview: CommandSnapshotRestorePlanPreview | null;
     restoreExecution: CommandSnapshotRestoreExecutionState | null;
-  }
+  },
+  activeAdminCommandLabel: string
 ) {
   const dockerMvpMode = surfaceMode === "docker-mvp-v0.1";
 
@@ -804,6 +805,7 @@ function renderPage(
         processHistoryError={processHistoryState.error}
         onProcessHistoryFiltersChange={actions.onProcessHistoryFiltersChange}
         onOpenPreprocessJobLog={actions.onOpenPreprocessJobLog}
+        activeAdminCommandLabel={activeAdminCommandLabel}
       />
     );
   }
@@ -941,6 +943,7 @@ export function AdminApp() {
   const [error, setError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [actionError, setActionError] = useState("");
+  const [activeAdminCommandLabel, setActiveAdminCommandLabel] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState("");
   const [sourceDetail, setSourceDetail] = useState<AdminSourceVideoDetail | null>(null);
@@ -1964,6 +1967,7 @@ export function AdminApp() {
     }
 
     activeAdminCommandLabelRef.current = label;
+    setActiveAdminCommandLabel(label);
     setActionError("");
     setActionNotice(notice ?? `${label}中...`);
     return true;
@@ -1972,6 +1976,7 @@ export function AdminApp() {
   const finishAdminCommandAction = (label: string) => {
     if (activeAdminCommandLabelRef.current === label) {
       activeAdminCommandLabelRef.current = "";
+      setActiveAdminCommandLabel("");
     }
   };
 
@@ -2558,7 +2563,8 @@ export function AdminApp() {
                   error: operationLogError,
                   restorePlanPreview: commandSnapshotRestorePlanPreview,
                   restoreExecution: commandSnapshotRestoreExecution
-                }
+                },
+                activeAdminCommandLabel
               )
             ) : (
               <InspectorPanel title={routeTitle(route)}>

@@ -331,6 +331,34 @@ test("marks failed videos and continues processing later claimed videos", async 
   assert.equal(library.index_required_video_count, 1);
 });
 
+test("records probe failures at the media probe stage", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
+
+  const result = await runLibraryTextPreprocessWorker({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    worker_id: "worker-a",
+    limit: 1,
+    now: deterministicNow(),
+    async probe_source_video() {
+      throw new Error("moov atom not found");
+    },
+    async preprocess_source_video() {
+      throw new Error("should not run");
+    }
+  });
+
+  assert.equal(result.failed_count, 1);
+  const job = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "preprocess-job.json")
+  );
+  assert.equal(job.status, "failed");
+  assert.equal(job.error_stage, "probe-media");
+  assert.equal(job.error_message, "moov atom not found");
+});
+
 test("can skip scanning and only consume queued videos for pipeline cycles", async () => {
   const libraryRoot = await makeLibraryRoot();
   await writeDummyVideo(path.join(libraryRoot, "source-videos", "a.mp4"));
