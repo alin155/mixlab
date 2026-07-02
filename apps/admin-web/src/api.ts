@@ -53,6 +53,8 @@ import {
 export { unwrapAdminResponse } from "./admin-http.ts";
 export { resolveMediaUrl } from "./admin-source-video-media.ts";
 
+const ADMIN_DASHBOARD_PREPROCESS_JOB_LOAD_LIMIT = 200;
+
 export type AdminApiEnvelope<T> =
   | {
       ok: true;
@@ -1343,6 +1345,7 @@ export type AdminSmartScanAction =
   | "none"
   | "queue-unprocessed"
   | "start-preprocess"
+  | "start-long-asr"
   | "retry-failed"
   | "recover-processing"
   | "publish-index"
@@ -1364,11 +1367,91 @@ export interface AdminSmartScanReport {
   suggestions: AdminSmartScanSuggestion[];
 }
 
+export interface AdminPreprocessFailureSummary {
+  total_count: number;
+  listed_failed_count: number;
+  abnormal_count: number;
+  long_task_count: number;
+  retryable_count: number;
+  retryable_regular_count: number;
+  unknown_count: number;
+  has_failure_details: boolean;
+}
+
+export function summarizeAdminPreprocessFailures(
+  jobs: AdminPreprocessJobsResponse
+): AdminPreprocessFailureSummary {
+  const failedJobs = jobs.jobs.filter((job) => job.status === "failed");
+  const abnormalCount = failedJobs.filter((job) => !job.retryable).length;
+  const longTaskCount = failedJobs.filter((job) => job.long_task_recommended).length;
+  const retryableCount = failedJobs.filter((job) => job.retryable).length;
+  const retryableRegularCount = failedJobs.filter((job) => job.retryable && !job.long_task_recommended).length;
+  const unknownCount = Math.max(0, jobs.failed_count - failedJobs.length);
+
+  return {
+    total_count: jobs.failed_count,
+    listed_failed_count: failedJobs.length,
+    abnormal_count: abnormalCount,
+    long_task_count: longTaskCount,
+    retryable_count: retryableCount,
+    retryable_regular_count: retryableRegularCount,
+    unknown_count: unknownCount,
+    has_failure_details: failedJobs.length > 0 || jobs.failed_count === 0
+  };
+}
+
+function preprocessFailureTitle(summary: AdminPreprocessFailureSummary): string {
+  if (summary.total_count <= 0) {
+    return "没有异常素材";
+  }
+
+  if (!summary.has_failure_details) {
+    return `${summary.total_count} 个处理失败素材待确认`;
+  }
+
+  if (summary.long_task_count > 0) {
+    return `${summary.long_task_count} 个超长素材需长任务语音识别`;
+  }
+
+  if (summary.retryable_regular_count > 0) {
+    return `${summary.retryable_regular_count} 个素材可重新处理`;
+  }
+
+  return `${summary.abnormal_count} 个异常素材需检查源文件`;
+}
+
+function preprocessFailureDetail(summary: AdminPreprocessFailureSummary): string {
+  if (summary.total_count <= 0) {
+    return "当前没有处理失败素材。";
+  }
+
+  if (!summary.has_failure_details) {
+    return `${summary.total_count} 个失败素材正在刷新分类，请到素材处理页查看明细。`;
+  }
+
+  const parts: string[] = [];
+  if (summary.abnormal_count > 0) {
+    parts.push(`${summary.abnormal_count} 个异常素材需检查源文件`);
+  }
+  if (summary.long_task_count > 0) {
+    parts.push(`${summary.long_task_count} 个超长素材需长任务语音识别`);
+  }
+  if (summary.retryable_regular_count > 0) {
+    parts.push(`${summary.retryable_regular_count} 个素材可重新处理`);
+  }
+  if (summary.unknown_count > 0) {
+    parts.push(`${summary.unknown_count} 个失败素材等待明细刷新`);
+  }
+
+  return `${parts.join("，")}。`;
+}
+
 function smartScanActionLabel(action: AdminSmartScanAction): string {
   const labels: Record<AdminSmartScanAction, string> = {
     none: "无需处理",
     "queue-unprocessed": "加入预处理队列",
     "start-preprocess": "启动预处理",
+    "start-long-asr": "长任务语音识别",
     "retry-failed": "重试可继续处理的视频",
     "recover-processing": "恢复卡住任务",
     "publish-index": "查看待上线素材",
@@ -1386,6 +1469,7 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
   const queuedCount = data.jobs.queued_count;
   const activeCount = data.jobs.active_count;
   const failedCount = data.jobs.failed_count;
+  const failureSummary = summarizeAdminPreprocessFailures(data.jobs);
   const indexRequiredCount = data.status.index_required_video_count;
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
 
@@ -1419,9 +1503,11 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
   if (failedCount > 0) {
     suggestions.push({
       key: "failed",
-      label: "存在异常素材",
-      detail: `${failedCount} 个素材处理异常，请到素材处理页区分异常源文件和长任务语音识别。`,
-      action: "retry-failed"
+      label: preprocessFailureTitle(failureSummary),
+      detail: preprocessFailureDetail(failureSummary),
+      action: failureSummary.long_task_count > 0
+        ? "start-long-asr"
+        : failureSummary.retryable_regular_count > 0 ? "retry-failed" : "none"
     });
   }
 
@@ -1474,7 +1560,9 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
     ? "run-doctor"
     : doctorFailureCount > 0
     ? "run-doctor"
-    : failedCount > 0
+    : failedCount > 0 && failureSummary.long_task_count > 0
+      ? "start-long-asr"
+    : failedCount > 0 && failureSummary.retryable_regular_count > 0
       ? "retry-failed"
       : activeCount > 0 && !supervisorRunning
         ? "recover-processing"
@@ -1488,6 +1576,8 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
 
   const severity: AdminSmartScanReport["severity"] = runtimeBlocked || doctorFailureCount > 0
     ? "blocked"
+    : failedCount > 0
+      ? "attention"
     : primaryAction === "none"
       ? "healthy"
       : "attention";
@@ -1496,8 +1586,8 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
     ? "运行负荷存在阻塞风险"
     : primaryAction === "run-doctor"
       ? `系统检查存在 ${doctorFailureCount} 个需处理项`
-    : primaryAction === "retry-failed"
-      ? `有 ${failedCount} 个异常素材需处理`
+    : failedCount > 0
+      ? preprocessFailureTitle(failureSummary)
       : primaryAction === "recover-processing"
       ? `${activeCount} 个处理中任务需要恢复`
       : primaryAction === "publish-index"
@@ -1512,7 +1602,9 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
           ? "预处理服务正在运行"
           : "素材库当前无需处理";
 
-  const detail = primaryAction === "none"
+  const detail = failedCount > 0
+    ? preprocessFailureDetail(failureSummary)
+    : primaryAction === "none"
     ? "系统没有发现需要立即执行的生产动作。"
     : suggestions.find((item) => item.action === primaryAction)?.detail ?? "请按建议执行下一步。";
 
@@ -2578,10 +2670,16 @@ export async function loadAdminDashboardData(
     const [
       adminSettings,
       adminSupervisor,
+      adminJobs,
       dataLoadingPlan
     ] = await Promise.all([
       settleWithin(client.getAdminSettings(), cloneSettings(settings), 6_000),
       settleWithin(client.getPreprocessSupervisorStatus(), jobs.supervisor, 6_000),
+      settleWithin<AdminPreprocessJobsResponse | null>(
+        client.listPreprocessJobs({ limit: ADMIN_DASHBOARD_PREPROCESS_JOB_LOAD_LIMIT }),
+        null,
+        6_000
+      ),
       settleWithin(client.getDataLoadingPlan(), fixtureDataLoadingPlan(), 6_000)
     ]);
 
@@ -2590,7 +2688,7 @@ export async function loadAdminDashboardData(
       path_checks: placeholderPathChecks(libraryStatus),
       settings: adminSettings,
       source_videos: [],
-      jobs: summaryPreprocessJobs(libraryStatus, adminSupervisor),
+      jobs: adminJobs ?? summaryPreprocessJobs(libraryStatus, adminSupervisor),
       indexes: placeholderIndexVersions(libraryStatus),
       doctor: placeholderDoctorReport(libraryStatus),
       runtime: cloneRuntimeSettings(runtime),

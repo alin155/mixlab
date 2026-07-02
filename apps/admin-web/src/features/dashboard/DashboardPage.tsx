@@ -7,6 +7,7 @@ import type {
 } from "../../api.ts";
 import {
   createAdminSmartScanReport,
+  summarizeAdminPreprocessFailures,
   type AdminSmartScanAction,
   type AdminSmartScanReport
 } from "../../api.ts";
@@ -395,6 +396,38 @@ function oneClickActionLabel(report: AdminSmartScanReport): string {
   return report.primary_label;
 }
 
+function dashboardFailureDetail({
+  abnormal_count,
+  long_task_count,
+  retryable_regular_count,
+  unknown_count,
+  total_count,
+  has_failure_details
+}: ReturnType<typeof summarizeAdminPreprocessFailures>): string {
+  if (total_count <= 0) {
+    return "当前没有异常素材";
+  }
+
+  if (!has_failure_details) {
+    return `${total_count} 个失败素材正在刷新分类`;
+  }
+
+  const parts: string[] = [];
+  if (long_task_count > 0) {
+    parts.push(`${long_task_count} 个长任务语音识别`);
+  }
+  if (retryable_regular_count > 0) {
+    parts.push(`${retryable_regular_count} 个可重新处理`);
+  }
+  if (unknown_count > 0) {
+    parts.push(`${unknown_count} 个待刷新`);
+  }
+
+  return parts.length > 0
+    ? `另有 ${parts.join("，")}`
+    : abnormal_count > 0 ? "需检查源文件" : "当前无异常";
+}
+
 function dashboardHealthLabel(data: AdminDashboardData, report: AdminSmartScanReport): string {
   if (report.severity === "blocked") {
     return "需要处理";
@@ -496,6 +529,7 @@ export function DashboardPage({
   const readyRatio = data.status.video_count > 0
     ? Math.round((data.status.ready_video_count / data.status.video_count) * 100)
     : 0;
+  const failureSummary = summarizeAdminPreprocessFailures(data.jobs);
   const queuedPositionByJobId = new Map(
     data.jobs.jobs
       .filter((job) => job.status === "queued")
@@ -510,14 +544,14 @@ export function DashboardPage({
     },
     { label: "队列中", value: data.status.queued_video_count, total: data.status.video_count },
     { label: "待处理", value: data.status.unprocessed_video_count, total: data.status.video_count },
-    { label: "失败", value: data.status.failed_video_count, total: data.status.video_count }
+    { label: "需处理", value: failureSummary.total_count, total: data.status.video_count }
   ];
   const preprocessHealthDetail = supervisorRunning
     ? `${data.jobs.active_count} 正在处理 / ${data.jobs.queued_count} 队列中`
     : data.jobs.active_count > 0
       ? `${data.jobs.active_count} 个待恢复 / ${data.jobs.queued_count} 队列中`
       : `${data.jobs.queued_count} 队列中`;
-  const preprocessHealthTone: AdminCorePathTone = data.jobs.failed_count > 0
+  const preprocessHealthTone: AdminCorePathTone = failureSummary.total_count > 0
     ? "blocked"
     : data.jobs.active_count > 0 && !supervisorRunning
       ? "blocked"
@@ -633,9 +667,9 @@ export function DashboardPage({
             />
             <DashboardSimpleTile
               label="异常素材"
-              value={data.jobs.failed_count}
-              detail={data.jobs.failed_count > 0 ? "去素材处理页区分源文件异常和长任务语音识别" : "当前没有异常素材"}
-              tone={data.jobs.failed_count > 0 ? "blocked" : "healthy"}
+              value={failureSummary.has_failure_details ? failureSummary.abnormal_count : failureSummary.total_count}
+              detail={dashboardFailureDetail(failureSummary)}
+              tone={failureSummary.total_count > 0 ? "blocked" : "healthy"}
             />
             <DashboardSimpleTile
               label="系统状态"
@@ -737,11 +771,15 @@ export function DashboardPage({
               value: data.status.processing_video_count,
               detail: supervisorRunning ? "正在生成产物" : "预处理服务未运行"
             },
-            { label: "异常素材", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "去素材处理页查看" : "当前无异常" },
+            {
+              label: "异常素材",
+              value: failureSummary.has_failure_details ? failureSummary.abnormal_count : failureSummary.total_count,
+              detail: dashboardFailureDetail(failureSummary)
+            },
             { label: "可搜索总时长", value: optionalHoursLabel(data.metrics.material.ready_duration_ms), detail: `总时长 ${optionalHoursLabel(data.metrics.material.total_duration_ms)}` },
             { label: "句子片段", value: optionalCountLabel(data.metrics.transcript.segment_count), detail: `${data.metrics.transcript.transcript_video_count} 个视频有文案` },
             { label: "当前索引", value: data.indexes.current_version, detail: currentIndex ? `协议 ${currentIndex.schema_version}` : "暂无版本详情" },
-            { label: "异常任务", value: data.jobs.failed_count, detail: data.jobs.failed_count > 0 ? "去素材处理页查看" : "当前无异常" },
+            { label: "长任务", value: failureSummary.long_task_count, detail: failureSummary.long_task_count > 0 ? "需专用识别" : "当前无长任务" },
             {
               label: "活跃剪辑师",
               value: `${data.metrics.usage.active_user_count}/${TARGET_CUTTER_SEAT_COUNT}`,
@@ -760,7 +798,7 @@ export function DashboardPage({
             <header className="admin-section-header">
               <div>
                 <h2>预处理进度</h2>
-                <p>已处理 {data.status.ready_video_count} / {data.status.video_count}，队列中 {data.status.queued_video_count}，失败 {data.status.failed_video_count}</p>
+                <p>已处理 {data.status.ready_video_count} / {data.status.video_count}，队列中 {data.status.queued_video_count}，需处理 {failureSummary.total_count}</p>
               </div>
               <div className="admin-action-row">
                 <AdminControlButton
@@ -769,7 +807,7 @@ export function DashboardPage({
                   reason="刷新当前总览数据。"
                   onClick={onRunSmartScan}
                 />
-                {data.status.failed_video_count > 0 ? (
+                {failureSummary.retryable_regular_count > 0 ? (
                   <AdminControlButton
                     label="重试可继续处理的视频"
                     state={dashboardWriteState}
@@ -970,7 +1008,7 @@ export function DashboardPage({
           <DashboardPanel
             title="风险摘要"
             rows={[
-              { label: "处理失败", value: data.metrics.risk.failed_video_count },
+              { label: "需处理素材", value: failureSummary.total_count },
               { label: "已处理待上线", value: data.metrics.risk.index_required_video_count },
               { label: "空搜索", value: data.metrics.usage.search_empty_count },
               { label: "搜索失败", value: coreSearchFailureCount(data.metrics.usage) },
@@ -1052,7 +1090,7 @@ export function DashboardPage({
             {
               title: "操作提示",
               rows: [
-                { label: "异常素材", value: data.jobs.failed_count > 0 ? "去素材处理页查看" : "当前无异常" },
+                { label: "异常素材", value: failureSummary.abnormal_count > 0 ? "去素材处理页查看" : "当前无异常" },
                 { label: "待上线素材", value: data.status.index_required_video_count > 0 ? "去素材处理页查看" : "当前无待上线" },
                 { label: "剪辑师", value: `${data.metrics.usage.active_user_count}/${TARGET_CUTTER_SEAT_COUNT} 正在使用` },
                 { label: "系统状态", value: data.doctor.summary.fail > 0 ? "需要处理" : data.doctor.summary.warn > 0 ? "需要关注" : "正常" }

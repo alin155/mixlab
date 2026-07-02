@@ -1273,9 +1273,11 @@ test("dashboard shell loader requests only shell-safe endpoints", async () => {
           ? fixture.settings
           : pathname === "/api/admin/preprocess/supervisor/status"
             ? fixture.jobs.supervisor
-            : pathname === "/api/admin/data-loading/plan"
-              ? fixture.data_loading_plan
-              : null;
+            : pathname === "/api/admin/preprocess/jobs"
+              ? fixture.jobs
+              : pathname === "/api/admin/data-loading/plan"
+                ? fixture.data_loading_plan
+                : null;
 
       if (!data) {
         throw new Error(`unexpected dashboard shell request: ${pathname}`);
@@ -1294,15 +1296,15 @@ test("dashboard shell loader requests only shell-safe endpoints", async () => {
     "/api/admin/library/status",
     "/api/admin/settings/config",
     "/api/admin/preprocess/supervisor/status",
+    "/api/admin/preprocess/jobs",
     "/api/admin/data-loading/plan"
   ]));
   assert.equal(data.source_videos.length, 0);
-  assert.equal(data.jobs.jobs.length, 0);
+  assert.equal(data.jobs.jobs.length > 0, true);
   assert.equal(data.data_loading_plan.background_prefetch_default, false);
 
   for (const heavyPath of [
     "/api/admin/source-videos",
-    "/api/admin/preprocess/jobs",
     "/api/admin/index/versions",
     "/api/admin/doctor/report",
     "/api/admin/settings/runtime",

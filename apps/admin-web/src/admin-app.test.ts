@@ -627,11 +627,12 @@ test("dashboard renders a simple automated control console", async () => {
     "NAS 目录",
     "保持不迁移",
     "v000027",
-    "重试可继续处理的视频"
+    "长任务语音识别"
   ]) {
     assert.match(html, new RegExp(text));
   }
-  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>重试可继续处理的视频<\/button>/);
+  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>长任务语音识别<\/button>/);
+  assert.doesNotMatch(html, /<button[^>]*>重试可继续处理的视频<\/button>/);
   assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁/);
   assert.doesNotMatch(html, /设备负荷|服务心跳/);
   assert.doesNotMatch(html, /页面契约|admin-read-model|library-manifest|runtime-telemetry|Shell 首屏|数据来源/);
@@ -725,6 +726,56 @@ test("dashboard renders a simple automated control console", async () => {
   assert.doesNotMatch(renderToStaticMarkup(h(DashboardPage, { data: withEnglishTitle })), /AI剪辑实战 V000037/);
 
   assert.doesNotMatch(queuedIdleHtml, /data-control-state="read-only"/);
+});
+
+test("dashboard splits abnormal and long-task failures instead of showing all failed as abnormal", async () => {
+  const data = await fixtureData();
+  const failedJob = data.jobs.jobs.find((job) => job.status === "failed");
+  assert.ok(failedJob);
+
+  const abnormalJobs = Array.from({ length: 59 }, (_, index) => ({
+    ...failedJob,
+    job_id: `J-abnormal-${index}`,
+    source_video_id: `V-abnormal-${index.toString().padStart(3, "0")}`,
+    title: `异常素材 ${index + 1}`,
+    retryable: false,
+    failure_kind: "source-file-missing",
+    failure_label: "源文件缺失",
+    recommended_action: "inspect-source",
+    long_task_recommended: false
+  }));
+  const longTaskJobs = Array.from({ length: 3 }, (_, index) => ({
+    ...failedJob,
+    job_id: `J-long-${index}`,
+    source_video_id: `V-long-${index.toString().padStart(3, "0")}`,
+    title: `长任务素材 ${index + 1}`,
+    retryable: true,
+    failure_kind: "asr-timeout",
+    failure_label: "语音识别等待超时",
+    recommended_action: "long-asr",
+    long_task_recommended: true
+  }));
+  const mixedFailureData = {
+    ...data,
+    status: {
+      ...data.status,
+      failed_video_count: 62
+    },
+    jobs: {
+      ...data.jobs,
+      failed_count: 62,
+      jobs: [...abnormalJobs, ...longTaskJobs]
+    }
+  };
+  const text = visibleText(renderToStaticMarkup(h(DashboardPage, {
+    data: mixedFailureData,
+    smartScanReport: createAdminSmartScanReport(mixedFailureData)
+  })));
+
+  assert.match(text, /3 个超长素材需长任务语音识别/);
+  assert.match(text, /异常素材 59 另有 3 个长任务语音识别/);
+  assert.match(text, /长任务语音识别/);
+  assert.doesNotMatch(text, /异常素材 62/);
 });
 
 test("dashboard keeps rendering when runtime metrics omit source metadata", async () => {
@@ -1047,7 +1098,7 @@ test("smart scan report recommends the next production action", async () => {
   assert.equal(indexRequired.primary_label, "查看待上线素材");
   assert.equal(indexRequired.suggestions.some((item) => item.action === "publish-index"), true);
 
-  const failed = createAdminSmartScanReport({
+  const failedLongTask = createAdminSmartScanReport({
     ...base,
     status: {
       ...base.status,
@@ -1066,8 +1117,37 @@ test("smart scan report recommends the next production action", async () => {
       summary: { pass: 10, warn: 0, fail: 0 }
     }
   });
-  assert.equal(failed.primary_action, "retry-failed");
-  assert.equal(failed.primary_label, "重试可继续处理的视频");
+  assert.equal(failedLongTask.primary_action, "start-long-asr");
+  assert.equal(failedLongTask.primary_label, "长任务语音识别");
+
+  const retryableJob = base.jobs.jobs.find((job) => job.status === "failed")!;
+  const retryableFailed = createAdminSmartScanReport({
+    ...base,
+    status: {
+      ...base.status,
+      unprocessed_video_count: 0,
+      queued_video_count: 0,
+      failed_video_count: 1,
+      index_required_video_count: 0
+    },
+    jobs: {
+      ...base.jobs,
+      queued_count: 0,
+      failed_count: 1,
+      jobs: [{
+        ...retryableJob,
+        retryable: true,
+        long_task_recommended: false,
+        recommended_action: "retry"
+      }]
+    },
+    doctor: {
+      ...base.doctor,
+      summary: { pass: 10, warn: 0, fail: 0 }
+    }
+  });
+  assert.equal(retryableFailed.primary_action, "retry-failed");
+  assert.equal(retryableFailed.primary_label, "重试可继续处理的视频");
 
   const blockedLoad = createAdminSmartScanReport({
     ...base,

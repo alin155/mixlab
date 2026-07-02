@@ -400,7 +400,7 @@ async function loadAdminDashboardPanelData(client: AdminApiClient): Promise<{
 }> {
   const [status, jobs, metrics] = await Promise.all([
     client.getLibraryStatus(),
-    client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT }),
+    client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT }),
     client.getDashboardMetrics()
   ]);
 
@@ -2118,6 +2118,11 @@ export function AdminApp() {
 
     if (action === "start-preprocess") {
       await runAction("启动预处理", startPreprocessBatch);
+      return;
+    }
+
+    if (action === "start-long-asr") {
+      await runAction("长任务语音识别", startLongAsrBatch);
       return;
     }
 
