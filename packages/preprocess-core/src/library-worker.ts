@@ -162,6 +162,7 @@ export async function runLibraryTextPreprocessWorker(
   const items: LibraryTextPreprocessWorkerItem[] = [];
   let claimedSinceCountRefresh = 0;
   let pendingCountRefresh = false;
+  let pendingSuccessfulCompletionRefresh = false;
 
   async function refreshCountsIfNeeded(force = false): Promise<void> {
     if (!pendingCountRefresh) {
@@ -174,6 +175,7 @@ export async function runLibraryTextPreprocessWorker(
     await lifecycle.refresh_library_counts(input.library_root, now());
     claimedSinceCountRefresh = 0;
     pendingCountRefresh = false;
+    pendingSuccessfulCompletionRefresh = false;
   }
 
   while (items.length < maxClaimCount && input.should_stop?.() !== true) {
@@ -252,6 +254,7 @@ export async function runLibraryTextPreprocessWorker(
         source_video_path: sourceVideoPath,
         result: textPreprocess
       });
+      pendingSuccessfulCompletionRefresh = true;
       await refreshCountsIfNeeded();
     } catch (error) {
       const message = errorMessage(error);
@@ -263,8 +266,13 @@ export async function runLibraryTextPreprocessWorker(
         error_stage: failureStage,
         error_message: message
       });
-      claimedSinceCountRefresh = 0;
-      pendingCountRefresh = false;
+      if (pendingSuccessfulCompletionRefresh) {
+        pendingCountRefresh = true;
+        await refreshCountsIfNeeded(true);
+      } else {
+        claimedSinceCountRefresh = 0;
+        pendingCountRefresh = false;
+      }
       items.push({
         status: "failed",
         source_video_id: job.source_video_id,
