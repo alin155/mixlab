@@ -2165,7 +2165,7 @@ test("preprocess route loader keeps process history route-owned and locally reco
   const result = await loadAdminPreprocessRouteData(client);
 
   assert.deepEqual(calls.map((call) => call.kind), ["jobs", "history"]);
-  assert.deepEqual(calls[0]?.options, { limit: 20 });
+  assert.deepEqual(calls[0]?.options, { limit: 200 });
   assert.deepEqual(calls[1]?.options, { limit: 20, window_days: 30 });
   assert.equal((result.jobs?.jobs.length ?? 0) > 0, true);
   assert.equal(result.processHistory?.scan_mode, "no-scan");
@@ -2181,7 +2181,7 @@ test("preprocess route loader keeps process history route-owned and locally reco
   });
 
   assert.deepEqual(calls.map((call) => call.kind), ["jobs", "history"]);
-  assert.deepEqual(calls[0]?.options, { limit: 20 });
+  assert.deepEqual(calls[0]?.options, { limit: 200 });
   assert.deepEqual(calls[1]?.options, {
     limit: 20,
     window_days: 30,

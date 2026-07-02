@@ -255,6 +255,7 @@ export const ADMIN_DATA_AUTO_REFRESH_INTERVAL_MS = 30_000;
 export const ADMIN_PREPROCESS_RUNNING_REFRESH_INTERVAL_MS = 5_000;
 const ADMIN_SOURCE_VIDEO_INITIAL_LOAD_LIMIT = 20;
 const ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT = 20;
+const ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT = 200;
 const ADMIN_PREPROCESS_PROCESS_HISTORY_INITIAL_LOAD_LIMIT = 20;
 const ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS = 8_000;
 const ADMIN_CUTTER_USERS_LOAD_TIMEOUT_MS = 20_000;
@@ -265,7 +266,7 @@ export async function loadAdminPreprocessRouteData(
 ) {
   const [jobsResult, processHistoryResult] = await Promise.all([
     withAdminLoadTimeout(
-      client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT }),
+      client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT }),
       "预处理队列加载"
     )
       .then((jobs) => ({
