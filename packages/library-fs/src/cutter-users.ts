@@ -596,6 +596,10 @@ export async function loginCutterAccount(
         candidate.user_id === user.user_id &&
         candidate.device_id === input.device_id
     );
+    if (session && (!user.approved_at || session.last_seen_at !== user.approved_at)) {
+      return { ok: true, user, session };
+    }
+
     if (!session) {
       session = {
         user_id: user.user_id,
