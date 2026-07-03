@@ -123,6 +123,7 @@ import {
   routeToHash,
   searchHash,
   searchQueryFromHash,
+  searchSourceFolderFromHash,
   sourceDetailContextFromHash,
   sourceVideoIdFromHash,
   type CutterRoute
@@ -1013,7 +1014,11 @@ export function mergeMaterialLocatorReloadData(
   return {
     ...next,
     library,
-    search
+    search,
+    primaryDetail:
+      normalizedActiveQuery && normalizedCurrentSearchQuery === normalizedActiveQuery
+        ? current.primaryDetail
+        : next.primaryDetail
   };
 }
 
@@ -1268,6 +1273,8 @@ function renderPage(
     orientationFilter: VideoOrientationFilter;
     publicLibraryOrientationFilter: VideoOrientationFilter;
     publicLibrarySelectedSourceVideoId?: string;
+    publicLibraryFilenameQuery: string;
+    publicLibraryFilenameSearching: boolean;
     sourceLibraryLoadingMore: boolean;
     localClipsLoadingMore: boolean;
     cutJobsLoadingMore: boolean;
@@ -1304,6 +1311,7 @@ function renderPage(
     setSourceFolderFilter: (folderName: string) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
     setPublicLibraryOrientationFilter: (filter: VideoOrientationFilter) => void;
+    searchPublicLibraryFilename: (query: string) => void;
     selectPublicSourceVideo: (sourceVideoId: string) => void;
     loadMoreSourceLibrary: () => void;
     loadMoreSearchResults: () => void;
@@ -1322,8 +1330,10 @@ function renderPage(
     refreshQueue?: () => void;
     runNextJob?: () => void;
     retryFailedCutJob?: (cutJobId: string) => void;
+    cancelCutJob?: (cutJobId: string) => void;
     openCutOutputDirectory: () => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
+    deleteLocalClip: (localClip: LocalClip) => void;
     selectLocalClip: (localClipId: string) => void;
     setLocalLibraryViewMode: (mode: LocalLibraryViewMode) => void;
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
@@ -1340,7 +1350,10 @@ function renderPage(
         projects={viewState.projects}
         selectedProjectId={viewState.homeSelectedProjectId}
         queue={queue}
+        sourceFolderFilter={viewState.sourceFolderFilter}
+        sourceFolders={viewState.sourceFolders}
         onSearch={handlers.searchFromProjectHome}
+        onSetSourceFolderFilter={handlers.setSourceFolderFilter}
         onSelectProject={handlers.selectProject}
         onOpenProject={handlers.openProject}
         onOpenProjectDirectory={handlers.openProjectDirectory}
@@ -1356,8 +1369,12 @@ function renderPage(
       <SourceDetailPage
         detail={data.primaryDetail}
         selectedSegments={viewState.selectedSegments}
+        selectedStartCharOffset={viewState.selectedStartCharOffset}
+        selectedEndCharOffset={viewState.selectedEndCharOffset}
         highlightedSegmentIds={viewState.highlightedSegmentIds}
-        onSelectSegment={handlers.selectTranscriptSegment}
+        onSelectTranscriptRange={handlers.selectTranscriptRange}
+        onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
+        onCancelSelection={handlers.cancelTranscriptSelection}
         onAddToCutList={handlers.addSelectedSpan}
       />
     );
@@ -1420,6 +1437,7 @@ function renderPage(
         onSetOrientationFilter={handlers.setOrientationFilter}
         onSelectLocalClip={handlers.selectLocalClip}
         onOpenLocalClipDirectory={handlers.openLocalClipDirectory}
+        onDeleteLocalClip={handlers.deleteLocalClip}
         onLoadMore={handlers.loadMoreLocalClips}
         isLoadingMore={viewState.localClipsLoadingMore}
       />
@@ -1439,6 +1457,7 @@ function renderPage(
         onRefresh={handlers.refreshQueue}
         onRunNext={handlers.runNextJob}
         onRetryFailed={handlers.retryFailedCutJob}
+        onCancelJob={handlers.cancelCutJob}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
         onLoadMore={handlers.loadMoreCutJobs}
       />
@@ -1479,12 +1498,15 @@ function renderPage(
       selectedSourceVideoId={viewState.publicLibrarySelectedSourceVideoId}
       orientationFilter={viewState.publicLibraryOrientationFilter}
       sourceFolderFilter={viewState.sourceFolderFilter}
+      filenameQuery={viewState.publicLibraryFilenameQuery}
       sourceFolders={viewState.sourceFolders}
       runtimeStatus={data.runtimeStatus}
       isLoadingMore={viewState.sourceLibraryLoadingMore}
+      isSearchingFilename={viewState.publicLibraryFilenameSearching}
       hasMore={data.library.videos.length < data.library.available_video_count}
       onSetOrientationFilter={handlers.setPublicLibraryOrientationFilter}
       onSetSourceFolderFilter={handlers.setSourceFolderFilter}
+      onSearchFilename={handlers.searchPublicLibraryFilename}
       onSelectSourceVideo={handlers.selectPublicSourceVideo}
       onLoadMore={handlers.loadMoreSourceLibrary}
     />
@@ -1522,7 +1544,9 @@ export function CutterApp() {
   const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>(() =>
     readCutterDefaultSourceFilter()
   );
-  const [sourceFolderFilter, setSourceFolderFilter] = useState("");
+  const [sourceFolderFilter, setSourceFolderFilter] = useState(() =>
+    searchSourceFolderFromHash(window.location.hash)
+  );
   const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>(() =>
     readCutterDefaultOrientationFilter()
   );
@@ -1530,6 +1554,8 @@ export function CutterApp() {
     useState<VideoOrientationFilter>("all");
   const [publicLibrarySelectedSourceVideoId, setPublicLibrarySelectedSourceVideoId] =
     useState<string | undefined>();
+  const [publicLibraryFilenameQuery, setPublicLibraryFilenameQuery] = useState("");
+  const [publicLibraryFilenameSearching, setPublicLibraryFilenameSearching] = useState(false);
   const [selectedCutMode, setSelectedCutMode] = useState<CutMode>(() => readCutterDefaultCutMode());
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
@@ -2325,6 +2351,9 @@ export function CutterApp() {
       setSelectedSourceVideoId(sourceVideoIdFromHash(nextHash));
       setSelectedLocalClipId(undefined);
       setSearchQuery(nextSearchQuery);
+      if (nextRoute === "material-locator") {
+        setSourceFolderFilter(searchSourceFolderFromHash(nextHash));
+      }
       setSourceDetailContext(sourceDetailContextFromHash(nextHash));
       setTranscriptSelection({});
       setLocatorHighlightedSegmentIds([]);
@@ -2364,16 +2393,24 @@ export function CutterApp() {
       includeRuntimeCache: route === "cache-management",
       sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
       sourceFolderName: sourceFolderFilter || undefined,
+      sourceLibraryFilenameQuery:
+        route === "public-library" ? publicLibraryFilenameQuery || undefined : undefined,
       localClipLimit: CUTTER_LOCAL_CLIP_INITIAL_LOAD_LIMIT
     })
       .then((result) => {
         if (!cancelled) {
           setData((current) => mergeMaterialLocatorReloadData(current, result, searchQuery));
           setError("");
+          if (route === "public-library") {
+            setPublicLibraryFilenameSearching(false);
+          }
         }
       })
       .catch((loadError) => {
         if (!cancelled) {
+          if (route === "public-library") {
+            setPublicLibraryFilenameSearching(false);
+          }
           showRecoverableError(
             loadError instanceof Error
               ? `工作台刷新失败：${loadError.message}`
@@ -2385,7 +2422,15 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, desktopSetupReady, loginGateVisible, route, sourceFolderFilter, workbenchPreferredSourceVideoId]);
+  }, [
+    client,
+    desktopSetupReady,
+    loginGateVisible,
+    publicLibraryFilenameQuery,
+    route,
+    sourceFolderFilter,
+    workbenchPreferredSourceVideoId
+  ]);
 
   useEffect(() => {
     setData((current) =>
@@ -2520,13 +2565,19 @@ export function CutterApp() {
             : current
         );
         const latestData = dataRef.current;
-        const hitTargets = latestData
+        const searchData = latestData
+          ? {
+              ...latestData,
+              search: firstPage
+            }
+          : undefined;
+        const hitTargets = searchData
           ? materialLocatorHitTargets({
               query,
               sourceFilter,
               orientationFilter,
-              localClips: latestData.localClips,
-              library: latestData.library,
+              localClips: searchData.localClips,
+              library: searchData.library,
               search: firstPage
             })
           : [];
@@ -2851,9 +2902,15 @@ export function CutterApp() {
   };
 
   const handleSetSourceFolderFilter = (folderName: string) => {
-    setSourceFolderFilter(folderName.trim());
+    const nextFolderName = folderName.trim();
+    setSourceFolderFilter(nextFolderName);
     setPublicLibrarySelectedSourceVideoId(undefined);
     clearMaterialLocatorFocus();
+    if (route === "material-locator") {
+      window.location.hash = searchHash(searchQuery, { sourceFolderName: nextFolderName || undefined });
+    } else if (route === "public-library" && publicLibraryFilenameQuery.trim()) {
+      setPublicLibraryFilenameSearching(true);
+    }
   };
 
   const handleSetOrientationFilter = (filter: VideoOrientationFilter) => {
@@ -2864,6 +2921,15 @@ export function CutterApp() {
 
   const handleSetPublicLibraryOrientationFilter = (filter: VideoOrientationFilter) => {
     setPublicLibraryOrientationFilter(normalizeVideoOrientationFilter(filter));
+  };
+
+  const handleSearchPublicLibraryFilename = (query: string) => {
+    const nextQuery = query.trim();
+    setPublicLibraryFilenameQuery(nextQuery);
+    setPublicLibrarySelectedSourceVideoId(undefined);
+    if (route === "public-library") {
+      setPublicLibraryFilenameSearching(true);
+    }
   };
 
   const handleChangePassword = async (passwordInput: CutterPasswordChangeRequest) => {
@@ -2934,7 +3000,8 @@ export function CutterApp() {
       const nextPage = await client.listSourceLibrary({
         limit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
         offset,
-        sourceFolderName: sourceFolderFilter || undefined
+        sourceFolderName: sourceFolderFilter || undefined,
+        filenameQuery: publicLibraryFilenameQuery || undefined
       });
       const nextVideos = nextPage.videos.map((video) => resolveSourceVideoCardUrls(client, video));
 
@@ -2960,7 +3027,7 @@ export function CutterApp() {
     } finally {
       setSourceLibraryLoadingMore(false);
     }
-  }, [client, sourceFolderFilter, sourceLibraryLoadingMore]);
+  }, [client, publicLibraryFilenameQuery, sourceFolderFilter, sourceLibraryLoadingMore]);
 
   const commitDesktopConfigDraft = (config: DesktopConfig, stage = desktopSetupStageForConfig(config)) => {
     setDesktopConfig(config);
@@ -3140,7 +3207,7 @@ export function CutterApp() {
     setMaterialSearchPending(Boolean(nextQuery));
     setLastMaterialSearchDurationMs(undefined);
     setCutNotice("");
-    window.location.hash = searchHash(nextQuery);
+    window.location.hash = searchHash(nextQuery, { sourceFolderName: sourceFolderFilter || undefined });
   }
 
   function startProjectHomeSearch(query: string) {
@@ -3309,7 +3376,7 @@ export function CutterApp() {
       const latestQuery = project?.searches[0]?.query.trim() ?? "";
       if (latestQuery) {
         setSearchQuery(latestQuery);
-        window.location.hash = searchHash(latestQuery);
+        window.location.hash = searchHash(latestQuery, { sourceFolderName: sourceFolderFilter || undefined });
         return;
       }
 
@@ -3399,6 +3466,7 @@ export function CutterApp() {
     setSourceFolderFilter: handleSetSourceFolderFilter,
     setOrientationFilter: handleSetOrientationFilter,
     setPublicLibraryOrientationFilter: handleSetPublicLibraryOrientationFilter,
+    searchPublicLibraryFilename: handleSearchPublicLibraryFilename,
     selectPublicSourceVideo: setPublicLibrarySelectedSourceVideoId,
     loadMoreSourceLibrary: handleLoadMoreSourceLibrary,
     loadMoreSearchResults: handleLoadMoreMaterialSearchResults,
@@ -3527,7 +3595,7 @@ export function CutterApp() {
       if (!apiMode) {
         setQueueJobs((current) =>
           current.map((job) =>
-            job.queue_job_id === cutJobId && job.status === "failed"
+            job.queue_job_id === cutJobId && (job.status === "failed" || job.status === "cancelled")
               ? {
                   ...job,
                   status: "pending",
@@ -3566,6 +3634,46 @@ export function CutterApp() {
         setError(retryError instanceof Error ? retryError.message : "重试剪切任务失败");
       }
     },
+    cancelCutJob: async (cutJobId: string) => {
+      if (!apiMode) {
+        setQueueJobs((current) =>
+          current.map((job) =>
+            job.queue_job_id === cutJobId && (job.status === "pending" || job.status === "running")
+              ? {
+                  ...job,
+                  status: "cancelled",
+                  progress: 0,
+                  error_message: "用户取消剪辑任务"
+                }
+              : job
+          )
+        );
+        setCutNotice("已取消剪辑任务");
+        return;
+      }
+
+      try {
+        const cancelled = await client.cancelCutJob(cutJobId);
+        const cancelledQueueJob = mapApiCutJobsToQueueJobs({
+          job_count: 1,
+          jobs: [cancelled]
+        }, {
+          projectIndex: cutJobProjectIndex,
+          projectTitlesById: cutterProjectTitlesById(projects)
+        })[0];
+
+        if (cancelledQueueJob) {
+          setQueueJobs((current) =>
+            current.map((job) => job.queue_job_id === cutJobId ? cancelledQueueJob : job)
+          );
+        }
+
+        setCutNotice("已取消剪辑任务");
+        await refreshQueueJobs();
+      } catch (cancelError) {
+        setError(cancelError instanceof Error ? cancelError.message : "取消剪辑任务失败");
+      }
+    },
     openCutOutputDirectory: async () => {
       if (!apiMode) {
         setCutNotice("请先连接本机剪辑服务，再打开文件目录");
@@ -3600,6 +3708,47 @@ export function CutterApp() {
         setCutNotice(localClip.project_id ? "已打开本地素材所属项目目录" : "已打开本地素材目录");
       } catch (openError) {
         setError(openError instanceof Error ? openError.message : "打开本地素材目录失败");
+      }
+    },
+    deleteLocalClip: async (localClip: LocalClip) => {
+      if (!apiMode) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                localClips: {
+                  ...current.localClips,
+                  local_clip_count: Math.max(0, current.localClips.local_clip_count - 1),
+                  clips: current.localClips.clips.filter((clip) => clip.local_clip_id !== localClip.local_clip_id)
+                }
+              }
+            : current
+        );
+        setLocalLibrarySelectedClipId(undefined);
+        setCutNotice("已删除本地素材");
+        return;
+      }
+
+      try {
+        await client.deleteLocalClip(localClip.local_clip_id);
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                localClips: {
+                  ...current.localClips,
+                  local_clip_count: Math.max(0, current.localClips.local_clip_count - 1),
+                  clips: current.localClips.clips.filter((clip) => clip.local_clip_id !== localClip.local_clip_id)
+                }
+              }
+            : current
+        );
+        if (localLibrarySelectedClipId === localClip.local_clip_id) {
+          setLocalLibrarySelectedClipId(undefined);
+        }
+        setCutNotice("已删除本地素材及对应文件");
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "删除本地素材失败");
       }
     },
     setAppearanceMode: handleSetAppearanceMode,
@@ -3809,6 +3958,8 @@ export function CutterApp() {
                 orientationFilter,
                 publicLibraryOrientationFilter,
                 publicLibrarySelectedSourceVideoId,
+                publicLibraryFilenameQuery,
+                publicLibraryFilenameSearching,
                 sourceLibraryLoadingMore,
                 localClipsLoadingMore,
                 cutJobsLoadingMore,

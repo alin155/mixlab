@@ -495,18 +495,25 @@ export interface CutterApiClient {
   getAuthMode(): Promise<CutterAuthModeStatus>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
-  listSourceLibrary(options?: { limit?: number; offset?: number; sourceFolderName?: string }): Promise<SourceLibraryResponse>;
+  listSourceLibrary(options?: {
+    limit?: number;
+    offset?: number;
+    sourceFolderName?: string;
+    filenameQuery?: string;
+  }): Promise<SourceLibraryResponse>;
   listSourceFolders(): Promise<SourceFolderResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
   searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string; sourceFolderName?: string }): Promise<SearchResponse>;
   listLocalClips(options?: { limit?: number; offset?: number }): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
+  deleteLocalClip(localClipId: string): Promise<{ local_clip_id: string; deleted: boolean }>;
   createLocalClip(request: CreateLocalClipRequest): Promise<LocalClip>;
   createClipList(request: CreateClipListRequest): Promise<ClipList>;
   submitCutJobs(request: SubmitCutJobsRequest): Promise<CutJobSubmission>;
   listCutJobs(options?: { limit?: number; offset?: number }): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
   retryCutJob(cutJobId: string): Promise<CutJob>;
+  cancelCutJob(cutJobId: string): Promise<CutJob>;
   openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
   deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
@@ -689,6 +696,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       if (options?.sourceFolderName) {
         params.set("source_folder_name", options.sourceFolderName);
       }
+      if (options?.filenameQuery) {
+        params.set("filename_query", options.filenameQuery);
+      }
       const query = params.toString();
       return requestEnvelope<SourceLibraryResponse>(
         fetchImpl,
@@ -762,6 +772,17 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         fetchImpl,
         appendPath(input.base_url, `/cutter/local-clips/${encodeURIComponent(localClipId)}`),
         {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    deleteLocalClip(localClipId: string) {
+      return requestEnvelope<{ local_clip_id: string; deleted: boolean }>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/local-clips/${encodeURIComponent(localClipId)}`),
+        {
+          method: "DELETE",
           headers: protectedHeaders
         }
       );
@@ -854,6 +875,17 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       return requestEnvelope<CutJob>(
         fetchImpl,
         appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/retry`),
+        {
+          method: "POST",
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    cancelCutJob(cutJobId: string) {
+      return requestEnvelope<CutJob>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/cancel`),
         {
           method: "POST",
           headers: protectedHeaders

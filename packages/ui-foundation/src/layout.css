@@ -516,6 +516,16 @@ button.ml-sidebar-item {
   margin-left: 0;
 }
 
+.ml-workbench-hero-actions--with-filter {
+  grid-template-columns: minmax(132px, 176px) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.ml-workbench-hero-filter {
+  width: 100%;
+  min-height: 45px;
+}
+
 .ml-workbench-board {
   display: grid;
   grid-template-columns:
@@ -3226,6 +3236,10 @@ video.ml-media-frame {
 
   .ml-workbench-hero-actions {
     margin-top: 0;
+  }
+
+  .ml-workbench-hero-actions--with-filter {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .ml-workbench-board {

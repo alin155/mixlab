@@ -46,6 +46,7 @@ export interface LoadCutterWorkbenchDataOptions {
   includeRuntimeCache?: boolean;
   sourceLibraryLimit?: number;
   sourceFolderName?: string;
+  sourceLibraryFilenameQuery?: string;
   localClipLimit?: number;
 }
 
@@ -714,9 +715,12 @@ export function emptySearchResponse(query = ""): SearchResponse {
 }
 
 function searchGroupText(group: SearchResponse["groups"][number]): string {
+  const metadata = group as Partial<{ relative_path: string; source_folder_name: string }>;
   return [
     group.title,
     group.best_excerpt,
+    metadata.relative_path,
+    metadata.source_folder_name,
     ...group.hit_segments.map((segment) => segment.text)
   ].filter(Boolean).join(" ");
 }
@@ -906,13 +910,36 @@ export function createFixtureCutterApiClient(): CutterApiClient {
     async getRuntimeStatus() {
       return data.runtimeStatus;
     },
-    async listSourceLibrary(options?: { limit?: number; offset?: number; sourceFolderName?: string }) {
+    async listSourceLibrary(options?: {
+      limit?: number;
+      offset?: number;
+      sourceFolderName?: string;
+      filenameQuery?: string;
+    }) {
       const sourceFolderName = options?.sourceFolderName?.trim();
+      const filenameQuery = options?.filenameQuery?.trim().toLowerCase();
       const offset = options?.offset && options.offset > 0 ? options.offset : 0;
       const limit = options?.limit && options.limit > 0 ? options.limit : data.library.videos.length;
-      const videos = sourceFolderName
-        ? data.library.videos.filter((video) => video.source_folder_name === sourceFolderName)
-        : data.library.videos;
+      const videos = data.library.videos.filter((video) => {
+        if (sourceFolderName && video.source_folder_name !== sourceFolderName) {
+          return false;
+        }
+
+        if (!filenameQuery) {
+          return true;
+        }
+
+        return [
+          video.title,
+          video.relative_path,
+          video.source_folder_name,
+          video.lecturer,
+          video.course,
+          video.category
+        ]
+          .filter((part): part is string => Boolean(part))
+          .some((part) => part.toLowerCase().includes(filenameQuery));
+      });
 
       return {
         ...data.library,
@@ -971,6 +998,15 @@ export function createFixtureCutterApiClient(): CutterApiClient {
     },
     async getLocalClipDetail(localClipId: string) {
       return data.localClips.clips.find((clip) => clip.local_clip_id === localClipId) ?? data.localClips.clips[0]!;
+    },
+    async deleteLocalClip(localClipId: string) {
+      const initialCount = data.localClips.clips.length;
+      data.localClips.clips = data.localClips.clips.filter((clip) => clip.local_clip_id !== localClipId);
+      data.localClips.local_clip_count = data.localClips.clips.length;
+      return {
+        local_clip_id: localClipId,
+        deleted: data.localClips.clips.length < initialCount
+      };
     },
     async createLocalClip(request) {
       return fixtureLocalClipFromRequest(request);
@@ -1069,6 +1105,17 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         status: "pending",
         created_at: "2026-05-02T10:00:00Z",
         updated_at: "2026-05-02T10:17:00Z"
+      };
+    },
+    async cancelCutJob(cutJobId: string): Promise<CutJob> {
+      return {
+        cut_job_id: cutJobId,
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000002",
+        status: "cancelled",
+        error_message: "用户取消剪辑任务",
+        created_at: "2026-05-02T10:05:00Z",
+        updated_at: "2026-05-02T10:18:00Z"
       };
     },
     async openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest) {
@@ -1240,7 +1287,8 @@ export async function loadCutterWorkbenchData(
     includeSourceLibrary
       ? client.listSourceLibrary({
           limit: options.sourceLibraryLimit,
-          sourceFolderName: options.sourceFolderName
+          sourceFolderName: options.sourceFolderName,
+          filenameQuery: options.sourceLibraryFilenameQuery
         })
       : Promise.resolve(undefined)
   ]);

@@ -4,6 +4,7 @@ export {
   buildCanonicalClipTitle,
   buildExportClipFileName,
   buildProjectClipOutputFile,
+  deleteExportClip,
   exportClipsDirectory,
   getExportClipDetail,
   listExportClips,
@@ -13,6 +14,8 @@ export {
 export type {
   BuildExportClipArtifactPathsInput,
   BuildExportClipFileNameInput,
+  DeleteExportClipInput,
+  DeleteExportClipResult,
   ExportClipArtifactPaths,
   ExportClipCatalog,
   ExportClipView,
@@ -36,6 +39,7 @@ export type {
   WriteClipListItemInput
 } from "./cut-list.ts";
 export {
+  cancelCutJob,
   getCutJob,
   listCutJobs,
   readCutTempCacheStatus,
@@ -57,6 +61,7 @@ export type {
   CutJobStatus,
   CutJobSubmission,
   CutTempCacheStatus,
+  CancelCutJobInput,
   CoverRunner,
   CoverRunnerInput,
   CutRunner,

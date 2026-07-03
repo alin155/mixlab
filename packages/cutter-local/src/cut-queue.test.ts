@@ -1176,7 +1176,7 @@ test("retry rejects non-failed cut jobs", async () => {
         cut_job_id: submission.jobs[0]!.cut_job_id,
         now: "2026-05-04T10:01:00.000Z"
       }),
-    /only failed cut jobs can be retried/
+    /only failed or cancelled cut jobs can be retried/
   );
 });
 

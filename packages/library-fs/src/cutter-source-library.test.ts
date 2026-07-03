@@ -213,6 +213,57 @@ async function prepareLibrary(): Promise<string> {
   return libraryRoot;
 }
 
+async function prepareChineseFilenameSearchLibrary(): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "王牧笛", "财富门道-现在这家南京的项目.mp4"));
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "王牧笛", "普通课程.mp4"));
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  for (let index = 0; index < 2; index += 1) {
+    const job = await claimNextPreprocessJob({
+      library_root: libraryRoot,
+      worker_id: "worker-a",
+      now: `2026-05-02T00:0${index + 1}:00Z`
+    });
+    assert.ok(job);
+    const manifest = await readSourceVideoManifest(libraryRoot, job.source_video_id);
+    const isFilenameMatch = manifest.relative_path.includes("现在这家南京的项目");
+    const text = isFilenameMatch
+      ? "这一段文案和文件名没有重合。"
+      : "现在这家南京的项目公司要开会。";
+
+    await writeReadyArtifacts({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      full_text: text,
+      segments: [
+        segment({
+          source_video_id: job.source_video_id,
+          index: 0,
+          begin_ms: 1000,
+          end_ms: 3600,
+          text,
+          normalized_text: text.replace(/[^\p{L}\p{N}]+/gu, "")
+        })
+      ]
+    });
+    await completeVideoToReady({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      duration_ms: 123_000
+    });
+  }
+
+  return libraryRoot;
+}
+
 async function prepareTeacherFolderLibrary(): Promise<string> {
   const libraryRoot = await makeLibraryRoot();
 
@@ -498,6 +549,41 @@ test("searches only cutter-visible ready transcripts and enriches groups with co
     limit: 20
   });
   assert.deepEqual(hiddenOnly.groups, []);
+
+  const filenameOnly = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "01_现金流.mp4",
+    limit: 20
+  });
+  assert.deepEqual(
+    filenameOnly.groups.map((group) => group.source_video_id),
+    ["V000001"]
+  );
+  assert.equal(filenameOnly.groups[0]?.hit_segments[0]?.match_ranges.length, 0);
+
+  const filenameMissDoesNotSearchTranscript = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "账面.数字",
+    limit: 20
+  });
+  assert.deepEqual(filenameMissDoesNotSearchTranscript.groups, []);
+});
+
+test("prefers long Chinese source filename matches over transcript matches", async () => {
+  const libraryRoot = await prepareChineseFilenameSearchLibrary();
+
+  const result = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "现在这家南京的项目",
+    limit: 10
+  });
+
+  assert.equal(result.search_mode, "sqlite-index");
+  assert.deepEqual(
+    result.groups.map((group) => group.relative_path),
+    ["王牧笛/财富门道-现在这家南京的项目.mp4"]
+  );
+  assert.equal(result.groups[0]?.hit_segments[0]?.match_ranges.length, 0);
 });
 
 test("source folder filters keep similar teacher folder names separate", async () => {
@@ -548,6 +634,17 @@ test("source folder filters keep similar teacher folder names separate", async (
   });
   assert.deepEqual(
     taoTwoSearch.groups.map((group) => `${group.source_folder_name}:${group.source_video_id}`),
+    ["陶矜2:V000002"]
+  );
+
+  const taoTwoFilenameList = await listCutterSourceLibrary({
+    library_root: libraryRoot,
+    filename_query: "陶矜2/现金流",
+    source_folder_name: "陶矜2"
+  });
+  assert.equal(taoTwoFilenameList.available_video_count, 1);
+  assert.deepEqual(
+    taoTwoFilenameList.videos.map((video) => `${video.source_folder_name}:${video.source_video_id}`),
     ["陶矜2:V000002"]
   );
 });

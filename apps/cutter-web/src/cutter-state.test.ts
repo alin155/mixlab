@@ -270,6 +270,84 @@ test("material locator groups public source materials before local reusable mate
   assert.equal(sections[1]?.items[0]?.orientation_label, "竖版");
 });
 
+test("material locator filename search does not mix local clip text matches into source results", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "C0510",
+    sourceFilter: "all",
+    orientationFilter: "all",
+    localClips: {
+      local_clip_count: 1,
+      clips: [
+        {
+          local_clip_id: "E000001",
+          title: "1-6月4日-C0510",
+          source_video_id: "V000815",
+          source_title: "C0510",
+          begin_ms: 0,
+          end_ms: 4200,
+          duration_ms: 4200,
+          selected_text: "C0510 本地剪辑片段",
+          media_url: "/cutter/local-clips/E000001/media",
+          detail_url: "/cutter/local-clips/E000001",
+          width: 1920,
+          height: 1080,
+          transcript_segments: [
+            {
+              segment_id: "E000001-S000001",
+              begin_ms: 0,
+              end_ms: 4200,
+              text: "C0510 本地剪辑片段"
+            }
+          ]
+        }
+      ]
+    } as unknown as LocalClipCatalog,
+    library: {
+      available_video_count: 1,
+      videos: [
+        {
+          source_video_id: "V000815",
+          title: "C0510",
+          duration_ms: 2_203_702,
+          media_url: "/cutter/source-videos/V000815/media",
+          cover_url: "/cutter/source-videos/V000815/cover",
+          detail_url: "/cutter/source-videos/V000815",
+          width: 1920,
+          height: 1080
+        }
+      ]
+    } as SourceLibraryResponse,
+    search: {
+      query: "C0510",
+      normalized_query: "c0510",
+      groups: [
+        {
+          source_video_id: "V000815",
+          title: "C0510",
+          duration_ms: 2_203_702,
+          hit_count: 1,
+          best_excerpt: "C0510",
+          hit_segments: [
+            {
+              segment_id: "V000815-S000001",
+              begin_ms: 2420,
+              end_ms: 5718,
+              text: "感到你们学习状态很有热情哈。",
+              match_ranges: [],
+              match_id: "V000815-F000001",
+              match_type: "exact"
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(sections.map((section) => section.key), ["public"]);
+  assert.equal(sections[0]?.items[0]?.title, "C0510");
+  assert.equal(sections[0]?.items[0]?.source, "public");
+});
+
 test("material locator searches timestamped local clip transcript segments instead of the whole clip text", () => {
   const sections = buildMaterialLocatorSections({
     query: "账面数字",

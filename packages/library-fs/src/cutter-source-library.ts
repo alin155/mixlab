@@ -11,6 +11,7 @@ import {
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
 import {
+  normalizeTranscriptSearchQuery,
   searchTranscripts,
   type TranscriptSearchGroup
 } from "../../search-core/src/index.ts";
@@ -38,6 +39,7 @@ export interface ListCutterSourceLibraryInput {
   limit?: number;
   offset?: number;
   source_folder_name?: string;
+  filename_query?: string;
 }
 
 export interface ListCutterSourceFoldersInput {
@@ -58,6 +60,7 @@ export interface SearchCutterSourceLibraryInput {
   limit: number;
   cursor?: string;
   source_folder_name?: string;
+  filename_only?: boolean;
 }
 
 export interface CutterSourceVideoCard {
@@ -501,6 +504,145 @@ function matchesSourceFolderName(manifest: SourceVideoManifest, sourceFolderName
   return !normalized || sourceFolderNameFromRelativePath(manifest.relative_path) === normalized;
 }
 
+function sourceVideoFilenameSearchText(video: CutterSourceVideoCard): string {
+  return [
+    video.title,
+    path.basename(video.relative_path),
+    video.relative_path,
+    video.source_folder_name,
+    video.lecturer,
+    video.course,
+    video.category
+  ]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(" ");
+}
+
+function normalizedTextIncludesQuery(text: string, query: string): boolean {
+  const normalizedQuery = normalizeTranscriptSearchQuery(query);
+  return Boolean(normalizedQuery) && normalizeTranscriptSearchQuery(text).includes(normalizedQuery);
+}
+
+function looksLikeSourceFilenameQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  return (
+    /[\\/_.-]/.test(trimmed) ||
+    /\.(mp4|mov|mkv|m4v|avi|webm)$/i.test(trimmed) ||
+    (/[A-Za-z]/.test(trimmed) && /\d/.test(trimmed))
+  );
+}
+
+function shouldTrySourceFilenameSearch(query: string): boolean {
+  const normalized = normalizeTranscriptSearchQuery(query);
+  if (!normalized) {
+    return false;
+  }
+
+  if (looksLikeSourceFilenameQuery(query)) {
+    return true;
+  }
+
+  const cjkLength = [...query.matchAll(/\p{Script=Han}/gu)].length;
+  return cjkLength >= 4 || normalized.length >= 8;
+}
+
+async function listCutterSourceLibraryByFilename(
+  input: ListCutterSourceLibraryInput
+): Promise<CutterSourceLibraryView> {
+  const query = input.filename_query?.trim() ?? "";
+  const fullView = await listCutterSourceLibrary({
+    library_root: input.library_root,
+    ...(input.release_root ? { release_root: input.release_root } : {}),
+    source_folder_name: input.source_folder_name
+  });
+  const matched = query
+    ? fullView.videos.filter((video) =>
+        normalizedTextIncludesQuery(sourceVideoFilenameSearchText(video), query)
+      )
+    : fullView.videos;
+  const offset = Math.max(0, input.offset ?? 0);
+  const limit = input.limit && input.limit > 0 ? input.limit : matched.length;
+
+  return {
+    available_video_count: matched.length,
+    ...(fullView.source_folders ? { source_folders: fullView.source_folders } : {}),
+    videos: matched.slice(offset, offset + limit)
+  };
+}
+
+async function searchSourceVideosByFilename(input: {
+  library_root: string;
+  release_root?: string;
+  query: string;
+  source_folder_name?: string;
+  exclude_source_video_ids: ReadonlySet<string>;
+  limit: number;
+}): Promise<CutterSourceLibrarySearchGroup[]> {
+  if (input.limit <= 0) {
+    return [];
+  }
+
+  const view = await listCutterSourceLibrary({
+    library_root: input.library_root,
+    ...(input.release_root ? { release_root: input.release_root } : {}),
+    source_folder_name: input.source_folder_name
+  });
+  const groups: CutterSourceLibrarySearchGroup[] = [];
+
+  for (const video of view.videos) {
+    if (groups.length >= input.limit) {
+      break;
+    }
+
+    if (input.exclude_source_video_ids.has(video.source_video_id)) {
+      continue;
+    }
+
+    if (!normalizedTextIncludesQuery(sourceVideoFilenameSearchText(video), input.query)) {
+      continue;
+    }
+
+    const detail = await getCutterSourceVideoDetail({
+      library_root: input.library_root,
+      ...(input.release_root ? { release_root: input.release_root } : {}),
+      source_video_id: video.source_video_id
+    });
+    const firstSegment = detail?.transcript.segments[0];
+    if (!detail || !firstSegment) {
+      continue;
+    }
+
+    groups.push({
+      source_video_id: video.source_video_id,
+      title: video.title,
+      duration_ms: video.duration_ms,
+      hit_count: 1,
+      best_excerpt: video.title,
+      hit_segments: [{
+        segment_id: firstSegment.segment_id,
+        begin_ms: firstSegment.begin_ms,
+        end_ms: firstSegment.end_ms,
+        text: firstSegment.text,
+        match_ranges: [],
+        match_id: `${video.source_video_id}-F000001`,
+        match_type: "exact"
+      }],
+      relative_path: video.relative_path,
+      source_folder_name: video.source_folder_name,
+      source_video_file_path: video.source_video_file_path,
+      cover_path: video.cover_path,
+      cover_file_path: video.cover_file_path,
+      transcript_character_count: compactCharacterCount(detail.transcript.full_text)
+    });
+  }
+
+  return groups;
+}
+
 function sourceFolderOptionsFromManifests(manifests: readonly SourceVideoManifest[]): CutterSourceFolderOption[] {
   const counts = new Map<string, number>();
   for (const manifest of manifests) {
@@ -655,6 +797,10 @@ async function isCutterReadableReadyManifest(
 export async function listCutterSourceLibrary(
   input: ListCutterSourceLibraryInput
 ): Promise<CutterSourceLibraryView> {
+  if (input.filename_query?.trim()) {
+    return listCutterSourceLibraryByFilename(input);
+  }
+
   try {
     return await listCutterReleaseCatalog(input);
   } catch (error) {
@@ -775,6 +921,41 @@ export async function searchCutterSourceLibrary(
   input: SearchCutterSourceLibraryInput
 ): Promise<CutterSourceLibrarySearchResult> {
   const startedAt = performance.now();
+  const safeLimit = Math.max(1, input.limit);
+  const shouldTryFilenameFirst = !input.cursor && shouldTrySourceFilenameSearch(input.query);
+  let firstPageFilenameGroups: CutterSourceLibrarySearchGroup[] | undefined;
+
+  if (!input.cursor && (input.filename_only || shouldTryFilenameFirst)) {
+    firstPageFilenameGroups = await searchSourceVideosByFilename({
+      library_root: input.library_root,
+      ...(input.release_root ? { release_root: input.release_root } : {}),
+      query: input.query,
+      source_folder_name: input.source_folder_name,
+      exclude_source_video_ids: new Set(),
+      limit: safeLimit
+    });
+  }
+
+  if (
+    input.filename_only ||
+    (!input.cursor && looksLikeSourceFilenameQuery(input.query)) ||
+    (shouldTryFilenameFirst && firstPageFilenameGroups && firstPageFilenameGroups.length > 0)
+  ) {
+    return {
+      query: input.query,
+      normalized_query: normalizeTranscriptSearchQuery(input.query),
+      groups: firstPageFilenameGroups ?? [],
+      cursor: "",
+      next_cursor: "",
+      has_more: false,
+      returned_count: firstPageFilenameGroups?.length ?? 0,
+      limit: safeLimit,
+      index_version: "",
+      search_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      search_mode: "sqlite-index"
+    };
+  }
+
   let result: SourceTranscriptSqliteSearchResult | (ReturnType<typeof searchTranscripts> & {
     cursor: string;
     next_cursor: string;
@@ -861,7 +1042,7 @@ export async function searchCutterSourceLibrary(
     };
   }
 
-  const groups = (await Promise.all(
+  const transcriptGroups = (await Promise.all(
     result.groups.map(async (group) => {
       if (searchMode === "sqlite-index" && isSourceTranscriptSqliteSearchGroup(group)) {
         return {
@@ -903,14 +1084,28 @@ export async function searchCutterSourceLibrary(
       }
     })
   )).filter((group): group is CutterSourceLibrarySearchGroup => Boolean(group));
+  const groups = input.cursor || transcriptGroups.length >= result.limit
+    ? transcriptGroups
+    : [
+        ...transcriptGroups,
+        ...(firstPageFilenameGroups ?? await searchSourceVideosByFilename({
+            library_root: input.library_root,
+            ...(input.release_root ? { release_root: input.release_root } : {}),
+            query: input.query,
+            source_folder_name: input.source_folder_name,
+            exclude_source_video_ids: new Set(transcriptGroups.map((group) => group.source_video_id)),
+            limit: Math.max(0, result.limit - transcriptGroups.length)
+          }))
+          .filter((group) => !transcriptGroups.some((transcriptGroup) => transcriptGroup.source_video_id === group.source_video_id))
+      ];
 
   return {
     query: result.query,
     normalized_query: result.normalized_query,
     groups,
     cursor: result.cursor,
-    next_cursor: groups.length > 0 ? result.next_cursor : "",
-    has_more: groups.length > 0 && result.has_more,
+    next_cursor: transcriptGroups.length > 0 ? result.next_cursor : "",
+    has_more: transcriptGroups.length > 0 && result.has_more,
     returned_count: groups.length,
     limit: result.limit,
     index_version: result.index_version,

@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   allocateNextLocalClipId,
   buildLocalClipArtifactPaths,
+  deleteLocalClip,
   getLocalClipDetail,
   listLocalClips,
   writeLocalClipManifest
@@ -129,6 +130,20 @@ test("lists and reads local clips with absolute media paths", async () => {
     local_clip_id: "LC999999"
   });
   assert.equal(missing, null);
+
+  const deleted = await deleteLocalClip({
+    library_root: libraryRoot,
+    local_clip_id: "LC000001"
+  });
+  assert.deepEqual(deleted, {
+    local_clip_id: "LC000001",
+    deleted: true
+  });
+  assert.equal((await listLocalClips({ library_root: libraryRoot })).local_clip_count, 1);
+  assert.equal(await getLocalClipDetail({
+    library_root: libraryRoot,
+    local_clip_id: "LC000001"
+  }), null);
 });
 
 test("rejects invalid local clip manifests before writing", async () => {

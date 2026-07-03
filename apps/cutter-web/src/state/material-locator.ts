@@ -118,6 +118,21 @@ function matchedLocalClipSegments(clip: LocalClip, query: string): SearchHitSegm
   return segments.filter((segment) => transcriptTextMatchesQuery(segment.text, normalizedQuery));
 }
 
+function isFilenameSearchSegment(segment: SearchHitSegment): boolean {
+  return (
+    segment.match_type === "exact" &&
+    (segment.match_ranges ?? []).length === 0 &&
+    Boolean(segment.match_id?.includes("-F"))
+  );
+}
+
+function hasPublicFilenameSearchResult(search: SearchResponse): boolean {
+  return search.groups.some((group) =>
+    group.hit_segments.length > 0 &&
+    group.hit_segments.every((segment) => isFilenameSearchSegment(segment))
+  );
+}
+
 function indexedLocalClipSegments(segments: readonly TranscriptSegment[]): IndexedTranscriptSegment[] {
   let originalCursor = 0;
   let normalizedCursor = 0;
@@ -304,7 +319,10 @@ export function buildMaterialLocatorSections(
     }
   }
 
-  if (input.sourceFilter === "all" || input.sourceFilter === "local") {
+  if (
+    (input.sourceFilter === "all" || input.sourceFilter === "local") &&
+    !hasPublicFilenameSearchResult(input.search)
+  ) {
     const localItems = input.localClips.clips
       .filter(hasUsableLocalTranscript)
       .filter((clip) => textIncludesQuery(localClipSearchText(clip), input.query))

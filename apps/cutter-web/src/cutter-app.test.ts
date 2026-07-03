@@ -441,7 +441,7 @@ test("project home renders search-first startup, recent projects, and project de
 
   for (const text of [
     "开始搜索",
-    "如「5月5日」或搜索关键词",
+    "如「5月5日」/ 文件名 / 关键词",
     "最近项目",
     "5月5日",
     "搜索",
@@ -1133,6 +1133,7 @@ test("public library is a read-only gallery of available source videos", () => {
   for (const text of [
     "可用原素材",
     "原素材详情",
+    "搜索素材文件名",
     "全部",
     "横版",
     "竖版",
@@ -1156,6 +1157,8 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /cutter-public-library-scroll ml-scroll-region/);
   assert.match(html, /cutter-library-grid/);
+  assert.match(html, /class="ml-search-box cutter-public-library-filename-search"/);
+  assert.match(html, /aria-label="按文件名搜索公共素材"/);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
   assert.equal(html.includes("编辑元数据"), false);
@@ -1642,7 +1645,6 @@ test("source detail renders player, complete transcript, continuous selection, a
       detail: data.primaryDetail,
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 4),
       highlightedSegmentIds: ["s-062", "s-064"],
-      onSelectSegment: () => undefined,
       onAddToCutList: () => undefined
     })
   );
@@ -1652,9 +1654,9 @@ test("source detail renders player, complete transcript, continuous selection, a
     "完整文案",
     "连续选择",
     "已选 3 句",
-    "加入待剪清单",
+    "剪切这段",
     "现金流的本质",
-    "选择此句"
+    "拖拉选择"
   ]) {
     assert.match(html, new RegExp(text));
   }
@@ -1675,7 +1677,6 @@ test("source detail renders player, complete transcript, continuous selection, a
   assert.match(html, /cutter-segment ml-segment-row/);
   assert.match(html, /class="ml-segment-time"/);
   assert.match(html, /class="ml-segment-text"/);
-  assert.match(html, /class="ml-segment-action"/);
   assert.match(html, /data-selection-mode="continuous"/);
   assert.match(html, /is-highlighted/);
   assert.match(html, new RegExp(`${data.primaryDetail.title} 片段`));
@@ -1762,7 +1763,7 @@ test("material locator is the main search-select-cut workbench with public sourc
 
   for (const text of [
     "素材搜索",
-	    "搜索文案关键词或粘贴爆款文案",
+    "搜索文案关键词、素材文件名或粘贴爆款文案",
 	    "候选素材",
 	    "本地素材",
 	    "公共原素材",
@@ -2139,11 +2140,12 @@ test("material locator data reload preserves the active search while focusing a 
   assert.equal(typeof mergeMaterialLocatorReloadData, "function");
 
   const merged = mergeMaterialLocatorReloadData(data, reloadedData, data.search.query);
-  assert.equal(merged.primaryDetail.source_video_id, "src-002");
+  assert.equal(merged.primaryDetail.source_video_id, data.primaryDetail.source_video_id);
   assert.equal(merged.search.groups.length, data.search.groups.length);
   assert.equal(merged.search.query, data.search.query);
 
   const blankSearchMerged = mergeMaterialLocatorReloadData(data, reloadedData, "");
+  assert.equal(blankSearchMerged.primaryDetail.source_video_id, "src-002");
   assert.equal(blankSearchMerged.search.groups.length, 0);
 });
 
@@ -3446,7 +3448,7 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
   assert.match(taskTableRule, /overscroll-behavior:\s*contain/);
   assert.doesNotMatch(css, /\.cutter-queue-table\.ml-table-wrap\s*{/);
   assert.equal(galleryGridRules.length, 0);
-  assert.equal(libraryScrollPaneRules.length, 0);
+  assert.equal(libraryScrollPaneRules.length, 2);
   assert.match(foundationWorkbenchPageRule, /grid-template-columns:\s*minmax\(0,\s*var\(--ml-workbench-page-main,\s*900px\)\)/);
   assert.match(foundationWorkbenchPageRule, /var\(--ml-workbench-page-side,\s*330px\)/);
   assert.match(foundationWorkbenchPageRule, /overflow:\s*hidden/);

@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { Button, SearchBox } from "@mixlab/ui-foundation";
-import type { LocalClipCatalog, SourceLibraryResponse } from "../../api.ts";
+import type { LocalClipCatalog, SourceFolderOption, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import {
   projectAutoTitleFromDate,
@@ -231,7 +231,10 @@ export function ProjectHomePage({
   projects,
   selectedProjectId,
   queue = [],
+  sourceFolderFilter = "",
+  sourceFolders = [],
   onSearch,
+  onSetSourceFolderFilter,
   onSelectProject,
   onOpenProject,
   onOpenProjectDirectory,
@@ -244,7 +247,10 @@ export function ProjectHomePage({
   projects: readonly CutterProject[];
   selectedProjectId?: string;
   queue?: readonly CutQueueJob[];
+  sourceFolderFilter?: string;
+  sourceFolders?: readonly SourceFolderOption[];
   onSearch?: (query: string) => void;
+  onSetSourceFolderFilter?: (folderName: string) => void;
   onSelectProject?: (projectId: string) => void;
   onOpenProject?: (projectId: string) => void;
   onOpenProjectDirectory?: (projectId: string) => void;
@@ -259,6 +265,7 @@ export function ProjectHomePage({
   const deleteTargetProject = projects.find((project) => project.project_id === deleteTargetProjectId);
   const selectedProjectClipCount = selectedProject ? projectCompletedClipCount(selectedProject, queue) : 0;
   const selectedProjectTitle = selectedProject ? projectDisplayTitle(selectedProject) : "";
+  const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
 
   function openDeleteDialog(projectId: string) {
     setDeleteTargetProjectId(projectId);
@@ -303,14 +310,33 @@ export function ProjectHomePage({
               根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归档。
             </p>
           </div>
-          <div className="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions">
+          <div
+            className={`cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions${
+              sourceFolderOptions.length > 0 ? " ml-workbench-hero-actions--with-filter" : ""
+            }`}
+          >
+            {sourceFolderOptions.length > 0 ? (
+              <select
+                aria-label="按老师筛选"
+                className="cutter-source-folder-select ml-field-select ml-workbench-hero-filter"
+                value={sourceFolderFilter}
+                onChange={(event) => onSetSourceFolderFilter?.(event.currentTarget.value)}
+              >
+                <option value="">全部老师</option>
+                {sourceFolderOptions.map((folder) => (
+                  <option key={folder.name} value={folder.name}>
+                    {folder.name}（{folder.count}）
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <SearchBox
               aria-label="搜索文案关键词或粘贴爆款文案"
               buttonLabel="搜索"
               className="cutter-project-search-box"
               name="query"
               onSubmit={(value) => onSearch?.(value)}
-              placeholder={selectedProjectTitle ? `如「${selectedProjectTitle}」或搜索关键词` : "搜索文案关键词"}
+              placeholder={selectedProjectTitle ? `如「${selectedProjectTitle}」/ 文件名 / 关键词` : "搜索文案关键词或素材文件名"}
             />
             <Button type="button" onClick={openCreateDialog} variant="secondary">
               新建项目

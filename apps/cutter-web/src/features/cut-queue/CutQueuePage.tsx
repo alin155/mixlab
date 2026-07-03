@@ -31,6 +31,7 @@ const statusFilters: Array<{ key: CutTaskFilter; label: string }> = [
   { key: "pending", label: "等待中" },
   { key: "running", label: "剪切中" },
   { key: "failed", label: "失败" },
+  { key: "cancelled", label: "已取消" },
   { key: "done", label: "已完成" }
 ];
 
@@ -129,7 +130,7 @@ function problemForJob(job: CutQueueJob, nowMs: number): string {
   }
 
   if (job.status === "cancelled") {
-    return "已取消";
+    return "已取消，可重新剪切";
   }
 
   return "等待中";
@@ -144,7 +145,7 @@ function actionTextForJob(status: CutQueueJob["status"]): string {
     case "failed":
       return "重新剪切";
     case "cancelled":
-      return "已取消";
+      return "重新剪切";
     case "done":
       return "剪切成功";
   }
@@ -174,6 +175,7 @@ export function CutQueuePage({
   onRefresh,
   onRunNext,
   onRetryFailed,
+  onCancelJob,
   onOpenCutOutputDirectory,
   onLoadMore
 }: {
@@ -187,6 +189,7 @@ export function CutQueuePage({
   onRefresh?: () => void;
   onRunNext?: () => void;
   onRetryFailed?: (cutJobId: string) => void;
+  onCancelJob?: (cutJobId: string) => void;
   onOpenCutOutputDirectory?: () => void;
   onLoadMore?: () => void;
 }) {
@@ -264,16 +267,27 @@ export function CutQueuePage({
       align: "center",
       render: (job) => (
         <span className="cutter-queue-actions ml-table-action-cell">
-          {job.status === "failed" && onRetryFailed ? (
+          {(job.status === "failed" || job.status === "cancelled") && onRetryFailed ? (
             <Button
               size="sm"
-              variant="danger"
+              variant={job.status === "failed" ? "danger" : "secondary"}
               onClick={(event) => {
                 event.stopPropagation();
                 onRetryFailed(job.queue_job_id);
               }}
             >
               重新剪切
+            </Button>
+          ) : (job.status === "pending" || job.status === "running") && onCancelJob ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCancelJob(job.queue_job_id);
+              }}
+            >
+              取消剪辑
             </Button>
           ) : job.status === "done" ? (
             <span className="ml-status-icon ml-status-icon--ready" role="img" aria-label="剪切成功" title="剪切成功">
@@ -419,9 +433,14 @@ export function CutQueuePage({
                 </div>
               ) : null}
             </dl>
-            {selectedJob.status === "failed" && onRetryFailed ? (
+            {(selectedJob.status === "failed" || selectedJob.status === "cancelled") && onRetryFailed ? (
               <Button onClick={() => onRetryFailed(selectedJob.queue_job_id)} variant="primary">
                 重新剪切
+              </Button>
+            ) : null}
+            {(selectedJob.status === "pending" || selectedJob.status === "running") && onCancelJob ? (
+              <Button onClick={() => onCancelJob(selectedJob.queue_job_id)} variant="secondary">
+                取消剪辑
               </Button>
             ) : null}
             {onOpenCutOutputDirectory ? (

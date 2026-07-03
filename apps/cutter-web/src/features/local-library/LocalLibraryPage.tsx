@@ -114,6 +114,7 @@ export function LocalLibraryPage({
   onSetOrientationFilter,
   onSelectLocalClip,
   onOpenLocalClipDirectory,
+  onDeleteLocalClip,
   onLoadMore,
   isLoadingMore = false
 }: {
@@ -129,6 +130,7 @@ export function LocalLibraryPage({
   onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
   onSelectLocalClip?: (localClipId: string) => void;
   onOpenLocalClipDirectory?: (localClip: LocalClip) => void;
+  onDeleteLocalClip?: (localClip: LocalClip) => void;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
 }) {
@@ -295,6 +297,20 @@ export function LocalLibraryPage({
               onClick={() => onOpenLocalClipDirectory(selected)}
             >
               打开文件目录
+            </Button>
+          ) : null}
+          {selected && onDeleteLocalClip ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                if (window.confirm(`删除本地素材「${selected.title}」及对应本地文件？`)) {
+                  onDeleteLocalClip(selected);
+                }
+              }}
+            >
+              删除本地素材
             </Button>
           ) : null}
           {actionNotice ? <p className="cutter-note ml-page-description">{actionNotice}</p> : null}

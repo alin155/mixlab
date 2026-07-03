@@ -1,4 +1,4 @@
-import { Button, InspectorPanel } from "@mixlab/ui-foundation";
+import { Button, InspectorPanel, SearchBox } from "@mixlab/ui-foundation";
 import {
   formatDuration,
   formatFileSize,
@@ -53,12 +53,15 @@ export function PublicLibraryPage({
   selectedSourceVideoId,
   orientationFilter = "all",
   sourceFolderFilter = "",
+  filenameQuery = "",
   sourceFolders = [],
   runtimeStatus,
   isLoadingMore = false,
+  isSearchingFilename = false,
   hasMore = false,
   onSetOrientationFilter,
   onSetSourceFolderFilter,
+  onSearchFilename,
   onSelectSourceVideo,
   onLoadMore
 }: {
@@ -66,12 +69,15 @@ export function PublicLibraryPage({
   selectedSourceVideoId?: string;
   orientationFilter?: VideoOrientationFilter;
   sourceFolderFilter?: string;
+  filenameQuery?: string;
   sourceFolders?: readonly SourceFolderOption[];
   runtimeStatus?: CutterRuntimeStatus;
   isLoadingMore?: boolean;
+  isSearchingFilename?: boolean;
   hasMore?: boolean;
   onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
   onSetSourceFolderFilter?: (folderName: string) => void;
+  onSearchFilename?: (query: string) => void;
   onSelectSourceVideo?: (sourceVideoId: string) => void;
   onLoadMore?: () => void;
 }) {
@@ -94,6 +100,16 @@ export function PublicLibraryPage({
             <p className="ml-page-description">浏览管理端已经发布到剪辑端的原视频。</p>
           </div>
           <div className="cutter-public-library-controls ml-control-cluster">
+            <SearchBox
+              aria-label="按文件名搜索公共素材"
+              buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}
+              className="cutter-public-library-filename-search"
+              defaultValue={filenameQuery}
+              disabled={isSearchingFilename}
+              name="public-library-filename"
+              onSubmit={(value) => onSearchFilename?.(value)}
+              placeholder="搜索素材文件名"
+            />
             {sourceFolderOptions.length > 0 ? (
               <select
                 aria-label="按老师筛选"

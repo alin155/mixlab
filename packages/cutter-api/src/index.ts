@@ -20,6 +20,7 @@ import {
   buildLocalClipArtifactPaths,
   changeCutterAccountPassword,
   createCutterLoginApplication,
+  deleteLocalClip,
   ensureCutterSessionForDevice,
   getCutterSourceVideoDetail,
   listCutterSourceFolders,
@@ -49,6 +50,8 @@ import {
 } from "../../library-fs/src/index.ts";
 import {
   buildProjectClipOutputFile,
+  cancelCutJob,
+  deleteExportClip,
   getExportClipDetail,
   deleteProjectOutputs,
   exportClipsDirectory,
@@ -1739,6 +1742,40 @@ function searchCursorBackend(cursor: string | undefined): SearchCursorBackend {
   return "unknown";
 }
 
+function looksLikeSourceFilenameQuery(query: string): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  return (
+    /[\\/_.-]/.test(trimmed) ||
+    /\.(mp4|mov|mkv|m4v|avi|webm)$/i.test(trimmed) ||
+    (/[A-Za-z]/.test(trimmed) && /\d/.test(trimmed))
+  );
+}
+
+function normalizeFilenameProbeQuery(query: string): string {
+  return query
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function shouldTrySourceFilenameSearch(query: string): boolean {
+  const normalized = normalizeFilenameProbeQuery(query);
+  if (!normalized) {
+    return false;
+  }
+
+  if (looksLikeSourceFilenameQuery(query)) {
+    return true;
+  }
+
+  const cjkLength = [...query.matchAll(/\p{Script=Han}/gu)].length;
+  return cjkLength >= 4 || normalized.length >= 8;
+}
+
 function failedSearchAttemptMode(
   cursor: string | undefined
 ): Parameters<typeof appendUsageEvent>[1]["search_mode"] | undefined {
@@ -1988,9 +2025,25 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
 }): Promise<CutterSourceLibrarySearchResult> {
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
+  const shouldTryFilenameFirst = !input.cursor && shouldTrySourceFilenameSearch(input.query);
+  if (shouldTryFilenameFirst) {
+    const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
+    const filenameResult = await searchCutterSourceLibrary({
+      library_root: input.api_input.library_root,
+      ...(releaseRoot ? { release_root: releaseRoot } : {}),
+      query: input.query,
+      limit: input.limit,
+      source_folder_name: input.source_folder_name,
+      filename_only: true
+    });
+    if (looksLikeSourceFilenameQuery(input.query) || filenameResult.groups.length > 0) {
+      return filenameResult;
+    }
+  }
+
   if (searchdBaseUrl && cursorBackend !== "local-index") {
     try {
-      return await searchCutterSourceLibraryViaSearchd({
+      const searchdResult = await searchCutterSourceLibraryViaSearchd({
         searchd_base_url: searchdBaseUrl,
         searchd_fetch: input.api_input.searchd_fetch,
         searchd_timeout_ms: input.api_input.searchd_timeout_ms,
@@ -1999,6 +2052,12 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
         cursor: input.cursor,
         source_folder_name: input.source_folder_name
       });
+      if (input.cursor || searchdResult.groups.length > 0) {
+        return searchdResult;
+      }
+      // Searchd is transcript-indexed. Keep filename-only queries usable by
+      // falling through to the local library search, which can supplement by
+      // source title/path when the first page has no transcript hits.
     } catch (error) {
       if ((error as Error).message === "invalid_search_cursor" || cursorBackend === "searchd" || cursorBackend === "unknown") {
         throw error;
@@ -3613,13 +3672,15 @@ function sourceLibraryPageCacheKey(input: {
   limit: number;
   offset: number;
   source_folder_name?: string;
+  filename_query?: string;
 }): string {
   return [
     input.state.release_root ?? "source",
     input.state.release_version || "fallback",
     input.limit,
     input.offset,
-    input.source_folder_name ?? ""
+    input.source_folder_name ?? "",
+    input.filename_query ?? ""
   ].join("\0");
 }
 
@@ -3640,10 +3701,17 @@ async function loadSourceLibraryPageWithState(
   state: FastLibraryReadState,
   limit: number,
   offset: number,
-  sourceFolderName?: string
+  sourceFolderName?: string,
+  filenameQuery?: string
 ): Promise<SourceLibraryPagePayload> {
   const cache = sourceLibraryPageCacheForInput(input);
-  const key = sourceLibraryPageCacheKey({ state, limit, offset, source_folder_name: sourceFolderName });
+  const key = sourceLibraryPageCacheKey({
+    state,
+    limit,
+    offset,
+    source_folder_name: sourceFolderName,
+    filename_query: filenameQuery
+  });
   const nowMs = Date.now();
   const cached = cache.get(key);
 
@@ -3657,7 +3725,8 @@ async function loadSourceLibraryPageWithState(
       ...(state.release_root ? { release_root: state.release_root } : {}),
       limit,
       offset,
-      source_folder_name: sourceFolderName
+      source_folder_name: sourceFolderName,
+      filename_query: filenameQuery
     });
 
     return {
@@ -3900,6 +3969,7 @@ async function loadSourceLibraryPage(
     limit: number;
     offset: number;
     source_folder_name?: string;
+    filename_query?: string;
   }
 ): Promise<SourceLibraryPagePayload> {
   const state = await fastLibraryReadState(input);
@@ -3908,7 +3978,8 @@ async function loadSourceLibraryPage(
     state,
     request.limit,
     request.offset,
-    request.source_folder_name
+    request.source_folder_name,
+    request.filename_query
   );
 }
 
@@ -5377,8 +5448,43 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
-          if (message === "only failed cut jobs can be retried") {
-            writeError(response, 409, "cut_job_not_failed", "只有失败任务需要重试");
+          if (message === "only failed or cancelled cut jobs can be retried") {
+            writeError(response, 409, "cut_job_not_retryable", "只有失败或已取消任务可以重试");
+            return;
+          }
+
+          throw error;
+        }
+        return;
+      }
+
+      const cutJobCancelMatch = /^\/cutter\/cut-jobs\/([^/]+)\/cancel$/.exec(url.pathname);
+      if (request.method === "POST" && cutJobCancelMatch) {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const cutJobId = cutJobCancelMatch[1] ?? "";
+        if (!CUT_JOB_ID_PATTERN.test(cutJobId)) {
+          writeError(response, 400, "invalid_cut_job_id", "剪切任务编号格式不正确");
+          return;
+        }
+
+        const workspaceRoot = workspaceRootOrThrow(input);
+        try {
+          writeJson(response, 200, apiResponse(await cancelCutJob({
+            workspace_root: workspaceRoot,
+            cut_job_id: cutJobId,
+            now: input.now?.() ?? new Date().toISOString()
+          })));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (message === "cut job not found") {
+            writeError(response, 404, "cut_job_not_found", "剪切任务不存在");
             return;
           }
 
@@ -5492,7 +5598,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const library = await loadSourceLibraryPage(input, {
           limit: parseSourceLibraryLimit(url.searchParams.get("limit")),
           offset: parseSourceLibraryOffset(url.searchParams.get("offset")),
-          source_folder_name: optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined)
+          source_folder_name: optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined),
+          filename_query: optionalTrimmed(url.searchParams.get("filename_query") ?? undefined)
         });
         writeJson(
           response,
@@ -5699,6 +5806,49 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           }))) {
             return;
           }
+        }
+
+        if (request.method === "DELETE") {
+          if (localClipRoute.action !== "") {
+            writeError(response, 404, "not_found", "Route not found");
+            return;
+          }
+
+          if (input.workspace_root) {
+            if (!/^E\d{6}$/.test(localClipRoute.local_clip_id)) {
+              writeError(response, 404, "local_clip_not_found", "Local clip not found");
+              return;
+            }
+
+            const result = await deleteExportClip({
+              workspace_root: input.workspace_root,
+              export_clip_id: localClipRoute.local_clip_id
+            });
+
+            if (!result.deleted) {
+              writeError(response, 404, "local_clip_not_found", "Local clip not found");
+              return;
+            }
+
+            writeJson(response, 200, apiResponse({
+              local_clip_id: result.export_clip_id,
+              deleted: result.deleted
+            }));
+            return;
+          }
+
+          const result = await deleteLocalClip({
+            library_root: input.library_root,
+            local_clip_id: localClipRoute.local_clip_id
+          });
+
+          if (!result.deleted) {
+            writeError(response, 404, "local_clip_not_found", "Local clip not found");
+            return;
+          }
+
+          writeJson(response, 200, apiResponse(result));
+          return;
         }
 
         if (input.workspace_root) {

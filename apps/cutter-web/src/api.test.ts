@@ -212,6 +212,36 @@ test("paginated cutter list clients add limit and offset query params", async ()
   ]);
 });
 
+test("source library client can request filename-filtered pages", async () => {
+  let requestedUrl = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async (url) => {
+      requestedUrl = String(url);
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          library_id: "lib_main_001",
+          available_video_count: 0,
+          videos: []
+        }
+      });
+    }
+  });
+
+  await client.listSourceLibrary({
+    limit: 20,
+    offset: 40,
+    sourceFolderName: "陶矜2",
+    filenameQuery: "C0510"
+  });
+
+  assert.equal(
+    requestedUrl,
+    "http://127.0.0.1:3789/cutter/source-library?limit=20&offset=40&source_folder_name=%E9%99%B6%E7%9F%9C2&filename_query=C0510"
+  );
+});
+
 test("workbench data resolves Cutter API media URLs before rendering", async () => {
   let searchRequestCount = 0;
   const client = {
@@ -649,6 +679,28 @@ test("creates local clips through cutter API", async () => {
   assert.equal(clip.local_clip_id, "LC000001");
 });
 
+test("deletes local clips through cutter API", async () => {
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/local-clips/LC000001");
+      assert.equal(init?.method, "DELETE");
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          local_clip_id: "LC000001",
+          deleted: true
+        }
+      });
+    }
+  });
+
+  assert.deepEqual(await client.deleteLocalClip("LC000001"), {
+    local_clip_id: "LC000001",
+    deleted: true
+  });
+});
+
 test("creates clip lists and manages workspace cut jobs through cutter API", async () => {
   const requests: Array<{ url: string; method: string | undefined; body: unknown }> = [];
   const client = createCutterApiClient({
@@ -823,6 +875,39 @@ test("retry cut job request keeps cutter auth headers", async () => {
   const retried = await client.retryCutJob("CJ20260504-0001");
 
   assert.equal(retried.status, "pending");
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
+test("cancel cut job request keeps cutter auth headers", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/cut-jobs/CJ20260504-0001/cancel");
+      assert.equal(init?.method, "POST");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          cut_job_id: "CJ20260504-0001",
+          clip_list_id: "CL20260504-0001",
+          status: "cancelled"
+        }
+      });
+    }
+  });
+
+  const cancelled = await client.cancelCutJob("CJ20260504-0001");
+
+  assert.equal(cancelled.status, "cancelled");
   assert.equal(observedDevice, "device-001");
   assert.equal(observedSession, "session-001");
 });

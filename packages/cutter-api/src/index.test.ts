@@ -14,6 +14,7 @@ import {
   listCutterUsers,
   publishIndexRequiredSourceVideos,
   publishReadySourceVideo,
+  readSourceVideoManifest,
   readUsageMetrics,
   registerCutterAccount,
   scanSourceVideos,
@@ -374,6 +375,55 @@ async function prepareLibrary(): Promise<string> {
       cover_path: ".mixlab-library/videos/V000002/cover.jpg"
     }
   });
+
+  return libraryRoot;
+}
+
+async function prepareChineseFilenameSearchLibrary(): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "王牧笛", "财富门道-现在这家南京的项目.mp4"));
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "王牧笛", "普通课程.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  for (let index = 0; index < 2; index += 1) {
+    const job = await claimNextPreprocessJob({
+      library_root: libraryRoot,
+      worker_id: "worker-a",
+      now: `2026-05-02T00:0${index + 1}:00Z`
+    });
+    assert.ok(job);
+    const manifest = await readSourceVideoManifest(libraryRoot, job.source_video_id);
+    const isFilenameMatch = manifest.relative_path.includes("现在这家南京的项目");
+    const text = isFilenameMatch
+      ? "这一段文案和文件名没有重合。"
+      : "现在这家南京的项目公司要开会。";
+
+    await writeArtifacts({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      full_text: text,
+      segments: [
+        segment({
+          source_video_id: job.source_video_id,
+          index: 0,
+          begin_ms: 1000,
+          end_ms: 3600,
+          text,
+          normalized_text: text.replace(/[^\p{L}\p{N}]+/gu, "")
+        })
+      ]
+    });
+    await completeReady({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id
+    });
+  }
 
   return libraryRoot;
 }
@@ -1891,6 +1941,18 @@ test("serves cutter source library, detail, and search JSON with API media URLs"
     assert.equal(catalog.data.videos[0].course, "经营课");
     assert.equal(catalog.data.videos[0].category, "财务");
 
+    const filenameCatalogResponse = await fetch(
+      `${baseUrl}/cutter/source-library?filename_query=${encodeURIComponent("01_现金流")}`,
+      { headers }
+    );
+    assert.equal(filenameCatalogResponse.status, 200);
+    const filenameCatalog = await filenameCatalogResponse.json() as any;
+    assert.equal(filenameCatalog.data.available_video_count, 1);
+    assert.deepEqual(
+      filenameCatalog.data.videos.map((video: any) => video.source_video_id),
+      ["V000001"]
+    );
+
     const detailResponse = await fetch(`${baseUrl}${catalog.data.videos[0].detail_url}`, {
       headers
     });
@@ -2123,6 +2185,132 @@ test("source search prefers local searchd when configured", async () => {
       assert.equal(requestUrl.pathname, "/source-search");
       assert.equal(requestUrl.searchParams.get("query"), "现金流");
       assert.equal(requestUrl.searchParams.get("limit"), "10");
+    }
+  );
+});
+
+test("source search resolves file-like queries against source filenames before searchd", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    (url) => ({
+      body: {
+        schema_version: "1.0",
+        data: {
+          query: url.searchParams.get("query"),
+          normalized_query: "searchd-would-have-matched",
+          cursor: "",
+          next_cursor: "",
+          has_more: false,
+          returned_count: 1,
+          limit: 10,
+          index_version: "tantivy-v000001",
+          search_ms: 1,
+          groups: [
+            {
+              source_video_id: "V000001",
+              title: "Searchd Transcript Hit",
+              duration_ms: 12_000,
+              hit_count: 1,
+              best_excerpt: "searchd should not answer filename search",
+              transcript_character_count: 18,
+              hit_segments: []
+            }
+          ]
+        }
+      }
+    }),
+    async (searchdBaseUrl, searchdRequests) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(
+          `${baseUrl}/cutter/source-search?query=${encodeURIComponent("01_现金流.mp4")}&limit=10`,
+          { headers }
+        );
+        assert.equal(response.status, 200);
+        const search = await response.json() as any;
+
+        assert.equal(search.data.search_mode, "sqlite-index");
+        assert.deepEqual(
+          search.data.groups.map((group: any) => group.source_video_id),
+          ["V000001"]
+        );
+        assert.equal(search.data.groups[0].hit_segments[0].match_ranges.length, 0);
+      }, {
+        searchd_base_url: searchdBaseUrl
+      });
+
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(
+          `${baseUrl}/cutter/source-search?query=${encodeURIComponent("missing-file.mp4")}&limit=10`,
+          { headers }
+        );
+        assert.equal(response.status, 200);
+        const search = await response.json() as any;
+
+        assert.equal(search.data.search_mode, "sqlite-index");
+        assert.deepEqual(search.data.groups, []);
+      }, {
+        searchd_base_url: searchdBaseUrl
+      });
+
+      assert.equal(searchdRequests.length, 0);
+    }
+  );
+});
+
+test("source search resolves long Chinese filename queries before searchd transcript matches", async () => {
+  const libraryRoot = await prepareChineseFilenameSearchLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    () => ({
+      body: {
+        schema_version: "1.0",
+        data: {
+          query: "现在这家南京的项目",
+          normalized_query: "现在这家南京的项目",
+          cursor: "",
+          next_cursor: "",
+          has_more: false,
+          returned_count: 1,
+          limit: 10,
+          index_version: "tantivy-v000001",
+          search_ms: 1,
+          groups: [
+            {
+              source_video_id: "V000002",
+              title: "Searchd Transcript Hit",
+              duration_ms: 12_000,
+              hit_count: 1,
+              best_excerpt: "现在这家南京的项目公司要开会。",
+              transcript_character_count: 18,
+              hit_segments: []
+            }
+          ]
+        }
+      }
+    }),
+    async (searchdBaseUrl, searchdRequests) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(
+          `${baseUrl}/cutter/source-search?query=${encodeURIComponent("现在这家南京的项目")}&limit=10`,
+          { headers }
+        );
+        assert.equal(response.status, 200);
+        const search = await response.json() as any;
+
+        assert.equal(search.data.search_mode, "sqlite-index");
+        assert.deepEqual(
+          search.data.groups.map((group: any) => group.relative_path),
+          ["王牧笛/财富门道-现在这家南京的项目.mp4"]
+        );
+        assert.equal(search.data.groups[0].hit_segments[0].match_ranges.length, 0);
+      }, {
+        searchd_base_url: searchdBaseUrl
+      });
+
+      assert.equal(searchdRequests.length, 0);
     }
   );
 });
@@ -3047,13 +3235,25 @@ test("creates, lists, reads, and streams local clips", async () => {
 
     const metrics = await waitForUsageMetrics(
       libraryRoot,
-      (current) => current.cut_success_count === 1
+      (current) => current.cut_success_count === 1 && current.local_clip_count === 1
     );
     assert.equal(metrics.local_clip_count, 1);
     assert.equal(metrics.transcript_selection_count, 1);
     assert.equal(metrics.cut_submission_count, 1);
     assert.equal(metrics.cut_success_count, 1);
     assert.equal(metrics.most_used_source_video_ids[0], "V000001");
+
+    const deleteResponse = await fetch(`${baseUrl}/cutter/local-clips/LC000001`, {
+      method: "DELETE",
+      headers
+    });
+    assert.equal(deleteResponse.status, 200);
+    const deleted = await deleteResponse.json() as any;
+    assert.equal(deleted.data.local_clip_id, "LC000001");
+    assert.equal(deleted.data.deleted, true);
+
+    const listAfterDelete = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
+    assert.equal(listAfterDelete.data.local_clip_count, 0);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
@@ -3147,7 +3347,7 @@ test("creates workspace-backed local exports without writing public-library loca
 
     const metrics = await waitForUsageMetrics(
       libraryRoot,
-      (current) => current.cut_success_count === 1
+      (current) => current.cut_success_count === 1 && current.local_clip_count === 1
     );
     assert.equal(metrics.local_clip_count, 1);
     assert.equal(metrics.transcript_selection_count, 1);
@@ -3951,6 +4151,30 @@ test("retries failed workspace cut jobs through protected Cutter API", async () 
       })
     });
     assert.equal(submitResponse.status, 201);
+    const submitted = await submitResponse.json() as any;
+    const submittedJobId = submitted.data.jobs[0].cut_job_id;
+
+    const anonymousCancel = await fetch(`${baseUrl}/cutter/cut-jobs/${submittedJobId}/cancel`, {
+      method: "POST"
+    });
+    assert.equal(anonymousCancel.status, 401);
+
+    const cancelResponse = await fetch(`${baseUrl}/cutter/cut-jobs/${submittedJobId}/cancel`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(cancelResponse.status, 200);
+    const cancelled = await cancelResponse.json() as any;
+    assert.equal(cancelled.data.status, "cancelled");
+    assert.match(cancelled.data.error_message, /取消剪辑任务/);
+
+    const retryCancelledResponse = await fetch(`${baseUrl}/cutter/cut-jobs/${submittedJobId}/retry`, {
+      method: "POST",
+      headers
+    });
+    assert.equal(retryCancelledResponse.status, 200);
+    const retryCancelled = await retryCancelledResponse.json() as any;
+    assert.equal(retryCancelled.data.status, "pending");
 
     const failedResponse = await fetch(`${baseUrl}/cutter/cut-jobs/run-next`, {
       method: "POST",
@@ -3990,7 +4214,7 @@ test("retries failed workspace cut jobs through protected Cutter API", async () 
     });
     assert.equal(nonFailedRetry.status, 409);
     const nonFailed = await nonFailedRetry.json() as any;
-    assert.match(nonFailed.error.message, /只有失败任务需要重试/);
+    assert.match(nonFailed.error.message, /只有失败或已取消任务可以重试/);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

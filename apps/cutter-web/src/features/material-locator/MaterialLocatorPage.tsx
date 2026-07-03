@@ -1214,14 +1214,14 @@ export function MaterialLocatorPage({
         <section className="cutter-locator-command ml-command-row ml-split-workbench-command" aria-label="素材搜索">
           <div className="cutter-locator-command-header ml-command-row-header ml-command-row-header--source-filter">
             <SearchBox
-              aria-label="搜索文案关键词或粘贴爆款文案"
+              aria-label="搜索文案关键词、素材文件名或粘贴爆款文案"
               buttonLabel="搜索"
               className="cutter-locator-search-form ml-command-row-form"
               defaultValue={query}
               key={query}
               name="query"
               onSubmit={(value) => onSearch?.(value)}
-              placeholder="搜索文案关键词或粘贴爆款文案"
+              placeholder="搜索文案关键词、素材文件名或粘贴爆款文案"
             />
             {sourceFolderOptions.length > 0 ? (
               <select

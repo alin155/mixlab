@@ -103,6 +103,12 @@ export interface RetryCutJobInput {
   now: string;
 }
 
+export interface CancelCutJobInput {
+  workspace_root: string;
+  cut_job_id: string;
+  now: string;
+}
+
 export interface CutJobSourceDetail {
   source_video_id: string;
   title: string;
@@ -163,6 +169,7 @@ const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
 ];
 
 const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
+const CUT_JOB_CANCELLED_MESSAGE = "cut job cancelled";
 const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const workspaceRunNextLocks = new Map<string, Promise<void>>();
 const workspaceQueueMutationLocks = new Map<string, Promise<void>>();
@@ -961,8 +968,8 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
     throw new Error("cut job not found");
   }
 
-  if (job.status !== "failed") {
-    throw new Error("only failed cut jobs can be retried");
+  if (job.status !== "failed" && job.status !== "cancelled") {
+    throw new Error("only failed or cancelled cut jobs can be retried");
   }
 
   const retried: CutJobManifest = {
@@ -979,6 +986,42 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
   };
   await writeCutJob(input.workspace_root, retried);
   return retried;
+}
+
+export async function cancelCutJob(input: CancelCutJobInput): Promise<CutJobManifest> {
+  return withWorkspaceQueueMutationLock(input.workspace_root, async () => {
+    const job = await getCutJob({
+      workspace_root: input.workspace_root,
+      cut_job_id: input.cut_job_id
+    });
+
+    if (!job) {
+      throw new Error("cut job not found");
+    }
+
+    if (job.status !== "pending" && job.status !== "running") {
+      return job;
+    }
+
+    const cancelled: CutJobManifest = {
+      ...job,
+      status: "cancelled",
+      phase_timings: ensurePhaseTimings(job).map((phase) =>
+        phase.status === "running"
+          ? {
+              ...phase,
+              status: "failed",
+              finished_at: input.now
+            }
+          : phase
+      ),
+      finished_at: input.now,
+      updated_at: input.now,
+      error_message: "用户取消剪辑任务"
+    };
+    await writeCutJob(input.workspace_root, cancelled);
+    return cancelled;
+  });
 }
 
 function compareCutJobsForListing(left: CutJobManifest, right: CutJobManifest): number {
@@ -1353,11 +1396,29 @@ async function runCutJobUnlocked(
   return runPendingCutJobUnlocked(input, pending);
 }
 
+async function assertCutJobNotCancelled(workspaceRoot: string, cutJobId: string): Promise<void> {
+  const latest = await getCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: cutJobId
+  });
+
+  if (latest?.status === "cancelled") {
+    throw new Error(CUT_JOB_CANCELLED_MESSAGE);
+  }
+}
+
 async function runPendingCutJobUnlocked(
   input: RunNextCutJobInput,
   pending: CutJobManifest
 ): Promise<CutJobManifest> {
   const persistPhaseProgress = input.persist_phase_progress ?? true;
+  const latestBeforeRun = await getCutJob({
+    workspace_root: input.workspace_root,
+    cut_job_id: pending.cut_job_id
+  });
+  if (latestBeforeRun?.status === "cancelled") {
+    return latestBeforeRun;
+  }
 
   const startedAt = input.now();
   let running: CutJobManifest = {
@@ -1381,11 +1442,13 @@ async function runPendingCutJobUnlocked(
       phaseId: CutJobPhaseId,
       task: () => Promise<T> | T
     ): Promise<T> {
+      await assertCutJobNotCancelled(input.workspace_root, running.cut_job_id);
       running = startPhase(running, phaseId, input.now());
       if (persistPhaseProgress) {
         await writeCutJob(input.workspace_root, running);
       }
       const result = await task();
+      await assertCutJobNotCancelled(input.workspace_root, running.cut_job_id);
       running = finishPhase(running, phaseId, input.now());
       if (persistPhaseProgress) {
         await writeCutJob(input.workspace_root, running);
@@ -1459,6 +1522,7 @@ async function runPendingCutJobUnlocked(
       );
     });
 
+    await assertCutJobNotCancelled(input.workspace_root, running.cut_job_id);
     running = startPhase(running, "preprocess_local_asset", input.now());
     await writeCutJob(input.workspace_root, running);
     const localAsset = await writePreprocessedLocalAsset({
@@ -1497,6 +1561,7 @@ async function runPendingCutJobUnlocked(
       }
     });
 
+    await assertCutJobNotCancelled(input.workspace_root, running.cut_job_id);
     await writeExportClipManifest({
       workspace_root: input.workspace_root,
       export_clip_id: exportClipId,
@@ -1530,6 +1595,7 @@ async function runPendingCutJobUnlocked(
     });
     running = finishPhase(running, "write_manifest", input.now());
 
+    await assertCutJobNotCancelled(input.workspace_root, running.cut_job_id);
     running = {
       ...running,
       status: "done",
@@ -1542,6 +1608,16 @@ async function runPendingCutJobUnlocked(
     await writeCutJob(input.workspace_root, running);
     return running;
   } catch (error) {
+    if (errorMessage(error) === CUT_JOB_CANCELLED_MESSAGE) {
+      const cancelled = await getCutJob({
+        workspace_root: input.workspace_root,
+        cut_job_id: running.cut_job_id
+      });
+      if (cancelled?.status === "cancelled") {
+        return cancelled;
+      }
+    }
+
     const failedAt = input.now();
     const failedPhaseId = running.current_phase ?? "queue_wait";
     running = failPhase(running, failedPhaseId, failedAt);

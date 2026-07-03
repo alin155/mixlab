@@ -67,13 +67,31 @@ export function searchQueryFromHash(hash: string): string {
   return searchParamsFromHash(hash).get("query")?.trim() ?? "";
 }
 
-export function searchHash(query: string): string {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    return "#/material-locator";
+export function searchSourceFolderFromHash(hash: string): string {
+  if (routeFromHash(hash) !== "material-locator") {
+    return "";
   }
 
-  return `#/material-locator?query=${encodeURIComponent(trimmed)}`;
+  return searchParamsFromHash(hash).get("source_folder_name")?.trim() ?? "";
+}
+
+export function searchHash(query: string, options: { sourceFolderName?: string } = {}): string {
+  const trimmed = query.trim();
+  const sourceFolderName = options.sourceFolderName?.trim();
+  if (!trimmed) {
+    if (!sourceFolderName) {
+      return "#/material-locator";
+    }
+
+    return `#/material-locator?source_folder_name=${encodeURIComponent(sourceFolderName)}`;
+  }
+
+  const params = new URLSearchParams({ query: trimmed });
+  if (sourceFolderName) {
+    params.set("source_folder_name", sourceFolderName);
+  }
+
+  return `#/material-locator?${params.toString()}`;
 }
 
 export function sourceDetailHash(

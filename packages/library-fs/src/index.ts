@@ -60,6 +60,7 @@ export {
 export {
   allocateNextLocalClipId,
   buildLocalClipArtifactPaths,
+  deleteLocalClip,
   getLocalClipDetail,
   listLocalClips,
   writeLocalClipManifest
@@ -110,6 +111,10 @@ export type {
   ListCutterSourceLibraryInput,
   SearchCutterSourceLibraryInput
 } from "./cutter-source-library.ts";
+export type {
+  DeleteLocalClipInput,
+  DeleteLocalClipResult
+} from "./local-clips.ts";
 export type {
   CutterReleaseCurrentPointer,
   CutterReleaseManifest,

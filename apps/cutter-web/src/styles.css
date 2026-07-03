@@ -76,6 +76,58 @@ body,
   height: 36px;
 }
 
+.cutter-public-library-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.cutter-public-library-filename-search {
+  min-width: 0;
+}
+
+.cutter-public-library-scroll {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+.cutter-app[data-cutter-web-ready] .cutter-public-library-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ml-color-text-tertiary) 45%, transparent) transparent;
+}
+
+.cutter-app[data-cutter-web-ready] .cutter-public-library-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cutter-app[data-cutter-web-ready] .cutter-public-library-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ml-color-text-tertiary) 35%, transparent);
+}
+
+.cutter-source-detail .ml-segment-row {
+  cursor: text;
+  user-select: text;
+}
+
+.cutter-source-detail .ml-segment-row.is-drag-preview {
+  background: color-mix(in srgb, var(--ml-color-accent) 10%, transparent);
+}
+
+.cutter-source-detail .ml-segment-row.is-selected {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ml-color-accent) 10%, transparent);
+}
+
+.cutter-full-text-selection {
+  border-radius: 3px;
+  padding: 0 1px;
+  color: inherit;
+  background: color-mix(in srgb, var(--ml-color-accent) 10%, transparent);
+}
+
 .ml-command-row-header--source-filter {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -90,5 +142,9 @@ body,
   .cutter-source-folder-select {
     width: 100%;
     max-width: none;
+  }
+
+  .cutter-public-library-controls {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
