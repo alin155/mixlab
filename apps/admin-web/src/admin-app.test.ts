@@ -1942,6 +1942,50 @@ test("preprocess jobs render failure retry and later success", async () => {
   assert.doesNotMatch(noisyFailureHtml, /语音识别 · 阿里云百炼语音识别失败：未识别到有效语音片段/);
   assert.doesNotMatch(noisyFailureHtml, /ASR_TASK_ID_PLACEHOLDER|SUCCESS_WITH_NO_VALID_FRAGMENT/);
 
+  const fullAbnormalListData = {
+    ...data,
+    status: {
+      ...data.status,
+      root_path: "/data/PublicLibrary",
+      source_videos_path: "/data/PublicLibrary/source-videos"
+    },
+    settings: {
+      ...data.settings,
+      source_folders: data.settings.source_folders.map((folder) =>
+        folder.id === "src_default"
+          ? { ...folder, path: "/data/PublicLibrary/source-videos" }
+          : folder
+      )
+    },
+    jobs: {
+      ...data.jobs,
+      jobs: Array.from({ length: 10 }, (_, index) => {
+        const sourceVideoId = `V${String(index + 1).padStart(6, "0")}`;
+
+        return {
+          ...failedFixtureJob,
+          job_id: `J${String(index + 1).padStart(6, "0")}`,
+          source_video_id: sourceVideoId,
+          title: `异常素材 ${index + 1}`,
+          source_relative_path: `课程/异常${index + 1}.mp4`,
+          source_folder_id: "src_default",
+          source_folder_relative_path: `课程/异常${index + 1}.mp4`,
+          retryable: false,
+          failure_kind: "missing-source",
+          failure_label: "源文件缺失",
+          recommended_action: "inspect-source",
+          long_task_recommended: false
+        };
+      })
+    }
+  };
+  const fullAbnormalListHtml = renderToStaticMarkup(h(PreprocessJobsPage, { data: fullAbnormalListData }));
+  assert.match(fullAbnormalListHtml, /V000010/);
+  assert.match(fullAbnormalListHtml, /课程\/异常10\.mp4/);
+  assert.match(fullAbnormalListHtml, /打开文件夹/);
+  assert.match(fullAbnormalListHtml, /smb:\/\/192\.168\.1\.27\/MixLab\/PublicLibrary\/source-videos\/%E8%AF%BE%E7%A8%8B/);
+  assert.doesNotMatch(fullAbnormalListHtml, /还有 2 个未显示|可按素材编号/);
+
   const retryableFailureData = {
     ...data,
     jobs: {

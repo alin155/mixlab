@@ -145,6 +145,9 @@ export interface AdminPreprocessJob {
   job_id: string;
   source_video_id: string;
   title: string;
+  source_relative_path?: string;
+  source_folder_id?: string;
+  source_folder_relative_path?: string;
   status: "running" | "queued" | "done" | "failed";
   status_label: string;
   stage: string;

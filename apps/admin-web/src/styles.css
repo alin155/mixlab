@@ -1233,15 +1233,22 @@ h2 {
 
 .admin-preprocess-issue-list li {
   display: grid;
-  grid-template-columns: minmax(76px, 96px) minmax(120px, 1fr) minmax(160px, 1.2fr);
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: center;
   min-width: 0;
   border-top: 1px solid color-mix(in oklch, var(--ml-color-separator) 72%, transparent);
   padding-top: 8px;
   color: var(--ml-color-text-secondary);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.admin-preprocess-issue-copy {
+  display: grid;
+  grid-template-columns: minmax(76px, 96px) minmax(0, 1fr);
+  gap: 2px 10px;
+  min-width: 0;
 }
 
 .admin-preprocess-issue-list strong,
@@ -1263,6 +1270,15 @@ h2 {
 .admin-preprocess-issue-list small {
   color: var(--ml-color-text-secondary);
   font-size: 12px;
+}
+
+.admin-preprocess-issue-path {
+  grid-column: 2;
+}
+
+.admin-preprocess-folder-button {
+  min-height: 32px;
+  white-space: nowrap;
 }
 
 .admin-simple-grid {
@@ -3582,6 +3598,14 @@ body {
   .admin-preprocess-issue-list li {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  .admin-preprocess-issue-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-preprocess-issue-path {
+    grid-column: auto;
   }
 
   .admin-page-header {

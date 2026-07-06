@@ -11,6 +11,7 @@ import type {
   AdminPreprocessProcessHistoryFilters,
   AdminPreprocessProcessHistoryItem,
   AdminPreprocessProcessHistoryResponse,
+  AdminSourceFolder,
   AdminSourceVideo
 } from "../../api.ts";
 import {
@@ -296,6 +297,68 @@ function withCurrentProcessHistoryOption<T extends string>(options: T[], current
   return [...options, current];
 }
 
+function normalizeFolderPath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\/+$/u, "");
+}
+
+function dirnameFromRelativePath(relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/u, "");
+  const parts = normalized.split("/").filter(Boolean);
+  parts.pop();
+
+  return parts.join("/");
+}
+
+function joinPortablePath(root: string, relativePath: string): string {
+  const normalizedRoot = normalizeFolderPath(root);
+  const normalizedRelative = relativePath.replace(/\\/g, "/").replace(/^\/+/u, "");
+
+  return normalizedRelative ? `${normalizedRoot}/${normalizedRelative}` : normalizedRoot;
+}
+
+function sourceFolderRootForJob(data: AdminDashboardData, job: AdminPreprocessJob): string {
+  const sourceFolder = data.settings.source_folders.find((folder: AdminSourceFolder) =>
+    folder.id === job.source_folder_id
+  );
+
+  if (sourceFolder?.path) {
+    return sourceFolder.path;
+  }
+
+  return data.status.source_videos_path || joinPortablePath(data.status.root_path, "source-videos");
+}
+
+function sourceFolderPathForJob(data: AdminDashboardData, job: AdminPreprocessJob): string {
+  const relativePath = job.source_folder_relative_path || job.source_relative_path || "";
+  const relativeFolder = dirnameFromRelativePath(relativePath);
+
+  return joinPortablePath(sourceFolderRootForJob(data, job), relativeFolder);
+}
+
+function encodePathForUrl(pathValue: string): string {
+  return pathValue.split("/").map((part, index) => (
+    index === 0 && part === "" ? "" : encodeURIComponent(part)
+  )).join("/");
+}
+
+function sourceFolderOpenUrl(folderPath: string): string {
+  const normalized = normalizeFolderPath(folderPath);
+
+  if (normalized.startsWith("/data/PublicLibrary")) {
+    const host = typeof window !== "undefined" &&
+      window.location.hostname &&
+      window.location.hostname !== "127.0.0.1" &&
+      window.location.hostname !== "localhost"
+      ? window.location.hostname
+      : "192.168.1.27";
+    const relative = normalized.slice("/data/PublicLibrary".length).replace(/^\/+/u, "");
+
+    return `smb://${host}/MixLab/PublicLibrary${relative ? `/${encodePathForUrl(relative)}` : ""}`;
+  }
+
+  return `file://${encodePathForUrl(normalized)}`;
+}
+
 export function PreprocessJobsPage({
   data,
   isLoadingJobs = false,
@@ -518,6 +581,18 @@ export function PreprocessJobsPage({
 
     return <span className="admin-row-actions">{actions}</span>;
   };
+  const openSourceFolder = (job: AdminPreprocessJob) => {
+    const folderPath = sourceFolderPathForJob(data, job);
+    const folderUrl = sourceFolderOpenUrl(folderPath);
+
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(folderUrl);
+    }
+
+    if (typeof window !== "undefined") {
+      window.open(folderUrl, "_blank", "noopener,noreferrer");
+    }
+  };
   const renderPreprocessIssueList = ({
     badge,
     title,
@@ -531,9 +606,6 @@ export function PreprocessJobsPage({
     jobs: AdminPreprocessJob[];
     tone: "attention" | "blocked";
   }) => {
-    const visibleJobs = jobs.slice(0, 8);
-    const hiddenCount = Math.max(0, jobs.length - visibleJobs.length);
-
     return (
       <section className={`admin-simple-status admin-preprocess-issue-panel is-${tone}`} aria-label={badge}>
         <span className={`admin-status-badge is-${tone === "blocked" ? "failed" : "warning"}`}>{badge}</span>
@@ -541,17 +613,32 @@ export function PreprocessJobsPage({
           <h2>{title}</h2>
           <p>{detail}</p>
           <ul className="admin-preprocess-issue-list" aria-label={`${badge}清单`}>
-            {visibleJobs.map((job) => (
-              <li key={job.job_id}>
-                <strong>{job.source_video_id}</strong>
-                <span>{job.title || "未命名素材"}</span>
-                <small>{preprocessFailureReason(job)}</small>
-              </li>
-            ))}
+            {jobs.map((job) => {
+              const folderPath = sourceFolderPathForJob(data, job);
+              const folderUrl = sourceFolderOpenUrl(folderPath);
+
+              return (
+                <li key={job.job_id}>
+                  <div className="admin-preprocess-issue-copy">
+                    <strong>{job.source_video_id}</strong>
+                    <span>{job.title || "未命名素材"}</span>
+                    <small className="admin-preprocess-issue-path">
+                      {job.source_relative_path || job.source_folder_relative_path || "未记录源文件路径"}
+                    </small>
+                    <small>{preprocessFailureReason(job)}</small>
+                  </div>
+                  <button
+                    className="admin-secondary-button admin-preprocess-folder-button"
+                    type="button"
+                    title={folderUrl}
+                    onClick={() => openSourceFolder(job)}
+                  >
+                    打开文件夹
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-          {hiddenCount > 0 ? (
-            <p className="admin-note">还有 {hiddenCount} 个未显示，可按素材编号在素材库中搜索定位。</p>
-          ) : null}
         </div>
       </section>
     );

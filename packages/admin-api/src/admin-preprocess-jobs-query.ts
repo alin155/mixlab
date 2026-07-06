@@ -48,6 +48,9 @@ export interface AdminPreprocessJobsResponse {
     job_id: string;
     source_video_id: string;
     title: string;
+    source_relative_path: string;
+    source_folder_id: string;
+    source_folder_relative_path: string;
     status: AdminPreprocessJobPublicStatus;
     status_label: string;
     stage: string;
@@ -407,6 +410,9 @@ export async function listAdminPreprocessJobs(
       job_id: `J${manifest.source_video_id.slice(1)}`,
       source_video_id: manifest.source_video_id,
       title: manifest.title,
+      source_relative_path: manifest.relative_path,
+      source_folder_id: manifest.source_folder_id ?? "",
+      source_folder_relative_path: manifest.source_folder_relative_path ?? manifest.relative_path,
       status,
       status_label: longTaskRecommended ? "长任务语音识别待处理" : status === "failed"
         ? failedPreprocessJobStatusLabel(job)

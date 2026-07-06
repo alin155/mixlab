@@ -2135,6 +2135,9 @@ test("preprocess jobs expose observable production estimates in Chinese", async 
     sourceVideoManifest({
       source_video_id: "V000001",
       title: "正在处理的视频",
+      relative_path: "课程/正在处理的视频.mp4",
+      source_folder_id: "src_default",
+      source_folder_relative_path: "课程/正在处理的视频.mp4",
       preprocess_status: "processing",
       visible_to_cutters: false
     }),
@@ -2221,6 +2224,9 @@ test("preprocess jobs expose observable production estimates in Chinese", async 
     assert.equal(running.estimated_done_at, "2026-05-02T12:05:00.000Z");
     assert.equal(running.log_path, ".mixlab-library/logs/V000001.log");
     assert.equal(running.log_url, "/api/admin/preprocess/jobs/J000001/log");
+    assert.equal(running.source_relative_path, "课程/正在处理的视频.mp4");
+    assert.equal(running.source_folder_id, "src_default");
+    assert.equal(running.source_folder_relative_path, "课程/正在处理的视频.mp4");
     assert.ok(running.progress >= 35);
 
     const log = await getJson(baseUrl, running.log_url);
