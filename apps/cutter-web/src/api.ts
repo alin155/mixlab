@@ -20,6 +20,7 @@ export interface SourceVideoCard {
   codec?: string;
   file_size?: number;
   relative_path?: string;
+  source_video_file_path?: string;
   source_folder_name?: string;
   description?: string;
   tags?: string[];
@@ -256,6 +257,12 @@ export interface OpenCutOutputDirectoryResult {
 export interface OpenCutOutputDirectoryRequest {
   project_id?: string;
   project_title?: string;
+  open?: boolean;
+}
+
+export interface OpenSourceVideoDirectoryRequest {
+  source_video_id?: string;
+  source_video_file_path?: string;
   open?: boolean;
 }
 
@@ -500,10 +507,15 @@ export interface CutterApiClient {
     offset?: number;
     sourceFolderName?: string;
     filenameQuery?: string;
+    folderQuery?: string;
   }): Promise<SourceLibraryResponse>;
   listSourceFolders(): Promise<SourceFolderResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
-  searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string; sourceFolderName?: string }): Promise<SearchResponse>;
+  searchSourceLibrary(
+    query: string,
+    limit?: number,
+    options?: { cursor?: string; sourceFolderName?: string; folderQuery?: string }
+  ): Promise<SearchResponse>;
   listLocalClips(options?: { limit?: number; offset?: number }): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
   deleteLocalClip(localClipId: string): Promise<{ local_clip_id: string; deleted: boolean }>;
@@ -515,6 +527,7 @@ export interface CutterApiClient {
   retryCutJob(cutJobId: string): Promise<CutJob>;
   cancelCutJob(cutJobId: string): Promise<CutJob>;
   openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
+  openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
   deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
 }
@@ -699,6 +712,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       if (options?.filenameQuery) {
         params.set("filename_query", options.filenameQuery);
       }
+      if (options?.folderQuery) {
+        params.set("folder_query", options.folderQuery);
+      }
       const query = params.toString();
       return requestEnvelope<SourceLibraryResponse>(
         fetchImpl,
@@ -739,6 +755,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       }
       if (options.sourceFolderName) {
         params.set("source_folder_name", options.sourceFolderName);
+      }
+      if (options.folderQuery) {
+        params.set("folder_query", options.folderQuery);
       }
       return requestEnvelope<SearchResponse>(
         fetchImpl,
@@ -897,6 +916,18 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       return requestEnvelope<OpenCutOutputDirectoryResult>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/workspace/open-export-directory"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {
+      return requestEnvelope<OpenCutOutputDirectoryResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/source-videos/open-directory"),
         {
           method: "POST",
           headers: jsonHeaders(input.auth),

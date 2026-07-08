@@ -8,6 +8,7 @@ import type {
   LocalClip,
   LocalClipCatalog,
   OpenCutOutputDirectoryRequest,
+  OpenSourceVideoDirectoryRequest,
   SearchResponse,
   SourceFolderOption,
   SourceLibraryResponse,
@@ -47,6 +48,7 @@ export interface LoadCutterWorkbenchDataOptions {
   sourceLibraryLimit?: number;
   sourceFolderName?: string;
   sourceLibraryFilenameQuery?: string;
+  sourceLibraryFolderQuery?: string;
   localClipLimit?: number;
 }
 
@@ -915,14 +917,26 @@ export function createFixtureCutterApiClient(): CutterApiClient {
       offset?: number;
       sourceFolderName?: string;
       filenameQuery?: string;
+      folderQuery?: string;
     }) {
       const sourceFolderName = options?.sourceFolderName?.trim();
       const filenameQuery = options?.filenameQuery?.trim().toLowerCase();
+      const folderQuery = options?.folderQuery?.trim().toLowerCase();
       const offset = options?.offset && options.offset > 0 ? options.offset : 0;
       const limit = options?.limit && options.limit > 0 ? options.limit : data.library.videos.length;
       const videos = data.library.videos.filter((video) => {
         if (sourceFolderName && video.source_folder_name !== sourceFolderName) {
           return false;
+        }
+
+        if (folderQuery) {
+          const directoryPath = (video.relative_path ?? "")
+            .split(/[\\/]/)
+            .slice(0, -1)
+            .join("/");
+          if (!directoryPath.toLowerCase().includes(folderQuery)) {
+            return false;
+          }
         }
 
         if (!filenameQuery) {
@@ -958,16 +972,26 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         ? data.primaryDetail
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
-    async searchSourceLibrary(query: string, limit = 20, options: { cursor?: string; sourceFolderName?: string } = {}) {
+    async searchSourceLibrary(
+      query: string,
+      limit = 20,
+      options: { cursor?: string; sourceFolderName?: string; folderQuery?: string } = {}
+    ) {
       const normalizedQuery = query.trim().toLowerCase();
       if (!normalizedQuery) {
         return emptySearchResponse(query);
       }
 
-      const filteredGroups = data.search.groups.filter((group) =>
-        searchGroupText(group).toLowerCase().includes(normalizedQuery) &&
-        (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName)
-      );
+      const filteredGroups = options.folderQuery?.trim()
+        ? data.search.groups.filter((group) =>
+            (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName) &&
+            (group.title.toLowerCase().includes(normalizedQuery) ||
+              group.source_folder_name?.toLowerCase().includes(normalizedQuery))
+          )
+        : data.search.groups.filter((group) =>
+            searchGroupText(group).toLowerCase().includes(normalizedQuery) &&
+            (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName)
+          );
       const offset = fixtureSearchOffset(options.cursor);
       const groups = filteredGroups.slice(offset, offset + limit);
       return {
@@ -1123,6 +1147,13 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         path: request?.project_title
           ? `/fixture-workspace/projects/${request.project_title}`
           : "/fixture-workspace/export-clips"
+      };
+    },
+    async openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {
+      return {
+        path: request.source_video_file_path
+          ? request.source_video_file_path.replace(/[\\/][^\\/]+$/, "")
+          : `/fixture-library/source-videos/${request.source_video_id ?? ""}`
       };
     },
     async deleteProjectOutputs(projectId: string) {
@@ -1288,7 +1319,8 @@ export async function loadCutterWorkbenchData(
       ? client.listSourceLibrary({
           limit: options.sourceLibraryLimit,
           sourceFolderName: options.sourceFolderName,
-          filenameQuery: options.sourceLibraryFilenameQuery
+          filenameQuery: options.sourceLibraryFilenameQuery,
+          folderQuery: options.sourceLibraryFolderQuery
         })
       : Promise.resolve(undefined)
   ]);

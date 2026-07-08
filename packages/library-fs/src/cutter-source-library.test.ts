@@ -332,6 +332,58 @@ async function prepareTeacherFolderLibrary(): Promise<string> {
   return libraryRoot;
 }
 
+async function prepareCourseFolderLibrary(): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+  const files = [
+    path.join(libraryRoot, "source-videos", "陶矜", "南京项目课", "C0200.mp4"),
+    path.join(libraryRoot, "source-videos", "陶矜2", "南京项目课", "C0510.mp4"),
+    path.join(libraryRoot, "source-videos", "陶矜2", "南京项目课", "C0511.mp4"),
+    path.join(libraryRoot, "source-videos", "陶矜2", "其他课程", "C0999.mp4")
+  ];
+
+  for (const file of files) {
+    await writeDummyVideo(file);
+  }
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  for (let index = 0; index < files.length; index += 1) {
+    const job = await claimNextPreprocessJob({
+      library_root: libraryRoot,
+      worker_id: "worker-a",
+      now: `2026-05-02T00:${String(index + 1).padStart(2, "0")}:00Z`
+    });
+    assert.ok(job);
+    await writeReadyArtifacts({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      full_text: "这段文案不包含文件夹名称。",
+      segments: [
+        segment({
+          source_video_id: job.source_video_id,
+          index: 0,
+          begin_ms: 1000,
+          end_ms: 3600,
+          text: "这段文案不包含文件夹名称。",
+          normalized_text: "这段文案不包含文件夹名称"
+        })
+      ]
+    });
+    await completeVideoToReady({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      duration_ms: 123_000
+    });
+  }
+
+  return libraryRoot;
+}
+
 test("lists only ready source videos as cutter library cards with resolved assets", async () => {
   const libraryRoot = await prepareLibrary();
 
@@ -647,6 +699,59 @@ test("source folder filters keep similar teacher folder names separate", async (
     taoTwoFilenameList.videos.map((video) => `${video.source_folder_name}:${video.source_video_id}`),
     ["陶矜2:V000002"]
   );
+});
+
+test("folder name search lists every video under matched directories", async () => {
+  const libraryRoot = await prepareCourseFolderLibrary();
+
+  const allTeachers = await listCutterSourceLibrary({
+    library_root: libraryRoot,
+    folder_query: "南京项目课"
+  });
+  assert.equal(allTeachers.available_video_count, 3);
+  assert.deepEqual(
+    allTeachers.videos.map((video) => video.relative_path).sort(),
+    [
+      "陶矜/南京项目课/C0200.mp4",
+      "陶矜2/南京项目课/C0510.mp4",
+      "陶矜2/南京项目课/C0511.mp4"
+    ]
+  );
+
+  const taoTwo = await listCutterSourceLibrary({
+    library_root: libraryRoot,
+    source_folder_name: "陶矜2",
+    folder_query: "南京项目课"
+  });
+  assert.equal(taoTwo.available_video_count, 2);
+  assert.deepEqual(
+    taoTwo.videos.map((video) => video.relative_path).sort(),
+    [
+      "陶矜2/南京项目课/C0510.mp4",
+      "陶矜2/南京项目课/C0511.mp4"
+    ]
+  );
+
+  const firstPage = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "南京项目课",
+    folder_query: "南京项目课",
+    limit: 2
+  });
+  assert.equal(firstPage.groups.length, 2);
+  assert.equal(firstPage.has_more, true);
+  assert.match(firstPage.next_cursor, /^folder:/);
+  assert.equal(firstPage.groups[0]?.hit_segments[0]?.match_ranges.length, 0);
+
+  const secondPage = await searchCutterSourceLibrary({
+    library_root: libraryRoot,
+    query: "南京项目课",
+    folder_query: "南京项目课",
+    limit: 2,
+    cursor: firstPage.next_cursor
+  });
+  assert.equal(secondPage.groups.length, 1);
+  assert.equal(secondPage.has_more, false);
 });
 
 test("falls back to ready transcript artifacts when the current sqlite search index is invalid", async () => {

@@ -242,6 +242,54 @@ test("source library client can request filename-filtered pages", async () => {
   );
 });
 
+test("source library clients can request folder-name searches", async () => {
+  const requests: string[] = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async (url) => {
+      requests.push(String(url));
+      if (String(url).startsWith("http://127.0.0.1:3789/cutter/source-library")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            library_id: "lib_main_001",
+            available_video_count: 0,
+            videos: []
+          }
+        });
+      }
+      if (String(url).startsWith("http://127.0.0.1:3789/cutter/source-search")) {
+        return makeJsonResponse({
+          schema_version: "1.0",
+          data: {
+            query: "南京项目课",
+            normalized_query: "南京项目课",
+            groups: []
+          }
+        });
+      }
+
+      throw new Error(`unexpected request ${String(url)}`);
+    }
+  });
+
+  await client.listSourceLibrary({
+    limit: 20,
+    offset: 40,
+    sourceFolderName: "陶矜2",
+    folderQuery: "南京项目课"
+  });
+  await client.searchSourceLibrary("南京项目课", 10, {
+    sourceFolderName: "陶矜2",
+    folderQuery: "南京项目课"
+  });
+
+  assert.deepEqual(requests, [
+    "http://127.0.0.1:3789/cutter/source-library?limit=20&offset=40&source_folder_name=%E9%99%B6%E7%9F%9C2&folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE",
+    "http://127.0.0.1:3789/cutter/source-search?query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE&limit=10&source_folder_name=%E9%99%B6%E7%9F%9C2&folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE"
+  ]);
+});
+
 test("workbench data resolves Cutter API media URLs before rendering", async () => {
   let searchRequestCount = 0;
   const client = {
@@ -1001,6 +1049,48 @@ test("opens cutter project output directory with approved session headers", asyn
   assert.deepEqual(observedBody, {
     project_id: "P20260506-aaa",
     project_title: "5月6日",
+    open: false
+  });
+  assert.equal(observedDevice, "device-001");
+  assert.equal(observedSession, "session-001");
+});
+
+test("opens source video directory with approved session headers", async () => {
+  let observedDevice = "";
+  let observedSession = "";
+  let observedBody = {};
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: {
+      device_id: "device-001",
+      session_token: "session-001"
+    },
+    fetch: async (url, init) => {
+      assert.equal(String(url), "http://127.0.0.1:3789/cutter/source-videos/open-directory");
+      assert.equal(init?.method, "POST");
+      const headers = new Headers(init?.headers);
+      observedDevice = headers.get("X-MixLab-Device-Id") ?? "";
+      observedSession = headers.get("X-MixLab-Session-Token") ?? "";
+      observedBody = JSON.parse(String(init?.body ?? "{}"));
+      return makeJsonResponse({
+        schema_version: "1.0",
+        data: {
+          path: "/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课"
+        }
+      });
+    }
+  });
+
+  const opened = await client.openSourceVideoDirectory({
+    source_video_id: "V000001",
+    source_video_file_path: "/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课/C0510.mp4",
+    open: false
+  });
+
+  assert.equal(opened.path, "/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课");
+  assert.deepEqual(observedBody, {
+    source_video_id: "V000001",
+    source_video_file_path: "/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课/C0510.mp4",
     open: false
   });
   assert.equal(observedDevice, "device-001");

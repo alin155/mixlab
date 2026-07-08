@@ -3,6 +3,10 @@ import { Button, SearchBox } from "@mixlab/ui-foundation";
 import type { LocalClipCatalog, SourceFolderOption, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import {
+  MATERIAL_SCOPE_FOLDER_VALUE,
+  type MaterialSearchMode
+} from "../../state/material-locator.ts";
+import {
   projectAutoTitleFromDate,
   projectDisplayTitle,
   type CutterProject
@@ -233,8 +237,9 @@ export function ProjectHomePage({
   queue = [],
   sourceFolderFilter = "",
   sourceFolders = [],
+  searchMode = "content",
   onSearch,
-  onSetSourceFolderFilter,
+  onSetMaterialScope,
   onSelectProject,
   onOpenProject,
   onOpenProjectDirectory,
@@ -249,8 +254,9 @@ export function ProjectHomePage({
   queue?: readonly CutQueueJob[];
   sourceFolderFilter?: string;
   sourceFolders?: readonly SourceFolderOption[];
+  searchMode?: MaterialSearchMode;
   onSearch?: (query: string) => void;
-  onSetSourceFolderFilter?: (folderName: string) => void;
+  onSetMaterialScope?: (scope: string) => void;
   onSelectProject?: (projectId: string) => void;
   onOpenProject?: (projectId: string) => void;
   onOpenProjectDirectory?: (projectId: string) => void;
@@ -266,6 +272,7 @@ export function ProjectHomePage({
   const selectedProjectClipCount = selectedProject ? projectCompletedClipCount(selectedProject, queue) : 0;
   const selectedProjectTitle = selectedProject ? projectDisplayTitle(selectedProject) : "";
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
+  const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
 
   function openDeleteDialog(projectId: string) {
     setDeleteTargetProjectId(projectId);
@@ -311,32 +318,36 @@ export function ProjectHomePage({
             </p>
           </div>
           <div
-            className={`cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions${
-              sourceFolderOptions.length > 0 ? " ml-workbench-hero-actions--with-filter" : ""
-            }`}
+            className="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions ml-workbench-hero-actions--with-filter"
           >
-            {sourceFolderOptions.length > 0 ? (
-              <select
-                aria-label="按老师筛选"
-                className="cutter-source-folder-select ml-field-select ml-workbench-hero-filter"
-                value={sourceFolderFilter}
-                onChange={(event) => onSetSourceFolderFilter?.(event.currentTarget.value)}
-              >
-                <option value="">全部老师</option>
-                {sourceFolderOptions.map((folder) => (
-                  <option key={folder.name} value={folder.name}>
-                    {folder.name}（{folder.count}）
-                  </option>
-                ))}
-              </select>
-            ) : null}
+            <select
+              aria-label="素材范围"
+              className="cutter-source-folder-select ml-field-select ml-workbench-hero-filter"
+              value={materialScopeValue}
+              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+            >
+              <option value="">全部素材</option>
+              {sourceFolderOptions.map((folder) => (
+                <option key={folder.name} value={folder.name}>
+                  {folder.name}（{folder.count}）
+                </option>
+              ))}
+              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+            </select>
             <SearchBox
-              aria-label="搜索文案关键词或粘贴爆款文案"
+              aria-label={searchMode === "folder" ? "搜索文件夹名称" : "搜索文案关键词或素材文件名"}
               buttonLabel="搜索"
               className="cutter-project-search-box"
+              key={searchMode}
               name="query"
               onSubmit={(value) => onSearch?.(value)}
-              placeholder={selectedProjectTitle ? `如「${selectedProjectTitle}」/ 文件名 / 关键词` : "搜索文案关键词或素材文件名"}
+              placeholder={
+                searchMode === "folder"
+                  ? "搜索课程文件夹名称"
+                  : selectedProjectTitle
+                    ? `如「${selectedProjectTitle}」/ 文件名 / 关键词`
+                    : "搜索文案关键词或素材文件名"
+              }
             />
             <Button type="button" onClick={openCreateDialog} variant="secondary">
               新建项目

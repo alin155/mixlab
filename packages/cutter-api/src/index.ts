@@ -203,6 +203,12 @@ interface OpenExportDirectoryRequestBody {
   open?: unknown;
 }
 
+interface OpenSourceVideoDirectoryRequestBody {
+  source_video_id?: unknown;
+  source_video_file_path?: unknown;
+  open?: unknown;
+}
+
 interface LocalClipSelection {
   source_video_id: string;
   start_segment_id: string;
@@ -2022,9 +2028,23 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
   limit: number;
   cursor?: string;
   source_folder_name?: string;
+  folder_query?: string;
 }): Promise<CutterSourceLibrarySearchResult> {
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
+  if (input.folder_query?.trim()) {
+    const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
+    return searchCutterSourceLibrary({
+      library_root: input.api_input.library_root,
+      ...(releaseRoot ? { release_root: releaseRoot } : {}),
+      query: input.query,
+      limit: input.limit,
+      cursor: input.cursor,
+      source_folder_name: input.source_folder_name,
+      folder_query: input.folder_query
+    });
+  }
+
   const shouldTryFilenameFirst = !input.cursor && shouldTrySourceFilenameSearch(input.query);
   if (shouldTryFilenameFirst) {
     const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
@@ -3673,6 +3693,7 @@ function sourceLibraryPageCacheKey(input: {
   offset: number;
   source_folder_name?: string;
   filename_query?: string;
+  folder_query?: string;
 }): string {
   return [
     input.state.release_root ?? "source",
@@ -3680,7 +3701,8 @@ function sourceLibraryPageCacheKey(input: {
     input.limit,
     input.offset,
     input.source_folder_name ?? "",
-    input.filename_query ?? ""
+    input.filename_query ?? "",
+    input.folder_query ?? ""
   ].join("\0");
 }
 
@@ -3702,7 +3724,8 @@ async function loadSourceLibraryPageWithState(
   limit: number,
   offset: number,
   sourceFolderName?: string,
-  filenameQuery?: string
+  filenameQuery?: string,
+  folderQuery?: string
 ): Promise<SourceLibraryPagePayload> {
   const cache = sourceLibraryPageCacheForInput(input);
   const key = sourceLibraryPageCacheKey({
@@ -3710,7 +3733,8 @@ async function loadSourceLibraryPageWithState(
     limit,
     offset,
     source_folder_name: sourceFolderName,
-    filename_query: filenameQuery
+    filename_query: filenameQuery,
+    folder_query: folderQuery
   });
   const nowMs = Date.now();
   const cached = cache.get(key);
@@ -3726,7 +3750,8 @@ async function loadSourceLibraryPageWithState(
       limit,
       offset,
       source_folder_name: sourceFolderName,
-      filename_query: filenameQuery
+      filename_query: filenameQuery,
+      folder_query: folderQuery
     });
 
     return {
@@ -3970,6 +3995,7 @@ async function loadSourceLibraryPage(
     offset: number;
     source_folder_name?: string;
     filename_query?: string;
+    folder_query?: string;
   }
 ): Promise<SourceLibraryPagePayload> {
   const state = await fastLibraryReadState(input);
@@ -3979,7 +4005,8 @@ async function loadSourceLibraryPage(
     request.limit,
     request.offset,
     request.source_folder_name,
-    request.filename_query
+    request.filename_query,
+    request.folder_query
   );
 }
 
@@ -4733,6 +4760,41 @@ async function openWorkspaceExportDirectory(
   return { path: targetPath };
 }
 
+async function openSourceVideoDirectory(
+  input: CreateCutterApiServerInput,
+  body: OpenSourceVideoDirectoryRequestBody = {}
+): Promise<{ path: string }> {
+  const sourceVideoId = optionalString(body.source_video_id, "source_video_id");
+  const sourceVideoFilePath = optionalString(body.source_video_file_path, "source_video_file_path");
+  const detail = sourceVideoId && SOURCE_VIDEO_ID_PATTERN.test(sourceVideoId)
+    ? await loadVisibleDetail(input, sourceVideoId)
+    : null;
+  const resolvedSourcePath =
+    detail?.source_video_file_path ||
+    (sourceVideoFilePath
+      ? path.isAbsolute(sourceVideoFilePath)
+        ? sourceVideoFilePath
+        : resolveSourceVideoPath({
+            mount_root: input.library_root,
+            relative_path: sourceVideoFilePath
+          })
+      : "");
+
+  if (!resolvedSourcePath) {
+    throw new Error(sourceVideoId ? "source_video_not_found" : "source_video_file_path is required");
+  }
+
+  const targetPath = path.dirname(resolvedSourcePath);
+  const openPath = input.open_path ?? defaultOpenPath;
+
+  await stat(targetPath);
+  if (body.open !== false) {
+    await openPath(targetPath);
+  }
+
+  return { path: targetPath };
+}
+
 async function createWorkspaceLocalClip(input: {
   api_input: CreateCutterApiServerInput;
   body: CreateLocalClipRequestBody;
@@ -5417,6 +5479,42 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/source-videos/open-directory") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const body = (await readRequestJson(request)) as OpenSourceVideoDirectoryRequestBody;
+        const sourceVideoId = typeof body.source_video_id === "string" ? body.source_video_id.trim() : "";
+        const sourceVideoFilePath = typeof body.source_video_file_path === "string"
+          ? body.source_video_file_path.trim()
+          : "";
+        if ((!sourceVideoId || !SOURCE_VIDEO_ID_PATTERN.test(sourceVideoId)) && !sourceVideoFilePath) {
+          writeError(
+            response,
+            400,
+            "invalid_source_video_id",
+            "source_video_id must use V000001 format or source_video_file_path must be provided"
+          );
+          return;
+        }
+
+        writeJson(
+          response,
+          200,
+          apiResponse(await openSourceVideoDirectory(input, {
+            source_video_id: sourceVideoId,
+            source_video_file_path: sourceVideoFilePath,
+            open: body.open
+          }))
+        );
+        return;
+      }
+
       const cutJobRetryMatch = /^\/cutter\/cut-jobs\/([^/]+)\/retry$/.exec(url.pathname);
       if (request.method === "POST" && cutJobRetryMatch) {
         if (!(await requireCutterSession({
@@ -5599,7 +5697,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           limit: parseSourceLibraryLimit(url.searchParams.get("limit")),
           offset: parseSourceLibraryOffset(url.searchParams.get("offset")),
           source_folder_name: optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined),
-          filename_query: optionalTrimmed(url.searchParams.get("filename_query") ?? undefined)
+          filename_query: optionalTrimmed(url.searchParams.get("filename_query") ?? undefined),
+          folder_query: optionalTrimmed(url.searchParams.get("folder_query") ?? undefined)
         });
         writeJson(
           response,
@@ -5647,6 +5746,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const query = url.searchParams.get("query") ?? "";
         const cursor = optionalTrimmed(url.searchParams.get("cursor") ?? undefined);
         const sourceFolderName = optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined);
+        const folderQuery = optionalTrimmed(url.searchParams.get("folder_query") ?? undefined);
         const startedAt = Date.now();
         let result: CutterSourceLibrarySearchResult;
         try {
@@ -5655,7 +5755,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             query,
             limit: parsePositiveLimit(url.searchParams.get("limit")),
             cursor,
-            source_folder_name: sourceFolderName
+            source_folder_name: sourceFolderName,
+            folder_query: folderQuery
           });
         } catch (error) {
           await recordCutterUsageEventBestEffort({

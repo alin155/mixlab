@@ -99,11 +99,13 @@ import {
 } from "./app/CutterApp.tsx";
 import {
   CUTTER_NAV_ITEMS,
+  materialSearchModeFromHash,
   routeFromHash,
   routeToHash,
   routeTitle,
   searchHash,
   searchQueryFromHash,
+  searchSourceFolderFromHash,
   sourceDetailHash,
   sourceDetailContextFromHash,
   sourceVideoIdFromHash
@@ -410,6 +412,7 @@ test("project home renders search-first startup, recent projects, and project de
       library: data.library,
       localClips: data.localClips,
       queue,
+      sourceFolders: data.sourceFolders,
       projects: [
         {
           project_id: "P20260505-001",
@@ -441,6 +444,8 @@ test("project home renders search-first startup, recent projects, and project de
 
   for (const text of [
     "开始搜索",
+    "全部素材",
+    "文件夹",
     "如「5月5日」/ 文件名 / 关键词",
     "最近项目",
     "5月5日",
@@ -456,6 +461,8 @@ test("project home renders search-first startup, recent projects, and project de
   }
 
   assert.match(html, /data-page="project-home"/);
+  assert.equal(html.includes("搜索类型"), false);
+  assert.equal(html.includes("全部老师"), false);
   assert.match(html, /class="cutter-page cutter-project-home ml-workbench-page ml-workbench-page--project-home"/);
   assert.match(html, /class="cutter-page-main ml-workbench-main ml-workbench-main--project-home"/);
   assert.match(html, /class="cutter-eyebrow ml-page-kicker ml-page-kicker--hero"/);
@@ -463,7 +470,7 @@ test("project home renders search-first startup, recent projects, and project de
   assert.match(html, /class="cutter-note ml-page-description ml-page-description--hero"/);
   assert.match(html, /class="cutter-project-hero ml-workbench-hero"/);
   assert.match(html, /class="ml-workbench-hero-copy"/);
-  assert.match(html, /class="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions"/);
+  assert.match(html, /class="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions ml-workbench-hero-actions--with-filter"/);
   assert.match(html, /class="ml-section-heading"/);
   assert.match(html, /class="ml-section-title">最近项目<\/h2>/);
   assert.match(html, /class="cutter-project-board ml-workbench-board"/);
@@ -1020,9 +1027,17 @@ test("search hash preserves query while targeting the material locator route", (
   assert.equal(searchQueryFromHash("#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
   assert.equal(searchQueryFromHash("#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
   assert.equal(searchQueryFromHash("#search?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
+  assert.equal(searchQueryFromHash("#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE"), "南京项目课");
+  assert.equal(materialSearchModeFromHash("#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE"), "folder");
+  assert.equal(materialSearchModeFromHash("#/material-locator?search_mode=folder"), "folder");
+  assert.equal(materialSearchModeFromHash("#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "content");
+  assert.equal(searchSourceFolderFromHash("#/material-locator?search_mode=folder&source_folder_name=%E9%99%B6%E7%9F%9C2"), "");
   assert.equal(searchQueryFromHash("#public-library"), "");
   assert.equal(searchQueryFromHash("#/public-library"), "");
   assert.equal(searchHash(" 现金流 "), "#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81");
+  assert.equal(searchHash(" 南京项目课 ", { searchMode: "folder", sourceFolderName: "陶矜2" }), "#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE");
+  assert.equal(searchHash(" 南京项目课 ", { searchMode: "folder" }), "#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE");
+  assert.equal(searchHash("", { searchMode: "folder" }), "#/material-locator?search_mode=folder");
 });
 
 test("material locator search query survives navigating to task pages and back", () => {
@@ -1735,9 +1750,13 @@ test("material locator is the main search-select-cut workbench with public sourc
       localClips: data.localClips,
       search: data.search,
       query: data.search.query,
+      sourceFolders: data.sourceFolders,
       sourceFilter: "all",
       orientationFilter: "all",
-      selectedDetail: data.primaryDetail,
+      selectedDetail: {
+        ...data.primaryDetail,
+        source_video_file_path: "/Volumes/MixLab/PublicLibrary/source-videos/经营课/01_现金流.mp4"
+      },
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 3),
       highlightedSegmentIds: ["s-062"],
       currentHitIndex: 0,
@@ -1757,6 +1776,7 @@ test("material locator is the main search-select-cut workbench with public sourc
       onCutSelection: () => undefined,
       onCancelSelection: () => undefined,
       onOpenCutOutputDirectory: () => undefined,
+      onOpenMaterialDirectory: () => undefined,
       onSetCutMode: () => undefined
     })
   );
@@ -1764,14 +1784,18 @@ test("material locator is the main search-select-cut workbench with public sourc
   for (const text of [
     "素材搜索",
     "搜索文案关键词、素材文件名或粘贴爆款文案",
+    "全部素材",
+    "文件夹",
 	    "候选素材",
 	    "本地素材",
 	    "公共原素材",
 	    "横版",
 	    "视频文案",
+    "经营课/01_现金流.mp4",
 	    "上一个",
 	    "下一个",
 	    "选区信息",
+    "打开文件夹",
 	    "命中",
 	    "已加入剪切任务 · 等待中 1",
     "最近剪切任务",
@@ -1781,6 +1805,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   ]) {
     assert.ok(html.includes(text), text);
   }
+  assert.equal(html.includes("/Volumes/MixLab/PublicLibrary/source-videos/经营课/01_现金流.mp4"), false);
   assert.equal(html.includes("导出片段"), false);
   for (const removedText of [
 	    "清空搜索",
@@ -1797,6 +1822,8 @@ test("material locator is the main search-select-cut workbench with public sourc
 	  ]) {
 	    assert.equal(html.includes(removedText), false, removedText);
 	  }
+  assert.equal(html.includes("搜索类型"), false);
+  assert.equal(html.includes("全部老师"), false);
   for (const removedClass of [
     "cutter-locator-status-strip",
     "cutter-locator-clear-button",
@@ -1896,7 +1923,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   assert.ok(html.includes("class=\"ml-media-frame-inner\""));
   assert.equal(html.includes("cutter-video-frame"), false);
   assert.ok(html.includes("cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail"));
-  assert.ok(html.includes("class=\"ml-pane-header\""));
+  assert.ok(html.includes("class=\"ml-pane-header ml-pane-header--split\""));
   assert.ok(html.includes("cutter-locator-cut-selection ml-pane-body"));
   assert.ok(html.includes("cutter-locator-selected-copy ml-selected-copy"));
   assert.ok(html.includes("cutter-locator-queue-panel ml-pane-shell"));
@@ -2974,7 +3001,6 @@ test("material locator keeps search and review areas fixed while transcript scro
   const foundationTranscriptRowRule = lastFoundationRule(/\.ml-transcript-row\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptPanelRule = lastFoundationRule(/\.ml-transcript-panel\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptHeaderRule = lastFoundationRule(/\.ml-transcript-panel-header\s*{(?<body>[^}]+)}/g);
-  const foundationTranscriptHeadingRule = lastFoundationRule(/\.ml-transcript-heading\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptActionsRule = lastFoundationRule(/\.ml-transcript-actions\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptBodyRule = lastFoundationRule(/\.ml-transcript-body\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptTimeRule = lastFoundationRule(/(?:^|\n)\.ml-transcript-time\s*{(?<body>[^}]+)}/g);
@@ -3209,9 +3235,9 @@ test("material locator keeps search and review areas fixed while transcript scro
   assert.match(foundationTranscriptPanelRule, /overflow:\s*hidden/);
   assert.match(foundationTranscriptHeaderRule, /display:\s*block/);
   assert.match(foundationTranscriptHeaderRule, /padding:\s*0 16px/);
-  assert.match(foundationTranscriptHeadingRule, /display:\s*flex/);
-  assert.match(foundationTranscriptHeadingRule, /justify-content:\s*space-between/);
+  assert.match(foundationCss, /\.ml-transcript-heading\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto/s);
   assert.match(foundationTranscriptActionsRule, /display:\s*flex/);
+  assert.match(foundationTranscriptActionsRule, /justify-self:\s*end/);
   assert.match(foundationTranscriptActionsRule, /gap:\s*12px/);
   assert.match(foundationTranscriptBodyRule, /contain:\s*content/);
   assert.match(foundationTranscriptBodyRule, /min-height:\s*0/);

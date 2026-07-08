@@ -40,6 +40,7 @@ export interface ListCutterSourceLibraryInput {
   offset?: number;
   source_folder_name?: string;
   filename_query?: string;
+  folder_query?: string;
 }
 
 export interface ListCutterSourceFoldersInput {
@@ -61,6 +62,7 @@ export interface SearchCutterSourceLibraryInput {
   cursor?: string;
   source_folder_name?: string;
   filename_only?: boolean;
+  folder_query?: string;
 }
 
 export interface CutterSourceVideoCard {
@@ -518,6 +520,17 @@ function sourceVideoFilenameSearchText(video: CutterSourceVideoCard): string {
     .join(" ");
 }
 
+function sourceVideoDirectorySearchText(video: CutterSourceVideoCard): string {
+  const parts = video.relative_path.split(/[\\/]/).slice(0, -1);
+
+  return [
+    parts.join("/"),
+    ...parts
+  ]
+    .filter((part) => part.trim().length > 0)
+    .join(" ");
+}
+
 function normalizedTextIncludesQuery(text: string, query: string): boolean {
   const normalizedQuery = normalizeTranscriptSearchQuery(query);
   return Boolean(normalizedQuery) && normalizeTranscriptSearchQuery(text).includes(normalizedQuery);
@@ -574,6 +587,45 @@ async function listCutterSourceLibraryByFilename(
   };
 }
 
+async function listCutterSourceLibraryByFolder(
+  input: ListCutterSourceLibraryInput
+): Promise<CutterSourceLibraryView> {
+  const query = input.folder_query?.trim() ?? "";
+  try {
+    return await listCutterReleaseCatalog({
+      library_root: input.library_root,
+      ...(input.release_root ? { release_root: input.release_root } : {}),
+      limit: input.limit,
+      offset: input.offset,
+      source_folder_name: input.source_folder_name,
+      folder_query: query
+    });
+  } catch (error) {
+    if (input.release_root) {
+      throw error;
+    }
+  }
+
+  const fullView = await listCutterSourceLibrary({
+    library_root: input.library_root,
+    ...(input.release_root ? { release_root: input.release_root } : {}),
+    source_folder_name: input.source_folder_name
+  });
+  const matched = query
+    ? fullView.videos.filter((video) =>
+        normalizedTextIncludesQuery(sourceVideoDirectorySearchText(video), query)
+      )
+    : fullView.videos;
+  const offset = Math.max(0, input.offset ?? 0);
+  const limit = input.limit && input.limit > 0 ? input.limit : matched.length;
+
+  return {
+    available_video_count: matched.length,
+    ...(fullView.source_folders ? { source_folders: fullView.source_folders } : {}),
+    videos: matched.slice(offset, offset + limit)
+  };
+}
+
 async function searchSourceVideosByFilename(input: {
   library_root: string;
   release_root?: string;
@@ -606,41 +658,134 @@ async function searchSourceVideosByFilename(input: {
       continue;
     }
 
-    const detail = await getCutterSourceVideoDetail({
+    const group = await sourceVideoFirstSegmentSearchGroup({
       library_root: input.library_root,
       ...(input.release_root ? { release_root: input.release_root } : {}),
-      source_video_id: video.source_video_id
+      video,
+      matchIdPrefix: "F"
     });
-    const firstSegment = detail?.transcript.segments[0];
-    if (!detail || !firstSegment) {
+
+    if (!group) {
       continue;
     }
 
-    groups.push({
-      source_video_id: video.source_video_id,
-      title: video.title,
-      duration_ms: video.duration_ms,
-      hit_count: 1,
-      best_excerpt: video.title,
-      hit_segments: [{
-        segment_id: firstSegment.segment_id,
-        begin_ms: firstSegment.begin_ms,
-        end_ms: firstSegment.end_ms,
-        text: firstSegment.text,
-        match_ranges: [],
-        match_id: `${video.source_video_id}-F000001`,
-        match_type: "exact"
-      }],
-      relative_path: video.relative_path,
-      source_folder_name: video.source_folder_name,
-      source_video_file_path: video.source_video_file_path,
-      cover_path: video.cover_path,
-      cover_file_path: video.cover_file_path,
-      transcript_character_count: compactCharacterCount(detail.transcript.full_text)
-    });
+    groups.push(group);
   }
 
   return groups;
+}
+
+async function sourceVideoFirstSegmentSearchGroup(input: {
+  library_root: string;
+  release_root?: string;
+  video: CutterSourceVideoCard;
+  matchIdPrefix: string;
+}): Promise<CutterSourceLibrarySearchGroup | undefined> {
+  const detail = await getCutterSourceVideoDetail({
+    library_root: input.library_root,
+    ...(input.release_root ? { release_root: input.release_root } : {}),
+    source_video_id: input.video.source_video_id
+  });
+  const firstSegment = detail?.transcript.segments[0];
+
+  if (!detail || !firstSegment) {
+    return undefined;
+  }
+
+  return {
+    source_video_id: input.video.source_video_id,
+    title: input.video.title,
+    duration_ms: input.video.duration_ms,
+    hit_count: 1,
+    best_excerpt: input.video.title,
+    hit_segments: [{
+      segment_id: firstSegment.segment_id,
+      begin_ms: firstSegment.begin_ms,
+      end_ms: firstSegment.end_ms,
+      text: firstSegment.text,
+      match_ranges: [],
+      match_id: `${input.video.source_video_id}-${input.matchIdPrefix}000001`,
+      match_type: "exact"
+    }],
+    relative_path: input.video.relative_path,
+    source_folder_name: input.video.source_folder_name,
+    source_video_file_path: input.video.source_video_file_path,
+    cover_path: input.video.cover_path,
+    cover_file_path: input.video.cover_file_path,
+    transcript_character_count: compactCharacterCount(detail.transcript.full_text)
+  };
+}
+
+const FOLDER_SEARCH_CURSOR_PREFIX = "folder:";
+
+function encodeFolderSearchCursor(offset: number): string {
+  return offset > 0 ? `${FOLDER_SEARCH_CURSOR_PREFIX}${offset}` : "";
+}
+
+function decodeFolderSearchCursor(cursor: string | undefined): number {
+  if (!cursor?.trim()) {
+    return 0;
+  }
+
+  const normalized = cursor.trim();
+  if (!normalized.startsWith(FOLDER_SEARCH_CURSOR_PREFIX)) {
+    throw new Error("invalid_search_cursor");
+  }
+
+  const offsetText = normalized.slice(FOLDER_SEARCH_CURSOR_PREFIX.length);
+  const offset = Number.parseInt(offsetText, 10);
+  if (!Number.isInteger(offset) || offset < 0 || String(offset) !== offsetText) {
+    throw new Error("invalid_search_cursor");
+  }
+
+  return offset;
+}
+
+async function searchSourceVideosByFolder(input: {
+  library_root: string;
+  release_root?: string;
+  query: string;
+  source_folder_name?: string;
+  limit: number;
+  cursor?: string;
+}): Promise<CutterSourceLibrarySearchResult> {
+  const startedAt = performance.now();
+  const safeLimit = Math.max(1, input.limit);
+  const offset = decodeFolderSearchCursor(input.cursor);
+  const view = await listCutterSourceLibrary({
+    library_root: input.library_root,
+    ...(input.release_root ? { release_root: input.release_root } : {}),
+    limit: safeLimit,
+    offset,
+    source_folder_name: input.source_folder_name,
+    folder_query: input.query
+  });
+  const groups = (await Promise.all(
+    view.videos.map((video) =>
+      sourceVideoFirstSegmentSearchGroup({
+        library_root: input.library_root,
+        ...(input.release_root ? { release_root: input.release_root } : {}),
+        video,
+        matchIdPrefix: "D"
+      })
+    )
+  )).filter((group): group is CutterSourceLibrarySearchGroup => Boolean(group));
+  const nextOffset = offset + view.videos.length;
+  const hasMore = nextOffset < view.available_video_count;
+
+  return {
+    query: input.query,
+    normalized_query: normalizeTranscriptSearchQuery(input.query),
+    groups,
+    cursor: encodeFolderSearchCursor(offset),
+    next_cursor: hasMore ? encodeFolderSearchCursor(nextOffset) : "",
+    has_more: hasMore,
+    returned_count: groups.length,
+    limit: safeLimit,
+    index_version: "",
+    search_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+    search_mode: "sqlite-index"
+  };
 }
 
 function sourceFolderOptionsFromManifests(manifests: readonly SourceVideoManifest[]): CutterSourceFolderOption[] {
@@ -729,6 +874,10 @@ function localSearchCursorBackend(cursor: string | undefined): LocalSearchCursor
     return "transcript-artifact-fallback";
   }
 
+  if (normalized.startsWith(FOLDER_SEARCH_CURSOR_PREFIX)) {
+    return "sqlite-index";
+  }
+
   return "unknown";
 }
 
@@ -797,6 +946,10 @@ async function isCutterReadableReadyManifest(
 export async function listCutterSourceLibrary(
   input: ListCutterSourceLibraryInput
 ): Promise<CutterSourceLibraryView> {
+  if (input.folder_query?.trim()) {
+    return listCutterSourceLibraryByFolder(input);
+  }
+
   if (input.filename_query?.trim()) {
     return listCutterSourceLibraryByFilename(input);
   }
@@ -922,6 +1075,19 @@ export async function searchCutterSourceLibrary(
 ): Promise<CutterSourceLibrarySearchResult> {
   const startedAt = performance.now();
   const safeLimit = Math.max(1, input.limit);
+  const folderQuery = input.folder_query?.trim();
+
+  if (folderQuery) {
+    return searchSourceVideosByFolder({
+      library_root: input.library_root,
+      ...(input.release_root ? { release_root: input.release_root } : {}),
+      query: folderQuery,
+      limit: safeLimit,
+      cursor: input.cursor,
+      source_folder_name: input.source_folder_name
+    });
+  }
+
   const shouldTryFilenameFirst = !input.cursor && shouldTrySourceFilenameSearch(input.query);
   let firstPageFilenameGroups: CutterSourceLibrarySearchGroup[] | undefined;
 

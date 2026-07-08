@@ -901,6 +901,7 @@ export async function listCutterReleaseCatalog(
     limit?: number;
     offset?: number;
     source_folder_name?: string;
+    folder_query?: string;
   }
 ): Promise<CutterSourceLibraryView> {
   const releaseRootBase = input.release_root ?? input.library_root;
@@ -920,8 +921,22 @@ export async function listCutterReleaseCatalog(
     const offset = Math.max(0, input.offset ?? 0);
     const sourceFolderName = normalizeSourceFolderName(input.source_folder_name);
     const sourceFolderExpression = releaseSourceFolderSqlExpression(db);
-    const whereClause = sourceFolderName ? `WHERE ${sourceFolderExpression} = ?` : "";
-    const whereParams = sourceFolderName ? [sourceFolderName] : [];
+    const folderQuery = input.folder_query?.trim().replace(/\\/g, "/") ?? "";
+    const whereParts: string[] = [];
+    const whereParams: string[] = [];
+    if (sourceFolderName) {
+      whereParts.push(`${sourceFolderExpression} = ?`);
+      whereParams.push(sourceFolderName);
+    }
+    if (folderQuery) {
+      whereParts.push(`(
+        ${sourceFolderExpression} = ?
+        OR relative_path LIKE ?
+        OR source_folder_relative_path LIKE ?
+      )`);
+      whereParams.push(folderQuery, `%${folderQuery}/%`, `%${folderQuery}/%`);
+    }
+    const whereClause = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
     const availableVideoCount = Number(
       (db.prepare(`
         SELECT COUNT(*) AS count

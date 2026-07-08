@@ -639,8 +639,8 @@ test("foundation owns shared segmented, empty, and pagination visual primitives"
   assert.match(css, /\.ml-compact-table-row > strong,\s*\.ml-compact-table-row > small\s*{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
   assert.match(css, /\.ml-transcript-panel\s*{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\)[^}]*overflow:\s*hidden/s);
   assert.match(css, /\.ml-transcript-panel-header\s*{[^}]*min-height:\s*44px[^}]*padding:\s*0 16px/s);
-  assert.match(css, /\.ml-transcript-heading\s*{[^}]*justify-content:\s*space-between[^}]*min-height:\s*44px/s);
-  assert.match(css, /\.ml-transcript-actions\s*{[^}]*display:\s*flex[^}]*gap:\s*12px/s);
+  assert.match(css, /\.ml-transcript-heading\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto[^}]*min-height:\s*44px/s);
+  assert.match(css, /\.ml-transcript-actions\s*{[^}]*display:\s*flex[^}]*justify-self:\s*end[^}]*gap:\s*12px/s);
   assert.match(css, /\.ml-transcript-body\s*{[^}]*contain:\s*content[^}]*overflow:\s*auto[^}]*padding:\s*0 18px 24px/s);
   assert.match(css, /\.ml-transcript-spacer\s*{[^}]*display:\s*block[^}]*pointer-events:\s*none/s);
   assert.match(css, /\.ml-pagination-bar\s*{[^}]*min-height:\s*56px/s);

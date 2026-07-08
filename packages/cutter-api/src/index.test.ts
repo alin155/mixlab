@@ -4087,6 +4087,90 @@ test("opens the current project output directory for cutters", async () => {
   }
 });
 
+test("opens the selected source video directory for cutters", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const openedPaths: string[] = [];
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    open_path: async (targetPath) => {
+      openedPaths.push(targetPath);
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const anonymous = await fetch(`${baseUrl}/cutter/source-videos/open-directory`, {
+      method: "POST"
+    });
+    assert.equal(anonymous.status, 401);
+
+    const response = await fetch(`${baseUrl}/cutter/source-videos/open-directory`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_id: "V000001"
+      })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as any;
+    const expectedPath = path.join(libraryRoot, "source-videos");
+    assert.equal(body.data.path, expectedPath);
+    assert.deepEqual(openedPaths, [expectedPath]);
+
+    const resolveOnlyResponse = await fetch(`${baseUrl}/cutter/source-videos/open-directory`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_id: "V000001",
+        open: false
+      })
+    });
+    assert.equal(resolveOnlyResponse.status, 200);
+    const resolveOnlyBody = await resolveOnlyResponse.json() as any;
+    assert.equal(resolveOnlyBody.data.path, expectedPath);
+    assert.deepEqual(openedPaths, [expectedPath]);
+
+    const pathFallbackResponse = await fetch(`${baseUrl}/cutter/source-videos/open-directory`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        source_video_file_path: path.join(libraryRoot, "source-videos", "01_现金流.mp4"),
+        open: false
+      })
+    });
+    assert.equal(pathFallbackResponse.status, 200);
+    const pathFallbackBody = await pathFallbackResponse.json() as any;
+    assert.equal(pathFallbackBody.data.path, expectedPath);
+    assert.deepEqual(openedPaths, [expectedPath]);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
 test("retries failed workspace cut jobs through protected Cutter API", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

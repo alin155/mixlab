@@ -15,6 +15,7 @@ import {
   type CutterPasswordChangeRequest,
   type CutterRuntimeStatus,
   type OpenCutOutputDirectoryRequest,
+  type OpenSourceVideoDirectoryRequest,
   type SearchGroup,
   type SearchResponse,
   type SourceFolderOption,
@@ -69,6 +70,7 @@ import {
   type MoveDirection
 } from "../state/cut-list.ts";
 import {
+  MATERIAL_SCOPE_FOLDER_VALUE,
   buildMaterialLocatorSections,
   localClipToSourceVideoDetail,
   normalizedMaterialSearchQuery,
@@ -119,6 +121,7 @@ import {
 } from "../state/cutter-cache.ts";
 import {
   CUTTER_NAV_ITEMS,
+  materialSearchModeFromHash,
   routeFromHash,
   routeToHash,
   searchHash,
@@ -126,7 +129,8 @@ import {
   searchSourceFolderFromHash,
   sourceDetailContextFromHash,
   sourceVideoIdFromHash,
-  type CutterRoute
+  type CutterRoute,
+  type MaterialSearchMode
 } from "./navigation.ts";
 
 export {
@@ -159,6 +163,19 @@ export async function openOutputDirectoryForRuntime(input: {
   }
 
   return opened;
+}
+
+function materialSearchSourceFolderName(mode: MaterialSearchMode, folderName: string): string {
+  return mode === "folder" ? "" : folderName.trim();
+}
+
+function directoryFromFilePath(filePath: string | undefined): string {
+  const trimmedPath = filePath?.trim() ?? "";
+  if (!trimmedPath) {
+    return "";
+  }
+
+  return trimmedPath.replace(/[\\/][^\\/]*$/, "");
 }
 
 function mergeSourceVideoCards(
@@ -398,11 +415,14 @@ export function shouldStartMaterialSearchForHashChange(input: {
   hash: string;
   currentSearchQuery: string;
   nextSearchQuery: string;
+  currentSearchMode?: MaterialSearchMode;
+  nextSearchMode?: MaterialSearchMode;
 }): boolean {
   return (
     routeFromHash(input.hash) === "material-locator" &&
     input.nextSearchQuery.trim().length > 0 &&
-    normalizeLocatorQuery(input.nextSearchQuery) !== normalizeLocatorQuery(input.currentSearchQuery)
+    (normalizeLocatorQuery(input.nextSearchQuery) !== normalizeLocatorQuery(input.currentSearchQuery) ||
+      input.nextSearchMode !== input.currentSearchMode)
   );
 }
 
@@ -1248,6 +1268,7 @@ function renderPage(
   queue: readonly CutQueueJob[],
   viewState: {
     searchQuery: string;
+    materialSearchMode: MaterialSearchMode;
     highlightedSegmentIds: readonly string[];
     currentHitIndex: number;
     currentHitSegmentId?: string;
@@ -1308,6 +1329,7 @@ function renderPage(
     navigateHit: (direction: "previous" | "next") => void;
     cancelTranscriptSelection: () => void;
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
+    setMaterialScope: (scope: string) => void;
     setSourceFolderFilter: (folderName: string) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
     setPublicLibraryOrientationFilter: (filter: VideoOrientationFilter) => void;
@@ -1332,6 +1354,7 @@ function renderPage(
     retryFailedCutJob?: (cutJobId: string) => void;
     cancelCutJob?: (cutJobId: string) => void;
     openCutOutputDirectory: () => void;
+    openMaterialDirectory: (result: MaterialLocatorResult, detail?: SourceVideoCard) => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
     deleteLocalClip: (localClip: LocalClip) => void;
     selectLocalClip: (localClipId: string) => void;
@@ -1352,8 +1375,9 @@ function renderPage(
         queue={queue}
         sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
+        searchMode={viewState.materialSearchMode}
         onSearch={handlers.searchFromProjectHome}
-        onSetSourceFolderFilter={handlers.setSourceFolderFilter}
+        onSetMaterialScope={handlers.setMaterialScope}
         onSelectProject={handlers.selectProject}
         onOpenProject={handlers.openProject}
         onOpenProjectDirectory={handlers.openProjectDirectory}
@@ -1387,6 +1411,7 @@ function renderPage(
         localClips={data.localClips}
         search={data.search}
         query={viewState.searchQuery}
+        searchMode={viewState.materialSearchMode}
         sourceFilter={viewState.sourceFilter}
         sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
@@ -1408,7 +1433,7 @@ function renderPage(
         queue={queue}
         cutMode={viewState.selectedCutMode}
         onSearch={handlers.search}
-        onSetSourceFolderFilter={handlers.setSourceFolderFilter}
+        onSetMaterialScope={handlers.setMaterialScope}
         onSelectMaterial={handlers.selectMaterial}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
         onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
@@ -1417,6 +1442,7 @@ function renderPage(
         onCutSelection={handlers.addSelectedSpan}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
+        onOpenMaterialDirectory={handlers.openMaterialDirectory}
         onSetCutMode={handlers.setCutMode}
       />
     );
@@ -1535,6 +1561,9 @@ export function CutterApp() {
     sourceVideoIdFromHash(window.location.hash)
   );
   const [searchQuery, setSearchQuery] = useState(() => searchQueryFromHash(window.location.hash));
+  const [materialSearchMode, setMaterialSearchMode] = useState<MaterialSearchMode>(() =>
+    materialSearchModeFromHash(window.location.hash)
+  );
   const [sourceDetailContext, setSourceDetailContext] = useState(() =>
     sourceDetailContextFromHash(window.location.hash)
   );
@@ -1630,6 +1659,33 @@ export function CutterApp() {
       request,
       isDesktopMode
     });
+  }
+
+  async function openRuntimeSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {
+    try {
+      const opened = await client.openSourceVideoDirectory({
+        ...request,
+        ...(isDesktopMode ? { open: false } : {})
+      });
+
+      if (isDesktopMode) {
+        await openDesktopDirectory(opened.path);
+      }
+
+      return opened;
+    } catch (openError) {
+      const directDirectory = directoryFromFilePath(request.source_video_file_path);
+      if (isDesktopMode && directDirectory) {
+        await openDesktopDirectory(directDirectory);
+        return { path: directDirectory };
+      }
+
+      if (openError instanceof CutterApiError && openError.status === 404) {
+        throw new Error("本机 Cutter API 尚未支持打开源素材文件夹，请重启本机剪辑服务后重试。");
+      }
+
+      throw openError;
+    }
   }
 
   const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus, {
@@ -2332,6 +2388,7 @@ export function CutterApp() {
     const listener = () => {
       const nextHash = window.location.hash;
       const nextRoute = routeFromHash(nextHash);
+      const nextSearchMode = materialSearchModeFromHash(nextHash);
       const nextSearchQuery = materialLocatorSearchQueryForHashChange({
         hash: nextHash,
         currentSearchQuery: searchQuery
@@ -2351,6 +2408,7 @@ export function CutterApp() {
       setSelectedSourceVideoId(sourceVideoIdFromHash(nextHash));
       setSelectedLocalClipId(undefined);
       setSearchQuery(nextSearchQuery);
+      setMaterialSearchMode(nextSearchMode);
       if (nextRoute === "material-locator") {
         setSourceFolderFilter(searchSourceFolderFromHash(nextHash));
       }
@@ -2362,13 +2420,15 @@ export function CutterApp() {
       setMaterialSearchPending(shouldStartMaterialSearchForHashChange({
         hash: nextHash,
         currentSearchQuery: searchQuery,
-        nextSearchQuery
+        nextSearchQuery,
+        currentSearchMode: materialSearchMode,
+        nextSearchMode
       }));
       setCutNotice("");
     };
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
-  }, [homeSelectedProjectId, searchQuery]);
+  }, [homeSelectedProjectId, materialSearchMode, searchQuery]);
 
   const workbenchPreferredSourceVideoId = workbenchPreferredSourceVideoIdForRoute({
     route,
@@ -2449,6 +2509,7 @@ export function CutterApp() {
       data
         ? materialLocatorHitTargets({
             query: searchQuery,
+            searchMode: materialSearchMode,
             sourceFilter,
             orientationFilter,
             localClips: data.localClips,
@@ -2456,7 +2517,7 @@ export function CutterApp() {
             search: data.search
           })
         : [],
-    [data, orientationFilter, searchQuery, sourceFilter]
+    [data, materialSearchMode, orientationFilter, searchQuery, sourceFilter]
   );
   const globalHitCount = locatorHitTargets.length;
 
@@ -2546,7 +2607,8 @@ export function CutterApp() {
         const firstPage = resolveSearchResponseUrls(
           client,
           await client.searchSourceLibrary(query, MATERIAL_SEARCH_FIRST_BATCH_LIMIT, {
-            sourceFolderName: sourceFolderFilter || undefined
+            sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+            folderQuery: materialSearchMode === "folder" ? query : undefined
           })
         );
         if (cancelled || materialSearchRequestIdRef.current !== requestId) {
@@ -2574,6 +2636,7 @@ export function CutterApp() {
         const hitTargets = searchData
           ? materialLocatorHitTargets({
               query,
+              searchMode: materialSearchMode,
               sourceFilter,
               orientationFilter,
               localClips: searchData.localClips,
@@ -2625,6 +2688,7 @@ export function CutterApp() {
     Boolean(data),
     loginGateVisible,
     materialSearchRevision,
+    materialSearchMode,
     orientationFilter,
     route,
     searchQuery,
@@ -2651,7 +2715,8 @@ export function CutterApp() {
         client,
         await client.searchSourceLibrary(query, MATERIAL_SEARCH_NEXT_BATCH_LIMIT, {
           cursor: nextCursor,
-          sourceFolderName: sourceFolderFilter || undefined
+          sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+          folderQuery: materialSearchMode === "folder" ? query : undefined
         })
       );
 
@@ -2901,15 +2966,34 @@ export function CutterApp() {
     writeCutterDefaultSourceFilter(supportedFilter);
   };
 
+  const handleSetMaterialScope = (scope: string) => {
+    const trimmedScope = scope.trim();
+    const nextMode: MaterialSearchMode = trimmedScope === MATERIAL_SCOPE_FOLDER_VALUE ? "folder" : "content";
+    const nextFolderName = nextMode === "folder" ? "" : trimmedScope;
+    setMaterialSearchMode(nextMode);
+    setSourceFolderFilter(nextFolderName);
+    setPublicLibrarySelectedSourceVideoId(undefined);
+    clearMaterialLocatorFocus();
+    if (route === "material-locator") {
+      window.location.hash = searchHash(searchQuery, {
+        sourceFolderName: nextFolderName || undefined,
+        searchMode: nextMode
+      });
+    } else if (route === "public-library" && publicLibraryFilenameQuery.trim()) {
+      setPublicLibraryFilenameSearching(true);
+    }
+  };
+
   const handleSetSourceFolderFilter = (folderName: string) => {
     const nextFolderName = folderName.trim();
     setSourceFolderFilter(nextFolderName);
     setPublicLibrarySelectedSourceVideoId(undefined);
     clearMaterialLocatorFocus();
     if (route === "material-locator") {
-      window.location.hash = searchHash(searchQuery, { sourceFolderName: nextFolderName || undefined });
-    } else if (route === "public-library" && publicLibraryFilenameQuery.trim()) {
-      setPublicLibraryFilenameSearching(true);
+      window.location.hash = searchHash(searchQuery, {
+        sourceFolderName: materialSearchSourceFolderName(materialSearchMode, nextFolderName) || undefined,
+        searchMode: materialSearchMode
+      });
     }
   };
 
@@ -3207,7 +3291,10 @@ export function CutterApp() {
     setMaterialSearchPending(Boolean(nextQuery));
     setLastMaterialSearchDurationMs(undefined);
     setCutNotice("");
-    window.location.hash = searchHash(nextQuery, { sourceFolderName: sourceFolderFilter || undefined });
+    window.location.hash = searchHash(nextQuery, {
+      sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+      searchMode: materialSearchMode
+    });
   }
 
   function startProjectHomeSearch(query: string) {
@@ -3376,7 +3463,10 @@ export function CutterApp() {
       const latestQuery = project?.searches[0]?.query.trim() ?? "";
       if (latestQuery) {
         setSearchQuery(latestQuery);
-        window.location.hash = searchHash(latestQuery, { sourceFolderName: sourceFolderFilter || undefined });
+        window.location.hash = searchHash(latestQuery, {
+          sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+          searchMode: materialSearchMode
+        });
         return;
       }
 
@@ -3463,6 +3553,7 @@ export function CutterApp() {
       setTranscriptSelection({});
     },
     setSourceFilter: handleSetSourceFilter,
+    setMaterialScope: handleSetMaterialScope,
     setSourceFolderFilter: handleSetSourceFolderFilter,
     setOrientationFilter: handleSetOrientationFilter,
     setPublicLibraryOrientationFilter: handleSetPublicLibraryOrientationFilter,
@@ -3688,6 +3779,43 @@ export function CutterApp() {
         setCutNotice("已打开项目视频目录");
       } catch (openError) {
         setError(openError instanceof Error ? openError.message : "打开文件目录失败");
+      }
+    },
+    openMaterialDirectory: async (result: MaterialLocatorResult, detail?: SourceVideoCard) => {
+      if (!apiMode) {
+        setCutNotice("请先连接本机剪辑服务，再打开素材文件夹");
+        return;
+      }
+
+      try {
+        if (result.source === "local") {
+          const localClip = result.local_clip;
+          if (!localClip) {
+            throw new Error("找不到本地素材目录");
+          }
+          const project = localClip.project_id
+            ? projects.find((item) => item.project_id === localClip.project_id)
+            : undefined;
+          await openRuntimeOutputDirectory({
+            ...(localClip.project_id ? { project_id: localClip.project_id } : {}),
+            ...(project ? { project_title: projectDisplayTitle(project) } : {})
+          });
+          setCutNotice(localClip.project_id ? "已打开本地素材所属项目目录" : "已打开本地素材目录");
+          return;
+        }
+
+        const sourceVideoFilePath =
+          detail?.source_video_file_path ||
+          result.source_video?.source_video_file_path ||
+          detail?.relative_path ||
+          result.source_video?.relative_path;
+        await openRuntimeSourceVideoDirectory({
+          source_video_id: result.id,
+          ...(sourceVideoFilePath ? { source_video_file_path: sourceVideoFilePath } : {})
+        });
+        setCutNotice("已打开素材文件夹");
+      } catch (openError) {
+        setError(openError instanceof Error ? openError.message : "打开素材文件夹失败");
       }
     },
     openLocalClipDirectory: async (localClip: LocalClip) => {
@@ -3932,6 +4060,7 @@ export function CutterApp() {
               pageQueue,
               {
                 searchQuery,
+                materialSearchMode,
                 highlightedSegmentIds,
                 highlightedHitSegments,
                 currentHitIndex: locatorCurrentHitIndex,

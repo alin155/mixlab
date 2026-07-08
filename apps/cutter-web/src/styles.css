@@ -71,8 +71,8 @@ body,
 
 .cutter-source-folder-select {
   width: auto;
-  min-width: 128px;
-  max-width: 196px;
+  min-width: 132px;
+  max-width: 212px;
   height: 36px;
 }
 
@@ -129,7 +129,7 @@ body,
 }
 
 .ml-command-row-header--source-filter {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 212px);
   gap: 10px;
   align-items: center;
 }

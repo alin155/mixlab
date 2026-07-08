@@ -24,6 +24,8 @@ import {
 import type { TranscriptSegment as IndexedTranscriptSegment } from "@mixlab/protocol";
 
 export type MaterialSearchSourceFilter = "all" | "local" | "public";
+export type MaterialSearchMode = "content" | "folder";
+export const MATERIAL_SCOPE_FOLDER_VALUE = "__folder__";
 
 export type MaterialSource = "local" | "public";
 
@@ -58,6 +60,7 @@ export interface MaterialLocatorSection {
 
 export interface BuildMaterialLocatorSectionsInput {
   query: string;
+  searchMode?: MaterialSearchMode;
   sourceFilter: MaterialSearchSourceFilter;
   orientationFilter: VideoOrientationFilter;
   localClips: LocalClipCatalog;
@@ -321,6 +324,7 @@ export function buildMaterialLocatorSections(
 
   if (
     (input.sourceFilter === "all" || input.sourceFilter === "local") &&
+    input.searchMode !== "folder" &&
     !hasPublicFilenameSearchResult(input.search)
   ) {
     const localItems = input.localClips.clips
