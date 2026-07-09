@@ -15,7 +15,6 @@ import {
   type CutterPasswordChangeRequest,
   type CutterRuntimeStatus,
   type OpenCutOutputDirectoryRequest,
-  type OpenSourceVideoDirectoryRequest,
   type SearchGroup,
   type SearchResponse,
   type SourceFolderOption,
@@ -167,15 +166,6 @@ export async function openOutputDirectoryForRuntime(input: {
 
 function materialSearchSourceFolderName(mode: MaterialSearchMode, folderName: string): string {
   return mode === "folder" ? "" : folderName.trim();
-}
-
-function directoryFromFilePath(filePath: string | undefined): string {
-  const trimmedPath = filePath?.trim() ?? "";
-  if (!trimmedPath) {
-    return "";
-  }
-
-  return trimmedPath.replace(/[\\/][^\\/]*$/, "");
 }
 
 function mergeSourceVideoCards(
@@ -1354,7 +1344,6 @@ function renderPage(
     retryFailedCutJob?: (cutJobId: string) => void;
     cancelCutJob?: (cutJobId: string) => void;
     openCutOutputDirectory: () => void;
-    openMaterialDirectory: (result: MaterialLocatorResult, detail?: SourceVideoCard) => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
     deleteLocalClip: (localClip: LocalClip) => void;
     selectLocalClip: (localClipId: string) => void;
@@ -1442,7 +1431,6 @@ function renderPage(
         onCutSelection={handlers.addSelectedSpan}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
-        onOpenMaterialDirectory={handlers.openMaterialDirectory}
         onSetCutMode={handlers.setCutMode}
       />
     );
@@ -1523,6 +1511,7 @@ function renderPage(
       library={data.library}
       selectedSourceVideoId={viewState.publicLibrarySelectedSourceVideoId}
       orientationFilter={viewState.publicLibraryOrientationFilter}
+      searchMode={viewState.materialSearchMode}
       sourceFolderFilter={viewState.sourceFolderFilter}
       filenameQuery={viewState.publicLibraryFilenameQuery}
       sourceFolders={viewState.sourceFolders}
@@ -1531,7 +1520,7 @@ function renderPage(
       isSearchingFilename={viewState.publicLibraryFilenameSearching}
       hasMore={data.library.videos.length < data.library.available_video_count}
       onSetOrientationFilter={handlers.setPublicLibraryOrientationFilter}
-      onSetSourceFolderFilter={handlers.setSourceFolderFilter}
+      onSetMaterialScope={handlers.setMaterialScope}
       onSearchFilename={handlers.searchPublicLibraryFilename}
       onSelectSourceVideo={handlers.selectPublicSourceVideo}
       onLoadMore={handlers.loadMoreSourceLibrary}
@@ -1659,33 +1648,6 @@ export function CutterApp() {
       request,
       isDesktopMode
     });
-  }
-
-  async function openRuntimeSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {
-    try {
-      const opened = await client.openSourceVideoDirectory({
-        ...request,
-        ...(isDesktopMode ? { open: false } : {})
-      });
-
-      if (isDesktopMode) {
-        await openDesktopDirectory(opened.path);
-      }
-
-      return opened;
-    } catch (openError) {
-      const directDirectory = directoryFromFilePath(request.source_video_file_path);
-      if (isDesktopMode && directDirectory) {
-        await openDesktopDirectory(directDirectory);
-        return { path: directDirectory };
-      }
-
-      if (openError instanceof CutterApiError && openError.status === 404) {
-        throw new Error("本机 Cutter API 尚未支持打开源素材文件夹，请重启本机剪辑服务后重试。");
-      }
-
-      throw openError;
-    }
   }
 
   const loginGateVisible = shouldShowLoginGate(apiMode, loginStatus, {
@@ -2452,9 +2414,15 @@ export function CutterApp() {
       includeSourceLibrary: route === "public-library",
       includeRuntimeCache: route === "cache-management",
       sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
-      sourceFolderName: sourceFolderFilter || undefined,
+      sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
       sourceLibraryFilenameQuery:
-        route === "public-library" ? publicLibraryFilenameQuery || undefined : undefined,
+        route === "public-library" && materialSearchMode !== "folder"
+          ? publicLibraryFilenameQuery || undefined
+          : undefined,
+      sourceLibraryFolderQuery:
+        route === "public-library" && materialSearchMode === "folder"
+          ? publicLibraryFilenameQuery || undefined
+          : undefined,
       localClipLimit: CUTTER_LOCAL_CLIP_INITIAL_LOAD_LIMIT
     })
       .then((result) => {
@@ -2486,6 +2454,7 @@ export function CutterApp() {
     client,
     desktopSetupReady,
     loginGateVisible,
+    materialSearchMode,
     publicLibraryFilenameQuery,
     route,
     sourceFolderFilter,
@@ -3084,8 +3053,9 @@ export function CutterApp() {
       const nextPage = await client.listSourceLibrary({
         limit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
         offset,
-        sourceFolderName: sourceFolderFilter || undefined,
-        filenameQuery: publicLibraryFilenameQuery || undefined
+        sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+        filenameQuery: materialSearchMode === "folder" ? undefined : publicLibraryFilenameQuery || undefined,
+        folderQuery: materialSearchMode === "folder" ? publicLibraryFilenameQuery || undefined : undefined
       });
       const nextVideos = nextPage.videos.map((video) => resolveSourceVideoCardUrls(client, video));
 
@@ -3111,7 +3081,7 @@ export function CutterApp() {
     } finally {
       setSourceLibraryLoadingMore(false);
     }
-  }, [client, publicLibraryFilenameQuery, sourceFolderFilter, sourceLibraryLoadingMore]);
+  }, [client, materialSearchMode, publicLibraryFilenameQuery, sourceFolderFilter, sourceLibraryLoadingMore]);
 
   const commitDesktopConfigDraft = (config: DesktopConfig, stage = desktopSetupStageForConfig(config)) => {
     setDesktopConfig(config);
@@ -3779,43 +3749,6 @@ export function CutterApp() {
         setCutNotice("已打开项目视频目录");
       } catch (openError) {
         setError(openError instanceof Error ? openError.message : "打开文件目录失败");
-      }
-    },
-    openMaterialDirectory: async (result: MaterialLocatorResult, detail?: SourceVideoCard) => {
-      if (!apiMode) {
-        setCutNotice("请先连接本机剪辑服务，再打开素材文件夹");
-        return;
-      }
-
-      try {
-        if (result.source === "local") {
-          const localClip = result.local_clip;
-          if (!localClip) {
-            throw new Error("找不到本地素材目录");
-          }
-          const project = localClip.project_id
-            ? projects.find((item) => item.project_id === localClip.project_id)
-            : undefined;
-          await openRuntimeOutputDirectory({
-            ...(localClip.project_id ? { project_id: localClip.project_id } : {}),
-            ...(project ? { project_title: projectDisplayTitle(project) } : {})
-          });
-          setCutNotice(localClip.project_id ? "已打开本地素材所属项目目录" : "已打开本地素材目录");
-          return;
-        }
-
-        const sourceVideoFilePath =
-          detail?.source_video_file_path ||
-          result.source_video?.source_video_file_path ||
-          detail?.relative_path ||
-          result.source_video?.relative_path;
-        await openRuntimeSourceVideoDirectory({
-          source_video_id: result.id,
-          ...(sourceVideoFilePath ? { source_video_file_path: sourceVideoFilePath } : {})
-        });
-        setCutNotice("已打开素材文件夹");
-      } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开素材文件夹失败");
       }
     },
     openLocalClipDirectory: async (localClip: LocalClip) => {

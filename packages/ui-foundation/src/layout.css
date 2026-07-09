@@ -2647,6 +2647,17 @@ video.ml-media-frame {
   padding: 0 12px 12px;
 }
 
+.ml-path-reveal {
+  margin: 0 0 8px;
+  border-radius: 6px;
+  background: var(--ml-color-surface-muted);
+  padding: 6px 8px;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
 .ml-selected-copy {
   min-height: 100%;
   font-size: 12px;

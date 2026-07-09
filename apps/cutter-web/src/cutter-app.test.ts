@@ -114,7 +114,8 @@ import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList, type CutQueueJob } from "./state/cut-queue.ts";
 import {
   buildMaterialLocatorSections,
-  localClipToSourceVideoDetail
+  localClipToSourceVideoDetail,
+  MATERIAL_SCOPE_FOLDER_VALUE
 } from "./state/material-locator.ts";
 import {
   continuousTranscriptSelection,
@@ -1149,6 +1150,8 @@ test("public library is a read-only gallery of available source videos", () => {
     "可用原素材",
     "原素材详情",
     "搜索素材文件名",
+    "全部素材",
+    "文件夹",
     "全部",
     "横版",
     "竖版",
@@ -1174,6 +1177,9 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(html, /cutter-library-grid/);
   assert.match(html, /class="ml-search-box cutter-public-library-filename-search"/);
   assert.match(html, /aria-label="按文件名搜索公共素材"/);
+  assert.match(html, /aria-label="素材范围"/);
+  assert.equal(html.includes("全部老师"), false);
+  assert.equal(html.includes("按老师筛选"), false);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
   assert.equal(html.includes("编辑元数据"), false);
@@ -1191,6 +1197,22 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(portraitHtml, /竖版爆款开场/);
   assert.equal(portraitHtml.includes("直播复盘：从流量到现金流健康度"), false);
   assert.match(portraitHtml, /cutter-local-view-toggle ml-segmented-control/);
+
+  const folderSearchHtml = renderToStaticMarkup(
+    h(PublicLibraryPage, {
+      library,
+      searchMode: "folder",
+      filenameQuery: "南京项目课",
+      sourceFolders: data.sourceFolders,
+      sourceFolderFilter: "经营课",
+      onSetMaterialScope: () => undefined,
+      onSearchFilename: () => undefined
+    })
+  );
+  assert.match(folderSearchHtml, /aria-label="搜索文件夹名称"/);
+  assert.match(folderSearchHtml, /搜索课程文件夹名称/);
+  assert.match(folderSearchHtml, new RegExp(`value="${MATERIAL_SCOPE_FOLDER_VALUE}" selected=""`));
+  assert.equal(folderSearchHtml.includes("全部老师"), false);
 
   const emptyPortraitHtml = renderToStaticMarkup(
     h(PublicLibraryPage, {
@@ -1755,7 +1777,7 @@ test("material locator is the main search-select-cut workbench with public sourc
       orientationFilter: "all",
       selectedDetail: {
         ...data.primaryDetail,
-        source_video_file_path: "/Volumes/MixLab/PublicLibrary/source-videos/经营课/01_现金流.mp4"
+        source_video_file_path: "/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课/复盘/C0510.mp4"
       },
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 3),
       highlightedSegmentIds: ["s-062"],
@@ -1776,7 +1798,6 @@ test("material locator is the main search-select-cut workbench with public sourc
       onCutSelection: () => undefined,
       onCancelSelection: () => undefined,
       onOpenCutOutputDirectory: () => undefined,
-      onOpenMaterialDirectory: () => undefined,
       onSetCutMode: () => undefined
     })
   );
@@ -1791,11 +1812,11 @@ test("material locator is the main search-select-cut workbench with public sourc
 	    "公共原素材",
 	    "横版",
 	    "视频文案",
-    "经营课/01_现金流.mp4",
+    "陶矜/南京项目课/复盘/C0510.mp4",
 	    "上一个",
 	    "下一个",
 	    "选区信息",
-    "打开文件夹",
+    "查看文件目录",
 	    "命中",
 	    "已加入剪切任务 · 等待中 1",
     "最近剪切任务",
@@ -1805,7 +1826,9 @@ test("material locator is the main search-select-cut workbench with public sourc
   ]) {
     assert.ok(html.includes(text), text);
   }
-  assert.equal(html.includes("/Volumes/MixLab/PublicLibrary/source-videos/经营课/01_现金流.mp4"), false);
+  assert.equal(html.includes("/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课/复盘/C0510.mp4"), false);
+  assert.equal(html.includes("source-videos/陶矜/南京项目课/复盘/C0510.mp4"), false);
+  assert.equal(html.includes("打开文件夹"), false);
   assert.equal(html.includes("导出片段"), false);
   for (const removedText of [
 	    "清空搜索",

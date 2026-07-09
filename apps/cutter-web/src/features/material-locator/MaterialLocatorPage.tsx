@@ -193,11 +193,21 @@ function selectedTranscriptText(
 }
 
 const PUBLIC_LIBRARY_SOURCE_PATH_PREFIX = "/Volumes/MixLab/PublicLibrary/source-videos/";
+const PUBLIC_LIBRARY_SOURCE_PATH_SEGMENT = "/source-videos/";
+
+function normalizeMaterialPath(pathValue: string): string {
+  return pathValue.replace(/\\/g, "/").trim();
+}
 
 function materialDisplayPath(pathValue: string): string {
-  const normalizedPath = pathValue.replace(/\\/g, "/").trim();
-  return normalizedPath.startsWith(PUBLIC_LIBRARY_SOURCE_PATH_PREFIX)
-    ? normalizedPath.slice(PUBLIC_LIBRARY_SOURCE_PATH_PREFIX.length)
+  const normalizedPath = normalizeMaterialPath(pathValue);
+  if (normalizedPath.startsWith(PUBLIC_LIBRARY_SOURCE_PATH_PREFIX)) {
+    return normalizedPath.slice(PUBLIC_LIBRARY_SOURCE_PATH_PREFIX.length) || normalizedPath;
+  }
+  const sourcePathIndex = normalizedPath.indexOf(PUBLIC_LIBRARY_SOURCE_PATH_SEGMENT);
+
+  return sourcePathIndex >= 0
+    ? normalizedPath.slice(sourcePathIndex + PUBLIC_LIBRARY_SOURCE_PATH_SEGMENT.length) || normalizedPath
     : normalizedPath;
 }
 
@@ -566,8 +576,7 @@ export function MaterialLocatorPage({
   onLoadMoreSearchResults,
   onCutSelection,
   onCancelSelection,
-  onOpenCutOutputDirectory,
-  onOpenMaterialDirectory
+  onOpenCutOutputDirectory
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
@@ -609,7 +618,6 @@ export function MaterialLocatorPage({
   onCutSelection?: () => void;
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
-  onOpenMaterialDirectory?: (result: MaterialLocatorResult, detail?: SourceVideoDetail) => void;
   onSetCutMode?: (mode: CutMode) => void;
 }) {
   const sections = buildMaterialLocatorSections({
@@ -680,7 +688,17 @@ export function MaterialLocatorPage({
   const focusedVideoPath = focusedDetail
     ? focusedDetail.source_video_file_path || focusedDetail.relative_path || ""
     : "";
+  const focusedVideoFullPath = focusedVideoPath ? normalizeMaterialPath(focusedVideoPath) : "";
   const focusedVideoDisplayPath = focusedVideoPath ? materialDisplayPath(focusedVideoPath) : "";
+  const focusedMaterialPathKey = focusedMaterial && focusedVideoFullPath
+    ? `${focusedMaterial.source}:${focusedMaterial.id}:${focusedVideoFullPath}`
+    : "";
+  const [visibleMaterialPathKey, setVisibleMaterialPathKey] = useState<string | undefined>();
+  const showFocusedMaterialPath = Boolean(
+    focusedVideoFullPath &&
+    focusedMaterialPathKey &&
+    visibleMaterialPathKey === focusedMaterialPathKey
+  );
   const focusedMaterialHitCount = focusedMaterial?.hit_count ?? highlightedSegmentIds.length;
   const isPreviewLoading = hasActiveQuery && !isSearching && candidateCount > 0 && !focusedDetail;
   const hasHitNavigation = hitCount > 0;
@@ -1063,6 +1081,10 @@ export function MaterialLocatorPage({
   useEffect(() => {
     setTimeSelectionStartSegmentId(undefined);
   }, [selectedMaterialKey]);
+
+  useEffect(() => {
+    setVisibleMaterialPathKey(undefined);
+  }, [focusedMaterialPathKey]);
 
   useEffect(() => {
     if (!timeSelectionStartSegmentId) {
@@ -1595,19 +1617,24 @@ export function MaterialLocatorPage({
                       : "暂无选区"}
                   </span>
                 </div>
-                {focusedMaterial && onOpenMaterialDirectory ? (
+                {focusedMaterial && focusedVideoFullPath ? (
                   <Button
                     className="cutter-open-material-folder-button"
-                    onClick={() => onOpenMaterialDirectory(focusedMaterial, focusedDetail)}
+                    onClick={() => setVisibleMaterialPathKey(focusedMaterialPathKey)}
                     size="sm"
                     type="button"
                     variant="ghost"
                   >
-                    打开文件夹
+                    查看文件目录
                   </Button>
                 ) : null}
               </header>
               <div className="cutter-locator-cut-selection ml-pane-body">
+                {showFocusedMaterialPath ? (
+                  <div className="cutter-material-path-reveal ml-path-reveal" title={focusedVideoFullPath}>
+                    {focusedVideoFullPath}
+                  </div>
+                ) : null}
                 <div className="cutter-locator-selected-copy ml-selected-copy">
                   <p>{selectedText || "暂无选区"}</p>
                 </div>
