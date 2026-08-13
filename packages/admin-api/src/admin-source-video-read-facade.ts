@@ -78,6 +78,7 @@ export interface AdminSourceVideoReadFacadeInput {
     library: LibraryCounts | null;
     offset: number;
     limit: number;
+    status?: PreprocessStatus;
   }): Promise<{
     manifests: SourceVideoManifest[];
     preprocess_jobs: AdminReadModelStorePreprocessJobSnapshot[];
@@ -124,11 +125,13 @@ export interface AdminSourceVideoReadFacade {
     library_root: string;
     offset: number;
     limit: number;
+    status?: PreprocessStatus;
   }): Promise<SourceVideoManifest[]>;
   read_preprocess_job_manifest_page_with_runtime_meta(input: {
     library_root: string;
     offset: number;
     limit: number;
+    status?: PreprocessStatus;
   }): Promise<{
     manifests: SourceVideoManifest[];
     preprocess_jobs: AdminReadModelStorePreprocessJobSnapshot[];
@@ -380,6 +383,7 @@ export function createAdminSourceVideoReadFacade(
     library_root: string;
     offset: number;
     limit: number;
+    status?: PreprocessStatus;
   }): Promise<SourceVideoManifest[]> {
     return (await read_preprocess_job_manifest_page_with_runtime_meta(readerInput)).manifests;
   }
@@ -388,6 +392,7 @@ export function createAdminSourceVideoReadFacade(
     library_root: string;
     offset: number;
     limit: number;
+    status?: PreprocessStatus;
   }): Promise<{
     manifests: SourceVideoManifest[];
     preprocess_jobs: AdminReadModelStorePreprocessJobSnapshot[];
@@ -399,7 +404,8 @@ export function createAdminSourceVideoReadFacade(
       library_root: readerInput.library_root,
       library,
       offset: readerInput.offset,
-      limit: readerInput.limit
+      limit: readerInput.limit,
+      status: readerInput.status
     });
     if (storePage) {
       return {
@@ -411,7 +417,9 @@ export function createAdminSourceVideoReadFacade(
     }
 
     const model = await read_status_read_model(readerInput.library_root);
-    const sourceVideoIds = preprocessJobSourceVideoIdsFromStatusReadModel(model)
+    const sourceVideoIds = (readerInput.status
+      ? model.ids_by_status[readerInput.status] ?? []
+      : preprocessJobSourceVideoIdsFromStatusReadModel(model))
       .slice(readerInput.offset, readerInput.offset + readerInput.limit);
 
     return {

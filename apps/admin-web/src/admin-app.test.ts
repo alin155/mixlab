@@ -52,6 +52,7 @@ import {
   adminLoadErrorMessage,
   loadAdminPreprocessRouteData,
   mergeAdminDashboardPanelData,
+  mergeAdminPreprocessJobPages,
   mergeAdminSourceVideoPages,
   resolveAdminRuntimeApiBaseUrl,
   sourceDetailForRequest,
@@ -1605,6 +1606,22 @@ test("admin source video page merges loaded pages without duplicate rows", async
   assert.equal(merged[0]?.source_video_id, first.source_video_id);
   assert.equal(merged[0]?.title, "刷新后的标题");
   assert.equal(merged[1]?.source_video_id, "V999999");
+});
+
+test("admin preprocess job pages merge failed-detail supplements without duplicate rows", async () => {
+  const data = await fixtureData();
+  const queued = { ...data.jobs.jobs[0]!, job_id: "J000010", source_video_id: "V000010", status: "queued" as const };
+  const failed = { ...data.jobs.jobs[0]!, job_id: "J000011", source_video_id: "V000011", status: "failed" as const };
+
+  const merged = mergeAdminPreprocessJobPages(
+    { ...data.jobs, failed_count: 1, jobs: [queued] },
+    { ...data.jobs, failed_count: 1, jobs: [failed, queued] }
+  );
+
+  assert.deepEqual(
+    merged.jobs.map((job) => job.job_id),
+    ["J000010", "J000011"]
+  );
 });
 
 test("AdminApp source detail hash requires admin login in runtime API mode", () => {

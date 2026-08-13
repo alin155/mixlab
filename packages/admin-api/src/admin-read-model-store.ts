@@ -2593,19 +2593,27 @@ const adminPreprocessJobStoreStatuses: PreprocessStatus[] = [
 ];
 
 function countPreprocessJobStoreRows(counts: Record<PreprocessStatus, number>): number {
-  return adminPreprocessJobStoreStatuses
+  return countPreprocessJobStoreRowsForStatuses(counts, adminPreprocessJobStoreStatuses);
+}
+
+function countPreprocessJobStoreRowsForStatuses(
+  counts: Record<PreprocessStatus, number>,
+  statuses: PreprocessStatus[]
+): number {
+  return statuses
     .reduce((total, status) => total + counts[status], 0);
 }
 
 function readPreprocessJobStoreManifestRows(input: {
   db: DatabaseSync;
   counts_by_status: Record<PreprocessStatus, number>;
+  statuses: PreprocessStatus[];
   offset: number;
   limit: number;
 }): SourceVideoManifest[] | null {
   const manifests: SourceVideoManifest[] = [];
   for (const slice of statusPageSlices({
-    statuses: adminPreprocessJobStoreStatuses,
+    statuses: input.statuses,
     counts_by_status: input.counts_by_status,
     offset: input.offset,
     limit: input.limit,
@@ -3493,6 +3501,7 @@ export async function readAdminPreprocessJobManifestPageFromStore(input: {
   library: LibraryCounts & { updated_at?: string } | null;
   offset: number;
   limit: number;
+  status?: PreprocessStatus;
 }): Promise<AdminReadModelStorePreprocessJobPage | null> {
   if (input.limit <= 0) {
     return null;
@@ -3517,7 +3526,10 @@ export async function readAdminPreprocessJobManifestPageFromStore(input: {
       return null;
     }
 
-    const observableJobCount = countPreprocessJobStoreRows(status.counts_by_status);
+    const statuses = input.status && adminPreprocessJobStoreStatuses.includes(input.status)
+      ? [input.status]
+      : adminPreprocessJobStoreStatuses;
+    const observableJobCount = countPreprocessJobStoreRowsForStatuses(status.counts_by_status, statuses);
     if (observableJobCount <= 0 || input.offset >= observableJobCount) {
       return null;
     }
@@ -3525,6 +3537,7 @@ export async function readAdminPreprocessJobManifestPageFromStore(input: {
     const manifests = readPreprocessJobStoreManifestRows({
       db,
       counts_by_status: status.counts_by_status,
+      statuses,
       offset: input.offset,
       limit: input.limit
     });

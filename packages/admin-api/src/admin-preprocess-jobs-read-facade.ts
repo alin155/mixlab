@@ -1,4 +1,4 @@
-import type { LibraryCounts, SourceVideoManifest } from "../../protocol/src/index.ts";
+import type { LibraryCounts, PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
 import {
   adminRuntimeNowMs,
   type AdminRuntimeCacheStatus,
@@ -20,6 +20,7 @@ export interface AdminPreprocessJobsReadApiInput {
 export interface AdminPreprocessJobsReadOptions {
   limit?: number;
   offset?: number;
+  status?: PreprocessStatus;
 }
 
 export interface AdminPreprocessJobSnapshot {
@@ -44,6 +45,7 @@ export interface AdminPreprocessJobsReadDeps {
     library_root: string;
     offset: number;
     limit: number;
+    status?: PreprocessStatus;
   }): Promise<AdminPreprocessJobManifestPage>;
   read_all_source_video_manifests(libraryRoot: string): Promise<SourceVideoManifest[]>;
   read_preprocess_job(libraryRoot: string, sourceVideoId: string): Promise<AdminPreprocessJobRecord | null>;
@@ -114,10 +116,11 @@ export async function listAdminPreprocessJobsWithRuntimeMeta(input: {
   if (options.limit) {
     const pageStartedAtMs = adminRuntimeNowMs();
     page = await input.deps.read_preprocess_job_manifest_page({
-        library_root: libraryRoot,
-        offset: options.offset ?? 0,
-        limit: options.limit
-      });
+      library_root: libraryRoot,
+      offset: options.offset ?? 0,
+      limit: options.limit,
+      status: options.status
+    });
     componentTimings.push({
       name: "preprocess_job_page",
       duration_ms: componentDurationMs(pageStartedAtMs),
@@ -128,6 +131,7 @@ export async function listAdminPreprocessJobsWithRuntimeMeta(input: {
       detail: componentDetail({
         offset: options.offset ?? 0,
         limit: options.limit,
+        status: options.status,
         manifests: page.manifests.length,
         snapshots: page.preprocess_jobs.length
       })

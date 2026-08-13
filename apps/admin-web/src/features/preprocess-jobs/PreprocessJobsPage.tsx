@@ -473,6 +473,7 @@ export function PreprocessJobsPage({
     job.long_task_recommended &&
     (job.status === "failed" || job.status === "queued")
   );
+  const failureDetailsPending = data.jobs.failed_count > 0 && failed.length < data.jobs.failed_count;
   const supervisor = data.jobs.supervisor;
   const supervisorRunning = supervisor.state === "running" || supervisor.state === "stopping";
   const supervisorCurrentVideoId = supervisor.current_source_video_id;
@@ -558,13 +559,19 @@ export function PreprocessJobsPage({
   const indexRequiredCaption = data.status.index_required_video_count > 0
     ? "等待上线剪辑端"
     : autoPublishIndexEnabled ? "已自动上线" : "没有待上线素材";
-  const failureMetricLabel = abnormalJobs.length > 0
+  const failureMetricLabel = failureDetailsPending
+    ? "失败待分类"
+    : abnormalJobs.length > 0
     ? "异常素材"
     : longAsrJobs.length > 0 ? "长任务素材" : "可继续处理";
-  const failureMetricValue = abnormalJobs.length > 0
+  const failureMetricValue = failureDetailsPending
+    ? data.jobs.failed_count
+    : abnormalJobs.length > 0
     ? abnormalJobs.length
     : longAsrJobs.length > 0 ? longAsrJobs.length : retryableFailed.length;
-  const failureMetricCaption = abnormalJobs.length > 0
+  const failureMetricCaption = failureDetailsPending
+    ? "正在读取明细"
+    : abnormalJobs.length > 0
     ? "需检查源文件"
     : longAsrJobs.length > 0 ? "需更长识别时间" : retryableFailed.length > 0 ? "可重新处理" : "当前无异常";
   const flowCards = [
@@ -940,7 +947,11 @@ export function PreprocessJobsPage({
                 caption: processingServiceCaption
               },
               { label: "待上线", value: data.status.index_required_video_count, caption: indexRequiredCaption },
-              { label: "异常素材", value: abnormalJobs.length, caption: "不自动重试" },
+              {
+                label: failureDetailsPending ? "失败待分类" : "异常素材",
+                value: failureDetailsPending ? data.jobs.failed_count : abnormalJobs.length,
+                caption: failureDetailsPending ? "正在读取明细" : "不自动重试"
+              },
               { label: "长任务", value: longAsrJobs.length, caption: "专用识别" },
               { label: "可重试失败", value: retryableFailed.length, caption: "可重新处理" }
             ]}
@@ -966,6 +977,12 @@ export function PreprocessJobsPage({
             jobs: retryableFailed,
             tone: "attention"
           }) : null}
+          {failureDetailsPending ? (
+            <EmptyState
+              title={`正在读取 ${data.jobs.failed_count} 个失败素材明细`}
+              detail="队列很长时会单独读取失败素材清单，读到后会自动分类为异常素材、长任务或可重试失败。"
+            />
+          ) : null}
           {jobsError ? (
             <EmptyState title="预处理队列加载失败" detail={jobsError} />
           ) : null}

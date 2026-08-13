@@ -17,6 +17,7 @@ import type {
   AdminPathCheck,
   AdminPreprocessJobLog,
   AdminPreprocessJobsResponse,
+  AdminPreprocessStatus,
   AdminPreprocessProcessHistoryOptions,
   AdminPreprocessProcessHistoryResponse,
   AdminPreprocessSupervisorStatus,
@@ -58,7 +59,7 @@ export interface AdminOperationsClientMethods {
   updateSourceFolder(sourceFolderId: string, patch: AdminSourceFolderUpdate): Promise<AdminSettingsConfig>;
   removeSourceFolder(sourceFolderId: string): Promise<AdminSettingsConfig>;
   getDashboardMetrics(): Promise<AdminDashboardMetrics>;
-  listPreprocessJobs(options?: { limit?: number; offset?: number }): Promise<AdminPreprocessJobsResponse>;
+  listPreprocessJobs(options?: { limit?: number; offset?: number; status?: AdminPreprocessStatus }): Promise<AdminPreprocessJobsResponse>;
   listPreprocessProcessHistory(
     options?: AdminPreprocessProcessHistoryOptions
   ): Promise<AdminPreprocessProcessHistoryResponse>;

@@ -311,7 +311,7 @@ export async function loadAdminPreprocessRouteData(
 ) {
   const [jobsResult, processHistoryResult] = await Promise.all([
     withAdminLoadTimeout(
-      client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT }),
+      listPreprocessJobsWithFailureDetails(client, ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT),
       "预处理队列加载"
     )
       .then((jobs) => ({
@@ -404,6 +404,49 @@ export function mergeAdminSourceVideoPages(
   return Array.from(byId.values());
 }
 
+export function mergeAdminPreprocessJobPages(
+  primary: AdminPreprocessJobsResponse,
+  supplement: AdminPreprocessJobsResponse
+): AdminPreprocessJobsResponse {
+  const jobById = new Map(primary.jobs.map((job) => [job.job_id, job]));
+
+  for (const job of supplement.jobs) {
+    if (!jobById.has(job.job_id)) {
+      jobById.set(job.job_id, job);
+    }
+  }
+
+  return {
+    ...primary,
+    jobs: Array.from(jobById.values())
+  };
+}
+
+async function listPreprocessJobsWithFailureDetails(
+  client: AdminApiClient,
+  limit: number
+): Promise<AdminPreprocessJobsResponse> {
+  const primary = await client.listPreprocessJobs({ limit });
+  const loadedFailureCount = primary.jobs.filter((job) => job.status === "failed").length;
+  if (primary.failed_count <= loadedFailureCount) {
+    return primary;
+  }
+
+  try {
+    const supplement = await withAdminLoadTimeout(
+      client.listPreprocessJobs({
+        limit: Math.min(500, Math.max(primary.failed_count, ADMIN_PREPROCESS_JOB_INITIAL_LOAD_LIMIT)),
+        status: "failed"
+      }),
+      "失败素材明细加载",
+      3_000
+    );
+    return mergeAdminPreprocessJobPages(primary, supplement);
+  } catch {
+    return primary;
+  }
+}
+
 function mergeAdminDashboardShellData(
   current: AdminDashboardData,
   next: AdminDashboardData
@@ -445,7 +488,7 @@ async function loadAdminDashboardPanelData(client: AdminApiClient): Promise<{
 }> {
   const [status, jobs, metrics] = await Promise.all([
     client.getLibraryStatus(),
-    client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT }),
+    listPreprocessJobsWithFailureDetails(client, ADMIN_PREPROCESS_JOB_ROUTE_LOAD_LIMIT),
     client.getDashboardMetrics()
   ]);
 

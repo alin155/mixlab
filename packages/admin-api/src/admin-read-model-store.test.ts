@@ -1254,6 +1254,13 @@ test("admin read model store serves bounded preprocess job pages including ready
     offset: 5,
     limit: 2
   });
+  const failedOnlyPage = await readAdminPreprocessJobManifestPageFromStore({
+    library_root: libraryRoot,
+    library,
+    offset: 0,
+    limit: 10,
+    status: "failed"
+  });
 
   assert.deepEqual(
     firstPage?.manifests.map((manifest) => manifest.source_video_id),
@@ -1275,6 +1282,10 @@ test("admin read model store serves bounded preprocess job pages including ready
   assert.deepEqual(
     readyExtendingPage?.preprocess_jobs.map((job) => job.source_video_id),
     ["V000007"]
+  );
+  assert.deepEqual(
+    failedOnlyPage?.manifests.map((manifest) => manifest.source_video_id),
+    ["V000004", "V000003"]
   );
 });
 

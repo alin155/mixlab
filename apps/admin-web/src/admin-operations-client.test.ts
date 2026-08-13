@@ -242,6 +242,28 @@ test("omits all-status and empty process-history filters", async () => {
   assert.equal(url.search, "?limit=10&window_days=7");
 });
 
+test("forwards preprocess job status filters", async () => {
+  const requested: string[] = [];
+  const client = createAdminOperationsClientMethods({
+    baseUrl: "http://127.0.0.1:4899",
+    fetchImpl: async (url) => {
+      requested.push(String(url));
+      return new Response(JSON.stringify({ ok: true, data: {} }), {
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+
+  await client.listPreprocessJobs({
+    limit: 50,
+    status: "failed"
+  });
+
+  const url = new URL(requested[0]!);
+  assert.equal(url.pathname, "/api/admin/preprocess/jobs");
+  assert.equal(url.search, "?limit=50&status=failed");
+});
+
 test("starts preprocess supervisor with bounded unprocessed queue option", async () => {
   const requests: Array<{ pathname: string; body?: unknown }> = [];
   const client = createAdminOperationsClientMethods({

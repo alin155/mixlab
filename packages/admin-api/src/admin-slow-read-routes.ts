@@ -1,6 +1,10 @@
 import type { AdminScanDataSource } from "./admin-scan-modes.ts";
 import type { AdminScanMode } from "./admin-scan-modes.ts";
 import {
+  PREPROCESS_STATUSES,
+  type PreprocessStatus
+} from "../../protocol/src/index.ts";
+import {
   adminRuntimeNowMs,
   buildAdminRuntimeEndpointMeta,
   type AdminRuntimeEndpointMeta,
@@ -21,6 +25,7 @@ export interface AdminSlowReadRouteApiInput {
 export interface AdminSlowReadRoutePagedOptions {
   limit?: number;
   offset: number;
+  status?: PreprocessStatus;
 }
 
 export interface AdminSlowReadRouteRuntimeResult<TData> {
@@ -91,6 +96,12 @@ function dashboardMetricsRuntimeScanMode(dataSource: AdminScanDataSource): Admin
     : "no-scan";
 }
 
+const preprocessJobStatusFilters = new Set<PreprocessStatus>(PREPROCESS_STATUSES);
+
+function parsePreprocessJobStatusFilter(value: string | null): PreprocessStatus | undefined {
+  return preprocessJobStatusFilters.has(value as PreprocessStatus) ? value as PreprocessStatus : undefined;
+}
+
 export async function handleAdminSlowReadRoutes<
   TDashboardMetrics,
   TPreprocessJobs extends { jobs: unknown[] },
@@ -145,9 +156,11 @@ export async function handleAdminSlowReadRoutes<
     const startedAtMs = runtimeNowMs();
     const limit = parseAdminRouteLimit(input.search_params, { max_limit: 500 });
     const offset = parseAdminRouteOffset(input.search_params);
+    const status = parsePreprocessJobStatusFilter(input.search_params.get("status"));
     const result = await input.deps.read_preprocess_jobs(input.api_input, {
       limit,
-      offset
+      offset,
+      ...(status ? { status } : {})
     });
     const data = {
       ...result.data,

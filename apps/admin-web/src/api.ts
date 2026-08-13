@@ -1677,7 +1677,7 @@ export interface AdminApiClient {
   approveCutterUser(userId: string): Promise<AdminCutterUserApprovalResult>;
   disableCutterUser(userId: string): Promise<AdminCutterUser>;
   resetCutterUserPassword(userId: string, input: { new_password: string }): Promise<AdminCutterUser>;
-  listPreprocessJobs(options?: { limit?: number; offset?: number }): Promise<AdminPreprocessJobsResponse>;
+  listPreprocessJobs(options?: { limit?: number; offset?: number; status?: AdminPreprocessStatus }): Promise<AdminPreprocessJobsResponse>;
   listPreprocessProcessHistory(
     options?: AdminPreprocessProcessHistoryOptions
   ): Promise<AdminPreprocessProcessHistoryResponse>;

@@ -296,6 +296,34 @@ test("slow read routes handle preprocess jobs pagination supervisor and runtime 
   assert.equal(result.body.meta?.runtime.components?.[0]?.cache_status, "hit");
 });
 
+test("slow read routes forward preprocess job status filters", async () => {
+  let captured: AdminSlowReadRoutePagedOptions | undefined;
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/jobs",
+    query: "limit=50&status=failed",
+    deps: makeDeps({
+      read_preprocess_jobs: async (_input, options) => {
+        captured = options;
+        return {
+          data: {
+            active_count: 0,
+            jobs: [{ job_id: "J000059" }]
+          },
+          actual_data_source: "admin-read-model",
+          cache_status: "hit"
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(captured, {
+    limit: 50,
+    offset: 0,
+    status: "failed"
+  });
+});
+
 test("slow read routes preserve preprocess jobs absent limit as zero in metadata", async () => {
   let captured: AdminSlowReadRoutePagedOptions | undefined;
   const result = await callRoute({
