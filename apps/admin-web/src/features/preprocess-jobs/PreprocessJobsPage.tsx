@@ -370,6 +370,7 @@ export function PreprocessJobsPage({
   isLoadingProcessHistory = false,
   processHistoryError = "",
   selectedJobLog,
+  onScanSourceVideos,
   onRetryFailedVideos,
   onStartLongAsrVideos,
   onRecoverProcessingVideos,
@@ -395,6 +396,7 @@ export function PreprocessJobsPage({
     error: string;
     log: AdminPreprocessJobLog | null;
   };
+  onScanSourceVideos?: () => void;
   onRetryFailedVideos?: () => void;
   onStartLongAsrVideos?: () => void;
   onRecoverProcessingVideos?: () => void;
@@ -781,6 +783,12 @@ export function PreprocessJobsPage({
               description="启动后系统会自动发现素材、生成文案和封面，并把已处理素材上线到剪辑端。"
               action={
                 <section className="admin-action-row" aria-label="素材处理主操作">
+                  <AdminControlButton
+                    label="扫描新增素材"
+                    state={nasWriteState}
+                    reason={nasWriteReason("检查 NAS 素材来源，把新视频登记到管理端。")}
+                    onClick={gatedNasWriteAction(onScanSourceVideos)}
+                  />
                   {canStartSupervisor || canStopSupervisor ? (
                     <AdminControlButton
                       label={canStopSupervisor ? "暂停预处理" : "启动预处理"}

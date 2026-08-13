@@ -96,6 +96,7 @@ import {
 } from "./route-loading-runtime.ts";
 
 const DEFAULT_LOCAL_ADMIN_API_BASE_URL = "http://127.0.0.1:3889/";
+const PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT = 100_000;
 
 export function resolveAdminRuntimeApiBaseUrl(input: {
   viteApiBaseUrl?: string;
@@ -792,6 +793,7 @@ function renderPage(
         data={data}
         isLoadingJobs={loadingState.preprocessJobs && data.jobs.jobs.length === 0}
         jobsError={routeErrors.preprocessJobs}
+        onScanSourceVideos={actions.onRunSmartScan}
         onRetryFailedVideos={actions.onRetryFailedVideos}
         onStartLongAsrVideos={actions.onStartLongAsrVideos}
         onRecoverProcessingVideos={actions.onRecoverProcessingVideos}
@@ -918,7 +920,7 @@ function renderPage(
     <DashboardPage
       data={data}
       onRetryFailedVideos={actions.onRetryFailedVideos}
-      onRunSmartScan={surfaceMode === "docker-mvp-v0.1" ? undefined : actions.onRunSmartScan}
+      onRunSmartScan={actions.onRunSmartScan}
       onApplySmartScanPrimaryAction={actions.onApplySmartScanPrimaryAction}
       smartScanReport={createAdminSmartScanReport(data)}
     />
@@ -2044,11 +2046,14 @@ export function AdminApp() {
   };
 
   const startPreprocessBatch = async (api: AdminApiClient): Promise<AdminActionResult> => {
-    await api.startPreprocessSupervisor();
+    await api.scanSourceVideos();
+    await api.startPreprocessSupervisor(undefined, {
+      queue_unprocessed_limit: PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT
+    });
 
     return {
       affected_count: 0,
-      message: "已启动预处理。系统会持续处理队列，直到全部处理完或手动暂停。"
+      message: "已扫描新增素材并启动预处理。系统会持续处理队列，直到全部处理完或手动暂停。"
     };
   };
 
@@ -2384,7 +2389,7 @@ export function AdminApp() {
     sourceVideoStatusFilter,
     processHistoryFilters: preprocessProcessHistoryFilters,
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
-    onScanSourceVideos: () => runAction("扫描源视频", (api) => api.scanSourceVideos()),
+    onScanSourceVideos: () => runAction("扫描新增素材", (api) => api.scanSourceVideos()),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试可继续处理的视频", (api) => api.retryFailedVideos()),
     onStartLongAsrVideos: () => runAction("长任务语音识别", startLongAsrBatch),

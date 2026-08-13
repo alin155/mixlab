@@ -90,7 +90,8 @@ test("docker mvp control contract keeps core writes and disables or hides high-r
   const hidden = listAdminDockerMvpControlsByDisposition("hidden").map((control) => `${control.route}:${control.label}`);
   const enabled = listAdminDockerMvpControlsByDisposition("enabled").map((control) => control.label);
 
-  assert.ok(disabled.includes("扫描新增素材"));
+  assert.equal(disabled.includes("扫描新增素材"), false);
+  assert.ok(enabled.includes("扫描新增素材"));
   assert.ok(disabled.includes("上线全部已处理素材"));
   assert.ok(enabled.includes("执行下一步建议"));
   assert.ok(hidden.includes("source-videos:保存封面"));

@@ -614,6 +614,12 @@ export function DashboardPage({
               description="只看当前能不能继续处理素材、剪辑端能不能正常使用。"
               action={
                 <section className="admin-action-row" aria-label="首页主操作">
+                  <AdminControlButton
+                    label="扫描新增素材"
+                    state={dashboardWriteState}
+                    reason="检查 NAS 素材来源，把新视频登记到管理端。"
+                    onClick={onRunSmartScan}
+                  />
                   {report.primary_action !== "none" ? (
                     <AdminControlButton
                       label={oneClickActionLabel(report)}
@@ -731,9 +737,9 @@ export function DashboardPage({
             action={
               <section className="admin-action-row" aria-label="总览操作">
                 <AdminControlButton
-                  label="局部刷新"
+                  label="扫描新增素材"
                   state={dashboardWriteState}
-                  reason="扫描素材来源、检查系统状态并生成下一步建议。"
+                  reason="检查 NAS 素材来源，把新视频登记到管理端。"
                   onClick={onRunSmartScan}
                 />
                 {report.primary_action !== "none" ? (
@@ -802,9 +808,9 @@ export function DashboardPage({
               </div>
               <div className="admin-action-row">
                 <AdminControlButton
-                  label="局部刷新"
+                  label="扫描新增素材"
                   state={dashboardWriteState}
-                  reason="刷新当前总览数据。"
+                  reason="检查 NAS 素材来源，把新视频登记到管理端。"
                   onClick={onRunSmartScan}
                 />
                 {failureSummary.retryable_regular_count > 0 ? (
@@ -835,9 +841,9 @@ export function DashboardPage({
                 <p>索引、路径和发布状态是剪辑端能否搜索的核心依据。</p>
               </div>
               <AdminControlButton
-                label="扫描素材库"
+                label="扫描新增素材"
                 state={dashboardWriteState}
-                reason="扫描素材来源、检查系统状态并生成下一步建议。"
+                reason="检查 NAS 素材来源，把新视频登记到管理端。"
                 onClick={onRunSmartScan}
               />
             </header>

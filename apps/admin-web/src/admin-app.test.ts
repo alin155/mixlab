@@ -627,11 +627,13 @@ test("dashboard renders a simple automated control console", async () => {
     "NAS 目录",
     "保持不迁移",
     "v000027",
+    "扫描新增素材",
     "长任务语音识别"
   ]) {
     assert.match(html, new RegExp(text));
   }
   assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>长任务语音识别<\/button>/);
+  assert.match(html, /<button[^>]*data-control-state="m9b-api"[^>]*>扫描新增素材<\/button>/);
   assert.doesNotMatch(html, /<button[^>]*>重试可继续处理的视频<\/button>/);
   assert.doesNotMatch(html, /真实 NAS|未解锁|已解锁/);
   assert.doesNotMatch(html, /设备负荷|服务心跳/);
@@ -672,6 +674,7 @@ test("dashboard renders a simple automated control console", async () => {
     onApplySmartScanPrimaryAction: () => {}
   }));
   assert.match(queuedIdleHtml, /40 个视频已排队，但预处理服务未运行/);
+  assert.match(queuedIdleHtml, />扫描新增素材<\/button>/);
   assert.match(queuedIdleHtml, />启动预处理<\/button>/);
   assert.match(queuedIdleHtml, /<button[^>]*data-control-state="m9b-api"[^>]*>启动预处理<\/button>/);
   assert.match(queuedIdleHtml, /等待自动处理/);
@@ -2081,11 +2084,13 @@ test("preprocess jobs render failure retry and later success", async () => {
   };
   const queuedIdleHtml = renderToStaticMarkup(h(PreprocessJobsPage, {
     data: queuedIdleData,
+    onScanSourceVideos: () => {},
     onStartPreprocessSupervisor: () => {}
   }));
   assert.match(queuedIdleHtml, /2 个视频已排队，但预处理服务未运行/);
   assert.match(queuedIdleHtml, /建议启动预处理/);
   assert.match(queuedIdleHtml, /等待自动处理/);
+  assert.match(queuedIdleHtml, />扫描新增素材<\/button>/);
   assert.doesNotMatch(queuedIdleHtml, /排队第 1 位/);
   assert.doesNotMatch(queuedIdleHtml, /预计开始/);
   assert.doesNotMatch(queuedIdleHtml, /预计完成/);
@@ -2155,6 +2160,7 @@ test("preprocess start and pause controls follow supervisor state", async () => 
   };
   const render = (input: typeof data) => renderToStaticMarkup(h(PreprocessJobsPage, {
     data: input,
+    onScanSourceVideos: () => {},
     onRecoverProcessingVideos: () => {},
     onStartPreprocessSupervisor: () => {},
     onStopPreprocessSupervisor: () => {}
@@ -2165,10 +2171,12 @@ test("preprocess start and pause controls follow supervisor state", async () => 
   const runningHtml = render(runningData);
 
   assert.doesNotMatch(idleHtml, /真实 NAS|未解锁|已解锁/);
+  assert.match(buttonMarkup(idleHtml, "扫描新增素材"), /data-control-state="m9b-api"/);
   assert.match(buttonMarkup(idleHtml, "启动预处理"), /data-control-state="m9b-api"/);
   assert.equal(buttonMarkup(idleHtml, "暂停预处理"), "");
   assert.match(buttonMarkup(idleHtml, "恢复卡住任务"), /data-control-state="m9b-api"/);
   assert.equal(buttonMarkup(runningHtml, "启动预处理"), "");
+  assert.match(buttonMarkup(runningHtml, "扫描新增素材"), /data-control-state="m9b-api"/);
   assert.match(buttonMarkup(runningHtml, "暂停预处理"), /data-control-state="m9b-api"/);
   assert.equal(buttonMarkup(runningHtml, "恢复卡住任务"), "");
 
@@ -4037,6 +4045,9 @@ test("command actions use stable command policy instead of abortable request sco
     "await client.runDoctor();",
     "loadAdminDashboardData(client, { includeHeavy: false })",
     "finishAdminCommandAction(\"扫描新增素材\");",
+    "const PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT = 100_000;",
+    "await api.scanSourceVideos();",
+    "queue_unprocessed_limit: PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT",
     "if (!beginAdminCommandAction(\"命令快照恢复\",",
     "client.restoreCommandSnapshot(snapshotId)",
     "finishAdminCommandAction(\"命令快照恢复\");",
@@ -4052,7 +4063,7 @@ test("command actions use stable command policy instead of abortable request sco
 
   for (const expected of [
     "onInitializeLibrary: () => runAction(\"初始化素材库\"",
-    "onScanSourceVideos: () => runAction(\"扫描源视频\"",
+    "onScanSourceVideos: () => runAction(\"扫描新增素材\"",
     "onQueueUnprocessedVideos: () => runAction(\"加入预处理队列\"",
     "onRepairIndex: runRepairIndexInBatches",
     "onRunDoctor: () => runAction(\"运行系统检查\"",

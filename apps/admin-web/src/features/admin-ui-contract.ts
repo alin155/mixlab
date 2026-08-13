@@ -109,7 +109,6 @@ export const ADMIN_DOCKER_MVP_UI_ROUTES = [
 ] as const satisfies readonly AdminRoute[];
 
 const adminDockerMvpDisabledControls = new Set<string>([
-  "dashboard:扫描新增素材",
   "source-videos:保存封面",
   "source-videos:保存素材信息",
   "preprocess-jobs:上线全部已处理素材"
@@ -242,6 +241,7 @@ export const ADMIN_UI_PAGES: Record<AdminRoute, AdminPageContract> = {
       dashboard_coupling: "forbidden"
     },
     controls: [
+      { route: "preprocess-jobs", label: "扫描新增素材", state: "m9b-api", reason: "检查 NAS 素材来源，把新视频登记到管理端。" },
       { route: "preprocess-jobs", label: "启动预处理", state: "m9b-api", reason: "持续处理队列，直到全部完成或手动暂停，成功后自动上线。" },
       { route: "preprocess-jobs", label: "暂停预处理", state: "m9b-api", reason: "暂停当前预处理。" },
       { route: "preprocess-jobs", label: "重试可继续处理的视频", state: "m9b-api", reason: "只重试临时失败或可继续处理的视频，不处理异常素材。" },
