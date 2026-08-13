@@ -142,6 +142,30 @@ function scanNewStatusNotice(status: AdminLibraryScanNewStatus): string {
   return "";
 }
 
+function pendingScanNewStatus(now = new Date().toISOString()): AdminLibraryScanNewStatus {
+  return {
+    state: "running",
+    state_label: "扫描中",
+    started_at: now,
+    updated_at: now,
+    completed_at: "",
+    error_message: "",
+    stage: "listing",
+    current_source_folder_id: "",
+    current_source_folder_name: "",
+    scanned_folder_count: 0,
+    total_source_folder_count: 0,
+    discovered_video_count: 0,
+    indexed_file_count: 0,
+    new_video_count: 0,
+    existing_video_count: 0,
+    written_video_count: 0,
+    total_video_count: 0,
+    inactive_manifest_count: 0,
+    inactive_ready_count: 0
+  };
+}
+
 export function resolveAdminRuntimeApiBaseUrl(input: {
   viteApiBaseUrl?: string;
   useFixtureData?: boolean;
@@ -1032,7 +1056,9 @@ export function AdminApp() {
   }), []);
   const apiMode = Boolean(apiBaseUrl);
   const [adminAuthSession, setAdminAuthSession] = useState<StoredAdminAuthSession | null>(() => readAdminAuthSession());
-  const [adminAuthStatus, setAdminAuthStatus] = useState<AdminAuthStatus | null>(null);
+  const [adminAuthStatus, setAdminAuthStatus] = useState<AdminAuthStatus | null>(() =>
+    apiMode && adminAuthSession ? authStatusFromStoredSession(adminAuthSession) : null
+  );
   const [adminAuthLoading, setAdminAuthLoading] = useState(apiMode);
   const [adminAuthError, setAdminAuthError] = useState("");
   const [data, setData] = useState<AdminDashboardData | null>(null);
@@ -1120,6 +1146,10 @@ export function AdminApp() {
     [apiBaseUrl, adminAuthSession]
   );
   const canLoadAdminData = !apiMode || adminAuthStatus?.authenticated === true;
+  const scanNewFastPollRequested =
+    scanNewStatus?.state === "running" ||
+    activeAdminCommandLabel === "扫描新增素材" ||
+    activeAdminCommandLabel === "启动预处理";
   const clearRouteLocalReadError = (key: AdminRouteLocalReadKey) => {
     setRouteLocalReadErrors((current) => clearAdminRouteLocalReadError(current, key));
   };
@@ -1230,10 +1260,14 @@ export function AdminApp() {
           setActionNotice(scanNewStatusNotice(status));
         }
 
-        timeoutId = window.setTimeout(loadScanStatus, status.state === "running" ? 3_000 : 30_000);
+        const pollFast =
+          status.state === "running" ||
+          activeAdminCommandLabelRef.current === "扫描新增素材" ||
+          activeAdminCommandLabelRef.current === "启动预处理";
+        timeoutId = window.setTimeout(loadScanStatus, pollFast ? 3_000 : 30_000);
       } catch {
         if (!cancelled) {
-          timeoutId = window.setTimeout(loadScanStatus, 30_000);
+          timeoutId = window.setTimeout(loadScanStatus, scanNewFastPollRequested ? 3_000 : 30_000);
         }
       }
     };
@@ -1244,7 +1278,7 @@ export function AdminApp() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [canLoadAdminData, client]);
+  }, [canLoadAdminData, client, scanNewFastPollRequested]);
 
   useEffect(() => {
     if (!canLoadAdminData) {
@@ -2140,6 +2174,19 @@ export function AdminApp() {
     }
   };
 
+  const runScanNewSourceVideos = async (api: AdminApiClient): Promise<AdminLibraryScanNewStatus | null> => {
+    setScanNewStatus((current) => current?.state === "running" ? current : pendingScanNewStatus());
+    await api.scanNewSourceVideos();
+
+    try {
+      const status = await api.getScanNewSourceVideosStatus();
+      setScanNewStatus(status);
+      return status;
+    } catch {
+      return null;
+    }
+  };
+
   const runRepairIndexInBatches = async () => {
     const batchLimit = 10;
     const maxBatches = 100;
@@ -2184,14 +2231,23 @@ export function AdminApp() {
   };
 
   const startPreprocessBatch = async (api: AdminApiClient): Promise<AdminActionResult> => {
-    await api.scanNewSourceVideos();
-    await api.startPreprocessSupervisor(undefined, {
+    const scanStatus = await runScanNewSourceVideos(api);
+    const supervisor = await api.startPreprocessSupervisor(undefined, {
       queue_unprocessed_limit: PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT
     });
+    setData((current) => current ? {
+      ...current,
+      jobs: {
+        ...current.jobs,
+        supervisor
+      }
+    } : current);
 
     return {
-      affected_count: 0,
-      message: "已扫描新增素材并启动预处理。系统会持续处理队列，直到全部处理完或手动暂停。"
+      affected_count: scanStatus?.written_video_count ?? 0,
+      message: scanStatus
+        ? `${scanNewStatusNotice(scanStatus)} 已启动预处理，系统会持续处理队列，直到全部处理完或手动暂停。`
+        : "已启动预处理。系统会持续处理队列，直到全部处理完或手动暂停。"
     };
   };
 
@@ -2239,14 +2295,7 @@ export function AdminApp() {
     }
 
     try {
-      await client.scanNewSourceVideos();
-      let scanStatus: AdminLibraryScanNewStatus | null = null;
-      try {
-        scanStatus = await client.getScanNewSourceVideosStatus();
-        setScanNewStatus(scanStatus);
-      } catch {
-        scanStatus = null;
-      }
+      const scanStatus = await runScanNewSourceVideos(client);
       await client.runDoctor();
       const refreshed = await loadAdminDashboardData(client, { includeHeavy: false });
       const report = createAdminSmartScanReport(refreshed);
@@ -2536,7 +2585,14 @@ export function AdminApp() {
     sourceVideoStatusFilter,
     processHistoryFilters: preprocessProcessHistoryFilters,
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
-    onScanSourceVideos: () => runAction("扫描新增素材", (api) => api.scanNewSourceVideos()),
+    onScanSourceVideos: () =>
+      runAction("扫描新增素材", async (api) => {
+        const status = await runScanNewSourceVideos(api);
+        return {
+          affected_count: status?.written_video_count ?? 0,
+          message: status ? scanNewStatusNotice(status) : "扫描新增素材完成。"
+        } satisfies AdminActionResult;
+      }),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试可继续处理的视频", (api) => api.retryFailedVideos()),
     onStartLongAsrVideos: () => runAction("长任务语音识别", startLongAsrBatch),

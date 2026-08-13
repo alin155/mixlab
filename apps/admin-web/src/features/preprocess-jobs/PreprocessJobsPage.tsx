@@ -541,9 +541,10 @@ export function PreprocessJobsPage({
   const currentTaskProgress = currentJob
     ? boundedPercent(currentJob.progress)
     : supervisorCurrentVideoId ? supervisorStageProgressPercent(supervisorCurrentStage) : 0;
+  const currentTaskHasProgress = Boolean(currentJob || supervisorCurrentVideoId);
   const currentTaskProgressLabel = currentJob
     ? `${currentTaskProgress}%`
-    : supervisorCurrentVideoId ? `${currentTaskProgress}%` : supervisorRunning ? "等待中" : "空闲";
+    : supervisorCurrentVideoId ? `${currentTaskProgress}%` : supervisorRunning ? "等待任务状态" : "空闲";
   const processingServiceValue = supervisorRunning
     ? "运行中"
     : data.status.processing_video_count > 0
@@ -1015,7 +1016,11 @@ export function PreprocessJobsPage({
                 <strong>当前视频</strong>
                 <p>{currentTaskLabel}</p>
               </div>
-              <meter min={0} max={100} value={currentTaskProgress}>{currentTaskProgress}%</meter>
+              {currentTaskHasProgress ? (
+                <meter min={0} max={100} value={currentTaskProgress}>{currentTaskProgress}%</meter>
+              ) : (
+                <span>-</span>
+              )}
               <span>{currentTaskProgressLabel}</span>
             </div>
           </section>

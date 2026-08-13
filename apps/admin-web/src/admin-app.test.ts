@@ -2227,7 +2227,7 @@ test("preprocess start and pause controls follow supervisor state", async () => 
   const runningBetweenJobsText = visibleText(render(runningBetweenJobsData));
   assert.match(runningBetweenJobsText, /运行中 处理服务 正在领取下一个视频/);
   assert.match(runningBetweenJobsText, /0 待上线 已自动上线/);
-  assert.match(runningBetweenJobsText, /当前视频 正在领取下一个视频 .* 等待中/);
+  assert.match(runningBetweenJobsText, /当前视频 正在领取下一个视频 .* 等待任务状态/);
 });
 
 test("admin data auto refresh stays active while preprocessing can change page state", async () => {
@@ -4061,7 +4061,7 @@ test("command actions use stable command policy instead of abortable request sco
     "const result = await action(client);",
     "finishAdminCommandAction(label);",
     "if (!beginAdminCommandAction(\"扫描新增素材\",",
-    "await client.scanNewSourceVideos();",
+    "const scanStatus = await runScanNewSourceVideos(client);",
     "await client.runDoctor();",
     "loadAdminDashboardData(client, { includeHeavy: false })",
     "finishAdminCommandAction(\"扫描新增素材\");",
@@ -4083,7 +4083,7 @@ test("command actions use stable command policy instead of abortable request sco
 
   for (const expected of [
     "onInitializeLibrary: () => runAction(\"初始化素材库\"",
-    "onScanSourceVideos: () => runAction(\"扫描新增素材\"",
+    "runAction(\"扫描新增素材\", async (api) => {",
     "onQueueUnprocessedVideos: () => runAction(\"加入预处理队列\"",
     "onRepairIndex: runRepairIndexInBatches",
     "onRunDoctor: () => runAction(\"运行系统检查\"",

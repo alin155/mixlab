@@ -806,18 +806,18 @@ export function DashboardPage({
               <section className="admin-action-row" aria-label="总览操作">
                 <AdminControlButton
                   label="扫描新增素材"
-                  state={dashboardWriteState}
-                  reason="检查 NAS 素材来源，把新视频登记到管理端。"
-                  onClick={onRunSmartScan}
+                  state={dashboardActionState}
+                  reason={dashboardBusyReason || "检查 NAS 素材来源，把新视频登记到管理端。"}
+                  onClick={dashboardBusyReason ? undefined : onRunSmartScan}
                 />
                 {report.primary_action !== "none" ? (
                   <AdminControlButton
                     label={report.primary_label}
-                    state={dashboardWriteState}
-                    reason="执行建议的下一步动作。"
+                    state={dashboardActionState}
+                    reason={dashboardBusyReason || "执行建议的下一步动作。"}
                     variant="primary"
                     onClick={
-                      onApplySmartScanPrimaryAction
+                      !dashboardBusyReason && onApplySmartScanPrimaryAction
                         ? () => onApplySmartScanPrimaryAction(report.primary_action)
                         : undefined
                     }
@@ -877,17 +877,17 @@ export function DashboardPage({
               <div className="admin-action-row">
                 <AdminControlButton
                   label="扫描新增素材"
-                  state={dashboardWriteState}
-                  reason="检查 NAS 素材来源，把新视频登记到管理端。"
-                  onClick={onRunSmartScan}
+                  state={dashboardActionState}
+                  reason={dashboardBusyReason || "检查 NAS 素材来源，把新视频登记到管理端。"}
+                  onClick={dashboardBusyReason ? undefined : onRunSmartScan}
                 />
                 {failureSummary.retryable_regular_count > 0 ? (
                   <AdminControlButton
                     label="重试可继续处理的视频"
-                    state={dashboardWriteState}
-                    reason="只重试临时失败或可继续处理的视频，不处理异常素材。"
+                    state={dashboardActionState}
+                    reason={dashboardBusyReason || "只重试临时失败或可继续处理的视频，不处理异常素材。"}
                     variant="primary"
-                    onClick={onRetryFailedVideos}
+                    onClick={dashboardBusyReason ? undefined : onRetryFailedVideos}
                   />
                 ) : null}
               </div>
@@ -910,9 +910,9 @@ export function DashboardPage({
               </div>
               <AdminControlButton
                 label="扫描新增素材"
-                state={dashboardWriteState}
-                reason="检查 NAS 素材来源，把新视频登记到管理端。"
-                onClick={onRunSmartScan}
+                state={dashboardActionState}
+                reason={dashboardBusyReason || "检查 NAS 素材来源，把新视频登记到管理端。"}
+                onClick={dashboardBusyReason ? undefined : onRunSmartScan}
               />
             </header>
             <dl className="admin-library-status-grid">
