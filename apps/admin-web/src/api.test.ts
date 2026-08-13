@@ -303,6 +303,7 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.getRuntimeSettings();
   await client.initializeLibrary();
   await client.scanSourceVideos();
+  await client.scanNewSourceVideos();
   await client.queueUnprocessedVideos();
   await client.retryFailedVideos();
   await client.queueSourceVideo("V000001");
@@ -354,6 +355,7 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/settings/runtime",
       "/api/admin/library/init",
       "/api/admin/library/scan",
+      "/api/admin/library/scan-new",
       "/api/admin/preprocess/queue-unprocessed",
       "/api/admin/preprocess/retry-failed",
       "/api/admin/source-videos/V000001/queue",
@@ -1082,6 +1084,10 @@ test("fixture client separates ready, failed, and index-required counts", async 
   assert.equal(
     data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/library/scan")?.scan_reason,
     "explicit-scan-apply"
+  );
+  assert.equal(
+    data.data_loading_plan.endpoints.find((endpoint) => endpoint.endpoint === "/api/admin/library/scan-new")?.scan_reason,
+    "explicit-additive-scan"
   );
   assert.equal(
     data.data_loading_plan.routes.find((route) => route.route === "protection")?.endpoints.includes("/api/admin/operations/overview"),

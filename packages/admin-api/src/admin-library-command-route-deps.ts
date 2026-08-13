@@ -29,6 +29,7 @@ export interface CreateAdminLibraryCommandRouteDepsInput<
   now?: () => string;
   run_library_init_command(input: LibraryCommandContext<TActor>): Promise<TLibraryInitResult>;
   run_library_scan_apply_command(input: LibraryCommandContext<TActor>): Promise<TScanApplyResult>;
+  run_library_scan_new_command(input: LibraryCommandContext<TActor>): Promise<TScanApplyResult>;
   run_library_scan_preview_command(input: LibraryCommandContext<TActor>): Promise<TScanPreviewResult>;
   schedule_read_model_reconcile_after_scan(input: {
     handoff: TScanApplyResult["read_model"];
@@ -80,6 +81,9 @@ export function createAdminLibraryCommandRouteDeps<
     run_library_scan_apply_command({ api_input }) {
       return input.run_library_scan_apply_command(commandContext(api_input));
     },
+    run_library_scan_new_command({ api_input }) {
+      return input.run_library_scan_new_command(commandContext(api_input));
+    },
     run_library_scan_preview_command({ api_input }) {
       return input.run_library_scan_preview_command(commandContext(api_input));
     },
@@ -124,6 +128,24 @@ type LibraryScanApplyCommandService<
   TActor
 >["run_library_scan_apply_command"];
 
+type LibraryScanNewCommandService<
+  TApiInput extends AdminLibraryCommandRouteApiInput,
+  TLibraryInitResult,
+  TScanPreviewResult,
+  TReadModelHandoff extends object,
+  TScanApplyResult extends AdminLibraryScanRouteResult<TReadModelHandoff>,
+  TReconcileSchedule,
+  TActor
+> = CreateAdminLibraryCommandRouteDepsInput<
+  TApiInput,
+  TLibraryInitResult,
+  TScanPreviewResult,
+  TReadModelHandoff,
+  TScanApplyResult,
+  TReconcileSchedule,
+  TActor
+>["run_library_scan_new_command"];
+
 type LibraryScanPreviewCommandService<
   TApiInput extends AdminLibraryCommandRouteApiInput,
   TLibraryInitResult,
@@ -162,6 +184,7 @@ export interface CreateAdminLibraryCommandRouteServerDepsInput<
     >,
     | "run_library_init_command"
     | "run_library_scan_apply_command"
+    | "run_library_scan_new_command"
     | "run_library_scan_preview_command"
   > {
   run_library_init_service: LibraryInitCommandService<
@@ -174,6 +197,15 @@ export interface CreateAdminLibraryCommandRouteServerDepsInput<
     TActor
   >;
   run_library_scan_apply_service: LibraryScanApplyCommandService<
+    TApiInput,
+    TLibraryInitResult,
+    TScanPreviewResult,
+    TReadModelHandoff,
+    TScanApplyResult,
+    TReconcileSchedule,
+    TActor
+  >;
+  run_library_scan_new_service: LibraryScanNewCommandService<
     TApiInput,
     TLibraryInitResult,
     TScanPreviewResult,
@@ -223,6 +255,7 @@ export function createAdminLibraryCommandRouteServerDeps<
     ...input,
     run_library_init_command: input.run_library_init_service,
     run_library_scan_apply_command: input.run_library_scan_apply_service,
+    run_library_scan_new_command: input.run_library_scan_new_service,
     run_library_scan_preview_command: input.run_library_scan_preview_service
   });
 }

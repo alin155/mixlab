@@ -70,6 +70,7 @@ export interface AdminOperationsClientMethods {
   getRuntimeSettings(): Promise<AdminRuntimeSettings>;
   initializeLibrary(): Promise<AdminActionResult>;
   scanSourceVideos(): Promise<AdminActionResult>;
+  scanNewSourceVideos(): Promise<AdminActionResult>;
   queueUnprocessedVideos(): Promise<AdminActionResult>;
   retryFailedVideos(): Promise<AdminActionResult>;
   recoverProcessingVideos(): Promise<AdminActionResult>;
@@ -283,6 +284,15 @@ export function createAdminOperationsClientMethods({
       sendJson<AdminActionResult>(fetchImpl, baseUrl, "/api/admin/library/init", "POST", undefined, protectedHeaders),
     scanSourceVideos: () =>
       sendJson<AdminActionResult>(fetchImpl, baseUrl, "/api/admin/library/scan", "POST", undefined, protectedHeaders),
+    scanNewSourceVideos: () =>
+      sendJson<AdminActionResult>(
+        fetchImpl,
+        baseUrl,
+        "/api/admin/library/scan-new",
+        "POST",
+        undefined,
+        protectedHeaders
+      ),
     queueUnprocessedVideos: () =>
       sendJson<AdminActionResult>(
         fetchImpl,

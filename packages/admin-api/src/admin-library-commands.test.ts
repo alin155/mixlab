@@ -22,7 +22,8 @@ import {
   initializeAdminLibrary,
   readAdminLibraryManifest,
   runAdminLibraryInitCommand,
-  runAdminLibraryScanCommand
+  runAdminLibraryScanCommand,
+  runAdminLibraryScanNewCommand
 } from "./admin-library-commands.ts";
 import {
   readAdminReadModelStoreStatus,
@@ -274,6 +275,52 @@ test("library scan command scans source videos and returns read-model invalidati
   assert.equal(invalidationEvents[0]?.event_type, "succeeded");
   assert.equal(invalidationEvents[0]?.details.command, "library-scan");
   assert.equal(invalidationEvents[0]?.details.stale_mark_applied, true);
+});
+
+test("library scan-new command preserves inactive ready manifests while registering new videos", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedScannedLibrary({
+    library_root: libraryRoot,
+    now: "2026-06-26T10:02:01.000Z",
+    source_files: ["已发布.mp4"]
+  });
+
+  const readyManifestPath = path.join(libraryRoot, ".mixlab-library", "videos", "V000001", "source-video.json");
+  const manifest = JSON.parse(await readFile(readyManifestPath, "utf8")) as Record<string, unknown>;
+  await writeFile(
+    readyManifestPath,
+    `${JSON.stringify({
+      ...manifest,
+      preprocess_status: "ready",
+      visible_to_cutters: true
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await rm(path.join(sourceVideosRoot(libraryRoot), "已发布.mp4"));
+  await writeText(path.join(sourceVideosRoot(libraryRoot), "新增.mp4"), "fake video bytes");
+
+  const result = await runAdminLibraryScanNewCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command_now: "2026-06-26T10:03:00.000Z",
+    now: () => "2026-06-26T10:03:01.000Z"
+  });
+
+  assert.equal(result.scan_mode, "additive-source-folder-scan");
+  assert.equal(result.new_video_count, 1);
+  assert.equal(result.inactive_ready_count, 1);
+  assert.deepEqual(result.source_video_ids, ["V000001", "V000002"]);
+  assert.equal(existsSync(readyManifestPath), true);
+  assert.equal(existsSync(path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")), true);
+  assert.equal(result.read_model?.command, "library-scan-new");
+
+  const log = await readAdminOperationLog({
+    library_root: libraryRoot,
+    generated_at: "2026-06-26T10:04:00.000Z"
+  });
+  const commandEvents = log.events.filter((event) => event.action === "library-scan-new");
+  assert.deepEqual(commandEvents.map((event) => event.event_type), ["succeeded", "started"]);
 });
 
 test("library scan command captures bounded pre-scan manifest and job evidence", async () => {

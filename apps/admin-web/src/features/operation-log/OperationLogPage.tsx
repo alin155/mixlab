@@ -133,6 +133,7 @@ function commandLabel(command: string): string {
     "source-folder-update": "更新素材来源",
     "source-folder-remove": "移除素材来源",
     "library-scan": "扫描素材库",
+    "library-scan-new": "扫描新增素材",
     "library-init": "初始化素材库",
     "admin-auth-register": "注册管理员",
     "admin-auth-login": "管理员登录",

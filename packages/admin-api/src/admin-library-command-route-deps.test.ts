@@ -81,6 +81,19 @@ test("library command route deps preserve command context and handoff helpers", 
         }
       };
     },
+    async run_library_scan_new_command(input) {
+      calls.push({ name: "scan-new", input });
+      return {
+        total_video_count: 3,
+        new_video_count: 1,
+        read_model: {
+          command: "library-scan-new",
+          stale_mark: {
+            applied: true
+          }
+        }
+      };
+    },
     async run_library_scan_preview_command(input) {
       calls.push({ name: "scan-preview", input });
       return {
@@ -106,8 +119,9 @@ test("library command route deps preserve command context and handoff helpers", 
   const init = await deps.run_library_init_command({ api_input: apiInput });
   const preview = await deps.run_library_scan_preview_command({ api_input: apiInput });
   const scanApply = await deps.run_library_scan_apply_command({ api_input: apiInput });
+  const scanNew = await deps.run_library_scan_new_command({ api_input: apiInput });
   const reconcile = deps.schedule_read_model_reconcile_after_scan({
-    handoff: scanApply.read_model
+    handoff: scanNew.read_model
   });
   deps.clear_source_video_page_cache(apiInput.library_root);
 
@@ -123,6 +137,16 @@ test("library command route deps preserve command context and handoff helpers", 
     new_video_count: 1,
     read_model: {
       command: "library-scan",
+      stale_mark: {
+        applied: true
+      }
+    }
+  });
+  assert.deepEqual(scanNew, {
+    total_video_count: 3,
+    new_video_count: 1,
+    read_model: {
+      command: "library-scan-new",
       stale_mark: {
         applied: true
       }
@@ -168,10 +192,21 @@ test("library command route deps preserve command context and handoff helpers", 
       }
     },
     {
+      name: "scan-new",
+      input: {
+        library_root: "/tmp/PublicLibrary",
+        library_id: "mixlab",
+        library_name: "MixLab",
+        command_now: "2026-06-26T23:40:00.000Z",
+        actor,
+        now
+      }
+    },
+    {
       name: "reconcile",
       input: {
         handoff: {
-          command: "library-scan",
+          command: "library-scan-new",
           stale_mark: {
             applied: true
           }
@@ -202,6 +237,13 @@ test("library command route deps preserve null read-model handoff", async () => 
       };
     },
     async run_library_scan_apply_command() {
+      return {
+        total_video_count: 0,
+        new_video_count: 0,
+        read_model: null
+      };
+    },
+    async run_library_scan_new_command() {
       return {
         total_video_count: 0,
         new_video_count: 0,
@@ -282,6 +324,19 @@ test("library command route server deps wire direct command services and handoff
         }
       };
     },
+    async run_library_scan_new_service(input) {
+      calls.push({ name: "scan-new-service", input });
+      return {
+        total_video_count: 9,
+        new_video_count: 1,
+        read_model: {
+          command: "library-scan-new",
+          stale_mark: {
+            applied: true
+          }
+        }
+      };
+    },
     async run_library_scan_preview_service(input) {
       calls.push({ name: "scan-preview-service", input });
       return {
@@ -307,8 +362,9 @@ test("library command route server deps wire direct command services and handoff
   const init = await deps.run_library_init_command({ api_input: apiInput });
   const preview = await deps.run_library_scan_preview_command({ api_input: apiInput });
   const scanApply = await deps.run_library_scan_apply_command({ api_input: apiInput });
+  const scanNew = await deps.run_library_scan_new_command({ api_input: apiInput });
   const reconcile = deps.schedule_read_model_reconcile_after_scan({
-    handoff: scanApply.read_model
+    handoff: scanNew.read_model
   });
   deps.clear_source_video_page_cache(apiInput.library_root);
 
@@ -324,6 +380,16 @@ test("library command route server deps wire direct command services and handoff
     new_video_count: 2,
     read_model: {
       command: "library-scan",
+      stale_mark: {
+        applied: true
+      }
+    }
+  });
+  assert.deepEqual(scanNew, {
+    total_video_count: 9,
+    new_video_count: 1,
+    read_model: {
+      command: "library-scan-new",
       stale_mark: {
         applied: true
       }
@@ -369,10 +435,21 @@ test("library command route server deps wire direct command services and handoff
       }
     },
     {
+      name: "scan-new-service",
+      input: {
+        library_root: "/tmp/PublicLibrary",
+        library_id: "mixlab",
+        library_name: "MixLab",
+        command_now: "2026-06-27T04:10:00.000Z",
+        actor,
+        now
+      }
+    },
+    {
       name: "reconcile-service",
       input: {
         handoff: {
-          command: "library-scan",
+          command: "library-scan-new",
           stale_mark: {
             applied: true
           }

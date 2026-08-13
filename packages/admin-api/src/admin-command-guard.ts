@@ -9,6 +9,7 @@ export type AdminCommandName =
   | "source-folder-remove"
   | "library-init"
   | "library-scan"
+  | "library-scan-new"
   | "preprocess-queue-unprocessed"
   | "preprocess-queue-unprocessed-pipeline"
   | "preprocess-retry-failed"
@@ -180,6 +181,17 @@ const commandContracts = {
     scan_mode: "folder-scan",
     requires_writer_lease: true,
     requires_scan_preview: true,
+    requires_inactive_supervisor: false,
+    invalidates_source_video_read_model: true,
+    mutation_targets: ["library-manifest", "source-video-manifest", "read-model-cache"]
+  },
+  "library-scan-new": {
+    command: "library-scan-new",
+    method: "POST",
+    scope: "library",
+    scan_mode: "folder-scan",
+    requires_writer_lease: true,
+    requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: true,
     mutation_targets: ["library-manifest", "source-video-manifest", "read-model-cache"]
@@ -564,6 +576,7 @@ const dockerMvpAllowedCommands = new Set<AdminCommandName>([
   "preprocess-worker-complete",
   "preprocess-worker-fail",
   "preprocess-worker-refresh-counts",
+  "library-scan-new",
   "source-video-queue",
   "source-video-retry",
   "source-video-recover-processing",

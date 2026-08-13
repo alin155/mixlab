@@ -35,6 +35,7 @@ export type AdminScanReason =
   | "doctor-route"
   | "explicit-reconcile-cancel"
   | "explicit-read-model-reconcile"
+  | "explicit-additive-scan"
   | "explicit-scan-apply"
   | "explicit-scan-preview"
   | "index-version-page"

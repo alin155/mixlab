@@ -45,6 +45,7 @@ export function adminRuntimeScanReasonLabel(reason: AdminRuntimeEndpointMeta["sc
     "doctor-route": "系统检查",
     "explicit-reconcile-cancel": "显式停止对账",
     "explicit-read-model-reconcile": "显式读模型对账",
+    "explicit-additive-scan": "显式新增扫描",
     "explicit-scan-apply": "显式应用扫描",
     "explicit-scan-preview": "显式扫描预览",
     "index-version-page": "索引版本页",

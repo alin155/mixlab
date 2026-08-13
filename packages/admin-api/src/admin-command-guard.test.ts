@@ -57,6 +57,7 @@ test("admin command contracts cover every current Admin mutation command", () =>
     "source-folder-remove",
     "library-init",
     "library-scan",
+    "library-scan-new",
     "preprocess-queue-unprocessed",
     "preprocess-queue-unprocessed-pipeline",
     "preprocess-retry-failed",
@@ -90,6 +91,17 @@ test("admin command contracts cover every current Admin mutation command", () =>
     scan_mode: "folder-scan",
     requires_writer_lease: true,
     requires_scan_preview: true,
+    requires_inactive_supervisor: false,
+    invalidates_source_video_read_model: true,
+    mutation_targets: ["library-manifest", "source-video-manifest", "read-model-cache"]
+  });
+  assert.deepEqual(adminCommandContract("library-scan-new"), {
+    command: "library-scan-new",
+    method: "POST",
+    scope: "library",
+    scan_mode: "folder-scan",
+    requires_writer_lease: true,
+    requires_scan_preview: false,
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: true,
     mutation_targets: ["library-manifest", "source-video-manifest", "read-model-cache"]
@@ -307,6 +319,7 @@ test("docker mvp command policy allows only login cutter-user and controlled pre
     "preprocess-queue-unprocessed",
     "preprocess-retry-failed",
     "preprocess-recover-processing",
+    "library-scan-new",
     "preprocess-worker-claim",
     "preprocess-worker-stage",
     "preprocess-worker-complete",
@@ -391,6 +404,14 @@ test("read-model invalidation policy separates source-folder scope changes from 
   });
   assert.deepEqual(adminCommandReadModelInvalidationPolicy("library-scan"), {
     command: "library-scan",
+    invalidates_source_video_read_model: true,
+    requires_read_model_reconcile: true,
+    reason: "library-scan-or-init",
+    scan_mode: "folder-scan",
+    mutation_targets: ["library-manifest", "source-video-manifest", "read-model-cache"]
+  });
+  assert.deepEqual(adminCommandReadModelInvalidationPolicy("library-scan-new"), {
+    command: "library-scan-new",
     invalidates_source_video_read_model: true,
     requires_read_model_reconcile: true,
     reason: "library-scan-or-init",

@@ -341,6 +341,18 @@ export function createAdminFixtureDataLoadingPlan(input: {
         notes: "Fixture explicit scan command"
       }),
       endpoint({
+        endpoint: "/api/admin/library/scan-new",
+        method: "POST",
+        phase: "command",
+        cost: "expensive",
+        scan_mode: "folder-scan",
+        data_source: "source-folders",
+        scan_reason: "explicit-additive-scan",
+        timeout_ms: 30_000,
+        refresh: "command-only",
+        notes: "Fixture explicit additive scan command"
+      }),
+      endpoint({
         endpoint: "/api/admin/read-model/reconcile",
         method: "POST",
         phase: "command",

@@ -88,6 +88,7 @@ test("calls operations endpoints with session headers and stable query defaults"
   await client.getRuntimeSettings();
   await client.initializeLibrary();
   await client.scanSourceVideos();
+  await client.scanNewSourceVideos();
   await client.queueUnprocessedVideos();
   await client.retryFailedVideos();
   await client.recoverProcessingVideos();
@@ -129,6 +130,7 @@ test("calls operations endpoints with session headers and stable query defaults"
       ["GET", "/api/admin/settings/runtime"],
       ["POST", "/api/admin/library/init"],
       ["POST", "/api/admin/library/scan"],
+      ["POST", "/api/admin/library/scan-new"],
       ["POST", "/api/admin/preprocess/queue-unprocessed"],
       ["POST", "/api/admin/preprocess/retry-failed"],
       ["POST", "/api/admin/preprocess/recover-processing"],

@@ -31,6 +31,7 @@ const expectedNonGetRouteKeys = [
   "POST /api/admin/index/repair",
   "POST /api/admin/library/init",
   "POST /api/admin/library/scan",
+  "POST /api/admin/library/scan-new",
   "POST /api/admin/library/scan-preview",
   "POST /api/admin/preprocess/queue-unprocessed",
   "POST /api/admin/preprocess/recover-processing",

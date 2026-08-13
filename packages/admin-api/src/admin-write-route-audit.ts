@@ -154,6 +154,18 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     notes: "Scan apply is explicit, command-gated, preview-protected, and never a page-load side effect."
   },
   {
+    endpoint: "/api/admin/library/scan-new",
+    method: "POST",
+    owner: "command-runtime",
+    command: "library-scan-new",
+    command_runtime: "direct",
+    scan_mode: "folder-scan",
+    uses_writer_lease: true,
+    audit_surface: "command-audit",
+    mutation_targets: ["library-manifest", "source-video-manifest", "read-model-cache"],
+    notes: "Additive scan registers newly discovered videos without pruning inactive ready manifests."
+  },
+  {
     endpoint: "/api/admin/library/scan-preview",
     method: "POST",
     owner: "readonly-preview",

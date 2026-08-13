@@ -9,6 +9,8 @@ import {
 test("filters source video files and ignores macOS resource fork entries", () => {
   assert.equal(isSupportedSourceVideoFileName("C0017.MP4"), true);
   assert.equal(isSupportedSourceVideoFileName("lesson.mov"), true);
+  assert.equal(isSupportedSourceVideoFileName("00017.MTS"), true);
+  assert.equal(isSupportedSourceVideoFileName("00018.m2ts"), true);
   assert.equal(isSupportedSourceVideoFileName("._C0017.MP4"), false);
   assert.equal(isSupportedSourceVideoFileName(".DS_Store"), false);
   assert.equal(isSupportedSourceVideoFileName("notes.txt"), false);

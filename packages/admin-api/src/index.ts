@@ -65,7 +65,8 @@ import {
   createAdminReadModelServerFacade
 } from "./admin-read-model-server-facade.ts";
 import {
-  runAdminLibraryInitCommand
+  runAdminLibraryInitCommand,
+  runAdminLibraryScanNewCommand
 } from "./admin-library-commands.ts";
 import {
   runAdminLibraryScanApplyCommand,
@@ -885,6 +886,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           now,
           run_library_init_service: runAdminLibraryInitCommand,
           run_library_scan_apply_service: runAdminLibraryScanApplyCommand,
+          run_library_scan_new_service: runAdminLibraryScanNewCommand,
           run_library_scan_preview_service: runAdminLibraryScanPreviewCommand,
           schedule_read_model_reconcile_after_scan:
             readModelServerFacade.schedule_read_model_reconcile_after_scan,

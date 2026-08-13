@@ -28,6 +28,7 @@ export interface AdminLibraryCommandRouteDeps<
 > {
   run_library_init_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TLibraryInitResult>;
   run_library_scan_apply_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TScanApplyResult>;
+  run_library_scan_new_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TScanApplyResult>;
   run_library_scan_preview_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TScanPreviewResult>;
   schedule_read_model_reconcile_after_scan(input: {
     handoff: TScanApplyResult["read_model"];
@@ -72,6 +73,10 @@ export function matchAdminLibraryInitPath(pathname: string): boolean {
 
 export function matchAdminLibraryScanApplyPath(pathname: string): boolean {
   return pathname === "/api/admin/library/scan";
+}
+
+export function matchAdminLibraryScanNewPath(pathname: string): boolean {
+  return pathname === "/api/admin/library/scan-new";
 }
 
 export function matchAdminLibraryScanPreviewPath(pathname: string): boolean {
@@ -156,6 +161,42 @@ export async function handleAdminLibraryCommandRoutes<
         };
       }
 
+      const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
+      if (dockerMvpBlock) {
+        return {
+          handled: true,
+          ...dockerMvpBlock
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  if (input.method === "POST" && matchAdminLibraryScanNewPath(input.pathname)) {
+    try {
+      const result = await input.deps.run_library_scan_new_command({
+        api_input: input.api_input
+      });
+      const reconcileSchedule = input.deps.schedule_read_model_reconcile_after_scan({
+        handoff: result.read_model
+      });
+      input.deps.clear_source_video_page_cache(input.api_input.library_root);
+
+      return {
+        handled: true,
+        status_code: 200,
+        body: apiOk({
+          ...result,
+          read_model: result.read_model
+            ? {
+                ...result.read_model,
+                reconcile_schedule: reconcileSchedule
+              }
+            : result.read_model
+        })
+      };
+    } catch (error) {
       const dockerMvpBlock = adminDockerMvpCommandBlockedRouteError(error);
       if (dockerMvpBlock) {
         return {

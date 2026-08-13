@@ -707,6 +707,7 @@ export type AdminScanReason =
   | "doctor-route"
   | "explicit-reconcile-cancel"
   | "explicit-read-model-reconcile"
+  | "explicit-additive-scan"
   | "explicit-scan-apply"
   | "explicit-scan-preview"
   | "index-version-page"
@@ -1664,6 +1665,7 @@ export interface AdminApiClient {
   getRuntimeSettings(): Promise<AdminRuntimeSettings>;
   initializeLibrary(): Promise<AdminActionResult>;
   scanSourceVideos(): Promise<AdminActionResult>;
+  scanNewSourceVideos(): Promise<AdminActionResult>;
   queueUnprocessedVideos(): Promise<AdminActionResult>;
   retryFailedVideos(): Promise<AdminActionResult>;
   recoverProcessingVideos(): Promise<AdminActionResult>;
@@ -2349,6 +2351,11 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       new_video_count: 0,
       existing_video_count: fixtureSourceVideos.length,
       message: "fixture 扫描完成"
+    }),
+    scanNewSourceVideos: async () => ({
+      new_video_count: 0,
+      existing_video_count: fixtureSourceVideos.length,
+      message: "fixture 新增素材扫描完成"
     }),
     queueUnprocessedVideos: async () =>
       queueVideos(["unprocessed"], "已将未处理视频加入预处理队列"),

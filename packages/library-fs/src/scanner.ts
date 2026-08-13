@@ -8,7 +8,18 @@ import {
 } from "./admin-settings.ts";
 import { writeJsonFileAtomically } from "./atomic-json.ts";
 
-const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".m4v", ".avi", ".webm"]);
+const VIDEO_EXTENSIONS = new Set([
+  ".mp4",
+  ".mov",
+  ".mkv",
+  ".m4v",
+  ".avi",
+  ".webm",
+  ".mts",
+  ".m2ts"
+]);
+const MPEG_TRANSPORT_STREAM_EXTENSIONS = new Set([".mts", ".m2ts"]);
+const MIN_MPEG_TRANSPORT_STREAM_BYTES = 1024 * 1024;
 
 export interface ScanSourceVideosInput {
   library_root: string;
@@ -22,6 +33,13 @@ export interface ScanSourceVideosResult {
   new_video_count: number;
   existing_video_count: number;
   source_video_ids: string[];
+}
+
+export interface ScanNewSourceVideosResult extends ScanSourceVideosResult {
+  scan_mode: "additive-source-folder-scan";
+  inactive_manifest_count: number;
+  inactive_ready_count: number;
+  protected_inactive_source_video_ids: string[];
 }
 
 export type SourceVideoScanBlockerCode = "ready-manifest-removal";
@@ -66,6 +84,7 @@ interface SourceFolderScanStats {
 
 interface SourceVideoScanPlan extends ScanSourceVideosResult {
   manifests: SourceVideoManifest[];
+  new_manifests: SourceVideoManifest[];
   active_source_video_ids: Set<string>;
   inactive_manifests: SourceVideoManifest[];
   folder_stats: Map<string, SourceFolderScanStats>;
@@ -143,12 +162,21 @@ async function writeSourceFolderScanStats(input: {
   });
 }
 
-function isVideoPath(filePath: string): boolean {
+async function isVideoPath(filePath: string): Promise<boolean> {
   if (path.basename(filePath).startsWith("._")) {
     return false;
   }
 
-  return VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+  const extension = path.extname(filePath).toLowerCase();
+  if (!VIDEO_EXTENSIONS.has(extension)) {
+    return false;
+  }
+
+  if (!MPEG_TRANSPORT_STREAM_EXTENSIONS.has(extension)) {
+    return true;
+  }
+
+  return (await stat(filePath)).size >= MIN_MPEG_TRANSPORT_STREAM_BYTES;
 }
 
 function formatSourceVideoId(value: number): string {
@@ -179,7 +207,7 @@ async function listVideoFiles(root: string, current = root): Promise<string[]> {
 
     if (entry.isDirectory()) {
       files.push(...(await listVideoFiles(root, entryPath)));
-    } else if (entry.isFile() && isVideoPath(entryPath)) {
+    } else if (entry.isFile() && await isVideoPath(entryPath)) {
       files.push(entryPath);
     }
   }
@@ -423,6 +451,7 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
 
   const existing = await readExistingManifests(input.library_root);
   const manifests: SourceVideoManifest[] = [];
+  const newManifests: SourceVideoManifest[] = [];
   let nextNumericId = existing.maxNumericId + 1;
   let newVideoCount = 0;
   let existingVideoCount = 0;
@@ -453,6 +482,7 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
 
     nextNumericId += 1;
     newVideoCount += 1;
+    newManifests.push(manifest);
     manifests.push(manifest);
   }
 
@@ -481,6 +511,7 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
     existing_video_count: existingVideoCount,
     source_video_ids: sortSourceVideoIds(manifests.map((manifest) => manifest.source_video_id)),
     manifests,
+    new_manifests: newManifests,
     active_source_video_ids: includedSourceVideoIds,
     inactive_manifests: inactiveManifests,
     folder_stats: folderStats,
@@ -531,5 +562,51 @@ export async function scanSourceVideos(
     new_video_count: plan.new_video_count,
     existing_video_count: plan.existing_video_count,
     source_video_ids: plan.source_video_ids
+  };
+}
+
+export async function scanNewSourceVideos(
+  input: ScanSourceVideosInput
+): Promise<ScanNewSourceVideosResult> {
+  const plan = await buildSourceVideoScanPlan(input);
+  const preservedManifests = [...plan.manifests, ...plan.inactive_manifests];
+  const preservedSourceVideoIds = sortSourceVideoIds(
+    preservedManifests.map((manifest) => manifest.source_video_id)
+  );
+  const inactiveReadySourceVideoIds = sortSourceVideoIds(
+    plan.inactive_manifests
+      .filter((manifest) => manifest.preprocess_status === "ready")
+      .map((manifest) => manifest.source_video_id)
+  );
+
+  await mkdir(videosRoot(input.library_root), { recursive: true });
+
+  for (const manifest of plan.new_manifests) {
+    await writeSourceVideoManifest(input.library_root, manifest);
+  }
+
+  await writeLibraryManifest({
+    library_root: input.library_root,
+    library_id: input.library_id,
+    library_name: input.library_name,
+    now: input.now,
+    manifests: preservedManifests
+  });
+
+  await writeSourceFolderScanStats({
+    library_root: input.library_root,
+    now: input.now,
+    stats: plan.folder_stats
+  });
+
+  return {
+    scan_mode: "additive-source-folder-scan",
+    total_video_count: preservedManifests.length,
+    new_video_count: plan.new_video_count,
+    existing_video_count: plan.existing_video_count + plan.inactive_manifests.length,
+    source_video_ids: preservedSourceVideoIds,
+    inactive_manifest_count: plan.inactive_manifests.length,
+    inactive_ready_count: inactiveReadySourceVideoIds.length,
+    protected_inactive_source_video_ids: inactiveReadySourceVideoIds
   };
 }

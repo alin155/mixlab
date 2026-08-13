@@ -49,7 +49,7 @@ export interface SourceVideoTextPreprocessBatchResult {
   items: SourceVideoTextPreprocessBatchItemResult[];
 }
 
-const SOURCE_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v"]);
+const SOURCE_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".mts", ".m2ts"]);
 
 export function isSupportedSourceVideoFileName(fileName: string): boolean {
   if (fileName.startsWith("._")) {

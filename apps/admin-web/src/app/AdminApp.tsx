@@ -2046,7 +2046,7 @@ export function AdminApp() {
   };
 
   const startPreprocessBatch = async (api: AdminApiClient): Promise<AdminActionResult> => {
-    await api.scanSourceVideos();
+    await api.scanNewSourceVideos();
     await api.startPreprocessSupervisor(undefined, {
       queue_unprocessed_limit: PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT
     });
@@ -2101,7 +2101,7 @@ export function AdminApp() {
     }
 
     try {
-      await client.scanSourceVideos();
+      await client.scanNewSourceVideos();
       await client.runDoctor();
       const refreshed = await loadAdminDashboardData(client, { includeHeavy: false });
       const report = createAdminSmartScanReport(refreshed);
@@ -2389,7 +2389,7 @@ export function AdminApp() {
     sourceVideoStatusFilter,
     processHistoryFilters: preprocessProcessHistoryFilters,
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
-    onScanSourceVideos: () => runAction("扫描新增素材", (api) => api.scanSourceVideos()),
+    onScanSourceVideos: () => runAction("扫描新增素材", (api) => api.scanNewSourceVideos()),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试可继续处理的视频", (api) => api.retryFailedVideos()),
     onStartLongAsrVideos: () => runAction("长任务语音识别", startLongAsrBatch),

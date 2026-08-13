@@ -56,6 +56,8 @@ test("explicit scan and maintenance commands have distinct scan modes", () => {
   assert.equal(endpoints.get("/api/admin/library/scan-preview")?.scan_reason, "explicit-scan-preview");
   assert.equal(endpoints.get("/api/admin/library/scan")?.scan_mode, "folder-scan");
   assert.equal(endpoints.get("/api/admin/library/scan")?.scan_reason, "explicit-scan-apply");
+  assert.equal(endpoints.get("/api/admin/library/scan-new")?.scan_mode, "folder-scan");
+  assert.equal(endpoints.get("/api/admin/library/scan-new")?.scan_reason, "explicit-additive-scan");
   assert.equal(endpoints.get("/api/admin/read-model/reconcile")?.scan_mode, "full-reconcile");
   assert.equal(endpoints.get("/api/admin/read-model/reconcile")?.data_source, "read-model-reconcile");
   assert.equal(endpoints.get("/api/admin/read-model/reconcile/cancel")?.scan_mode, "no-scan");

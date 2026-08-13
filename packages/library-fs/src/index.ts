@@ -18,8 +18,9 @@ import {
   refreshLibraryCounts
 } from "./preprocess-lifecycle.ts";
 import { publishCutterRelease as publishCutterReleaseSnapshot } from "./cutter-release.ts";
-export { previewSourceVideoScan, scanSourceVideos } from "./scanner.ts";
+export { previewSourceVideoScan, scanNewSourceVideos, scanSourceVideos } from "./scanner.ts";
 export type {
+  ScanNewSourceVideosResult,
   ScanSourceVideosInput,
   ScanSourceVideosResult,
   SourceVideoScanBlocker,

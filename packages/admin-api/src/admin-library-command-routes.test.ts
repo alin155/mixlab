@@ -4,6 +4,7 @@ import {
   handleAdminLibraryCommandRoutes,
   matchAdminLibraryInitPath,
   matchAdminLibraryScanApplyPath,
+  matchAdminLibraryScanNewPath,
   matchAdminLibraryScanPreviewPath,
   type AdminLibraryCommandRouteCommandInput,
   type AdminLibraryCommandRouteDeps
@@ -70,6 +71,16 @@ function makeDeps(overrides: Partial<TestDeps> = {}): TestDeps {
         }
       }
     }),
+    run_library_scan_new_command: async () => ({
+      total_video_count: 1,
+      new_video_count: 1,
+      read_model: {
+        command: "library-scan-new",
+        stale_mark: {
+          applied: true
+        }
+      }
+    }),
     run_library_scan_preview_command: async () => ({
       blocked: false,
       inactive_ready_count: 0
@@ -104,6 +115,8 @@ test("library command routes match only command endpoints", () => {
   assert.equal(matchAdminLibraryInitPath("/api/admin/library/init/extra"), false);
   assert.equal(matchAdminLibraryScanApplyPath("/api/admin/library/scan"), true);
   assert.equal(matchAdminLibraryScanApplyPath("/api/admin/library/scan-preview"), false);
+  assert.equal(matchAdminLibraryScanNewPath("/api/admin/library/scan-new"), true);
+  assert.equal(matchAdminLibraryScanNewPath("/api/admin/library/scan"), false);
   assert.equal(matchAdminLibraryScanPreviewPath("/api/admin/library/scan-preview"), true);
 });
 
@@ -227,6 +240,81 @@ test("library scan route schedules read-model reconcile and returns the preserve
   });
 });
 
+test("library scan-new route schedules read-model reconcile and preserves inactive ready manifests", async () => {
+  const scanCalls: Array<AdminLibraryCommandRouteCommandInput<TestApiInput>> = [];
+  const scheduled: Array<TestReadModelHandoff | null> = [];
+  const cleared: string[] = [];
+  const result = await callRoute({
+    pathname: "/api/admin/library/scan-new",
+    deps: makeDeps({
+      run_library_scan_new_command: async (input) => {
+        scanCalls.push(input);
+        return {
+          total_video_count: 3,
+          new_video_count: 1,
+          read_model: {
+            command: "library-scan-new",
+            stale_mark: {
+              applied: true
+            }
+          }
+        };
+      },
+      schedule_read_model_reconcile_after_scan: ({ handoff }) => {
+        scheduled.push(handoff);
+        return {
+          policy: "post-scan-reconcile-v1",
+          requested: true
+        };
+      },
+      clear_source_video_page_cache: (libraryRoot) => {
+        cleared.push(libraryRoot);
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  if (!result.handled) {
+    return;
+  }
+
+  assert.deepEqual(scanCalls, [
+    {
+      api_input: {
+        library_root: "/tmp/PublicLibrary",
+        request_id: "req-1"
+      }
+    }
+  ]);
+  assert.deepEqual(scheduled, [
+    {
+      command: "library-scan-new",
+      stale_mark: {
+        applied: true
+      }
+    }
+  ]);
+  assert.deepEqual(cleared, ["/tmp/PublicLibrary"]);
+  assert.equal(result.status_code, 200);
+  assert.deepEqual(result.body, {
+    ok: true,
+    data: {
+      total_video_count: 3,
+      new_video_count: 1,
+      read_model: {
+        command: "library-scan-new",
+        stale_mark: {
+          applied: true
+        },
+        reconcile_schedule: {
+          policy: "post-scan-reconcile-v1",
+          requested: true
+        }
+      }
+    }
+  });
+});
+
 test("library scan route preserves null read-model handoff scheduling behavior", async () => {
   const scheduled: Array<TestReadModelHandoff | null> = [];
   const result = await callRoute({
@@ -336,8 +424,28 @@ test("library command routes map docker mvp command blocks without cache side ef
       }
     })
   });
+  const scanNew = await callRoute({
+    pathname: "/api/admin/library/scan-new",
+    deps: makeDeps({
+      run_library_scan_new_command: async () => {
+        throw Object.assign(new Error("Docker MVP v0.1 已阻断高风险管理端命令：library-scan-new"), {
+          code: "admin_mvp_command_blocked",
+          details: {
+            ...details,
+            command: "library-scan-new"
+          }
+        });
+      },
+      schedule_read_model_reconcile_after_scan: () => {
+        throw new Error("reconcile should not be scheduled");
+      },
+      clear_source_video_page_cache: () => {
+        clearCalls += 1;
+      }
+    })
+  });
 
-  for (const result of [init, scan]) {
+  for (const result of [init, scan, scanNew]) {
     assert.equal(result.handled, true);
     if (result.handled) {
       assert.equal(result.status_code, 409);
@@ -431,6 +539,14 @@ test("library command routes ignore reads wrong methods and unrelated paths", as
         read_model: null
       };
     },
+    run_library_scan_new_command: async () => {
+      commandCalls += 1;
+      return {
+        total_video_count: 0,
+        new_video_count: 0,
+        read_model: null
+      };
+    },
     run_library_scan_preview_command: async () => {
       commandCalls += 1;
       return {
@@ -448,6 +564,16 @@ test("library command routes ignore reads wrong methods and unrelated paths", as
   assert.deepEqual(await callRoute({
     method: "GET",
     pathname: "/api/admin/library/scan",
+    deps
+  }), { handled: false });
+  assert.deepEqual(await callRoute({
+    method: "GET",
+    pathname: "/api/admin/library/scan-new",
+    deps
+  }), { handled: false });
+  assert.deepEqual(await callRoute({
+    method: "POST",
+    pathname: "/api/admin/library/scan-new/extra",
     deps
   }), { handled: false });
   assert.deepEqual(await callRoute({

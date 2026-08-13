@@ -56,6 +56,7 @@ const commandAreaByName = {
   "source-folder-remove": "settings",
   "library-init": "system",
   "library-scan": "protection",
+  "library-scan-new": "preprocess",
   "preprocess-queue-unprocessed": "preprocess",
   "preprocess-queue-unprocessed-pipeline": "preprocess",
   "preprocess-retry-failed": "preprocess",

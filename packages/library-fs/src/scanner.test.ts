@@ -8,7 +8,7 @@ import {
   readAdminSettings,
   writeAdminSettings
 } from "./admin-settings.ts";
-import { previewSourceVideoScan, scanSourceVideos } from "./index.ts";
+import { previewSourceVideoScan, scanNewSourceVideos, scanSourceVideos } from "./index.ts";
 
 async function makeLibraryRoot(): Promise<string> {
   const root = await mkdir(path.join(os.tmpdir(), `mixlab-scan-${Date.now()}-`), {
@@ -22,9 +22,13 @@ async function makeLibraryRoot(): Promise<string> {
   return root;
 }
 
-async function writeDummyFile(filePath: string): Promise<void> {
+async function writeDummyFile(filePath: string, content: string | Buffer = "dummy-video-bytes"): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, "dummy-video-bytes");
+  await writeFile(filePath, content);
+}
+
+function dummyMtsBytes(): Buffer {
+  return Buffer.alloc(1024 * 1024 + 1);
 }
 
 async function readJson<T>(filePath: string): Promise<T> {
@@ -64,6 +68,9 @@ test("scans source-videos recursively and writes unprocessed source-video manife
 
   await writeDummyFile(path.join(libraryRoot, "source-videos", "课程", "老板现金流.mp4"));
   await writeDummyFile(path.join(libraryRoot, "source-videos", "访谈.mov"));
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "00017.MTS"), dummyMtsBytes());
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "00018.m2ts"), dummyMtsBytes());
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "无效片段.MTS"));
   await writeDummyFile(path.join(libraryRoot, "source-videos", "说明.txt"));
 
   const result = await scanSourceVideos({
@@ -74,10 +81,10 @@ test("scans source-videos recursively and writes unprocessed source-video manife
   });
 
   assert.deepEqual(result, {
-    total_video_count: 2,
-    new_video_count: 2,
+    total_video_count: 4,
+    new_video_count: 4,
     existing_video_count: 0,
-    source_video_ids: ["V000001", "V000002"]
+    source_video_ids: ["V000001", "V000002", "V000003", "V000004"]
   });
 
   const manifest = await readJson<Record<string, unknown>>(
@@ -685,4 +692,63 @@ test("blocks scans that would remove ready source videos", async () => {
   const protectedManifest = await readJson<Record<string, unknown>>(manifestPath);
   assert.equal(protectedManifest.preprocess_status, "ready");
   assert.equal(protectedManifest.visible_to_cutters, true);
+});
+
+test("additive scans register new files without removing inactive ready manifests", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "已发布素材.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  const readyManifestPath = path.join(
+    libraryRoot,
+    ".mixlab-library",
+    "videos",
+    "V000001",
+    "source-video.json"
+  );
+  const readyManifest = await readJson<Record<string, unknown>>(readyManifestPath);
+  await writeFile(
+    readyManifestPath,
+    `${JSON.stringify({
+      ...readyManifest,
+      preprocess_status: "ready",
+      visible_to_cutters: true
+    }, null, 2)}\n`
+  );
+
+  await rm(path.join(libraryRoot, "source-videos", "已发布素材.mp4"));
+  await writeDummyFile(path.join(libraryRoot, "source-videos", "新增素材.mp4"));
+
+  const result = await scanNewSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:05:00Z"
+  });
+
+  assert.equal(result.scan_mode, "additive-source-folder-scan");
+  assert.equal(result.new_video_count, 1);
+  assert.equal(result.inactive_ready_count, 1);
+  assert.deepEqual(result.protected_inactive_source_video_ids, ["V000001"]);
+  assert.deepEqual(result.source_video_ids, ["V000001", "V000002"]);
+  assert.equal(await pathExists(readyManifestPath), true);
+
+  const newManifest = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "videos", "V000002", "source-video.json")
+  );
+  assert.equal(newManifest.relative_path, "新增素材.mp4");
+  assert.equal(newManifest.preprocess_status, "unprocessed");
+
+  const library = await readJson<Record<string, unknown>>(
+    path.join(libraryRoot, ".mixlab-library", "library.json")
+  );
+  assert.equal(library.video_count, 2);
+  assert.equal(library.ready_video_count, 1);
+  assert.equal(library.unprocessed_video_count, 1);
 });

@@ -398,6 +398,19 @@ export function buildAdminDataLoadingPlan(input: {
       notes: "Explicit scan apply command protected by scan-preview and ready blockers."
     }),
     endpointPlan({
+      endpoint: "/api/admin/library/scan-new",
+      method: "POST",
+      phase: "command",
+      cost: "expensive",
+      scan_mode: "folder-scan",
+      data_source: "source-folders",
+      scan_reason: "explicit-additive-scan",
+      critical: false,
+      timeout_ms: 30_000,
+      refresh: "command-only",
+      notes: "Explicit additive scan command. It registers new videos without removing inactive ready manifests."
+    }),
+    endpointPlan({
       endpoint: "/api/admin/read-model/reconcile",
       method: "POST",
       phase: "command",

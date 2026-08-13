@@ -3,7 +3,9 @@ import {
   parseJsonText,
   readAllSourceVideoManifests,
   previewSourceVideoScan,
+  scanNewSourceVideos,
   scanSourceVideos,
+  type ScanNewSourceVideosResult,
   type ScanSourceVideosResult,
   writeJsonFileAtomically
 } from "../../library-fs/src/index.ts";
@@ -36,6 +38,10 @@ export interface AdminLibraryManifest extends LibraryCounts {
 }
 
 export interface AdminLibraryScanCommandResult extends ScanSourceVideosResult {
+  read_model: AdminReadModelInvalidationHandoff | null;
+}
+
+export interface AdminLibraryScanNewCommandResult extends ScanNewSourceVideosResult {
   read_model: AdminReadModelInvalidationHandoff | null;
 }
 
@@ -231,6 +237,43 @@ export async function runAdminLibraryScanCommand(
       now: currentTime(input)
     });
     const result = await scanSourceVideos({
+      library_root: input.library_root,
+      library_id: input.library_id,
+      library_name: input.library_name,
+      now: currentTime(input)
+    });
+    const readModel = await markAdminReadModelStoreStaleForCommand({
+      library_root: input.library_root,
+      command: commandName,
+      invalidated_at: currentTime(input),
+      read_library_manifest: () => readAdminLibraryManifest(input.library_root)
+    });
+    return {
+      ...result,
+      read_model: readModel
+    };
+  });
+}
+
+export async function runAdminLibraryScanNewCommand(
+  input: AdminLibraryCommandContext
+): Promise<AdminLibraryScanNewCommandResult> {
+  const commandName = "library-scan-new";
+  const command = adminCommandContract(commandName);
+  return runAdminCommand({
+    library_root: input.library_root,
+    command: command.command,
+    now: input.command_now,
+    actor: input.actor,
+    snapshot_files: librarySnapshotFiles(input.library_root)
+  }, async () => {
+    await initializeAdminLibrary({
+      library_root: input.library_root,
+      library_id: input.library_id,
+      library_name: input.library_name,
+      now: currentTime(input)
+    });
+    const result = await scanNewSourceVideos({
       library_root: input.library_root,
       library_id: input.library_id,
       library_name: input.library_name,
