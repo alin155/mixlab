@@ -26,6 +26,22 @@ export interface ScanSourceVideosInput {
   library_id: string;
   library_name: string;
   now: string;
+  on_progress?(progress: SourceVideoScanProgress): Promise<void> | void;
+}
+
+export interface SourceVideoScanProgress {
+  stage: "listing" | "indexing" | "writing" | "completed";
+  current_source_folder_id: string;
+  current_source_folder_name: string;
+  scanned_folder_count: number;
+  total_source_folder_count: number;
+  discovered_video_count: number;
+  indexed_file_count: number;
+  new_video_count: number;
+  existing_video_count: number;
+  written_video_count: number;
+  total_video_count: number;
+  updated_at: string;
 }
 
 export interface ScanSourceVideosResult {
@@ -426,25 +442,63 @@ async function writeLibraryManifest(input: {
   );
 }
 
+async function emitScanProgress(
+  input: ScanSourceVideosInput,
+  progress: Omit<SourceVideoScanProgress, "updated_at">
+): Promise<void> {
+  await input.on_progress?.({
+    ...progress,
+    updated_at: new Date().toISOString()
+  });
+}
+
 async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<SourceVideoScanPlan> {
   const scanFolders = await readEnabledScanFolders(input.library_root);
   const files: SourceFileRow[] = [];
   const folderStats = new Map<string, SourceFolderScanStats>();
   const skippedFolderIds = new Set<string>();
+  let discoveredVideoCount = 0;
 
-  for (const folder of scanFolders) {
+  for (const [folderIndex, folder] of scanFolders.entries()) {
     let folderFiles: string[] = [];
+    await emitScanProgress(input, {
+      stage: "listing",
+      current_source_folder_id: folder.folder.id,
+      current_source_folder_name: folder.folder.name,
+      scanned_folder_count: folderIndex,
+      total_source_folder_count: scanFolders.length,
+      discovered_video_count: discoveredVideoCount,
+      indexed_file_count: 0,
+      new_video_count: 0,
+      existing_video_count: 0,
+      written_video_count: 0,
+      total_video_count: 0
+    });
     try {
       folderFiles = await listVideoFiles(folder.folder.path);
     } catch {
       skippedFolderIds.add(folder.folder.id);
       continue;
     }
+    discoveredVideoCount += folderFiles.length;
     folderStats.set(folder.folder.id, {
       discovered_video_count: folderFiles.length,
       new_unprocessed_count: 0
     });
     files.push(...folderFiles.map((file_path) => ({ folder, file_path })));
+    await emitScanProgress(input, {
+      stage: "listing",
+      current_source_folder_id: folder.folder.id,
+      current_source_folder_name: folder.folder.name,
+      scanned_folder_count: folderIndex + 1,
+      total_source_folder_count: scanFolders.length,
+      discovered_video_count: discoveredVideoCount,
+      indexed_file_count: 0,
+      new_video_count: 0,
+      existing_video_count: 0,
+      written_video_count: 0,
+      total_video_count: 0
+    });
   }
 
   assertUniqueSourceRelativePaths(files);
@@ -456,7 +510,7 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
   let newVideoCount = 0;
   let existingVideoCount = 0;
 
-  for (const row of files) {
+  for (const [rowIndex, row] of files.entries()) {
     const relativePath = toSourceFolderRelativePath(row);
     const sourceFolderRelativePath = toSourceFolderFileRelativePath(row);
     const existingManifest = existing.byRelativePath.get(relativePath);
@@ -464,6 +518,21 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
     if (existingManifest) {
       manifests.push(existingManifest);
       existingVideoCount += 1;
+      if ((rowIndex + 1) % 250 === 0) {
+        await emitScanProgress(input, {
+          stage: "indexing",
+          current_source_folder_id: row.folder.folder.id,
+          current_source_folder_name: row.folder.folder.name,
+          scanned_folder_count: scanFolders.length,
+          total_source_folder_count: scanFolders.length,
+          discovered_video_count: discoveredVideoCount,
+          indexed_file_count: rowIndex + 1,
+          new_video_count: newVideoCount,
+          existing_video_count: existingVideoCount,
+          written_video_count: 0,
+          total_video_count: files.length
+        });
+      }
       continue;
     }
 
@@ -484,7 +553,36 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
     newVideoCount += 1;
     newManifests.push(manifest);
     manifests.push(manifest);
+    if ((rowIndex + 1) % 250 === 0) {
+      await emitScanProgress(input, {
+        stage: "indexing",
+        current_source_folder_id: row.folder.folder.id,
+        current_source_folder_name: row.folder.folder.name,
+        scanned_folder_count: scanFolders.length,
+        total_source_folder_count: scanFolders.length,
+        discovered_video_count: discoveredVideoCount,
+        indexed_file_count: rowIndex + 1,
+        new_video_count: newVideoCount,
+        existing_video_count: existingVideoCount,
+        written_video_count: 0,
+        total_video_count: files.length
+      });
+    }
   }
+
+  await emitScanProgress(input, {
+    stage: "indexing",
+    current_source_folder_id: "",
+    current_source_folder_name: "",
+    scanned_folder_count: scanFolders.length,
+    total_source_folder_count: scanFolders.length,
+    discovered_video_count: discoveredVideoCount,
+    indexed_file_count: files.length,
+    new_video_count: newVideoCount,
+    existing_video_count: existingVideoCount,
+    written_video_count: 0,
+    total_video_count: files.length
+  });
 
   const includedSourceVideoIds = new Set(
     manifests.map((manifest) => manifest.source_video_id)
@@ -539,8 +637,23 @@ export async function scanSourceVideos(
     active_source_video_ids: plan.active_source_video_ids
   });
 
-  for (const manifest of plan.manifests) {
+  for (const [index, manifest] of plan.manifests.entries()) {
     await writeSourceVideoManifest(input.library_root, manifest);
+    if ((index + 1) % 250 === 0) {
+      await emitScanProgress(input, {
+        stage: "writing",
+        current_source_folder_id: manifest.source_folder_id ?? "",
+        current_source_folder_name: manifest.source_folder_id ?? "",
+        scanned_folder_count: plan.folder_stats.size,
+        total_source_folder_count: plan.folder_stats.size,
+        discovered_video_count: plan.total_video_count,
+        indexed_file_count: plan.total_video_count,
+        new_video_count: plan.new_video_count,
+        existing_video_count: plan.existing_video_count,
+        written_video_count: index + 1,
+        total_video_count: plan.total_video_count
+      });
+    }
   }
 
   await writeLibraryManifest({
@@ -555,6 +668,20 @@ export async function scanSourceVideos(
     library_root: input.library_root,
     now: input.now,
     stats: plan.folder_stats
+  });
+
+  await emitScanProgress(input, {
+    stage: "completed",
+    current_source_folder_id: "",
+    current_source_folder_name: "",
+    scanned_folder_count: plan.folder_stats.size,
+    total_source_folder_count: plan.folder_stats.size,
+    discovered_video_count: plan.total_video_count,
+    indexed_file_count: plan.total_video_count,
+    new_video_count: plan.new_video_count,
+    existing_video_count: plan.existing_video_count,
+    written_video_count: plan.total_video_count,
+    total_video_count: plan.total_video_count
   });
 
   return {
@@ -581,8 +708,21 @@ export async function scanNewSourceVideos(
 
   await mkdir(videosRoot(input.library_root), { recursive: true });
 
-  for (const manifest of plan.new_manifests) {
+  for (const [index, manifest] of plan.new_manifests.entries()) {
     await writeSourceVideoManifest(input.library_root, manifest);
+    await emitScanProgress(input, {
+      stage: "writing",
+      current_source_folder_id: manifest.source_folder_id ?? "",
+      current_source_folder_name: manifest.source_folder_id ?? "",
+      scanned_folder_count: plan.folder_stats.size,
+      total_source_folder_count: plan.folder_stats.size,
+      discovered_video_count: plan.total_video_count,
+      indexed_file_count: plan.total_video_count,
+      new_video_count: plan.new_video_count,
+      existing_video_count: plan.existing_video_count,
+      written_video_count: index + 1,
+      total_video_count: plan.total_video_count
+    });
   }
 
   await writeLibraryManifest({
@@ -597,6 +737,20 @@ export async function scanNewSourceVideos(
     library_root: input.library_root,
     now: input.now,
     stats: plan.folder_stats
+  });
+
+  await emitScanProgress(input, {
+    stage: "completed",
+    current_source_folder_id: "",
+    current_source_folder_name: "",
+    scanned_folder_count: plan.folder_stats.size,
+    total_source_folder_count: plan.folder_stats.size,
+    discovered_video_count: plan.total_video_count,
+    indexed_file_count: plan.total_video_count,
+    new_video_count: plan.new_video_count,
+    existing_video_count: plan.existing_video_count,
+    written_video_count: plan.new_manifests.length,
+    total_video_count: plan.total_video_count
   });
 
   return {

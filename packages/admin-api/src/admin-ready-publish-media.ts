@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
   buildFfmpegCoverImagePlan,
   resolveFfmpegRuntime
@@ -8,17 +8,32 @@ import type { ReadyPublishMedia } from "./admin-publish-commands.ts";
 export interface AdminReadyPublishMediaDeps {
   resolve_ffmpeg_runtime?: typeof resolveFfmpegRuntime;
   build_cover_image_plan?: typeof buildFfmpegCoverImagePlan;
-  run_process?: (executable: string, args: string[]) => void;
+  run_process?: (executable: string, args: string[]) => Promise<void> | void;
 }
 
-export function runAdminReadyPublishProcess(executable: string, args: string[]): void {
-  const result = spawnSync(executable, args, {
-    encoding: "utf8"
-  });
+export function runAdminReadyPublishProcess(executable: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, {
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    let stderr = "";
 
-  if (result.status !== 0) {
-    throw new Error(`${executable} 执行失败：${result.stderr}`);
-  }
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      reject(new Error(`${executable} 执行失败：${error.message}`));
+    });
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`${executable} 执行失败：${stderr}`));
+        return;
+      }
+
+      resolve();
+    });
+  });
 }
 
 export function createDefaultReadyPublishMedia(
@@ -38,7 +53,7 @@ export function createDefaultReadyPublishMedia(
         width: input.width
       });
 
-      runProcess(runtime.ffmpeg_path, plan.args);
+      await runProcess(runtime.ffmpeg_path, plan.args);
     }
   };
 }

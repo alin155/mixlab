@@ -53,8 +53,8 @@ test("default ready publish media builds a cover plan and runs ffmpeg", async ()
   ]);
 });
 
-test("ready publish process keeps the existing non-zero exit failure message", () => {
-  assert.throws(
+test("ready publish process keeps the existing non-zero exit failure message", async () => {
+  await assert.rejects(
     () => runAdminReadyPublishProcess("/path/that/does/not/exist/ffmpeg", ["-version"]),
     /\/path\/that\/does\/not\/exist\/ffmpeg 执行失败/
   );

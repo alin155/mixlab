@@ -94,6 +94,10 @@ test("library command route deps preserve command context and handoff helpers", 
         }
       };
     },
+    async read_library_scan_new_status(input) {
+      calls.push({ name: "scan-new-status", input });
+      return { state: "running" };
+    },
     async run_library_scan_preview_command(input) {
       calls.push({ name: "scan-preview", input });
       return {
@@ -120,6 +124,7 @@ test("library command route deps preserve command context and handoff helpers", 
   const preview = await deps.run_library_scan_preview_command({ api_input: apiInput });
   const scanApply = await deps.run_library_scan_apply_command({ api_input: apiInput });
   const scanNew = await deps.run_library_scan_new_command({ api_input: apiInput });
+  const scanNewStatus = await deps.read_library_scan_new_status({ api_input: apiInput });
   const reconcile = deps.schedule_read_model_reconcile_after_scan({
     handoff: scanNew.read_model
   });
@@ -152,6 +157,7 @@ test("library command route deps preserve command context and handoff helpers", 
       }
     }
   });
+  assert.deepEqual(scanNewStatus, { state: "running" });
   assert.deepEqual(reconcile, {
     requested: true,
     policy: "post-scan-reconcile-v1"
@@ -193,6 +199,17 @@ test("library command route deps preserve command context and handoff helpers", 
     },
     {
       name: "scan-new",
+      input: {
+        library_root: "/tmp/PublicLibrary",
+        library_id: "mixlab",
+        library_name: "MixLab",
+        command_now: "2026-06-26T23:40:00.000Z",
+        actor,
+        now
+      }
+    },
+    {
+      name: "scan-new-status",
       input: {
         library_root: "/tmp/PublicLibrary",
         library_id: "mixlab",
@@ -249,6 +266,9 @@ test("library command route deps preserve null read-model handoff", async () => 
         new_video_count: 0,
         read_model: null
       };
+    },
+    async read_library_scan_new_status() {
+      return { state: "idle" };
     },
     async run_library_scan_preview_command() {
       return {
@@ -337,6 +357,10 @@ test("library command route server deps wire direct command services and handoff
         }
       };
     },
+    async read_library_scan_new_status_service(input) {
+      calls.push({ name: "scan-new-status-service", input });
+      return { state: "completed" };
+    },
     async run_library_scan_preview_service(input) {
       calls.push({ name: "scan-preview-service", input });
       return {
@@ -363,6 +387,7 @@ test("library command route server deps wire direct command services and handoff
   const preview = await deps.run_library_scan_preview_command({ api_input: apiInput });
   const scanApply = await deps.run_library_scan_apply_command({ api_input: apiInput });
   const scanNew = await deps.run_library_scan_new_command({ api_input: apiInput });
+  const scanNewStatus = await deps.read_library_scan_new_status({ api_input: apiInput });
   const reconcile = deps.schedule_read_model_reconcile_after_scan({
     handoff: scanNew.read_model
   });
@@ -395,6 +420,7 @@ test("library command route server deps wire direct command services and handoff
       }
     }
   });
+  assert.deepEqual(scanNewStatus, { state: "completed" });
   assert.deepEqual(reconcile, {
     requested: true,
     policy: "post-scan-reconcile-v1"
@@ -436,6 +462,17 @@ test("library command route server deps wire direct command services and handoff
     },
     {
       name: "scan-new-service",
+      input: {
+        library_root: "/tmp/PublicLibrary",
+        library_id: "mixlab",
+        library_name: "MixLab",
+        command_now: "2026-06-27T04:10:00.000Z",
+        actor,
+        now
+      }
+    },
+    {
+      name: "scan-new-status-service",
       input: {
         library_root: "/tmp/PublicLibrary",
         library_id: "mixlab",

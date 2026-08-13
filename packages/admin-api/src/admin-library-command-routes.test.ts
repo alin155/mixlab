@@ -5,6 +5,7 @@ import {
   matchAdminLibraryInitPath,
   matchAdminLibraryScanApplyPath,
   matchAdminLibraryScanNewPath,
+  matchAdminLibraryScanNewStatusPath,
   matchAdminLibraryScanPreviewPath,
   type AdminLibraryCommandRouteCommandInput,
   type AdminLibraryCommandRouteDeps
@@ -81,6 +82,9 @@ function makeDeps(overrides: Partial<TestDeps> = {}): TestDeps {
         }
       }
     }),
+    read_library_scan_new_status: async () => ({
+      state: "idle"
+    }),
     run_library_scan_preview_command: async () => ({
       blocked: false,
       inactive_ready_count: 0
@@ -117,7 +121,52 @@ test("library command routes match only command endpoints", () => {
   assert.equal(matchAdminLibraryScanApplyPath("/api/admin/library/scan-preview"), false);
   assert.equal(matchAdminLibraryScanNewPath("/api/admin/library/scan-new"), true);
   assert.equal(matchAdminLibraryScanNewPath("/api/admin/library/scan"), false);
+  assert.equal(matchAdminLibraryScanNewStatusPath("/api/admin/library/scan-new/status"), true);
+  assert.equal(matchAdminLibraryScanNewStatusPath("/api/admin/library/scan-new"), false);
   assert.equal(matchAdminLibraryScanPreviewPath("/api/admin/library/scan-preview"), true);
+});
+
+test("library scan-new status route reads persistent command progress", async () => {
+  const statusCalls: Array<AdminLibraryCommandRouteCommandInput<TestApiInput>> = [];
+  const result = await callRoute({
+    method: "GET",
+    pathname: "/api/admin/library/scan-new/status",
+    deps: makeDeps({
+      read_library_scan_new_status: async (input) => {
+        statusCalls.push(input);
+        return {
+          state: "running",
+          state_label: "扫描中",
+          stage: "indexing",
+          discovered_video_count: 42
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  if (!result.handled) {
+    return;
+  }
+
+  assert.deepEqual(statusCalls, [
+    {
+      api_input: {
+        library_root: "/tmp/PublicLibrary",
+        request_id: "req-1"
+      }
+    }
+  ]);
+  assert.equal(result.status_code, 200);
+  assert.deepEqual(result.body, {
+    ok: true,
+    data: {
+      state: "running",
+      state_label: "扫描中",
+      stage: "indexing",
+      discovered_video_count: 42
+    }
+  });
 });
 
 test("library init route dispatches through injected command service and clears source-video caches", async () => {

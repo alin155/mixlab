@@ -48,6 +48,7 @@ export interface RunLibraryTextPreprocessWorkerInput {
   count_refresh_interval?: number;
   now?: () => string;
   should_stop?: () => boolean;
+  on_current_job?(input: { source_video_id: string; stage: string; now: string }): Promise<void> | void;
   probe_source_video(input: ProbeSourceVideoInput): Promise<SourceVideoMediaMetadata>;
   get_content_hash?(source_video_path: string): Promise<string>;
   preprocess_source_video(
@@ -196,11 +197,21 @@ export async function runLibraryTextPreprocessWorker(
     pendingCountRefresh = true;
     let sourceVideoPath = "";
     let failureStage = "text-preprocess";
+    await input.on_current_job?.({
+      source_video_id: job.source_video_id,
+      stage: "processing",
+      now: now()
+    });
 
     try {
       const manifest = await readSourceVideoManifest(input.library_root, job.source_video_id);
       sourceVideoPath = await resolveSourceVideoFilePath(input.library_root, manifest);
       failureStage = "probe-media";
+      await input.on_current_job?.({
+        source_video_id: job.source_video_id,
+        stage: "probe-media",
+        now: now()
+      });
       await lifecycle.update_preprocess_job_stage({
         library_root: input.library_root,
         source_video_id: job.source_video_id,
@@ -220,8 +231,13 @@ export async function runLibraryTextPreprocessWorker(
         source_video_path: sourceVideoPath,
         audio_mode: input.audio_mode,
         now: now(),
-        on_stage(stage) {
+        async on_stage(stage) {
           failureStage = stage;
+          await input.on_current_job?.({
+            source_video_id: job.source_video_id,
+            stage,
+            now: now()
+          });
           return lifecycle.update_preprocess_job_stage({
             library_root: input.library_root,
             source_video_id: job.source_video_id,
@@ -258,6 +274,11 @@ export async function runLibraryTextPreprocessWorker(
       await refreshCountsIfNeeded();
     } catch (error) {
       const message = errorMessage(error);
+      await input.on_current_job?.({
+        source_video_id: job.source_video_id,
+        stage: "failed",
+        now: now()
+      });
 
       await lifecycle.fail_preprocess_job({
         library_root: input.library_root,

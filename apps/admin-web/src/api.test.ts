@@ -304,6 +304,7 @@ test("calls admin API endpoints through the typed client", async () => {
   await client.initializeLibrary();
   await client.scanSourceVideos();
   await client.scanNewSourceVideos();
+  await client.getScanNewSourceVideosStatus();
   await client.queueUnprocessedVideos();
   await client.retryFailedVideos();
   await client.queueSourceVideo("V000001");
@@ -356,6 +357,7 @@ test("calls admin API endpoints through the typed client", async () => {
       "/api/admin/library/init",
       "/api/admin/library/scan",
       "/api/admin/library/scan-new",
+      "/api/admin/library/scan-new/status",
       "/api/admin/preprocess/queue-unprocessed",
       "/api/admin/preprocess/retry-failed",
       "/api/admin/source-videos/V000001/queue",

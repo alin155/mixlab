@@ -2,6 +2,7 @@ import { InspectorPanel } from "@mixlab/ui-foundation";
 import type { ReactNode } from "react";
 import type {
   AdminDashboardData,
+  AdminLibraryScanNewStatus,
   AdminPreprocessJob,
   UsageMetrics
 } from "../../api.ts";
@@ -93,6 +94,43 @@ function optionalAverageDurationLabel(ms: number): string {
 
 function percentLabel(value: number): string {
   return `${Math.round(value)}%`;
+}
+
+function scanNewStageLabel(stage: AdminLibraryScanNewStatus["stage"]): string {
+  const labels: Record<AdminLibraryScanNewStatus["stage"], string> = {
+    "": "待启动",
+    listing: "正在读取文件夹",
+    indexing: "正在比对视频",
+    writing: "正在登记新素材",
+    completed: "扫描完成"
+  };
+
+  return labels[stage];
+}
+
+function scanNewProgressPercent(status: AdminLibraryScanNewStatus): number {
+  if (status.stage === "writing" && status.total_video_count > 0) {
+    return boundedUsageRatePercent(status.written_video_count, status.total_video_count);
+  }
+
+  if (status.total_source_folder_count > 0) {
+    return boundedUsageRatePercent(status.scanned_folder_count, status.total_source_folder_count);
+  }
+
+  return status.state === "completed" ? 100 : 0;
+}
+
+function scanNewStatusDetail(status: AdminLibraryScanNewStatus): string {
+  if (status.state === "failed") {
+    return status.error_message || "扫描失败，请稍后重试。";
+  }
+
+  const folderProgress = status.total_source_folder_count > 0
+    ? `${status.scanned_folder_count}/${status.total_source_folder_count} 个文件夹`
+    : "正在读取素材文件夹";
+  const folderName = status.current_source_folder_name ? `，当前 ${status.current_source_folder_name}` : "";
+
+  return `${scanNewStageLabel(status.stage)}：${folderProgress}${folderName}，已发现 ${status.discovered_video_count} 个视频，新素材 ${status.new_video_count} 个，已登记 ${status.written_video_count} 个。`;
 }
 
 const TARGET_CUTTER_SEAT_COUNT = 50;
@@ -510,13 +548,17 @@ export function DashboardPage({
   onRetryFailedVideos,
   onRunSmartScan,
   onApplySmartScanPrimaryAction,
-  smartScanReport
+  smartScanReport,
+  scanNewStatus,
+  activeAdminCommandLabel = ""
 }: {
   data: AdminDashboardData;
   onRetryFailedVideos?: () => void;
   onRunSmartScan?: () => void;
   onApplySmartScanPrimaryAction?: (action: AdminSmartScanAction) => void;
   smartScanReport?: AdminSmartScanReport;
+  scanNewStatus?: AdminLibraryScanNewStatus | null;
+  activeAdminCommandLabel?: string;
 }) {
   const report = smartScanReport ?? createAdminSmartScanReport(data);
   const dashboardWriteState = "m9b-api" as const;
@@ -602,6 +644,16 @@ export function DashboardPage({
       }))
   ].slice(0, 5);
   const showDetailedDashboard = import.meta.env?.VITE_MIXLAB_ADMIN_SHOW_DETAILED_DASHBOARD === "true";
+  const scanNewRunning = scanNewStatus?.state === "running";
+  const dashboardBusyReason = activeAdminCommandLabel
+    ? `${activeAdminCommandLabel}正在执行，请稍候。`
+    : scanNewRunning && scanNewStatus
+      ? scanNewStatusDetail(scanNewStatus)
+      : "";
+  const dashboardActionState = dashboardBusyReason ? "read-only" : dashboardWriteState;
+  const scanNewTone = scanNewStatus?.state === "failed"
+    ? "blocked"
+    : scanNewStatus?.state === "running" ? "attention" : "healthy";
 
   if (!showDetailedDashboard) {
     return (
@@ -616,18 +668,18 @@ export function DashboardPage({
                 <section className="admin-action-row" aria-label="首页主操作">
                   <AdminControlButton
                     label="扫描新增素材"
-                    state={dashboardWriteState}
-                    reason="检查 NAS 素材来源，把新视频登记到管理端。"
-                    onClick={onRunSmartScan}
+                    state={dashboardActionState}
+                    reason={dashboardBusyReason || "检查 NAS 素材来源，把新视频登记到管理端。"}
+                    onClick={dashboardBusyReason ? undefined : onRunSmartScan}
                   />
                   {report.primary_action !== "none" ? (
                     <AdminControlButton
                       label={oneClickActionLabel(report)}
-                      state={dashboardWriteState}
-                      reason="按当前状态执行最合适的下一步。"
+                      state={dashboardActionState}
+                      reason={dashboardBusyReason || "按当前状态执行最合适的下一步。"}
                       variant="primary"
                       onClick={
-                        onApplySmartScanPrimaryAction
+                        !dashboardBusyReason && onApplySmartScanPrimaryAction
                           ? () => onApplySmartScanPrimaryAction(report.primary_action)
                           : undefined
                       }
@@ -646,6 +698,22 @@ export function DashboardPage({
               <p>{statusSentence(data, report)}</p>
             </div>
           </section>
+          {scanNewStatus && scanNewStatus.state !== "idle" ? (
+            <section className={`admin-simple-status is-${scanNewTone}`} aria-label="扫描新增素材进度">
+              <span className={`admin-status-badge is-${scanNewTone === "blocked" ? "failed" : scanNewTone === "attention" ? "warning" : "ready"}`}>
+                {scanNewStatus.state_label}
+              </span>
+              <div>
+                <h2>{scanNewStageLabel(scanNewStatus.stage)}</h2>
+                <p>{scanNewStatusDetail(scanNewStatus)}</p>
+                {scanNewRunning ? (
+                  <meter min={0} max={100} value={scanNewProgressPercent(scanNewStatus)}>
+                    {scanNewProgressPercent(scanNewStatus)}%
+                  </meter>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
           <section className="admin-simple-grid" aria-label="关键数字">
             <DashboardSimpleTile
               label="剪辑端可用素材"
@@ -661,7 +729,7 @@ export function DashboardPage({
             />
             <DashboardSimpleTile
               label={supervisorRunning ? "正在处理" : data.status.processing_video_count > 0 ? "需要恢复" : "处理服务"}
-              value={supervisorRunning ? data.jobs.active_count : data.status.processing_video_count > 0 ? data.status.processing_video_count : data.jobs.supervisor.state_label}
+              value={supervisorRunning ? data.jobs.active_count > 0 ? data.jobs.active_count : "运行中" : data.status.processing_video_count > 0 ? data.status.processing_video_count : data.jobs.supervisor.state_label}
               detail={supervisorRunning ? "系统正在自动生成文案、封面和索引产物" : data.status.processing_video_count > 0 ? "有任务停留在处理中，请到素材处理页恢复" : "需要处理素材时可在素材处理页启动"}
               tone={data.status.processing_video_count > 0 && !supervisorRunning ? "blocked" : supervisorRunning ? "healthy" : "neutral"}
             />

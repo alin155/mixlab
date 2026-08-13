@@ -16,6 +16,7 @@ import {
   type AdminDashboardMetrics,
   type AdminDashboardData,
   type AdminIndexVersionsResponse,
+  type AdminLibraryScanNewStatus,
   type AdminLibraryStatus,
   type AdminOperationLogResponse,
   type AdminPathCheck,
@@ -97,6 +98,49 @@ import {
 
 const DEFAULT_LOCAL_ADMIN_API_BASE_URL = "http://127.0.0.1:3889/";
 const PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT = 100_000;
+
+function authStatusFromStoredSession(session: StoredAdminAuthSession): AdminAuthStatus {
+  return {
+    authenticated: true,
+    auth_mode: "password",
+    user: {
+      admin_id: session.admin_id,
+      username: session.username,
+      display_name: session.display_name || session.username,
+      role: session.role,
+      status: "active",
+      created_at: session.created_at,
+      last_login_at: session.last_seen_at,
+      disabled_at: ""
+    },
+    bootstrap: {
+      has_admin: true,
+      registration_open: false
+    }
+  };
+}
+
+function scanNewStatusNotice(status: AdminLibraryScanNewStatus): string {
+  if (status.state === "running") {
+    const folderProgress = status.total_source_folder_count > 0
+      ? `${status.scanned_folder_count}/${status.total_source_folder_count} 个文件夹`
+      : "正在读取素材文件夹";
+
+    return `扫描新增素材中：${folderProgress}，已发现 ${status.discovered_video_count} 个视频，新素材 ${status.new_video_count} 个。`;
+  }
+
+  if (status.state === "failed") {
+    return status.error_message
+      ? `扫描新增素材失败：${status.error_message}`
+      : "扫描新增素材失败，请稍后重试。";
+  }
+
+  if (status.state === "completed") {
+    return `扫描完成：新素材 ${status.new_video_count} 个，已登记 ${status.written_video_count} 个。`;
+  }
+
+  return "";
+}
 
 export function resolveAdminRuntimeApiBaseUrl(input: {
   viteApiBaseUrl?: string;
@@ -721,6 +765,7 @@ function renderPage(
     restorePlanPreview: CommandSnapshotRestorePlanPreview | null;
     restoreExecution: CommandSnapshotRestoreExecutionState | null;
   },
+  scanNewStatus: AdminLibraryScanNewStatus | null,
   activeAdminCommandLabel: string
 ) {
   const dockerMvpMode = surfaceMode === "docker-mvp-v0.1";
@@ -810,6 +855,7 @@ function renderPage(
         processHistoryError={processHistoryState.error}
         onProcessHistoryFiltersChange={actions.onProcessHistoryFiltersChange}
         onOpenPreprocessJobLog={actions.onOpenPreprocessJobLog}
+        scanNewStatus={scanNewStatus}
         activeAdminCommandLabel={activeAdminCommandLabel}
       />
     );
@@ -923,6 +969,8 @@ function renderPage(
       onRunSmartScan={actions.onRunSmartScan}
       onApplySmartScanPrimaryAction={actions.onApplySmartScanPrimaryAction}
       smartScanReport={createAdminSmartScanReport(data)}
+      scanNewStatus={scanNewStatus}
+      activeAdminCommandLabel={activeAdminCommandLabel}
     />
   );
 }
@@ -948,6 +996,7 @@ export function AdminApp() {
   const [error, setError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [actionError, setActionError] = useState("");
+  const [scanNewStatus, setScanNewStatus] = useState<AdminLibraryScanNewStatus | null>(null);
   const [activeAdminCommandLabel, setActiveAdminCommandLabel] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState("");
@@ -1076,6 +1125,9 @@ export function AdminApp() {
 
     let cancelled = false;
     const requestScope = createRuntimeRequestScope(apiBaseUrl, adminAuthSession);
+    if (adminAuthSession) {
+      setAdminAuthStatus((current) => current?.authenticated ? current : authStatusFromStoredSession(adminAuthSession));
+    }
     setAdminAuthLoading(true);
     setAdminAuthError("");
     requestScope.client.getAuthStatus()
@@ -1092,7 +1144,13 @@ export function AdminApp() {
       })
       .catch((statusError) => {
         if (!cancelled) {
-          setAdminAuthStatus(null);
+          if (adminAuthSession) {
+            setAdminAuthStatus((current) =>
+              current?.authenticated ? current : authStatusFromStoredSession(adminAuthSession)
+            );
+          } else {
+            setAdminAuthStatus(null);
+          }
           setAdminAuthError(adminLoadErrorMessage(statusError));
         }
       })
@@ -1107,6 +1165,43 @@ export function AdminApp() {
       requestScope.abort();
     };
   }, [adminAuthSession, apiBaseUrl, apiMode, client]);
+
+  useEffect(() => {
+    if (!canLoadAdminData) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId = 0;
+
+    const loadScanStatus = async () => {
+      try {
+        const status = await client.getScanNewSourceVideosStatus();
+        if (cancelled) {
+          return;
+        }
+
+        setScanNewStatus(status);
+        if (status.state === "running") {
+          setActionError("");
+          setActionNotice(scanNewStatusNotice(status));
+        }
+
+        timeoutId = window.setTimeout(loadScanStatus, status.state === "running" ? 3_000 : 30_000);
+      } catch {
+        if (!cancelled) {
+          timeoutId = window.setTimeout(loadScanStatus, 30_000);
+        }
+      }
+    };
+
+    void loadScanStatus();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [canLoadAdminData, client]);
 
   useEffect(() => {
     if (!canLoadAdminData) {
@@ -2102,11 +2197,20 @@ export function AdminApp() {
 
     try {
       await client.scanNewSourceVideos();
+      let scanStatus: AdminLibraryScanNewStatus | null = null;
+      try {
+        scanStatus = await client.getScanNewSourceVideosStatus();
+        setScanNewStatus(scanStatus);
+      } catch {
+        scanStatus = null;
+      }
       await client.runDoctor();
       const refreshed = await loadAdminDashboardData(client, { includeHeavy: false });
       const report = createAdminSmartScanReport(refreshed);
       setData((current) => current ? mergeAdminDashboardShellData(current, refreshed) : refreshed);
-      setActionNotice(`扫描完成：${report.title}`);
+      setActionNotice(scanStatus
+        ? `${scanNewStatusNotice(scanStatus)} ${report.title}`.trim()
+        : `扫描完成：${report.title}`);
     } catch (failure) {
       setActionNotice("");
       setActionError(adminActionErrorMessage("扫描新增素材", failure));
@@ -2616,6 +2720,7 @@ export function AdminApp() {
                   restorePlanPreview: commandSnapshotRestorePlanPreview,
                   restoreExecution: commandSnapshotRestoreExecution
                 },
+                scanNewStatus,
                 activeAdminCommandLabel
               )
             ) : (

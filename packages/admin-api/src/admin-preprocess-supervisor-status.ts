@@ -8,6 +8,9 @@ export interface PublicPreprocessSupervisorStatus {
   stopped_at: string;
   last_error: string;
   stop_requested: boolean;
+  current_source_video_id: string;
+  current_stage: string;
+  current_updated_at: string;
   last_result: {
     total_claimed_count: number;
     succeeded_count: number;
@@ -26,6 +29,9 @@ export function toPublicPreprocessSupervisorStatus(
     stopped_at: status.stopped_at,
     last_error: status.last_error,
     stop_requested: status.stop_requested,
+    current_source_video_id: status.current_source_video_id,
+    current_stage: status.current_stage,
+    current_updated_at: status.current_updated_at,
     last_result: status.last_result
       ? {
           total_claimed_count: status.last_result.total_claimed_count,

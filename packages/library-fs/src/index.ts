@@ -25,6 +25,7 @@ export type {
   ScanSourceVideosResult,
   SourceVideoScanBlocker,
   SourceVideoScanBlockerCode,
+  SourceVideoScanProgress,
   SourceVideoScanPreviewResult
 } from "./scanner.ts";
 export {

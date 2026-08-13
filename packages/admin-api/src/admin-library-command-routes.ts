@@ -29,6 +29,7 @@ export interface AdminLibraryCommandRouteDeps<
   run_library_init_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TLibraryInitResult>;
   run_library_scan_apply_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TScanApplyResult>;
   run_library_scan_new_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TScanApplyResult>;
+  read_library_scan_new_status(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<unknown>;
   run_library_scan_preview_command(input: AdminLibraryCommandRouteCommandInput<TApiInput>): Promise<TScanPreviewResult>;
   schedule_read_model_reconcile_after_scan(input: {
     handoff: TScanApplyResult["read_model"];
@@ -79,6 +80,10 @@ export function matchAdminLibraryScanNewPath(pathname: string): boolean {
   return pathname === "/api/admin/library/scan-new";
 }
 
+export function matchAdminLibraryScanNewStatusPath(pathname: string): boolean {
+  return pathname === "/api/admin/library/scan-new/status";
+}
+
 export function matchAdminLibraryScanPreviewPath(pathname: string): boolean {
   return pathname === "/api/admin/library/scan-preview";
 }
@@ -100,6 +105,16 @@ export async function handleAdminLibraryCommandRoutes<
     TReconcileSchedule
   >
 ): Promise<AdminLibraryCommandRouteResult> {
+  if (input.method === "GET" && matchAdminLibraryScanNewStatusPath(input.pathname)) {
+    return {
+      handled: true,
+      status_code: 200,
+      body: apiOk(await input.deps.read_library_scan_new_status({
+        api_input: input.api_input
+      }))
+    };
+  }
+
   if (input.method === "POST" && matchAdminLibraryInitPath(input.pathname)) {
     try {
       const result = await input.deps.run_library_init_command({

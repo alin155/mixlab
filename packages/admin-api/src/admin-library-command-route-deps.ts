@@ -30,6 +30,7 @@ export interface CreateAdminLibraryCommandRouteDepsInput<
   run_library_init_command(input: LibraryCommandContext<TActor>): Promise<TLibraryInitResult>;
   run_library_scan_apply_command(input: LibraryCommandContext<TActor>): Promise<TScanApplyResult>;
   run_library_scan_new_command(input: LibraryCommandContext<TActor>): Promise<TScanApplyResult>;
+  read_library_scan_new_status(input: LibraryCommandContext<TActor>): Promise<unknown>;
   run_library_scan_preview_command(input: LibraryCommandContext<TActor>): Promise<TScanPreviewResult>;
   schedule_read_model_reconcile_after_scan(input: {
     handoff: TScanApplyResult["read_model"];
@@ -83,6 +84,9 @@ export function createAdminLibraryCommandRouteDeps<
     },
     run_library_scan_new_command({ api_input }) {
       return input.run_library_scan_new_command(commandContext(api_input));
+    },
+    read_library_scan_new_status({ api_input }) {
+      return input.read_library_scan_new_status(commandContext(api_input));
     },
     run_library_scan_preview_command({ api_input }) {
       return input.run_library_scan_preview_command(commandContext(api_input));
@@ -185,6 +189,7 @@ export interface CreateAdminLibraryCommandRouteServerDepsInput<
     | "run_library_init_command"
     | "run_library_scan_apply_command"
     | "run_library_scan_new_command"
+    | "read_library_scan_new_status"
     | "run_library_scan_preview_command"
   > {
   run_library_init_service: LibraryInitCommandService<
@@ -214,6 +219,7 @@ export interface CreateAdminLibraryCommandRouteServerDepsInput<
     TReconcileSchedule,
     TActor
   >;
+  read_library_scan_new_status_service(input: LibraryCommandContext<TActor>): Promise<unknown>;
   run_library_scan_preview_service: LibraryScanPreviewCommandService<
     TApiInput,
     TLibraryInitResult,
@@ -256,6 +262,7 @@ export function createAdminLibraryCommandRouteServerDeps<
     run_library_init_command: input.run_library_init_service,
     run_library_scan_apply_command: input.run_library_scan_apply_service,
     run_library_scan_new_command: input.run_library_scan_new_service,
+    read_library_scan_new_status: input.read_library_scan_new_status_service,
     run_library_scan_preview_command: input.run_library_scan_preview_service
   });
 }

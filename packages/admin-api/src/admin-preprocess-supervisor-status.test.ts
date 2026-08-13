@@ -14,6 +14,9 @@ function supervisorStatus(input: Partial<PreprocessSupervisorStatus> = {}): Prep
     stopped_at: "",
     last_error: "",
     stop_requested: false,
+    current_source_video_id: "",
+    current_stage: "",
+    current_updated_at: "",
     last_result: null,
     ...input
   };
@@ -32,6 +35,9 @@ test("preprocess supervisor status projection exposes public runtime fields", ()
     stopped_at: "",
     last_error: "",
     stop_requested: true,
+    current_source_video_id: "",
+    current_stage: "",
+    current_updated_at: "",
     last_result: null
   });
 });
@@ -58,6 +64,9 @@ test("preprocess supervisor status projection redacts full worker result details
     stopped_at: "2026-06-27T00:05:00.000Z",
     last_error: "",
     stop_requested: false,
+    current_source_video_id: "",
+    current_stage: "",
+    current_updated_at: "",
     last_result: {
       total_claimed_count: 9,
       succeeded_count: 7,

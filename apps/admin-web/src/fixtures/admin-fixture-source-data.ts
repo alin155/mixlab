@@ -131,6 +131,9 @@ export const jobs: AdminPreprocessJobsResponse = {
     stopped_at: "",
     last_error: "",
     stop_requested: false,
+    current_source_video_id: "V000043",
+    current_stage: "asr",
+    current_updated_at: "2024-05-07 10:25:18",
     last_result: {
       total_claimed_count: 2,
       succeeded_count: 1,

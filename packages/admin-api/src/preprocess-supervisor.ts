@@ -10,6 +10,7 @@ export interface PreprocessSupervisorRunInput {
   runtime_policy: AdminRuntimePolicy;
   should_stop?: () => boolean;
   on_progress?: (result: RunLibraryTextPreprocessWorkerResult) => void;
+  on_current_job?: (input: { source_video_id: string; stage: string; now: string }) => Promise<void> | void;
 }
 
 export interface PreprocessSupervisorRunner {
@@ -24,6 +25,9 @@ export interface PreprocessSupervisorStatus {
   stopped_at: string;
   last_error: string;
   stop_requested: boolean;
+  current_source_video_id: string;
+  current_stage: string;
+  current_updated_at: string;
   last_result: RunLibraryTextPreprocessWorkerResult | null;
 }
 
@@ -57,6 +61,9 @@ export function createPreprocessSupervisor(input: CreatePreprocessSupervisorInpu
     stopped_at: "",
     last_error: "",
     stop_requested: false,
+    current_source_video_id: "",
+    current_stage: "",
+    current_updated_at: "",
     last_result: null
   };
 
@@ -79,11 +86,20 @@ export function createPreprocessSupervisor(input: CreatePreprocessSupervisorInpu
       status.stopped_at = "";
       status.last_error = "";
       status.stop_requested = false;
+      status.current_source_video_id = "";
+      status.current_stage = "";
+      status.current_updated_at = "";
       status.last_result = null;
 
       void input.runner.runOnce({
         ...runInput,
         should_stop: () => status.stop_requested || runInput.should_stop?.() === true,
+        on_current_job: (current) => {
+          status.current_source_video_id = current.source_video_id;
+          status.current_stage = current.stage;
+          status.current_updated_at = current.now;
+          runInput.on_current_job?.(current);
+        },
         on_progress: (result) => {
           status.last_result = result;
           runInput.on_progress?.(result);
@@ -94,12 +110,16 @@ export function createPreprocessSupervisor(input: CreatePreprocessSupervisorInpu
           status.state = "idle";
           status.stopped_at = now();
           status.stop_requested = false;
+          status.current_source_video_id = "";
+          status.current_stage = "";
+          status.current_updated_at = "";
         })
         .catch((error) => {
           status.last_error = errorMessage(error);
           status.state = "failed";
           status.stopped_at = now();
           status.stop_requested = false;
+          status.current_stage = "failed";
         });
 
       return snapshot();

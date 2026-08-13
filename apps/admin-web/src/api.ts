@@ -190,11 +190,36 @@ export interface AdminPreprocessSupervisorStatus {
   stopped_at: string;
   last_error: string;
   stop_requested: boolean;
+  current_source_video_id: string;
+  current_stage: string;
+  current_updated_at: string;
   last_result: {
     total_claimed_count: number;
     succeeded_count: number;
     failed_count: number;
   } | null;
+}
+
+export interface AdminLibraryScanNewStatus {
+  state: "idle" | "running" | "completed" | "failed";
+  state_label: string;
+  started_at: string;
+  updated_at: string;
+  completed_at: string;
+  error_message: string;
+  stage: "" | "listing" | "indexing" | "writing" | "completed";
+  current_source_folder_id: string;
+  current_source_folder_name: string;
+  scanned_folder_count: number;
+  total_source_folder_count: number;
+  discovered_video_count: number;
+  indexed_file_count: number;
+  new_video_count: number;
+  existing_video_count: number;
+  written_video_count: number;
+  total_video_count: number;
+  inactive_manifest_count: number;
+  inactive_ready_count: number;
 }
 
 export interface AdminPreprocessJobsResponse {
@@ -1666,6 +1691,7 @@ export interface AdminApiClient {
   initializeLibrary(): Promise<AdminActionResult>;
   scanSourceVideos(): Promise<AdminActionResult>;
   scanNewSourceVideos(): Promise<AdminActionResult>;
+  getScanNewSourceVideosStatus(): Promise<AdminLibraryScanNewStatus>;
   queueUnprocessedVideos(): Promise<AdminActionResult>;
   retryFailedVideos(): Promise<AdminActionResult>;
   recoverProcessingVideos(): Promise<AdminActionResult>;
@@ -2356,6 +2382,27 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       new_video_count: 0,
       existing_video_count: fixtureSourceVideos.length,
       message: "fixture 新增素材扫描完成"
+    }),
+    getScanNewSourceVideosStatus: async () => ({
+      state: "completed",
+      state_label: "扫描完成",
+      started_at: "2024-05-07 10:40:00",
+      updated_at: "2024-05-07 10:40:05",
+      completed_at: "2024-05-07 10:40:05",
+      error_message: "",
+      stage: "completed",
+      current_source_folder_id: "",
+      current_source_folder_name: "",
+      scanned_folder_count: 1,
+      total_source_folder_count: 1,
+      discovered_video_count: fixtureSourceVideos.length,
+      indexed_file_count: fixtureSourceVideos.length,
+      new_video_count: 0,
+      existing_video_count: fixtureSourceVideos.length,
+      written_video_count: 0,
+      total_video_count: fixtureSourceVideos.length,
+      inactive_manifest_count: 0,
+      inactive_ready_count: 0
     }),
     queueUnprocessedVideos: async () =>
       queueVideos(["unprocessed"], "已将未处理视频加入预处理队列"),

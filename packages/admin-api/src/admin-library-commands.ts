@@ -19,6 +19,11 @@ import {
   type AdminReadModelInvalidationHandoff
 } from "./admin-read-model-invalidation.ts";
 import {
+  readAdminLibraryScanNewStatus,
+  scanProgressToStatus,
+  writeAdminLibraryScanNewStatus
+} from "./admin-library-scan-new-status.ts";
+import {
   adminLibraryManifestPath as libraryManifestPath,
   adminMixlabRoot as mixlabRoot,
   adminPreprocessJobPath as preprocessJobPath,
@@ -177,6 +182,16 @@ function currentTime(input: AdminLibraryCommandContext): string {
   return input.now ? input.now() : input.command_now;
 }
 
+function isFreshRunningScanStatus(updatedAt: string, now: string): boolean {
+  const updatedMs = Date.parse(updatedAt);
+  const nowMs = Date.parse(now);
+  if (!Number.isFinite(updatedMs) || !Number.isFinite(nowMs)) {
+    return true;
+  }
+
+  return nowMs - updatedMs < 2 * 60 * 60 * 1000;
+}
+
 export async function initializeAdminLibrary(input: {
   library_root: string;
   library_id: string;
@@ -260,34 +275,78 @@ export async function runAdminLibraryScanNewCommand(
 ): Promise<AdminLibraryScanNewCommandResult> {
   const commandName = "library-scan-new";
   const command = adminCommandContract(commandName);
-  return runAdminCommand({
-    library_root: input.library_root,
-    command: command.command,
-    now: input.command_now,
-    actor: input.actor,
-    snapshot_files: librarySnapshotFiles(input.library_root)
-  }, async () => {
-    await initializeAdminLibrary({
-      library_root: input.library_root,
-      library_id: input.library_id,
-      library_name: input.library_name,
-      now: currentTime(input)
-    });
-    const result = await scanNewSourceVideos({
-      library_root: input.library_root,
-      library_id: input.library_id,
-      library_name: input.library_name,
-      now: currentTime(input)
-    });
-    const readModel = await markAdminReadModelStoreStaleForCommand({
-      library_root: input.library_root,
-      command: commandName,
-      invalidated_at: currentTime(input),
-      read_library_manifest: () => readAdminLibraryManifest(input.library_root)
-    });
-    return {
-      ...result,
-      read_model: readModel
-    };
+  const startedAt = currentTime(input);
+  const previousStatus = await readAdminLibraryScanNewStatus(input.library_root);
+  if (previousStatus.state === "running" && isFreshRunningScanStatus(previousStatus.updated_at, startedAt)) {
+    throw new Error("library_scan_new_busy: 新增素材扫描正在运行，请等待完成后再启动。");
+  }
+  await writeAdminLibraryScanNewStatus(input.library_root, {
+    state: "running",
+    started_at: startedAt,
+    updated_at: startedAt,
+    stage: "listing"
   });
+
+  try {
+    return await runAdminCommand({
+      library_root: input.library_root,
+      command: command.command,
+      now: input.command_now,
+      actor: input.actor,
+      snapshot_files: librarySnapshotFiles(input.library_root)
+    }, async () => {
+      await initializeAdminLibrary({
+        library_root: input.library_root,
+        library_id: input.library_id,
+        library_name: input.library_name,
+        now: currentTime(input)
+      });
+      const result = await scanNewSourceVideos({
+        library_root: input.library_root,
+        library_id: input.library_id,
+        library_name: input.library_name,
+        now: currentTime(input),
+        on_progress: async (progress) => {
+          await writeAdminLibraryScanNewStatus(
+            input.library_root,
+            scanProgressToStatus({ started_at: startedAt, progress })
+          );
+        }
+      });
+      const readModel = await markAdminReadModelStoreStaleForCommand({
+        library_root: input.library_root,
+        command: commandName,
+        invalidated_at: currentTime(input),
+        read_library_manifest: () => readAdminLibraryManifest(input.library_root)
+      });
+      await writeAdminLibraryScanNewStatus(input.library_root, {
+        state: "completed",
+        started_at: startedAt,
+        updated_at: currentTime(input),
+        completed_at: currentTime(input),
+        stage: "completed",
+        new_video_count: result.new_video_count,
+        existing_video_count: result.existing_video_count,
+        total_video_count: result.total_video_count,
+        inactive_manifest_count: result.inactive_manifest_count,
+        inactive_ready_count: result.inactive_ready_count,
+        discovered_video_count: result.total_video_count,
+        indexed_file_count: result.total_video_count,
+        written_video_count: result.new_video_count
+      });
+      return {
+        ...result,
+        read_model: readModel
+      };
+    });
+  } catch (error) {
+    await writeAdminLibraryScanNewStatus(input.library_root, {
+      state: "failed",
+      started_at: startedAt,
+      updated_at: currentTime(input),
+      completed_at: currentTime(input),
+      error_message: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  }
 }

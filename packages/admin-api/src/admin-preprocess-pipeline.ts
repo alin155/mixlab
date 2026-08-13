@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
   createDashScopeTemporaryFileAudioUploader,
   createFetchDashScopeHttpClient,
@@ -96,26 +96,36 @@ export function resolveAdminAsrPollingConfig(input: {
   };
 }
 
-function runProcess(executable: string, args: string[]): void {
-  const result = spawnSync(executable, args, {
-    encoding: "utf8"
-  });
-
-  if (result.status !== 0) {
-    throw new Error(`${executable} 执行失败：${result.stderr}`);
-  }
+async function runProcess(executable: string, args: string[]): Promise<void> {
+  await runProcessForStdout(executable, args);
 }
 
-function runProcessForStdout(executable: string, args: string[]): string {
-  const result = spawnSync(executable, args, {
-    encoding: "utf8"
+function runProcessForStdout(executable: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`${executable} 执行失败：${stderr}`));
+        return;
+      }
+
+      resolve(stdout);
+    });
   });
-
-  if (result.status !== 0) {
-    throw new Error(`${executable} 执行失败：${result.stderr}`);
-  }
-
-  return result.stdout;
 }
 
 export function assertRealPreprocessStartReady(env: NodeJS.ProcessEnv): void {
@@ -142,6 +152,7 @@ export interface RunAdminPreprocessPipelineInput {
   media: ReadyPublishMedia;
   should_stop?: () => boolean;
   on_progress?: (result: RunLibraryTextPreprocessWorkerResult) => void;
+  on_current_job?: (input: { source_video_id: string; stage: string; now: string }) => Promise<void> | void;
   clear_source_video_page_cache?: (libraryRoot: string) => void;
   run_worker_cycle(input: AdminPreprocessWorkerCycleInput): Promise<RunLibraryTextPreprocessWorkerResult>;
 }
@@ -265,13 +276,14 @@ export async function runAdminPreprocessPipeline(
       library_root: input.library_root,
       library_id: input.library_id,
       library_name: input.library_name,
-      worker_id: `admin-worker-${process.pid}`,
-      limit: cycleLimit,
-      source_video_ids: input.source_video_ids,
-      audio_mode: runtimePolicy.audio_mode,
-      now: input.now,
-      scan_before_claim: false,
-      claim_statuses: ["queued"]
+            worker_id: `admin-worker-${process.pid}`,
+            limit: cycleLimit,
+            source_video_ids: input.source_video_ids,
+            audio_mode: runtimePolicy.audio_mode,
+            now: input.now,
+            on_current_job: input.on_current_job,
+            scan_before_claim: false,
+            claim_statuses: ["queued"]
     });
     totalClaimedCount += cycleResult.total_claimed_count;
     succeededCount += cycleResult.succeeded_count;
@@ -284,6 +296,11 @@ export async function runAdminPreprocessPipeline(
         .map((item) => item.source_video_id))];
 
       for (const sourceVideoId of succeededSourceVideoIds) {
+        input.on_current_job?.({
+          source_video_id: sourceVideoId,
+          stage: "publish-ready",
+          now: input.now()
+        });
         const publishResult = await runAdminSourceVideoPublishCommand({
           library_root: input.library_root,
           library_id: input.library_id,
@@ -367,6 +384,7 @@ export function createRealPreprocessRunner(input: {
         media: input.media,
         should_stop: runInput.should_stop,
         on_progress: runInput.on_progress,
+        on_current_job: runInput.on_current_job,
         clear_source_video_page_cache: input.clear_source_video_page_cache,
         run_worker_cycle(workerInput) {
           return runLibraryTextPreprocessWorker({
@@ -381,7 +399,7 @@ export function createRealPreprocessRunner(input: {
               });
 
               return parseFfprobeSourceMetadata(
-                runProcessForStdout(runtime.ffprobe_path, plan.args)
+                await runProcessForStdout(runtime.ffprobe_path, plan.args)
               );
             },
             async get_content_hash(sourceVideoPath) {
@@ -399,7 +417,7 @@ export function createRealPreprocessRunner(input: {
                 on_stage: preprocessInput.on_stage,
                 command_runner: {
                   async run(executable, args) {
-                    runProcess(executable, args);
+                    await runProcess(executable, args);
                   }
                 },
                 uploader,

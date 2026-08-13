@@ -68,6 +68,7 @@ import {
   runAdminLibraryInitCommand,
   runAdminLibraryScanNewCommand
 } from "./admin-library-commands.ts";
+import { readAdminLibraryScanNewStatus } from "./admin-library-scan-new-status.ts";
 import {
   runAdminLibraryScanApplyCommand,
   runAdminLibraryScanPreviewCommand
@@ -887,6 +888,8 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           run_library_init_service: runAdminLibraryInitCommand,
           run_library_scan_apply_service: runAdminLibraryScanApplyCommand,
           run_library_scan_new_service: runAdminLibraryScanNewCommand,
+          read_library_scan_new_status_service: (context) =>
+            readAdminLibraryScanNewStatus(context.library_root),
           run_library_scan_preview_service: runAdminLibraryScanPreviewCommand,
           schedule_read_model_reconcile_after_scan:
             readModelServerFacade.schedule_read_model_reconcile_after_scan,

@@ -10,6 +10,7 @@ import type {
   AdminDashboardMetrics,
   AdminDataLoadingPlan,
   AdminIndexVersionsResponse,
+  AdminLibraryScanNewStatus,
   AdminLibraryStatus,
   AdminOperationLogResponse,
   AdminOperationsOverview,
@@ -71,6 +72,7 @@ export interface AdminOperationsClientMethods {
   initializeLibrary(): Promise<AdminActionResult>;
   scanSourceVideos(): Promise<AdminActionResult>;
   scanNewSourceVideos(): Promise<AdminActionResult>;
+  getScanNewSourceVideosStatus(): Promise<AdminLibraryScanNewStatus>;
   queueUnprocessedVideos(): Promise<AdminActionResult>;
   retryFailedVideos(): Promise<AdminActionResult>;
   recoverProcessingVideos(): Promise<AdminActionResult>;
@@ -291,6 +293,13 @@ export function createAdminOperationsClientMethods({
         "/api/admin/library/scan-new",
         "POST",
         undefined,
+        protectedHeaders
+      ),
+    getScanNewSourceVideosStatus: () =>
+      getJson<AdminLibraryScanNewStatus>(
+        fetchImpl,
+        baseUrl,
+        "/api/admin/library/scan-new/status",
         protectedHeaders
       ),
     queueUnprocessedVideos: () =>

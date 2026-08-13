@@ -2195,6 +2195,9 @@ test("preprocess start and pause controls follow supervisor state", async () => 
         ...data.jobs.supervisor,
         state: "running" as const,
         state_label: "运行中",
+        current_source_video_id: "",
+        current_stage: "",
+        current_updated_at: "",
         last_result: {
           total_claimed_count: 2,
           succeeded_count: 2,

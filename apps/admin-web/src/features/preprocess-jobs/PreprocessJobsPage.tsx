@@ -5,6 +5,7 @@ import {
 } from "@mixlab/ui-foundation";
 import type {
   AdminDashboardData,
+  AdminLibraryScanNewStatus,
   AdminPreprocessJob,
   AdminPreprocessJobLog,
   AdminPreprocessProcessHistoryEvent,
@@ -120,6 +121,58 @@ function timeLabel(value: string): string {
   }
 
   return value.replace("T", " ").slice(0, 16);
+}
+
+function scanNewStageLabel(stage: AdminLibraryScanNewStatus["stage"]): string {
+  const labels: Record<AdminLibraryScanNewStatus["stage"], string> = {
+    "": "待启动",
+    listing: "正在读取文件夹",
+    indexing: "正在比对视频",
+    writing: "正在登记新素材",
+    completed: "扫描完成"
+  };
+
+  return labels[stage];
+}
+
+function scanNewProgressPercent(status: AdminLibraryScanNewStatus): number {
+  if (status.stage === "writing" && status.total_video_count > 0) {
+    return boundedPercent((status.written_video_count / status.total_video_count) * 100);
+  }
+
+  if (status.total_source_folder_count > 0) {
+    return boundedPercent((status.scanned_folder_count / status.total_source_folder_count) * 100);
+  }
+
+  return status.state === "completed" ? 100 : 0;
+}
+
+function scanNewStatusDetail(status: AdminLibraryScanNewStatus): string {
+  if (status.state === "failed") {
+    return status.error_message || "扫描失败，请稍后重试。";
+  }
+
+  const folderProgress = status.total_source_folder_count > 0
+    ? `${status.scanned_folder_count}/${status.total_source_folder_count} 个文件夹`
+    : "正在读取素材文件夹";
+  const folderName = status.current_source_folder_name ? `，当前 ${status.current_source_folder_name}` : "";
+
+  return `${scanNewStageLabel(status.stage)}：${folderProgress}${folderName}，已发现 ${status.discovered_video_count} 个视频，新素材 ${status.new_video_count} 个，已登记 ${status.written_video_count} 个。`;
+}
+
+function supervisorStageProgressPercent(stage: string): number {
+  const progressByStage: Record<string, number> = {
+    "probe-media": 10,
+    "extract-audio": 25,
+    "upload-audio": 40,
+    asr: 60,
+    "write-transcript": 80,
+    "build-keyframes": 90,
+    "publish-ready": 96,
+    "publish-index": 98
+  };
+
+  return progressByStage[stage] ?? 5;
 }
 
 function preprocessThroughputLabel(data: AdminDashboardData, supervisorRunning: boolean): string {
@@ -380,6 +433,7 @@ export function PreprocessJobsPage({
   onPublishSourceVideo,
   onProcessHistoryFiltersChange,
   onOpenPreprocessJobLog,
+  scanNewStatus,
   activeAdminCommandLabel = ""
 }: {
   data: AdminDashboardData;
@@ -406,6 +460,7 @@ export function PreprocessJobsPage({
   onPublishSourceVideo?: (sourceVideoId: string) => void;
   onProcessHistoryFiltersChange?: (filters: AdminPreprocessProcessHistoryFilters) => void;
   onOpenPreprocessJobLog?: (jobId: string) => void;
+  scanNewStatus?: AdminLibraryScanNewStatus | null;
   activeAdminCommandLabel?: string;
 }) {
   const running = data.jobs.jobs.filter((job) => job.status === "running");
@@ -420,30 +475,43 @@ export function PreprocessJobsPage({
   );
   const supervisor = data.jobs.supervisor;
   const supervisorRunning = supervisor.state === "running" || supervisor.state === "stopping";
+  const supervisorCurrentVideoId = supervisor.current_source_video_id;
+  const supervisorCurrentStage = supervisor.current_stage;
   const lastResult = supervisor.last_result;
   const status = productionStatus(data);
   const averageProcessMs = data.metrics.production.average_video_process_ms;
   const currentIndex = data.indexes.versions.find((version) => version.is_current);
   const runtimeLoad = data.metrics.runtime_load;
   const observability = data.jobs.observability;
-  const currentJob = running[0];
+  const currentJob = running[0] ?? (
+    supervisorCurrentVideoId
+      ? data.jobs.jobs.find((job) => job.source_video_id === supervisorCurrentVideoId)
+      : undefined
+  );
   const autoPublishIndexEnabled = data.settings.runtime_policy.auto_publish_index_enabled;
   const canStartSupervisor = supervisor.state === "idle" || supervisor.state === "failed";
   const canStopSupervisor = supervisor.state === "running" || supervisor.state === "stopping";
-  const nasWriteState = "m9b-api" as const;
-  const commandBusyReason = activeAdminCommandLabel
-    ? `${activeAdminCommandLabel}正在执行，请稍候。`
+  const scanNewRunning = scanNewStatus?.state === "running";
+  const writeBusyLabel = activeAdminCommandLabel || (scanNewRunning ? "扫描新增素材" : "");
+  const nasWriteState = writeBusyLabel ? "read-only" : "m9b-api";
+  const commandBusyReason = writeBusyLabel
+    ? `${writeBusyLabel}正在执行，请稍候。`
     : "";
   const gatedNasWriteAction = <T extends (...args: never[]) => void>(handler?: T): T | undefined =>
-    activeAdminCommandLabel ? undefined : handler;
+    writeBusyLabel ? undefined : handler;
   const nasWriteReason = (reason: string) => commandBusyReason || reason;
   const runningStageCaption = supervisorRunning ? "当前阶段" : "停留阶段";
+  const missingRuntimeJob = supervisorRunning && supervisorCurrentVideoId &&
+    !running.some((job) => job.source_video_id === supervisorCurrentVideoId);
+  const runningStageCount = (stage: string) =>
+    running.filter((job) => job.stage === stage).length +
+    (missingRuntimeJob && supervisorCurrentStage === stage ? 1 : 0);
   const pipelineStages = [
     { label: "扫描素材", value: data.status.video_count, caption: "已发现" },
-    { label: "提取音频", value: running.filter((job) => job.stage === "extract-audio").length, caption: runningStageCaption },
-    { label: "语音识别", value: running.filter((job) => job.stage === "asr").length, caption: runningStageCaption },
+    { label: "提取音频", value: runningStageCount("extract-audio"), caption: runningStageCaption },
+    { label: "语音识别", value: runningStageCount("asr"), caption: runningStageCaption },
     { label: "生成文案", value: data.metrics.transcript.transcript_video_count, caption: "已有文案" },
-    { label: "封面关键帧", value: running.filter((job) => job.stage === "build-keyframes").length, caption: runningStageCaption },
+    { label: "封面关键帧", value: runningStageCount("build-keyframes"), caption: runningStageCaption },
     {
       label: "上线剪辑端",
       value: data.status.index_required_video_count,
@@ -464,13 +532,17 @@ export function PreprocessJobsPage({
   );
   const currentTaskLabel = currentJob
     ? `${currentJob.source_video_id} · ${safeJobStageLabel(currentJob)}`
-    : supervisorRunning
+    : supervisorCurrentVideoId
+      ? `${supervisorCurrentVideoId} · ${jobStageLabel(supervisorCurrentStage)}`
+      : supervisorRunning
       ? "正在领取下一个视频"
       : "空闲";
-  const currentTaskProgress = currentJob ? boundedPercent(currentJob.progress) : 0;
+  const currentTaskProgress = currentJob
+    ? boundedPercent(currentJob.progress)
+    : supervisorCurrentVideoId ? supervisorStageProgressPercent(supervisorCurrentStage) : 0;
   const currentTaskProgressLabel = currentJob
     ? `${currentTaskProgress}%`
-    : supervisorRunning ? "等待中" : "空闲";
+    : supervisorCurrentVideoId ? `${currentTaskProgress}%` : supervisorRunning ? "等待中" : "空闲";
   const processingServiceValue = supervisorRunning
     ? "运行中"
     : data.status.processing_video_count > 0
@@ -479,7 +551,7 @@ export function PreprocessJobsPage({
   const processingServiceCaption = supervisorRunning
     ? currentJob
       ? `${currentJob.source_video_id} 正在处理`
-      : "正在领取下一个视频"
+      : currentTaskLabel
     : data.status.processing_video_count > 0
       ? "可能需要恢复"
       : "当前没有任务";
@@ -531,10 +603,14 @@ export function PreprocessJobsPage({
     ? supervisorRunning
       ? `${currentJob.status_label} · ${safeJobStageLabel(currentJob)}`
       : `待恢复 · ${safeJobStageLabel(currentJob)}`
-    : "流水线空闲或等待启动";
+    : supervisorCurrentVideoId
+      ? `运行中 · ${jobStageLabel(supervisorCurrentStage)}`
+      : "流水线空闲或等待启动";
   const currentJobHeading = currentJob
     ? `${currentJob.source_video_id} · ${currentJob.title}`
-    : supervisorRunning
+    : supervisorCurrentVideoId
+      ? supervisorCurrentVideoId
+      : supervisorRunning
       ? "暂无正在处理的视频"
       : "暂无待恢复的视频";
   const activeMetricLabel = supervisorRunning ? "正在处理" : "待恢复";
@@ -543,7 +619,7 @@ export function PreprocessJobsPage({
     ? supervisorRunning
       ? safeJobStageLabel(running[0])
       : "待恢复"
-    : "暂无待恢复或正在处理";
+    : supervisorCurrentVideoId ? jobStageLabel(supervisorCurrentStage) : "暂无待恢复或正在处理";
   const jobStageText = (job: AdminPreprocessJob): string => {
     const stage = safeJobStageLabel(job);
 
@@ -835,6 +911,25 @@ export function PreprocessJobsPage({
               <p>{status.detail}</p>
             </div>
           </section>
+          {scanNewStatus && scanNewStatus.state !== "idle" ? (
+            <section
+              className={`admin-simple-status is-${scanNewStatus.state === "failed" ? "blocked" : scanNewStatus.state === "running" ? "attention" : "healthy"}`}
+              aria-label="扫描新增素材进度"
+            >
+              <span className={`admin-status-badge is-${scanNewStatus.state === "failed" ? "failed" : scanNewStatus.state === "running" ? "warning" : "ready"}`}>
+                {scanNewStatus.state_label}
+              </span>
+              <div>
+                <h2>{scanNewStageLabel(scanNewStatus.stage)}</h2>
+                <p>{scanNewStatusDetail(scanNewStatus)}</p>
+                {scanNewStatus.state === "running" ? (
+                  <meter min={0} max={100} value={scanNewProgressPercent(scanNewStatus)}>
+                    {scanNewProgressPercent(scanNewStatus)}%
+                  </meter>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
           <MetricBand
             items={[
               { label: "剪辑端可用", value: data.status.ready_video_count, caption: "已上线素材" },
@@ -1009,7 +1104,7 @@ export function PreprocessJobsPage({
             </span>
             <span>
               <strong>当前任务</strong>
-              {currentJob ? supervisorRunning ? currentJob.source_video_id : `待恢复 ${currentJob.source_video_id}` : "空闲"}
+              {currentTaskLabel}
             </span>
             <span>
               <strong>当前索引</strong>
@@ -1076,7 +1171,7 @@ export function PreprocessJobsPage({
           </div>
           <div className="admin-current-job-meter">
             <strong>阶段进度</strong>
-            <meter min={0} max={100} value={currentJob?.progress ?? 0}>{currentJob?.progress ?? 0}%</meter>
+            <meter min={0} max={100} value={currentTaskProgress}>{currentTaskProgress}%</meter>
             <dl>
               <div>
                 <dt>已用时</dt>
