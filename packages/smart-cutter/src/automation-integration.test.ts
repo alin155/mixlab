@@ -60,14 +60,16 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   await core.updateSettings({ library_root: library });
   const account: Account = { id: 'test-account', input: 'MS4TESTACCOUNT0001', platform: 'douyin', sec_user_id: 'MS4TESTACCOUNT0001', unique_id: '', name: '受控接口验收账号', followers: null, group: '验收', enabled: true, cursor: '0', last_checked_at: '', last_error: '' };
   core.store.set('account', account); core.store.set('hot', hot());
-  const rule = core.saveRule({ enabled: true, execution: 'review', min_likes: 1000 });
+  const rule = core.saveRule({ enabled: true, execution: 'review', min_likes: 1000, daily_limit: 1 });
   await core.monitorRun(); await core.monitorRun();
   const automatic = core.store.list<Work>('work').filter(work => work.origin.trigger === 'automatic');
   assert.equal(automatic.length, 1); assert.equal(automatic[0]!.origin.rule_id, rule.id);
   assert.equal(automatic[0]!.script, '现金流是企业的血液。'); assert.equal(automatic[0]!.segments[0]!.status, 'exact');
   const imported = await core.importHot(hot().id); assert.equal(imported.origin.trigger, 'manual'); assert.equal(imported.origin.kind, 'hot_manual');
+  const extra = hot(); extra.id = 'douyin:72300000002'; extra.video_id = '72300000002'; core.store.set('hot', extra);
   core.saveRule({ enabled: true, min_growth_per_hour: 1 }, undefined);
   await core.monitorRun(); assert.equal(core.store.list<Work>('work').filter(work => work.origin.trigger === 'automatic').length, 1, 'unknown growth cannot pass a positive threshold');
+  assert.match(core.store.get<import('./types.ts').Rule>('rule', rule.id)!.last_error, /未继续下载或提交转写/);
   assert.equal(requests, 3); assert.equal(core.store.list<Job>('job').length, 0, 'review rule cannot silently render');
   const untagged = await createAcceptanceLibrary(path.join(root, 'untagged-library'));
   // Arrange an incomplete legacy catalog only inside this disposable fixture.

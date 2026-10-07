@@ -398,24 +398,27 @@ export class SmartCore {
         likes !== null && likes !== undefined && likes >= rule.min_likes &&
         (rule.min_growth_per_hour === 0 || hot.growth_per_hour !== null && hot.growth_per_hour >= rule.min_growth_per_hour);
     }).sort((a, b) => (b.growth_per_hour ?? b.observations.at(-1)?.stats.likes ?? 0) - (a.growth_per_hour ?? a.observations.at(-1)?.stats.likes ?? 0));
-    let produced = 0;
+    const budgetKey = `rule:${rule.id}:${localDay()}`;
+    let attempted = 0;
     for (const candidate of eligible) {
-      if (produced >= rule.candidates_per_run || this.closed) break;
+      if (attempted >= rule.candidates_per_run || this.closed || !this.store.get<Rule>('rule', rule.id)?.enabled) break;
+      if (this.store.requestCount(budgetKey) >= rule.daily_limit) { rule.last_error = '达到今日自动处理上限，未继续下载或提交转写'; break; }
       if (!this.store.claimRule(rule.id, candidate.id, now())) continue;
       try {
+        this.store.reserveRequest(budgetKey, rule.daily_limit); attempted++;
         const hot = await this.references.process(candidate.id);
+        if (this.closed) break;
         const work = this.createWork(hot.transcript, { trigger: "automatic", kind: "rule", platform: hot.platform,
           account_id: hot.account_id, account_name: hot.author, rule_id: rule.id, rule_name: rule.name, hot_id: hot.id, reference_title: hot.title });
         work.settings.source_folder = rule.source_folder; this.saveWork(work);
-        this.store.bindRuleWork(rule.id, candidate.id, work.id); produced++;
+        this.store.bindRuleWork(rule.id, candidate.id, work.id);
         await this.generatePlan(work.id);
         const ready = this.work(work.id);
         const lecturers = ready.segments.map(segment => segment.selected?.lecturer).filter(Boolean);
-        const used = this.store.list<Job>("job").filter(job => job.work.origin.rule_id === rule.id && localDay(new Date(job.created_at)) === localDay() && ["queued", "running", "done", "paused"].includes(job.status)).length;
-        if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact") && lecturers.length === ready.segments.length && new Set(lecturers).size === 1 && used < rule.daily_limit) this.enqueue(ready.id);
+        if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact") && lecturers.length === ready.segments.length && new Set(lecturers).size === 1) this.enqueue(ready.id);
         else if (rule.execution === "qualified") {
           ready.status = 'review';
-          ready.error = used >= rule.daily_limit ? '达到该规则今日成片上限，方案已保留' : !ready.segments.every(segment => segment.status === 'exact')
+          ready.error = !ready.segments.every(segment => segment.status === 'exact')
             ? '原声方案需要人工确认，不满足自动导出条件' : '缺少可靠的同讲师标签，需人工审核后导出';
           this.saveWork(ready);
         }
