@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, copyFile, rm, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,7 @@ import { TikHubClient } from './tikhub.ts';
 import type { Job, HotVideo, Account, Work } from './types.ts';
 import { createAcceptanceLibrary } from '../../../scripts/smart-cutter/fixture.ts';
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
+import { readCurrentCutterRelease } from '../../library-fs/src/index.ts';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const ai = { python: process.env.MIXLAB_SMART_PYTHON || path.join(repo, 'apps/smart-cutter-desktop/src-tauri/runtime/python', process.platform === 'win32' ? 'python.exe' : 'bin/python'),
@@ -67,7 +69,11 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   core.saveRule({ enabled: true, min_growth_per_hour: 1 }, undefined);
   await core.monitorRun(); assert.equal(core.store.list<Work>('work').filter(work => work.origin.trigger === 'automatic').length, 1, 'unknown growth cannot pass a positive threshold');
   assert.equal(requests, 3); assert.equal(core.store.list<Job>('job').length, 0, 'review rule cannot silently render');
-  const untagged = await createAcceptanceLibrary(path.join(root, 'untagged-library'), undefined, '');
+  const untagged = await createAcceptanceLibrary(path.join(root, 'untagged-library'));
+  // Arrange an incomplete legacy catalog only inside this disposable fixture.
+  const release = await readCurrentCutterRelease(untagged);
+  const catalog = new DatabaseSync(path.join(untagged, '.mixlab-library/releases', release.release_version, 'catalog.sqlite'));
+  try { catalog.exec("UPDATE source_videos SET lecturer=''"); } finally { catalog.close(); }
   await core.updateSettings({ library_root: untagged }); core.store.remove('rule', rule.id);
   const qualified = core.saveRule({ enabled: true, execution: 'qualified', min_likes: 1000 });
   await core.monitorRun();
