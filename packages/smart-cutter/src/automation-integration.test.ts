@@ -67,6 +67,13 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   core.saveRule({ enabled: true, min_growth_per_hour: 1 }, undefined);
   await core.monitorRun(); assert.equal(core.store.list<Work>('work').filter(work => work.origin.trigger === 'automatic').length, 1, 'unknown growth cannot pass a positive threshold');
   assert.equal(requests, 3); assert.equal(core.store.list<Job>('job').length, 0, 'review rule cannot silently render');
+  const untagged = await createAcceptanceLibrary(path.join(root, 'untagged-library'), undefined, '');
+  await core.updateSettings({ library_root: untagged }); core.store.remove('rule', rule.id);
+  const qualified = core.saveRule({ enabled: true, execution: 'qualified', min_likes: 1000 });
+  await core.monitorRun();
+  const held = core.store.list<Work>('work').find(work => work.origin.rule_id === qualified.id)!;
+  assert.equal(held.status, 'review'); assert.match(held.error, /同讲师标签/);
+  assert.equal(core.store.list<Job>('job').length, 0, 'missing speaker tags require review rather than automatic output');
 });
 test('saved ASR task resumes without paid resubmission; unknown submission outcome cannot auto-resubmit', { timeout: 60_000 }, async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'smart-asr-'));

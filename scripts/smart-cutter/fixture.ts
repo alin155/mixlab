@@ -8,7 +8,7 @@ import { runProcess } from "../../packages/smart-cutter/src/process.ts";
 import { fileDigest } from "../../packages/smart-cutter/src/media.ts";
 
 /** Isolated acceptance fixture: generated tones and known text metadata, never production seed data. */
-export async function createAcceptanceLibrary(root: string, faceImage?: string): Promise<string> {
+export async function createAcceptanceLibrary(root: string, faceImage?: string, lecturer = '验收讲师'): Promise<string> {
   const ffmpeg = resolveFfmpegRuntime();
   const source = path.join(root, "source-videos", "验收素材", "原声拼接验收.mp4");
   await mkdir(path.dirname(source), { recursive: true });
@@ -41,7 +41,7 @@ export async function createAcceptanceLibrary(root: string, faceImage?: string):
     artifacts: { transcript_path: `.mixlab-library/videos/${videoId}/transcript.json`, srt_path: `.mixlab-library/videos/${videoId}/subtitles.srt`,
       keyframes_path: `.mixlab-library/videos/${videoId}/keyframes.json`, cover_path: `.mixlab-library/videos/${videoId}/cover.jpg` } });
   const manifest = await readSourceVideoManifest(root, videoId);
-  await writeFile(path.join(folder, "source-video.json"), JSON.stringify({ ...manifest, lecturer: "验收讲师", course: "受控媒体验收" }));
+  await writeFile(path.join(folder, "source-video.json"), JSON.stringify({ ...manifest, lecturer, course: "受控媒体验收" }));
   await publishIndexRequiredSourceVideos({ library_root: root, library_id: "smart-acceptance-only", now: time });
   await publishCutterRelease({ library_root: root, now: time });
   return root;

@@ -29,11 +29,12 @@ export function normalizeProviderVideo(value: unknown): ProviderVideo | null {
   const id = text(row.aweme_id ?? row.id);
   if (!/^\d{5,30}$/.test(id)) return null;
   const created = numeric(row.create_time);
-  const play = firstUrl(video.play_addr) || firstUrl(video.play_addr_h264) || firstUrl(video.download_addr);
+  const rates = Array.isArray(video.bit_rate) ? video.bit_rate.map(object) : [];
+  const play = firstUrl(video.play_addr) || firstUrl(video.play_addr_h264) || firstUrl(video.download_addr) || rates.map(rate => firstUrl(rate.play_addr)).find(Boolean) || '';
   return {
     video_id: id, title: text(row.desc ?? row.title), author: text(author.nickname ?? author.unique_id),
     published_at: created === null ? "" : new Date(created * 1000).toISOString(),
-    duration_ms: numeric(video.duration) ?? 0,
+    duration_ms: numeric(video.duration) ?? numeric(row.duration) ?? 0,
     download_url: play, cover_url: firstUrl(video.cover) || firstUrl(video.origin_cover),
     stats: { likes: numeric(statistics.digg_count), comments: numeric(statistics.comment_count),
       shares: numeric(statistics.share_count), plays: numeric(statistics.play_count) }
@@ -56,7 +57,7 @@ export class TikHubClient {
     try {
       response = await (this.options.fetch ?? fetch)(url.toString(), {
         headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-        signal: AbortSignal.timeout(25_000), redirect: "error"
+        signal: AbortSignal.timeout(40_000), redirect: "error"
       });
     } catch { throw new SmartError("provider_network", "无法连接 TikHub，请检查网络；没有返回有效采集数据", 503); }
     if (!response.ok) throw providerError(response.status);
@@ -91,6 +92,7 @@ export class TikHubClient {
     const payload = await this.request(`/api/v1/${platform}/app/v3/handler_user_profile`,
       { sec_user_id: sec });
     const data = object(payload.data), user = object(data.user ?? data.user_info ?? payload.user ?? data);
+    if (!text(user.nickname ?? user.unique_id)) throw new SmartError('account_resolution', '接口没有返回有效账号信息，未保存监控账号', 422);
     sec = text(user.sec_uid ?? user.sec_user_id) || sec;
     unique = text(user.unique_id) || unique;
     if (!sec && !unique) throw new SmartError("account_resolution", "未找到可监控的账号", 422);
@@ -111,8 +113,10 @@ export class TikHubClient {
     if (!/^\d{5,30}$/.test(videoId)) throw new SmartError("video_id", "作品 ID 无效");
     const payload = await this.request(`/api/v1/${platform}/app/v3/fetch_one_video`, { aweme_id: videoId });
     const data = object(payload.data);
-    const video = normalizeProviderVideo(data.aweme_detail ?? data);
+    const details = Array.isArray(data.aweme_details) ? data.aweme_details : [];
+    const video = normalizeProviderVideo(data.aweme_detail ?? details.find(item => text(object(item).aweme_id) === videoId) ?? data);
     if (!video?.download_url) throw new SmartError("video_unavailable", "没有可下载的视频地址，作品可能不可访问或不是视频", 422);
+    if (video.video_id !== videoId) throw new SmartError('provider_payload', '接口返回了其他作品，未下载此视频', 502);
     return video;
   }
 }

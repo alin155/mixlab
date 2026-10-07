@@ -413,7 +413,12 @@ export class SmartCore {
         const lecturers = ready.segments.map(segment => segment.selected?.lecturer).filter(Boolean);
         const used = this.store.list<Job>("job").filter(job => job.work.origin.rule_id === rule.id && localDay(new Date(job.created_at)) === localDay() && ["queued", "running", "done", "paused"].includes(job.status)).length;
         if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact") && lecturers.length === ready.segments.length && new Set(lecturers).size === 1 && used < rule.daily_limit) this.enqueue(ready.id);
-        else if (rule.execution === "qualified" && used >= rule.daily_limit) { ready.status = "review"; ready.error = "达到该规则今日成片上限，方案已保留"; this.saveWork(ready); }
+        else if (rule.execution === "qualified") {
+          ready.status = 'review';
+          ready.error = used >= rule.daily_limit ? '达到该规则今日成片上限，方案已保留' : !ready.segments.every(segment => segment.status === 'exact')
+            ? '原声方案需要人工确认，不满足自动导出条件' : '缺少可靠的同讲师标签，需人工审核后导出';
+          this.saveWork(ready);
+        }
       } catch (error) {
         this.store.releaseUnfinishedRuleClaim(rule.id, candidate.id);
         rule.last_error = this.vault.redact((error as Error).message);
