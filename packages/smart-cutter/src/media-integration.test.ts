@@ -81,3 +81,31 @@ test("loopback API enforces origin/token and never exposes configured credential
   const ciphertext = await readFile(path.join(root, "private", "credentials.json"), "utf8"); assert.ok(!ciphertext.includes("fixture-configuration-only"));
   assert.ok(captionsToSrt([{ begin_ms: 0, end_ms: 1500, text: "原声" }]).includes("00:00:01,500"));
 });
+test('paused render survives application restart and reuses a verified clip checkpoint', { timeout: 120_000 }, async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'smart-restart-'));
+  const library = await createAcceptanceLibrary(path.join(root, 'library'));
+  const options = { state_root: path.join(root, 'state'), workspace_root: path.join(root, 'workspace'), ai, auth_mode: 'local_trusted' as const };
+  let core = new SmartCore(options); await core.initialize();
+  t.after(async () => { await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
+  await core.updateSettings({ library_root: library });
+  const work = core.createWork('现金流是企业的血液。把事情做对，再把规模做大。'.repeat(4));
+  await core.generatePlan(work.id); core.updateWork(work.id, { settings: { crop_mode: 'fit', subtitles: false } });
+  const job = core.enqueue(work.id);
+  const deadline = Date.now() + 30_000;
+  let checkpoint: Job | null = null;
+  while (Date.now() < deadline) {
+    const value = core.store.get<Job>('job', job.id)!;
+    if (value.completed_clips.length) { checkpoint = value; break; }
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  assert.ok(checkpoint); assert.notEqual(checkpoint.status, 'done');
+  const clip = path.join(options.workspace_root, 'cache/jobs', job.id, checkpoint.completed_clips[0]!);
+  const before = await stat(clip); core.controlJob(job.id, 'pause');
+  await core.close(); core.store.close();
+  core = new SmartCore(options); await core.initialize();
+  assert.equal(core.store.get<Job>('job', job.id)!.status, 'paused');
+  core.controlJob(job.id, 'resume');
+  const result = await completed(core, job.id); assert.equal(result.status, 'done', result.error);
+  assert.equal((await stat(clip)).mtimeMs, before.mtimeMs, 'the completed clip was reused rather than encoded again');
+  assert.ok((await core.media.probe(result.output_path)).duration_ms > 13_000);
+});

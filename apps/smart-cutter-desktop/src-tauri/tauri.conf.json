@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.mixlab.smartcutter",
   "build": {
-    "beforeDevCommand": "npm run dev:smart-cutter-web",
-    "beforeBuildCommand": "npm run build:smart-cutter-web",
+    "beforeDevCommand": "npm --prefix ../.. run dev:smart-cutter-web",
+    "beforeBuildCommand": "npm --prefix ../.. run build:smart-cutter-web",
     "devUrl": "http://127.0.0.1:5178",
     "frontendDist": "../../smart-cutter-web/dist"
   },

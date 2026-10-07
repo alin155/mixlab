@@ -466,6 +466,8 @@ export class SmartCore {
       }
       controller.abort();
     }
+    const deadline = Date.now() + 3000;
+    while (this.controllers.size && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
     this.ai.close();
   }
 }
