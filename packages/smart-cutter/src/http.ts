@@ -141,6 +141,7 @@ export function createSmartServer(core: SmartCore, token = "") {
       if (output && ["GET", "HEAD"].includes(method ?? "")) {
         const job = core.store.get<Job>("job", decodeURIComponent(output[1]!)); if (!job || job.status !== "done") throw new SmartError("output_missing", "没有可用成片", 404);
         const file = output[2] === "video" ? job.output_path : output[2] === "srt" ? path.join(path.dirname(job.output_path), "subtitles.srt") : job.manifest_path;
+        if (output[2] !== 'video') response.setHeader('Content-Disposition', `attachment; filename="${output[2] === 'srt' ? 'subtitles.srt' : 'sources.json'}"`);
         await streamFile(request, response, file, output[2] === "video" ? "video/mp4" : output[2] === "srt" ? "text/plain; charset=utf-8" : "application/json"); return;
       }
       throw new SmartError("not_found", "接口不存在", 404);
