@@ -127,7 +127,13 @@
     "build:searchd": "cargo build --manifest-path packages/searchd/Cargo.toml --release",
     "test:searchd": "cargo test --manifest-path packages/searchd/Cargo.toml",
     "test": "node --test --import tsx packages/*/src/*.test.ts apps/*/src/*.test.ts scripts/acceptance/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "server:smart-cutter": "tsx scripts/servers/smart-cutter-api-server.ts",
+    "dev:smart-cutter-web": "npm run dev -w @mixlab/smart-cutter-web",
+    "build:smart-cutter-web": "npm run build -w @mixlab/smart-cutter-web",
+    "test:smart-cutter": "node --test --import tsx packages/smart-cutter/src/*.test.ts",
+    "prepare:smart-cutter-runtime": "tsx scripts/smart-cutter/prepare-runtime.ts",
+    "package:smart-cutter:windows": "tsx scripts/smart-cutter/package-windows.ts"
   },
   "dependencies": {
     "react": "^19.0.0",

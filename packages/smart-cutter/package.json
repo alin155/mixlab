@@ -1,0 +1,15 @@
+{
+  "name": "@mixlab/smart-cutter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@mixlab/library-fs": "0.1.0",
+    "@mixlab/ffmpeg-core": "0.1.0",
+    "@mixlab/asr-core": "0.1.0",
+    "@mixlab/protocol": "0.1.0"
+  }
+}

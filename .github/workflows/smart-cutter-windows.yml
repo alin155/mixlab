@@ -1,0 +1,46 @@
+name: Smart Cutter Windows Candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/smart-cutter-*']
+    paths:
+      - '.github/workflows/smart-cutter-windows.yml'
+      - 'apps/smart-cutter-*/**'
+      - 'packages/smart-cutter/**'
+      - 'scripts/smart-cutter/**'
+      - 'scripts/servers/smart-cutter-api-server.ts'
+      - 'package.json'
+      - 'package-lock.json'
+permissions:
+  contents: read
+concurrency:
+  group: smart-cutter-windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare Rust
+        run: rustup toolchain install stable --profile minimal
+      - run: npm ci
+      - run: npm run prepare:smart-cutter-runtime
+      - run: npm run typecheck
+      - run: npm run test:smart-cutter
+      - run: npm run package:smart-cutter:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mixlab-smart-cutter-windows-candidate
+          path: |
+            apps/smart-cutter-desktop/src-tauri/target/release/bundle/nsis/*.exe
+            apps/smart-cutter-desktop/src-tauri/target/release/bundle/nsis/installer.json
+          if-no-files-found: error
+          retention-days: 14
