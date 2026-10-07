@@ -20,10 +20,11 @@ async function dpapi(value: Buffer, action: "protect" | "unprotect"): Promise<Bu
       env: { ...process.env, MIXLAB_VAULT_ACTION: action }
     });
     const output: Buffer[] = [];
+    child.stdin.on('error', () => { /* Process failure is reported below. */ });
     child.stdout.on("data", chunk => output.push(Buffer.from(chunk)));
     child.stderr.resume();
     child.once("error", () => reject(new SmartError("credential_store", "无法访问本机凭据存储", 503)));
-    child.once("exit", code => code === 0
+    child.once("close", code => code === 0
       ? resolve(Buffer.from(Buffer.concat(output).toString().trim(), "base64"))
       : reject(new SmartError("credential_store", "本机凭据解密失败，请重新配置 Key", 503)));
     child.stdin.end(value.toString("base64"));
@@ -49,7 +50,7 @@ export class CredentialVault {
     try {
       const saved = JSON.parse(await readFile(keyFile, "utf8")) as { platform: string; value: string };
       const bytes = Buffer.from(saved.value, "base64");
-      if (saved.platform === "win32" && process.platform !== "win32") throw new Error("wrong user/platform");
+      if (saved.platform !== process.platform) throw new Error("wrong user/platform");
       this.key = saved.platform === "win32" ? await dpapi(bytes, "unprotect") : bytes;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new SmartError("credential_store", "无法解密本机凭据，请检查用户和应用数据目录", 503);
