@@ -949,7 +949,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         if (!tierBody || (tierBody.tier !== "ordinary" && tierBody.tier !== "pro")) { writeJson(response, 400, apiError("invalid_tier", "请选择普通或 Pro 账号")); return; }
         const tierResult = await runAdminSetCutterAccountTierCommand({ library_root: input.library_root, user_id: tierRoute[1]!,
           tier: tierBody.tier as "ordinary" | "pro", now: requestNow, actor: requestActor });
-        writeJson(response, 200, { schema_version: "1.0", data: tierResult }); return;
+        writeJson(response, 200, apiOk(tierResult)); return;
       }
 
       const cutterUserCommandRoute = await handleAdminCutterUserCommandRoutes({
