@@ -36,6 +36,7 @@ export class SmartCore {
   readonly cache: WorkspaceCache;
   readonly assemblies: Assemblies;
   cacheClearing = false;
+  configuring = false;
   activeStreams = 0;
   settings: Settings;
   runtime = { ai_ready: false, ffmpeg_ready: false, library_ready: false, library_count: 0, library_version: "", library_error: "" };
@@ -110,6 +111,9 @@ export class SmartCore {
   publicSettings() { return { ...this.settings, has_tikhub_key: this.vault.has("tikhub"), has_asr_key: this.vault.has("dashscope"), credential_protection: process.platform === "win32" ? "Windows DPAPI" : "开发环境本机私有文件", runtime: { ...this.runtime, semantic: this.ai.indexStatus } }; }
   async updateSettings(body: Record<string, unknown>): Promise<ReturnType<SmartCore["publicSettings"]>> {
     const action = async () => {
+      if (this.cacheClearing) throw new SmartError("cache_busy", "缓存正在清理，请稍后修改设置", 409);
+      this.configuring = true;
+      try {
       const next = { ...this.settings };
       if (body.library_root !== undefined) next.library_root = typeof body.library_root === "string" ? body.library_root.trim() : requireText(body.library_root, "公共素材路径");
       if (body.workspace_root !== undefined) next.workspace_root = requireText(body.workspace_root, "智能工作区", 2048);
@@ -122,7 +126,7 @@ export class SmartCore {
       if (body.default_source_folder !== undefined) next.default_source_folder = String(body.default_source_folder).trim();
       if (body.asr_model !== undefined) next.asr_model = requireText(body.asr_model, "转写模型", 80);
       const moved = next.workspace_root !== this.settings.workspace_root || next.library_root !== this.settings.library_root;
-      if (moved && (this.rendering || this.planning.size || this.references.active || this.monitoring || this.store.listStatus("assembly", ["queued", "running", "paused", "failed"]).length || await this.manual.busy())) throw new SmartError("runtime_busy", "正在处理作品或参考视频，请等待或暂停任务后修改目录", 409);
+      if (moved && (this.activeStreams || this.rendering || this.planning.size || this.references.active || this.monitoring || this.store.listStatus("assembly", ["queued", "running", "paused", "failed"]).length || await this.manual.busy())) throw new SmartError("runtime_busy", "正在处理作品或参考视频，请等待或暂停任务后修改目录", 409);
       if (next.library_root && !path.isAbsolute(next.library_root)) throw new SmartError("library_path", "公共素材库必须是绝对路径");
       await this.ensureWorkspace(next.workspace_root, next.library_root);
       for (const [input, name] of [["tikhub_api_key", "tikhub"], ["asr_api_key", "dashscope"]]) {
@@ -137,6 +141,7 @@ export class SmartCore {
       if (next.library_root !== this.settings.library_root) { this.session = null; await this.vault.set("cutter_session", ""); this.runtime.library_ready = false; }
       await atomicPrivateJson(path.join(this.options.state_root, "settings.json"), next); this.settings = next; this.manual.update();
       return this.publicSettings();
+      } finally { this.configuring = false; }
     };
     const operation = this.configWrites.then(action); this.configWrites = operation.catch(() => undefined); return operation;
   }
@@ -499,7 +504,7 @@ export class SmartCore {
   }
   private async tick(): Promise<void> {
     void this.assemblies.drain().catch(() => undefined);
-    if (this.closed || this.cacheClearing) return;
+    if (this.closed || this.cacheClearing || this.configuring) return;
     if (this.controllers.size) {
       const auth = await this.authStatus();
       if (auth.required || auth.user?.tier !== "pro") for (const [jobId, controller] of this.controllers) {

@@ -46,7 +46,7 @@ export class Assemblies {
     return this.save(job);
   }
   async drain(): Promise<void> {
-    if (this.closed || this.controller || this.core.cacheClearing) return;
+    if (this.closed || this.controller || this.core.cacheClearing || this.core.configuring) return;
     const queued = this.core.store.listStatus<Assembly>("assembly", ["queued"])[0]; if (!queued) return;
     await this.core.requireSession();
     const jobs = await Promise.all(queued.cut_job_ids.map(id => getCutJob({ workspace_root: this.core.manual.workspace, cut_job_id: id })));

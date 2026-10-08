@@ -53,7 +53,7 @@ export class WorkspaceCache {
   }
   async clear(kinds: unknown) {
     if (!Array.isArray(kinds) || kinds.some(kind => !["source", "temporary", "index", "reference"].includes(kind))) throw new SmartError("cache_kind", "清理分类无效");
-    if (this.core.cacheClearing) throw new SmartError("cache_busy", "缓存正在清理，请稍后", 409);
+    if (this.core.cacheClearing || this.core.configuring) throw new SmartError("cache_busy", "缓存正在清理，请稍后", 409);
     this.core.cacheClearing = true;
     try {
       let removedBytes = 0, removedFiles = 0;

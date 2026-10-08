@@ -44,6 +44,8 @@ test("shared approved accounts, old-account compatibility, real manual cut/recut
   const locals = await api<LocalClipCatalog>("/cutter/local-clips"); assert.equal(locals.local_clip_count,1);
   const clip = locals.clips[0]!; const media = await fetch(base+clip.media_url,{headers:{"X-Smart-Token":"local-test-access"}}); assert.equal(media.status,200); assert.ok((await media.arrayBuffer()).byteLength>1000);
   const merge = await api<Assembly>("/smart/assemblies", "POST", {project_id:project.id,cut_job_ids:[job.cut_job_id,job.cut_job_id]},202);
+  await api(`/cutter/projects/${project.id}/outputs`, "DELETE", undefined, 409);
+  await api(`/smart/projects/${project.id}`, "DELETE", undefined, 409);
   const completed = await until(async()=>{ await core.assemblies.drain(); const value = core.store.get<Assembly>("assembly",merge.id)!; if(value.status==="failed") throw new Error(value.error); return value.status==="done" ? value:null; });
   assert.equal(completed.completed,2); assert.ok(completed.duration_ms>4000);
   assert.ok((await readFile(path.join(path.dirname(completed.output_path),"sources.json"),"utf8")).includes(job.export_clip_id!));
@@ -66,6 +68,8 @@ test("shared approved accounts, old-account compatibility, real manual cut/recut
   await api(`/smart/works/${work.id}/segments/1/supplement`,"POST",{revision:planned.revision,source_video_id:"V000001",range:{start:0,end:0,from:0,to:10},begin_ms:0,end_ms:1700},409);
   await mkdir(path.join(core.settings.workspace_root,"cache/previews"),{recursive:true}); await writeFile(path.join(core.settings.workspace_root,"cache/previews/idle.mp4"),"fixture-cache");
   const output=await readFile(completed.output_path), localVideo=await readFile(path.join(core.manual.workspace,clip.relative_path!));
+  core.cacheClearing = true; await api("/smart/settings", "PUT", {source_cache_gb:31},409); core.cacheClearing = false;
+  core.configuring = true; await api("/smart/cache/clear", "POST", {kinds:["temporary"]},409); core.configuring = false;
   await api("/smart/cache/clear","POST",{kinds:["temporary","index","source","reference"]});
   assert.deepEqual(await readFile(completed.output_path),output); assert.deepEqual(await readFile(path.join(core.manual.workspace,clip.relative_path!)),localVideo);
   assert.equal(await readFile(pointer,"utf8"),initialPointer);

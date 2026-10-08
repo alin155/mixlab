@@ -75,7 +75,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
         json(response, 202, { stopping: true }); setImmediate(shutdown); return;
       }
       if (url.pathname.startsWith("/cutter/") || url.pathname.startsWith("/smart/media/")) {
-        if (core.cacheClearing) throw new SmartError("cache_busy", "正在清理缓存，请稍后播放或剪切", 409);
+        if (core.cacheClearing || core.configuring) throw new SmartError("cache_busy", "缓存或目录正在调整，请稍后播放或剪切", 409);
         core.activeStreams++;
         response.once("close", () => { core.activeStreams--; });
       }
@@ -92,7 +92,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/provider/test" && method === "POST") { await core.requirePro(); json(response, 200, await core.provider.testConnection()); return; }
       await core.requireSession();
       if (url.pathname === "/smart/auth/password" && method === "POST") { await core.changePassword(await body(request)); json(response, 200, { changed: true }); return; }
-      if (core.cacheClearing && method !== "GET") throw new SmartError("cache_busy", "正在清理缓存，请稍后操作", 409);
+      if ((core.cacheClearing || core.configuring) && method !== "GET") throw new SmartError("cache_busy", "正在清理缓存，请稍后操作", 409);
       if (url.pathname === "/smart/assemblies" && method === "POST") { const input = await body(request); json(response, 202, await core.assemblies.submit(String(input.project_id), input.cut_job_ids)); return; }
       const assemblyRoute = /^\/smart\/assemblies\/([^/]+)\/(action|open|video|srt|manifest)$/.exec(url.pathname);
       if (assemblyRoute) {
@@ -120,6 +120,8 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (localRoute && method === "DELETE") { await manageLocalClip(core, localRoute[1]!); json(response, 200, { removed: true }); return; }
       if (url.pathname === "/smart/cache" && method === "GET") { json(response, 200, await core.cache.status()); return; }
       if (url.pathname === "/smart/cache/clear" && method === "POST") { json(response, 200, await core.cache.clear((await body(request)).kinds)); return; }
+      const deleteOutputs = /^\/cutter\/projects\/([^/]+)\/outputs$/.exec(url.pathname);
+      if (deleteOutputs && method === "DELETE" && core.store.listStatus<import("./assembly.ts").Assembly>("assembly", ["queued", "running", "paused", "failed"]).some(job => job.project_id === decodeURIComponent(deleteOutputs[1]!))) throw new SmartError("project_busy", "请完成或取消合并任务后删除项目文件", 409);
       if (url.pathname.startsWith("/cutter/")) { core.manual.dispatch(request, response); return; }
       if (url.pathname === "/smart/library/sync" && method === "POST") { background(core.syncLibrary()); json(response, 202, { started: true }); return; }
       if (url.pathname === "/smart/library/folders" && method === "GET") { json(response, 200, await core.library.folders()); return; }
