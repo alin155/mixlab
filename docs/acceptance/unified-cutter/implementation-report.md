@@ -2,6 +2,8 @@
 
 日期：2026-10-07。实现基于已确认的统一原型；独立工作树和分支 `codex/unified-cutter-20261007`，基线 `f525c0e`。预览：<http://127.0.0.1:5198/#/retrieve>，本机 API 3793。
 
+预览默认保留已登录的测试 Pro 会话。重新登录可用“验收普通”或“验收Pro”，测试密码 `MixLabTest12345`；这些仅存在于隔离测试库。Windows 候选首次启动需配置公共库并登录已审核账号；使用正式库时需由新版管理端设置 Pro 级别才能打开智能功能，本次没有部署该管理端更新。
+
 ## 已实现
 
 - 创作：原剪辑端真实素材检索、句内/跨句/反向鼠标拖选、直接剪切、时间微调、复剪、片段列表与顺序调整；分别导出或合并完整视频。
@@ -21,9 +23,21 @@
 - 浏览器真实交互验证普通/Pro 登录、跨句与反向拖选、真实剪切、本地素材注册播放、Pro 匹配/成片/字幕与来源、拖选补句返回原作品、两段清单导出并合并、真实缓存保护；1180×720 CSS 布局无横向溢出。截图保存本目录。
 - 测试素材为 4 秒色块视频和合成音调，附已知转写及真实发布索引。验证了媒体流水线与交互，不代表真实口播准确率或生产 NAS 性能。
 
+## Windows 候选交付
+
+- 桌面包版本：`0.2.0`；引擎协议版本：`0.1.0`。包源提交：`acecfd4d78d0543e2fa7f3df6392fe5da1a4503f`；管理端响应兼容修复在后续提交 `17272bb`，不改变桌面打包输入。
+- [Windows 构建 37731627064](https://github.com/alin155/mixlab/actions/runs/37731627064) 成功；Windows 类型检查和智能模块 14 项测试均通过。
+- 安装包：`/Users/huaqihang/Public/MixLabWindowsBuilds/unified-cutter/candidate-acecfd4/MixLab Unified Cutter Candidate_0.2.0_x64-setup.exe`，148428709 字节。
+- SHA-256：`8a38c4ea843e4fd092f13f2d4f21d61eda5fad85ecd128351fa435e2830ea7ac`。下载后的本机校验与构建元数据一致。
+- Windows Test Runner：`192.168.1.20:3799`，版本 `0.1.32`；独立启动套件 `launch_app_probe-20261008T053816Z-15662c84` 启动验收器，原生验收报告 [windows-native-startup.json](./windows-native-startup.json) 为 `passed`。
+- Windows 用户安装目录：`C:\Users\ASUS\AppData\Local\MixLabUnifiedCandidate-acecfd4`；静默安装退出码 `0`。独立状态目录：`C:\Users\ASUS\AppData\Local\com.mixlab.unifiedcutter.candidate`，默认独立工作区标记已创建。
+- 桌面窗口标题为“MixLab 智能剪辑端 · 候选验收”，包内引擎 `http://127.0.0.1:50519` 健康，AI 和 FFmpeg 均可用。旧剪辑端 `127.0.0.1:3789` 在安装前后均健康。
+- 使用同一安装包内 Node/引擎启动一次隔离的新状态验收：强制登录成立，认证 shutdown 请求后进程在 12 秒内退出。此项证明引擎退出协议；不能代替托盘点击和有长任务时的退出/恢复验收。
+- 初次启动脚本无结果的原因位于测试通道：已安装 Runner 没有转发 `app_args`。改用参数内置的验收 EXE 后执行成功；没有修改 Runner 或产品代码。诊断、脚本、启动报告保存在 [windows-probe-kit](./windows-probe-kit/)。Runner 的 `launch_app_probe` 只证明启动；以上结论取自验收器独立报告。
+
 ## 尚需目标环境验证
 
-Windows 候选包、安装共存、引擎健康和托盘交互证据将在构建完成后补充。未使用正式 TikHub/ASR Key；真实抖音账号限流、付费调用和生产语音质量尚未验收。监控配置和文案来源隔离已由契约/接口桩测试覆盖。
+Windows 托盘关闭、重新打开、明确退出和长任务恢复仍需实际点击验收。Windows 首次启动尚未配置公共库，因此报告中的 `library_ready=false` 是预期的未配置状态；此次不证明真实 NAS 登录、搜索或剪切性能。未使用正式 TikHub/ASR Key；真实抖音账号限流、付费调用和生产语音质量尚未验收。监控配置和文案来源隔离已由契约/接口桩测试覆盖。
 
 ## 隔离与回滚
 

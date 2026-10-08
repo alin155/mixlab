@@ -479,3 +479,5 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - Windows Runner 当前在线：`192.168.1.20:3799`，版本 `0.1.32`（本次实时验证）。
 - Windows 候选包采用 `com.mixlab.unifiedcutter.candidate`，独立安装及应用数据目录；不替换现有 Cutter / Smart Cutter，不更新共享目录 LATEST 指针。
 - 正式 NAS 素材、账号与已安装生产端尚未在本批次升级。TikHub/DashScope 实际密钥尚未用于候选验收。
+- 2026-10-08 UTC Windows 候选 `0.2.0` / `acecfd4` 构建与实机启动验收通过；安装位置 `C:\Users\ASUS\AppData\Local\MixLabUnifiedCandidate-acecfd4`，状态位置 `C:\Users\ASUS\AppData\Local\com.mixlab.unifiedcutter.candidate`。本次引擎随机端口 `50519`，仅代表该次进程，不作为固定配置。
+- 候选交付：Mac 共享目录 `unified-cutter/candidate-acecfd4`；Runner 启动验收器 `launch_app_probe-20261008T053816Z-15662c84`，原生检查报告 `docs/acceptance/unified-cutter/windows-native-startup.json`。登录、AI/FFmpeg、独立工作区和认证停止通过；公共库尚未配置，托盘点击未验收。
