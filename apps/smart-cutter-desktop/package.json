@@ -3,7 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "tauri dev", "build": "tauri build --bundles nsis" },
-  "dependencies": { "@tauri-apps/api": "^2.11.0", "@tauri-apps/plugin-dialog": "^2.7.1" },
-  "devDependencies": { "@tauri-apps/cli": "^2.11.1" }
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build --bundles nsis",
+    "build:candidate": "tauri build --config src-tauri/tauri.candidate.conf.json --bundles nsis"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.1"
+  }
 }

@@ -26,6 +26,7 @@ const expectedNonGetRouteKeys = [
   "POST /api/admin/cutter-users/:user_id/approve",
   "POST /api/admin/cutter-users/:user_id/disable",
   "POST /api/admin/cutter-users/:user_id/password",
+  "POST /api/admin/cutter-users/:user_id/tier",
   "POST /api/admin/doctor/export",
   "POST /api/admin/doctor/run",
   "POST /api/admin/index/repair",

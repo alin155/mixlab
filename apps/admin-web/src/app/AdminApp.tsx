@@ -556,6 +556,7 @@ interface AdminActionHandlers {
   ) => Promise<void>;
   onApproveCutterUser: (userId: string) => Promise<void>;
   onDisableCutterUser: (userId: string) => Promise<void>;
+  onSetCutterAccountTier: (userId: string, tier: "ordinary" | "pro") => Promise<void>;
   onResetCutterUserPassword: (userId: string, input: { new_password: string }) => Promise<void>;
   onPreviewCommandSnapshotRestore: (snapshotId: string) => Promise<void>;
   onArmCommandSnapshotRestore: (snapshotId: string) => void;
@@ -1025,6 +1026,7 @@ function renderPage(
         onApprove={actions.onApproveCutterUser}
         onDisable={actions.onDisableCutterUser}
         onResetPassword={actions.onResetCutterUserPassword}
+        onSetTier={actions.onSetCutterAccountTier}
       />
     );
   }
@@ -2649,6 +2651,10 @@ export function AdminApp() {
         setCutterUsersReloadToken((current) => current + 1);
         return result;
       }),
+    onSetCutterAccountTier: (userId, tier) => runAction("调整账号级别", async api => {
+      const result = await api.setCutterAccountTier(userId, tier);
+      setCutterUsersReloadToken(current => current + 1); return result;
+    }),
     onResetCutterUserPassword: (userId, passwordInput) =>
       runAction("重置剪辑师密码", async (api) => {
         const result = await api.resetCutterUserPassword(userId, passwordInput);

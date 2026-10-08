@@ -34,7 +34,8 @@ export type AdminCommandName =
   | "admin-auth-logout"
   | "cutter-user-approve"
   | "cutter-user-disable"
-  | "cutter-user-password-reset";
+  | "cutter-user-password-reset"
+  | "cutter-user-tier";
 
 export interface AdminTransitionCommandSpec {
   command: AdminCommandName;
@@ -59,6 +60,7 @@ export type AdminCommandMutationTarget =
   | "admin-user-store"
   | "admin-session-store"
   | "cutter-user-store"
+  | "cutter-entitlements"
   | "read-model-cache";
 
 export interface AdminCommandContract {
@@ -505,6 +507,17 @@ const commandContracts = {
     requires_inactive_supervisor: false,
     invalidates_source_video_read_model: false,
     mutation_targets: ["cutter-user-store"]
+  },
+  "cutter-user-tier": {
+    command: "cutter-user-tier",
+    method: "POST",
+    scope: "single",
+    scan_mode: "no-scan",
+    requires_writer_lease: false,
+    requires_scan_preview: false,
+    requires_inactive_supervisor: false,
+    invalidates_source_video_read_model: false,
+    mutation_targets: ["cutter-entitlements"]
   }
 } satisfies Record<AdminCommandName, AdminCommandContract>;
 
@@ -585,7 +598,8 @@ const dockerMvpAllowedCommands = new Set<AdminCommandName>([
   "admin-auth-logout",
   "cutter-user-approve",
   "cutter-user-disable",
-  "cutter-user-password-reset"
+  "cutter-user-password-reset",
+  "cutter-user-tier"
 ]);
 
 const dockerMvpAllowedSurface = [

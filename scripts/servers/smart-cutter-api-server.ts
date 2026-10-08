@@ -18,7 +18,7 @@ const core = new SmartCore({
 await core.initialize();
 const port = Number(process.env.MIXLAB_SMART_PORT || 3792);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("invalid smart API port");
-const server = createSmartServer(core, process.env.MIXLAB_SMART_API_TOKEN || "");
+const server = createSmartServer(core, process.env.MIXLAB_SMART_API_TOKEN || "", () => { void shutdown(); });
 server.listen(port, "127.0.0.1", () => console.log(JSON.stringify({ event: "smart_cutter_started", version: "0.1.0", url: `http://127.0.0.1:${port}` })));
 let closing = false;
 async function shutdown(): Promise<void> {

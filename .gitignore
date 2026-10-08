@@ -23,7 +23,7 @@ apps/cutter-desktop/src-tauri/gen/
 apps/cutter-web/public/local-clips/
 
 # Smart Cutter generated runtime and local acceptance state.
-apps/smart-cutter-desktop/src-tauri/runtime/
+apps/smart-cutter-desktop/src-tauri/runtime
 apps/smart-cutter-desktop/src-tauri/binaries/
 apps/smart-cutter-desktop/src-tauri/target/
 apps/smart-cutter-desktop/src-tauri/gen/
