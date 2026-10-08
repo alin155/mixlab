@@ -467,3 +467,17 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 4. 不能把密钥、密码、token、完整私密转写文本写进本文件。
 5. 如果本文件和代码冲突，以代码为准，并立即修正文档。
 6. 如果本文件和真实测试结果冲突，以真实测试结果为准，并立即修正文档。
+
+
+## 2026-10-07 统一剪辑端候选开发环境
+
+- 代码：`/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter`，分支 `codex/unified-cutter-20261007`，基线 `f525c0e`。
+- Mac 隔离 Web：`http://127.0.0.1:5198`；本机引擎：`127.0.0.1:3793`。原智能预览 5178/3792、原型 5196 保留。
+- 数据：本工作树 `.local-dev/unified/PublicLibrary` 为独立生成并发布的测试素材；`.local-dev/unified/state` 保存测试账号会话及项目数据库；`.local-dev/unified/workspace` 保存真实测试输出。
+- 测试素材是色块视频、测试音调和已知转写元数据，用于验证媒体与数据链路，不作为真实口播质量验收。
+- Mac AI 模型/Python 使用已有只读运行时目录链接；FFmpeg 使用项目 `ffmpeg-static`，系统 Homebrew FFmpeg 缺少 `ass` 滤镜，不用于字幕验收。
+- Windows Runner 当前在线：`192.168.1.20:3799`，版本 `0.1.32`（本次实时验证）。
+- Windows 候选包采用 `com.mixlab.unifiedcutter.candidate`，独立安装及应用数据目录；不替换现有 Cutter / Smart Cutter，不更新共享目录 LATEST 指针。
+- 正式 NAS 素材、账号与已安装生产端尚未在本批次升级。TikHub/DashScope 实际密钥尚未用于候选验收。
+- 2026-10-08 UTC Windows 候选 `0.2.0` / `acecfd4` 构建与实机启动验收通过；安装位置 `C:\Users\ASUS\AppData\Local\MixLabUnifiedCandidate-acecfd4`，状态位置 `C:\Users\ASUS\AppData\Local\com.mixlab.unifiedcutter.candidate`。本次引擎随机端口 `50519`，仅代表该次进程，不作为固定配置。
+- 候选交付：Mac 共享目录 `unified-cutter/candidate-acecfd4`；Runner 启动验收器 `launch_app_probe-20261008T053816Z-15662c84`，原生检查报告 `docs/acceptance/unified-cutter/windows-native-startup.json`。登录、AI/FFmpeg、独立工作区和认证停止通过；公共库尚未配置，托盘点击未验收。

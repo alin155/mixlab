@@ -1,0 +1,36 @@
+
+> test:smart-cutter
+> node --test --import tsx packages/smart-cutter/src/*.test.ts
+
+(node:14705) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ actual local embedding index and face detector; uncertain crop holds and manual override resumes (1185.680667ms)
+✔ monitor rules preserve automatic origin, deduplicate, enforce growth evidence; hotspot import remains manual (271.036042ms)
+✔ saved ASR task resumes without paid resubmission; unknown submission outcome cannot auto-resubmit (203.644583ms)
+(node:14706) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ real published source -> immutable plan -> playable MP4/SRT/provenance, with no public writes (1165.758542ms)
+✔ loopback API enforces origin/token and never exposes configured credentials (122.081583ms)
+✔ paused render survives application restart and reuses a verified clip checkpoint (2233.792459ms)
+(node:14707) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ credentials survive concurrent updates but plaintext never appears in their persisted file (10.925458ms)
+✔ request and creation claims persist and enforce a single budget (3.244333ms)
+✔ names are automatic and critical numeric/negative conflicts cannot be passed as exact (1.187708ms)
+✔ reference downloads reject local/network targets before requesting them (4.909458ms)
+(node:14708) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ Douyin requests use documented APP V3 parameters and header-only credentials (25.654667ms)
+✔ missing and unauthorized credentials or invalid successful payloads do not become fake success (0.688666ms)
+✔ video details accept official single and array forms without silently downloading a different video (0.422083ms)
+(node:14709) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ shared approved accounts, old-account compatibility, real manual cut/recut/merge, Pro APIs and protected cleanup (920.926208ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3803.367375

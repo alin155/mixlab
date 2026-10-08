@@ -1,6 +1,9 @@
 import path from "node:path";
 import {
   approveCutterUser,
+  setCutterAccountTier,
+  cutterEntitlementsPath,
+  type CutterAccountTier,
   disableCutterUser,
   resetCutterUserPassword,
   type CutterUserRecord,
@@ -77,4 +80,11 @@ export async function runAdminResetCutterUserPasswordCommand(
     user_id: input.user_id,
     new_password: input.new_password
   }));
+}
+
+export async function runAdminSetCutterAccountTierCommand(input: AdminCutterUserCommandContext & { user_id: string; tier: CutterAccountTier }) {
+  await runAdminCommand({ library_root: input.library_root, command: "cutter-user-tier", now: input.now, actor: input.actor,
+    snapshot_files: [{ label: "cutter-entitlements", file_path: cutterEntitlementsPath(input.library_root) }] },
+    () => setCutterAccountTier(input.library_root, input.user_id, input.tier));
+  return { user_id: input.user_id, tier: input.tier };
 }

@@ -1,0 +1,34 @@
+{
+    "scope":  "isolated native installation, engine readiness and coexistence; no public-library or provider calls",
+    "source_commit":  "acecfd4",
+    "started_at":  "2026-10-08T05:38:23.1717810Z",
+    "status":  "passed",
+    "old_cutter_before":  true,
+    "installer_sha256":  "8a38c4ea843e4fd092f13f2d4f21d61eda5fad85ecd128351fa435e2830ea7ac",
+    "candidate_version":  "0.2.0",
+    "install_exit_code":  0,
+    "install_root":  "C:\\Users\\ASUS\\AppData\\Local\\MixLabUnifiedCandidate-acecfd4",
+    "app_pid":  74976,
+    "app_path":  "C:\\Users\\ASUS\\AppData\\Local\\MixLabUnifiedCandidate-acecfd4\\mixlab-smart-cutter-desktop.exe",
+    "state_root":  "C:\\Users\\ASUS\\AppData\\Local\\com.mixlab.unifiedcutter.candidate",
+    "engine_url":  "http://127.0.0.1:50519",
+    "health":  {
+                   "ok":  true,
+                   "product":  "mixlab-smart-cutter",
+                   "version":  "0.1.0",
+                   "runtime":  {
+                                   "ai_ready":  true,
+                                   "ffmpeg_ready":  true,
+                                   "library_ready":  false,
+                                   "library_count":  0,
+                                   "library_version":  "",
+                                   "library_error":  ""
+                               }
+               },
+    "isolated_workspace":  true,
+    "login_required_on_fresh_state":  true,
+    "authenticated_shutdown":  true,
+    "old_cutter_after":  true,
+    "window_title":  "MixLab 智能剪辑端 · 候选验收",
+    "finished_at":  "2026-10-08T05:39:00.8214884Z"
+}

@@ -19,10 +19,10 @@ await build({ entryPoints: [path.join(repo, 'scripts/servers/smart-cutter-api-se
 if (process.argv.includes('--bundle-only')) process.exit(0);
 if (process.platform !== 'win32') throw new Error('NSIS 安装包需要 Windows 构建机；Mac 可使用 --bundle-only 验证本机引擎。');
 await npm(['run', 'prepare:smart-cutter-runtime']);
-await npm(['run', 'build', '-w', '@mixlab/smart-cutter-desktop']);
+await npm(['run', process.argv.includes('--candidate') ? 'build:candidate' : 'build', '-w', '@mixlab/smart-cutter-desktop']);
 const nsis = path.join(root, 'target/release/bundle/nsis');
 const installers = (await readdir(nsis)).filter(name => name.endsWith('.exe'));
 if (installers.length !== 1) throw new Error('Windows packaging did not produce exactly one installer');
 const artifact = path.join(nsis, installers[0]!), hash = await fileDigest(artifact);
-await writeFile(path.join(nsis, 'installer.json'), JSON.stringify({ product: 'mixlab-smart-cutter', version: '0.1.0', file: installers[0], sha256: hash }, null, 2));
+await writeFile(path.join(nsis, 'installer.json'), JSON.stringify({ product: 'mixlab-smart-cutter', version: process.argv.includes('--candidate') ? '0.2.0' : '0.1.0', candidate: process.argv.includes('--candidate'), file: installers[0], sha256: hash }, null, 2));
 console.log(JSON.stringify({ installer: artifact, sha256: hash }));

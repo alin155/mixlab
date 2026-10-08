@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "run_id": "launch_app_probe-20261008T053816Z-15662c84",
+  "suite": "launch_app_probe",
+  "status": "passed",
+  "runner_version": "0.1.32",
+  "started_at": "2026-10-08T05:38:16.884Z",
+  "updated_at": "2026-10-08T05:38:19.694Z",
+  "finished_at": "2026-10-08T05:38:19.634Z",
+  "report_dir": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\launch_app_probe-20261008T053816Z-15662c84",
+  "timeline_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\launch_app_probe-20261008T053816Z-15662c84\\timeline.ndjson",
+  "summary_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\reports\\launch_app_probe-20261008T053816Z-15662c84\\summary.md",
+  "launch_app_probe": {
+    "api_base_url": "http://127.0.0.1:3789",
+    "api_ready_before_launch": true,
+    "api_ready": true,
+    "api_ready_elapsed_ms": 2,
+    "app_started": true,
+    "candidates": [
+      {
+        "path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\unified-cutter\\candidate-acecfd4\\UnifiedNativeStartupProbe.exe",
+        "exists": true
+      }
+    ],
+    "health_status_code": 200,
+    "app_executable_path": "\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\unified-cutter\\candidate-acecfd4\\UnifiedNativeStartupProbe.exe",
+    "app_pid": 63752,
+    "app_launch_method": "direct"
+  }
+}

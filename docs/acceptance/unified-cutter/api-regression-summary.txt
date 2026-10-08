@@ -1,0 +1,44 @@
+ℹ tests 650
+ℹ suites 0
+ℹ pass 648
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9292.638125
+
+✖ failing tests:
+
+test at packages/cutter-api/src/index.test.ts:15:804
+✖ creates, lists, reads, and streams local clips (13.757083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/packages/cutter-api/src/index.test.ts:3052:12)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at packages/cutter-api/src/index.test.ts:15:3316
+✖ creates workspace-backed local exports without writing public-library local clips (14.2495ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/packages/cutter-api/src/index.test.ts:3152:12)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { loginCutterAccount, registerCutterAccount, logoutCutterSession, validateCutterSession, publicCutterUser } from "../../library-fs/src/index.ts";
+import { loginCutterAccount, registerCutterAccount, logoutCutterSession, validateCutterSession, publicCutterUser, cutterAccountTier, changeCutterAccountPassword, type CutterAccountTier } from "../../library-fs/src/index.ts";
+import { WorkspaceCache } from "./cache.ts";
+import { Assemblies } from "./assembly.ts";
+import { ManualCutter } from "./manual.ts";
 import { SmartStore, localDay } from "./store.ts";
 import { CredentialVault, atomicPrivateJson } from "./vault.ts";
 import { SmartAi, type AiRuntime } from "./ai.ts";
@@ -20,7 +23,7 @@ const id = (prefix: string): string => `${prefix}-${randomUUID()}`;
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const fileExists = async (file: string): Promise<boolean> => !!(await stat(file).catch(() => null))?.isFile();
 
-export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient }
+export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; test_account_tier?: CutterAccountTier; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient }
 export class SmartCore {
   readonly store: SmartStore;
   readonly vault: CredentialVault;
@@ -29,6 +32,12 @@ export class SmartCore {
   readonly media: SmartMedia;
   readonly provider: TikHubClient;
   readonly references: ReferenceProcessor;
+  readonly manual: ManualCutter;
+  readonly cache: WorkspaceCache;
+  readonly assemblies: Assemblies;
+  cacheClearing = false;
+  configuring = false;
+  activeStreams = 0;
   settings: Settings;
   runtime = { ai_ready: false, ffmpeg_ready: false, library_ready: false, library_count: 0, library_version: "", library_error: "" };
   private controllers = new Map<string, AbortController>();
@@ -51,6 +60,9 @@ export class SmartCore {
       pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }));
     this.provider = options.provider ?? new TikHubClient({ getKey: () => this.vault.get("tikhub"), reserveRequest: () => this.store.reserveRequest(localDay(), this.settings.request_limit_per_day) });
     this.references = new ReferenceProcessor(this.store, this.vault, this.provider, this.media, () => this.settings, options.asr_http);
+    this.manual = new ManualCutter(this);
+    this.cache = new WorkspaceCache(this);
+    this.assemblies = new Assemblies(this);
   }
   async initialize(): Promise<void> {
     await this.vault.initialize();
@@ -78,6 +90,7 @@ export class SmartCore {
       this.runtime.ffmpeg_ready = true;
     } catch { this.runtime.ffmpeg_ready = false; }
     this.runtime.ai_ready = await this.ai.ready();
+    this.manual.update(); await this.manual.initialize(); this.assemblies.initialize();
     this.timer = setInterval(() => { void this.tick(); }, 2000); this.timer.unref();
   }
   private async ensureWorkspace(root: string, library: string): Promise<void> {
@@ -98,6 +111,9 @@ export class SmartCore {
   publicSettings() { return { ...this.settings, has_tikhub_key: this.vault.has("tikhub"), has_asr_key: this.vault.has("dashscope"), credential_protection: process.platform === "win32" ? "Windows DPAPI" : "开发环境本机私有文件", runtime: { ...this.runtime, semantic: this.ai.indexStatus } }; }
   async updateSettings(body: Record<string, unknown>): Promise<ReturnType<SmartCore["publicSettings"]>> {
     const action = async () => {
+      if (this.cacheClearing) throw new SmartError("cache_busy", "缓存正在清理，请稍后修改设置", 409);
+      this.configuring = true;
+      try {
       const next = { ...this.settings };
       if (body.library_root !== undefined) next.library_root = typeof body.library_root === "string" ? body.library_root.trim() : requireText(body.library_root, "公共素材路径");
       if (body.workspace_root !== undefined) next.workspace_root = requireText(body.workspace_root, "智能工作区", 2048);
@@ -110,7 +126,7 @@ export class SmartCore {
       if (body.default_source_folder !== undefined) next.default_source_folder = String(body.default_source_folder).trim();
       if (body.asr_model !== undefined) next.asr_model = requireText(body.asr_model, "转写模型", 80);
       const moved = next.workspace_root !== this.settings.workspace_root || next.library_root !== this.settings.library_root;
-      if (moved && (this.rendering || this.planning.size || this.references.active || this.monitoring)) throw new SmartError("runtime_busy", "正在处理作品或参考视频，请等待或暂停任务后修改目录", 409);
+      if (moved && (this.activeStreams || this.rendering || this.planning.size || this.references.active || this.monitoring || this.store.listStatus("assembly", ["queued", "running", "paused", "failed"]).length || await this.manual.busy())) throw new SmartError("runtime_busy", "正在处理作品或参考视频，请等待或暂停任务后修改目录", 409);
       if (next.library_root && !path.isAbsolute(next.library_root)) throw new SmartError("library_path", "公共素材库必须是绝对路径");
       await this.ensureWorkspace(next.workspace_root, next.library_root);
       for (const [input, name] of [["tikhub_api_key", "tikhub"], ["asr_api_key", "dashscope"]]) {
@@ -123,22 +139,39 @@ export class SmartCore {
       if (body.clear_tikhub_key === true) await this.vault.set("tikhub", "");
       if (body.clear_asr_key === true) await this.vault.set("dashscope", "");
       if (next.library_root !== this.settings.library_root) { this.session = null; await this.vault.set("cutter_session", ""); this.runtime.library_ready = false; }
-      await atomicPrivateJson(path.join(this.options.state_root, "settings.json"), next); this.settings = next;
+      await atomicPrivateJson(path.join(this.options.state_root, "settings.json"), next); this.settings = next; this.manual.update();
       return this.publicSettings();
+      } finally { this.configuring = false; }
     };
     const operation = this.configWrites.then(action); this.configWrites = operation.catch(() => undefined); return operation;
   }
-  async authStatus(): Promise<{ required: boolean; user: { user_id: string; username: string } | null }> {
-    if (this.options.auth_mode === "local_trusted") return { required: false, user: { user_id: "local-test", username: "本机测试" } };
-    if (!this.settings.library_root) return { required: false, user: null };
+  async authStatus(): Promise<{ required: boolean; user: { user_id: string; username: string; tier: CutterAccountTier } | null }> {
+    if (this.options.auth_mode === "local_trusted") return { required: false, user: { user_id: "local-test", username: "本机测试", tier: this.options.test_account_tier ?? "pro" } };
+    if (!this.settings.library_root) return { required: true, user: null };
     if (!this.session) return { required: true, user: null };
     const status = await validateCutterSession(this.settings.library_root, { device_id: this.session.device_id, session_token: this.session.session_token, now: now(), touch: false }).catch(() => ({ ok: false as const, reason: "无法检查账号状态" }));
     return status.ok && status.user.devices.some(device => device.device_id === this.session!.device_id && device.status === "active")
-      ? { required: false, user: { user_id: status.user.user_id, username: status.user.username } } : { required: true, user: null };
+      ? { required: false, user: { user_id: status.user.user_id, username: status.user.username, tier: await cutterAccountTier(this.settings.library_root, status.user.user_id) } } : { required: true, user: null };
   }
   async requireSession(): Promise<void> {
     const auth = await this.authStatus();
     if (auth.required || !auth.user) throw new SmartError("login_required", "请登录管理端已审核的剪辑师账号", 401);
+  }
+  async requirePro(): Promise<void> {
+    const auth = await this.authStatus();
+    if (auth.required || !auth.user) throw new SmartError("login_required", "请先登录", 401);
+    if (auth.user.tier !== "pro") throw new SmartError("pro_required", "文案成片与自动创作需要 Pro 账号", 403);
+  }
+  cutterSessionHeaders(): Record<string, string> {
+    return this.session ? { "x-mixlab-device-id": this.session.device_id, "x-mixlab-session-token": this.session.session_token } : {};
+  }
+  async changePassword(body: Record<string, unknown>): Promise<void> {
+    await this.requireSession();
+    if (!this.session) throw new SmartError("login_required", "请使用正式账号登录", 401);
+    const result = await changeCutterAccountPassword(this.settings.library_root, { ...this.session,
+      current_password: requireText(body.current_password, "当前密码", 256), new_password: requireText(body.new_password, "新密码", 256), now: now() });
+    if (!result.ok) throw new SmartError("password_change", result.reason);
+    this.session = null; await this.vault.set("cutter_session", "");
   }
   async login(body: Record<string, unknown>, register = false): Promise<unknown> {
     if (!this.settings.library_root) throw new SmartError("library_missing", "请先配置公共素材库");
@@ -238,6 +271,19 @@ export class SmartCore {
     target.candidates = [...new Map([...target.candidates, ...candidates].map(candidate => [candidate.id, candidate])).values()].slice(-30);
     return this.saveWork(current);
   }
+  async supplementSegment(workId: string, segmentId: number, body: Record<string, unknown>): Promise<Work> {
+    const work = this.work(workId), segment = work.segments.find(item => item.id === segmentId);
+    if (!segment) throw new SmartError("segment_missing", "句子不存在", 404);
+    if (work.status === "matching" || body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请返回审核后重新补选", 409);
+    const candidate = await this.library.selectedRange(this.library.getSnapshot(work.snapshot_id), segment.target, body);
+    const current = this.work(workId);
+    if (current.revision !== body.revision) throw new SmartError("plan_revision", "方案已更新，请重新补选", 409);
+    const target = current.segments.find(item => item.id === segmentId)!;
+    target.candidates = [...target.candidates.filter(item => item.id !== candidate.id), candidate].slice(-30);
+    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = false;
+    current.revision++; current.status = workReady(current) ? "ready" : "review"; current.error = "";
+    return this.saveWork(current);
+  }
   enqueue(workId: string): Job {
     const work = this.work(workId);
     if (!workReady(work)) throw new SmartError("review_required", "仍有缺句、近似未确认或事实冲突，请完成审核", 409);
@@ -270,7 +316,7 @@ export class SmartCore {
     void this.drain(); return job;
   }
   private async drain(): Promise<void> {
-    if (this.rendering || this.closed) return; this.rendering = true;
+    if (this.rendering || this.closed || this.cacheClearing) return; this.rendering = true;
     try {
       let job;
       while (!this.closed && (job = this.store.listStatus<Job>("job", ["queued"], 1)[0])) {
@@ -278,7 +324,7 @@ export class SmartCore {
         const current = job; current.status = "running";
         const update = () => { if (controller.signal.aborted) return; current.updated_at = now(); this.store.set("job", current); };
         try {
-          await this.requireSession(); update(); await this.media.render(current, controller.signal, update);
+          await this.requirePro(); update(); await this.media.render(current, controller.signal, update);
           current.status = "done"; current.error = ""; update();
           const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = "done"; this.saveWork(work); }
         } catch (error) {
@@ -354,7 +400,7 @@ export class SmartCore {
   }
   async monitorRun(): Promise<void> {
     if (this.monitoring) throw new SmartError("monitor_busy", "监控检查正在进行", 409);
-    await this.requireSession();
+    await this.requirePro();
     this.monitoring = true;
     const status = { id: "current", running: true, phase: "检查关注账号", started_at: now(), finished_at: "", new_count: 0, error: "" };
     this.store.set("monitor", status);
@@ -436,27 +482,36 @@ export class SmartCore {
   }
   async state() {
     const auth = await this.authStatus();
-    const works = auth.required ? [] : this.store.list<Work>("work", 100).map(work => ({
+    const smartAllowed = !auth.required && auth.user?.tier === "pro";
+    const works = !smartAllowed ? [] : this.store.list<Work>("work", 100).map(work => ({
       id: work.id, title: work.title, origin: work.origin, status: work.status, revision: work.revision,
       created_at: work.created_at, updated_at: work.updated_at, error: work.error, settings: work.settings,
       segment_count: work.segments.length, pending_count: work.segments.filter(segment => segment.status !== "exact" && !segment.accepted).length,
       duration_ms: work.segments.reduce((sum, segment) => sum + (segment.selected ? segment.selected.end_ms - segment.selected.begin_ms : 0), 0)
     }));
-    const jobs = auth.required ? [] : this.store.list<Job>("job", 100).map(job => ({
+    const jobs = !smartAllowed ? [] : this.store.list<Job>("job", 100).map(job => ({
       id: job.id, work_id: job.work_id, title: job.work.title, origin: job.work.origin,
       status: job.status, phase: job.phase, progress: job.progress, error: job.error,
       created_at: job.created_at, updated_at: job.updated_at, duration_ms: job.duration_ms,
       has_output: job.status === "done", ratio: job.work.settings.ratio
     }));
-    return { settings: this.publicSettings(), auth, works, jobs,
-      accounts: auth.required ? [] : this.store.list<Account>("account", 100),
-      hot: auth.required ? [] : this.store.list<HotVideo>("hot", 100).map(({ local_video_path: _video, local_audio_path: _audio, asr_task_id: _task, ...hot }) => hot),
-      rules: auth.required ? [] : this.store.list<Rule>("rule", 100),
+    return { settings: this.publicSettings(), auth, works, jobs, assemblies: auth.required ? [] : this.store.list<import("./assembly.ts").Assembly>("assembly", 100),
+      accounts: !smartAllowed ? [] : this.store.list<Account>("account", 100),
+      hot: !smartAllowed ? [] : this.store.list<HotVideo>("hot", 100).map(({ local_video_path: _video, local_audio_path: _audio, asr_task_id: _task, ...hot }) => hot),
+      rules: !smartAllowed ? [] : this.store.list<Rule>("rule", 100),
       monitor: this.store.get<Record<string, unknown>>("monitor", "current"),
       request_count: this.store.requestCount(localDay()), device_name: os.hostname(), limited_to: 100 };
   }
   private async tick(): Promise<void> {
-    if (this.closed) return;
+    void this.assemblies.drain().catch(() => undefined);
+    if (this.closed || this.cacheClearing || this.configuring) return;
+    if (this.controllers.size) {
+      const auth = await this.authStatus();
+      if (auth.required || auth.user?.tier !== "pro") for (const [jobId, controller] of this.controllers) {
+        const job = this.store.get<Job>("job", jobId);
+        if (job?.status === "running") { job.status = "paused"; job.error = "账号权限已变化，已保存检查点"; this.store.set("job", job); controller.abort(); }
+      }
+    }
     void this.drain();
     if (this.monitoring || !this.vault.has("tikhub") || !this.store.list<Account>("account", 100).some(account => account.enabled)) return;
     const previous = this.store.get<{ finished_at: string }>("monitor", "current");
@@ -465,6 +520,7 @@ export class SmartCore {
   }
   async close(): Promise<void> {
     this.closed = true; if (this.timer) clearInterval(this.timer);
+    await this.manual.close(); await this.assemblies.close();
     for (const [jobId, controller] of this.controllers) {
       const job = this.store.get<Job>("job", jobId);
       if (job && job.status === "running") {

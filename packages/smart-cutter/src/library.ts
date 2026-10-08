@@ -108,6 +108,22 @@ export class SmartLibrary {
       width: detail.width, height: detail.height, source_file_path: detail.source_video_file_path,
       cover_file_path: detail.cover_file_path, fingerprint, content_hash: contentHash };
   }
+  async selectedRange(snapshot: LibrarySnapshot, target: string, input: Record<string, unknown>): Promise<Candidate> {
+    if (typeof input.source_video_id !== "string" || !/^V\d{6}$/.test(input.source_video_id)) throw new SmartError("source_scope", "补选仅接受已发布的公共素材");
+    const detail = await this.source(snapshot, input.source_video_id);
+    const range = input.range as { start?: number; end?: number; from?: number; to?: number } | undefined;
+    if (!range || ![range.start, range.end, range.from, range.to].every(Number.isSafeInteger)) throw new SmartError("selection_range", "拖选范围无效");
+    const { start, end, from, to } = range as { start: number; end: number; from: number; to: number };
+    const rows = detail.transcript.segments, first = rows[start], last = rows[end];
+    if (!first || !last || start > end || from < 0 || to < 0 || from > Array.from(first.text).length || to > Array.from(last.text).length || start === end && to <= from) throw new SmartError("selection_range", "拖选范围已变化，请重新选择");
+    const actual = rows.slice(start, end + 1).map((row, index) => Array.from(row.text).slice(index === 0 ? from : 0, start + index === end ? to : undefined).join("")).join("");
+    const begin = Number(input.begin_ms), finish = Number(input.end_ms);
+    if (!actual.trim() || !Number.isFinite(begin) || !Number.isFinite(finish) || begin < first.begin_ms || finish > last.end_ms || finish <= begin || finish - begin > 120000) throw new SmartError("selection_time", "剪切边界必须位于拖选文案对应的片段内");
+    const candidate = await this.candidate(snapshot, target, detail.source_video_id, rows.slice(start, end + 1).map(row => row.segment_id), 1);
+    if (!candidate) throw new SmartError("source_unavailable", "素材文件无法读取或已变化，请检查公共库", 409);
+    return { ...candidate, id: hash(`${snapshot.id}:${detail.source_video_id}:${begin}:${finish}:${actual}`), actual,
+      begin_ms: begin, end_ms: finish, kind: classifyMatch(target, actual) };
+  }
   async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target): Promise<Candidate[]> {
     const result = await searchCutterSourceLibrary({ library_root: snapshot.library_root,
       release_root: snapshot.root, query, limit: 8, ...(folder ? { source_folder_name: folder } : {}) });

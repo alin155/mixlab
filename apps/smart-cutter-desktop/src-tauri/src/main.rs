@@ -2,7 +2,8 @@
 
 use serde::Serialize;
 use std::{fs, net::TcpListener, path::PathBuf, process::{Child, Command, Stdio}, sync::Mutex};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, menu::{Menu, MenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
+use std::{io::{Read, Write}, net::TcpStream, time::{Duration, Instant}};
 
 struct Runtime { child: Mutex<Option<Child>>, connection: Connection }
 #[derive(Clone, Serialize)]
@@ -50,7 +51,8 @@ fn start_engine(app: &AppHandle) -> Result<Runtime, String> {
     { use std::os::unix::process::CommandExt; command.process_group(0); }
     let stdout = fs::OpenOptions::new().create(true).append(true).open(state_root.join("engine.log")).map_err(|e| e.to_string())?;
     let stderr = stdout.try_clone().map_err(|e| e.to_string())?;
-    command.env("MIXLAB_SMART_STATE_ROOT", &state_root)
+    command.env("MIXLAB_SMART_WORKSPACE_ROOT", state_root.join("workspace"))
+        .env("MIXLAB_SMART_STATE_ROOT", &state_root)
         .env("MIXLAB_SMART_PORT", port.to_string())
         .env("MIXLAB_SMART_API_TOKEN", &token)
         .env("MIXLAB_SMART_AUTH_MODE", "reviewed")
@@ -61,6 +63,20 @@ fn start_engine(app: &AppHandle) -> Result<Runtime, String> {
 fn stop_engine(runtime: &Runtime) {
     if let Ok(mut holder) = runtime.child.lock() {
         if let Some(mut child) = holder.take() {
+            // Ask the authenticated loopback engine to checkpoint before terminating its process tree.
+            if let Some(address) = runtime.connection.api_base.strip_prefix("http://") {
+                if let Ok(mut stream) = TcpStream::connect(address) {
+                    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+                    let _ = write!(stream, "POST /smart/runtime/shutdown HTTP/1.1\r\nHost: {}\r\nX-Smart-Token: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", address, runtime.connection.token);
+                    let mut response = [0u8; 512]; let _ = stream.read(&mut response);
+                }
+            }
+            let deadline = Instant::now() + Duration::from_secs(12);
+            while Instant::now() < deadline {
+                if matches!(child.try_wait(), Ok(Some(_))) { return; }
+                std::thread::sleep(Duration::from_millis(50));
+            }
             #[cfg(windows)]
             {
                 use std::os::windows::process::CommandExt;
@@ -81,7 +97,28 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let runtime = start_engine(app.handle()).map_err(std::io::Error::other)?;
-            app.manage(runtime); Ok(())
+            app.manage(runtime);
+            let show = MenuItem::with_id(app, "show", "打开剪辑工作台", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "退出应用", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("MixLab 剪辑工作台 · 后台运行")
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => { if let Some(window) = app.get_webview_window("main") { let _ = window.show(); let _ = window.unminimize(); let _ = window.set_focus(); } }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        if let Some(window) = tray.app_handle().get_webview_window("main") { let _ = window.show(); let _ = window.unminimize(); let _ = window.set_focus(); }
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
+            tray.build(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event { api.prevent_close(); let _ = window.hide(); }
         })
         .invoke_handler(tauri::generate_handler![runtime_connection])
         .build(tauri::generate_context!())

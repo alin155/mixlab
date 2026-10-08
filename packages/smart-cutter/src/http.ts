@@ -4,10 +4,11 @@ import { stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
+import { saveBasicProject, manageLocalClip, type BasicProject } from "./workspace.ts";
 import { SmartCore } from "./core.ts";
 import { SmartError, requireText, type Job, type HotVideo, type Candidate } from "./types.ts";
 
-const ORIGINS = new Set(["http://127.0.0.1:5178", "http://localhost:5178", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"]);
+const ORIGINS = new Set(["http://127.0.0.1:5178", "http://localhost:5178", ...(process.env.MIXLAB_SMART_DEV_ORIGIN ? [process.env.MIXLAB_SMART_DEV_ORIGIN] : []), "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"]);
 function equalToken(a: string, b: string): boolean { const first = Buffer.from(a), second = Buffer.from(b); return first.length === second.length && timingSafeEqual(first, second); }
 function json(response: ServerResponse, status: number, data: unknown): void {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); response.end(JSON.stringify(data));
@@ -52,7 +53,7 @@ function openPath(target: string): Promise<void> {
     child.once("error", () => reject(new SmartError("open_path", "无法打开本机目录", 503))); child.once("spawn", resolve);
   });
 }
-export function createSmartServer(core: SmartCore, token = "") {
+export function createSmartServer(core: SmartCore, token = "", shutdown?: () => void) {
   return createServer(async (request, response) => {
     try {
       const host = (request.headers.host ?? "").toLowerCase();
@@ -70,24 +71,70 @@ export function createSmartServer(core: SmartCore, token = "") {
         if (!equalToken(incoming, token)) throw new SmartError("local_token", "本机连接凭证无效，请重新打开应用", 401);
       }
       const method = request.method;
+      if (url.pathname === "/smart/runtime/shutdown" && method === "POST" && token && shutdown) {
+        json(response, 202, { stopping: true }); setImmediate(shutdown); return;
+      }
+      if (url.pathname.startsWith("/cutter/") || url.pathname.startsWith("/smart/media/")) {
+        if (core.cacheClearing || core.configuring) throw new SmartError("cache_busy", "缓存或目录正在调整，请稍后播放或剪切", 409);
+        core.activeStreams++;
+        response.once("close", () => { core.activeStreams--; });
+      }
       if (url.pathname === "/smart/state" && method === "GET") { json(response, 200, await core.state()); return; }
       if (url.pathname === "/smart/settings") {
         if (method === "GET") { json(response, 200, core.publicSettings()); return; }
-        if (method === "PUT") { json(response, 200, await core.updateSettings(await body(request))); return; }
+        if (method === "PUT") { const input = await body(request);
+          if (["tikhub_api_key", "asr_api_key", "clear_tikhub_key", "clear_asr_key", "monitor_platform", "monitor_interval_minutes", "request_limit_per_day", "max_download_mb", "asr_model", "reference_cache_gb", "default_source_folder"].some(key => Object.hasOwn(input, key))) await core.requirePro();
+          json(response, 200, await core.updateSettings(input)); return; }
       }
       if (url.pathname === "/smart/auth/login" && method === "POST") { json(response, 200, await core.login(await body(request))); return; }
       if (url.pathname === "/smart/auth/register" && method === "POST") { json(response, 201, await core.login(await body(request), true)); return; }
       if (url.pathname === "/smart/auth/logout" && method === "POST") { await core.logout(); json(response, 200, { logged_out: true }); return; }
-      if (url.pathname === "/smart/provider/test" && method === "POST") { json(response, 200, await core.provider.testConnection()); return; }
+      if (url.pathname === "/smart/provider/test" && method === "POST") { await core.requirePro(); json(response, 200, await core.provider.testConnection()); return; }
       await core.requireSession();
+      if (url.pathname === "/smart/auth/password" && method === "POST") { await core.changePassword(await body(request)); json(response, 200, { changed: true }); return; }
+      if ((core.cacheClearing || core.configuring) && method !== "GET") throw new SmartError("cache_busy", "正在清理缓存，请稍后操作", 409);
+      if (url.pathname === "/smart/assemblies" && method === "POST") { const input = await body(request); json(response, 202, await core.assemblies.submit(String(input.project_id), input.cut_job_ids)); return; }
+      const assemblyRoute = /^\/smart\/assemblies\/([^/]+)\/(action|open|video|srt|manifest)$/.exec(url.pathname);
+      if (assemblyRoute) {
+        const job = core.store.get<import("./assembly.ts").Assembly>("assembly", decodeURIComponent(assemblyRoute[1]!));
+        if (!job) throw new SmartError("assembly_missing", "合并任务不存在", 404);
+        if (assemblyRoute[2] === "action" && method === "POST") { json(response, 200, core.assemblies.control(job.id, String((await body(request)).action))); return; }
+        if (job.status !== "done") throw new SmartError("output_missing", "任务没有可用成果", 409);
+        if (assemblyRoute[2] === "open" && method === "POST") { await openPath(path.dirname(job.output_path)); json(response, 200, { opened: true }); return; }
+        if (["GET", "HEAD"].includes(method ?? "")) {
+          if (core.cacheClearing) throw new SmartError("cache_busy", "缓存正在清理", 409);
+          core.activeStreams++; response.once("close", () => { core.activeStreams--; });
+          const name = assemblyRoute[2], file = name === "video" ? job.output_path : path.join(path.dirname(job.output_path), name === "srt" ? "subtitles.srt" : "sources.json");
+          await streamFile(request, response, file, name === "video" ? "video/mp4" : name === "srt" ? "text/plain; charset=utf-8" : "application/json"); return;
+        }
+      }
+      if (url.pathname === "/smart/projects") {
+        if (method === "GET") { json(response, 200, core.store.list<BasicProject>("project")); return; }
+        if (method === "POST") { json(response, 201, saveBasicProject(core, await body(request))); return; }
+      }
+      const projectRoute = /^\/smart\/projects\/([^/]+)$/.exec(url.pathname);
+      if (projectRoute && method === "PATCH") { json(response, 200, saveBasicProject(core, await body(request), decodeURIComponent(projectRoute[1]!))); return; }
+      if (projectRoute && method === "DELETE") { if (await core.manual.busy() || core.store.listStatus<import("./assembly.ts").Assembly>("assembly", ["queued", "running", "paused", "failed"]).some(job => job.project_id === decodeURIComponent(projectRoute[1]!))) throw new SmartError("project_busy", "请等待本机任务完成后删除项目记录", 409); core.store.remove("project", decodeURIComponent(projectRoute[1]!)); json(response, 200, { removed: true }); return; }
+      const localRoute = /^\/smart\/local\/(E\d{6})$/.exec(url.pathname);
+      if (localRoute && method === "PATCH") { await manageLocalClip(core, localRoute[1]!, requireText((await body(request)).title, "素材名称", 120)); json(response, 200, { renamed: true }); return; }
+      if (localRoute && method === "DELETE") { await manageLocalClip(core, localRoute[1]!); json(response, 200, { removed: true }); return; }
+      if (url.pathname === "/smart/cache" && method === "GET") { json(response, 200, await core.cache.status()); return; }
+      if (url.pathname === "/smart/cache/clear" && method === "POST") { json(response, 200, await core.cache.clear((await body(request)).kinds)); return; }
+      const deleteOutputs = /^\/cutter\/projects\/([^/]+)\/outputs$/.exec(url.pathname);
+      if (deleteOutputs && method === "DELETE" && core.store.listStatus<import("./assembly.ts").Assembly>("assembly", ["queued", "running", "paused", "failed"]).some(job => job.project_id === decodeURIComponent(deleteOutputs[1]!))) throw new SmartError("project_busy", "请完成或取消合并任务后删除项目文件", 409);
+      if (url.pathname.startsWith("/cutter/")) { core.manual.dispatch(request, response); return; }
       if (url.pathname === "/smart/library/sync" && method === "POST") { background(core.syncLibrary()); json(response, 202, { started: true }); return; }
       if (url.pathname === "/smart/library/folders" && method === "GET") { json(response, 200, await core.library.folders()); return; }
+      if (url.pathname === "/smart/workspace/open" && method === "POST") { await openPath(core.settings.workspace_root); json(response, 200, { opened: true }); return; }
+      await core.requirePro();
       if (url.pathname === "/smart/library/index" && method === "POST") {
         const snapshot = await core.library.snapshot(); background(core.ai.buildIndex(snapshot)); json(response, 202, { started: true }); return;
       }
       if (url.pathname === "/smart/library/index/stop" && method === "POST") { core.ai.stopIndex(); json(response, 200, { stopped: true }); return; }
-      if (url.pathname === "/smart/workspace/open" && method === "POST") { await openPath(core.settings.workspace_root); json(response, 200, { opened: true }); return; }
+
       if (url.pathname === "/smart/works" && method === "POST") { const input = await body(request); json(response, 201, core.createWork(requireText(input.script, "文案"))); return; }
+      const supplement = /^\/smart\/works\/([^/]+)\/segments\/(\d+)\/supplement$/.exec(url.pathname);
+      if (supplement && method === "POST") { json(response, 200, await core.supplementSegment(decodeURIComponent(supplement[1]!), Number(supplement[2]), await body(request))); return; }
       const workRoute = /^\/smart\/works\/([^/]+)(?:\/(plan|render|search))?$/.exec(url.pathname);
       if (workRoute) {
         const workId = decodeURIComponent(workRoute[1]!);

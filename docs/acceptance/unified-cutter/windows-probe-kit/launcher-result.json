@@ -1,0 +1,16 @@
+{
+  "started_at": "2026-10-08T05:38:22.113Z",
+  "scope": "candidate test transport only",
+  "scripts": [
+    {
+      "script": "diagnose-probe.ps1",
+      "exit_code": 0
+    },
+    {
+      "script": "install-and-probe.ps1",
+      "exit_code": 0
+    }
+  ],
+  "status": "completed",
+  "finished_at": "2026-10-08T05:39:00.884Z"
+}

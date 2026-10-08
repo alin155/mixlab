@@ -917,6 +917,16 @@ export async function submitClipListToQueue(
   });
 }
 
+export async function recoverInterruptedCutJobs(workspaceRoot: string): Promise<void> {
+  for (const job of await readAllCutJobs(workspaceRoot)) {
+    if (job.status !== "running") continue;
+    job.status = "failed";
+    job.error_message = "上次剪切被中断，已保留任务，请重试";
+    job.updated_at = new Date().toISOString();
+    await writeCutJob(workspaceRoot, job);
+  }
+}
+
 export async function getCutJob(input: GetCutJobInput): Promise<CutJobManifest | null> {
   try {
     const job = normalizeReadCutJob(

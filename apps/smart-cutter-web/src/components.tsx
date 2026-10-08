@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState, type ElementType } from "react";
 import { IconAlertTriangle, IconChevronRight, IconX, IconMovie } from "@tabler/icons-react";
+import { Button as FoundationButton, Badge as FoundationBadge, type BadgeTone } from "../../../packages/ui-foundation/src/index.ts";
 import { sourceUrl, modeName, originName, duration, type WorkOrigin, type Candidate } from "./api.ts";
 
 export function Button({ children, icon: Icon, variant = "", small, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ElementType; variant?: string; small?: boolean }) {
-  return <button className={`btn ${variant} ${small ? "small-btn" : ""}`} {...props}>{Icon && <Icon size={15} stroke={1.7} />}{children}</button>;
+  return <FoundationButton {...props} variant={variant === "primary" || variant === "danger" ? variant : "secondary"} size={small ? "sm" : "md"} className={`btn ${variant} ${small ? "small-btn" : ""}`} leadingIcon={Icon ? <Icon size={15} stroke={1.7} /> : undefined}>{children}</FoundationButton>;
 }
-export function Badge({ children, tone = "" }: { children: React.ReactNode; tone?: string }) { return <span className={`badge ${tone}`}>{children}</span>; }
+export function Badge({ children, tone = "" }: { children: React.ReactNode; tone?: string }) { return <FoundationBadge className={`badge ${tone}`} tone={({ green: "success", blue: "info", amber: "warning", red: "danger" } as Record<string, BadgeTone>)[tone] ?? "neutral"}>{children}</FoundationBadge>; }
 export function Banner({ children, tone = "" }: { children: React.ReactNode; tone?: string }) { return <div className={`banner ${tone}`}><IconAlertTriangle size={17} /><div>{children}</div></div>; }
 export function Header({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) { return <div className="page-head"><div><h1>{title}</h1><p>{subtitle}</p></div><div className="row">{children}</div></div>; }
 export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (value: boolean) => void; label: string; disabled?: boolean }) { return <button type="button" className={`switch ${checked ? "on" : ""}`} role="switch" aria-label={label} aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)}><span /></button>; }
