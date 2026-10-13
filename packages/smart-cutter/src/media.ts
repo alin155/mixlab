@@ -69,7 +69,7 @@ export class SmartMedia {
   constructor(readonly library: SmartLibrary, readonly ai: SmartAi, readonly fonts = process.env.MIXLAB_SMART_FONTS ?? "",
     private cachePolicy: () => { max_bytes: number; pinned: Set<string> } = () => ({ max_bytes: 30 * 1024 ** 3, pinned: new Set() })) {
     this.ffmpeg = resolveFfmpegRuntime();
-    const nativeProbe = process.env.MIXLAB_SMART_FFPROBE_PATH || (process.platform === "darwin" && process.arch === "arm64"
+    const nativeProbe = process.env.MIXLAB_SMART_FFPROBE_PATH || (!process.env.MIXLAB_FFPROBE_PATH && process.platform === "darwin" && process.arch === "arm64"
       ? ["/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe"].find(file => existsSync(file)) : undefined);
     if (nativeProbe) this.ffmpeg.ffprobe_path = nativeProbe;
   }

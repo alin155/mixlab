@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build --bundles nsis",
-    "build:candidate": "tauri build --config src-tauri/tauri.candidate.conf.json --bundles nsis"
+    "build:candidate": "tauri build --config src-tauri/tauri.candidate.conf.json --bundles nsis",
+    "build:macos:candidate": "tauri build --config src-tauri/tauri.candidate.conf.json --config src-tauri/tauri.macos.conf.json --bundles app"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { loginCutterAccount, registerCutterAccount, logoutCutterSession, validateCutterSession, publicCutterUser, cutterAccountTier, changeCutterAccountPassword, type CutterAccountTier } from "../../library-fs/src/index.ts";
+import { loginCutterAccount, registerCutterAccount, logoutCutterSession, validateCutterSession, publicCutterUser, cutterAccountTier, changeCutterAccountPassword, readCurrentCutterRelease, type CutterAccountTier } from "../../library-fs/src/index.ts";
 import { WorkspaceCache } from "./cache.ts";
 import { Assemblies } from "./assembly.ts";
 import { ManualCutter } from "./manual.ts";
@@ -40,6 +40,8 @@ export class SmartCore {
   activeStreams = 0;
   settings: Settings;
   runtime = { ai_ready: false, ffmpeg_ready: false, library_ready: false, library_count: 0, library_version: "", library_error: "" };
+  libraryConnection = { status: "unchecked" as "unchecked" | "not_configured" | "unavailable" | "published", root: "", version: "", count: 0, message: "尚未检查公共库连接" };
+  private libraryProbe: { root: string; pending: ReturnType<typeof readCurrentCutterRelease> } | null = null;
   private controllers = new Map<string, AbortController>();
   private planning = new Set<string>();
   private rendering = false;
@@ -108,7 +110,27 @@ export class SmartCore {
       await atomicPrivateJson(marker, { product: "mixlab-smart-cutter", schema_version: "1.0" });
     } else if (record(JSON.parse(await readFile(marker, "utf8"))).product !== "mixlab-smart-cutter") throw new SmartError("workspace_marker", "该目录不是智能剪辑工作区");
   }
-  publicSettings() { return { ...this.settings, has_tikhub_key: this.vault.has("tikhub"), has_asr_key: this.vault.has("dashscope"), credential_protection: process.platform === "win32" ? "Windows DPAPI" : "开发环境本机私有文件", runtime: { ...this.runtime, semantic: this.ai.indexStatus } }; }
+  publicSettings() { return { ...this.settings, library_connection: { ...this.libraryConnection }, has_tikhub_key: this.vault.has("tikhub"), has_asr_key: this.vault.has("dashscope"), credential_protection: process.platform === "win32" ? "Windows DPAPI" : "本机私有文件（0600）", runtime: { ...this.runtime, semantic: this.ai.indexStatus } }; }
+  async checkLibrary() {
+    const root = this.settings.library_root;
+    const base = { root, version: "", count: 0 };
+    if (!root) this.libraryConnection = { ...base, status: "not_configured", message: "请先选择管理端发布的公共素材库" };
+    else {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        if (this.libraryProbe?.root !== root) {
+          const pending = (async () => { const release = await readCurrentCutterRelease(root); await stat(path.join(root, ".mixlab-library/releases", release.release_version, "catalog.sqlite")); return release; })();
+          const probe = { root, pending }; this.libraryProbe = probe;
+          void pending.finally(() => { if (this.libraryProbe === probe) this.libraryProbe = null; }).catch(() => undefined);
+        }
+        const release = await Promise.race([this.libraryProbe!.pending, new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new SmartError("library_timeout", "公共库连接超时")), 10000); })]);
+        if (this.settings.library_root !== root) return { ...this.libraryConnection };
+        this.libraryConnection = { root, status: "published", version: release.release_version, count: release.ready_video_count, message: "已连接管理端发布的公共库；登录后可同步和检索" };
+      } catch (error) { if (this.settings.library_root === root) this.libraryConnection = { ...base, status: "unavailable", message: error instanceof SmartError && error.code === "library_timeout" ? "公共库连接超时，请检查 NAS 挂载后重试" : "无法读取发布库，请检查 NAS 挂载、目录和管理端发布状态" }; }
+      finally { if (timeout) clearTimeout(timeout); }
+    }
+    return { ...this.libraryConnection };
+  }
   async updateSettings(body: Record<string, unknown>): Promise<ReturnType<SmartCore["publicSettings"]>> {
     const action = async () => {
       if (this.cacheClearing) throw new SmartError("cache_busy", "缓存正在清理，请稍后修改设置", 409);
@@ -138,7 +160,7 @@ export class SmartCore {
       }
       if (body.clear_tikhub_key === true) await this.vault.set("tikhub", "");
       if (body.clear_asr_key === true) await this.vault.set("dashscope", "");
-      if (next.library_root !== this.settings.library_root) { this.session = null; await this.vault.set("cutter_session", ""); this.runtime.library_ready = false; }
+      if (next.library_root !== this.settings.library_root) { this.session = null; await this.vault.set("cutter_session", ""); this.runtime.library_ready = false; this.libraryConnection = { status: "unchecked", root: next.library_root, version: "", count: 0, message: "目录已变化，请检查公共库连接" }; }
       await atomicPrivateJson(path.join(this.options.state_root, "settings.json"), next); this.settings = next; this.manual.update();
       return this.publicSettings();
       } finally { this.configuring = false; }

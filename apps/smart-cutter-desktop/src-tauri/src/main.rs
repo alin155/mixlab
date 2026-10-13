@@ -34,16 +34,16 @@ fn start_engine(app: &AppHandle) -> Result<Runtime, String> {
     }
     #[cfg(not(debug_assertions))]
     {
-        let executable = resource.join("binaries/node.exe");
+        let executable = resource.join(if cfg!(windows) { "binaries/node.exe" } else { "binaries/node" });
         if !executable.is_file() { return Err("安装包缺少智能剪辑本机引擎，请重新安装完整版本".to_string()); }
         command = Command::new(executable);
         command.arg(resource.join("binaries/smart-cutter-api.bundle.mjs"));
         command.env("MIXLAB_SMART_AI_ROOT", resource.join("runtime"));
         command.env("MIXLAB_SMART_AI_SCRIPT", resource.join("runtime/ai-worker.py"));
-        command.env("MIXLAB_SMART_PYTHON", resource.join("runtime/python/python.exe"));
+        command.env("MIXLAB_SMART_PYTHON", resource.join(if cfg!(windows) { "runtime/python/python.exe" } else { "runtime/python/bin/python3" }));
         command.env("MIXLAB_SMART_FONTS", resource.join("runtime/fonts"));
-        command.env("MIXLAB_FFMPEG_PATH", resource.join("binaries/ffmpeg.exe"));
-        command.env("MIXLAB_FFPROBE_PATH", resource.join("binaries/ffprobe.exe"));
+        command.env("MIXLAB_FFMPEG_PATH", resource.join(if cfg!(windows) { "binaries/ffmpeg.exe" } else { "binaries/ffmpeg" }));
+        command.env("MIXLAB_FFPROBE_PATH", resource.join(if cfg!(windows) { "binaries/ffprobe.exe" } else { "binaries/ffprobe" }));
     }
     #[cfg(windows)]
     { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
@@ -84,7 +84,12 @@ fn stop_engine(runtime: &Runtime) {
                     .creation_flags(0x08000000).stdout(Stdio::null()).stderr(Stdio::null()).status();
             }
             #[cfg(unix)]
-            unsafe { libc::kill(-(child.id() as i32), libc::SIGTERM); }
+            {
+                // A stuck network-volume syscall must not keep the desktop exit handler waiting forever.
+                unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
+                let _ = child.try_wait();
+            }
+            #[cfg(windows)]
             let _ = child.wait();
         }
     }

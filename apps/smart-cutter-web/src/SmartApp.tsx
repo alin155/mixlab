@@ -261,7 +261,7 @@ export function SmartApp() {
       onCancel={() => { setSupplement(null); navigate("review"); }} onSmart={script => { newWork(); setInputScript(script); }} onTasks={() => navigate("tasks")} />,
     projects: () => <Projects data={basics} smart={state?.works ?? []} pro={pro} onRetrieve={() => navigate("retrieve")} onCreate={newWork} onWork={id => void openWork(id)} />,
     local: () => <MaterialLibrary data={basics} kind="local" onRetrieve={() => { setSupplement(null); navigate("retrieve"); }} />,
-    materials: () => <MaterialLibrary data={basics} kind="public" onRetrieve={() => { setSupplement(null); navigate("retrieve"); }} />,
+    materials: () => <MaterialLibrary data={basics} kind="public" libraryRoot={state?.settings.library_root} onRetrieve={() => { setSupplement(null); navigate("retrieve"); }} />,
     cache: () => <CacheManagement sourceLimit={state?.settings.source_cache_gb ?? 30} onLimit={async value => { await request("/smart/settings", "PUT", { source_cache_gb: value }); await refresh(); }} />,
     tasks: () => <Tasks data={basics} assemblies={state?.assemblies ?? []} smart={state?.jobs ?? []} onSmart={id => void showJob(id)} onLocal={() => navigate("local")} />,
     films: filmsPage, monitor: monitorPage, hot: hotPage, rules: rulesPage, settings: settingsPage }[route];

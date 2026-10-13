@@ -80,6 +80,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
         response.once("close", () => { core.activeStreams--; });
       }
       if (url.pathname === "/smart/state" && method === "GET") { json(response, 200, await core.state()); return; }
+      if (url.pathname === "/smart/library/check" && method === "POST") { json(response, 200, await core.checkLibrary()); return; }
       if (url.pathname === "/smart/settings") {
         if (method === "GET") { json(response, 200, core.publicSettings()); return; }
         if (method === "PUT") { const input = await body(request);

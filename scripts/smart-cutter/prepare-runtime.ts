@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -13,8 +13,12 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const root = path.join(repo, 'apps/smart-cutter-desktop/src-tauri/runtime');
 interface Asset { file: string; url: string; sha256: string }
 const manifest = JSON.parse(await readFile(path.join(repo, 'scripts/smart-cutter/runtime-assets.json'), 'utf8')) as {
-  node_version: string; node_win_sha256: string; python_version: string; requirements: string[]; assets: Asset[];
+  node_version: string; node_win_sha256: string; node_macos_arm64_sha256: string;
+  python_version: string; python_macos_arm64: { version: string; url: string; sha256: string };
+  ffprobe_macos_source: { version: string; url: string; sha256: string };
+  requirements: string[]; assets: Asset[];
 };
+if (process.platform === 'darwin' && (await lstat(root).catch(() => null))?.isSymbolicLink()) throw new Error('Mac runtime must be an owned directory; do not overwrite another checkout through a symlink.');
 async function download(url: string, file: string, sha256?: string): Promise<void> {
   if (sha256 && await fileDigest(file).catch(() => '') === sha256) return;
   await mkdir(path.dirname(file), { recursive: true });
@@ -50,6 +54,44 @@ if (process.platform === 'win32') {
   for (const [name, source] of [['ffmpeg', 'ffmpeg-static'], ['ffprobe', 'ffprobe-static']]) {
     await copyFile(path.join(repo, 'node_modules', source!, 'LICENSE'), path.join(root, `${name}-LICENSE.txt`)).catch(() => undefined);
   }
+}
+if (process.platform === 'darwin') {
+  if (process.arch !== 'arm64') throw new Error('The first Mac candidate supports Apple Silicon; build/runtime architecture must match.');
+  const binaries = path.join(repo, 'apps/smart-cutter-desktop/src-tauri/binaries');
+  const temp = path.join(repo, '.local-dev/macos/assets');
+  await mkdir(temp, { recursive: true }); await mkdir(binaries, { recursive: true });
+  const nodeArchive = path.join(temp, 'node-macos.tar.gz');
+  await download(`https://nodejs.org/dist/v${manifest.node_version}/node-v${manifest.node_version}-darwin-arm64.tar.gz`, nodeArchive, manifest.node_macos_arm64_sha256);
+  await runProcess('/usr/bin/tar', ['-xf', nodeArchive, '-C', temp]);
+  const nodeRoot = path.join(temp, `node-v${manifest.node_version}-darwin-arm64`);
+  await copyFile(path.join(nodeRoot, 'bin/node'), path.join(binaries, 'node'));
+  await copyFile(path.join(nodeRoot, 'LICENSE'), path.join(root, 'Node-LICENSE.txt'));
+  const pythonArchive = path.join(temp, 'python-macos.tar.gz');
+  await download(manifest.python_macos_arm64.url, pythonArchive, manifest.python_macos_arm64.sha256);
+  const python = path.join(root, 'python/bin/python3');
+  if (!await lstat(python).catch(() => null)) await runProcess('/usr/bin/tar', ['-xf', pythonArchive, '-C', root]);
+  await runProcess(python, ['-m', 'pip', 'install', '--disable-pip-version-check', '--only-binary=:all:', '--no-compile', ...manifest.requirements]);
+  const probeSource = manifest.ffprobe_macos_source;
+  const probeArchive = path.join(temp, `ffmpeg-${probeSource.version}.tar.xz`);
+  await download(probeSource.url, probeArchive, probeSource.sha256);
+  const probeRoot = path.join(temp, `ffmpeg-${probeSource.version}`);
+  const probeBinary = path.join(probeRoot, 'ffprobe');
+  if (!await lstat(probeBinary).catch(() => null)) {
+    await runProcess('/usr/bin/tar', ['-xf', probeArchive, '-C', temp]);
+    await runProcess(path.join(probeRoot, 'configure'), ['--cc=/usr/bin/clang', '--disable-autodetect', '--disable-shared', '--enable-static', '--disable-doc', '--disable-debug', '--disable-ffmpeg', '--disable-ffplay', '--enable-ffprobe', '--disable-encoders', '--disable-muxers', '--disable-filters', '--disable-network'], { cwd: probeRoot, env: { ...process.env, MACOSX_DEPLOYMENT_TARGET: '12.0' } });
+    await runProcess('/usr/bin/make', ['-j8', 'ffprobe'], { cwd: probeRoot, env: { ...process.env, MACOSX_DEPLOYMENT_TARGET: '12.0' } });
+  }
+  if (!(await runProcess('/usr/bin/file', ['-L', probeBinary])).includes('arm64')) throw new Error('Mac FFprobe must be an Apple Silicon executable.');
+  const linked = await runProcess('/usr/bin/otool', ['-L', probeBinary]);
+  if (/\/opt\/homebrew|\/usr\/local|\/Users\//.test(linked.split('\n').slice(1).join('\n'))) throw new Error('Mac FFprobe links to development-machine libraries.');
+  const ffmpeg = resolveFfmpegRuntime();
+  for (const [name, source] of [['node', path.join(binaries, 'node')], ['ffmpeg', ffmpeg.ffmpeg_path], ['ffprobe', probeBinary]]) {
+    const destination = path.join(binaries, name!);
+    if (source !== destination) await copyFile(source!, destination);
+    await chmod(destination, 0o755);
+  }
+  await copyFile(path.join(repo, 'node_modules/ffmpeg-static/LICENSE'), path.join(root, 'ffmpeg-LICENSE.txt'));
+  await copyFile(path.join(probeRoot, 'COPYING.LGPLv2.1'), path.join(root, 'ffprobe-LICENSE.txt'));
 }
 await writeFile(path.join(root, 'THIRD_PARTY_NOTICES.txt'), `Models: BAAI bge-small-zh-v1.5 (MIT), Xenova ONNX conversion; OpenCV YuNet (MIT).\nhttps://huggingface.co/BAAI/bge-small-zh-v1.5\nhttps://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet\nNoto Sans SC: SIL Open Font License, see fonts/OFL.txt.\nPython: PSF license (python/LICENSE.txt). Node.js: see Node-LICENSE.txt.\nPython dependencies preserve their dist-info license files in Lib/site-packages.\nFFmpeg/FFprobe: bundled static binaries, see ffmpeg-LICENSE.txt and ffprobe-LICENSE.txt.\nCorresponding source/build scripts: https://github.com/eugeneware/ffmpeg-static (b6.1.1), https://github.com/joshwnj/ffprobe-static.\n`);
 console.log(JSON.stringify({ runtime_root: root, verified_assets: manifest.assets.length, manifest_sha256: createHash('sha256').update(JSON.stringify(manifest)).digest('hex') }));
