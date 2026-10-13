@@ -77,3 +77,16 @@ test('blocked volume reads return a connection timeout and recover without anoth
   await writeFile(pointer, value);
   assert.equal((await recovery).status, 'published');
 });
+
+test('Mac rejects a mounted network workspace before creating its directory', { timeout: 30000, skip: process.platform !== 'darwin' }, async t => {
+  const mounts = await runProcess('/sbin/mount', []);
+  const networkRoot = mounts.split('\n').map(line => / on (.+) \((?:smbfs|nfs|afpfs|webdav)(?:,|\))/.exec(line)?.[1]).find(Boolean);
+  if (!networkRoot) { t.skip('no mounted network volume'); return; }
+  const root = await mkdtemp(path.join(os.tmpdir(), 'mixlab-local-workspace-'));
+  const core = new SmartCore({ state_root: path.join(root, 'state'), workspace_root: path.join(root, 'workspace'), ai: { python: 'missing-test-runtime', script: '', models: '' } });
+  await core.initialize();
+  t.after(async () => { await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
+  const before = core.settings.workspace_root;
+  await assert.rejects(core.updateSettings({ workspace_root: path.join(networkRoot, 'mixlab-must-not-create-' + path.basename(root)) }), /NAS|网络卷宗/);
+  assert.equal(core.settings.workspace_root, before);
+});

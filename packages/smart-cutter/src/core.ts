@@ -97,6 +97,19 @@ export class SmartCore {
   }
   private async ensureWorkspace(root: string, library: string): Promise<void> {
     if (!path.isAbsolute(root) || /^\\\\|^\/\//.test(root)) throw new SmartError("workspace_path", "智能工作区必须是本机绝对路径，不能选择网络共享目录");
+    if (process.platform === "darwin") {
+      const mounts = await runProcess("/sbin/mount", [], { signal: AbortSignal.timeout(5000) });
+      const networkRoots = mounts.split("\n").map(line => / on (.+) \((?:smbfs|nfs|afpfs|webdav)(?:,|\))/.exec(line)?.[1]).filter((value): value is string => !!value);
+      const network = (value: string) => networkRoots.some(mount => { const relative = path.relative(mount, value); return !relative || !relative.startsWith("..") && !path.isAbsolute(relative); });
+      if (network(root)) throw new SmartError("workspace_path", "本机工作区不能位于 NAS 或网络卷宗，请选择本机磁盘目录");
+      let ancestor = root;
+      let actualParent: string;
+      for (;;) {
+        try { actualParent = await realpath(ancestor); break; }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; const parent = path.dirname(ancestor); if (parent === ancestor) throw error; ancestor = parent; }
+      }
+      if (network(path.join(actualParent, path.relative(ancestor, root)))) throw new SmartError("workspace_path", "本机工作区不能通过链接位于 NAS 或网络卷宗");
+    }
     await mkdir(root, { recursive: true });
     const actual = await realpath(root);
     if (library) {
