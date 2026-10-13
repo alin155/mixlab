@@ -1,0 +1,8 @@
+{
+  "bundle_id": "com.mixlab.unifiedcutter.candidate",
+  "service": "kTCCServiceSystemPolicyNetworkVolumes",
+  "authorization_prompt_found": true,
+  "authorization_result_found": false,
+  "status": "awaiting_user_authorization",
+  "scope": "candidate Network Volumes permission; no Full Disk Access changes"
+}

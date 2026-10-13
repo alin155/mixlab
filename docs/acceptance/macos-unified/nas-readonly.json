@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-10-13T04:10:53.392Z",
+  "scope": "NAS published release and source read only; no account mutation",
+  "library_root": "/Volumes/MixLab/PublicLibrary",
+  "release_version": "v012694",
+  "ready_video_count": 12805,
+  "source_video_id": "V002055",
+  "source_size": 96481404,
+  "transcript_segments": 3,
+  "source_readable": true,
+  "publish_pointer_unchanged": true
+}

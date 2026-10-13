@@ -1,0 +1,15 @@
+{
+  "product": "mixlab-unified-cutter",
+  "version": "0.2.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "minimum_macos": "14.0",
+  "candidate": true,
+  "notarized": false,
+  "signing": "ad hoc local validation",
+  "source_commit": "822024b1565563573b73e5d833e5d327a3b4ec0f",
+  "file": "MixLab-Unified-Cutter-0.2.0-macos-arm64.zip",
+  "size_bytes": 239750493,
+  "sha256": "e0e038b5424ba1b5066e513af7befbb9547007251879dd14a26bdbea43aeabc9",
+  "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app"
+}

@@ -481,3 +481,12 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 正式 NAS 素材、账号与已安装生产端尚未在本批次升级。TikHub/DashScope 实际密钥尚未用于候选验收。
 - 2026-10-08 UTC Windows 候选 `0.2.0` / `acecfd4` 构建与实机启动验收通过；安装位置 `C:\Users\ASUS\AppData\Local\MixLabUnifiedCandidate-acecfd4`，状态位置 `C:\Users\ASUS\AppData\Local\com.mixlab.unifiedcutter.candidate`。本次引擎随机端口 `50519`，仅代表该次进程，不作为固定配置。
 - 候选交付：Mac 共享目录 `unified-cutter/candidate-acecfd4`；Runner 启动验收器 `launch_app_probe-20261008T053816Z-15662c84`，原生检查报告 `docs/acceptance/unified-cutter/windows-native-startup.json`。登录、AI/FFmpeg、独立工作区和认证停止通过；公共库尚未配置，托盘点击未验收。
+
+## 2026-10-12 Mac 优先候选验收环境
+
+- 代码提交 `822024b`：同一隔离工作树。Mac `.app` 与 zip：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0`；Apple Silicon / macOS 14.0+，应用标识 `com.mixlab.unifiedcutter.candidate`，独立本机状态及工作区在 `~/Library/Application Support/com.mixlab.unifiedcutter.candidate`。
+- 包内运行时：Node 24.21.0、Python 3.12.14、原生 ARM64 FFprobe 6.1.6、已有静态 FFmpeg、模型、字体。Mac package script：`npm run package:smart-cutter:macos`；本机临时签名，未公证。
+- NAS `192.168.1.27:445` 和 `:18080/health` 可达。Mac 新增根挂载 `/Volumes/MixLab` 后读到公共库发布 `v012694` / 12,805 条；原子文件夹挂载 `/Volumes/23.4.8-10北京` 保留。系统随后等待候选 Network Volumes 授权，应用文件读取尚未验收；恢复命令已终止，挂载状态和实际可读性需授权后复验。
+- Mac 本地验收库：候选状态目录下 `acceptance-library`；隔离包内媒体测试目录：工作树 `.local-dev/macos/packaged-media-*`。这些不是生产 NAS 账号或媒体。
+- Mac 原生 UI 测试被锁屏停止；真实账号登录、NAS 网络卷宗授权及 TikHub/DashScope 设置待用户配合。未更改正式 NAS 账号、部署、素材或 Windows 最新下载指针。
+- 证据：`docs/acceptance/macos-unified/implementation-report.md`、`packaged-media.json`、`nas-readonly.json`、`network-permission.json`、`artifact.json`。随机本机引擎端口只属于各次进程，不记为固定服务地址。
