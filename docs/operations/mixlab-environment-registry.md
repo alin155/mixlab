@@ -484,7 +484,7 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 
 ## 2026-10-12 Mac 优先候选验收环境
 
-- 代码提交 `822024b`：同一隔离工作树。Mac `.app` 与 zip：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0`；Apple Silicon / macOS 14.0+，应用标识 `com.mixlab.unifiedcutter.candidate`，独立本机状态及工作区在 `~/Library/Application Support/com.mixlab.unifiedcutter.candidate`。
+- 代码提交 `97b58c3`（含 Mac 主体 `822024b`）：同一隔离工作树。Mac `.app` 与 zip：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0`；Apple Silicon / macOS 14.0+，应用标识 `com.mixlab.unifiedcutter.candidate`，独立本机状态及工作区在 `~/Library/Application Support/com.mixlab.unifiedcutter.candidate`。
 - 包内运行时：Node 24.21.0、Python 3.12.14、原生 ARM64 FFprobe 6.1.6、已有静态 FFmpeg、模型、字体。Mac package script：`npm run package:smart-cutter:macos`；本机临时签名，未公证。
 - NAS `192.168.1.27:445` 和 `:18080/health` 可达。Mac 新增根挂载 `/Volumes/MixLab` 后读到公共库发布 `v012694` / 12,805 条；原子文件夹挂载 `/Volumes/23.4.8-10北京` 保留。系统随后等待候选 Network Volumes 授权，应用文件读取尚未验收；恢复命令已终止，挂载状态和实际可读性需授权后复验。
 - Mac 本地验收库：候选状态目录下 `acceptance-library`；隔离包内媒体测试目录：工作树 `.local-dev/macos/packaged-media-*`。这些不是生产 NAS 账号或媒体。

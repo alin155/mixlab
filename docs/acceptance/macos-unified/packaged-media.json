@@ -1,8 +1,8 @@
 {
   "scope": "relocated packaged engine with restricted PATH and isolated generated media; no NAS account or provider calls",
   "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
-  "started_at": "2026-10-13T04:55:27.862Z",
-  "root": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/packaged-media-0W4DHv",
+  "started_at": "2026-10-13T05:13:07.447Z",
+  "root": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/packaged-media-BXItaj",
   "health": {
     "ok": true,
     "product": "mixlab-smart-cutter",
@@ -19,18 +19,18 @@
   "cut_job": "CJ20261013-0001",
   "local_clips": 1,
   "assembly": {
-    "id": "M-fed09cb0-6583-4205-8702-ce382eccd383",
+    "id": "M-183aceca-f7aa-4ba0-bb84-36c5518e1c9c",
     "duration_ms": 3433,
     "size": 65870
   },
   "smart": {
-    "id": "J-d6269ce7-828a-4e0c-9d7f-19a5958d12d4",
+    "id": "J-68b5e60e-9f2d-4e07-90be-178590f5ceb9",
     "size": 105000,
     "subtitles": "1\n00:00:00,000 --> 00:00:01,700\n现金流是企业的血液。\n\n2\n00:00:01,700 --> 00:00:03,400\n把事情做对，再把规模做大。\n",
     "source_record": {
       "schema_version": "1.0",
-      "job_id": "J-d6269ce7-828a-4e0c-9d7f-19a5958d12d4",
-      "work_id": "W-32c8b142-8902-4087-b61b-663a32ca604b",
+      "job_id": "J-68b5e60e-9f2d-4e07-90be-178590f5ceb9",
+      "work_id": "W-5e46f869-f418-4033-b7ff-fc2a2fa2fa5e",
       "revision": 2,
       "title": "现金流是企业的血液",
       "origin": {
@@ -54,7 +54,7 @@
       "sources": [
         {
           "source_video_id": "V000001",
-          "snapshot_id": "0888549e2fa5c267749a4c68a534a277",
+          "snapshot_id": "ba87ba7ccba9abb8eba89ff335341a3c",
           "segment_ids": [
             "V000001-S000001"
           ],
@@ -63,14 +63,14 @@
           "actual": "现金流是企业的血液。",
           "original_fingerprint": {
             "size": 42320,
-            "mtime_ms": 1791867327812.5168
+            "mtime_ms": 1791868387400.515
           },
           "output_begin_ms": 0,
           "output_end_ms": 1700
         },
         {
           "source_video_id": "V000001",
-          "snapshot_id": "0888549e2fa5c267749a4c68a534a277",
+          "snapshot_id": "ba87ba7ccba9abb8eba89ff335341a3c",
           "segment_ids": [
             "V000001-S000002"
           ],
@@ -79,7 +79,7 @@
           "actual": "把事情做对，再把规模做大。",
           "original_fingerprint": {
             "size": 42320,
-            "mtime_ms": 1791867327812.5168
+            "mtime_ms": 1791868387400.515
           },
           "output_begin_ms": 1700,
           "output_end_ms": 3400
@@ -93,7 +93,7 @@
         "duration_ms": 3433,
         "audio": true
       },
-      "generated_at": "2026-10-13T04:55:33.283Z"
+      "generated_at": "2026-10-13T05:13:12.836Z"
     }
   },
   "output_probe": {
@@ -214,7 +214,7 @@
       }
     ],
     "format": {
-      "filename": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/packaged-media-0W4DHv/workspace/projects/W-32c8b142-8902-4087-b61b-663a32ca604b/exports/J-d6269ce7-828a-4e0c-9d7f-19a5958d12d4/video.mp4",
+      "filename": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/packaged-media-BXItaj/workspace/projects/W-5e46f869-f418-4033-b7ff-fc2a2fa2fa5e/exports/J-68b5e60e-9f2d-4e07-90be-178590f5ceb9/video.mp4",
       "nb_streams": 2,
       "nb_programs": 0,
       "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -249,5 +249,5 @@
   },
   "authenticated_shutdown": true,
   "status": "passed",
-  "finished_at": "2026-10-13T04:55:33.377Z"
+  "finished_at": "2026-10-13T05:13:12.955Z"
 }
