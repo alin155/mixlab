@@ -501,3 +501,4 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 本机候选更新为 `93eb03d`，版本仍为 `0.2.0`；应用路径、本机状态目录和设备 ID 沿用原候选。旧包保留在交付目录 `rollback-97b58c3`，原 zip 不覆盖。
 - 现场发现 SMB 根挂载消失、ENOTCONN 和服务端断开重连；停止旧候选后通过访达恢复 `smb://192.168.1.27/MixLab`。当前真实公共库仍为 `/Volumes/MixLab/PublicLibrary`，发布计数 12,805。
 - 修复认证可用性分类、读取超时与客户端同步写 NAS 统计 SQLite。原生真实 NAS 检索“房地产”已显示 20 条结果、完整文案及预览，同一 Pro 账号重新登录成功。详见 `docs/acceptance/macos-unified/nas-recovery-20261015.md`。
+- 同日通过原生设置保存用户填写的 TikHub/DashScope 配置，TikHub 本机测试接口返回 HTTP 200、`connected=true`。语义索引任务仍在运行，本轮未重启或替换 Mac 应用；新增“保存并测试”交互仅完成源码、21/21 测试、类型及 Web 构建验证，尚未安装到当前 Mac 包。详见 `docs/acceptance/macos-unified/tikhub-key-action-20261015.md`。不在登记表记录真实 Key。
