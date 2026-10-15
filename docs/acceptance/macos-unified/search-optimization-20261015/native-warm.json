@@ -1,0 +1,48 @@
+{
+  "elapsed_ms": 2396,
+  "status": "review",
+  "script_chars": 129,
+  "progress": {
+    "phase": "complete",
+    "started_at": "2026-10-15T12:17:32.701Z",
+    "updated_at": "2026-10-15T12:17:35.044Z",
+    "total_sentences": 3,
+    "completed_sentences": 3,
+    "current_sentence": 3,
+    "exact_matches": 0,
+    "near_matches": 2,
+    "missing_matches": 0,
+    "snapshot_id": "84eba180a5a6d3e0bb030bba9c70ddd4",
+    "snapshot_version": "v012714",
+    "pending_matches": 1
+  },
+  "segments": [
+    {
+      "status": "pending",
+      "candidates": 4,
+      "retrieval": {
+        "mode": "candidate",
+        "complete": false,
+        "examined": 111
+      }
+    },
+    {
+      "status": "near",
+      "candidates": 12,
+      "retrieval": {
+        "mode": "candidate",
+        "complete": false,
+        "examined": 115
+      }
+    },
+    {
+      "status": "near",
+      "candidates": 11,
+      "retrieval": {
+        "mode": "candidate",
+        "complete": false,
+        "examined": 108
+      }
+    }
+  ]
+}

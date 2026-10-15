@@ -1,0 +1,7 @@
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+Collecting usearch==2.26.2
+  Downloading usearch-2.26.2-cp312-cp312-win_amd64.whl.metadata (33 kB)
+Downloading usearch-2.26.2-cp312-cp312-win_amd64.whl (346 kB)
+Saved ./.local-dev/macos/search-optimization-20261015/wheels/usearch-2.26.2-cp312-cp312-win_amd64.whl
+Successfully downloaded usearch

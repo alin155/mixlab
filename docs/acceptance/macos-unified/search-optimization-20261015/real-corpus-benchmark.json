@@ -1,0 +1,152 @@
+{
+  "production_modified": false,
+  "corpus_segments": 1298422,
+  "timings": [
+    {
+      "pass": "cold",
+      "elapsed_ms": 9225,
+      "script_chars": 129,
+      "sentence_count": 3,
+      "snapshot": "v012714",
+      "status": "review",
+      "progress": {
+        "phase": "complete",
+        "started_at": "2026-10-15T12:03:14.657Z",
+        "updated_at": "2026-10-15T12:03:23.880Z",
+        "total_sentences": 3,
+        "completed_sentences": 3,
+        "current_sentence": 3,
+        "exact_matches": 0,
+        "near_matches": 3,
+        "missing_matches": 0,
+        "snapshot_id": "84eba180a5a6d3e0bb030bba9c70ddd4",
+        "snapshot_version": "v012714",
+        "pending_matches": 0
+      },
+      "segments": [
+        {
+          "status": "near",
+          "candidates": 6,
+          "retrieval": {
+            "mode": "candidate",
+            "complete": false,
+            "examined": 111
+          }
+        },
+        {
+          "status": "near",
+          "candidates": 12,
+          "retrieval": {
+            "mode": "candidate",
+            "complete": false,
+            "examined": 115
+          }
+        },
+        {
+          "status": "near",
+          "candidates": 10,
+          "retrieval": {
+            "mode": "candidate",
+            "complete": false,
+            "examined": 108
+          }
+        }
+      ],
+      "phases": [
+        {
+          "ms": 1002,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 2004,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 3004,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 4006,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 5007,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 6009,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 7011,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 8013,
+          "phase": "semantic_search"
+        },
+        {
+          "ms": 9015,
+          "phase": "source_check"
+        }
+      ]
+    },
+    {
+      "pass": "warm",
+      "elapsed_ms": 1185,
+      "script_chars": 129,
+      "sentence_count": 3,
+      "snapshot": "v012714",
+      "status": "review",
+      "progress": {
+        "phase": "complete",
+        "started_at": "2026-10-15T12:03:23.883Z",
+        "updated_at": "2026-10-15T12:03:25.068Z",
+        "total_sentences": 3,
+        "completed_sentences": 3,
+        "current_sentence": 3,
+        "exact_matches": 0,
+        "near_matches": 3,
+        "missing_matches": 0,
+        "snapshot_id": "84eba180a5a6d3e0bb030bba9c70ddd4",
+        "snapshot_version": "v012714",
+        "pending_matches": 0
+      },
+      "segments": [
+        {
+          "status": "near",
+          "candidates": 6,
+          "retrieval": {
+            "mode": "candidate",
+            "complete": false,
+            "examined": 111
+          }
+        },
+        {
+          "status": "near",
+          "candidates": 12,
+          "retrieval": {
+            "mode": "candidate",
+            "complete": false,
+            "examined": 115
+          }
+        },
+        {
+          "status": "near",
+          "candidates": 10,
+          "retrieval": {
+            "mode": "candidate",
+            "complete": false,
+            "examined": 108
+          }
+        }
+      ],
+      "phases": [
+        {
+          "ms": 1002,
+          "phase": "semantic_search"
+        }
+      ]
+    }
+  ]
+}

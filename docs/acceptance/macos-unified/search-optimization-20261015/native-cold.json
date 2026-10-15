@@ -1,0 +1,41 @@
+{
+  "engine": "http://127.0.0.1:56155",
+  "semantic": {
+    "running": true,
+    "done": 385392,
+    "total": 1298422,
+    "error": "",
+    "snapshot_id": "84eba180a5a6d3e0bb030bba9c70ddd4",
+    "phase": "vectors",
+    "encoded": 0,
+    "reused": 385392
+  },
+  "keys_preserved": true,
+  "vectors": {
+    "done": 719184,
+    "sample": "29dbc089888c56e5268e4ad96cdeb476151f56fc8a647f179951ca4d1fe95a16"
+  },
+  "works": [
+    {
+      "id": "W-18005556-2a96-44b1-9d4b-37d96ea894aa",
+      "status": "review",
+      "script_chars": 129,
+      "progress": {
+        "phase": "complete",
+        "started_at": "2026-10-15T12:15:08.207Z",
+        "updated_at": "2026-10-15T12:15:42.601Z",
+        "total_sentences": 3,
+        "completed_sentences": 3,
+        "current_sentence": 3,
+        "exact_matches": 0,
+        "near_matches": 2,
+        "missing_matches": 0,
+        "snapshot_id": "84eba180a5a6d3e0bb030bba9c70ddd4",
+        "snapshot_version": "v012714",
+        "pending_matches": 1
+      },
+      "error": ""
+    }
+  ],
+  "sample_preserved": true
+}

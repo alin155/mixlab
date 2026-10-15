@@ -1,0 +1,41 @@
+{
+  "vectors": 100000,
+  "dimensions": 512,
+  "source": "read-only real partial checkpoint, text length >12",
+  "build_seconds": 19.301,
+  "cold_load_ms": 37.278,
+  "index_bytes": 117264960,
+  "queries": "five seeded perturbations of corpus vectors; numeric retrieval evidence, not human relevance acceptance",
+  "measurements": [
+    {
+      "in_memory_brute_ms": 13.539,
+      "ann_ms": 0.895,
+      "recall_at_10": 1.0,
+      "top1_score_gap": 0.0
+    },
+    {
+      "in_memory_brute_ms": 8.822,
+      "ann_ms": 0.934,
+      "recall_at_10": 1.0,
+      "top1_score_gap": 0.0
+    },
+    {
+      "in_memory_brute_ms": 8.87,
+      "ann_ms": 0.595,
+      "recall_at_10": 1.0,
+      "top1_score_gap": -0.0
+    },
+    {
+      "in_memory_brute_ms": 9.128,
+      "ann_ms": 0.525,
+      "recall_at_10": 1.0,
+      "top1_score_gap": 0.0
+    },
+    {
+      "in_memory_brute_ms": 9.013,
+      "ann_ms": 0.82,
+      "recall_at_10": 1.0,
+      "top1_score_gap": 0.0
+    }
+  ]
+}
