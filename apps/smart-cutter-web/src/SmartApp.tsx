@@ -108,7 +108,7 @@ export function SmartApp() {
     const current = await act(() => request<Work>(`/smart/works/${workId}`)); if (!current) return;
     activeRef.current.id = current.id; setWork(current); setInputScript(current.script); setOutput(current.settings); outputDirty.current = false;
     setSelectedId(current.segments.find(segment => segment.status !== "exact" && !segment.accepted)?.id ?? current.segments[0]?.id ?? 1);
-    navigate(stage ?? (current.segments.length ? "review" : "create"));
+    navigate(stage ?? (current.status === "matching" || current.segments.length ? "review" : "create"));
   }
   function newWork() {
     activeRef.current.id = ""; setWork(null); setInputScript(""); setOutput({ ...DEFAULT_OUTPUT, source_folder: state?.settings.default_source_folder ?? "" }); outputDirty.current = false; navigate("create");
