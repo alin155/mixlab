@@ -1,0 +1,36 @@
+{
+  "source": "7e1adbd",
+  "engine": "http://127.0.0.1:60418",
+  "keys_preserved": true,
+  "authenticated": true,
+  "works_preserved": true,
+  "work_count": 4,
+  "account_teachers": [
+    {
+      "name": "陶矜小富婆儿企管咨询",
+      "teacher": "陶矜"
+    },
+    {
+      "name": "陶矜商业思维瑾妍传媒",
+      "teacher": "陶矜"
+    }
+  ],
+  "teacher_folder_bindings": {
+    "陶矜": "陶矜",
+    "陶矜2": "陶矜"
+  },
+  "vectors": {
+    "done": 1298422,
+    "sample": "29dbc089888c56e5268e4ad96cdeb476151f56fc8a647f179951ca4d1fe95a16"
+  },
+  "vector_sample_preserved": true,
+  "vectors_ready": "1",
+  "ann_ready": true,
+  "video_cached": true,
+  "video_transcript_chars": 0,
+  "media": {
+    "status": 206,
+    "range": "bytes 0-1023/6833547",
+    "received_bytes": 1024
+  }
+}

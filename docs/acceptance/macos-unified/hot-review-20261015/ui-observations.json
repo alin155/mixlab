@@ -1,0 +1,22 @@
+{
+  "original_video_playback": {
+    "duration_seconds": 34,
+    "observed_elapsed_seconds": 12,
+    "paused": true,
+    "downloaded_bytes": 6833547,
+    "asr_requested": false
+  },
+  "old_work_bulk_review": {
+    "reviewable": 2,
+    "disabled_until_teacher_selected": true
+  },
+  "manual_create": {
+    "teacher_required": true,
+    "generate_disabled_without_teacher": true
+  },
+  "monitor_accounts_bound_to": "陶矜",
+  "screenshots_local_only": [
+    "/Users/huaqihang/Documents/Codex/captures/mixlab-hot-video-20261015.png",
+    "/Users/huaqihang/Documents/Codex/captures/mixlab-teacher-create-20261015.png"
+  ]
+}
