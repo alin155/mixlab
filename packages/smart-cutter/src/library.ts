@@ -10,7 +10,7 @@ import {
 import { currentCutterReleaseSearchIndexFilePath } from "../../library-fs/src/cutter-release.ts";
 import { normalizeTranscriptText } from "../../protocol/src/index.ts";
 import { SmartStore } from "./store.ts";
-import { SmartError, type Candidate, type Settings, type WorkSegment } from "./types.ts";
+import { SmartError, type Candidate, type Settings, type WorkSegment, type MatchActivity, type MatchPhase, type MatchProgress } from "./types.ts";
 
 export interface LibrarySnapshot {
   id: string; root: string; library_root: string; version: string;
@@ -34,8 +34,9 @@ export class SmartLibrary {
   private syncing = new Map<string, Promise<LibrarySnapshot>>();
   private details = new Map<string, Promise<CutterSourceVideoDetail | null>>();
   constructor(private store: SmartStore, private settings: () => Settings,
-    private semantic?: (snapshot: LibrarySnapshot, query: string, folder: string) => Promise<SemanticHit[]>) {}
-  async snapshot(): Promise<LibrarySnapshot> {
+    private semantic?: (snapshot: LibrarySnapshot, query: string, folder: string, progress?: (phase: MatchPhase) => void) => Promise<SemanticHit[]>) {}
+  async snapshot(progress?: (value: MatchActivity) => void): Promise<LibrarySnapshot> {
+    progress?.({ phase: "snapshot_check" });
     const config = this.settings();
     if (!config.library_root) throw new SmartError("library_missing", "请先在设置中选择已发布的公共素材库", 409);
     let release;
@@ -45,10 +46,16 @@ export class SmartLibrary {
     const saved = this.store.get<LibrarySnapshot>("snapshot", key);
     if (saved) {
       const status = await readFastLocalCutterReleaseCacheStatus({ cache_root: saved.root });
-      if (status.cache_ready && status.active_release_version === saved.version) return saved;
+      if (status.cache_ready && status.active_release_version === saved.version) {
+        progress?.({ phase: "snapshot_ready", snapshot_id: saved.id, snapshot_version: saved.version }); return saved;
+      }
     }
+    progress?.({ phase: "snapshot_sync", snapshot_version: release.release_version });
     if (!this.syncing.has(key)) this.syncing.set(key, this.copySnapshot(config));
-    try { return await this.syncing.get(key)!; } finally { this.syncing.delete(key); }
+    try {
+      const snapshot = await this.syncing.get(key)!;
+      progress?.({ phase: "snapshot_ready", snapshot_id: snapshot.id, snapshot_version: snapshot.version }); return snapshot;
+    } finally { this.syncing.delete(key); }
   }
   private async copySnapshot(config: Settings): Promise<LibrarySnapshot> {
     const base = path.join(config.workspace_root, "cache", "library-snapshots");
@@ -142,10 +149,12 @@ export class SmartLibrary {
     return { ...candidate, id: hash(`${snapshot.id}:${detail.source_video_id}:${begin}:${finish}:${actual}`), actual,
       begin_ms: begin, end_ms: finish, kind: classifyMatch(target, actual) };
   }
-  async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target): Promise<Candidate[]> {
+  async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target, progress?: (phase: MatchPhase) => void): Promise<Candidate[]> {
+    progress?.("text_search");
     const result = await searchCutterSourceLibrary({ library_root: snapshot.library_root,
       release_root: snapshot.root, query, limit: 8, ...(folder ? { source_folder_name: folder } : {}) });
     const candidates: Candidate[] = [];
+    progress?.("source_check");
     for (const group of result.groups) {
       const spans = new Map<string, string[]>();
       for (const hit of group.hit_segments) {
@@ -158,7 +167,8 @@ export class SmartLibrary {
       }
     }
     if (!candidates.some(item => item.kind === "exact") && this.semantic) {
-      const hits = await this.semantic(snapshot, query, folder);
+      const hits = await this.semantic(snapshot, query, folder, progress);
+      progress?.("source_check");
       for (const hit of hits) {
         const item = await this.candidate(snapshot, target, hit.source_video_id, [hit.segment_id], hit.score);
         if (item) candidates.push(item);
@@ -167,14 +177,18 @@ export class SmartLibrary {
     const unique = [...new Map(candidates.map(item => [item.id, item])).values()];
     return unique.sort((a, b) => Number(b.kind === "exact") - Number(a.kind === "exact") || b.score - a.score).slice(0, 12);
   }
-  async plan(script: string[], folder: string): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
-    const snapshot = await this.snapshot(); const segments: WorkSegment[] = [];
+  async plan(script: string[], folder: string, progress?: (value: Partial<MatchProgress>) => void): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
+    const snapshot = await this.snapshot(progress); const segments: WorkSegment[] = [];
     for (const [index, target] of script.entries()) {
-      const candidates = await this.candidates(snapshot, target, folder);
+      progress?.({ current_sentence: index + 1 });
+      const candidates = await this.candidates(snapshot, target, folder, target, phase => progress?.({ phase }));
       const selected = candidates.find(candidate => candidate.kind === "exact") ?? candidates.find(candidate => candidate.kind === "near") ?? null;
       segments.push({ id: index + 1, target, actual: selected?.actual ?? "", status: selected?.kind ?? "gap",
         accepted: false, selected, candidates, reason: selected?.kind === "near" ? "实际原声表达不同，请确认" : selected ? "" : "没有找到可直接使用的原声片段" });
+      progress?.({ completed_sentences: segments.length, exact_matches: segments.filter(item => item.status === "exact").length,
+        near_matches: segments.filter(item => item.status === "near").length, missing_matches: segments.filter(item => item.status === "gap").length });
     }
+    progress?.({ phase: "complete" });
     return { snapshot, segments };
   }
 }

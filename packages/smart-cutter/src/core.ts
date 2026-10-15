@@ -59,7 +59,7 @@ export class SmartCore {
     this.settings = { library_root: "", workspace_root: options.workspace_root || path.join(os.homedir(), "MixLabSmart"),
       monitor_platform: "douyin", monitor_interval_minutes: 30, request_limit_per_day: 500,
       reference_cache_gb: 30, source_cache_gb: 30, max_download_mb: 500, asr_model: "paraformer-v2", default_source_folder: "", device_id: `smart-${randomUUID()}` };
-    this.library = new SmartLibrary(this.store, () => this.settings, (snapshot, query, folder) => this.ai.search(snapshot, query, folder));
+    this.library = new SmartLibrary(this.store, () => this.settings, (snapshot, query, folder, progress) => this.ai.search(snapshot, query, folder, progress));
     this.media = new SmartMedia(this.library, this.ai, process.env.MIXLAB_SMART_FONTS ?? "", () => ({ max_bytes: this.settings.source_cache_gb * 1024 ** 3,
       pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }));
     this.provider = options.provider ?? new TikHubClient({ getKey: () => this.vault.get("tikhub"), reserveRequest: () => this.store.reserveRequest(localDay(), this.settings.request_limit_per_day) });
@@ -85,7 +85,7 @@ export class SmartCore {
         if (work && work.revision === job.revision) { work.status = job.status === 'done' ? 'done' : 'ready'; work.error = job.error; this.saveWork(work); }
       }
     }
-    for (const work of this.store.listStatus<Work>("work", ["matching"])) { work.status = "draft"; work.error = "上次匹配被中断，请重新生成方案"; this.store.set("work", work); }
+    for (const work of this.store.listStatus<Work>("work", ["matching"])) { work.status = "draft"; work.error = "上次匹配被中断，请重新生成方案"; if (work.match_progress) { work.match_progress.phase = "failed"; work.match_progress.updated_at = now(); } this.store.set("work", work); }
     for (const hot of this.store.list<HotVideo>("hot", 10_000)) if (["downloading", "transcribing"].includes(hot.status)) { hot.status = "failed"; hot.error = "应用退出，处理已中断；再次提取将复用已保存的转写任务"; this.store.set("hot", hot); }
     this.store.db.prepare("DELETE FROM rule_claims WHERE work_id=''").run();
     try {
@@ -250,7 +250,12 @@ export class SmartCore {
     catch (error) { this.runtime.library_error = (error as Error).message; this.runtime.library_ready = false; throw error; }
   }
   work(workId: string): Work {
-    const work = this.store.get<Work>("work", workId); if (!work) throw new SmartError("work_missing", "作品不存在", 404); return work;
+    const work = this.store.get<Work>("work", workId); if (!work) throw new SmartError("work_missing", "作品不存在", 404);
+    if (work.status === "matching" && work.match_progress?.phase.startsWith("semantic_")) {
+      const status = this.ai.indexStatus;
+      work.match_progress.semantic = { ...status, version: this.store.get<import("./library.ts").LibrarySnapshot>("snapshot", status.snapshot_id)?.version ?? "" };
+    }
+    return work;
   }
   private saveWork(work: Work): Work { work.updated_at = now(); return this.store.set("work", work); }
   createWork(script: string, origin: WorkOrigin = { trigger: "manual", kind: "manual_script" }): Work {
@@ -266,7 +271,7 @@ export class SmartCore {
     if (body.script !== undefined) {
       work.script = requireText(body.script, "文案");
       if (splitScript(work.script).length > 200) throw new SmartError("script_length", "单条作品最多 200 句");
-      work.title = automaticTitle(work.script); work.segments = []; work.snapshot_id = ""; work.status = "draft";
+      work.title = automaticTitle(work.script); work.segments = []; work.snapshot_id = ""; work.status = "draft"; delete work.match_progress;
     }
     if (body.settings !== undefined) {
       const before = work.settings.source_folder;
@@ -290,15 +295,23 @@ export class SmartCore {
   async generatePlan(workId: string): Promise<Work> {
     if (this.planning.has(workId)) throw new SmartError("plan_busy", "该作品正在匹配", 409);
     const work = this.work(workId); const revision = work.revision;
+    const script = splitScript(work.script);
+    work.match_progress = { phase: "snapshot_check", started_at: now(), updated_at: now(), total_sentences: script.length,
+      completed_sentences: 0, current_sentence: 0, exact_matches: 0, near_matches: 0, missing_matches: 0 };
     this.planning.add(workId); work.status = "matching"; work.error = ""; this.saveWork(work);
     try {
-      const plan = await this.library.plan(splitScript(work.script), work.settings.source_folder);
+      const plan = await this.library.plan(script, work.settings.source_folder, progress => {
+        const current = this.work(workId);
+        current.match_progress = { ...current.match_progress!, ...progress, updated_at: now() };
+        delete current.match_progress.semantic;
+        this.saveWork(current);
+      });
       const current = this.work(workId); if (current.revision !== revision) throw new SmartError("plan_revision", "文案版本已变化，请重新匹配", 409);
       current.snapshot_id = plan.snapshot.id; current.segments = plan.segments;
       current.status = workReady(current) ? "ready" : "review"; this.runtime.library_ready = true;
       this.runtime.library_count = plan.snapshot.ready_video_count; this.runtime.library_version = plan.snapshot.version;
       return this.saveWork(current);
-    } catch (error) { const current = this.work(workId); current.status = "failed"; current.error = this.vault.redact((error as Error).message); this.saveWork(current); throw error; }
+    } catch (error) { const current = this.work(workId); current.status = "failed"; current.error = this.vault.redact((error as Error).message); if (current.match_progress) { current.match_progress.phase = "failed"; current.match_progress.updated_at = now(); } this.saveWork(current); throw error; }
     finally { this.planning.delete(workId); }
   }
   selectSegment(workId: string, segmentId: number, body: Record<string, unknown>): Work {

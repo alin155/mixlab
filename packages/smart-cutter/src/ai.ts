@@ -5,7 +5,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from 'node:sqlite';
 import { runProcess } from "./process.ts";
-import { SmartError, type Composition } from "./types.ts";
+import { SmartError, type Composition, type MatchPhase } from "./types.ts";
 import type { LibrarySnapshot, SemanticHit } from "./library.ts";
 
 export interface AiRuntime { python: string; script: string; models: string }
@@ -51,15 +51,16 @@ export class SmartAi {
     });
   }
   private cache(snapshot: LibrarySnapshot): string { return path.join(snapshot.root, "semantic-vectors.sqlite"); }
-  async search(snapshot: LibrarySnapshot, query: string, folder: string): Promise<SemanticHit[]> {
+  async search(snapshot: LibrarySnapshot, query: string, folder: string, progress?: (phase: MatchPhase) => void): Promise<SemanticHit[]> {
     try {
-      if (this.indexing) await this.indexing;
+      if (this.indexing) { progress?.(this.indexStatus.snapshot_id === snapshot.id ? "semantic_index" : "semantic_wait"); await this.indexing; }
       let ready = false;
       if (await stat(this.cache(snapshot)).catch(() => null)) {
         const database = new DatabaseSync(this.cache(snapshot), { readOnly: true });
         try { ready = (database.prepare("SELECT value FROM meta WHERE key='ready'").get() as { value: string } | undefined)?.value === '1'; } finally { database.close(); }
       }
-      if (!ready) await this.buildIndex(snapshot);
+      if (!ready) { progress?.("semantic_index"); await this.buildIndex(snapshot); }
+      progress?.("semantic_search");
       return await this.request<SemanticHit[]>({ op: "semantic_search", cache_path: this.cache(snapshot), query, folder });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];

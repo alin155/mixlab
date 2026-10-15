@@ -74,6 +74,19 @@ export interface WorkOrigin {
   hot_id?: string;
   reference_title?: string;
 }
+export type MatchPhase = "snapshot_check" | "snapshot_sync" | "snapshot_ready" | "text_search" | "source_check" | "semantic_wait" | "semantic_index" | "semantic_search" | "complete" | "failed";
+export interface MatchActivity { phase: MatchPhase; snapshot_id?: string; snapshot_version?: string }
+export interface MatchProgress extends MatchActivity {
+  started_at: string;
+  updated_at: string;
+  total_sentences: number;
+  completed_sentences: number;
+  current_sentence: number;
+  exact_matches: number;
+  near_matches: number;
+  missing_matches: number;
+  semantic?: { running: boolean; done: number; total: number; error: string; snapshot_id: string; version: string };
+}
 export interface Work {
   id: string;
   title: string;
@@ -88,6 +101,7 @@ export interface Work {
   created_at: string;
   updated_at: string;
   error: string;
+  match_progress?: MatchProgress;
 }
 export interface FacePoint { at_ms: number; x: number; y?: number; confidence: number }
 export interface Composition {
