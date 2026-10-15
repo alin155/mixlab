@@ -22,6 +22,7 @@ const now = (): string => new Date().toISOString();
 const id = (prefix: string): string => `${prefix}-${randomUUID()}`;
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const fileExists = async (file: string): Promise<boolean> => !!(await stat(file).catch(() => null))?.isFile();
+type AccountStatus = { required: boolean; user: { user_id: string; username: string; tier: CutterAccountTier } | null };
 
 export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; test_account_tier?: CutterAccountTier; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient }
 export class SmartCore {
@@ -49,6 +50,7 @@ export class SmartCore {
   private timer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
   private session: { device_id: string; session_token: string; user_id: string; username: string } | null = null;
+  private authProbe: { root: string; token: string; pending: Promise<AccountStatus> } | null = null;
   private configWrites: Promise<unknown> = Promise.resolve();
   constructor(readonly options: CoreOptions) {
     this.store = new SmartStore(options.state_root);
@@ -180,13 +182,29 @@ export class SmartCore {
     };
     const operation = this.configWrites.then(action); this.configWrites = operation.catch(() => undefined); return operation;
   }
-  async authStatus(): Promise<{ required: boolean; user: { user_id: string; username: string; tier: CutterAccountTier } | null }> {
+  async authStatus(): Promise<AccountStatus> {
     if (this.options.auth_mode === "local_trusted") return { required: false, user: { user_id: "local-test", username: "本机测试", tier: this.options.test_account_tier ?? "pro" } };
     if (!this.settings.library_root) return { required: true, user: null };
     if (!this.session) return { required: true, user: null };
-    const status = await validateCutterSession(this.settings.library_root, { device_id: this.session.device_id, session_token: this.session.session_token, now: now(), touch: false }).catch(() => ({ ok: false as const, reason: "无法检查账号状态" }));
-    return status.ok && status.user.devices.some(device => device.device_id === this.session!.device_id && device.status === "active")
-      ? { required: false, user: { user_id: status.user.user_id, username: status.user.username, tier: await cutterAccountTier(this.settings.library_root, status.user.user_id) } } : { required: true, user: null };
+    const root = this.settings.library_root, session = this.session;
+    if (this.authProbe?.root !== root || this.authProbe.token !== session.session_token) {
+      const pending = (async (): Promise<AccountStatus> => {
+        // A missing/disconnected account store is an availability failure, not a revoked session.
+        await stat(path.join(root, ".mixlab-library/cutter-users/users.json"));
+        const status = await validateCutterSession(root, { device_id: session.device_id, session_token: session.session_token, now: now(), touch: false });
+        return status.ok && status.user.devices.some(device => device.device_id === session.device_id && device.status === "active")
+          ? { required: false, user: { user_id: status.user.user_id, username: status.user.username, tier: await cutterAccountTier(root, status.user.user_id) } } : { required: true, user: null };
+      })().catch(() => { throw new SmartError("library_unavailable", "公共库连接中断，暂时无法验证账号；请恢复 NAS 连接后重试，无需修改密码", 503); });
+      const probe = { root, token: session.session_token, pending }; this.authProbe = probe;
+      void pending.finally(() => { if (this.authProbe === probe) this.authProbe = null; }).catch(() => undefined);
+    }
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([this.authProbe.pending, new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new SmartError("library_unavailable", "公共库账号读取超时，请检查 NAS 连接后重试；当前登录凭证已保留", 503)), 10000);
+      })]);
+      return this.session?.session_token === session.session_token && this.settings.library_root === root ? result : this.authStatus();
+    } finally { if (timeout) clearTimeout(timeout); }
   }
   async requireSession(): Promise<void> {
     const auth = await this.authStatus();
@@ -210,9 +228,13 @@ export class SmartCore {
   }
   async login(body: Record<string, unknown>, register = false): Promise<unknown> {
     if (!this.settings.library_root) throw new SmartError("library_missing", "请先配置公共素材库");
+    const connection = await this.checkLibrary();
+    if (connection.status !== "published") throw new SmartError("library_unavailable", connection.message, 503);
     const input = { username: requireText(body.username, "用户名", 80), password: requireText(body.password, "密码", 256), device_id: this.settings.device_id, device_name: `MixLab 智能剪辑端 · ${os.hostname()}`, now: now() };
     if (register) return publicCutterUser(await registerCutterAccount(this.settings.library_root, input));
-    const result = await loginCutterAccount(this.settings.library_root, input);
+    const result = await loginCutterAccount(this.settings.library_root, input).catch(() => {
+      throw new SmartError("library_unavailable", "无法读取或保存公共库账号，请检查 NAS 连接后重试", 503);
+    });
     if (!result.ok) throw new SmartError("login_failed", result.reason, 401);
     this.session = { device_id: result.session.device_id, session_token: result.session.session_token, user_id: result.user.user_id, username: result.user.username };
     await this.vault.set("cutter_session", JSON.stringify(this.session));
@@ -541,10 +563,10 @@ export class SmartCore {
     void this.assemblies.drain().catch(() => undefined);
     if (this.closed || this.cacheClearing || this.configuring) return;
     if (this.controllers.size) {
-      const auth = await this.authStatus();
-      if (auth.required || auth.user?.tier !== "pro") for (const [jobId, controller] of this.controllers) {
+      const auth = await this.authStatus().catch(() => null);
+      if (!auth || auth.required || auth.user?.tier !== "pro") for (const [jobId, controller] of this.controllers) {
         const job = this.store.get<Job>("job", jobId);
-        if (job?.status === "running") { job.status = "paused"; job.error = "账号权限已变化，已保存检查点"; this.store.set("job", job); controller.abort(); }
+        if (job?.status === "running") { job.status = "paused"; job.error = auth ? "账号权限已变化，已保存检查点" : "公共库连接中断，已保存检查点"; this.store.set("job", job); controller.abort(); }
       }
     }
     void this.drain();

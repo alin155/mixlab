@@ -5,6 +5,7 @@ import { buildFfmpegCutPlan, buildFfmpegCoverImagePlan } from "../../ffmpeg-core
 import { listCutJobs, recoverInterruptedCutJobs } from "../../cutter-local/src/index.ts";
 import { runProcess } from "./process.ts";
 import { SmartError } from "./types.ts";
+import { appendUsageEvent } from "../../library-fs/src/usage-events.ts";
 import type { SmartCore } from "./core.ts";
 
 /** The mature cutter handler shares the authenticated local server; it never listens on another port. */
@@ -18,6 +19,7 @@ export class ManualCutter {
       release_cache_root: path.join(this.workspace, "cache"), auth_mode: core.options.auth_mode ?? "reviewed",
       trusted_user_id: "local-test", trusted_username: "本机测试", auto_run_cut_queue: true,
       source_video_cache_max_bytes: core.settings.source_cache_gb * 1024 ** 3,
+      usage_event_recorder: async (root, event) => { await appendUsageEvent(root, event, { update_summary_projection: false }); },
       cover_runner: async input => {
         if (this.closed) throw new SmartError("engine_stopped", "引擎正在退出");
         const controller = new AbortController(); this.controllers.add(controller);

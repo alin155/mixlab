@@ -55,6 +55,7 @@ export function SmartApp() {
   const activeRef = useRef<{ id: string; route: Route }>({ id: "", route });
   const outputDirty = useRef(false);
   const mounted = useRef(true);
+  const refreshing = useRef(false);
   const selected = work?.segments.find(segment => segment.id === selectedId) ?? work?.segments[0];
   const pending = work?.segments.filter(segment => segment.status !== "exact" && !segment.accepted) ?? [];
   const ready = work ? workReady(work) : false;
@@ -66,6 +67,8 @@ export function SmartApp() {
   function navigate(next: Route) { setRoute(next); location.hash = `/${next}`; setSearch(""); }
   function notify(message: string) { setToast(message); }
   async function refresh(): Promise<void> {
+    if (refreshing.current) return;
+    refreshing.current = true;
     try {
       const value = await request<AppState>("/smart/state");
       if (!mounted.current) return;
@@ -78,6 +81,7 @@ export function SmartApp() {
         if (!outputDirty.current) setOutput(current.settings);
       }
     } catch (failure) { if (mounted.current) setError((failure as Error).message); }
+    finally { refreshing.current = false; }
   }
   async function act<T>(operation: () => Promise<T>, message = ""): Promise<T | null> {
     setBusy(true);

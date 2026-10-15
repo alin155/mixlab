@@ -9,6 +9,7 @@ import { createAcceptanceLibrary } from '../../../scripts/smart-cutter/fixture.t
 import { SmartCore } from './core.ts';
 import { createSmartServer } from './http.ts';
 import { runProcess } from './process.ts';
+import { registerCutterAccount, approveCutterUser } from '../../library-fs/src/cutter-users.ts';
 
 test('real Admin and client APIs share reviewed accounts, tier changes, password reset and disable', { timeout: 60000 }, async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'mixlab-mac-accounts-'));
@@ -44,6 +45,16 @@ test('real Admin and client APIs share reviewed accounts, tier changes, password
   await api(clientUrl, '/smart/works', 'POST', { script: '现金流是企业的血液。' }, 403);
   const upgraded = await api(adminUrl, `/api/admin/cutter-users/${user.user_id}/tier`, 'POST', { tier: 'pro' });
   assert.equal(upgraded.ok, true); assert.equal(upgraded.data.tier, 'pro');
+  await rename(library, library + '.offline');
+  try {
+    const unavailable = await api(clientUrl, '/smart/state', 'GET', undefined, 503);
+    assert.equal(unavailable.error.code, 'library_unavailable');
+    await api(clientUrl, '/smart/auth/login', 'POST', { username, password }, 503);
+    await api(clientUrl, '/cutter/source-library', 'GET', undefined, 503);
+  } finally { await rename(library + '.offline', library); }
+  assert.equal((await api(clientUrl, '/smart/state')).auth.user.tier, 'pro');
+  await api(clientUrl, '/smart/auth/login', 'POST', { username, password: 'incorrect-password' }, 401);
+  await api(clientUrl, '/smart/auth/login', 'POST', { username, password });
   await api(clientUrl, '/smart/works', 'POST', { script: '现金流是企业的血液。' }, 201);
   await api(adminUrl, `/api/admin/cutter-users/${user.user_id}/tier`, 'POST', { tier: 'ordinary' });
   await api(clientUrl, '/smart/works', 'POST', { script: '现金流是企业的血液。' }, 403);
@@ -56,6 +67,30 @@ test('real Admin and client APIs share reviewed accounts, tier changes, password
   await api(adminUrl, `/api/admin/cutter-users/${user.user_id}/disable`, 'POST', {});
   await api(clientUrl, '/cutter/source-library', 'GET', undefined, 401);
   await api(clientUrl, '/smart/auth/login', 'POST', { username, password: newPassword }, 401);
+});
+
+test('blocked account reads time out without dropping credentials and recover on the same session', { timeout: 30000, skip: process.platform === 'win32' }, async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'mixlab-auth-timeout-'));
+  const library = await createAcceptanceLibrary(path.join(root, 'PublicLibrary'));
+  const core = new SmartCore({ state_root: path.join(root, 'state'), workspace_root: path.join(root, 'workspace'), ai: { python: 'missing-test-runtime', script: '', models: '' } });
+  await core.initialize(); await core.updateSettings({ library_root: library });
+  t.after(async () => { await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
+  const input = { username: 'timeout-account', password: 'MixLabTest12345', device_id: core.settings.device_id, device_name: 'test', now: new Date().toISOString() };
+  const user = await registerCutterAccount(library, input);
+  await approveCutterUser(library, { user_id: user.user_id, now: input.now });
+  await core.login(input);
+  const file = path.join(library, '.mixlab-library/cutter-users/users.json');
+  const value = await readFile(file, 'utf8');
+  await rename(file, file + '.original'); await runProcess('/usr/bin/mkfifo', [file]);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const blocked = core.authStatus();
+  t.mock.timers.tick(10000);
+  await assert.rejects(blocked, error => (error as { code?: string }).code === 'library_unavailable');
+  const recovery = core.authStatus();
+  await writeFile(file, value);
+  assert.equal((await recovery).user?.username, input.username);
+  await rm(file); await rename(file + '.original', file);
+  assert.equal((await core.authStatus()).required, false);
 });
 
 test('blocked volume reads return a connection timeout and recover without another blocking open', { timeout: 30000, skip: process.platform === 'win32' }, async t => {

@@ -66,6 +66,20 @@ function storedEvent(
   };
 }
 
+test("desktop event recording preserves analytics without opening a network SQLite summary", async () => {
+  const root = await makeRoot();
+  const summary = usageMetricsSummaryProjectionPath(root);
+  await appendUsageEvent(root, baseEvent({ event_type: 'search', query: '房地产' }), { update_summary_projection: false });
+  assert.equal(await fileExists(summary), false);
+  const projection = await readUsageMetricsProjection(root);
+  await writeUsageMetricsSummaryProjection({ library_root: root, signature: await readUsageEventsFileSignature(root), metrics: projection.metrics, generated_at: new Date().toISOString() });
+  const previous = await readFile(summary);
+  await appendUsageEvent(root, baseEvent({ event_type: 'view_transcript', source_video_id: 'V000001' }), { update_summary_projection: false });
+  assert.deepEqual(await readFile(summary), previous);
+  assert.equal(readUsageMetricsSummaryProjection({ library_root: root, signature: await readUsageEventsFileSignature(root) }), null);
+  assert.equal((await readUsageMetricsProjection(root)).metrics.event_store.valid_line_count, 2);
+});
+
 test("appendUsageEvent invalidates the admin usage metrics summary projection", async () => {
   const root = await makeRoot();
   const summaryPath = usageMetricsSummaryProjectionPath(root);
