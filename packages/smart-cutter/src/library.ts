@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
-  readCurrentCutterRelease, syncCutterReleaseCache,
+  readCurrentCutterRelease, syncCutterReleaseCache, readFastLocalCutterReleaseCacheStatus,
   searchCutterSourceLibrary, getCutterSourceVideoDetail, listCutterSourceFolders,
   type CutterSourceVideoDetail
 } from "../../library-fs/src/index.ts";
@@ -43,7 +43,10 @@ export class SmartLibrary {
     catch { throw new SmartError("library_unavailable", "无法读取公共素材发布快照，请检查连接和发布状态", 503); }
     const key = hash(`${config.library_root}:${release.release_version}`);
     const saved = this.store.get<LibrarySnapshot>("snapshot", key);
-    if (saved) return saved;
+    if (saved) {
+      const status = await readFastLocalCutterReleaseCacheStatus({ cache_root: saved.root });
+      if (status.cache_ready && status.active_release_version === saved.version) return saved;
+    }
     if (!this.syncing.has(key)) this.syncing.set(key, this.copySnapshot(config));
     try { return await this.syncing.get(key)!; } finally { this.syncing.delete(key); }
   }
@@ -53,18 +56,29 @@ export class SmartLibrary {
     await mkdir(incoming, { recursive: true });
     try {
       const result = await syncCutterReleaseCache({ source_library_root: config.library_root, cache_root: incoming, max_cached_releases: 1 });
+      if (!result.cache_ready || !result.active_release_version) throw new SmartError("snapshot_incomplete", "素材快照同步未完成，请重新同步公共库", 503);
       const id = hash(`${config.library_root}:${result.active_release_version}`);
       const root = path.join(base, id);
       try { await rename(incoming, root); }
       catch (error) {
         if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
-        await rm(incoming, { recursive: true, force: true });
+        const existing = await readFastLocalCutterReleaseCacheStatus({ cache_root: root });
+        if (existing.cache_ready && existing.active_release_version === result.active_release_version) {
+          await rm(incoming, { recursive: true, force: true });
+        } else {
+          await rename(root, path.join(base, `.invalid-${id}-${randomUUID()}`));
+          await rename(incoming, root);
+        }
       }
       const snapshot: LibrarySnapshot = { id, root, library_root: config.library_root,
         version: result.active_release_version, index_path: await currentCutterReleaseSearchIndexFilePath({ release_root: root }),
         ready_video_count: result.ready_video_count, created_at: new Date().toISOString() };
       return this.store.set("snapshot", snapshot);
-    } catch (error) { await rm(incoming, { recursive: true, force: true }); throw error; }
+    } catch (error) {
+      await rm(incoming, { recursive: true, force: true });
+      if (error instanceof SmartError) throw error;
+      throw new SmartError("snapshot_incomplete", "素材快照同步或校验未完成，请重新同步公共库后重试", 503);
+    }
   }
   getSnapshot(id: string): LibrarySnapshot {
     const value = this.store.get<LibrarySnapshot>("snapshot", id);
@@ -75,6 +89,10 @@ export class SmartLibrary {
     const key = `${snapshot.id}:${id}`;
     if (!this.details.has(key)) this.details.set(key, getCutterSourceVideoDetail({
       library_root: snapshot.library_root, release_root: snapshot.root, source_video_id: id
+    }).catch(error => {
+      this.details.delete(key);
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new SmartError("snapshot_incomplete", "作品锁定的素材快照不完整，请重新同步公共库后重试", 503);
+      throw error;
     }));
     const detail = await this.details.get(key)!;
     if (!detail) throw new SmartError("source_missing", "该源素材不在作品锁定的已发布快照中", 409);

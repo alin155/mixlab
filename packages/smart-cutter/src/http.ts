@@ -129,7 +129,9 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/workspace/open" && method === "POST") { await openPath(core.settings.workspace_root); json(response, 200, { opened: true }); return; }
       await core.requirePro();
       if (url.pathname === "/smart/library/index" && method === "POST") {
-        const snapshot = await core.library.snapshot(); background(core.ai.buildIndex(snapshot)); json(response, 202, { started: true }); return;
+        const input = await body(request);
+        const snapshot = input.snapshot_id === undefined ? await core.library.snapshot() : core.library.getSnapshot(requireText(input.snapshot_id, "素材快照", 80));
+        background(core.ai.buildIndex(snapshot)); json(response, 202, { started: true }); return;
       }
       if (url.pathname === "/smart/library/index/stop" && method === "POST") { core.ai.stopIndex(); json(response, 200, { stopped: true }); return; }
 

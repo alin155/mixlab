@@ -38,6 +38,16 @@ test('actual local embedding index and face detector; uncertain crop holds and m
   const snapshot = await core.library.snapshot(); await core.ai.buildIndex(snapshot);
   const matches = await core.ai.search(snapshot, '现金流是企业的血液。', '');
   assert.equal(matches[0]?.source_video_id, 'V000001'); assert.ok(matches[0]!.score > 0.85);
+  const vectorPath = path.join(snapshot.root, 'semantic-vectors.sqlite');
+  let vectors = new DatabaseSync(vectorPath);
+  const checkpoint = vectors.prepare('SELECT segment_id,vector FROM vectors ORDER BY segment_id LIMIT 1').get() as { segment_id: string; vector: Uint8Array };
+  vectors.prepare('DELETE FROM vectors WHERE segment_id<>?').run(checkpoint.segment_id);
+  vectors.exec("DELETE FROM meta WHERE key='ready'"); vectors.close();
+  core.ai.stopIndex(); await core.ai.buildIndex(snapshot);
+  vectors = new DatabaseSync(vectorPath, { readOnly: true });
+  assert.equal((vectors.prepare('SELECT COUNT(*) AS count FROM vectors').get() as { count: number }).count, 2);
+  assert.deepEqual((vectors.prepare('SELECT vector FROM vectors WHERE segment_id=?').get(checkpoint.segment_id) as { vector: Uint8Array }).vector, checkpoint.vector);
+  vectors.close();
   const faces = await core.ai.faces([0, 1000, 2000].map(at_ms => ({ file_path: path.join(repo, 'packages/smart-cutter/fixtures/synthetic-speaker.jpg'), at_ms })), 9 / 16);
   assert.equal(faces.usable, true, faces.reason); assert.ok(faces.points.every(point => point.x > 0.35 && point.x < 0.7));
   const work = core.createWork('现金流是企业的血液。'); await core.generatePlan(work.id);

@@ -1,4 +1,4 @@
-import { chmod, cp, copyFile, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
+import { chmod, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   CutterReleaseCurrentPointer,
@@ -263,6 +263,7 @@ async function releaseFilesReady(root: string, releaseVersion: string): Promise<
       releaseManifestPath(root, releaseVersion)
     );
     return Boolean(
+      manifest.release_version === releaseVersion &&
       manifest.search_index_path &&
       manifest.thumbnails_path &&
       manifest.transcript_pack_path &&
@@ -340,15 +341,15 @@ async function copyReleaseFiles(input: {
 }
 
 async function writeCachePointer(input: {
-  source_library_root: string;
   cache_root: string;
+  pointer: CutterReleaseCurrentPointer;
 }): Promise<void> {
-  const sourcePointerPath = currentReleasePointerPath(input.source_library_root);
   const targetPointerPath = currentReleasePointerPath(input.cache_root);
   const tempPointerPath = `${targetPointerPath}.tmp-${process.pid}-${Date.now()}`;
 
   await mkdir(path.dirname(targetPointerPath), { recursive: true });
-  await copyFile(sourcePointerPath, tempPointerPath);
+  // Publish the pointer captured before copying; the NAS may publish again meanwhile.
+  await writeFile(tempPointerPath, `${JSON.stringify(input.pointer, null, 2)}\n`, "utf8");
   await chmod(tempPointerPath, 0o666).catch(() => {
     // Best effort for filesystems that do not support chmod.
   });
@@ -388,7 +389,10 @@ async function syncCutterReleaseCacheOnce(
   if (copied) {
     invalidateLocalCacheSize(input.cache_root);
   }
-  await writeCachePointer(input);
+  if (!(await releaseFilesReady(input.cache_root, pointer.current_version))) {
+    throw new Error("Release 缓存文件不完整，请重新同步");
+  }
+  await writeCachePointer({ cache_root: input.cache_root, pointer });
   const prunedReleaseVersions = await pruneCachedReleases({
     cache_root: input.cache_root,
     active_release_version: pointer.current_version,
@@ -400,6 +404,9 @@ async function syncCutterReleaseCacheOnce(
     max_cached_releases: maxCachedReleases,
     include_cache_size: input.include_cache_size
   });
+  if (!status.cache_ready || status.active_release_version !== pointer.current_version) {
+    throw new Error("Release 缓存校验失败，请重新同步");
+  }
 
   return {
     ...status,

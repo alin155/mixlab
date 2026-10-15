@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, stat, utimes, writeFile } from "node:fs/promises";
+import fs, { mkdir, mkdtemp, readFile, stat, utimes, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -88,6 +89,29 @@ async function writeRelease(input: {
     }, null, 2)}\n`
   );
 }
+
+test("publishing during a cache copy cannot mix the copied release with a newer pointer", async t => {
+  const source = await makeRoot('mixlab-publication-race-source-');
+  const cache = await makeRoot('mixlab-publication-race-cache-');
+  t.after(async () => { await fs.rm(source, { recursive: true, force: true }); await fs.rm(cache, { recursive: true, force: true }); });
+  await writeRelease({ root: source, version: 'v000001' });
+  await writeRelease({ root: source, version: 'v000002' });
+  await writePointer(source, 'v000001');
+  const original = fs.cp;
+  const copying = t.mock.method(fs, 'cp', async (...args: Parameters<typeof fs.cp>) => {
+    await writePointer(source, 'v000002');
+    return original(...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    const result = await syncCutterReleaseCache({ source_library_root: source, cache_root: cache });
+    assert.equal(result.cache_ready, true);
+    assert.equal(result.active_release_version, 'v000001');
+    const localPointer = JSON.parse(await readFile(path.join(cache, '.mixlab-library/current-release.json'), 'utf8'));
+    assert.equal(localPointer.current_version, 'v000001');
+    assert.equal(JSON.parse(await readFile(path.join(source, '.mixlab-library/current-release.json'), 'utf8')).current_version, 'v000002');
+  } finally { copying.mock.restore(); syncBuiltinESMExports(); }
+});
 
 test("sync cutter release cache prunes old releases while keeping current and newest previous", async () => {
   const sourceRoot = await makeRoot("mixlab-release-source-");
