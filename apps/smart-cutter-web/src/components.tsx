@@ -34,7 +34,7 @@ export function Modal({ title, children, footer, onClose, wide }: { title: strin
   return <div className="modal-backdrop" onClick={onClose}><section ref={dialogRef} className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} onClick={event => event.stopPropagation()}><div className="modal-header"><h2>{title}</h2><button className="icon-btn" aria-label="关闭对话框" onClick={onClose}><IconX size={19} /></button></div><div className="modal-body">{children}</div>{footer && <div className="modal-foot">{footer}</div>}</section></div>;
 }
 export function MatchBadge({ status, accepted }: { status: string; accepted: boolean }) {
-  return <Badge tone={status === "exact" || accepted ? "green" : status === "gap" || status === "conflict" ? "red" : "amber"}>{status === "exact" ? "原文匹配" : status === "gap" ? "缺少片段" : status === "conflict" ? "事实冲突 · 需修改" : accepted ? "近似已确认" : "近似 · 待确认"}</Badge>;
+  return <Badge tone={status === "exact" || accepted ? "green" : status === "gap" || status === "conflict" ? "red" : "amber"}>{status === "exact" ? "原文匹配" : status === "pending" ? "待补充检索" : status === "gap" ? "缺少片段" : status === "conflict" ? "事实冲突 · 需修改" : accepted ? "近似已确认" : "近似 · 待确认"}</Badge>;
 }
 export function SourcePlayer({ workId, segmentId, candidate, className = "", children }: { workId: string; segmentId: number; candidate: Candidate | null; className?: string; children?: React.ReactNode }) {
   const video = useRef<HTMLVideoElement>(null);

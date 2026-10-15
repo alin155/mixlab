@@ -1,6 +1,6 @@
 export type Platform = "douyin";
 export type CreationMode = "manual" | "automatic";
-export type MatchKind = "exact" | "near" | "conflict" | "gap";
+export type MatchKind = "exact" | "near" | "conflict" | "gap" | "pending";
 export type CropMode = "follow" | "center" | "fit";
 export type JobStatus = "queued" | "running" | "paused" | "cancelled" | "failed" | "needs_review" | "done";
 
@@ -44,7 +44,7 @@ export interface Candidate {
   actual: string;
   begin_ms: number;
   end_ms: number;
-  kind: Exclude<MatchKind, "gap">;
+  kind: Exclude<MatchKind, "gap" | "pending">;
   score: number;
   width: number;
   height: number;
@@ -62,6 +62,7 @@ export interface WorkSegment {
   selected: Candidate | null;
   candidates: Candidate[];
   reason: string;
+  retrieval?: { mode: "ann" | "candidate"; complete: boolean; examined: number };
 }
 export interface WorkOrigin {
   trigger: CreationMode;
@@ -85,6 +86,7 @@ export interface MatchProgress extends MatchActivity {
   exact_matches: number;
   near_matches: number;
   missing_matches: number;
+  pending_matches?: number;
   semantic?: { running: boolean; done: number; total: number; error: string; snapshot_id: string; version: string };
 }
 export interface Work {

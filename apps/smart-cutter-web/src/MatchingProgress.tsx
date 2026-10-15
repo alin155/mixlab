@@ -32,7 +32,7 @@ export function MatchingProgress({ work }: { work: Work }) {
       <div className="matching-checkpoints">
         <div><IconCheck size={15} /><span>文案已拆分为 {progress.total_sentences} 句</span></div>
         <div>{progress.snapshot_id ? <IconCheck size={15} /> : <IconRefresh size={15} />}<span>{progress.snapshot_id ? `素材快照 ${progress.snapshot_version} 已就绪并锁定` : progress.phase === "snapshot_sync" ? `正在同步素材快照 ${progress.snapshot_version}，尚未完成` : "正在检查素材快照"}</span></div>
-        <div>{progress.completed_sentences === progress.total_sentences ? <IconCheck size={15} /> : <IconRefresh size={15} />}<span>已完成 {progress.completed_sentences} / {progress.total_sentences} 句：精确匹配 {progress.exact_matches}，近似待审 {progress.near_matches}，缺句待补 {progress.missing_matches}</span></div>
+        <div>{progress.completed_sentences === progress.total_sentences ? <IconCheck size={15} /> : <IconRefresh size={15} />}<span>已完成 {progress.completed_sentences} / {progress.total_sentences} 句：精确匹配 {progress.exact_matches}，近似待审 {progress.near_matches}，缺句待补 {progress.missing_matches}，待补充检索 {progress.pending_matches ?? 0}</span></div>
       </div>
       {indexing && <div className="matching-index">
         <div className="row between"><strong>{progress.phase === "semantic_wait" ? "等待中的索引任务" : "当前作品的语义索引"}{semantic?.version ? ` · ${semantic.version}` : ""}</strong><span>{percent === null ? "正在读取数量" : `${percent}%`}</span></div>
@@ -41,6 +41,6 @@ export function MatchingProgress({ work }: { work: Work }) {
         <p className="small muted">这里的百分比仅代表该索引任务，不代表整条作品的匹配进度。</p>
       </div>}
     </>}
-    <p className="module-note">进度来自本机引擎，每 2 秒刷新。匹配在后台继续，可以返回作品列表；关闭窗口仍在后台运行，明确退出应用会中断匹配。当前阶段没有可靠的剩余时间估计。</p>
+    <p className="module-note">使用本机已同步并锁定的素材版本；需要新发布素材时，可先在公共素材库同步。进度定期刷新，返回作品列表不停止匹配；明确退出应用会中断匹配。</p>
   </section>;
 }

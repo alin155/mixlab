@@ -295,6 +295,7 @@ export class SmartCore {
   async generatePlan(workId: string): Promise<Work> {
     if (this.planning.has(workId)) throw new SmartError("plan_busy", "该作品正在匹配", 409);
     const work = this.work(workId); const revision = work.revision;
+    const pinned = work.snapshot_id || work.match_progress?.snapshot_id;
     const script = splitScript(work.script);
     work.match_progress = { phase: "snapshot_check", started_at: now(), updated_at: now(), total_sentences: script.length,
       completed_sentences: 0, current_sentence: 0, exact_matches: 0, near_matches: 0, missing_matches: 0 };
@@ -305,7 +306,7 @@ export class SmartCore {
         current.match_progress = { ...current.match_progress!, ...progress, updated_at: now() };
         delete current.match_progress.semantic;
         this.saveWork(current);
-      });
+      }, pinned);
       const current = this.work(workId); if (current.revision !== revision) throw new SmartError("plan_revision", "文案版本已变化，请重新匹配", 409);
       current.snapshot_id = plan.snapshot.id; current.segments = plan.segments;
       current.status = workReady(current) ? "ready" : "review"; this.runtime.library_ready = true;

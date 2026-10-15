@@ -25,26 +25,28 @@ async function until(check: () => boolean) {
   assert.fail('progress did not reach expected stage');
 }
 
-test('HTTP work progress exposes completed sentences and live index counts without confusing snapshot versions', async t => {
+test('interactive matching reports progress and completes while another snapshot index is still running', async t => {
   const core = await fixture(t);
   const snapshot = await core.library.snapshot();
   const other: LibrarySnapshot = { ...snapshot, id: 'older-snapshot', version: 'v000000' };
   core.store.set('snapshot', other);
   let finishIndex!: () => void;
   const indexGate = new Promise<void>(resolve => { finishIndex = resolve; });
+  let finishSearch!: () => void;
+  const searchGate = new Promise<void>(resolve => { finishSearch = resolve; });
   let updateIndex!: (value: { done: number; total: number }) => void;
   t.mock.method(core.ai, 'request', async (payload: Record<string, unknown>, progress?: typeof updateIndex) => {
     if (payload.op === 'build_index' && core.ai.indexStatus.snapshot_id === other.id) {
       updateIndex = progress!; progress!({ done: 5, total: 20 }); await indexGate; return { done: 20, total: 20 };
     }
-    if (payload.op === 'build_index') { progress?.({ done: 2, total: 2 }); return { done: 2, total: 2 }; }
-    return [];
+    if (payload.op === 'hybrid_search') { await searchGate; return { hits: [], mode: 'candidate', complete: false, examined: 0, encoded: 0, reused: 0, query_ms: 1 }; }
+    assert.fail('interactive matching must not start another full index');
   });
   const indexTask = core.ai.buildIndex(other);
   const work = core.createWork('现金流是企业的血液。这个句子不存在于验收素材。');
   const planning = core.generatePlan(work.id);
-  t.after(async () => { finishIndex(); await indexTask; await planning.catch(() => {}); });
-  await until(() => core.work(work.id).match_progress?.phase === 'semantic_wait');
+  t.after(async () => { finishSearch(); finishIndex(); await indexTask; await planning.catch(() => {}); });
+  await until(() => core.work(work.id).match_progress?.phase === 'semantic_search');
   const server = createSmartServer(core, 'progress-fixture');
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); });
@@ -57,14 +59,18 @@ test('HTTP work progress exposes completed sentences and live index counts witho
   assert.equal(waiting.semantic?.version, 'v000000'); assert.equal(waiting.semantic?.done, 5);
   updateIndex({ done: 13, total: 20 });
   assert.equal((await read()).match_progress?.semantic?.done, 13);
-  finishIndex(); await indexTask;
+  finishSearch();
   const result = await planning;
+  assert.equal(core.ai.indexStatus.running, true, 'the work must finish before the unrelated index');
   assert.equal(result.match_progress?.phase, 'complete');
   assert.equal(result.match_progress?.completed_sentences, 2);
-  assert.equal(result.match_progress?.missing_matches, 1);
+  assert.equal(result.match_progress?.missing_matches, 0);
+  assert.equal(result.match_progress?.pending_matches, 1);
+  assert.equal(result.segments[1]?.status, 'pending');
   assert.equal(result.status, 'review');
   core.updateWork(work.id, { script: '新的文案。' });
   assert.equal(core.work(work.id).match_progress, undefined);
+  finishIndex(); await indexTask;
 });
 
 test('failed matching preserves the actual last completed counts and a terminal phase', async t => {

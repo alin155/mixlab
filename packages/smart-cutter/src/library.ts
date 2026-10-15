@@ -16,7 +16,8 @@ export interface LibrarySnapshot {
   id: string; root: string; library_root: string; version: string;
   index_path: string; ready_video_count: number; created_at: string;
 }
-export interface SemanticHit { source_video_id: string; segment_id: string; begin_ms: number; end_ms: number; text: string; score: number }
+export interface SemanticHit { source_video_id: string; segment_id: string; segment_ids?: string[]; begin_ms: number; end_ms: number; text: string; score: number }
+export interface SemanticSearchResult { hits: SemanticHit[]; mode: "ann" | "candidate"; complete: boolean; examined: number; query_ms: number; encoded: number; reused: number }
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex").slice(0, 32);
 
 export function classifyMatch(target: string, actual: string): "exact" | "near" | "conflict" {
@@ -34,7 +35,7 @@ export class SmartLibrary {
   private syncing = new Map<string, Promise<LibrarySnapshot>>();
   private details = new Map<string, Promise<CutterSourceVideoDetail | null>>();
   constructor(private store: SmartStore, private settings: () => Settings,
-    private semantic?: (snapshot: LibrarySnapshot, query: string, folder: string, progress?: (phase: MatchPhase) => void) => Promise<SemanticHit[]>) {}
+    private semantic?: (snapshot: LibrarySnapshot, query: string, folder: string, progress?: (phase: MatchPhase) => void) => Promise<SemanticSearchResult>) {}
   async snapshot(progress?: (value: MatchActivity) => void): Promise<LibrarySnapshot> {
     progress?.({ phase: "snapshot_check" });
     const config = this.settings();
@@ -91,6 +92,19 @@ export class SmartLibrary {
     const value = this.store.get<LibrarySnapshot>("snapshot", id);
     if (!value) throw new SmartError("snapshot_missing", "该作品的素材快照不可用，请重新生成匹配方案", 409);
     return value;
+  }
+  private async availableSnapshot(progress?: (value: MatchActivity) => void, pinned?: string): Promise<LibrarySnapshot> {
+    const config = this.settings();
+    const snapshots = pinned ? [this.getSnapshot(pinned)] : this.store.list<LibrarySnapshot>("snapshot").filter(item => item.library_root === config.library_root).sort((a, b) => b.version.localeCompare(a.version));
+    for (const snapshot of snapshots) {
+      if (snapshot.library_root !== config.library_root) continue;
+      const status = await readFastLocalCutterReleaseCacheStatus({ cache_root: snapshot.root });
+      if (status.cache_ready && status.active_release_version === snapshot.version) {
+        progress?.({ phase: "snapshot_ready", snapshot_id: snapshot.id, snapshot_version: snapshot.version }); return snapshot;
+      }
+    }
+    if (pinned) throw new SmartError("snapshot_incomplete", "作品锁定的素材快照不完整，请先同步公共素材库", 503);
+    return this.snapshot(progress);
   }
   async source(snapshot: LibrarySnapshot, id: string): Promise<CutterSourceVideoDetail> {
     const key = `${snapshot.id}:${id}`;
@@ -149,7 +163,7 @@ export class SmartLibrary {
     return { ...candidate, id: hash(`${snapshot.id}:${detail.source_video_id}:${begin}:${finish}:${actual}`), actual,
       begin_ms: begin, end_ms: finish, kind: classifyMatch(target, actual) };
   }
-  async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target, progress?: (phase: MatchPhase) => void): Promise<Candidate[]> {
+  async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target, progress?: (phase: MatchPhase) => void, coverage?: (value: WorkSegment["retrieval"]) => void): Promise<Candidate[]> {
     progress?.("text_search");
     const result = await searchCutterSourceLibrary({ library_root: snapshot.library_root,
       release_root: snapshot.root, query, limit: 8, ...(folder ? { source_folder_name: folder } : {}) });
@@ -167,26 +181,30 @@ export class SmartLibrary {
       }
     }
     if (!candidates.some(item => item.kind === "exact") && this.semantic) {
-      const hits = await this.semantic(snapshot, query, folder, progress);
+      const result = await this.semantic(snapshot, query, folder, progress);
+      coverage?.({ mode: result.mode, complete: result.complete, examined: result.examined });
       progress?.("source_check");
-      for (const hit of hits) {
-        const item = await this.candidate(snapshot, target, hit.source_video_id, [hit.segment_id], hit.score);
+      for (const hit of result.hits) {
+        const item = await this.candidate(snapshot, target, hit.source_video_id, hit.segment_ids ?? [hit.segment_id], hit.score);
         if (item) candidates.push(item);
       }
     }
     const unique = [...new Map(candidates.map(item => [item.id, item])).values()];
     return unique.sort((a, b) => Number(b.kind === "exact") - Number(a.kind === "exact") || b.score - a.score).slice(0, 12);
   }
-  async plan(script: string[], folder: string, progress?: (value: Partial<MatchProgress>) => void): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
-    const snapshot = await this.snapshot(progress); const segments: WorkSegment[] = [];
+  async plan(script: string[], folder: string, progress?: (value: Partial<MatchProgress>) => void, pinned?: string): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
+    const snapshot = await this.availableSnapshot(progress, pinned); const segments: WorkSegment[] = [];
     for (const [index, target] of script.entries()) {
       progress?.({ current_sentence: index + 1 });
-      const candidates = await this.candidates(snapshot, target, folder, target, phase => progress?.({ phase }));
+      let retrieval: WorkSegment["retrieval"];
+      const candidates = await this.candidates(snapshot, target, folder, target, phase => progress?.({ phase }), value => { retrieval = value; });
       const selected = candidates.find(candidate => candidate.kind === "exact") ?? candidates.find(candidate => candidate.kind === "near") ?? null;
-      segments.push({ id: index + 1, target, actual: selected?.actual ?? "", status: selected?.kind ?? "gap",
-        accepted: false, selected, candidates, reason: selected?.kind === "near" ? "实际原声表达不同，请确认" : selected ? "" : "没有找到可直接使用的原声片段" });
+      const incomplete = retrieval?.complete === false;
+      segments.push({ id: index + 1, target, actual: selected?.actual ?? "", status: selected?.kind ?? (incomplete ? "pending" : "gap"),
+        accepted: false, selected, candidates, ...(retrieval ? { retrieval } : {}), reason: selected?.kind === "near" ? "实际原声表达不同，请确认" : selected ? "" : incomplete ? "快速候选检索尚未找到可用原声，全库语义索引未就绪；可手动补选，或索引就绪后重新匹配。" : "没有找到可直接使用的原声片段" });
       progress?.({ completed_sentences: segments.length, exact_matches: segments.filter(item => item.status === "exact").length,
-        near_matches: segments.filter(item => item.status === "near").length, missing_matches: segments.filter(item => item.status === "gap").length });
+        near_matches: segments.filter(item => item.status === "near").length, missing_matches: segments.filter(item => item.status === "gap").length,
+        pending_matches: segments.filter(item => item.status === "pending").length });
     }
     progress?.({ phase: "complete" });
     return { snapshot, segments };

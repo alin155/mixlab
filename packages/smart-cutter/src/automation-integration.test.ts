@@ -37,7 +37,7 @@ test('actual local embedding index and face detector; uncertain crop holds and m
   await core.updateSettings({ library_root: library });
   const snapshot = await core.library.snapshot(); await core.ai.buildIndex(snapshot);
   const matches = await core.ai.search(snapshot, '现金流是企业的血液。', '');
-  assert.equal(matches[0]?.source_video_id, 'V000001'); assert.ok(matches[0]!.score > 0.85);
+  assert.equal(matches.hits[0]?.source_video_id, 'V000001'); assert.ok(matches.hits[0]!.score > 0.85);
   const vectorPath = path.join(snapshot.root, 'semantic-vectors.sqlite');
   let vectors = new DatabaseSync(vectorPath);
   const checkpoint = vectors.prepare('SELECT segment_id,vector FROM vectors ORDER BY segment_id LIMIT 1').get() as { segment_id: string; vector: Uint8Array };
