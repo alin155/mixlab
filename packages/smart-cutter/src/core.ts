@@ -276,15 +276,18 @@ export class SmartCore {
     const work = this.work(workId);
     if (work.status === "matching") throw new SmartError("work_busy", "匹配中，请等待完成后修改", 409);
     if (body.script !== undefined) {
-      work.script = requireText(body.script, "文案");
-      if (splitScript(work.script).length > 200) throw new SmartError("script_length", "单条作品最多 200 句");
-      work.title = automaticTitle(work.script); work.segments = []; work.snapshot_id = ""; work.status = "draft"; delete work.match_progress;
+      const script = requireText(body.script, "文案");
+      if (splitScript(script).length > 200) throw new SmartError("script_length", "单条作品最多 200 句");
+      if (script !== work.script) { work.script = script; work.title = automaticTitle(script); work.segments = []; work.snapshot_id = ""; work.status = "draft"; delete work.match_progress; }
     }
     if (body.settings !== undefined) {
       const before = work.settings.source_folder;
       const teacher = work.settings.teacher;
       work.settings = this.outputSettings(work.settings, record(body.settings));
-      if (before !== work.settings.source_folder || teacher !== work.settings.teacher) { work.segments = []; work.snapshot_id = ""; work.status = "draft"; delete work.match_progress; }
+      if (before !== work.settings.source_folder || teacher !== work.settings.teacher) {
+        if (before !== work.settings.source_folder) work.snapshot_id = "";
+        work.segments = []; work.status = "draft"; delete work.match_progress;
+      }
       else if (work.segments.length) work.status = workReady(work) ? "ready" : "review";
     }
     work.revision++; work.error = ""; return this.saveWork(work);
@@ -448,12 +451,16 @@ export class SmartCore {
       input, teacher, sec_user_id: resolved.sec_user_id, unique_id: resolved.unique_id, followers: resolved.followers,
       group: typeof body.group === "string" ? body.group.trim().slice(0, 80) : "默认分组", enabled: true, last_checked_at: "", last_error: "", cursor: "0" });
   }
-  updateAccount(accountId: string, body: Record<string, unknown>): Account {
+  async updateAccount(accountId: string, body: Record<string, unknown>): Promise<Account> {
     const account = this.store.get<Account>("account", accountId); if (!account) throw new SmartError("account_missing", "关注账号不存在", 404);
     if (body.enabled !== undefined) { if (typeof body.enabled !== "boolean") throw new SmartError("account_input", "监控开关无效"); account.enabled = body.enabled; }
     if (body.name !== undefined) account.name = requireText(body.name, "账号备注", 80);
     if (body.group !== undefined) account.group = requireText(body.group, "分组", 80);
-    if (body.teacher !== undefined) account.teacher = requireText(body.teacher, "绑定老师", 80);
+    if (body.teacher !== undefined) {
+      const teacher = requireText(body.teacher, "绑定老师", 80);
+      if (!(await this.library.teachers()).some(item => item.name === teacher)) throw new SmartError("teacher_missing", "请选择公共素材库中的老师", 409);
+      account.teacher = teacher;
+    }
     return this.store.set("account", account);
   }
   saveRule(body: Record<string, unknown>, ruleId?: string): Rule {

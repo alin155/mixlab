@@ -94,6 +94,11 @@ test('teacher identity constrains matching, candidate selection, bulk review, su
   await assert.rejects(core.generatePlan(work.id), /选择目标老师/);
   core.updateWork(work.id, { settings: { teacher: '验收讲师' } }); await core.generatePlan(work.id);
   const plan = core.work(work.id), snapshot = core.library.getSnapshot(plan.snapshot_id);
+  const legacy = structuredClone(plan); delete legacy.settings.teacher; core.store.set('work', legacy);
+  const rebound = core.updateWork(work.id, { script: legacy.script, settings: { teacher: '验收讲师' } });
+  assert.equal(rebound.snapshot_id, snapshot.id, 'choosing a teacher on an old work reuses its pinned index');
+  assert.equal(rebound.segments.length, 0);
+  core.store.set('work', plan);
   assert.deepEqual((await core.library.teachers()).map(item => item.name), ['验收讲师']);
   const other = core.createWork('现金流是企业的血液。', undefined, '另一位老师');
   await assert.rejects(core.generatePlan(other.id), /没有可用视频/);

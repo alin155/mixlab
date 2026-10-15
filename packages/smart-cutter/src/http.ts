@@ -161,7 +161,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       }
       if (url.pathname === "/smart/accounts" && method === "POST") { json(response, 201, await core.addAccount(await body(request))); return; }
       const accountRoute = /^\/smart\/accounts\/([^/]+)$/.exec(url.pathname);
-      if (accountRoute && method === "PATCH") { json(response, 200, core.updateAccount(decodeURIComponent(accountRoute[1]!), await body(request))); return; }
+      if (accountRoute && method === "PATCH") { json(response, 200, await core.updateAccount(decodeURIComponent(accountRoute[1]!), await body(request))); return; }
       if (accountRoute && method === "DELETE") { core.store.remove("account", decodeURIComponent(accountRoute[1]!)); json(response, 200, { removed: true }); return; }
       if (url.pathname === "/smart/monitor/run" && method === "POST") { background(core.monitorRun()); json(response, 202, { started: true }); return; }
       if (url.pathname === "/smart/rules" && method === "POST") { json(response, 201, core.saveRule(await body(request))); return; }
