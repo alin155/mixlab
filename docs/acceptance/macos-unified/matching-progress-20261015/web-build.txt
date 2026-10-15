@@ -1,0 +1,17 @@
+
+> build:smart-cutter-web
+> npm run build -w @mixlab/smart-cutter-web
+
+
+> @mixlab/smart-cutter-web@0.1.0 build
+> tsc -p tsconfig.json --noEmit && vite build
+
+vite v6.4.2 building for production...
+transforming...
+✓ 6293 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.37 kB │ gzip:  0.29 kB
+dist/assets/index-B4kTRtvK.css   97.27 kB │ gzip: 18.25 kB
+dist/assets/index-XsKmthOC.js   328.60 kB │ gzip: 96.22 kB
+✓ built in 1.52s

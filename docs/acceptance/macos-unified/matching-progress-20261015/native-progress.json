@@ -1,0 +1,36 @@
+{
+  "engine": "http://127.0.0.1:54595",
+  "semantic": {
+    "running": true,
+    "done": 453120,
+    "total": 1292565,
+    "error": "",
+    "snapshot_id": "325976de68d0922ea99085c9a78f4cb2"
+  },
+  "keys_preserved": true,
+  "vectors": {
+    "done": 453120,
+    "sample": "29dbc089888c56e5268e4ad96cdeb476151f56fc8a647f179951ca4d1fe95a16"
+  },
+  "works": [
+    {
+      "id": "W-18005556-2a96-44b1-9d4b-37d96ea894aa",
+      "status": "matching",
+      "script_chars": 129,
+      "progress": {
+        "phase": "snapshot_sync",
+        "started_at": "2026-10-15T11:37:42.504Z",
+        "updated_at": "2026-10-15T11:37:43.694Z",
+        "total_sentences": 3,
+        "completed_sentences": 0,
+        "current_sentence": 0,
+        "exact_matches": 0,
+        "near_matches": 0,
+        "missing_matches": 0,
+        "snapshot_version": "v012714"
+      },
+      "error": ""
+    }
+  ],
+  "sample_preserved": true
+}
