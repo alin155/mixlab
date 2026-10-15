@@ -53,3 +53,7 @@
 5. 以上完成后用同一套业务用例在 Windows 验证 UNC、权限、文件锁、DPAPI、托盘、安装与升级。正式发布前做备份与分批升级评审。
 
 资源来源与版本已锁定：[Node 官方下载](https://nodejs.org/en/download/archive/v24.21.0)、[Python standalone 官方发布](https://github.com/astral-sh/python-build-standalone/releases/tag/20260924)、[FFmpeg 官方源码与校验说明](https://ffmpeg.org/download.html)。
+
+## 2026-10-13 连接复验
+
+独立 Mac 应用已重新打开并显示设置页。用户保存的公共库路径为 `/Volumes/MixLab/PublicLibrary`，初次连接失败时 Mac 根共享未挂载。经访达重新连接 `smb://192.168.1.27/MixLab`，候选应用“检查公共库连接”成功显示 `v012694` / 12,805 条已发布素材，截图为 `mac-nas-connected-20261013.png`。此结果证明候选应用可读取真实发布元数据，原锁屏/访问阻塞不再作为本次连接复验的阻塞项；真实剪辑师登录、素材列表/播放/剪切与 Key 调用仍未完成。

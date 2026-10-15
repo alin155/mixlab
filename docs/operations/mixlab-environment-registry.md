@@ -490,3 +490,14 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - Mac 本地验收库：候选状态目录下 `acceptance-library`；隔离包内媒体测试目录：工作树 `.local-dev/macos/packaged-media-*`。这些不是生产 NAS 账号或媒体。
 - Mac 原生 UI 测试被锁屏停止；真实账号登录、NAS 网络卷宗授权及 TikHub/DashScope 设置待用户配合。未更改正式 NAS 账号、部署、素材或 Windows 最新下载指针。
 - 证据：`docs/acceptance/macos-unified/implementation-report.md`、`packaged-media.json`、`nas-readonly.json`、`network-permission.json`、`artifact.json`。随机本机引擎端口只属于各次进程，不记为固定服务地址。
+
+## 2026-10-13 Mac 候选连接复验
+
+- 候选应用已打开；本机引擎就绪，保存的真实公共库路径为 `/Volumes/MixLab/PublicLibrary`。访达重新连接 `smb://192.168.1.27/MixLab` 恢复根挂载后，应用的公共库检查成功返回 `v012694` / 12,805 条。
+- 当前证据覆盖应用读取发布元数据；真实账号登录、媒体流水线和第三方 Key 尚待验收。界面证据：`docs/acceptance/macos-unified/mac-nas-connected-20261013.png`。
+
+## 2026-10-15 Mac NAS 检索与账号恢复
+
+- 本机候选更新为 `93eb03d`，版本仍为 `0.2.0`；应用路径、本机状态目录和设备 ID 沿用原候选。旧包保留在交付目录 `rollback-97b58c3`，原 zip 不覆盖。
+- 现场发现 SMB 根挂载消失、ENOTCONN 和服务端断开重连；停止旧候选后通过访达恢复 `smb://192.168.1.27/MixLab`。当前真实公共库仍为 `/Volumes/MixLab/PublicLibrary`，发布计数 12,805。
+- 修复认证可用性分类、读取超时与客户端同步写 NAS 统计 SQLite。原生真实 NAS 检索“房地产”已显示 20 条结果、完整文案及预览，同一 Pro 账号重新登录成功。详见 `docs/acceptance/macos-unified/nas-recovery-20261015.md`。
