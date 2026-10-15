@@ -32,7 +32,7 @@ test("real published source -> immutable plan -> playable MP4/SRT/provenance, wi
   t.after(async () => { await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
   await core.updateSettings({ library_root: library });
   const input = "现金流是企业的血液。把事情做对，再把规模做大。";
-  const work = core.createWork(input);
+  const work = core.createWork(input, undefined, '验收讲师');
   assert.throws(() => core.enqueue(work.id), /审核/);
   await core.generatePlan(work.id);
   const plan = core.work(work.id);
@@ -88,7 +88,7 @@ test('paused render survives application restart and reuses a verified clip chec
   let core = new SmartCore(options); await core.initialize();
   t.after(async () => { await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
   await core.updateSettings({ library_root: library });
-  const work = core.createWork('现金流是企业的血液。把事情做对，再把规模做大。'.repeat(4));
+  const work = core.createWork('现金流是企业的血液。把事情做对，再把规模做大。'.repeat(4), undefined, '验收讲师');
   await core.generatePlan(work.id); core.updateWork(work.id, { settings: { crop_mode: 'fit', subtitles: false } });
   const job = core.enqueue(work.id);
   const deadline = Date.now() + 30_000;

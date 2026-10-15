@@ -41,7 +41,7 @@ test('cold retrieval never builds the full corpus and incomplete misses cannot b
   assert.equal(result.hits[0]?.source_video_id, 'V000001');
   const empty = await core.ai.search(snapshot, '现金流是企业血液', '不存在的文件夹');
   assert.equal(empty.hits.length, 0);
-  const work = await core.generatePlan(core.createWork('ZZZXQW。').id);
+  const work = await core.generatePlan(core.createWork('ZZZXQW。', undefined, '验收讲师').id);
   assert.equal(work.segments[0]?.status, 'pending'); assert.equal(workReady(work), false);
   assert.throws(() => core.selectSegment(work.id, 1, { revision: work.revision, accepted: true }), /不能通过/);
 });
@@ -104,7 +104,7 @@ test('matching reuses a validated local snapshot while explicit sync discovers t
   const { core, library } = await fixture(t);
   const pinned = await core.library.snapshot();
   await publishUnchangedContent(library);
-  const work = await core.generatePlan(core.createWork('现金流是企业的血液。').id);
+  const work = await core.generatePlan(core.createWork('现金流是企业的血液。', undefined, '验收讲师').id);
   assert.equal(work.snapshot_id, pinned.id);
   const latest = await core.library.snapshot(); assert.notEqual(latest.id, pinned.id);
   const resumed = await core.generatePlan(work.id); assert.equal(resumed.snapshot_id, pinned.id);

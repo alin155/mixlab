@@ -60,7 +60,7 @@ test("shared approved accounts, old-account compatibility, real manual cut/recut
   await setCutterAccountTier(library,registered.user_id,"pro");
   await ensureCutterSessionForDevice(library,{user_id:registered.user_id,device_id:core.settings.device_id,now:new Date().toISOString()});
   assert.equal(await cutterAccountTier(library,registered.user_id),"pro","legacy account mutations cannot discard Pro entitlement");
-  const work=core.createWork("现金流是企业的血液。"); await core.generatePlan(work.id);
+  const work=core.createWork("现金流是企业的血液。", undefined, '验收讲师'); await core.generatePlan(work.id);
   const planned=core.work(work.id);
   await api(`/smart/works/${work.id}/segments/1/supplement`,"POST",{revision:planned.revision,source_video_id:"E000001",range:{start:0,end:0,from:0,to:10},begin_ms:0,end_ms:1700},400);
   const updated=await api<{revision:number}>(`/smart/works/${work.id}/segments/1/supplement`,"POST",{revision:planned.revision,source_video_id:"V000001",range:{start:0,end:0,from:0,to:10},begin_ms:0,end_ms:1700});

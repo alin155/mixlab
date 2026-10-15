@@ -43,7 +43,7 @@ test('interactive matching reports progress and completes while another snapshot
     assert.fail('interactive matching must not start another full index');
   });
   const indexTask = core.ai.buildIndex(other);
-  const work = core.createWork('现金流是企业的血液。这个句子不存在于验收素材。');
+  const work = core.createWork('现金流是企业的血液。这个句子不存在于验收素材。', undefined, '验收讲师');
   const planning = core.generatePlan(work.id);
   t.after(async () => { finishSearch(); finishIndex(); await indexTask; await planning.catch(() => {}); });
   await until(() => core.work(work.id).match_progress?.phase === 'semantic_search');
@@ -76,7 +76,7 @@ test('interactive matching reports progress and completes while another snapshot
 test('failed matching preserves the actual last completed counts and a terminal phase', async t => {
   const core = await fixture(t);
   t.mock.method(core.ai, 'search', async () => { throw new Error('fixture semantic failure'); });
-  const work = core.createWork('现金流是企业的血液。找不到的另一句。');
+  const work = core.createWork('现金流是企业的血液。找不到的另一句。', undefined, '验收讲师');
   await assert.rejects(core.generatePlan(work.id), /fixture semantic failure/);
   const result = core.work(work.id);
   assert.equal(result.status, 'failed'); assert.equal(result.match_progress?.phase, 'failed');

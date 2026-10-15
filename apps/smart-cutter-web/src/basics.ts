@@ -95,7 +95,7 @@ export function useBasics(authenticated: boolean, route: string, notify: (messag
     if (!authenticated) { localWindow.current = 200; jobWindow.current = 200; setProjectId(""); setRange(null); setSearch(emptySearch); setFolders([]); setLocals({ local_clip_count: 0, clips: [] }); setProjects([]); setJobs({ job_count: 0, jobs: [] }); setDetail(null); setLibrary({ available_video_count: 0, videos: [] }); return; }
     void act(async () => { await refresh(); await loadLibrary(); const result = await cutterRequest<{ source_folders: SourceFolderOption[] }>("/cutter/source-folders"); if (alive.current && authenticated) setFolders(result.source_folders); });
   }, [authenticated]);
-  useEffect(() => { if (authenticated) void act(() => loadLibrary()); }, [folder]);
+  useEffect(() => { if (authenticated) { setSearched(""); setSearch(emptySearch); setDetail(null); setRange(null); void act(() => loadLibrary()); } }, [folder]);
   useEffect(() => {
     if (!authenticated || !["retrieve", "tasks", "local", "projects"].includes(route)) return;
     const timer = setInterval(() => { void refresh().catch(error => setFailure((error as Error).message)); }, 3000); return () => clearInterval(timer);

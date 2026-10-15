@@ -10,7 +10,7 @@ import {
 import { currentCutterReleaseSearchIndexFilePath } from "../../library-fs/src/cutter-release.ts";
 import { normalizeTranscriptText } from "../../protocol/src/index.ts";
 import { SmartStore } from "./store.ts";
-import { SmartError, type Candidate, type Settings, type WorkSegment, type MatchActivity, type MatchPhase, type MatchProgress } from "./types.ts";
+import { SmartError, type Candidate, type Settings, type Work, type WorkSegment, type MatchActivity, type MatchPhase, type MatchProgress } from "./types.ts";
 
 export interface LibrarySnapshot {
   id: string; root: string; library_root: string; version: string;
@@ -34,6 +34,7 @@ export function classifyMatch(target: string, actual: string): "exact" | "near" 
 export class SmartLibrary {
   private syncing = new Map<string, Promise<LibrarySnapshot>>();
   private details = new Map<string, Promise<CutterSourceVideoDetail | null>>();
+  private teacherRows = new Map<string, Array<{ source_video_id: string; lecturer: string; source_folder_name: string }>>();
   constructor(private store: SmartStore, private settings: () => Settings,
     private semantic?: (snapshot: LibrarySnapshot, query: string, folder: string, progress?: (phase: MatchPhase) => void) => Promise<SemanticSearchResult>) {}
   async snapshot(progress?: (value: MatchActivity) => void): Promise<LibrarySnapshot> {
@@ -123,6 +124,45 @@ export class SmartLibrary {
     const snapshot = await this.snapshot();
     return listCutterSourceFolders({ library_root: snapshot.library_root, release_root: snapshot.root });
   }
+  private rows(snapshot: LibrarySnapshot) {
+    if (!this.teacherRows.has(snapshot.id)) {
+      const db = new DatabaseSync(path.join(snapshot.root, '.mixlab-library', 'releases', snapshot.version, 'catalog.sqlite'), { readOnly: true });
+      try { this.teacherRows.set(snapshot.id, db.prepare('SELECT source_video_id,lecturer,source_folder_name FROM source_videos').all() as Array<{ source_video_id: string; lecturer: string; source_folder_name: string }>); }
+      finally { db.close(); }
+    }
+    return this.teacherRows.get(snapshot.id)!;
+  }
+  private teacherName(row: { lecturer: string; source_folder_name: string }): string {
+    return row.lecturer?.trim() || this.settings().teacher_folder_bindings?.[row.source_folder_name] || row.source_folder_name;
+  }
+  async teachers() {
+    const snapshot = await this.availableSnapshot();
+    const groups = new Map<string, { name: string; count: number; folders: string[]; from_folder: boolean }>();
+    for (const row of this.rows(snapshot)) {
+      const name = this.teacherName(row); if (!name) continue;
+      const group = groups.get(name) ?? { name, count: 0, folders: [], from_folder: false };
+      group.count++; group.from_folder ||= !row.lecturer?.trim();
+      if (!group.folders.includes(row.source_folder_name)) group.folders.push(row.source_folder_name);
+      groups.set(name, group);
+    }
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  }
+  private teacherFolders(snapshot: LibrarySnapshot, teacher: string): string[] {
+    if (!teacher.trim()) throw new SmartError("teacher_required", "请先选择目标老师，再匹配该老师的素材", 409);
+    const folders = [...new Set(this.rows(snapshot).filter(row => this.teacherName(row) === teacher).map(row => row.source_folder_name))];
+    if (!folders.length) throw new SmartError("teacher_missing", "该老师在作品素材快照中没有可用视频，请选择老师后重新匹配", 409);
+    return folders;
+  }
+  assertTeacher(snapshot: LibrarySnapshot, teacher: string, candidate: Candidate): void {
+    this.teacherFolders(snapshot, teacher);
+    const row = this.rows(snapshot).find(item => item.source_video_id === candidate.source_video_id);
+    if (!row || this.teacherName(row) !== teacher) throw new SmartError("teacher_scope", "不能使用其他老师的视频，请在目标老师范围内重新匹配或补选", 409);
+  }
+  assertWorkTeacher(work: Work): void {
+    if (!work.settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配，旧方案不能跨老师导出", 409);
+    const snapshot = this.getSnapshot(work.snapshot_id);
+    for (const segment of work.segments) if (segment.selected) this.assertTeacher(snapshot, work.settings.teacher, segment.selected);
+  }
   private async candidate(snapshot: LibrarySnapshot, target: string, sourceId: string,
     ids: string[], score: number): Promise<Candidate | null> {
     const detail = await this.source(snapshot, sourceId);
@@ -163,7 +203,16 @@ export class SmartLibrary {
     return { ...candidate, id: hash(`${snapshot.id}:${detail.source_video_id}:${begin}:${finish}:${actual}`), actual,
       begin_ms: begin, end_ms: finish, kind: classifyMatch(target, actual) };
   }
-  async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target, progress?: (phase: MatchPhase) => void, coverage?: (value: WorkSegment["retrieval"]) => void): Promise<Candidate[]> {
+  async candidates(snapshot: LibrarySnapshot, target: string, folder: string, query = target, progress?: (phase: MatchPhase) => void, coverage?: (value: WorkSegment["retrieval"]) => void, teacher = ""): Promise<Candidate[]> {
+    if (!teacher) return this.folderCandidates(snapshot, target, folder, query, progress, coverage);
+    const folders = this.teacherFolders(snapshot, teacher).filter(item => !folder || item === folder);
+    if (!folders.length) throw new SmartError("teacher_scope", "当前素材范围不属于目标老师，请重新选择素材范围", 409);
+    const candidates: Candidate[] = [], results: NonNullable<WorkSegment["retrieval"]>[] = [];
+    for (const name of folders) candidates.push(...await this.folderCandidates(snapshot, target, name, query, progress, value => { if (value) results.push(value); }, teacher));
+    if (results.length) coverage?.({ mode: results.every(item => item.mode === "ann") ? "ann" : "candidate", complete: results.every(item => item.complete), examined: results.reduce((sum, item) => sum + item.examined, 0) });
+    return candidates.sort((a, b) => Number(b.kind === "exact") - Number(a.kind === "exact") || b.score - a.score).slice(0, 12);
+  }
+  private async folderCandidates(snapshot: LibrarySnapshot, target: string, folder: string, query: string, progress?: (phase: MatchPhase) => void, coverage?: (value: WorkSegment["retrieval"]) => void, teacher = ""): Promise<Candidate[]> {
     progress?.("text_search");
     const result = await searchCutterSourceLibrary({ library_root: snapshot.library_root,
       release_root: snapshot.root, query, limit: 8, ...(folder ? { source_folder_name: folder } : {}) });
@@ -177,7 +226,7 @@ export class SmartLibrary {
       }
       for (const ids of spans.values()) {
         const item = await this.candidate(snapshot, target, group.source_video_id, ids, 1);
-        if (item) candidates.push(item);
+        if (item && (!teacher || this.rows(snapshot).some(row => row.source_video_id === item.source_video_id && this.teacherName(row) === teacher))) candidates.push(item);
       }
     }
     if (!candidates.some(item => item.kind === "exact") && this.semantic) {
@@ -186,18 +235,19 @@ export class SmartLibrary {
       progress?.("source_check");
       for (const hit of result.hits) {
         const item = await this.candidate(snapshot, target, hit.source_video_id, hit.segment_ids ?? [hit.segment_id], hit.score);
-        if (item) candidates.push(item);
+        if (item && (!teacher || this.rows(snapshot).some(row => row.source_video_id === item.source_video_id && this.teacherName(row) === teacher))) candidates.push(item);
       }
     }
     const unique = [...new Map(candidates.map(item => [item.id, item])).values()];
     return unique.sort((a, b) => Number(b.kind === "exact") - Number(a.kind === "exact") || b.score - a.score).slice(0, 12);
   }
-  async plan(script: string[], folder: string, progress?: (value: Partial<MatchProgress>) => void, pinned?: string): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
+  async plan(script: string[], folder: string, progress?: (value: Partial<MatchProgress>) => void, pinned?: string, teacher = ""): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
     const snapshot = await this.availableSnapshot(progress, pinned); const segments: WorkSegment[] = [];
+    this.teacherFolders(snapshot, teacher);
     for (const [index, target] of script.entries()) {
       progress?.({ current_sentence: index + 1 });
       let retrieval: WorkSegment["retrieval"];
-      const candidates = await this.candidates(snapshot, target, folder, target, phase => progress?.({ phase }), value => { retrieval = value; });
+      const candidates = await this.candidates(snapshot, target, folder, target, phase => progress?.({ phase }), value => { retrieval = value; }, teacher);
       const selected = candidates.find(candidate => candidate.kind === "exact") ?? candidates.find(candidate => candidate.kind === "near") ?? null;
       const incomplete = retrieval?.complete === false;
       segments.push({ id: index + 1, target, actual: selected?.actual ?? "", status: selected?.kind ?? (incomplete ? "pending" : "gap"),

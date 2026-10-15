@@ -14,10 +14,13 @@ import { SmartMedia, ensureSpace } from "./media.ts";
 import { downloadPublicFile } from "./download.ts";
 import { runProcess } from "./process.ts";
 import { SmartError, type HotVideo, type Settings } from "./types.ts";
+import { ownedPath } from "./workspace.ts";
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
 export class ReferenceProcessor {
   private running = new Map<string, Promise<HotVideo>>();
+  private downloads = new Map<string, Promise<HotVideo>>();
+  private playing = new Map<string, number>();
   constructor(private store: SmartStore, private vault: CredentialVault, private provider: TikHubClient,
     private media: SmartMedia, private settings: () => Settings, private asr?: DashScopeTemporaryFileHttpClient) {}
   process(id: string): Promise<HotVideo> {
@@ -30,7 +33,51 @@ export class ReferenceProcessor {
     }
     return this.running.get(id)!;
   }
-  get active(): number { return this.running.size; }
+  get active(): number { return this.running.size + this.downloads.size; }
+  private folder(id: string): string { return path.join("cache", "references", createHash("sha256").update(id).digest("hex").slice(0, 32)); }
+  async videoPath(id: string): Promise<string | null> {
+    if (!this.store.get<HotVideo>("hot", id)) throw new SmartError("hot_missing", "未找到参考视频", 404);
+    const file = await ownedPath(this.settings().workspace_root, path.join(this.folder(id), "reference.mp4"));
+    const info = await stat(file).catch(() => null);
+    return info?.isFile() && info.size > 0 ? file : null;
+  }
+  holdVideo(id: string): () => void {
+    this.playing.set(id, (this.playing.get(id) ?? 0) + 1);
+    return () => { const count = (this.playing.get(id) ?? 1) - 1; if (count) this.playing.set(id, count); else this.playing.delete(id); };
+  }
+  download(id: string): Promise<HotVideo> {
+    const hot = this.store.get<HotVideo>("hot", id);
+    if (!hot) throw new SmartError("hot_missing", "未找到参考视频", 404);
+    if (!this.downloads.has(id)) {
+      const operation = this.loadVideo(hot).finally(() => this.downloads.delete(id));
+      this.downloads.set(id, operation);
+    }
+    return this.downloads.get(id)!;
+  }
+  private async loadVideo(hot: HotVideo): Promise<HotVideo> {
+    const existing = await this.videoPath(hot.id);
+    if (existing) { hot.local_video_path = existing; return this.store.set("hot", hot); }
+    const config = this.settings(), previous = hot.status;
+    const file = await ownedPath(config.workspace_root, path.join(this.folder(hot.id), "reference.mp4"));
+    const persist = () => { hot.updated_at = new Date().toISOString(); this.store.set("hot", hot); };
+    try {
+      hot.status = "downloading"; hot.error = ""; persist();
+      await mkdir(path.dirname(file), { recursive: true });
+      await this.reserveCache(config.max_download_mb * 1024 * 1024 * 1.2);
+      await ensureSpace(path.dirname(file), config.max_download_mb * 1024 * 1024 + 128 * 1024 * 1024);
+      const detail = await this.provider.video(hot.platform, hot.video_id);
+      hot.download_url = detail.download_url;
+      await downloadPublicFile(detail.download_url, file, config.max_download_mb * 1024 * 1024);
+      try { const info = await this.media.probe(file); hot.duration_ms = info.duration_ms; }
+      catch (error) { await rm(file, { force: true }); throw error; }
+      hot.local_video_path = file;
+      hot.status = hot.transcript ? "ready" : previous === "failed" ? "failed" : "discovered";
+      persist(); return hot;
+    } catch (error) {
+      hot.status = "failed"; hot.error = this.vault.redact(error instanceof SmartError ? error.message : "原视频下载失败，请检查网络后重试");
+      persist(); throw error;
+    }
+  }
   private async reserveCache(bytes: number): Promise<void> {
     const config = this.settings(), root = path.join(config.workspace_root, 'cache', 'references');
     await mkdir(root, { recursive: true });
@@ -49,7 +96,7 @@ export class ReferenceProcessor {
     let used = records.reduce((sum, item) => sum + item.bytes, 0);
     for (const record of records.sort((a, b) => a.time - b.time)) {
       if (used + bytes <= max) break;
-      if (this.running.has(record.id)) continue;
+      if (this.running.has(record.id) || this.downloads.has(record.id) || this.playing.has(record.id)) continue;
       for (const file of record.files) await rm(file, { force: true });
       used -= record.bytes;
       const hot = this.store.get<HotVideo>('hot', record.id)!;
@@ -67,18 +114,9 @@ export class ReferenceProcessor {
     const persist = () => { hot.updated_at = new Date().toISOString(); this.store.set("hot", hot); };
     try {
       const video = path.join(folder, "reference.mp4"), audio = path.join(folder, "speech.mp3");
-      if (!(await stat(video).catch(() => null))?.isFile()) {
-        hot.status = "downloading"; hot.error = ""; persist();
-        await this.reserveCache(config.max_download_mb * 1024 * 1024 * 1.2);
-        await ensureSpace(folder, config.max_download_mb * 1024 * 1024 + 128 * 1024 * 1024);
-        const detail = await this.provider.video(hot.platform, hot.video_id);
-        hot.download_url = detail.download_url;
-        await downloadPublicFile(detail.download_url, video, config.max_download_mb * 1024 * 1024);
-        const info = await this.media.probe(video);
-        if (!info.audio) throw new SmartError("reference_audio_missing", "参考视频没有音轨，不能提取口播文案", 422);
-        hot.duration_ms = info.duration_ms;
-      }
-      hot.local_video_path = video; persist();
+      hot = await this.download(hot.id);
+      const info = await this.media.probe(video);
+      if (!info.audio) throw new SmartError("reference_audio_missing", "参考视频没有音轨，不能提取口播文案", 422);
       if (!(await stat(audio).catch(() => null))?.isFile()) {
         await runProcess(this.media.ffmpeg.ffmpeg_path, ["-hide_banner", "-nostdin", "-y", "-i", video, "-vn", "-ar", "16000", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", audio]);
       }

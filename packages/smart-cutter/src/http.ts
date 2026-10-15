@@ -84,7 +84,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/settings") {
         if (method === "GET") { json(response, 200, core.publicSettings()); return; }
         if (method === "PUT") { const input = await body(request);
-          if (["tikhub_api_key", "asr_api_key", "clear_tikhub_key", "clear_asr_key", "monitor_platform", "monitor_interval_minutes", "request_limit_per_day", "max_download_mb", "asr_model", "reference_cache_gb", "default_source_folder"].some(key => Object.hasOwn(input, key))) await core.requirePro();
+          if (["tikhub_api_key", "asr_api_key", "clear_tikhub_key", "clear_asr_key", "monitor_platform", "monitor_interval_minutes", "request_limit_per_day", "max_download_mb", "asr_model", "reference_cache_gb", "default_source_folder", "teacher_folder_bindings"].some(key => Object.hasOwn(input, key))) await core.requirePro();
           json(response, 200, await core.updateSettings(input)); return; }
       }
       if (url.pathname === "/smart/auth/login" && method === "POST") { json(response, 200, await core.login(await body(request))); return; }
@@ -128,6 +128,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/library/folders" && method === "GET") { json(response, 200, await core.library.folders()); return; }
       if (url.pathname === "/smart/workspace/open" && method === "POST") { await openPath(core.settings.workspace_root); json(response, 200, { opened: true }); return; }
       await core.requirePro();
+      if (url.pathname === "/smart/library/teachers" && method === "GET") { json(response, 200, await core.library.teachers()); return; }
       if (url.pathname === "/smart/library/index" && method === "POST") {
         const input = await body(request);
         const snapshot = input.snapshot_id === undefined ? await core.library.snapshot() : core.library.getSnapshot(requireText(input.snapshot_id, "素材快照", 80));
@@ -135,16 +136,17 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       }
       if (url.pathname === "/smart/library/index/stop" && method === "POST") { core.ai.stopIndex(); json(response, 200, { stopped: true }); return; }
 
-      if (url.pathname === "/smart/works" && method === "POST") { const input = await body(request); json(response, 201, core.createWork(requireText(input.script, "文案"))); return; }
+      if (url.pathname === "/smart/works" && method === "POST") { const input = await body(request); json(response, 201, core.createWork(requireText(input.script, "文案"), undefined, requireText(input.teacher, "目标老师", 80))); return; }
       const supplement = /^\/smart\/works\/([^/]+)\/segments\/(\d+)\/supplement$/.exec(url.pathname);
       if (supplement && method === "POST") { json(response, 200, await core.supplementSegment(decodeURIComponent(supplement[1]!), Number(supplement[2]), await body(request))); return; }
-      const workRoute = /^\/smart\/works\/([^/]+)(?:\/(plan|render|search))?$/.exec(url.pathname);
+      const workRoute = /^\/smart\/works\/([^/]+)(?:\/(plan|render|search|accept-all))?$/.exec(url.pathname);
       if (workRoute) {
         const workId = decodeURIComponent(workRoute[1]!);
         if (!workRoute[2] && method === "GET") { json(response, 200, core.work(workId)); return; }
         if (!workRoute[2] && method === "PATCH") { json(response, 200, core.updateWork(workId, await body(request))); return; }
-        if (workRoute[2] === "plan" && method === "POST") { background(core.generatePlan(workId)); json(response, 202, { started: true }); return; }
+        if (workRoute[2] === "plan" && method === "POST") { if (!core.work(workId).settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配", 409); background(core.generatePlan(workId)); json(response, 202, { started: true }); return; }
         if (workRoute[2] === "render" && method === "POST") { json(response, 202, core.enqueue(workId)); return; }
+        if (workRoute[2] === "accept-all" && method === "POST") { json(response, 200, core.acceptAllSegments(workId, await body(request))); return; }
         if (workRoute[2] === "search" && method === "POST") { const input = await body(request); json(response, 200, await core.searchSegment(workId, Number(input.segment_id), requireText(input.query, "搜索内容", 500))); return; }
       }
       const segmentRoute = /^\/smart\/works\/([^/]+)\/segments\/(\d+)$/.exec(url.pathname);
@@ -166,9 +168,18 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       const ruleRoute = /^\/smart\/rules\/([^/]+)$/.exec(url.pathname);
       if (ruleRoute && method === "PATCH") { json(response, 200, core.saveRule(await body(request), decodeURIComponent(ruleRoute[1]!))); return; }
       if (ruleRoute && method === "DELETE") { core.store.remove("rule", decodeURIComponent(ruleRoute[1]!)); json(response, 200, { removed: true }); return; }
-      const hotRoute = /^\/smart\/hot\/([^/]+)\/(transcribe|import)$/.exec(url.pathname);
+      const hotVideo = /^\/smart\/media\/hot\/([^/]+)\/video$/.exec(url.pathname);
+      if (hotVideo && ["GET", "HEAD"].includes(method ?? "")) {
+        const hotId = decodeURIComponent(hotVideo[1]!);
+        const release = core.references.holdVideo(hotId); response.once("close", release);
+        const file = await core.references.videoPath(hotId);
+        if (!file) throw new SmartError("reference_missing", "原视频尚未下载或缓存已清理，请重新加载原视频", 404);
+        await streamFile(request, response, file, "video/mp4"); return;
+      }
+      const hotRoute = /^\/smart\/hot\/([^/]+)\/(transcribe|import|download)$/.exec(url.pathname);
       if (hotRoute && method === "POST") {
         const hotId = decodeURIComponent(hotRoute[1]!);
+        if (hotRoute[2] === "download") { background(core.references.download(hotId)); json(response, 202, { started: true }); return; }
         if (hotRoute[2] === "import") { json(response, 201, await core.importHot(hotId)); return; }
         const input = await body(request);
         if (input.force_resubmit === true) {

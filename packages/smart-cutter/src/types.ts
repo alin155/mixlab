@@ -15,6 +15,7 @@ export interface Settings {
   max_download_mb: number;
   asr_model: string;
   default_source_folder: string;
+  teacher_folder_bindings?: Record<string, string>;
   device_id: string;
 }
 export interface OutputSettings {
@@ -26,6 +27,7 @@ export interface OutputSettings {
   subtitle_size: number;
   normalize_audio: boolean;
   source_folder: string;
+  teacher?: string;
   same_lecturer: boolean;
 }
 export const DEFAULT_OUTPUT: OutputSettings = {
@@ -144,6 +146,7 @@ export interface Account {
   last_checked_at: string;
   last_error: string;
   cursor: string;
+  teacher?: string;
 }
 export interface VideoStats {
   likes: number | null;
@@ -219,7 +222,7 @@ export function automaticTitle(script: string): string {
   return chars.length > 22 ? `${chars.slice(0, 21).join("")}…` : first;
 }
 export function workReady(work: Work): boolean {
-  return work.segments.length > 0 && work.segments.every(segment =>
+  return !!work.settings.teacher && work.segments.length > 0 && work.segments.every(segment =>
     segment.selected !== null && !!segment.actual.trim() &&
     (segment.status === "exact" || segment.status === "near" && segment.accepted)
   );

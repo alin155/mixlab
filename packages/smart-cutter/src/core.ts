@@ -161,6 +161,13 @@ export class SmartCore {
       if (body.source_cache_gb !== undefined) next.source_cache_gb = boundedNumber(body.source_cache_gb, 1, 500, "素材缓存上限");
       if (body.max_download_mb !== undefined) next.max_download_mb = boundedNumber(body.max_download_mb, 10, 10_000, "单视频下载上限");
       if (body.default_source_folder !== undefined) next.default_source_folder = String(body.default_source_folder).trim();
+      if (body.teacher_folder_bindings !== undefined) {
+        if (!body.teacher_folder_bindings || typeof body.teacher_folder_bindings !== "object" || Array.isArray(body.teacher_folder_bindings)) throw new SmartError("teacher_bindings", "老师与素材文件夹的对应关系无效");
+        const bindings = record(body.teacher_folder_bindings);
+        if (Object.keys(bindings).length > 200 || Object.entries(bindings).some(([folder, teacher]) => !folder.trim() || folder.length > 200 || typeof teacher !== "string" || !teacher.trim() || teacher.length > 80)) throw new SmartError("teacher_bindings", "老师与素材文件夹的对应关系无效");
+        if (JSON.stringify(bindings) !== JSON.stringify(this.settings.teacher_folder_bindings || {}) && (this.planning.size || this.rendering || this.monitoring)) throw new SmartError("runtime_busy", "请等待匹配和本机任务完成后调整老师归属", 409);
+        next.teacher_folder_bindings = Object.fromEntries(Object.entries(bindings).map(([folder, teacher]) => [folder, (teacher as string).trim()]));
+      }
       if (body.asr_model !== undefined) next.asr_model = requireText(body.asr_model, "转写模型", 80);
       const moved = next.workspace_root !== this.settings.workspace_root || next.library_root !== this.settings.library_root;
       if (moved && (this.activeStreams || this.rendering || this.planning.size || this.references.active || this.monitoring || this.store.listStatus("assembly", ["queued", "running", "paused", "failed"]).length || await this.manual.busy())) throw new SmartError("runtime_busy", "正在处理作品或参考视频，请等待或暂停任务后修改目录", 409);
@@ -258,11 +265,11 @@ export class SmartCore {
     return work;
   }
   private saveWork(work: Work): Work { work.updated_at = now(); return this.store.set("work", work); }
-  createWork(script: string, origin: WorkOrigin = { trigger: "manual", kind: "manual_script" }): Work {
+  createWork(script: string, origin: WorkOrigin = { trigger: "manual", kind: "manual_script" }, teacher = ""): Work {
     const content = requireText(script, "文案");
     if (splitScript(content).length > 200) throw new SmartError("script_length", "首版单条作品支持最多 200 句，请拆分长文案");
     const work: Work = { id: id("W"), title: automaticTitle(content), script: content, original_script: content, origin,
-      revision: 1, status: "draft", snapshot_id: "", segments: [], settings: { ...DEFAULT_OUTPUT, source_folder: this.settings.default_source_folder }, created_at: now(), updated_at: now(), error: "" };
+      revision: 1, status: "draft", snapshot_id: "", segments: [], settings: { ...DEFAULT_OUTPUT, teacher, source_folder: this.settings.default_source_folder }, created_at: now(), updated_at: now(), error: "" };
     return this.saveWork(work);
   }
   updateWork(workId: string, body: Record<string, unknown>): Work {
@@ -275,8 +282,9 @@ export class SmartCore {
     }
     if (body.settings !== undefined) {
       const before = work.settings.source_folder;
+      const teacher = work.settings.teacher;
       work.settings = this.outputSettings(work.settings, record(body.settings));
-      if (before !== work.settings.source_folder) { work.segments = []; work.snapshot_id = ""; work.status = "draft"; }
+      if (before !== work.settings.source_folder || teacher !== work.settings.teacher) { work.segments = []; work.snapshot_id = ""; work.status = "draft"; delete work.match_progress; }
       else if (work.segments.length) work.status = workReady(work) ? "ready" : "review";
     }
     work.revision++; work.error = ""; return this.saveWork(work);
@@ -290,11 +298,14 @@ export class SmartCore {
     if (body.subtitle_style !== undefined) { if (!["white", "yellow"].includes(String(body.subtitle_style))) throw new SmartError("subtitle_style", "字幕样式无效"); next.subtitle_style = body.subtitle_style as OutputSettings["subtitle_style"]; }
     for (const field of ["subtitles", "normalize_audio", "same_lecturer"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
     if (body.source_folder !== undefined) next.source_folder = String(body.source_folder).trim();
+    if (body.teacher !== undefined) next.teacher = requireText(body.teacher, "目标老师", 80);
+    next.same_lecturer = true;
     return next;
   }
   async generatePlan(workId: string): Promise<Work> {
     if (this.planning.has(workId)) throw new SmartError("plan_busy", "该作品正在匹配", 409);
     const work = this.work(workId); const revision = work.revision;
+    if (!work.settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师，再生成匹配方案", 409);
     const pinned = work.snapshot_id || work.match_progress?.snapshot_id;
     const script = splitScript(work.script);
     work.match_progress = { phase: "snapshot_check", started_at: now(), updated_at: now(), total_sentences: script.length,
@@ -306,7 +317,7 @@ export class SmartCore {
         current.match_progress = { ...current.match_progress!, ...progress, updated_at: now() };
         delete current.match_progress.semantic;
         this.saveWork(current);
-      }, pinned);
+      }, pinned, work.settings.teacher);
       const current = this.work(workId); if (current.revision !== revision) throw new SmartError("plan_revision", "文案版本已变化，请重新匹配", 409);
       current.snapshot_id = plan.snapshot.id; current.segments = plan.segments;
       current.status = workReady(current) ? "ready" : "review"; this.runtime.library_ready = true;
@@ -323,12 +334,25 @@ export class SmartCore {
     if (typeof body.candidate_id === "string") {
       const candidate = segment.candidates.find(item => item.id === body.candidate_id);
       if (!candidate) throw new SmartError("candidate_missing", "只能选择本方案中已验证的真实片段", 409);
+      this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
       segment.selected = candidate; segment.actual = candidate.actual; segment.status = classifyMatch(segment.target, candidate.actual); segment.accepted = false;
     }
     if (body.accepted === true) {
       if (segment.status !== "near" || !segment.selected) throw new SmartError("confirmation_invalid", "缺句或关键事实冲突不能通过近似确认，请修改文案或更换片段", 409);
+      this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected);
       segment.accepted = true;
     }
+    work.revision++; work.status = workReady(work) ? "ready" : "review"; work.error = "";
+    return this.saveWork(work);
+  }
+  acceptAllSegments(workId: string, body: Record<string, unknown>): Work {
+    const work = this.work(workId);
+    if (work.status === "matching" || work.status === "rendering") throw new SmartError("work_busy", "请等待当前处理完成", 409);
+    if (body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请刷新后操作", 409);
+    const pending = work.segments.filter(segment => segment.status === "near" && segment.selected && segment.actual.trim() && !segment.accepted);
+    if (!pending.length) return work;
+    for (const segment of pending) this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected!);
+    for (const segment of pending) segment.accepted = true;
     work.revision++; work.status = workReady(work) ? "ready" : "review"; work.error = "";
     return this.saveWork(work);
   }
@@ -336,7 +360,8 @@ export class SmartCore {
     const work = this.work(workId), segment = work.segments.find(item => item.id === segmentId);
     if (!segment) throw new SmartError("segment_missing", "句子不存在", 404);
     const revision = work.revision;
-    const candidates = await this.library.candidates(this.library.getSnapshot(work.snapshot_id), segment.target, work.settings.source_folder, requireText(query, "搜索内容", 500));
+    if (!work.settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配", 409);
+    const candidates = await this.library.candidates(this.library.getSnapshot(work.snapshot_id), segment.target, work.settings.source_folder, requireText(query, "搜索内容", 500), undefined, undefined, work.settings.teacher);
     const current = this.work(workId); if (current.revision !== revision) throw new SmartError("plan_revision", "方案已更新，请重新搜索", 409);
     const target = current.segments.find(item => item.id === segmentId)!;
     target.candidates = [...new Map([...target.candidates, ...candidates].map(candidate => [candidate.id, candidate])).values()].slice(-30);
@@ -347,6 +372,7 @@ export class SmartCore {
     if (!segment) throw new SmartError("segment_missing", "句子不存在", 404);
     if (work.status === "matching" || body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请返回审核后重新补选", 409);
     const candidate = await this.library.selectedRange(this.library.getSnapshot(work.snapshot_id), segment.target, body);
+    this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
     const current = this.work(workId);
     if (current.revision !== body.revision) throw new SmartError("plan_revision", "方案已更新，请重新补选", 409);
     const target = current.segments.find(item => item.id === segmentId)!;
@@ -357,8 +383,9 @@ export class SmartCore {
   }
   enqueue(workId: string): Job {
     const work = this.work(workId);
+    if (!work.settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配", 409);
     if (!workReady(work)) throw new SmartError("review_required", "仍有缺句、近似未确认或事实冲突，请完成审核", 409);
-    if (work.settings.same_lecturer && new Set(work.segments.map(segment => segment.selected!.lecturer)).size > 1) throw new SmartError("lecturer_review", "作品混用了不同讲师，请确认素材范围或关闭同讲师约束", 409);
+    this.library.assertWorkTeacher(work);
     if (!this.runtime.ffmpeg_ready) throw new SmartError("media_runtime", "本机媒体引擎未就绪", 503);
     const existing = this.store.list<Job>("job").find(job => job.work_id === work.id && job.revision === work.revision && !["cancelled", "failed", "needs_review"].includes(job.status));
     if (existing) return existing;
@@ -374,6 +401,7 @@ export class SmartCore {
     else if (["resume", "retry"].includes(action) && ["paused", "failed", "needs_review"].includes(job.status)) {
       if (this.controllers.has(jobId)) throw new SmartError("job_stopping", "任务正在保存检查点，请稍后继续", 409);
       const work = this.work(job.work_id); if (!workReady(work)) throw new SmartError("review_required", "请先完成作品审核", 409);
+      this.library.assertWorkTeacher(work);
       if (work.revision !== job.revision) { job.work = structuredClone(work); job.revision = work.revision; job.completed_clips = []; job.compositions = {}; }
       job.status = "queued"; job.error = "";
     } else throw new SmartError("job_action", "当前任务状态不能执行此操作", 409);
@@ -395,7 +423,7 @@ export class SmartCore {
         const current = job; current.status = "running";
         const update = () => { if (controller.signal.aborted) return; current.updated_at = now(); this.store.set("job", current); };
         try {
-          await this.requirePro(); update(); await this.media.render(current, controller.signal, update);
+          await this.requirePro(); this.library.assertWorkTeacher(current.work); update(); await this.media.render(current, controller.signal, update);
           current.status = "done"; current.error = ""; update();
           const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = "done"; this.saveWork(work); }
         } catch (error) {
@@ -412,10 +440,12 @@ export class SmartCore {
     if (this.store.count("account") >= 100) throw new SmartError("account_limit", "当前版本最多监控 100 个账号");
     const platform = validatePlatform(body.platform ?? this.settings.monitor_platform);
     const input = requireText(body.input, "主页链接或账号 ID", 2048);
+    const teacher = requireText(body.teacher, "绑定老师", 80);
+    if (!(await this.library.teachers()).some(item => item.name === teacher)) throw new SmartError("teacher_missing", "请选择公共素材库中的老师", 409);
     const resolved = await this.provider.resolveAccount(platform, input);
     if (this.store.list<Account>("account").some(account => account.platform === platform && (resolved.sec_user_id ? account.sec_user_id === resolved.sec_user_id : account.unique_id === resolved.unique_id))) throw new SmartError("account_duplicate", "该账号已在监控列表中", 409);
     return this.store.set("account", { id: id("A"), platform, name: typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 80) : resolved.name || resolved.unique_id || resolved.sec_user_id,
-      input, sec_user_id: resolved.sec_user_id, unique_id: resolved.unique_id, followers: resolved.followers,
+      input, teacher, sec_user_id: resolved.sec_user_id, unique_id: resolved.unique_id, followers: resolved.followers,
       group: typeof body.group === "string" ? body.group.trim().slice(0, 80) : "默认分组", enabled: true, last_checked_at: "", last_error: "", cursor: "0" });
   }
   updateAccount(accountId: string, body: Record<string, unknown>): Account {
@@ -423,6 +453,7 @@ export class SmartCore {
     if (body.enabled !== undefined) { if (typeof body.enabled !== "boolean") throw new SmartError("account_input", "监控开关无效"); account.enabled = body.enabled; }
     if (body.name !== undefined) account.name = requireText(body.name, "账号备注", 80);
     if (body.group !== undefined) account.group = requireText(body.group, "分组", 80);
+    if (body.teacher !== undefined) account.teacher = requireText(body.teacher, "绑定老师", 80);
     return this.store.set("account", account);
   }
   saveRule(body: Record<string, unknown>, ruleId?: string): Rule {
@@ -522,11 +553,13 @@ export class SmartCore {
       if (this.store.requestCount(budgetKey) >= rule.daily_limit) { rule.last_error = '达到今日自动处理上限，未继续下载或提交转写'; break; }
       if (!this.store.claimRule(rule.id, candidate.id, now())) continue;
       try {
+        const teacher = accounts.find(item => item.id === candidate.account_id)?.teacher;
+        if (!teacher) throw new SmartError("teacher_required", "监控账号尚未绑定老师，请在博主监控中绑定后继续", 409);
         this.store.reserveRequest(budgetKey, rule.daily_limit); attempted++;
         const hot = await this.references.process(candidate.id);
         if (this.closed) break;
         const work = this.createWork(hot.transcript, { trigger: "automatic", kind: "rule", platform: hot.platform,
-          account_id: hot.account_id, account_name: hot.author, rule_id: rule.id, rule_name: rule.name, hot_id: hot.id, reference_title: hot.title });
+          account_id: hot.account_id, account_name: hot.author, rule_id: rule.id, rule_name: rule.name, hot_id: hot.id, reference_title: hot.title }, teacher);
         work.settings.source_folder = rule.source_folder; this.saveWork(work);
         this.store.bindRuleWork(rule.id, candidate.id, work.id);
         await this.generatePlan(work.id);
@@ -549,7 +582,7 @@ export class SmartCore {
   async importHot(hotId: string): Promise<Work> {
     const hot = await this.references.process(hotId);
     return this.createWork(hot.transcript, { trigger: "manual", kind: "hot_manual", platform: hot.platform,
-      account_id: hot.account_id, account_name: hot.author, hot_id: hot.id, reference_title: hot.title });
+      account_id: hot.account_id, account_name: hot.author, hot_id: hot.id, reference_title: hot.title }, this.store.get<Account>("account", hot.account_id)?.teacher || "");
   }
   async state() {
     const auth = await this.authStatus();
@@ -568,7 +601,7 @@ export class SmartCore {
     }));
     return { settings: this.publicSettings(), auth, works, jobs, assemblies: auth.required ? [] : this.store.list<import("./assembly.ts").Assembly>("assembly", 100),
       accounts: !smartAllowed ? [] : this.store.list<Account>("account", 100),
-      hot: !smartAllowed ? [] : this.store.list<HotVideo>("hot", 100).map(({ local_video_path: _video, local_audio_path: _audio, asr_task_id: _task, ...hot }) => hot),
+      hot: !smartAllowed ? [] : await Promise.all(this.store.list<HotVideo>("hot", 100).map(async ({ local_video_path: _video, local_audio_path: _audio, asr_task_id: _task, ...hot }) => ({ ...hot, video_cached: !!await this.references.videoPath(hot.id).catch(() => null) }))),
       rules: !smartAllowed ? [] : this.store.list<Rule>("rule", 100),
       monitor: this.store.get<Record<string, unknown>>("monitor", "current"),
       request_count: this.store.requestCount(localDay()), device_name: os.hostname(), limited_to: 100 };

@@ -55,7 +55,7 @@ test('real Admin and client APIs share reviewed accounts, tier changes, password
   assert.equal((await api(clientUrl, '/smart/state')).auth.user.tier, 'pro');
   await api(clientUrl, '/smart/auth/login', 'POST', { username, password: 'incorrect-password' }, 401);
   await api(clientUrl, '/smart/auth/login', 'POST', { username, password });
-  await api(clientUrl, '/smart/works', 'POST', { script: '现金流是企业的血液。' }, 201);
+  await api(clientUrl, '/smart/works', 'POST', { script: '现金流是企业的血液。', teacher: '验收讲师' }, 201);
   await api(adminUrl, `/api/admin/cutter-users/${user.user_id}/tier`, 'POST', { tier: 'ordinary' });
   await api(clientUrl, '/smart/works', 'POST', { script: '现金流是企业的血液。' }, 403);
   assert.equal((await core.state()).works.length, 0);
