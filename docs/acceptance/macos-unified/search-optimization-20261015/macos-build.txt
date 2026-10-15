@@ -2,20 +2,20 @@
 > package:smart-cutter:macos
 > tsx scripts/smart-cutter/package-macos.ts
 
-(node:80536) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:84624) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 > prepare:smart-cutter-runtime
 > tsx scripts/smart-cutter/prepare-runtime.ts
 
-(node:80560) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:84648) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 {"runtime_root":"/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/apps/smart-cutter-desktop/src-tauri/runtime","verified_assets":5,"manifest_sha256":"3ba099338ce4f1577dd62a05be84855dcb8b7102dd661a9673229c2a90f8ecac"}
 
 > package:smart-cutter:windows
 > tsx scripts/smart-cutter/package-windows.ts --bundle-only
 
-(node:80595) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:84683) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 > @mixlab/smart-cutter-desktop@0.1.0 build:macos:candidate
@@ -38,8 +38,8 @@ rendering chunks...
 computing gzip size...
 dist/index.html                   0.37 kB │ gzip:  0.29 kB
 dist/assets/index-B4kTRtvK.css   97.27 kB │ gzip: 18.25 kB
-dist/assets/index-D3uvdBPP.js   329.58 kB │ gzip: 96.51 kB
-✓ built in 1.51s
+dist/assets/index-CyuGEKF0.js   329.73 kB │ gzip: 96.54 kB
+✓ built in 1.63s
    Compiling mixlab-smart-cutter-desktop v0.1.0 (/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/apps/smart-cutter-desktop/src-tauri)
 warning: mixlab-smart-cutter-desktop@0.1.0: STATIC_VCRUNTIME is deprecated; use build.windows.staticVCRuntime in tauri.conf.json or tauri_build::WindowsAttributes::static_vc_runtime instead.
 warning: unused import: `path::PathBuf`
@@ -51,7 +51,7 @@ warning: unused import: `path::PathBuf`
   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 warning: `mixlab-smart-cutter-desktop` (bin "mixlab-smart-cutter-desktop") generated 1 warning (run `cargo fix --bin "mixlab-smart-cutter-desktop" -p mixlab-smart-cutter-desktop` to apply 1 suggestion)
-    Finished `release` profile [optimized] target(s) in 17.57s
+    Finished `release` profile [optimized] target(s) in 19.83s
        Built application at: /Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/apps/smart-cutter-desktop/src-tauri/target/release/mixlab-smart-cutter-desktop
     Bundling MixLab Unified Cutter Candidate.app (/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/apps/smart-cutter-desktop/src-tauri/target/release/bundle/macos/MixLab Unified Cutter Candidate.app)
     Finished 1 bundle at:
