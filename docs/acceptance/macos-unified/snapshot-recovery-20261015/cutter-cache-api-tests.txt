@@ -1,0 +1,15 @@
+(node:51513) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ cutter API runtime config honors an explicit release cache path (0.874292ms)
+✔ runtime status keeps release cache refresh in the background when scanning cache is slow (307.837084ms)
+✔ runtime status warms the release search index once the cache is ready (103.834541ms)
+✔ source library reads from local release cache after syncing the current release (315.1095ms)
+✔ source library uses existing local release cache while background sync is still pending (663.992042ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1704.389958

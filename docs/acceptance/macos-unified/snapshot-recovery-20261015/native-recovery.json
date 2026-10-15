@@ -1,0 +1,45 @@
+{
+  "engine": "http://127.0.0.1:51676",
+  "source_commit": "a6752c6",
+  "folder_api": "passed",
+  "folder_count": 4,
+  "snapshots": [
+    {
+      "version": "v012698",
+      "id": "325976de68d0922ea99085c9a78f4cb2",
+      "consistent": true
+    },
+    {
+      "version": "v012694",
+      "id": "3c9e16df4d5468c2b856abf2ca90dcf0",
+      "consistent": true
+    },
+    {
+      "version": "v012701",
+      "id": "5a8abb07614d6ae331ccbef491dae749",
+      "consistent": true
+    },
+    {
+      "version": "v012702",
+      "id": "d2c0b87552a9032db4e4ca0e85466e67",
+      "consistent": true
+    },
+    {
+      "version": "v012700",
+      "id": "d3b89b170e3e26bfc3f7a90138696d79",
+      "consistent": true
+    }
+  ],
+  "keys_preserved": true,
+  "completed_before": 125520,
+  "completed_after": 151488,
+  "sample_vectors_preserved": true,
+  "semantic": {
+    "running": true,
+    "done": 151488,
+    "total": 1292565,
+    "error": "",
+    "snapshot_id": "325976de68d0922ea99085c9a78f4cb2"
+  },
+  "verified_at": "2026-10-15T10:52:25.356936+00:00"
+}

@@ -1,0 +1,9 @@
+{
+  "snapshot_id": "325976de68d0922ea99085c9a78f4cb2",
+  "version": "v012698",
+  "completed_vectors": 125520,
+  "total_segments": 1292565,
+  "sample_digest": "fa3c5eaf44c325e79718defd46b6692cd5887822ce0d05017b2618a18b404427",
+  "keys_saved_before": true,
+  "backup_local_only": true
+}

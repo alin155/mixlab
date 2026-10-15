@@ -1,0 +1,14 @@
+(node:47016) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ publishing during a cache copy cannot mix the copied release with a newer pointer (156.22875ms)
+✔ sync cutter release cache prunes old releases while keeping current and newest previous (83.228125ms)
+✔ local release cache status stays diagnostic when pointer is missing (17.555833ms)
+✔ fast local release cache status confirms the active release without a full cache scan (10.247041ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 474.583709

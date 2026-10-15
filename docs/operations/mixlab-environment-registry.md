@@ -502,3 +502,10 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 现场发现 SMB 根挂载消失、ENOTCONN 和服务端断开重连；停止旧候选后通过访达恢复 `smb://192.168.1.27/MixLab`。当前真实公共库仍为 `/Volumes/MixLab/PublicLibrary`，发布计数 12,805。
 - 修复认证可用性分类、读取超时与客户端同步写 NAS 统计 SQLite。原生真实 NAS 检索“房地产”已显示 20 条结果、完整文案及预览，同一 Pro 账号重新登录成功。详见 `docs/acceptance/macos-unified/nas-recovery-20261015.md`。
 - 同日通过原生设置保存用户填写的 TikHub/DashScope 配置，TikHub 本机测试接口返回 HTTP 200、`connected=true`。语义索引任务仍在运行，本轮未重启或替换 Mac 应用；新增“保存并测试”交互仅完成源码、21/21 测试、类型及 Web 构建验证，尚未安装到当前 Mac 包。详见 `docs/acceptance/macos-unified/tikhub-key-action-20261015.md`。不在登记表记录真实 Key。
+
+## 2026-10-15 Mac 发布快照一致性更新
+
+- Mac 候选实际更新为 `a6752c6`，包含 TikHub “保存并测试”交互及快照一致性修复；版本仍为 `0.2.0`，应用/状态/工作区路径不变。旧 `93eb03d` 应用保留在交付目录 `rollback-93eb03d`。
+- 原错误目录含 `v012699` 文件与 `v012700` 指针，空版本哈希目录已保留隔离。同步器锁定复制前的指针并校验完整性；实际本机 `v012700` 至 `v012702` 快照读取通过，没有改动 NAS 发布指针。
+- 更新前备份并保留 `v012698` 已完成的 125,520 段语义向量，更新后从原快照继续增长。原作品与已保存 Key 保留。随机引擎端口本次为 `51676`，仅属于该次进程。
+- 智能端 24/24、缓存模块 4/4、成熟剪辑端缓存 API 5/5、类型、Mac 构建及签名检查通过。证据：`docs/acceptance/macos-unified/snapshot-recovery-20261015.md`。
