@@ -601,6 +601,7 @@ export class SmartCore {
           const mayStopAtKnown = lookback <= 72 || !!coverage?.complete && coverage.hours >= lookback;
           let limited = false;
           for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
+            status.phase = `采集 ${account.name} · 第 ${pageIndex + 1} 页`; this.store.set("monitor", status);
             let page: ProviderPage;
             try { page = await this.provider.posts(account.platform, account, cursor); }
             catch (error) {
