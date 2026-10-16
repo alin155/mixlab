@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 import {
   buildFfprobeSourceMetadataPlan,
   buildFfmpegCoverImagePlan,
@@ -2737,7 +2738,7 @@ async function recordCutterUsageEventBestEffort(input: {
   result_status?: Parameters<typeof appendUsageEvent>[1]["result_status"];
 }): Promise<void> {
   try {
-    const recorder = input.api_input.usage_event_recorder ?? appendUsageEvent;
+    const recorder = input.api_input.usage_event_recorder ?? ((root, event) => appendUsageEvent(root, event, { update_summary_projection: false }));
     await recorder(input.api_input.library_root, {
       user_id: input.auth.user.user_id,
       username: input.auth.user.username,
@@ -5284,13 +5285,13 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const shouldPrefetchAfterCut = cutSource.source_video_file_path === detail.source_video_file_path;
 
         await mkdir(path.dirname(clipPaths.media_file_path), { recursive: true });
-        await cutRunner({
+        await retrySourceConnection(async () => cutRunner({
           source_video_path: cutSource.source_video_file_path,
           output_path: clipPaths.media_file_path,
           begin_ms: selection.begin_ms,
           end_ms: selection.end_ms,
           cut_mode: cutMode
-        });
+        }));
         if (shouldPrefetchAfterCut) {
           prefetchSourceVideoBestEffort({
             api_input: input,

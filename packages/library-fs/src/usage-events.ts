@@ -1312,7 +1312,8 @@ async function writeThroughUsageMetricsSummaryProjection(input: {
 
 export async function appendUsageEvent(
   libraryRoot: string,
-  event: MixlabUsageEvent
+  event: MixlabUsageEvent,
+  options: { update_summary_projection?: boolean } = {}
 ): Promise<MixlabUsageEvent> {
   return withEventMutation(libraryRoot, async () => {
     const normalizedEvent = validateUsageEvent(event, { require_event_id: false });
@@ -1329,6 +1330,8 @@ export async function appendUsageEvent(
     } catch (error) {
       throw new Error("无法写入使用事件存储文件", { cause: error });
     }
+    // Desktop clients append events; the management process owns the SQLite summary.
+    if (options.update_summary_projection === false) return normalizedEvent;
     const nextSignature = await readUsageEventsFileSignature(libraryRoot);
     const writeThrough = await writeThroughUsageMetricsSummaryProjection({
       library_root: libraryRoot,
