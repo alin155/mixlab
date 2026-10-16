@@ -14,6 +14,8 @@ import { SmartMedia, fileDigest } from "./media.ts";
 import { TikHubClient, type ProviderPage } from "./tikhub.ts";
 import { ReferenceProcessor } from "./reference.ts";
 import { runProcess } from "./process.ts";
+import { renderTemplatePreview, type TemplatePreview } from "./template-preview.ts";
+import { resolvedTemplate, validateTemplate, type SubtitleTemplate } from "./templates.ts";
 import { retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
 import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
@@ -40,6 +42,8 @@ export class SmartCore {
   cacheClearing = false;
   configuring = false;
   activeStreams = 0;
+  readonly templatePreviews = new Map<string, TemplatePreview>();
+  private templatePreviewController: AbortController | null = null;
   settings: Settings;
   runtime = { ai_ready: false, ffmpeg_ready: false, library_ready: false, library_count: 0, library_version: "", library_error: "" };
   libraryConnection = { status: "unchecked" as "unchecked" | "not_configured" | "unavailable" | "published", root: "", version: "", count: 0, message: "尚未检查公共库连接" };
@@ -62,7 +66,7 @@ export class SmartCore {
       monitor_platform: "douyin", monitor_interval_minutes: 30, request_limit_per_day: 500,
       reference_cache_gb: 30, source_cache_gb: 30, max_download_mb: 500, asr_model: "paraformer-v2", default_source_folder: "", device_id: `smart-${randomUUID()}` };
     this.library = new SmartLibrary(this.store, () => this.settings, (snapshot, query, folder, progress) => this.ai.search(snapshot, query, folder, progress));
-    this.media = new SmartMedia(this.library, this.ai, process.env.MIXLAB_SMART_FONTS ?? "", () => ({ max_bytes: this.settings.source_cache_gb * 1024 ** 3,
+    this.media = new SmartMedia(this.library, this.ai, undefined, () => ({ max_bytes: this.settings.source_cache_gb * 1024 ** 3,
       pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }));
     this.provider = options.provider ?? new TikHubClient({ getKey: () => this.vault.get("tikhub"), reserveRequest: () => this.store.reserveRequest(localDay(), this.settings.request_limit_per_day) });
     this.references = new ReferenceProcessor(this.store, this.vault, this.provider, this.media, () => this.settings, options.asr_http);
@@ -303,11 +307,35 @@ export class SmartCore {
     if (body.subtitle_size !== undefined) next.subtitle_size = boundedNumber(body.subtitle_size, 24, 100, "字幕字号");
     if (body.subtitle_style !== undefined) { if (!["white", "yellow", "outline", "box", "cinema", "pop"].includes(String(body.subtitle_style))) throw new SmartError("subtitle_style", "字幕样式无效"); next.subtitle_style = body.subtitle_style as OutputSettings["subtitle_style"]; }
     if (body.subtitle_margin !== undefined) next.subtitle_margin = boundedNumber(body.subtitle_margin, 0.03, 0.4, "字幕底部距离");
+    if (body.subtitle_template !== undefined) {
+      if (body.subtitle_template === null) delete next.subtitle_template;
+      else next.subtitle_template = validateTemplate(body.subtitle_template);
+    }
     for (const field of ["subtitles", "normalize_audio", "same_lecturer"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
     if (body.source_folder !== undefined) next.source_folder = String(body.source_folder).trim();
     if (body.teacher !== undefined) next.teacher = requireText(body.teacher, "目标老师", 80);
     next.same_lecturer = true;
     return next;
+  }
+  saveSubtitleTemplate(body: Record<string, unknown>): SubtitleTemplate {
+    const settings = this.outputSettings(DEFAULT_OUTPUT, record(body.settings));
+    const template = resolvedTemplate(settings);
+    if (!template) throw new SmartError("subtitle_template", "请先选择一套系统模板");
+    return this.store.set("subtitle-template", validateTemplate({ ...template, id: id("MY"), version: 1, name: requireText(body.name, "模板名称", 30) }));
+  }
+  async previewTemplate(workId: string, body: Record<string, unknown>): Promise<Omit<TemplatePreview, "file" | "work" | "workspace">> {
+    if (this.templatePreviewController || this.rendering) throw new SmartError("preview_busy", "本机正在生成视频，请完成后再预览", 409);
+    const work = structuredClone(this.work(workId));
+    work.settings = this.outputSettings(work.settings, record(body.settings));
+    if (work.settings.teacher !== this.work(workId).settings.teacher || work.settings.source_folder !== this.work(workId).settings.source_folder) throw new SmartError("preview_scope", "素材范围已变化，请保存并重新匹配后预览", 409);
+    this.library.assertWorkTeacher(work);
+    const controller = new AbortController(); this.templatePreviewController = controller; this.activeStreams++;
+    try {
+      const result = await renderTemplatePreview(this.media, work, this.settings.workspace_root, this.store.list<Job>("job"), AbortSignal.any([controller.signal, AbortSignal.timeout(90_000)]));
+      if (this.templatePreviews.size >= 50) this.templatePreviews.delete(this.templatePreviews.keys().next().value!);
+      this.templatePreviews.set(result.id, result);
+      return { id: result.id, duration_ms: result.duration_ms, warnings: result.warnings };
+    } finally { this.templatePreviewController = null; this.activeStreams--; }
   }
   async generatePlan(workId: string): Promise<Work> {
     if (this.planning.has(workId)) throw new SmartError("plan_busy", "该作品正在匹配", 409);
@@ -461,7 +489,7 @@ export class SmartCore {
     void this.drain(); return job;
   }
   private async drain(): Promise<void> {
-    if (this.rendering || this.closed || this.cacheClearing) return; this.rendering = true;
+    if (this.rendering || this.templatePreviewController || this.closed || this.cacheClearing) return; this.rendering = true;
     try {
       let job;
       while (!this.closed && (job = this.store.listStatus<Job>("job", ["queued"], 1)[0])) {
@@ -684,6 +712,7 @@ export class SmartCore {
     try { await this.monitorRun(); } catch { /* Detailed failure is preserved in account/rule status; no credentials are logged. */ }
   }
   async close(): Promise<void> {
+    this.templatePreviewController?.abort();
     this.closed = true; if (this.timer) clearInterval(this.timer);
     this.renderAuthCheck?.abort();
     await this.manual.close(); await this.assemblies.close();

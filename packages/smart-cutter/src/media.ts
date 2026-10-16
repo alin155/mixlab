@@ -12,6 +12,7 @@ import { SmartError, workReady, includedSegments, type Candidate, type Compositi
 import { atomicPrivateJson } from "./vault.ts";
 import { isSourceConnectionError, retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 import { SUBTITLE_STYLES, unifyPortraits } from "./presentation.ts";
+import { captionLayout, resolvedTemplate } from "./templates.ts";
 
 export interface MediaInfo { width: number; height: number; duration_ms: number; audio: boolean }
 export interface Caption { begin_ms: number; end_ms: number; text: string }
@@ -27,17 +28,41 @@ export function captionsToSrt(captions: Caption[]): string {
 }
 export function captionsToAss(captions: Caption[], settings: OutputSettings, font: string): string {
   const width = settings.ratio === "9:16" ? 1080 : 1920, height = settings.ratio === "9:16" ? 1920 : 1080;
+  const template = resolvedTemplate(settings);
+  const assColor = (color: string) => `&H${color.slice(5, 7)}${color.slice(3, 5)}${color.slice(1, 3)}&`;
+  const emphasize = (value: string): string => {
+    if (!template?.keywords.length) return safeAss(value);
+    const words = [...template.keywords].sort((a, b) => b.length - a.length); let output = "", index = 0;
+    while (index < value.length) {
+      const word = words.find(word => value.startsWith(word, index));
+      if (word) { output += `{\\c${assColor(template.accent)}}${safeAss(word)}{\\c${assColor(template.color)}}`; index += word.length; }
+      else { const char = String.fromCodePoint(value.codePointAt(index)!); output += safeAss(char); index += char.length; }
+    }
+    return output;
+  };
   const text = (value: string): string => {
     const chars = Array.from(safeAss(value)); const lines: string[] = [];
     const lineWidth = Math.max(8, Math.floor((width - 120) / settings.subtitle_size));
     for (let i = 0; i < chars.length; i += lineWidth) lines.push(chars.slice(i, i + lineWidth).join(""));
     return lines.join("\\N");
   };
-  const style = SUBTITLE_STYLES[settings.subtitle_style];
+  const style = template ?? SUBTITLE_STYLES[settings.subtitle_style];
   const primary = `&H00${style.color.slice(5, 7)}${style.color.slice(3, 5)}${style.color.slice(1, 3)}`;
-  const effect = settings.subtitle_style === "pop" ? "{\\fscx94\\fscy94\\t(0,120,\\fscx100\\fscy100)\\fad(80,60)}" : style.fade ? "{\\fad(120,100)}" : "";
-  const margin = settings.subtitle_margin === undefined ? 100 : Math.round(height * settings.subtitle_margin);
-  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 0\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${font},${settings.subtitle_size},${primary},&H00FFFFFF,${style.box ? "&H80000000" : "&H00101010"},&H80000000,${style.bold ? -1 : 0},0,0,0,100,100,0,0,${style.box ? 3 : 1},${style.outline},${style.box ? 0 : 1},2,60,60,${margin},1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${effect}${text(caption.text)}`).join("\n") + "\n";
+  const effect = !template && settings.subtitle_style === "pop" ? "{\\fscx94\\fscy94\\t(0,120,\\fscx100\\fscy100)\\fad(80,60)}" : style.fade ? "{\\fad(120,100)}" : "";
+  const margin = template ? Math.round(height * template.bottom) : settings.subtitle_margin === undefined ? 100 : Math.round(height * settings.subtitle_margin);
+  const side = template ? Math.round(width * template.side_margin) : 60;
+  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 2\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${template?.font ?? font},${settings.subtitle_size},${primary},&H00FFFFFF,${style.box ? "&H80000000" : "&H00101010"},&H80000000,${style.bold ? -1 : 0},0,0,0,100,100,${template?.spacing ?? 0},0,${style.box ? 3 : 1},${style.outline},${style.box ? 0 : 1},2,${side},${side},${margin},1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => {
+    const layout = template ? captionLayout(caption.text, template, settings.ratio) : null;
+    const content = layout ? `{\\fs${layout.size}}${layout.lines.map(emphasize).join("\\N")}` : text(caption.text);
+    return `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${effect}${content}`;
+  }).join("\n") + "\n";
+}
+export function captionWarnings(captions: Caption[], settings: OutputSettings): string[] {
+  const template = resolvedTemplate(settings);
+  if (!template || !settings.subtitles) return [];
+  const reduced = captions.filter(caption => captionLayout(caption.text, template, settings.ratio).reduced).length;
+  return [ ...(reduced ? [`${reduced} 个长句段已缩小字号以保持两行；时间仍使用原始句段时间戳。建议在管理端细分长句后获得更清晰字幕。`] : []),
+    ...(template.bottom < 0.1 ? ["字幕距底部不足 10%，发布前请在抖音实际预览中检查按钮和说明文字遮挡。"] : []) ];
 }
 export function positionExpression(points: FacePoint[], field: "x" | "y", fallback: number): string {
   if (!points.length) return String(fallback);
@@ -78,7 +103,7 @@ export async function ensureSpace(directory: string, requiredBytes: number): Pro
 export class SmartMedia {
   readonly ffmpeg: FfmpegRuntime;
   private previews = new Map<string, Promise<string>>();
-  constructor(readonly library: SmartLibrary, readonly ai: SmartAi, readonly fonts = process.env.MIXLAB_SMART_FONTS ?? "",
+  constructor(readonly library: SmartLibrary, readonly ai: SmartAi, readonly fonts = process.env.MIXLAB_SMART_FONTS ?? (existsSync(path.resolve("apps/smart-cutter-desktop/src-tauri/runtime/fonts")) ? path.resolve("apps/smart-cutter-desktop/src-tauri/runtime/fonts") : ""),
     private cachePolicy: () => { max_bytes: number; pinned: Set<string> } = () => ({ max_bytes: 30 * 1024 ** 3, pinned: new Set() })) {
     this.ffmpeg = resolveFfmpegRuntime();
     const nativeProbe = process.env.MIXLAB_SMART_FFPROBE_PATH || (!process.env.MIXLAB_FFPROBE_PATH && process.platform === "darwin" && process.arch === "arm64"
@@ -93,6 +118,19 @@ export class SmartMedia {
     const rotation = Math.abs(Number(video.tags?.rotate ?? video.side_data_list?.find(item => item.rotation !== undefined)?.rotation ?? 0));
     return { width: rotation % 180 === 90 ? video.height : video.width, height: rotation % 180 === 90 ? video.width : video.height,
       duration_ms: Math.round(Number(data.format.duration ?? "0") * 1000), audio: data.streams.some(stream => stream.codec_type === "audio") };
+  }
+  async sourceCaptions(candidate: Candidate, duration: number, offset = 0): Promise<Caption[]> {
+    const detail = await this.library.source(this.library.getSnapshot(candidate.snapshot_id), candidate.source_video_id);
+    return detail.transcript.segments.filter(item => candidate.segment_ids.includes(item.segment_id)).flatMap(original => {
+      const begin = Math.max(0, original.begin_ms - candidate.begin_ms), end = Math.min(duration, original.end_ms - candidate.begin_ms);
+      return end > begin ? [{ begin_ms: offset + begin, end_ms: offset + end, text: original.text }] : [];
+    });
+  }
+  subtitleFilter(settings: OutputSettings): string {
+    const template = resolvedTemplate(settings);
+    if (template && (!this.fonts || !existsSync(path.join(this.fonts, template.font === "Noto Serif SC" ? "NotoSerifSC.ttf" : "NotoSansSC.ttf")))) throw new SmartError("subtitle_font", "内置字幕字体缺失，请重新安装完整应用", 503);
+    const fonts = this.fonts.replaceAll("\\", "/").replaceAll(":", "\\:").replaceAll("'", "\\'");
+    return `ass=filename='subtitles.ass'${fonts ? `:fontsdir='${fonts}'` : ""}`;
   }
   private async cachedInput(candidate: Candidate, cache: string): Promise<string | null> {
     const destination = path.join(cache, `${candidate.id}.media`), metadata = `${destination}.json`;
@@ -250,11 +288,7 @@ export class SmartMedia {
       }
       job.progress = Math.max(job.progress, Math.round((index + 1) / segments.length * 75)); update();
       const normalized = await this.probe(clip, signal);
-      const detail = await this.library.source(this.library.getSnapshot(candidate.snapshot_id), candidate.source_video_id);
-      for (const original of detail.transcript.segments.filter(item => candidate.segment_ids.includes(item.segment_id))) {
-        const begin = Math.max(0, original.begin_ms - candidate.begin_ms), end = Math.min(normalized.duration_ms, original.end_ms - candidate.begin_ms);
-        if (end > begin) captions.push({ begin_ms: offset + begin, end_ms: offset + end, text: original.text });
-      }
+      captions.push(...await this.sourceCaptions(candidate, normalized.duration_ms, offset));
       manifestSources.push({ work_segment_id: segment.id, source_video_id: candidate.source_video_id, snapshot_id: candidate.snapshot_id, segment_ids: candidate.segment_ids,
         source_title: candidate.source_title, source_folder: candidate.source_folder,
         begin_ms: candidate.begin_ms, end_ms: candidate.end_ms, actual: candidate.actual, rotation: candidate.rotation ?? 0, original_fingerprint: candidate.fingerprint,
@@ -264,9 +298,8 @@ export class SmartMedia {
     }
     signal.throwIfAborted(); job.phase = "合并视频与字幕"; job.progress = 78; update();
     await writeFile(path.join(temp, "concat.txt"), files.map(file => `file '${file}'`).join("\n") + "\n");
-    await writeFile(path.join(temp, "subtitles.ass"), captionsToAss(captions, job.work.settings, this.fonts ? "Noto Sans SC" : process.platform === "win32" ? "Microsoft YaHei" : "PingFang SC"));
-    const fonts = this.fonts.replaceAll("\\", "/").replaceAll(":", "\\:").replaceAll("'", "\\'");
-    const filters = job.work.settings.subtitles ? ["-vf", `ass=filename='subtitles.ass'${fonts ? `:fontsdir='${fonts}'` : ""}`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "2"] : ["-c:v", "copy"];
+    if (job.work.settings.subtitles) await writeFile(path.join(temp, "subtitles.ass"), captionsToAss(captions, job.work.settings, this.fonts ? "Noto Sans SC" : process.platform === "win32" ? "Microsoft YaHei" : "PingFang SC"));
+    const filters = job.work.settings.subtitles ? ["-vf", this.subtitleFilter(job.work.settings), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "2"] : ["-c:v", "copy"];
     const result = path.join(temp, "result.partial.mp4");
     await runProcess(this.ffmpeg.ffmpeg_path, ["-hide_banner", "-nostdin", "-y", "-f", "concat", "-safe", "0", "-i", "concat.txt", ...filters,
       "-c:a", "copy", "-movflags", "+faststart", "-progress", "pipe:1", result], {
@@ -278,12 +311,15 @@ export class SmartMedia {
     if (!verified.audio || verified.width !== width || verified.height !== height || Math.abs(verified.duration_ms - offset) > 1000) throw new SmartError("output_validation", "成片媒体校验失败，未发布结果", 422);
     job.result_sha256 = await fileDigest(result); job.duration_ms = verified.duration_ms; update();
     if (await exists(job.output_path)) throw new SmartError("output_exists", "结果目录已存在视频，停止覆盖，请检查历史结果", 409);
-    await writeFile(path.join(temp, "subtitles.srt"), captionsToSrt(captions));
+    const template = resolvedTemplate(job.work.settings);
+    await writeFile(path.join(temp, "subtitles.srt"), captionsToSrt(template && job.work.settings.subtitles ? captions.map(caption => ({ ...caption, text: captionLayout(caption.text, template, job.work.settings.ratio).lines.join("\n") })) : captions));
     await rename(path.join(temp, "subtitles.srt"), path.join(outputDirectory, "subtitles.srt"));
     await atomicPrivateJson(job.manifest_path, { schema_version: "1.0", job_id: job.id, work_id: job.work_id, revision: job.revision,
       title: job.work.title, origin: job.work.origin, original_input_script: job.work.original_script, input_script: job.work.script, actual_script: segments.map(segment => segment.actual).join("\n"),
       skipped_segments: job.work.segments.filter(segment => segment.skipped).map(segment => ({ id: segment.id, target: segment.target, status: segment.status })),
-      settings: job.work.settings, sources: manifestSources, output: { file: "video.mp4", sha256: job.result_sha256, ...verified },
+      settings: job.work.settings, subtitle_template: template,
+      subtitle_rendering: template && job.work.settings.subtitles ? { renderer_version: 1, timing: "source_segments", captions: captions.map(caption => ({ ...caption, ...captionLayout(caption.text, template, job.work.settings.ratio) })) } : null,
+      subtitle_warnings: captionWarnings(captions, job.work.settings), sources: manifestSources, output: { file: "video.mp4", sha256: job.result_sha256, ...verified },
       generated_at: new Date().toISOString() });
     await rename(result, job.output_path);
     job.phase = "已完成"; job.progress = 100;

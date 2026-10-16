@@ -22,10 +22,10 @@ test("portrait shots share a feasible face size without stretching or unlimited 
 });
 test("subtitle presets retain legacy positioning and escape source ASS markup", () => {
   const captions = [{ begin_ms: 0, end_ms: 1700, text: "原声{\\pos(1,2)}字幕" }];
-  const legacy = captionsToAss(captions, { ...DEFAULT_OUTPUT, subtitle_style: "white", subtitle_margin: undefined }, "Noto Sans SC");
+  const legacy = captionsToAss(captions, { ...DEFAULT_OUTPUT, subtitle_template: undefined, subtitle_style: "white", subtitle_margin: undefined }, "Noto Sans SC");
   assert.ok(legacy.includes(",60,60,100,1"));
   assert.ok(!legacy.includes("{\\pos"));
-  const styled = captionsToAss(captions, { ...DEFAULT_OUTPUT, subtitle_style: "pop", subtitle_margin: 0.2 }, "Noto Sans SC");
+  const styled = captionsToAss(captions, { ...DEFAULT_OUTPUT, subtitle_template: undefined, subtitle_style: "pop", subtitle_margin: 0.2 }, "Noto Sans SC");
   assert.ok(styled.includes(",60,60,384,1"));
   assert.ok(styled.includes("\\t(0,120,"));
   assert.ok(styled.includes("0:00:01.70"));

@@ -75,7 +75,7 @@ test("all subtitle templates render visible distinct pixels at the saved vertica
   const fonts = path.resolve("apps/smart-cutter-desktop/src-tauri/runtime/fonts").replaceAll("\\", "/").replaceAll(":", "\\:");
   const hashes = new Set<string>();
   for (const style of Object.keys(SUBTITLE_STYLES) as Array<keyof typeof SUBTITLE_STYLES>) {
-    await writeFile(path.join(root, "subtitle.ass"), captionsToAss([{ begin_ms: 0, end_ms: 1000, text: "原声字幕效果" }], { ...DEFAULT_OUTPUT, subtitle_style: style, subtitle_size: 72, subtitle_margin: 0.2 }, "Noto Sans SC"));
+    await writeFile(path.join(root, "subtitle.ass"), captionsToAss([{ begin_ms: 0, end_ms: 1000, text: "原声字幕效果" }], { ...DEFAULT_OUTPUT, subtitle_template: undefined, subtitle_style: style, subtitle_size: 72, subtitle_margin: 0.2 }, "Noto Sans SC"));
     const result = spawnSync(resolveFfmpegRuntime().ffmpeg_path, ["-v", "error", "-f", "lavfi", "-i", "color=c=navy:s=1080x1920:r=30:d=1", "-ss", "0.5", "-vf", `ass=filename='subtitle.ass':fontsdir='${fonts}',scale=270:480,format=rgb24`, "-frames:v", "1", "-f", "rawvideo", "pipe:1"], { cwd: root });
     assert.equal(result.status, 0, result.stderr.toString());
     const pixels = result.stdout, rows: number[] = [];

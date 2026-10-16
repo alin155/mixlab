@@ -129,6 +129,19 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/library/folders" && method === "GET") { json(response, 200, await core.library.folders()); return; }
       if (url.pathname === "/smart/workspace/open" && method === "POST") { await openPath(core.settings.workspace_root); json(response, 200, { opened: true }); return; }
       await core.requirePro();
+      if (url.pathname === "/smart/subtitle-templates") {
+        if (method === "GET") { json(response, 200, core.store.list("subtitle-template")); return; }
+        if (method === "POST") { json(response, 201, core.saveSubtitleTemplate(await body(request))); return; }
+      }
+      const templatePreview = /^\/smart\/works\/([^/]+)\/template-preview$/.exec(url.pathname);
+      if (templatePreview && method === "POST") { json(response, 200, await core.previewTemplate(decodeURIComponent(templatePreview[1]!), await body(request))); return; }
+      const templateMedia = /^\/smart\/media\/template-previews\/([0-9a-f]{64})$/.exec(url.pathname);
+      if (templateMedia && ["GET", "HEAD"].includes(method ?? "")) {
+        const preview = core.templatePreviews.get(templateMedia[1]!);
+        if (!preview) throw new SmartError("preview_missing", "预览已失效，请重新生成", 404);
+        core.library.assertWorkTeacher(preview.work);
+        await streamFile(request, response, preview.file, "video/mp4"); return;
+      }
       if (url.pathname === "/smart/library/teachers" && method === "GET") { json(response, 200, await core.library.teachers()); return; }
       if (url.pathname === "/smart/library/index" && method === "POST") {
         const input = await body(request);

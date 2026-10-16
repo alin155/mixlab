@@ -1,0 +1,19 @@
+MixLab system subtitle templates — 2026-10-16
+
+Scope
+Four built-in recipes: quiet interview (default for new work), clear talking head, keyword emphasis, contrast backing. Only captions are added. Old works keep their existing style until explicitly changed. Save a local personal recipe and reuse it. Each export freezes recipe ID/version, resolved settings and per-caption line breaks/font sizes in sources.json.
+
+Preview
+Generate up to eight seconds from the selected work, with real source audio and the same framing/subtitle code used by full exports. Exact source/rotation/ratio measurements are reused across template switches. Source reads use the existing local source cache. No matching, semantic indexing, ASR API submission or public-library writes are triggered. Completed exports are untouched. Previews are temporary local cache, never new full export jobs.
+
+Timing and readability
+Use the management-published sentence/segment timestamps exactly. Prefer punctuation for line breaks. New templates fit each original segment into at most two lines, reducing font size when required and returning a readability warning. No word timing or intra-sentence page timing is fabricated. Extremely long segments that cannot fit at size 16 need finer upstream timestamps or subtitles disabled. Word-follow and large phrase-paced subtitles remain a later batch.
+
+Font delivery
+Bundle checksum-pinned Noto Serif SC and Noto Sans SC with their SIL OFL notices. Mac and Windows use these same font assets. Missing bundled fonts are reported rather than silently substituting a platform font.
+
+Verification
+48 smart-cutter tests passed on macOS, including real FFmpeg pixels/audio/geometry, historical output immutability, Pro gates, token/Range requests, source-offline preview reuse and reuse of measured faces between recipes. Typecheck, frontend build and diff whitespace checks passed. Browser screenshots and private real-footage evidence are recorded separately; synthetic fixtures are not full NAS acceptance.
+
+Boundaries
+No production NAS data or existing Cutter/Admin application is changed. Native local candidate update requires a fresh backup and verification of existing credentials/settings/entities/outputs. Windows CI packaging is separate from a real Windows installation test.

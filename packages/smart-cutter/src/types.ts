@@ -1,3 +1,5 @@
+import { SYSTEM_TEMPLATES, type SubtitleTemplate } from "./subtitle-presets.ts";
+
 export type Platform = "douyin";
 export type CreationMode = "manual" | "automatic";
 export type MatchKind = "exact" | "near" | "conflict" | "gap" | "pending";
@@ -27,6 +29,7 @@ export interface OutputSettings {
   subtitle_style: "white" | "yellow" | "outline" | "box" | "cinema" | "pop";
   subtitle_size: number;
   subtitle_margin?: number;
+  subtitle_template?: SubtitleTemplate | null;
   normalize_audio: boolean;
   source_folder: string;
   teacher?: string;
@@ -34,7 +37,7 @@ export interface OutputSettings {
 }
 export const DEFAULT_OUTPUT: OutputSettings = {
   ratio: "9:16", crop_mode: "portrait", crop_position: 0.5, shot_size: "medium",
-  subtitles: true, subtitle_style: "outline", subtitle_size: 58, subtitle_margin: 0.12,
+  subtitles: true, subtitle_style: "cinema", subtitle_size: 70, subtitle_margin: 0.12, subtitle_template: SYSTEM_TEMPLATES[0],
   normalize_audio: true, source_folder: "", same_lecturer: true
 };
 export interface Candidate {

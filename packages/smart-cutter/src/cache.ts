@@ -20,6 +20,7 @@ export class WorkspaceCache {
       { relative: "manual/cache/source-videos", kind: "source", protected: busy || manualBusy },
       { relative: "cache/assemblies", kind: "temporary", protected: core.store.listStatus("assembly", ["queued", "running", "paused", "failed"]).length > 0 || busy },
       { relative: "cache/previews", kind: "temporary", protected: busy },
+      { relative: "cache/template-previews", kind: "temporary", protected: busy },
       { relative: "cache/jobs", kind: "temporary", protected: busy },
       { relative: "manual/cache/cut-temp", kind: "temporary", protected: manualBusy || busy },
       { relative: "manual/cache/source-thumbnails", kind: "temporary", protected: manualBusy || busy },
