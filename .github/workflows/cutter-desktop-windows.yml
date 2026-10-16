@@ -73,6 +73,14 @@ jobs:
           apps/cutter-web/src/desktop-bridge.test.ts
           apps/cutter-desktop/src/tauri-config.test.ts
 
+      - name: Run NAS recovery regressions
+        run: >
+          node --test --import tsx
+          packages/cutter-api/src/index.test.ts
+          packages/cutter-local/src/cut-queue.test.ts
+          packages/cutter-local/src/network-retry.test.ts
+          packages/library-fs/src/usage-events.test.ts
+
       - name: Package Windows desktop installer
         run: npm run package:cutter-desktop:windows
 

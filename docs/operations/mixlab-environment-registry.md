@@ -467,3 +467,10 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 4. 不能把密钥、密码、token、完整私密转写文本写进本文件。
 5. 如果本文件和代码冲突，以代码为准，并立即修正文档。
 6. 如果本文件和真实测试结果冲突，以真实测试结果为准，并立即修正文档。
+
+## 2026-10-15 原剪辑端 NAS 恢复热修复候选
+
+- 在独立工作树 `/Users/huaqihang/Documents/Codex/implementations/mixlab-cutter-nas-recovery`、分支 `codex/cutter-nas-recovery-20261015` 从现用基础 `f4c1dc7` 开发，功能源码 `df5e5b5`，测试兼容提交 `3a1e4f1`；草稿 PR https://github.com/alin155/mixlab/pull/3 。
+- 默认统计仅追加事件，不更新或删除管理端统计 SQLite。NAS 连接类错误在源准备/预检/剪切阶段限次重试，已完成的其他任务保留。
+- 本机 TypeScript 检查、105 项相关回归和 Cutter Web 构建通过；Windows workflow `38848097552` 已通过 105 项回归、NSIS 打包及证据包校验，最终证据见 `docs/acceptance/export-resilience-20261015/`。
+- 本批没有安装/替换 Windows 在用应用，没有改 NAS、共享下载指针、账号或已发布素材。候选应在单台空闲设备验收后逐台升级，保留旧包及本机状态/工作区备份。

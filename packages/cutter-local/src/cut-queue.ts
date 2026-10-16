@@ -17,6 +17,7 @@ import {
   writeExportClipManifest
 } from "./export-manifest.ts";
 import type { ClipListManifest, ClipListItem } from "./cut-list.ts";
+import { isSourceConnectionError, retrySourceConnection } from "./network-retry.ts";
 
 export type CutJobStatus = "pending" | "running" | "done" | "failed" | "cancelled";
 export type CutJobPhaseId =
@@ -1447,7 +1448,17 @@ async function runPendingCutJobUnlocked(
       if (persistPhaseProgress) {
         await writeCutJob(input.workspace_root, running);
       }
-      const result = await task();
+      const result = await (["resolve_source", "preflight_source", "cut_media"].includes(phaseId)
+        ? retrySourceConnection(async () => task(), { onRetry: async (retry, total) => {
+          running.phase_timings = running.phase_timings?.map(phase => phase.phase_id === phaseId
+            ? { ...phase, label: `NAS连接中断，自动重试 ${retry}/${total}` } : phase);
+          await writeCutJob(input.workspace_root, running);
+        } }).catch(error => {
+          if (isSourceConnectionError(error)) throw new Error("NAS连接未恢复，已自动重试3次；已完成任务保留，可恢复连接后重试本片段", { cause: error });
+          throw error;
+        }) : task());
+      running.phase_timings = running.phase_timings?.map(phase => phase.phase_id === phaseId
+        ? { ...phase, label: CUT_JOB_PHASES.find(item => item.phase_id === phaseId)!.label } : phase);
       await assertCutJobNotCancelled(input.workspace_root, running.cut_job_id);
       running = finishPhase(running, phaseId, input.now());
       if (persistPhaseProgress) {

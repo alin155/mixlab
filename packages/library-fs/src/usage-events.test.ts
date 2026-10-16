@@ -793,3 +793,21 @@ test("caps recent keywords and most used source videos to 8", async () => {
     "V000007"
   ]);
 });
+
+
+test("desktop append-only analytics leave SQLite intact and management can refresh the summary", async () => {
+  const root = await makeRoot();
+  await appendUsageEvent(root, baseEvent({ event_type: "search", query: "first" }));
+  const projection = await readUsageMetricsProjection(root);
+  await writeUsageMetricsSummaryProjection({ library_root: root, signature: await readUsageEventsFileSignature(root),
+    ...projection, generated_at: "2026-05-03T10:00:10.000Z" });
+  const file = usageMetricsSummaryProjectionPath(root), before = await readFile(file);
+  await appendUsageEvent(root, baseEvent({ event_type: "search", query: "second" }), { update_summary_projection: false });
+  assert.deepEqual(await readFile(file), before);
+  assert.equal(readUsageMetricsSummaryProjection({ library_root: root, signature: await readUsageEventsFileSignature(root) }), null);
+  const refreshed = await readUsageMetricsProjection(root);
+  assert.equal(refreshed.metrics.search_request_count, 2);
+  await writeUsageMetricsSummaryProjection({ library_root: root, signature: await readUsageEventsFileSignature(root),
+    ...refreshed, generated_at: "2026-05-03T10:00:11.000Z" });
+  assert.equal(readUsageMetricsSummaryProjection({ library_root: root, signature: await readUsageEventsFileSignature(root) })?.metrics.search_request_count, 2);
+});

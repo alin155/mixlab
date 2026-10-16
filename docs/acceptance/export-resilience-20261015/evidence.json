@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-15",
+  "timezone": "America/Los_Angeles",
+  "status": "candidate_verified_and_packaged_not_deployed",
+  "source": {
+    "unified": "cd6e81d2589e602a8721230c62d4fe795fe6a8f4",
+    "legacy": "df5e5b5",
+    "unified_pr": "https://github.com/alin155/mixlab/pull/2",
+    "legacy_pr": "https://github.com/alin155/mixlab/pull/3",
+    "legacy_test_commit": "3a1e4f1",
+    "legacy_build": "3a1e4f1ab207c8f6b8fcb198028a19b3aae96ed8"
+  },
+  "tests": {
+    "unified_related": {
+      "passed": 145,
+      "failed": 0,
+      "skipped": 0
+    },
+    "legacy_related": {
+      "passed": 105,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck_unified": "passed",
+    "typecheck_legacy": "passed",
+    "legacy_web_build": "passed"
+  },
+  "macos": {
+    "source_commit": "cd6e81d2589e602a8721230c62d4fe795fe6a8f4",
+    "isolated_fixture": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/nas-recovery/library",
+    "isolated_state": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/nas-recovery/state",
+    "isolated_workspace": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/nas-recovery/workspace",
+    "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/nas-recovery-cd6e81d/MixLab Unified Cutter Candidate.app",
+    "bundled_node": "v24.21.0",
+    "health_ok": true,
+    "job_status": "done",
+    "completed_clips": 2,
+    "checksummed_clips": 2,
+    "width": 1080,
+    "height": 1920,
+    "duration_seconds": 3.433333,
+    "output_bytes": 105000,
+    "subtitles_and_source_manifest": true,
+    "used_nas": false,
+    "touched_live_state": false,
+    "scope": "packaged engine synthetic exact-match and original-audio export; injected reconnect/restart is covered separately by source integration tests",
+    "archive": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/nas-recovery-cd6e81d/MixLab-Unified-Cutter-Candidate-0.2.0-cd6e81d-macOS.zip",
+    "archive_bytes": 241177446,
+    "archive_sha256": "1ffe8c83adb5834765d163eeb59583c38d5fbb3b8c093559dbe3ffe8badd60fc",
+    "codesign_verify": true,
+    "installed": false,
+    "live_app_unchanged": true
+  },
+  "windows": {
+    "unified": {
+      "run_id": 38847701461,
+      "status": "success",
+      "tests": {
+        "passed": 39,
+        "failed": 0,
+        "skipped_platform_specific": 3
+      },
+      "native_installation": "not_run",
+      "installer": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-windows/nas-recovery-cd6e81d/MixLab Unified Cutter Candidate_0.2.0_x64-setup.exe",
+      "bytes": 149069416,
+      "sha256": "111cc08827f0165fac16c7d83866ffd2031ce640ee7e8ed2e75c5c3ac2a5621b",
+      "match_ci_metadata": true
+    },
+    "legacy": {
+      "run_id": 38848097552,
+      "status": "success",
+      "tests": {
+        "passed": 105,
+        "failed": 0,
+        "skipped": 0
+      },
+      "native_installation": "not_run",
+      "installer": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-windows/cutter-nas-recovery-3a1e4f1/MixLab Cutter_0.18.10_x64-setup.exe",
+      "bytes": 58847051,
+      "version": "0.18.10",
+      "sha256": "56b1c5b4a13eed6180f670c2f87347f2a780aa9f008d4b35997b38f8d58edc48",
+      "match_ci_metadata": true
+    },
+    "real_machine_installed": false
+  },
+  "coverage": {
+    "injected_reconnect_and_restart": "passed",
+    "retained_clip_hash_and_mtime": "passed",
+    "corrupt_clip_rebuilt": "passed",
+    "statistics_sqlite_untouched": "passed",
+    "admin_can_refresh_statistics": "passed",
+    "real_nas_forced_disconnect": false,
+    "live_failed_job_recovered": false
+  },
+  "production": {
+    "app_replaced": false,
+    "nas_data_modified": false,
+    "nas_service_restarted": false,
+    "latest_pointer_modified": false,
+    "live_app_source": "82d0e9e",
+    "live_app_pid_observed": 73195,
+    "live_engine_pid_observed": 73207,
+    "old_clients_still_need_upgrade": true
+  },
+  "limitations": [
+    "No Windows real-machine installation or real NAS export acceptance in this batch",
+    "NAS Samba vendor crashes and network path outages remain external faults",
+    "Restart recovery reuses completed clips; incomplete source copies restart from byte zero",
+    "Native filesystem I/O may take longer than retry intervals"
+  ]
+}
