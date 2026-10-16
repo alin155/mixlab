@@ -6,7 +6,7 @@ import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { saveBasicProject, manageLocalClip, type BasicProject } from "./workspace.ts";
 import { SmartCore } from "./core.ts";
-import { SmartError, requireText, includedSegments, type Job, type HotVideo, type Candidate } from "./types.ts";
+import { SmartError, pendingDirectionReview, directionReviewMessage, requireText, includedSegments, type Job, type HotVideo, type Candidate } from "./types.ts";
 import { exportSources, type ExportComparison } from "./provenance.ts";
 
 const ORIGINS = new Set(["http://127.0.0.1:5178", "http://localhost:5178", ...(process.env.MIXLAB_SMART_DEV_ORIGIN ? [process.env.MIXLAB_SMART_DEV_ORIGIN] : []), "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"]);
@@ -182,7 +182,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (jobRoute) {
         const jobId = decodeURIComponent(jobRoute[1]!);
         const job = core.store.get<Job>("job", jobId); if (!job) throw new SmartError("job_missing", "任务不存在", 404);
-        if (!jobRoute[2] && method === "GET") { json(response, 200, job); return; }
+        if (!jobRoute[2] && method === "GET") { const review = pendingDirectionReview(job); json(response, 200, review ? { ...job, direction_review: review, error: directionReviewMessage(review) } : job); return; }
         if (jobRoute[2] === "action" && method === "POST") { json(response, 200, core.controlJob(jobId, String((await body(request)).action))); return; }
         if (jobRoute[2] === "open" && method === "POST") { if (job.status !== "done") throw new SmartError("job_not_done", "任务尚未生成可用结果", 409); await openPath(path.dirname(job.output_path)); json(response, 200, { opened: true }); return; }
       }

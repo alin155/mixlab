@@ -50,5 +50,5 @@ export function modeName(origin: WorkOrigin): string { return origin.trigger ===
 export function originName(origin: WorkOrigin): string { return origin.kind === "rule" ? "自动规则" : origin.kind === "hot_manual" ? "热点手动" : "手动文案"; }
 export function duration(value: number): string { const seconds = Math.max(0, Math.round(value / 1000)); return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 export function dateText(value: string): string { return value ? new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "尚未检查"; }
-export const JOB_NAMES = { queued: "等待本机", running: "本机处理中", paused: "已暂停", cancelled: "已取消", failed: "需处理", needs_review: "需确认构图", done: "已完成" };
+export const JOB_NAMES = { queued: "等待本机", running: "本机处理中", paused: "已暂停", cancelled: "已取消", failed: "需处理", needs_review: "需人工确认", done: "已完成" };
 export const WORK_NAMES = { draft: "文案草稿", matching: "正在匹配", review: "待审核", ready: "可导出", rendering: "本机处理中", done: "已完成", failed: "需处理" };

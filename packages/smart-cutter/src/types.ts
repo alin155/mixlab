@@ -138,6 +138,7 @@ export interface Composition {
   target_face_ratio?: number;
 }
 export interface Job {
+  direction_review?: DirectionReview;
   subtitle_corrections?: Array<{ index: number; original: string; corrected: string; reason: string }>;
   subtitle_model?: string;
   id: string;
@@ -224,6 +225,23 @@ export interface Rule {
 }
 export class SmartError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); }
+}
+export interface DirectionReview {
+  segment_id: number; candidate_id: string; source_video_id: string; source_title: string; begin_ms: number; end_ms: number;
+}
+export function directionReviewMessage(review: DirectionReview): string {
+  return `${review.segment_id ? `第 ${review.segment_id} 句 · ` : ""}${review.source_title}（${(review.begin_ms / 1000).toFixed(2)}–${(review.end_ms / 1000).toFixed(2)} 秒）方向待确认：请查看原片，画面正常时点击“确认当前方向”，歪转时先选择正确方向。`;
+}
+export class DirectionReviewError extends SmartError {
+  constructor(public review: DirectionReview) { super("direction_review", directionReviewMessage(review), 409); }
+}
+export function pendingDirectionReview(job: Job): DirectionReview | undefined {
+  if (job.direction_review) return job.direction_review;
+  // Older jobs only persisted a phase and the detector message; expose context without rewriting history.
+  const index = /识别原片方向 (\d+)\//u.exec(job.phase);
+  const segment = index && includedSegments(job.work)[Number(index[1]) - 1], candidate = segment?.selected;
+  return job.status === "needs_review" && job.error.includes("原片方向缺少唯一可靠的人脸证据") && segment && candidate
+    ? { segment_id: segment.id, candidate_id: candidate.id, source_video_id: candidate.source_video_id, source_title: candidate.source_title, begin_ms: candidate.begin_ms, end_ms: candidate.end_ms } : undefined;
 }
 export function requireText(value: unknown, label: string, max = 20_000): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) {

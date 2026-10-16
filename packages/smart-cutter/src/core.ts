@@ -19,7 +19,7 @@ import { resolvedTemplate, validateTemplate, type SubtitleTemplate } from "./tem
 import { retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 import { SubtitleCorrector } from "./subtitle-correction.ts";
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
-import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
+import { DEFAULT_OUTPUT, SmartError, DirectionReviewError, pendingDirectionReview, directionReviewMessage, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
   type Settings, type Work, type WorkSegment, type WorkOrigin, type Job, type Account, type HotVideo, type Rule, type OutputSettings } from "./types.ts";
 
 const now = (): string => new Date().toISOString();
@@ -424,7 +424,7 @@ export class SmartCore {
     this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
     const key = this.library.directionKey(candidate), rotation = body.rotation as NonNullable<typeof candidate.rotation>;
     const same = (item: typeof candidate | null) => item && this.library.directionKey(item) === key;
-    const affected = this.store.list<Work>("work", this.store.count("work")).filter(item => item.segments.some(segment => same(segment.selected) || segment.candidates.some(same)));
+    const affected = body.confirm_current === true ? [work] : this.store.list<Work>("work", this.store.count("work")).filter(item => item.segments.some(segment => same(segment.selected) || segment.candidates.some(same)));
     if (affected.some(item => item.status === "matching" || item.status === "rendering")) throw new SmartError("source_busy", "其他作品正在使用该原片匹配或导出，请完成后校正方向", 409);
     this.store.transact(() => {
       this.store.set("source-direction", { id: key, rotation });
@@ -434,6 +434,23 @@ export class SmartCore {
           for (const alternative of segment.candidates) if (same(alternative)) { alternative.rotation = rotation; alternative.direction_source = "manual"; delete alternative.direction_evidence; }
         }
         item.revision++; item.status = workReady(item) ? "ready" : "review"; item.error = ""; this.saveWork(item);
+      }
+      if (body.confirm_current === true && typeof body.job_id === "string") {
+        const job = this.store.get<Job>("job", body.job_id), review = job && pendingDirectionReview(job);
+        if (job?.work_id === workId && job.status === "needs_review" && job.revision === body.revision && review?.source_video_id === candidate.source_video_id) {
+          const segments = includedSegments(job.work);
+          for (const [index, segment] of segments.entries()) if (same(segment.selected)) {
+            if ((segment.selected!.rotation ?? 0) !== rotation) {
+              const clip = `clip-${String(index + 1).padStart(3, "0")}.mp4`;
+              job.completed_clips = job.completed_clips.filter(name => name !== clip); delete job.clip_checksums?.[clip];
+              if (job.work.settings.crop_mode === "portrait") { job.completed_clips = []; job.clip_checksums = {}; job.compositions = {}; }
+            }
+            segment.selected!.rotation = rotation; segment.selected!.direction_source = "manual"; delete segment.selected!.direction_evidence;
+          }
+          job.revision = this.work(workId).revision; job.work.revision = job.revision;
+          job.status = "paused"; job.phase = "方向已确认，可继续导出"; job.error = ""; delete job.direction_review; job.updated_at = now();
+          this.store.set("job", job);
+        }
       }
     });
     return this.work(workId);
@@ -514,7 +531,8 @@ export class SmartCore {
           const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = "done"; this.saveWork(work); }
         } catch (error) {
           if (!controller.signal.aborted) {
-            current.status = error instanceof SmartError && ["composition_review", "subtitle_review", "subtitle_key"].includes(error.code) ? "needs_review" : "failed";
+            current.status = error instanceof SmartError && ["direction_review", "composition_review", "subtitle_review", "subtitle_key"].includes(error.code) ? "needs_review" : "failed";
+            if (error instanceof DirectionReviewError) current.direction_review = error.review; else delete current.direction_review;
             current.error = this.vault.redact((error as Error).message); update();
             const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = current.status === "needs_review" ? "review" : "failed"; work.error = current.error; this.saveWork(work); }
           }
@@ -707,7 +725,8 @@ export class SmartCore {
     }));
     const jobs = !smartAllowed ? [] : this.store.list<Job>("job", 100).map(job => ({
       id: job.id, work_id: job.work_id, title: job.work.title, origin: job.work.origin,
-      status: job.status, phase: job.phase, progress: job.progress, error: job.error,
+      status: job.status, phase: job.phase, progress: job.progress, error: pendingDirectionReview(job) ? directionReviewMessage(pendingDirectionReview(job)!) : job.error,
+      direction_review: pendingDirectionReview(job),
       created_at: job.created_at, updated_at: job.updated_at, duration_ms: job.duration_ms,
       has_output: job.status === "done", ratio: job.work.settings.ratio
     }));

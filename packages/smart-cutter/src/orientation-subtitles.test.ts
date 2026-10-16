@@ -4,7 +4,7 @@ import {mkdtemp,readFile,rm,stat,readdir,rename} from 'node:fs/promises';
 import os from 'node:os';import path from 'node:path';
 import {SmartAi} from './ai.ts';import {SmartMedia} from './media.ts';import {SmartCore} from './core.ts';
 import {SubtitleCorrector,safeSubtitleCorrection} from './subtitle-correction.ts';
-import {runProcess} from './process.ts';import type {Job} from './types.ts';
+import {runProcess} from './process.ts';import {pendingDirectionReview, type Job} from './types.ts';
 import type {SmartLibrary} from './library.ts';
 import {createAcceptanceLibrary} from '../../../scripts/smart-cutter/fixture.ts';
 const repo=process.cwd(),runtime=path.join(repo,'apps/smart-cutter-desktop/src-tauri/runtime');
@@ -66,4 +66,23 @@ test('automatic export freezes upright direction in its job without rewriting th
  const tagged=path.join(root,'metadata-upright.mp4');await runProcess(core.media.ffmpeg.ffmpeg_path,['-v','error','-y','-i',turned,'-c','copy','-metadata:s:v:0','rotate=90',tagged]);const taggedInfo=await stat(tagged);
  const metadata={...raw,id:'tagged',fingerprint:{size:taggedInfo.size,mtime_ms:taggedInfo.mtimeMs},source_file_path:tagged,rotation:0 as const};await core.media.correctDirection(metadata,tagged,core.settings.workspace_root,true);assert.equal(metadata.rotation,0,'ffmpeg display rotation is already applied before direction analysis');
  t.mock.method(core.ai,'orientation',async()=>{assert.fail('manual direction must take precedence');});const manual={...raw,direction_source:'manual' as const,rotation:0 as const};await core.media.correctDirection(manual,turned,core.settings.workspace_root,true);assert.equal(manual.rotation,0);
+});
+
+test('uncertain direction identifies its sentence and confirmation of zero resumes the same job with completed clips intact', {timeout:60000},async t=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'smart-confirm-direction-'));const library=await createAcceptanceLibrary(path.join(root,'library'));
+ const core=new SmartCore({state_root:path.join(root,'state'),workspace_root:path.join(root,'workspace'),auth_mode:'local_trusted',ai:aiRuntime});await core.initialize();t.after(async()=>{await core.close();core.store.close();await rm(root,{recursive:true,force:true});});await core.updateSettings({library_root:library});
+ let work=await core.generatePlan(core.createWork('现金流是企业的血液。把事情做对，再把规模做大。',undefined,'验收讲师').id);
+ work.settings={...work.settings,crop_mode:'center',auto_rotate:true};work.segments[0]!.selected!.direction_source='automatic';core.store.set('work',work);
+ const other=await core.generatePlan(core.createWork('现金流是企业的血液。',undefined,'验收讲师').id),otherBefore=JSON.stringify(core.work(other.id));
+ t.mock.method(core.ai,'orientation',async()=>({rotation:null,confidence:0.6,scores:[],reason:'uncertain'}));
+ const held=await settled(core,core.enqueue(work.id).id);assert.equal(held.status,'needs_review');assert.equal(held.direction_review?.segment_id,2);assert.match(held.error,/第 2 句.*原声拼接验收/u);assert.match(held.error,/方向待确认/u);assert.equal(held.completed_clips.length,1);
+ const summary=(await core.state()).jobs.find(job=>job.id===held.id)!;assert.equal(summary.direction_review?.candidate_id,work.segments[1]!.selected!.id);
+ const legacy=structuredClone(held);delete legacy.direction_review;legacy.error='原片方向缺少唯一可靠的人脸证据，请确认方向';assert.equal(pendingDirectionReview(legacy)?.segment_id,2);
+ const clip=path.join(held.workspace_root,'cache/jobs',held.id,held.completed_clips[0]!),stamp=(await stat(clip)).mtimeMs;
+ assert.throws(()=>core.rotateSource(work.id,2,{revision:work.revision-1,rotation:0,confirm_current:true,job_id:held.id}),/方案已更新/);
+ work=core.rotateSource(work.id,2,{revision:work.revision,rotation:0,confirm_current:true,job_id:held.id});
+ const confirmed=core.store.get<Job>('job',held.id)!;assert.equal(confirmed.status,'paused');assert.equal(confirmed.direction_review,undefined);assert.deepEqual(confirmed.completed_clips,held.completed_clips);assert.equal(confirmed.revision,work.revision);assert.equal(JSON.stringify(core.work(other.id)),otherBefore);
+ t.mock.method(core.ai,'orientation',async()=>{assert.fail('confirmed normal direction must not be analyzed again');});
+ await rename(work.segments[0]!.selected!.source_file_path,work.segments[0]!.selected!.source_file_path+'.offline');await rm(path.join(core.settings.workspace_root,'cache/source-videos',work.segments[0]!.selected!.id+'.media'));
+ core.controlJob(held.id,'resume');const done=await settled(core,held.id);assert.equal(done.status,'done',done.error);assert.equal((await stat(clip)).mtimeMs,stamp);assert.equal(done.work.segments[1]!.selected!.direction_source,'manual');assert.equal(done.work.segments[1]!.selected!.rotation,0);
 });

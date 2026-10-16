@@ -19,7 +19,7 @@ export async function renderTemplatePreview(media: SmartMedia, work: Work, works
   await ensureSpace(root, 128 * 1024 * 1024);
   if (settings.auto_rotate) for (const segment of segments) {
     if (segment.selected!.direction_source || segment.selected!.rotation) continue;
-    await media.correctDirection(segment.selected!, await media.input(segment.selected!, path.join(workspace, "cache/source-videos"), signal), workspace, ["portrait", "follow", "center"].includes(settings.crop_mode), signal);
+    await media.correctDirection(segment.selected!, await media.input(segment.selected!, path.join(workspace, "cache/source-videos"), signal), workspace, ["portrait", "follow", "center"].includes(settings.crop_mode), signal, segment.id);
   }
   // Reuse measurements only for the exact source, rotation, ratio and shot mode. Subtitle edits never search/index the library.
   if (["portrait", "follow"].includes(settings.crop_mode)) {

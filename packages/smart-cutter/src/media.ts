@@ -8,7 +8,7 @@ import { resolveFfmpegRuntime, type FfmpegRuntime } from "../../ffmpeg-core/src/
 import { runProcess } from "./process.ts";
 import { SmartAi } from "./ai.ts";
 import { SmartLibrary } from "./library.ts";
-import { SmartError, workReady, includedSegments, type Candidate, type Composition, type FacePoint, type Job, type OutputSettings, type Orientation } from "./types.ts";
+import { SmartError, DirectionReviewError, workReady, includedSegments, type Candidate, type Composition, type FacePoint, type Job, type OutputSettings, type Orientation } from "./types.ts";
 import { atomicPrivateJson } from "./vault.ts";
 import { isSourceConnectionError, retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 import { SUBTITLE_STYLES, unifyPortraits } from "./presentation.ts";
@@ -199,7 +199,7 @@ export class SmartMedia {
     if (!files.length) throw new SmartError("analysis_failed", "没有取得可分析的视频帧", 422);
     return this.ai.faces(files.map((file, index) => ({ file_path: path.join(folder, file), at_ms: index * 1000 })), ratio, signal);
   }
-  async correctDirection(candidate: Candidate, source: string, workspace: string, required: boolean, signal?: AbortSignal): Promise<void> {
+  async correctDirection(candidate: Candidate, source: string, workspace: string, required: boolean, signal?: AbortSignal, segmentId = 0): Promise<void> {
     if (candidate.direction_source || candidate.rotation) return;
     const key = createHash("sha256").update(JSON.stringify({ detector: 2, source: this.library.directionKey(candidate), begin: candidate.begin_ms, end: candidate.end_ms })).digest("hex");
     const folder = path.join(workspace, "cache", "orientations", key), file = path.join(folder, "direction.json");
@@ -219,7 +219,7 @@ export class SmartMedia {
       await atomicPrivateJson(file, result);
     }
     if (result.rotation === null) {
-      if (required || result.confidence > 0) throw new SmartError("composition_review", result.reason, 409);
+      if (required || result.confidence > 0) throw new DirectionReviewError({ segment_id: segmentId, candidate_id: candidate.id, source_video_id: candidate.source_video_id, source_title: candidate.source_title, begin_ms: candidate.begin_ms, end_ms: candidate.end_ms });
       return;
     }
     candidate.rotation = result.rotation; candidate.direction_source = "automatic"; candidate.direction_evidence = result;
@@ -260,7 +260,7 @@ export class SmartMedia {
     if (job.work.settings.auto_rotate && job.work.settings.crop_mode === "portrait") for (const [index, segment] of segments.entries()) {
       if (segment.selected!.direction_source || segment.selected!.rotation) continue;
       job.phase = `识别原片方向 ${index + 1}/${segments.length}`; update();
-      await this.correctDirection(segment.selected!, await readInput(segment.selected!, index), job.workspace_root, ["portrait", "follow", "center"].includes(job.work.settings.crop_mode), signal); update();
+      await this.correctDirection(segment.selected!, await readInput(segment.selected!, index), job.workspace_root, ["portrait", "follow", "center"].includes(job.work.settings.crop_mode), signal, segment.id); update();
     }
     if (job.work.settings.crop_mode === "portrait") {
       const measured: Composition[] = [];
@@ -299,7 +299,7 @@ export class SmartMedia {
         const source = await readInput(candidate, index);
         if (job.work.settings.auto_rotate && job.work.settings.crop_mode !== "portrait") {
           job.phase = `识别原片方向 ${index + 1}/${segments.length}`; update();
-          await this.correctDirection(candidate, source, job.workspace_root, ["follow", "center"].includes(job.work.settings.crop_mode), signal); update();
+          await this.correctDirection(candidate, source, job.workspace_root, ["follow", "center"].includes(job.work.settings.crop_mode), signal, segment.id); update();
         }
         const probe = await this.probe(source, signal);
         if ((candidate.rotation ?? 0) % 180 === 90) [probe.width, probe.height] = [probe.height, probe.width];
