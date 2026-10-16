@@ -33,7 +33,8 @@ export async function renderTemplatePreview(media: SmartMedia, work: Work, works
       const measurementId = createHash("sha256").update(JSON.stringify({ detector: 1, candidate, ratio: settings.ratio })).digest("hex");
       const measurementFile = path.join(workspace, "cache/template-previews", `measurement-${measurementId}.json`);
       const measured = await readFile(measurementFile, "utf8").then(text => JSON.parse(text) as Composition).catch(() => null);
-      const saved = prior?.compositions[key] ?? (measured?.usable && Array.isArray(measured.points) ? measured : null);
+      const previous = prior?.compositions[key];
+      const saved = previous && (!previous.multiple_faces || previous.detector_version === 2) ? previous : measured?.usable && Array.isArray(measured.points) ? measured : null;
       const composition = saved ? structuredClone(saved) : await media.analyze(candidate,
         await media.input(candidate, path.join(workspace, "cache/source-videos"), signal), root, settings.ratio === "9:16" ? 9 / 16 : 16 / 9, signal);
       if (!composition.usable) throw new SmartError("composition_review", composition.reason || "请先确认人物构图", 409);

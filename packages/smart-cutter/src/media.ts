@@ -267,7 +267,7 @@ export class SmartMedia {
       for (const [index, segment] of segments.entries()) {
         signal.throwIfAborted();
         const candidate = segment.selected!, key = compositionKey(candidate, job.work.settings);
-        if (!job.compositions[key]?.source_aspect || !job.compositions[key]!.points.some(point => point.height)) {
+        if (!job.compositions[key]?.source_aspect || !job.compositions[key]!.points.some(point => point.height) || job.compositions[key]!.multiple_faces && job.compositions[key]!.detector_version !== 2) {
           job.phase = `统一景别：测量人物 ${index + 1}/${segments.length}`; update();
           job.compositions[key] = await this.analyze(candidate, await readInput(candidate, index), temp, job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9, signal); update();
         }
@@ -306,7 +306,7 @@ export class SmartMedia {
         if (!probe.audio) throw new SmartError("source_audio_missing", "源素材没有音轨，无法拼接原声，请替换片段", 422);
         if (candidate.end_ms > probe.duration_ms + 80) throw new SmartError("source_range", "源片段时间超出实际视频，请重新匹配", 409);
         const key = compositionKey(candidate, job.work.settings);
-        if (job.work.settings.crop_mode === "follow" && !job.compositions[key]) {
+        if (job.work.settings.crop_mode === "follow" && (!job.compositions[key] || job.compositions[key]!.multiple_faces && job.compositions[key]!.detector_version !== 2)) {
           job.phase = `人物构图 ${index + 1}/${segments.length}`; update();
           const ratio = job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9;
           job.compositions[key] = Math.abs(probe.width / probe.height - ratio) < 0.005

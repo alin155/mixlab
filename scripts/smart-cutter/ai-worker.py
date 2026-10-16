@@ -381,6 +381,13 @@ def faces(request):
     detector = cv2.FaceDetectorYN.create(str(MODELS / "yunet.onnx"), "", (640, 360), 0.8, 0.3, 5000)
     points = []
     ambiguous = False
+    weak_faces = []
+    upright = cv2.CascadeClassifier(str(Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"))
+    if upright.empty():
+        raise ValueError("upright face classifier is missing")
+    def overlap(a, b):
+        intersection = max(0, min(float(a[0] + a[2]), float(b[0] + b[2])) - max(float(a[0]), float(b[0]))) * max(0, min(float(a[1] + a[3]), float(b[1] + b[3])) - max(float(a[1]), float(b[1])))
+        return intersection / max(1, float(a[2] * a[3] + b[2] * b[3]) - intersection)
     unsafe_crop = False
     sudden_motion = False
     last_raw_x = None
@@ -397,8 +404,12 @@ def faces(request):
         if detected is None or len(detected) == 0:
             continue
         ordered = sorted(detected, key=lambda face: float(face[2] * face[3]), reverse=True)
-        if len(ordered) > 1 and ordered[1][2] * ordered[1][3] >= ordered[0][2] * ordered[0][3] * 0.35:
-            ambiguous = True
+        secondary = [face for face in ordered[1:] if face[2] * face[3] >= ordered[0][2] * ordered[0][3] * 0.35]
+        confirmations = upright.detectMultiScale(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), 1.1, 5, minSize=(30, 30)) if secondary else []
+        for face in secondary:
+            # A lone weak detection on a hand must not invalidate an otherwise stable speaker.
+            ambiguous |= float(face[-1]) >= 0.9 or any(overlap(face, box) >= 0.35 for box in confirmations) or any(overlap(face, box) >= 0.2 for box in weak_faces)
+        weak_faces.extend(face[:4].copy() for face in secondary)
         face = ordered[0]
         x = float((face[0] + face[2] / 2) / width)
         y = float((face[1] + face[3] / 2) / height)
@@ -416,7 +427,7 @@ def faces(request):
     coverage = len(points) / max(1, len(request["frames"]))
     usable = not ambiguous and not unsafe_crop and not sudden_motion and coverage >= 0.6
     reason = "" if usable else "多人主体存在歧义，请选择全景或手动构图" if ambiguous else "近景或镜头变化无法安全裁切，请选择全景或手动构图" if unsafe_crop or sudden_motion else "未稳定检测到主讲人，请选择全景或手动构图"
-    return {"usable": usable, "reason": reason, "points": points, "multiple_faces": ambiguous, "source_aspect": source_aspect}
+    return {"usable": usable, "reason": reason, "points": points, "multiple_faces": ambiguous, "source_aspect": source_aspect, "detector_version": 2}
 
 
 for raw in sys.stdin:

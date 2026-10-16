@@ -25,6 +25,28 @@ test('multi-frame orientation corrects all quarter turns and rejects blank, mixe
  assert.equal((await ai.orientation([0,1000,2000].map(at_ms=>({file_path:blank,at_ms})))).rotation,null);
  const pair=path.join(root,'two.jpg');await runProcess(media.ffmpeg.ffmpeg_path,['-v','error','-y','-i',files[0]!, '-i',files[0]!,'-filter_complex','hstack=inputs=2','-frames:v','1',pair]);
  assert.equal((await ai.orientation([0,1000,2000].map(at_ms=>({file_path:pair,at_ms})))).rotation,null);
+ assert.equal((await ai.faces([pair,files[0]!,files[0]!].map((file_path,index)=>({file_path,at_ms:index*1000})),9/16)).multiple_faces,true,'a real second face in one frame still requires review');
+});
+
+test('a weak isolated secondary face needs independent or temporal support while strong and persistent faces still stop cropping',async()=>{
+ const script=`import sys,io,runpy,cv2,numpy as np
+worker,models,picture=sys.argv[1:];sys.argv=[worker,models];sys.stdin=io.StringIO("");ns=runpy.run_path(worker)
+image=cv2.imread(picture);h,w=image.shape[:2];detector=cv2.FaceDetectorYN.create(models+"/yunet.onnx","",(w,h),0.8,0.3,5000);_,raw=detector.detect(image);main=max(raw,key=lambda f:float(f[2]*f[3]));noise=main.copy();noise[:4]=[0,h-main[3]*0.8,main[2]*0.8,main[3]*0.8];noise[-1]=0.86
+class Detector:
+ def __init__(self,repeat,strong):self.index=0;self.repeat=repeat;self.strong=strong
+ def setInputSize(self,size):pass
+ def detect(self,image):
+  self.index+=1;extra=noise.copy();extra[-1]=0.95 if self.strong else 0.86;return None,np.array([main,extra] if self.index<=self.repeat else [main])
+class Cascade:
+ def empty(self):return False
+ def detectMultiScale(self,*args,**kwargs):return []
+cv2.CascadeClassifier=lambda *args:Cascade()
+for repeat,strong,expected in [(1,False,False),(2,False,True),(1,True,True)]:
+ cv2.FaceDetectorYN.create=lambda *args:Detector(repeat,strong)
+ result=ns['faces']({'frames':[{'file_path':picture,'at_ms':i*1000}for i in range(3)],'ratio':9/16})
+ assert result['multiple_faces']==expected,(repeat,strong,result)
+print('secondary evidence rules passed')`;
+ const result=await runProcess(aiRuntime.python,['-c',script,aiRuntime.script,aiRuntime.models,path.join(repo,'packages/smart-cutter/fixtures/synthetic-speaker.jpg')]);assert.match(result,/secondary evidence rules passed/);
 });
 
 test('subtitle correction accepts bounded homophones while preserving numbers, negations, names and original timings; cached text avoids duplicate model calls',async t=>{

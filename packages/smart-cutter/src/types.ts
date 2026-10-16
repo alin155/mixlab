@@ -129,6 +129,7 @@ export interface Orientation {
   scores: Array<{ rotation: number; score: number; coverage: number; ambiguous: boolean }>;
 }
 export interface Composition {
+  detector_version?: number;
   usable: boolean;
   reason: string;
   points: FacePoint[];
