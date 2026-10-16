@@ -15,7 +15,7 @@ import { TikHubClient, type ProviderPage } from "./tikhub.ts";
 import { ReferenceProcessor } from "./reference.ts";
 import { runProcess } from "./process.ts";
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
-import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, boundedNumber, requireText, validatePlatform,
+import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
   type Settings, type Work, type WorkSegment, type WorkOrigin, type Job, type Account, type HotVideo, type Rule, type OutputSettings } from "./types.ts";
 
 const now = (): string => new Date().toISOString();
@@ -330,7 +330,7 @@ export class SmartCore {
     finally { this.planning.delete(workId); }
   }
   selectSegment(workId: string, segmentId: number, body: Record<string, unknown>): Work {
-    const work = this.work(workId); if (work.status === "matching") throw new SmartError("work_busy", "请等待匹配完成", 409);
+    const work = this.work(workId); if (work.status === "matching" || work.status === "rendering") throw new SmartError("work_busy", "请等待当前匹配或导出完成", 409);
     if (body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请刷新后操作", 409);
     const segment = work.segments.find(item => item.id === segmentId);
     if (!segment) throw new SmartError("segment_missing", "句子不存在", 404);
@@ -338,9 +338,14 @@ export class SmartCore {
       const candidate = segment.candidates.find(item => item.id === body.candidate_id);
       if (!candidate) throw new SmartError("candidate_missing", "只能选择本方案中已验证的真实片段", 409);
       this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
-      segment.selected = candidate; segment.actual = candidate.actual; segment.status = classifyMatch(segment.target, candidate.actual); segment.accepted = false;
+      segment.selected = candidate; segment.actual = candidate.actual; segment.status = classifyMatch(segment.target, candidate.actual); segment.accepted = false; segment.skipped = false;
+    }
+    if (body.skipped !== undefined) {
+      if (typeof body.skipped !== "boolean") throw new SmartError("skip_invalid", "跳过状态必须为开关值");
+      segment.skipped = body.skipped;
     }
     if (body.accepted === true) {
+      if (segment.skipped) throw new SmartError("confirmation_invalid", "请先恢复此句，再确认原声", 409);
       if (segment.status !== "near" || !segment.selected) throw new SmartError("confirmation_invalid", "缺句或关键事实冲突不能通过近似确认，请修改文案或更换片段", 409);
       this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected);
       segment.accepted = true;
@@ -352,12 +357,45 @@ export class SmartCore {
     const work = this.work(workId);
     if (work.status === "matching" || work.status === "rendering") throw new SmartError("work_busy", "请等待当前处理完成", 409);
     if (body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请刷新后操作", 409);
-    const pending = work.segments.filter(segment => segment.status === "near" && segment.selected && segment.actual.trim() && !segment.accepted);
+    const pending = includedSegments(work).filter(segment => segment.status === "near" && segment.selected && segment.actual.trim() && !segment.accepted);
     if (!pending.length) return work;
     for (const segment of pending) this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected!);
     for (const segment of pending) segment.accepted = true;
     work.revision++; work.status = workReady(work) ? "ready" : "review"; work.error = "";
     return this.saveWork(work);
+  }
+  skipMissingSegments(workId: string, body: Record<string, unknown>): Work {
+    const work = this.work(workId);
+    if (work.status === "matching" || work.status === "rendering") throw new SmartError("work_busy", "请等待当前匹配或导出完成", 409);
+    if (body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请刷新后操作", 409);
+    const missing = includedSegments(work).filter(segment => segment.status === "gap" || segment.status === "pending");
+    if (!missing.length) return work;
+    for (const segment of missing) segment.skipped = true;
+    work.revision++; work.status = workReady(work) ? "ready" : "review"; work.error = "";
+    return this.saveWork(work);
+  }
+  rotateSource(workId: string, segmentId: number, body: Record<string, unknown>): Work {
+    const work = this.work(workId), candidate = work.segments.find(segment => segment.id === segmentId)?.selected;
+    if (work.status === "matching" || work.status === "rendering") throw new SmartError("work_busy", "请等待当前匹配或导出完成", 409);
+    if (body.revision !== work.revision) throw new SmartError("plan_revision", "方案已更新，请刷新后操作", 409);
+    if (!candidate) throw new SmartError("source_missing", "请先选择需要校正的原声片段", 409);
+    if (![0, 90, 180, 270].includes(body.rotation as number)) throw new SmartError("rotation_invalid", "画面方向只支持 0、90、180、270 度");
+    this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
+    const key = this.library.directionKey(candidate), rotation = body.rotation as NonNullable<typeof candidate.rotation>;
+    const same = (item: typeof candidate | null) => item && this.library.directionKey(item) === key;
+    const affected = this.store.list<Work>("work", this.store.count("work")).filter(item => item.segments.some(segment => same(segment.selected) || segment.candidates.some(same)));
+    if (affected.some(item => item.status === "matching" || item.status === "rendering")) throw new SmartError("source_busy", "其他作品正在使用该原片匹配或导出，请完成后校正方向", 409);
+    this.store.transact(() => {
+      this.store.set("source-direction", { id: key, rotation });
+      for (const item of affected) {
+        for (const segment of item.segments) {
+          if (same(segment.selected)) segment.selected!.rotation = rotation;
+          for (const alternative of segment.candidates) if (same(alternative)) alternative.rotation = rotation;
+        }
+        item.revision++; item.status = workReady(item) ? "ready" : "review"; item.error = ""; this.saveWork(item);
+      }
+    });
+    return this.work(workId);
   }
   async searchSegment(workId: string, segmentId: number, query: string): Promise<Work> {
     const work = this.work(workId), segment = work.segments.find(item => item.id === segmentId);
@@ -380,14 +418,15 @@ export class SmartCore {
     if (current.revision !== body.revision) throw new SmartError("plan_revision", "方案已更新，请重新补选", 409);
     const target = current.segments.find(item => item.id === segmentId)!;
     target.candidates = [...target.candidates.filter(item => item.id !== candidate.id), candidate].slice(-30);
-    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = false;
+    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = false; target.skipped = false;
     current.revision++; current.status = workReady(current) ? "ready" : "review"; current.error = "";
     return this.saveWork(current);
   }
   enqueue(workId: string): Job {
     const work = this.work(workId);
     if (!work.settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配", 409);
-    if (!workReady(work)) throw new SmartError("review_required", "仍有缺句、近似未确认或事实冲突，请完成审核", 409);
+    if (!includedSegments(work).length) throw new SmartError("empty_work", "至少保留一句已审核的原声片段才能导出", 409);
+    if (!workReady(work)) throw new SmartError("review_required", "仍有未处理句子，请审核原声或明确跳过后导出", 409);
     this.library.assertWorkTeacher(work);
     if (!this.runtime.ffmpeg_ready) throw new SmartError("media_runtime", "本机媒体引擎未就绪", 503);
     const existing = this.store.list<Job>("job").find(job => job.work_id === work.id && job.revision === work.revision && !["cancelled", "failed", "needs_review"].includes(job.status));
@@ -597,8 +636,9 @@ export class SmartCore {
     const works = !smartAllowed ? [] : this.store.list<Work>("work", 100).map(work => ({
       id: work.id, title: work.title, origin: work.origin, status: work.status, revision: work.revision,
       created_at: work.created_at, updated_at: work.updated_at, error: work.error, settings: work.settings,
-      segment_count: work.segments.length, pending_count: work.segments.filter(segment => segment.status !== "exact" && !segment.accepted).length,
-      duration_ms: work.segments.reduce((sum, segment) => sum + (segment.selected ? segment.selected.end_ms - segment.selected.begin_ms : 0), 0)
+      segment_count: work.segments.length, skipped_count: work.segments.filter(segment => segment.skipped).length,
+      pending_count: includedSegments(work).filter(segment => segment.status !== "exact" && !segment.accepted).length,
+      duration_ms: includedSegments(work).reduce((sum, segment) => sum + (segment.selected ? segment.selected.end_ms - segment.selected.begin_ms : 0), 0)
     }));
     const jobs = !smartAllowed ? [] : this.store.list<Job>("job", 100).map(job => ({
       id: job.id, work_id: job.work_id, title: job.work.title, origin: job.work.origin,

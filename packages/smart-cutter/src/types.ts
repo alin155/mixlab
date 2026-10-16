@@ -36,6 +36,7 @@ export const DEFAULT_OUTPUT: OutputSettings = {
   normalize_audio: true, source_folder: "", same_lecturer: true
 };
 export interface Candidate {
+  rotation?: 0 | 90 | 180 | 270;
   id: string;
   snapshot_id: string;
   source_video_id: string;
@@ -61,6 +62,7 @@ export interface WorkSegment {
   actual: string;
   status: MatchKind;
   accepted: boolean;
+  skipped?: boolean;
   selected: Candidate | null;
   candidates: Candidate[];
   reason: string;
@@ -222,8 +224,10 @@ export function automaticTitle(script: string): string {
   return chars.length > 22 ? `${chars.slice(0, 21).join("")}…` : first;
 }
 export function workReady(work: Work): boolean {
-  return !!work.settings.teacher && work.segments.length > 0 && work.segments.every(segment =>
+  const segments = includedSegments(work);
+  return !!work.settings.teacher && segments.length > 0 && segments.every(segment =>
     segment.selected !== null && !!segment.actual.trim() &&
     (segment.status === "exact" || segment.status === "near" && segment.accepted)
   );
 }
+export function includedSegments(work: Work): WorkSegment[] { return work.segments.filter(segment => !segment.skipped); }

@@ -139,7 +139,9 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/works" && method === "POST") { const input = await body(request); json(response, 201, core.createWork(requireText(input.script, "文案"), undefined, requireText(input.teacher, "目标老师", 80))); return; }
       const supplement = /^\/smart\/works\/([^/]+)\/segments\/(\d+)\/supplement$/.exec(url.pathname);
       if (supplement && method === "POST") { json(response, 200, await core.supplementSegment(decodeURIComponent(supplement[1]!), Number(supplement[2]), await body(request))); return; }
-      const workRoute = /^\/smart\/works\/([^/]+)(?:\/(plan|render|search|accept-all))?$/.exec(url.pathname);
+      const rotation = /^\/smart\/works\/([^/]+)\/segments\/(\d+)\/rotation$/.exec(url.pathname);
+      if (rotation && method === "POST") { json(response, 200, core.rotateSource(decodeURIComponent(rotation[1]!), Number(rotation[2]), await body(request))); return; }
+      const workRoute = /^\/smart\/works\/([^/]+)(?:\/(plan|render|search|accept-all|skip-missing))?$/.exec(url.pathname);
       if (workRoute) {
         const workId = decodeURIComponent(workRoute[1]!);
         if (!workRoute[2] && method === "GET") { json(response, 200, core.work(workId)); return; }
@@ -147,6 +149,7 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
         if (workRoute[2] === "plan" && method === "POST") { if (!core.work(workId).settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配", 409); background(core.generatePlan(workId)); json(response, 202, { started: true }); return; }
         if (workRoute[2] === "render" && method === "POST") { json(response, 202, core.enqueue(workId)); return; }
         if (workRoute[2] === "accept-all" && method === "POST") { json(response, 200, core.acceptAllSegments(workId, await body(request))); return; }
+        if (workRoute[2] === "skip-missing" && method === "POST") { json(response, 200, core.skipMissingSegments(workId, await body(request))); return; }
         if (workRoute[2] === "search" && method === "POST") { const input = await body(request); json(response, 200, await core.searchSegment(workId, Number(input.segment_id), requireText(input.query, "搜索内容", 500))); return; }
       }
       const segmentRoute = /^\/smart\/works\/([^/]+)\/segments\/(\d+)$/.exec(url.pathname);

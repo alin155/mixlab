@@ -161,7 +161,11 @@ export class SmartLibrary {
   assertWorkTeacher(work: Work): void {
     if (!work.settings.teacher) throw new SmartError("teacher_required", "请先选择目标老师并重新匹配，旧方案不能跨老师导出", 409);
     const snapshot = this.getSnapshot(work.snapshot_id);
-    for (const segment of work.segments) if (segment.selected) this.assertTeacher(snapshot, work.settings.teacher, segment.selected);
+    for (const segment of work.segments) if (!segment.skipped && segment.selected) this.assertTeacher(snapshot, work.settings.teacher, segment.selected);
+  }
+  directionKey(candidate: Candidate): string { return hash(`${candidate.source_file_path}:${candidate.fingerprint.size}:${candidate.fingerprint.mtime_ms}`); }
+  sourceRotation(candidate: Candidate): NonNullable<Candidate["rotation"]> {
+    return this.store.get<{ rotation: NonNullable<Candidate["rotation"]> }>("source-direction", this.directionKey(candidate))?.rotation ?? 0;
   }
   private async candidate(snapshot: LibrarySnapshot, target: string, sourceId: string,
     ids: string[], score: number): Promise<Candidate | null> {
@@ -180,12 +184,13 @@ export class SmartLibrary {
     let fingerprint;
     try { const info = await stat(detail.source_video_file_path); if (detail.file_size > 0 && info.size !== detail.file_size) return null; fingerprint = { size: info.size, mtime_ms: info.mtimeMs }; }
     catch { return null; }
-    return { id: hash(`${snapshot.id}:${sourceId}:${begin}:${end}`), snapshot_id: snapshot.id,
+    const candidate: Candidate = { id: hash(`${snapshot.id}:${sourceId}:${begin}:${end}`), snapshot_id: snapshot.id,
       source_video_id: sourceId, source_title: detail.title, source_folder: detail.source_folder_name,
       lecturer: detail.lecturer || "", segment_ids: actualSegments.map(item => item.segment_id),
       actual, begin_ms: begin, end_ms: end, kind: classifyMatch(target, actual), score,
       width: detail.width, height: detail.height, source_file_path: detail.source_video_file_path,
       cover_file_path: detail.cover_file_path, fingerprint, content_hash: contentHash };
+    candidate.rotation = this.sourceRotation(candidate); return candidate;
   }
   async selectedRange(snapshot: LibrarySnapshot, target: string, input: Record<string, unknown>): Promise<Candidate> {
     if (typeof input.source_video_id !== "string" || !/^V\d{6}$/.test(input.source_video_id)) throw new SmartError("source_scope", "补选仅接受已发布的公共素材");

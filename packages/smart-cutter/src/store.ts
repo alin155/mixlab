@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { SmartError } from "./types.ts";
 
-export type EntityKind = "work" | "job" | "account" | "hot" | "rule" | "monitor" | "snapshot" | "project" | "cache" | "assembly";
+export type EntityKind = "work" | "job" | "account" | "hot" | "rule" | "monitor" | "snapshot" | "project" | "cache" | "assembly" | "source-direction";
 
 /** Only this application's private database is opened for writing. */
 export class SmartStore {
