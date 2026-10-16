@@ -70,7 +70,9 @@ export class SmartLibrary {
       const root = path.join(base, id);
       try { await rename(incoming, root); }
       catch (error) {
-        if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+        const code = (error as NodeJS.ErrnoException).code ?? '';
+        const windowsExistingDirectory = process.platform === 'win32' && code === 'EPERM' && (await stat(root).catch(() => null))?.isDirectory();
+        if (!['EEXIST', 'ENOTEMPTY'].includes(code) && !windowsExistingDirectory) throw error;
         const existing = await readFastLocalCutterReleaseCacheStatus({ cache_root: root });
         if (existing.cache_ready && existing.active_release_version === result.active_release_version) {
           await rm(incoming, { recursive: true, force: true });

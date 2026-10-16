@@ -14,7 +14,7 @@ import { publishCutterRelease } from '../../library-fs/src/cutter-release.ts';
 import { publishIndexPackage } from '../../library-fs/src/index.ts';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const ai = { python: path.join(repo, 'apps/smart-cutter-desktop/src-tauri/runtime/python/bin/python3'), script: path.join(repo, 'scripts/smart-cutter/ai-worker.py'), models: path.join(repo, 'apps/smart-cutter-desktop/src-tauri/runtime/models') };
+const ai = { python: process.env.MIXLAB_SMART_PYTHON || path.join(repo, 'apps/smart-cutter-desktop/src-tauri/runtime/python', process.platform === 'win32' ? 'python.exe' : 'bin/python3'), script: path.join(repo, 'scripts/smart-cutter/ai-worker.py'), models: path.join(repo, 'apps/smart-cutter-desktop/src-tauri/runtime/models') };
 async function fixture(t: TestContext) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'mixlab-search-performance-'));
   const library = await createAcceptanceLibrary(path.join(root, 'library'));

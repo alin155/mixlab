@@ -2007,7 +2007,7 @@ test("source library reads from local release cache after syncing the current re
       ["V000001", "V000002"]
     );
     assert.equal(
-      cached.data.videos[0].source_video_file_path,
+      path.normalize(cached.data.videos[0].source_video_file_path),
       path.join(libraryRoot, "source-videos", "01_现金流.mp4")
     );
   }, {
@@ -2378,7 +2378,7 @@ test("source detail prefers local searchd transcript when artifact transcript is
         );
         assert.deepEqual(detail.data.keyframes.keyframes_ms, []);
         assert.equal(
-          detail.data.source_video_file_path.endsWith(path.join("source-videos", "01_现金流.mp4")),
+          path.normalize(detail.data.source_video_file_path).endsWith(path.join("source-videos", "01_现金流.mp4")),
           true
         );
         assert.equal(detail.data.media_url, "/cutter/source-videos/V000001/media");
@@ -2743,7 +2743,7 @@ test("cuts from original source before starting cold source video cache warmup",
     });
     assert.equal(create.status, 201);
 
-    assert.deepEqual(cutSourcePaths, [originalSourcePath]);
+    assert.deepEqual(cutSourcePaths.map(value => path.normalize(value)), [originalSourcePath]);
 
     await copyStartedSignal;
     releaseCopy();
@@ -3387,7 +3387,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
       cutOutputs.map(({ begin_ms, end_ms }) => ({ begin_ms, end_ms })),
       [{ begin_ms: 750, end_ms: 4000 }]
     );
-    assert.equal(cutOutputs[0]!.source_video_path, path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+    assert.equal(path.normalize(cutOutputs[0]!.source_video_path), path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
 
     let runtimeStatus: any;
     const cacheDeadline = Date.now() + 1_000;

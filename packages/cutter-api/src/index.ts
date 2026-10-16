@@ -846,7 +846,7 @@ function sourceVideoCacheEntryMatches(input: {
 
   return (
     entry.source_video_id === input.source_video_id &&
-    entry.source_video_file_path === input.source_video_file_path &&
+    path.normalize(entry.source_video_file_path) === path.normalize(input.source_video_file_path) &&
     (!hasKnownSourceSize || entry.source_size === input.source_size)
   );
 }
