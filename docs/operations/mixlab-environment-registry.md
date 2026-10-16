@@ -551,3 +551,12 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 原端回归 105/105、统一端及相关模块 145/145，类型检查通过；Windows CI 与交付见 `docs/acceptance/export-resilience-20261015/evidence.json`。
 - 现用 `82d0e9e` 进程仍运行，原应用与正式 NAS 账号/素材/统计文件、NAS 服务和共享下载指针未修改。旧客户端需在空闲窗口逐台升级才获得修复。候选包与现用包应用 ID 相同，不能双实例共用状态。
 - Windows 两端候选构建成功并下载到本机隔离交付目录：统一端 run `38847701461` / `cd6e81d`（39 通过、3 平台专属跳过）；原端 run `38848097552` / `3a1e4f1`（105 通过）。各 `.exe` SHA-256 已与 CI 元数据核对一致；未执行 Windows 实机安装或正式 NAS 导出。
+
+## 2026-10-15 智能成片质量候选（未替换现用包）
+
+- 源码 `5207eeb`，基线 `7a58db9`，独立工作树 `/Users/huaqihang/Documents/Codex/implementations/mixlab-cutter-quality`，分支 `codex/unified-quality-20261015`，草稿 PR #4。架构审查工作树保持原状。
+- 隔离验收 Web `http://127.0.0.1:5278/#/films`、本机引擎 `5272`；状态及工作区在本工作树 `.local-dev/quality`。公共库视图仅一条合成验收素材，不是正式 NAS。真实七段作品及缓存只读复制到隔离状态，用于人物、字幕与原片对比验收；不复制账号、会话或 Key。
+- 新增统一人物景别、历史智能导出来源联动/热点参考播放及六套字幕模板。真实七段约 45 秒样片与包内两段媒体流水线通过；原成片 SHA-256 保持一致。本机智能模块 46/46、类型及 Web 构建通过。
+- 包内引擎验收另用 `.local-dev/quality/packaged`，测试端口 `5273` 已关闭。Mac 0.2.0 临时签名包保存在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/quality-5207eeb`，zip SHA-256 `87ab171cc7c0934a73a8fd606b8abf9ef3cea4f748103daa4670e9c71af7738c`，未安装到用户状态。
+- Windows CI `38855754725` / `5207eeb` 成功，43 通过、3 平台专属跳过。安装器在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-windows/quality-5207eeb`，SHA-256 `9d6e10f935c874813f02e2ae5a568678b84dd2ebf08eb2f01818a84b3f47207b` 与 CI 元数据一致；未执行 Windows 实机安装。
+- 现用应用、用户账号/作品/原成片、NAS 数据和正式下载入口未变更。候选沿用应用 ID，正式切换须退出并备份本机状态，不并发共用状态。验收记录及交付边界见 `docs/acceptance/export-quality-20261015/`。
