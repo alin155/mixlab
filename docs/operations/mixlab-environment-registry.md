@@ -542,3 +542,12 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - `V003752 / C0169` 无方向标记且像素侧转，已在本机记住顺时针 90°校正；审核/成片预览、人物分析和导出使用相同方向。真实预览 304×540、17.2172 秒，音轨存在。其他同名文件按路径和指纹分别处理，NAS 原文件不改。
 - 原 5 个作品的文案、选区和审核选择保留；Key 与 v012714 的 1,298,422 段向量/样本摘要保留。智能端 38/38、类型、Web/Mac 构建及签名验证通过。证据：`docs/acceptance/macos-unified/skip-direction-20261015.md`。
 - 本次规则补充此前“缺句阻止导出”的行为：未审核且未明确跳过的句子继续阻止导出；用户明确跳过后导出保留片段。Windows 与完整真实作品导出本轮未验收。
+
+## 2026-10-15 NAS 统计与导出恢复候选（未替换现用包）
+
+- 统一智能端修复源码 `cd6e81d`（主修复 `ae8fd6d`）；原剪辑端热修复源码 `df5e5b5`（主修复 `0edce9c`），独立工作树 `../mixlab-cutter-nas-recovery`。两个草稿 PR 为 #2 / #3。
+- macOS 0.2.0 候选保存在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/nas-recovery-cd6e81d/`，归档 SHA-256 `1ffe8c83adb5834765d163eeb59583c38d5fbb3b8c093559dbe3ffe8badd60fc`，未安装/启动到用户状态。
+- 包内引擎在随机 loopback 端口、`.local-dev/macos/nas-recovery/{state,workspace,library}` 合成隔离库完成 MP4/SRT/来源清单验证；不代表真实 NAS 历史任务已恢复。
+- 原端回归 105/105、统一端及相关模块 145/145，类型检查通过；Windows CI 与交付见 `docs/acceptance/export-resilience-20261015/evidence.json`。
+- 现用 `82d0e9e` 进程仍运行，原应用与正式 NAS 账号/素材/统计文件、NAS 服务和共享下载指针未修改。旧客户端需在空闲窗口逐台升级才获得修复。候选包与现用包应用 ID 相同，不能双实例共用状态。
+- Windows 两端候选构建成功并下载到本机隔离交付目录：统一端 run `38847701461` / `cd6e81d`（39 通过、3 平台专属跳过）；原端 run `38848097552` / `3a1e4f1`（105 通过）。各 `.exe` SHA-256 已与 CI 元数据核对一致；未执行 Windows 实机安装或正式 NAS 导出。
