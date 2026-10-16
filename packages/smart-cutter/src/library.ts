@@ -22,7 +22,7 @@ const hash = (value: string): string => createHash("sha256").update(value).diges
 const candidateOrder = (a: Candidate, b: Candidate): number => Number(b.kind === "exact") - Number(a.kind === "exact") || Number(a.kind === "conflict") - Number(b.kind === "conflict") || b.score - a.score;
 
 export function classifyMatch(target: string, actual: string): "exact" | "near" | "conflict" {
-  const expected = Array.from(normalizeTranscriptText(target)), spoken = Array.from(normalizeTranscriptText(actual));
+  let expected = Array.from(normalizeTranscriptText(target)), spoken = Array.from(normalizeTranscriptText(actual));
   if (!expected.length || !spoken.length) return "conflict";
   if (expected.join("") === spoken.join("")) return "exact";
   const facts = (value: string): string => [
@@ -31,6 +31,10 @@ export function classifyMatch(target: string, actual: string): "exact" | "near" 
   ].sort().join("|");
   const negative = (value: string): boolean => /不|没|无|未|别|禁止|不能/u.test(value);
   if (facts(target) !== facts(actual) || negative(target) !== negative(actual)) return "conflict";
+  // A repeated opening take is reviewable speech, never an exact automatic match.
+  const opening = /^(\p{Script=Han}{4,16})\1/u;
+  expected = Array.from(expected.join("").replace(opening, "$1"));
+  spoken = Array.from(spoken.join("").replace(opening, "$1"));
   // Embedding similarity only recalls a topic; it cannot establish matching speech.
   // Reserve manual near-review for small transcript edits, never a different sentence.
   const longest = Math.max(expected.length, spoken.length), edits = Math.floor(longest * 0.12);

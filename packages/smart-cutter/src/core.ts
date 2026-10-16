@@ -372,6 +372,8 @@ export class SmartCore {
       if (!candidate) throw new SmartError("candidate_missing", "只能选择本方案中已验证的真实片段", 409);
       this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
       segment.selected = candidate; segment.actual = candidate.actual; segment.status = classifyMatch(segment.target, candidate.actual); segment.accepted = false; segment.skipped = false;
+      delete segment.manual_selection;
+      segment.reason = segment.status === "near" ? "实际原声有文字差异，请试听确认。" : segment.status === "conflict" ? "与目标文字有差异，可手动选用实际原声或更换片段。" : "";
     }
     if (body.skipped !== undefined) {
       if (typeof body.skipped !== "boolean") throw new SmartError("skip_invalid", "跳过状态必须为开关值");
@@ -382,6 +384,12 @@ export class SmartCore {
       if (segment.status !== "near" || !segment.selected) throw new SmartError("confirmation_invalid", "缺句或关键事实冲突不能通过近似确认，请修改文案或更换片段", 409);
       this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected);
       segment.accepted = true;
+    }
+    if (body.use_actual === true) {
+      if (segment.skipped || !segment.selected || !segment.actual.trim()) throw new SmartError("confirmation_invalid", "请先选择可用的实际原声片段", 409);
+      this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected);
+      segment.manual_selection = true; segment.accepted = true;
+      segment.reason = "已手动选用实际原声，成片和字幕以素材为准；目标文案保留作对照。";
     }
     work.revision++; work.status = workReady(work) ? "ready" : "review"; work.error = "";
     return this.saveWork(work);
@@ -451,7 +459,8 @@ export class SmartCore {
     if (current.revision !== body.revision) throw new SmartError("plan_revision", "方案已更新，请重新补选", 409);
     const target = current.segments.find(item => item.id === segmentId)!;
     target.candidates = [...target.candidates.filter(item => item.id !== candidate.id), candidate].slice(-30);
-    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = false; target.skipped = false;
+    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = true; target.skipped = false; target.manual_selection = true;
+    target.reason = "已手动补选实际原声，成片和字幕以素材为准；目标文案保留作对照。";
     current.revision++; current.status = workReady(current) ? "ready" : "review"; current.error = "";
     return this.saveWork(current);
   }

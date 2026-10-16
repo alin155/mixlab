@@ -72,6 +72,7 @@ export interface WorkSegment {
   actual: string;
   status: MatchKind;
   accepted: boolean;
+  manual_selection?: boolean;
   skipped?: boolean;
   selected: Candidate | null;
   candidates: Candidate[];
@@ -252,7 +253,7 @@ export function workReady(work: Work): boolean {
   const segments = includedSegments(work);
   return !!work.settings.teacher && segments.length > 0 && segments.every(segment =>
     segment.selected !== null && !!segment.actual.trim() &&
-    (segment.status === "exact" || segment.status === "near" && segment.accepted)
+    (segment.status === "exact" || segment.accepted && (segment.status === "near" || segment.manual_selection === true))
   );
 }
 export function includedSegments(work: Work): WorkSegment[] { return work.segments.filter(segment => !segment.skipped); }

@@ -332,6 +332,7 @@ export class SmartMedia {
       const normalized = await this.probe(clip, signal);
       captions.push(...await this.sourceCaptions(candidate, normalized.duration_ms, offset));
       manifestSources.push({ work_segment_id: segment.id, source_video_id: candidate.source_video_id, snapshot_id: candidate.snapshot_id, segment_ids: candidate.segment_ids,
+        manual_selection: segment.manual_selection === true && segment.accepted, target: segment.target,
         source_title: candidate.source_title, source_folder: candidate.source_folder,
         begin_ms: candidate.begin_ms, end_ms: candidate.end_ms, actual: candidate.actual, rotation: candidate.rotation ?? 0, direction_source: candidate.direction_source, direction_evidence: candidate.direction_evidence, original_fingerprint: candidate.fingerprint,
         ...(job.work.settings.crop_mode === "portrait" ? { framing: job.compositions[compositionKey(candidate, job.work.settings)] } : {}),

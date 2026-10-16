@@ -51,6 +51,13 @@ test("topical similarity cannot substitute speech; only small transcript edits e
   assert.equal(classifyMatch('企业利润率达到15%。', '企业利润率达到16%。'), 'conflict');
   assert.equal(classifyMatch('现金流不是企业的利润。', '现金流是企业的利润。'), 'conflict');
 });
+test('a repeated opening plus small transcript errors is reviewable but never an exact automatic match', () => {
+  const target = '听历越多的人，他的社交就越简单，只要觉得有点累的关系就不去维持他。';
+  assert.equal(classifyMatch(target, '经历越多的人他的经历越多的人，他的社交就越简单。只要觉得有点累的关系就不去维持他。'), 'near');
+  assert.equal(classifyMatch('经历越多的人，他的社交就越简单。', '经历越多的人他的经历越多的人，他的社交就越简单。'), 'near');
+  assert.equal(classifyMatch('利润达到15%，今天不投资。', '利润达到15%利润达到15%，今天不投资。'), 'conflict');
+  assert.equal(classifyMatch('经历越多的人，不去维持关系。', '经历越多的人经历越多的人，去维持关系。'), 'conflict');
+});
 test("reference downloads reject local/network targets before requesting them", async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), "smart-download-")); t.after(() => rm(root, { recursive: true, force: true }));
   for (const address of ["127.0.0.1", "10.2.3.4", "192.168.1.27", "::1", "fc00::1", "::ffff:127.0.0.1"]) assert.equal(publicAddress(address), false);
