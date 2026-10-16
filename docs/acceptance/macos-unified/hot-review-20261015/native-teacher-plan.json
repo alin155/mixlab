@@ -1,0 +1,32 @@
+{
+  "snapshot": "v012714",
+  "teacher": "陶矜",
+  "elapsed_ms": 2511,
+  "sentences": 3,
+  "segments": [
+    {
+      "status": "gap",
+      "candidates": 12,
+      "candidate_folders": [
+        "陶矜2"
+      ]
+    },
+    {
+      "status": "near",
+      "selected_folder": "陶矜2",
+      "candidates": 12,
+      "candidate_folders": [
+        "陶矜2"
+      ]
+    },
+    {
+      "status": "near",
+      "selected_folder": "陶矜2",
+      "candidates": 12,
+      "candidate_folders": [
+        "陶矜2",
+        "陶矜"
+      ]
+    }
+  ]
+}

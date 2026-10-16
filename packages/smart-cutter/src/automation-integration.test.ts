@@ -37,10 +37,20 @@ test('actual local embedding index and face detector; uncertain crop holds and m
   await core.updateSettings({ library_root: library });
   const snapshot = await core.library.snapshot(); await core.ai.buildIndex(snapshot);
   const matches = await core.ai.search(snapshot, '现金流是企业的血液。', '');
-  assert.equal(matches[0]?.source_video_id, 'V000001'); assert.ok(matches[0]!.score > 0.85);
+  assert.equal(matches.hits[0]?.source_video_id, 'V000001'); assert.ok(matches.hits[0]!.score > 0.85);
+  const vectorPath = path.join(snapshot.root, 'semantic-vectors.sqlite');
+  let vectors = new DatabaseSync(vectorPath);
+  const checkpoint = vectors.prepare('SELECT segment_id,vector FROM vectors ORDER BY segment_id LIMIT 1').get() as { segment_id: string; vector: Uint8Array };
+  vectors.prepare('DELETE FROM vectors WHERE segment_id<>?').run(checkpoint.segment_id);
+  vectors.exec("DELETE FROM meta WHERE key='ready'"); vectors.close();
+  core.ai.stopIndex(); await core.ai.buildIndex(snapshot);
+  vectors = new DatabaseSync(vectorPath, { readOnly: true });
+  assert.equal((vectors.prepare('SELECT COUNT(*) AS count FROM vectors').get() as { count: number }).count, 2);
+  assert.deepEqual((vectors.prepare('SELECT vector FROM vectors WHERE segment_id=?').get(checkpoint.segment_id) as { vector: Uint8Array }).vector, checkpoint.vector);
+  vectors.close();
   const faces = await core.ai.faces([0, 1000, 2000].map(at_ms => ({ file_path: path.join(repo, 'packages/smart-cutter/fixtures/synthetic-speaker.jpg'), at_ms })), 9 / 16);
   assert.equal(faces.usable, true, faces.reason); assert.ok(faces.points.every(point => point.x > 0.35 && point.x < 0.7));
-  const work = core.createWork('现金流是企业的血液。'); await core.generatePlan(work.id);
+  const work = core.createWork('现金流是企业的血液。', undefined, '验收讲师'); await core.generatePlan(work.id);
   const preview = await core.media.preview(core.work(work.id).segments[0]!.selected!, core.settings.workspace_root);
   assert.ok((await core.media.probe(preview)).duration_ms < 2000, 'preview only includes selected range');
   const job = core.enqueue(work.id); const held = await settled(core, job.id);
@@ -58,7 +68,7 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   const core = new SmartCore({ state_root: path.join(root, 'state'), workspace_root: path.join(root, 'workspace'), auth_mode: 'local_trusted', ai, provider });
   await core.initialize(); t.after(async () => { await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
   await core.updateSettings({ library_root: library });
-  const account: Account = { id: 'test-account', input: 'MS4TESTACCOUNT0001', platform: 'douyin', sec_user_id: 'MS4TESTACCOUNT0001', unique_id: '', name: '受控接口验收账号', followers: null, group: '验收', enabled: true, cursor: '0', last_checked_at: '', last_error: '' };
+  const account: Account = { id: 'test-account', teacher: '验收讲师', input: 'MS4TESTACCOUNT0001', platform: 'douyin', sec_user_id: 'MS4TESTACCOUNT0001', unique_id: '', name: '受控接口验收账号', followers: null, group: '验收', enabled: true, cursor: '0', last_checked_at: '', last_error: '' };
   core.store.set('account', account); core.store.set('hot', hot());
   const rule = core.saveRule({ enabled: true, execution: 'review', min_likes: 1000, daily_limit: 1 });
   await core.monitorRun(); await core.monitorRun();
@@ -76,7 +86,7 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   const release = await readCurrentCutterRelease(untagged);
   const catalog = new DatabaseSync(path.join(untagged, '.mixlab-library/releases', release.release_version, 'catalog.sqlite'));
   try { catalog.exec("UPDATE source_videos SET lecturer=''"); } finally { catalog.close(); }
-  await core.updateSettings({ library_root: untagged }); core.store.remove('rule', rule.id);
+  await core.updateSettings({ library_root: untagged, teacher_folder_bindings: { '验收素材': '验收讲师' } }); core.store.remove('rule', rule.id);
   const qualified = core.saveRule({ enabled: true, execution: 'qualified', min_likes: 1000 });
   await core.monitorRun();
   const held = core.store.list<Work>('work').find(work => work.origin.rule_id === qualified.id)!;

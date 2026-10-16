@@ -79,6 +79,7 @@ export * from "./admin-settings.ts";
 export * from "./admin-users.ts";
 export * from "./admin-writer-lease.ts";
 export * from "./cutter-users.ts";
+export * from "./cutter-entitlements.ts";
 export * from "./password-auth.ts";
 export * from "./preprocess-safety.ts";
 export * from "./usage-events.ts";

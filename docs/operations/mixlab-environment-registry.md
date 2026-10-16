@@ -467,3 +467,87 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 4. 不能把密钥、密码、token、完整私密转写文本写进本文件。
 5. 如果本文件和代码冲突，以代码为准，并立即修正文档。
 6. 如果本文件和真实测试结果冲突，以真实测试结果为准，并立即修正文档。
+
+
+## 2026-10-07 统一剪辑端候选开发环境
+
+- 代码：`/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter`，分支 `codex/unified-cutter-20261007`，基线 `f525c0e`。
+- Mac 隔离 Web：`http://127.0.0.1:5198`；本机引擎：`127.0.0.1:3793`。原智能预览 5178/3792、原型 5196 保留。
+- 数据：本工作树 `.local-dev/unified/PublicLibrary` 为独立生成并发布的测试素材；`.local-dev/unified/state` 保存测试账号会话及项目数据库；`.local-dev/unified/workspace` 保存真实测试输出。
+- 测试素材是色块视频、测试音调和已知转写元数据，用于验证媒体与数据链路，不作为真实口播质量验收。
+- Mac AI 模型/Python 使用已有只读运行时目录链接；FFmpeg 使用项目 `ffmpeg-static`，系统 Homebrew FFmpeg 缺少 `ass` 滤镜，不用于字幕验收。
+- Windows Runner 当前在线：`192.168.1.20:3799`，版本 `0.1.32`（本次实时验证）。
+- Windows 候选包采用 `com.mixlab.unifiedcutter.candidate`，独立安装及应用数据目录；不替换现有 Cutter / Smart Cutter，不更新共享目录 LATEST 指针。
+- 正式 NAS 素材、账号与已安装生产端尚未在本批次升级。TikHub/DashScope 实际密钥尚未用于候选验收。
+- 2026-10-08 UTC Windows 候选 `0.2.0` / `acecfd4` 构建与实机启动验收通过；安装位置 `C:\Users\ASUS\AppData\Local\MixLabUnifiedCandidate-acecfd4`，状态位置 `C:\Users\ASUS\AppData\Local\com.mixlab.unifiedcutter.candidate`。本次引擎随机端口 `50519`，仅代表该次进程，不作为固定配置。
+- 候选交付：Mac 共享目录 `unified-cutter/candidate-acecfd4`；Runner 启动验收器 `launch_app_probe-20261008T053816Z-15662c84`，原生检查报告 `docs/acceptance/unified-cutter/windows-native-startup.json`。登录、AI/FFmpeg、独立工作区和认证停止通过；公共库尚未配置，托盘点击未验收。
+
+## 2026-10-12 Mac 优先候选验收环境
+
+- 代码提交 `97b58c3`（含 Mac 主体 `822024b`）：同一隔离工作树。Mac `.app` 与 zip：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0`；Apple Silicon / macOS 14.0+，应用标识 `com.mixlab.unifiedcutter.candidate`，独立本机状态及工作区在 `~/Library/Application Support/com.mixlab.unifiedcutter.candidate`。
+- 包内运行时：Node 24.21.0、Python 3.12.14、原生 ARM64 FFprobe 6.1.6、已有静态 FFmpeg、模型、字体。Mac package script：`npm run package:smart-cutter:macos`；本机临时签名，未公证。
+- NAS `192.168.1.27:445` 和 `:18080/health` 可达。Mac 新增根挂载 `/Volumes/MixLab` 后读到公共库发布 `v012694` / 12,805 条；原子文件夹挂载 `/Volumes/23.4.8-10北京` 保留。系统随后等待候选 Network Volumes 授权，应用文件读取尚未验收；恢复命令已终止，挂载状态和实际可读性需授权后复验。
+- Mac 本地验收库：候选状态目录下 `acceptance-library`；隔离包内媒体测试目录：工作树 `.local-dev/macos/packaged-media-*`。这些不是生产 NAS 账号或媒体。
+- Mac 原生 UI 测试被锁屏停止；真实账号登录、NAS 网络卷宗授权及 TikHub/DashScope 设置待用户配合。未更改正式 NAS 账号、部署、素材或 Windows 最新下载指针。
+- 证据：`docs/acceptance/macos-unified/implementation-report.md`、`packaged-media.json`、`nas-readonly.json`、`network-permission.json`、`artifact.json`。随机本机引擎端口只属于各次进程，不记为固定服务地址。
+
+## 2026-10-13 Mac 候选连接复验
+
+- 候选应用已打开；本机引擎就绪，保存的真实公共库路径为 `/Volumes/MixLab/PublicLibrary`。访达重新连接 `smb://192.168.1.27/MixLab` 恢复根挂载后，应用的公共库检查成功返回 `v012694` / 12,805 条。
+- 当前证据覆盖应用读取发布元数据；真实账号登录、媒体流水线和第三方 Key 尚待验收。界面证据：`docs/acceptance/macos-unified/mac-nas-connected-20261013.png`。
+
+## 2026-10-15 Mac NAS 检索与账号恢复
+
+- 本机候选更新为 `93eb03d`，版本仍为 `0.2.0`；应用路径、本机状态目录和设备 ID 沿用原候选。旧包保留在交付目录 `rollback-97b58c3`，原 zip 不覆盖。
+- 现场发现 SMB 根挂载消失、ENOTCONN 和服务端断开重连；停止旧候选后通过访达恢复 `smb://192.168.1.27/MixLab`。当前真实公共库仍为 `/Volumes/MixLab/PublicLibrary`，发布计数 12,805。
+- 修复认证可用性分类、读取超时与客户端同步写 NAS 统计 SQLite。原生真实 NAS 检索“房地产”已显示 20 条结果、完整文案及预览，同一 Pro 账号重新登录成功。详见 `docs/acceptance/macos-unified/nas-recovery-20261015.md`。
+- 同日通过原生设置保存用户填写的 TikHub/DashScope 配置，TikHub 本机测试接口返回 HTTP 200、`connected=true`。语义索引任务仍在运行，本轮未重启或替换 Mac 应用；新增“保存并测试”交互仅完成源码、21/21 测试、类型及 Web 构建验证，尚未安装到当前 Mac 包。详见 `docs/acceptance/macos-unified/tikhub-key-action-20261015.md`。不在登记表记录真实 Key。
+
+## 2026-10-15 Mac 发布快照一致性更新
+
+- Mac 候选实际更新为 `a6752c6`，包含 TikHub “保存并测试”交互及快照一致性修复；版本仍为 `0.2.0`，应用/状态/工作区路径不变。旧 `93eb03d` 应用保留在交付目录 `rollback-93eb03d`。
+- 原错误目录含 `v012699` 文件与 `v012700` 指针，空版本哈希目录已保留隔离。同步器锁定复制前的指针并校验完整性；实际本机 `v012700` 至 `v012702` 快照读取通过，没有改动 NAS 发布指针。
+- 更新前备份并保留 `v012698` 已完成的 125,520 段语义向量，更新后从原快照继续增长。原作品与已保存 Key 保留。随机引擎端口本次为 `51676`，仅属于该次进程。
+- 智能端 24/24、缓存模块 4/4、成熟剪辑端缓存 API 5/5、类型、Mac 构建及签名检查通过。证据：`docs/acceptance/macos-unified/snapshot-recovery-20261015.md`。
+
+## 2026-10-15 Mac 匹配实际进度
+
+- Mac 候选已更新到 `a473c64`（进度主体 `19611de`），版本仍为 `0.2.0`。作品增加真实阶段、快照版本、已完成句数/分类和适用阶段的语义索引计数；从列表重新打开匹配中作品进入进度页。
+- 原应用保留于交付目录 `rollback-a6752c6`。索引检查点 449,376 段保留，实测续建到 453,120 段；文案及已保存 Key 均保留。当前随机引擎端口 `54595`。
+- 原生进度页实测：3 句文案、同步 v012714 本机快照、0/3 句完成。语义索引和快照同步仍在进行，不宣称已完成真实智能匹配或全库建索引。
+- 智能端 27/27、类型、Web/Mac 构建和签名检查通过。证据：`docs/acceptance/macos-unified/matching-progress-20261015.md`。
+
+## 2026-10-15 Mac 智能检索性能更新
+
+- 候选实际更新为 `97a228c` / `0.2.0`（性能主体 `58ff0a5`），原路径和独立工作区不变，旧包保留 `rollback-a473c64`。初次性能包端口 `56155`，最终入口包随机引擎端口 `56508`。
+- 交互查询与后台建索引分进程；作品复用已同步快照，向量按内容与编码配置跨发布复用。全库未就绪时先做有明确覆盖限制的候选匹配；就绪后走按素材范围分区的 HNSW。
+- 原真实 129 字/3 句作品不再等待旧索引，已进入审核页。原生首次并发迁移时 34.394 秒，再次 2.396 秒，结果 2 句近似、1 句待补充检索；未代替用户接受或导出。
+- 原 v012698 的 719,184 段检查点与样本摘要保留；后台改在该作品 v012714 上续建，观测 746,976 / 1,298,422 段，726,854 复用、20,122 新编码。文案、账号和 Key 保留。
+- 智能端 32/32、类型、Mac 构建与签名检查通过；全库完成和 Windows 实机性能仍未验收。证据：`docs/acceptance/macos-unified/search-optimization-20261015.md`。
+- 最终原生审核页“重新匹配”入口已验证：重启后 7.642 秒完成，沿用作品 v012714，不重置到最新 NAS 发布。新索引检查点 798,480 段在入口更新前保留，后台已继续。
+
+## 2026-10-15 Mac 热点原视频与老师范围
+
+- Mac 候选实际更新为 `7e1adbd / 0.2.0`（功能主体 `187a142`），应用和工作区路径沿用原候选；本次最终随机引擎端口 `60418`。旧 `97a228c` 包及中间 `187a142` 包分别保留在交付目录同名 rollback 子目录。
+- 热点支持只下载原视频与本机播放，匹配审核支持一次确认全部近似待审句；缺句/待检索/冲突仍阻止导出。作品必选老师，监控账号绑定老师，候选、补选与渲染都校验老师归属。
+- 当前发布老师标签为空；用户确认“陶矜”“陶矜2”属于同一老师，已在本机设置合并归属为陶矜。现有两个陶矜监控账号已绑定陶矜，不改 NAS 元数据。
+- 实际原生下载并播放一条 34 秒、约 6.8 MB 视频，未触发 ASR；最终包本机 Range 为 206。隔离状态使用真实锁定素材做同老师三句匹配为 2.511 秒，所有候选来自陶矜/陶矜2；未代替用户通过或导出。
+- v012714 的 1,298,422 段向量和 ANN 已完整就绪并保留，更新前后样本摘要一致；4 个用户作品记录、会话与 Key 保留。智能端 35/35、类型、Web/Mac 构建和签名检查通过。证据：`docs/acceptance/macos-unified/hot-review-20261015.md`。
+- Windows 本轮未实机复验，真实付费 ASR、严格自动导出以及完整托盘/长任务恢复仍需单独验收。
+
+## 2026-10-15 Mac 跳过缺句与画面方向
+
+- Mac 候选更新至 `82d0e9e / 0.2.0`，本次引擎随机端口 `55075`；原包保留 `rollback-7e1adbd`。应用、状态、工作区和公共库路径不变。
+- 明确跳过的句子可从视频、原声、字幕与预计时长中排除，再导出其余已审核片段；跳过可恢复，全部跳过不能导出空视频。当前真实九句作品第 5、9 句仍待用户选择跳过，未自动省略。
+- `V003752 / C0169` 无方向标记且像素侧转，已在本机记住顺时针 90°校正；审核/成片预览、人物分析和导出使用相同方向。真实预览 304×540、17.2172 秒，音轨存在。其他同名文件按路径和指纹分别处理，NAS 原文件不改。
+- 原 5 个作品的文案、选区和审核选择保留；Key 与 v012714 的 1,298,422 段向量/样本摘要保留。智能端 38/38、类型、Web/Mac 构建及签名验证通过。证据：`docs/acceptance/macos-unified/skip-direction-20261015.md`。
+- 本次规则补充此前“缺句阻止导出”的行为：未审核且未明确跳过的句子继续阻止导出；用户明确跳过后导出保留片段。Windows 与完整真实作品导出本轮未验收。
+
+## 2026-10-15 NAS 统计与导出恢复候选（未替换现用包）
+
+- 统一智能端修复源码 `cd6e81d`（主修复 `ae8fd6d`）；原剪辑端热修复源码 `df5e5b5`（主修复 `0edce9c`），独立工作树 `../mixlab-cutter-nas-recovery`。两个草稿 PR 为 #2 / #3。
+- macOS 0.2.0 候选保存在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/nas-recovery-cd6e81d/`，归档 SHA-256 `1ffe8c83adb5834765d163eeb59583c38d5fbb3b8c093559dbe3ffe8badd60fc`，未安装/启动到用户状态。
+- 包内引擎在随机 loopback 端口、`.local-dev/macos/nas-recovery/{state,workspace,library}` 合成隔离库完成 MP4/SRT/来源清单验证；不代表真实 NAS 历史任务已恢复。
+- 原端回归 105/105、统一端及相关模块 145/145，类型检查通过；Windows CI 与交付见 `docs/acceptance/export-resilience-20261015/evidence.json`。
+- 现用 `82d0e9e` 进程仍运行，原应用与正式 NAS 账号/素材/统计文件、NAS 服务和共享下载指针未修改。旧客户端需在空闲窗口逐台升级才获得修复。候选包与现用包应用 ID 相同，不能双实例共用状态。
+- Windows 两端候选构建成功并下载到本机隔离交付目录：统一端 run `38847701461` / `cd6e81d`（39 通过、3 平台专属跳过）；原端 run `38848097552` / `3a1e4f1`（105 通过）。各 `.exe` SHA-256 已与 CI 元数据核对一致；未执行 Windows 实机安装或正式 NAS 导出。

@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "source_commit": "a6752c6",
+  "platform": "macos-arm64",
+  "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
+  "archive": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab-Unified-Cutter-0.2.0-macos-arm64-snapshot-recovery-a6752c6.zip",
+  "sha256": "e0445600af6936a11632012452989428208ba133ecd5b8eef15561ceb5a586ff",
+  "size_bytes": 239750622,
+  "codesign": "ad-hoc strict verified",
+  "notarized": false,
+  "rollback_app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/rollback-93eb03d/MixLab Unified Cutter Candidate.app"
+}

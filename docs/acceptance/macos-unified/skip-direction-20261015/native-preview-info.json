@@ -1,0 +1,17 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "codec_type": "video",
+      "width": 304,
+      "height": 540
+    },
+    {
+      "codec_type": "audio"
+    }
+  ],
+  "format": {
+    "duration": "17.217200"
+  }
+}

@@ -1,0 +1,253 @@
+{
+  "scope": "relocated packaged engine with restricted PATH and isolated generated media; no NAS account or provider calls",
+  "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
+  "started_at": "2026-10-13T05:13:07.447Z",
+  "root": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/packaged-media-BXItaj",
+  "health": {
+    "ok": true,
+    "product": "mixlab-smart-cutter",
+    "version": "0.1.0",
+    "runtime": {
+      "ai_ready": true,
+      "ffmpeg_ready": true,
+      "library_ready": false,
+      "library_count": 0,
+      "library_version": "",
+      "library_error": ""
+    }
+  },
+  "cut_job": "CJ20261013-0001",
+  "local_clips": 1,
+  "assembly": {
+    "id": "M-183aceca-f7aa-4ba0-bb84-36c5518e1c9c",
+    "duration_ms": 3433,
+    "size": 65870
+  },
+  "smart": {
+    "id": "J-68b5e60e-9f2d-4e07-90be-178590f5ceb9",
+    "size": 105000,
+    "subtitles": "1\n00:00:00,000 --> 00:00:01,700\n现金流是企业的血液。\n\n2\n00:00:01,700 --> 00:00:03,400\n把事情做对，再把规模做大。\n",
+    "source_record": {
+      "schema_version": "1.0",
+      "job_id": "J-68b5e60e-9f2d-4e07-90be-178590f5ceb9",
+      "work_id": "W-5e46f869-f418-4033-b7ff-fc2a2fa2fa5e",
+      "revision": 2,
+      "title": "现金流是企业的血液",
+      "origin": {
+        "trigger": "manual",
+        "kind": "manual_script"
+      },
+      "original_input_script": "现金流是企业的血液。把事情做对，再把规模做大。",
+      "input_script": "现金流是企业的血液。把事情做对，再把规模做大。",
+      "actual_script": "现金流是企业的血液。\n把事情做对，再把规模做大。",
+      "settings": {
+        "ratio": "9:16",
+        "crop_mode": "fit",
+        "crop_position": 0.5,
+        "subtitles": true,
+        "subtitle_style": "white",
+        "subtitle_size": 48,
+        "normalize_audio": true,
+        "source_folder": "",
+        "same_lecturer": true
+      },
+      "sources": [
+        {
+          "source_video_id": "V000001",
+          "snapshot_id": "ba87ba7ccba9abb8eba89ff335341a3c",
+          "segment_ids": [
+            "V000001-S000001"
+          ],
+          "begin_ms": 0,
+          "end_ms": 1700,
+          "actual": "现金流是企业的血液。",
+          "original_fingerprint": {
+            "size": 42320,
+            "mtime_ms": 1791868387400.515
+          },
+          "output_begin_ms": 0,
+          "output_end_ms": 1700
+        },
+        {
+          "source_video_id": "V000001",
+          "snapshot_id": "ba87ba7ccba9abb8eba89ff335341a3c",
+          "segment_ids": [
+            "V000001-S000002"
+          ],
+          "begin_ms": 2000,
+          "end_ms": 3700,
+          "actual": "把事情做对，再把规模做大。",
+          "original_fingerprint": {
+            "size": 42320,
+            "mtime_ms": 1791868387400.515
+          },
+          "output_begin_ms": 1700,
+          "output_end_ms": 3400
+        }
+      ],
+      "output": {
+        "file": "video.mp4",
+        "sha256": "95a4b3c24b6150023d3a4b48afbb879d0b1271072850e0b8df65fcf3a131c6be",
+        "width": 1080,
+        "height": 1920,
+        "duration_ms": 3433,
+        "audio": true
+      },
+      "generated_at": "2026-10-13T05:13:12.836Z"
+    }
+  },
+  "output_probe": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+        "profile": "High",
+        "codec_type": "video",
+        "codec_tag_string": "avc1",
+        "codec_tag": "0x31637661",
+        "width": 1080,
+        "height": 1920,
+        "coded_width": 1080,
+        "coded_height": 1920,
+        "closed_captions": 0,
+        "film_grain": 0,
+        "has_b_frames": 2,
+        "sample_aspect_ratio": "1:1",
+        "display_aspect_ratio": "9:16",
+        "pix_fmt": "yuv420p",
+        "level": 40,
+        "chroma_location": "left",
+        "field_order": "progressive",
+        "refs": 1,
+        "is_avc": "true",
+        "nal_length_size": "4",
+        "id": "0x1",
+        "r_frame_rate": "30/1",
+        "avg_frame_rate": "30/1",
+        "time_base": "1/15360",
+        "start_pts": 0,
+        "start_time": "0.000000",
+        "duration_ts": 52736,
+        "duration": "3.433333",
+        "bit_rate": "40667",
+        "bits_per_raw_sample": "8",
+        "nb_frames": "103",
+        "extradata_size": 47,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "vendor_id": "[0][0][0][0]",
+          "encoder": "Lavc60.3.100 libx264"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "codec_long_name": "AAC (Advanced Audio Coding)",
+        "profile": "LC",
+        "codec_type": "audio",
+        "codec_tag_string": "mp4a",
+        "codec_tag": "0x6134706d",
+        "sample_fmt": "fltp",
+        "sample_rate": "48000",
+        "channels": 2,
+        "channel_layout": "stereo",
+        "bits_per_sample": 0,
+        "initial_padding": 0,
+        "id": "0x2",
+        "r_frame_rate": "0/0",
+        "avg_frame_rate": "0/0",
+        "time_base": "1/48000",
+        "start_pts": 0,
+        "start_time": "0.000000",
+        "duration_ts": 164224,
+        "duration": "3.421333",
+        "bit_rate": "192446",
+        "nb_frames": "162",
+        "extradata_size": 5,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "SoundHandler",
+          "vendor_id": "[0][0][0][0]"
+        }
+      }
+    ],
+    "format": {
+      "filename": "/Users/huaqihang/Documents/Codex/implementations/mixlab-unified-cutter/.local-dev/macos/packaged-media-BXItaj/workspace/projects/W-5e46f869-f418-4033-b7ff-fc2a2fa2fa5e/exports/J-68b5e60e-9f2d-4e07-90be-178590f5ceb9/video.mp4",
+      "nb_streams": 2,
+      "nb_programs": 0,
+      "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+      "format_long_name": "QuickTime / MOV",
+      "start_time": "0.000000",
+      "duration": "3.433333",
+      "size": "105000",
+      "bit_rate": "244660",
+      "probe_score": 100,
+      "tags": {
+        "major_brand": "isom",
+        "minor_version": "512",
+        "compatible_brands": "isomiso2avc1mp41",
+        "encoder": "Lavf60.3.100"
+      }
+    }
+  },
+  "final_runtime": {
+    "ai_ready": true,
+    "ffmpeg_ready": true,
+    "library_ready": true,
+    "library_count": 1,
+    "library_version": "v000001",
+    "library_error": "",
+    "semantic": {
+      "running": false,
+      "done": 0,
+      "total": 0,
+      "error": "",
+      "snapshot_id": ""
+    }
+  },
+  "authenticated_shutdown": true,
+  "status": "passed",
+  "finished_at": "2026-10-13T05:13:12.955Z"
+}

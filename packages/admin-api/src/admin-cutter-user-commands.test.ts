@@ -128,3 +128,20 @@ test("disable and password reset cutter user commands audit the cutter user stor
   assert.equal(log.events.every((event) => event.area === "users"), true);
   assert.equal(log.events.every((event) => event.details.holder && event.details.actor), true);
 });
+
+test("Pro tier changes are audited and snapshot the separate entitlement file without rewriting legacy accounts", async () => {
+  const { runAdminSetCutterAccountTierCommand } = await import("./admin-cutter-user-commands.ts");
+  const { cutterAccountTier, cutterEntitlementsPath } = await import("../../library-fs/src/index.ts");
+  const root = await makeLibraryRoot();
+  const applied = await createCutterLoginApplication(root, { username: "pro-test", device_id: "pro-device", device_name: "验收", now: "2026-10-07T12:00:00.000Z" });
+  await runAdminApproveCutterUserCommand({ library_root: root, user_id: applied.user_id, now: "2026-10-07T12:01:00.000Z" });
+  const accountFile = path.join(root, ".mixlab-library", "cutter-users", "users.json");
+  const before = await readFile(accountFile, "utf8");
+  await runAdminSetCutterAccountTierCommand({ library_root: root, user_id: applied.user_id, tier: "pro", now: "2026-10-07T12:02:00.000Z" });
+  assert.equal(await cutterAccountTier(root, applied.user_id), "pro");
+  assert.equal(await readFile(accountFile, "utf8"), before);
+  await runAdminSetCutterAccountTierCommand({ library_root: root, user_id: applied.user_id, tier: "ordinary", now: "2026-10-07T12:03:00.000Z" });
+  assert.equal(await cutterAccountTier(root, applied.user_id), "ordinary");
+  assert.ok((await readFile(cutterEntitlementsPath(root), "utf8")).includes("ordinary"));
+  const snapshot = await latestSnapshotManifest(root); assert.equal(snapshot.command, "cutter-user-tier");
+});

@@ -10,7 +10,7 @@ import { exportMixlabDoctorReport, runMixlabDoctor } from "../../doctor-core/src
 import {
   applyAdminRuntimeSecretsToEnv,
   assertPreprocessSafeToStart,
-  listCutterUsers,
+  listCutterUsersWithTiers,
   publicCutterUser,
   readAdminSettings,
   readAllSourceVideoManifests,
@@ -51,6 +51,7 @@ import {
   runAdminApproveCutterUserCommand,
   runAdminDisableCutterUserCommand,
   runAdminResetCutterUserPasswordCommand,
+  runAdminSetCutterAccountTierCommand,
   type AdminApproveCutterUserResult
 } from "./admin-cutter-user-commands.ts";
 import {
@@ -666,7 +667,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
                 env
               });
             },
-            list_cutter_users_service: listCutterUsers,
+            list_cutter_users_service: listCutterUsersWithTiers,
             project_public_cutter_user: publicCutterUser
           })
         }),
@@ -940,6 +941,15 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       if (runtimeDiagnosticRoute.handled) {
         writeJson(response, runtimeDiagnosticRoute.status_code, runtimeDiagnosticRoute.body);
         return;
+      }
+
+      const tierRoute = /^\/api\/admin\/cutter-users\/(CU\d+)\/tier$/.exec(url.pathname);
+      if (request.method === "POST" && tierRoute) {
+        const tierBody = await readRequestJson(request) as { tier?: unknown };
+        if (!tierBody || (tierBody.tier !== "ordinary" && tierBody.tier !== "pro")) { writeJson(response, 400, apiError("invalid_tier", "请选择普通或 Pro 账号")); return; }
+        const tierResult = await runAdminSetCutterAccountTierCommand({ library_root: input.library_root, user_id: tierRoute[1]!,
+          tier: tierBody.tier as "ordinary" | "pro", now: requestNow, actor: requestActor });
+        writeJson(response, 200, apiOk(tierResult)); return;
       }
 
       const cutterUserCommandRoute = await handleAdminCutterUserCommandRoutes({

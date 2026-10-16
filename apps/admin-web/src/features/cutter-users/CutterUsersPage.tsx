@@ -172,12 +172,14 @@ export function CutterUsersPage({
   metrics,
   onApprove,
   onDisable,
-  onResetPassword
+  onResetPassword,
+  onSetTier
 }: {
   users: AdminCutterUsersResponse;
   metrics: UsageMetrics;
   onApprove?: (userId: string) => void;
   onDisable?: (userId: string) => void;
+  onSetTier?: (userId: string, tier: "ordinary" | "pro") => Promise<void> | void;
   onResetPassword?: (userId: string, input: { new_password: string }) => Promise<void> | void;
 }) {
   const usersById = new Map(users.users.map((user) => [user.user_id, user]));
@@ -196,6 +198,9 @@ export function CutterUsersPage({
       header: "状态",
       render: (user) => <Badge tone={statusTone(user.status)}>{userStatusLabel(user.status)}</Badge>
     },
+    { id: "tier", header: "账号级别", render: user => user.status === "approved" && onSetTier
+      ? <select aria-label={`${user.username}的账号级别`} value={user.tier ?? "ordinary"} onChange={event => void onSetTier(user.user_id, event.target.value as "ordinary" | "pro")}><option value="ordinary">普通</option><option value="pro">Pro</option></select>
+      : <Badge>{user.tier === "pro" ? "Pro" : "普通"}</Badge> },
     { id: "devices", header: "设备", render: (user) => `${user.devices.length} 台` },
     {
       id: "searches",

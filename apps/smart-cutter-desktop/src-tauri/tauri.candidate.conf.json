@@ -1,0 +1,17 @@
+{
+  "productName": "MixLab Unified Cutter Candidate",
+  "identifier": "com.mixlab.unifiedcutter.candidate",
+  "version": "0.2.0",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MixLab 智能剪辑端 · 候选验收",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1180,
+        "minHeight": 720
+      }
+    ]
+  }
+}

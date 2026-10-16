@@ -81,7 +81,8 @@ const commandAreaByName = {
   "admin-auth-logout": "system",
   "cutter-user-approve": "users",
   "cutter-user-disable": "users",
-  "cutter-user-password-reset": "users"
+  "cutter-user-password-reset": "users",
+  "cutter-user-tier": "users"
 } satisfies Record<AdminCommandName, AdminOperationLogArea>;
 
 export function adminCommandAuditArea(command: AdminCommandName): AdminOperationLogArea {

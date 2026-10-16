@@ -82,7 +82,8 @@ test("admin command contracts cover every current Admin mutation command", () =>
     "admin-auth-logout",
     "cutter-user-approve",
     "cutter-user-disable",
-    "cutter-user-password-reset"
+    "cutter-user-password-reset",
+    "cutter-user-tier"
   ]);
   assert.deepEqual(adminCommandContract("library-scan"), {
     command: "library-scan",

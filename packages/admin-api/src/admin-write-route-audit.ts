@@ -399,6 +399,18 @@ export const adminWriteRouteAuditEntries: readonly AdminWriteRouteAuditEntry[] =
     notes: "Cutter user disable is command-gated, keeps password/session details redacted, and does not take the material writer lease."
   },
   {
+    endpoint: "/api/admin/cutter-users/:user_id/tier",
+    method: "POST",
+    owner: "command-runtime",
+    command: "cutter-user-tier",
+    command_runtime: "direct",
+    scan_mode: "no-scan",
+    uses_writer_lease: false,
+    audit_surface: "command-audit",
+    mutation_targets: ["cutter-entitlements"],
+    notes: "Account tier changes are command-gated and audited in an additive entitlement store without rewriting legacy accounts."
+  },
+  {
     endpoint: "/api/admin/cutter-users/:user_id/password",
     method: "POST",
     owner: "command-runtime",

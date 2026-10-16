@@ -4205,6 +4205,26 @@ test("approves cutter applications and disables cutter users", async () => {
   });
 });
 
+test("account tier routes return the Admin envelope and reject invalid tiers without mutation", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const application = await createCutterLoginApplication(libraryRoot, {
+    username: "tier-test", device_id: "tier-device", device_name: "验收工作站", now: "2026-05-01T10:00:00.000Z"
+  });
+  await withServer(libraryRoot, async baseUrl => {
+    await postJson(baseUrl, `/api/admin/cutter-users/${application.user_id}/approve`);
+    const route = `/api/admin/cutter-users/${application.user_id}/tier`;
+    const upgraded = await postJson(baseUrl, route, { tier: "pro" });
+    assert.equal(upgraded.ok, true);
+    assert.deepEqual(upgraded.data, { user_id: application.user_id, tier: "pro" });
+    const invalid = await postJson(baseUrl, route, { tier: "invalid" });
+    assert.equal(invalid.ok, false); assert.equal(invalid.error_code, "invalid_tier");
+    const users = await getJson(baseUrl, "/api/admin/cutter-users");
+    assert.equal(users.data.users.find((user: { user_id: string }) => user.user_id === application.user_id).tier, "pro");
+    const downgraded = await postJson(baseUrl, route, { tier: "ordinary" });
+    assert.equal(downgraded.ok, true); assert.equal(downgraded.data.tier, "ordinary");
+  });
+});
+
 test("admin can reset cutter user password and invalidate sessions", async () => {
   const libraryRoot = await makeLibraryRoot();
   const application = await createCutterLoginApplication(libraryRoot, {

@@ -1,6 +1,6 @@
 export type Platform = "douyin";
 export type CreationMode = "manual" | "automatic";
-export type MatchKind = "exact" | "near" | "conflict" | "gap";
+export type MatchKind = "exact" | "near" | "conflict" | "gap" | "pending";
 export type CropMode = "follow" | "center" | "fit";
 export type JobStatus = "queued" | "running" | "paused" | "cancelled" | "failed" | "needs_review" | "done";
 
@@ -15,6 +15,7 @@ export interface Settings {
   max_download_mb: number;
   asr_model: string;
   default_source_folder: string;
+  teacher_folder_bindings?: Record<string, string>;
   device_id: string;
 }
 export interface OutputSettings {
@@ -26,6 +27,7 @@ export interface OutputSettings {
   subtitle_size: number;
   normalize_audio: boolean;
   source_folder: string;
+  teacher?: string;
   same_lecturer: boolean;
 }
 export const DEFAULT_OUTPUT: OutputSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_OUTPUT: OutputSettings = {
   normalize_audio: true, source_folder: "", same_lecturer: true
 };
 export interface Candidate {
+  rotation?: 0 | 90 | 180 | 270;
   id: string;
   snapshot_id: string;
   source_video_id: string;
@@ -44,7 +47,7 @@ export interface Candidate {
   actual: string;
   begin_ms: number;
   end_ms: number;
-  kind: Exclude<MatchKind, "gap">;
+  kind: Exclude<MatchKind, "gap" | "pending">;
   score: number;
   width: number;
   height: number;
@@ -59,9 +62,11 @@ export interface WorkSegment {
   actual: string;
   status: MatchKind;
   accepted: boolean;
+  skipped?: boolean;
   selected: Candidate | null;
   candidates: Candidate[];
   reason: string;
+  retrieval?: { mode: "ann" | "candidate"; complete: boolean; examined: number };
 }
 export interface WorkOrigin {
   trigger: CreationMode;
@@ -73,6 +78,20 @@ export interface WorkOrigin {
   rule_name?: string;
   hot_id?: string;
   reference_title?: string;
+}
+export type MatchPhase = "snapshot_check" | "snapshot_sync" | "snapshot_ready" | "text_search" | "source_check" | "semantic_wait" | "semantic_index" | "semantic_search" | "complete" | "failed";
+export interface MatchActivity { phase: MatchPhase; snapshot_id?: string; snapshot_version?: string }
+export interface MatchProgress extends MatchActivity {
+  started_at: string;
+  updated_at: string;
+  total_sentences: number;
+  completed_sentences: number;
+  current_sentence: number;
+  exact_matches: number;
+  near_matches: number;
+  missing_matches: number;
+  pending_matches?: number;
+  semantic?: { running: boolean; done: number; total: number; error: string; snapshot_id: string; version: string };
 }
 export interface Work {
   id: string;
@@ -88,6 +107,7 @@ export interface Work {
   created_at: string;
   updated_at: string;
   error: string;
+  match_progress?: MatchProgress;
 }
 export interface FacePoint { at_ms: number; x: number; y?: number; confidence: number }
 export interface Composition {
@@ -112,6 +132,7 @@ export interface Job {
   workspace_root: string;
   duration_ms: number;
   completed_clips: string[];
+  clip_checksums?: Record<string, string>;
   compositions: Record<string, Composition>;
   result_sha256?: string;
 }
@@ -128,6 +149,7 @@ export interface Account {
   last_checked_at: string;
   last_error: string;
   cursor: string;
+  teacher?: string;
 }
 export interface VideoStats {
   likes: number | null;
@@ -203,8 +225,10 @@ export function automaticTitle(script: string): string {
   return chars.length > 22 ? `${chars.slice(0, 21).join("")}…` : first;
 }
 export function workReady(work: Work): boolean {
-  return work.segments.length > 0 && work.segments.every(segment =>
+  const segments = includedSegments(work);
+  return !!work.settings.teacher && segments.length > 0 && segments.every(segment =>
     segment.selected !== null && !!segment.actual.trim() &&
     (segment.status === "exact" || segment.status === "near" && segment.accepted)
   );
 }
+export function includedSegments(work: Work): WorkSegment[] { return work.segments.filter(segment => !segment.skipped); }

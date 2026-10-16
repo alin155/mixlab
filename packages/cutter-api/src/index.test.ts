@@ -1749,6 +1749,23 @@ test("cut job catalog remains readable when cutter workspace is not configured",
   });
 });
 
+test("cutter analytics append events without touching the management SQLite summary", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const summary = path.join(libraryRoot, ".mixlab-library/admin-read-model/usage-metrics.sqlite");
+  await mkdir(path.dirname(summary), { recursive: true });
+  await writeFile(summary, "management-owned-summary-must-not-be-opened-or-unlinked");
+  const before = await stat(summary);
+  await withApiServer(libraryRoot, async baseUrl => {
+    assert.equal((await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("现金流")}`, { headers })).status, 200);
+    await waitForUsageMetrics(libraryRoot, metrics => metrics.search_request_count === 1);
+    assert.equal((await readFile(summary, "utf8")), "management-owned-summary-must-not-be-opened-or-unlinked");
+    assert.equal((await stat(summary)).mtimeMs, before.mtimeMs);
+    assert.equal((await stat(summary)).ino, before.ino);
+    assert.ok(!(await readdir(path.dirname(summary))).some(file => file.endsWith("-journal")));
+  });
+});
+
 test("malformed usage events do not break authenticated source search", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
@@ -1990,7 +2007,7 @@ test("source library reads from local release cache after syncing the current re
       ["V000001", "V000002"]
     );
     assert.equal(
-      cached.data.videos[0].source_video_file_path,
+      path.normalize(cached.data.videos[0].source_video_file_path),
       path.join(libraryRoot, "source-videos", "01_现金流.mp4")
     );
   }, {
@@ -2361,7 +2378,7 @@ test("source detail prefers local searchd transcript when artifact transcript is
         );
         assert.deepEqual(detail.data.keyframes.keyframes_ms, []);
         assert.equal(
-          detail.data.source_video_file_path.endsWith(path.join("source-videos", "01_现金流.mp4")),
+          path.normalize(detail.data.source_video_file_path).endsWith(path.join("source-videos", "01_现金流.mp4")),
           true
         );
         assert.equal(detail.data.media_url, "/cutter/source-videos/V000001/media");
@@ -2726,7 +2743,7 @@ test("cuts from original source before starting cold source video cache warmup",
     });
     assert.equal(create.status, 201);
 
-    assert.deepEqual(cutSourcePaths, [originalSourcePath]);
+    assert.deepEqual(cutSourcePaths.map(value => path.normalize(value)), [originalSourcePath]);
 
     await copyStartedSignal;
     releaseCopy();
@@ -3370,7 +3387,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
       cutOutputs.map(({ begin_ms, end_ms }) => ({ begin_ms, end_ms })),
       [{ begin_ms: 750, end_ms: 4000 }]
     );
-    assert.equal(cutOutputs[0]!.source_video_path, path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+    assert.equal(path.normalize(cutOutputs[0]!.source_video_path), path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
 
     let runtimeStatus: any;
     const cacheDeadline = Date.now() + 1_000;

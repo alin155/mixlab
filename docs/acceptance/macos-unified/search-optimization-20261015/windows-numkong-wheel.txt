@@ -1,0 +1,5 @@
+Collecting numkong==7.8.5
+  Downloading numkong-7.8.5-cp312-cp312-win_amd64.whl.metadata (88 kB)
+Downloading numkong-7.8.5-cp312-cp312-win_amd64.whl (495 kB)
+Saved ./.local-dev/macos/search-optimization-20261015/wheels/numkong-7.8.5-cp312-cp312-win_amd64.whl
+Successfully downloaded numkong

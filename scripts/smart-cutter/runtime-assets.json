@@ -1,8 +1,11 @@
 {
   "node_version": "24.21.0",
   "node_win_sha256": "158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541",
+  "node_macos_arm64_sha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+  "ffprobe_macos_source": { "version": "6.1.6", "url": "https://ffmpeg.org/releases/ffmpeg-6.1.6.tar.xz", "sha256": "d4fcb164028dd3beee5d92c0ac72e46aac6973c75ea12dc14de07bf8f407370a" },
+  "python_macos_arm64": {"version": "3.12.14", "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.12.14%2B20260924-aarch64-apple-darwin-install_only.tar.gz", "sha256": "9763f43db2481a6af36af82ec40302aab7a73632f880129d07a6e81aec846277"},
   "python_version": "3.12.10",
-  "requirements": ["numpy==2.2.6", "opencv-python-headless==4.12.0.88", "onnxruntime==1.22.1", "tokenizers==0.21.4"],
+  "requirements": ["numpy==2.2.6", "opencv-python-headless==4.12.0.88", "onnxruntime==1.22.1", "tokenizers==0.21.4", "usearch==2.26.2", "numkong==7.8.5"],
   "assets": [
     { "file": "models/bge-small-zh.onnx", "url": "https://huggingface.co/Xenova/bge-small-zh-v1.5/resolve/75c43b069aac4d136ba6bc1122f995fedcfd2781/onnx/model_quantized.onnx", "sha256": "15b717c382bcb518ba457b93ea6850ede7f4f1cd8937454aa06972366cd19bcc" },
     { "file": "models/tokenizer.json", "url": "https://huggingface.co/Xenova/bge-small-zh-v1.5/resolve/75c43b069aac4d136ba6bc1122f995fedcfd2781/tokenizer.json", "sha256": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26" },

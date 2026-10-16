@@ -1,0 +1,13 @@
+{
+  "hot_id": "douyin:7689106791669534015",
+  "cached": true,
+  "status": "discovered",
+  "transcript_chars": 0,
+  "media": {
+    "status": 206,
+    "range": "bytes 0-1023/6833547",
+    "received_bytes": 1024
+  },
+  "duration_ms": 34273,
+  "error": ""
+}

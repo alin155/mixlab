@@ -1,0 +1,18 @@
+{
+  "engine": "http://127.0.0.1:55075",
+  "source": "82d0e9e",
+  "work_id": "W-1a42d45a-17aa-4cc1-838a-75fb0e011f72",
+  "segment_id": 6,
+  "source_video_id": "V003752",
+  "rotation": 90,
+  "original_source_unchanged": true,
+  "work_text_selections_reviews_preserved": true,
+  "work_count": 5,
+  "key_flags_preserved": true,
+  "vectors_preserved": true,
+  "vectors": 1298422,
+  "unskipped_missing_sentences": [
+    5,
+    9
+  ]
+}

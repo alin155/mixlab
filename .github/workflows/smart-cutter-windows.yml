@@ -2,11 +2,15 @@ name: Smart Cutter Windows Candidate
 on:
   workflow_dispatch:
   push:
-    branches: ['codex/smart-cutter-*']
+    branches: ['codex/smart-cutter-*', 'codex/unified-cutter-*']
     paths:
       - '.github/workflows/smart-cutter-windows.yml'
       - 'apps/smart-cutter-*/**'
       - 'packages/smart-cutter/**'
+      - 'packages/cutter-api/**'
+      - 'packages/cutter-local/**'
+      - 'packages/library-fs/**'
+      - 'packages/ui-foundation/**'
       - 'scripts/smart-cutter/**'
       - 'scripts/servers/smart-cutter-api-server.ts'
       - 'package.json'
@@ -35,7 +39,7 @@ jobs:
       - run: npm run prepare:smart-cutter-runtime
       - run: npm run typecheck
       - run: npm run test:smart-cutter
-      - run: npm run package:smart-cutter:windows
+      - run: npm run package:smart-cutter:windows -- --candidate
       - uses: actions/upload-artifact@v4
         with:
           name: mixlab-smart-cutter-windows-candidate

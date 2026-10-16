@@ -18,12 +18,17 @@ export async function connect(): Promise<Connection> {
 export async function request<T>(route: string, method = "GET", payload?: unknown): Promise<T> {
   await connect();
   let response: Response;
+  let value: T & { error?: { code: string; message: string } };
+  const timeout = route === "/smart/state" || route.startsWith("/smart/auth/") ? 15_000 : method === "GET" && route.startsWith("/cutter/") ? 20_000 : 90_000;
   try {
     response = await fetch(`${connection.api_base}${route}`, { method,
       headers: { ...(payload === undefined ? {} : { "Content-Type": "application/json" }), ...(connection.token ? { "X-Smart-Token": connection.token } : {}) },
-      ...(payload === undefined ? {} : { body: JSON.stringify(payload) }), signal: AbortSignal.timeout(90_000) });
-  } catch { throw new ApiError("engine_offline", "无法连接本机智能引擎，请检查应用运行状态", 503); }
-  const value = await response.json() as T & { error?: { code: string; message: string } };
+      ...(payload === undefined ? {} : { body: JSON.stringify(payload) }), signal: AbortSignal.timeout(timeout) });
+    value = await response.json() as typeof value;
+  } catch (error) {
+    if (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) throw new ApiError("request_timeout", "读取超时，请检查 NAS 连接后重试；已返回的检索结果会保留", 504);
+    throw new ApiError("engine_offline", "无法连接本机智能引擎，请检查应用运行状态", 503);
+  }
   if (!response.ok) throw new ApiError(value.error?.code ?? "request_failed", value.error?.message ?? "操作未完成", response.status);
   return value;
 }

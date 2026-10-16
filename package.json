@@ -133,7 +133,8 @@
     "build:smart-cutter-web": "npm run build -w @mixlab/smart-cutter-web",
     "test:smart-cutter": "node --test --import tsx packages/smart-cutter/src/*.test.ts",
     "prepare:smart-cutter-runtime": "tsx scripts/smart-cutter/prepare-runtime.ts",
-    "package:smart-cutter:windows": "tsx scripts/smart-cutter/package-windows.ts"
+    "package:smart-cutter:windows": "tsx scripts/smart-cutter/package-windows.ts",
+    "package:smart-cutter:macos": "tsx scripts/smart-cutter/package-macos.ts"
   },
   "dependencies": {
     "react": "^19.0.0",

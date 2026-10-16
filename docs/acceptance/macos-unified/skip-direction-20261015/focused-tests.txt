@@ -1,0 +1,13 @@
+(node:69190) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ explicitly skipped missing sentences export contiguous real media and captions; restore and all-skipped gates remain enforced (994.622625ms)
+✔ skipping a selected sentence excludes its original sound and subtitle while explicit restore keeps review state (364.704083ms)
+✔ source direction is remembered by fingerprint, refreshes previews, precedes face analysis and produces upright exported pixels (630.188584ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2259.692458

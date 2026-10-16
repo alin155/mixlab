@@ -1,0 +1,26 @@
+(node:34436) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ desktop event recording preserves analytics without opening a network SQLite summary (8.356209ms)
+✔ appendUsageEvent invalidates the admin usage metrics summary projection (1.342083ms)
+✔ appendUsageEvent writes through a fresh stateful usage metrics projection (8.183667ms)
+✔ appendUsageEvent invalidates projections that lack incremental state (1.900459ms)
+✔ aggregates search, selection, cut success, active users, and per-user counts (1.483083ms)
+✔ core search metrics use a recent first-page window (8.394875ms)
+✔ cursor search pages do not inflate user search funnel metrics (0.804959ms)
+✔ failed cursor searches are observable without inflating first-page funnel metrics (0.565667ms)
+✔ recent keywords keep append order when search timestamps are equal (0.822125ms)
+✔ missing usage event store returns zero metrics and empty arrays (0.257541ms)
+✔ malformed NDJSON is skipped and append continues without overwriting history (0.893875ms)
+✔ stored event without event_id is reported as a skipped malformed line (0.667375ms)
+✔ invalid usage event input throws Chinese validation error (0.536417ms)
+✔ concurrent appends preserve all events (6.90475ms)
+✔ aggregates all event categories and ranks keywords and source videos (3.0695ms)
+✔ caps recent keywords and most used source videos to 8 (4.103083ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 205.522958

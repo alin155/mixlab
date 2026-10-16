@@ -37,6 +37,7 @@ export type {
 } from "./cut-list.ts";
 export {
   getCutJob,
+  recoverInterruptedCutJobs,
   listCutJobs,
   readCutTempCacheStatus,
   retryCutJob,

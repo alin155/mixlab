@@ -617,6 +617,7 @@ export interface AdminCutterDevice {
 }
 
 export interface AdminCutterUser {
+  tier?: "ordinary" | "pro";
   user_id: string;
   username: string;
   display_name: string;
@@ -1674,6 +1675,7 @@ export interface AdminApiClient {
   listSourceVideosWithRuntime(options?: AdminSourceVideoListOptions): Promise<AdminSourceVideoListResult>;
   getSourceVideoDetail(sourceVideoId: string): Promise<AdminSourceVideoDetail>;
   listCutterUsers(): Promise<AdminCutterUsersResponse>;
+  setCutterAccountTier(userId: string, tier: "ordinary" | "pro"): Promise<unknown>;
   approveCutterUser(userId: string): Promise<AdminCutterUserApprovalResult>;
   disableCutterUser(userId: string): Promise<AdminCutterUser>;
   resetCutterUserPassword(userId: string, input: { new_password: string }): Promise<AdminCutterUser>;
@@ -1772,6 +1774,7 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
     ...authMethods,
     ...operationsMethods,
     ...sourceVideoMethods,
+    setCutterAccountTier: (userId, tier) => sendJson(fetchImpl, input.base_url, `/api/admin/cutter-users/${userId}/tier`, "POST", { tier }, protectedHeaders),
     listCutterUsers: () =>
       getJson<AdminCutterUsersResponse>(fetchImpl, input.base_url, "/api/admin/cutter-users", protectedHeaders),
     approveCutterUser: (userId) =>
@@ -2232,6 +2235,10 @@ export function createFixtureAdminApiClient(): AdminApiClient {
         jobs: fixtureJobs,
         status: fixtureStatus
       });
+    },
+    setCutterAccountTier: async (userId, tier) => {
+      fixtureCutterUsers = fixtureCutterUsers.map(user => user.user_id === userId ? { ...user, tier } : user);
+      return { user_id: userId, tier };
     },
     listCutterUsers: async () => ({
       users: fixtureCutterUsers.map(cloneCutterUser)
