@@ -604,3 +604,11 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 手动补选记录人工选用并可导出；已有差异片段可显式使用实际原声。重复中文开场加少量转写差异进入近似待审，自动规则仍需全原文。
 - 59/59 回归、类型、Web 构建、Mac 打包与签名验证通过；原生 C0254 审核页新增按钮已验证。当前 11 个作品、5 个成片及 18 个现有文件哈希保持，不自动改写旧分类或用户确认。
 - 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/manual-supplement-cc5ef1d`；完整备份 `20261016T135539Z-before-manual-supplement-cc5ef1d`；补充证据 `docs/acceptance/unattended-creation-20261016/manual-supplement-fix.txt`。无 NAS、正式入口、架构审查工作树或 Windows 安装变更。
+
+### 2026-10-16 方向定位、确认与原任务恢复
+
+- 本机候选最终更新为 `f550d31`，原生源 `tauri://localhost`，回环引擎 `51212`（当前进程）；应用路径、ID、真实账号和公共库 v012758 / 12,869 条保持。
+- 方向待确认明确显示句号、素材名、原片范围；任务详情定位片段，“确认当前方向”支持正常 0°，并恢复原任务，保留无须重剪的完成片段。旧错误记录只在展示时补全上下文。
+- C0254 原任务经方向确认后实际恢复；遇到的手部单帧第二人脸误检经独立/时序证据修正，保持统一近景设定，最终导出 17.501 秒。原生完整播放、解码、音轨及来源验证通过；61/61 回归和打包签名通过。
+- 当前 11 个作品、7 个任务，原 5 个成片哈希保持，新增 1 个完成成片；另一旧重复待确认任务原样保留。账号、设置与加密凭据保持，无 NAS、正式端、架构审查工作树或 Windows 安装变更。
+- 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/direction-confirmation-f550d31`；完整备份 `20261016T142209Z-before-direction-confirmation-4f33e7b`、`20261016T142921Z-before-direction-confirmation-f550d31`。证据：`docs/acceptance/direction-confirmation-20261016/`。
