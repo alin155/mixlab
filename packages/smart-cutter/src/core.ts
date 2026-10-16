@@ -644,12 +644,12 @@ export class SmartCore {
         this.store.bindRuleWork(rule.id, candidate.id, work.id);
         await this.generatePlan(work.id);
         const ready = this.work(work.id);
-        const lecturers = ready.segments.map(segment => segment.selected?.lecturer).filter(Boolean);
-        if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact") && lecturers.length === ready.segments.length && new Set(lecturers).size === 1) this.enqueue(ready.id);
+        // enqueue validates every source against the pinned catalog and confirmed folder bindings.
+        // Cached candidate labels may be absent or stale and must not be used as identity proof.
+        if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact")) this.enqueue(ready.id);
         else if (rule.execution === "qualified") {
           ready.status = 'review';
-          ready.error = !ready.segments.every(segment => segment.status === 'exact')
-            ? '原声方案需要人工确认，不满足自动导出条件' : '缺少可靠的同讲师标签，需人工审核后导出';
+          ready.error = '原声方案需要人工确认，不满足自动导出条件';
           this.saveWork(ready);
         }
       } catch (error) {

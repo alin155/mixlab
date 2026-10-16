@@ -81,7 +81,7 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   await core.monitorRun(); assert.equal(core.store.list<Work>('work').filter(work => work.origin.trigger === 'automatic').length, 1, 'unknown growth cannot pass a positive threshold');
   assert.match(core.store.get<import('./types.ts').Rule>('rule', rule.id)!.last_error, /未继续下载或提交转写/);
   assert.equal(requests, 3); assert.equal(core.store.list<Job>('job').length, 0, 'review rule cannot silently render');
-  const untagged = await createAcceptanceLibrary(path.join(root, 'untagged-library'));
+  const untagged = await createAcceptanceLibrary(path.join(root, 'untagged-library'), path.join(repo, 'packages/smart-cutter/fixtures/synthetic-speaker.jpg'));
   // Arrange an incomplete legacy catalog only inside this disposable fixture.
   const release = await readCurrentCutterRelease(untagged);
   const catalog = new DatabaseSync(path.join(untagged, '.mixlab-library/releases', release.release_version, 'catalog.sqlite'));
@@ -89,9 +89,12 @@ test('monitor rules preserve automatic origin, deduplicate, enforce growth evide
   await core.updateSettings({ library_root: untagged, teacher_folder_bindings: { '验收素材': '验收讲师' } }); core.store.remove('rule', rule.id);
   const qualified = core.saveRule({ enabled: true, execution: 'qualified', min_likes: 1000 });
   await core.monitorRun();
-  const held = core.store.list<Work>('work').find(work => work.origin.rule_id === qualified.id)!;
-  assert.equal(held.status, 'review'); assert.match(held.error, /同讲师标签/);
-  assert.equal(core.store.list<Job>('job').length, 0, 'missing speaker tags require review rather than automatic output');
+  const automaticWork = core.store.list<Work>('work').find(work => work.origin.rule_id === qualified.id)!;
+  assert.equal(automaticWork.segments[0]!.selected!.lecturer, '', 'raw tags are not forged from folder bindings');
+  const job = core.store.list<Job>('job').find(job => job.work_id === automaticWork.id)!;
+  assert.ok(job, 'confirmed catalog folder identity permits qualified export without raw tags');
+  assert.equal((await settled(core, job.id)).status, 'done');
+  assert.equal(core.work(automaticWork.id).origin.trigger, 'automatic');
 });
 test('saved ASR task resumes without paid resubmission; unknown submission outcome cannot auto-resubmit', { timeout: 60_000 }, async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'smart-asr-'));

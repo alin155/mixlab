@@ -35,7 +35,7 @@ export function Modal({ title, children, footer, onClose, wide }: { title: strin
 }
 export function MatchBadge({ status, accepted, skipped }: { status: string; accepted: boolean; skipped?: boolean }) {
   if (skipped) return <Badge>已跳过</Badge>;
-  return <Badge tone={status === "exact" || accepted ? "green" : status === "gap" || status === "conflict" ? "red" : "amber"}>{status === "exact" ? "原文匹配" : status === "pending" ? "待补充检索" : status === "gap" ? "缺少片段" : status === "conflict" ? "事实冲突 · 需修改" : accepted ? "近似已确认" : "近似 · 待确认"}</Badge>;
+  return <Badge tone={status === "exact" || accepted ? "green" : status === "gap" || status === "conflict" ? "red" : "amber"}>{status === "exact" ? "原文匹配" : status === "pending" ? "待补充检索" : status === "gap" ? "缺少片段" : status === "conflict" ? "文案不符 · 需修改" : accepted ? "近似已确认" : "近似 · 待确认"}</Badge>;
 }
 export function SourcePlayer({ workId, segmentId, candidate, className = "", children }: { workId: string; segmentId: number; candidate: Candidate | null; className?: string; children?: React.ReactNode }) {
   const video = useRef<HTMLVideoElement>(null);
