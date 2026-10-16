@@ -589,3 +589,11 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 新增一个热点手动导入的审核后样片，5 句原文、首句显式跳过；构图审核时将未校正的 C0168 换为同句原文且已记忆 90° 校正的 C0169。统一人物景别、沉静访谈字幕，19.848 秒 / 1080×1920 / H.264+AAC；原生播放器已播放至结尾，5 段素材与热点参考关联均验证。该样片不能标为无人值守自动成片通过。
 - 原 5 个手动作品、2 个已完成任务、旧 MP4/SRT/来源记录、设置及加密凭据哈希保持；仅 2 个失败自动方案按本次修复重新匹配。完整备份 `/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T121924Z-before-automatic-d031a89`。
 - 交付及样片在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/automatic-d031a89`；验收记录 `docs/acceptance/automatic-matching-20261016/`，最终智能端 50/50 回归、类型、构建通过。Windows 本轮未安装验收；自动规则保持关闭。
+
+### 2026-10-16 原生无人值守完整流程与方向/字幕修复
+
+- 本机候选更新至 `5ccd57b`，应用路径、`com.mixlab.unifiedcutter.candidate`、真实 AllenPro 登录、设置与工作区保持。当前原生源 `tauri://localhost`，回环引擎 `64713`，仅对应此次进程；公共库仍为 `/Volumes/MixLab/PublicLibrary`，锁定 v012758 / 12,869 条。
+- 完整真实监控到导出在 `0208ae0` 完成；最终 `5ccd57b` 仅增加分页进度刷新，已重打包安装并复验监控无重复处理。历史热点 4/4 原文、无人工放行/替换/跳过，118.392 秒完成，成片 21.733 秒；另有 19.808 秒方向/字幕独立回归样片。
+- 新样片在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b`；真实原生结果仍在原工作区。新增验收账号/规则均停用；原有监控配置保持。最终 11 个作品、5 个成片任务，其中原 8 个作品、3 个任务及旧成片、设置和加密凭据哈希一致。
+- 完整备份：`/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T133326Z-before-unattended-0208ae0`；最终进度修订更新前另存 `20261016T133921Z-before-unattended-5ccd57b`。最终智能端 57/57 回归、类型、构建、签名检查通过。
+- 未写 NAS、未修改管理端、正式剪辑端、Windows 安装或架构审查工作树。证据和无人值守/独立回归边界见 `docs/acceptance/unattended-creation-20261016/`。
