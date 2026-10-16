@@ -1,0 +1,15 @@
+{
+  "current_work_sentences": 9,
+  "unskipped_missing_sentences": [
+    5,
+    9
+  ],
+  "skip_missing_button": "跳过未匹配的 2 句",
+  "C0169_source_direction": "顺时针旋转 90°",
+  "C0169_preview_upright": true,
+  "complete_real_work_exported": false,
+  "screenshots_local_only": [
+    "/Users/huaqihang/Documents/Codex/captures/mixlab-c0169-upright-20261015.png",
+    "/Users/huaqihang/Documents/Codex/captures/mixlab-skip-and-direction-20261015.png"
+  ]
+}
