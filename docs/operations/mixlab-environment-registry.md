@@ -580,3 +580,12 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 既有 Web 测试页仍为 `http://127.0.0.1:5278` → 独立测试引擎 `127.0.0.1:5272`，已更新引擎源码。该页使用隔离工作区与单条公共库 fixture，不能等同本机原生账号/NAS 验收。删除了测试 helper 启动即自动导出整条作品的行为。
 - 本轮临时 UI 验收入口 `5284` → `5282` 仅用于隔离浏览器检查，验收后关闭。
 - Windows 候选构建：Actions `38869085152`。CI 状态及 Windows 实机安装边界见本轮证据文件；未改共享 latest 指针。
+
+## 2026-10-16 — 原声候选与自动老师校验修复
+
+- 本机 macOS 候选应用已从 `96fa721` 更新为 `d031a89`，应用路径、`com.mixlab.unifiedcutter.candidate`、既有账号/设置/工作区均不变。本轮随机回环端口 `59178`，原生源 `tauri://localhost`，只表示当前进程。
+- 真实公共库 `/Volumes/MixLab/PublicLibrary` 的锁定版本 `v012758` / 12,869 条；本轮不触碰 NAS、管理端或正式剪辑端。隔离 Web 5278/API 5272 不作为真实自动创作验收环境。
+- 两个原错误自动方案重匹配后共 13 句均待补充，不再选中无关原声；不能据此断言全库没有素材，语义覆盖仍未完整。
+- 新增一个热点手动导入的审核后样片，5 句原文、首句显式跳过；构图审核时将未校正的 C0168 换为同句原文且已记忆 90° 校正的 C0169。统一人物景别、沉静访谈字幕，19.848 秒 / 1080×1920 / H.264+AAC；原生播放器已播放至结尾，5 段素材与热点参考关联均验证。该样片不能标为无人值守自动成片通过。
+- 原 5 个手动作品、2 个已完成任务、旧 MP4/SRT/来源记录、设置及加密凭据哈希保持；仅 2 个失败自动方案按本次修复重新匹配。完整备份 `/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T121924Z-before-automatic-d031a89`。
+- 交付及样片在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/automatic-d031a89`；验收记录 `docs/acceptance/automatic-matching-20261016/`，最终智能端 50/50 回归、类型、构建通过。Windows 本轮未安装验收；自动规则保持关闭。
