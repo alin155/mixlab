@@ -597,3 +597,10 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 新样片在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b`；真实原生结果仍在原工作区。新增验收账号/规则均停用；原有监控配置保持。最终 11 个作品、5 个成片任务，其中原 8 个作品、3 个任务及旧成片、设置和加密凭据哈希一致。
 - 完整备份：`/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T133326Z-before-unattended-0208ae0`；最终进度修订更新前另存 `20261016T133921Z-before-unattended-5ccd57b`。最终智能端 57/57 回归、类型、构建、签名检查通过。
 - 未写 NAS、未修改管理端、正式剪辑端、Windows 安装或架构审查工作树。证据和无人值守/独立回归边界见 `docs/acceptance/unattended-creation-20261016/`。
+
+### 2026-10-16 手动补选可用性修复
+
+- 本机 macOS 候选更新至 `cc5ef1d`，当前原生引擎 `49372`；应用路径、ID、账号、工作区及公共库 v012758 / 12,869 条不变。
+- 手动补选记录人工选用并可导出；已有差异片段可显式使用实际原声。重复中文开场加少量转写差异进入近似待审，自动规则仍需全原文。
+- 59/59 回归、类型、Web 构建、Mac 打包与签名验证通过；原生 C0254 审核页新增按钮已验证。当前 11 个作品、5 个成片及 18 个现有文件哈希保持，不自动改写旧分类或用户确认。
+- 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/manual-supplement-cc5ef1d`；完整备份 `20261016T135539Z-before-manual-supplement-cc5ef1d`；补充证据 `docs/acceptance/unattended-creation-20261016/manual-supplement-fix.txt`。无 NAS、正式入口、架构审查工作树或 Windows 安装变更。
