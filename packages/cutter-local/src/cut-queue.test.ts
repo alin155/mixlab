@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -21,6 +21,32 @@ import {
 async function makeRoot(prefix: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), prefix));
 }
+
+test("NAS disconnect retries only the unfinished cut and keeps earlier completed output", async t => {
+  const workspace = await makeRoot("cutter-reconnect-work-");
+  const library = await makeRoot("cutter-reconnect-library-");
+  t.after(async () => { await rm(workspace, { recursive: true, force: true }); await rm(library, { recursive: true, force: true }); });
+  const list = await makeClipList(workspace);
+  await submitClipListToQueue({ workspace_root: workspace, clip_list: list, now: new Date().toISOString() });
+  let calls = 0;
+  const input = { workspace_root: workspace, library_root: library, now: () => new Date().toISOString(),
+    resolve_source: async (job: { source_video_id: string; source_title: string; source_relative_path: string }) => ({
+      source_video_id: job.source_video_id, title: job.source_title, relative_path: job.source_relative_path,
+      source_video_file_path: await writeLibrarySource(library, job.source_relative_path), duration_ms: 10000
+    }),
+    cut_runner: async ({ output_path }: { output_path: string }) => {
+      await writeFile(output_path, "partial-or-complete");
+      if (++calls === 2) throw Object.assign(new Error("Connection reset by peer"), { code: "ECONNRESET" });
+    }
+  };
+  const first = (await runNextCutJob(input))!; assert.equal(first.status, "done");
+  const firstPath = path.join(workspace, first.output_file!); const before = await stat(firstPath);
+  const second = (await runNextCutJob(input))!;
+  assert.equal(second.status, "done", second.error_message); assert.equal(calls, 3);
+  assert.equal((await stat(firstPath)).mtimeMs, before.mtimeMs);
+  assert.equal((await listExportClips({ workspace_root: workspace })).clips.length, 2);
+  assert.equal(second.phase_timings?.find(phase => phase.phase_id === "cut_media")?.label, "剪切/重编码");
+});
 
 async function fileOrDirExists(filePath: string): Promise<boolean> {
   try {

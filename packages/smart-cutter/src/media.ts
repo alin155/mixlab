@@ -10,6 +10,7 @@ import { SmartAi } from "./ai.ts";
 import { SmartLibrary } from "./library.ts";
 import { SmartError, workReady, includedSegments, type Candidate, type Composition, type FacePoint, type Job, type OutputSettings } from "./types.ts";
 import { atomicPrivateJson } from "./vault.ts";
+import { isSourceConnectionError, retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 
 export interface MediaInfo { width: number; height: number; duration_ms: number; audio: boolean }
 export interface Caption { begin_ms: number; end_ms: number; text: string }
@@ -91,7 +92,10 @@ export class SmartMedia {
       const info = await stat(destination);
       if (saved.original.size === candidate.fingerprint.size && saved.original.mtime_ms === candidate.fingerprint.mtime_ms && info.size === saved.size && info.mtimeMs === saved.mtime_ms) return destination;
     }
-    const before = await stat(candidate.source_file_path).catch(() => { throw new SmartError("source_unavailable", "源视频不可读取，且本机没有可用缓存，请连接素材库", 409); });
+    const before = await stat(candidate.source_file_path).catch(error => {
+      if (isSourceConnectionError(error)) throw error;
+      throw new SmartError("source_unavailable", "源视频不可读取，且本机没有可用缓存，请连接素材库", 409);
+    });
     if (before.size !== candidate.fingerprint.size || Math.abs(before.mtimeMs - candidate.fingerprint.mtime_ms) > 1) throw new SmartError("source_changed", "源视频已经变化，请重新匹配，不能静默替换已确认素材", 409);
     await ensureSpace(cache, before.size + 128 * 1024 * 1024);
     const policy = this.cachePolicy();
@@ -109,19 +113,22 @@ export class SmartMedia {
     }
     if (used + before.size > policy.max_bytes) throw new SmartError("source_cache_limit", "素材缓存已达到上限，正在使用的缓存不会被清理，请提高上限或取消不再需要的任务", 409);
     const temporary = `${destination}.partial`;
-    const digest = createHash("sha256");
-    const hashStream = new Transform({ transform(chunk: Buffer, _encoding, callback) { digest.update(chunk); callback(null, chunk); } });
-    await pipeline(createReadStream(candidate.source_file_path), hashStream, createWriteStream(temporary, { mode: 0o600 }), { signal });
-    const copiedHash = digest.digest("hex"), expectedHash = candidate.content_hash?.replace(/^sha256:/i, "");
-    if (expectedHash && /^[a-f0-9]{64}$/i.test(expectedHash) && copiedHash !== expectedHash.toLowerCase()) {
-      await rm(temporary, { force: true }); throw new SmartError("source_hash_changed", "源视频与转写记录的内容校验不一致，请重新处理并发布素材", 409);
-    }
-    const after = await stat(candidate.source_file_path);
-    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) { await rm(temporary, { force: true }); throw new SmartError("source_changed", "读取时源视频发生变化，请重试匹配", 409); }
-    await rename(temporary, destination);
-    const copied = await stat(destination);
-    await atomicPrivateJson(metadata, { size: copied.size, mtime_ms: copied.mtimeMs, original: candidate.fingerprint, sha256: copiedHash });
-    return destination;
+    try {
+      const digest = createHash("sha256");
+      const hashStream = new Transform({ transform(chunk: Buffer, _encoding, callback) { digest.update(chunk); callback(null, chunk); } });
+      await pipeline(createReadStream(candidate.source_file_path), hashStream, createWriteStream(temporary, { mode: 0o600 }), { signal });
+      const copiedHash = digest.digest("hex"), expectedHash = candidate.content_hash?.replace(/^sha256:/i, "");
+      if (expectedHash && /^[a-f0-9]{64}$/i.test(expectedHash) && copiedHash !== expectedHash.toLowerCase()) {
+        await rm(temporary, { force: true }); throw new SmartError("source_hash_changed", "源视频与转写记录的内容校验不一致，请重新处理并发布素材", 409);
+      }
+      const after = await stat(candidate.source_file_path);
+      if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) { await rm(temporary, { force: true }); throw new SmartError("source_changed", "读取时源视频发生变化，请重试匹配", 409); }
+      if ((await stat(temporary)).size !== before.size) throw new SmartError("source_copy_incomplete", "源视频复制不完整，未启用缓存，请恢复连接后重试", 409);
+      await rename(temporary, destination);
+      const copied = await stat(destination);
+      await atomicPrivateJson(metadata, { size: copied.size, mtime_ms: copied.mtimeMs, original: candidate.fingerprint, sha256: copiedHash });
+      return destination;
+    } finally { await rm(temporary, { force: true }); }
   }
   async analyze(candidate: Candidate, source: string, temp: string, ratio: number, signal?: AbortSignal): Promise<Composition> {
     const folder = path.join(temp, `faces-${candidate.id}-r${candidate.rotation ?? 0}`); await mkdir(folder, { recursive: true });
@@ -158,24 +165,43 @@ export class SmartMedia {
     const files: string[] = []; let offset = 0;
     for (const [index, segment] of segments.entries()) {
       signal.throwIfAborted(); const candidate = segment.selected!;
-      job.phase = `检查源素材 ${index + 1}/${segments.length}`; update();
-      const source = await this.input(candidate, cache, signal);
-      const probe = await this.probe(source, signal);
-      if ((candidate.rotation ?? 0) % 180 === 90) [probe.width, probe.height] = [probe.height, probe.width];
-      if (!probe.audio) throw new SmartError("source_audio_missing", "源素材没有音轨，无法拼接原声，请替换片段", 422);
-      if (candidate.end_ms > probe.duration_ms + 80) throw new SmartError("source_range", "源片段时间超出实际视频，请重新匹配", 409);
-      const key = `${candidate.id}:${candidate.rotation ? `r${candidate.rotation}:` : ""}${job.work.settings.ratio}`;
-      if (job.work.settings.crop_mode === "follow" && !job.compositions[key]) {
-        job.phase = `人物构图 ${index + 1}/${segments.length}`; update();
-        const ratio = job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9;
-        job.compositions[key] = Math.abs(probe.width / probe.height - ratio) < 0.005
-          ? { usable: true, reason: "保留原比例，无需裁切", points: [], multiple_faces: false }
-          : await this.analyze(candidate, source, temp, ratio, signal);
-        update();
-      }
-      if (job.work.settings.crop_mode === "follow" && !job.compositions[key]?.usable) throw new SmartError("composition_review", job.compositions[key]?.reason || "人物构图需要人工确认", 409);
       const clipName = `clip-${String(index + 1).padStart(3, "0")}.mp4`, clip = path.join(temp, clipName);
-      if (!job.completed_clips.includes(clipName) || !(await exists(clip))) {
+      let reusable = false;
+      job.clip_checksums ??= {};
+      if (job.completed_clips.includes(clipName) && await exists(clip)) {
+        job.phase = `校验已完成片段 ${index + 1}/${segments.length}`; update();
+        try {
+          const info = await this.probe(clip, signal), checksum = await fileDigest(clip);
+          const width = job.work.settings.ratio === "9:16" ? 1080 : 1920, height = job.work.settings.ratio === "9:16" ? 1920 : 1080;
+          reusable = info.audio && info.width === width && info.height === height
+            && Math.abs(info.duration_ms - (candidate.end_ms - candidate.begin_ms)) < 150
+            && (!job.clip_checksums[clipName] || job.clip_checksums[clipName] === checksum);
+          if (reusable) { job.clip_checksums[clipName] = checksum; update(); }
+        } catch { signal.throwIfAborted(); }
+      }
+      if (!reusable) {
+        job.completed_clips = job.completed_clips.filter(name => name !== clipName); delete job.clip_checksums[clipName];
+        job.phase = `检查源素材 ${index + 1}/${segments.length}`; update();
+        const source = await retrySourceConnection(() => this.input(candidate, cache, signal), {
+          signal, onRetry: (retry, total) => { job.phase = `NAS连接中断，自动重试 ${retry}/${total} · 片段 ${index + 1}/${segments.length}，保留 ${job.completed_clips.length} 段`; update(); }
+        }).catch(error => {
+          if (isSourceConnectionError(error)) throw new SmartError("source_connection", `NAS连接未恢复，已自动重试3次；保留 ${job.completed_clips.length} 个完成片段，连接恢复后可继续`, 503);
+          throw error;
+        });
+        const probe = await this.probe(source, signal);
+        if ((candidate.rotation ?? 0) % 180 === 90) [probe.width, probe.height] = [probe.height, probe.width];
+        if (!probe.audio) throw new SmartError("source_audio_missing", "源素材没有音轨，无法拼接原声，请替换片段", 422);
+        if (candidate.end_ms > probe.duration_ms + 80) throw new SmartError("source_range", "源片段时间超出实际视频，请重新匹配", 409);
+        const key = `${candidate.id}:${candidate.rotation ? `r${candidate.rotation}:` : ""}${job.work.settings.ratio}`;
+        if (job.work.settings.crop_mode === "follow" && !job.compositions[key]) {
+          job.phase = `人物构图 ${index + 1}/${segments.length}`; update();
+          const ratio = job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9;
+          job.compositions[key] = Math.abs(probe.width / probe.height - ratio) < 0.005
+            ? { usable: true, reason: "保留原比例，无需裁切", points: [], multiple_faces: false }
+            : await this.analyze(candidate, source, temp, ratio, signal);
+          update();
+        }
+        if (job.work.settings.crop_mode === "follow" && !job.compositions[key]?.usable) throw new SmartError("composition_review", job.compositions[key]?.reason || "人物构图需要人工确认", 409);
         job.phase = `原声剪辑 ${index + 1}/${segments.length}`; update();
         await runProcess(this.ffmpeg.ffmpeg_path, ["-hide_banner", "-nostdin", "-y", "-protocol_whitelist", "file,pipe", "-i", source,
           "-ss", String(candidate.begin_ms / 1000), "-t", String((candidate.end_ms - candidate.begin_ms) / 1000),
@@ -186,8 +212,10 @@ export class SmartMedia {
           signal, onLine: line => { if (signal.aborted) return; const match = /^out_time_(?:us|ms)=(\d+)$/.exec(line); if (match) { const fraction = Math.min(1, Number(match[1]) / 1000 / (candidate.end_ms - candidate.begin_ms)); job.progress = Math.round((index + fraction) / segments.length * 75); update(); } }
         });
         await rename(`${clip}.partial`, clip);
+        job.clip_checksums[clipName] = await fileDigest(clip);
         job.completed_clips.push(clipName); update();
       }
+      job.progress = Math.max(job.progress, Math.round((index + 1) / segments.length * 75)); update();
       const normalized = await this.probe(clip, signal);
       const detail = await this.library.source(this.library.getSnapshot(candidate.snapshot_id), candidate.source_video_id);
       for (const original of detail.transcript.segments.filter(item => candidate.segment_ids.includes(item.segment_id))) {

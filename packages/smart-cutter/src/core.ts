@@ -14,6 +14,7 @@ import { SmartMedia, fileDigest } from "./media.ts";
 import { TikHubClient, type ProviderPage } from "./tikhub.ts";
 import { ReferenceProcessor } from "./reference.ts";
 import { runProcess } from "./process.ts";
+import { retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
 import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
   type Settings, type Work, type WorkSegment, type WorkOrigin, type Job, type Account, type HotVideo, type Rule, type OutputSettings } from "./types.ts";
@@ -46,6 +47,7 @@ export class SmartCore {
   private controllers = new Map<string, AbortController>();
   private planning = new Set<string>();
   private rendering = false;
+  private renderAuthCheck: AbortController | null = null;
   private monitoring = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
@@ -444,7 +446,7 @@ export class SmartCore {
       if (this.controllers.has(jobId)) throw new SmartError("job_stopping", "任务正在保存检查点，请稍后继续", 409);
       const work = this.work(job.work_id); if (!workReady(work)) throw new SmartError("review_required", "请先完成作品审核", 409);
       this.library.assertWorkTeacher(work);
-      if (work.revision !== job.revision) { job.work = structuredClone(work); job.revision = work.revision; job.completed_clips = []; job.compositions = {}; }
+      if (work.revision !== job.revision) { job.work = structuredClone(work); job.revision = work.revision; job.completed_clips = []; job.clip_checksums = {}; job.compositions = {}; }
       job.status = "queued"; job.error = "";
     } else throw new SmartError("job_action", "当前任务状态不能执行此操作", 409);
     job.updated_at = now(); this.store.set("job", job);
@@ -465,7 +467,9 @@ export class SmartCore {
         const current = job; current.status = "running";
         const update = () => { if (controller.signal.aborted) return; current.updated_at = now(); this.store.set("job", current); };
         try {
-          await this.requirePro(); this.library.assertWorkTeacher(current.work); update(); await this.media.render(current, controller.signal, update);
+          await retrySourceConnection(() => this.requirePro(), { signal: controller.signal,
+            onRetry: (retry, total) => { current.phase = `NAS账号连接中断，自动重试 ${retry}/${total}，保留 ${current.completed_clips.length} 段`; update(); }
+          }); this.library.assertWorkTeacher(current.work); update(); await this.media.render(current, controller.signal, update);
           current.status = "done"; current.error = ""; update();
           const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = "done"; this.saveWork(work); }
         } catch (error) {
@@ -656,12 +660,20 @@ export class SmartCore {
   private async tick(): Promise<void> {
     void this.assemblies.drain().catch(() => undefined);
     if (this.closed || this.cacheClearing || this.configuring) return;
-    if (this.controllers.size) {
-      const auth = await this.authStatus().catch(() => null);
-      if (!auth || auth.required || auth.user?.tier !== "pro") for (const [jobId, controller] of this.controllers) {
-        const job = this.store.get<Job>("job", jobId);
-        if (job?.status === "running") { job.status = "paused"; job.error = auth ? "账号权限已变化，已保存检查点" : "公共库连接中断，已保存检查点"; this.store.set("job", job); controller.abort(); }
-      }
+    if (this.controllers.size && !this.renderAuthCheck) {
+      this.renderAuthCheck = new AbortController();
+      try {
+        const auth = await retrySourceConnection(() => this.authStatus(), { signal: this.renderAuthCheck.signal }).catch(() => null);
+        if (this.closed) return;
+        if (!auth || auth.required || auth.user?.tier !== "pro") for (const [jobId, controller] of this.controllers) {
+          const job = this.store.get<Job>("job", jobId);
+          if (job?.status === "running") {
+            job.status = "paused"; job.error = auth ? "账号权限已变化，已保存检查点" : "NAS账号校验连接仍未恢复，已自动重试3次并保存检查点"; this.store.set("job", job); controller.abort();
+            const work = this.work(job.work_id);
+            if (work.revision === job.revision) { work.status = "ready"; work.error = job.error; this.saveWork(work); }
+          }
+        }
+      } finally { this.renderAuthCheck = null; }
     }
     void this.drain();
     if (this.monitoring || !this.vault.has("tikhub") || !this.store.list<Account>("account", 100).some(account => account.enabled)) return;
@@ -671,6 +683,7 @@ export class SmartCore {
   }
   async close(): Promise<void> {
     this.closed = true; if (this.timer) clearInterval(this.timer);
+    this.renderAuthCheck?.abort();
     await this.manual.close(); await this.assemblies.close();
     for (const [jobId, controller] of this.controllers) {
       const job = this.store.get<Job>("job", jobId);

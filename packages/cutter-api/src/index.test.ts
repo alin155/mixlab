@@ -1749,6 +1749,23 @@ test("cut job catalog remains readable when cutter workspace is not configured",
   });
 });
 
+test("cutter analytics append events without touching the management SQLite summary", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const summary = path.join(libraryRoot, ".mixlab-library/admin-read-model/usage-metrics.sqlite");
+  await mkdir(path.dirname(summary), { recursive: true });
+  await writeFile(summary, "management-owned-summary-must-not-be-opened-or-unlinked");
+  const before = await stat(summary);
+  await withApiServer(libraryRoot, async baseUrl => {
+    assert.equal((await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("现金流")}`, { headers })).status, 200);
+    await waitForUsageMetrics(libraryRoot, metrics => metrics.search_request_count === 1);
+    assert.equal((await readFile(summary, "utf8")), "management-owned-summary-must-not-be-opened-or-unlinked");
+    assert.equal((await stat(summary)).mtimeMs, before.mtimeMs);
+    assert.equal((await stat(summary)).ino, before.ino);
+    assert.ok(!(await readdir(path.dirname(summary))).some(file => file.endsWith("-journal")));
+  });
+});
+
 test("malformed usage events do not break authenticated source search", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);

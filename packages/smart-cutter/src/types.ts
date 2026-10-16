@@ -132,6 +132,7 @@ export interface Job {
   workspace_root: string;
   duration_ms: number;
   completed_clips: string[];
+  clip_checksums?: Record<string, string>;
   compositions: Record<string, Composition>;
   result_sha256?: string;
 }
