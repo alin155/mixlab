@@ -297,10 +297,12 @@ export class SmartCore {
   private outputSettings(current: OutputSettings, body: Record<string, unknown>): OutputSettings {
     const next = { ...current };
     if (body.ratio !== undefined) { if (!["9:16", "16:9"].includes(String(body.ratio))) throw new SmartError("ratio", "画面比例无效"); next.ratio = body.ratio as OutputSettings["ratio"]; }
-    if (body.crop_mode !== undefined) { if (!["follow", "center", "fit"].includes(String(body.crop_mode))) throw new SmartError("crop", "取景方式无效"); next.crop_mode = body.crop_mode as OutputSettings["crop_mode"]; }
+    if (body.crop_mode !== undefined) { if (!["portrait", "follow", "center", "fit"].includes(String(body.crop_mode))) throw new SmartError("crop", "取景方式无效"); next.crop_mode = body.crop_mode as OutputSettings["crop_mode"]; }
+    if (body.shot_size !== undefined) { if (!["wide", "medium", "close"].includes(String(body.shot_size))) throw new SmartError("shot_size", "人物景别无效"); next.shot_size = body.shot_size as OutputSettings["shot_size"]; }
     if (body.crop_position !== undefined) next.crop_position = boundedNumber(body.crop_position, 0, 1, "横向构图");
     if (body.subtitle_size !== undefined) next.subtitle_size = boundedNumber(body.subtitle_size, 24, 100, "字幕字号");
-    if (body.subtitle_style !== undefined) { if (!["white", "yellow"].includes(String(body.subtitle_style))) throw new SmartError("subtitle_style", "字幕样式无效"); next.subtitle_style = body.subtitle_style as OutputSettings["subtitle_style"]; }
+    if (body.subtitle_style !== undefined) { if (!["white", "yellow", "outline", "box", "cinema", "pop"].includes(String(body.subtitle_style))) throw new SmartError("subtitle_style", "字幕样式无效"); next.subtitle_style = body.subtitle_style as OutputSettings["subtitle_style"]; }
+    if (body.subtitle_margin !== undefined) next.subtitle_margin = boundedNumber(body.subtitle_margin, 0.03, 0.4, "字幕底部距离");
     for (const field of ["subtitles", "normalize_audio", "same_lecturer"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
     if (body.source_folder !== undefined) next.source_folder = String(body.source_folder).trim();
     if (body.teacher !== undefined) next.teacher = requireText(body.teacher, "目标老师", 80);

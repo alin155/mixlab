@@ -1,7 +1,7 @@
 export type Platform = "douyin";
 export type CreationMode = "manual" | "automatic";
 export type MatchKind = "exact" | "near" | "conflict" | "gap" | "pending";
-export type CropMode = "follow" | "center" | "fit";
+export type CropMode = "portrait" | "follow" | "center" | "fit";
 export type JobStatus = "queued" | "running" | "paused" | "cancelled" | "failed" | "needs_review" | "done";
 
 export interface Settings {
@@ -22,17 +22,19 @@ export interface OutputSettings {
   ratio: "9:16" | "16:9";
   crop_mode: CropMode;
   crop_position: number;
+  shot_size?: "wide" | "medium" | "close";
   subtitles: boolean;
-  subtitle_style: "white" | "yellow";
+  subtitle_style: "white" | "yellow" | "outline" | "box" | "cinema" | "pop";
   subtitle_size: number;
+  subtitle_margin?: number;
   normalize_audio: boolean;
   source_folder: string;
   teacher?: string;
   same_lecturer: boolean;
 }
 export const DEFAULT_OUTPUT: OutputSettings = {
-  ratio: "9:16", crop_mode: "follow", crop_position: 0.5,
-  subtitles: true, subtitle_style: "white", subtitle_size: 48,
+  ratio: "9:16", crop_mode: "portrait", crop_position: 0.5, shot_size: "medium",
+  subtitles: true, subtitle_style: "outline", subtitle_size: 58, subtitle_margin: 0.12,
   normalize_audio: true, source_folder: "", same_lecturer: true
 };
 export interface Candidate {
@@ -109,12 +111,15 @@ export interface Work {
   error: string;
   match_progress?: MatchProgress;
 }
-export interface FacePoint { at_ms: number; x: number; y?: number; confidence: number }
+export interface FacePoint { at_ms: number; x: number; y?: number; width?: number; height?: number; confidence: number }
 export interface Composition {
   usable: boolean;
   reason: string;
   points: FacePoint[];
   multiple_faces: boolean;
+  source_aspect?: number;
+  crop_height?: number;
+  target_face_ratio?: number;
 }
 export interface Job {
   id: string;

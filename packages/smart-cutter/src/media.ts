@@ -11,6 +11,7 @@ import { SmartLibrary } from "./library.ts";
 import { SmartError, workReady, includedSegments, type Candidate, type Composition, type FacePoint, type Job, type OutputSettings } from "./types.ts";
 import { atomicPrivateJson } from "./vault.ts";
 import { isSourceConnectionError, retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
+import { SUBTITLE_STYLES, unifyPortraits } from "./presentation.ts";
 
 export interface MediaInfo { width: number; height: number; duration_ms: number; audio: boolean }
 export interface Caption { begin_ms: number; end_ms: number; text: string }
@@ -32,8 +33,11 @@ export function captionsToAss(captions: Caption[], settings: OutputSettings, fon
     for (let i = 0; i < chars.length; i += lineWidth) lines.push(chars.slice(i, i + lineWidth).join(""));
     return lines.join("\\N");
   };
-  const primary = settings.subtitle_style === "yellow" ? "&H0000E9FF" : "&H00FFFFFF";
-  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 0\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${font},${settings.subtitle_size},${primary},&H00FFFFFF,&H00101010,&H80000000,0,0,0,0,100,100,0,0,1,2.4,1,2,60,60,100,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${text(caption.text)}`).join("\n") + "\n";
+  const style = SUBTITLE_STYLES[settings.subtitle_style];
+  const primary = `&H00${style.color.slice(5, 7)}${style.color.slice(3, 5)}${style.color.slice(1, 3)}`;
+  const effect = settings.subtitle_style === "pop" ? "{\\fscx94\\fscy94\\t(0,120,\\fscx100\\fscy100)\\fad(80,60)}" : style.fade ? "{\\fad(120,100)}" : "";
+  const margin = settings.subtitle_margin === undefined ? 100 : Math.round(height * settings.subtitle_margin);
+  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 0\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${font},${settings.subtitle_size},${primary},&H00FFFFFF,${style.box ? "&H80000000" : "&H00101010"},&H80000000,${style.bold ? -1 : 0},0,0,0,100,100,0,0,${style.box ? 3 : 1},${style.outline},${style.box ? 0 : 1},2,60,60,${margin},1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${effect}${text(caption.text)}`).join("\n") + "\n";
 }
 export function positionExpression(points: FacePoint[], field: "x" | "y", fallback: number): string {
   if (!points.length) return String(fallback);
@@ -50,9 +54,15 @@ export function compositionFilter(settings: OutputSettings, composition?: Compos
   const width = settings.ratio === "9:16" ? 1080 : 1920, height = settings.ratio === "9:16" ? 1920 : 1080;
   const ratio = width / height;
   if (settings.crop_mode === "fit") return `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30`;
-  const x = settings.crop_mode === "follow" ? positionExpression(composition?.points ?? [], "x", 0.5) : String(settings.crop_position);
-  const y = settings.crop_mode === "follow" ? `max(0,min(ih-oh,ih*(${positionExpression(composition?.points ?? [], "y", 0.3)})-oh*0.28))` : "(ih-oh)/2";
-  return `crop=w='trunc(min(iw,ih*${ratio})/2)*2':h='trunc(min(ih,iw/${ratio})/2)*2':x='max(0,min(iw-ow,iw*(${x})-ow/2))':y='${y}',scale=${width}:${height},setsar=1,fps=30`;
+  const tracking = settings.crop_mode === "follow" || settings.crop_mode === "portrait";
+  const x = tracking ? positionExpression(composition?.points ?? [], "x", 0.5) : String(settings.crop_position);
+  const y = tracking ? `max(0,min(ih-oh,ih*(${positionExpression(composition?.points ?? [], "y", 0.3)})-oh*${settings.crop_mode === "portrait" ? 0.32 : 0.28}))` : "(ih-oh)/2";
+  if (settings.crop_mode === "portrait" && !composition?.crop_height) throw new SmartError("composition_review", "统一景别尚未分析完成", 409);
+  const cropHeight = settings.crop_mode === "portrait" ? `ih*${composition!.crop_height}` : `min(ih,iw/${ratio})`;
+  return `crop=w='trunc(min(iw,(${cropHeight})*${ratio})/2)*2':h='trunc((${cropHeight})/2)*2':x='max(0,min(iw-ow,iw*(${x})-ow/2))':y='${y}',scale=${width}:${height},setsar=1,fps=30`;
+}
+function compositionKey(candidate: Candidate, settings: OutputSettings): string {
+  return `${candidate.id}:${candidate.rotation ? `r${candidate.rotation}:` : ""}${settings.ratio}${settings.crop_mode === "portrait" ? `:portrait:${settings.shot_size ?? "medium"}` : ""}`;
 }
 export async function fileDigest(file: string): Promise<string> {
   const digest = createHash("sha256");
@@ -84,14 +94,20 @@ export class SmartMedia {
     return { width: rotation % 180 === 90 ? video.height : video.width, height: rotation % 180 === 90 ? video.width : video.height,
       duration_ms: Math.round(Number(data.format.duration ?? "0") * 1000), audio: data.streams.some(stream => stream.codec_type === "audio") };
   }
-  async input(candidate: Candidate, cache: string, signal?: AbortSignal): Promise<string> {
-    await mkdir(cache, { recursive: true });
+  private async cachedInput(candidate: Candidate, cache: string): Promise<string | null> {
     const destination = path.join(cache, `${candidate.id}.media`), metadata = `${destination}.json`;
     if (await exists(destination) && await exists(metadata)) {
       const saved = JSON.parse(await readFile(metadata, "utf8")) as { size: number; mtime_ms: number; original: Candidate["fingerprint"] };
       const info = await stat(destination);
       if (saved.original.size === candidate.fingerprint.size && saved.original.mtime_ms === candidate.fingerprint.mtime_ms && info.size === saved.size && info.mtimeMs === saved.mtime_ms) return destination;
     }
+    return null;
+  }
+  async input(candidate: Candidate, cache: string, signal?: AbortSignal): Promise<string> {
+    await mkdir(cache, { recursive: true });
+    const destination = path.join(cache, `${candidate.id}.media`), metadata = `${destination}.json`;
+    const saved = await this.cachedInput(candidate, cache);
+    if (saved) return saved;
     const before = await stat(candidate.source_file_path).catch(error => {
       if (isSourceConnectionError(error)) throw error;
       throw new SmartError("source_unavailable", "源视频不可读取，且本机没有可用缓存，请连接素材库", 409);
@@ -142,10 +158,13 @@ export class SmartMedia {
     if (await exists(file)) return file;
     if (!this.previews.has(file)) this.previews.set(file, (async () => {
       await mkdir(root, { recursive: true });
-      const info = await stat(candidate.source_file_path).catch(() => { throw new SmartError('source_unavailable', '预览源素材不可读取，请连接公共素材库', 409); });
-      if (info.size !== candidate.fingerprint.size || Math.abs(info.mtimeMs - candidate.fingerprint.mtime_ms) > 1) throw new SmartError('source_changed', '源素材已变化，请重新匹配', 409);
+      const source = await this.cachedInput(candidate, path.join(workspace, 'cache', 'source-videos')) || candidate.source_file_path;
+      if (source === candidate.source_file_path) {
+        const info = await stat(source).catch(() => { throw new SmartError('source_unavailable', '预览源素材不可读取，请连接公共素材库', 409); });
+        if (info.size !== candidate.fingerprint.size || Math.abs(info.mtimeMs - candidate.fingerprint.mtime_ms) > 1) throw new SmartError('source_changed', '源素材已变化，请重新匹配', 409);
+      }
       await ensureSpace(root, 128 * 1024 * 1024);
-      await runProcess(this.ffmpeg.ffmpeg_path, ['-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-ss', String(candidate.begin_ms / 1000), '-i', candidate.source_file_path,
+      await runProcess(this.ffmpeg.ffmpeg_path, ['-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-ss', String(candidate.begin_ms / 1000), '-i', source,
         '-t', String((candidate.end_ms - candidate.begin_ms) / 1000), '-map', '0:v:0', '-map', '0:a:0?', '-vf', `${sourceRotationFilter(candidate.rotation)}scale=960:540:force_original_aspect_ratio=decrease,setsar=1`,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26', '-pix_fmt', 'yuv420p', '-threads', '2', '-c:a', 'aac', '-movflags', '+faststart', '-f', 'mp4', `${file}.partial`], { signal: AbortSignal.timeout(90_000) });
       await rename(`${file}.partial`, file); return file;
@@ -161,6 +180,25 @@ export class SmartMedia {
     await mkdir(outputDirectory, { recursive: true });
     await mkdir(temp, { recursive: true });
     await ensureSpace(temp, 256 * 1024 * 1024);
+    const readInput = (candidate: Candidate, index: number) => retrySourceConnection(() => this.input(candidate, cache, signal), {
+      signal, onRetry: (retry, total) => { job.phase = `NAS连接中断，自动重试 ${retry}/${total} · 片段 ${index + 1}/${segments.length}，保留 ${job.completed_clips.length} 段`; update(); }
+    }).catch(error => {
+      if (isSourceConnectionError(error)) throw new SmartError("source_connection", `NAS连接未恢复，已自动重试3次；保留 ${job.completed_clips.length} 个完成片段，连接恢复后可继续`, 503);
+      throw error;
+    });
+    if (job.work.settings.crop_mode === "portrait") {
+      const measured: Composition[] = [];
+      for (const [index, segment] of segments.entries()) {
+        signal.throwIfAborted();
+        const candidate = segment.selected!, key = compositionKey(candidate, job.work.settings);
+        if (!job.compositions[key]?.source_aspect || !job.compositions[key]!.points.some(point => point.height)) {
+          job.phase = `统一景别：测量人物 ${index + 1}/${segments.length}`; update();
+          job.compositions[key] = await this.analyze(candidate, await readInput(candidate, index), temp, job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9, signal); update();
+        }
+        measured.push(job.compositions[key]!);
+      }
+      unifyPortraits(measured, job.work.settings); update();
+    }
     const captions: Caption[] = [], manifestSources: unknown[] = [];
     const files: string[] = []; let offset = 0;
     for (const [index, segment] of segments.entries()) {
@@ -182,17 +220,12 @@ export class SmartMedia {
       if (!reusable) {
         job.completed_clips = job.completed_clips.filter(name => name !== clipName); delete job.clip_checksums[clipName];
         job.phase = `检查源素材 ${index + 1}/${segments.length}`; update();
-        const source = await retrySourceConnection(() => this.input(candidate, cache, signal), {
-          signal, onRetry: (retry, total) => { job.phase = `NAS连接中断，自动重试 ${retry}/${total} · 片段 ${index + 1}/${segments.length}，保留 ${job.completed_clips.length} 段`; update(); }
-        }).catch(error => {
-          if (isSourceConnectionError(error)) throw new SmartError("source_connection", `NAS连接未恢复，已自动重试3次；保留 ${job.completed_clips.length} 个完成片段，连接恢复后可继续`, 503);
-          throw error;
-        });
+        const source = await readInput(candidate, index);
         const probe = await this.probe(source, signal);
         if ((candidate.rotation ?? 0) % 180 === 90) [probe.width, probe.height] = [probe.height, probe.width];
         if (!probe.audio) throw new SmartError("source_audio_missing", "源素材没有音轨，无法拼接原声，请替换片段", 422);
         if (candidate.end_ms > probe.duration_ms + 80) throw new SmartError("source_range", "源片段时间超出实际视频，请重新匹配", 409);
-        const key = `${candidate.id}:${candidate.rotation ? `r${candidate.rotation}:` : ""}${job.work.settings.ratio}`;
+        const key = compositionKey(candidate, job.work.settings);
         if (job.work.settings.crop_mode === "follow" && !job.compositions[key]) {
           job.phase = `人物构图 ${index + 1}/${segments.length}`; update();
           const ratio = job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9;
@@ -201,7 +234,7 @@ export class SmartMedia {
             : await this.analyze(candidate, source, temp, ratio, signal);
           update();
         }
-        if (job.work.settings.crop_mode === "follow" && !job.compositions[key]?.usable) throw new SmartError("composition_review", job.compositions[key]?.reason || "人物构图需要人工确认", 409);
+        if (["portrait", "follow"].includes(job.work.settings.crop_mode) && !job.compositions[key]?.usable) throw new SmartError("composition_review", job.compositions[key]?.reason || "人物构图需要人工确认", 409);
         job.phase = `原声剪辑 ${index + 1}/${segments.length}`; update();
         await runProcess(this.ffmpeg.ffmpeg_path, ["-hide_banner", "-nostdin", "-y", "-protocol_whitelist", "file,pipe", "-i", source,
           "-ss", String(candidate.begin_ms / 1000), "-t", String((candidate.end_ms - candidate.begin_ms) / 1000),
@@ -223,7 +256,9 @@ export class SmartMedia {
         if (end > begin) captions.push({ begin_ms: offset + begin, end_ms: offset + end, text: original.text });
       }
       manifestSources.push({ work_segment_id: segment.id, source_video_id: candidate.source_video_id, snapshot_id: candidate.snapshot_id, segment_ids: candidate.segment_ids,
+        source_title: candidate.source_title, source_folder: candidate.source_folder,
         begin_ms: candidate.begin_ms, end_ms: candidate.end_ms, actual: candidate.actual, rotation: candidate.rotation ?? 0, original_fingerprint: candidate.fingerprint,
+        ...(job.work.settings.crop_mode === "portrait" ? { framing: job.compositions[compositionKey(candidate, job.work.settings)] } : {}),
         output_begin_ms: offset, output_end_ms: offset + normalized.duration_ms });
       offset += normalized.duration_ms; files.push(clipName);
     }

@@ -333,11 +333,13 @@ def faces(request):
     sudden_motion = False
     last_raw_x = None
     previous_x, previous_y = None, None
+    source_aspect = None
     for frame in request["frames"]:
         image = cv2.imdecode(np.fromfile(frame["file_path"], dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None:
             continue
         height, width = image.shape[:2]
+        source_aspect = width / height
         detector.setInputSize((width, height))
         _, detected = detector.detect(image)
         if detected is None or len(detected) == 0:
@@ -358,11 +360,11 @@ def faces(request):
             x = previous_x * 0.35 + x * 0.65
             y = previous_y * 0.35 + y * 0.65
         previous_x, previous_y = x, y
-        points.append({"at_ms": frame["at_ms"], "x": x, "y": y, "confidence": float(face[-1])})
+        points.append({"at_ms": frame["at_ms"], "x": x, "y": y, "width": float(face[2] / width), "height": float(face[3] / height), "confidence": float(face[-1])})
     coverage = len(points) / max(1, len(request["frames"]))
     usable = not ambiguous and not unsafe_crop and not sudden_motion and coverage >= 0.6
     reason = "" if usable else "多人主体存在歧义，请选择全景或手动构图" if ambiguous else "近景或镜头变化无法安全裁切，请选择全景或手动构图" if unsafe_crop or sudden_motion else "未稳定检测到主讲人，请选择全景或手动构图"
-    return {"usable": usable, "reason": reason, "points": points, "multiple_faces": ambiguous}
+    return {"usable": usable, "reason": reason, "points": points, "multiple_faces": ambiguous, "source_aspect": source_aspect}
 
 
 for raw in sys.stdin:
