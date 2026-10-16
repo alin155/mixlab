@@ -23,6 +23,10 @@ test("subtitle layout preserves real intervals, escapes ASS and fits long senten
   assert.ok(ass.includes("0:00:06.80,0:00:07.99"));
   assert.ok(ass.includes("\\c&H6ae0ff&"));
   assert.ok(!ass.includes("{\\pos"));
+  const automatic = captionsToAss([{ begin_ms: 0, end_ms: 3000, text: "心宽一点，受益的是你自己。" }], { ...DEFAULT_OUTPUT, subtitle_template: SYSTEM_TEMPLATES[2] }, "unused");
+  assert.ok(automatic.includes("\\c&H6ae0ff&}心宽一点{\\c"), "one-click emphasis has a visible default without keyword entry");
+  const custom = validateTemplate({ ...SYSTEM_TEMPLATES[2], id: "MY-team", name: "团队重点" });
+  assert.equal(custom.highlight_lead, true, "personal recipes preserve the default emphasis rule");
   for (const override of [{ font: "unbundled" }, { color: "#fff,{\\pos(1,2)}" }, { keywords: ["{\\an8}"] }, { size: 101 }, { max_lines: 5 }]) assert.throws(() => validateTemplate({ ...template, ...override }));
 });
 

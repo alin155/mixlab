@@ -15,8 +15,9 @@ export function validateTemplate(value: unknown): SubtitleTemplate {
   const flag = (key: string) => { if (typeof v[key] !== "boolean") throw new SmartError("subtitle_template", "字幕模板开关无效"); return v[key] as boolean; };
   if (!["Noto Serif SC", "Noto Sans SC"].includes(String(v.font)) || v.max_lines !== 2 || !Number.isInteger(v.version) || Number(v.version) < 1) throw new SmartError("subtitle_template", "字幕字体、版本或行数无效");
   if (!Array.isArray(v.keywords) || v.keywords.length > 10 || v.keywords.some(word => typeof word !== "string" || !word.trim() || Array.from(word).length > 12 || /[\r\n{}\\]/u.test(word))) throw new SmartError("subtitle_template", "最多设置 10 个关键词，每个不超过 12 字");
+  if (v.highlight_lead !== undefined && typeof v.highlight_lead !== "boolean") throw new SmartError("subtitle_template", "短语强调设置无效");
   return { id: text("id", 80), version: Number(v.version), name: text("name", 30), font: v.font as SubtitleTemplate["font"],
-    bold: flag("bold"), box: flag("box"), fade: flag("fade"), color: color("color"), accent: color("accent"), keywords: [...new Set(v.keywords as string[])],
+    bold: flag("bold"), box: flag("box"), fade: flag("fade"), color: color("color"), accent: color("accent"), keywords: [...new Set(v.keywords as string[])], highlight_lead: v.highlight_lead === true,
     size: boundedNumber(v.size, 24, 100, "字幕字号"), bottom: boundedNumber(v.bottom, 0.03, 0.4, "字幕位置"),
     outline: boundedNumber(v.outline, 0, 12, "字幕描边"), spacing: boundedNumber(v.spacing, 0, 5, "字幕字距"),
     line_chars: boundedNumber(v.line_chars, 8, 20, "每行字数"), max_lines: 2, side_margin: boundedNumber(v.side_margin, 0.05, 0.2, "字幕安全边距") };

@@ -30,9 +30,9 @@ export function captionsToAss(captions: Caption[], settings: OutputSettings, fon
   const width = settings.ratio === "9:16" ? 1080 : 1920, height = settings.ratio === "9:16" ? 1920 : 1080;
   const template = resolvedTemplate(settings);
   const assColor = (color: string) => `&H${color.slice(5, 7)}${color.slice(3, 5)}${color.slice(1, 3)}&`;
-  const emphasize = (value: string): string => {
-    if (!template?.keywords.length) return safeAss(value);
-    const words = [...template.keywords].sort((a, b) => b.length - a.length); let output = "", index = 0;
+  const emphasize = (value: string, lead: string): string => {
+    if (!template) return safeAss(value);
+    const words = [...(template.keywords.length ? template.keywords : lead ? [lead] : [])].sort((a, b) => b.length - a.length); let output = "", index = 0;
     while (index < value.length) {
       const word = words.find(word => value.startsWith(word, index));
       if (word) { output += `{\\c${assColor(template.accent)}}${safeAss(word)}{\\c${assColor(template.color)}}`; index += word.length; }
@@ -53,7 +53,9 @@ export function captionsToAss(captions: Caption[], settings: OutputSettings, fon
   const side = template ? Math.round(width * template.side_margin) : 60;
   return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 2\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${template?.font ?? font},${settings.subtitle_size},${primary},&H00FFFFFF,${style.box ? "&H80000000" : "&H00101010"},&H80000000,${style.bold ? -1 : 0},0,0,0,100,100,${template?.spacing ?? 0},0,${style.box ? 3 : 1},${style.outline},${style.box ? 0 : 1},2,${side},${side},${margin},1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => {
     const layout = template ? captionLayout(caption.text, template, settings.ratio) : null;
-    const content = layout ? `{\\fs${layout.size}}${layout.lines.map(emphasize).join("\\N")}` : text(caption.text);
+    const first = caption.text.split(/[，。！？、；：,.!?;:\r\n]/u)[0]?.trim() ?? "";
+    const lead = template?.highlight_lead && Array.from(first).length <= 12 ? first : "";
+    const content = layout ? `{\\fs${layout.size}}${layout.lines.map(line => emphasize(line, lead)).join("\\N")}` : text(caption.text);
     return `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${effect}${content}`;
   }).join("\n") + "\n";
 }
@@ -318,7 +320,7 @@ export class SmartMedia {
       title: job.work.title, origin: job.work.origin, original_input_script: job.work.original_script, input_script: job.work.script, actual_script: segments.map(segment => segment.actual).join("\n"),
       skipped_segments: job.work.segments.filter(segment => segment.skipped).map(segment => ({ id: segment.id, target: segment.target, status: segment.status })),
       settings: job.work.settings, subtitle_template: template,
-      subtitle_rendering: template && job.work.settings.subtitles ? { renderer_version: 1, timing: "source_segments", captions: captions.map(caption => ({ ...caption, ...captionLayout(caption.text, template, job.work.settings.ratio) })) } : null,
+      subtitle_rendering: template && job.work.settings.subtitles ? { renderer_version: 2, timing: "source_segments", captions: captions.map(caption => ({ ...caption, ...captionLayout(caption.text, template, job.work.settings.ratio) })) } : null,
       subtitle_warnings: captionWarnings(captions, job.work.settings), sources: manifestSources, output: { file: "video.mp4", sha256: job.result_sha256, ...verified },
       generated_at: new Date().toISOString() });
     await rename(result, job.output_path);

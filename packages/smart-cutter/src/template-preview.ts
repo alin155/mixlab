@@ -10,7 +10,7 @@ import { atomicPrivateJson } from "./vault.ts";
 export interface TemplatePreview { id: string; file: string; duration_ms: number; warnings: string[]; work: Work; workspace: string }
 export async function renderTemplatePreview(media: SmartMedia, work: Work, workspace: string, jobs: Job[], signal: AbortSignal): Promise<TemplatePreview> {
   if (!workReady(work)) throw new SmartError("review_required", "请先审核或跳过未处理句段，再生成模板预览", 409);
-  const id = createHash("sha256").update(JSON.stringify({ renderer: 1, work })).digest("hex");
+  const id = createHash("sha256").update(JSON.stringify({ renderer: 2, work })).digest("hex");
   const root = path.join(workspace, "cache/template-previews", id), file = path.join(root, "preview.mp4");
   await mkdir(root, { recursive: true });
   const segments = includedSegments(work), compositions: Composition[] = [];
