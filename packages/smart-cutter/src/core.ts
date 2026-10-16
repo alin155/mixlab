@@ -17,6 +17,7 @@ import { runProcess } from "./process.ts";
 import { renderTemplatePreview, type TemplatePreview } from "./template-preview.ts";
 import { resolvedTemplate, validateTemplate, type SubtitleTemplate } from "./templates.ts";
 import { retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
+import { SubtitleCorrector } from "./subtitle-correction.ts";
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
 import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
   type Settings, type Work, type WorkSegment, type WorkOrigin, type Job, type Account, type HotVideo, type Rule, type OutputSettings } from "./types.ts";
@@ -27,7 +28,7 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 const fileExists = async (file: string): Promise<boolean> => !!(await stat(file).catch(() => null))?.isFile();
 type AccountStatus = { required: boolean; user: { user_id: string; username: string; tier: CutterAccountTier } | null };
 
-export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; test_account_tier?: CutterAccountTier; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient }
+export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; test_account_tier?: CutterAccountTier; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient; subtitle_fetch?: typeof fetch }
 export class SmartCore {
   readonly store: SmartStore;
   readonly vault: CredentialVault;
@@ -67,7 +68,7 @@ export class SmartCore {
       reference_cache_gb: 30, source_cache_gb: 30, max_download_mb: 500, asr_model: "paraformer-v2", default_source_folder: "", device_id: `smart-${randomUUID()}` };
     this.library = new SmartLibrary(this.store, () => this.settings, (snapshot, query, folder, progress) => this.ai.search(snapshot, query, folder, progress));
     this.media = new SmartMedia(this.library, this.ai, undefined, () => ({ max_bytes: this.settings.source_cache_gb * 1024 ** 3,
-      pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }));
+      pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }), new SubtitleCorrector(() => this.vault.get("dashscope"), () => this.settings.workspace_root, options.subtitle_fetch));
     this.provider = options.provider ?? new TikHubClient({ getKey: () => this.vault.get("tikhub"), reserveRequest: () => this.store.reserveRequest(localDay(), this.settings.request_limit_per_day) });
     this.references = new ReferenceProcessor(this.store, this.vault, this.provider, this.media, () => this.settings, options.asr_http);
     this.manual = new ManualCutter(this);
@@ -311,7 +312,7 @@ export class SmartCore {
       if (body.subtitle_template === null) delete next.subtitle_template;
       else next.subtitle_template = validateTemplate(body.subtitle_template);
     }
-    for (const field of ["subtitles", "normalize_audio", "same_lecturer"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
+    for (const field of ["subtitles", "normalize_audio", "same_lecturer", "auto_rotate", "subtitle_correction"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
     if (body.source_folder !== undefined) next.source_folder = String(body.source_folder).trim();
     if (body.teacher !== undefined) next.teacher = requireText(body.teacher, "目标老师", 80);
     next.same_lecturer = true;
@@ -421,8 +422,8 @@ export class SmartCore {
       this.store.set("source-direction", { id: key, rotation });
       for (const item of affected) {
         for (const segment of item.segments) {
-          if (same(segment.selected)) segment.selected!.rotation = rotation;
-          for (const alternative of segment.candidates) if (same(alternative)) alternative.rotation = rotation;
+          if (same(segment.selected)) { segment.selected!.rotation = rotation; segment.selected!.direction_source = "manual"; delete segment.selected!.direction_evidence; }
+          for (const alternative of segment.candidates) if (same(alternative)) { alternative.rotation = rotation; alternative.direction_source = "manual"; delete alternative.direction_evidence; }
         }
         item.revision++; item.status = workReady(item) ? "ready" : "review"; item.error = ""; this.saveWork(item);
       }
@@ -504,7 +505,7 @@ export class SmartCore {
           const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = "done"; this.saveWork(work); }
         } catch (error) {
           if (!controller.signal.aborted) {
-            current.status = error instanceof SmartError && error.code === "composition_review" ? "needs_review" : "failed";
+            current.status = error instanceof SmartError && ["composition_review", "subtitle_review", "subtitle_key"].includes(error.code) ? "needs_review" : "failed";
             current.error = this.vault.redact((error as Error).message); update();
             const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = current.status === "needs_review" ? "review" : "failed"; work.error = current.error; this.saveWork(work); }
           }
@@ -540,19 +541,21 @@ export class SmartCore {
     const existing = ruleId ? this.store.get<Rule>("rule", ruleId) : null;
     if (ruleId && !existing) throw new SmartError("rule_missing", "规则不存在", 404);
     const rule: Rule = existing ?? { id: id("R"), name: "热点原声成片", enabled: false,
-      platform: this.settings.monitor_platform, account_group: "", max_age_hours: 24,
+      platform: this.settings.monitor_platform, account_group: "", max_age_hours: 24, subtitle_correction: true,
       min_likes: 1000, min_growth_per_hour: 0, execution: "review", daily_limit: 5,
       candidates_per_run: 2, source_folder: "", last_run_at: "", last_error: "" };
     if (body.name !== undefined) rule.name = requireText(body.name, "规则名称", 80);
     if (body.enabled !== undefined) { if (typeof body.enabled !== "boolean") throw new SmartError("rule_input", "规则开关无效"); rule.enabled = body.enabled; }
     if (body.platform !== undefined) rule.platform = validatePlatform(body.platform);
     if (body.account_group !== undefined) rule.account_group = String(body.account_group).trim().slice(0, 80);
-    if (body.max_age_hours !== undefined) rule.max_age_hours = boundedNumber(body.max_age_hours, 1, 720, "发布时间范围");
+    if (body.max_age_hours !== undefined) rule.max_age_hours = boundedNumber(body.max_age_hours, 1, 87_600, "发布时间范围");
     if (body.min_likes !== undefined) rule.min_likes = boundedNumber(body.min_likes, 0, 100_000_000, "点赞阈值");
     if (body.min_growth_per_hour !== undefined) rule.min_growth_per_hour = boundedNumber(body.min_growth_per_hour, 0, 100_000_000, "增长阈值");
     if (body.daily_limit !== undefined) rule.daily_limit = Math.floor(boundedNumber(body.daily_limit, 1, 100, "每日成片上限"));
     if (body.candidates_per_run !== undefined) rule.candidates_per_run = Math.floor(boundedNumber(body.candidates_per_run, 1, 10, "每轮候选数"));
     if (body.source_folder !== undefined) rule.source_folder = String(body.source_folder).trim();
+    if (body.max_duration_seconds !== undefined) rule.max_duration_seconds = boundedNumber(body.max_duration_seconds, 0, 86_400, "视频时长上限");
+    if (body.subtitle_correction !== undefined) { if (typeof body.subtitle_correction !== "boolean") throw new SmartError("rule_input", "字幕纠错开关无效"); rule.subtitle_correction = body.subtitle_correction; }
     if (body.execution !== undefined) { if (!["plan", "review", "qualified"].includes(String(body.execution))) throw new SmartError("rule_execution", "执行等级无效"); rule.execution = body.execution as Rule["execution"]; }
     return this.store.set("rule", rule);
   }
@@ -575,6 +578,7 @@ export class SmartCore {
         ? (item.stats.likes - previous.stats.likes) / elapsed * 3_600_000 : null;
       hot.observations = [...hot.observations, observation].slice(-48);
       hot.title = item.title || hot.title; hot.download_url = item.download_url || hot.download_url;
+      if (item.duration_ms > 0) hot.duration_ms = item.duration_ms;
       hot.cover_url = item.cover_url || hot.cover_url; hot.updated_at = now();
       this.store.set("hot", hot);
     }
@@ -591,15 +595,31 @@ export class SmartCore {
         try {
           status.phase = `采集 ${account.name}`; this.store.set("monitor", status);
           let cursor = "0";
-          for (let pageIndex = 0; pageIndex < 3; pageIndex++) {
-            const page = await this.provider.posts(account.platform, account, cursor);
-            const known = page.videos.some(video => this.store.get<HotVideo>("hot", `${account.platform}:${video.video_id}`));
+          const lookback = Math.max(72, ...this.store.list<Rule>("rule").filter(rule => rule.enabled && rule.platform === account.platform && (!rule.account_group || rule.account_group === account.group)).map(rule => rule.max_age_hours));
+          const pages = lookback > 72 ? 40 : 3;
+          const coverage = this.store.get<{ id: string; hours: number; complete: boolean }>("monitor-coverage", account.id);
+          const mayStopAtKnown = lookback <= 72 || !!coverage?.complete && coverage.hours >= lookback;
+          let limited = false;
+          for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
+            let page: ProviderPage;
+            try { page = await this.provider.posts(account.platform, account, cursor); }
+            catch (error) {
+              if (!(error instanceof SmartError) || !["provider_failed", "provider_network"].includes(error.code)) throw error;
+              status.phase = `重试采集 ${account.name} · 第 ${pageIndex + 1} 页`; this.store.set("monitor", status);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              page = await this.provider.posts(account.platform, account, cursor);
+            }
+            const known = page.videos.length > 0 && page.videos.every(video => this.store.get<HotVideo>("hot", `${account.platform}:${video.video_id}`));
             status.new_count += this.observed(account, page);
-            const older = page.videos.length > 0 && page.videos.every(video => video.published_at && Date.now() - new Date(video.published_at).getTime() > 72 * 3_600_000);
-            if (!page.has_more || page.cursor === cursor || !page.videos.length || older || known) break;
+            const older = page.videos.length > 0 && page.videos.every(video => video.published_at && Date.now() - new Date(video.published_at).getTime() > lookback * 3_600_000);
+            if (!page.has_more || older || known && mayStopAtKnown) break;
+            if (page.cursor === cursor || !page.videos.length) { limited = true; break; }
             cursor = page.cursor;
+            limited = pageIndex === pages - 1;
           }
-          account.cursor = cursor; account.last_error = ""; account.last_checked_at = now(); this.store.set("account", account);
+          this.store.set("monitor-coverage", { id: account.id, hours: lookback, complete: !limited });
+          account.cursor = cursor; account.last_error = limited ? `历史采集未完成：分页未前进或已达 ${pages} 页上限，已采集候选仍按规则处理` : ""; account.last_checked_at = now(); this.store.set("account", account);
+          if (limited) status.error = account.last_error;
         } catch (error) {
           account.last_error = this.vault.redact((error as Error).message); account.last_checked_at = now(); this.store.set("account", account);
           status.error = account.last_error;
@@ -622,6 +642,7 @@ export class SmartCore {
       const observedAt = new Date(hot.observations.at(-1)?.at ?? 0).getTime();
       return hot.platform === rule.platform && account?.enabled && (!rule.account_group || account.group === rule.account_group) &&
         !!hot.published_at && Date.now() - new Date(hot.published_at).getTime() <= rule.max_age_hours * 3_600_000 &&
+        (!rule.max_duration_seconds || hot.duration_ms > 0 && hot.duration_ms <= rule.max_duration_seconds * 1000) &&
         Date.now() - observedAt <= this.settings.monitor_interval_minutes * 120_000 &&
         likes !== null && likes !== undefined && likes >= rule.min_likes &&
         (rule.min_growth_per_hour === 0 || hot.growth_per_hour !== null && hot.growth_per_hour >= rule.min_growth_per_hour);
@@ -640,7 +661,7 @@ export class SmartCore {
         if (this.closed) break;
         const work = this.createWork(hot.transcript, { trigger: "automatic", kind: "rule", platform: hot.platform,
           account_id: hot.account_id, account_name: hot.author, rule_id: rule.id, rule_name: rule.name, hot_id: hot.id, reference_title: hot.title }, teacher);
-        work.settings.source_folder = rule.source_folder; this.saveWork(work);
+        work.settings.source_folder = rule.source_folder; work.settings.subtitle_correction = rule.subtitle_correction === true; this.saveWork(work);
         this.store.bindRuleWork(rule.id, candidate.id, work.id);
         await this.generatePlan(work.id);
         const ready = this.work(work.id);

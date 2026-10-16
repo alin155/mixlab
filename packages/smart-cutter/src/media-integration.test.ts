@@ -42,7 +42,7 @@ test("real published source -> immutable plan -> playable MP4/SRT/provenance, wi
   const originalRange = plan.segments[0]!.selected!;
   assert.equal(originalRange.begin_ms, 0); assert.equal(originalRange.end_ms, 1700);
   assert.throws(() => core.selectSegment(work.id, 1, { revision: plan.revision, candidate_id: "forged-source-path" }), /真实片段/);
-  core.updateWork(work.id, { settings: { crop_mode: "fit", subtitles: true } });
+  core.updateWork(work.id, { settings: { crop_mode: "fit", auto_rotate: false, subtitles: true } });
   const job = core.enqueue(work.id);
   assert.equal(core.enqueue(work.id).id, job.id, "duplicate submission must reuse the active revision");
   const result = await completed(core, job.id);

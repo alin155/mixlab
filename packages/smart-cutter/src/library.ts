@@ -208,7 +208,9 @@ export class SmartLibrary {
       actual, begin_ms: begin, end_ms: end, kind: classifyMatch(target, actual), score,
       width: detail.width, height: detail.height, source_file_path: detail.source_video_file_path,
       cover_file_path: detail.cover_file_path, fingerprint, content_hash: contentHash };
-    candidate.rotation = this.sourceRotation(candidate); return candidate;
+    candidate.rotation = this.sourceRotation(candidate);
+    if (this.store.get("source-direction", this.directionKey(candidate))) candidate.direction_source = "manual";
+    return candidate;
   }
   async selectedRange(snapshot: LibrarySnapshot, target: string, input: Record<string, unknown>): Promise<Candidate> {
     if (typeof input.source_video_id !== "string" || !/^V\d{6}$/.test(input.source_video_id)) throw new SmartError("source_scope", "补选仅接受已发布的公共素材");

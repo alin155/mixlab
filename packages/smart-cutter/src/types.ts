@@ -21,6 +21,8 @@ export interface Settings {
   device_id: string;
 }
 export interface OutputSettings {
+  auto_rotate?: boolean;
+  subtitle_correction?: boolean;
   ratio: "9:16" | "16:9";
   crop_mode: CropMode;
   crop_position: number;
@@ -36,12 +38,15 @@ export interface OutputSettings {
   same_lecturer: boolean;
 }
 export const DEFAULT_OUTPUT: OutputSettings = {
+  auto_rotate: true, subtitle_correction: false,
   ratio: "9:16", crop_mode: "portrait", crop_position: 0.5, shot_size: "medium",
   subtitles: true, subtitle_style: "cinema", subtitle_size: 70, subtitle_margin: 0.12, subtitle_template: SYSTEM_TEMPLATES[0],
   normalize_audio: true, source_folder: "", same_lecturer: true
 };
 export interface Candidate {
   rotation?: 0 | 90 | 180 | 270;
+  direction_source?: "manual" | "automatic";
+  direction_evidence?: Orientation;
   id: string;
   snapshot_id: string;
   source_video_id: string;
@@ -115,6 +120,13 @@ export interface Work {
   match_progress?: MatchProgress;
 }
 export interface FacePoint { at_ms: number; x: number; y?: number; width?: number; height?: number; confidence: number }
+export interface Orientation {
+  detector?: string;
+  rotation: 0 | 90 | 180 | 270 | null;
+  confidence: number;
+  reason: string;
+  scores: Array<{ rotation: number; score: number; coverage: number; ambiguous: boolean }>;
+}
 export interface Composition {
   usable: boolean;
   reason: string;
@@ -125,6 +137,8 @@ export interface Composition {
   target_face_ratio?: number;
 }
 export interface Job {
+  subtitle_corrections?: Array<{ index: number; original: string; corrected: string; reason: string }>;
+  subtitle_model?: string;
   id: string;
   work_id: string;
   revision: number;
@@ -190,6 +204,8 @@ export interface HotVideo {
   updated_at: string;
 }
 export interface Rule {
+  subtitle_correction?: boolean;
+  max_duration_seconds?: number;
   id: string;
   name: string;
   enabled: boolean;

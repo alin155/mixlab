@@ -38,3 +38,10 @@ test('video details accept official single and array forms without silently down
   data = {};
   await assert.rejects(client.resolveAccount('douyin', 'MS4fixture123456789'), /有效账号信息/);
 });
+
+test('video details prefer V2, bound legacy fallback and never retry unauthorized credentials',async()=>{
+ const endpoints:string[]=[];let count=0;
+ const client=new TikHubClient({getKey:()=> 'fixture',reserveRequest:()=>count++,fetch:async input=>{const url=new URL(String(input));endpoints.push(url.pathname);return url.pathname.endsWith('_v2')?new Response('{}',{status:400}):Response.json({code:200,data:{aweme_detail:{aweme_id:'72300000001',video:{play_addr:{url_list:['https://cdn.example/video.mp4']}}}}});}});
+ assert.equal((await client.video('douyin','72300000001')).video_id,'72300000001');assert.equal(count,2);assert.deepEqual(endpoints,['/api/v1/douyin/app/v3/fetch_one_video_v2','/api/v1/douyin/app/v3/fetch_one_video']);
+ let denied=0;const unauthorized=new TikHubClient({getKey:()=> 'fixture',reserveRequest:()=>denied++,fetch:async()=>new Response('{}',{status:401})});await assert.rejects(unauthorized.video('douyin','72300000001'),/Key/);assert.equal(denied,1);
+});

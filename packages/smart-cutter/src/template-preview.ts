@@ -17,6 +17,10 @@ export async function renderTemplatePreview(media: SmartMedia, work: Work, works
   const settings = work.settings;
   if (settings.subtitles) media.subtitleFilter(settings);
   await ensureSpace(root, 128 * 1024 * 1024);
+  if (settings.auto_rotate) for (const segment of segments) {
+    if (segment.selected!.direction_source || segment.selected!.rotation) continue;
+    await media.correctDirection(segment.selected!, await media.input(segment.selected!, path.join(workspace, "cache/source-videos"), signal), workspace, ["portrait", "follow", "center"].includes(settings.crop_mode), signal);
+  }
   // Reuse measurements only for the exact source, rotation, ratio and shot mode. Subtitle edits never search/index the library.
   if (["portrait", "follow"].includes(settings.crop_mode)) {
     for (const segment of segments) {
@@ -38,7 +42,7 @@ export async function renderTemplatePreview(media: SmartMedia, work: Work, works
     }
     if (settings.crop_mode === "portrait") unifyPortraits(compositions, settings);
   }
-  const captions: Caption[] = [], clips: string[] = []; let offset = 0;
+  let captions: Caption[] = []; const clips: string[] = []; let offset = 0;
   for (const [index, segment] of segments.entries()) {
     if (offset >= 8000) break;
     const candidate = segment.selected!, duration = Math.min(8000 - offset, candidate.end_ms - candidate.begin_ms);
@@ -46,6 +50,7 @@ export async function renderTemplatePreview(media: SmartMedia, work: Work, works
     captions.push(...await media.sourceCaptions(candidate, duration, offset));
     clips.push(name); offset += duration;
   }
+  captions = (await media.correctedSubtitles(captions, settings, signal)).captions;
   const warnings = captionWarnings(captions, settings);
   const result = { id, file, duration_ms: offset, warnings, work, workspace };
   if ((await stat(file).catch(() => null))?.isFile()) return result;

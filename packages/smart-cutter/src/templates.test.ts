@@ -39,7 +39,7 @@ test("four real template previews reuse selected footage, preserve work/history,
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await core.close(); core.store.close(); await rm(root, { recursive: true, force: true }); });
   const work = core.createWork("现金流是企业的血液。把事情做对，再把规模做大。", undefined, "验收讲师");
   await core.generatePlan(work.id);
-  core.updateWork(work.id, { settings: { crop_mode: "fit", subtitle_template: null } });
+  core.updateWork(work.id, { settings: { crop_mode: "fit", auto_rotate: false, subtitle_template: null } });
   async function complete(job: Job): Promise<Job> {
     const deadline = Date.now() + 45_000;
     while (["queued", "running"].includes(job.status) && Date.now() < deadline) { await new Promise(resolve => setTimeout(resolve, 100)); job = core.store.get<Job>("job", job.id)!; }

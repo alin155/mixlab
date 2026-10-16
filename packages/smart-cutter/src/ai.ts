@@ -4,7 +4,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { runProcess } from "./process.ts";
-import { SmartError, type Composition, type MatchPhase } from "./types.ts";
+import { SmartError, type Composition, type MatchPhase, type Orientation } from "./types.ts";
 import type { LibrarySnapshot, SemanticSearchResult } from "./library.ts";
 
 export interface AiRuntime { python: string; script: string; models: string }
@@ -90,6 +90,15 @@ export class SmartAi {
     });
     const result = JSON.parse(output.trim().split(/\r?\n/).at(-1) ?? "{}") as { result?: Composition; error?: string };
     if (!result.result) throw new SmartError("ai_runtime", "人物分析组件不可用，请检查本机运行环境", 503);
+    return result.result;
+  }
+  async orientation(frames: Array<{ file_path: string; at_ms: number }>, signal?: AbortSignal): Promise<Orientation> {
+    const output = await runProcess(this.runtime.python, ["-u", this.runtime.script, this.runtime.models], {
+      signal, input: JSON.stringify({ id: "direction", op: "orientation", frames }) + "\n",
+      env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8", OMP_NUM_THREADS: "1", OPENBLAS_NUM_THREADS: "1" }
+    });
+    const result = JSON.parse(output.trim().split(/\r?\n/).at(-1) ?? "{}") as { result?: Orientation };
+    if (!result.result) throw new SmartError("ai_runtime", "原片方向识别组件不可用", 503);
     return result.result;
   }
   close(): void {

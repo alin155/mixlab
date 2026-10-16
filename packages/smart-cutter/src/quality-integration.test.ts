@@ -32,7 +32,7 @@ test("consistent shots render equal face height; historical provenance plays cac
     segment.selected!.fingerprint = { size: info.size, mtime_ms: info.mtimeMs }; delete segment.selected!.content_hash;
   }
   core.store.set("work", current);
-  core.updateWork(work.id, { settings: { crop_mode: "portrait", subtitles: false, shot_size: "medium" } });
+  core.updateWork(work.id, { settings: { crop_mode: "portrait", subtitles: false, shot_size: "medium", auto_rotate: false } });
   t.mock.method(core.media, "analyze", async (candidate: Candidate) => ({ usable: true, reason: "", multiple_faces: false, source_aspect: 640 / 360,
     points: [0, 1000].map(at_ms => ({ at_ms, x: 0.5, y: 0.4, height: candidate.begin_ms < 2000 ? 0.1 : 0.2, confidence: 1 })) }));
   const submitted = core.enqueue(work.id); let job: Job = submitted;

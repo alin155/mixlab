@@ -111,7 +111,12 @@ export class TikHubClient {
   }
   async video(platform: Platform, videoId: string): Promise<ProviderVideo> {
     if (!/^\d{5,30}$/.test(videoId)) throw new SmartError("video_id", "作品 ID 无效");
-    const payload = await this.request(`/api/v1/${platform}/app/v3/fetch_one_video`, { aweme_id: videoId });
+    let payload: JsonObject;
+    try { payload = await this.request(`/api/v1/${platform}/app/v3/fetch_one_video_v2`, { aweme_id: videoId }); }
+    catch (error) {
+      if (!(error instanceof SmartError) || error.code !== "provider_failed") throw error;
+      payload = await this.request(`/api/v1/${platform}/app/v3/fetch_one_video`, { aweme_id: videoId });
+    }
     const data = object(payload.data);
     const details = Array.isArray(data.aweme_details) ? data.aweme_details : [];
     const video = normalizeProviderVideo(data.aweme_detail ?? details.find(item => text(object(item).aweme_id) === videoId) ?? data);
