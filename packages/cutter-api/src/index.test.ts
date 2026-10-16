@@ -2069,7 +2069,7 @@ test("source library reads from local release cache after syncing the current re
       ["V000001", "V000002"]
     );
     assert.equal(
-      cached.data.videos[0].source_video_file_path,
+      path.normalize(cached.data.videos[0].source_video_file_path),
       path.join(libraryRoot, "source-videos", "01_现金流.mp4")
     );
   }, {
@@ -2566,7 +2566,7 @@ test("source detail prefers local searchd transcript when artifact transcript is
         );
         assert.deepEqual(detail.data.keyframes.keyframes_ms, []);
         assert.equal(
-          detail.data.source_video_file_path.endsWith(path.join("source-videos", "01_现金流.mp4")),
+          path.normalize(detail.data.source_video_file_path).endsWith(path.join("source-videos", "01_现金流.mp4")),
           true
         );
         assert.equal(detail.data.media_url, "/cutter/source-videos/V000001/media");
@@ -2931,7 +2931,7 @@ test("cuts from original source before starting cold source video cache warmup",
     });
     assert.equal(create.status, 201);
 
-    assert.deepEqual(cutSourcePaths, [originalSourcePath]);
+    assert.deepEqual(cutSourcePaths.map(value => path.normalize(value)), [originalSourcePath]);
 
     await copyStartedSignal;
     releaseCopy();
@@ -3587,7 +3587,7 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
       cutOutputs.map(({ begin_ms, end_ms }) => ({ begin_ms, end_ms })),
       [{ begin_ms: 750, end_ms: 4000 }]
     );
-    assert.equal(cutOutputs[0]!.source_video_path, path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+    assert.equal(path.normalize(cutOutputs[0]!.source_video_path), path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
 
     let runtimeStatus: any;
     const cacheDeadline = Date.now() + 1_000;
@@ -4140,8 +4140,8 @@ test("opens the selected source video directory for cutters", async () => {
     assert.equal(response.status, 200);
     const body = await response.json() as any;
     const expectedPath = path.join(libraryRoot, "source-videos");
-    assert.equal(body.data.path, expectedPath);
-    assert.deepEqual(openedPaths, [expectedPath]);
+    assert.equal(path.normalize(body.data.path), expectedPath);
+    assert.deepEqual(openedPaths.map(value => path.normalize(value)), [expectedPath]);
 
     const resolveOnlyResponse = await fetch(`${baseUrl}/cutter/source-videos/open-directory`, {
       method: "POST",
@@ -4156,8 +4156,8 @@ test("opens the selected source video directory for cutters", async () => {
     });
     assert.equal(resolveOnlyResponse.status, 200);
     const resolveOnlyBody = await resolveOnlyResponse.json() as any;
-    assert.equal(resolveOnlyBody.data.path, expectedPath);
-    assert.deepEqual(openedPaths, [expectedPath]);
+    assert.equal(path.normalize(resolveOnlyBody.data.path), expectedPath);
+    assert.deepEqual(openedPaths.map(value => path.normalize(value)), [expectedPath]);
 
     const pathFallbackResponse = await fetch(`${baseUrl}/cutter/source-videos/open-directory`, {
       method: "POST",
@@ -4173,7 +4173,7 @@ test("opens the selected source video directory for cutters", async () => {
     assert.equal(pathFallbackResponse.status, 200);
     const pathFallbackBody = await pathFallbackResponse.json() as any;
     assert.equal(pathFallbackBody.data.path, expectedPath);
-    assert.deepEqual(openedPaths, [expectedPath]);
+    assert.deepEqual(openedPaths.map(value => path.normalize(value)), [expectedPath]);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
