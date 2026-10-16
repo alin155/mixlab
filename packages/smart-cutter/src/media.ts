@@ -8,12 +8,15 @@ import { resolveFfmpegRuntime, type FfmpegRuntime } from "../../ffmpeg-core/src/
 import { runProcess } from "./process.ts";
 import { SmartAi } from "./ai.ts";
 import { SmartLibrary } from "./library.ts";
-import { SmartError, workReady, includedSegments, type Candidate, type Composition, type FacePoint, type Job, type OutputSettings } from "./types.ts";
+import { SmartError, DirectionReviewError, workReady, includedSegments, type Candidate, type Composition, type FacePoint, type Job, type OutputSettings, type Orientation } from "./types.ts";
 import { atomicPrivateJson } from "./vault.ts";
 import { isSourceConnectionError, retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
+import { SUBTITLE_STYLES, unifyPortraits } from "./presentation.ts";
+import { captionLayout, resolvedTemplate } from "./templates.ts";
+import { SubtitleCorrector, type CorrectedSubtitles } from "./subtitle-correction.ts";
 
 export interface MediaInfo { width: number; height: number; duration_ms: number; audio: boolean }
-export interface Caption { begin_ms: number; end_ms: number; text: string }
+export interface Caption { begin_ms: number; end_ms: number; text: string; original_text?: string }
 const safeAss = (text: string): string => text.replaceAll("\\", "＼").replaceAll("{", "｛").replaceAll("}", "｝").replace(/[\r\n]+/gu, " ");
 export function sourceRotationFilter(rotation: Candidate["rotation"]): string { return rotation === 90 ? "transpose=clock," : rotation === 180 ? "hflip,vflip," : rotation === 270 ? "transpose=cclock," : ""; }
 function srtTime(milliseconds: number): string {
@@ -26,14 +29,43 @@ export function captionsToSrt(captions: Caption[]): string {
 }
 export function captionsToAss(captions: Caption[], settings: OutputSettings, font: string): string {
   const width = settings.ratio === "9:16" ? 1080 : 1920, height = settings.ratio === "9:16" ? 1920 : 1080;
+  const template = resolvedTemplate(settings);
+  const assColor = (color: string) => `&H${color.slice(5, 7)}${color.slice(3, 5)}${color.slice(1, 3)}&`;
+  const emphasize = (value: string, lead: string): string => {
+    if (!template) return safeAss(value);
+    const words = [...(template.keywords.length ? template.keywords : lead ? [lead] : [])].sort((a, b) => b.length - a.length); let output = "", index = 0;
+    while (index < value.length) {
+      const word = words.find(word => value.startsWith(word, index));
+      if (word) { output += `{\\c${assColor(template.accent)}}${safeAss(word)}{\\c${assColor(template.color)}}`; index += word.length; }
+      else { const char = String.fromCodePoint(value.codePointAt(index)!); output += safeAss(char); index += char.length; }
+    }
+    return output;
+  };
   const text = (value: string): string => {
     const chars = Array.from(safeAss(value)); const lines: string[] = [];
     const lineWidth = Math.max(8, Math.floor((width - 120) / settings.subtitle_size));
     for (let i = 0; i < chars.length; i += lineWidth) lines.push(chars.slice(i, i + lineWidth).join(""));
     return lines.join("\\N");
   };
-  const primary = settings.subtitle_style === "yellow" ? "&H0000E9FF" : "&H00FFFFFF";
-  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 0\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${font},${settings.subtitle_size},${primary},&H00FFFFFF,&H00101010,&H80000000,0,0,0,0,100,100,0,0,1,2.4,1,2,60,60,100,1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${text(caption.text)}`).join("\n") + "\n";
+  const style = template ?? SUBTITLE_STYLES[settings.subtitle_style];
+  const primary = `&H00${style.color.slice(5, 7)}${style.color.slice(3, 5)}${style.color.slice(1, 3)}`;
+  const effect = !template && settings.subtitle_style === "pop" ? "{\\fscx94\\fscy94\\t(0,120,\\fscx100\\fscy100)\\fad(80,60)}" : style.fade ? "{\\fad(120,100)}" : "";
+  const margin = template ? Math.round(height * template.bottom) : settings.subtitle_margin === undefined ? 100 : Math.round(height * settings.subtitle_margin);
+  const side = template ? Math.round(width * template.side_margin) : 60;
+  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 2\n\n[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\nStyle: Default,${template?.font ?? font},${settings.subtitle_size},${primary},&H00FFFFFF,${style.box ? "&H80000000" : "&H00101010"},&H80000000,${style.bold ? -1 : 0},0,0,0,100,100,${template?.spacing ?? 0},0,${style.box ? 3 : 1},${style.outline},${style.box ? 0 : 1},2,${side},${side},${margin},1\n\n[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n` + captions.map(caption => {
+    const layout = template ? captionLayout(caption.text, template, settings.ratio) : null;
+    const first = caption.text.split(/[，。！？、；：,.!?;:\r\n]/u)[0]?.trim() ?? "";
+    const lead = template?.highlight_lead && Array.from(first).length <= 12 ? first : "";
+    const content = layout ? `{\\fs${layout.size}}${layout.lines.map(line => emphasize(line, lead)).join("\\N")}` : text(caption.text);
+    return `Dialogue: 0,${assTime(caption.begin_ms)},${assTime(caption.end_ms)},Default,,0,0,0,,${effect}${content}`;
+  }).join("\n") + "\n";
+}
+export function captionWarnings(captions: Caption[], settings: OutputSettings): string[] {
+  const template = resolvedTemplate(settings);
+  if (!template || !settings.subtitles) return [];
+  const reduced = captions.filter(caption => captionLayout(caption.text, template, settings.ratio).reduced).length;
+  return [ ...(reduced ? [`${reduced} 个长句段已缩小字号以保持两行；时间仍使用原始句段时间戳。建议在管理端细分长句后获得更清晰字幕。`] : []),
+    ...(template.bottom < 0.1 ? ["字幕距底部不足 10%，发布前请在抖音实际预览中检查按钮和说明文字遮挡。"] : []) ];
 }
 export function positionExpression(points: FacePoint[], field: "x" | "y", fallback: number): string {
   if (!points.length) return String(fallback);
@@ -50,9 +82,15 @@ export function compositionFilter(settings: OutputSettings, composition?: Compos
   const width = settings.ratio === "9:16" ? 1080 : 1920, height = settings.ratio === "9:16" ? 1920 : 1080;
   const ratio = width / height;
   if (settings.crop_mode === "fit") return `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30`;
-  const x = settings.crop_mode === "follow" ? positionExpression(composition?.points ?? [], "x", 0.5) : String(settings.crop_position);
-  const y = settings.crop_mode === "follow" ? `max(0,min(ih-oh,ih*(${positionExpression(composition?.points ?? [], "y", 0.3)})-oh*0.28))` : "(ih-oh)/2";
-  return `crop=w='trunc(min(iw,ih*${ratio})/2)*2':h='trunc(min(ih,iw/${ratio})/2)*2':x='max(0,min(iw-ow,iw*(${x})-ow/2))':y='${y}',scale=${width}:${height},setsar=1,fps=30`;
+  const tracking = settings.crop_mode === "follow" || settings.crop_mode === "portrait";
+  const x = tracking ? positionExpression(composition?.points ?? [], "x", 0.5) : String(settings.crop_position);
+  const y = tracking ? `max(0,min(ih-oh,ih*(${positionExpression(composition?.points ?? [], "y", 0.3)})-oh*${settings.crop_mode === "portrait" ? 0.32 : 0.28}))` : "(ih-oh)/2";
+  if (settings.crop_mode === "portrait" && !composition?.crop_height) throw new SmartError("composition_review", "统一景别尚未分析完成", 409);
+  const cropHeight = settings.crop_mode === "portrait" ? `ih*${composition!.crop_height}` : `min(ih,iw/${ratio})`;
+  return `crop=w='trunc(min(iw,(${cropHeight})*${ratio})/2)*2':h='trunc((${cropHeight})/2)*2':x='max(0,min(iw-ow,iw*(${x})-ow/2))':y='${y}',scale=${width}:${height},setsar=1,fps=30`;
+}
+function compositionKey(candidate: Candidate, settings: OutputSettings): string {
+  return `${candidate.id}:${candidate.rotation ? `r${candidate.rotation}:` : ""}${settings.ratio}${settings.crop_mode === "portrait" ? `:portrait:${settings.shot_size ?? "medium"}` : ""}`;
 }
 export async function fileDigest(file: string): Promise<string> {
   const digest = createHash("sha256");
@@ -68,8 +106,8 @@ export async function ensureSpace(directory: string, requiredBytes: number): Pro
 export class SmartMedia {
   readonly ffmpeg: FfmpegRuntime;
   private previews = new Map<string, Promise<string>>();
-  constructor(readonly library: SmartLibrary, readonly ai: SmartAi, readonly fonts = process.env.MIXLAB_SMART_FONTS ?? "",
-    private cachePolicy: () => { max_bytes: number; pinned: Set<string> } = () => ({ max_bytes: 30 * 1024 ** 3, pinned: new Set() })) {
+  constructor(readonly library: SmartLibrary, readonly ai: SmartAi, readonly fonts = process.env.MIXLAB_SMART_FONTS ?? (existsSync(path.resolve("apps/smart-cutter-desktop/src-tauri/runtime/fonts")) ? path.resolve("apps/smart-cutter-desktop/src-tauri/runtime/fonts") : ""),
+    private cachePolicy: () => { max_bytes: number; pinned: Set<string> } = () => ({ max_bytes: 30 * 1024 ** 3, pinned: new Set() }), private corrector?: SubtitleCorrector) {
     this.ffmpeg = resolveFfmpegRuntime();
     const nativeProbe = process.env.MIXLAB_SMART_FFPROBE_PATH || (!process.env.MIXLAB_FFPROBE_PATH && process.platform === "darwin" && process.arch === "arm64"
       ? ["/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe"].find(file => existsSync(file)) : undefined);
@@ -84,14 +122,38 @@ export class SmartMedia {
     return { width: rotation % 180 === 90 ? video.height : video.width, height: rotation % 180 === 90 ? video.width : video.height,
       duration_ms: Math.round(Number(data.format.duration ?? "0") * 1000), audio: data.streams.some(stream => stream.codec_type === "audio") };
   }
-  async input(candidate: Candidate, cache: string, signal?: AbortSignal): Promise<string> {
-    await mkdir(cache, { recursive: true });
+  async sourceCaptions(candidate: Candidate, duration: number, offset = 0): Promise<Caption[]> {
+    const detail = await this.library.source(this.library.getSnapshot(candidate.snapshot_id), candidate.source_video_id);
+    return detail.transcript.segments.filter(item => candidate.segment_ids.includes(item.segment_id)).flatMap(original => {
+      const begin = Math.max(0, original.begin_ms - candidate.begin_ms), end = Math.min(duration, original.end_ms - candidate.begin_ms);
+      return end > begin ? [{ begin_ms: offset + begin, end_ms: offset + end, text: original.text }] : [];
+    });
+  }
+  async correctedSubtitles(captions: Caption[], settings: OutputSettings, signal?: AbortSignal): Promise<CorrectedSubtitles> {
+    if (!settings.subtitles || !settings.subtitle_correction) return { captions, corrections: [], model: "" };
+    if (!this.corrector) throw new SmartError("subtitle_review", "字幕校对组件未配置，已保留片段", 409);
+    return this.corrector.correct(captions, [settings.teacher || ""].filter(Boolean), signal);
+  }
+  subtitleFilter(settings: OutputSettings): string {
+    const template = resolvedTemplate(settings);
+    if (template && (!this.fonts || !existsSync(path.join(this.fonts, template.font === "Noto Serif SC" ? "NotoSerifSC.ttf" : "NotoSansSC.ttf")))) throw new SmartError("subtitle_font", "内置字幕字体缺失，请重新安装完整应用", 503);
+    const fonts = this.fonts.replaceAll("\\", "/").replaceAll(":", "\\:").replaceAll("'", "\\'");
+    return `ass=filename='subtitles.ass'${fonts ? `:fontsdir='${fonts}'` : ""}`;
+  }
+  private async cachedInput(candidate: Candidate, cache: string): Promise<string | null> {
     const destination = path.join(cache, `${candidate.id}.media`), metadata = `${destination}.json`;
     if (await exists(destination) && await exists(metadata)) {
       const saved = JSON.parse(await readFile(metadata, "utf8")) as { size: number; mtime_ms: number; original: Candidate["fingerprint"] };
       const info = await stat(destination);
       if (saved.original.size === candidate.fingerprint.size && saved.original.mtime_ms === candidate.fingerprint.mtime_ms && info.size === saved.size && info.mtimeMs === saved.mtime_ms) return destination;
     }
+    return null;
+  }
+  async input(candidate: Candidate, cache: string, signal?: AbortSignal): Promise<string> {
+    await mkdir(cache, { recursive: true });
+    const destination = path.join(cache, `${candidate.id}.media`), metadata = `${destination}.json`;
+    const saved = await this.cachedInput(candidate, cache);
+    if (saved) return saved;
     const before = await stat(candidate.source_file_path).catch(error => {
       if (isSourceConnectionError(error)) throw error;
       throw new SmartError("source_unavailable", "源视频不可读取，且本机没有可用缓存，请连接素材库", 409);
@@ -137,15 +199,43 @@ export class SmartMedia {
     if (!files.length) throw new SmartError("analysis_failed", "没有取得可分析的视频帧", 422);
     return this.ai.faces(files.map((file, index) => ({ file_path: path.join(folder, file), at_ms: index * 1000 })), ratio, signal);
   }
+  async correctDirection(candidate: Candidate, source: string, workspace: string, required: boolean, signal?: AbortSignal, segmentId = 0): Promise<void> {
+    if (candidate.direction_source || candidate.rotation) return;
+    const key = createHash("sha256").update(JSON.stringify({ detector: 2, source: this.library.directionKey(candidate), begin: candidate.begin_ms, end: candidate.end_ms })).digest("hex");
+    const folder = path.join(workspace, "cache", "orientations", key), file = path.join(folder, "direction.json");
+    await mkdir(folder, { recursive: true });
+    let result = await readFile(file, "utf8").then(value => JSON.parse(value) as Orientation).catch(() => null);
+    if (result && (![0, 90, 180, 270, null].includes(result.rotation) || !Number.isFinite(result.confidence) || !Array.isArray(result.scores))) result = null;
+    if (!result) {
+      const duration = candidate.end_ms - candidate.begin_ms;
+      const times = [...new Set([0, Math.floor(duration / 2), Math.max(0, duration - 200)])];
+      const frames = [];
+      for (const [index, at_ms] of times.entries()) {
+        const frame = path.join(folder, `frame-${index}.jpg`);
+        await runProcess(this.ffmpeg.ffmpeg_path, ["-v", "error", "-nostdin", "-y", "-ss", String((candidate.begin_ms + at_ms) / 1000), "-i", source, "-frames:v", "1", "-vf", "scale=640:-2", "-threads", "2", frame], { signal });
+        frames.push({ file_path: frame, at_ms });
+      }
+      result = await this.ai.orientation(frames, signal);
+      await atomicPrivateJson(file, result);
+    }
+    if (result.rotation === null) {
+      if (required || result.confidence > 0) throw new DirectionReviewError({ segment_id: segmentId, candidate_id: candidate.id, source_video_id: candidate.source_video_id, source_title: candidate.source_title, begin_ms: candidate.begin_ms, end_ms: candidate.end_ms });
+      return;
+    }
+    candidate.rotation = result.rotation; candidate.direction_source = "automatic"; candidate.direction_evidence = result;
+  }
   async preview(candidate: Candidate, workspace: string): Promise<string> {
     const root = path.join(workspace, 'cache', 'previews'), file = path.join(root, `${candidate.id}${candidate.rotation ? `-r${candidate.rotation}` : ''}.mp4`);
     if (await exists(file)) return file;
     if (!this.previews.has(file)) this.previews.set(file, (async () => {
       await mkdir(root, { recursive: true });
-      const info = await stat(candidate.source_file_path).catch(() => { throw new SmartError('source_unavailable', '预览源素材不可读取，请连接公共素材库', 409); });
-      if (info.size !== candidate.fingerprint.size || Math.abs(info.mtimeMs - candidate.fingerprint.mtime_ms) > 1) throw new SmartError('source_changed', '源素材已变化，请重新匹配', 409);
+      const source = await this.cachedInput(candidate, path.join(workspace, 'cache', 'source-videos')) || candidate.source_file_path;
+      if (source === candidate.source_file_path) {
+        const info = await stat(source).catch(() => { throw new SmartError('source_unavailable', '预览源素材不可读取，请连接公共素材库', 409); });
+        if (info.size !== candidate.fingerprint.size || Math.abs(info.mtimeMs - candidate.fingerprint.mtime_ms) > 1) throw new SmartError('source_changed', '源素材已变化，请重新匹配', 409);
+      }
       await ensureSpace(root, 128 * 1024 * 1024);
-      await runProcess(this.ffmpeg.ffmpeg_path, ['-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-ss', String(candidate.begin_ms / 1000), '-i', candidate.source_file_path,
+      await runProcess(this.ffmpeg.ffmpeg_path, ['-hide_banner', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-ss', String(candidate.begin_ms / 1000), '-i', source,
         '-t', String((candidate.end_ms - candidate.begin_ms) / 1000), '-map', '0:v:0', '-map', '0:a:0?', '-vf', `${sourceRotationFilter(candidate.rotation)}scale=960:540:force_original_aspect_ratio=decrease,setsar=1`,
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26', '-pix_fmt', 'yuv420p', '-threads', '2', '-c:a', 'aac', '-movflags', '+faststart', '-f', 'mp4', `${file}.partial`], { signal: AbortSignal.timeout(90_000) });
       await rename(`${file}.partial`, file); return file;
@@ -161,7 +251,31 @@ export class SmartMedia {
     await mkdir(outputDirectory, { recursive: true });
     await mkdir(temp, { recursive: true });
     await ensureSpace(temp, 256 * 1024 * 1024);
-    const captions: Caption[] = [], manifestSources: unknown[] = [];
+    const readInput = (candidate: Candidate, index: number) => retrySourceConnection(() => this.input(candidate, cache, signal), {
+      signal, onRetry: (retry, total) => { job.phase = `NAS连接中断，自动重试 ${retry}/${total} · 片段 ${index + 1}/${segments.length}，保留 ${job.completed_clips.length} 段`; update(); }
+    }).catch(error => {
+      if (isSourceConnectionError(error)) throw new SmartError("source_connection", `NAS连接未恢复，已自动重试3次；保留 ${job.completed_clips.length} 个完成片段，连接恢复后可继续`, 503);
+      throw error;
+    });
+    if (job.work.settings.auto_rotate && job.work.settings.crop_mode === "portrait") for (const [index, segment] of segments.entries()) {
+      if (segment.selected!.direction_source || segment.selected!.rotation) continue;
+      job.phase = `识别原片方向 ${index + 1}/${segments.length}`; update();
+      await this.correctDirection(segment.selected!, await readInput(segment.selected!, index), job.workspace_root, ["portrait", "follow", "center"].includes(job.work.settings.crop_mode), signal, segment.id); update();
+    }
+    if (job.work.settings.crop_mode === "portrait") {
+      const measured: Composition[] = [];
+      for (const [index, segment] of segments.entries()) {
+        signal.throwIfAborted();
+        const candidate = segment.selected!, key = compositionKey(candidate, job.work.settings);
+        if (!job.compositions[key]?.source_aspect || !job.compositions[key]!.points.some(point => point.height) || job.compositions[key]!.multiple_faces && job.compositions[key]!.detector_version !== 2) {
+          job.phase = `统一景别：测量人物 ${index + 1}/${segments.length}`; update();
+          job.compositions[key] = await this.analyze(candidate, await readInput(candidate, index), temp, job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9, signal); update();
+        }
+        measured.push(job.compositions[key]!);
+      }
+      unifyPortraits(measured, job.work.settings); update();
+    }
+    let captions: Caption[] = []; const manifestSources: unknown[] = [];
     const files: string[] = []; let offset = 0;
     for (const [index, segment] of segments.entries()) {
       signal.throwIfAborted(); const candidate = segment.selected!;
@@ -182,18 +296,17 @@ export class SmartMedia {
       if (!reusable) {
         job.completed_clips = job.completed_clips.filter(name => name !== clipName); delete job.clip_checksums[clipName];
         job.phase = `检查源素材 ${index + 1}/${segments.length}`; update();
-        const source = await retrySourceConnection(() => this.input(candidate, cache, signal), {
-          signal, onRetry: (retry, total) => { job.phase = `NAS连接中断，自动重试 ${retry}/${total} · 片段 ${index + 1}/${segments.length}，保留 ${job.completed_clips.length} 段`; update(); }
-        }).catch(error => {
-          if (isSourceConnectionError(error)) throw new SmartError("source_connection", `NAS连接未恢复，已自动重试3次；保留 ${job.completed_clips.length} 个完成片段，连接恢复后可继续`, 503);
-          throw error;
-        });
+        const source = await readInput(candidate, index);
+        if (job.work.settings.auto_rotate && job.work.settings.crop_mode !== "portrait") {
+          job.phase = `识别原片方向 ${index + 1}/${segments.length}`; update();
+          await this.correctDirection(candidate, source, job.workspace_root, ["follow", "center"].includes(job.work.settings.crop_mode), signal, segment.id); update();
+        }
         const probe = await this.probe(source, signal);
         if ((candidate.rotation ?? 0) % 180 === 90) [probe.width, probe.height] = [probe.height, probe.width];
         if (!probe.audio) throw new SmartError("source_audio_missing", "源素材没有音轨，无法拼接原声，请替换片段", 422);
         if (candidate.end_ms > probe.duration_ms + 80) throw new SmartError("source_range", "源片段时间超出实际视频，请重新匹配", 409);
-        const key = `${candidate.id}:${candidate.rotation ? `r${candidate.rotation}:` : ""}${job.work.settings.ratio}`;
-        if (job.work.settings.crop_mode === "follow" && !job.compositions[key]) {
+        const key = compositionKey(candidate, job.work.settings);
+        if (job.work.settings.crop_mode === "follow" && (!job.compositions[key] || job.compositions[key]!.multiple_faces && job.compositions[key]!.detector_version !== 2)) {
           job.phase = `人物构图 ${index + 1}/${segments.length}`; update();
           const ratio = job.work.settings.ratio === "9:16" ? 9 / 16 : 16 / 9;
           job.compositions[key] = Math.abs(probe.width / probe.height - ratio) < 0.005
@@ -201,7 +314,7 @@ export class SmartMedia {
             : await this.analyze(candidate, source, temp, ratio, signal);
           update();
         }
-        if (job.work.settings.crop_mode === "follow" && !job.compositions[key]?.usable) throw new SmartError("composition_review", job.compositions[key]?.reason || "人物构图需要人工确认", 409);
+        if (["portrait", "follow"].includes(job.work.settings.crop_mode) && !job.compositions[key]?.usable) throw new SmartError("composition_review", job.compositions[key]?.reason || "人物构图需要人工确认", 409);
         job.phase = `原声剪辑 ${index + 1}/${segments.length}`; update();
         await runProcess(this.ffmpeg.ffmpeg_path, ["-hide_banner", "-nostdin", "-y", "-protocol_whitelist", "file,pipe", "-i", source,
           "-ss", String(candidate.begin_ms / 1000), "-t", String((candidate.end_ms - candidate.begin_ms) / 1000),
@@ -217,21 +330,22 @@ export class SmartMedia {
       }
       job.progress = Math.max(job.progress, Math.round((index + 1) / segments.length * 75)); update();
       const normalized = await this.probe(clip, signal);
-      const detail = await this.library.source(this.library.getSnapshot(candidate.snapshot_id), candidate.source_video_id);
-      for (const original of detail.transcript.segments.filter(item => candidate.segment_ids.includes(item.segment_id))) {
-        const begin = Math.max(0, original.begin_ms - candidate.begin_ms), end = Math.min(normalized.duration_ms, original.end_ms - candidate.begin_ms);
-        if (end > begin) captions.push({ begin_ms: offset + begin, end_ms: offset + end, text: original.text });
-      }
+      captions.push(...await this.sourceCaptions(candidate, normalized.duration_ms, offset));
       manifestSources.push({ work_segment_id: segment.id, source_video_id: candidate.source_video_id, snapshot_id: candidate.snapshot_id, segment_ids: candidate.segment_ids,
-        begin_ms: candidate.begin_ms, end_ms: candidate.end_ms, actual: candidate.actual, rotation: candidate.rotation ?? 0, original_fingerprint: candidate.fingerprint,
+        manual_selection: segment.manual_selection === true && segment.accepted, target: segment.target,
+        source_title: candidate.source_title, source_folder: candidate.source_folder,
+        begin_ms: candidate.begin_ms, end_ms: candidate.end_ms, actual: candidate.actual, rotation: candidate.rotation ?? 0, direction_source: candidate.direction_source, direction_evidence: candidate.direction_evidence, original_fingerprint: candidate.fingerprint,
+        ...(job.work.settings.crop_mode === "portrait" ? { framing: job.compositions[compositionKey(candidate, job.work.settings)] } : {}),
         output_begin_ms: offset, output_end_ms: offset + normalized.duration_ms });
       offset += normalized.duration_ms; files.push(clipName);
     }
+    signal.throwIfAborted(); job.phase = "校对字幕同音错字"; job.progress = 76; update();
+    const corrected = await this.correctedSubtitles(captions, job.work.settings, signal);
+    captions = corrected.captions; job.subtitle_corrections = corrected.corrections; job.subtitle_model = corrected.model; update();
     signal.throwIfAborted(); job.phase = "合并视频与字幕"; job.progress = 78; update();
     await writeFile(path.join(temp, "concat.txt"), files.map(file => `file '${file}'`).join("\n") + "\n");
-    await writeFile(path.join(temp, "subtitles.ass"), captionsToAss(captions, job.work.settings, this.fonts ? "Noto Sans SC" : process.platform === "win32" ? "Microsoft YaHei" : "PingFang SC"));
-    const fonts = this.fonts.replaceAll("\\", "/").replaceAll(":", "\\:").replaceAll("'", "\\'");
-    const filters = job.work.settings.subtitles ? ["-vf", `ass=filename='subtitles.ass'${fonts ? `:fontsdir='${fonts}'` : ""}`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "2"] : ["-c:v", "copy"];
+    if (job.work.settings.subtitles) await writeFile(path.join(temp, "subtitles.ass"), captionsToAss(captions, job.work.settings, this.fonts ? "Noto Sans SC" : process.platform === "win32" ? "Microsoft YaHei" : "PingFang SC"));
+    const filters = job.work.settings.subtitles ? ["-vf", this.subtitleFilter(job.work.settings), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-threads", "2"] : ["-c:v", "copy"];
     const result = path.join(temp, "result.partial.mp4");
     await runProcess(this.ffmpeg.ffmpeg_path, ["-hide_banner", "-nostdin", "-y", "-f", "concat", "-safe", "0", "-i", "concat.txt", ...filters,
       "-c:a", "copy", "-movflags", "+faststart", "-progress", "pipe:1", result], {
@@ -243,12 +357,16 @@ export class SmartMedia {
     if (!verified.audio || verified.width !== width || verified.height !== height || Math.abs(verified.duration_ms - offset) > 1000) throw new SmartError("output_validation", "成片媒体校验失败，未发布结果", 422);
     job.result_sha256 = await fileDigest(result); job.duration_ms = verified.duration_ms; update();
     if (await exists(job.output_path)) throw new SmartError("output_exists", "结果目录已存在视频，停止覆盖，请检查历史结果", 409);
-    await writeFile(path.join(temp, "subtitles.srt"), captionsToSrt(captions));
+    const template = resolvedTemplate(job.work.settings);
+    await writeFile(path.join(temp, "subtitles.srt"), captionsToSrt(template && job.work.settings.subtitles ? captions.map(caption => ({ ...caption, text: captionLayout(caption.text, template, job.work.settings.ratio).lines.join("\n") })) : captions));
     await rename(path.join(temp, "subtitles.srt"), path.join(outputDirectory, "subtitles.srt"));
     await atomicPrivateJson(job.manifest_path, { schema_version: "1.0", job_id: job.id, work_id: job.work_id, revision: job.revision,
       title: job.work.title, origin: job.work.origin, original_input_script: job.work.original_script, input_script: job.work.script, actual_script: segments.map(segment => segment.actual).join("\n"),
       skipped_segments: job.work.segments.filter(segment => segment.skipped).map(segment => ({ id: segment.id, target: segment.target, status: segment.status })),
-      settings: job.work.settings, sources: manifestSources, output: { file: "video.mp4", sha256: job.result_sha256, ...verified },
+      settings: job.work.settings, subtitle_template: template,
+      subtitle_correction: { enabled: !!job.work.settings.subtitle_correction, model: corrected.model, corrections: corrected.corrections },
+      subtitle_rendering: template && job.work.settings.subtitles ? { renderer_version: 2, timing: "source_segments", captions: captions.map(caption => ({ ...caption, ...captionLayout(caption.text, template, job.work.settings.ratio) })) } : null,
+      subtitle_warnings: captionWarnings(captions, job.work.settings), sources: manifestSources, output: { file: "video.mp4", sha256: job.result_sha256, ...verified },
       generated_at: new Date().toISOString() });
     await rename(result, job.output_path);
     job.phase = "已完成"; job.progress = 100;

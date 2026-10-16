@@ -1,0 +1,96 @@
+{
+  "implementation_commit": "f550d31",
+  "direction_ui_verified_commit": "4f33e7b",
+  "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
+  "bundle_id": "com.mixlab.unifiedcutter.candidate",
+  "origin": "tauri://localhost",
+  "api_base": "http://127.0.0.1:51212",
+  "library_version": "v012758",
+  "published_assets": 12869,
+  "user": "AllenPro",
+  "backups": [
+    "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T142209Z-before-direction-confirmation-4f33e7b",
+    "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T142921Z-before-direction-confirmation-f550d31"
+  ],
+  "direction": {
+    "old_job_context_recovered_without_rewriting_history": true,
+    "source": "C0254",
+    "sentence": 1,
+    "range_ms": [
+      0,
+      8976
+    ],
+    "normal_direction_button_clicked_in_native_app": true,
+    "job_id": "J-8eb69df2-e508-4555-b3cb-244c51b83dd7",
+    "same_job_resumed": true,
+    "manual_rotation": 0,
+    "completed_clip_reuse_regression": true
+  },
+  "adjacent_root_cause": {
+    "stage": "person framing",
+    "finding": "C0254 frame 3 of 9 contains a single 0.86 hand false positive while speaker detections remain stable",
+    "real_frame_recheck": {
+      "usable": true,
+      "frames": 9,
+      "multiple_faces": false
+    },
+    "fix": "Weak secondary detections require independent face evidence or spatial persistence across frames; strong and real confirmed secondary faces still hold. Reanalyze only legacy unusable multi-face measurements.",
+    "crop_mode_preserved": "portrait",
+    "shot_size_preserved": "close"
+  },
+  "output": {
+    "duration_seconds": 17.501333,
+    "size": [
+      1080,
+      1920
+    ],
+    "sources": 2,
+    "decoded": true,
+    "audio_non_silent": true,
+    "ranges": {
+      "video": {
+        "status": 206,
+        "bytes": 1024
+      },
+      "srt": {
+        "status": 206,
+        "bytes": 344
+      },
+      "manifest": {
+        "status": 206,
+        "bytes": 1024
+      }
+    },
+    "subtitle_model": "qwen-plus",
+    "files": {
+      "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/direction-confirmation-f550d31/C0254-方向确认后恢复导出版.mp4": "1f172ec49865eee2633bd6fb740391628801d60bf6b08f189f15fb649f4c9d35",
+      "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/direction-confirmation-f550d31/C0254-方向确认后恢复导出版.srt": "c86f8f86f3727795ee34968d5cc7601615aba39807b88d2f5dc9f3f7ca134f99",
+      "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/direction-confirmation-f550d31/C0254-方向确认后恢复导出版-sources.json": "0ef8cc54f0c74fbe473c6a1b78dc8d8635f84edbc4a7691104aca2b65fdddc86"
+    }
+  },
+  "preservation": {
+    "works": 11,
+    "jobs": 7,
+    "completed_before": 5,
+    "completed_after": 6,
+    "original_completed_exports_unchanged": 5,
+    "original_files_identical": 18,
+    "original_entities_identical_except_confirmed_work_job": 29,
+    "confirmed_work_original_text_scope_settings_unchanged": true,
+    "other_legacy_pending_job_unchanged": true,
+    "nas_modified": false,
+    "windows_installed": false
+  },
+  "verification": {
+    "tests_passed": 61,
+    "tests_failed": 0,
+    "tests_skipped": 0,
+    "typecheck": true,
+    "packaged_signed": true,
+    "installed_resource_hashes": {
+      "binaries/smart-cutter-api.bundle.mjs": "a7efb9588693cf6cc9223982e7cfce37cc5102f76adcb3bdbe888a552a08d7fc",
+      "runtime/ai-worker.py": "e470be54c1317c061761c8d3d72e0210bc90fb409ea30e79a33639dc920f7e54"
+    },
+    "native_playback": "0 to 17 seconds, ended, source comparison followed both segments"
+  }
+}

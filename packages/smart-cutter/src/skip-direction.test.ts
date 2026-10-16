@@ -39,7 +39,7 @@ test('explicitly skipped missing sentences export contiguous real media and capt
   const script='现金流是企业的血液。不存在的甲句。把事情做对，再把规模做大。不存在的乙句。';
   const work=await core.generatePlan(core.createWork(script,undefined,'验收讲师').id);
   assert.deepEqual(work.segments.map(s=>s.status),['exact','pending','exact','pending']);
-  core.updateWork(work.id,{settings:{crop_mode:'fit',subtitles:true}});
+  core.updateWork(work.id,{settings:{crop_mode:'fit',auto_rotate:false,subtitles:true}});
   let current=core.work(work.id); current.segments[2]!.status='near';core.store.set('work',current);
   const route=`/smart/works/${work.id}`;
   assert.equal((await api(route+'/skip-missing','POST',{revision:current.revision-1})).status,409);
@@ -70,7 +70,7 @@ test('explicitly skipped missing sentences export contiguous real media and capt
 
 test('skipping a selected sentence excludes its original sound and subtitle while explicit restore keeps review state', {timeout:60000}, async t=>{
   const {core}=await fixture(t);const work=await core.generatePlan(core.createWork('现金流是企业的血液。把事情做对，再把规模做大。',undefined,'验收讲师').id);
-  core.updateWork(work.id,{settings:{crop_mode:'fit',subtitles:false}});
+  core.updateWork(work.id,{settings:{crop_mode:'fit',auto_rotate:false,subtitles:false}});
   let current=core.selectSegment(work.id,1,{revision:core.work(work.id).revision,skipped:true});assert.equal(workReady(current),true);
   const result=await completed(core,core.enqueue(work.id).id);assert.equal(result.status,'done',result.error);
   const manifest=JSON.parse(await readFile(result.manifest_path,'utf8'));assert.equal(manifest.sources.length,1);assert.equal(manifest.sources[0].work_segment_id,2);
@@ -84,7 +84,7 @@ test('source direction is remembered by fingerprint, refreshes previews, precede
   const {core,root,api}=await fixture(t,true);
   const work=await core.generatePlan(core.createWork('现金流是企业的血液。',undefined,'验收讲师').id);
   const other=await core.generatePlan(core.createWork('现金流是企业的血液。',undefined,'验收讲师').id);
-  core.updateWork(work.id,{settings:{crop_mode:'fit',subtitles:false}});
+  core.updateWork(work.id,{settings:{crop_mode:'fit',auto_rotate:false,subtitles:false}});
   const candidate=core.work(work.id).segments[0]!.selected!;
   const before=await core.media.preview(candidate,core.settings.workspace_root);assert.ok((await core.media.probe(before)).width>(await core.media.probe(before)).height);
   const route=`/smart/works/${work.id}/segments/1/rotation`;const revision=core.work(work.id).revision;

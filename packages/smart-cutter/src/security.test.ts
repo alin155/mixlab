@@ -39,6 +39,25 @@ test("names are automatic and critical numeric/negative conflicts cannot be pass
   assert.equal(classifyMatch("有利润不等于有现金流。", "有利润等于有现金流。"), "conflict");
   assert.throws(() => validatePlatform("tiktok"), /首期/);
 });
+test("topical similarity cannot substitute speech; only small transcript edits enter near-review", () => {
+  for (const [target, actual] of [
+    ['思想深度高于常人的人，内心也更敏感。', '因为人内心有渴望。'],
+    ['无知是接近快乐的捷径，理智是通向痛苦的深渊。', '成功没有捷径。'],
+    ['至于其他爱谁谁。', '嗯，你爱谁。'],
+    ['镜子脏的时候，你肯定不会认为自己的脸脏。', '有些人会认错，有些人不会认。'],
+    ['', ''], ['。', '！']
+  ]) assert.equal(classifyMatch(target!, actual!), 'conflict');
+  assert.equal(classifyMatch('现金流是企业的血液。', '现金流是企业血液。'), 'near');
+  assert.equal(classifyMatch('企业利润率达到15%。', '企业利润率达到16%。'), 'conflict');
+  assert.equal(classifyMatch('现金流不是企业的利润。', '现金流是企业的利润。'), 'conflict');
+});
+test('a repeated opening plus small transcript errors is reviewable but never an exact automatic match', () => {
+  const target = '听历越多的人，他的社交就越简单，只要觉得有点累的关系就不去维持他。';
+  assert.equal(classifyMatch(target, '经历越多的人他的经历越多的人，他的社交就越简单。只要觉得有点累的关系就不去维持他。'), 'near');
+  assert.equal(classifyMatch('经历越多的人，他的社交就越简单。', '经历越多的人他的经历越多的人，他的社交就越简单。'), 'near');
+  assert.equal(classifyMatch('利润达到15%，今天不投资。', '利润达到15%利润达到15%，今天不投资。'), 'conflict');
+  assert.equal(classifyMatch('经历越多的人，不去维持关系。', '经历越多的人经历越多的人，去维持关系。'), 'conflict');
+});
 test("reference downloads reject local/network targets before requesting them", async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), "smart-download-")); t.after(() => rm(root, { recursive: true, force: true }));
   for (const address of ["127.0.0.1", "10.2.3.4", "192.168.1.27", "::1", "fc00::1", "::ffff:127.0.0.1"]) assert.equal(publicAddress(address), false);

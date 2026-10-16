@@ -1,0 +1,102 @@
+{
+  "date": "2026-10-15",
+  "source_commit": "5207eeb",
+  "base_commit": "7a58db9",
+  "branch": "codex/unified-quality-20261015",
+  "pull_request": "https://github.com/alin155/mixlab/pull/4",
+  "implementation": {
+    "portrait": "Shared feasible face height across included clips, fixed per-clip zoom, smoothed tracking, maximum 3x crop; ambiguous or unsafe results require review.",
+    "source_comparison": "Saved export provenance maps final-film time to used source clips; optional hotspot reference plays independently.",
+    "subtitles": ["white", "yellow", "outline", "box", "cinema", "pop"],
+    "historical_work_settings_preserved": true,
+    "historical_manifests_unchanged": true
+  },
+  "validation": {
+    "macos_tests": { "total": 46, "passed": 46, "failed": 0, "skipped": 0 },
+    "typecheck": "passed",
+    "web_build": "passed",
+    "real_ffmpeg": {
+      "unequal_source_face_height": [0.1, 0.2],
+      "measured_common_output_face_height": 0.24,
+      "six_subtitle_templates_render_distinct_visible_pixels": true,
+      "subtitle_margin_verified": true,
+      "cached_source_preview_without_nas": true,
+      "source_preview_range_status": 206,
+      "source_access_and_pro_permissions_checked": true
+    },
+    "real_work_sample": {
+      "completed_clips": 7,
+      "approximate_duration_seconds": 45,
+      "shared_target_face_ratio": 0.2808445692062378,
+      "existing_text_order_and_skip_choices_preserved": true,
+      "original_output_hash_unchanged": true,
+      "isolated_copy_of_work_and_source_cache": true,
+      "output_local_only": "/Users/huaqihang/Documents/Codex/implementations/mixlab-cutter-quality/.local-dev/quality/workspace/projects/W-1a42d45a-17aa-4cc1-838a-75fb0e011f72/exports/J-a629d5e6-481d-4d80-8fbb-e4ea6f8f518b/video.mp4"
+    },
+    "ui": {
+      "tool": "Playwright CLI",
+      "viewport": "1440x1000",
+      "source_and_reference_playback": "passed",
+      "source_selection_seeks_export_and_trimmed_original": "passed",
+      "subtitle_preset_size_and_margin_persistence": "passed",
+      "screenshots_local_only": [
+        "output/playwright/source-comparison.png",
+        "output/playwright/reference-comparison.png",
+        "output/playwright/portrait-settings.png",
+        "output/playwright/subtitle-options.png"
+      ]
+    }
+  },
+  "macos": {
+    "platform": "arm64",
+    "version": "0.2.0",
+    "archive": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/quality-5207eeb/MixLab-Unified-Cutter-Candidate-0.2.0-quality-5207eeb-macOS.zip",
+    "bytes": 241182702,
+    "sha256": "87ab171cc7c0934a73a8fd606b8abf9ef3cea4f748103daa4670e9c71af7738c",
+    "adhoc_codesign_verified": true,
+    "packaged_engine": {
+      "status": "done",
+      "completed_clips": 2,
+      "duration_ms": 9767,
+      "shared_target_face_ratio": 0.27711933851242065,
+      "subtitle_style": "pop",
+      "subtitle_margin": 0.16,
+      "source_comparison_count": 2,
+      "reference_association": true,
+      "source_range_status": 206,
+      "isolated_state": true
+    },
+    "installed_into_user_state": false
+  },
+  "windows": {
+    "source_commit": "5207eeb",
+    "run_id": "38855754725",
+    "url": "https://github.com/alin155/mixlab/actions/runs/38855754725",
+    "conclusion": "success",
+    "tests": { "total": 46, "passed": 43, "failed": 0, "skipped": 3 },
+    "skip_reason": "Three existing platform-specific blocked-volume/macOS tests.",
+    "installer": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-windows/quality-5207eeb/MixLab Unified Cutter Candidate_0.2.0_x64-setup.exe",
+    "bytes": 149087492,
+    "sha256": "9d6e10f935c874813f02e2ae5a568678b84dd2ebf08eb2f01818a84b3f47207b",
+    "downloaded_hash_matches_installer_metadata": true,
+    "native_installation_tested": false
+  },
+  "isolation": {
+    "review_web": "http://127.0.0.1:5278/#/films",
+    "review_engine_port": 5272,
+    "public_library_view": "One synthetic published fixture, not the live NAS library.",
+    "packaged_smoke_port_closed": 5273,
+    "credentials_or_keys_copied": false,
+    "live_app_replaced": false,
+    "live_accounts_or_work_records_modified": false,
+    "nas_modified": false,
+    "architecture_review_worktree_modified": false,
+    "shared_latest_pointer_changed": false,
+    "pull_request_merged": false
+  },
+  "remaining_acceptance": [
+    "User visual acceptance of the isolated sample; posture and background changes remain visible despite a common face scale.",
+    "Backed-up single-machine native UI rollout before replacing the current macOS application.",
+    "Windows real-machine installation and live NAS workflow acceptance."
+  ]
+}

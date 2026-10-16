@@ -14,9 +14,12 @@ import { SmartMedia, fileDigest } from "./media.ts";
 import { TikHubClient, type ProviderPage } from "./tikhub.ts";
 import { ReferenceProcessor } from "./reference.ts";
 import { runProcess } from "./process.ts";
+import { renderTemplatePreview, type TemplatePreview } from "./template-preview.ts";
+import { resolvedTemplate, validateTemplate, type SubtitleTemplate } from "./templates.ts";
 import { retrySourceConnection } from "../../cutter-local/src/network-retry.ts";
+import { SubtitleCorrector } from "./subtitle-correction.ts";
 import type { DashScopeTemporaryFileHttpClient } from '../../asr-core/src/index.ts';
-import { DEFAULT_OUTPUT, SmartError, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
+import { DEFAULT_OUTPUT, SmartError, DirectionReviewError, pendingDirectionReview, directionReviewMessage, automaticTitle, splitScript, workReady, includedSegments, boundedNumber, requireText, validatePlatform,
   type Settings, type Work, type WorkSegment, type WorkOrigin, type Job, type Account, type HotVideo, type Rule, type OutputSettings } from "./types.ts";
 
 const now = (): string => new Date().toISOString();
@@ -25,7 +28,7 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 const fileExists = async (file: string): Promise<boolean> => !!(await stat(file).catch(() => null))?.isFile();
 type AccountStatus = { required: boolean; user: { user_id: string; username: string; tier: CutterAccountTier } | null };
 
-export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; test_account_tier?: CutterAccountTier; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient }
+export interface CoreOptions { state_root: string; workspace_root?: string; ai: AiRuntime; auth_mode?: "reviewed" | "local_trusted"; test_account_tier?: CutterAccountTier; provider?: TikHubClient; asr_http?: DashScopeTemporaryFileHttpClient; subtitle_fetch?: typeof fetch }
 export class SmartCore {
   readonly store: SmartStore;
   readonly vault: CredentialVault;
@@ -40,6 +43,8 @@ export class SmartCore {
   cacheClearing = false;
   configuring = false;
   activeStreams = 0;
+  readonly templatePreviews = new Map<string, TemplatePreview>();
+  private templatePreviewController: AbortController | null = null;
   settings: Settings;
   runtime = { ai_ready: false, ffmpeg_ready: false, library_ready: false, library_count: 0, library_version: "", library_error: "" };
   libraryConnection = { status: "unchecked" as "unchecked" | "not_configured" | "unavailable" | "published", root: "", version: "", count: 0, message: "尚未检查公共库连接" };
@@ -62,8 +67,8 @@ export class SmartCore {
       monitor_platform: "douyin", monitor_interval_minutes: 30, request_limit_per_day: 500,
       reference_cache_gb: 30, source_cache_gb: 30, max_download_mb: 500, asr_model: "paraformer-v2", default_source_folder: "", device_id: `smart-${randomUUID()}` };
     this.library = new SmartLibrary(this.store, () => this.settings, (snapshot, query, folder, progress) => this.ai.search(snapshot, query, folder, progress));
-    this.media = new SmartMedia(this.library, this.ai, process.env.MIXLAB_SMART_FONTS ?? "", () => ({ max_bytes: this.settings.source_cache_gb * 1024 ** 3,
-      pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }));
+    this.media = new SmartMedia(this.library, this.ai, undefined, () => ({ max_bytes: this.settings.source_cache_gb * 1024 ** 3,
+      pinned: new Set(this.store.listStatus<Job>("job", ["queued", "running", "paused", "failed", "needs_review"]).flatMap(job => job.work.segments.map(segment => segment.selected?.id ?? ""))) }), new SubtitleCorrector(() => this.vault.get("dashscope"), () => this.settings.workspace_root, options.subtitle_fetch));
     this.provider = options.provider ?? new TikHubClient({ getKey: () => this.vault.get("tikhub"), reserveRequest: () => this.store.reserveRequest(localDay(), this.settings.request_limit_per_day) });
     this.references = new ReferenceProcessor(this.store, this.vault, this.provider, this.media, () => this.settings, options.asr_http);
     this.manual = new ManualCutter(this);
@@ -297,15 +302,41 @@ export class SmartCore {
   private outputSettings(current: OutputSettings, body: Record<string, unknown>): OutputSettings {
     const next = { ...current };
     if (body.ratio !== undefined) { if (!["9:16", "16:9"].includes(String(body.ratio))) throw new SmartError("ratio", "画面比例无效"); next.ratio = body.ratio as OutputSettings["ratio"]; }
-    if (body.crop_mode !== undefined) { if (!["follow", "center", "fit"].includes(String(body.crop_mode))) throw new SmartError("crop", "取景方式无效"); next.crop_mode = body.crop_mode as OutputSettings["crop_mode"]; }
+    if (body.crop_mode !== undefined) { if (!["portrait", "follow", "center", "fit"].includes(String(body.crop_mode))) throw new SmartError("crop", "取景方式无效"); next.crop_mode = body.crop_mode as OutputSettings["crop_mode"]; }
+    if (body.shot_size !== undefined) { if (!["wide", "medium", "close"].includes(String(body.shot_size))) throw new SmartError("shot_size", "人物景别无效"); next.shot_size = body.shot_size as OutputSettings["shot_size"]; }
     if (body.crop_position !== undefined) next.crop_position = boundedNumber(body.crop_position, 0, 1, "横向构图");
     if (body.subtitle_size !== undefined) next.subtitle_size = boundedNumber(body.subtitle_size, 24, 100, "字幕字号");
-    if (body.subtitle_style !== undefined) { if (!["white", "yellow"].includes(String(body.subtitle_style))) throw new SmartError("subtitle_style", "字幕样式无效"); next.subtitle_style = body.subtitle_style as OutputSettings["subtitle_style"]; }
-    for (const field of ["subtitles", "normalize_audio", "same_lecturer"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
+    if (body.subtitle_style !== undefined) { if (!["white", "yellow", "outline", "box", "cinema", "pop"].includes(String(body.subtitle_style))) throw new SmartError("subtitle_style", "字幕样式无效"); next.subtitle_style = body.subtitle_style as OutputSettings["subtitle_style"]; }
+    if (body.subtitle_margin !== undefined) next.subtitle_margin = boundedNumber(body.subtitle_margin, 0.03, 0.4, "字幕底部距离");
+    if (body.subtitle_template !== undefined) {
+      if (body.subtitle_template === null) delete next.subtitle_template;
+      else next.subtitle_template = validateTemplate(body.subtitle_template);
+    }
+    for (const field of ["subtitles", "normalize_audio", "same_lecturer", "auto_rotate", "subtitle_correction"] as const) if (body[field] !== undefined) { if (typeof body[field] !== "boolean") throw new SmartError("setting_type", "开关参数无效"); next[field] = body[field] as boolean; }
     if (body.source_folder !== undefined) next.source_folder = String(body.source_folder).trim();
     if (body.teacher !== undefined) next.teacher = requireText(body.teacher, "目标老师", 80);
     next.same_lecturer = true;
     return next;
+  }
+  saveSubtitleTemplate(body: Record<string, unknown>): SubtitleTemplate {
+    const settings = this.outputSettings(DEFAULT_OUTPUT, record(body.settings));
+    const template = resolvedTemplate(settings);
+    if (!template) throw new SmartError("subtitle_template", "请先选择一套系统模板");
+    return this.store.set("subtitle-template", validateTemplate({ ...template, id: id("MY"), version: 1, name: requireText(body.name, "模板名称", 30) }));
+  }
+  async previewTemplate(workId: string, body: Record<string, unknown>): Promise<Omit<TemplatePreview, "file" | "work" | "workspace">> {
+    if (this.templatePreviewController || this.rendering) throw new SmartError("preview_busy", "本机正在生成视频，请完成后再预览", 409);
+    const work = structuredClone(this.work(workId));
+    work.settings = this.outputSettings(work.settings, record(body.settings));
+    if (work.settings.teacher !== this.work(workId).settings.teacher || work.settings.source_folder !== this.work(workId).settings.source_folder) throw new SmartError("preview_scope", "素材范围已变化，请保存并重新匹配后预览", 409);
+    this.library.assertWorkTeacher(work);
+    const controller = new AbortController(); this.templatePreviewController = controller; this.activeStreams++;
+    try {
+      const result = await renderTemplatePreview(this.media, work, this.settings.workspace_root, this.store.list<Job>("job"), AbortSignal.any([controller.signal, AbortSignal.timeout(90_000)]));
+      if (this.templatePreviews.size >= 50) this.templatePreviews.delete(this.templatePreviews.keys().next().value!);
+      this.templatePreviews.set(result.id, result);
+      return { id: result.id, duration_ms: result.duration_ms, warnings: result.warnings };
+    } finally { this.templatePreviewController = null; this.activeStreams--; }
   }
   async generatePlan(workId: string): Promise<Work> {
     if (this.planning.has(workId)) throw new SmartError("plan_busy", "该作品正在匹配", 409);
@@ -341,6 +372,8 @@ export class SmartCore {
       if (!candidate) throw new SmartError("candidate_missing", "只能选择本方案中已验证的真实片段", 409);
       this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
       segment.selected = candidate; segment.actual = candidate.actual; segment.status = classifyMatch(segment.target, candidate.actual); segment.accepted = false; segment.skipped = false;
+      delete segment.manual_selection;
+      segment.reason = segment.status === "near" ? "实际原声有文字差异，请试听确认。" : segment.status === "conflict" ? "与目标文字有差异，可手动选用实际原声或更换片段。" : "";
     }
     if (body.skipped !== undefined) {
       if (typeof body.skipped !== "boolean") throw new SmartError("skip_invalid", "跳过状态必须为开关值");
@@ -351,6 +384,12 @@ export class SmartCore {
       if (segment.status !== "near" || !segment.selected) throw new SmartError("confirmation_invalid", "缺句或关键事实冲突不能通过近似确认，请修改文案或更换片段", 409);
       this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected);
       segment.accepted = true;
+    }
+    if (body.use_actual === true) {
+      if (segment.skipped || !segment.selected || !segment.actual.trim()) throw new SmartError("confirmation_invalid", "请先选择可用的实际原声片段", 409);
+      this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", segment.selected);
+      segment.manual_selection = true; segment.accepted = true;
+      segment.reason = "已手动选用实际原声，成片和字幕以素材为准；目标文案保留作对照。";
     }
     work.revision++; work.status = workReady(work) ? "ready" : "review"; work.error = "";
     return this.saveWork(work);
@@ -385,16 +424,33 @@ export class SmartCore {
     this.library.assertTeacher(this.library.getSnapshot(work.snapshot_id), work.settings.teacher || "", candidate);
     const key = this.library.directionKey(candidate), rotation = body.rotation as NonNullable<typeof candidate.rotation>;
     const same = (item: typeof candidate | null) => item && this.library.directionKey(item) === key;
-    const affected = this.store.list<Work>("work", this.store.count("work")).filter(item => item.segments.some(segment => same(segment.selected) || segment.candidates.some(same)));
+    const affected = body.confirm_current === true ? [work] : this.store.list<Work>("work", this.store.count("work")).filter(item => item.segments.some(segment => same(segment.selected) || segment.candidates.some(same)));
     if (affected.some(item => item.status === "matching" || item.status === "rendering")) throw new SmartError("source_busy", "其他作品正在使用该原片匹配或导出，请完成后校正方向", 409);
     this.store.transact(() => {
       this.store.set("source-direction", { id: key, rotation });
       for (const item of affected) {
         for (const segment of item.segments) {
-          if (same(segment.selected)) segment.selected!.rotation = rotation;
-          for (const alternative of segment.candidates) if (same(alternative)) alternative.rotation = rotation;
+          if (same(segment.selected)) { segment.selected!.rotation = rotation; segment.selected!.direction_source = "manual"; delete segment.selected!.direction_evidence; }
+          for (const alternative of segment.candidates) if (same(alternative)) { alternative.rotation = rotation; alternative.direction_source = "manual"; delete alternative.direction_evidence; }
         }
         item.revision++; item.status = workReady(item) ? "ready" : "review"; item.error = ""; this.saveWork(item);
+      }
+      if (body.confirm_current === true && typeof body.job_id === "string") {
+        const job = this.store.get<Job>("job", body.job_id), review = job && pendingDirectionReview(job);
+        if (job?.work_id === workId && job.status === "needs_review" && job.revision === body.revision && review?.source_video_id === candidate.source_video_id) {
+          const segments = includedSegments(job.work);
+          for (const [index, segment] of segments.entries()) if (same(segment.selected)) {
+            if ((segment.selected!.rotation ?? 0) !== rotation) {
+              const clip = `clip-${String(index + 1).padStart(3, "0")}.mp4`;
+              job.completed_clips = job.completed_clips.filter(name => name !== clip); delete job.clip_checksums?.[clip];
+              if (job.work.settings.crop_mode === "portrait") { job.completed_clips = []; job.clip_checksums = {}; job.compositions = {}; }
+            }
+            segment.selected!.rotation = rotation; segment.selected!.direction_source = "manual"; delete segment.selected!.direction_evidence;
+          }
+          job.revision = this.work(workId).revision; job.work.revision = job.revision;
+          job.status = "paused"; job.phase = "方向已确认，可继续导出"; job.error = ""; delete job.direction_review; job.updated_at = now();
+          this.store.set("job", job);
+        }
       }
     });
     return this.work(workId);
@@ -420,7 +476,8 @@ export class SmartCore {
     if (current.revision !== body.revision) throw new SmartError("plan_revision", "方案已更新，请重新补选", 409);
     const target = current.segments.find(item => item.id === segmentId)!;
     target.candidates = [...target.candidates.filter(item => item.id !== candidate.id), candidate].slice(-30);
-    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = false; target.skipped = false;
+    target.selected = candidate; target.actual = candidate.actual; target.status = candidate.kind; target.accepted = true; target.skipped = false; target.manual_selection = true;
+    target.reason = "已手动补选实际原声，成片和字幕以素材为准；目标文案保留作对照。";
     current.revision++; current.status = workReady(current) ? "ready" : "review"; current.error = "";
     return this.saveWork(current);
   }
@@ -459,7 +516,7 @@ export class SmartCore {
     void this.drain(); return job;
   }
   private async drain(): Promise<void> {
-    if (this.rendering || this.closed || this.cacheClearing) return; this.rendering = true;
+    if (this.rendering || this.templatePreviewController || this.closed || this.cacheClearing) return; this.rendering = true;
     try {
       let job;
       while (!this.closed && (job = this.store.listStatus<Job>("job", ["queued"], 1)[0])) {
@@ -474,7 +531,8 @@ export class SmartCore {
           const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = "done"; this.saveWork(work); }
         } catch (error) {
           if (!controller.signal.aborted) {
-            current.status = error instanceof SmartError && error.code === "composition_review" ? "needs_review" : "failed";
+            current.status = error instanceof SmartError && ["direction_review", "composition_review", "subtitle_review", "subtitle_key"].includes(error.code) ? "needs_review" : "failed";
+            if (error instanceof DirectionReviewError) current.direction_review = error.review; else delete current.direction_review;
             current.error = this.vault.redact((error as Error).message); update();
             const work = this.work(current.work_id); if (work.revision === current.revision) { work.status = current.status === "needs_review" ? "review" : "failed"; work.error = current.error; this.saveWork(work); }
           }
@@ -510,19 +568,21 @@ export class SmartCore {
     const existing = ruleId ? this.store.get<Rule>("rule", ruleId) : null;
     if (ruleId && !existing) throw new SmartError("rule_missing", "规则不存在", 404);
     const rule: Rule = existing ?? { id: id("R"), name: "热点原声成片", enabled: false,
-      platform: this.settings.monitor_platform, account_group: "", max_age_hours: 24,
+      platform: this.settings.monitor_platform, account_group: "", max_age_hours: 24, subtitle_correction: true,
       min_likes: 1000, min_growth_per_hour: 0, execution: "review", daily_limit: 5,
       candidates_per_run: 2, source_folder: "", last_run_at: "", last_error: "" };
     if (body.name !== undefined) rule.name = requireText(body.name, "规则名称", 80);
     if (body.enabled !== undefined) { if (typeof body.enabled !== "boolean") throw new SmartError("rule_input", "规则开关无效"); rule.enabled = body.enabled; }
     if (body.platform !== undefined) rule.platform = validatePlatform(body.platform);
     if (body.account_group !== undefined) rule.account_group = String(body.account_group).trim().slice(0, 80);
-    if (body.max_age_hours !== undefined) rule.max_age_hours = boundedNumber(body.max_age_hours, 1, 720, "发布时间范围");
+    if (body.max_age_hours !== undefined) rule.max_age_hours = boundedNumber(body.max_age_hours, 1, 87_600, "发布时间范围");
     if (body.min_likes !== undefined) rule.min_likes = boundedNumber(body.min_likes, 0, 100_000_000, "点赞阈值");
     if (body.min_growth_per_hour !== undefined) rule.min_growth_per_hour = boundedNumber(body.min_growth_per_hour, 0, 100_000_000, "增长阈值");
     if (body.daily_limit !== undefined) rule.daily_limit = Math.floor(boundedNumber(body.daily_limit, 1, 100, "每日成片上限"));
     if (body.candidates_per_run !== undefined) rule.candidates_per_run = Math.floor(boundedNumber(body.candidates_per_run, 1, 10, "每轮候选数"));
     if (body.source_folder !== undefined) rule.source_folder = String(body.source_folder).trim();
+    if (body.max_duration_seconds !== undefined) rule.max_duration_seconds = boundedNumber(body.max_duration_seconds, 0, 86_400, "视频时长上限");
+    if (body.subtitle_correction !== undefined) { if (typeof body.subtitle_correction !== "boolean") throw new SmartError("rule_input", "字幕纠错开关无效"); rule.subtitle_correction = body.subtitle_correction; }
     if (body.execution !== undefined) { if (!["plan", "review", "qualified"].includes(String(body.execution))) throw new SmartError("rule_execution", "执行等级无效"); rule.execution = body.execution as Rule["execution"]; }
     return this.store.set("rule", rule);
   }
@@ -545,6 +605,7 @@ export class SmartCore {
         ? (item.stats.likes - previous.stats.likes) / elapsed * 3_600_000 : null;
       hot.observations = [...hot.observations, observation].slice(-48);
       hot.title = item.title || hot.title; hot.download_url = item.download_url || hot.download_url;
+      if (item.duration_ms > 0) hot.duration_ms = item.duration_ms;
       hot.cover_url = item.cover_url || hot.cover_url; hot.updated_at = now();
       this.store.set("hot", hot);
     }
@@ -561,15 +622,32 @@ export class SmartCore {
         try {
           status.phase = `采集 ${account.name}`; this.store.set("monitor", status);
           let cursor = "0";
-          for (let pageIndex = 0; pageIndex < 3; pageIndex++) {
-            const page = await this.provider.posts(account.platform, account, cursor);
-            const known = page.videos.some(video => this.store.get<HotVideo>("hot", `${account.platform}:${video.video_id}`));
+          const lookback = Math.max(72, ...this.store.list<Rule>("rule").filter(rule => rule.enabled && rule.platform === account.platform && (!rule.account_group || rule.account_group === account.group)).map(rule => rule.max_age_hours));
+          const pages = lookback > 72 ? 40 : 3;
+          const coverage = this.store.get<{ id: string; hours: number; complete: boolean }>("monitor-coverage", account.id);
+          const mayStopAtKnown = lookback <= 72 || !!coverage?.complete && coverage.hours >= lookback;
+          let limited = false;
+          for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
+            status.phase = `采集 ${account.name} · 第 ${pageIndex + 1} 页`; this.store.set("monitor", status);
+            let page: ProviderPage;
+            try { page = await this.provider.posts(account.platform, account, cursor); }
+            catch (error) {
+              if (!(error instanceof SmartError) || !["provider_failed", "provider_network"].includes(error.code)) throw error;
+              status.phase = `重试采集 ${account.name} · 第 ${pageIndex + 1} 页`; this.store.set("monitor", status);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              page = await this.provider.posts(account.platform, account, cursor);
+            }
+            const known = page.videos.length > 0 && page.videos.every(video => this.store.get<HotVideo>("hot", `${account.platform}:${video.video_id}`));
             status.new_count += this.observed(account, page);
-            const older = page.videos.length > 0 && page.videos.every(video => video.published_at && Date.now() - new Date(video.published_at).getTime() > 72 * 3_600_000);
-            if (!page.has_more || page.cursor === cursor || !page.videos.length || older || known) break;
+            const older = page.videos.length > 0 && page.videos.every(video => video.published_at && Date.now() - new Date(video.published_at).getTime() > lookback * 3_600_000);
+            if (!page.has_more || older || known && mayStopAtKnown) break;
+            if (page.cursor === cursor || !page.videos.length) { limited = true; break; }
             cursor = page.cursor;
+            limited = pageIndex === pages - 1;
           }
-          account.cursor = cursor; account.last_error = ""; account.last_checked_at = now(); this.store.set("account", account);
+          this.store.set("monitor-coverage", { id: account.id, hours: lookback, complete: !limited });
+          account.cursor = cursor; account.last_error = limited ? `历史采集未完成：分页未前进或已达 ${pages} 页上限，已采集候选仍按规则处理` : ""; account.last_checked_at = now(); this.store.set("account", account);
+          if (limited) status.error = account.last_error;
         } catch (error) {
           account.last_error = this.vault.redact((error as Error).message); account.last_checked_at = now(); this.store.set("account", account);
           status.error = account.last_error;
@@ -592,6 +670,7 @@ export class SmartCore {
       const observedAt = new Date(hot.observations.at(-1)?.at ?? 0).getTime();
       return hot.platform === rule.platform && account?.enabled && (!rule.account_group || account.group === rule.account_group) &&
         !!hot.published_at && Date.now() - new Date(hot.published_at).getTime() <= rule.max_age_hours * 3_600_000 &&
+        (!rule.max_duration_seconds || hot.duration_ms > 0 && hot.duration_ms <= rule.max_duration_seconds * 1000) &&
         Date.now() - observedAt <= this.settings.monitor_interval_minutes * 120_000 &&
         likes !== null && likes !== undefined && likes >= rule.min_likes &&
         (rule.min_growth_per_hour === 0 || hot.growth_per_hour !== null && hot.growth_per_hour >= rule.min_growth_per_hour);
@@ -610,16 +689,16 @@ export class SmartCore {
         if (this.closed) break;
         const work = this.createWork(hot.transcript, { trigger: "automatic", kind: "rule", platform: hot.platform,
           account_id: hot.account_id, account_name: hot.author, rule_id: rule.id, rule_name: rule.name, hot_id: hot.id, reference_title: hot.title }, teacher);
-        work.settings.source_folder = rule.source_folder; this.saveWork(work);
+        work.settings.source_folder = rule.source_folder; work.settings.subtitle_correction = rule.subtitle_correction === true; this.saveWork(work);
         this.store.bindRuleWork(rule.id, candidate.id, work.id);
         await this.generatePlan(work.id);
         const ready = this.work(work.id);
-        const lecturers = ready.segments.map(segment => segment.selected?.lecturer).filter(Boolean);
-        if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact") && lecturers.length === ready.segments.length && new Set(lecturers).size === 1) this.enqueue(ready.id);
+        // enqueue validates every source against the pinned catalog and confirmed folder bindings.
+        // Cached candidate labels may be absent or stale and must not be used as identity proof.
+        if (rule.execution === "qualified" && workReady(ready) && ready.segments.every(segment => segment.status === "exact")) this.enqueue(ready.id);
         else if (rule.execution === "qualified") {
           ready.status = 'review';
-          ready.error = !ready.segments.every(segment => segment.status === 'exact')
-            ? '原声方案需要人工确认，不满足自动导出条件' : '缺少可靠的同讲师标签，需人工审核后导出';
+          ready.error = '原声方案需要人工确认，不满足自动导出条件';
           this.saveWork(ready);
         }
       } catch (error) {
@@ -646,7 +725,8 @@ export class SmartCore {
     }));
     const jobs = !smartAllowed ? [] : this.store.list<Job>("job", 100).map(job => ({
       id: job.id, work_id: job.work_id, title: job.work.title, origin: job.work.origin,
-      status: job.status, phase: job.phase, progress: job.progress, error: job.error,
+      status: job.status, phase: job.phase, progress: job.progress, error: pendingDirectionReview(job) ? directionReviewMessage(pendingDirectionReview(job)!) : job.error,
+      direction_review: pendingDirectionReview(job),
       created_at: job.created_at, updated_at: job.updated_at, duration_ms: job.duration_ms,
       has_output: job.status === "done", ratio: job.work.settings.ratio
     }));
@@ -682,6 +762,7 @@ export class SmartCore {
     try { await this.monitorRun(); } catch { /* Detailed failure is preserved in account/rule status; no credentials are logged. */ }
   }
   async close(): Promise<void> {
+    this.templatePreviewController?.abort();
     this.closed = true; if (this.timer) clearInterval(this.timer);
     this.renderAuthCheck?.abort();
     await this.manual.close(); await this.assemblies.close();

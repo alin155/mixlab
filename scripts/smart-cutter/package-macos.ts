@@ -17,7 +17,7 @@ await npm(['run', 'package:smart-cutter:windows', '--', '--bundle-only']);
 await npm(['run', 'build:macos:candidate', '-w', '@mixlab/smart-cutter-desktop']);
 const app = path.join(repo, 'apps/smart-cutter-desktop/src-tauri/target/release/bundle/macos/MixLab Unified Cutter Candidate.app');
 const resources = path.join(app, 'Contents/Resources');
-for (const file of ['binaries/node', 'binaries/ffmpeg', 'binaries/ffprobe', 'binaries/smart-cutter-api.bundle.mjs', 'runtime/python/bin/python3', 'runtime/ai-worker.py', 'runtime/models/bge-small-zh.onnx', 'runtime/models/tokenizer.json', 'runtime/models/yunet.onnx', 'runtime/fonts/NotoSansSC.ttf']) {
+for (const file of ['binaries/node', 'binaries/ffmpeg', 'binaries/ffprobe', 'binaries/smart-cutter-api.bundle.mjs', 'runtime/python/bin/python3', 'runtime/ai-worker.py', 'runtime/models/bge-small-zh.onnx', 'runtime/models/tokenizer.json', 'runtime/models/yunet.onnx', 'runtime/fonts/NotoSansSC.ttf', 'runtime/fonts/NotoSerifSC.ttf']) {
   if (!(await stat(path.join(resources, file))).isFile()) throw new Error(`Mac app missing runtime: ${file}`);
 }
 await runProcess('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);

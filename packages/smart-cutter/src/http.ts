@@ -6,7 +6,8 @@ import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { saveBasicProject, manageLocalClip, type BasicProject } from "./workspace.ts";
 import { SmartCore } from "./core.ts";
-import { SmartError, requireText, type Job, type HotVideo, type Candidate } from "./types.ts";
+import { SmartError, pendingDirectionReview, directionReviewMessage, requireText, includedSegments, type Job, type HotVideo, type Candidate } from "./types.ts";
+import { exportSources, type ExportComparison } from "./provenance.ts";
 
 const ORIGINS = new Set(["http://127.0.0.1:5178", "http://localhost:5178", ...(process.env.MIXLAB_SMART_DEV_ORIGIN ? [process.env.MIXLAB_SMART_DEV_ORIGIN] : []), "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"]);
 function equalToken(a: string, b: string): boolean { const first = Buffer.from(a), second = Buffer.from(b); return first.length === second.length && timingSafeEqual(first, second); }
@@ -128,6 +129,19 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       if (url.pathname === "/smart/library/folders" && method === "GET") { json(response, 200, await core.library.folders()); return; }
       if (url.pathname === "/smart/workspace/open" && method === "POST") { await openPath(core.settings.workspace_root); json(response, 200, { opened: true }); return; }
       await core.requirePro();
+      if (url.pathname === "/smart/subtitle-templates") {
+        if (method === "GET") { json(response, 200, core.store.list("subtitle-template")); return; }
+        if (method === "POST") { json(response, 201, core.saveSubtitleTemplate(await body(request))); return; }
+      }
+      const templatePreview = /^\/smart\/works\/([^/]+)\/template-preview$/.exec(url.pathname);
+      if (templatePreview && method === "POST") { json(response, 200, await core.previewTemplate(decodeURIComponent(templatePreview[1]!), await body(request))); return; }
+      const templateMedia = /^\/smart\/media\/template-previews\/([0-9a-f]{64})$/.exec(url.pathname);
+      if (templateMedia && ["GET", "HEAD"].includes(method ?? "")) {
+        const preview = core.templatePreviews.get(templateMedia[1]!);
+        if (!preview) throw new SmartError("preview_missing", "预览已失效，请重新生成", 404);
+        core.library.assertWorkTeacher(preview.work);
+        await streamFile(request, response, preview.file, "video/mp4"); return;
+      }
       if (url.pathname === "/smart/library/teachers" && method === "GET") { json(response, 200, await core.library.teachers()); return; }
       if (url.pathname === "/smart/library/index" && method === "POST") {
         const input = await body(request);
@@ -154,11 +168,21 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
       }
       const segmentRoute = /^\/smart\/works\/([^/]+)\/segments\/(\d+)$/.exec(url.pathname);
       if (segmentRoute && method === "PATCH") { json(response, 200, core.selectSegment(decodeURIComponent(segmentRoute[1]!), Number(segmentRoute[2]), await body(request))); return; }
+      const provenance = /^\/smart\/jobs\/([^/]+)\/sources$/.exec(url.pathname);
+      if (provenance && method === "GET") {
+        const job = core.store.get<Job>("job", decodeURIComponent(provenance[1]!));
+        if (!job) throw new SmartError("job_missing", "任务不存在", 404);
+        const sources = await exportSources(job);
+        const hot = job.work.origin.hot_id ? core.store.get<HotVideo>("hot", job.work.origin.hot_id) : null;
+        const result: ExportComparison = { job_id: job.id, sources, reference: hot ? { id: hot.id, title: hot.title,
+          available: !!await core.references.videoPath(hot.id), status: hot.status, error: hot.error } : null };
+        json(response, 200, result); return;
+      }
       const jobRoute = /^\/smart\/jobs\/([^/]+)(?:\/(action|open))?$/.exec(url.pathname);
       if (jobRoute) {
         const jobId = decodeURIComponent(jobRoute[1]!);
         const job = core.store.get<Job>("job", jobId); if (!job) throw new SmartError("job_missing", "任务不存在", 404);
-        if (!jobRoute[2] && method === "GET") { json(response, 200, job); return; }
+        if (!jobRoute[2] && method === "GET") { const review = pendingDirectionReview(job); json(response, 200, review ? { ...job, direction_review: review, error: directionReviewMessage(review) } : job); return; }
         if (jobRoute[2] === "action" && method === "POST") { json(response, 200, core.controlJob(jobId, String((await body(request)).action))); return; }
         if (jobRoute[2] === "open" && method === "POST") { if (job.status !== "done") throw new SmartError("job_not_done", "任务尚未生成可用结果", 409); await openPath(path.dirname(job.output_path)); json(response, 200, { opened: true }); return; }
       }
@@ -200,6 +224,22 @@ export function createSmartServer(core: SmartCore, token = "", shutdown?: () => 
         if (!candidate) throw new SmartError("source_missing", "该句没有可播放片段", 404);
         const file = source[3] === 'cover' ? candidate.cover_file_path : await core.media.preview(candidate, core.settings.workspace_root);
         await streamFile(request, response, file, source[3] === "cover" ? "image/jpeg" : "video/mp4"); return;
+      }
+      const original = /^\/smart\/media\/jobs\/([^/]+)\/sources\/(\d+)\/(preview|open)$/.exec(url.pathname);
+      if (original) {
+        const job = core.store.get<Job>("job", decodeURIComponent(original[1]!));
+        if (!job || job.status !== "done") throw new SmartError("output_missing", "没有可对比的成片", 404);
+        const candidate = includedSegments(job.work).find(segment => segment.id === Number(original[2]))?.selected;
+        if (!candidate) throw new SmartError("source_missing", "该片段未用于这版成片", 404);
+        core.library.assertWorkTeacher(job.work);
+        if (original[3] === "preview" && ["GET", "HEAD"].includes(method ?? "")) {
+          await streamFile(request, response, await core.media.preview(candidate, job.workspace_root), "video/mp4"); return;
+        }
+        if (original[3] === "open" && method === "POST") {
+          const info = await stat(candidate.source_file_path).catch(() => { throw new SmartError("source_unavailable", "无法打开完整原视频，请连接公共素材库", 409); });
+          if (info.size !== candidate.fingerprint.size || Math.abs(info.mtimeMs - candidate.fingerprint.mtime_ms) > 1) throw new SmartError("source_changed", "原视频已变化，停止打开不一致的来源", 409);
+          await openPath(candidate.source_file_path); json(response, 200, { opened: true }); return;
+        }
       }
       const output = /^\/smart\/media\/jobs\/([^/]+)\/(video|srt|manifest)$/.exec(url.pathname);
       if (output && ["GET", "HEAD"].includes(method ?? "")) {

@@ -551,3 +551,64 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 原端回归 105/105、统一端及相关模块 145/145，类型检查通过；Windows CI 与交付见 `docs/acceptance/export-resilience-20261015/evidence.json`。
 - 现用 `82d0e9e` 进程仍运行，原应用与正式 NAS 账号/素材/统计文件、NAS 服务和共享下载指针未修改。旧客户端需在空闲窗口逐台升级才获得修复。候选包与现用包应用 ID 相同，不能双实例共用状态。
 - Windows 两端候选构建成功并下载到本机隔离交付目录：统一端 run `38847701461` / `cd6e81d`（39 通过、3 平台专属跳过）；原端 run `38848097552` / `3a1e4f1`（105 通过）。各 `.exe` SHA-256 已与 CI 元数据核对一致；未执行 Windows 实机安装或正式 NAS 导出。
+
+## 2026-10-15 智能成片质量候选（未替换现用包）
+
+- 源码 `5207eeb`，基线 `7a58db9`，独立工作树 `/Users/huaqihang/Documents/Codex/implementations/mixlab-cutter-quality`，分支 `codex/unified-quality-20261015`，草稿 PR #4。架构审查工作树保持原状。
+- 隔离验收 Web `http://127.0.0.1:5278/#/films`、本机引擎 `5272`；状态及工作区在本工作树 `.local-dev/quality`。公共库视图仅一条合成验收素材，不是正式 NAS。真实七段作品及缓存只读复制到隔离状态，用于人物、字幕与原片对比验收；不复制账号、会话或 Key。
+- 新增统一人物景别、历史智能导出来源联动/热点参考播放及六套字幕模板。真实七段约 45 秒样片与包内两段媒体流水线通过；原成片 SHA-256 保持一致。本机智能模块 46/46、类型及 Web 构建通过。
+- 包内引擎验收另用 `.local-dev/quality/packaged`，测试端口 `5273` 已关闭。Mac 0.2.0 临时签名包保存在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/quality-5207eeb`，zip SHA-256 `87ab171cc7c0934a73a8fd606b8abf9ef3cea4f748103daa4670e9c71af7738c`，未安装到用户状态。
+- Windows CI `38855754725` / `5207eeb` 成功，43 通过、3 平台专属跳过。安装器在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-windows/quality-5207eeb`，SHA-256 `9d6e10f935c874813f02e2ae5a568678b84dd2ebf08eb2f01818a84b3f47207b` 与 CI 元数据一致；未执行 Windows 实机安装。
+- 现用应用、用户账号/作品/原成片、NAS 数据和正式下载入口未变更。候选沿用应用 ID，正式切换须退出并备份本机状态，不并发共用状态。验收记录及交付边界见 `docs/acceptance/export-quality-20261015/`。
+
+## 2026-10-15 用户授权本机智能端更新
+
+- 本机现用包从 `82d0e9e` 更新为 `5207eeb` / `0.2.0`，应用路径仍为 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app`；标识、真实状态和工作区路径不变。未导入 5278 隔离验收状态。
+- 更新前确认无运行任务，明确退出应用并确认原引擎/AI 进程已停。完整私有状态/工作区、WebKit、偏好和旧应用保留于 `/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261015T231059-before-quality-5207eeb`。备份文件/链接清单一致，安装包签名及关键二进制与 `5207eeb` 交付物一致。
+- 更新后原登录与 Pro 权限恢复；设置、加密密钥文件及全部实体值逐项一致，5 个作品、1 个已完成导出、88 条热点记录保留；原 MP4/SRT/来源清单哈希一致。原生播放器实测历史成片与素材原片联动，热点参考关联可见。
+- 此次引擎随机端口 `58644`，AI/媒体引擎就绪；原生公共库检查连接 `/Volumes/MixLab/PublicLibrary` 成功，当前发布 `v012758` / 12,869 条。端口只属于当前进程，不作为固定配置。
+- 应用已打开并停留本地成果；旧作品保持原构图/字幕设定，需手动选择新模式、保存并新建导出以验收新版画面。未改 NAS、架构审查工作树、Windows 或共享下载入口。证据见 `docs/acceptance/export-quality-20261015/local-update.json`。
+
+## 2026-10-16 — 系统字幕模板，本机候选更新
+
+- 源码：`codex/unified-quality-20261015` / `96fa721`；保持管理端、已发布剪辑端及 NAS 数据不变。
+- 当前本机候选应用：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app`，仍使用 `com.mixlab.unifiedcutter.candidate` 与既有应用数据。本轮实际内置源码为 `96fa721`，不能仅凭 0.2.0 显示版本判断内容。
+- 本机引擎使用随机回环端口，重启可能变化；以原生 runtime_connection 实际返回为准。原生来源为 `tauri://localhost`。账号 AllenPro 已恢复；读取原有 45 秒作品，并成功生成/播放含原声的 8.03 秒字幕预览。
+- 四套系统模板：沉静访谈、清晰口播、重点标色、高对比底板。使用 Noto Serif SC / Noto Sans SC 打包字体；旧作品保持旧样式，选用新模板后才替换。模板预览是临时缓存，不生成或覆盖完整成片。
+- 保留证明：5 个作品、2 个已完成任务及旧 MP4/SRT/来源记录；设置、凭证和密钥文件哈希不变；作品、任务、快照、方向记录不变。备份：`/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T074516Z-before-templates-96fa721`，含完整应用数据与旧应用。
+- 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/templates-96fa721`。详细包哈希、48 项回归与内置 Node/FFmpeg 的真实素材验收见 `docs/acceptance/system-templates-20261016/evidence.json`。
+- 既有 Web 测试页仍为 `http://127.0.0.1:5278` → 独立测试引擎 `127.0.0.1:5272`，已更新引擎源码。该页使用隔离工作区与单条公共库 fixture，不能等同本机原生账号/NAS 验收。删除了测试 helper 启动即自动导出整条作品的行为。
+- 本轮临时 UI 验收入口 `5284` → `5282` 仅用于隔离浏览器检查，验收后关闭。
+- Windows 候选构建：Actions `38869085152`。CI 状态及 Windows 实机安装边界见本轮证据文件；未改共享 latest 指针。
+
+## 2026-10-16 — 原声候选与自动老师校验修复
+
+- 本机 macOS 候选应用已从 `96fa721` 更新为 `d031a89`，应用路径、`com.mixlab.unifiedcutter.candidate`、既有账号/设置/工作区均不变。本轮随机回环端口 `59178`，原生源 `tauri://localhost`，只表示当前进程。
+- 真实公共库 `/Volumes/MixLab/PublicLibrary` 的锁定版本 `v012758` / 12,869 条；本轮不触碰 NAS、管理端或正式剪辑端。隔离 Web 5278/API 5272 不作为真实自动创作验收环境。
+- 两个原错误自动方案重匹配后共 13 句均待补充，不再选中无关原声；不能据此断言全库没有素材，语义覆盖仍未完整。
+- 新增一个热点手动导入的审核后样片，5 句原文、首句显式跳过；构图审核时将未校正的 C0168 换为同句原文且已记忆 90° 校正的 C0169。统一人物景别、沉静访谈字幕，19.848 秒 / 1080×1920 / H.264+AAC；原生播放器已播放至结尾，5 段素材与热点参考关联均验证。该样片不能标为无人值守自动成片通过。
+- 原 5 个手动作品、2 个已完成任务、旧 MP4/SRT/来源记录、设置及加密凭据哈希保持；仅 2 个失败自动方案按本次修复重新匹配。完整备份 `/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T121924Z-before-automatic-d031a89`。
+- 交付及样片在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/automatic-d031a89`；验收记录 `docs/acceptance/automatic-matching-20261016/`，最终智能端 50/50 回归、类型、构建通过。Windows 本轮未安装验收；自动规则保持关闭。
+
+### 2026-10-16 原生无人值守完整流程与方向/字幕修复
+
+- 本机候选更新至 `5ccd57b`，应用路径、`com.mixlab.unifiedcutter.candidate`、真实 AllenPro 登录、设置与工作区保持。当前原生源 `tauri://localhost`，回环引擎 `64713`，仅对应此次进程；公共库仍为 `/Volumes/MixLab/PublicLibrary`，锁定 v012758 / 12,869 条。
+- 完整真实监控到导出在 `0208ae0` 完成；最终 `5ccd57b` 仅增加分页进度刷新，已重打包安装并复验监控无重复处理。历史热点 4/4 原文、无人工放行/替换/跳过，118.392 秒完成，成片 21.733 秒；另有 19.808 秒方向/字幕独立回归样片。
+- 新样片在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b`；真实原生结果仍在原工作区。新增验收账号/规则均停用；原有监控配置保持。最终 11 个作品、5 个成片任务，其中原 8 个作品、3 个任务及旧成片、设置和加密凭据哈希一致。
+- 完整备份：`/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T133326Z-before-unattended-0208ae0`；最终进度修订更新前另存 `20261016T133921Z-before-unattended-5ccd57b`。最终智能端 57/57 回归、类型、构建、签名检查通过。
+- 未写 NAS、未修改管理端、正式剪辑端、Windows 安装或架构审查工作树。证据和无人值守/独立回归边界见 `docs/acceptance/unattended-creation-20261016/`。
+
+### 2026-10-16 手动补选可用性修复
+
+- 本机 macOS 候选更新至 `cc5ef1d`，当前原生引擎 `49372`；应用路径、ID、账号、工作区及公共库 v012758 / 12,869 条不变。
+- 手动补选记录人工选用并可导出；已有差异片段可显式使用实际原声。重复中文开场加少量转写差异进入近似待审，自动规则仍需全原文。
+- 59/59 回归、类型、Web 构建、Mac 打包与签名验证通过；原生 C0254 审核页新增按钮已验证。当前 11 个作品、5 个成片及 18 个现有文件哈希保持，不自动改写旧分类或用户确认。
+- 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/manual-supplement-cc5ef1d`；完整备份 `20261016T135539Z-before-manual-supplement-cc5ef1d`；补充证据 `docs/acceptance/unattended-creation-20261016/manual-supplement-fix.txt`。无 NAS、正式入口、架构审查工作树或 Windows 安装变更。
+
+### 2026-10-16 方向定位、确认与原任务恢复
+
+- 本机候选最终更新为 `f550d31`，原生源 `tauri://localhost`，回环引擎 `51212`（当前进程）；应用路径、ID、真实账号和公共库 v012758 / 12,869 条保持。
+- 方向待确认明确显示句号、素材名、原片范围；任务详情定位片段，“确认当前方向”支持正常 0°，并恢复原任务，保留无须重剪的完成片段。旧错误记录只在展示时补全上下文。
+- C0254 原任务经方向确认后实际恢复；遇到的手部单帧第二人脸误检经独立/时序证据修正，保持统一近景设定，最终导出 17.501 秒。原生完整播放、解码、音轨及来源验证通过；61/61 回归和打包签名通过。
+- 当前 11 个作品、7 个任务，原 5 个成片哈希保持，新增 1 个完成成片；另一旧重复待确认任务原样保留。账号、设置与加密凭据保持，无 NAS、正式端、架构审查工作树或 Windows 安装变更。
+- 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/direction-confirmation-f550d31`；完整备份 `20261016T142209Z-before-direction-confirmation-4f33e7b`、`20261016T142921Z-before-direction-confirmation-f550d31`。证据：`docs/acceptance/direction-confirmation-20261016/`。

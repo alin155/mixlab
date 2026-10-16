@@ -1,0 +1,69 @@
+{
+  "source_commit": "d031a89",
+  "surface": "installed macOS candidate",
+  "api_base": "http://127.0.0.1:59178",
+  "library_version": "v012758",
+  "negative_cases": [
+    {
+      "work_id": "W-51bffad3-508d-44ff-a4c6-97cc80dabd5b",
+      "sentences": 6,
+      "near": 0,
+      "pending": 6,
+      "matching_ms": 18894
+    },
+    {
+      "work_id": "W-a6f570af-7e90-450d-9059-7ffca253e69c",
+      "sentences": 7,
+      "near": 0,
+      "pending": 7,
+      "matching_ms": 19182
+    }
+  ],
+  "positive": {
+    "work_id": "W-e323524b-8067-43c4-92e8-5faa3853a447",
+    "job_id": "J-abd9ded0-e838-48a3-a27e-56652b39aa75",
+    "origin": "manual",
+    "status": "done",
+    "seconds": 19.848,
+    "included_exact_sentences": 5,
+    "explicit_skipped_sentences": 1,
+    "manual_interventions": [
+      "skip unmatched first sentence",
+      "select same-text C0169 candidate with known 90-degree rotation after initial framing hold"
+    ],
+    "output_path": "/Users/huaqihang/Library/Application Support/com.mixlab.unifiedcutter.candidate/workspace/projects/W-e323524b-8067-43c4-92e8-5faa3853a447/exports/J-abd9ded0-e838-48a3-a27e-56652b39aa75/video.mp4",
+    "share_copy": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/automatic-d031a89/宁与智者-审核后测试版.mp4",
+    "sha256": "53afe60631dc1689c1fa4d14170273236938f34c18f012f2a93cd3778d1df93f",
+    "template": "quiet",
+    "ratio": "9:16",
+    "width": 1080,
+    "height": 1920,
+    "actual_sources": 5,
+    "reference_linked": true,
+    "full_decode_passed": true,
+    "audio_non_silent": true,
+    "native_playback_observation": "played to 19 seconds of 19 seconds in installed native player",
+    "unattended_end_to_end_passed": false,
+    "native_source_comparison_verified": true,
+    "native_reference_tab_verified": true
+  },
+  "preservation": {
+    "original_manual_works_unchanged": 5,
+    "original_finished_jobs_unchanged": 2,
+    "old_video_srt_manifest_sha256_unchanged": true,
+    "settings_credentials_key_sha256_unchanged": true,
+    "snapshots_direction_records_unchanged": true,
+    "old_failed_automatic_plans_intentionally_rematched": 2,
+    "added_reviewed_hot_manual_works": 1,
+    "added_finished_exports": 1,
+    "test_rules_disabled": true
+  },
+  "backup": "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T121924Z-before-automatic-d031a89",
+  "limits": [
+    "No real fully unattended automatic export passed in this run.",
+    "Incomplete semantic coverage remains; no candidate does not establish total source absence.",
+    "Published transcript has a likely homophone error 无师 vs 吾师; NAS and original transcript were not rewritten."
+  ],
+  "windows_tested": false,
+  "nas_modified": false
+}

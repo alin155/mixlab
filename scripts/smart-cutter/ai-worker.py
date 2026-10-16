@@ -322,6 +322,58 @@ def hybrid_search(request):
     return {"hits": ranked[:12], "mode": "ann" if complete else "candidate", "complete": complete, "examined": len(candidates), "query_ms": round((time.monotonic() - started) * 1000), "encoded": encoded, "reused": reused}
 
 
+def orientation(request):
+    import cv2
+    import numpy as np
+    cv2.setNumThreads(1)
+    detector = cv2.FaceDetectorYN.create(str(MODELS / "yunet.onnx"), "", (640, 360), 0.85, 0.3, 5000)
+    upright = cv2.CascadeClassifier(str(Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"))
+    if upright.empty():
+        raise ValueError("upright face classifier is missing")
+    scores = []
+    for angle in [0, 90, 180, 270]:
+        confidences = []
+        ambiguous = False
+        for frame in request["frames"]:
+            image = cv2.imdecode(np.fromfile(frame["file_path"], dtype=np.uint8), cv2.IMREAD_COLOR)
+            if image is None:
+                continue
+            if angle:
+                image = cv2.rotate(image, {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}[angle])
+            height, width = image.shape[:2]
+            detector.setInputSize((width, height))
+            _, detected = detector.detect(image)
+            if detected is None:
+                continue
+            ordered = sorted(detected, key=lambda f: float(f[2] * f[3]), reverse=True)
+            if len(ordered) > 1 and ordered[1][2] * ordered[1][3] >= ordered[0][2] * ordered[0][3] * 0.35:
+                ambiguous = True
+                continue
+            face = ordered[0]
+            confirmed = False
+            for x, y, w, h in upright.detectMultiScale(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), 1.1, 5, minSize=(30, 30)):
+                overlap = max(0, min(float(face[0] + face[2]), x + w) - max(float(face[0]), x)) * max(0, min(float(face[1] + face[3]), y + h) - max(float(face[1]), y))
+                union = float(face[2] * face[3]) + int(w) * int(h) - overlap
+                confirmed |= overlap / max(1, union) >= 0.35
+            if not confirmed:
+                continue
+            eyes = (face[4:6] + face[6:8]) / 2
+            mouth = (face[10:12] + face[12:14]) / 2
+            # A sideways false positive must not count as an upright face.
+            if abs(float(face[5] - face[7])) > float(face[3]) * 0.15 or float(mouth[1] - eyes[1]) < float(face[3]) * 0.2:
+                continue
+            confidences.append(float(face[-1]))
+        coverage = len(confidences) / max(1, len(request["frames"]))
+        score = sum(confidences) / max(1, len(request["frames"])) if not ambiguous else 0
+        scores.append({"rotation": angle, "score": score, "coverage": coverage, "ambiguous": ambiguous})
+    ranked = sorted(scores, key=lambda item: item["score"], reverse=True)
+    best, second = ranked[:2]
+    confident = best["coverage"] >= 0.8 and best["score"] >= 0.9 and best["score"] - second["score"] >= 0.15
+    return {"rotation": best["rotation"] if confident else None, "confidence": best["score"], "scores": scores,
+            "detector": "yunet-landmarks+haar-v1",
+            "reason": "" if confident else "原片方向缺少唯一可靠的人脸证据，请确认方向"}
+
+
 def faces(request):
     import cv2
     import numpy as np
@@ -329,22 +381,35 @@ def faces(request):
     detector = cv2.FaceDetectorYN.create(str(MODELS / "yunet.onnx"), "", (640, 360), 0.8, 0.3, 5000)
     points = []
     ambiguous = False
+    weak_faces = []
+    upright = cv2.CascadeClassifier(str(Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"))
+    if upright.empty():
+        raise ValueError("upright face classifier is missing")
+    def overlap(a, b):
+        intersection = max(0, min(float(a[0] + a[2]), float(b[0] + b[2])) - max(float(a[0]), float(b[0]))) * max(0, min(float(a[1] + a[3]), float(b[1] + b[3])) - max(float(a[1]), float(b[1])))
+        return intersection / max(1, float(a[2] * a[3] + b[2] * b[3]) - intersection)
     unsafe_crop = False
     sudden_motion = False
     last_raw_x = None
     previous_x, previous_y = None, None
+    source_aspect = None
     for frame in request["frames"]:
         image = cv2.imdecode(np.fromfile(frame["file_path"], dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None:
             continue
         height, width = image.shape[:2]
+        source_aspect = width / height
         detector.setInputSize((width, height))
         _, detected = detector.detect(image)
         if detected is None or len(detected) == 0:
             continue
         ordered = sorted(detected, key=lambda face: float(face[2] * face[3]), reverse=True)
-        if len(ordered) > 1 and ordered[1][2] * ordered[1][3] >= ordered[0][2] * ordered[0][3] * 0.35:
-            ambiguous = True
+        secondary = [face for face in ordered[1:] if face[2] * face[3] >= ordered[0][2] * ordered[0][3] * 0.35]
+        confirmations = upright.detectMultiScale(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), 1.1, 5, minSize=(30, 30)) if secondary else []
+        for face in secondary:
+            # A lone weak detection on a hand must not invalidate an otherwise stable speaker.
+            ambiguous |= float(face[-1]) >= 0.9 or any(overlap(face, box) >= 0.35 for box in confirmations) or any(overlap(face, box) >= 0.2 for box in weak_faces)
+        weak_faces.extend(face[:4].copy() for face in secondary)
         face = ordered[0]
         x = float((face[0] + face[2] / 2) / width)
         y = float((face[1] + face[3] / 2) / height)
@@ -358,11 +423,11 @@ def faces(request):
             x = previous_x * 0.35 + x * 0.65
             y = previous_y * 0.35 + y * 0.65
         previous_x, previous_y = x, y
-        points.append({"at_ms": frame["at_ms"], "x": x, "y": y, "confidence": float(face[-1])})
+        points.append({"at_ms": frame["at_ms"], "x": x, "y": y, "width": float(face[2] / width), "height": float(face[3] / height), "confidence": float(face[-1])})
     coverage = len(points) / max(1, len(request["frames"]))
     usable = not ambiguous and not unsafe_crop and not sudden_motion and coverage >= 0.6
     reason = "" if usable else "多人主体存在歧义，请选择全景或手动构图" if ambiguous else "近景或镜头变化无法安全裁切，请选择全景或手动构图" if unsafe_crop or sudden_motion else "未稳定检测到主讲人，请选择全景或手动构图"
-    return {"usable": usable, "reason": reason, "points": points, "multiple_faces": ambiguous}
+    return {"usable": usable, "reason": reason, "points": points, "multiple_faces": ambiguous, "source_aspect": source_aspect, "detector_version": 2}
 
 
 for raw in sys.stdin:
@@ -379,6 +444,8 @@ for raw in sys.stdin:
             result = build_index(request)
         elif operation == "hybrid_search":
             result = hybrid_search(request)
+        elif operation == "orientation":
+            result = orientation(request)
         elif operation == "faces":
             result = faces(request)
         else:

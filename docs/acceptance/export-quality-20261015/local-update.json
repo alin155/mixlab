@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-15",
+  "machine": "local macOS Apple Silicon",
+  "user_authorized_installation": true,
+  "previous_source_commit": "82d0e9e",
+  "installed_source_commit": "5207eeb",
+  "version": "0.2.0",
+  "bundle_id": "com.mixlab.unifiedcutter.candidate",
+  "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
+  "backup": "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261015T231059-before-quality-5207eeb",
+  "backup_contents": ["original app", "complete private app data and workspace", "WebKit storage", "application preferences", "before and after integrity evidence"],
+  "backup_method": "Stopped app/engine, APFS clone of private data, verified file/link inventory and sensitive-file hashes, retained original app by rename.",
+  "backup_inventory_entries": 368,
+  "state_root": "/Users/huaqihang/Library/Application Support/com.mixlab.unifiedcutter.candidate",
+  "workspace_root": "/Users/huaqihang/Library/Application Support/com.mixlab.unifiedcutter.candidate/workspace",
+  "library_root": "/Volumes/MixLab/PublicLibrary",
+  "native_engine_port_this_process_only": 58644,
+  "preservation": {
+    "settings_file_identical": true,
+    "encrypted_credentials_file_identical": true,
+    "credential_key_file_identical": true,
+    "all_original_entity_values_identical": true,
+    "works": 5,
+    "completed_export_jobs": 1,
+    "monitored_accounts": 2,
+    "hot_videos": 88,
+    "snapshots": 10,
+    "source_direction_records": 1,
+    "original_video_srt_manifest_hashes_identical": true,
+    "database_quick_check": "ok",
+    "test_state_imported": false
+  },
+  "native_acceptance": {
+    "same_login_restored": true,
+    "pro_access_visible": true,
+    "tikhub_and_dashscope_saved_key_indicators_present": true,
+    "ai_and_ffmpeg_ready": true,
+    "public_library_check": { "connected": true, "version": "v012758", "published_assets": 12869 },
+    "historical_film_playback": true,
+    "historical_source_clip_playback_and_automatic_switching": true,
+    "associated_cached_hotspot_reference_visible": true,
+    "new_export_created_during_update_smoke": false,
+    "left_open_on": "tauri://localhost#/films"
+  },
+  "scope": {
+    "nas_data_modified": false,
+    "architecture_review_worktree_modified": false,
+    "windows_installed": false,
+    "shared_latest_download_changed": false
+  },
+  "usage": "Existing work keeps its saved output settings. Select unified portrait framing and a subtitle preset in the work's adjustment page, save and export a new result to evaluate the new rendering.",
+  "rollback": "Quit the application before restoring. Preserve any data created after this backup; the backup includes both the original app and matching app state/workspace."
+}

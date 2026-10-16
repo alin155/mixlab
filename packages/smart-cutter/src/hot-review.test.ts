@@ -9,7 +9,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SmartCore } from './core.ts';
 import { createSmartServer } from './http.ts';
-import { type HotVideo, type WorkSegment, workReady } from './types.ts';
+import { type HotVideo, type WorkSegment, type Job, workReady } from './types.ts';
 import { createAcceptanceLibrary } from '../../../scripts/smart-cutter/fixture.ts';
 
 const ai = { python: 'missing-test-runtime', script: 'missing-test-runtime', models: 'missing-test-runtime' };
@@ -86,6 +86,44 @@ test('bulk review is atomic and revision checked, leaves gaps/conflicts/pending 
   assert.throws(() => core.enqueue(saved.id), /审核/);
   const noOp = core.acceptAllSegments(saved.id, { revision: saved.revision }); assert.equal(noOp.revision, saved.revision);
   noOp.segments = noOp.segments.slice(0, 2); core.store.set('work', noOp); assert.equal(workReady(noOp), true);
+});
+
+test('high semantic recall scores cannot select unrelated speech or pass review/export', async t => {
+  const { core } = await fixture(t);
+  t.mock.method(core.ai, 'search', async () => ({ hits: [{ source_video_id: 'V000001', segment_id: 'V000001-S000001', begin_ms: 0, end_ms: 1700, text: '现金流是企业的血液。', score: 0.99 }], mode: 'candidate' as const, complete: false, examined: 1, query_ms: 1, encoded: 0, reused: 0 }));
+  const work = await core.generatePlan(core.createWork('思想深度高于常人的人，内心也更敏感。', undefined, '验收讲师').id);
+  assert.ok(work.segments[0]!.candidates.length > 0);
+  assert.ok(work.segments[0]!.candidates.every(candidate => candidate.kind === 'conflict'));
+  assert.equal(work.segments[0]!.selected, null);
+  assert.equal(work.segments[0]!.status, 'pending');
+  assert.ok(core.acceptAllSegments(work.id, { revision: work.revision }).segments.every(segment => !segment.accepted));
+  assert.throws(() => core.enqueue(work.id), /未处理句子/);
+});
+
+test('manual speech selection is usable without pretending it matches the target; old blocked selections can explicitly use actual speech', async t => {
+  const { core, api } = await fixture(t);
+  t.mock.method(core.ai, 'search', async () => ({ hits: [{ source_video_id: 'V000001', segment_id: 'V000001-S000001', begin_ms: 0, end_ms: 1700, text: '现金流是企业的血液。', score: 0.99 }], mode: 'candidate' as const, complete: false, examined: 1, query_ms: 1, encoded: 0, reused: 0 }));
+  let work = await core.generatePlan(core.createWork('思想深度高于常人的人，内心也更敏感。', undefined, '验收讲师').id);
+  const route = `/smart/works/${work.id}/segments/1`;
+  assert.equal(workReady(work), false);
+  work = core.selectSegment(work.id, 1, { revision: work.revision, candidate_id: work.segments[0]!.candidates[0]!.id });
+  assert.equal((await api(route, 'PATCH', { revision: work.revision, accepted: true })).status, 409);
+  assert.equal((await api(route, 'PATCH', { revision: work.revision - 1, use_actual: true })).status, 409);
+  assert.equal((await api(route, 'PATCH', { revision: work.revision, use_actual: true })).status, 200);
+  work = core.work(work.id); assert.equal(workReady(work), true); assert.equal(work.segments[0]!.manual_selection, true); assert.equal(work.segments[0]!.status, 'conflict');
+  work = core.selectSegment(work.id, 1, { revision: work.revision, candidate_id: work.segments[0]!.selected!.id });
+  assert.equal(workReady(work), false); assert.equal(work.segments[0]!.manual_selection, undefined);
+  work = await core.supplementSegment(work.id, 1, { revision: work.revision, source_video_id: 'V000001', range: { start: 0, end: 0, from: 0, to: 10 }, begin_ms: 0, end_ms: 1700 });
+  assert.equal(workReady(work), true); assert.equal(work.segments[0]!.accepted, true); assert.equal(work.segments[0]!.manual_selection, true); assert.equal(work.segments[0]!.status, 'conflict');
+  assert.equal(work.script, '思想深度高于常人的人，内心也更敏感。'); assert.equal(work.segments[0]!.target, work.script);
+  core.updateWork(work.id, { settings: { crop_mode: 'fit', auto_rotate: false } });
+  const queued = core.enqueue(work.id); let done: Job = queued;
+  for (let i = 0; i < 300; i++) { done = core.store.get<Job>('job', queued.id)!; if (!['queued', 'running'].includes(done.status)) break; await new Promise(resolve => setTimeout(resolve, 100)); }
+  assert.equal(done.status, 'done', done.error);
+  const manifest = JSON.parse(await readFile(done.manifest_path, 'utf8'));
+  assert.equal(manifest.sources[0].manual_selection, true); assert.equal(manifest.sources[0].target, work.script);
+  const subtitles = await readFile(path.join(path.dirname(done.output_path), 'subtitles.srt'), 'utf8');
+  assert.ok(subtitles.includes('现金流是企业的血液')); assert.ok(!subtitles.includes('思想深度'));
 });
 
 test('teacher identity constrains matching, candidate selection, bulk review, supplements and old exports', async t => {

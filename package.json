@@ -137,6 +137,7 @@
     "package:smart-cutter:macos": "tsx scripts/smart-cutter/package-macos.ts"
   },
   "dependencies": {
+    "pinyin-pro": "3.29.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

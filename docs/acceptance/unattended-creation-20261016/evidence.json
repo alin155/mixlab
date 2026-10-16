@@ -1,0 +1,234 @@
+{
+  "implementation_commit": "5ccd57b",
+  "full_native_pipeline_commit": "0208ae0",
+  "final_delta": "5ccd57b only refreshes page-number monitoring progress; rebuilt, installed, restarted and repeated native monitor without duplicate work or ASR",
+  "previous_installed_commit_verified_by_bundle_hash": "d031a89",
+  "environment": {
+    "machine": "macOS arm64",
+    "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
+    "bundle_id": "com.mixlab.unifiedcutter.candidate",
+    "origin": "tauri://localhost",
+    "api": "http://127.0.0.1:64713 (current process only)",
+    "library": "/Volumes/MixLab/PublicLibrary",
+    "snapshot_version": "v012758",
+    "published_assets": 12869,
+    "workspace": "/Users/huaqihang/Library/Application Support/com.mixlab.unifiedcutter.candidate/workspace",
+    "account": "AllenPro / pro",
+    "credential_values_recorded": false
+  },
+  "native_automatic": {
+    "work_id": "W-f90712ce-81e8-45e8-8a9f-2455b2881b46",
+    "job_id": "J-05209ae8-01d1-4936-aa03-d5ba076e6e26",
+    "origin": {
+      "trigger": "automatic",
+      "kind": "rule",
+      "platform": "douyin",
+      "account_id": "A-19ee45a9-d849-459f-9311-89ee455f6b9b",
+      "account_name": "陶矜企管咨询",
+      "rule_id": "R-40d47cb9-addc-4b69-ad1d-b8c5b3039e08",
+      "rule_name": "历史热点完整原声 · 无人值守验收",
+      "hot_id": "douyin:7451923394150386959",
+      "reference_title": "心窄为祸之门，心宽为福之根 #陶矜 #智慧人生 #人生感悟 #认知"
+    },
+    "reference_video_id": "7451923394150386959",
+    "reference_title": "心窄为祸之门，心宽为福之根 #陶矜 #智慧人生 #人生感悟 #认知",
+    "reference_published_at": "2024-12-24T10:32:23.000Z",
+    "reference_seconds": 19.853,
+    "likes_observed": 9623,
+    "historical_sample": true,
+    "rule": {
+      "max_age_hours": 16080,
+      "min_likes": 9000,
+      "max_duration_seconds": 20,
+      "min_growth_per_hour": 0,
+      "execution": "qualified",
+      "daily_limit": 2,
+      "candidates_per_run": 2,
+      "teacher": "陶矜",
+      "subtitle_correction": true
+    },
+    "monitor_triggered_at": "2026-10-16T13:33:49.505Z",
+    "job_queued_at": "2026-10-16T13:35:17.726Z",
+    "completed_at": "2026-10-16T13:35:47.897Z",
+    "elapsed_seconds": 118.392,
+    "fresh_native_reference_download_and_asr": true,
+    "asr_task_id": "166f8b1b-753e-430e-8616-84d6b51e8e3b",
+    "sentences": 4,
+    "exact": 4,
+    "skipped": 0,
+    "accepted_manually": 0,
+    "replacement_or_rotation_override": false,
+    "sources": [
+      {
+        "title": "C0208",
+        "folder": "陶矜2",
+        "rotation": 0,
+        "direction_source": "automatic",
+        "orientation_confidence": 0.9256220857302347
+      },
+      {
+        "title": "C0208",
+        "folder": "陶矜2",
+        "rotation": 0,
+        "direction_source": "automatic",
+        "orientation_confidence": 0.926826556523641
+      },
+      {
+        "title": "C0208",
+        "folder": "陶矜2",
+        "rotation": 0,
+        "direction_source": "automatic",
+        "orientation_confidence": 0.9291272560755411
+      },
+      {
+        "title": "C0207",
+        "folder": "陶矜2",
+        "rotation": 0,
+        "direction_source": "automatic",
+        "orientation_confidence": 0.9225130677223206
+      }
+    ],
+    "output": {
+      "job_id": "J-05209ae8-01d1-4936-aa03-d5ba076e6e26",
+      "native_decoded": true,
+      "width": 1080,
+      "height": 1920,
+      "duration_seconds": 21.733333,
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "volume": [
+        "[Parsed_volumedetect_0 @ 0x145604550] mean_volume: -19.5 dB",
+        "[Parsed_volumedetect_0 @ 0x145604550] max_volume: -5.1 dB"
+      ],
+      "ranges": {
+        "video": {
+          "status": 206,
+          "bytes": 1024,
+          "content_range": "bytes 0-1023/11601804"
+        },
+        "srt": {
+          "status": 206,
+          "bytes": 375,
+          "content_range": "bytes 0-374/375"
+        },
+        "manifest": {
+          "status": 206,
+          "bytes": 1024,
+          "content_range": "bytes 0-1023/16923"
+        }
+      },
+      "files": {
+        "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-0208ae0/心宽为福之根-无人值守自动版.mp4": "b941f8ac3b942636bec35e71fdf4023079115d632b2763f0c6bdb3c5e92317e4",
+        "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-0208ae0/心宽为福之根-无人值守自动版.srt": "e790a0b410ea18860e8a87b6c573fac6aba61cbe2f7e108fc40b571d8e9276eb",
+        "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-0208ae0/心宽为福之根-无人值守自动版-sources.json": "c323523881d7fa6d576d5687bdc535f41c7a2aea4515d9257d491158c9c5ce2c"
+      },
+      "sources_count": 4,
+      "subtitle_correction": {
+        "enabled": true,
+        "model": "qwen-plus",
+        "corrections": []
+      }
+    },
+    "native_playback": "0 to 21 seconds, ended",
+    "reference_playback": "0 to 19 seconds, ended",
+    "source_comparison": "4 linked raw-source segments + cached hotspot reference video"
+  },
+  "native_direction_subtitle_regression": {
+    "separate_manual_test": true,
+    "work_id": "W-191f18ae-c36f-4001-b18a-7622bab40833",
+    "job_id": "J-3aecad6f-5e1a-48d4-9bb2-8bbc890587fe",
+    "source_text_unchanged": true,
+    "source_count": 5,
+    "first_source": "C0168",
+    "first_rotation": 90,
+    "direction_source": "automatic",
+    "manual_C0169_rotation_90_preserved": true,
+    "output": {
+      "job_id": "J-3aecad6f-5e1a-48d4-9bb2-8bbc890587fe",
+      "duration_ms": 19808,
+      "decoded": true,
+      "corrections": [
+        {
+          "index": 4,
+          "original": "看人之长，天下尽是无师。",
+          "corrected": "看人之长，天下尽是吾师。",
+          "reason": "‘无师’应为‘吾师’，与前句‘看人之短，天下无一人可交’对仗，且‘吾师’为固定文言表达，读音、声调完全相同（wú shī），属同音错字"
+        }
+      ],
+      "automatic_rotation_first_clip": 90,
+      "original_source_text_preserved": true,
+      "files": {
+        "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b/宁与智者-自动方向与字幕纠错对比版.mp4": "d8514b91c4e70e34bc3c5052df88fe69eb4aecbe7d19daa486f740e3f897a716",
+        "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b/宁与智者-自动方向与字幕纠错对比版.srt": "5a77debf9bf11116f9fc5d533b780d7eff3cee2d478d86eec7dd1241218d73bb",
+        "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b/宁与智者-自动方向与字幕纠错对比版-sources.json": "f9aa61ab784572a926afe0895aecc5c267f2e3ce6b8b68e9eb6a58719a2bed47"
+      }
+    },
+    "native_playback": "0 to 19 seconds, ended"
+  },
+  "negative_control": {
+    "work_id": "W-ee873deb-9c5e-4849-ba5f-37bfe0fb6e61",
+    "source_video_id": "7453034969103863091",
+    "sentences": 2,
+    "exact": 0,
+    "status": "review",
+    "auto_export": false
+  },
+  "repeat_monitor": {
+    "repeats": 2,
+    "new_work": 0,
+    "new_job": 0,
+    "new_asr": 0,
+    "new_video": 0,
+    "historical_coverage_reused": true,
+    "quota_enforced": true,
+    "acceptance_rule_disabled": true,
+    "acceptance_account_disabled": true,
+    "existing_rules_and_account_settings_preserved": true
+  },
+  "preservation": {
+    "original_works": 8,
+    "original_jobs": 3,
+    "unchanged_entities": 22,
+    "unchanged_files": 12,
+    "bad_entities": [],
+    "bad_files": [],
+    "settings_credentials_keys_identical": true
+  },
+  "first_update_backup": "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T133326Z-before-unattended-0208ae0",
+  "final_update": {
+    "source_commit": "5ccd57b",
+    "backup": "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T133921Z-before-unattended-5ccd57b",
+    "live": "/Users/huaqihang/Library/Application Support/com.mixlab.unifiedcutter.candidate",
+    "app": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app",
+    "artifact": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b/MixLab Unified Cutter Candidate.app",
+    "signature_verified": true,
+    "backup_equal": true
+  },
+  "installed_resources_sha256": {
+    "binaries/node": "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b",
+    "binaries/smart-cutter-api.bundle.mjs": "148723ac7ec1ccaca0e19ed399032f1d949b707ba5d43c20686f16ab48e21f20",
+    "runtime/ai-worker.py": "cdf2b8a058fe4ca652871914696707115d18eab73616ca3661ba84935963c7f7",
+    "runtime/pinyin-pro-LICENSE.txt": "824f6069c5a59b0c1650d0fb9f8d091866c6019eb761c8e658dfc03f001eabd2"
+  },
+  "packaging_checks": {
+    "signature_verified": true,
+    "pinyin_license_present": true,
+    "bundled_haar_classifier_present": true,
+    "typecheck": true,
+    "tests_passed": 57,
+    "tests_failed": 0,
+    "tests_skipped": 0
+  },
+  "limitations": [
+    "Historical video validates the pipeline; it is not a claim of a newly trending video.",
+    "One manual monitor trigger starts the native end-to-end run; this is not a 30-minute scheduler soak test.",
+    "Only high-confidence unique face orientation is corrected; uncertain direction stops for review.",
+    "Subtitle changes apply to display text only and are limited to validated homophones; uncertain/model failures retain clips for review/retry.",
+    "Matching and same-teacher gates are unchanged; unavailable original speech cannot be fabricated.",
+    "No Windows device install, NAS writes, production release or architecture-review changes."
+  ],
+  "delivery_samples": [
+    "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b/心宽为福之根-无人值守自动版.mp4",
+    "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/unattended-5ccd57b/宁与智者-自动方向与字幕纠错对比版.mp4"
+  ]
+}

@@ -1,7 +1,9 @@
+import { SYSTEM_TEMPLATES, type SubtitleTemplate } from "./subtitle-presets.ts";
+
 export type Platform = "douyin";
 export type CreationMode = "manual" | "automatic";
 export type MatchKind = "exact" | "near" | "conflict" | "gap" | "pending";
-export type CropMode = "follow" | "center" | "fit";
+export type CropMode = "portrait" | "follow" | "center" | "fit";
 export type JobStatus = "queued" | "running" | "paused" | "cancelled" | "failed" | "needs_review" | "done";
 
 export interface Settings {
@@ -19,24 +21,32 @@ export interface Settings {
   device_id: string;
 }
 export interface OutputSettings {
+  auto_rotate?: boolean;
+  subtitle_correction?: boolean;
   ratio: "9:16" | "16:9";
   crop_mode: CropMode;
   crop_position: number;
+  shot_size?: "wide" | "medium" | "close";
   subtitles: boolean;
-  subtitle_style: "white" | "yellow";
+  subtitle_style: "white" | "yellow" | "outline" | "box" | "cinema" | "pop";
   subtitle_size: number;
+  subtitle_margin?: number;
+  subtitle_template?: SubtitleTemplate | null;
   normalize_audio: boolean;
   source_folder: string;
   teacher?: string;
   same_lecturer: boolean;
 }
 export const DEFAULT_OUTPUT: OutputSettings = {
-  ratio: "9:16", crop_mode: "follow", crop_position: 0.5,
-  subtitles: true, subtitle_style: "white", subtitle_size: 48,
+  auto_rotate: true, subtitle_correction: false,
+  ratio: "9:16", crop_mode: "portrait", crop_position: 0.5, shot_size: "medium",
+  subtitles: true, subtitle_style: "cinema", subtitle_size: 70, subtitle_margin: 0.12, subtitle_template: SYSTEM_TEMPLATES[0],
   normalize_audio: true, source_folder: "", same_lecturer: true
 };
 export interface Candidate {
   rotation?: 0 | 90 | 180 | 270;
+  direction_source?: "manual" | "automatic";
+  direction_evidence?: Orientation;
   id: string;
   snapshot_id: string;
   source_video_id: string;
@@ -62,6 +72,7 @@ export interface WorkSegment {
   actual: string;
   status: MatchKind;
   accepted: boolean;
+  manual_selection?: boolean;
   skipped?: boolean;
   selected: Candidate | null;
   candidates: Candidate[];
@@ -109,14 +120,28 @@ export interface Work {
   error: string;
   match_progress?: MatchProgress;
 }
-export interface FacePoint { at_ms: number; x: number; y?: number; confidence: number }
+export interface FacePoint { at_ms: number; x: number; y?: number; width?: number; height?: number; confidence: number }
+export interface Orientation {
+  detector?: string;
+  rotation: 0 | 90 | 180 | 270 | null;
+  confidence: number;
+  reason: string;
+  scores: Array<{ rotation: number; score: number; coverage: number; ambiguous: boolean }>;
+}
 export interface Composition {
+  detector_version?: number;
   usable: boolean;
   reason: string;
   points: FacePoint[];
   multiple_faces: boolean;
+  source_aspect?: number;
+  crop_height?: number;
+  target_face_ratio?: number;
 }
 export interface Job {
+  direction_review?: DirectionReview;
+  subtitle_corrections?: Array<{ index: number; original: string; corrected: string; reason: string }>;
+  subtitle_model?: string;
   id: string;
   work_id: string;
   revision: number;
@@ -182,6 +207,8 @@ export interface HotVideo {
   updated_at: string;
 }
 export interface Rule {
+  subtitle_correction?: boolean;
+  max_duration_seconds?: number;
   id: string;
   name: string;
   enabled: boolean;
@@ -199,6 +226,23 @@ export interface Rule {
 }
 export class SmartError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); }
+}
+export interface DirectionReview {
+  segment_id: number; candidate_id: string; source_video_id: string; source_title: string; begin_ms: number; end_ms: number;
+}
+export function directionReviewMessage(review: DirectionReview): string {
+  return `${review.segment_id ? `第 ${review.segment_id} 句 · ` : ""}${review.source_title}（${(review.begin_ms / 1000).toFixed(2)}–${(review.end_ms / 1000).toFixed(2)} 秒）方向待确认：请查看原片，画面正常时点击“确认当前方向”，歪转时先选择正确方向。`;
+}
+export class DirectionReviewError extends SmartError {
+  constructor(public review: DirectionReview) { super("direction_review", directionReviewMessage(review), 409); }
+}
+export function pendingDirectionReview(job: Job): DirectionReview | undefined {
+  if (job.direction_review) return job.direction_review;
+  // Older jobs only persisted a phase and the detector message; expose context without rewriting history.
+  const index = /识别原片方向 (\d+)\//u.exec(job.phase);
+  const segment = index && includedSegments(job.work)[Number(index[1]) - 1], candidate = segment?.selected;
+  return job.status === "needs_review" && job.error.includes("原片方向缺少唯一可靠的人脸证据") && segment && candidate
+    ? { segment_id: segment.id, candidate_id: candidate.id, source_video_id: candidate.source_video_id, source_title: candidate.source_title, begin_ms: candidate.begin_ms, end_ms: candidate.end_ms } : undefined;
 }
 export function requireText(value: unknown, label: string, max = 20_000): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) {
@@ -228,7 +272,7 @@ export function workReady(work: Work): boolean {
   const segments = includedSegments(work);
   return !!work.settings.teacher && segments.length > 0 && segments.every(segment =>
     segment.selected !== null && !!segment.actual.trim() &&
-    (segment.status === "exact" || segment.status === "near" && segment.accepted)
+    (segment.status === "exact" || segment.accepted && (segment.status === "near" || segment.manual_selection === true))
   );
 }
 export function includedSegments(work: Work): WorkSegment[] { return work.segments.filter(segment => !segment.skipped); }

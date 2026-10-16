@@ -19,16 +19,36 @@ export interface LibrarySnapshot {
 export interface SemanticHit { source_video_id: string; segment_id: string; segment_ids?: string[]; begin_ms: number; end_ms: number; text: string; score: number }
 export interface SemanticSearchResult { hits: SemanticHit[]; mode: "ann" | "candidate"; complete: boolean; examined: number; query_ms: number; encoded: number; reused: number }
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex").slice(0, 32);
+const candidateOrder = (a: Candidate, b: Candidate): number => Number(b.kind === "exact") - Number(a.kind === "exact") || Number(a.kind === "conflict") - Number(b.kind === "conflict") || b.score - a.score;
 
 export function classifyMatch(target: string, actual: string): "exact" | "near" | "conflict" {
-  if (normalizeTranscriptText(target) === normalizeTranscriptText(actual)) return "exact";
+  let expected = Array.from(normalizeTranscriptText(target)), spoken = Array.from(normalizeTranscriptText(actual));
+  if (!expected.length || !spoken.length) return "conflict";
+  if (expected.join("") === spoken.join("")) return "exact";
   const facts = (value: string): string => [
     ...(value.match(/\d+(?:\.\d+)?\s*[%％]?/gu) ?? []),
     ...(value.match(/[一二三四五六七八九十百千万]+(?=年|月|天|倍|成|个|元|万|亿)/gu) ?? [])
   ].sort().join("|");
   const negative = (value: string): boolean => /不|没|无|未|别|禁止|不能/u.test(value);
   if (facts(target) !== facts(actual) || negative(target) !== negative(actual)) return "conflict";
-  return "near";
+  // A repeated opening take is reviewable speech, never an exact automatic match.
+  const opening = /^(\p{Script=Han}{4,16})\1/u;
+  expected = Array.from(expected.join("").replace(opening, "$1"));
+  spoken = Array.from(spoken.join("").replace(opening, "$1"));
+  // Embedding similarity only recalls a topic; it cannot establish matching speech.
+  // Reserve manual near-review for small transcript edits, never a different sentence.
+  const longest = Math.max(expected.length, spoken.length), edits = Math.floor(longest * 0.12);
+  if (Math.min(expected.length, spoken.length) < 6 || Math.abs(expected.length - spoken.length) > edits) return "conflict";
+  let previous = spoken.map((_, index) => index + 1); previous.unshift(0);
+  for (let row = 1; row <= expected.length; row++) {
+    const current = [row];
+    for (let column = 1; column <= spoken.length; column++) current.push(Math.min(
+      current[column - 1]! + 1, previous[column]! + 1,
+      previous[column - 1]! + Number(expected[row - 1] !== spoken[column - 1])
+    ));
+    previous = current;
+  }
+  return previous[spoken.length]! <= edits ? "near" : "conflict";
 }
 
 export class SmartLibrary {
@@ -192,7 +212,9 @@ export class SmartLibrary {
       actual, begin_ms: begin, end_ms: end, kind: classifyMatch(target, actual), score,
       width: detail.width, height: detail.height, source_file_path: detail.source_video_file_path,
       cover_file_path: detail.cover_file_path, fingerprint, content_hash: contentHash };
-    candidate.rotation = this.sourceRotation(candidate); return candidate;
+    candidate.rotation = this.sourceRotation(candidate);
+    if (this.store.get("source-direction", this.directionKey(candidate))) candidate.direction_source = "manual";
+    return candidate;
   }
   async selectedRange(snapshot: LibrarySnapshot, target: string, input: Record<string, unknown>): Promise<Candidate> {
     if (typeof input.source_video_id !== "string" || !/^V\d{6}$/.test(input.source_video_id)) throw new SmartError("source_scope", "补选仅接受已发布的公共素材");
@@ -217,7 +239,7 @@ export class SmartLibrary {
     const candidates: Candidate[] = [], results: NonNullable<WorkSegment["retrieval"]>[] = [];
     for (const name of folders) candidates.push(...await this.folderCandidates(snapshot, target, name, query, progress, value => { if (value) results.push(value); }, teacher));
     if (results.length) coverage?.({ mode: results.every(item => item.mode === "ann") ? "ann" : "candidate", complete: results.every(item => item.complete), examined: results.reduce((sum, item) => sum + item.examined, 0) });
-    return candidates.sort((a, b) => Number(b.kind === "exact") - Number(a.kind === "exact") || b.score - a.score).slice(0, 12);
+    return candidates.sort(candidateOrder).slice(0, 12);
   }
   private async folderCandidates(snapshot: LibrarySnapshot, target: string, folder: string, query: string, progress?: (phase: MatchPhase) => void, coverage?: (value: WorkSegment["retrieval"]) => void, teacher = ""): Promise<Candidate[]> {
     progress?.("text_search");
@@ -246,7 +268,7 @@ export class SmartLibrary {
       }
     }
     const unique = [...new Map(candidates.map(item => [item.id, item])).values()];
-    return unique.sort((a, b) => Number(b.kind === "exact") - Number(a.kind === "exact") || b.score - a.score).slice(0, 12);
+    return unique.sort(candidateOrder).slice(0, 12);
   }
   async plan(script: string[], folder: string, progress?: (value: Partial<MatchProgress>) => void, pinned?: string, teacher = ""): Promise<{ snapshot: LibrarySnapshot; segments: WorkSegment[] }> {
     const snapshot = await this.availableSnapshot(progress, pinned); const segments: WorkSegment[] = [];
