@@ -560,3 +560,11 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 包内引擎验收另用 `.local-dev/quality/packaged`，测试端口 `5273` 已关闭。Mac 0.2.0 临时签名包保存在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/quality-5207eeb`，zip SHA-256 `87ab171cc7c0934a73a8fd606b8abf9ef3cea4f748103daa4670e9c71af7738c`，未安装到用户状态。
 - Windows CI `38855754725` / `5207eeb` 成功，43 通过、3 平台专属跳过。安装器在 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-windows/quality-5207eeb`，SHA-256 `9d6e10f935c874813f02e2ae5a568678b84dd2ebf08eb2f01818a84b3f47207b` 与 CI 元数据一致；未执行 Windows 实机安装。
 - 现用应用、用户账号/作品/原成片、NAS 数据和正式下载入口未变更。候选沿用应用 ID，正式切换须退出并备份本机状态，不并发共用状态。验收记录及交付边界见 `docs/acceptance/export-quality-20261015/`。
+
+## 2026-10-15 用户授权本机智能端更新
+
+- 本机现用包从 `82d0e9e` 更新为 `5207eeb` / `0.2.0`，应用路径仍为 `/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app`；标识、真实状态和工作区路径不变。未导入 5278 隔离验收状态。
+- 更新前确认无运行任务，明确退出应用并确认原引擎/AI 进程已停。完整私有状态/工作区、WebKit、偏好和旧应用保留于 `/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261015T231059-before-quality-5207eeb`。备份文件/链接清单一致，安装包签名及关键二进制与 `5207eeb` 交付物一致。
+- 更新后原登录与 Pro 权限恢复；设置、加密密钥文件及全部实体值逐项一致，5 个作品、1 个已完成导出、88 条热点记录保留；原 MP4/SRT/来源清单哈希一致。原生播放器实测历史成片与素材原片联动，热点参考关联可见。
+- 此次引擎随机端口 `58644`，AI/媒体引擎就绪；原生公共库检查连接 `/Volumes/MixLab/PublicLibrary` 成功，当前发布 `v012758` / 12,869 条。端口只属于当前进程，不作为固定配置。
+- 应用已打开并停留本地成果；旧作品保持原构图/字幕设定，需手动选择新模式、保存并新建导出以验收新版画面。未改 NAS、架构审查工作树、Windows 或共享下载入口。证据见 `docs/acceptance/export-quality-20261015/local-update.json`。
