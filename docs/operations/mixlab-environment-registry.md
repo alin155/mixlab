@@ -568,3 +568,15 @@ npm run dev:cutter-web -- --host 127.0.0.1 --port 5177 --strictPort
 - 更新后原登录与 Pro 权限恢复；设置、加密密钥文件及全部实体值逐项一致，5 个作品、1 个已完成导出、88 条热点记录保留；原 MP4/SRT/来源清单哈希一致。原生播放器实测历史成片与素材原片联动，热点参考关联可见。
 - 此次引擎随机端口 `58644`，AI/媒体引擎就绪；原生公共库检查连接 `/Volumes/MixLab/PublicLibrary` 成功，当前发布 `v012758` / 12,869 条。端口只属于当前进程，不作为固定配置。
 - 应用已打开并停留本地成果；旧作品保持原构图/字幕设定，需手动选择新模式、保存并新建导出以验收新版画面。未改 NAS、架构审查工作树、Windows 或共享下载入口。证据见 `docs/acceptance/export-quality-20261015/local-update.json`。
+
+## 2026-10-16 — 系统字幕模板，本机候选更新
+
+- 源码：`codex/unified-quality-20261015` / `96fa721`；保持管理端、已发布剪辑端及 NAS 数据不变。
+- 当前本机候选应用：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/MixLab Unified Cutter Candidate.app`，仍使用 `com.mixlab.unifiedcutter.candidate` 与既有应用数据。本轮实际内置源码为 `96fa721`，不能仅凭 0.2.0 显示版本判断内容。
+- 本机引擎使用随机回环端口，重启可能变化；以原生 runtime_connection 实际返回为准。原生来源为 `tauri://localhost`。账号 AllenPro 已恢复；读取原有 45 秒作品，并成功生成/播放含原声的 8.03 秒字幕预览。
+- 四套系统模板：沉静访谈、清晰口播、重点标色、高对比底板。使用 Noto Serif SC / Noto Sans SC 打包字体；旧作品保持旧样式，选用新模板后才替换。模板预览是临时缓存，不生成或覆盖完整成片。
+- 保留证明：5 个作品、2 个已完成任务及旧 MP4/SRT/来源记录；设置、凭证和密钥文件哈希不变；作品、任务、快照、方向记录不变。备份：`/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T074516Z-before-templates-96fa721`，含完整应用数据与旧应用。
+- 交付：`/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/templates-96fa721`。详细包哈希、48 项回归与内置 Node/FFmpeg 的真实素材验收见 `docs/acceptance/system-templates-20261016/evidence.json`。
+- 既有 Web 测试页仍为 `http://127.0.0.1:5278` → 独立测试引擎 `127.0.0.1:5272`，已更新引擎源码。该页使用隔离工作区与单条公共库 fixture，不能等同本机原生账号/NAS 验收。删除了测试 helper 启动即自动导出整条作品的行为。
+- 本轮临时 UI 验收入口 `5284` → `5282` 仅用于隔离浏览器检查，验收后关闭。
+- Windows 候选构建：Actions `38869085152`。CI 状态及 Windows 实机安装边界见本轮证据文件；未改共享 latest 指针。

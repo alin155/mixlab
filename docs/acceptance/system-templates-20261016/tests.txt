@@ -2,86 +2,86 @@
 > test:smart-cutter
 > node --test --import tsx packages/smart-cutter/src/*.test.ts
 
-(node:94999) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:2291) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ real Admin and client APIs share reviewed accounts, tier changes, password reset and disable (766.2155ms)
-✔ blocked account reads time out without dropping credentials and recover on the same session (330.977458ms)
-✔ blocked volume reads return a connection timeout and recover without another blocking open (514.157416ms)
-✔ Mac rejects a mounted network workspace before creating its directory (87.677791ms)
-(node:95000) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ real Admin and client APIs share reviewed accounts, tier changes, password reset and disable (1015.571333ms)
+✔ blocked account reads time out without dropping credentials and recover on the same session (366.767208ms)
+✔ blocked volume reads return a connection timeout and recover without another blocking open (320.094875ms)
+✔ Mac rejects a mounted network workspace before creating its directory (96.512541ms)
+(node:2292) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ actual local embedding index and face detector; uncertain crop holds and manual override resumes (3097.436542ms)
-✔ monitor rules preserve automatic origin, deduplicate, enforce growth evidence; hotspot import remains manual (614.291917ms)
-✔ saved ASR task resumes without paid resubmission; unknown submission outcome cannot auto-resubmit (351.172333ms)
-(node:95001) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ actual local embedding index and face detector; uncertain crop holds and manual override resumes (3556.213875ms)
+✔ monitor rules preserve automatic origin, deduplicate, enforce growth evidence; hotspot import remains manual (770.554125ms)
+✔ saved ASR task resumes without paid resubmission; unknown submission outcome cannot auto-resubmit (407.044708ms)
+(node:2293) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ a stalled client read reports a retryable timeout rather than an invalid account (1.207208ms)
-✔ client preserves genuine credential errors separately from NAS unavailability (35.708417ms)
-(node:95002) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ a stalled client read reports a retryable timeout rather than an invalid account (1.477292ms)
+✔ client preserves genuine credential errors separately from NAS unavailability (74.591292ms)
+(node:2294) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ download-only is single flight without ASR credentials, reuses local media, streams ranges and recovers after cleanup (498.079667ms)
-✔ bulk review is atomic and revision checked, leaves gaps/conflicts/pending untouched, and enforces Pro (358.758375ms)
-✔ teacher identity constrains matching, candidate selection, bulk review, supplements and old exports (313.417458ms)
-(node:95003) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ download-only is single flight without ASR credentials, reuses local media, streams ranges and recovers after cleanup (590.712792ms)
+✔ bulk review is atomic and revision checked, leaves gaps/conflicts/pending untouched, and enforces Pro (419.884417ms)
+✔ teacher identity constrains matching, candidate selection, bulk review, supplements and old exports (497.96275ms)
+(node:2295) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ incomplete copies cannot become published snapshots with an empty version (317.49925ms)
-✔ a damaged saved snapshot is preserved for diagnosis and rebuilt before reuse (388.044875ms)
-✔ index recovery resumes an owned pinned snapshot when the NAS publishes a newer version (323.746708ms)
-(node:95004) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ incomplete copies cannot become published snapshots with an empty version (525.547958ms)
+✔ a damaged saved snapshot is preserved for diagnosis and rebuilt before reuse (515.539375ms)
+✔ index recovery resumes an owned pinned snapshot when the NAS publishes a newer version (422.318167ms)
+(node:2296) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ interactive matching reports progress and completes while another snapshot index is still running (530.595625ms)
-✔ failed matching preserves the actual last completed counts and a terminal phase (269.47125ms)
-✔ matching panel distinguishes index scope, sentence completion and unmeasured progress (16.265209ms)
-(node:95005) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ interactive matching reports progress and completes while another snapshot index is still running (604.612ms)
+✔ failed matching preserves the actual last completed counts and a terminal phase (336.553625ms)
+✔ matching panel distinguishes index scope, sentence completion and unmeasured progress (14.287083ms)
+(node:2297) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ real published source -> immutable plan -> playable MP4/SRT/provenance, with no public writes (2830.179333ms)
-✔ loopback API enforces origin/token and never exposes configured credentials (238.222125ms)
-✔ paused render survives application restart and reuses a verified clip checkpoint (3156.372541ms)
-✔ NAS retries are bounded, retain finished clips, and resume without reopening their sources (20441.724459ms)
-✔ changed sources fail immediately and unverified partial caches are never published (337.733625ms)
-✔ transient NAS account checks retry while an explicit Pro revocation pauses the render (2208.482583ms)
-✔ a damaged saved clip is rebuilt instead of being silently merged (1129.609792ms)
-(node:95006) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ real published source -> immutable plan -> playable MP4/SRT/provenance, with no public writes (3220.583ms)
+✔ loopback API enforces origin/token and never exposes configured credentials (276.54675ms)
+✔ paused render survives application restart and reuses a verified clip checkpoint (3650.753083ms)
+✔ NAS retries are bounded, retain finished clips, and resume without reopening their sources (20495.006208ms)
+✔ changed sources fail immediately and unverified partial caches are never published (354.790292ms)
+✔ transient NAS account checks retry while an explicit Pro revocation pauses the render (2228.895459ms)
+✔ a damaged saved clip is rebuilt instead of being silently merged (1142.190584ms)
+(node:2298) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ portrait shots share a feasible face size without stretching or unlimited zoom (1.777083ms)
-✔ subtitle presets retain legacy positioning and escape source ASS markup (0.854542ms)
-(node:95007) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ portrait shots share a feasible face size without stretching or unlimited zoom (2.856958ms)
+✔ subtitle presets retain legacy positioning and escape source ASS markup (1.038667ms)
+(node:2299) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ consistent shots render equal face height; historical provenance plays cached originals with access checks (2008.2845ms)
-✔ all subtitle templates render visible distinct pixels at the saved vertical position (830.457833ms)
-(node:95011) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ consistent shots render equal face height; historical provenance plays cached originals with access checks (2422.903042ms)
+✔ all subtitle templates render visible distinct pixels at the saved vertical position (831.999292ms)
+(node:2303) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ cold retrieval never builds the full corpus and incomplete misses cannot be exported (854.64275ms)
-✔ encoding is reused across releases, changed text is recomputed, and ANN respects scope (1416.318791ms)
-✔ verified legacy vectors are adopted without encoding the same text again (562.666125ms)
-✔ matching reuses a validated local snapshot while explicit sync discovers the new release (420.294208ms)
-✔ stopping the builder cannot cancel a request running in the interactive worker (456.732459ms)
-(node:95012) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ cold retrieval never builds the full corpus and incomplete misses cannot be exported (1056.694083ms)
+✔ encoding is reused across releases, changed text is recomputed, and ANN respects scope (1448.886334ms)
+✔ verified legacy vectors are adopted without encoding the same text again (670.591542ms)
+✔ matching reuses a validated local snapshot while explicit sync discovers the new release (618.333583ms)
+✔ stopping the builder cannot cancel a request running in the interactive worker (469.461208ms)
+(node:2304) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ credentials survive concurrent updates but plaintext never appears in their persisted file (25.86425ms)
-✔ request and creation claims persist and enforce a single budget (4.292916ms)
-✔ names are automatic and critical numeric/negative conflicts cannot be passed as exact (2.520958ms)
-✔ reference downloads reject local/network targets before requesting them (5.801167ms)
-(node:95027) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ credentials survive concurrent updates but plaintext never appears in their persisted file (33.413791ms)
+✔ request and creation claims persist and enforce a single budget (4.811708ms)
+✔ names are automatic and critical numeric/negative conflicts cannot be passed as exact (1.533667ms)
+✔ reference downloads reject local/network targets before requesting them (7.01925ms)
+(node:2339) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ TikHub connection action supports unsaved input, saved keys and in-flight requests (58.841083ms)
-(node:95319) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ TikHub connection action supports unsaved input, saved keys and in-flight requests (30.101459ms)
+(node:2587) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ explicitly skipped missing sentences export contiguous real media and captions; restore and all-skipped gates remain enforced (2266.995791ms)
-✔ skipping a selected sentence excludes its original sound and subtitle while explicit restore keeps review state (550.691958ms)
-✔ source direction is remembered by fingerprint, refreshes previews, precedes face analysis and produces upright exported pixels (874.350041ms)
-(node:95323) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ explicitly skipped missing sentences export contiguous real media and captions; restore and all-skipped gates remain enforced (2469.792083ms)
+✔ skipping a selected sentence excludes its original sound and subtitle while explicit restore keeps review state (603.754666ms)
+✔ source direction is remembered by fingerprint, refreshes previews, precedes face analysis and produces upright exported pixels (978.110458ms)
+(node:2662) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ subtitle layout preserves real intervals, escapes ASS and fits long sentences without fabricated word timing (5.038042ms)
-✔ four real template previews reuse selected footage, preserve work/history, enforce access and export immutable recipes (7485.633875ms)
-(node:95385) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ subtitle layout preserves real intervals, escapes ASS and fits long sentences without fabricated word timing (3.3625ms)
+✔ four real template previews reuse selected footage, preserve work/history, enforce access and export immutable recipes (8192.252959ms)
+(node:2693) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ Douyin requests use documented APP V3 parameters and header-only credentials (73.654ms)
-✔ missing and unauthorized credentials or invalid successful payloads do not become fake success (2.020209ms)
-✔ video details accept official single and array forms without silently downloading a different video (2.017417ms)
-(node:95389) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+✔ Douyin requests use documented APP V3 parameters and header-only credentials (41.782042ms)
+✔ missing and unauthorized credentials or invalid successful payloads do not become fake success (1.475334ms)
+✔ video details accept official single and array forms without silently downloading a different video (0.482833ms)
+(node:2695) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ shared approved accounts, old-account compatibility, real manual cut/recut/merge, Pro APIs and protected cleanup (1935.735125ms)
+✔ shared approved accounts, old-account compatibility, real manual cut/recut/merge, Pro APIs and protected cleanup (1878.642833ms)
 ℹ tests 48
 ℹ suites 0
 ℹ pass 48
@@ -89,4 +89,4 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 31194.304709
+ℹ duration_ms 32221.098834

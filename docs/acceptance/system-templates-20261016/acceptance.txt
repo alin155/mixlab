@@ -1,7 +1,7 @@
 MixLab system subtitle templates — 2026-10-16
 
 Scope
-Four built-in recipes: quiet interview (default for new work), clear talking head, keyword emphasis, contrast backing. Only captions are added. Old works keep their existing style until explicitly changed. Save a local personal recipe and reuse it. Each export freezes recipe ID/version, resolved settings and per-caption line breaks/font sizes in sources.json.
+Four built-in recipes: quiet interview (default for new work), clear talking head, keyword emphasis, contrast backing. Emphasis recipe v2 automatically colors an opening clause of up to 12 characters when no explicit keywords are supplied; custom keywords take precedence and personal recipes preserve this rule. Only captions are added. Old works keep their existing style until explicitly changed. Save a local personal recipe and reuse it. Each export freezes recipe ID/version, resolved settings and per-caption line breaks/font sizes in sources.json.
 
 Preview
 Generate up to eight seconds from the selected work, with real source audio and the same framing/subtitle code used by full exports. Exact source/rotation/ratio measurements are reused across template switches. Source reads use the existing local source cache. No matching, semantic indexing, ASR API submission or public-library writes are triggered. Completed exports are untouched. Previews are temporary local cache, never new full export jobs.
@@ -17,3 +17,5 @@ Verification
 
 Boundaries
 No production NAS data or existing Cutter/Admin application is changed. Native local candidate update requires a fresh backup and verification of existing credentials/settings/entities/outputs. Windows CI packaging is separate from a real Windows installation test.
+
+Final implementation source: 96fa721. Full 48-test run plus the exact final template regression passed. Final bundled-engine smoke exported real selected media and rendered all four eight-second recipes without keyword entry. Native preservation proof was repeated after final installation.

@@ -1,0 +1,82 @@
+{
+  "source_commit": "96fa721",
+  "baseline_source": "5207eeb",
+  "local_tests": {
+    "passed": 48,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typecheck": "passed",
+  "web_build": "passed",
+  "mac_signature": "ad-hoc deep strict passed",
+  "mac_archive": "/Users/huaqihang/Documents/Codex/deliveries/mixlab-macos/0.2.0/templates-96fa721/MixLab-templates-96fa721-macos-arm64.zip",
+  "mac_archive_sha256": "20f724b8083950ff03c88de724b7d38fb07569fc6c86a3ec932ea73628fa57fa",
+  "mac_archive_bytes": 256671777,
+  "native_acceptance": {
+    "source_commit": "96fa721",
+    "native_account_restored": true,
+    "native_template_controls_observed": 4,
+    "native_preview_played": true,
+    "native_preview_duration_seconds": 8.033333,
+    "preview_dimensions": [
+      1080,
+      1920
+    ],
+    "preview_audio": true,
+    "default_lead_phrase_highlighted_without_keyword_entry": true,
+    "settings_vault_key_and_old_exports_sha256_equal": true,
+    "work_job_snapshot_direction_rows_equal": true,
+    "preserved_works": 5,
+    "preserved_finished_exports": 2,
+    "no_full_export_created": true,
+    "private_preview_frame": "/Users/huaqihang/Documents/Codex/implementations/mixlab-cutter-quality/output/playwright/system-templates/native-emphasis-final.jpg"
+  },
+  "packaged_smoke": {
+    "previews": [
+      {
+        "template": "quiet",
+        "duration_ms": 8033,
+        "range_status": 206,
+        "warnings": [
+          "1 个长句段已缩小字号以保持两行；时间仍使用原始句段时间戳。建议在管理端细分长句后获得更清晰字幕。"
+        ]
+      },
+      {
+        "template": "clear",
+        "duration_ms": 8033,
+        "range_status": 206,
+        "warnings": []
+      },
+      {
+        "template": "emphasis",
+        "duration_ms": 8033,
+        "range_status": 206,
+        "warnings": []
+      },
+      {
+        "template": "contrast",
+        "duration_ms": 8033,
+        "range_status": 206,
+        "warnings": []
+      }
+    ],
+    "subtitle_template": "quiet",
+    "font": "Noto Serif SC",
+    "caption_count": 2,
+    "job_status": "done",
+    "completed_clips": 2,
+    "duration_ms": 9767,
+    "source_range_status": 206
+  },
+  "private_browser_screenshots": "/Users/huaqihang/Documents/Codex/implementations/mixlab-cutter-quality/output/playwright/system-templates",
+  "browser_personal_template_save": "passed",
+  "windows_ci": {
+    "run": 38869085152,
+    "url": "https://github.com/alin155/mixlab/actions/runs/38869085152",
+    "status": "in_progress",
+    "real_installation": "not performed",
+    "superseded_run": 38868054678
+  },
+  "backup": "/Users/huaqihang/Documents/Codex/backups/smart-cutter/20261016T074516Z-before-templates-96fa721",
+  "browser_personal_template_select_and_play": "passed"
+}
