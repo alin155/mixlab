@@ -6,7 +6,9 @@ import {
   deserializeCutList,
   parseCutList,
   readCutListFromStorage,
+  reorderCutListItem,
   serializeCutList,
+  toCreateClipListRequest,
   type CutListItem
 } from "./cut-list.ts";
 import {
@@ -20,6 +22,7 @@ import {
 import {
   CUT_JOB_PROJECT_INDEX_CORRUPT_STORAGE_KEY,
   CUT_JOB_PROJECT_INDEX_STORAGE_KEY,
+  createQueueJobsFromCutList,
   readCutJobProjectIndex,
   writeCutJobProjectIndex
 } from "./cut-queue.ts";
@@ -137,6 +140,57 @@ test("readCutListFromStorage backs up corrupt payloads and boots with an empty l
   };
   assert.deepEqual(readCutListFromStorage(throwing), []);
   assert.deepEqual(readCutListFromStorage(null), []);
+});
+
+test("reordered cut list persists array+payload order and drives queue execution order", () => {
+  const list: CutListItem[] = [
+    { ...cutListItemPayload({ cut_list_item_id: "cut-a", selected_text: "第一段" }) } as unknown as CutListItem,
+    { ...cutListItemPayload({ cut_list_item_id: "cut-b", selected_text: "第二段", order: 2 }) } as unknown as CutListItem,
+    { ...cutListItemPayload({ cut_list_item_id: "cut-c", selected_text: "第三段", order: 3 }) } as unknown as CutListItem
+  ];
+  const reordered = reorderCutListItem(list, "cut-c", 0);
+  const storage = memoryStorage();
+  storage.setItem(CUT_LIST_STORAGE_KEY, serializeCutList(reordered));
+
+  // The persisted payload is already sorted by the drag order field.
+  assert.deepEqual(
+    (JSON.parse(storage.getItem(CUT_LIST_STORAGE_KEY) ?? "[]") as Array<Record<string, unknown>>)
+      .map((entry) => [entry.cut_list_item_id, entry.order]),
+    [
+      ["cut-c", 1],
+      ["cut-a", 2],
+      ["cut-b", 3]
+    ]
+  );
+
+  // Reading back after a refresh keeps the same order.
+  assert.deepEqual(
+    readCutListFromStorage(storage).map((cut) => [cut.cut_list_item_id, cut.order]),
+    [
+      ["cut-c", 1],
+      ["cut-a", 2],
+      ["cut-b", 3]
+    ]
+  );
+
+  // Submission payload keeps order: the clip-list items are the execution sequence.
+  const request = toCreateClipListRequest({
+    libraryId: "lib_main_001",
+    title: "待剪清单",
+    items: readCutListFromStorage(storage)
+  });
+  assert.deepEqual(request.items.map((entry) => entry.selected_text), ["第三段", "第一段", "第二段"]);
+
+  const jobs = createQueueJobsFromCutList(readCutListFromStorage(storage), {
+    createdAt: "2026-10-29T00:00:00.000Z",
+    projectTitle: "排序项目"
+  });
+  assert.deepEqual(jobs.map((entry) => entry.cut_list_item_id), ["cut-c", "cut-a", "cut-b"]);
+  assert.deepEqual(jobs.map((entry) => entry.title), [
+    "1-排序项目-现金流",
+    "2-排序项目-现金流",
+    "3-排序项目-现金流"
+  ]);
 });
 
 test("readCutterProjects tolerates corrupt JSON and non-array payloads, with backup", () => {

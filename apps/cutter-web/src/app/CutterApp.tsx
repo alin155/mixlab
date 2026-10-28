@@ -62,6 +62,7 @@ import {
   moveCutListItem,
   readCutListFromStorage,
   removeCutListItem,
+  reorderCutListItem,
   serializeCutList,
   toCreateClipListRequest,
   type CutListItem,
@@ -121,6 +122,18 @@ import {
   type CutJobProjectIndex,
   type CutQueueJob
 } from "../state/cut-queue.ts";
+import {
+  addHiddenCutJobIds,
+  countHiddenCutJobs,
+  executeCutQueueBatchDelete,
+  executeCutQueueBatchPause,
+  executeCutQueueBatchRetry,
+  filterHiddenCutJobs,
+  hiddenCutJobIdSet,
+  readHiddenCutJobIds,
+  writeHiddenCutJobIds,
+  type CutQueueBatchResult
+} from "../state/cut-queue-batch.ts";
 import {
   hasActiveCutJobs,
   shouldApplyQueueRefresh,
@@ -1397,6 +1410,7 @@ function renderPage(
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
+    hiddenCutJobCount: number;
     verificationEnabled: boolean;
     releaseV2Enabled: boolean;
   },
@@ -1433,6 +1447,7 @@ function renderPage(
     renameProject: (projectId?: string) => void;
     deleteProject: (projectId: string, mode: ProjectDeleteMode) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
+    reorderCut: (cutListItemId: string, targetIndex: number) => void;
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
     submitCuts: () => void;
@@ -1440,6 +1455,10 @@ function renderPage(
     runNextJob?: () => void;
     retryFailedCutJob?: (cutJobId: string) => void;
     cancelCutJob?: (cutJobId: string) => void;
+    batchRetryCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+    batchPauseCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+    batchDeleteCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+    restoreHiddenCutJobs?: () => void;
     openCutOutputDirectory: () => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
     deleteLocalClip: (localClip: LocalClip) => void;
@@ -1571,6 +1590,11 @@ function renderPage(
         onRunNext={handlers.runNextJob}
         onRetryFailed={handlers.retryFailedCutJob}
         onCancelJob={handlers.cancelCutJob}
+        onBatchRetry={handlers.batchRetryCutJobs}
+        onBatchPause={handlers.batchPauseCutJobs}
+        onBatchDelete={handlers.batchDeleteCutJobs}
+        hiddenJobCount={viewState.hiddenCutJobCount}
+        onRestoreHiddenJobs={handlers.restoreHiddenCutJobs}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
         onLoadMore={handlers.loadMoreCutJobs}
         verificationEnabled={viewState.verificationEnabled}
@@ -1739,6 +1763,9 @@ export function CutterApp() {
   const [loginPollTick, setLoginPollTick] = useState(0);
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
   const queueJobsRef = useRef<CutQueueJob[]>(queueJobs);
+  // Batch delete hides queue rows locally; the ids survive refresh/restart.
+  const [hiddenCutJobIds, setHiddenCutJobIds] = useState<string[]>(() => readHiddenCutJobIds());
+  const hiddenCutJobIdsSet = hiddenCutJobIdSet(hiddenCutJobIds);
   const [sourceLibraryLoadingMore, setSourceLibraryLoadingMore] = useState(false);
   const [localClipsLoadingMore, setLocalClipsLoadingMore] = useState(false);
   const [cutJobsLoadingMore, setCutJobsLoadingMore] = useState(false);
@@ -3039,7 +3066,7 @@ export function CutterApp() {
   const selectedDetail = selectedLocalClip ? localClipToSourceVideoDetail(selectedLocalClip) : data?.primaryDetail;
   const selectedMaterialKey =
     route === "material-locator" && searchQuery.trim() ? selectedMaterialFocusKey : undefined;
-  const allVisibleQueue =
+  const allVisibleQueue = filterHiddenCutJobs(
     apiMode
       ? queueJobs
       : queueJobs.length > 0
@@ -3050,7 +3077,9 @@ export function CutterApp() {
             projectId: currentProjectId,
             projectTitle: currentProject ? projectDisplayTitle(currentProject) : undefined
           })
-        );
+        ),
+    hiddenCutJobIdsSet
+  );
   const visibleQueue = currentProjectId
     ? filterCutQueueJobsByProject(allVisibleQueue, currentProjectId)
     : allVisibleQueue;
@@ -3550,6 +3579,86 @@ export function CutterApp() {
     performMaterialSearch(nextQuery);
   }
 
+  function hideCutQueueJobs(cutJobIds: readonly string[]) {
+    if (cutJobIds.length === 0) {
+      return;
+    }
+
+    setHiddenCutJobIds((current) => writeHiddenCutJobIds(addHiddenCutJobIds(current, cutJobIds)));
+  }
+
+  function restoreHiddenCutQueueJobs() {
+    setHiddenCutJobIds(writeHiddenCutJobIds([]));
+  }
+
+  async function retrySingleCutJob(cutJobId: string): Promise<void> {
+    if (!apiMode) {
+      setQueueJobs((current) =>
+        current.map((job) =>
+          job.queue_job_id === cutJobId && cutJobNeedsRecut(job)
+            ? {
+                ...job,
+                status: "pending",
+                progress: 0,
+                error_message: undefined,
+                verification: undefined
+              }
+            : job
+        )
+      );
+      return;
+    }
+
+    const retried = await client.retryCutJob(cutJobId);
+    const retriedQueueJob = mapApiCutJobsToQueueJobs({
+      job_count: 1,
+      jobs: [retried]
+    }, {
+      projectIndex: cutJobProjectIndex,
+      projectTitlesById: cutterProjectTitlesById(projects)
+    })[0];
+
+    if (retriedQueueJob) {
+      setQueueJobs((current) => [
+        retriedQueueJob,
+        ...current.filter((job) => job.queue_job_id !== cutJobId)
+      ]);
+    }
+  }
+
+  async function cancelSingleCutJob(cutJobId: string): Promise<void> {
+    if (!apiMode) {
+      setQueueJobs((current) =>
+        current.map((job) =>
+          job.queue_job_id === cutJobId && (job.status === "pending" || job.status === "running")
+            ? {
+                ...job,
+                status: "cancelled",
+                progress: 0,
+                error_message: "用户取消剪辑任务"
+              }
+            : job
+        )
+      );
+      return;
+    }
+
+    const cancelled = await client.cancelCutJob(cutJobId);
+    const cancelledQueueJob = mapApiCutJobsToQueueJobs({
+      job_count: 1,
+      jobs: [cancelled]
+    }, {
+      projectIndex: cutJobProjectIndex,
+      projectTitlesById: cutterProjectTitlesById(projects)
+    })[0];
+
+    if (cancelledQueueJob) {
+      setQueueJobs((current) =>
+        current.map((job) => job.queue_job_id === cutJobId ? cancelledQueueJob : job)
+      );
+    }
+  }
+
   const handlers = {
     async addSelectedSpan() {
       if (!data) {
@@ -3805,6 +3914,9 @@ export function CutterApp() {
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
     },
+    reorderCut(cutListItemId: string, targetIndex: number) {
+      setCutList((current) => reorderCutListItem(current, cutListItemId, targetIndex));
+    },
     removeCut(cutListItemId: string) {
       setCutList((current) => removeCutListItem(current, cutListItemId));
     },
@@ -3918,88 +4030,84 @@ export function CutterApp() {
         }
       : undefined,
     retryFailedCutJob: async (cutJobId: string) => {
-      if (!apiMode) {
-        setQueueJobs((current) =>
-          current.map((job) =>
-            job.queue_job_id === cutJobId && cutJobNeedsRecut(job)
-              ? {
-                  ...job,
-                  status: "pending",
-                  progress: 0,
-                  error_message: undefined,
-                  verification: undefined
-                }
-              : job
-          )
-        );
-        setCutNotice("已重新加入剪切 · 等待本机剪切");
-        return;
-      }
-
       try {
-        const retried = await client.retryCutJob(cutJobId);
-        const retriedQueueJob = mapApiCutJobsToQueueJobs({
-          job_count: 1,
-          jobs: [retried]
-        }, {
-          projectIndex: cutJobProjectIndex,
-          projectTitlesById: cutterProjectTitlesById(projects)
-        })[0];
-
-        if (retriedQueueJob) {
-          setQueueJobs((current) => [
-            retriedQueueJob,
-            ...current.filter((job) => job.queue_job_id !== cutJobId)
-          ]);
-        }
-
+        await retrySingleCutJob(cutJobId);
         setCutNotice("已重新加入剪切 · 等待本机剪切");
-        setHasSubmittedCutJobs(true);
-        await refreshQueueJobs();
-        void runRealCutPipeline();
+        if (apiMode) {
+          setHasSubmittedCutJobs(true);
+          await refreshQueueJobs();
+          void runRealCutPipeline();
+        }
       } catch (retryError) {
         showCutterError(retryError, "重试剪切任务失败");
       }
     },
     cancelCutJob: async (cutJobId: string) => {
-      if (!apiMode) {
-        setQueueJobs((current) =>
-          current.map((job) =>
-            job.queue_job_id === cutJobId && (job.status === "pending" || job.status === "running")
-              ? {
-                  ...job,
-                  status: "cancelled",
-                  progress: 0,
-                  error_message: "用户取消剪辑任务"
-                }
-              : job
-          )
-        );
-        setCutNotice("已取消剪辑任务");
-        return;
-      }
-
       try {
-        const cancelled = await client.cancelCutJob(cutJobId);
-        const cancelledQueueJob = mapApiCutJobsToQueueJobs({
-          job_count: 1,
-          jobs: [cancelled]
-        }, {
-          projectIndex: cutJobProjectIndex,
-          projectTitlesById: cutterProjectTitlesById(projects)
-        })[0];
-
-        if (cancelledQueueJob) {
-          setQueueJobs((current) =>
-            current.map((job) => job.queue_job_id === cutJobId ? cancelledQueueJob : job)
-          );
-        }
-
+        await cancelSingleCutJob(cutJobId);
         setCutNotice("已取消剪辑任务");
-        await refreshQueueJobs();
+        if (apiMode) {
+          await refreshQueueJobs();
+        }
       } catch (cancelError) {
         showCutterError(cancelError, "取消剪辑任务失败");
       }
+    },
+    batchRetryCutJobs: async (cutJobIds: readonly string[]) => {
+      const result = await executeCutQueueBatchRetry({
+        jobs: queueJobsRef.current,
+        selected_job_ids: cutJobIds,
+        retryJob: retrySingleCutJob
+      });
+
+      setCutNotice(result.message);
+
+      if (apiMode && result.processed > 0) {
+        setHasSubmittedCutJobs(true);
+        await refreshQueueJobs();
+        void runRealCutPipeline();
+      }
+
+      return result;
+    },
+    batchPauseCutJobs: async (cutJobIds: readonly string[]) => {
+      const result = await executeCutQueueBatchPause({
+        jobs: queueJobsRef.current,
+        selected_job_ids: cutJobIds,
+        pauseJob: cancelSingleCutJob
+      });
+
+      setCutNotice(result.message);
+
+      if (apiMode && result.processed > 0) {
+        await refreshQueueJobs();
+      }
+
+      return result;
+    },
+    batchDeleteCutJobs: async (cutJobIds: readonly string[]) => {
+      const hiddenJobIds: string[] = [];
+      const result = await executeCutQueueBatchDelete({
+        jobs: queueJobsRef.current,
+        selected_job_ids: cutJobIds,
+        cancelJob: cancelSingleCutJob,
+        hideJob: (cutJobId) => {
+          hiddenJobIds.push(cutJobId);
+        }
+      });
+
+      hideCutQueueJobs(hiddenJobIds);
+      setCutNotice(result.message);
+
+      if (apiMode && result.cancelled > 0) {
+        await refreshQueueJobs();
+      }
+
+      return result;
+    },
+    restoreHiddenCutJobs() {
+      restoreHiddenCutQueueJobs();
+      setCutNotice("已恢复显示被删除的剪切任务");
     },
     openCutOutputDirectory: async () => {
       if (!apiMode) {
@@ -4403,6 +4511,7 @@ export function CutterApp() {
                 selectedCutMode,
                 localWorkspacePath: isDesktopMode ? desktopConfig.local_workspace_root : undefined,
                 workspaceConfigNotice,
+                hiddenCutJobCount: countHiddenCutJobs(queueJobs, hiddenCutJobIdsSet),
                 verificationEnabled: verificationUiEnabled,
                 releaseV2Enabled: releaseV2UiEnabledFlag
               },

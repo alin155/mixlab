@@ -21,6 +21,18 @@ import {
   type CutQueueJob
 } from "../../state/cut-queue.ts";
 import {
+  batchPauseCutJobIds,
+  batchRetryCutJobIds,
+  cutQueueBatchActionLabel,
+  planBatchDeleteCutJobs,
+  pruneCutQueueSelection,
+  removeCutQueueJobsFromSelection,
+  setCutQueueJobsSelected,
+  toggleCutQueueJobSelection,
+  type CutQueueBatchAction,
+  type CutQueueBatchResult
+} from "../../state/cut-queue-batch.ts";
+import {
   cutPipelineDetailLabel,
   cutPipelineStatusLabel,
   idleCutPipelineState,
@@ -195,7 +207,12 @@ export function CutQueuePage({
   onCancelJob,
   onOpenCutOutputDirectory,
   onLoadMore,
-  verificationEnabled = true
+  verificationEnabled = true,
+  hiddenJobCount = 0,
+  onRestoreHiddenJobs,
+  onBatchRetry,
+  onBatchPause,
+  onBatchDelete
 }: {
   jobs: readonly CutQueueJob[];
   project?: CutterProject;
@@ -215,6 +232,12 @@ export function CutQueuePage({
    * the legacy field-based behaviour (no capability endpoint / fixture).
    */
   verificationEnabled?: boolean;
+  /** Number of queue rows hidden by the local batch delete action. */
+  hiddenJobCount?: number;
+  onRestoreHiddenJobs?: () => void;
+  onBatchRetry?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+  onBatchPause?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+  onBatchDelete?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
 }) {
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
@@ -225,8 +248,79 @@ export function CutQueuePage({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [statusFilter, setStatusFilter] = useState<CutTaskFilter>("all");
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(() => preferredTaskJob(jobs)?.queue_job_id);
+  const batchEnabled = Boolean(onBatchRetry || onBatchPause || onBatchDelete);
+  const [selectedJobIds, setSelectedJobIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [batchPending, setBatchPending] = useState<CutQueueBatchAction | null>(null);
+  const [batchResult, setBatchResult] = useState<CutQueueBatchResult | null>(null);
   const selectedJob = jobs.find((job) => job.queue_job_id === selectedJobId) ?? preferredTaskJob(jobs);
   const visibleJobs = statusFilter === "all" ? jobs : jobs.filter((job) => job.status === statusFilter);
+  const visibleSelectableJobIds = visibleJobs.map((job) => job.queue_job_id);
+  const allVisibleJobsSelected =
+    visibleSelectableJobIds.length > 0 &&
+    visibleSelectableJobIds.every((queueJobId) => selectedJobIds.has(queueJobId));
+  const retryTargetCount = batchRetryCutJobIds(jobs, selectedJobIds).length;
+  const pauseTargetCount = batchPauseCutJobIds(jobs, selectedJobIds).length;
+  const deleteTargetCount = planBatchDeleteCutJobs(jobs, selectedJobIds).total;
+  const batchButtonsDisabled = selectedJobIds.size === 0 || batchPending !== null;
+
+  async function runBatchAction(action: CutQueueBatchAction) {
+    const handler = action === "retry" ? onBatchRetry : action === "pause" ? onBatchPause : onBatchDelete;
+
+    if (!handler || batchPending !== null || selectedJobIds.size === 0) {
+      return;
+    }
+
+    const requestedJobIds = [...selectedJobIds];
+    setBatchPending(action);
+
+    try {
+      const result = await handler(requestedJobIds);
+      setBatchResult(result);
+      setSelectedJobIds((current) => removeCutQueueJobsFromSelection(current, result.processed_job_ids));
+    } catch {
+      setBatchResult({
+        action,
+        requested: requestedJobIds.length,
+        processed: 0,
+        skipped: 0,
+        failed: requestedJobIds.length,
+        cancelled: 0,
+        processed_job_ids: [],
+        message: `${cutQueueBatchActionLabel(action)}失败：本机服务未响应，请稍后重试`
+      });
+    } finally {
+      setBatchPending(null);
+    }
+  }
+
+  const selectionColumn: TableColumn<CutQueueJob> = {
+    id: "select",
+    header: (
+      <input
+        aria-label="全选当前任务"
+        checked={allVisibleJobsSelected}
+        className="cutter-queue-select-input"
+        onChange={() =>
+          setSelectedJobIds((current) =>
+            setCutQueueJobsSelected(current, visibleSelectableJobIds, !allVisibleJobsSelected)
+          )
+        }
+        type="checkbox"
+      />
+    ),
+    width: 44,
+    align: "center",
+    render: (job) => (
+      <input
+        aria-label={`选择任务 ${job.queue_job_id}`}
+        checked={selectedJobIds.has(job.queue_job_id)}
+        className="cutter-queue-select-input"
+        onChange={() => setSelectedJobIds((current) => toggleCutQueueJobSelection(current, job.queue_job_id))}
+        onClick={(event) => event.stopPropagation()}
+        type="checkbox"
+      />
+    )
+  };
 
   function jobVerification(job: CutQueueJob): UiVerificationState {
     // Field presence always enables verification; when the server explicitly
@@ -244,6 +338,7 @@ export function CutQueuePage({
     return cutJobNeedsRecut(job);
   }
   const taskColumns: Array<TableColumn<CutQueueJob>> = [
+    ...(batchEnabled ? [selectionColumn] : []),
     {
       id: "status",
       header: "状态",
@@ -364,6 +459,15 @@ export function CutQueuePage({
     setSelectedJobId(preferredTaskJob(jobs)?.queue_job_id);
   }, [jobs, selectedJobId]);
 
+  // A refresh (or a batch delete) can remove selected rows: drop orphan ids so
+  // batch actions never target jobs that are no longer on screen.
+  useEffect(() => {
+    setSelectedJobIds((current) => {
+      const next = pruneCutQueueSelection(current, jobs);
+      return next.size === current.size ? current : next;
+    });
+  }, [jobs]);
+
   return (
     <section className="cutter-page cutter-cut-queue ml-workbench-page ml-workbench-page--fluid" data-page="cut-tasks">
       <div className="cutter-page-main ml-workbench-main ml-workbench-main--task-flow">
@@ -376,7 +480,54 @@ export function CutQueuePage({
               {summary.failed > 0 ? ` · ${summary.failed} 个需要处理` : ""}
               {projectTitle ? ` · ${projectTitle}` : ""}
             </p>
+            {batchResult ? (
+              <p className="cutter-queue-batch-notice" role="status">
+                {batchResult.message}
+              </p>
+            ) : null}
           </div>
+          {batchEnabled ? (
+            <div className="cutter-queue-batch ml-control-cluster" role="group" aria-label="批量操作">
+              <span className="cutter-queue-batch-count">{selectedJobIds.size} 个已选</span>
+              <Button
+                className="cutter-queue-batch-button"
+                disabled={batchButtonsDisabled || !onBatchRetry}
+                onClick={() => void runBatchAction("retry")}
+                size="sm"
+                variant="secondary"
+              >
+                {batchPending === "retry" ? "重试中" : `批量重试（${retryTargetCount}）`}
+              </Button>
+              <Button
+                className="cutter-queue-batch-button"
+                disabled={batchButtonsDisabled || !onBatchPause}
+                onClick={() => void runBatchAction("pause")}
+                size="sm"
+                variant="secondary"
+              >
+                {batchPending === "pause" ? "暂停中" : `批量暂停（${pauseTargetCount}）`}
+              </Button>
+              <Button
+                className="cutter-queue-batch-button"
+                disabled={batchButtonsDisabled || !onBatchDelete}
+                onClick={() => void runBatchAction("delete")}
+                size="sm"
+                variant="danger"
+              >
+                {batchPending === "delete" ? "删除中" : `批量删除（${deleteTargetCount}）`}
+              </Button>
+              {hiddenJobCount > 0 && onRestoreHiddenJobs ? (
+                <Button
+                  className="cutter-queue-batch-restore"
+                  onClick={onRestoreHiddenJobs}
+                  size="sm"
+                  variant="ghost"
+                >
+                  {`恢复已删除（${hiddenJobCount}）`}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </header>
 
         <Card className="cutter-queue-filter-card is-workbench" bodyClassName="cutter-queue-filter-card-body ml-toolbar-card-body">

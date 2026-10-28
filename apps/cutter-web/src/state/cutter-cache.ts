@@ -5,6 +5,7 @@ import {
   CUTTER_PROJECTS_STORAGE_KEY
 } from "./cutter-projects.ts";
 import { CUT_JOB_PROJECT_INDEX_STORAGE_KEY } from "./cut-queue.ts";
+import { CUT_QUEUE_HIDDEN_JOBS_STORAGE_KEY } from "./cut-queue-batch.ts";
 
 const CUTTER_PREFERENCE_STORAGE_PREFIX = "mixlab:cutter:";
 const CUTTER_PRESERVED_STORAGE_KEYS = new Set([
@@ -23,7 +24,8 @@ export const CUTTER_USER_DATA_STORAGE_KEYS: readonly string[] = [
   CUT_LIST_STORAGE_KEY,
   CUTTER_PROJECTS_STORAGE_KEY,
   CUTTER_CURRENT_PROJECT_STORAGE_KEY,
-  CUT_JOB_PROJECT_INDEX_STORAGE_KEY
+  CUT_JOB_PROJECT_INDEX_STORAGE_KEY,
+  CUT_QUEUE_HIDDEN_JOBS_STORAGE_KEY
 ];
 
 export function isCutterUserDataStorageKey(key: string): boolean {

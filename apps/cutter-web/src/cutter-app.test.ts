@@ -3840,6 +3840,27 @@ test("cut list renders order, range, text, mode, reorder, delete, clear, and sub
   assert.match(html, /ml-inspector--workbench ml-workbench-inspector/);
 });
 
+test("cut list renders drag handles and clamps up/down boundary actions", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CutListPage, {
+      items: data.cutList,
+      onMove: () => undefined,
+      onReorder: () => undefined,
+      onRemove: () => undefined,
+      onSubmit: () => undefined
+    })
+  );
+
+  assert.match(html, /class="cutter-cut-list-sort"/);
+  assert.match(html, /draggable="true"/);
+  assert.match(html, /拖拽调整顺序/);
+  assert.match(html, /data-page="cut-list"/);
+  assert.match(html, /拖拽行或使用上移\/下移调整顺序/);
+  // A single-row fixture sits on both boundaries: up and down are disabled.
+  assert.equal((html.match(/\bis-disabled\b/g) ?? []).length, 2);
+});
+
 test("cut list table sizing uses table props and foundation utilities", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
   const foundationCss = await readFile(
@@ -4491,6 +4512,50 @@ test("cut tasks table keeps selected text and problem cells to one line with sem
     css.includes('[data-cutter-route="cut-tasks"] .ml-inspector-body'),
     false
   );
+});
+
+test("cut tasks page exposes batch retry, pause and delete with empty-selection guards", () => {
+  const data = fixture();
+  const emptyResult = {
+    action: "retry" as const,
+    requested: 0,
+    processed: 0,
+    skipped: 0,
+    failed: 0,
+    cancelled: 0,
+    processed_job_ids: [],
+    message: ""
+  };
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue,
+      hiddenJobCount: 2,
+      onRestoreHiddenJobs: () => undefined,
+      onBatchRetry: async () => emptyResult,
+      onBatchPause: async () => emptyResult,
+      onBatchDelete: async () => emptyResult
+    })
+  );
+
+  for (const text of ["0 个已选", "批量重试（0）", "批量暂停（0）", "批量删除（0）", "恢复已删除（2）"]) {
+    assert.match(html, new RegExp(text));
+  }
+  assert.match(html, /aria-label="全选当前任务"/);
+  assert.equal((html.match(/aria-label="选择任务 /g) ?? []).length, data.queue.length);
+  assert.equal((html.match(/cutter-queue-batch-button[^>]*disabled=""/g) ?? []).length, 3);
+  assert.match(html, /class="cutter-queue-select-input"/);
+});
+
+test("cut tasks page hides batch controls when no batch handlers are wired", () => {
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: fixture().queue
+    })
+  );
+
+  for (const text of ["批量重试", "批量暂停", "批量删除", "全选当前任务"]) {
+    assert.equal(html.includes(text), false, text);
+  }
 });
 
 test("cut tasks omits manual refresh and continue controls", () => {

@@ -7,6 +7,7 @@ import {
   deserializeCutList,
   moveCutListItem,
   removeCutListItem,
+  reorderCutListItem,
   serializeCutList,
   toCreateLocalClipRequest,
   toCreateClipListRequest,
@@ -1179,6 +1180,64 @@ test("cut-list reorder, remove, clear, serialize are deterministic", () => {
       ["cut-b", 2]
     ]
   );
+});
+
+test("cut-list drag reorder and up/down boundaries keep stable order numbers", () => {
+  const list = [
+    item({ cut_list_item_id: "cut-a", order: 1 }),
+    item({ cut_list_item_id: "cut-b", order: 2 }),
+    item({ cut_list_item_id: "cut-c", order: 3 })
+  ];
+  const asPairs = (items: readonly CutListItem[]) =>
+    items.map((cut) => [cut.cut_list_item_id, cut.order]);
+
+  assert.deepEqual(asPairs(reorderCutListItem(list, "cut-a", 2)), [
+    ["cut-b", 1],
+    ["cut-c", 2],
+    ["cut-a", 3]
+  ]);
+  assert.deepEqual(asPairs(reorderCutListItem(list, "cut-c", 0)), [
+    ["cut-c", 1],
+    ["cut-a", 2],
+    ["cut-b", 3]
+  ]);
+  assert.deepEqual(asPairs(reorderCutListItem(list, "cut-a", 0)), [
+    ["cut-a", 1],
+    ["cut-b", 2],
+    ["cut-c", 3]
+  ]);
+  assert.deepEqual(asPairs(reorderCutListItem(list, "cut-a", -10)), [
+    ["cut-a", 1],
+    ["cut-b", 2],
+    ["cut-c", 3]
+  ]);
+  assert.deepEqual(asPairs(reorderCutListItem(list, "cut-c", 99)), [
+    ["cut-a", 1],
+    ["cut-b", 2],
+    ["cut-c", 3]
+  ]);
+  assert.deepEqual(asPairs(reorderCutListItem(list, "cut-missing", 1)), [
+    ["cut-a", 1],
+    ["cut-b", 2],
+    ["cut-c", 3]
+  ]);
+
+  // Up/down buttons must not move an item beyond the first/last index.
+  assert.deepEqual(asPairs(moveCutListItem(list, "cut-a", "up")), [
+    ["cut-a", 1],
+    ["cut-b", 2],
+    ["cut-c", 3]
+  ]);
+  assert.deepEqual(asPairs(moveCutListItem(list, "cut-c", "down")), [
+    ["cut-a", 1],
+    ["cut-b", 2],
+    ["cut-c", 3]
+  ]);
+  assert.deepEqual(asPairs(moveCutListItem(list, "cut-a", "down")), [
+    ["cut-b", 1],
+    ["cut-a", 2],
+    ["cut-c", 3]
+  ]);
 });
 
 test("cut-list items submit as local clip requests without public source mutation APIs", () => {

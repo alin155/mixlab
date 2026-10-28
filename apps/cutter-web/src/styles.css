@@ -347,3 +347,65 @@ body,
   background: color-mix(in srgb, var(--ml-color-warning, #f5a524) 18%, transparent);
   font-size: 11px;
 }
+
+/* A1: cut-list drag sorting (the order persisted in CUT_LIST_STORAGE_KEY). */
+.cutter-cut-list-sort {
+  min-width: 0;
+  min-height: 0;
+}
+
+.cutter-cut-list-order-cell {
+  align-items: center;
+  gap: 8px;
+}
+
+.cutter-cut-list-drag-handle {
+  color: var(--ml-color-text-tertiary, #9aa5b1);
+  cursor: grab;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+}
+
+.cutter-cut-list-drag-handle:active,
+.cutter-cut-list-sort.is-dragging .cutter-cut-list-drag-handle {
+  color: var(--ml-color-accent, #4ea3ff);
+  cursor: grabbing;
+}
+
+.cutter-cut-list-order-value {
+  min-width: 18px;
+  color: var(--ml-color-text-primary, #f4f6f8);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.cutter-cut-list-sort.is-drop-target .cutter-cut-list-drag-handle {
+  color: var(--ml-color-accent, #4ea3ff);
+}
+
+/* A2: cut-queue batch selection and summaries. */
+.cutter-queue-batch {
+  flex-wrap: wrap;
+}
+
+.cutter-queue-batch-count {
+  color: var(--ml-color-text-secondary, #c7ccd4);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.cutter-queue-batch-notice {
+  margin: 6px 0 0;
+  color: var(--ml-color-ready, #3ccf91);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.cutter-queue-select-input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--ml-color-accent, #4ea3ff);
+  cursor: pointer;
+}

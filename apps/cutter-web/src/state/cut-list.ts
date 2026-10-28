@@ -192,6 +192,39 @@ export function moveCutListItem(
   return normalizeOrder(next);
 }
 
+/**
+ * Move one item to an absolute position (drag & drop target index) and renumber
+ * every remaining item to 1..N. Unknown ids and out-of-range targets are
+ * normalised instead of throwing so a stale drag never corrupts the list.
+ */
+export function reorderCutListItem(
+  items: readonly CutListItem[],
+  cutListItemId: string,
+  targetIndex: number
+): CutListItem[] {
+  const next = [...items].sort((left, right) => left.order - right.order);
+  const index = next.findIndex((item) => item.cut_list_item_id === cutListItemId);
+
+  if (index === -1 || !Number.isFinite(targetIndex)) {
+    return normalizeOrder(next);
+  }
+
+  const clampedTarget = Math.max(0, Math.min(next.length - 1, Math.trunc(targetIndex)));
+
+  if (clampedTarget === index) {
+    return normalizeOrder(next);
+  }
+
+  const [moved] = next.splice(index, 1);
+  if (!moved) {
+    return normalizeOrder(next);
+  }
+
+  next.splice(clampedTarget, 0, moved);
+
+  return normalizeOrder(next);
+}
+
 export function removeCutListItem(items: readonly CutListItem[], cutListItemId: string): CutListItem[] {
   return normalizeOrder(items.filter((item) => item.cut_list_item_id !== cutListItemId));
 }
