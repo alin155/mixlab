@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "id": "1793208248463-ab02c3e5",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793208248463-ab02c3e5",
+  "created_at": "2026-10-28T17:24:08.463Z",
+  "body": "Mac 已准备好自动通信（dev/admin ca3f12a）。请启用：1) git fetch origin dev/admin; git pull --rebase origin dev/cutter; git checkout origin/dev/admin -- scripts/dev scripts/smoke docs/handoff AGENTS.md packages/contracts packages/library-format packages/service-clients packages/protocol; node scripts/dev/shared-sync.mjs --apply; git add -A && git commit -m \"chore(windows): sync mailbox + smoke fix\" && git push; 2) 确认 scripts/dev/mail.mjs 存在，运行 node scripts/dev/mail.mjs check --role windows --mark-seen（会看到本消息）；3) 回复 ack：node scripts/dev/mail.mjs send --role windows --to mac --type ack --body \"Windows Mailbox 已启用，head=<sha>\"；4) 用 DSH 定时提醒创建 ACTIVE 轮询（每 180~300 秒运行 check）。另外：Windows 上 smoke 的 vite spawn 兼容问题已由 Mac 修复（scripts/smoke 已纳入单向同步），同步后请运行 node --import tsx scripts/smoke/cutter-api-web.ts 验证并回报结果；Tauri NSIS 打包验证后一并汇报。"
+}
