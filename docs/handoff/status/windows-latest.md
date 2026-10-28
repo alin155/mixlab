@@ -1,17 +1,17 @@
 # windows 状态报告
 
-- generated_at: 2026-10-28T19:08:32.364Z
+- generated_at: 2026-10-28T19:26:26.419Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: 435b94af6426c81edcb37287ed05949a47b8c551
-- head_subject: [mail][windows→mac] reply 1793214503939-b2dd6be2
-- head_time: 2026-10-29T03:08:24+08:00
+- head: 59831c7e6ab56e59d97631ea3e17c5cb6a423ed1
+- head_subject: [mail][windows→mac] reply 1793215577070-b6a0b388
+- head_time: 2026-10-29T03:26:17+08:00
 - dirty_tracked: 0
-- dirty_untracked: 1
+- dirty_untracked: 0
 - peer_branch: dev/admin
 - shared_vs_admin: SAME
 
@@ -29,13 +29,14 @@
 
 - guards: 已激活并生效（pre-commit/pre-push 实测拦截越界提交）；CI sync-guard 持续 success，windows-status-notify 自动更新 Issue #6。
 - toolchain: Rust/cargo/rustc 1.99.1、VS Build Tools 2022 17.14.42 + MSVC 14.44.35207、WebView2 156.0.4314.50、Playwright chromium 已安装。
-- mailbox: 同步至 admin@e406be1；ACTIVE 每 240s；D 契约已批准（task 1793213459743）；D1b 已 reply（1793214503939-b2dd6be2）；D2 实现中。
+- mailbox: 同步至 admin@e406be1；ACTIVE 每 240s；D 契约 task 1793213459743：D1b reply 1793214503939-b2dd6be2、D2 reply 1793215083968-0b268a48、D3 reply 1793215571727-c25c014c、D4 reply 1793215577070-b6a0b388；pending 清空。
 - desktop_fixes: (a) 关闭窗口/退出时回收 cutter-api sidecar + searchd（Tauri CloseRequested/RunEvent::Exit → taskkill；新增 app_window_close_cleanup/app_exit_cleanup 日志 + cargo 单测），实测关窗后进程/端口全 0；(b) NSIS POSTUNINSTALL 清理 INSTDIR\cache、INSTDIR、HKCU\Software\MixLab\MixLab Cutter（父键 ifempty），实测卸载后这些全部清除。提交 6d7ae3f；cargo test 6/6。
 - smoke_verify: 多次重跑 status=passed ✅（含 D1b 后回归）。
 - A1A2: 已接线（78e9c86）；Playwright 11/11（C:\dev\mixlab-verify-a1a2）。
 - B_stage: 8633584 + 2477293；证据 C:\dev\mixlab-verify-b（2000 命中分页 5/5、真实 searchd kill 回退 5/5、竞态守卫单测）。
-- D_stage: D1 前端（e335da5）清除界面缓存二次确认/预览/保护项/重试 + Playwright 10/10；D1b 已完成（051c950）：cutter-api inventory/clean（confirm_token 120s/一次性/expected_bytes 绑定、pinned/prefetch/release 保护、稳定错误码）+ 前端磁盘清理面板；cutter-api 105/105、cutter-web 300/300、全量 516/516、smoke passed；服务级证据 20/20 + UI 6/6（C:\dev\mixlab-verify-d）。D2 实现中。
-- tests: typecheck PASS；cutter-api 105、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 300、cutter-desktop 7 = 516/516；smoke passed。
-- blockers: 无硬阻塞；等 D2→D3→D4 实现与验收；A2 真 pause/resume/delete 留后续批次。
-- next: D2 完成 reply；随后 D3、D4；全部完成后统一全量回归+smoke+重建 NSIS+sha256。
+- D_stage: 全部完成。D1（e335da5）界面缓存二次确认/预览/保护项/重试；D1b（051c950）磁盘缓存 inventory/clean（token/expected/保护/错误码）+ 前端面板（服务级 20/20、UI 6/6）；D2（5f49665）local-clips integrity/clean/引用保护/磁盘告警 + 前端治理面板（9 HTTP 用例、UI 6/6）；D3（5f49665）workspace residue scan/clean + 启动提示（8 HTTP 用例、UI 6/6）；D4（41b73a0）release-cache pins/evict（被引用/active 保护、路径白名单）+ 前端版本淘汰面板（9 HTTP 用例、UI 6/6）。D5（治理操作日志）未做，列为可选下一批。证据 C:\dev\mixlab-verify-d。
+- tests: typecheck PASS；cutter-api 131、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7 = 543/543；smoke status=passed。
+- nsis_artifact: 重建安装包（含 A1/A2+B+D 全部前端）MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=1007BAE8BE55E138197ADD803031446B2AFADC8729BB009F4846128B3D2522C3。
+- blockers: 无硬阻塞；D5 操作日志可选未做；A2 真 pause/resume/delete 契约待下一批；B 真实 2000+ searchd 压测/UI 降级截图可作为演示补充。
+- next: 等 Mac 对 D 全部验收反馈；下一批可选 D5/A2 契约/其它；轮询每 240s 保持。
 <!-- MANUAL:END -->
