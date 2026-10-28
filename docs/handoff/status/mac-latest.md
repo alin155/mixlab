@@ -1,15 +1,15 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T15:36:04.312Z
+- generated_at: 2026-10-28T16:02:13.102Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 6aba51ef47faa09fcf4cbd30ee4d61c2e72d310c
-- head_subject: fix(protocol): resolve Windows mount roots with drive subpaths and UNC (win32 join)
-- head_time: 2026-10-28T08:35:51-07:00
+- head: 617e41043a712f576b18b6e6f3cf7de99a95c622
+- head_subject: chore(dev): allow Windows-owned test-runner/acceptance paths in scope guard
+- head_time: 2026-10-28T09:01:56-07:00
 - dirty_tracked: 1
 - dirty_untracked: 0
 - peer_branch: dev/cutter

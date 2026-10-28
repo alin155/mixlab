@@ -15,7 +15,7 @@
 1. **不要做整分支 merge**（`git merge dev/admin` 等）：两条交付线的 `library-fs`/`cutter-api` 内部 API 已分叉，合并需要专门的 Phase B 迁移，不是日常操作。
 2. **只改自己机器的目录**：
    - Mac：`apps/admin-web/`、`packages/admin-api/`、`packages/library-fs/`、`scripts/servers/admin-api-server.ts`、`scripts/workers/`；
-   - Windows：`apps/cutter-web/`、`apps/cutter-desktop/`、`packages/cutter-api/`、`packages/cutter-local/`、`packages/ffmpeg-core/`、`packages/desktop-runtime/`、`scripts/desktop/`。
+   - Windows：`apps/cutter-web/`、`apps/cutter-desktop/`、`packages/cutter-api/`、`packages/cutter-local/`、`packages/ffmpeg-core/`、`packages/desktop-runtime/`、`packages/windows-test-runner/`、`scripts/desktop/`、`scripts/acceptance/windows-*`。
 3. **共享包只能 Mac 侧修改**：`packages/contracts/`、`packages/library-format/`、`packages/service-clients/`、`packages/protocol/`、`packages/runtime-config/`、`packages/ui-foundation/`。
    Windows 只允许通过 `node scripts/dev/shared-sync.mjs --apply` 单向同步，不允许手改。
 4. **共享工具/规则同样单向同步**：`scripts/dev/`、`docs/handoff/`、`AGENTS.md` 由 Mac 维护，Windows 只读。
@@ -43,6 +43,17 @@ npm test
 node scripts/dev/shared-sync.mjs            # 只检查
 node scripts/dev/shared-sync.mjs --apply    # 执行（确认未手改共享包）
 ```
+
+## 自动化护栏（防冲突）
+
+每个克隆执行一次：`node scripts/dev/install-hooks.mjs`
+
+- **pre-commit**：按分支角色拦截越界文件（Windows 只能改剪辑端；Mac 不能改剪辑端；共享内容只允许与 dev/admin 一致的同步）。
+- **pre-push**：拒绝落后远端、拒绝 merge commit、拒绝越界、Windows 要求共享内容已同步。
+- **CI（sync-guard workflow）**：push/PR 时自动重跑同样的检查（写入域、禁止 merge、共享一致性）。
+- **状态通知（可选）**：push 状态报告时自动更新 GitHub Issue `[windows-status]`。
+- **会话自检**：`node scripts/dev/session-start.mjs` 打印分支/远端/共享同步/对方最新状态。
+- 禁止用 `--no-verify` 绕过；确需绕过要人工说明原因。
 
 ## Windows 首次运行注意
 

@@ -88,7 +88,11 @@ node scripts/dev/shared-sync.mjs            # 只检查
 node scripts/dev/shared-sync.mjs --apply    # 执行同步
 ```
 
-禁止手改共享包；禁止整分支 merge。
+安装本地护栏（执行一次）：
+node scripts/dev/install-hooks.mjs
+（pre-commit/pre-push 会自动拦截越界文件、merge commit、未同步的共享内容；不要用 --no-verify 绕过。）
+
+注意：CI sync-guard 会在 push 时自动检查写入域/merge/共享一致性（需仓库 Actions 已启用）。禁止手改共享包；禁止整分支 merge。
 
 ## 4. 安装依赖
 

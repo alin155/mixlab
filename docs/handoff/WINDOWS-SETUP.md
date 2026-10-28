@@ -55,6 +55,12 @@ git commit -m "chore(windows): sync shared tooling/rules from dev/admin"
 git push origin dev/cutter
 ```
 
+安装本地护栏（每台机器一次）：
+
+```powershell
+node scripts/dev/install-hooks.mjs
+```
+
 以后 Mac 更新共享包后：
 
 ```powershell
@@ -117,7 +123,14 @@ $env:MIXLAB_FFPROBE_PATH="C:\path\to\ffprobe.exe"
 - `node:sqlite` 可用性（Node >= 22.5）。
 逐项记录、修复并跑相关测试，不要直接跳过。
 
-## 9. 报告与信箱
+## 9. 自动化防线（已配置）
+
+- 本地钩子：pre-commit/pre-push 自动拦截越界、merge、未同步共享内容；
+- CI：push/PR 自动跑 sync-guard（写入域、禁止 merge、共享一致性）；首次使用需在 GitHub 仓库 Settings → Actions 允许运行；
+- 可选：状态报告 push 后自动更新 Issue `[windows-status]`；
+- 会话开始：`node scripts/dev/session-start.mjs`。
+
+## 10. 报告与信箱
 
 每次阶段进展：
 

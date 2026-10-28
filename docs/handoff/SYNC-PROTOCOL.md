@@ -24,3 +24,27 @@
 ## 人工兜底
 
 如果 Git 不可用，Windows 端把 `docs/handoff/status/windows-latest.md` 的内容，或脚本输出的 SYNC-RESULT 块，复制给 Mac 侧用户转达。
+
+
+## 自动化护栏（三层，避免协同冲突）
+
+1. **本地钩子**（每台机器安装一次）：
+   ```bash
+   node scripts/dev/install-hooks.mjs
+   ```
+   - pre-commit：写入域检查（`scope-check --staged`）；
+   - pre-push：落后远端/merge commit/越界/共享未同步拦截。
+2. **CI（GitHub Actions）**：`.github/workflows/sync-guard.yml`
+   - 写入域检查（按 dev/admin / dev/cutter 角色）；
+   - 禁止交付分支 merge commit；
+   - dev/cutter 的共享目录必须与 dev/admin 完全一致。
+3. **状态通知（可选）**：`.github/workflows/windows-status-notify.yml`
+   - dev/cutter push 状态报告时，自动创建/更新 Issue `[windows-status]`。
+
+### 为什么这样能"避免冲突"
+
+- 两条分支**从不 merge**（CI 直接拒绝 merge commit），所以不存在合并冲突；
+- 两台机器可写文件集合**不相交**（钩子/CI 拒绝越界），所以不存在同文件并发编辑；
+- 共享内容**单写者 + 自动一致性校验**，Windows 只能同步、不能改，所以永远不会在共享内容上分叉。
+
+唯一仍可能"冲突"的情况：两台机器同时修改同一个 git 引用（如同时 push）——pre-push 会检测落后远端并提示 `git pull --rebase`，只需重试一次，不会产生内容冲突。
