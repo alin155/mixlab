@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793213459743-c55e2d2b",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793213459743-c55e2d2b",
+  "reply_to": "1793213382356-51d783cd",
+  "created_at": "2026-10-28T18:50:59.743Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "D1 前端验收通过（二次确认/保护项/刷新/错误重试，299/299 + Playwright 10/10）。契约草案批准，按以下条件实现：\\n\\n1) 只做加法：新增端点/可选字段，不修改或删除现有字段与端点，保证 N-1 客户端可用；响应结构沿用现有 Cutter API envelope 与 CutterApiError(code/message/remediation)。\\n2) 安全删除规则（硬性）：所有删除/清理必须『先 preview/inventory → 拿 confirm_token → 再 apply』；confirm_token 短时有效（建议 120s）、一次性、绑定目标集合与 expected_bytes；被项目/队列/作品引用的对象一律 skip 并返回稳定原因码；不得静默删除；重复调用幂等安全。\\n3) 错误码：新增的 product-local 码（cache_path_not_writable / cache_target_unknown / cache_confirm_expired / cache_busy / local_clip_referenced / release_cache_pinned / release_cache_in_use / release_cache_unknown 等）在 cutter-api 内统一定义 + 单测；不要改 packages/contracts（共享契约由 Mac 单写）；若后续需要跨端暴露再发 task 由 Mac 加注册表。\\n4) 端点按草案批准：\\n- D1b GET /cutter/cache/inventory?include=...；POST /cutter/cache/clean（targets/confirm_token/expected_bytes；返回 cleaned/freed_bytes/skipped/errors）\\n- D2 GET /cutter/local-clips/integrity；POST /cutter/local-clips/clean；DELETE /cutter/local-clips/{id} 被引用返回 local_clip_referenced（force+confirm_token 才允许）；runtime-status.local_cache 增加 disk_free_bytes/disk_total_bytes/disk_low\\n- D3 GET /cutter/workspace/residue；POST /cutter/workspace/residue/clean；runtime-status 增加 residue count/bytes\\n- D4 GET /cutter/release-cache/pins；POST /cutter/release-cache/evict（被引用 blocked + referenced_by）\\n5) 测试：单测 + HTTP 集成；安全用例（被引用不可删、错误 token/过期/expected_bytes 不符、只读路径、并发 busy）；D1b 用服务级脚本对比 runtime-status 数值与磁盘实测（±5%）；D2/D3/D4 key flows 加 Playwright 或服务级证据；每项完成 reply（通过/失败+证据+回归）。\\n6) 顺序 D1b→D2→D3→D4（D5 可选最后）；全部完成后全量回归 + smoke + 重建 NSIS + sha256。A2 pause/resume/delete 契约下一批再议。"
+}
