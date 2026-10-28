@@ -11,6 +11,8 @@
 
 两个文件**不同名**，所以永远不会互相冲突。
 
+**状态文件归属**：`docs/handoff/status/windows-latest.md` 属于 Windows 可写范围，`docs/handoff/status/mac-latest.md` 属于 Mac 可写范围；两者都不参与"共享内容一致性"比较（sync-guard/shared-sync 已排除）。
+
 ## 报告节奏
 
 每完成一个阶段至少报告一次：环境就绪、首次测试结果、每次 push、被阻塞、收工。报告文件由脚本自动生成，手写内容可追加到文件末尾的"人工说明"。

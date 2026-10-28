@@ -1,15 +1,15 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T16:02:13.102Z
+- generated_at: 2026-10-28T17:03:13.079Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 617e41043a712f576b18b6e6f3cf7de99a95c622
-- head_subject: chore(dev): allow Windows-owned test-runner/acceptance paths in scope guard
-- head_time: 2026-10-28T09:01:56-07:00
+- head: 603c0681daf4983c57685c47cae4eef9dc5b1e7e
+- head_subject: fix(dev): Windows owns its status mailbox file; correct notify workflow name in scope guard
+- head_time: 2026-10-28T10:02:52-07:00
 - dirty_tracked: 1
 - dirty_untracked: 0
 - peer_branch: dev/cutter
