@@ -1,16 +1,16 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T15:35:51.608Z
+- generated_at: 2026-10-28T15:36:04.312Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 5a815bd8d020303a595b8a0ffa860b8319126b58
-- head_subject: chore(admin): add dual-machine sync protocol, status scripts and initial mac status
-- head_time: 2026-10-28T07:15:03-07:00
-- dirty_tracked: 5
+- head: 6aba51ef47faa09fcf4cbd30ee4d61c2e72d310c
+- head_subject: fix(protocol): resolve Windows mount roots with drive subpaths and UNC (win32 join)
+- head_time: 2026-10-28T08:35:51-07:00
+- dirty_tracked: 1
 - dirty_untracked: 0
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME
@@ -22,6 +22,7 @@
 | packages/contracts | 8 | 7e949275029f9fb395bf626914d1805c55b8a656adc8f522bd887e9680648070 |
 | packages/library-format | 12 | f59c6e121a7f8de2298a7ff5b09d8390c0bdf0362de0620f52e608d4d9a7b50f |
 | packages/service-clients | 5 | 4b83ad045d42a619b608282105476ffbe3237493efa5ea9776e3f4eb5c76661e |
+| packages/protocol | 16 | dbef6befe999a19fcb6e4812edf4b6c29fbec971c53af8059f824bb11523eca4 |
 
 <!-- MANUAL:BEGIN -->
 ## 人工补充（自检/阻塞/下一步）

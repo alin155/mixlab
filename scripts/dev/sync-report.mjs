@@ -18,7 +18,8 @@ import path from "node:path";
 const SHARED_DIRS = [
   "packages/contracts",
   "packages/library-format",
-  "packages/service-clients"
+  "packages/service-clients",
+  "packages/protocol"
 ];
 const ROLE_BRANCH = { mac: "dev/admin", windows: "dev/cutter" };
 const PEER_BY_ROLE = { mac: "windows", windows: "mac" };
