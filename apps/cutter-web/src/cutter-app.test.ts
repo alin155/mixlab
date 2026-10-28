@@ -280,7 +280,20 @@ function fixture() {
     queue: [
       queue[0]!,
       { ...queue[0]!, queue_job_id: "job-running", status: "running" as const, progress: 67 },
-      { ...queue[0]!, queue_job_id: "job-done", status: "done" as const, progress: 100 },
+      {
+        ...queue[0]!,
+        queue_job_id: "job-done",
+        status: "done" as const,
+        progress: 100,
+        cut_mode_used: "smart" as const,
+        verification: {
+          passed: true,
+          expected_duration_ms: 16_000,
+          actual_duration_ms: 15_990,
+          tolerance_ms: 200,
+          checks: []
+        }
+      },
       {
         ...queue[0]!,
         queue_job_id: "job-failed",
@@ -4110,6 +4123,43 @@ test("cut tasks page renders every task state and summary in Chinese", () => {
   assert.match(html, /class="ml-supporting-text"/);
 });
 
+test("cut tasks page distinguishes verified, failed and unverified completions", () => {
+  const data = fixture();
+  const doneJob = data.queue.find((job) => job.queue_job_id === "job-done");
+  assert.ok(doneJob);
+
+  const renderJob = (job: CutQueueJob) =>
+    renderToStaticMarkup(
+      h(CutQueuePage, {
+        jobs: [job],
+        onRetryFailed: () => undefined
+      })
+    );
+
+  const verified = renderJob(doneJob);
+  assert.match(verified, /aria-label="剪切成功"/);
+  assert.equal(verified.includes("已完成（未校验）"), false);
+  assert.equal(verified.includes("已完成（未通过校验）"), false);
+
+  const unverified = renderJob({ ...doneJob, verification: undefined });
+  assert.match(unverified, /已完成（未校验）/);
+  assert.match(unverified, />复剪</);
+  assert.equal(unverified.includes("aria-label=\"剪切成功\""), false);
+
+  const failedVerification = renderJob({
+    ...doneJob,
+    verification: {
+      passed: false,
+      expected_duration_ms: 16_000,
+      actual_duration_ms: 8_000,
+      tolerance_ms: 200,
+      checks: []
+    }
+  });
+  assert.match(failedVerification, /已完成（未通过校验）/);
+  assert.match(failedVerification, />复剪</);
+});
+
 test("cut tasks page uses a production table and task detail without internal task names", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
@@ -4559,18 +4609,104 @@ test("sidebar cache helpers count clearable local cutter cache and preserve logi
   window.localStorage.setItem("mixlab.cutter.projects", "[]");
   window.localStorage.setItem("other:key", "ignore");
 
+  window.localStorage.setItem("mixlab.cutter.cutList", "[]");
+  window.localStorage.setItem("mixlab.cutter.currentProjectId", "P-1");
+  window.localStorage.setItem("mixlab.cutter.cutJobProjectIndex", "{}");
+
   const snapshot = cutterLocalCacheSnapshot(window.localStorage);
-  assert.deepEqual(snapshot.keys.sort(), ["mixlab.cutter.projects", "mixlab:cutter:default_cut_mode"]);
+  assert.deepEqual(snapshot.keys.sort(), ["mixlab:cutter:default_cut_mode"]);
   assert.equal(formatCutterCacheSize(snapshot.bytes), "1 KB");
 
   const cleared = clearCutterLocalCache(window.localStorage);
-  assert.deepEqual(cleared.keys.sort(), ["mixlab.cutter.projects", "mixlab:cutter:default_cut_mode"]);
+  assert.deepEqual(cleared.keys.sort(), ["mixlab:cutter:default_cut_mode"]);
   assert.equal(window.localStorage.getItem("mixlab:cutter:auth_session"), "keep-auth");
   assert.equal(window.localStorage.getItem("mixlab:cutter:device_id"), "keep-device");
   assert.equal(window.localStorage.getItem("mixlab:cutter:pending_login"), "keep-pending");
   assert.equal(window.localStorage.getItem("mixlab:cutter:default_cut_mode"), null);
-  assert.equal(window.localStorage.getItem("mixlab.cutter.projects"), null);
+  // CW-07: user data must survive the "clear UI cache" action.
+  assert.equal(window.localStorage.getItem("mixlab.cutter.projects"), "[]");
+  assert.equal(window.localStorage.getItem("mixlab.cutter.cutList"), "[]");
+  assert.equal(window.localStorage.getItem("mixlab.cutter.currentProjectId"), "P-1");
+  assert.equal(window.localStorage.getItem("mixlab.cutter.cutJobProjectIndex"), "{}");
   assert.equal(window.localStorage.getItem("other:key"), "ignore");
+});
+
+test("cut queue only shows verification UI when the capability or field is available", () => {
+  const data = fixture();
+  const doneJob = data.queue.find((job) => job.queue_job_id === "job-done");
+  assert.ok(doneJob);
+  const withoutVerification = { ...doneJob, verification: undefined };
+
+  const renderJob = (job: CutQueueJob, verificationEnabled: boolean) =>
+    renderToStaticMarkup(
+      h(CutQueuePage, {
+        jobs: [job],
+        onRetryFailed: () => undefined,
+        verificationEnabled
+      })
+    );
+
+  // Capability explicitly unsupported + no field => legacy success label, no verification row/recut.
+  const legacy = renderJob(withoutVerification, false);
+  assert.match(legacy, /剪切成功/);
+  assert.equal(legacy.includes("已完成（未校验）"), false);
+  assert.equal(legacy.includes("输出校验"), false);
+  assert.equal(legacy.includes(">复剪<"), false);
+
+  // Field present still enables the verification UI even if the capability is absent.
+  assert.match(renderJob(doneJob, false), /aria-label="剪切成功"/);
+
+  // Legacy default keeps the Round 2 field-based unverified state.
+  const fieldBased = renderJob(withoutVerification, true);
+  assert.match(fieldBased, /已完成（未校验）/);
+  assert.match(fieldBased, /输出校验/);
+});
+
+test("sentence rows are keyboard-selectable and wired to whole-sentence selection", async () => {
+  const locatorSource = await readFile(
+    new URL("./features/material-locator/MaterialLocatorPage.tsx", import.meta.url),
+    "utf8"
+  );
+  const detailSource = await readFile(
+    new URL("./features/source-detail/SourceDetailPage.tsx", import.meta.url),
+    "utf8"
+  );
+  const appSource = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+
+  for (const source of [locatorSource, detailSource]) {
+    assert.match(source, /tabIndex=\{0\}/);
+    assert.match(source, /handleSegmentKeyDown/);
+    assert.match(source, /选择第/);
+  }
+  assert.match(
+    appSource,
+    /onSelectTranscriptSegment=\{handlers\.selectTranscriptSegment\}/
+  );
+  assert.match(
+    locatorSource,
+    /isSingleSegmentClick\(dragStartSegmentId, dragEndSegmentId\)/
+  );
+});
+
+test("sidebar account menu exposes logout and switch-account entries", async () => {
+  const html = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      username: "Allen",
+      localCount: 1,
+      publicCount: 2,
+      activeTaskCount: 0,
+      engineReady: true,
+      onLogout: () => undefined,
+      onSwitchAccount: () => undefined
+    })
+  );
+  assert.match(html, /账户/);
+  assert.equal((html.match(/aria-haspopup="menu"/g) ?? []).length, 2);
+
+  const source = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+  assert.match(source, /退出登录/);
+  assert.match(source, /切换账号/);
+  assert.match(source, /clearCutterAuthSession/);
 });
 
 test("sidebar footer does not swap local and public library counts", () => {

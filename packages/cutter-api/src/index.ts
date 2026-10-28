@@ -1,14 +1,20 @@
 import { constants, createReadStream } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildFfprobeFirstFramePtsPlan,
+  buildFfprobeKeyframePlan,
+  buildFfprobeOutputVerificationPlan,
   buildFfprobeSourceMetadataPlan,
   buildFfmpegCoverImagePlan,
   buildFfmpegCutPlan,
+  parseFfprobeFirstFramePts,
+  parseFfprobeKeyframeTimes,
+  parseFfprobeOutputProbe,
   parseFfprobeSourceMetadata,
   resolveFfmpegRuntime,
   type SourceVideoMediaMetadata,
@@ -59,15 +65,33 @@ import {
   listCutJobs,
   readCutTempCacheStatus,
   listExportClips,
+  CUT_JOB_NOT_RETRYABLE_CODE,
+  CUT_QUEUE_BUSY_CODE,
+  CutQueueBusyError,
+  WORKSPACE_LEASE_UNAVAILABLE_CODE,
+  WorkspaceLeaseUnavailableError,
+  acquireWorkspaceLease,
+  isCachePathPinned,
+  pinCachePath,
   readClipList,
+  readWorkspaceLease,
+  recoverInterruptedCutJobs,
+  recoverInterruptedCutJobsIfLeased,
+  resolveCutJobTimeoutMs,
   retryCutJob,
   runCutJob,
   runNextCutJob,
   submitClipListToQueue,
   writeClipList,
   type ClipListManifest,
+  type AcquireWorkspaceLeaseInput,
   type CutJobSourceDetail,
   type CoverRunner,
+  type WorkspaceLease,
+  type CutKeyframeProbe,
+  type CutOutputProbe,
+  type CutOutputProbeResult,
+  type CutSourceDurationProbe,
   type ExportClipView,
   type RunNextCutJobInput,
   type CutTempCacheStatus,
@@ -78,8 +102,36 @@ import {
   resolveSourceVideoPath,
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
+import {
+  CONTRACT_VERSION,
+  type CapabilityTableV1
+} from "../../contracts/src/capabilities.ts";
+import type { LocalAgentCapabilitiesV1 } from "../../contracts/src/local-agent.ts";
+import {
+  contractErrorDefinition,
+  isContractErrorCode
+} from "../../contracts/src/errors.ts";
+import {
+  usageServiceFromEnv,
+  usageServiceMode,
+  type UsageServiceConnection
+} from "../../library-fs/src/usage-service-client.ts";
+import { UsageOutbox } from "../../library-fs/src/usage-outbox.ts";
+import {
+  accountServiceFromEnv,
+  accountsServiceMode,
+  createCutterAccounts,
+  type AccountServiceConnection
+} from "../../library-fs/src/cutter-account-client.ts";
 
 export interface CreateCutterApiServerInput {
+  /** 隔离事件服务连接（默认从 MIXLAB_USAGE_SERVICE_URL 读取；未配置走旧共享 NDJSON）。 */
+  usage_service?: UsageServiceConnection;
+  /** 事件 outbox 本机目录（默认 workspace/usage-outbox 或 MIXLAB_USAGE_OUTBOX_ROOT）。 */
+  usage_outbox_root?: string;
+  usage_outbox_max_events?: number;
+  /** 隔离账号服务连接（默认从 MIXLAB_CUTTER_ACCOUNTS_SERVICE_URL 读取；未配置走旧 users.json）。 */
+  account_service?: AccountServiceConnection;
   library_root: string;
   workspace_root?: string;
   release_cache_root?: string;
@@ -117,9 +169,20 @@ export interface CreateCutterApiServerInput {
   auth_mode?: "reviewed" | "local_trusted";
   trusted_user_id?: string;
   trusted_username?: string;
+  /** 客户端版本（semver）；用于 Release Manifest v2 的 min_client_version 判断，缺省读 MIXLAB_CUTTER_APP_VERSION。 */
+  client_version?: string;
   now?: () => string;
   cut_runner?: CutterClipCutRunner;
   cover_runner?: CoverRunner;
+  output_probe?: CutOutputProbe;
+  source_duration_probe?: CutSourceDurationProbe;
+  keyframe_probe?: CutKeyframeProbe;
+  /** FFmpeg 剪切超时上限（毫秒），未配置时按区间估算并使用内置上限。 */
+  cut_timeout_ms_max?: number;
+  /** workspace 租约参数（测试注入 instance_id/stale 等），默认使用进程默认值。 */
+  workspace_lease_options?: Omit<AcquireWorkspaceLeaseInput, "workspace_root">;
+  /** 显式禁用 workspace 租约（仅测试/单进程特殊场景；生产保持开启）。 */
+  workspace_lease_disabled?: boolean;
   source_video_probe_runner?: CutterSourceVideoProbeRunner;
   open_path?: CutterPathOpener;
   auto_run_cut_queue?: boolean;
@@ -160,6 +223,8 @@ export interface CutterClipCutRunnerInput {
   begin_ms: number;
   end_ms: number;
   cut_mode: CutMode;
+  /** 队列超时/取消时中止；默认 runner 收到后终止 FFmpeg 进程树。 */
+  signal?: AbortSignal;
 }
 
 export type CutterClipCutRunner = (input: CutterClipCutRunnerInput) => Promise<void> | void;
@@ -195,6 +260,7 @@ interface CreateClipListRequestBody {
 
 interface SubmitCutJobsRequestBody {
   clip_list_id?: unknown;
+  client_request_id?: unknown;
 }
 
 interface OpenExportDirectoryRequestBody {
@@ -270,6 +336,9 @@ interface CutterRuntimeStatusPayload {
     username: string;
     display_name: string;
   };
+  /** 事件/账号服务模式（默认关闭时保持旧路径）。 */
+  usage_service_mode?: "isolated-service" | "legacy-ndjson";
+  accounts_service_mode?: "isolated-service" | "local-users-file";
   diagnostics?: {
     runtime_timings_ms: Record<string, number>;
     search_index_warmup?: SearchIndexWarmupStatus;
@@ -355,6 +424,16 @@ interface CutterReleaseCacheRuntimeStatus {
   max_cached_releases: number;
   cache_size_bytes: number;
   pruned_release_versions: string[];
+  /** 淘汰后保留的版本与原因（active/recent_window/workspace_reference/prune_failed:*）。 */
+  kept_release_versions?: string[];
+  kept_release_reasons?: Record<string, string>;
+  /** 本次从 workspace 历史作品清单解析到的引用版本。 */
+  pinned_release_versions?: string[];
+  prune_failed_release_versions?: string[];
+  /** Release Manifest v2 校验结果（verified_files/failed_files/fallback_reason/contract error）。 */
+  verification?: CutterReleaseVerificationStatus;
+  contract_error_code?: string;
+  contract_error_message?: string;
   cache_root_path: string;
   catalog_file_path: string;
   message: string;
@@ -646,6 +725,39 @@ function sourceVideoCacheManifestPath(root: string): string {
   return path.join(root, THUMBNAIL_CACHE_MANIFEST_FILE_NAME);
 }
 
+export interface KeyedAsyncLock {
+  run<T>(key: string, task: () => Promise<T>): Promise<T>;
+}
+
+/** 进程内 keyed async lock：用于缓存 manifest 的 read-modify-write 串行化（Round2 CUT-14）。 */
+export function createKeyedAsyncLock(): KeyedAsyncLock {
+  const tails = new Map<string, Promise<void>>();
+
+  return {
+    async run<T>(key: string, task: () => Promise<T>): Promise<T> {
+      const previous = tails.get(key) ?? Promise.resolve();
+      let releaseCurrent!: () => void;
+      const current = new Promise<void>((resolve) => {
+        releaseCurrent = resolve;
+      });
+      const chained = previous.catch(() => undefined).then(() => current);
+      tails.set(key, chained);
+      await previous.catch(() => undefined);
+
+      try {
+        return await task();
+      } finally {
+        releaseCurrent();
+        if (tails.get(key) === chained) {
+          tails.delete(key);
+        }
+      }
+    }
+  };
+}
+
+const cacheManifestLock = createKeyedAsyncLock();
+
 function emptyThumbnailCacheManifest(): ThumbnailCacheManifest {
   return {
     schema_version: "1.0",
@@ -756,7 +868,7 @@ function thumbnailManifestEntryMatchesSource(input: {
   );
 }
 
-async function upsertThumbnailCacheManifestEntry(input: {
+async function upsertThumbnailCacheManifestEntryUnlocked(input: {
   root: string;
   source_video_id: string;
   source_file_path: string;
@@ -780,7 +892,15 @@ async function upsertThumbnailCacheManifestEntry(input: {
   await writeThumbnailCacheManifest(input.root, manifest);
 }
 
-async function compactThumbnailCacheManifest(root: string): Promise<ThumbnailCacheManifest> {
+async function upsertThumbnailCacheManifestEntry(
+  input: Parameters<typeof upsertThumbnailCacheManifestEntryUnlocked>[0]
+): Promise<void> {
+  await cacheManifestLock.run(thumbnailCacheManifestPath(input.root), () =>
+    upsertThumbnailCacheManifestEntryUnlocked(input)
+  );
+}
+
+async function compactThumbnailCacheManifestUnlocked(root: string): Promise<ThumbnailCacheManifest> {
   const manifest = await readThumbnailCacheManifest(root);
   const entries = await readDirectFileCacheEntries(root);
   const existingFileNames = new Set(entries.map((entry) => path.basename(entry.file_path)));
@@ -799,6 +919,12 @@ async function compactThumbnailCacheManifest(root: string): Promise<ThumbnailCac
   }
 
   return manifest;
+}
+
+async function compactThumbnailCacheManifest(root: string): Promise<ThumbnailCacheManifest> {
+  return cacheManifestLock.run(thumbnailCacheManifestPath(root), () =>
+    compactThumbnailCacheManifestUnlocked(root)
+  );
 }
 
 const activeSourceVideoPrefetches = new Map<string, Promise<void>>();
@@ -859,7 +985,7 @@ function sourceVideoCacheEntryMatches(input: {
   );
 }
 
-async function compactSourceVideoCacheManifest(root: string): Promise<SourceVideoCacheManifest> {
+async function compactSourceVideoCacheManifestUnlocked(root: string): Promise<SourceVideoCacheManifest> {
   const manifest = await readSourceVideoCacheManifest(root);
   const entries = await readDirectFileCacheEntries(root);
   const existingFileNames = new Set(entries.map((entry) => path.basename(entry.file_path)));
@@ -880,12 +1006,18 @@ async function compactSourceVideoCacheManifest(root: string): Promise<SourceVide
   return manifest;
 }
 
-async function pruneSourceVideoCache(input: {
+async function compactSourceVideoCacheManifest(root: string): Promise<SourceVideoCacheManifest> {
+  return cacheManifestLock.run(sourceVideoCacheManifestPath(root), () =>
+    compactSourceVideoCacheManifestUnlocked(root)
+  );
+}
+
+async function pruneSourceVideoCacheUnlocked(input: {
   root: string;
   max_bytes: number;
   keep_source_video_id?: string;
 }): Promise<void> {
-  const manifest = await compactSourceVideoCacheManifest(input.root);
+  const manifest = await compactSourceVideoCacheManifestUnlocked(input.root);
   const fileEntries = await readDirectFileCacheEntries(input.root);
   const fileSizes = new Map(fileEntries.map((entry) => [path.basename(entry.file_path), entry.size]));
   let totalBytes = fileEntries.reduce((total, entry) => total + entry.size, 0);
@@ -901,6 +1033,12 @@ async function pruneSourceVideoCache(input: {
     }
 
     const cacheFilePath = path.join(input.root, entry.cache_file_name);
+
+    if (isCachePathPinned(cacheFilePath)) {
+      // 正在被剪切/播放使用的缓存文件不淘汰（Round2 CUT-14）。
+      continue;
+    }
+
     try {
       await rm(cacheFilePath, { force: true });
       totalBytes -= fileSizes.get(entry.cache_file_name) ?? entry.cache_size;
@@ -917,6 +1055,16 @@ async function pruneSourceVideoCache(input: {
       entries: nextEntries
     });
   }
+}
+
+async function pruneSourceVideoCache(input: {
+  root: string;
+  max_bytes: number;
+  keep_source_video_id?: string;
+}): Promise<void> {
+  await cacheManifestLock.run(sourceVideoCacheManifestPath(input.root), () =>
+    pruneSourceVideoCacheUnlocked(input)
+  );
 }
 
 async function cachedSourceVideoPath(input: {
@@ -944,11 +1092,23 @@ async function cachedSourceVideoPath(input: {
     return undefined;
   }
 
-  manifest.entries[input.source_video_id] = {
-    ...entry!,
-    last_accessed_at: new Date().toISOString()
-  };
-  void writeSourceVideoCacheManifest(root, manifest).catch(() => undefined);
+  const nextLastAccessedAt = new Date().toISOString();
+  void cacheManifestLock
+    .run(sourceVideoCacheManifestPath(root), async () => {
+      const latest = await readSourceVideoCacheManifest(root);
+      const latestEntry = latest.entries[input.source_video_id];
+
+      if (!latestEntry) {
+        return;
+      }
+
+      latest.entries[input.source_video_id] = {
+        ...latestEntry,
+        last_accessed_at: nextLastAccessedAt
+      };
+      await writeSourceVideoCacheManifest(root, latest);
+    })
+    .catch(() => undefined);
   void utimes(cacheFilePath, new Date(), new Date()).catch(() => undefined);
 
   return cacheFilePath;
@@ -1014,22 +1174,24 @@ async function prefetchSourceVideo(input: {
 
       await rename(tempPath, cacheFilePath);
       const now = new Date().toISOString();
-      const manifest = await readSourceVideoCacheManifest(root);
-      const previous = manifest.entries[input.source_video_id];
-      if (previous && previous.cache_file_name !== cacheFileName) {
-        void rm(path.join(root, previous.cache_file_name), { force: true }).catch(() => undefined);
-      }
-      manifest.entries[input.source_video_id] = {
-        source_video_id: input.source_video_id,
-        source_video_file_path: input.source_video_file_path,
-        source_size: sourceStat.size,
-        source_mtime_ms: sourceStat.mtimeMs,
-        cache_file_name: cacheFileName,
-        cache_size: tempStat.size,
-        cached_at: now,
-        last_accessed_at: now
-      };
-      await writeSourceVideoCacheManifest(root, manifest);
+      await cacheManifestLock.run(sourceVideoCacheManifestPath(root), async () => {
+        const manifest = await readSourceVideoCacheManifest(root);
+        const previous = manifest.entries[input.source_video_id];
+        if (previous && previous.cache_file_name !== cacheFileName) {
+          void rm(path.join(root, previous.cache_file_name), { force: true }).catch(() => undefined);
+        }
+        manifest.entries[input.source_video_id] = {
+          source_video_id: input.source_video_id,
+          source_video_file_path: input.source_video_file_path,
+          source_size: sourceStat.size,
+          source_mtime_ms: sourceStat.mtimeMs,
+          cache_file_name: cacheFileName,
+          cache_size: tempStat.size,
+          cached_at: now,
+          last_accessed_at: now
+        };
+        await writeSourceVideoCacheManifest(root, manifest);
+      });
       await pruneSourceVideoCache({
         root,
         max_bytes: maxBytes,
@@ -1179,6 +1341,82 @@ function optionalPositiveInteger(value: string | undefined): number | undefined 
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function resolveCutterClientVersion(input: CreateCutterApiServerInput): string | undefined {
+  const configured =
+    input.client_version?.trim() ||
+    optionalTrimmed(process.env.MIXLAB_CUTTER_APP_VERSION) ||
+    "";
+  const semverLike = /^\d+\.\d+\.\d+(?:[-+].*)?$/.test(configured);
+  return semverLike ? configured : undefined;
+}
+
+interface CutterReleaseVerificationStatus {
+  manifest_schema_version: "2.0" | "legacy" | "none";
+  release_id?: string;
+  min_client_version?: string;
+  verified_files: number;
+  failed_files: Array<{ path: string; reason: string }>;
+  fallback_reason?: string;
+  contract_error_code?: string;
+  contract_error_message?: string;
+  verified_at?: string;
+}
+
+/**
+ * GET /cutter/capabilities：LocalAgentCapabilitiesV1 主体 + CapabilityTableV1 加法字段。
+ * 同时满足 Local Agent 契约与剪辑前端 CapabilityTableV1 解析器（旧客户端可忽略新增字段）。
+ */
+function buildCutterCapabilities(
+  input: CreateCutterApiServerInput
+): LocalAgentCapabilitiesV1 & CapabilityTableV1 {
+  const agentVersion =
+    optionalTrimmed(process.env.MIXLAB_CUTTER_APP_VERSION) ?? "0.18.10";
+  const minClientVersion =
+    optionalTrimmed(process.env.MIXLAB_CUTTER_MIN_CLIENT_VERSION) ?? "0.18.10";
+  const features: Record<string, boolean> = {
+    cut_verification: true,
+    release_v2: true,
+    release_cache_verification: true,
+    output_verification: true,
+    workspace_lease: input.workspace_lease_disabled !== true,
+    cut_job_retry: true,
+    local_agent_api_v1: true,
+    event_envelope_v1: true,
+    capabilities_v1: true,
+    searchd: Boolean(optionalTrimmed(input.searchd_base_url))
+  };
+  const limits: Record<string, number> = {
+    max_cached_releases: releaseCacheMaxReleases(input) ?? 2,
+    cut_temp_max_bytes: cutTempMaxBytes(input),
+    source_video_cache_max_bytes: sourceVideoCacheMaxBytes(input),
+    thumbnail_cache_max_bytes: thumbnailCacheMaxBytes(input),
+    cut_timeout_ms_max: cutTimeoutMaxMsForInput(input) ?? 0,
+    page_max: 200,
+    request_body_max_bytes: 1_000_000,
+    event_batch_max: 100
+  };
+
+  return {
+    contract_version: CONTRACT_VERSION,
+    agent_version: agentVersion,
+    product: "cutter",
+    features,
+    limits,
+    server_version: agentVersion,
+    server_product: "cutter",
+    min_client_version: minClientVersion,
+    generated_at: currentNow(input)
+  };
+}
+
+function cutTimeoutMaxMsForInput(input: CreateCutterApiServerInput): number | undefined {
+  if (Number.isFinite(input.cut_timeout_ms_max) && (input.cut_timeout_ms_max ?? 0) > 0) {
+    return Math.floor(input.cut_timeout_ms_max!);
+  }
+
+  return optionalPositiveInteger(process.env.MIXLAB_CUTTER_FFMPEG_TIMEOUT_MS);
+}
+
 export function resolveCutterApiRuntimeConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): CutterApiRuntimeConfig {
@@ -1232,6 +1470,7 @@ export function resolveCutterApiRuntimeConfigFromEnv(
     searchd_timeout_ms: optionalPositiveInteger(
       env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
     ),
+    cut_timeout_ms_max: optionalPositiveInteger(env.MIXLAB_CUTTER_FFMPEG_TIMEOUT_MS),
     host: optionalTrimmed(env.MIXLAB_CUTTER_API_HOST) ?? "127.0.0.1",
     port,
     ...(authMode ? { auth_mode: authMode } : {}),
@@ -2316,6 +2555,19 @@ async function streamFile(input: {
   });
 }
 
+/** 流式读取期间 pin 文件路径，避免缓存淘汰删除正在读取的媒体（Round2 CUT-14）。 */
+async function streamFileWithCachePin(
+  input: Parameters<typeof streamFile>[0]
+): Promise<void> {
+  const release = pinCachePath(input.file_path);
+
+  try {
+    await streamFile(input);
+  } finally {
+    release();
+  }
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     return (await stat(filePath)).isFile();
@@ -2444,7 +2696,9 @@ async function pruneDirectFileCache(input: {
   let totalBytes = entries.reduce((total, entry) => total + entry.size, 0);
 
   for (const entry of entries
-    .filter((item) => path.resolve(item.file_path) !== keepPath)
+    .filter(
+      (item) => path.resolve(item.file_path) !== keepPath && !isCachePathPinned(item.file_path)
+    )
     .sort((left, right) => left.mtime_ms - right.mtime_ms)) {
     if (totalBytes <= input.max_bytes) {
       break;
@@ -2706,11 +2960,14 @@ async function requireCutterSession(input: {
     return null;
   }
 
-  const validation = await validateCutterSession(input.api_input.library_root, {
-    device_id: deviceId,
-    session_token: sessionToken,
-    now: currentNow(input.api_input)
-  });
+  const validation = await createCutterAccounts(input.api_input.account_service).validateCutterSession(
+    input.api_input.library_root,
+    {
+      device_id: deviceId,
+      session_token: sessionToken,
+      now: currentNow(input.api_input)
+    }
+  );
 
   if (!validation.ok) {
     writeError(input.response, 401, "login_required", validation.reason);
@@ -2810,27 +3067,120 @@ function formatClipTime(milliseconds: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function runFfmpegAsync(executable: string, args: string[]): Promise<void> {
+function killChildProcessTree(child: ChildProcess): void {
+  if (!child.pid) {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // Already exited.
+    }
+    return;
+  }
+
+  if (process.platform === "win32") {
+    try {
+      const killer = spawn("taskkill", ["/F", "/T", "/PID", String(child.pid)], {
+        windowsHide: true,
+        stdio: "ignore"
+      });
+      killer.on("error", () => {
+        try {
+          child.kill();
+        } catch {
+          // Already exited.
+        }
+      });
+      killer.unref?.();
+    } catch {
+      try {
+        child.kill();
+      } catch {
+        // Already exited.
+      }
+    }
+    return;
+  }
+
+  try {
+    child.kill("SIGKILL");
+  } catch {
+    // Already exited.
+  }
+}
+
+interface RunFfmpegOptions {
+  timeout_ms?: number;
+  signal?: AbortSignal;
+}
+
+function runFfmpegAsync(
+  executable: string,
+  args: string[],
+  options: RunFfmpegOptions = {}
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
       windowsHide: true,
       stdio: ["ignore", "ignore", "pipe"]
     });
     let stderr = "";
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+
+    const cleanup = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      options.signal?.removeEventListener("abort", onAbort);
+    };
+    const settle = (action: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      action();
+    };
+    const onAbort = () => {
+      killChildProcessTree(child);
+      settle(() => reject(new Error("ffmpeg clip cut aborted")));
+    };
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        onAbort();
+      } else {
+        options.signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
+
+    if (!settled && options.timeout_ms && options.timeout_ms > 0) {
+      timer = setTimeout(() => {
+        killChildProcessTree(child);
+        settle(() =>
+          reject(new Error(`ffmpeg clip cut timed out after ${Math.round(options.timeout_ms!)}ms`))
+        );
+      }, options.timeout_ms);
+      timer.unref?.();
+    }
 
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk;
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      settle(() => reject(error));
+    });
     child.on("close", (code, signal) => {
       if (code === 0) {
-        resolve();
+        settle(() => resolve());
         return;
       }
 
       const reason = stderr.trim() || (signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`);
-      reject(new Error(`ffmpeg clip cut failed: ${reason}`));
+      settle(() => reject(new Error(`ffmpeg clip cut failed: ${reason}`)));
     });
   });
 }
@@ -2938,7 +3288,10 @@ function defaultOpenPath(targetPath: string): Promise<void> {
   });
 }
 
-async function defaultCutRunner(input: CutterClipCutRunnerInput): Promise<void> {
+async function defaultCutRunner(
+  input: CutterClipCutRunnerInput,
+  options: { timeout_ms_max?: number } = {}
+): Promise<void> {
   const runtime = resolveFfmpegRuntime();
   const plan = buildFfmpegCutPlan({
     source_path: input.source_video_path,
@@ -2947,8 +3300,15 @@ async function defaultCutRunner(input: CutterClipCutRunnerInput): Promise<void> 
     end_ms: input.end_ms,
     cut_mode: input.cut_mode
   });
+  const timeoutMs = resolveCutJobTimeoutMs({
+    range_ms: Math.max(0, input.end_ms - input.begin_ms),
+    ...(options.timeout_ms_max !== undefined ? { max_ms: options.timeout_ms_max } : {})
+  });
 
-  await runFfmpegAsync(runtime.ffmpeg_path, plan.args);
+  await runFfmpegAsync(runtime.ffmpeg_path, plan.args, {
+    timeout_ms: timeoutMs,
+    ...(input.signal ? { signal: input.signal } : {})
+  });
 }
 
 async function defaultCoverRunner(input: {
@@ -2999,6 +3359,150 @@ async function defaultSourceVideoProbeRunner(input: {
   }
 
   return parseFfprobeSourceMetadata(stdout);
+}
+
+const OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS = 10_000;
+const SOURCE_DURATION_PROBE_TIMEOUT_MS = 10_000;
+const KEYFRAME_PROBE_TIMEOUT_MS = 5_000;
+
+async function runFfprobeWithFallback(
+  args: string[],
+  timeoutMs: number,
+  failureLabel: string
+): Promise<string> {
+  const runtime = resolveFfmpegRuntime();
+
+  try {
+    return await runProcessForStdoutAsync({
+      executable: runtime.ffprobe_path,
+      args,
+      timeout_ms: timeoutMs,
+      failure_label: failureLabel
+    });
+  } catch (error) {
+    if (runtime.source === "env") {
+      throw error;
+    }
+
+    return runProcessForStdoutAsync({
+      executable: "ffprobe",
+      args,
+      timeout_ms: timeoutMs,
+      failure_label: failureLabel
+    });
+  }
+}
+
+/** 生产输出验收探针：文件存在/size/时长/音视频流/首帧 PTS/源是否含音轨。 */
+async function defaultCutOutputProbe(input: {
+  output_path: string;
+  source_path: string;
+  cut_mode: CutMode;
+}): Promise<CutOutputProbeResult> {
+  const outputStat = await stat(input.output_path).catch(() => null);
+
+  if (!outputStat?.isFile()) {
+    return {
+      exists: false,
+      size_bytes: 0,
+      has_video_stream: false,
+      has_audio_stream: false
+    };
+  }
+
+  const [outputProbeStdout, firstFrameStdout] = await Promise.all([
+    runFfprobeWithFallback(
+      buildFfprobeOutputVerificationPlan({ output_path: input.output_path }).args,
+      OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS,
+      "ffprobe output verification"
+    ),
+    runFfprobeWithFallback(
+      buildFfprobeFirstFramePtsPlan({ output_path: input.output_path }).args,
+      OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS,
+      "ffprobe output first frame"
+    ).catch(() => "")
+  ]);
+  const parsed = parseFfprobeOutputProbe(outputProbeStdout);
+  const firstFramePtsMs = firstFrameStdout ? parseFfprobeFirstFramePts(firstFrameStdout) : undefined;
+  let outputMediaMetadata: SourceVideoMediaMetadata | undefined;
+
+  try {
+    const metadataStdout = await runFfprobeWithFallback(
+      buildFfprobeSourceMetadataPlan({ source_path: input.output_path }).args,
+      OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS,
+      "ffprobe output metadata"
+    );
+    outputMediaMetadata = parseFfprobeSourceMetadata(metadataStdout);
+  } catch {
+    // 元数据探测失败不阻断输出验收；本地素材清单会标记 unknown。
+  }
+
+  let sourceHasAudio: boolean | undefined;
+
+  if (parsed.has_audio_stream) {
+    sourceHasAudio = true;
+  } else {
+    try {
+      const sourceStdout = await runFfprobeWithFallback(
+        buildFfprobeOutputVerificationPlan({ output_path: input.source_path }).args,
+        OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS,
+        "ffprobe source audio"
+      );
+      sourceHasAudio = parseFfprobeOutputProbe(sourceStdout).has_audio_stream;
+    } catch {
+      // 无法确认源音轨时按"未知"处理，不因音轨存在性阻断成片。
+    }
+  }
+
+  return {
+    exists: true,
+    size_bytes: outputStat.size,
+    has_video_stream: parsed.has_video_stream,
+    has_audio_stream: parsed.has_audio_stream,
+    ...(sourceHasAudio !== undefined ? { source_has_audio_stream: sourceHasAudio } : {}),
+    ...(firstFramePtsMs !== undefined ? { first_video_pts_ms: firstFramePtsMs } : {}),
+    ...(parsed.duration_ms !== undefined ? { duration_ms: parsed.duration_ms } : {}),
+    ...(parsed.video_duration_ms !== undefined ? { video_duration_ms: parsed.video_duration_ms } : {}),
+    ...(parsed.audio_duration_ms !== undefined ? { audio_duration_ms: parsed.audio_duration_ms } : {}),
+    ...(outputMediaMetadata && outputMediaMetadata.width > 0 ? { width: outputMediaMetadata.width } : {}),
+    ...(outputMediaMetadata && outputMediaMetadata.height > 0 ? { height: outputMediaMetadata.height } : {}),
+    ...(outputMediaMetadata && outputMediaMetadata.fps > 0 ? { fps: outputMediaMetadata.fps } : {}),
+    ...(outputMediaMetadata && outputMediaMetadata.codec ? { codec: outputMediaMetadata.codec } : {})
+  };
+}
+
+/** 生产源时长探针：用于区间边界校验与 E 源（重剪）真实时长。 */
+async function defaultCutSourceDurationProbe(input: {
+  source_video_path: string;
+}): Promise<{ duration_ms?: number }> {
+  const stdout = await runFfprobeWithFallback(
+    buildFfprobeSourceMetadataPlan({ source_path: input.source_video_path }).args,
+    SOURCE_DURATION_PROBE_TIMEOUT_MS,
+    "ffprobe source duration"
+  );
+  const metadata = parseFfprobeSourceMetadata(stdout);
+
+  return { duration_ms: metadata.duration_ms };
+}
+
+/** 生产关键帧探针：copy 模式判断起点是否贴近关键帧，失败时返回空列表触发降级。 */
+async function defaultCutKeyframeProbe(input: {
+  source_video_path: string;
+  begin_ms: number;
+}): Promise<{ keyframe_times_ms: number[] }> {
+  try {
+    const stdout = await runFfprobeWithFallback(
+      buildFfprobeKeyframePlan({
+        source_path: input.source_video_path,
+        begin_ms: input.begin_ms
+      }).args,
+      KEYFRAME_PROBE_TIMEOUT_MS,
+      "ffprobe keyframe preflight"
+    );
+    return { keyframe_times_ms: parseFfprobeKeyframeTimes(stdout) };
+  } catch {
+    return { keyframe_times_ms: [] };
+  }
 }
 
 const VISIBLE_DETAIL_CACHE_TTL_MS = 10_000;
@@ -3540,6 +4044,15 @@ function refreshingReleaseCacheRuntimeStatus(
     max_cached_releases: previous?.max_cached_releases ?? releaseCacheMaxReleases(input) ?? 2,
     cache_size_bytes: previous?.cache_size_bytes ?? 0,
     pruned_release_versions: [],
+    ...(previous?.verification ? { verification: previous.verification } : {}),
+    ...(previous?.contract_error_code
+      ? {
+          contract_error_code: previous.contract_error_code,
+          ...(previous.contract_error_message
+            ? { contract_error_message: previous.contract_error_message }
+            : {})
+        }
+      : {}),
     cache_root_path: cacheRoot,
     catalog_file_path: previous?.catalog_file_path ?? "",
     message: previous?.ready
@@ -3812,26 +4325,249 @@ function scheduleReleaseCacheWarmups(
   scheduleSearchIndexWarmup(input, status);
 }
 
-function syncCutterReleaseCacheRuntimeStatusUncached(
+export interface CutterWorkspaceReleaseReferences {
+  /** workspace 中是否存在项目/切片清单/剪切任务/本地素材等历史作品产物。 */
+  referenced: boolean;
+  /** 清单中记录的 release 版本（vNNNNNN），去重排序。 */
+  release_versions: string[];
+  scanned_files: number;
+  /** 命中的清单相对路径样例（最多 5 条，便于审计，不含绝对路径）。 */
+  source_artifacts: string[];
+  warnings: string[];
+}
+
+const CUTTER_WORKSPACE_REFERENCE_DIRECTORIES = [
+  "projects",
+  "clip-lists",
+  "cut-jobs",
+  "export-clips"
+] as const;
+const CUTTER_RELEASE_REFERENCE_KEYS = new Set([
+  "release_version",
+  "release_versions",
+  "source_release_version",
+  "snapshot_version",
+  "library_release_version"
+]);
+const CUTTER_RELEASE_VERSION_PATTERN = /^v[0-9]{4,12}$/;
+const CUTTER_REFERENCE_SCAN_MAX_FILES = 400;
+const CUTTER_REFERENCE_SCAN_MAX_FILE_BYTES = 512 * 1024;
+const CUTTER_REFERENCE_SCAN_MAX_DEPTH = 4;
+const CUTTER_REFERENCE_SCAN_WARNING_LIMIT = 20;
+
+export function emptyWorkspaceReleaseReferences(): CutterWorkspaceReleaseReferences {
+  return {
+    referenced: false,
+    release_versions: [],
+    scanned_files: 0,
+    source_artifacts: [],
+    warnings: []
+  };
+}
+
+function collectReleaseVersionValues(
+  value: unknown,
+  output: Set<string>,
+  depth = 0
+): void {
+  if (depth > 6 || value === null || value === undefined) {
+    return;
+  }
+
+  if (typeof value === "string") {
+    if (CUTTER_RELEASE_VERSION_PATTERN.test(value.trim())) {
+      output.add(value.trim());
+    }
+
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectReleaseVersionValues(item, output, depth + 1);
+    }
+
+    return;
+  }
+
+  if (typeof value !== "object") {
+    return;
+  }
+
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (CUTTER_RELEASE_REFERENCE_KEYS.has(key)) {
+      collectReleaseVersionValues(nested, output, depth + 1);
+      continue;
+    }
+
+    // 只向已知容器的浅层嵌套继续查找，不扫描任意字符串，
+    // 避免把标题/文案里的 "v1234" 误判为版本号。
+    if (depth < 2 && nested !== null && typeof nested === "object") {
+      collectReleaseVersionValues(nested, output, depth + 1);
+    }
+  }
+}
+
+/**
+ * 扫描本机 workspace 历史作品清单，解析其引用的 release 版本。
+ * 只读、best-effort：目录缺失/清单损坏不抛错，仅记录 warnings；文件数与大小有上限。
+ */
+export async function collectWorkspaceReleaseReferences(input: {
+  workspace_root?: string;
+  max_files?: number;
+}): Promise<CutterWorkspaceReleaseReferences> {
+  const result = emptyWorkspaceReleaseReferences();
+  const root = input.workspace_root?.trim();
+
+  if (!root) {
+    return result;
+  }
+
+  const maxFiles = Math.max(
+    1,
+    Math.min(2000, Math.floor(input.max_files ?? CUTTER_REFERENCE_SCAN_MAX_FILES))
+  );
+  const versions = new Set<string>();
+  const warn = (message: string): void => {
+    if (result.warnings.length < CUTTER_REFERENCE_SCAN_WARNING_LIMIT) {
+      result.warnings.push(message);
+    }
+  };
+
+  async function visit(directory: string, relative: string, depth: number): Promise<void> {
+    if (result.scanned_files >= maxFiles || depth > CUTTER_REFERENCE_SCAN_MAX_DEPTH) {
+      return;
+    }
+
+    let entries;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (result.scanned_files >= maxFiles) {
+        return;
+      }
+
+      const childPath = path.join(directory, entry.name);
+      const childRelative = `${relative}/${entry.name}`;
+
+      if (entry.isDirectory()) {
+        await visit(childPath, childRelative, depth + 1);
+        continue;
+      }
+
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) {
+        continue;
+      }
+
+      result.scanned_files += 1;
+
+      if (result.source_artifacts.length < 5) {
+        result.source_artifacts.push(childRelative);
+      }
+
+      try {
+        const info = await stat(childPath);
+
+        if (info.size > CUTTER_REFERENCE_SCAN_MAX_FILE_BYTES) {
+          warn(`清单过大，已跳过：${childRelative}`);
+          continue;
+        }
+
+        const parsed = JSON.parse(await readFile(childPath, "utf8")) as unknown;
+        collectReleaseVersionValues(parsed, versions);
+      } catch {
+        warn(`清单无法解析，已跳过：${childRelative}`);
+      }
+    }
+  }
+
+  for (const directory of CUTTER_WORKSPACE_REFERENCE_DIRECTORIES) {
+    await visit(path.join(root, directory), directory, 0);
+  }
+
+  result.referenced = result.scanned_files > 0;
+  result.release_versions = [...versions].sort();
+
+  return result;
+}
+
+/**
+ * 计算 release cache 淘汰所需的引用保护参数：
+ * - 能解析到版本号 → 精确 pin；
+ * - 有历史作品产物但清单未记录版本（当前剪辑交付线旧清单）→ 保守保留全部已缓存版本；
+ * - 扫描异常 → 同样保守保留，避免误删仍被引用的版本。
+ */
+export async function workspaceReleaseCacheReferenceOptions(
+  workspaceRoot?: string
+): Promise<Pick<
+  SyncCutterReleaseCacheInput,
+  "pinned_release_versions" | "preserve_cached_releases_for_unknown_references"
+>> {
+  try {
+    const references = await collectWorkspaceReleaseReferences({
+      workspace_root: workspaceRoot
+    });
+
+    if (references.release_versions.length > 0) {
+      return { pinned_release_versions: references.release_versions };
+    }
+
+    if (references.referenced) {
+      return { preserve_cached_releases_for_unknown_references: true };
+    }
+  } catch {
+    return { preserve_cached_releases_for_unknown_references: true };
+  }
+
+  return {};
+}
+
+async function syncCutterReleaseCacheRuntimeStatusUncached(
   input: CreateCutterApiServerInput
 ): Promise<CutterReleaseCacheRuntimeStatus> {
   const cacheRoot = releaseCacheRootForInput(input);
   if (!cacheRoot) {
-    return Promise.resolve(disabledReleaseCacheRuntimeStatus());
+    return disabledReleaseCacheRuntimeStatus();
   }
   const syncRunner = input.release_cache_sync_runner ?? syncCutterReleaseCache;
   const statusReader = input.release_cache_status_reader ?? readLocalCutterReleaseCacheStatus;
+  // PLAT-06：淘汰未引用旧版本前，先按本机历史作品清单保护引用版本；
+  // 扫描是只读 best-effort，异常时保守保留全部缓存，绝不阻塞同步。
+  const referenceOptions = await workspaceReleaseCacheReferenceOptions(input.workspace_root);
 
-  return syncRunner({
-    source_library_root: input.library_root,
-    cache_root: cacheRoot,
-    max_cached_releases: releaseCacheMaxReleases(input),
-    include_cache_size: false
-  })
-    .then((result): CutterReleaseCacheRuntimeStatus => ({
+  try {
+    const clientVersion = resolveCutterClientVersion(input);
+    const result = await syncRunner({
+      source_library_root: input.library_root,
+      cache_root: cacheRoot,
+      max_cached_releases: releaseCacheMaxReleases(input),
+      include_cache_size: false,
+      ...(clientVersion ? { client_version: clientVersion } : {}),
+      ...referenceOptions
+    });
+
+    // 校验失败（hash/清单无效）时保留旧缓存可用，但同步状态显式标 failed 供 UI/诊断读取。
+    const verificationFailed = Boolean(
+      result.verification &&
+        (
+          result.verification.failed_files.length > 0 ||
+          result.verification.fallback_reason === "file_verification_failed" ||
+          result.verification.fallback_reason === "manifest_v2_invalid"
+        )
+    );
+
+    return {
       enabled: true,
       ready: result.cache_ready,
-      sync_status: result.cache_ready ? "ready" : "unavailable",
+      sync_status: verificationFailed
+        ? "failed"
+        : result.cache_ready
+          ? "ready"
+          : "unavailable",
       active_release_version: result.active_release_version,
       source_release_version: result.source_release_version,
       search_index_version: result.search_index_version,
@@ -3841,20 +4577,38 @@ function syncCutterReleaseCacheRuntimeStatusUncached(
       max_cached_releases: result.max_cached_releases,
       cache_size_bytes: result.cache_size_bytes,
       pruned_release_versions: result.pruned_release_versions,
+      kept_release_versions: result.kept_release_versions ?? [],
+      kept_release_reasons: result.kept_release_reasons ?? {},
+      pinned_release_versions: result.pinned_release_versions ??
+        referenceOptions.pinned_release_versions ?? [],
+      prune_failed_release_versions: result.prune_failed_release_versions ?? [],
+      ...(result.verification
+        ? {
+            verification: result.verification,
+            ...(result.verification.contract_error_code
+              ? {
+                  contract_error_code: result.verification.contract_error_code,
+                  ...(result.verification.contract_error_message
+                    ? { contract_error_message: result.verification.contract_error_message }
+                    : {})
+                }
+              : {})
+          }
+        : {}),
       cache_root_path: result.cache_root,
       catalog_file_path: result.catalog_file_path,
       message: result.message
-    }))
-    .catch(async () =>
-      releaseCacheRuntimeStatusFromLocal(
-        await statusReader({
-          cache_root: cacheRoot,
-          max_cached_releases: releaseCacheMaxReleases(input),
-          include_cache_size: false
-        }),
-        "failed"
-      )
+    };
+  } catch {
+    return releaseCacheRuntimeStatusFromLocal(
+      await statusReader({
+        cache_root: cacheRoot,
+        max_cached_releases: releaseCacheMaxReleases(input),
+        include_cache_size: false
+      }),
+      "failed"
     );
+  }
 }
 
 async function syncCutterReleaseCacheBestEffort(
@@ -4442,6 +5196,8 @@ async function runtimeStatusForSession(input: {
       username: input.auth.user.username,
       display_name: input.auth.user.display_name
     },
+    usage_service_mode: usageServiceMode(input.api_input.usage_service),
+    accounts_service_mode: accountsServiceMode(input.api_input.account_service),
     diagnostics: {
       runtime_timings_ms: timings,
       search_index_warmup: readSearchIndexWarmupStatus(input.api_input)
@@ -4630,10 +5386,41 @@ async function runWorkspaceCutJob(input: {
   cut_job_id?: string;
   resolved_sources?: Map<string, CutJobSourceDetail>;
   persist_phase_progress?: boolean;
+  /** workspace 租约闸门：只有持租约的进程可执行任务（Round2）。 */
+  execution_allowed?: () => Promise<boolean>;
+  lease_unavailable_message?: () => string;
 }): ReturnType<typeof runNextCutJob> {
-  const cutRunner = input.api_input.cut_runner ?? defaultCutRunner;
-  const coverRunner = input.api_input.cover_runner ?? (input.api_input.cut_runner ? undefined : defaultCoverRunner);
+  if (input.execution_allowed && !(await input.execution_allowed())) {
+    throw new WorkspaceLeaseUnavailableError(
+      input.lease_unavailable_message?.() ??
+        "本机工作区正被另一个剪辑实例使用，当前实例只读/排队。"
+    );
+  }
+
+  const injectedCutRunner = input.api_input.cut_runner;
+  const cutTimeoutMaxMs = cutTimeoutMaxMsForInput(input.api_input);
+  const cutRunner =
+    injectedCutRunner ??
+    ((runnerInput: CutterClipCutRunnerInput) =>
+      defaultCutRunner(
+        runnerInput,
+        cutTimeoutMaxMs !== undefined ? { timeout_ms_max: cutTimeoutMaxMs } : {}
+      ));
+  const coverRunner = input.api_input.cover_runner ?? (injectedCutRunner ? undefined : defaultCoverRunner);
+  // 注入 runner 的调用方（测试/自定义执行器）默认不启用真实 ffprobe 探针，除非显式注入；
+  // 生产默认 runner 一律启用输出验收、源时长与关键帧探针（CUT-P0 契约）。
+  const outputProbe = input.api_input.output_probe ?? (injectedCutRunner ? undefined : defaultCutOutputProbe);
+  const keyframeProbe = input.api_input.keyframe_probe ?? (injectedCutRunner ? undefined : defaultCutKeyframeProbe);
+  const sourceDurationProbe =
+    input.api_input.source_duration_probe ?? (injectedCutRunner ? undefined : defaultCutSourceDurationProbe);
   let sourceToPrefetchAfterCut: CutJobSourceDetail | undefined;
+  // 剪切期间 pin 源缓存文件，避免 source-video cache 淘汰删掉正在读取的文件（Round2 CUT-14）。
+  const releaseCachePins: Array<() => void> = [];
+  const pinCutSourcePath = (filePath: string): void => {
+    if (filePath.trim()) {
+      releaseCachePins.push(pinCachePath(filePath));
+    }
+  };
 
   const runInput: RunNextCutJobInput = {
     workspace_root: input.workspace_root,
@@ -4649,6 +5436,8 @@ async function runWorkspaceCutJob(input: {
         if (!clip) {
           return null;
         }
+
+        pinCutSourcePath(clip.media_file_path);
 
         return {
           source_video_id: clip.export_clip_id,
@@ -4668,6 +5457,7 @@ async function runWorkspaceCutJob(input: {
       const cachedSource = input.resolved_sources?.get(job.source_video_id);
       if (cachedSource) {
         const cutSource = await sourceDetailWithLocalSourceForCut(input.api_input, cachedSource);
+        pinCutSourcePath(cutSource.source_video_file_path);
         if (cutSource.source_video_file_path === cachedSource.source_video_file_path) {
           sourceToPrefetchAfterCut = cachedSource;
         }
@@ -4682,6 +5472,7 @@ async function runWorkspaceCutJob(input: {
 
       const source = cutJobSourceFromDetail(detail);
       const cutSource = await sourceDetailWithLocalSourceForCut(input.api_input, source);
+      pinCutSourcePath(cutSource.source_video_file_path);
       if (cutSource.source_video_file_path === source.source_video_file_path) {
         sourceToPrefetchAfterCut = source;
       }
@@ -4702,12 +5493,22 @@ async function runWorkspaceCutJob(input: {
     },
     cut_temp_max_bytes: cutTempMaxBytes(input.api_input),
     persist_phase_progress: input.persist_phase_progress,
-    ...(coverRunner ? { cover_runner: coverRunner } : {})
+    ...(coverRunner ? { cover_runner: coverRunner } : {}),
+    ...(outputProbe ? { output_probe: outputProbe } : {}),
+    ...(keyframeProbe ? { keyframe_probe: keyframeProbe } : {}),
+    source_duration_probe: sourceDurationProbe,
+    ...(cutTimeoutMaxMs !== undefined ? { cut_timeout_ms_max: cutTimeoutMaxMs } : {})
   };
 
-  return input.cut_job_id
-    ? runCutJob({ ...runInput, cut_job_id: input.cut_job_id })
-    : runNextCutJob(runInput);
+  try {
+    return input.cut_job_id
+      ? await runCutJob({ ...runInput, cut_job_id: input.cut_job_id })
+      : await runNextCutJob(runInput);
+  } finally {
+    for (const release of releaseCachePins) {
+      release();
+    }
+  }
 }
 
 async function resolveProjectOutputDirectory(input: {
@@ -4798,6 +5599,8 @@ async function openSourceVideoDirectory(
 async function createWorkspaceLocalClip(input: {
   api_input: CreateCutterApiServerInput;
   body: CreateLocalClipRequestBody;
+  execution_allowed?: () => Promise<boolean>;
+  lease_unavailable_message?: () => string;
 }): Promise<ExportClipView> {
   const workspaceRoot = workspaceRootOrThrow(input.api_input);
   const sourceVideoId = requiredString(input.body.source_video_id, "source_video_id");
@@ -4856,7 +5659,11 @@ async function createWorkspaceLocalClip(input: {
     workspace_root: workspaceRoot,
     cut_job_id: submittedJob.cut_job_id,
     resolved_sources: new Map([[sourceVideoId, cutJobSourceFromDetail(detail)]]),
-    persist_phase_progress: false
+    persist_phase_progress: false,
+    ...(input.execution_allowed ? { execution_allowed: input.execution_allowed } : {}),
+    ...(input.lease_unavailable_message
+      ? { lease_unavailable_message: input.lease_unavailable_message }
+      : {})
   });
 
   if (!job || job.status !== "done" || !job.export_clip_id) {
@@ -4875,10 +5682,134 @@ async function createWorkspaceLocalClip(input: {
   return clip;
 }
 
+const usageOutboxes = new WeakMap<Server, UsageOutbox>();
+
+export async function closeCutterUsageOutbox(server: Server): Promise<void> {
+  await usageOutboxes.get(server)?.close();
+}
+
+export function cutterUsageOutbox(server: Server): UsageOutbox | undefined {
+  return usageOutboxes.get(server);
+}
+
+function envPositiveInteger(name: string): number | undefined {
+  const parsed = Number.parseInt(process.env[name]?.trim() ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export function createCutterApiServer(input: CreateCutterApiServerInput): Server {
+  // 服务模式默认关闭：只有显式配置 URL（或调用方注入连接）才切换到隔离服务。
+  input.usage_service = input.usage_service ?? usageServiceFromEnv(process.env, "client");
+  input.account_service = input.account_service ?? accountServiceFromEnv(process.env, "client");
+
+  if (input.usage_service && input.usage_event_recorder) {
+    throw new Error("统计服务不能同时配置其他事件写入器");
+  }
+
+  const usageOutbox = input.usage_service
+    ? new UsageOutbox(
+        input.usage_outbox_root ??
+          optionalTrimmed(process.env.MIXLAB_USAGE_OUTBOX_ROOT) ??
+          (input.workspace_root ? path.join(input.workspace_root, "usage-outbox") : ""),
+        input.usage_service,
+        {
+          ...(input.usage_outbox_max_events !== undefined
+            ? { max_events: input.usage_outbox_max_events }
+            : envPositiveInteger("MIXLAB_USAGE_OUTBOX_MAX_EVENTS") !== undefined
+              ? { max_events: envPositiveInteger("MIXLAB_USAGE_OUTBOX_MAX_EVENTS")! }
+              : {})
+        }
+      )
+    : undefined;
+
+  if (usageOutbox) {
+    input.usage_event_recorder = async (_root, event) => {
+      await usageOutbox.enqueue(event);
+    };
+  }
+
   let cutQueueDrainRunning = false;
   let cutQueueDrainRequested = false;
   let cutQueueDrainTimer: NodeJS.Timeout | undefined;
+  let workspaceLease: WorkspaceLease | undefined;
+  let workspaceLeaseUnavailable: WorkspaceLeaseUnavailableError | undefined;
+
+  // Round2：workspace 独占租约。只有持租约的进程能执行启动恢复与队列任务。
+  const leaseReady: Promise<void> = (async () => {
+    if (!input.workspace_root) {
+      return;
+    }
+
+    if (input.workspace_lease_disabled) {
+      // 显式禁用租约（测试/单进程特殊场景）：保持 Round1 启动恢复行为。
+      try {
+        await recoverInterruptedCutJobs({
+          workspace_root: input.workspace_root,
+          now: input.now?.() ?? new Date().toISOString()
+        });
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: "cut_queue_recovery_failed",
+          message: error instanceof Error ? error.message : String(error)
+        }));
+      }
+      return;
+    }
+
+    try {
+      workspaceLease = await acquireWorkspaceLease({
+        workspace_root: input.workspace_root,
+        ...(input.workspace_lease_options ?? {}),
+        now: input.workspace_lease_options?.now ?? (() => input.now?.() ?? new Date().toISOString())
+      });
+      const recovery = await recoverInterruptedCutJobsIfLeased({
+        workspace_root: input.workspace_root,
+        now: () => input.now?.() ?? new Date().toISOString(),
+        lease: workspaceLease
+      });
+      if (recovery.skipped) {
+        console.error(JSON.stringify({
+          event: "cut_queue_recovery_skipped",
+          reason: recovery.reason
+        }));
+      }
+    } catch (error) {
+      if (error instanceof WorkspaceLeaseUnavailableError) {
+        workspaceLeaseUnavailable = error;
+        console.error(JSON.stringify({
+          event: "workspace_lease_unavailable",
+          message: error.message,
+          holder: error.holder ?? null
+        }));
+        return;
+      }
+
+      console.error(JSON.stringify({
+        event: "workspace_lease_acquire_failed",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  })();
+
+  const workspaceExecutionAllowed = async (): Promise<boolean> => {
+    await leaseReady;
+
+    if (!input.workspace_root || input.workspace_lease_disabled) {
+      return true;
+    }
+
+    return Boolean(workspaceLease?.is_held());
+  };
+
+  const workspaceLeaseMessage = (): string =>
+    workspaceLeaseUnavailable?.message ??
+    "本机工作区正被另一个剪辑实例使用（workspace 租约被占用），当前实例只读/排队。";
+
+  void leaseReady.finally(() => {
+    if (input.workspace_lease_disabled || workspaceLease?.is_held()) {
+      scheduleCutQueueDrain("startup");
+    }
+  });
 
   const scheduleCutQueueDrain = (reason: string): void => {
     if (!input.auto_run_cut_queue || !input.workspace_root) {
@@ -4902,6 +5833,15 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       return;
     }
 
+    if (!(await workspaceExecutionAllowed())) {
+      console.error(JSON.stringify({
+        event: "cut_queue_drain_skipped",
+        reason,
+        cause: WORKSPACE_LEASE_UNAVAILABLE_CODE
+      }));
+      return;
+    }
+
     cutQueueDrainRunning = true;
 
     try {
@@ -4911,7 +5851,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         for (;;) {
           const job = await runWorkspaceCutJob({
             api_input: input,
-            workspace_root: input.workspace_root
+            workspace_root: input.workspace_root,
+            execution_allowed: workspaceExecutionAllowed,
+            lease_unavailable_message: workspaceLeaseMessage
           });
 
           if (!job) {
@@ -4934,9 +5876,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
     }
   };
 
-  scheduleCutQueueDrain("startup");
-
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       setCorsHeaders(response);
 
@@ -4957,10 +5897,16 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
+      // 能力协商端点：公开（仅能力/版本，不含路径/凭据），旧客户端 404 时自动降级。
+      if (request.method === "GET" && url.pathname === "/cutter/capabilities") {
+        writeJson(response, 200, apiResponse(buildCutterCapabilities(input)));
+        return;
+      }
+
       if (request.method === "POST" && url.pathname === "/cutter/auth/register") {
         try {
           const body = (await readRequestJson(request)) as CutterLoginRequestBody;
-          const user = await registerCutterAccount(input.library_root, {
+          const user = await createCutterAccounts(input.account_service).registerCutterAccount(input.library_root, {
             username: requiredChineseString(body.username, "用户名不能为空"),
             password: requiredChineseString(body.password, "密码不能为空"),
             device_id: requiredChineseString(body.device_id, "设备 ID 不能为空"),
@@ -4974,6 +5920,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           }));
           return;
         } catch (error) {
+          if ((error as { code?: string }).code === "AGENT_UNAVAILABLE") {
+            throw error;
+          }
           const message = (error as Error).message;
           writeError(
             response,
@@ -5004,7 +5953,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
-          const login = await loginCutterAccount(input.library_root, {
+          const login = await createCutterAccounts(input.account_service).loginCutterAccount(input.library_root, {
             username: requiredChineseString(body.username, "用户名不能为空"),
             password: requiredChineseString(body.password, "密码不能为空"),
             device_id: requiredChineseString(body.device_id, "设备 ID 不能为空"),
@@ -5024,6 +5973,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           }));
           return;
         } catch (error) {
+          if ((error as { code?: string }).code === "AGENT_UNAVAILABLE") {
+            throw error;
+          }
           const message = (error as Error).message;
           writeError(
             response,
@@ -5044,7 +5996,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const deviceId = firstHeaderValue(request.headers["x-mixlab-device-id"]);
         const sessionToken = firstHeaderValue(request.headers["x-mixlab-session-token"]);
         writeJson(response, 200, apiResponse(deviceId && sessionToken
-          ? await logoutCutterSession(input.library_root, {
+          ? await createCutterAccounts(input.account_service).logoutCutterSession(input.library_root, {
               device_id: deviceId,
               session_token: sessionToken
             })
@@ -5070,7 +6022,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         try {
           const body = (await readRequestJson(request)) as CutterPasswordChangeRequestBody;
           const sessionToken = firstHeaderValue(request.headers["x-mixlab-session-token"]);
-          const result = await changeCutterAccountPassword(input.library_root, {
+          const result = await createCutterAccounts(input.account_service).changeCutterAccountPassword(input.library_root, {
             user_id: auth.user.user_id,
             current_password: requiredChineseString(body.current_password, "当前密码不能为空"),
             new_password: requiredChineseString(body.new_password, "新密码不能为空"),
@@ -5094,6 +6046,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           }));
           return;
         } catch (error) {
+          if ((error as { code?: string }).code === "AGENT_UNAVAILABLE") {
+            throw error;
+          }
           const message = (error as Error).message;
           writeError(
             response,
@@ -5129,7 +6084,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
           const deviceId = requiredChineseString(body.device_id, "设备 ID 不能为空");
           const now = currentNow(input);
-          const application = await createCutterLoginApplication(input.library_root, {
+          const application = await createCutterAccounts(input.account_service).createCutterLoginApplication(input.library_root, {
             username: requiredChineseString(body.username, "用户名不能为空"),
             device_id: deviceId,
             device_name: requiredChineseString(body.device_name, "设备名称不能为空"),
@@ -5138,7 +6093,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             user_agent: firstHeaderValue(request.headers["user-agent"]) || undefined
           });
           const session = application.status === "approved"
-            ? await ensureCutterSessionForDevice(input.library_root, {
+            ? await createCutterAccounts(input.account_service).ensureCutterSessionForDevice(input.library_root, {
                 user_id: application.user_id,
                 device_id: deviceId,
                 now
@@ -5150,6 +6105,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           }));
           return;
         } catch (error) {
+          if ((error as { code?: string }).code === "AGENT_UNAVAILABLE") {
+            throw error;
+          }
           const message = (error as Error).message;
           writeError(
             response,
@@ -5178,7 +6136,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           try {
             const clip = await createWorkspaceLocalClip({
               api_input: input,
-              body
+              body,
+              execution_allowed: workspaceExecutionAllowed,
+              lease_unavailable_message: workspaceLeaseMessage
             });
             writeJson(response, 201, apiResponse(toWorkspaceLocalClipPayload(clip)));
             await recordCutterUsageEventsBestEffort([
@@ -5405,6 +6365,17 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const workspaceRoot = workspaceRootOrThrow(input);
         const body = (await readRequestJson(request)) as SubmitCutJobsRequestBody;
         const clipListId = requiredString(body.clip_list_id, "clip_list_id");
+        const clientRequestId = optionalString(body.client_request_id, "client_request_id");
+
+        if (clientRequestId && !/^[A-Za-z0-9._:-]{1,120}$/.test(clientRequestId)) {
+          writeError(
+            response,
+            400,
+            "invalid_client_request_id",
+            "client_request_id 只能包含字母、数字、点、下划线、冒号、连字符（最长 120）"
+          );
+          return;
+        }
         const clipList = await readClipList({
           workspace_root: workspaceRoot,
           clip_list_id: clipListId
@@ -5418,7 +6389,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const submission = await submitClipListToQueue({
           workspace_root: workspaceRoot,
           clip_list: clipList,
-          now: input.now?.() ?? new Date().toISOString()
+          now: input.now?.() ?? new Date().toISOString(),
+          ...(clientRequestId ? { client_request_id: clientRequestId } : {})
         });
         writeJson(response, 201, apiResponse(submission));
         scheduleCutQueueDrain("submit");
@@ -5449,7 +6421,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const workspaceRoot = workspaceRootOrThrow(input);
         const job = await runWorkspaceCutJob({
           api_input: input,
-          workspace_root: workspaceRoot
+          workspace_root: workspaceRoot,
+          execution_allowed: workspaceExecutionAllowed,
+          lease_unavailable_message: workspaceLeaseMessage
         });
         writeJson(response, 200, apiResponse(job));
         if (job && (job.status === "done" || job.status === "failed")) {
@@ -5546,8 +6520,18 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             return;
           }
 
-          if (message === "only failed or cancelled cut jobs can be retried") {
-            writeError(response, 409, "cut_job_not_retryable", "只有失败或已取消任务可以重试");
+          const retryErrorCode = (error as { code?: unknown })?.code;
+          if (
+            retryErrorCode === CUT_JOB_NOT_RETRYABLE_CODE ||
+            message === "only failed or cancelled cut jobs can be retried"
+          ) {
+            // 复剪契约：failed/cancelled，或 done 但 verification.passed === false 才可重试。
+            writeError(
+              response,
+              409,
+              "cut_job_not_retryable",
+              message || "该任务当前状态不可复剪"
+            );
             return;
           }
 
@@ -5628,6 +6612,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         writeJson(response, 200, apiResponse({
           ok: true,
           searchd_configured: Boolean(optionalTrimmed(input.searchd_base_url)),
+          usage_service_mode: usageServiceMode(input.usage_service),
+          accounts_service_mode: accountsServiceMode(input.account_service),
           library_root_path: input.library_root,
           workspace_root_path: input.workspace_root ?? "",
           release_cache_root_path: input.release_cache_root ?? ""
@@ -5979,7 +6965,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               return;
             }
 
-            await streamFile({
+            await streamFileWithCachePin({
               request,
               response,
               file_path: clip.cover_file_path,
@@ -5995,7 +6981,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               return;
             }
 
-            await streamFile({
+            await streamFileWithCachePin({
               request,
               response,
               file_path: clip.subtitles_file_path,
@@ -6008,7 +6994,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           // Media streams are intentionally not header-gated: browser video elements
           // cannot reliably attach the custom cutter auth headers after an approved
           // page has loaded the URL.
-          await streamFile({
+          await streamFileWithCachePin({
             request,
             response,
             file_path: clip.media_file_path,
@@ -6043,7 +7029,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         // Media streams are intentionally not header-gated; see the workspace
         // branch above for the browser playback rationale.
-        await streamFile({
+        await streamFileWithCachePin({
           request,
           response,
           file_path: clip.media_file_path,
@@ -6112,7 +7098,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         // authenticated pages can hand URLs to native video/img/subtitle loaders.
         if (route.action === "media") {
           const mediaDetail = await sourceDetailWithLocalSourceCache(input, detail);
-          await streamFile({
+          await streamFileWithCachePin({
             request,
             response,
             file_path: mediaDetail.source_video_file_path,
@@ -6143,7 +7129,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             writeError(response, 404, "source_video_cover_not_found", "Source video cover not found");
             return;
           }
-          await streamFile({
+          await streamFileWithCachePin({
             request,
             response,
             file_path: cachedCoverFilePath,
@@ -6158,7 +7144,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             writeText(response, 200, detail.srt);
             return;
           }
-          await streamFile({
+          await streamFileWithCachePin({
             request,
             response,
             file_path: detail.srt_file_path,
@@ -6196,6 +7182,28 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if ((error as { code?: unknown })?.code === CUT_QUEUE_BUSY_CODE) {
+        writeError(
+          response,
+          409,
+          CUT_QUEUE_BUSY_CODE,
+          error instanceof Error ? error.message : "另一个剪辑实例正在提交剪切任务，请稍后重试。"
+        );
+        return;
+      }
+
+      if ((error as { code?: unknown })?.code === WORKSPACE_LEASE_UNAVAILABLE_CODE) {
+        writeError(
+          response,
+          409,
+          WORKSPACE_LEASE_UNAVAILABLE_CODE,
+          error instanceof Error
+            ? error.message
+            : "本机工作区正被另一个剪辑实例使用（workspace 租约被占用），当前实例只读/排队。"
+        );
+        return;
+      }
+
       const infrastructureError = cutterApiInfrastructureErrorPayload(error);
       if (infrastructureError) {
         writeError(
@@ -6207,8 +7215,35 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      const contractCode = (error as { code?: unknown })?.code;
+      if (typeof contractCode === "string" && isContractErrorCode(contractCode)) {
+        const definition = contractErrorDefinition(contractCode);
+        writeError(
+          response,
+          definition?.http_status ?? 503,
+          contractCode,
+          error instanceof Error && error.message
+            ? error.message
+            : definition?.user_message ?? "服务暂时不可用"
+        );
+        return;
+      }
+
       logUnhandledCutterApiError(request, error);
       writeError(response, 500, "internal_error", "Internal server error");
     }
   });
+
+  server.once("close", () => {
+    void workspaceLease?.release();
+  });
+
+  if (usageOutbox) {
+    usageOutboxes.set(server, usageOutbox);
+    server.once("close", () => {
+      void usageOutbox.close();
+    });
+  }
+
+  return server;
 }

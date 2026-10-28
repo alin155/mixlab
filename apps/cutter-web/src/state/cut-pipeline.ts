@@ -30,6 +30,8 @@ export interface ObserveServiceCutQueueInput {
   pollIntervalMs?: number;
   maxWaitMs?: number;
   idleStablePolls?: number;
+  /** Abort watching when the view is unmounted, logged out or the project changes. */
+  signal?: AbortSignal;
 }
 
 export const idleCutPipelineState: CutPipelineState = {
@@ -75,7 +77,9 @@ function isActiveQueueJob(job: CutQueueJob): boolean {
 }
 
 function isTerminalQueueJob(job: CutQueueJob): boolean {
-  return job.status === "done" || job.status === "failed";
+  // Cancelled is terminal too: it must end the wait and must never be reported
+  // as a completed/finished cut.
+  return job.status === "done" || job.status === "failed" || job.status === "cancelled";
 }
 
 function queueJobId(job: CutQueueJob): string {
@@ -112,6 +116,52 @@ function serviceQueueState(input: {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function abortableWait(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return wait(ms);
+  }
+
+  if (signal.aborted) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, ms);
+    const handleAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+function newTerminalJobs(
+  jobs: readonly CutQueueJob[],
+  baselineTerminalJobIds: ReadonlySet<string>
+): CutQueueJob[] {
+  return jobs.filter(
+    (job) => isTerminalQueueJob(job) && !baselineTerminalJobIds.has(queueJobId(job))
+  );
+}
+
+function idleObservationState(
+  jobs: readonly CutQueueJob[],
+  baselineTerminalJobIds: ReadonlySet<string>,
+  message: string
+): CutPipelineState {
+  return {
+    status: "idle",
+    processed_count: newTerminalJobs(jobs, baselineTerminalJobIds).length,
+    done_count: 0,
+    failed_count: 0,
+    message,
+    last_updated_label: "刚刚更新"
+  };
 }
 
 function runningState(input: {
@@ -250,7 +300,28 @@ export async function observeServiceCutQueue(
   }));
 
   for (;;) {
+    if (input.signal?.aborted) {
+      const abortedState = idleObservationState(
+        latestJobs,
+        baselineTerminalJobIds,
+        "已停止观察本机剪切队列。"
+      );
+      input.onState?.(abortedState);
+      return abortedState;
+    }
+
     latestJobs = await input.refreshQueueJobs();
+
+    if (input.signal?.aborted) {
+      const abortedState = idleObservationState(
+        latestJobs,
+        baselineTerminalJobIds,
+        "已停止观察本机剪切队列。"
+      );
+      input.onState?.(abortedState);
+      return abortedState;
+    }
+
     const newlyDoneJobs = latestJobs.filter(
       (job) =>
         job.status === "done" &&
@@ -266,10 +337,21 @@ export async function observeServiceCutQueue(
     }
 
     const hasActiveJobs = latestJobs.some(isActiveQueueJob);
+    const finishedJobs = newTerminalJobs(latestJobs, baselineTerminalJobIds);
+    // Cancelled-only outcomes are terminal but not a "completed" cut; no new
+    // finished job at all means the queue is simply idle (CW-13/CW-14).
+    const completedJobs = finishedJobs.filter(
+      (job) => job.status === "done" || job.status === "failed"
+    );
+    const observedStatus: CutPipelineStatus = hasActiveJobs
+      ? "running"
+      : completedJobs.length > 0
+        ? "completed"
+        : "idle";
     input.onState?.(serviceQueueState({
       jobs: latestJobs,
       baselineTerminalJobIds,
-      status: hasActiveJobs ? "running" : "completed"
+      status: observedStatus
     }));
 
     if (!hasActiveJobs) {
@@ -278,7 +360,7 @@ export async function observeServiceCutQueue(
         const finalState = serviceQueueState({
           jobs: latestJobs,
           baselineTerminalJobIds,
-          status: "completed"
+          status: completedJobs.length > 0 ? "completed" : "idle"
         });
         input.onState?.(finalState);
         return finalState;
@@ -291,13 +373,17 @@ export async function observeServiceCutQueue(
       const timeoutState = serviceQueueState({
         jobs: latestJobs,
         baselineTerminalJobIds,
-        status: hasActiveJobs ? "running" : "completed",
+        status: hasActiveJobs
+          ? "running"
+          : completedJobs.length > 0
+            ? "completed"
+            : "idle",
         message: hasActiveJobs ? "本机剪切仍在后台排队或执行，可继续操作页面。" : undefined
       });
       input.onState?.(timeoutState);
       return timeoutState;
     }
 
-    await wait(pollIntervalMs);
+    await abortableWait(pollIntervalMs, input.signal);
   }
 }

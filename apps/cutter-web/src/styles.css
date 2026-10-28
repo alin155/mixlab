@@ -148,3 +148,202 @@ body,
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Persistent recoverable-action notice (CUTW-03). Distinct from success
+   notices so a failed open/delete/retry is always visible on every route. */
+.cutter-recoverable-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-failed, #d9534f) 45%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ml-color-failed, #d9534f) 12%, transparent);
+  color: var(--ml-color-text-primary, #f4f6f8);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cutter-recoverable-notice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Crash recovery surface (CUT-WEB-P0-1): a render crash must never be a
+   white screen; users get reload, diagnostics export and a safe UI-state reset. */
+.cutter-crash-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  padding: 24px;
+  background: #101318;
+  color: #f4f6f8;
+}
+
+.cutter-crash-recovery-card {
+  width: min(760px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 28px;
+  border: 1px solid #2a3038;
+  border-radius: 14px;
+  background: #161a20;
+}
+
+.cutter-crash-recovery-kicker {
+  margin: 0 0 6px;
+  color: #8b96a5;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cutter-crash-recovery-title {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.cutter-crash-recovery-copy,
+.cutter-crash-recovery-hint {
+  margin: 0 0 14px;
+  color: #b9c2cd;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cutter-crash-recovery-message,
+.cutter-crash-recovery-diagnostics {
+  margin: 0 0 16px;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #2a3038;
+  border-radius: 10px;
+  background: #0d1014;
+  color: #ffd7d7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cutter-crash-recovery-diagnostics {
+  margin-top: 14px;
+  color: #cfe3ff;
+}
+
+.cutter-crash-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.cutter-crash-recovery-action {
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid #3a424d;
+  border-radius: 8px;
+  background: #222831;
+  color: #f4f6f8;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cutter-crash-recovery-action:hover {
+  border-color: #55616f;
+}
+
+.cutter-crash-recovery-action.is-primary {
+  border-color: #3f7ad6;
+  background: #2f5fa8;
+}
+
+.cutter-crash-recovery-action.is-danger {
+  border-color: #7d3b3b;
+  background: #5a2a2a;
+}
+
+/* Contract v1 error/upgrade surfaces (Round 3): stable code + remediation. */
+.cutter-recoverable-notice-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cutter-recoverable-notice-body p {
+  margin: 0;
+}
+
+.cutter-recoverable-notice-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--ml-color-text-tertiary, #9aa5b1);
+  font-size: 12px;
+}
+
+.cutter-recoverable-notice-meta code {
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-failed, #d9534f) 40%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ml-color-failed, #d9534f) 10%, transparent);
+  font-size: 11px;
+}
+
+.cutter-recoverable-notice-details summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.cutter-recoverable-notice-details pre,
+.cutter-error-presentation pre {
+  max-height: 220px;
+  margin: 6px 0 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--ml-color-text-tertiary, #9aa5b1) 30%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, #000 24%, transparent);
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.cutter-contract-notice {
+  display: flex;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-warning, #f5a524) 50%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ml-color-warning, #f5a524) 14%, transparent);
+  color: var(--ml-color-text-primary, #f4f6f8);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cutter-contract-notice-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cutter-contract-notice-body code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ml-color-warning, #f5a524) 18%, transparent);
+  font-size: 11px;
+}

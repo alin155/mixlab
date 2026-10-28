@@ -1,0 +1,66 @@
+name: cutter-pipeline
+# TEMPLATE：剪辑端 独立检查链（typecheck → 共享包门禁 → contracts 6 项 → 全量测试）。
+# 只读检查；不运行真实发布/部署；release manifest 校验为可选步骤（需 artifact 时才接）。
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "packages/**"
+      - "apps/**"
+      - "scripts/ci/**"
+      - ".github/workflows/cutter-pipeline.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cutter-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cutter-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Checkout admin repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MIXLAB_ADMIN_REPOSITORY }}
+          path: repos/mixlab
+          token: ${{ secrets.SHARED_REPOS_READ_TOKEN }}
+      - name: Checkout smart repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MIXLAB_SMART_REPOSITORY }}
+          path: repos/mixlab-smart-cutter
+          token: ${{ secrets.SHARED_REPOS_READ_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # NOTE(ci template): 仓库内 packages/{contracts,library-format,service-clients} 为 workspace 新包，
+      # 需先执行一次 `npm install --package-lock-only` 刷新 package-lock 后，npm ci 才能成功；
+      # 未刷新前模板使用 `npm ci || npm install` 兜底（不发布任何制品）。
+
+      - name: Install current repository deps
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: 剪辑端 pipeline
+        run: |
+          node scripts/ci/product-pipeline.mjs \
+            --product cutter \
+            --admin-root repos/mixlab --cutter-root . --smart-root repos/mixlab-smart-cutter \
+            --summary-out ci-summary-cutter.json
+
+      - name: Upload pipeline summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutter-pipeline-summary
+          path: ci-summary-cutter.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -322,37 +322,192 @@ export function recordProjectCut(
   };
 }
 
-export function readCutterProjects(): CutterProjectsState {
-  const storage = safeStorage();
+export const CUTTER_PROJECTS_CORRUPT_STORAGE_KEY = "mixlab.cutter.projects.corrupt";
+
+const PROJECT_STATUSES: readonly CutterProjectStatus[] = ["active", "delivered", "archived"];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function stringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function normalizedProjectSearch(value: unknown): CutterProjectSearch | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const query = stringValue(value.query).trim();
+  if (!query) {
+    return null;
+  }
+
+  return {
+    query,
+    hit_count: Math.max(0, Math.round(finiteNumber(value.hit_count, 0))),
+    searched_at: stringValue(value.searched_at)
+  };
+}
+
+function normalizedProject(value: unknown): CutterProject | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const projectId = stringValue(value.project_id).trim();
+  const title = stringValue(value.title);
+  if (!projectId) {
+    return null;
+  }
+
+  const createdAt = stringValue(value.created_at) || new Date(0).toISOString();
+  const status = typeof value.status === "string" &&
+    (PROJECT_STATUSES as readonly string[]).includes(value.status)
+    ? (value.status as CutterProjectStatus)
+    : "active";
+  const titleSource = value.title_source === "manual" || value.title_source === "auto"
+    ? value.title_source
+    : undefined;
+  const searches = Array.isArray(value.searches)
+    ? value.searches
+        .map((entry) => normalizedProjectSearch(entry))
+        .filter((entry): entry is CutterProjectSearch => entry !== null)
+        .slice(0, 12)
+    : [];
+
+  return {
+    project_id: projectId,
+    title,
+    ...(titleSource ? { title_source: titleSource } : {}),
+    status,
+    created_at: createdAt,
+    updated_at: stringValue(value.updated_at) || createdAt,
+    clip_count: Math.max(0, Math.round(finiteNumber(value.clip_count, 0))),
+    running_count: Math.max(0, Math.round(finiteNumber(value.running_count, 0))),
+    failed_count: Math.max(0, Math.round(finiteNumber(value.failed_count, 0))),
+    searches,
+    ...(typeof value.cover_url === "string" && value.cover_url ? { cover_url: value.cover_url } : {}),
+    ...(typeof value.detail_cover_url === "string" && value.detail_cover_url
+      ? { detail_cover_url: value.detail_cover_url }
+      : {}),
+    ...(typeof value.source_title === "string" && value.source_title
+      ? { source_title: value.source_title }
+      : {})
+  };
+}
+
+export interface CutterProjectsParseResult {
+  projects: CutterProject[];
+  corrupted: boolean;
+}
+
+export function parseCutterProjects(serialized: string | null | undefined): CutterProjectsParseResult {
+  if (!serialized) {
+    return { projects: [], corrupted: false };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    return { projects: [], corrupted: true };
+  }
+
+  if (!Array.isArray(parsed)) {
+    return { projects: [], corrupted: true };
+  }
+
+  let corrupted = false;
+  const projects: CutterProject[] = [];
+  for (const entry of parsed) {
+    const project = normalizedProject(entry);
+    if (!project) {
+      corrupted = true;
+      continue;
+    }
+
+    projects.push(project);
+  }
+
+  return { projects, corrupted };
+}
+
+function storeCorruptProjects(storage: Storage, raw: string): void {
+  try {
+    storage.setItem(CUTTER_PROJECTS_CORRUPT_STORAGE_KEY, raw);
+  } catch {
+    // Best-effort backup only; recovery must not depend on writable storage.
+  }
+}
+
+export function readCutterProjects(
+  storage: Storage | null | undefined = safeStorage()
+): CutterProjectsState {
   if (!storage) {
     return { projects: [] };
   }
 
+  let raw: string | null = null;
   try {
-    const projects = JSON.parse(storage.getItem(CUTTER_PROJECTS_STORAGE_KEY) ?? "[]") as CutterProject[];
-    const currentProjectId = storage.getItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY) ?? undefined;
-
-    return {
-      projects: sortProjects(projects),
-      ...(currentProjectId ? { currentProjectId } : {})
-    };
+    raw = storage.getItem(CUTTER_PROJECTS_STORAGE_KEY);
   } catch {
     return { projects: [] };
   }
+
+  if (!raw) {
+    return { projects: [] };
+  }
+
+  const parsed = parseCutterProjects(raw);
+  if (parsed.corrupted) {
+    storeCorruptProjects(storage, raw);
+  }
+
+  const projects = sortProjects(parsed.projects);
+  let currentProjectId: string | undefined;
+  try {
+    currentProjectId = storage.getItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY) ?? undefined;
+  } catch {
+    currentProjectId = undefined;
+  }
+
+  const validCurrentProjectId =
+    currentProjectId && projects.some((project) => project.project_id === currentProjectId)
+      ? currentProjectId
+      : undefined;
+
+  return {
+    projects,
+    ...(validCurrentProjectId ? { currentProjectId: validCurrentProjectId } : {})
+  };
 }
 
-export function writeCutterProjects(projects: readonly CutterProject[], currentProjectId?: string): void {
-  const storage = safeStorage();
+export function writeCutterProjects(
+  projects: readonly CutterProject[],
+  currentProjectId?: string,
+  storage: Storage | null | undefined = safeStorage()
+): void {
   if (!storage) {
     return;
   }
 
   const sortedProjects = sortProjects(projects);
-  storage.setItem(CUTTER_PROJECTS_STORAGE_KEY, JSON.stringify(sortedProjects));
-  if (currentProjectId) {
-    storage.setItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY, currentProjectId);
-  } else {
-    storage.removeItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY);
+  try {
+    storage.setItem(CUTTER_PROJECTS_STORAGE_KEY, JSON.stringify(sortedProjects));
+    if (currentProjectId) {
+      storage.setItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY, currentProjectId);
+    } else {
+      storage.removeItem(CUTTER_CURRENT_PROJECT_STORAGE_KEY);
+    }
+  } catch {
+    // Quota/private-mode failures must not break project interactions; the
+    // in-memory state stays authoritative until storage is writable again.
   }
 }
 

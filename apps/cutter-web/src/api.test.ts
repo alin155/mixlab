@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CutterApiError,
   createCutterApiClient,
   formatDuration,
   formatFileSize,
@@ -23,6 +24,50 @@ function makeJsonResponse(body: unknown, init: ResponseInit = {}): Response {
     }
   });
 }
+
+test("protected 401 responses notify the app and still throw", async () => {
+  const notified: CutterApiError[] = [];
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    auth: { device_id: "device-001", session_token: "session-001" },
+    on_unauthenticated: (error) => {
+      notified.push(error);
+    },
+    fetch: async () =>
+      makeJsonResponse(
+        { error: { code: "login_required", message: "session expired" } },
+        { status: 401 }
+      )
+  });
+
+  await assert.rejects(
+    () => client.listCutJobs(),
+    (error: unknown) => error instanceof CutterApiError && error.status === 401
+  );
+  assert.equal(notified.length, 1);
+  assert.equal(notified[0]?.code, "login_required");
+});
+
+test("anonymous login failures do not clear the stored session", async () => {
+  let notified = 0;
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    on_unauthenticated: () => {
+      notified += 1;
+    },
+    fetch: async () =>
+      makeJsonResponse(
+        { error: { code: "invalid_credentials", message: "wrong password" } },
+        { status: 401 }
+      )
+  });
+
+  await assert.rejects(
+    () => client.loginAccount({ username: "u", password: "p", device_id: "d", device_name: "n" }),
+    (error: unknown) => error instanceof CutterApiError && error.status === 401
+  );
+  assert.equal(notified, 0);
+});
 
 test("normalizes cutter API base URLs without trailing slash", () => {
   assert.equal(normalizeApiBaseUrl(" http://127.0.0.1:3789/ "), "http://127.0.0.1:3789");
@@ -1556,6 +1601,68 @@ test("throws readable API errors", async () => {
     name: "CutterApiError",
     message: "Source video not found"
   });
+});
+
+test("contract error envelope v1 keeps code/remediation/retryable/details", async () => {
+  const client = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async () =>
+      makeJsonResponse(
+        {
+          ok: false,
+          error_code: "VALIDATION_FAILED",
+          code: "VALIDATION_FAILED",
+          message: "begin_ms must be >= 0",
+          remediation: "检查输入后重试",
+          retryable: "after-fix",
+          http_status: 400,
+          details: { field: "begin_ms" },
+          contract_version: "1.0.0"
+        },
+        { status: 400 }
+      )
+  });
+
+  await assert.rejects(
+    () => client.createClipList({ library_id: "lib", title: "t", items: [] }),
+    (error: unknown) =>
+      error instanceof CutterApiError &&
+      error.code === "VALIDATION_FAILED" &&
+      error.remediation === "检查输入后重试" &&
+      error.retryable === "after-fix" &&
+      error.contract_version === "1.0.0" &&
+      error.details?.field === "begin_ms"
+  );
+});
+
+test("capabilities endpoint degrades to null on 404/malformed and parses valid tables", async () => {
+  const capability = {
+    contract_version: "1.0.0",
+    server_version: "2026.10",
+    server_product: "cutter",
+    min_client_version: "0.19.0",
+    features: { release_v2: true, cut_verification: true },
+    limits: { page_max: 200 },
+    generated_at: "2026-10-27T02:00:00.000Z"
+  };
+
+  const ok = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async () => makeJsonResponse({ schema_version: "1.0", data: capability })
+  });
+  assert.deepEqual(await ok.getCapabilities(), capability);
+
+  const missing = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async () => makeJsonResponse({ error: { code: "not_found", message: "not found" } }, { status: 404 })
+  });
+  assert.equal(await missing.getCapabilities(), null);
+
+  const malformed = createCutterApiClient({
+    base_url: "http://127.0.0.1:3789",
+    fetch: async () => makeJsonResponse({ schema_version: "1.0", data: { features: {} } })
+  });
+  assert.equal(await malformed.getCapabilities(), null);
 });
 
 test("formats durations and file sizes for dense media cards", () => {

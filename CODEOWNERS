@@ -1,0 +1,99 @@
+# MixLab CODEOWNERS 模板（Round6 task-51 起草；三仓同源维护）
+#
+# 重要：本文件只在 GitHub 上、对已配置分支保护的分支生效。当前仓库尚未创建下列
+# org/team，因此本模板在团队配置与分支保护完成前只是“评审约定”，不会强制拦截合并。
+# 生效前置（需 GitHub 组织管理员 / 仓库管理员确认并操作，非代码可完成）：
+#   1) 在 GitHub org `mixlab` 创建团队：repo-admins / platform-core / contract-committee /
+#      release-engineering / security-reviewers / admin-team / cutter-team / smart-team；
+#      为每个团队设置至少 2 名成员（避免单人休假阻塞）。
+#   2) 为仓库启用分支保护（main + release/* + codex/* 发布分支）：Require a pull request
+#      before merging；Require review from Code Owners；Dismiss stale approvals；
+#      Require status checks（typecheck / test / release:check）；Require conversation resolution。
+#   3) 确认 CODEOWNERS 语法被 GitHub 接受（仓库 Settings 或 PR 页面会显示 owner 解析错误）。
+#   4) 组织若使用 GitLab/Bitbucket，需按对应平台的 CODEOWNERS 语法与权限模型另配；
+#      本地 git 不执行 CODEOWNERS。
+#   5) 团队名/成员/分支名变更时，三仓 CODEOWNERS 必须同批更新（契约委员会评审）。
+#
+# 分组语义：
+#   repo-admins        仓库管理员：兜底、CODEOWNERS 自身、仓库设置与安全策略
+#   platform-core      平台核心：跨产品共享包、运行库、架构/治理文档
+#   contract-committee 契约委员会：contracts/library-format/service-clients 等跨边界契约
+#   release-engineering 发布工程：CI/workflows、发布清单/版本表、发布与回滚操作文档
+#   security-reviewers 安全评审：认证/账号/密钥/边界安全相关路径（第二评审，不阻塞日常）
+#   admin-team / cutter-team / smart-team  各产品负责人（产品代码、产品文档、产品验收）
+#
+# 规则：GitHub 采用“最后一个匹配模式生效”，产品特定规则放在平台规则之后。
+# 契约/发布相关路径必须同时得到 platform-core 与 contract-committee 之一 + release-engineering
+# 的评审；安全敏感路径需 security-reviewers 至少一人。
+
+# ---- 兜底 ----
+*                                   @mixlab/repo-admins
+
+# ---- 跨边界契约（只允许加法演进；权威文档在平台仓 docs/architecture/07-契约委员会章程.md）----
+/packages/contracts/                @mixlab/contract-committee @mixlab/platform-core
+/packages/library-format/           @mixlab/contract-committee @mixlab/platform-core
+/packages/service-clients/          @mixlab/contract-committee @mixlab/platform-core
+/packages/protocol/                 @mixlab/platform-core
+/packages/runtime-config/           @mixlab/platform-core
+# Round7 裁剪惰性规则：docs/architecture/06/07/08 与 scripts/release/ 当前仅存在于
+# 平台/管理仓（mixlab 仓），本仓无这些路径；待 Phase B/C 平台仓落地后由平台仓 CODEOWNERS 管理。
+# 若本仓未来引入上述路径，会回落到 "*" 兜底（repo-admins），需同批补 owner 规则。
+
+# ---- 平台共享运行库（多产品共用，改动需平台评审）----
+/packages/library-fs/               @mixlab/platform-core
+/packages/search-core/              @mixlab/platform-core
+/packages/search-sqlite/            @mixlab/platform-core
+/packages/preprocess-core/          @mixlab/platform-core
+/packages/asr-core/                 @mixlab/platform-core
+/packages/oss-core/                 @mixlab/platform-core
+/packages/doctor-core/              @mixlab/platform-core
+/packages/ffmpeg-core/              @mixlab/platform-core
+/packages/cutter-local/             @mixlab/platform-core
+/packages/desktop-runtime/          @mixlab/platform-core
+/packages/ui-foundation/            @mixlab/platform-core
+/packages/windows-test-runner/      @mixlab/platform-core @mixlab/release-engineering
+
+# ---- 安全敏感（第二评审；权威文档在平台仓 docs/architecture/06-仓库与团队治理.md）----
+/packages/library-fs/src/cutter-users.ts          @mixlab/security-reviewers @mixlab/platform-core
+/packages/library-fs/src/cutter-account-*.ts      @mixlab/security-reviewers @mixlab/platform-core
+/packages/library-fs/src/admin-users.ts           @mixlab/security-reviewers @mixlab/platform-core
+/packages/admin-api/src/admin-auth-*.ts           @mixlab/security-reviewers @mixlab/admin-team
+# Round7 裁剪惰性规则：cutter-account-service 模块与独立进程脚本当前仅存在于平台/管理仓；
+# 本仓无该路径，服务端安全评审由平台仓 CODEOWNERS 覆盖；若未来引入需同批补 security 规则。
+/scripts/operations/cutter-account-*.ts           @mixlab/security-reviewers @mixlab/platform-core
+
+# ---- 发布工程 / CI / 部署 / 运维文档 ----
+/.github/                           @mixlab/release-engineering
+/CODEOWNERS                         @mixlab/repo-admins
+# scripts/release/ 当前仅存在于平台/管理仓（见上方 Round7 注释），本仓不保留惰性目录规则。
+/scripts/docker/                    @mixlab/release-engineering @mixlab/admin-team
+/docs/deployment/                   @mixlab/release-engineering @mixlab/platform-core
+/docs/operations/                   @mixlab/release-engineering @mixlab/platform-core
+/docs/acceptance/                   @mixlab/release-engineering
+
+# ---- 架构/治理/规格文档 ----
+/docs/architecture/                 @mixlab/platform-core
+/docs/spec-traceability.md          @mixlab/platform-core @mixlab/admin-team
+/docs/v1-scope-guard.md             @mixlab/platform-core
+/docs/change-request-arch-003-typescript-admin-api.md @mixlab/platform-core @mixlab/admin-team
+
+# ---- 产品隔离说明：本仓为管理端主线的 full monorepo 副本；product 目录由对应产品团队
+# ---- 拥有，但跨仓修改必须回到该产品权威仓提交并经契约委员会/平台评审。
+/packages/admin-api/                @mixlab/admin-team @mixlab/platform-core
+/apps/admin-web/                    @mixlab/admin-team
+/scripts/workers/                   @mixlab/admin-team @mixlab/platform-core
+/scripts/servers/admin-api-server.ts @mixlab/admin-team @mixlab/platform-core
+/apps/cutter-web/                   @mixlab/cutter-team
+/apps/cutter-desktop/               @mixlab/cutter-team
+/packages/cutter-api/               @mixlab/cutter-team @mixlab/platform-core
+
+# ---- 剪辑端产品权威路径（本仓为剪辑交付线）----
+/packages/cutter-api/               @mixlab/cutter-team @mixlab/platform-core
+/packages/cutter-local/             @mixlab/cutter-team @mixlab/platform-core
+/packages/ffmpeg-core/              @mixlab/cutter-team @mixlab/platform-core
+/apps/cutter-web/                   @mixlab/cutter-team
+/apps/cutter-desktop/               @mixlab/cutter-team
+/scripts/desktop/                   @mixlab/cutter-team @mixlab/release-engineering
+/scripts/servers/cutter-api-server.ts @mixlab/cutter-team @mixlab/platform-core
+/apps/admin-web/                    @mixlab/admin-team
+/packages/admin-api/                @mixlab/admin-team @mixlab/platform-core

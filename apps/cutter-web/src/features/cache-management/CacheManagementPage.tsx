@@ -6,6 +6,7 @@ import {
   cutterCachePercent,
   cutterLocalCacheSnapshot,
   cutterRuntimeCacheBytes,
+  cutterUserDataStorageSnapshot,
   formatCutterCacheSize,
   type CutterLocalCacheSnapshot
 } from "../../state/cutter-cache.ts";
@@ -88,7 +89,9 @@ function preflightStatus(runtimeStatus?: CutterRuntimeStatus): {
 
 function cacheDetailRows(
   runtimeStatus: CutterRuntimeStatus | undefined,
-  localStorageCache: CutterLocalCacheSnapshot
+  localStorageCache: CutterLocalCacheSnapshot,
+  userDataCache: CutterLocalCacheSnapshot,
+  releaseV2Enabled: boolean
 ): Array<{ label: string; value: string; hint?: string }> {
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
@@ -150,8 +153,20 @@ function cacheDetailRows(
     {
       label: "界面缓存",
       value: formatCutterCacheSize(localStorageCache.bytes),
-      hint: `${localStorageCache.keys.length} 个浏览器状态键`
-    }
+      hint: `${localStorageCache.keys.length} 个界面偏好键（可清理）`
+    },
+    {
+      label: "项目与待剪清单",
+      value: "受保护",
+      hint: `${userDataCache.keys.length} 个用户数据键；清除界面缓存不会删除`
+    },
+    ...(releaseV2Enabled
+      ? [{
+          label: "Release v2 能力",
+          value: "已启用",
+          hint: "本机引擎已声明 release_v2：可使用内容寻址发布缓存"
+        }]
+      : [])
   ];
 }
 
@@ -185,11 +200,15 @@ function CacheStatCard({
 }
 
 export function CacheManagementPage({
-  runtimeStatus
+  runtimeStatus,
+  releaseV2Enabled = false
 }: {
   runtimeStatus?: CutterRuntimeStatus;
+  /** Only true when the engine capability table explicitly advertises release_v2. */
+  releaseV2Enabled?: boolean;
 }) {
   const [localStorageCache, setLocalStorageCache] = useState(() => cutterLocalCacheSnapshot());
+  const [userDataCache] = useState(() => cutterUserDataStorageSnapshot());
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -198,8 +217,8 @@ export function CacheManagementPage({
   const sourceVideoCache = local?.source_video_cache;
   const totalRuntimeCacheBytes = cutterRuntimeCacheBytes(runtimeStatus);
   const detailRows = useMemo(
-    () => cacheDetailRows(runtimeStatus, localStorageCache),
-    [runtimeStatus, localStorageCache]
+    () => cacheDetailRows(runtimeStatus, localStorageCache, userDataCache, releaseV2Enabled),
+    [runtimeStatus, localStorageCache, userDataCache, releaseV2Enabled]
   );
 
   function handleClearLocalStorageCache() {
@@ -214,7 +233,9 @@ export function CacheManagementPage({
           <div>
             <p className="cutter-eyebrow ml-page-kicker">Local Runtime</p>
             <h1 className="ml-page-title">缓存管理</h1>
-            <p className="ml-page-description">查看本机缓存、搜索索引、源视频预检和剪切临时区状态。</p>
+            <p className="ml-page-description">
+              查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除项目、待剪清单、任务归属或登录状态。
+            </p>
           </div>
           <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
         </header>

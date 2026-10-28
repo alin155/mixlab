@@ -16,6 +16,7 @@ import type {
   SourceVideoDetail,
   CreateLocalClipRequest
 } from "./api.ts";
+import type { CapabilityTableV1 } from "../../../packages/contracts/src/capabilities.ts";
 
 export interface CutterWorkbenchSettings {
   public_library_mount: string;
@@ -882,6 +883,10 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         trusted_username: ""
       };
     },
+    async getCapabilities(): Promise<CapabilityTableV1 | null> {
+      // Fixture/demo stays on the legacy field-based path (no capability table).
+      return null;
+    },
     async getLoginStatus() {
       return {
         ok: true,
@@ -1078,6 +1083,14 @@ export function createFixtureCutterApiClient(): CutterApiClient {
             clip_list_id: "CL20260502-0001",
             clip_list_item_id: "CLI000003",
             status: "done",
+            cut_mode_used: "copy",
+            verification: {
+              passed: true,
+              expected_duration_ms: 16_500,
+              actual_duration_ms: 16_480,
+              tolerance_ms: 200,
+              checks: []
+            },
             export_clip_id: "E000003",
             output_file: "export-clips/E000003/E000003_销售话术拆解.mp4",
             created_at: "2026-05-02T10:10:00Z",
@@ -1115,6 +1128,14 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         clip_list_id: "CL20260502-0001",
         clip_list_item_id: "CLI000002",
         status: "done",
+        cut_mode_used: "copy",
+        verification: {
+          passed: true,
+          expected_duration_ms: 11_400,
+          actual_duration_ms: 11_390,
+          tolerance_ms: 200,
+          checks: []
+        },
         export_clip_id: "E000002",
         output_file: "export-clips/E000002/E000002_现金流，是企业的血液.mp4",
         created_at: "2026-05-02T10:05:00Z",

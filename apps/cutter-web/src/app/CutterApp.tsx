@@ -59,8 +59,8 @@ import {
   CUT_LIST_STORAGE_KEY,
   clearCutList,
   createCutListItemFromSegments,
-  deserializeCutList,
   moveCutListItem,
+  readCutListFromStorage,
   removeCutListItem,
   serializeCutList,
   toCreateClipListRequest,
@@ -90,7 +90,26 @@ import {
 } from "../auth.ts";
 import { CutterLoginGate } from "../features/login/CutterLoginGate.tsx";
 import {
+  MATERIAL_SEARCH_TIMEOUT_NOTICE,
+  shouldClearCutterSessionForApiError
+} from "../state/notice.ts";
+import {
+  contractErrorPresentation,
+  retryabilityLabel,
+  type CutterErrorPresentation
+} from "../state/contract-errors.ts";
+import {
+  capabilityUpgradeNotice,
+  cutVerificationUiEnabled,
+  parseCutterCapabilities,
+  releaseV2UiEnabled,
+  resolveCutterClientVersion,
+  type CapabilityUpgradeNotice,
+  type CutterCapabilityTable
+} from "../state/cut-capabilities.ts";
+import {
   createQueueJobsFromCutList,
+  cutJobNeedsRecut,
   filterCutQueueJobsByProject,
   mapApiCutJobsToQueueJobs,
   readCutJobProjectIndex,
@@ -104,6 +123,7 @@ import {
 } from "../state/cut-queue.ts";
 import {
   hasActiveCutJobs,
+  shouldApplyQueueRefresh,
   shouldAutoRefreshCutJobs,
   shouldRefreshLocalClipsAfterQueueUpdate
 } from "../state/cut-task-refresh.ts";
@@ -297,7 +317,11 @@ function getCutterBuildCommit(): string {
   return resolveCutterBuildCommit(import.meta.env?.VITE_MIXLAB_BUILD_COMMIT);
 }
 
-function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | null) {
+function createRuntimeClient(
+  baseUrl: string,
+  authSession: CutterAuthSession | null,
+  onUnauthenticated?: (error: CutterApiError) => void
+) {
   return baseUrl
     ? createCutterApiClient({
         base_url: baseUrl,
@@ -308,7 +332,8 @@ function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | n
                 session_token: authSession.session_token
               }
             }
-          : {})
+          : {}),
+        ...(onUnauthenticated ? { on_unauthenticated: onUnauthenticated } : {})
       })
     : createFixtureCutterApiClient();
 }
@@ -502,7 +527,9 @@ export function CutterSidebarFooter({
   activeTaskCount,
   engineReady,
   currentProjectLabel = "未选择",
-  cacheBytes
+  cacheBytes,
+  onLogout,
+  onSwitchAccount
 }: {
   username: string;
   localCount: number;
@@ -511,8 +538,11 @@ export function CutterSidebarFooter({
   engineReady: boolean;
   currentProjectLabel?: string;
   cacheBytes?: number;
+  onLogout?: () => void;
+  onSwitchAccount?: () => void;
 }) {
   const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
   const libraryCountLabel = `本地 ${localCount} / 公共 ${publicCount}`;
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
@@ -573,11 +603,30 @@ export function CutterSidebarFooter({
           variant={cacheMenuOpen ? "secondary" : "ghost"}
           aria-haspopup="menu"
           aria-expanded={cacheMenuOpen}
-          onClick={() => setCacheMenuOpen((open) => !open)}
+          onClick={() => {
+            setAccountMenuOpen(false);
+            setCacheMenuOpen((open) => !open);
+          }}
         >
           <span>缓存</span>
           <strong>{cacheLabel}</strong>
         </Button>
+        {onLogout || onSwitchAccount ? (
+          <Button
+            type="button"
+            className="cutter-sidebar-account-button ml-sidebar-cache-button"
+            size="sm"
+            variant={accountMenuOpen ? "secondary" : "ghost"}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onClick={() => {
+              setCacheMenuOpen(false);
+              setAccountMenuOpen((open) => !open);
+            }}
+          >
+            <span>账户</span>
+          </Button>
+        ) : null}
         {cacheMenuOpen ? (
           <div className="cutter-sidebar-cache-menu ml-sidebar-menu" role="menu" aria-label="缓存操作">
             <Button
@@ -590,6 +639,40 @@ export function CutterSidebarFooter({
             >
               清除界面缓存
             </Button>
+          </div>
+        ) : null}
+        {accountMenuOpen && (onLogout || onSwitchAccount) ? (
+          <div className="cutter-sidebar-account-menu ml-sidebar-menu" role="menu" aria-label="账户操作">
+            {onSwitchAccount ? (
+              <Button
+                type="button"
+                className="cutter-sidebar-account-menu-action ml-sidebar-menu-action"
+                role="menuitem"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  onSwitchAccount();
+                }}
+              >
+                切换账号
+              </Button>
+            ) : null}
+            {onLogout ? (
+              <Button
+                type="button"
+                className="cutter-sidebar-account-menu-action ml-sidebar-menu-action"
+                role="menuitem"
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  onLogout();
+                }}
+              >
+                退出登录
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -667,7 +750,19 @@ function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
   return [
     base,
     { ...base, queue_job_id: "job-running", status: "running", progress: 67 },
-    { ...base, queue_job_id: "job-done", status: "done", progress: 100 },
+    {
+      ...base,
+      queue_job_id: "job-done",
+      status: "done",
+      progress: 100,
+      verification: {
+        passed: true,
+        expected_duration_ms: Math.max(0, base.end_ms - base.begin_ms),
+        actual_duration_ms: Math.max(0, base.end_ms - base.begin_ms),
+        tolerance_ms: 200,
+        checks: []
+      }
+    },
     {
       ...base,
       queue_job_id: "job-failed",
@@ -1302,6 +1397,8 @@ function renderPage(
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
+    verificationEnabled: boolean;
+    releaseV2Enabled: boolean;
   },
   handlers: {
     addSelectedSpan: () => void;
@@ -1387,6 +1484,7 @@ function renderPage(
         highlightedSegmentIds={viewState.highlightedSegmentIds}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
         onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
+        onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onAddToCutList={handlers.addSelectedSpan}
       />
@@ -1426,6 +1524,7 @@ function renderPage(
         onSelectMaterial={handlers.selectMaterial}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
         onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
+        onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onNavigateHit={handlers.navigateHit}
         onLoadMoreSearchResults={handlers.loadMoreSearchResults}
         onCutSelection={handlers.addSelectedSpan}
@@ -1474,6 +1573,7 @@ function renderPage(
         onCancelJob={handlers.cancelCutJob}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
         onLoadMore={handlers.loadMoreCutJobs}
+        verificationEnabled={viewState.verificationEnabled}
       />
     );
   }
@@ -1503,7 +1603,12 @@ function renderPage(
   }
 
   if (route === "cache-management") {
-    return <CacheManagementPage runtimeStatus={data.runtimeStatus} />;
+    return (
+      <CacheManagementPage
+        runtimeStatus={data.runtimeStatus}
+        releaseV2Enabled={viewState.releaseV2Enabled}
+      />
+    );
   }
 
   return (
@@ -1591,6 +1696,10 @@ export function CutterApp() {
   const focusedSourceDetailRequestIdRef = useRef(0);
   const didAutoApplyLocalTrustedLoginRef = useRef(false);
   const [cutNotice, setCutNotice] = useState("");
+  const [recoverableNotice, setRecoverableNotice] = useState("");
+  const [recoverableError, setRecoverableError] = useState<CutterErrorPresentation | null>(null);
+  const [errorPresentation, setErrorPresentation] = useState<CutterErrorPresentation | null>(null);
+  const [capabilities, setCapabilities] = useState<CutterCapabilityTable | null>(null);
   const [workspaceConfigNotice, setWorkspaceConfigNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
@@ -1611,11 +1720,13 @@ export function CutterApp() {
   const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
   const cutPipelineRunningRef = useRef(false);
   const cutPipelineRerunRequestedRef = useRef(false);
+  const cutPipelineAbortRef = useRef<AbortController | null>(null);
+  const cutPipelineProjectIdRef = useRef<string | undefined>(undefined);
+  const queueRefreshRequestIdRef = useRef(0);
+  const authFailureHandlerRef = useRef<((error: CutterApiError) => void) | null>(null);
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const dataRef = useRef<CutterFixtureData | null>(data);
-  const [cutList, setCutList] = useState<CutListItem[]>(() =>
-    deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
-  );
+  const [cutList, setCutList] = useState<CutListItem[]>(() => readCutListFromStorage());
   const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
   const [pendingLogin, setPendingLogin] = useState<CutterPendingLogin | null>(() =>
     apiMode ? readCutterPendingLogin() : null
@@ -1638,7 +1749,11 @@ export function CutterApp() {
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
   const client = useMemo(
-    () => createRuntimeClient(apiBaseUrl, authSession),
+    () => createRuntimeClient(
+      apiBaseUrl,
+      authSession,
+      (error) => authFailureHandlerRef.current?.(error)
+    ),
     [apiBaseUrl, authSession]
   );
 
@@ -1661,6 +1776,69 @@ export function CutterApp() {
   currentProjectIdRef.current = currentProjectId;
   dataRef.current = data;
   queueJobsRef.current = queueJobs;
+
+  // Unified 401 handling (CW-10): any protected request that reports an expired
+  // session clears the stored session and returns to the login gate.
+  useEffect(() => {
+    authFailureHandlerRef.current = (error: CutterApiError) => {
+      if (!shouldClearCutterSessionForApiError(error)) {
+        return;
+      }
+
+      cutPipelineAbortRef.current?.abort();
+      clearCutterAuthSession();
+      setAuthSession(null);
+      setLoginStatus("unknown");
+      setLoginMessage("登录已失效，请重新登录后再试。");
+    };
+  });
+
+  // Cancel queue observation on logout, project switch and unmount (CW-13).
+  useEffect(() => {
+    if (!cutPipelineRunningRef.current) {
+      return;
+    }
+    if (loginGateVisible) {
+      cutPipelineAbortRef.current?.abort();
+    }
+  }, [loginGateVisible]);
+
+  useEffect(() => {
+    if (!cutPipelineRunningRef.current) {
+      return;
+    }
+    if (cutPipelineProjectIdRef.current !== currentProjectId) {
+      cutPipelineAbortRef.current?.abort();
+    }
+  }, [currentProjectId]);
+
+  useEffect(() => () => cutPipelineAbortRef.current?.abort(), []);
+
+  // Contract v1 capability negotiation: missing endpoint (legacy engine) or
+  // malformed table silently degrades to the pre-contract behaviour.
+  useEffect(() => {
+    if (!apiMode || loginGateVisible) {
+      return;
+    }
+
+    let cancelled = false;
+    client
+      .getCapabilities()
+      .then((table) => {
+        if (!cancelled) {
+          setCapabilities(parseCutterCapabilities(table));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCapabilities(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, client, loginGateVisible]);
 
   function commitProjects(nextProjects: readonly CutterProject[], nextProjectId?: string) {
     const sortedProjects = [...nextProjects].sort((left, right) => right.updated_at.localeCompare(left.updated_at));
@@ -1752,6 +1930,7 @@ export function CutterApp() {
     );
     clearMaterialLocatorFocus();
     setCutNotice("");
+    setRecoverableNotice("");
     window.location.hash = routeToHash("project-home");
     setRoute("project-home");
   }
@@ -1765,13 +1944,37 @@ export function CutterApp() {
   }
 
   function showRecoverableError(message: string) {
+    setRecoverableError(null);
+    setErrorPresentation(null);
+
     if (dataRef.current) {
       setCutNotice(message);
+      setRecoverableNotice(message);
       setError("");
       return;
     }
 
     setError(message);
+  }
+
+  /**
+   * Contract-aware failure surface: known stable codes render their shared
+   * Chinese message + remediation + retryability; unknown codes keep the
+   * existing wording and expose the raw detail in an expandable section.
+   */
+  function showCutterError(error: unknown, fallbackMessage: string) {
+    const presentation = contractErrorPresentation(error, fallbackMessage);
+    setRecoverableNotice("");
+
+    if (dataRef.current) {
+      setCutNotice(presentation.message);
+      setRecoverableError(presentation);
+      setError("");
+      return;
+    }
+
+    setErrorPresentation(presentation);
+    setError(presentation.message);
   }
 
   function loadFocusedSourceVideoDetail(sourceVideoId: string) {
@@ -1814,6 +2017,7 @@ export function CutterApp() {
     setLocatorCurrentHitIndex(globalHitIndex);
     setSelectedMaterialFocusKey(target.materialKey);
     setCutNotice("");
+    setRecoverableNotice("");
 
     if (target.material.source === "local") {
       setSelectedLocalClipId(target.material.id);
@@ -2225,6 +2429,9 @@ export function CutterApp() {
   }, [client]);
 
   const refreshQueueJobs = useCallback(async (projectIndexOverride?: CutJobProjectIndex): Promise<readonly CutQueueJob[]> => {
+    const requestId = queueRefreshRequestIdRef.current + 1;
+    queueRefreshRequestIdRef.current = requestId;
+
     if (!apiMode) {
       return queueJobsRef.current;
     }
@@ -2233,6 +2440,13 @@ export function CutterApp() {
       const catalog = await client.listCutJobs({
         limit: Math.max(CUTTER_CUT_JOB_REFRESH_LIMIT, queueJobsRef.current.length)
       });
+
+      // Only the newest refresh may write queue state: a slow NAS response must
+      // not roll a task back from done/failed to running (CW-12).
+      if (!shouldApplyQueueRefresh(requestId, queueRefreshRequestIdRef.current)) {
+        return queueJobsRef.current;
+      }
+
       setCutJobsTotalCount(catalog.job_count);
       const nextJobs = mapApiCutJobsToQueueJobs(catalog, {
         projectIndex: projectIndexOverride ?? cutJobProjectIndex,
@@ -2261,6 +2475,10 @@ export function CutterApp() {
       }
       return nextJobs;
     } catch (queueError) {
+      if (!shouldApplyQueueRefresh(requestId, queueRefreshRequestIdRef.current)) {
+        return queueJobsRef.current;
+      }
+
       setCutNotice(
         queueError instanceof Error
           ? `剪切任务列表刷新失败：${queueError.message}`
@@ -2301,10 +2519,9 @@ export function CutterApp() {
       );
       setError("");
     } catch (loadError) {
-      showRecoverableError(
-        loadError instanceof Error
-          ? `继续加载本地素材失败：${loadError.message}`
-          : "继续加载本地素材失败，可继续使用当前列表。"
+      showCutterError(
+        loadError,
+        loadError instanceof Error ? "继续加载本地素材失败" : "继续加载本地素材失败，可继续使用当前列表。"
       );
     } finally {
       setLocalClipsLoadingMore(false);
@@ -2336,10 +2553,9 @@ export function CutterApp() {
       setLastQueueUpdatedLabel("刚刚更新");
       setError("");
     } catch (loadError) {
-      showRecoverableError(
-        loadError instanceof Error
-          ? `继续加载剪切任务失败：${loadError.message}`
-          : "继续加载剪切任务失败，可继续使用当前列表。"
+      showCutterError(
+        loadError,
+        loadError instanceof Error ? "继续加载剪切任务失败" : "继续加载剪切任务失败，可继续使用当前列表。"
       );
     } finally {
       setCutJobsLoadingMore(false);
@@ -2387,6 +2603,8 @@ export function CutterApp() {
         nextSearchMode
       }));
       setCutNotice("");
+      setRecoverableNotice("");
+      setRecoverableError(null);
     };
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
@@ -2429,6 +2647,7 @@ export function CutterApp() {
         if (!cancelled) {
           setData((current) => mergeMaterialLocatorReloadData(current, result, searchQuery));
           setError("");
+          setErrorPresentation(null);
           if (route === "public-library") {
             setPublicLibraryFilenameSearching(false);
           }
@@ -2439,10 +2658,9 @@ export function CutterApp() {
           if (route === "public-library") {
             setPublicLibraryFilenameSearching(false);
           }
-          showRecoverableError(
-            loadError instanceof Error
-              ? `工作台刷新失败：${loadError.message}`
-              : "工作台刷新失败，可继续使用当前数据。"
+          showCutterError(
+            loadError,
+            loadError instanceof Error ? "工作台刷新失败" : "工作台刷新失败，可继续使用当前数据。"
           );
         }
       });
@@ -2536,7 +2754,7 @@ export function CutterApp() {
     const timeout = window.setTimeout(() => {
       if (!cancelled && materialSearchRequestIdRef.current === requestId) {
         setMaterialSearchPending(false);
-        setError("搜索响应较慢，请缩短关键词或稍后重试。");
+        showRecoverableError(MATERIAL_SEARCH_TIMEOUT_NOTICE);
       }
     }, 12_000);
     const requestProjectId = currentProjectIdRef.current;
@@ -2724,6 +2942,7 @@ export function CutterApp() {
       );
       setError("");
       setCutNotice("");
+      setRecoverableNotice("");
     } catch (searchError) {
       if (materialSearchRequestIdRef.current !== requestId) {
         return;
@@ -2880,12 +3099,21 @@ export function CutterApp() {
     }
 
     cutPipelineRunningRef.current = true;
+    const abortController = new AbortController();
+    cutPipelineAbortRef.current = abortController;
+    cutPipelineProjectIdRef.current = currentProjectIdRef.current;
     try {
       do {
+        if (abortController.signal.aborted) {
+          break;
+        }
+
         cutPipelineRerunRequestedRef.current = false;
         const baselineTerminalJobIds = new Set(
           queueJobsRef.current
-            .filter((job) => job.status === "done" || job.status === "failed")
+            .filter((job) =>
+              job.status === "done" || job.status === "failed" || job.status === "cancelled"
+            )
             .map((job) => job.queue_job_id)
         );
         const result = await observeServiceCutQueue({
@@ -2895,8 +3123,14 @@ export function CutterApp() {
           onState: setCutPipelineState,
           baselineTerminalJobIds,
           pollIntervalMs: 1000,
-          maxWaitMs: 120_000
+          maxWaitMs: 120_000,
+          signal: abortController.signal
         });
+
+        if (abortController.signal.aborted) {
+          break;
+        }
+
         const notice = cutNoticeForPipelineResult(result);
         if (notice) {
           setCutNotice(notice);
@@ -2906,7 +3140,9 @@ export function CutterApp() {
           await refreshLocalClips();
         }
       } while (cutPipelineRerunRequestedRef.current);
-      setHasSubmittedCutJobs(false);
+      if (!abortController.signal.aborted) {
+        setHasSubmittedCutJobs(false);
+      }
     } catch (pipelineError) {
       setCutNotice(
         pipelineError instanceof Error
@@ -2915,8 +3151,36 @@ export function CutterApp() {
       );
     } finally {
       cutPipelineRunningRef.current = false;
+      if (cutPipelineAbortRef.current === abortController) {
+        cutPipelineAbortRef.current = null;
+      }
     }
   }, [apiMode, client, loginGateVisible, refreshLocalClips, refreshQueueJobs]);
+
+  const handleLogout = useCallback(async (switchAccount = false) => {
+    cutPipelineAbortRef.current?.abort();
+
+    try {
+      await client.logoutAccount();
+    } catch {
+      // Local logout must always succeed even if the engine is unreachable.
+    }
+
+    clearCutterAuthSession();
+    clearCutterPendingLogin();
+    setPendingLogin(null);
+    setAuthSession(null);
+    setLoginStatus("unknown");
+    setLoginMessage(switchAccount ? "请使用其他账号登录。" : "已退出登录，请重新申请或联系管理员。");
+    setRecoverableError(null);
+    setErrorPresentation(null);
+    setData(null);
+    setQueueJobs([]);
+    setCutJobsTotalCount(0);
+    setHasSubmittedCutJobs(false);
+    setCutPipelineState(idleCutPipelineState);
+    setRecoverableNotice("");
+  }, [client]);
 
   const handleSetAppearanceMode = (mode: CutterAppearanceMode) => {
     setAppearanceMode(mode);
@@ -3261,6 +3525,7 @@ export function CutterApp() {
     setMaterialSearchPending(Boolean(nextQuery));
     setLastMaterialSearchDurationMs(undefined);
     setCutNotice("");
+    setRecoverableNotice("");
     window.location.hash = searchHash(nextQuery, {
       sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
       searchMode: materialSearchMode
@@ -3457,7 +3722,7 @@ export function CutterApp() {
         });
         setCutNotice("已打开项目文件目录");
       } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开项目文件目录失败");
+        showCutterError(openError, "打开项目文件目录失败");
       }
     },
     createProject(title: string) {
@@ -3656,17 +3921,18 @@ export function CutterApp() {
       if (!apiMode) {
         setQueueJobs((current) =>
           current.map((job) =>
-            job.queue_job_id === cutJobId && (job.status === "failed" || job.status === "cancelled")
+            job.queue_job_id === cutJobId && cutJobNeedsRecut(job)
               ? {
                   ...job,
                   status: "pending",
                   progress: 0,
-                  error_message: undefined
+                  error_message: undefined,
+                  verification: undefined
                 }
               : job
           )
         );
-        setCutNotice("已重试失败任务 · 等待本机剪切");
+        setCutNotice("已重新加入剪切 · 等待本机剪切");
         return;
       }
 
@@ -3687,12 +3953,12 @@ export function CutterApp() {
           ]);
         }
 
-        setCutNotice("已重试失败任务 · 等待本机剪切");
+        setCutNotice("已重新加入剪切 · 等待本机剪切");
         setHasSubmittedCutJobs(true);
         await refreshQueueJobs();
         void runRealCutPipeline();
       } catch (retryError) {
-        setError(retryError instanceof Error ? retryError.message : "重试剪切任务失败");
+        showCutterError(retryError, "重试剪切任务失败");
       }
     },
     cancelCutJob: async (cutJobId: string) => {
@@ -3732,7 +3998,7 @@ export function CutterApp() {
         setCutNotice("已取消剪辑任务");
         await refreshQueueJobs();
       } catch (cancelError) {
-        setError(cancelError instanceof Error ? cancelError.message : "取消剪辑任务失败");
+        showCutterError(cancelError, "取消剪辑任务失败");
       }
     },
     openCutOutputDirectory: async () => {
@@ -3748,7 +4014,7 @@ export function CutterApp() {
         });
         setCutNotice("已打开项目视频目录");
       } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开文件目录失败");
+        showCutterError(openError, "打开文件目录失败");
       }
     },
     openLocalClipDirectory: async (localClip: LocalClip) => {
@@ -3768,7 +4034,7 @@ export function CutterApp() {
         });
         setCutNotice(localClip.project_id ? "已打开本地素材所属项目目录" : "已打开本地素材目录");
       } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开本地素材目录失败");
+        showCutterError(openError, "打开本地素材目录失败");
       }
     },
     deleteLocalClip: async (localClip: LocalClip) => {
@@ -3809,7 +4075,7 @@ export function CutterApp() {
         }
         setCutNotice("已删除本地素材及对应文件");
       } catch (deleteError) {
-        setError(deleteError instanceof Error ? deleteError.message : "删除本地素材失败");
+        showCutterError(deleteError, "删除本地素材失败");
       }
     },
     setAppearanceMode: handleSetAppearanceMode,
@@ -3887,7 +4153,7 @@ export function CutterApp() {
         await refreshLocalClips();
         await refreshQueueJobs(removeCutJobsForProject(cutJobProjectIndex, projectId));
       } catch (deleteError) {
-        setError(deleteError instanceof Error ? deleteError.message : "删除项目产出失败");
+        showCutterError(deleteError, "删除项目产出失败");
       }
       return;
     }
@@ -3902,6 +4168,21 @@ export function CutterApp() {
     "本机剪辑师";
   const engineReady = Boolean(data?.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用");
   const runtimeCacheBytes = cutterRuntimeCacheBytes(data?.runtimeStatus);
+  // local_trusted deployments have no per-user credentials: logout would just
+  // re-apply the machine identity, so the account menu only targets reviewed.
+  const canLogout = apiMode && authModeStatus?.local_trusted !== true;
+  const clientVersion = resolveCutterClientVersion({
+    envClientVersion:
+      import.meta.env?.VITE_MIXLAB_CLIENT_VERSION ||
+      (isDesktopMode ? desktopAppVersionText : undefined),
+    buildCommit
+  });
+  const upgradeNotice: CapabilityUpgradeNotice | null = capabilityUpgradeNotice(
+    capabilities,
+    clientVersion
+  );
+  const verificationUiEnabled = cutVerificationUiEnabled(capabilities);
+  const releaseV2UiEnabledFlag = releaseV2UiEnabled(capabilities);
 
   if (isDesktopMode && desktopStage !== "ready") {
     if (desktopAutoStarting && desktopStage === "engine-starting") {
@@ -3974,6 +4255,16 @@ export function CutterApp() {
               engineReady={engineReady}
               currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
               cacheBytes={runtimeCacheBytes}
+              {...(canLogout
+                ? {
+                    onLogout: () => {
+                      void handleLogout(false);
+                    },
+                    onSwitchAccount: () => {
+                      void handleLogout(true);
+                    }
+                  }
+                : {})}
             />
           ) : null
         }
@@ -3981,9 +4272,83 @@ export function CutterApp() {
         workbenchClassName={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
       >
         <section className="cutter-content ml-workbench-content">
+          {upgradeNotice ? (
+            <div className="cutter-contract-notice" role="alert">
+              <div className="cutter-contract-notice-body">
+                <strong>{upgradeNotice.message}</strong>
+                <span>{upgradeNotice.remediation}</span>
+                <code>
+                  {upgradeNotice.code} · 需要 v{upgradeNotice.required_version}
+                </code>
+              </div>
+            </div>
+          ) : null}
+          {recoverableError ? (
+            <div className="cutter-recoverable-notice" role="alert">
+              <div className="cutter-recoverable-notice-body">
+                <strong>{recoverableError.message}</strong>
+                {recoverableError.remediation ? <span>{recoverableError.remediation}</span> : null}
+                <span className="cutter-recoverable-notice-meta">
+                  <code>{recoverableError.code}</code>
+                  <span>{retryabilityLabel(recoverableError.retryability)}</span>
+                </span>
+                {recoverableError.expandable ? (
+                  <details className="cutter-recoverable-notice-details">
+                    <summary>技术信息</summary>
+                    <pre>{recoverableError.technical}</pre>
+                  </details>
+                ) : null}
+              </div>
+              <Button
+                className="cutter-recoverable-notice-dismiss"
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setRecoverableNotice("");
+                  setRecoverableError(null);
+                }}
+              >
+                关闭
+              </Button>
+            </div>
+          ) : recoverableNotice ? (
+            <div className="cutter-recoverable-notice" role="alert">
+              <span>{recoverableNotice}</span>
+              <Button
+                className="cutter-recoverable-notice-dismiss"
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setRecoverableNotice("");
+                  setRecoverableError(null);
+                }}
+              >
+                关闭
+              </Button>
+            </div>
+          ) : null}
           {shouldRenderGlobalCutterError({ error, hasData: Boolean(data) }) ? (
             <InspectorPanel title="加载失败">
-              <p>{error}</p>
+              {errorPresentation ? (
+                <div className="cutter-recoverable-notice-body">
+                  <p>{errorPresentation.message}</p>
+                  {errorPresentation.remediation ? <p>{errorPresentation.remediation}</p> : null}
+                  <p className="cutter-recoverable-notice-meta">
+                    <code>{errorPresentation.code}</code>
+                    <span>{retryabilityLabel(errorPresentation.retryability)}</span>
+                  </p>
+                  {errorPresentation.expandable ? (
+                    <details className="cutter-recoverable-notice-details">
+                      <summary>技术信息</summary>
+                      <pre>{errorPresentation.technical}</pre>
+                    </details>
+                  ) : null}
+                </div>
+              ) : (
+                <p>{error}</p>
+              )}
             </InspectorPanel>
           ) : data ? (
             renderPage(
@@ -4037,7 +4402,9 @@ export function CutterApp() {
                 runtimeEnvironment: isDesktopMode ? "Windows 桌面端" : "Web 端",
                 selectedCutMode,
                 localWorkspacePath: isDesktopMode ? desktopConfig.local_workspace_root : undefined,
-                workspaceConfigNotice
+                workspaceConfigNotice,
+                verificationEnabled: verificationUiEnabled,
+                releaseV2Enabled: releaseV2UiEnabledFlag
               },
               handlers
             )

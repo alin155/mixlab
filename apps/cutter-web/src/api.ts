@@ -1,3 +1,12 @@
+import {
+  isCapabilityTableV1,
+  type CapabilityTableV1
+} from "../../../packages/contracts/src/capabilities.ts";
+import type {
+  ContractErrorBody,
+  ErrorRetryability
+} from "../../../packages/contracts/src/errors.ts";
+
 export interface CutterApiEnvelope<T> {
   schema_version: string;
   data: T;
@@ -8,6 +17,16 @@ export interface CutterApiErrorBody {
     code?: string;
     message?: string;
   };
+  /** Contract error registry envelope v1 (may be absent on legacy servers). */
+  ok?: false;
+  error_code?: string;
+  code?: string;
+  message?: string;
+  remediation?: string;
+  retryable?: ErrorRetryability;
+  http_status?: number;
+  details?: Record<string, unknown>;
+  contract_version?: string;
 }
 
 export interface SourceVideoCard {
@@ -206,6 +225,26 @@ export interface CutJobPhaseTiming {
   duration_ms?: number;
 }
 
+export interface CutJobVerificationCheck {
+  check_id?: string;
+  label?: string;
+  passed?: boolean;
+  message?: string;
+}
+
+/**
+ * Optional post-cut output verification written by newer cutter engines.
+ * Older engines omit this field entirely; the UI must treat a missing/invalid
+ * value as "unverified" and never as "verified".
+ */
+export interface CutJobVerification {
+  passed: boolean;
+  expected_duration_ms?: number;
+  actual_duration_ms?: number;
+  tolerance_ms?: number;
+  checks?: CutJobVerificationCheck[];
+}
+
 export interface CutJob {
   cut_job_id: string;
   clip_list_id: string;
@@ -234,6 +273,8 @@ export interface CutJob {
   error_message?: string;
   export_clip_id?: string;
   output_file?: string;
+  cut_mode_used?: CutMode;
+  verification?: CutJobVerification;
 }
 
 export interface CutJobSubmission {
@@ -479,17 +520,38 @@ export interface CutterApiClientInput {
   base_url: string;
   fetch?: typeof fetch;
   auth?: CutterAuthHeaders;
+  /**
+   * Called when a session-authenticated request is rejected with 401:
+   * the app layer clears the stored session and returns to the login gate.
+   */
+  on_unauthenticated?: (error: CutterApiError) => void;
 }
 
 export class CutterApiError extends Error {
   readonly name = "CutterApiError";
   readonly status: number;
   readonly code: string;
+  readonly remediation?: string;
+  readonly retryable?: ErrorRetryability;
+  readonly details?: Record<string, unknown>;
+  readonly contract_version?: string;
 
-  constructor(input: { status: number; code: string; message: string }) {
+  constructor(input: {
+    status: number;
+    code: string;
+    message: string;
+    remediation?: string;
+    retryable?: ErrorRetryability;
+    details?: Record<string, unknown>;
+    contract_version?: string;
+  }) {
     super(input.message);
     this.status = input.status;
     this.code = input.code;
+    this.remediation = input.remediation;
+    this.retryable = input.retryable;
+    this.details = input.details;
+    this.contract_version = input.contract_version;
   }
 }
 
@@ -500,6 +562,8 @@ export interface CutterApiClient {
   logoutAccount(): Promise<CutterLogoutResult>;
   changePassword(input: CutterPasswordChangeRequest): Promise<CutterPasswordChangeResult>;
   getAuthMode(): Promise<CutterAuthModeStatus>;
+  /** GET /cutter/capabilities; null means the endpoint is absent (legacy server). */
+  getCapabilities(): Promise<CapabilityTableV1 | null>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
   listSourceLibrary(options?: {
@@ -570,19 +634,76 @@ async function requestEnvelope<T>(
   const body = await readJson<CutterApiEnvelope<T> | CutterApiErrorBody>(response);
 
   if (!response.ok) {
-    const errorBody = body as CutterApiErrorBody;
+    const errorBody = body as CutterApiErrorBody & Partial<ContractErrorBody>;
+    const legacyCode = errorBody.error?.code;
+    const contractCode = typeof errorBody.error_code === "string" && errorBody.error_code.trim()
+      ? errorBody.error_code.trim()
+      : typeof errorBody.code === "string" && errorBody.code.trim()
+        ? errorBody.code.trim()
+        : "";
+    const code = contractCode || legacyCode || "api_error";
+    const message = legacyCode
+      ? errorBody.error?.message ?? `Request failed with status ${response.status}`
+      : typeof errorBody.message === "string" && errorBody.message.trim()
+        ? errorBody.message
+        : `Request failed with status ${response.status}`;
     throw new CutterApiError({
       status: response.status,
-      code: errorBody.error?.code ?? "api_error",
-      message: errorBody.error?.message ?? `Request failed with status ${response.status}`
+      code,
+      message,
+      ...(typeof errorBody.remediation === "string" ? { remediation: errorBody.remediation } : {}),
+      ...(errorBody.retryable ? { retryable: errorBody.retryable } : {}),
+      ...(errorBody.details && typeof errorBody.details === "object" ? { details: errorBody.details } : {}),
+      ...(typeof errorBody.contract_version === "string"
+        ? { contract_version: errorBody.contract_version }
+        : {})
     });
   }
 
   return (body as CutterApiEnvelope<T>).data;
 }
 
+function requestHasSessionToken(init?: RequestInit): boolean {
+  if (!init?.headers) {
+    return false;
+  }
+
+  try {
+    return new Headers(init.headers).has("X-MixLab-Session-Token");
+  } catch {
+    return false;
+  }
+}
+
+async function readUnauthorizedError(response: Response): Promise<CutterApiError> {
+  try {
+    const body = (await response.clone().json()) as CutterApiErrorBody & Partial<ContractErrorBody>;
+    return new CutterApiError({
+      status: response.status,
+      code: body.error_code ?? body.code ?? body.error?.code ?? "login_required",
+      message: body.message ?? body.error?.message ?? "登录已失效，请重新登录。",
+      ...(typeof body.remediation === "string" ? { remediation: body.remediation } : {})
+    });
+  } catch {
+    return new CutterApiError({
+      status: response.status,
+      code: "login_required",
+      message: "登录已失效，请重新登录。"
+    });
+  }
+}
+
 export function createCutterApiClient(input: CutterApiClientInput): CutterApiClient {
-  const fetchImpl = input.fetch ?? fetch;
+  const rawFetchImpl = input.fetch ?? fetch;
+  const fetchImpl: typeof fetch = async (resource, init) => {
+    const response = await rawFetchImpl(resource, init);
+
+    if (response.status === 401 && input.on_unauthenticated && requestHasSessionToken(init)) {
+      input.on_unauthenticated(await readUnauthorizedError(response));
+    }
+
+    return response;
+  };
   const protectedHeaders = authHeaders(input.auth);
 
   return {
@@ -671,6 +792,28 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         fetchImpl,
         appendPath(input.base_url, "/cutter/auth/mode")
       );
+    },
+
+    async getCapabilities() {
+      try {
+        const table = await requestEnvelope<unknown>(
+          fetchImpl,
+          appendPath(input.base_url, "/cutter/capabilities"),
+          { headers: protectedHeaders }
+        );
+        return isCapabilityTableV1(table) ? table : null;
+      } catch (capabilityError) {
+        if (
+          capabilityError instanceof CutterApiError &&
+          (capabilityError.status === 404 ||
+            capabilityError.status === 405 ||
+            capabilityError.status === 501)
+        ) {
+          // Legacy engines do not expose capabilities: degrade to old behaviour.
+          return null;
+        }
+        throw capabilityError;
+      }
     },
 
     getLoginStatus() {

@@ -1,4 +1,11 @@
-import type { CutJob, CutJobCatalog, CutJobPhaseId, CutJobPhaseTiming } from "../api.ts";
+import type {
+  CutJob,
+  CutJobCatalog,
+  CutJobPhaseId,
+  CutJobPhaseTiming,
+  CutJobVerification,
+  CutJobVerificationCheck
+} from "../api.ts";
 import type { CutListItem, CutMode } from "./cut-list.ts";
 import {
   normalizedMaterialTitlePart,
@@ -20,6 +27,8 @@ export interface CutQueueJob {
   duration_ms: number;
   selected_text: string;
   cut_mode: CutMode;
+  cut_mode_used?: CutMode;
+  verification?: CutJobVerification;
   status: CutQueueStatus;
   current_phase?: CutJobPhaseId;
   phase_timings?: CutJobPhaseTiming[];
@@ -44,6 +53,7 @@ export interface CutJobProjectIndex {
 }
 
 export const CUT_JOB_PROJECT_INDEX_STORAGE_KEY = "mixlab.cutter.cutJobProjectIndex";
+export const CUT_JOB_PROJECT_INDEX_CORRUPT_STORAGE_KEY = "mixlab.cutter.cutJobProjectIndex.corrupt";
 export const CUT_QUEUE_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
   { phase_id: "queue_wait", label: "排队等待" },
   { phase_id: "resolve_source", label: "准备源素材" },
@@ -62,8 +72,16 @@ export function emptyCutJobProjectIndex(): CutJobProjectIndex {
   };
 }
 
-function hasBrowserStorage(): boolean {
-  return typeof window !== "undefined" && Boolean(window.localStorage);
+function browserStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function stringRecord(value: unknown): Record<string, string> {
@@ -78,34 +96,61 @@ function stringRecord(value: unknown): Record<string, string> {
   );
 }
 
-export function readCutJobProjectIndex(): CutJobProjectIndex {
-  if (!hasBrowserStorage()) {
-    return emptyCutJobProjectIndex();
-  }
-
+function storeCorruptCutJobProjectIndex(storage: Storage, raw: string): void {
   try {
-    const raw = window.localStorage.getItem(CUT_JOB_PROJECT_INDEX_STORAGE_KEY);
-    if (!raw) {
-      return emptyCutJobProjectIndex();
-    }
-
-    const parsed = JSON.parse(raw) as Partial<CutJobProjectIndex>;
-    return {
-      jobs: stringRecord(parsed.jobs),
-      clipLists: stringRecord(parsed.clipLists)
-    };
+    storage.setItem(CUT_JOB_PROJECT_INDEX_CORRUPT_STORAGE_KEY, raw);
   } catch {
-    return emptyCutJobProjectIndex();
+    // Best-effort backup only; the queue must keep rendering without it.
   }
 }
 
-export function writeCutJobProjectIndex(index: CutJobProjectIndex): void {
-  if (!hasBrowserStorage()) {
+export function readCutJobProjectIndex(
+  storage: Storage | null = browserStorage()
+): CutJobProjectIndex {
+  if (!storage) {
+    return emptyCutJobProjectIndex();
+  }
+
+  let raw: string | null = null;
+  try {
+    raw = storage.getItem(CUT_JOB_PROJECT_INDEX_STORAGE_KEY);
+  } catch {
+    return emptyCutJobProjectIndex();
+  }
+
+  if (!raw) {
+    return emptyCutJobProjectIndex();
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    storeCorruptCutJobProjectIndex(storage, raw);
+    return emptyCutJobProjectIndex();
+  }
+
+  if (!isRecord(parsed)) {
+    storeCorruptCutJobProjectIndex(storage, raw);
+    return emptyCutJobProjectIndex();
+  }
+
+  return {
+    jobs: stringRecord(parsed.jobs),
+    clipLists: stringRecord(parsed.clipLists)
+  };
+}
+
+export function writeCutJobProjectIndex(
+  index: CutJobProjectIndex,
+  storage: Storage | null = browserStorage()
+): void {
+  if (!storage) {
     return;
   }
 
   try {
-    window.localStorage.setItem(CUT_JOB_PROJECT_INDEX_STORAGE_KEY, JSON.stringify(index));
+    storage.setItem(CUT_JOB_PROJECT_INDEX_STORAGE_KEY, JSON.stringify(index));
   } catch {
     // Storage is best-effort; queue rendering can still continue without persistence.
   }
@@ -426,6 +471,8 @@ export function mapApiCutJobsToQueueJobs(
       const endMs = job.end_ms ?? beginMs;
       const sourceTitle = sourceMaterialTitleFromStableName(job.source_title);
       const projectId = projectIdForApiCutJob(job, input);
+      const cutModeUsed = normalizedCutMode(job.cut_mode_used);
+      const verification = normalizedVerification(job.verification);
 
       return {
         queue_job_id: job.cut_job_id,
@@ -453,7 +500,134 @@ export function mapApiCutJobsToQueueJobs(
         started_at: job.started_at,
         finished_at: job.finished_at,
         ...(job.error_message ? { error_message: job.error_message } : {}),
-        ...(job.output_file ? { output_file: job.output_file } : {})
+        ...(job.output_file ? { output_file: job.output_file } : {}),
+        ...(cutModeUsed ? { cut_mode_used: cutModeUsed } : {}),
+        ...(verification ? { verification } : {})
       };
     });
+}
+
+const CUT_MODES: readonly CutMode[] = ["copy", "smart", "precise"];
+
+function normalizedCutMode(value: unknown): CutMode | undefined {
+  return typeof value === "string" && (CUT_MODES as readonly string[]).includes(value)
+    ? (value as CutMode)
+    : undefined;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizedVerification(value: unknown): CutJobVerification | undefined {
+  if (!isRecord(value) || typeof value.passed !== "boolean") {
+    return undefined;
+  }
+
+  const expected = finiteNumber(value.expected_duration_ms);
+  const actual = finiteNumber(value.actual_duration_ms);
+  const tolerance = finiteNumber(value.tolerance_ms);
+
+  return {
+    passed: value.passed,
+    ...(expected !== undefined ? { expected_duration_ms: expected } : {}),
+    ...(actual !== undefined ? { actual_duration_ms: actual } : {}),
+    ...(tolerance !== undefined ? { tolerance_ms: tolerance } : {}),
+    ...(Array.isArray(value.checks) ? { checks: value.checks as CutJobVerificationCheck[] } : {})
+  };
+}
+
+export type CutJobVerificationState = "verified" | "verification_failed" | "unverified";
+
+/**
+ * Decide whether a finished job's output was actually verified.
+ * Missing, malformed or absent verification data is always "unverified" so an
+ * older engine can never be displayed as a confirmed success.
+ */
+export function cutJobVerificationState(
+  job: Pick<CutQueueJob, "status" | "verification">
+): CutJobVerificationState {
+  if (job.status !== "done") {
+    return "unverified";
+  }
+
+  const passed = isRecord(job.verification) ? job.verification.passed : undefined;
+  if (passed === true) {
+    return "verified";
+  }
+
+  if (passed === false) {
+    return "verification_failed";
+  }
+
+  return "unverified";
+}
+
+export function cutJobCompletionLabel(state: CutJobVerificationState): string {
+  switch (state) {
+    case "verified":
+      return "剪切成功";
+    case "verification_failed":
+      return "已完成（未通过校验）";
+    case "unverified":
+      return "已完成（未校验）";
+  }
+}
+
+export function cutJobNeedsRecut(job: Pick<CutQueueJob, "status" | "verification">): boolean {
+  if (job.status === "failed" || job.status === "cancelled") {
+    return true;
+  }
+
+  return job.status === "done" && cutJobVerificationState(job) !== "verified";
+}
+
+export function cutJobEffectiveMode(
+  job: Pick<CutQueueJob, "cut_mode" | "cut_mode_used">
+): CutMode {
+  return job.cut_mode_used ?? job.cut_mode;
+}
+
+function failedCheckCount(checks: unknown): number {
+  if (!Array.isArray(checks)) {
+    return 0;
+  }
+
+  return checks.filter((entry) => isRecord(entry) && entry.passed === false).length;
+}
+
+export function cutJobVerificationDetail(
+  job: Pick<CutQueueJob, "status" | "verification">
+): string {
+  const verificationState = cutJobVerificationState(job);
+  const verification = isRecord(job.verification) ? job.verification : undefined;
+  const expected = finiteNumber(verification?.expected_duration_ms);
+  const actual = finiteNumber(verification?.actual_duration_ms);
+  const tolerance = finiteNumber(verification?.tolerance_ms);
+  const measurement: string[] = [];
+
+  if (expected !== undefined) {
+    measurement.push(`请求 ${expected}ms`);
+  }
+  if (actual !== undefined) {
+    measurement.push(`实际 ${actual}ms`);
+  }
+  if (tolerance !== undefined) {
+    measurement.push(`容差 ±${tolerance}ms`);
+  }
+
+  if (verificationState === "unverified") {
+    return measurement.length > 0
+      ? `未校验 · ${measurement.join(" · ")}`
+      : "旧版引擎未返回输出校验信息，可复剪确认。";
+  }
+
+  const failedChecks = failedCheckCount(verification?.checks);
+  const summary = verificationState === "verified" ? "校验通过" : "校验未通过";
+
+  return [
+    summary,
+    ...measurement,
+    ...(failedChecks > 0 ? [`${failedChecks} 项检查失败`] : [])
+  ].join(" · ");
 }

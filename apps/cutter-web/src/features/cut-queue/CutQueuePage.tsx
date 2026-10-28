@@ -10,6 +10,11 @@ import {
 } from "@mixlab/ui-foundation";
 import { formatDuration } from "../../api.ts";
 import {
+  cutJobCompletionLabel,
+  cutJobEffectiveMode,
+  cutJobNeedsRecut,
+  cutJobVerificationDetail,
+  cutJobVerificationState,
   cutQueueCurrentPhaseLabel,
   cutQueueJobElapsedMs,
   formatCutQueueElapsed,
@@ -25,6 +30,12 @@ import { cutQueueSummary } from "../../state/cut-task-refresh.ts";
 import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
 
 type CutTaskFilter = "all" | CutQueueJob["status"];
+
+type UiVerificationState = ReturnType<typeof cutJobVerificationState> | "legacy";
+
+function doneLabelForVerification(verification: UiVerificationState): string {
+  return verification === "legacy" ? "剪切成功" : cutJobCompletionLabel(verification);
+}
 
 const statusFilters: Array<{ key: CutTaskFilter; label: string }> = [
   { key: "all", label: "全部" },
@@ -95,7 +106,7 @@ function labelForStatus(status: CutQueueJob["status"]): string {
   }
 }
 
-function cutModeLabel(mode: CutQueueJob["cut_mode"]): string {
+function cutModeLabel(mode: CutQueueJob["cut_mode"] | undefined): string {
   switch (mode) {
     case "copy":
       return "极速剪切";
@@ -103,6 +114,8 @@ function cutModeLabel(mode: CutQueueJob["cut_mode"]): string {
       return "精准剪切";
     case "smart":
       return "智能剪切";
+    default:
+      return "未标注";
   }
 }
 
@@ -116,13 +129,17 @@ function preferredTaskJob(jobs: readonly CutQueueJob[]): CutQueueJob | undefined
   );
 }
 
-function problemForJob(job: CutQueueJob, nowMs: number): string {
+function problemForJob(
+  job: CutQueueJob,
+  nowMs: number,
+  verification: UiVerificationState
+): string {
   if (job.status === "failed") {
     return job.error_message ?? "剪切失败";
   }
 
   if (job.status === "done") {
-    return "剪切成功";
+    return doneLabelForVerification(verification);
   }
 
   if (job.status === "running") {
@@ -136,8 +153,8 @@ function problemForJob(job: CutQueueJob, nowMs: number): string {
   return "等待中";
 }
 
-function actionTextForJob(status: CutQueueJob["status"]): string {
-  switch (status) {
+function actionTextForJob(job: CutQueueJob, verification: UiVerificationState): string {
+  switch (job.status) {
     case "pending":
       return "等待剪切";
     case "running":
@@ -147,7 +164,7 @@ function actionTextForJob(status: CutQueueJob["status"]): string {
     case "cancelled":
       return "重新剪切";
     case "done":
-      return "剪切成功";
+      return doneLabelForVerification(verification);
   }
 }
 
@@ -177,7 +194,8 @@ export function CutQueuePage({
   onRetryFailed,
   onCancelJob,
   onOpenCutOutputDirectory,
-  onLoadMore
+  onLoadMore,
+  verificationEnabled = true
 }: {
   jobs: readonly CutQueueJob[];
   project?: CutterProject;
@@ -192,6 +210,11 @@ export function CutQueuePage({
   onCancelJob?: (cutJobId: string) => void;
   onOpenCutOutputDirectory?: () => void;
   onLoadMore?: () => void;
+  /**
+   * Capability negotiation result for output verification. Default true keeps
+   * the legacy field-based behaviour (no capability endpoint / fixture).
+   */
+  verificationEnabled?: boolean;
 }) {
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
@@ -204,6 +227,22 @@ export function CutQueuePage({
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(() => preferredTaskJob(jobs)?.queue_job_id);
   const selectedJob = jobs.find((job) => job.queue_job_id === selectedJobId) ?? preferredTaskJob(jobs);
   const visibleJobs = statusFilter === "all" ? jobs : jobs.filter((job) => job.status === statusFilter);
+
+  function jobVerification(job: CutQueueJob): UiVerificationState {
+    // Field presence always enables verification; when the server explicitly
+    // says the capability is unsupported we fall back to the legacy label.
+    return verificationEnabled || Boolean(job.verification)
+      ? cutJobVerificationState(job)
+      : "legacy";
+  }
+
+  function jobNeedsRecut(job: CutQueueJob): boolean {
+    if (!verificationEnabled && !job.verification && job.status === "done") {
+      return false;
+    }
+
+    return cutJobNeedsRecut(job);
+  }
   const taskColumns: Array<TableColumn<CutQueueJob>> = [
     {
       id: "status",
@@ -256,7 +295,7 @@ export function CutQueuePage({
       align: "center",
       render: (job) => (
         <span className={`cutter-queue-problem ml-status-text ml-status-text--${job.status} ml-truncate-line`}>
-          {problemForJob(job, nowMs)}
+          {problemForJob(job, nowMs, jobVerification(job))}
         </span>
       )
     },
@@ -265,39 +304,46 @@ export function CutQueuePage({
       header: "操作",
       width: "92px",
       align: "center",
-      render: (job) => (
-        <span className="cutter-queue-actions ml-table-action-cell">
-          {(job.status === "failed" || job.status === "cancelled") && onRetryFailed ? (
-            <Button
-              size="sm"
-              variant={job.status === "failed" ? "danger" : "secondary"}
-              onClick={(event) => {
-                event.stopPropagation();
-                onRetryFailed(job.queue_job_id);
-              }}
-            >
-              重新剪切
-            </Button>
-          ) : (job.status === "pending" || job.status === "running") && onCancelJob ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={(event) => {
-                event.stopPropagation();
-                onCancelJob(job.queue_job_id);
-              }}
-            >
-              取消剪辑
-            </Button>
-          ) : job.status === "done" ? (
-            <span className="ml-status-icon ml-status-icon--ready" role="img" aria-label="剪切成功" title="剪切成功">
-              <CheckIcon />
-            </span>
-          ) : (
-            <span className={`ml-status-text ml-status-text--${job.status}`}>{actionTextForJob(job.status)}</span>
-          )}
-        </span>
-      )
+      render: (job) => {
+        const verification = jobVerification(job);
+        const canRecut = jobNeedsRecut(job) && onRetryFailed;
+
+        return (
+          <span className="cutter-queue-actions ml-table-action-cell">
+            {canRecut ? (
+              <Button
+                size="sm"
+                variant={job.status === "failed" ? "danger" : "secondary"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRetryFailed(job.queue_job_id);
+                }}
+              >
+                {job.status === "done" ? "复剪" : "重新剪切"}
+              </Button>
+            ) : (job.status === "pending" || job.status === "running") && onCancelJob ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCancelJob(job.queue_job_id);
+                }}
+              >
+                取消剪辑
+              </Button>
+            ) : job.status === "done" && verification === "verified" ? (
+              <span className="ml-status-icon ml-status-icon--ready" role="img" aria-label="剪切成功" title="剪切成功">
+                <CheckIcon />
+              </span>
+            ) : (
+              <span className={`ml-status-text ml-status-text--${job.status}`}>
+                {actionTextForJob(job, verification)}
+              </span>
+            )}
+          </span>
+        );
+      }
     }
   ];
 
@@ -420,8 +466,14 @@ export function CutQueuePage({
               </div>
               <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>剪切模式</dt>
-                <dd>{cutModeLabel(selectedJob.cut_mode)}</dd>
+                <dd>{cutModeLabel(cutJobEffectiveMode(selectedJob))}</dd>
               </div>
+              {selectedJob.status === "done" && jobVerification(selectedJob) !== "legacy" ? (
+                <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
+                  <dt>输出校验</dt>
+                  <dd>{cutJobVerificationDetail(selectedJob)}</dd>
+                </div>
+              ) : null}
               <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>输出路径</dt>
                 <dd>{selectedJob.output_file ?? "尚未生成"}</dd>
@@ -433,9 +485,9 @@ export function CutQueuePage({
                 </div>
               ) : null}
             </dl>
-            {(selectedJob.status === "failed" || selectedJob.status === "cancelled") && onRetryFailed ? (
+            {jobNeedsRecut(selectedJob) && onRetryFailed ? (
               <Button onClick={() => onRetryFailed(selectedJob.queue_job_id)} variant="primary">
-                重新剪切
+                {selectedJob.status === "done" ? "复剪" : "重新剪切"}
               </Button>
             ) : null}
             {(selectedJob.status === "pending" || selectedJob.status === "running") && onCancelJob ? (

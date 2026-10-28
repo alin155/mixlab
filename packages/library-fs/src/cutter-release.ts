@@ -521,7 +521,8 @@ async function copyIfPresent(sourcePath: string, targetPath: string): Promise<bo
   } catch {
     await copyFile(sourcePath, targetPath);
   }
-  await chmod(targetPath, 0o666).catch(() => {
+  // 发布目录只服务本机当前用户：0640，不再给同机其他用户写权限。
+  await chmod(targetPath, 0o640).catch(() => {
     // Best effort for SMB/NAS filesystems that may not support chmod.
   });
   return true;

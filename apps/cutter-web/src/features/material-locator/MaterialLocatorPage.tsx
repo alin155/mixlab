@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type UIEvent,
   type MouseEvent as ReactMouseEvent,
   type SyntheticEvent
@@ -38,6 +39,7 @@ import {
 } from "../../state/video-orientation.ts";
 import {
   continuousTranscriptSegments,
+  isSingleSegmentClick,
   shouldSuppressTranscriptClickAfterMouseUp
 } from "../../state/transcript-selection.ts";
 import {
@@ -47,30 +49,28 @@ import {
 } from "../../state/transcript-playback.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import type { CutMode } from "../../state/cut-list.ts";
+import {
+  codePointLength,
+  codePointSlice,
+  domRangePrefixCodePointOffset,
+  normalizeCodePointOffset,
+  timeAtCodePointOffset
+} from "../../state/text-offsets.ts";
 
 function transcriptTextLength(text: string): number {
-  return Array.from(text).length;
+  return codePointLength(text);
 }
 
 function clampTranscriptCharOffset(offset: number | undefined, text: string, fallback: number): number {
-  if (typeof offset !== "number" || !Number.isFinite(offset)) {
-    return fallback;
-  }
-
-  return Math.max(0, Math.min(Math.round(offset), transcriptTextLength(text)));
+  return normalizeCodePointOffset(offset, text, fallback);
 }
 
 function sliceTranscriptText(text: string, start: number, end: number): string {
-  return Array.from(text).slice(start, end).join("");
+  return codePointSlice(text, start, end);
 }
 
 function transcriptTimeAtCharOffset(segment: TranscriptSegment, offset: number): number {
-  const length = transcriptTextLength(segment.text);
-  if (length <= 0) {
-    return segment.begin_ms;
-  }
-
-  return Math.round(segment.begin_ms + (segment.end_ms - segment.begin_ms) * (offset / length));
+  return timeAtCodePointOffset(segment, offset);
 }
 
 function selectedBeginMs(
@@ -572,6 +572,7 @@ export function MaterialLocatorPage({
   onSelectMaterial,
   onSelectTranscriptRange,
   onSelectTranscriptTextRange,
+  onSelectTranscriptSegment,
   onNavigateHit,
   onLoadMoreSearchResults,
   onCutSelection,
@@ -613,6 +614,7 @@ export function MaterialLocatorPage({
     endSegmentId: string,
     endCharOffset: number
   ) => void;
+  onSelectTranscriptSegment?: (segmentId: string) => void;
   onNavigateHit?: (direction: "previous" | "next") => void;
   onLoadMoreSearchResults?: () => void;
   onCutSelection?: () => void;
@@ -774,7 +776,7 @@ export function MaterialLocatorPage({
   const hasSelectedTextRange = hasSelectedText &&
     typeof selectedStartCharOffset === "number" &&
     typeof selectedEndCharOffset === "number";
-  const showFloatingSelectionAction = Boolean(focusedDetail && hasSelectedTextRange && selectionBarAnchor);
+  const showFloatingSelectionAction = Boolean(focusedDetail && hasSelectedText && selectionBarAnchor);
   const selectedRangeBeginMs = selectedBeginMs(selectedSegments, selectedStartCharOffset);
   const selectedRangeEndMs = selectedEndMs(selectedSegments, selectedEndCharOffset);
   const dragPreviewIds = new Set(dragPreviewSegmentIds);
@@ -809,7 +811,9 @@ export function MaterialLocatorPage({
 
     return {
       segmentId,
-      charOffset: range.toString().length
+      // DOM gives UTF-16 code units; every downstream selection/time helper
+      // works in code points, so convert once at the DOM boundary (CW-02).
+      charOffset: domRangePrefixCodePointOffset(range.toString())
     };
   }
 
@@ -981,6 +985,43 @@ export function MaterialLocatorPage({
     );
   }
 
+  function selectWholeSegment(segmentId: string) {
+    const segment = focusedDetail?.transcript.segments.find(
+      (candidate) => candidate.segment_id === segmentId
+    );
+    if (!segment) {
+      return;
+    }
+
+    pauseSelectionPreview();
+    seekToSegment(segment);
+
+    const node = segmentRefs.current.get(segmentId);
+    const rect = node?.getBoundingClientRect();
+    const left = rect
+      ? Math.min(Math.max(rect.left + rect.width / 2, 220), window.innerWidth - 220)
+      : Math.round(window.innerWidth / 2);
+    setSelectionBarAnchor({ left, top: rect ? Math.max(88, rect.top - 8) : 120 });
+    onSelectTranscriptSegment?.(segmentId);
+  }
+
+  function handleSegmentKeyDown(
+    event: ReactKeyboardEvent<HTMLSpanElement>,
+    segment: TranscriptSegment
+  ) {
+    if (event.key !== "Enter" || event.defaultPrevented) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea, select")) {
+      return;
+    }
+
+    event.preventDefault();
+    selectWholeSegment(segment.segment_id);
+  }
+
   function handleTranscriptMouseUp(event: ReactMouseEvent<HTMLDivElement>) {
     if (!focusedDetail) {
       return;
@@ -1033,7 +1074,11 @@ export function MaterialLocatorPage({
       setSelectionBarAnchor(floatingAnchorFromEvent(event));
       playSegmentsPreview(draggedSegments);
       onSelectTranscriptRange?.(dragStartSegmentId, dragEndSegmentId ?? dragStartSegmentId);
+    } else if (isSingleSegmentClick(dragStartSegmentId, dragEndSegmentId)) {
+      // Single click on a sentence row: select the whole sentence and seek.
+      selectWholeSegment(dragStartSegmentId);
     }
+
     dragStartRef.current = null;
     dragEndRef.current = null;
     setDragPreviewSegmentIds([]);
@@ -1457,8 +1502,11 @@ export function MaterialLocatorPage({
                       data-segment-id={segment.segment_id}
                       key={segment.segment_id}
                       ref={(node) => setSegmentRef(segment.segment_id, node)}
+                      tabIndex={0}
+                      aria-label={`选择第 ${transcriptSegmentOrdinal(segment, absoluteIndex)} 句`}
                       onMouseDown={() => handleSegmentMouseDown(segment)}
                       onMouseEnter={() => handleSegmentMouseEnter(segment)}
+                      onKeyDown={(event) => handleSegmentKeyDown(event, segment)}
                     >
                       <button
                         aria-label={`${formatDuration(segment.begin_ms)} 作为选区时间点`}

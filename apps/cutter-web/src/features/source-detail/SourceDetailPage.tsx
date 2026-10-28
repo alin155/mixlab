@@ -3,17 +3,26 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent
 } from "react";
 import { Button, InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, type SourceVideoDetail, type TranscriptSegment } from "../../api.ts";
+import { isSingleSegmentClick } from "../../state/transcript-selection.ts";
+import {
+  codePointLength,
+  codePointSlice,
+  domRangePrefixCodePointOffset,
+  normalizeCodePointOffset,
+  timeAtCodePointOffset
+} from "../../state/text-offsets.ts";
 
 function transcriptTextLength(text: string): number {
-  return Array.from(text).length;
+  return codePointLength(text);
 }
 
 function sliceTranscriptText(text: string, start: number, end: number): string {
-  return Array.from(text).slice(start, end).join("");
+  return codePointSlice(text, start, end);
 }
 
 function selectedText(
@@ -45,8 +54,14 @@ function selectedDurationLabel(
     return "0 秒";
   }
 
-  const begin = typeof startCharOffset === "number" ? first.begin_ms : first.begin_ms;
-  const end = typeof endCharOffset === "number" ? last.end_ms : last.end_ms;
+  // Estimate partial-sentence selection with the same code point ratio used
+  // when the cut-list item is actually created (CW-02).
+  const begin = typeof startCharOffset === "number"
+    ? timeAtCodePointOffset(first, normalizeCodePointOffset(startCharOffset, first.text, 0))
+    : first.begin_ms;
+  const end = typeof endCharOffset === "number"
+    ? timeAtCodePointOffset(last, normalizeCodePointOffset(endCharOffset, last.text, transcriptTextLength(last.text)))
+    : last.end_ms;
   return `${Math.max(1, Math.round((end - begin) / 1000))} 秒`;
 }
 
@@ -70,10 +85,16 @@ function fullTranscriptSegmentSpans(
   fullText: string
 ): Array<{ segment: TranscriptSegment; start: number; end: number }> {
   let cursor = 0;
+  let searchUtf16From = 0;
   return segments.map((segment) => {
-    const foundAt = fullText.indexOf(segment.text, cursor);
-    const start = foundAt >= 0 ? foundAt : cursor;
+    const foundAt = fullText.indexOf(segment.text, searchUtf16From);
+    const start = foundAt >= 0
+      ? codePointLength(fullText.slice(0, foundAt))
+      : cursor;
     const end = start + transcriptTextLength(segment.text);
+    if (foundAt >= 0) {
+      searchUtf16From = foundAt + segment.text.length;
+    }
     cursor = end;
     return { segment, start, end };
   });
@@ -135,13 +156,14 @@ function selectedFullTranscriptParts(input: {
   const endOffset = typeof input.endCharOffset === "number"
     ? input.endCharOffset
     : transcriptTextLength(last.text);
-  const start = Math.max(0, Math.min(firstSpan.start + startOffset, input.fullText.length));
-  const end = Math.max(start, Math.min(lastSpan.start + endOffset, input.fullText.length));
+  const fullTextLength = codePointLength(input.fullText);
+  const start = Math.max(0, Math.min(firstSpan.start + startOffset, fullTextLength));
+  const end = Math.max(start, Math.min(lastSpan.start + endOffset, fullTextLength));
 
   return [
-    { text: input.fullText.slice(0, start), selected: false },
-    { text: input.fullText.slice(start, end), selected: true },
-    { text: input.fullText.slice(end), selected: false }
+    { text: codePointSlice(input.fullText, 0, start), selected: false },
+    { text: codePointSlice(input.fullText, start, end), selected: true },
+    { text: codePointSlice(input.fullText, end, fullTextLength), selected: false }
   ].filter((part) => part.text.length > 0);
 }
 
@@ -167,7 +189,8 @@ function transcriptTextEndpointFromNode(node: Node, offset: number): {
 
   return {
     segmentId,
-    charOffset: range.toString().length
+    // DOM offset is UTF-16; keep the whole pipeline in code points (CW-02).
+    charOffset: domRangePrefixCodePointOffset(range.toString())
   };
 }
 
@@ -234,6 +257,7 @@ export function SourceDetailPage({
   highlightedSegmentIds = [],
   onSelectTranscriptRange,
   onSelectTranscriptTextRange,
+  onSelectTranscriptSegment,
   onCancelSelection,
   onAddToCutList
 }: {
@@ -249,11 +273,13 @@ export function SourceDetailPage({
     endSegmentId: string,
     endCharOffset: number
   ) => void;
+  onSelectTranscriptSegment?: (segmentId: string) => void;
   onCancelSelection?: () => void;
   onAddToCutList?: () => void;
 }) {
   const transcriptRef = useRef<HTMLElement | null>(null);
   const selectionBarRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const dragStartRef = useRef<string | null>(null);
   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
   const [dragPreviewSegmentIds, setDragPreviewSegmentIds] = useState<readonly string[]>([]);
@@ -305,6 +331,35 @@ export function SourceDetailPage({
     return () => document.removeEventListener("mousedown", handleDocumentMouseDown);
   }, [onCancelSelection]);
 
+  function selectWholeSegment(segmentId: string) {
+    const segment = detail.transcript.segments.find((candidate) => candidate.segment_id === segmentId);
+    if (!segment) {
+      return;
+    }
+
+    if (videoRef.current && Number.isFinite(segment.begin_ms)) {
+      videoRef.current.currentTime = Math.max(0, segment.begin_ms) / 1000;
+    }
+    onSelectTranscriptSegment?.(segmentId);
+  }
+
+  function handleSegmentKeyDown(
+    event: ReactKeyboardEvent<HTMLSpanElement>,
+    segment: TranscriptSegment
+  ) {
+    if (event.key !== "Enter" || event.defaultPrevented) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea, select")) {
+      return;
+    }
+
+    event.preventDefault();
+    selectWholeSegment(segment.segment_id);
+  }
+
   function handleTranscriptMouseUp(event: ReactMouseEvent<HTMLElement>) {
     const textRange = selectedTranscriptTextRange(detail.transcript.segments, detail.transcript.full_text);
     if (textRange && onSelectTranscriptTextRange) {
@@ -325,6 +380,10 @@ export function SourceDetailPage({
       ?.dataset.segmentId;
     if (dragStartRef.current && endSegmentId && dragStartRef.current !== endSegmentId) {
       onSelectTranscriptRange?.(dragStartRef.current, endSegmentId);
+      setSelectionBarAnchor(floatingAnchorFromEvent(event));
+    } else if (isSingleSegmentClick(dragStartRef.current, endSegmentId) && dragStartRef.current) {
+      // Single click on a sentence row: select the whole sentence (CW-16).
+      selectWholeSegment(dragStartRef.current);
       setSelectionBarAnchor(floatingAnchorFromEvent(event));
     }
 
@@ -362,7 +421,14 @@ export function SourceDetailPage({
         </header>
 
         <section className="cutter-video-panel ml-document-media-panel">
-          <video className="ml-document-media-video" controls preload="none" poster={detail.cover_url} src={videoSource} />
+          <video
+            className="ml-document-media-video"
+            controls
+            preload="none"
+            poster={detail.cover_url}
+            ref={videoRef}
+            src={videoSource}
+          />
           <div className="ml-document-media-meta">
             <strong>{detail.title}</strong>
             <span>{formatDuration(detail.duration_ms)}</span>
@@ -409,8 +475,11 @@ export function SourceDetailPage({
                     .join(" ")}
                   key={segment.segment_id}
                   data-segment-id={segment.segment_id}
+                  tabIndex={0}
+                  aria-label={`选择第 ${detail.transcript.segments.indexOf(segment) + 1} 句`}
                   onMouseDown={() => handleSegmentMouseDown(segment.segment_id)}
                   onMouseEnter={() => handleSegmentMouseEnter(segment.segment_id)}
+                  onKeyDown={(event) => handleSegmentKeyDown(event, segment)}
                 >
                   <span className="ml-segment-time">{formatDuration(segment.begin_ms)}</span>
                   <span className="ml-segment-text">{segment.text}</span>

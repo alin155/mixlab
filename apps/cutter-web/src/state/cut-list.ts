@@ -5,6 +5,12 @@ import type {
   TranscriptSegment
 } from "../api.ts";
 import { sourceMaterialTitleFromStableName } from "./material-naming.ts";
+import {
+  codePointLength,
+  codePointSlice,
+  normalizeCodePointOffset,
+  timeAtCodePointOffset
+} from "./text-offsets.ts";
 
 export type CutMode = NonNullable<CreateLocalClipRequest["cut_mode"]>;
 
@@ -65,29 +71,19 @@ function normalizeOrder(items: CutListItem[]): CutListItem[] {
 }
 
 function textLength(text: string): number {
-  return Array.from(text).length;
+  return codePointLength(text);
 }
 
 function clampCharOffset(offset: number | undefined, text: string, fallback: number): number {
-  if (typeof offset !== "number" || !Number.isFinite(offset)) {
-    return fallback;
-  }
-
-  return Math.max(0, Math.min(Math.round(offset), textLength(text)));
+  return normalizeCodePointOffset(offset, text, fallback);
 }
 
 function sliceTextByCharOffset(text: string, start: number, end: number): string {
-  return Array.from(text).slice(start, end).join("");
+  return codePointSlice(text, start, end);
 }
 
 function timeAtCharOffset(segment: TranscriptSegment, offset: number): number {
-  const length = textLength(segment.text);
-  if (length <= 0) {
-    return segment.begin_ms;
-  }
-
-  const ratio = Math.max(0, Math.min(offset, length)) / length;
-  return Math.round(segment.begin_ms + (segment.end_ms - segment.begin_ms) * ratio);
+  return timeAtCodePointOffset(segment, offset);
 }
 
 function selectedTextFromSegments(input: {
@@ -208,13 +204,164 @@ export function serializeCutList(items: readonly CutListItem[]): string {
   return JSON.stringify([...items].sort((left, right) => left.order - right.order));
 }
 
-export function deserializeCutList(serialized: string | null | undefined): CutListItem[] {
+export const CUT_LIST_CORRUPT_STORAGE_KEY = "mixlab.cutter.cutList.corrupt";
+
+const CUT_MODES: readonly CutMode[] = ["copy", "smart", "precise"];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizedCutMode(value: unknown): CutMode {
+  return typeof value === "string" && (CUT_MODES as readonly string[]).includes(value)
+    ? (value as CutMode)
+    : "copy";
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  return isFiniteNumber(value) ? value : undefined;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function normalizedCutListItem(value: unknown, index: number): CutListItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const cutListItemId = optionalString(value.cut_list_item_id);
+  const sourceVideoId = optionalString(value.source_video_id);
+  const sourceTitle = optionalString(value.source_title);
+  const startSegmentId = optionalString(value.start_segment_id);
+  const endSegmentId = optionalString(value.end_segment_id);
+  const beginMs = optionalFiniteNumber(value.begin_ms);
+  const endMs = optionalFiniteNumber(value.end_ms);
+
+  if (
+    !cutListItemId ||
+    !sourceVideoId ||
+    sourceTitle === undefined ||
+    !startSegmentId ||
+    !endSegmentId ||
+    beginMs === undefined ||
+    endMs === undefined
+  ) {
+    return null;
+  }
+
+  const durationMs = optionalFiniteNumber(value.duration_ms) ?? Math.max(0, endMs - beginMs);
+  const order = optionalFiniteNumber(value.order) ?? index + 1;
+  const title = optionalString(value.title);
+  const preRollMs = optionalFiniteNumber(value.pre_roll_ms);
+  const postRollMs = optionalFiniteNumber(value.post_roll_ms);
+
+  return {
+    cut_list_item_id: cutListItemId,
+    source_video_id: sourceVideoId,
+    source_title: sourceTitle,
+    source_relative_path: optionalString(value.source_relative_path) ?? "",
+    start_segment_id: startSegmentId,
+    end_segment_id: endSegmentId,
+    begin_ms: beginMs,
+    end_ms: endMs,
+    duration_ms: durationMs,
+    selected_text: optionalString(value.selected_text) ?? "",
+    cut_mode: normalizedCutMode(value.cut_mode),
+    order,
+    ...(title ? { title } : {}),
+    ...(preRollMs !== undefined ? { pre_roll_ms: preRollMs } : {}),
+    ...(postRollMs !== undefined ? { post_roll_ms: postRollMs } : {})
+  };
+}
+
+export interface CutListParseResult {
+  items: CutListItem[];
+  corrupted: boolean;
+}
+
+export function parseCutList(serialized: string | null | undefined): CutListParseResult {
   if (!serialized) {
+    return { items: [], corrupted: false };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    return { items: [], corrupted: true };
+  }
+
+  if (!Array.isArray(parsed)) {
+    return { items: [], corrupted: true };
+  }
+
+  let corrupted = false;
+  const items: CutListItem[] = [];
+
+  for (const [index, entry] of parsed.entries()) {
+    const item = normalizedCutListItem(entry, index);
+    if (!item) {
+      corrupted = true;
+      continue;
+    }
+
+    items.push(item);
+  }
+
+  return {
+    items: normalizeOrder(items.sort((left, right) => left.order - right.order)),
+    corrupted
+  };
+}
+
+export function deserializeCutList(serialized: string | null | undefined): CutListItem[] {
+  return parseCutList(serialized).items;
+}
+
+function defaultStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function storeCorruptCutList(storage: Storage, raw: string): void {
+  try {
+    storage.setItem(CUT_LIST_CORRUPT_STORAGE_KEY, raw);
+  } catch {
+    // Best-effort backup only; the UI must keep booting with an empty cut list.
+  }
+}
+
+export function readCutListFromStorage(storage: Storage | null = defaultStorage()): CutListItem[] {
+  if (!storage) {
     return [];
   }
 
-  const parsed = JSON.parse(serialized) as CutListItem[];
-  return normalizeOrder(parsed.sort((left, right) => left.order - right.order));
+  let raw: string | null = null;
+  try {
+    raw = storage.getItem(CUT_LIST_STORAGE_KEY);
+  } catch {
+    return [];
+  }
+
+  if (!raw) {
+    return [];
+  }
+
+  const parsed = parseCutList(raw);
+  if (parsed.corrupted) {
+    storeCorruptCutList(storage, raw);
+  }
+
+  return parsed.items;
 }
 
 export function toCreateLocalClipRequest(item: CutListItem): CreateLocalClipRequest {

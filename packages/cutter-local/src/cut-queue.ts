@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { copyFile, link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
+import os from "node:os";
 import path from "node:path";
 import {
   validateSourceVideoManifest,
@@ -8,6 +9,10 @@ import {
   type SourceVideoManifest,
   type TranscriptSegment
 } from "../../protocol/src/index.ts";
+import {
+  decideCopyCutMode,
+  resolveFfmpegTimeoutMs
+} from "../../ffmpeg-core/src/index.ts";
 import {
   allocateNextExportClipId,
   buildCanonicalClipTitle,
@@ -39,6 +44,61 @@ export interface CutJobPhaseTiming {
   duration_ms?: number;
 }
 
+export type CutJobErrorCode =
+  | "CUT_OUTPUT_MISMATCH"
+  | "CUT_RANGE_OUT_OF_SOURCE"
+  | "CUT_SOURCE_UNPROBEABLE"
+  | "CUT_TIMEOUT"
+  | "CUT_PROCESS_INTERRUPTED"
+  | "CUT_CANCELLED";
+
+export interface CutOutputVerificationCheck {
+  check: string;
+  passed: boolean;
+  detail: string;
+}
+
+/** done 前对成片做的输出验收记录（写入任务 JSON，可选字段，旧客户端可忽略）。 */
+export interface CutOutputVerification {
+  passed: boolean;
+  expected_duration_ms: number;
+  actual_duration_ms?: number;
+  tolerance_ms: number;
+  checks: CutOutputVerificationCheck[];
+}
+
+export interface CutOutputProbeResult {
+  exists: boolean;
+  size_bytes: number;
+  duration_ms?: number;
+  has_video_stream: boolean;
+  has_audio_stream: boolean;
+  /** 源视频是否有音轨；用于区分"本来无音轨"与"音轨丢失"。 */
+  source_has_audio_stream?: boolean;
+  first_video_pts_ms?: number;
+  video_duration_ms?: number;
+  audio_duration_ms?: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+  codec?: string;
+}
+
+export type CutOutputProbe = (input: {
+  output_path: string;
+  source_path: string;
+  cut_mode: CutMode;
+}) => Promise<CutOutputProbeResult> | CutOutputProbeResult;
+
+export type CutSourceDurationProbe = (input: {
+  source_video_path: string;
+}) => Promise<{ duration_ms?: number } | undefined> | { duration_ms?: number } | undefined;
+
+export type CutKeyframeProbe = (input: {
+  source_video_path: string;
+  begin_ms: number;
+}) => Promise<{ keyframe_times_ms?: number[] } | undefined> | { keyframe_times_ms?: number[] } | undefined;
+
 export interface CutJobManifest {
   schema_version: "1.0";
   cut_job_id: string;
@@ -66,6 +126,13 @@ export interface CutJobManifest {
   started_at?: string;
   finished_at?: string;
   error_message?: string;
+  error_code?: CutJobErrorCode;
+  /** 提交幂等键：client:<id> 或 clip_list:<clip_list_id>。 */
+  submission_key?: string;
+  /** 实际执行的剪切模式（copy 可能被自动降级为 precise）。 */
+  cut_mode_used?: CutMode;
+  degrade_reason?: string;
+  verification?: CutOutputVerification;
   export_clip_id?: string;
   output_file?: string;
 }
@@ -74,11 +141,20 @@ export interface SubmitClipListToQueueInput {
   workspace_root: string;
   clip_list: ClipListManifest;
   now: string;
+  /** 客户端幂等键；未提供时以 clip_list_id 作为幂等键。 */
+  client_request_id?: string;
+  /** 跨进程提交锁等待上限（毫秒，测试用）；默认 2000。 */
+  submission_lock_wait_ms?: number;
+  /** 测试注入：每个任务提交后回调，用于验证批量失败回滚。 */
+  on_job_written?: (job: CutJobManifest, index: number) => void | Promise<void>;
 }
 
 export interface CutJobSubmission {
   submitted_count: number;
   jobs: CutJobManifest[];
+  /** 幂等重放：true 表示未创建新任务，返回的是该幂等键已有的任务。 */
+  replayed: boolean;
+  submission_key: string;
 }
 
 export interface ListCutJobsInput {
@@ -129,6 +205,8 @@ export interface CutRunnerInput {
   begin_ms: number;
   end_ms: number;
   cut_mode: CutMode;
+  /** 队列超时/取消时中止；生产 runner 收到后应终止 FFmpeg 进程树。 */
+  signal?: AbortSignal;
 }
 
 export type CutRunner = (input: CutRunnerInput) => Promise<void> | void;
@@ -151,6 +229,16 @@ export interface RunNextCutJobInput {
   cover_runner?: CoverRunner;
   persist_phase_progress?: boolean;
   cut_temp_max_bytes?: number;
+  /** 成片验收探针；未提供时跳过输出校验（仅供测试/兼容旧调用方）。 */
+  output_probe?: CutOutputProbe;
+  /** 源视频实测时长探针；E 源（重剪）必须提供。 */
+  source_duration_probe?: CutSourceDurationProbe;
+  /** copy 模式关键帧探针；提供时按关键帧距离决定是否降级 precise。 */
+  keyframe_probe?: CutKeyframeProbe;
+  /** 直接覆盖任务超时（毫秒，测试/特殊场景用）。 */
+  cut_timeout_ms?: number;
+  /** 任务超时上限（毫秒）；未提供时按区间估算并受默认上限约束。 */
+  cut_timeout_ms_max?: number;
 }
 
 export interface RunCutJobInput extends RunNextCutJobInput {
@@ -171,12 +259,446 @@ const CUT_JOB_PHASES: Array<{ phase_id: CutJobPhaseId; label: string }> = [
 const CUT_JOB_ID_PATTERN = /^CJ\d{8}-\d{4}$/;
 const CUT_JOB_CANCELLED_MESSAGE = "cut job cancelled";
 const DEFAULT_CUT_TEMP_MAX_BYTES = 4 * 1024 * 1024 * 1024;
+
+// 输出验收容差：precise 固定 ±200ms；copy 按关键帧误差放大后仍要求成片时长吻合。
+export const PRECISE_OUTPUT_TOLERANCE_MS = 200;
+export const COPY_OUTPUT_TOLERANCE_BASE_MS = 500;
+export const COPY_OUTPUT_TOLERANCE_PADDING_MS = 250;
+export const FIRST_FRAME_PTS_TOLERANCE_MS = 250;
+export const AV_DURATION_DELTA_TOLERANCE_MS = 500;
+
 const workspaceRunNextLocks = new Map<string, Promise<void>>();
 const workspaceQueueMutationLocks = new Map<string, Promise<void>>();
+const activeCutJobAbortControllers = new Map<string, Map<string, AbortController>>();
+const cachePathPinCounts = new Map<string, number>();
+
+function cachePinKey(filePath: string): string {
+  return path.resolve(filePath);
+}
+
+/** 缓存淘汰保护：pin 正在 cut/stream 使用的文件路径，返回释放函数（引用计数）。 */
+export function pinCachePath(filePath: string): () => void {
+  const key = cachePinKey(filePath);
+  cachePathPinCounts.set(key, (cachePathPinCounts.get(key) ?? 0) + 1);
+  let released = false;
+
+  return () => {
+    if (released) {
+      return;
+    }
+
+    released = true;
+    const nextCount = (cachePathPinCounts.get(key) ?? 1) - 1;
+
+    if (nextCount <= 0) {
+      cachePathPinCounts.delete(key);
+    } else {
+      cachePathPinCounts.set(key, nextCount);
+    }
+  };
+}
+
+export function isCachePathPinned(filePath: string): boolean {
+  return (cachePathPinCounts.get(cachePinKey(filePath)) ?? 0) > 0;
+}
 const workspaceCutJobSnapshotCaches = new Map<string, {
   loaded: boolean;
   jobs: Map<string, CutJobManifest>;
 }>();
+
+class CutJobFailure extends Error {
+  readonly code: CutJobErrorCode;
+
+  constructor(code: CutJobErrorCode, message: string) {
+    super(message);
+    this.name = "CutJobFailure";
+    this.code = code;
+  }
+}
+
+function cutJobFailureCode(error: unknown): CutJobErrorCode | undefined {
+  return error instanceof CutJobFailure ? error.code : undefined;
+}
+
+export const CUT_JOB_NOT_RETRYABLE_CODE = "cut_job_not_retryable";
+
+/** 稳定错误码：任务状态不允许复剪（cutter-api 映射为 409 cut_job_not_retryable）。 */
+export class CutJobNotRetryableError extends Error {
+  readonly code = CUT_JOB_NOT_RETRYABLE_CODE;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "CutJobNotRetryableError";
+  }
+}
+
+function abortControllerKey(workspaceRoot: string): string {
+  return path.resolve(workspaceRoot);
+}
+
+function registerActiveCutJobAbort(
+  workspaceRoot: string,
+  cutJobId: string,
+  controller: AbortController
+): void {
+  const key = abortControllerKey(workspaceRoot);
+  let controllers = activeCutJobAbortControllers.get(key);
+
+  if (!controllers) {
+    controllers = new Map();
+    activeCutJobAbortControllers.set(key, controllers);
+  }
+
+  controllers.set(cutJobId, controller);
+}
+
+function unregisterActiveCutJobAbort(workspaceRoot: string, cutJobId: string): void {
+  const key = abortControllerKey(workspaceRoot);
+  const controllers = activeCutJobAbortControllers.get(key);
+
+  if (!controllers) {
+    return;
+  }
+
+  controllers.delete(cutJobId);
+  if (controllers.size === 0) {
+    activeCutJobAbortControllers.delete(key);
+  }
+}
+
+function abortActiveCutJob(workspaceRoot: string, cutJobId: string): boolean {
+  const controller = activeCutJobAbortControllers.get(abortControllerKey(workspaceRoot))?.get(cutJobId);
+
+  if (!controller) {
+    return false;
+  }
+
+  controller.abort();
+  return true;
+}
+
+
+// --- workspace 独占租约（Round2 CUTL-02 追加风险） --------------------------
+// 多进程共用同一 workspace 时，只有持租约的进程可以执行启动恢复与队列 drain；
+// 其他进程只读/排队，并通过 workspace_lease_unavailable 提示用户。
+
+export const WORKSPACE_LEASE_FILE_NAME = ".mixlab-workspace-lock.json";
+export const WORKSPACE_LEASE_UNAVAILABLE_CODE = "workspace_lease_unavailable";
+export const DEFAULT_WORKSPACE_LEASE_STALE_MS = 60_000;
+const DEFAULT_WORKSPACE_LEASE_HEARTBEAT_MS = 10_000;
+const WORKSPACE_LEASE_SCHEMA_VERSION = "1.0";
+
+export interface WorkspaceLeaseRecord {
+  schema_version: "1.0";
+  instance_id: string;
+  pid: number;
+  hostname: string;
+  workspace_root: string;
+  acquired_at: string;
+  heartbeat_at: string;
+}
+
+export class WorkspaceLeaseUnavailableError extends Error {
+  readonly code = WORKSPACE_LEASE_UNAVAILABLE_CODE;
+  readonly holder?: WorkspaceLeaseRecord;
+
+  constructor(message: string, holder?: WorkspaceLeaseRecord) {
+    super(message);
+    this.name = "WorkspaceLeaseUnavailableError";
+    this.holder = holder;
+  }
+}
+
+export interface AcquireWorkspaceLeaseInput {
+  workspace_root: string;
+  now?: () => string;
+  instance_id?: string;
+  pid?: number;
+  hostname?: string;
+  /** 心跳超过该时长未更新即视为陈旧锁，可被回收。 */
+  stale_after_ms?: number;
+  /** 心跳间隔；0 表示关闭自动心跳（测试或短生命周期进程）。 */
+  heartbeat_interval_ms?: number;
+  /** 同主机 PID 存活判断；测试可注入。 */
+  pid_alive?: (pid: number) => boolean;
+}
+
+export interface WorkspaceLease {
+  workspace_root: string;
+  instance_id: string;
+  pid: number;
+  acquired_at: string;
+  heartbeat_at: () => string;
+  is_held: () => boolean;
+  refresh: () => Promise<boolean>;
+  release: () => Promise<void>;
+}
+
+export function workspaceLeasePath(workspaceRoot: string): string {
+  return path.join(path.resolve(workspaceRoot), WORKSPACE_LEASE_FILE_NAME);
+}
+
+function defaultPidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+function normalizeLeaseRecord(value: unknown): WorkspaceLeaseRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (
+    typeof record.instance_id !== "string" ||
+    record.instance_id.trim() === "" ||
+    typeof record.pid !== "number" ||
+    !Number.isInteger(record.pid) ||
+    typeof record.heartbeat_at !== "string" ||
+    record.heartbeat_at.trim() === ""
+  ) {
+    return null;
+  }
+
+  return {
+    schema_version: "1.0",
+    instance_id: record.instance_id,
+    pid: record.pid,
+    hostname: typeof record.hostname === "string" ? record.hostname : "",
+    workspace_root: typeof record.workspace_root === "string" ? record.workspace_root : "",
+    acquired_at: typeof record.acquired_at === "string" ? record.acquired_at : record.heartbeat_at,
+    heartbeat_at: record.heartbeat_at
+  };
+}
+
+export async function readWorkspaceLease(workspaceRoot: string): Promise<WorkspaceLeaseRecord | null> {
+  try {
+    return normalizeLeaseRecord(
+      JSON.parse(await readFile(workspaceLeasePath(workspaceRoot), "utf8")) as unknown
+    );
+  } catch {
+    return null;
+  }
+}
+
+function leaseIsStale(input: {
+  record: WorkspaceLeaseRecord;
+  now_ms: number;
+  stale_after_ms: number;
+  hostname: string;
+  pid_alive: (pid: number) => boolean;
+}): boolean {
+  if (input.record.hostname && input.record.hostname === input.hostname) {
+    if (!input.pid_alive(input.record.pid)) {
+      return true;
+    }
+  }
+
+  const heartbeatMs = Date.parse(input.record.heartbeat_at);
+
+  if (!Number.isFinite(heartbeatMs)) {
+    return true;
+  }
+
+  return input.now_ms - heartbeatMs > input.stale_after_ms;
+}
+
+/**
+ * 原子创建（wx）workspace 租约；陈旧锁（心跳超时或同主机 PID 已退出）可被回收。
+ * 拿不到租约时抛 WorkspaceLeaseUnavailableError（code=workspace_lease_unavailable）。
+ */
+export async function acquireWorkspaceLease(
+  input: AcquireWorkspaceLeaseInput
+): Promise<WorkspaceLease> {
+  const workspaceRoot = path.resolve(input.workspace_root);
+  const nowFn = input.now ?? (() => new Date().toISOString());
+  const instanceId = input.instance_id?.trim() || randomUUID();
+  const pid = input.pid ?? process.pid;
+  const hostname = input.hostname?.trim() || os.hostname();
+  const staleAfterMs = Number.isFinite(input.stale_after_ms) && (input.stale_after_ms ?? 0) > 0
+    ? Math.floor(input.stale_after_ms!)
+    : DEFAULT_WORKSPACE_LEASE_STALE_MS;
+  const heartbeatIntervalMs =
+    input.heartbeat_interval_ms !== undefined
+      ? Math.max(0, Math.floor(input.heartbeat_interval_ms))
+      : Math.min(DEFAULT_WORKSPACE_LEASE_HEARTBEAT_MS, Math.max(250, Math.floor(staleAfterMs / 3)));
+  const pidAlive = input.pid_alive ?? defaultPidAlive;
+  const leasePath = workspaceLeasePath(workspaceRoot);
+  const acquiredAt = nowFn();
+  let heartbeatAt = acquiredAt;
+
+  await mkdir(workspaceRoot, { recursive: true });
+
+  const buildRecord = (): WorkspaceLeaseRecord => ({
+    schema_version: "1.0",
+    instance_id: instanceId,
+    pid,
+    hostname,
+    workspace_root: workspaceRoot,
+    acquired_at: acquiredAt,
+    heartbeat_at: heartbeatAt
+  });
+
+  let acquired = false;
+
+  for (let attempt = 0; attempt < 4 && !acquired; attempt += 1) {
+    try {
+      await writeFile(leasePath, `${JSON.stringify(buildRecord(), null, 2)}\n`, {
+        encoding: "utf8",
+        flag: "wx"
+      });
+      acquired = true;
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+    }
+
+    const holder = await readWorkspaceLease(workspaceRoot);
+    const nowMs = Date.parse(nowFn());
+    const stale =
+      !holder ||
+      leaseIsStale({
+        record: holder,
+        now_ms: Number.isFinite(nowMs) ? nowMs : Date.now(),
+        stale_after_ms: staleAfterMs,
+        hostname,
+        pid_alive: pidAlive
+      });
+
+    if (!stale) {
+      throw new WorkspaceLeaseUnavailableError(
+        "本机工作区正被另一个剪辑实例使用（workspace 租约被占用），当前实例将以只读/排队方式运行。",
+        holder ?? undefined
+      );
+    }
+
+    // 先原子 rename 走陈旧锁，只有一个进程能成功 rename，然后重试创建。
+    const stalePath = `${leasePath}.stale-${pid}-${randomUUID()}`;
+
+    try {
+      await rename(leasePath, stalePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+
+      throw error;
+    }
+
+    await rm(stalePath, { force: true });
+  }
+
+  if (!acquired) {
+    throw new WorkspaceLeaseUnavailableError(
+      "无法获取本机工作区租约（锁文件竞争未结束），请稍后重试。"
+    );
+  }
+
+  let held = true;
+  let heartbeatTimer: NodeJS.Timeout | undefined;
+
+  const lease: WorkspaceLease = {
+    workspace_root: workspaceRoot,
+    instance_id: instanceId,
+    pid,
+    acquired_at: acquiredAt,
+    heartbeat_at: () => heartbeatAt,
+    is_held: () => held,
+    refresh: async () => {
+      if (!held) {
+        return false;
+      }
+
+      const current = await readWorkspaceLease(workspaceRoot);
+
+      if (!current || current.instance_id !== instanceId) {
+        held = false;
+        return false;
+      }
+
+      const nextHeartbeatAt = nowFn();
+
+      try {
+        await writeFile(
+          leasePath,
+          `${JSON.stringify({ ...buildRecord(), heartbeat_at: nextHeartbeatAt }, null, 2)}\n`,
+          { encoding: "utf8" }
+        );
+      } catch {
+        held = false;
+        return false;
+      }
+
+      heartbeatAt = nextHeartbeatAt;
+      return true;
+    },
+    release: async () => {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = undefined;
+      }
+
+      if (!held) {
+        return;
+      }
+
+      held = false;
+      const current = await readWorkspaceLease(workspaceRoot);
+
+      if (current?.instance_id === instanceId) {
+        await rm(leasePath, { force: true });
+      }
+    }
+  };
+
+  if (heartbeatIntervalMs > 0) {
+    heartbeatTimer = setInterval(() => {
+      void lease.refresh();
+    }, heartbeatIntervalMs);
+    heartbeatTimer.unref?.();
+  }
+
+  return lease;
+}
+
+/** 只有租约仍被本实例持有时才执行启动恢复，避免把其他实例的 running 任务误标 failed。 */
+export async function recoverInterruptedCutJobsIfLeased(input: {
+  workspace_root: string;
+  now: string | (() => string);
+  lease: WorkspaceLease;
+}): Promise<{ recovered: CutJobManifest[]; skipped: boolean; reason?: string }> {
+  if (!input.lease.is_held()) {
+    return { recovered: [], skipped: true, reason: "workspace_lease_not_held" };
+  }
+
+  if (path.resolve(input.lease.workspace_root) !== path.resolve(input.workspace_root)) {
+    return { recovered: [], skipped: true, reason: "workspace_lease_workspace_mismatch" };
+  }
+
+  const current = await readWorkspaceLease(input.workspace_root);
+
+  if (!current || current.instance_id !== input.lease.instance_id) {
+    return { recovered: [], skipped: true, reason: "workspace_lease_lost" };
+  }
+
+  const recovered = await recoverInterruptedCutJobs({
+    workspace_root: input.workspace_root,
+    now: typeof input.now === "function" ? input.now() : input.now
+  });
+
+  return { recovered, skipped: false };
+}
 
 async function withWorkspaceRunNextLock<T>(
   workspaceRoot: string,
@@ -343,6 +865,11 @@ function normalizeReadCutJob(value: unknown, fallbackCutJobId: string): CutJobMa
     ...(nonEmptyString(value.started_at) ? { started_at: nonEmptyString(value.started_at) } : {}),
     ...(nonEmptyString(value.finished_at) ? { finished_at: nonEmptyString(value.finished_at) } : {}),
     ...(nonEmptyString(value.error_message) ? { error_message: nonEmptyString(value.error_message) } : {}),
+    ...(nonEmptyString(value.error_code) ? { error_code: value.error_code as CutJobErrorCode } : {}),
+    ...(nonEmptyString(value.submission_key) ? { submission_key: nonEmptyString(value.submission_key) } : {}),
+    ...(validCutMode(value.cut_mode_used) ? { cut_mode_used: value.cut_mode_used } : {}),
+    ...(nonEmptyString(value.degrade_reason) ? { degrade_reason: nonEmptyString(value.degrade_reason) } : {}),
+    ...(isRecord(value.verification) ? { verification: value.verification as unknown as CutOutputVerification } : {}),
     ...(nonEmptyString(value.export_clip_id) ? { export_clip_id: nonEmptyString(value.export_clip_id) } : {}),
     ...(nonEmptyString(value.output_file) ? { output_file: nonEmptyString(value.output_file) } : {})
   };
@@ -446,7 +973,9 @@ async function pruneDirectFileCache(input: {
   const pruned: string[] = [];
 
   for (const entry of entries
-    .filter((item) => !keep.has(path.resolve(item.file_path)))
+    .filter(
+      (item) => !keep.has(path.resolve(item.file_path)) && !isCachePathPinned(item.file_path)
+    )
     .sort((left, right) => left.mtime_ms - right.mtime_ms)) {
     if (totalBytes <= input.max_bytes) {
       break;
@@ -484,6 +1013,16 @@ export interface CutTempCacheStatus {
   max_bytes: number;
   size_bytes: number;
   file_count: number;
+}
+
+export async function pruneCutTempCache(input: {
+  workspace_root: string;
+  max_bytes?: number;
+}): Promise<string[]> {
+  return pruneDirectFileCache({
+    root: cutTempRoot(input.workspace_root),
+    max_bytes: cutTempMaxBytes(input.max_bytes)
+  });
 }
 
 export async function readCutTempCacheStatus(input: {
@@ -622,10 +1161,68 @@ function failPhase(job: CutJobManifest, phaseId: CutJobPhaseId, now: string): Cu
   };
 }
 
+function validCutMode(value: unknown): value is CutMode {
+  return value === "copy" || value === "smart" || value === "precise";
+}
+
+async function resolveSourceDurationForPreflight(input: {
+  job: CutJobManifest;
+  source: CutJobSourceDetail;
+  source_duration_probe?: CutSourceDurationProbe;
+}): Promise<number> {
+  const isLocalClipSource = /^E\d{6}$/.test(input.job.source_video_id);
+  const manifestDurationMs = input.source.duration_ms;
+
+  // 普通公共素材的时长来自已发布索引（预处理阶段 ffprobe 实测）；缺失时才回退探测。
+  if (
+    !isLocalClipSource &&
+    typeof manifestDurationMs === "number" &&
+    Number.isFinite(manifestDurationMs) &&
+    manifestDurationMs > 0
+  ) {
+    return Math.floor(manifestDurationMs);
+  }
+
+  // E 源（本地作品重剪）的清单 duration_ms 是"请求时长"，必须重新探测真实媒体时长。
+  if (!input.source_duration_probe) {
+    throw new CutJobFailure(
+      "CUT_SOURCE_UNPROBEABLE",
+      "无法获取源视频实测时长：当前环境未配置视频探测能力，已拒绝剪切以免越界。"
+    );
+  }
+
+  let probedDurationMs: number | undefined;
+  try {
+    const probeResult = await input.source_duration_probe({
+      source_video_path: input.source.source_video_file_path
+    });
+    probedDurationMs = probeResult?.duration_ms;
+  } catch (error) {
+    throw new CutJobFailure(
+      "CUT_SOURCE_UNPROBEABLE",
+      `无法获取源视频实测时长：${errorMessage(error)}`
+    );
+  }
+
+  if (
+    typeof probedDurationMs !== "number" ||
+    !Number.isFinite(probedDurationMs) ||
+    probedDurationMs <= 0
+  ) {
+    throw new CutJobFailure(
+      "CUT_SOURCE_UNPROBEABLE",
+      "无法获取源视频实测时长：媒体时长探测结果无效，已拒绝剪切以免越界。"
+    );
+  }
+
+  return Math.floor(probedDurationMs);
+}
+
 async function assertCutJobPreflight(input: {
   job: CutJobManifest;
   source: CutJobSourceDetail;
-}): Promise<void> {
+  source_duration_probe?: CutSourceDurationProbe;
+}): Promise<{ source_duration_ms: number }> {
   if (!input.source.source_video_file_path.trim()) {
     throw new Error("源视频不可读：源视频路径为空");
   }
@@ -654,10 +1251,17 @@ async function assertCutJobPreflight(input: {
     throw new Error("剪切时间段非法：结束时间必须大于开始时间");
   }
 
-  const sourceDurationMs = input.source.duration_ms ?? 0;
-  if (sourceDurationMs > 0 && input.job.end_ms > sourceDurationMs + 2_000) {
-    throw new Error("剪切时间段非法：结束时间超过源视频时长");
+  const sourceDurationMs = await resolveSourceDurationForPreflight(input);
+
+  // 契约：请求区间必须完全落在实测源时长内（0 容差），不做尾部截断放行。
+  if (input.job.begin_ms >= sourceDurationMs || input.job.end_ms > sourceDurationMs) {
+    throw new CutJobFailure(
+      "CUT_RANGE_OUT_OF_SOURCE",
+      `剪切区间超出源视频时长：请求 ${input.job.begin_ms}-${input.job.end_ms}ms，源视频实测时长 ${sourceDurationMs}ms。请缩短选区后重试。`
+    );
   }
+
+  return { source_duration_ms: sourceDurationMs };
 }
 
 function assertCutJobId(cutJobId: string): void {
@@ -740,6 +1344,7 @@ function jobFromClipListItem(input: {
   item: ClipListItem;
   project_clip_order: number;
   now: string;
+  submission_key?: string;
 }): CutJobManifest {
   const sourceTitle = sourceTitleForCanonicalClipName(input.item.source_title, input.clip_list.title);
   const beginMs = Math.max(0, input.item.begin_ms - input.item.pre_roll_ms);
@@ -772,6 +1377,7 @@ function jobFromClipListItem(input: {
     status: "pending",
     current_phase: "queue_wait",
     phase_timings: pendingPhaseTimings(),
+    ...(input.submission_key ? { submission_key: input.submission_key } : {}),
     created_at: input.now,
     updated_at: input.now
   };
@@ -887,40 +1493,276 @@ async function readCutJobsPage(input: ListCutJobsInput): Promise<{
   };
 }
 
+export const CUT_QUEUE_BUSY_CODE = "cut_queue_busy";
+const SUBMISSION_LOCK_FILE_NAME = ".submission.lock";
+const SUBMISSION_LOCK_STALE_MS = 10_000;
+const STAGING_DIRECTORY_PREFIX = ".staging-";
+const STALE_STAGING_CLEANUP_MS = 60_000;
+
+export class CutQueueBusyError extends Error {
+  readonly code = CUT_QUEUE_BUSY_CODE;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "CutQueueBusyError";
+  }
+}
+
+class CutJobIdConflictError extends Error {
+  readonly code = "cut_job_id_conflict";
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, Math.max(0, milliseconds));
+  });
+}
+
+function submissionKeyFor(input: SubmitClipListToQueueInput): string {
+  const clientRequestId = input.client_request_id?.trim();
+
+  if (!clientRequestId) {
+    return `clip_list:${input.clip_list.clip_list_id}`;
+  }
+
+  if (!/^[A-Za-z0-9._:-]{1,120}$/.test(clientRequestId)) {
+    throw new Error("client_request_id 只能包含字母、数字、点、下划线、冒号、连字符（最长 120）");
+  }
+
+  return `client:${clientRequestId}`;
+}
+
+function replayableJobsForSubmission(input: {
+  jobs: CutJobManifest[];
+  submission_key: string;
+  clip_list_id: string;
+}): CutJobManifest[] {
+  const clientKey = input.submission_key.startsWith("client:");
+
+  return input.jobs
+    .filter((job) =>
+      clientKey
+        ? job.submission_key === input.submission_key
+        : job.submission_key === input.submission_key ||
+          (!job.submission_key && job.clip_list_id === input.clip_list_id)
+    )
+    .sort((left, right) => left.cut_job_id.localeCompare(right.cut_job_id));
+}
+
+/** 跨进程提交锁：wx 原子创建 + 陈旧回收 + 有界等待，避免两个进程同时分配/写入任务 ID。 */
+async function withWorkspaceSubmissionFileLock<T>(
+  workspaceRoot: string,
+  waitMs: number | undefined,
+  task: () => Promise<T>
+): Promise<T> {
+  const lockPath = path.join(cutJobsRoot(workspaceRoot), SUBMISSION_LOCK_FILE_NAME);
+  const effectiveWaitMs =
+    Number.isFinite(waitMs) && (waitMs ?? 0) >= 0 ? Math.floor(waitMs!) : 2_000;
+  const startedAt = Date.now();
+
+  await mkdir(path.dirname(lockPath), { recursive: true });
+
+  for (;;) {
+    try {
+      await writeFile(
+        lockPath,
+        `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+    }
+
+    const lockStat = await stat(lockPath).catch(() => null);
+
+    if (!lockStat || Date.now() - lockStat.mtimeMs > SUBMISSION_LOCK_STALE_MS) {
+      await rm(lockPath, { force: true });
+      continue;
+    }
+
+    if (Date.now() - startedAt >= effectiveWaitMs) {
+      throw new CutQueueBusyError(
+        "另一个剪辑实例正在提交剪切任务，请稍后重试（workspace 提交锁被占用）。"
+      );
+    }
+
+    await sleep(25);
+  }
+
+  try {
+    return await task();
+  } finally {
+    await rm(lockPath, { force: true });
+  }
+}
+
+/** 批量原子提交：先写 staging，再逐条 rename；任一步失败回滚已写入任务，目录随后清理。 */
+async function commitStagedCutJobBatch(input: {
+  workspace_root: string;
+  jobs: CutJobManifest[];
+  on_job_written?: (job: CutJobManifest, index: number) => void | Promise<void>;
+}): Promise<void> {
+  const stagingRoot = path.join(cutJobsRoot(input.workspace_root), `${STAGING_DIRECTORY_PREFIX}${randomUUID()}`);
+  const writtenPaths: string[] = [];
+
+  await mkdir(stagingRoot, { recursive: true });
+
+  try {
+    for (const job of input.jobs) {
+      assertCutJobId(job.cut_job_id);
+      await writeFile(
+        path.join(stagingRoot, `${job.cut_job_id}.json`),
+        jsonBytes(job),
+        "utf8"
+      );
+    }
+
+    for (const [index, job] of input.jobs.entries()) {
+      const targetPath = cutJobPath(input.workspace_root, job.cut_job_id);
+      const existing = await stat(targetPath).catch(() => null);
+
+      if (existing) {
+        throw new CutJobIdConflictError(`剪切任务编号冲突：${job.cut_job_id}`);
+      }
+
+      await rename(path.join(stagingRoot, `${job.cut_job_id}.json`), targetPath);
+      writtenPaths.push(targetPath);
+      upsertCutJobCache(input.workspace_root, job);
+      await input.on_job_written?.(job, index);
+    }
+  } catch (error) {
+    for (const targetPath of writtenPaths) {
+      await rm(targetPath, { force: true });
+    }
+    invalidateCutJobCache(input.workspace_root);
+    throw error;
+  } finally {
+    await rm(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+/** 清理上次进程中断遗留的 staging 目录（超过保护期才删，避免删掉其他进程正在提交的批次）。 */
+async function cleanupStaleCutJobStagingDirectories(
+  workspaceRoot: string,
+  nowMs: number
+): Promise<number> {
+  let entries;
+
+  try {
+    entries = await readdir(cutJobsRoot(workspaceRoot), { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  let removed = 0;
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(STAGING_DIRECTORY_PREFIX)) {
+      continue;
+    }
+
+    const stagingPath = path.join(cutJobsRoot(workspaceRoot), entry.name);
+    const stagingStat = await stat(stagingPath).catch(() => null);
+
+    if (!stagingStat || nowMs - stagingStat.mtimeMs <= STALE_STAGING_CLEANUP_MS) {
+      continue;
+    }
+
+    try {
+      await rm(stagingPath, { recursive: true, force: true });
+      removed += 1;
+    } catch {
+      // 并发提交可能仍在写该目录；下次启动再清理。
+    }
+  }
+
+  return removed;
+}
+
 export async function submitClipListToQueue(
   input: SubmitClipListToQueueInput
 ): Promise<CutJobSubmission> {
+  const submissionKey = submissionKeyFor(input);
+
   return withWorkspaceQueueMutationLock(input.workspace_root, async () => {
-    const cutJobIds = await allocateNextCutJobIds({
-      workspace_root: input.workspace_root,
-      now: input.now,
-      count: input.clip_list.items.length
-    });
-    const existingProjectOrder = (await readAllCutJobs(input.workspace_root))
-      .filter((job) =>
-        input.clip_list.project_id
-          ? job.project_id === input.clip_list.project_id
-          : job.project_title === input.clip_list.title
-      )
-      .reduce((max, job) => Math.max(max, job.project_clip_order ?? 0), 0);
-    const jobs = input.clip_list.items.map((item, index) =>
-      jobFromClipListItem({
-        cut_job_id: cutJobIds[index] ?? formatCutJobId(dateStampFromIso(input.now), index + 1),
-        clip_list: input.clip_list,
-        item,
-        project_clip_order: existingProjectOrder + index + 1,
-        now: input.now
-      })
+    return withWorkspaceSubmissionFileLock(
+      input.workspace_root,
+      input.submission_lock_wait_ms,
+      async () => {
+        const allJobs = await readAllCutJobs(input.workspace_root);
+        const replayJobs = replayableJobsForSubmission({
+          jobs: allJobs,
+          submission_key: submissionKey,
+          clip_list_id: input.clip_list.clip_list_id
+        });
+
+        if (replayJobs.length > 0) {
+          return {
+            submitted_count: replayJobs.length,
+            jobs: replayJobs,
+            replayed: true,
+            submission_key: submissionKey
+          };
+        }
+
+        const existingProjectOrder = allJobs
+          .filter((job) =>
+            input.clip_list.project_id
+              ? job.project_id === input.clip_list.project_id
+              : job.project_title === input.clip_list.title
+          )
+          .reduce((max, job) => Math.max(max, job.project_clip_order ?? 0), 0);
+
+        let lastError: unknown;
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            const cutJobIds = await allocateNextCutJobIds({
+              workspace_root: input.workspace_root,
+              now: input.now,
+              count: input.clip_list.items.length
+            });
+            const jobs = input.clip_list.items.map((item, index) =>
+              jobFromClipListItem({
+                cut_job_id: cutJobIds[index] ?? formatCutJobId(dateStampFromIso(input.now), index + 1),
+                clip_list: input.clip_list,
+                item,
+                project_clip_order: existingProjectOrder + index + 1,
+                now: input.now,
+                submission_key: submissionKey
+              })
+            );
+
+            await commitStagedCutJobBatch({
+              workspace_root: input.workspace_root,
+              jobs,
+              ...(input.on_job_written ? { on_job_written: input.on_job_written } : {})
+            });
+
+            return {
+              submitted_count: jobs.length,
+              jobs,
+              replayed: false,
+              submission_key: submissionKey
+            };
+          } catch (error) {
+            lastError = error;
+
+            if (error instanceof CutJobIdConflictError && attempt === 0) {
+              invalidateCutJobCache(input.workspace_root);
+              continue;
+            }
+
+            throw error;
+          }
+        }
+
+        throw lastError instanceof Error ? lastError : new Error("cut job submission failed");
+      }
     );
-
-    for (const job of jobs) {
-      await writeCutJob(input.workspace_root, job);
-    }
-
-    return {
-      submitted_count: jobs.length,
-      jobs
-    };
   });
 }
 
@@ -968,8 +1810,23 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
     throw new Error("cut job not found");
   }
 
-  if (job.status !== "failed" && job.status !== "cancelled") {
-    throw new Error("only failed or cancelled cut jobs can be retried");
+  const retryable =
+    job.status === "failed" ||
+    job.status === "cancelled" ||
+    // 复剪契约：done 但输出校验未通过（verification.passed === false）允许重试；
+    // done 且校验通过、以及旧版本没有 verification 记录的 done 任务仍拒绝。
+    (job.status === "done" && job.verification?.passed === false);
+
+  if (!retryable) {
+    if (job.status === "done") {
+      throw new CutJobNotRetryableError(
+        job.verification?.passed === true
+          ? "该任务已完成且输出校验通过，不能复剪；如需再次剪切请重新提交选区。"
+          : "该任务已完成但缺少输出校验记录（旧任务），不能复剪；如需再次剪切请重新提交选区。"
+      );
+    }
+
+    throw new CutJobNotRetryableError("只有失败、已取消或已完成但输出校验未通过的任务可以复剪。");
   }
 
   const retried: CutJobManifest = {
@@ -981,6 +1838,10 @@ export async function retryCutJob(input: RetryCutJobInput): Promise<CutJobManife
     started_at: undefined,
     finished_at: undefined,
     error_message: undefined,
+    error_code: undefined,
+    cut_mode_used: undefined,
+    degrade_reason: undefined,
+    verification: undefined,
     export_clip_id: undefined,
     output_file: undefined
   };
@@ -1017,9 +1878,12 @@ export async function cancelCutJob(input: CancelCutJobInput): Promise<CutJobMani
       ),
       finished_at: input.now,
       updated_at: input.now,
+      error_code: "CUT_CANCELLED",
       error_message: "用户取消剪辑任务"
     };
     await writeCutJob(input.workspace_root, cancelled);
+    // 立即中止本进程内正在执行的 FFmpeg（跨进程取消仍依赖阶段边界检查）。
+    abortActiveCutJob(input.workspace_root, input.cut_job_id);
     return cancelled;
   });
 }
@@ -1040,6 +1904,188 @@ function oldestPendingJob(jobs: CutJobManifest[]): CutJobManifest | null {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export interface ResolveCutJobTimeoutInput {
+  range_ms: number;
+  /** 显式覆盖值（毫秒）。测试或特殊场景直接指定，不作下限约束。 */
+  override_ms?: number;
+  /** 可配置上限（毫秒）。 */
+  max_ms?: number;
+}
+
+export function resolveCutJobTimeoutMs(input: ResolveCutJobTimeoutInput): number {
+  if (Number.isFinite(input.override_ms) && (input.override_ms ?? 0) > 0) {
+    return Math.max(1, Math.floor(input.override_ms!));
+  }
+
+  return resolveFfmpegTimeoutMs({
+    range_ms: input.range_ms,
+    ...(Number.isFinite(input.max_ms) && (input.max_ms ?? 0) > 0 ? { max_ms: input.max_ms } : {})
+  });
+}
+
+function withCutTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => never
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      try {
+        onTimeout();
+      } catch (error) {
+        reject(error);
+      }
+    }, timeoutMs);
+
+    timer.unref?.();
+
+    promise.then(
+      (value) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+function normalizeProbeMilliseconds(value: number | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : undefined;
+}
+
+function expectedOutputDurationMs(input: {
+  begin_ms: number;
+  end_ms: number;
+  source_duration_ms: number;
+}): number {
+  const endMs = Math.min(input.end_ms, input.source_duration_ms);
+  return Math.max(0, Math.round(endMs - input.begin_ms));
+}
+
+export function outputToleranceMs(input: {
+  cut_mode_used: CutMode;
+  keyframe_distance_ms?: number;
+}): number {
+  if (input.cut_mode_used === "copy") {
+    return COPY_OUTPUT_TOLERANCE_BASE_MS +
+      COPY_OUTPUT_TOLERANCE_PADDING_MS +
+      Math.max(0, Math.round(input.keyframe_distance_ms ?? 0));
+  }
+
+  return PRECISE_OUTPUT_TOLERANCE_MS;
+}
+
+function buildCutOutputVerification(input: {
+  expected_duration_ms: number;
+  tolerance_ms: number;
+  probe: CutOutputProbeResult;
+  cut_mode_used: CutMode;
+  keyframe_distance_ms?: number;
+}): CutOutputVerification {
+  const checks: CutOutputVerificationCheck[] = [];
+  const actualDurationMs =
+    normalizeProbeMilliseconds(input.probe.duration_ms) ??
+    normalizeProbeMilliseconds(input.probe.video_duration_ms) ??
+    normalizeProbeMilliseconds(input.probe.audio_duration_ms);
+  const firstFramePtsMs = typeof input.probe.first_video_pts_ms === "number" && Number.isFinite(input.probe.first_video_pts_ms)
+    ? Math.round(input.probe.first_video_pts_ms)
+    : undefined;
+  const videoDurationMs = normalizeProbeMilliseconds(input.probe.video_duration_ms);
+  const audioDurationMs = normalizeProbeMilliseconds(input.probe.audio_duration_ms);
+  const sourceHasAudio = input.probe.source_has_audio_stream;
+  const durationDeltaMs =
+    actualDurationMs === undefined ? undefined : Math.abs(actualDurationMs - input.expected_duration_ms);
+
+  checks.push({
+    check: "file_exists",
+    passed: input.probe.exists,
+    detail: input.probe.exists ? "输出文件存在" : "输出文件不存在"
+  });
+  checks.push({
+    check: "file_size",
+    passed: input.probe.size_bytes > 0,
+    detail: input.probe.size_bytes > 0 ? `输出文件大小 ${input.probe.size_bytes} 字节` : "输出文件大小为 0 字节"
+  });
+  checks.push({
+    check: "duration",
+    passed:
+      actualDurationMs !== undefined &&
+      durationDeltaMs !== undefined &&
+      durationDeltaMs <= input.tolerance_ms,
+    detail: actualDurationMs === undefined
+      ? "无法读取输出时长"
+      : durationDeltaMs === undefined
+        ? "无法计算输出时长误差"
+        : `输出时长 ${actualDurationMs}ms，期望 ${input.expected_duration_ms}ms，误差 ${durationDeltaMs}ms，容差 ${input.tolerance_ms}ms`
+  });
+  checks.push({
+    check: "video_stream",
+    passed: input.probe.has_video_stream,
+    detail: input.probe.has_video_stream ? "输出包含视频流" : "输出缺少视频流"
+  });
+  checks.push({
+    check: "audio_stream",
+    passed: sourceHasAudio !== true || input.probe.has_audio_stream,
+    detail: sourceHasAudio === true
+      ? (input.probe.has_audio_stream ? "输出保留音轨" : "源视频有音轨但输出缺少音轨")
+      : "源视频无音轨或音轨信息未知，跳过音轨存在性检查"
+  });
+  checks.push({
+    check: "first_frame_pts",
+    passed:
+      firstFramePtsMs !== undefined &&
+      Math.abs(firstFramePtsMs) <= FIRST_FRAME_PTS_TOLERANCE_MS,
+    detail: firstFramePtsMs === undefined
+      ? "无法读取输出首帧 PTS"
+      : `输出首帧 PTS ${firstFramePtsMs}ms，允许偏差 ${FIRST_FRAME_PTS_TOLERANCE_MS}ms`
+  });
+  checks.push({
+    check: "av_duration_delta",
+    passed:
+      videoDurationMs === undefined ||
+      audioDurationMs === undefined ||
+      Math.abs(videoDurationMs - audioDurationMs) <= AV_DURATION_DELTA_TOLERANCE_MS,
+    detail:
+      videoDurationMs === undefined || audioDurationMs === undefined
+        ? "缺少音视频流时长，跳过音画时长差检查"
+        : `视频流 ${videoDurationMs}ms、音频流 ${audioDurationMs}ms，时长差 ${Math.abs(videoDurationMs - audioDurationMs)}ms，阈值 ${AV_DURATION_DELTA_TOLERANCE_MS}ms`
+  });
+
+  return {
+    passed: checks.every((check) => check.passed),
+    expected_duration_ms: input.expected_duration_ms,
+    ...(actualDurationMs !== undefined ? { actual_duration_ms: actualDurationMs } : {}),
+    tolerance_ms: input.tolerance_ms,
+    checks
+  };
+}
+
+function failedVerificationChecks(verification: CutOutputVerification): string {
+  const failed = verification.checks.filter((check) => !check.passed);
+  return failed.length > 0
+    ? failed.map((check) => check.detail).join("；")
+    : "输出验收未通过";
 }
 
 function workspaceRelativePath(workspaceRoot: string, relativePath: string): string {
@@ -1103,8 +2149,10 @@ function fallbackTranscriptSegment(input: {
     end_ms: input.duration_ms,
     ...transcriptTextMetadata(text, 0),
     text,
-    confidence: 1
-  };
+    confidence: 1,
+    // 选区落在单句内：文字是精确选区，但时间范围沿用整句（属估算，不冒充逐字对齐）。
+    text_scope: "selected_text_estimated_timing"
+  } as TranscriptSegment;
 }
 
 function localTranscriptSegments(input: {
@@ -1142,6 +2190,8 @@ function localTranscriptSegments(input: {
     const text = segment.text.trim();
     const metadata = transcriptTextMetadata(text, beginChar);
     beginChar = metadata.end_char + 1;
+    const textCoversWholeSegment =
+      segment.begin_ms < input.begin_ms || segment.end_ms > input.end_ms;
 
     return {
       ...segment,
@@ -1151,8 +2201,12 @@ function localTranscriptSegments(input: {
       end_ms: Math.min(durationMs, Math.max(0, segment.end_ms - input.begin_ms)),
       ...metadata,
       text,
-      confidence: segment.confidence ?? 1
-    };
+      confidence: segment.confidence ?? 1,
+      // 字幕只提供句级时间：跨选区边界的整句会"整句带出"，用来源时间与 scope 字段明确表达。
+      text_scope: textCoversWholeSegment ? "whole_source_segment" : "exact",
+      source_begin_ms: segment.begin_ms,
+      source_end_ms: segment.end_ms
+    } as TranscriptSegment;
   });
 }
 
@@ -1222,6 +2276,8 @@ async function writePreprocessedLocalAsset(input: {
   selected_text: string;
   created_at: string;
   source: CutJobSourceDetail;
+  /** 成片实测元数据（ffprobe）；缺失时清单标记 unknown，不再用请求时长/0 冒充。 */
+  measured_media?: CutOutputProbeResult;
   cover_runner?: CoverRunner;
   before_cover?: () => Promise<void>;
   after_cover?: () => Promise<void>;
@@ -1241,6 +2297,18 @@ async function writePreprocessedLocalAsset(input: {
   codec: string;
 }> {
   const durationMs = Math.max(0, input.end_ms - input.begin_ms);
+  const measuredDurationMs = normalizeProbeMilliseconds(input.measured_media?.duration_ms);
+  const durationUnknown = measuredDurationMs === undefined;
+  const fallbackWidth = normalizeProbeMilliseconds(input.measured_media?.width) ?? normalizeProbeMilliseconds(input.source.width);
+  const fallbackHeight = normalizeProbeMilliseconds(input.measured_media?.height) ?? normalizeProbeMilliseconds(input.source.height);
+  const fallbackFps = typeof input.measured_media?.fps === "number" && Number.isFinite(input.measured_media.fps) && input.measured_media.fps > 0
+    ? input.measured_media.fps
+    : (typeof input.source.fps === "number" && Number.isFinite(input.source.fps) && input.source.fps > 0 ? input.source.fps : 0);
+  const fallbackCodec =
+    (typeof input.measured_media?.codec === "string" && input.measured_media.codec.trim()) ||
+    (typeof input.source.codec === "string" ? input.source.codec.trim() : "") ||
+    "";
+  const visualMetadataFromProbe = Boolean(input.measured_media && fallbackWidth && fallbackHeight);
   const localAssetRelativePath = localVideoArtifactPath(input.export_clip_id, "source.mp4");
   const transcriptPath = localVideoArtifactPath(input.export_clip_id, "transcript.json");
   const srtPath = localVideoArtifactPath(input.export_clip_id, "subtitles.srt");
@@ -1269,7 +2337,8 @@ async function writePreprocessedLocalAsset(input: {
       provider: "mixlab-local-cut",
       model: "source-transcript-span",
       generated_at: input.created_at,
-      duration_ms: durationMs,
+      duration_ms: measuredDurationMs ?? durationMs,
+      ...(durationUnknown ? { duration_unknown: true } : {}),
       full_text: fullText,
       segments: transcriptSegments
     }),
@@ -1280,7 +2349,7 @@ async function writePreprocessedLocalAsset(input: {
     workspaceRelativePath(input.workspace_root, keyframesPath),
     jsonBytes({
       schema_version: "1.0",
-      keyframes_ms: [0, Math.min(durationMs, 1000)].filter((value, index, values) => index === 0 || value !== values[0])
+      keyframes_ms: [0, Math.min(measuredDurationMs ?? durationMs, 1000)].filter((value, index, values) => index === 0 || value !== values[0])
     }),
     "utf8"
   );
@@ -1291,7 +2360,7 @@ async function writePreprocessedLocalAsset(input: {
     await input.cover_runner({
       source_video_path: input.output_media_file_path,
       output_path: coverFilePath,
-      at_ms: Math.min(1000, Math.floor(durationMs / 2)),
+      at_ms: Math.min(1000, Math.floor((measuredDurationMs ?? durationMs) / 2)),
       width: 640
     });
   } else {
@@ -1303,16 +2372,21 @@ async function writePreprocessedLocalAsset(input: {
   await input.after_cover?.();
 
   const mediaStat = await stat(input.output_media_file_path);
-  const width = input.source.width ?? 0;
-  const height = input.source.height ?? 0;
-  const fps = input.source.fps ?? 0;
-  const codec = input.source.codec ?? "";
+  const width = fallbackWidth ?? 0;
+  const height = fallbackHeight ?? 0;
+  const fps = fallbackFps;
+  const codec = fallbackCodec;
+  const metadataSource = visualMetadataFromProbe
+    ? "probe"
+    : width > 0 && height > 0
+      ? "source_manifest"
+      : "unknown";
   const sourceVideoManifest: SourceVideoManifest = {
     source_video_id: input.export_clip_id,
     title: input.title,
     relative_path: localAssetRelativePath,
     logical_uri: `mixlab-local://export-clips/${input.export_clip_id}`,
-    duration_ms: durationMs,
+    duration_ms: measuredDurationMs ?? 0,
     width,
     height,
     fps,
@@ -1335,9 +2409,19 @@ async function writePreprocessedLocalAsset(input: {
   }
 
   const sourceVideoManifestPath = localVideoArtifactPath(input.export_clip_id, "source-video.json");
+  const hasWholeSegmentText = transcriptSegments.some(
+    (segment) => (segment as TranscriptSegment & { text_scope?: string }).text_scope === "whole_source_segment"
+  );
   await writeFile(
     workspaceRelativePath(input.workspace_root, sourceVideoManifestPath),
-    jsonBytes(sourceVideoManifest),
+    // 扩展字段（协议不校验这些字段，旧客户端可忽略）：明确标注实测/未知来源。
+    jsonBytes({
+      ...sourceVideoManifest,
+      duration_unknown: durationUnknown,
+      duration_source: durationUnknown ? "unknown" : "probe",
+      visual_metadata_source: metadataSource,
+      transcript_text_scope: hasWholeSegmentText ? "whole_segment" : "exact_or_selected"
+    }),
     "utf8"
   );
 
@@ -1462,12 +2546,14 @@ async function runPendingCutJobUnlocked(
       throw new Error("源视频不可读：请确认 Windows 已连接公共素材库的 source-videos 目录，并且公共素材库根目录选择的是 PublicLibrary 根目录");
     }
 
-    await runPhase("preflight_source", async () => {
-      await assertCutJobPreflight({
+    const preflight = await runPhase("preflight_source", async () => {
+      return assertCutJobPreflight({
         job: running,
-        source
+        source,
+        ...(input.source_duration_probe ? { source_duration_probe: input.source_duration_probe } : {})
       });
     });
+    const sourceDurationMs = preflight.source_duration_ms;
 
     const exportClipId = await allocateNextExportClipId(input.workspace_root);
     const projectOutputFile = buildProjectClipOutputFile({
@@ -1488,6 +2574,7 @@ async function runPendingCutJobUnlocked(
       project_title: running.project_title,
       source_title: running.source_title
     });
+    let measuredOutputMedia: CutOutputProbeResult | undefined;
 
     await runPhase("cut_media", async () => {
       const tempOutputPath = cutTempOutputPath({
@@ -1497,17 +2584,128 @@ async function runPendingCutJobUnlocked(
       });
 
       await mkdir(path.dirname(tempOutputPath), { recursive: true });
+      const releaseTempCachePin = pinCachePath(tempOutputPath);
+      const abortController = new AbortController();
+      registerActiveCutJobAbort(input.workspace_root, running.cut_job_id, abortController);
+
       try {
-        await input.cut_runner({
-          source_video_path: source.source_video_file_path,
-          output_path: tempOutputPath,
-          begin_ms: running.begin_ms,
-          end_ms: running.end_ms,
-          cut_mode: running.cut_mode
+        let cutModeUsed: CutMode = running.cut_mode;
+        let degradeReason: string | undefined;
+        let keyframeDistanceMs: number | undefined;
+
+        // copy 只能从关键帧起切；起点远离关键帧时自动降级 precise，避免静默音画偏移。
+        if (running.cut_mode === "copy" && input.keyframe_probe) {
+          try {
+            const keyframes = await input.keyframe_probe({
+              source_video_path: source.source_video_file_path,
+              begin_ms: running.begin_ms
+            });
+            const decision = decideCopyCutMode({
+              cut_mode: "copy",
+              begin_ms: running.begin_ms,
+              keyframe_times_ms: keyframes?.keyframe_times_ms ?? []
+            });
+            cutModeUsed = decision.cut_mode_used;
+            degradeReason = decision.degrade_reason;
+            keyframeDistanceMs = decision.keyframe_distance_ms;
+          } catch (error) {
+            cutModeUsed = "precise";
+            degradeReason = `关键帧探测失败，已自动降级为精准剪切：${errorMessage(error)}`;
+          }
+        }
+
+        running = {
+          ...running,
+          cut_mode_used: cutModeUsed,
+          ...(degradeReason ? { degrade_reason: degradeReason } : {})
+        };
+        if (persistPhaseProgress) {
+          await writeCutJob(input.workspace_root, running);
+        }
+
+        const timeoutMs = resolveCutJobTimeoutMs({
+          range_ms: running.end_ms - running.begin_ms,
+          ...(input.cut_timeout_ms !== undefined ? { override_ms: input.cut_timeout_ms } : {}),
+          ...(input.cut_timeout_ms_max !== undefined ? { max_ms: input.cut_timeout_ms_max } : {})
         });
+
+        await withCutTimeout(
+          Promise.resolve().then(() =>
+            input.cut_runner({
+              source_video_path: source.source_video_file_path,
+              output_path: tempOutputPath,
+              begin_ms: running.begin_ms,
+              end_ms: running.end_ms,
+              cut_mode: cutModeUsed,
+              signal: abortController.signal
+            })
+          ),
+          timeoutMs,
+          () => {
+            abortController.abort();
+            throw new CutJobFailure(
+              "CUT_TIMEOUT",
+              `剪切超时：任务超过 ${Math.round(timeoutMs / 1000)} 秒未完成，已中止。请检查源视频与本机负载后重试。`
+            );
+          }
+        );
+
+        if (input.output_probe) {
+          const expectedDurationMs = expectedOutputDurationMs({
+            begin_ms: running.begin_ms,
+            end_ms: running.end_ms,
+            source_duration_ms: sourceDurationMs
+          });
+          let probeResult: CutOutputProbeResult;
+
+          try {
+            probeResult = await input.output_probe({
+              output_path: tempOutputPath,
+              source_path: source.source_video_file_path,
+              cut_mode: cutModeUsed
+            });
+          } catch (error) {
+            throw new CutJobFailure(
+              "CUT_OUTPUT_MISMATCH",
+              `输出校验未通过：无法读取输出文件信息（${errorMessage(error)}）`
+            );
+          }
+
+          const toleranceMs = outputToleranceMs({
+            cut_mode_used: cutModeUsed,
+            ...(keyframeDistanceMs !== undefined ? { keyframe_distance_ms: keyframeDistanceMs } : {})
+          });
+          const verification = buildCutOutputVerification({
+            expected_duration_ms: expectedDurationMs,
+            tolerance_ms: toleranceMs,
+            probe: probeResult,
+            cut_mode_used: cutModeUsed,
+            ...(keyframeDistanceMs !== undefined ? { keyframe_distance_ms: keyframeDistanceMs } : {})
+          });
+
+          measuredOutputMedia = probeResult;
+          running = {
+            ...running,
+            cut_mode_used: cutModeUsed,
+            verification
+          };
+          if (persistPhaseProgress) {
+            await writeCutJob(input.workspace_root, running);
+          }
+
+          if (!verification.passed) {
+            throw new CutJobFailure(
+              "CUT_OUTPUT_MISMATCH",
+              `输出校验未通过：${failedVerificationChecks(verification)}`
+            );
+          }
+        }
+
         await moveOrCopyFile(tempOutputPath, exportPaths.media_file_path);
       } finally {
+        unregisterActiveCutJobAbort(input.workspace_root, running.cut_job_id);
         await rm(tempOutputPath, { force: true });
+        releaseTempCachePin();
         await pruneDirectFileCache({
           root: cutTempRoot(input.workspace_root),
           max_bytes: cutTempMaxBytes(input.cut_temp_max_bytes)
@@ -1538,6 +2736,7 @@ async function runPendingCutJobUnlocked(
       selected_text: running.selected_text,
       created_at: input.now(),
       source,
+      ...(measuredOutputMedia ? { measured_media: measuredOutputMedia } : {}),
       cover_runner: input.cover_runner,
       before_cover: async () => {
         running = finishPhase(running, "preprocess_local_asset", input.now());
@@ -1575,7 +2774,7 @@ async function runPendingCutJobUnlocked(
       begin_ms: running.begin_ms,
       end_ms: running.end_ms,
       selected_text: running.selected_text,
-      cut_mode: running.cut_mode,
+      cut_mode: running.cut_mode_used ?? running.cut_mode,
       output_file: exportPaths.output_file,
       project_output_file: projectOutputFile,
       local_asset_relative_path: localAsset.local_asset_relative_path,
@@ -1608,27 +2807,74 @@ async function runPendingCutJobUnlocked(
     await writeCutJob(input.workspace_root, running);
     return running;
   } catch (error) {
-    if (errorMessage(error) === CUT_JOB_CANCELLED_MESSAGE) {
-      const cancelled = await getCutJob({
-        workspace_root: input.workspace_root,
-        cut_job_id: running.cut_job_id
-      });
-      if (cancelled?.status === "cancelled") {
-        return cancelled;
-      }
+    // 取消可能由另一个请求/进程写入；以任务文件的最新状态为准，避免把已取消任务改成 failed。
+    const latest = await getCutJob({
+      workspace_root: input.workspace_root,
+      cut_job_id: running.cut_job_id
+    });
+    if (latest?.status === "cancelled") {
+      return latest;
     }
 
     const failedAt = input.now();
     const failedPhaseId = running.current_phase ?? "queue_wait";
     running = failPhase(running, failedPhaseId, failedAt);
+    const failureCode = cutJobFailureCode(error);
     const failed: CutJobManifest = {
       ...running,
       status: "failed",
       error_message: errorMessage(error),
+      ...(failureCode ? { error_code: failureCode } : {}),
       finished_at: failedAt,
       updated_at: failedAt
     };
     await writeCutJob(input.workspace_root, failed);
     return failed;
   }
+}
+
+/** 进程启动时把上次异常退出遗留的 running 任务降级为 failed，允许用户重试。 */
+export async function recoverInterruptedCutJobs(input: {
+  workspace_root: string;
+  now: string;
+}): Promise<CutJobManifest[]> {
+  return withWorkspaceQueueMutationLock(input.workspace_root, async () => {
+    const nowMs = Date.parse(input.now);
+    await cleanupStaleCutJobStagingDirectories(
+      input.workspace_root,
+      Number.isFinite(nowMs) ? nowMs : Date.now()
+    );
+    const jobs = await readAllCutJobs(input.workspace_root);
+    const recovered: CutJobManifest[] = [];
+
+    for (const job of jobs) {
+      if (job.status !== "running") {
+        continue;
+      }
+
+      const phaseTimings = ensurePhaseTimings(job).map((phase) =>
+        phase.status === "running"
+          ? {
+              ...phase,
+              status: "failed" as const,
+              finished_at: input.now,
+              duration_ms: durationMs(phase.started_at, input.now)
+            }
+          : { ...phase }
+      );
+      const next: CutJobManifest = {
+        ...job,
+        status: "failed",
+        error_code: "CUT_PROCESS_INTERRUPTED",
+        error_message: "剪切进程中断：上次任务未正常结束（进程退出或崩溃），请重试。",
+        phase_timings: phaseTimings,
+        finished_at: input.now,
+        updated_at: input.now
+      };
+      await writeCutJob(input.workspace_root, next);
+      recovered.push(next);
+    }
+
+    return recovered;
+  });
 }
