@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793212298255-03053bbd",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793212298255-03053bbd",
+  "reply_to": "1793211658614-cd624d35",
+  "created_at": "2026-10-28T18:31:38.255Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Windows 完成 V 阶段 B 第一轮（B1→B4），结果如下：\n\n【B1 搜索交互状态】\n- 新增：搜索失败时在候选区显示内联「搜索失败 + 重新搜索」可重试错误态（不再只有全局关闭提示）；加载/完成文案分层：首批「首批搜索中」、翻页「继续加载中」、空闲有更多「加载更多」、结束「已显示全部」。\n- 现有能力保留：输入/回车/清空、空态「没有找到可选素材」、首批匹配中状态、requestId 竞态防护（快速连续搜索只应用最新请求）。\n- 说明：搜索为提交触发（回车/按钮），未额外加输入防抖（当前交互不需要）；两次不同 query 的真实竞态 E2E 因 fixture 返回静态结果未覆盖，逻辑由 requestId + 单测保障，如需可用真实服务补场景。\n\n【B2 命中/选段体验】Playwright fixture 实机 11/11 PASS：\n- 命中高亮可见（10 处 mark）；「下一个」切换当前命中（s-062 → s-063）；跨段拖选成功并显示选区信息；选区变化后「加入待剪清单」「剪切这段」两个按钮仍稳定可见；选择时 window.scrollY 前后不变（无异常滚动）。\n- 证据 C:\\dev\\mixlab-verify-b\\b2-cross-segment-selection.png 与 b1b2-ui-verify.json。\n\n【B3 加载/分页稳定性】核实「继续加载中（已显示 1）」：确认为真实 UI 文案缺陷——首次检索时公共素材区 footer 误用「继续加载中」；已修复为「首批搜索中」，仅翻页时才显示「继续加载中」。另外新增分页终止：后端重复返回无新增命中时清空 next_cursor/has_more（显示已显示全部），避免无限加载；首次搜索与翻页状态分离、requestId 防并发；新增 searchPageAddsNewResults 单测（重复页/新片段/新素材三例）。\n- 说明：2000+ 命中大数据量真实服务压测未跑（fixture 仅 18 命中）；合并去重/分页终止由纯函数单测覆盖，如需真实大数据量 E2E 可再用测试库构造。\n\n【B4 降级与诊断】\n- 当 runtime search_backend 显示 searchd 降级/回退时，候选区展示「已回退到 X（searchd 不可用）：message」提示；搜索超时/失败可重试；search_backend label 继续由缓存管理页展示。\n- 未改 API/共享包/契约；真实 searchd 关停后的端到端降级场景未在本轮 E2E 覆盖（server 端 fallback 已有 cutter-api 测试），UI 由 helper+render 测试覆盖（已回退文案、重新搜索按钮）。\n\n【回归】typecheck PASS；剪辑端全量 502/502 PASS（cutter-api 94、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 297、cutter-desktop 7）；smoke status=passed ✅。\n\n【提交】8633584 feat(cutter-web): B stage search UX fixes；6eac898 状态报告；证据目录 C:\\dev\\mixlab-verify-b（B1 完成态、B2 跨段选区截图 + JSON）。\n\n【遗留/待确认】B3 大数据量压测、B4 真实 searchd 关停 E2E、B1 双 query 竞态 E2E 未跑；如需要我下一轮补。A2 真 pause/resume/delete 契约草案已收到，等下一批安排。\n【安装包】已重建（含 B 修复）：MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=7CBB5815507B1D0D0AAAE7775FF6B20FAA0839D3C8D12FA8E4A8F0A7F1B45951。"
+}
