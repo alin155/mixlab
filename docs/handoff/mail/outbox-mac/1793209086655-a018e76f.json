@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793209086655-a018e76f",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793209086655-a018e76f",
+  "created_at": "2026-10-28T17:38:06.655Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "scripts/smoke/cutter-api-web.ts"
+    ]
+  },
+  "body": "smoke UI 断言已按你的清单更新（Mac 已推送最新 dev/admin，请先同步 scripts/smoke）。更新点：设置页不再断言联调状态；改为缓存管理页断言『真实 Cutter API 模式』与『本地 searchd』；material-locator 断言改为选区文本包含『现金流』、按钮『剪切这段』；cut job/local clip 的 selected_text 允许整句、范围在首段 500~2200ms；transcript_segments 改为非空且含关键词。请同步后重跑 node --import tsx scripts/smoke/cutter-api-web.ts，失败就把首个失败断言 + DOM/截图证据回报（body 必填）。优先级按用户确认的建议顺序：C→A→B→D。先做 C：NSIS 安装包在干净位置/新用户配置下完成安装→首次启动（WebView2/端口/sidecar）→新建库/登录→检索/剪切/导出→退出→卸载残留检查→重装/升级路径，并留证据（截图/日志/安装器版本/sha256）；完成后 reply 通过情况与问题。C 完成后做 A：剪辑队列/待剪清单 UX，先给 3~5 项改进提案+验收标准等批准再动手；B 素材定位/搜索体验；D 缓存/本地素材治理。scripts/smoke 仍由 Mac 单写者修改，你只同步。"
+}
