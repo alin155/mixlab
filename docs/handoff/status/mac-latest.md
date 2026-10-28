@@ -1,16 +1,16 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T16:01:56.193Z
+- generated_at: 2026-10-28T16:02:13.102Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 3ae5d0592152c0eabe1b2ece512abbef157504be
-- head_subject: feat(dev): automated anti-conflict guards (hooks, scope check, CI sync-guard, status notify)
-- head_time: 2026-10-28T08:43:21-07:00
-- dirty_tracked: 2
+- head: 617e41043a712f576b18b6e6f3cf7de99a95c622
+- head_subject: chore(dev): allow Windows-owned test-runner/acceptance paths in scope guard
+- head_time: 2026-10-28T09:01:56-07:00
+- dirty_tracked: 1
 - dirty_untracked: 0
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME

@@ -70,6 +70,10 @@ function main() {
 
   const statusLines = (gitTry(["status", "--porcelain", "--", ...SHARED_PATHS]) || "").split("\n").filter(Boolean);
   const diffStat = gitTry(["diff", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS]) || "";
+  // 如果本地改动"刚好等于来源内容"（例如刚刚 git checkout origin/dev/admin -- 共享目录），
+  // 这些是待提交的同步结果，不应阻止 --apply。
+  const stagedVsSource = gitTry(["diff", "--cached", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS]) ?? "";
+  const effectiveDirty = statusLines.length > 0 && stagedVsSource !== "" ? statusLines : [];
 
   console.log("当前分支: " + currentBranch);
   console.log("来源分支: origin/" + args.source);
@@ -94,9 +98,9 @@ function main() {
     process.exit(1);
   }
 
-  if (statusLines.length > 0 && !args.force) {
+  if (effectiveDirty.length > 0 && !args.force) {
     console.error("");
-    console.error("拒绝覆盖：本地共享内容有未提交改动。请先确认这些改动不应保留（Windows 不允许修改共享包），");
+    console.error("拒绝覆盖：本地共享内容有与来源不一致的未提交改动。请先确认这些改动不应保留（Windows 不允许修改共享包），");
     console.error("如确认要丢弃并覆盖，执行：node scripts/dev/shared-sync.mjs --apply --force");
     process.exit(1);
   }
