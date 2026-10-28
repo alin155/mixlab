@@ -1,15 +1,15 @@
 # windows 状态报告
 
-- generated_at: 2026-10-28T17:39:52.139Z
+- generated_at: 2026-10-28T17:45:46.486Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: ca76077da3a8dd0d5809b243d9c97ac922ed73c0
-- head_subject: [mail][windows→mac] reply 1793209179101-9051f274
-- head_time: 2026-10-29T01:39:39+08:00
+- head: a81c0ea3c07a62cc45663037c2b108c5638bd95f
+- head_subject: [mail][windows→mac] reply 1793209535840-9cf965e0
+- head_time: 2026-10-29T01:45:35+08:00
 - dirty_tracked: 0
 - dirty_untracked: 0
 - peer_branch: dev/admin
@@ -29,12 +29,12 @@
 
 - guards: 已激活并生效（pre-commit/pre-push 实测拦截越界提交）；CI sync-guard 持续 success，windows-status-notify 自动更新 Issue #6。
 - toolchain: Rust/cargo/rustc 1.99.1（rustup stable, x86_64-pc-windows-msvc）、VS Build Tools 2022 17.14.42 + MSVC 14.44.35207（C++ 桌面工作负载）、WebView2 Runtime 156.0.4314.50、Playwright chromium 已安装。
-- mailbox: SLA 规则已同步（daa32bf）；ACTIVE 每 240s（schedule-bed96ea5-607f-4584-95e8-fa0030859d15）；ack=1793208223339-958d4ffe；task=1793208878185-6476d100 已 reply=1793209179101-9051f274（body 1272 字符；上一版 reply 空 body 是引号转义 bug，已修复并说明）。
-- nsis_install: PASS（干净环境安装→首启→卸载→环境恢复）：静默安装 /S exit=0 → %LOCALAPPDATA%\MixLab Cutter（注册表 0.18.10、桌面/开始菜单快捷方式、7 个核心文件齐全）；新用户配置首启显示「Windows 桌面版首启」（v0.18.10、API 127.0.0.1:3789、内置 FFmpeg）；静默卸载 /S exit=0（安装目录、卸载注册项、快捷方式清理干净）；遗留 HKCU\Software\MixLab\MixLab Cutter 键未删（小残留）。测试后原安装与 AppData 已还原。证据 C:\dev\mixlab-verify-nsis（evidence.log、installed-app-first-run.png、nsis-verify-result.json）。
+- mailbox: SLA/工具同步至 admin@e6a7b67；ACTIVE 每 240s（schedule-bed96ea5-607f-4584-95e8-fa0030859d15）；ack=1793208223339-958d4ffe；task 1793208878185 reply=1793209179101-9051f274；task 1793209086655 reply=1793209535840-9cf965e0（body 2402 字符，空 body bug 已修复）。
+- nsis_install: PASS 全流程（干净环境）：installer sha256=73C8D30ED1B70FA56D79B561ABDC17050DC17F3D289EE177BA6341AF53158270；静默安装 /S exit=0；首启 + 新用户 config（新库/工作区）→ 自动 engine_start_requested → searchd :3790 + cutter-api sidecar :3789 ready；reviewed 登录（未登录 401，审批 session 后全 200）；检索 sqlite-index 命中、local-clip 201 done、export-clip/project 输出落盘；退出后桌面进程退出但 sidecar 残留（3789/3790 未回收，待确认设计）；卸载 /S exit=0 清理安装文件/卸载项/快捷方式，残留 cache\searchd 空目录 + HKCU\Software\MixLab\MixLab Cutter 键 + AppData 用户数据；重装 exit=0、覆盖升级 exit=0（版本 0.18.10 保持）；测试后原 0.18.10 安装与 AppData 已还原。证据 C:\dev\mixlab-verify-nsis。
 - searchd_verify: PASS 8/8（实机）：searchd 启动并完成索引、runtime-status search_backend.mode=searchd、检索 match_ranges=[[0,3]]、详情 transcript provider=sqlite-index、源视频 Range 206、UI 命中高亮、缓存管理页显示「本地 searchd」、控制台无错误。
 - tauri_verify: PASS：sidecar/assets/cargo build 均通过；实机启动窗口正常（sidecar :3789、searchd :3790）；NSIS 打包全链路 PASS，产物 apps/cutter-desktop/src-tauri/target/release/bundle/nsis/MixLab Cutter_0.18.10_x64-setup.exe（56.2MB）；仅 2 条既有编译 warning。
-- smoke_verify: Mac 的 vite spawn 修复已生效（Vite 正常启动、searchd/API/登录链路可用），但 shared smoke 脚本 UI 断言过期（L452/453 名称、L459 搜索后端标签位置、L464/466 选区文本、L470 按钮名「剪切这段」、L476 selected_text 整句），已通过 mailbox 回报 Mac 更新；等价流程已用独立脚本验证（页面 17/17、searchd 8/8）。
+- smoke_verify: admin@e6a7b67 更新断言后重跑：缓存管理页/设置页/选中文案断言通过；首个失败 L473 点「剪切这段」超时——当前 UI 需先在文案区拖选文本才出现浮动按钮（证据 C:\dev\logs\smoke-cutter-api-web.log，已回报 Mac 补 drag 步骤）。
 - tests: 沿用 472/472 PASS（cutter-api 94、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 267、cutter-desktop 7）；本轮无产品代码改动，未重跑。
-- blockers: 无硬阻塞；scripts/smoke UI 断言待 Mac 更新；NSIS 卸载残留 HKCU 键 1 个（已反馈，可忽略/待修）。
-- next: 等 Mac 更新 smoke 后重跑回归；剪辑端功能开发（待指定优先项）。
+- blockers: smoke L473 待 Mac 补拖选步骤；桌面退出未回收 sidecar（待确认是否设计）；NSIS 卸载残留 cache 目录/HKCU 键（已反馈）。
+- next: A（剪辑队列/待剪清单 UX）5 项提案已随 reply 发送，等批准后实现；等 Mac 更新 smoke 后重跑回归。
 <!-- MANUAL:END -->
