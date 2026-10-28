@@ -41,6 +41,8 @@ export const LOCAL_CLIP_MAINTENANCE_ERROR_CODES = {
   local_clip_expected_bytes_mismatch: "local_clip_expected_bytes_mismatch",
   /** 请求体字段缺失/类型错误（400）；与本地素材状态无关。 */
   local_clip_request_invalid: "local_clip_request_invalid",
+  /** 引用索引（本地素材清单/清单/任务）读取失败或损坏；删除类操作 fail-safe 拒绝。 */
+  local_clip_reference_index_unreadable: "local_clip_reference_index_unreadable",
   /** 删除单个本地素材失败（记录在 clean 结果的 skipped 中，HTTP 仍为 200）。 */
   local_clip_delete_failed: "local_clip_delete_failed"
 } as const;
@@ -55,6 +57,7 @@ const LOCAL_CLIP_ERROR_STATUS: Record<LocalClipMaintenanceErrorCode, number> = {
   local_clip_busy: 409,
   local_clip_expected_bytes_mismatch: 409,
   local_clip_request_invalid: 400,
+  local_clip_reference_index_unreadable: 409,
   local_clip_delete_failed: 500
 };
 
@@ -66,6 +69,7 @@ const LOCAL_CLIP_ERROR_REMEDIATION: Record<LocalClipMaintenanceErrorCode, string
   local_clip_busy: "等待当前本地素材清理完成后重试。",
   local_clip_expected_bytes_mismatch: "本地素材已变化，请重新调用 GET /cutter/local-clips/integrity 预览后再清理。",
   local_clip_request_invalid: "检查请求体：local_clip_ids 为非空字符串数组、confirm_token 为字符串、expected_bytes 为非负整数。",
+  local_clip_reference_index_unreadable: "引用索引读取失败或损坏，清理已按安全策略拒绝；请修复/重建工作区索引后重试。",
   local_clip_delete_failed: "关闭占用本地素材文件的程序后重试。"
 };
 
@@ -111,6 +115,9 @@ export interface LocalClipIntegrity {
   /** 本次快照可清理（孤儿）字节数；clean 的 expected_bytes 必须与之一致（子集时为所选 ids 的孤儿字节和）。 */
   expected_bytes: number;
   confirm_token: string;
+  /** fail-safe：引用索引损坏/不可读时为 true，此时 orphans 为空且禁止 clean。 */
+  degraded: boolean;
+  warnings: Array<{ code: string; message: string }>;
 }
 
 export interface LocalClipCleanResult {
@@ -138,7 +145,7 @@ export interface LocalClipMaintenanceService {
   integrity(): Promise<LocalClipIntegrity>;
   clean(body: unknown): Promise<LocalClipCleanResult>;
   /** DELETE 引用守卫：返回是否已知本地素材以及引用来源。 */
-  inspect(local_clip_id: string): Promise<{ known: boolean; referenced_by: LocalClipReference[] }>;
+  inspect(local_clip_id: string): Promise<{ known: boolean; referenced_by: LocalClipReference[]; degraded: boolean }>;
   /** 校验并核销强制删除 token（一次性）。 */
   consumeForceToken(raw_token: string, local_clip_id: string): void;
   /** 并发保护：同一服务实例同一时刻只允许一个 clean；拿不到返回 null。 */
@@ -175,6 +182,7 @@ interface LocalClipSnapshot {
   referenced: Map<string, LocalClipReference[]>;
   orphans: LocalClipRecord[];
   total_orphan_bytes: number;
+  degraded: boolean;
 }
 
 function normalizeConfirmTtlMs(value: number | undefined): number {
@@ -315,7 +323,8 @@ async function buildLocalClipSnapshot(
     records: new Map(),
     referenced: new Map(),
     orphans: [],
-    total_orphan_bytes: 0
+    total_orphan_bytes: 0,
+    degraded: false
   };
   const workspaceRoot = env.workspace_root;
   if (!workspaceRoot) {
@@ -333,6 +342,7 @@ async function buildLocalClipSnapshot(
   }
 
   const views = new Map<string, ExportClipView>();
+  let degraded = false;
   try {
     const catalog = await listExportClips({ workspace_root: workspaceRoot });
     for (const clip of catalog.clips) {
@@ -340,7 +350,8 @@ async function buildLocalClipSnapshot(
       candidateIds.add(clip.local_clip_id);
     }
   } catch {
-    // 索引损坏时以目录扫描兜底。
+    // fail-safe：本地素材清单是项目引用的唯一来源，读取失败时不能按“无引用”处理。
+    degraded = true;
   }
 
   const records = new Map<string, LocalClipRecord>();
@@ -370,6 +381,11 @@ async function buildLocalClipSnapshot(
     });
   }
 
+  // fail-safe：任一本地素材清单缺失/损坏都意味着项目引用未知，不能把它当孤儿清理。
+  if ([...records.values()].some((record) => record.broken)) {
+    degraded = true;
+  }
+
   const knownLocalClipIds = new Set(records.keys());
   const referenced = new Map<string, LocalClipReference[]>();
   for (const localClipId of records.keys()) {
@@ -392,7 +408,8 @@ async function buildLocalClipSnapshot(
       }
     }
   } catch {
-    // 清单损坏时不影响孤儿扫描，按无清单引用处理。
+    // fail-safe：清单索引损坏时删除类操作必须拒绝（否则可能误删被清单引用的素材）。
+    degraded = true;
   }
 
   try {
@@ -414,7 +431,8 @@ async function buildLocalClipSnapshot(
       }
     }
   } catch {
-    // 任务索引损坏时不影响孤儿扫描，按无任务引用处理。
+    // fail-safe：任务索引损坏时删除类操作必须拒绝。
+    degraded = true;
   }
 
   const orphans = [...records.values()]
@@ -425,7 +443,8 @@ async function buildLocalClipSnapshot(
     records,
     referenced,
     orphans,
-    total_orphan_bytes: orphans.reduce((total, record) => total + record.size_bytes, 0)
+    total_orphan_bytes: orphans.reduce((total, record) => total + record.size_bytes, 0),
+    degraded
   };
 }
 
@@ -554,6 +573,20 @@ export function createLocalClipMaintenanceService(
 
   async function integrity(): Promise<LocalClipIntegrity> {
     const snapshot = await buildLocalClipSnapshot(env);
+    if (snapshot.degraded) {
+      return {
+        referenced: [],
+        orphans: [],
+        total_bytes: 0,
+        expected_bytes: 0,
+        confirm_token: issueConfirmToken([], 0),
+        degraded: true,
+        warnings: [{
+          code: LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_reference_index_unreadable,
+          message: "本地素材引用索引读取失败或损坏，已暂停孤儿识别与清理；请修复或重建工作区索引后重试。"
+        }]
+      };
+    }
     const referenced: LocalClipReferencedEntry[] = [...snapshot.referenced.entries()]
       .sort((left, right) => left[0].localeCompare(right[0]))
       .map(([localClipId, references]) => ({
@@ -573,21 +606,24 @@ export function createLocalClipMaintenanceService(
       orphans,
       total_bytes: totalBytes,
       expected_bytes: totalBytes,
-      confirm_token: issueConfirmToken([...snapshot.records.keys()], totalBytes)
+      confirm_token: issueConfirmToken([...snapshot.records.keys()], totalBytes),
+      degraded: false,
+      warnings: []
     };
   }
 
   async function inspect(
     localClipId: string
-  ): Promise<{ known: boolean; referenced_by: LocalClipReference[] }> {
+  ): Promise<{ known: boolean; referenced_by: LocalClipReference[]; degraded: boolean }> {
     if (!LOCAL_CLIP_ID_PATTERN.test(localClipId)) {
-      return { known: false, referenced_by: [] };
+      return { known: false, referenced_by: [], degraded: false };
     }
 
     const snapshot = await buildLocalClipSnapshot(env);
     return {
       known: snapshot.records.has(localClipId),
-      referenced_by: snapshot.referenced.get(localClipId) ?? []
+      referenced_by: snapshot.referenced.get(localClipId) ?? [],
+      degraded: snapshot.degraded
     };
   }
 
@@ -623,6 +659,12 @@ export function createLocalClipMaintenanceService(
       const request = parseCleanRequest(body);
       const tokenRecord = readConfirmToken(request.confirm_token);
       const snapshot = await buildLocalClipSnapshot(env);
+      if (snapshot.degraded) {
+        throw new LocalClipMaintenanceError(
+          LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_reference_index_unreadable,
+          "本地素材引用索引读取失败或损坏，已按安全策略拒绝清理；未删除任何文件。"
+        );
+      }
       const skipped: LocalClipCleanResult["skipped"] = [];
       const candidates: LocalClipRecord[] = [];
 

@@ -123,6 +123,15 @@ export function localClipGovernanceSummary(integrity: CutterLocalClipIntegrity):
   return "孤儿素材 " + integrity.orphans.length + " 个（" + formatCutterCacheSize(integrity.total_bytes) + "） · 被引用素材 " + integrity.referenced.length + " 个";
 }
 
+export function localClipDegradedNotice(integrity: CutterLocalClipIntegrity): string {
+  if (!integrity.degraded) {
+    return "";
+  }
+
+  return integrity.warnings.find((warning) => warning.code === "local_clip_reference_index_unreadable")?.message ??
+    "本地素材引用索引读取失败或损坏，已暂停孤儿识别与清理；请修复/重建工作区索引后重试。";
+}
+
 export function localClipCleanPreviewText(integrity: CutterLocalClipIntegrity): string {
   return [
     "将清理 " + integrity.orphans.length + " 个孤儿本地素材（" + formatCutterCacheSize(integrity.total_bytes) + "）。",
@@ -359,6 +368,11 @@ export function LocalLibraryPage({
               <div className="ml-empty-panel ml-empty-panel--plain">
                 <strong>本地素材治理</strong>
                 <span>{localClipGovernanceSummary(integrity)}</span>
+                {integrity.degraded ? (
+                  <p className="ml-metric-description" role="alert">
+                    {localClipDegradedNotice(integrity)}
+                  </p>
+                ) : null}
                 <div className="ml-control-cluster">
                   <Button type="button" variant="ghost" size="sm" onClick={() => void loadLocalClipIntegrity()}>
                     刷新检查
@@ -367,7 +381,7 @@ export function LocalLibraryPage({
                     type="button"
                     variant="secondary"
                     size="sm"
-                    disabled={integrity.orphans.length === 0 || integrityLoading}
+                    disabled={integrity.orphans.length === 0 || integrity.degraded || integrityLoading}
                     onClick={() => {
                       setOrphanCleanResult(null);
                       setOrphanCleanError("");

@@ -954,7 +954,9 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         orphans: [{ local_clip_id: orphanId, path: "/fixture/local/export-clips/" + orphanId, size_bytes: 2048, reason: "清单缺失" }],
         total_bytes: 2048,
         expected_bytes: 2048,
-        confirm_token: "fixture-local-token"
+        confirm_token: "fixture-local-token",
+        degraded: false,
+        warnings: []
       };
     },
     async cleanLocalClips(request: { local_clip_ids: string[]; confirm_token: string; expected_bytes: number }) {

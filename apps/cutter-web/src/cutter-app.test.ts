@@ -25,6 +25,7 @@ import {
   LocalLibraryPage,
   localClipCleanPreviewText,
   localClipCleanResultSummary,
+  localClipDegradedNotice,
   localClipGovernanceSummary
 } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
@@ -6365,9 +6366,20 @@ test("local clip governance summarizes orphans, references and cleanup results",
     ],
     total_bytes: 2048,
     expected_bytes: 2048,
-    confirm_token: "token"
+    confirm_token: "token",
+    degraded: false,
+    warnings: []
   };
   assert.match(localClipGovernanceSummary(integrity), /孤儿素材 1 个（2 KB） · 被引用素材 1 个/);
+  assert.equal(localClipDegradedNotice(integrity), "");
+  assert.match(
+    localClipDegradedNotice({
+      ...integrity,
+      degraded: true,
+      warnings: [{ code: "local_clip_reference_index_unreadable", message: "索引损坏，已暂停清理" }]
+    }),
+    /索引损坏，已暂停清理/
+  );
   const preview = localClipCleanPreviewText(integrity);
   assert.match(preview, /将清理 1 个孤儿本地素材（2 KB）/);
   assert.match(preview, /项目成片、被引用素材不会被删除/);

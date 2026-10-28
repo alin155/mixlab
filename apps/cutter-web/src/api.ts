@@ -601,6 +601,9 @@ export interface CutterLocalClipIntegrity {
   total_bytes: number;
   expected_bytes: number;
   confirm_token: string;
+  /** fail-safe：引用索引损坏/不可读时为 true，orphans 为空且禁止 clean。 */
+  degraded: boolean;
+  warnings: Array<{ code: string; message: string }>;
 }
 
 export interface CutterLocalClipCleanRequest {

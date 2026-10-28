@@ -7527,8 +7527,20 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               return;
             }
 
-            // D2：被项目/任务/清单引用时拒绝；?force=1 + X-MixLab-Cache-Confirm-Token 才允许强制删除。
+            // fail-safe：引用索引不可读/损坏时，删除类操作必须拒绝（不能按“无引用”处理）。
             const inspection = await localClipMaintenance.inspect(localClipRoute.local_clip_id);
+            if (inspection.degraded) {
+              writeError(
+                response,
+                409,
+                LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_reference_index_unreadable,
+                "本地素材引用索引读取失败或损坏，已按安全策略拒绝删除。",
+                "请修复或重建工作区引用索引后重试。"
+              );
+              return;
+            }
+
+            // D2：被项目/任务/清单引用时拒绝；?force=1 + X-MixLab-Cache-Confirm-Token 才允许强制删除。
             if (inspection.known && inspection.referenced_by.length > 0) {
               const force = url.searchParams.get("force") === "1";
               if (!force) {

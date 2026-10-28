@@ -771,3 +771,38 @@ test("runtime status exposes disk cache space fields", async () => {
     });
   });
 });
+
+test("corrupted reference index degrades integrity and fails safe for clean/delete", async () => {
+  const fixture = await createLocalClipFixture();
+  await seedLocalClip(fixture, { id: "E000001", title: "orphan" });
+  await writeJsonFile(path.join(fixture.export_root, "E000001", "export-clip.json"), "not-json");
+  await writeJsonFile(path.join(fixture.workspace_root, "clip-lists", "CLBAD", "clip-list.json"), "not-json");
+
+  await withLocalClipApi(fixture, async ({ base_url, headers }) => {
+    const integrityResponse = await fetch(base_url + "/cutter/local-clips/integrity", { headers });
+    assert.equal(integrityResponse.status, 200);
+    const integrityBody = await integrityResponse.json() as any;
+    const integrity = integrityBody.data as LocalClipIntegrity;
+    assert.equal(integrity.degraded, true);
+    assert.equal(integrity.orphans.length, 0);
+    assert.equal(integrity.expected_bytes, 0);
+    assert.ok(integrity.warnings.some((warning) => warning.code === LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_reference_index_unreadable));
+
+    const cleanResponse = await fetch(base_url + "/cutter/local-clips/clean", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ local_clip_ids: ["E000001"], confirm_token: integrity.confirm_token, expected_bytes: 0 })
+    });
+    assert.equal(cleanResponse.status, 409);
+    const cleanBody = await cleanResponse.json() as any;
+    assert.equal(cleanBody.error.code, LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_reference_index_unreadable);
+    assert.equal((await stat(path.join(fixture.export_root, "E000001", "media.mp4"))).isFile(), true);
+
+    const deleteResponse = await fetch(base_url + "/cutter/local-clips/E000001", { method: "DELETE", headers });
+    assert.equal(deleteResponse.status, 409);
+    const deleteBody = await deleteResponse.json() as any;
+    assert.equal(deleteBody.error.code, LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_reference_index_unreadable);
+    assert.equal((await stat(path.join(fixture.export_root, "E000001", "media.mp4"))).isFile(), true);
+  });
+});
+
