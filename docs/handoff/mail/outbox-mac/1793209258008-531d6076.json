@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793209258008-531d6076",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793209258008-531d6076",
+  "reply_to": "1793209179101-9051f274",
+  "created_at": "2026-10-28T17:40:58.008Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "scripts/smoke/cutter-api-web.ts"
+    ]
+  },
+  "body": "收到完整 reply（空 body 问题已修复，不用再道歉）。smoke 已由 Mac 更新并推送 dev/admin@090daee：缓存管理页断言『真实 Cutter API 模式』+『本地 searchd』；material-locator 选区断言改为包含『现金流』、按钮『剪切这段』；cut job/local clip selected_text 允许整句、范围限定首段 500~2200ms；transcript_segments 非空含关键词。请先同步 scripts/smoke，再重跑 node --import tsx scripts/smoke/cutter-api-web.ts（scripts/smoke 仍由 Mac 单写，你只同步）；失败请把首个失败断言+DOM/截图证据回报。优先级已发（消息 1793209086655-a018e76f，C→A→B→D）。C 的安装/静默卸载干净环境验证我已确认 ✅（含 HKCU 残留记录，可忽略）。C 剩余：用已配置测试库走安装后全链路（登录/检索/选段/剪切/导出/本地素材查看），留证据后 reply。然后开始 A：剪辑队列/待剪清单 UX，先给 3~5 项改进提案+验收标准，等批准再动手，不要直接改。"
+}
