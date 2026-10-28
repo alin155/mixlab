@@ -10,6 +10,7 @@ import {
   formatAdminDuration,
   formatAdminFileSize
 } from "../../app/view-model.ts";
+import { formatAdminDateTime } from "../../app/datetime.ts";
 import { AdminInfoGroups, AdminPageHeader } from "../shared.tsx";
 
 function textOrEmpty(value: string, emptyLabel = "未记录"): string {
@@ -48,7 +49,7 @@ export function AdminSourceDetailPage({ detail }: { detail: AdminSourceVideoDeta
                 { label: "标题", value: textOrEmpty(video.title) },
                 { label: "文件名", value: video.file_name },
                 { label: "相对路径", value: detail.technical.relative_path },
-                { label: "更新时间", value: video.updated_at }
+                { label: "更新时间", value: formatAdminDateTime(video.updated_at) }
               ]
             },
             {

@@ -414,9 +414,16 @@ test("startup run request creates a report pointer for firewall-hidden backup ru
       request: request!
     });
     const pointerPath = path.join(root, "reports", "startup-run-latest.json");
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
       await sleep(50);
-      const pointer = JSON.parse(await readFile(pointerPath, "utf8")) as Record<string, unknown>;
+      let pointer: Record<string, unknown>;
+      try {
+        pointer = JSON.parse(await readFile(pointerPath, "utf8")) as Record<string, unknown>;
+      } catch {
+        // The runner writes the pointer asynchronously; a partially written or not-yet-created
+        // file is expected while polling, so keep retrying until the deadline.
+        continue;
+      }
       if (pointer.status === "failed") {
         assert.equal(pointer.run_id, record.run_id);
         assert.equal(pointer.suite, "probe_api");

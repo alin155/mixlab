@@ -12,6 +12,7 @@ import {
   writeAdminJson,
   writeAdminNoContent
 } from "./admin-http-session.ts";
+import { adminAuthRequestRemoteAddress } from "./admin-auth-routes.ts";
 
 function requestFromChunks(chunks: Array<string | Buffer>, headers: IncomingMessage["headers"] = {}): IncomingMessage {
   const request = Readable.from(chunks) as IncomingMessage;
@@ -62,6 +63,19 @@ test("admin HTTP helpers parse JSON bodies and preserve empty body defaults", as
     ok: true
   });
   assert.equal(jsonBytes({ ok: true }), "{\n  \"ok\": true\n}\n");
+});
+
+test("admin JSON reader carries the socket peer address to auth route guards", async () => {
+  const request = requestFromChunks([JSON.stringify({ username: "owner" })]);
+  (request as unknown as { socket: { remoteAddress: string } }).socket = { remoteAddress: "127.0.0.1" };
+  const body = await readAdminRequestJson(request);
+  assert.equal(adminAuthRequestRemoteAddress(body), "127.0.0.1");
+
+  const empty = requestFromChunks([]);
+  (empty as unknown as { socket: { remoteAddress: string } }).socket = { remoteAddress: "192.168.1.9" };
+  const value = await readAdminRequestJson(empty);
+  assert.equal(adminAuthRequestRemoteAddress(value), "192.168.1.9");
+  assert.notEqual(adminAuthRequestRemoteAddress({}), "192.168.1.9");
 });
 
 test("admin HTTP helpers write consistent CORS JSON and no-content responses", () => {
@@ -132,11 +146,14 @@ test("admin HTTP session helper rejects missing and invalid password-auth sessio
 
   assert.equal(missingActor, null);
   assert.equal(missing.writes[0]?.statusCode, 401);
-  assert.deepEqual(JSON.parse(missing.bodies[0] ?? "{}"), {
-    ok: false,
-    error_code: "login_required",
-    message: "请先登录管理端"
-  });
+  const missingBody = JSON.parse(missing.bodies[0] ?? "{}") as Record<string, unknown>;
+  assert.equal(missingBody.ok, false);
+  assert.equal(missingBody.error_code, "login_required");
+  assert.equal(missingBody.message, "请先登录管理端");
+  // P2-2: session errors now carry the shared contract fields (legacy fields kept).
+  assert.equal(missingBody.code, "AUTH_REQUIRED");
+  assert.equal(missingBody.contract_version, "1.0.0");
+  assert.equal(missingBody.retryable, "after-fix");
 
   const invalid = responseRecorder();
   const invalidActor = await requireAdminSession({
@@ -152,7 +169,8 @@ test("admin HTTP session helper rejects missing and invalid password-auth sessio
         assert.equal(libraryRoot, "/tmp/PublicLibrary");
         assert.deepEqual(session, {
           session_token: "bad-session",
-          now: "2026-06-27T00:00:00.000Z"
+          now: "2026-06-27T00:00:00.000Z",
+          touch: true
         });
         return { ok: false, reason: "登录凭证无效" };
       },
@@ -162,11 +180,12 @@ test("admin HTTP session helper rejects missing and invalid password-auth sessio
 
   assert.equal(invalidActor, null);
   assert.equal(invalid.writes[0]?.statusCode, 401);
-  assert.deepEqual(JSON.parse(invalid.bodies[0] ?? "{}"), {
-    ok: false,
-    error_code: "login_required",
-    message: "登录凭证无效"
-  });
+  const invalidBody = JSON.parse(invalid.bodies[0] ?? "{}") as Record<string, unknown>;
+  assert.equal(invalidBody.ok, false);
+  assert.equal(invalidBody.error_code, "login_required");
+  assert.equal(invalidBody.message, "登录凭证无效");
+  assert.equal(invalidBody.code, "AUTH_REQUIRED");
+  assert.equal(invalidBody.contract_version, "1.0.0");
 });
 
 test("admin HTTP session helper projects validated admin users to command actors", async () => {

@@ -4,7 +4,11 @@ import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { readSourceVideoManifest } from "../../library-fs/src/index.ts";
+import {
+  readAdminSettings,
+  readSourceVideoManifest,
+  writeAdminSettings
+} from "../../library-fs/src/index.ts";
 import type { LibraryCounts, SourceVideoManifest } from "../../protocol/src/index.ts";
 import {
   readAdminLibraryManifest,
@@ -598,4 +602,66 @@ test("single source-video publish command only publishes the requested index-req
     snapshot?.files.some((file) => file.label.includes("V000002")),
     false
   );
+});
+
+test("manual publish command still publishes when auto_publish_index_enabled is false", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const manifest = sourceVideoManifest({
+    source_video_id: "V000020",
+    relative_path: "manual-override.mp4"
+  });
+  await seedPublishLibrary({
+    library_root: libraryRoot,
+    manifests: [manifest],
+    counts: counts({
+      video_count: 1,
+      index_required_video_count: 1
+    }),
+    updated_at: "2026-06-26T10:20:00.000Z"
+  });
+  const settings = await readAdminSettings(libraryRoot);
+  await writeAdminSettings(libraryRoot, {
+    ...settings,
+    runtime_policy: {
+      ...settings.runtime_policy,
+      auto_publish_index_enabled: false
+    }
+  });
+
+  const createdCovers: string[] = [];
+  const result = await runAdminSourceVideoPublishCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    command_now: "2026-06-26T10:21:00.000Z",
+    now: () => "2026-06-26T10:21:01.000Z",
+    media: fakeMedia(createdCovers),
+    source_video_id: "V000020",
+    actor: adminCommandSystemActor("管理员手动上线", "system-task")
+  });
+
+  // Manual/supervisor commands are explicit Admin actions and must not be blocked
+  // by the background auto-publish policy (only the standalone worker respects it).
+  assert.equal(result.published_count, 1);
+  assert.deepEqual(result.published_source_video_ids, ["V000020"]);
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000020")).preprocess_status, "ready");
+
+  const operationLog = await readAdminOperationLog({
+    library_root: libraryRoot,
+    generated_at: "2026-06-26T10:21:02.000Z",
+    limit: 10
+  });
+  const commandEvents = operationLog.events.filter(
+    (event) => event.action === "source-video-publish"
+  );
+  assert.deepEqual(
+    commandEvents.map((event) => event.event_type).sort(),
+    ["started", "succeeded"]
+  );
+  assert.equal(commandEvents.some((event) => event.event_type === "skipped"), false);
+  const succeeded = commandEvents.find((event) => event.event_type === "succeeded");
+  assert.deepEqual((succeeded?.details as { actor?: unknown } | undefined)?.actor, {
+    kind: "system",
+    source: "system-task",
+    label: "管理员手动上线"
+  });
 });

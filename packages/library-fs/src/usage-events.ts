@@ -446,7 +446,8 @@ function trimOptionalString(value: unknown, field: string): string | undefined {
   return trimmed || undefined;
 }
 
-function validateUsageEvent(
+/** Exported for the isolated usage service (Round4); legacy call sites keep the same behavior. */
+export function validateUsageEvent(
   value: unknown,
   options: { require_event_id: boolean }
 ): MixlabUsageEvent {
@@ -771,7 +772,8 @@ function sortUsageUsers(users: Iterable<UserUsageMetrics>): UserUsageMetrics[] {
   });
 }
 
-function buildUsageMetricsProjection(
+/** Exported for the isolated usage service (Round4); legacy call sites keep the same behavior. */
+export function buildUsageMetricsProjection(
   events: MixlabUsageEvent[],
   eventStore: UsageEventStoreMetrics
 ): UsageMetricsProjection {
@@ -917,7 +919,8 @@ function cloneProjectionState(state: UsageMetricsProjectionState): UsageMetricsP
   return JSON.parse(JSON.stringify(state)) as UsageMetricsProjectionState;
 }
 
-function applyUsageEventToProjection(
+/** Exported for the isolated usage service (Round4); legacy call sites keep the same behavior. */
+export function applyUsageEventToProjection(
   projection: UsageMetricsProjection,
   event: MixlabUsageEvent
 ): UsageMetricsProjection {

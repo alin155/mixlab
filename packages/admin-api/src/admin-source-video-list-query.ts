@@ -46,6 +46,27 @@ const NON_READY_QUERY_STATUSES: PreprocessStatus[] = [
   "unprocessed"
 ];
 
+export const ADMIN_SOURCE_VIDEO_LIST_DEFAULT_LIMIT = 50;
+export const ADMIN_SOURCE_VIDEO_LIST_MAX_LIMIT = 500;
+
+/**
+ * Service-level page guard: even direct callers that bypass the HTTP route can never read the
+ * whole library through a zero/absent limit, and can never exceed the documented maximum.
+ */
+export function normalizeAdminSourceVideoListLimit(limit: number): number {
+  if (!Number.isFinite(limit)) {
+    return ADMIN_SOURCE_VIDEO_LIST_DEFAULT_LIMIT;
+  }
+
+  const floored = Math.trunc(limit);
+
+  if (floored <= 0) {
+    return ADMIN_SOURCE_VIDEO_LIST_DEFAULT_LIMIT;
+  }
+
+  return Math.min(floored, ADMIN_SOURCE_VIDEO_LIST_MAX_LIMIT);
+}
+
 async function readAdminSourceVideoQueryList(input: ListAdminSourceVideoManifestsInput & {
   query: string;
 }): Promise<SourceVideoManifest[] | null> {
@@ -88,6 +109,7 @@ async function readAdminSourceVideoQueryList(input: ListAdminSourceVideoManifest
 export async function listAdminSourceVideoManifests(
   input: ListAdminSourceVideoManifestsInput
 ): Promise<SourceVideoManifest[]> {
+  input = { ...input, limit: normalizeAdminSourceVideoListLimit(input.limit) };
   const normalizedQuery = input.query?.trim() ?? "";
   const hasFilter = Boolean(normalizedQuery) || Boolean(input.status);
 

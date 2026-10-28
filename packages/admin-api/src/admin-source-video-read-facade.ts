@@ -41,7 +41,15 @@ import {
   type AdminSourceVideoStorePageRead
 } from "./admin-source-video-status-page-query.ts";
 
+export const ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR = "MIXLAB_ADMIN_READ_MODEL_STORE_REPAIR";
+
 export interface AdminSourceVideoReadFacadeInput {
+  /**
+   * Status-store repair used to run implicitly inside GET requests. It now defaults to OFF
+   * (read endpoints must not write); set store_repair_enabled=true or env
+   * MIXLAB_ADMIN_READ_MODEL_STORE_REPAIR=1 to temporarily restore the legacy behavior.
+   */
+  store_repair_enabled?: boolean;
   manifest_read_concurrency: number;
   manifest_cache_ttl_ms: number;
   filtered_scan_batch_size: number;
@@ -174,11 +182,21 @@ export interface AdminSourceVideoReadFacade {
   }>;
 }
 
+function resolveStoreRepairEnabled(input: AdminSourceVideoReadFacadeInput): boolean {
+  if (typeof input.store_repair_enabled === "boolean") {
+    return input.store_repair_enabled;
+  }
+
+  const rawValue = (process.env[ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR] ?? "").trim().toLowerCase();
+  return rawValue === "1" || rawValue === "true";
+}
+
 export function createAdminSourceVideoReadFacade(
   input: AdminSourceVideoReadFacadeInput
 ): AdminSourceVideoReadFacade {
   const statusStoreRepairMaxIds = 100;
   const repairedMissingManifestRowsReason = "status-store:repaired-incomplete-manifest-rows";
+  const storeRepairEnabled = resolveStoreRepairEnabled(input);
 
   function clear_source_video_page_cache(libraryRoot: string): void {
     input.manifest_reader.clear_library(libraryRoot);
@@ -339,10 +357,10 @@ export function createAdminSourceVideoReadFacade(
       read_library_manifest: input.read_library_manifest,
       read_status_read_model,
       read_manifests_by_ids,
-      read_status_page_from_store: readerInput.disable_store_repair
+      read_status_page_from_store: readerInput.disable_store_repair || !storeRepairEnabled
         ? input.read_status_page_from_store
         : read_repairable_status_page_from_store,
-      read_statuses_page_from_store: readerInput.disable_store_repair
+      read_statuses_page_from_store: readerInput.disable_store_repair || !storeRepairEnabled
         ? input.read_statuses_page_from_store
         : read_repairable_statuses_page_from_store
     });
@@ -373,7 +391,7 @@ export function createAdminSourceVideoReadFacade(
       read_library_manifest: input.read_library_manifest,
       read_status_read_model,
       read_manifests_by_ids,
-      read_statuses_page_from_store: readerInput.disable_store_repair
+      read_statuses_page_from_store: readerInput.disable_store_repair || !storeRepairEnabled
         ? input.read_statuses_page_from_store
         : read_repairable_statuses_page_from_store
     });

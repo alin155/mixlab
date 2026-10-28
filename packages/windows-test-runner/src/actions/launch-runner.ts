@@ -160,7 +160,7 @@ export async function runLaunchRunner(input: {
 }> {
   const options = readOptions(input.options);
   const port = options.port ?? 3800;
-  const host = options.host ?? "0.0.0.0";
+  const host = options.host ?? "127.0.0.1";
   const manifestPath = path.join(input.config.share_root, "runner", "latest.json");
   const manifest = await readManifest(manifestPath);
   const sourceRunnerPath = options.runner_path
@@ -249,7 +249,10 @@ export async function runLaunchRunner(input: {
         MIXLAB_WINDOWS_TEST_RUNNER_REPORTS_ROOT: input.config.reports_root,
         MIXLAB_WINDOWS_TEST_RUNNER_HOST: host,
         MIXLAB_WINDOWS_TEST_RUNNER_PORT: String(port),
-        MIXLAB_CUTTER_API_BASE_URL: input.config.cutter_api_base_url
+        MIXLAB_CUTTER_API_BASE_URL: input.config.cutter_api_base_url,
+        ...(input.config.auth_token
+          ? { MIXLAB_WINDOWS_TEST_RUNNER_TOKEN: input.config.auth_token }
+          : {})
       }
     });
     child.unref();

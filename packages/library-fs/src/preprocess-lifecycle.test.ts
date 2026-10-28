@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,6 +10,7 @@ import {
   failPreprocessJob,
   preprocessJobLogPath,
   publishReadySourceVideo,
+  readAllSourceVideoManifests,
   readSourceVideoManifest,
   readPreprocessJobLog,
   refreshLibraryCounts,
@@ -598,4 +599,87 @@ test("publishes indexed videos as cutter-visible ready source videos", async () 
 
   const log = await readPreprocessJobLog(libraryRoot, "V000001");
   assert.match(log.content, /publish-ready\tpublished to index v000001/);
+});
+
+test("ignores unsafe source video manifests and rejects unsafe source video ids", async () => {
+  const libraryRoot = await makeScannedLibrary();
+  const videosRoot = path.join(libraryRoot, ".mixlab-library", "videos");
+
+  const unsafeManifestDir = path.join(videosRoot, "V900001");
+  await mkdir(unsafeManifestDir, { recursive: true });
+  await writeFile(
+    path.join(unsafeManifestDir, "source-video.json"),
+    JSON.stringify({
+      source_video_id: "../../escape-target",
+      title: "越界素材",
+      relative_path: "escape-target.mp4",
+      logical_uri: "library://source-video/../../escape-target",
+      duration_ms: 0,
+      width: 0,
+      height: 0,
+      fps: 0,
+      codec: "",
+      file_size: 1,
+      content_hash: "pending:size:1",
+      preprocess_status: "unprocessed",
+      visible_to_cutters: false,
+      transcript_path: "",
+      srt_path: "",
+      keyframes_path: "",
+      cover_path: ""
+    }),
+    "utf8"
+  );
+
+  const mismatchedManifestPath = path.join(videosRoot, "V000002", "source-video.json");
+  const mismatchedManifest = await readJson<Record<string, unknown>>(mismatchedManifestPath);
+  await writeFile(
+    mismatchedManifestPath,
+    JSON.stringify({ ...mismatchedManifest, source_video_id: "V000001" }),
+    "utf8"
+  );
+
+  const manifests = await readAllSourceVideoManifests(libraryRoot);
+  assert.deepEqual(manifests.map((manifest) => manifest.source_video_id), ["V000001"]);
+
+  await assert.rejects(
+    () => readSourceVideoManifest(libraryRoot, "../escape-target"),
+    /素材 ID格式无效/
+  );
+  await assert.rejects(
+    () => readSourceVideoManifest(libraryRoot, "V000002"),
+    /不一致/
+  );
+
+  const outsideDirectory = path.join(os.tmpdir(), `mixlab-preprocess-outside-${Date.now()}`);
+  await assert.rejects(
+    () => completePreprocessArtifacts({
+      library_root: libraryRoot,
+      source_video_id: "../../escape-target",
+      now: "2026-05-01T00:02:00Z",
+      media: {
+        duration_ms: 1_000,
+        width: 1920,
+        height: 1080,
+        fps: 25,
+        codec: "h264",
+        content_hash: "hash"
+      },
+      artifacts: {
+        transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+        srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+        keyframes_path: ".mixlab-library/videos/V000001/keyframes.json",
+        cover_path: ".mixlab-library/videos/V000001/cover.jpg"
+      }
+    }),
+    /素材 ID格式无效/
+  );
+
+  let outsideExists = true;
+  try {
+    await stat(outsideDirectory);
+  } catch {
+    outsideExists = false;
+  }
+  assert.equal(outsideExists, false);
 });

@@ -6,7 +6,9 @@ import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import {
   AdminWriterLeaseError,
-  withAdminWriterLease
+  readAdminWriterLease,
+  withAdminWriterLease,
+  withAdminWriterLeaseWait
 } from "./admin-writer-lease.ts";
 
 async function makeRoot(): Promise<string> {
@@ -132,4 +134,106 @@ test("admin writer lease reclaims empty lock directories", async () => {
 
   assert.equal(result, "reclaimed");
   assert.equal(await exists(lockDir(root)), false);
+});
+
+test("bounded lease wait enters after the current writer releases", async () => {
+  const root = await makeRoot();
+  const order: string[] = [];
+  let releaseFirst!: () => void;
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const first = withAdminWriterLease({
+    library_root: root,
+    holder: "first",
+    reason: "slow-write",
+    now: "2026-06-25T00:00:00.000Z"
+  }, async () => {
+    order.push("first-started");
+    await firstGate;
+    order.push("first-released");
+  });
+
+  await waitForFile(leasePath(root));
+  const second = withAdminWriterLeaseWait({
+    library_root: root,
+    holder: "second",
+    reason: "waiting-write",
+    now: "2026-06-25T00:00:01.000Z",
+    wait_ms: 2_000,
+    poll_interval_ms: 10
+  }, async () => {
+    order.push("second-started");
+    return "second-done";
+  });
+
+  await delay(40);
+  assert.equal(await exists(lockDir(root)), true);
+  releaseFirst();
+  await first;
+  assert.equal(await second, "second-done");
+  assert.deepEqual(order, ["first-started", "first-released", "second-started"]);
+  assert.equal(await exists(lockDir(root)), false);
+});
+
+test("bounded lease wait surfaces admin_writer_busy with the current holder after timeout", async () => {
+  const root = await makeRoot();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const holder = withAdminWriterLease({
+    library_root: root,
+    holder: "stuck-writer",
+    reason: "long-write",
+    now: "2026-06-25T00:00:00.000Z"
+  }, async () => {
+    await gate;
+  });
+
+  await waitForFile(leasePath(root));
+  await assert.rejects(
+    () => withAdminWriterLeaseWait({
+      library_root: root,
+      holder: "waiter",
+      reason: "waiting-write",
+      now: "2026-06-25T00:00:01.000Z",
+      wait_ms: 60,
+      poll_interval_ms: 10
+    }, async () => "never"),
+    (error) => {
+      assert.equal(error instanceof AdminWriterLeaseError, true);
+      assert.equal((error as AdminWriterLeaseError).code, "admin_writer_busy");
+      assert.equal((error as AdminWriterLeaseError).details.lease?.holder, "stuck-writer");
+      return true;
+    }
+  );
+  release();
+  await holder;
+  assert.equal(await exists(lockDir(root)), false);
+  assert.equal(await readAdminWriterLease(root), null);
+});
+
+test("readAdminWriterLease exposes the active holder for worker audit decisions", async () => {
+  const root = await makeRoot();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const holder = withAdminWriterLease({
+    library_root: root,
+    holder: "audit-holder",
+    reason: "source-video-publish",
+    now: "2026-06-25T00:00:00.000Z"
+  }, async () => {
+    await gate;
+  });
+
+  await waitForFile(leasePath(root));
+  const lease = await readAdminWriterLease(root);
+  assert.equal(lease?.holder, "audit-holder");
+  assert.equal(lease?.reason, "source-video-publish");
+  release();
+  await holder;
+  assert.equal(await readAdminWriterLease(root), null);
 });

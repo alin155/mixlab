@@ -12,7 +12,7 @@ import type {
   RunnerConfig
 } from "../types.ts";
 
-interface InstallLatestAndSmokeOptions {
+export interface InstallLatestAndSmokeOptions {
   installer_path?: string;
   installer_sha256?: string;
   silent_args?: string[];
@@ -57,6 +57,19 @@ function readOptions(value: Record<string, unknown> | undefined): InstallLatestA
       ? value.acceptance_options as Record<string, unknown>
       : undefined
   };
+}
+
+export function assertInstallerWithinShareRoot(shareRoot: string, candidatePath: string): string {
+  const resolvedRoot = path.resolve(shareRoot);
+  const resolvedCandidate = path.resolve(candidatePath);
+  const relative = path.relative(resolvedRoot, resolvedCandidate);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("installer_path must point to a file inside the Runner share root.");
+  }
+  if (!resolvedCandidate.toLowerCase().endsWith(".exe")) {
+    throw new Error("installer_path must point to a Windows .exe installer.");
+  }
+  return resolvedCandidate;
 }
 
 function tail(text: string, maxLength = 4000): string | undefined {
@@ -204,7 +217,28 @@ export async function runInstallLatestAndSmoke(input: {
   failure_message?: string;
 }> {
   const options = readOptions(input.options);
-  const installerSourcePath = options.installer_path ?? await newestInstallerPath(input.config.share_root);
+  let installerSourcePath: string | undefined;
+  try {
+    installerSourcePath = options.installer_path
+      ? assertInstallerWithinShareRoot(input.config.share_root, options.installer_path)
+      : await newestInstallerPath(input.config.share_root);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      report: {
+        installer_source_path: "",
+        installer_local_path: "",
+        copied_installer: false,
+        stopped_processes: [],
+        install_exit_code: null,
+        install_elapsed_ms: 0,
+        installer_error: message
+      },
+      passed: false,
+      failure_category: "installer_missing",
+      failure_message: message
+    };
+  }
   if (!installerSourcePath) {
     return {
       report: {
@@ -249,6 +283,15 @@ export async function runInstallLatestAndSmoke(input: {
       passed: false,
       failure_category: "installer_missing",
       failure_message: `Failed to copy installer: ${report.installer_error}`
+    };
+  }
+
+  if (input.config.require_installer_sha256 && !options.installer_sha256) {
+    return {
+      report,
+      passed: false,
+      failure_category: "installer_hash_mismatch",
+      failure_message: "installer_sha256 is required by the Runner security policy."
     };
   }
 

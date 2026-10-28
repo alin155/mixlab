@@ -378,6 +378,126 @@ async function prepareLibrary(): Promise<string> {
   return libraryRoot;
 }
 
+async function preparePublishedSingleVideoLibrary(): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+
+  await writeDummyVideo(path.join(libraryRoot, "source-videos", "01_现金流.mp4"));
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+  await claimNextPreprocessJob({
+    library_root: libraryRoot,
+    worker_id: "worker-a",
+    now: "2026-05-02T00:01:00Z"
+  });
+  await writeArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    full_text: "现金流，是企业的血液。",
+    segments: [
+      segment({
+        source_video_id: "V000001",
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 3600,
+        text: "现金流，是企业的血液。",
+        normalized_text: "现金流是企业的血液"
+      })
+    ]
+  });
+  await completePreprocessArtifacts({
+    library_root: libraryRoot,
+    source_video_id: "V000001",
+    now: "2026-05-02T00:10:00Z",
+    media: {
+      duration_ms: 12_000,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264",
+      content_hash: "sha256:V000001"
+    },
+    artifacts: {
+      transcript_path: ".mixlab-library/videos/V000001/transcript.json",
+      srt_path: ".mixlab-library/videos/V000001/subtitles.srt",
+      keyframes_path: ".mixlab-library/videos/V000001/keyframes.json",
+      cover_path: ".mixlab-library/videos/V000001/cover.jpg"
+    }
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    now: "2026-05-02T00:20:00Z"
+  });
+
+  return libraryRoot;
+}
+
+async function publishAdditionalSourceVideo(input: {
+  library_root: string;
+  source_video_id: string;
+  relative_path: string;
+  full_text: string;
+  normalized_text: string;
+  now: string;
+}): Promise<void> {
+  await writeDummyVideo(path.join(input.library_root, "source-videos", input.relative_path));
+  await scanSourceVideos({
+    library_root: input.library_root,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: input.now
+  });
+  await claimNextPreprocessJob({
+    library_root: input.library_root,
+    worker_id: "worker-a",
+    now: input.now
+  });
+  await writeArtifacts({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    full_text: input.full_text,
+    segments: [
+      segment({
+        source_video_id: input.source_video_id,
+        index: 0,
+        begin_ms: 1000,
+        end_ms: 3600,
+        text: input.full_text,
+        normalized_text: input.normalized_text
+      })
+    ]
+  });
+  await completePreprocessArtifacts({
+    library_root: input.library_root,
+    source_video_id: input.source_video_id,
+    now: input.now,
+    media: {
+      duration_ms: 12_000,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264",
+      content_hash: `sha256:${input.source_video_id}`
+    },
+    artifacts: {
+      transcript_path: `.mixlab-library/videos/${input.source_video_id}/transcript.json`,
+      srt_path: `.mixlab-library/videos/${input.source_video_id}/subtitles.srt`,
+      keyframes_path: `.mixlab-library/videos/${input.source_video_id}/keyframes.json`,
+      cover_path: `.mixlab-library/videos/${input.source_video_id}/cover.jpg`
+    }
+  });
+  await publishIndexRequiredSourceVideos({
+    library_root: input.library_root,
+    library_id: "lib_main_001",
+    source_video_ids: [input.source_video_id],
+    now: input.now
+  });
+}
+
 async function prepareManyReadyLibrary(count: number): Promise<string> {
   const libraryRoot = await makeLibraryRoot();
 
@@ -2048,6 +2168,106 @@ test("source library uses existing local release cache while background sync is 
   });
 });
 
+test("source search sees a newly published release without restarting the Cutter API", async () => {
+  const libraryRoot = await preparePublishedSingleVideoLibrary();
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-release-refresh-"));
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withApiServer(libraryRoot, async (baseUrl) => {
+    const firstResponse = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}&limit=10`, {
+      headers
+    });
+    assert.equal(firstResponse.status, 200);
+    assert.deepEqual(((await firstResponse.json()) as any).data.groups, []);
+    await waitForFile(path.join(cacheRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite"));
+
+    await publishAdditionalSourceVideo({
+      library_root: libraryRoot,
+      source_video_id: "V000002",
+      relative_path: "02_组织效率.mov",
+      full_text: "组织效率决定增长。",
+      normalized_text: "组织效率决定增长",
+      now: "2026-05-02T01:00:00Z"
+    });
+
+    const refreshedResponse = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}&limit=10`, {
+      headers
+    });
+    assert.equal(refreshedResponse.status, 200);
+    const refreshed = await refreshedResponse.json() as any;
+    assert.equal(refreshed.data.index_version, "v000002");
+    assert.equal(refreshed.data.search_mode, "sqlite-index");
+    assert.deepEqual(
+      refreshed.data.groups.map((group: any) => group.source_video_id),
+      ["V000002"]
+    );
+  }, {
+    release_cache_root: cacheRoot,
+    release_sync_timeout_ms: 5_000
+  });
+});
+
+test("source search falls back to the fresh local release while searchd is warming an older index", async () => {
+  const libraryRoot = await preparePublishedSingleVideoLibrary();
+  const cacheRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-searchd-refresh-"));
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    (url) => ({
+      body: {
+        schema_version: "1.0",
+        data: {
+          query: url.searchParams.get("query"),
+          normalized_query: url.searchParams.get("query"),
+          cursor: "",
+          next_cursor: "",
+          has_more: false,
+          returned_count: 0,
+          limit: Number.parseInt(url.searchParams.get("limit") ?? "0", 10),
+          index_version: "v000001",
+          search_ms: 1,
+          groups: []
+        }
+      }
+    }),
+    async (searchdBaseUrl) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const firstResponse = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}&limit=10`, {
+          headers
+        });
+        assert.equal(firstResponse.status, 200);
+        assert.deepEqual(((await firstResponse.json()) as any).data.groups, []);
+        await waitForFile(path.join(cacheRoot, ".mixlab-library", "releases", "v000001", "catalog.sqlite"));
+
+        await publishAdditionalSourceVideo({
+          library_root: libraryRoot,
+          source_video_id: "V000002",
+          relative_path: "02_组织效率.mov",
+          full_text: "组织效率决定增长。",
+          normalized_text: "组织效率决定增长",
+          now: "2026-05-02T01:00:00Z"
+        });
+
+        const refreshedResponse = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("组织效率")}&limit=10`, {
+          headers
+        });
+        assert.equal(refreshedResponse.status, 200);
+        const refreshed = await refreshedResponse.json() as any;
+        assert.equal(refreshed.data.index_version, "v000002");
+        assert.equal(refreshed.data.search_mode, "sqlite-index");
+        assert.deepEqual(
+          refreshed.data.groups.map((group: any) => group.source_video_id),
+          ["V000002"]
+        );
+      }, {
+        release_cache_root: cacheRoot,
+        release_sync_timeout_ms: 5_000,
+        searchd_base_url: searchdBaseUrl
+      });
+    }
+  );
+});
+
 test("source search prefers local searchd when configured", async () => {
   const libraryRoot = await prepareLibrary();
   const headers = await createApprovedAuthHeaders(libraryRoot);
@@ -3047,7 +3267,7 @@ test("creates, lists, reads, and streams local clips", async () => {
 
     const metrics = await waitForUsageMetrics(
       libraryRoot,
-      (current) => current.cut_success_count === 1
+      (current) => current.cut_success_count === 1 && current.local_clip_count === 1
     );
     assert.equal(metrics.local_clip_count, 1);
     assert.equal(metrics.transcript_selection_count, 1);
@@ -3147,7 +3367,7 @@ test("creates workspace-backed local exports without writing public-library loca
 
     const metrics = await waitForUsageMetrics(
       libraryRoot,
-      (current) => current.cut_success_count === 1
+      (current) => current.cut_success_count === 1 && current.local_clip_count === 1
     );
     assert.equal(metrics.local_clip_count, 1);
     assert.equal(metrics.transcript_selection_count, 1);

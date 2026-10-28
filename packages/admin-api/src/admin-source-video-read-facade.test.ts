@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { SourceVideoManifest, PreprocessStatus, LibraryCounts } from "../../protocol/src/index.ts";
 import type { AdminSourceVideoManifestReader } from "./admin-source-video-manifest-cache.ts";
 import {
+  ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR,
   createAdminSourceVideoReadFacade
 } from "./admin-source-video-read-facade.ts";
 import {
@@ -117,6 +118,7 @@ function createFacade(input: {
     applied: boolean;
     reason: "updated" | "missing";
   }>;
+  storeRepairEnabled?: boolean;
 }) {
   let clearCount = 0;
   let refreshCount = 0;
@@ -124,6 +126,7 @@ function createFacade(input: {
   const model = input.model ?? statusModel();
   return {
     facade: createAdminSourceVideoReadFacade({
+      store_repair_enabled: input.storeRepairEnabled ?? true,
       manifest_read_concurrency: 8,
       manifest_cache_ttl_ms: 30_000,
       filtered_scan_batch_size: 16,
@@ -429,6 +432,73 @@ test("source-video read facade disables status store repair for read-only probes
   assert.equal(result.repair_reason, undefined);
   assert.equal(counts.storeStatusReads, 1);
   assert.deepEqual(writes, []);
+});
+
+test("source-video read facade does not repair stores by default in read requests", async () => {
+  const processing = manifest({ id: "V000009", status: "processing" });
+  const writes: Array<{
+    library_root: string;
+    manifests: SourceVideoManifest[];
+  }> = [];
+  const previousEnvValue = process.env[ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR];
+  delete process.env[ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR];
+
+  try {
+    const { facade, counts } = createFacade({
+      manifests: [processing],
+      library: libraryCounts({ video_count: 1, processing_video_count: 1 }),
+      model: statusModel({
+        ids_by_status: {
+          ...emptySourceVideoStatusIdsByStatus(),
+          processing: ["V000009"]
+        }
+      }),
+      storeStatusReadResults: [
+        {
+          page: null,
+          miss_reason: "incomplete-manifest-rows",
+          missing_source_video_ids: ["V000009"]
+        },
+        {
+          page: {
+            manifests: [processing]
+          }
+        }
+      ],
+      async writeStoreManifests(writerInput) {
+        writes.push({
+          library_root: writerInput.library_root,
+          manifests: writerInput.manifests
+        });
+        return {
+          applied: true,
+          reason: "updated"
+        };
+      },
+      storeRepairEnabled: false
+    });
+
+    const result = await facade.read_source_video_list_with_runtime_meta({
+      library_root: "/tmp/library",
+      offset: 0,
+      limit: 20,
+      status: "processing"
+    });
+
+    assert.deepEqual(result.manifests.map((item) => item.source_video_id), ["V000009"]);
+    assert.equal(result.actual_data_source, "source-video-manifest");
+    assert.equal(result.cache_status, "miss");
+    assert.equal(result.fallback_reason, "status-store:incomplete-manifest-rows");
+    assert.equal(result.repair_reason, undefined);
+    assert.equal(counts.storeStatusReads, 1);
+    assert.deepEqual(writes, []);
+  } finally {
+    if (previousEnvValue === undefined) {
+      delete process.env[ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR];
+    } else {
+      process.env[ADMIN_SOURCE_VIDEO_STORE_REPAIR_ENV_VAR] = previousEnvValue;
+    }
+  }
 });
 
 test("source-video read facade falls back from preprocess store page to status read model ids", async () => {

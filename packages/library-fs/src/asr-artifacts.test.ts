@@ -83,3 +83,20 @@ test("cleans same-directory temp files when text artifact rename is blocked", as
   assert.equal(await pathExists(path.join(videoDir, "subtitles.srt")), false);
   assert.equal((await stat(path.join(videoDir, "transcript.json"))).isDirectory(), true);
 });
+
+test("rejects unsafe source video ids before writing artifact paths", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-asr-outside-"));
+
+  await assert.rejects(
+    () => writeAsrTextArtifacts({
+      library_root: libraryRoot,
+      source_video_id: "../outside-artifacts",
+      transcript_artifact: {},
+      srt: "srt"
+    }),
+    /素材 ID格式无效/
+  );
+
+  assert.deepEqual(await readdir(outsideRoot), []);
+});

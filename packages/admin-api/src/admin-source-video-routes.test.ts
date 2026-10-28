@@ -301,7 +301,7 @@ test("source-video route records runtime diagnostics best-effort", async () => {
   }
 });
 
-test("source-video route preserves absent limit as zero and ignores invalid status", async () => {
+test("source-video route pages with a bounded default limit and ignores invalid status", async () => {
   let captured: AdminSourceVideoRouteListInput | undefined;
   const result = await callRoute({
     pathname: "/api/admin/source-videos",
@@ -328,13 +328,48 @@ test("source-video route preserves absent limit as zero and ignores invalid stat
   assert.deepEqual(captured, {
     library_root: "/tmp/PublicLibrary",
     offset: 0,
-    limit: 0,
+    limit: 50,
     query: "",
     status: undefined
   });
   if (result.body.ok) {
-    assert.equal(result.body.meta?.runtime.limit, 0);
+    assert.equal(result.body.meta?.runtime.limit, 50);
     assert.equal(result.body.meta?.runtime.result_count, 0);
+  }
+});
+
+test("source-video route treats limit=0 as the default page and caps oversized limits", async () => {
+  const captured: AdminSourceVideoRouteListInput[] = [];
+  const deps = makeDeps({
+    read_source_video_list: async (input) => {
+      captured.push(input);
+      return {
+        manifests: [],
+        actual_data_source: "admin-read-model",
+        cache_status: "unknown"
+      };
+    }
+  });
+
+  const zero = await callRoute({
+    pathname: "/api/admin/source-videos",
+    query: "limit=0",
+    deps
+  });
+  const oversized = await callRoute({
+    pathname: "/api/admin/source-videos",
+    query: "limit=9999",
+    deps
+  });
+
+  assert.equal(zero.handled, true);
+  assert.equal(oversized.handled, true);
+  assert.deepEqual(captured.map((input) => input.limit), [50, 500]);
+  if (zero.handled && zero.body.ok) {
+    assert.equal(zero.body.meta?.runtime.limit, 50);
+  }
+  if (oversized.handled && oversized.body.ok) {
+    assert.equal(oversized.body.meta?.runtime.limit, 500);
   }
 });
 

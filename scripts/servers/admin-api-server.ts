@@ -93,6 +93,7 @@ server.listen(config.port, config.host, () => {
         build: buildFingerprint(),
         endpoints: [
           "/health",
+          "/ready",
           "/api/admin/auth/bootstrap",
           "/api/admin/auth/register",
           "/api/admin/auth/login",

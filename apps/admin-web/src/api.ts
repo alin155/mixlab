@@ -3,8 +3,14 @@ import type {
   MixlabDoctorReport
 } from "../../../packages/doctor-core/src/index.ts";
 import {
+  isCapabilityTableV1,
+  type CapabilityTableV1
+} from "../../../packages/contracts/src/index.ts";
+import {
+  AdminHttpError,
   adminAuthHeaders,
   getJson,
+  joinUrl,
   listQuery,
   sendJson
 } from "./admin-http.ts";
@@ -649,6 +655,7 @@ export interface AdminCutterUserApprovalResult {
 export interface AdminAuthBootstrapStatus {
   has_admin: boolean;
   registration_open: boolean;
+  registration_requires_token?: boolean;
 }
 
 export interface AdminPublicUser {
@@ -667,6 +674,7 @@ export interface AdminAuthSession {
   session_token: string;
   created_at: string;
   last_seen_at: string;
+  expires_at?: string;
 }
 
 export interface AdminAuthResult {
@@ -1353,6 +1361,25 @@ export interface AdminSourceVideoMetadataUpdate {
   category?: string;
 }
 
+export type AdminDashboardDataSource = "api" | "fallback" | "placeholder" | "unknown";
+
+export interface AdminDashboardFieldSource {
+  source: AdminDashboardDataSource;
+  updated_at?: string;
+  error?: string;
+}
+
+export interface AdminDashboardDataSourceMap {
+  settings?: AdminDashboardFieldSource;
+  supervisor?: AdminDashboardFieldSource;
+  runtime?: AdminDashboardFieldSource;
+  doctor?: AdminDashboardFieldSource;
+}
+
+export type AdminDoctorReport = MixlabDoctorReport & {
+  source?: AdminDashboardDataSource;
+};
+
 export interface AdminDashboardData {
   status: AdminLibraryStatus;
   path_checks: AdminPathCheck[];
@@ -1360,10 +1387,11 @@ export interface AdminDashboardData {
   source_videos: AdminSourceVideo[];
   jobs: AdminPreprocessJobsResponse;
   indexes: AdminIndexVersionsResponse;
-  doctor: MixlabDoctorReport;
+  doctor: AdminDoctorReport;
   runtime: AdminRuntimeSettings;
   metrics: AdminDashboardMetrics;
   data_loading_plan: AdminDataLoadingPlan;
+  data_source?: AdminDashboardDataSourceMap;
 }
 
 export interface LoadAdminDashboardDataOptions {
@@ -1650,7 +1678,12 @@ export function createAdminSmartScanReport(data: AdminDashboardData): AdminSmart
 export interface AdminApiClient {
   getAuthBootstrap(): Promise<AdminAuthBootstrapStatus>;
   getAuthStatus(): Promise<AdminAuthStatus>;
-  registerAdmin(input: { username: string; password: string; display_name?: string }): Promise<AdminAuthResult>;
+  registerAdmin(input: {
+    username: string;
+    password: string;
+    display_name?: string;
+    registration_token?: string;
+  }): Promise<AdminAuthResult>;
   loginAdmin(input: { username: string; password: string }): Promise<AdminAuthResult>;
   logoutAdmin(): Promise<{ removed: boolean }>;
   getLibraryStatus(): Promise<AdminLibraryStatus>;
@@ -1659,6 +1692,8 @@ export interface AdminApiClient {
   getReadModelReconcileStatus(): Promise<AdminReadModelReconcilerStatus>;
   startReadModelReconcile(): Promise<AdminReadModelReconcilerStartResult>;
   cancelReadModelReconcile(): Promise<AdminReadModelReconcilerCancelResult>;
+  getCapabilities(): Promise<CapabilityTableV1>;
+  getHealth(): Promise<Record<string, unknown>>;
   getOperationLog(options?: { limit?: number }): Promise<AdminOperationLogResponse>;
   getCommandSnapshotRestorePlan(snapshotId: string): Promise<AdminCommandRestorePlan>;
   restoreCommandSnapshot(snapshotId: string): Promise<AdminCommandSnapshotRestoreResult>;
@@ -1728,6 +1763,7 @@ export interface CreateAdminApiClientInput {
   fetch?: typeof fetch;
   auth?: { session_token: string };
   signal?: AbortSignal;
+  onAuthExpired?: () => void;
 }
 
 function redactApprovalResult(
@@ -1748,9 +1784,20 @@ function redactApprovalResult(
 
 export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApiClient {
   const baseFetch = input.fetch ?? fetch;
-  const fetchImpl: typeof fetch = input.signal
-    ? (resource, init) => baseFetch(resource, { ...(init ?? {}), signal: input.signal })
+  const authAwareFetch: typeof fetch = input.onAuthExpired
+    ? async (resource, init) => {
+        const response = await baseFetch(resource, init);
+
+        if (response.status === 401) {
+          input.onAuthExpired?.();
+        }
+
+        return response;
+      }
     : baseFetch;
+  const fetchImpl: typeof fetch = input.signal
+    ? (resource, init) => authAwareFetch(resource, { ...(init ?? {}), signal: input.signal })
+    : authAwareFetch;
   const protectedHeaders = adminAuthHeaders(input.auth);
   const authMethods = createAdminAuthClientMethods({
     fetchImpl,
@@ -1772,6 +1819,53 @@ export function createAdminApiClient(input: CreateAdminApiClientInput): AdminApi
     ...authMethods,
     ...operationsMethods,
     ...sourceVideoMethods,
+    getCapabilities: async () => {
+      const response = await fetchImpl(joinUrl(input.base_url, "/api/v1/capabilities"), {
+        ...(protectedHeaders ? { headers: protectedHeaders } : {})
+      });
+      let payload: unknown;
+
+      try {
+        payload = await response.json();
+      } catch {
+        throw new AdminHttpError(
+          "invalid_response",
+          `capabilities 响应不是有效 JSON（HTTP ${response.status}）`,
+          response.status
+        );
+      }
+
+      if (isCapabilityTableV1(payload)) {
+        return payload;
+      }
+
+      if (typeof payload === "object" && payload !== null) {
+        const envelope = payload as Record<string, unknown>;
+
+        if (envelope.ok === true && isCapabilityTableV1(envelope.data)) {
+          return envelope.data;
+        }
+
+        if (envelope.ok === false) {
+          throw new AdminHttpError(
+            typeof envelope.error_code === "string" ? envelope.error_code : "capability_request_failed",
+            typeof envelope.message === "string" ? envelope.message : "capabilities 请求失败",
+            response.status,
+            typeof envelope.details === "object" && envelope.details !== null
+              ? envelope.details as Record<string, unknown>
+              : undefined
+          );
+        }
+      }
+
+      throw new AdminHttpError(
+        "invalid_response",
+        `capabilities 响应格式无法识别（HTTP ${response.status}）`,
+        response.status
+      );
+    },
+    getHealth: () =>
+      getJson<Record<string, unknown>>(fetchImpl, input.base_url, "/health", protectedHeaders),
     listCutterUsers: () =>
       getJson<AdminCutterUsersResponse>(fetchImpl, input.base_url, "/api/admin/cutter-users", protectedHeaders),
     approveCutterUser: (userId) =>
@@ -2177,6 +2271,36 @@ export function createFixtureAdminApiClient(): AdminApiClient {
       removed: true
     }),
     getLibraryStatus: async () => ({ ...fixtureStatus }),
+    getCapabilities: async () => ({
+      contract_version: "1.0.0",
+      server_version: "fixture-2026.10",
+      server_product: "admin",
+      min_client_version: "0.1.0",
+      features: {
+        admin_capabilities: true,
+        event_batch: true,
+        release_v2: false,
+        smart_beta: false
+      },
+      limits: {
+        event_batch_max: 100,
+        page_max: 200,
+        upload_max_bytes: 16 * 1024 * 1024,
+        request_body_max_bytes: 1024 * 1024
+      },
+      generated_at: "2024-05-07T10:40:00.000Z"
+    }),
+    getHealth: async () => ({
+      status: "ok",
+      accounts_service: {
+        mode: "legacy",
+        migration_status: "not_required"
+      },
+      usage_service: {
+        mode: "legacy",
+        migration_status: "not_required"
+      }
+    }),
     getDataLoadingPlan: async () => cloneDataLoadingPlan(fixtureDataLoadingPlan()),
     getOperationsOverview: async () => fixtureOperationsOverview({
       status: fixtureStatus,
@@ -2534,13 +2658,14 @@ function summaryPreprocessJobs(
   };
 }
 
-function placeholderDoctorReport(status: AdminLibraryStatus): MixlabDoctorReport {
+function placeholderDoctorReport(status: AdminLibraryStatus): AdminDoctorReport {
   return {
     schema_version: "1.0",
     generated_at: status.updated_at,
     library_root: status.root_path,
     summary: { pass: 0, warn: 0, fail: 0 },
-    checks: []
+    checks: [],
+    source: "placeholder"
   };
 }
 
@@ -2693,27 +2818,208 @@ function placeholderDashboardMetrics(status: AdminLibraryStatus): AdminDashboard
   };
 }
 
-function settleWithin<T>(
+export type AdminDataSettlement = "ok" | "fallback";
+
+export interface AdminSettledResult<T> {
+  value: T;
+  settled: AdminDataSettlement;
+  error?: string;
+}
+
+function settlementErrorMessage(error: unknown, timedOut: boolean): string {
+  if (timedOut) {
+    return "请求超时，已显示备用数据";
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function settleWithin<T>(
   promise: Promise<T>,
   fallback: T,
   timeoutMs: number
-): Promise<T> {
+): Promise<AdminSettledResult<T>> {
   let settled = false;
 
   return new Promise((resolve) => {
-    const finish = (value: T) => {
+    const finish = (result: AdminSettledResult<T>) => {
       if (settled) {
         return;
       }
 
       settled = true;
       clearTimeout(timer);
-      resolve(value);
+      resolve(result);
     };
-    const timer = setTimeout(() => finish(fallback), timeoutMs);
+    const timer = setTimeout(() => finish({
+      value: fallback,
+      settled: "fallback",
+      error: settlementErrorMessage(new Error("timeout"), true)
+    }), timeoutMs);
 
-    promise.then(finish).catch(() => finish(fallback));
+    promise
+      .then((value) => finish({ value, settled: "ok" }))
+      .catch((error) => finish({
+        value: fallback,
+        settled: "fallback",
+        error: settlementErrorMessage(error, false)
+      }));
   });
+}
+
+function fieldSourceFromSettlement(
+  result: AdminSettledResult<unknown>,
+  updatedAt: string
+): AdminDashboardFieldSource {
+  if (result.settled === "ok") {
+    return { source: "api", updated_at: updatedAt };
+  }
+
+  return {
+    source: "fallback",
+    updated_at: updatedAt,
+    ...(result.error ? { error: result.error } : {})
+  };
+}
+
+export function adminDashboardFieldSource(
+  data: AdminDashboardData,
+  key: keyof AdminDashboardDataSourceMap
+): AdminDashboardFieldSource {
+  return data.data_source?.[key] ?? { source: "unknown" };
+}
+
+export function adminDashboardSourceLabel(source: AdminDashboardDataSource): string {
+  switch (source) {
+    case "api":
+      return "已从管理端接口读取";
+    case "fallback":
+      return "读取失败，当前为备用数据";
+    case "placeholder":
+      return "尚未读取";
+    default:
+      return "来源未确认";
+  }
+}
+
+export function adminSettingsSaveBlockReason(data: AdminDashboardData): string {
+  const source = adminDashboardFieldSource(data, "settings");
+
+  if (source.source === "api") {
+    return "";
+  }
+
+  const reason = source.error ? `（${source.error}）` : "";
+  return `设置数据${adminDashboardSourceLabel(source.source)}${reason}，保存已禁用：避免用备用或占位值覆盖真实管理配置。请重新加载设置数据后再保存。`;
+}
+
+export interface AdminDoctorReportStatus {
+  loaded: boolean;
+  source: AdminDashboardDataSource;
+  label: string;
+  tone: "pass" | "warn" | "fail";
+}
+
+export function adminDoctorReportStatus(data: AdminDashboardData): AdminDoctorReportStatus {
+  const source = adminDashboardFieldSource(data, "doctor");
+
+  if (source.source !== "api" || data.doctor.source === "placeholder") {
+    return {
+      loaded: false,
+      source: source.source,
+      label: source.source === "fallback" ? "系统检查读取失败" : "系统检查未检查",
+      tone: "warn"
+    };
+  }
+
+  const summary = data.doctor.summary;
+
+  return {
+    loaded: true,
+    source: "api",
+    label: summary.fail > 0
+      ? "系统检查存在需处理项"
+      : summary.warn > 0 ? "系统检查存在需关注项" : "系统检查通过",
+    tone: summary.fail > 0 ? "fail" : summary.warn > 0 ? "warn" : "pass"
+  };
+}
+
+export function adminDashboardDataWithJobs(
+  data: AdminDashboardData,
+  jobs: AdminPreprocessJobsResponse
+): AdminDashboardData {
+  return {
+    ...data,
+    jobs,
+    data_source: {
+      ...data.data_source,
+      supervisor: {
+        source: "api",
+        updated_at: jobs.supervisor.current_updated_at || jobs.supervisor.started_at || ""
+      }
+    }
+  };
+}
+
+export function adminDashboardDataWithSupervisorStatus(
+  data: AdminDashboardData,
+  supervisor: AdminPreprocessSupervisorStatus
+): AdminDashboardData {
+  return {
+    ...data,
+    jobs: { ...data.jobs, supervisor },
+    data_source: {
+      ...data.data_source,
+      supervisor: {
+        source: "api",
+        updated_at: supervisor.current_updated_at || supervisor.started_at || ""
+      }
+    }
+  };
+}
+
+export function adminDashboardDataWithDoctor(
+  data: AdminDashboardData,
+  doctor: MixlabDoctorReport
+): AdminDashboardData {
+  return {
+    ...data,
+    doctor: { ...doctor, source: "api" },
+    data_source: {
+      ...data.data_source,
+      doctor: { source: "api", updated_at: doctor.generated_at }
+    }
+  };
+}
+
+export function adminDashboardDataWithSourceVideoUpdated(
+  data: AdminDashboardData,
+  sourceVideo: AdminSourceVideo
+): AdminDashboardData {
+  const hasVideo = data.source_videos.some((video) => video.source_video_id === sourceVideo.source_video_id);
+
+  return {
+    ...data,
+    source_videos: hasVideo
+      ? data.source_videos.map((video) =>
+          video.source_video_id === sourceVideo.source_video_id ? { ...video, ...sourceVideo } : video
+        )
+      : data.source_videos
+  };
+}
+
+export function adminDashboardDataWithRuntime(
+  data: AdminDashboardData,
+  runtimeSettings: AdminRuntimeSettings
+): AdminDashboardData {
+  return {
+    ...data,
+    runtime: runtimeSettings,
+    data_source: {
+      ...data.data_source,
+      runtime: { source: "api" }
+    }
+  };
 }
 
 export async function loadAdminDashboardData(
@@ -2724,12 +3030,7 @@ export async function loadAdminDashboardData(
 
   if (!includeHeavy) {
     const libraryStatus = await client.getLibraryStatus();
-    const [
-      adminSettings,
-      adminSupervisor,
-      adminJobs,
-      dataLoadingPlan
-    ] = await Promise.all([
+    const [settingsResult, supervisorResult, jobsResult, planResult] = await Promise.all([
       settleWithin(client.getAdminSettings(), cloneSettings(settings), 6_000),
       settleWithin(client.getPreprocessSupervisorStatus(), jobs.supervisor, 6_000),
       settleWithin<AdminPreprocessJobsResponse | null>(
@@ -2739,18 +3040,31 @@ export async function loadAdminDashboardData(
       ),
       settleWithin(client.getDataLoadingPlan(), fixtureDataLoadingPlan(), 6_000)
     ]);
+    const supervisor = jobsResult.value?.supervisor ?? supervisorResult.value;
+    const supervisorFieldSource: AdminDashboardFieldSource = jobsResult.settled === "ok"
+      ? {
+          source: "api",
+          updated_at: supervisor.current_updated_at || supervisor.started_at || ""
+        }
+      : fieldSourceFromSettlement(supervisorResult, supervisor.current_updated_at);
 
     return {
       status: libraryStatus,
       path_checks: placeholderPathChecks(libraryStatus),
-      settings: adminSettings,
+      settings: settingsResult.value,
       source_videos: [],
-      jobs: adminJobs ?? summaryPreprocessJobs(libraryStatus, adminSupervisor),
+      jobs: jobsResult.value ?? summaryPreprocessJobs(libraryStatus, supervisor),
       indexes: placeholderIndexVersions(libraryStatus),
       doctor: placeholderDoctorReport(libraryStatus),
       runtime: cloneRuntimeSettings(runtime),
       metrics: placeholderDashboardMetrics(libraryStatus),
-      data_loading_plan: dataLoadingPlan
+      data_loading_plan: planResult.value,
+      data_source: {
+        settings: fieldSourceFromSettlement(settingsResult, settingsResult.value.updated_at),
+        supervisor: supervisorFieldSource,
+        runtime: { source: "placeholder" },
+        doctor: { source: "placeholder" }
+      }
     };
   }
 
@@ -2760,28 +3074,42 @@ export async function loadAdminDashboardData(
     adminRuntime,
     adminSourceVideos,
     adminJobs,
-    adminSupervisor,
     dataLoadingPlan
   ] = await Promise.all([
     client.getLibraryStatus(),
     client.getAdminSettings(),
     client.getRuntimeSettings(),
-    includeHeavy ? client.listSourceVideos() : Promise.resolve([]),
-    includeHeavy ? client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT }) : Promise.resolve(null),
-    includeHeavy ? Promise.resolve(null) : client.getPreprocessSupervisorStatus(),
+    client.listSourceVideos(),
+    client.listPreprocessJobs({ limit: ADMIN_PREPROCESS_JOB_DEFAULT_LOAD_LIMIT }),
     client.getDataLoadingPlan()
   ]);
+  const [pathChecks, indexVersions, doctorReport, metrics] = await Promise.all([
+    client.getPathChecks(),
+    client.listIndexVersions(),
+    client.getDoctorReport(),
+    client.getDashboardMetrics()
+  ]);
+  const supervisor = adminJobs.supervisor;
 
   return {
     status: libraryStatus,
-    path_checks: includeHeavy ? await client.getPathChecks() : placeholderPathChecks(libraryStatus),
+    path_checks: pathChecks,
     settings: adminSettings,
     source_videos: adminSourceVideos,
-    jobs: adminJobs ?? summaryPreprocessJobs(libraryStatus, adminSupervisor!),
-    indexes: includeHeavy ? await client.listIndexVersions() : placeholderIndexVersions(libraryStatus),
-    doctor: includeHeavy ? await client.getDoctorReport() : placeholderDoctorReport(libraryStatus),
+    jobs: adminJobs,
+    indexes: indexVersions,
+    doctor: { ...doctorReport, source: "api" },
     runtime: adminRuntime,
-    metrics: includeHeavy ? await client.getDashboardMetrics() : placeholderDashboardMetrics(libraryStatus),
-    data_loading_plan: dataLoadingPlan
+    metrics,
+    data_loading_plan: dataLoadingPlan,
+    data_source: {
+      settings: { source: "api", updated_at: adminSettings.updated_at },
+      supervisor: {
+        source: "api",
+        updated_at: supervisor.current_updated_at || supervisor.started_at || ""
+      },
+      runtime: { source: "api" },
+      doctor: { source: "api", updated_at: doctorReport.generated_at }
+    }
   };
 }

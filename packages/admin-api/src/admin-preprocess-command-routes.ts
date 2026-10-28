@@ -25,6 +25,9 @@ export type AdminBulkPreprocessRouteCommand =
   | "preprocess-retry-failed"
   | "preprocess-recover-processing";
 
+export const DEFAULT_ADMIN_BULK_PREPROCESS_LIMIT = 100;
+export const MAX_ADMIN_BULK_PREPROCESS_LIMIT = 500;
+
 export interface AdminBulkPreprocessRouteCommandInput<TApiInput extends AdminPreprocessCommandRouteApiInput> {
   api_input: TApiInput;
   command: AdminBulkPreprocessRouteCommand;
@@ -169,6 +172,28 @@ function queueUnprocessedLimit(body: Record<string, unknown>): number | undefine
   return parseOptionalPositiveInteger(body.queue_unprocessed_limit, "未处理素材入队数量");
 }
 
+/**
+ * Bulk routes must never fan out over the whole library by default: resolve an explicit
+ * request limit, otherwise a bounded default, and always cap at the maximum batch size.
+ */
+export function resolveAdminBulkPreprocessLimit(
+  body: Record<string, unknown>,
+  command: AdminBulkPreprocessRouteCommand
+): number {
+  const rawLimit = body.limit ??
+    (command === "preprocess-queue-unprocessed" ? body.queue_unprocessed_limit : undefined);
+
+  if (rawLimit === undefined) {
+    return DEFAULT_ADMIN_BULK_PREPROCESS_LIMIT;
+  }
+
+  if (!Number.isInteger(rawLimit) || Number(rawLimit) <= 0) {
+    throw new Error("批量处理数量必须是正整数");
+  }
+
+  return Math.min(Number(rawLimit), MAX_ADMIN_BULK_PREPROCESS_LIMIT);
+}
+
 function parseOptionalSourceVideoIds(body: Record<string, unknown>): string[] | undefined {
   const single = body.source_video_id;
   const multiple = body.source_video_ids;
@@ -259,11 +284,28 @@ async function handleBulkPreprocessRoute<
     }
   }
 
+  let body: Record<string, unknown>;
+  let limit: number;
+  try {
+    body = requireRequestRecord(await input.route_input.deps.read_request_json());
+    limit = resolveAdminBulkPreprocessLimit(body, input.command);
+  } catch (error) {
+    return {
+      handled: true,
+      status_code: 400,
+      body: apiError(
+        "invalid_request",
+        error instanceof Error ? error.message : "批量处理数量无效"
+      )
+    };
+  }
+
   let result: TBulkTransitionResult;
   try {
     result = await input.route_input.deps.run_bulk_transition_command({
       api_input: input.route_input.api_input,
-      command: input.command
+      command: input.command,
+      limit
     });
   } catch (error) {
     const dockerMvpBlock = dockerMvpCommandBlockedResult(error);

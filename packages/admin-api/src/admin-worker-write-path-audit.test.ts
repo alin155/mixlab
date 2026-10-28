@@ -104,7 +104,7 @@ test("standalone workers are explicitly enabled and record their remaining mvp-s
   assert.equal(preprocess.requires_explicit_enable_flag, true);
   assert.equal(publish.requires_explicit_enable_flag, true);
   assert.equal(preprocess.writer_lease_coverage, "partial");
-  assert.equal(publish.writer_lease_coverage, "none");
+  assert.equal(publish.writer_lease_coverage, "full");
   assert.deepEqual(preprocess.command_names, [
     "preprocess-worker-claim",
     "preprocess-worker-stage",
@@ -112,9 +112,12 @@ test("standalone workers are explicitly enabled and record their remaining mvp-s
     "preprocess-worker-fail",
     "preprocess-worker-refresh-counts"
   ]);
-  assert.deepEqual(publish.command_names, []);
+  assert.deepEqual(publish.command_names, ["preprocess-supervisor-publish-ready"]);
   assert.equal(preprocess.scan_mode, "folder-scan");
   assert.equal(publish.scan_mode, "status-scan");
+  assert.equal(publish.audit_surfaces.includes("command-audit"), true);
+  assert.deepEqual(publish.runtime_policy_flags_used, ["auto_publish_index_enabled"]);
+  assert.deepEqual(publish.runtime_policy_flags_not_enforced, []);
   assert.ok(preprocess.functions.includes("createAdminWorkerLifecycleCommands"));
   assert.ok(preprocess.audit_surfaces.includes("command-audit"));
   assert.match(preprocess.gap, /NAS Docker defaults the flag to 0/);
@@ -123,6 +126,10 @@ test("standalone workers are explicitly enabled and record their remaining mvp-s
   assert.match(preprocess.gap, /claim_statuses=\[queued\]/);
   assert.match(publish.gap, /refuses to schedule it in Docker MVP v0\.1/);
   assert.match(publish.gap, /exits before publishing in MVP mode/);
+  assert.match(publish.gap, /same cross-process Admin writer lease/);
+  assert.match(publish.gap, /bounded wait via MIXLAB_READY_PUBLISH_LEASE_WAIT_MS/);
+  assert.match(publish.gap, /enforces runtime_policy\.auto_publish_index_enabled/);
+  assert.match(publish.gap, /operation-log audit events/);
 });
 
 test("low-level lifecycle primitives must not be treated as complete command protection", () => {

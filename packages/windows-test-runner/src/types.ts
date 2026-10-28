@@ -49,11 +49,23 @@ export interface RunnerConfig {
   reports_root: string;
   cutter_api_base_url: string;
   runner_version: string;
+  /** Bearer token required for every non-health endpoint when set. */
+  auth_token?: string;
+  /** Destructive suites must carry "confirm": true. Defaults depend on deployment mode. */
+  require_destructive_confirm?: boolean;
+  /** install_latest_and_smoke must carry an explicit installer_sha256. */
+  require_installer_sha256?: boolean;
+  /** Maximum accepted JSON request body size. */
+  max_body_bytes?: number;
+  /** Extra allowed browser origins (loopback origins are always allowed). */
+  allowed_origins?: string[];
 }
 
 export interface RunRequest {
   suite: RunnerSuite;
   options?: Record<string, unknown>;
+  /** Required for destructive suites when require_destructive_confirm is enabled. */
+  confirm?: boolean;
 }
 
 export interface TimelineEvent {

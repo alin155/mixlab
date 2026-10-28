@@ -7,6 +7,9 @@ import type {
   UsageMetrics
 } from "../../api.ts";
 import {
+  adminDashboardFieldSource,
+  adminDashboardSourceLabel,
+  adminDoctorReportStatus,
   createAdminSmartScanReport,
   summarizeAdminPreprocessFailures,
   type AdminSmartScanAction,
@@ -22,6 +25,7 @@ import {
   formatAdminDuration,
   formatAdminFileSize
 } from "../../app/view-model.ts";
+import { formatAdminDateTime } from "../../app/datetime.ts";
 import {
   AdminControlButton,
   AdminInfoGroups,
@@ -32,18 +36,7 @@ import {
 } from "../shared.tsx";
 
 function compactDateTimeLabel(value: string): string {
-  const normalized = value.trim().replace("T", " ");
-
-  if (!normalized) {
-    return "暂无估算";
-  }
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/.exec(normalized);
-  if (match) {
-    return `${match[2]}-${match[3]} ${match[4]}:${match[5]}`;
-  }
-
-  return normalized.length > 16 ? `${normalized.slice(0, 16)}...` : normalized;
+  return formatAdminDateTime(value, { compact: true, fallback: "暂无估算" });
 }
 
 function DashboardPanel({
@@ -467,6 +460,17 @@ function dashboardFailureDetail({
 }
 
 function dashboardHealthLabel(data: AdminDashboardData, report: AdminSmartScanReport): string {
+  const doctorStatus = adminDoctorReportStatus(data);
+  const supervisorSource = adminDashboardFieldSource(data, "supervisor").source;
+
+  if (!doctorStatus.loaded) {
+    return doctorStatus.source === "fallback" ? "系统检查读取失败" : "系统检查未读取";
+  }
+
+  if (supervisorSource !== "api") {
+    return "预处理状态未确认";
+  }
+
   if (report.severity === "blocked") {
     return "需要处理";
   }
@@ -483,6 +487,13 @@ function dashboardHealthLabel(data: AdminDashboardData, report: AdminSmartScanRe
 }
 
 function statusSentence(data: AdminDashboardData, report: AdminSmartScanReport): string {
+  const doctorLoaded = adminDoctorReportStatus(data).loaded;
+  const supervisorConfirmed = adminDashboardFieldSource(data, "supervisor").source === "api";
+
+  if (!doctorLoaded || !supervisorConfirmed) {
+    return "部分状态尚未读取（系统检查或预处理服务），请刷新页面或稍后重试后再判断。";
+  }
+
   if (report.primary_action !== "none") {
     return report.detail;
   }
@@ -560,7 +571,7 @@ export function DashboardPage({
   scanNewStatus?: AdminLibraryScanNewStatus | null;
   activeAdminCommandLabel?: string;
 }) {
-  const report = smartScanReport ?? createAdminSmartScanReport(data);
+  const rawReport = smartScanReport ?? createAdminSmartScanReport(data);
   const dashboardWriteState = "m9b-api" as const;
   const averageProcessMs = data.metrics.production.average_video_process_ms;
   const runtimeLoad = data.metrics.runtime_load;
@@ -568,6 +579,20 @@ export function DashboardPage({
   const usageFunnelRows = adminUsageFunnelRows(data.metrics.usage);
   const corePathHealth = adminCorePathHealth(data);
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
+  const doctorStatus = adminDoctorReportStatus(data);
+  const doctorSource = adminDashboardFieldSource(data, "doctor");
+  const supervisorSource = adminDashboardFieldSource(data, "supervisor");
+  const supervisorConfirmed = supervisorSource.source === "api";
+  const report: AdminSmartScanReport = supervisorConfirmed && doctorStatus.loaded
+    ? rawReport
+    : {
+        severity: "attention",
+        title: "部分状态尚未读取",
+        detail: "预处理服务或系统检查数据尚未从接口读取，本页结论可能不完整；请刷新或重新运行系统检查。",
+        primary_action: "run-doctor",
+        primary_label: "重新运行系统检查",
+        suggestions: []
+      };
   const readyRatio = data.status.video_count > 0
     ? Math.round((data.status.ready_video_count / data.status.video_count) * 100)
     : 0;
@@ -603,9 +628,11 @@ export function DashboardPage({
   const healthRows = [
     {
       label: "预处理流水线",
-      value: data.jobs.supervisor.state_label,
-      detail: preprocessHealthDetail,
-      tone: preprocessHealthTone
+      value: supervisorConfirmed ? data.jobs.supervisor.state_label : "状态未确认",
+      detail: supervisorConfirmed
+        ? preprocessHealthDetail
+        : `未能读取预处理服务状态：${adminDashboardSourceLabel(supervisorSource.source)}`,
+      tone: supervisorConfirmed ? preprocessHealthTone : "attention"
     },
     {
       label: "素材上线",
@@ -617,9 +644,13 @@ export function DashboardPage({
     },
     {
       label: "系统检查",
-      value: data.doctor.summary.fail > 0 ? "存在失败项" : data.doctor.summary.warn > 0 ? "存在警告项" : "通过",
-      detail: `通过 ${data.doctor.summary.pass} / 警告 ${data.doctor.summary.warn} / 失败 ${data.doctor.summary.fail}`,
-      tone: data.doctor.summary.fail > 0 ? "blocked" : data.doctor.summary.warn > 0 ? "attention" : "healthy"
+      value: !doctorStatus.loaded
+        ? doctorStatus.source === "fallback" ? "读取失败" : "未检查"
+        : data.doctor.summary.fail > 0 ? "存在失败项" : data.doctor.summary.warn > 0 ? "存在警告项" : "通过",
+      detail: !doctorStatus.loaded
+        ? `${adminDashboardSourceLabel(doctorSource.source)}，不显示正常结论`
+        : `通过 ${data.doctor.summary.pass} / 警告 ${data.doctor.summary.warn} / 失败 ${data.doctor.summary.fail}`,
+      tone: !doctorStatus.loaded ? "attention" : data.doctor.summary.fail > 0 ? "blocked" : data.doctor.summary.warn > 0 ? "attention" : "healthy"
     },
     {
       label: "系统负荷",
@@ -728,10 +759,18 @@ export function DashboardPage({
               tone={data.status.unprocessed_video_count + data.jobs.queued_count > 0 ? "attention" : "healthy"}
             />
             <DashboardSimpleTile
-              label={supervisorRunning ? "正在处理" : data.status.processing_video_count > 0 ? "需要恢复" : "处理服务"}
-              value={supervisorRunning ? data.jobs.active_count > 0 ? data.jobs.active_count : "运行中" : data.status.processing_video_count > 0 ? data.status.processing_video_count : data.jobs.supervisor.state_label}
-              detail={supervisorRunning ? "系统正在自动生成文案、封面和索引产物" : data.status.processing_video_count > 0 ? "有任务停留在处理中，请到素材处理页恢复" : "需要处理素材时可在素材处理页启动"}
-              tone={data.status.processing_video_count > 0 && !supervisorRunning ? "blocked" : supervisorRunning ? "healthy" : "neutral"}
+              label={!supervisorConfirmed
+                ? "处理服务"
+                : supervisorRunning ? "正在处理" : data.status.processing_video_count > 0 ? "需要恢复" : "处理服务"}
+              value={!supervisorConfirmed
+                ? supervisorSource.source === "fallback" ? "读取失败" : "未确认"
+                : supervisorRunning
+                  ? data.jobs.active_count > 0 ? data.jobs.active_count : "运行中"
+                  : data.status.processing_video_count > 0 ? data.status.processing_video_count : data.jobs.supervisor.state_label}
+              detail={!supervisorConfirmed
+                ? `未能读取预处理服务状态：${adminDashboardSourceLabel(supervisorSource.source)}`
+                : supervisorRunning ? "系统正在自动生成文案、封面和索引产物" : data.status.processing_video_count > 0 ? "有任务停留在处理中，请到素材处理页恢复" : "需要处理素材时可在素材处理页启动"}
+              tone={!supervisorConfirmed ? "attention" : data.status.processing_video_count > 0 && !supervisorRunning ? "blocked" : supervisorRunning ? "healthy" : "neutral"}
             />
             <DashboardSimpleTile
               label="已处理待上线"
@@ -747,9 +786,13 @@ export function DashboardPage({
             />
             <DashboardSimpleTile
               label="系统状态"
-              value={data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "正常"}
-              detail={`检查通过 ${data.doctor.summary.pass}，警告 ${data.doctor.summary.warn}，失败 ${data.doctor.summary.fail}`}
-              tone={data.doctor.summary.fail > 0 ? "blocked" : data.doctor.summary.warn > 0 ? "attention" : "healthy"}
+              value={!doctorStatus.loaded
+                ? doctorStatus.source === "fallback" ? "读取失败" : "未检查"
+                : data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "正常"}
+              detail={!doctorStatus.loaded
+                ? `${adminDashboardSourceLabel(doctorSource.source)}，页面不显示“正常”结论`
+                : `检查通过 ${data.doctor.summary.pass}，警告 ${data.doctor.summary.warn}，失败 ${data.doctor.summary.fail}`}
+              tone={!doctorStatus.loaded ? "attention" : data.doctor.summary.fail > 0 ? "blocked" : data.doctor.summary.warn > 0 ? "attention" : "healthy"}
             />
           </section>
           <section className="admin-simple-flow" aria-label="自动处理流程">
@@ -1095,7 +1138,12 @@ export function DashboardPage({
               { label: "当前状态", value: statusToneText(runtimeLoad.overall_status) },
               { label: "处理建议", value: data.jobs.observability.load_advice },
               { label: "预计完成", value: compactDateTimeLabel(data.jobs.observability.estimated_all_done_at) },
-              { label: "服务状态", value: data.jobs.supervisor.state_label }
+              {
+                label: "服务状态",
+                value: supervisorConfirmed
+                  ? data.jobs.supervisor.state_label
+                  : `未确认（${adminDashboardSourceLabel(supervisorSource.source)}）`
+              }
             ]}
           />
         </section>
@@ -1137,8 +1185,10 @@ export function DashboardPage({
       </div>
       <InspectorPanel title="公共库摘要">
         <div className="admin-dashboard-inspector-head">
-          <span className={`admin-status-badge is-${data.doctor.summary.fail > 0 ? "failed" : data.doctor.summary.warn > 0 ? "warning" : "ready"}`}>
-            {data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "可服务" : "可服务"}
+          <span className={`admin-status-badge is-${!doctorStatus.loaded ? "warning" : data.doctor.summary.fail > 0 ? "failed" : data.doctor.summary.warn > 0 ? "warning" : "ready"}`}>
+            {!doctorStatus.loaded
+              ? "未检查"
+              : data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "可服务" : "可服务"}
           </span>
         </div>
         <dl className="admin-dashboard-kv">
@@ -1152,7 +1202,7 @@ export function DashboardPage({
           </div>
           <div>
             <dt>最近扫描</dt>
-            <dd>{data.status.updated_at}</dd>
+            <dd>{formatAdminDateTime(data.status.updated_at)}</dd>
           </div>
           <div>
             <dt>刷新方式</dt>

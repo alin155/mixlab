@@ -672,3 +672,68 @@ test("single source-video retry skips permanent source failure", async () => {
   assert.equal(library?.failed_video_count, 1);
   assert.equal(library?.queued_video_count, 0);
 });
+
+test("bulk transition command truncates at the requested limit and reports skipped count", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const manifests = ["V000001", "V000002", "V000003", "V000004"].map((sourceVideoId) =>
+    sourceVideoManifest({
+      source_video_id: sourceVideoId,
+      preprocess_status: "unprocessed",
+      visible_to_cutters: false
+    })
+  );
+  await seedLibrary({
+    library_root: libraryRoot,
+    manifests,
+    counts: counts({
+      video_count: 4,
+      unprocessed_video_count: 4
+    }),
+    updated_at: "2026-06-26T10:50:00.000Z"
+  });
+
+  const result = await runAdminBulkTransitionCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command: "preprocess-queue-unprocessed",
+    limit: 2,
+    command_now: "2026-06-26T10:51:00.000Z",
+    now: () => "2026-06-26T10:51:01.000Z"
+  });
+
+  assert.equal(result.affected_count, 2);
+  assert.deepEqual(result.source_video_ids, ["V000001", "V000002"]);
+  assert.equal(result.skipped_by_limit_count, 2);
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000003")).preprocess_status, "unprocessed");
+  assert.equal((await readSourceVideoManifest(libraryRoot, "V000004")).preprocess_status, "unprocessed");
+  assert.equal((await readAdminLibraryManifest(libraryRoot))?.unprocessed_video_count, 2);
+});
+
+test("bulk transition command without a limit keeps processing all eligible items", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedLibrary({
+    library_root: libraryRoot,
+    manifests: ["V000001", "V000002"].map((sourceVideoId) =>
+      sourceVideoManifest({
+        source_video_id: sourceVideoId,
+        preprocess_status: "unprocessed",
+        visible_to_cutters: false
+      })
+    ),
+    counts: counts({ video_count: 2, unprocessed_video_count: 2 }),
+    updated_at: "2026-06-26T10:52:00.000Z"
+  });
+
+  const result = await runAdminBulkTransitionCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command: "preprocess-queue-unprocessed",
+    command_now: "2026-06-26T10:53:00.000Z",
+    now: () => "2026-06-26T10:53:01.000Z"
+  });
+
+  assert.equal(result.affected_count, 2);
+  assert.equal(result.skipped_by_limit_count, 0);
+});

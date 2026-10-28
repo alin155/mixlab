@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppShell,
   InspectorPanel,
 } from "@mixlab/ui-foundation";
 import {
+  adminDashboardDataWithDoctor,
+  adminDashboardDataWithJobs,
+  adminDashboardDataWithRuntime,
+  adminDashboardDataWithSourceVideoUpdated,
+  adminDashboardDataWithSupervisorStatus,
+  adminDashboardFieldSource,
+  adminDashboardSourceLabel,
+  adminDoctorReportStatus,
   createAdminApiClient,
   createAdminSmartScanReport,
   createFixtureAdminApiClient,
@@ -46,6 +54,7 @@ import {
   writeAdminAuthSession,
   type StoredAdminAuthSession
 } from "../auth.ts";
+import { isAdminAuthExpiredError, isAdminHttpError } from "../admin-http.ts";
 import { DashboardPage } from "../features/dashboard/DashboardPage.tsx";
 import { CutterUsersPage } from "../features/cutter-users/CutterUsersPage.tsx";
 import { DoctorPage } from "../features/doctor/DoctorPage.tsx";
@@ -65,7 +74,12 @@ import {
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { AdminSourceDetailPage } from "../features/source-detail/AdminSourceDetailPage.tsx";
 import { SourceVideosPage } from "../features/source-videos/SourceVideosPage.tsx";
-import { EmptyState } from "../features/shared.tsx";
+import {
+  AdminCommandProgressPanel,
+  AdminConfirmDialog,
+  AdminOperationResultDialog,
+  EmptyState
+} from "../features/shared.tsx";
 import {
   adminNavItemsForMode,
   adminRouteForMode,
@@ -76,6 +90,24 @@ import {
   type AdminRoute
 } from "./navigation.ts";
 import { chineseDiagnosticText } from "./chinese.ts";
+import { adminErrorCodeInfo, adminErrorTechnicalDetail } from "./admin-error-codes.ts";
+import {
+  adminBatchPublishImpact,
+  adminLongAsrImpact,
+  adminPausePreprocessImpact,
+  adminStartPreprocessImpact
+} from "./destructive-action-impact.ts";
+import { ADMIN_SEARCH_DEBOUNCE_MS, createAdminDebouncedCallback } from "./debounce.ts";
+import {
+  adminCapabilityGate,
+  adminCapabilityUnavailableMessage,
+  resolveAdminClientVersion,
+  type AdminCapabilityState
+} from "./capabilities.ts";
+import {
+  parseAdminServiceModes,
+  type AdminServiceModes
+} from "./service-modes.ts";
 import { adminCommandActionStartDecision } from "./command-cancellation-policy.ts";
 import {
   EMPTY_ADMIN_ROUTE_LOCAL_READ_ERRORS,
@@ -166,11 +198,28 @@ function pendingScanNewStatus(now = new Date().toISOString()): AdminLibraryScanN
   };
 }
 
+let installedAdminAuthExpiredHandler: (() => void) | null = null;
+
+export function setInstalledAdminAuthExpiredHandler(handler: (() => void) | null): void {
+  installedAdminAuthExpiredHandler = handler;
+}
+
+function notifyInstalledAdminAuthExpired(): void {
+  installedAdminAuthExpiredHandler?.();
+}
+
 export function resolveAdminRuntimeApiBaseUrl(input: {
   viteApiBaseUrl?: string;
   useFixtureData?: boolean;
+  isProduction?: boolean;
 }): string {
   if (input.useFixtureData) {
+    if (input.isProduction) {
+      throw new Error(
+        "fixture 数据模式（VITE_MIXLAB_USE_FIXTURE_DATA=true）禁止用于生产构建；请改为连接真实管理端 API。"
+      );
+    }
+
     return "";
   }
 
@@ -191,7 +240,8 @@ function createRuntimeClient(
     ? createAdminApiClient({
         base_url: baseUrl,
         ...(authSession ? { auth: { session_token: authSession.session_token } } : {}),
-        ...(options.signal ? { signal: options.signal } : {})
+        ...(options.signal ? { signal: options.signal } : {}),
+        onAuthExpired: notifyInstalledAdminAuthExpired
       })
     : createFixtureAdminApiClient();
 }
@@ -230,7 +280,13 @@ function routeTitle(route: AdminRoute): string {
   return labels[route];
 }
 
-function adminDoctorSummaryLabel(data: AdminDashboardData): string {
+export function adminDoctorSummaryLabel(data: AdminDashboardData): string {
+  const status = adminDoctorReportStatus(data);
+
+  if (!status.loaded) {
+    return adminDashboardFieldSource(data, "doctor").source === "fallback" ? "读取失败" : "未检查";
+  }
+
   if (data.doctor.summary.fail > 0) {
     return `${data.doctor.summary.fail} 项需处理`;
   }
@@ -242,7 +298,13 @@ function adminDoctorSummaryLabel(data: AdminDashboardData): string {
   return "正常";
 }
 
-function adminPreprocessRuntimeLabel(data: AdminDashboardData): string {
+export function adminPreprocessRuntimeLabel(data: AdminDashboardData): string {
+  const supervisorSource = adminDashboardFieldSource(data, "supervisor").source;
+
+  if (supervisorSource !== "api") {
+    return supervisorSource === "fallback" ? "读取失败" : "状态未确认";
+  }
+
   if (data.jobs.supervisor.state === "running") {
     return "运行中";
   }
@@ -375,7 +437,8 @@ export async function loadAdminPreprocessRouteData(
 function withAdminLoadTimeout<T>(
   promise: Promise<T>,
   label: string,
-  timeoutMs = ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS
+  timeoutMs = ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS,
+  options: { command?: boolean } = {}
 ): Promise<T> {
   let settled = false;
 
@@ -386,7 +449,9 @@ function withAdminLoadTimeout<T>(
       }
 
       settled = true;
-      reject(new Error(`${label}响应较慢，请稍后自动刷新或缩小范围。`));
+      reject(new Error(options.command
+        ? "请求超时，命令可能仍在执行，请刷新操作记录确认。"
+        : `${label}响应较慢，请稍后自动刷新或缩小范围。`));
     }, timeoutMs);
 
     promise
@@ -475,13 +540,29 @@ function mergeAdminDashboardShellData(
   current: AdminDashboardData,
   next: AdminDashboardData
 ): AdminDashboardData {
+  const mergedDataSource = {
+    ...current.data_source,
+    ...next.data_source
+  };
+
+  // shell 首屏不会真实读取 doctor/runtime；不要用占位来源覆盖已通过路由读取的真实来源。
+  for (const key of ["doctor", "runtime"] as const) {
+    const currentSource = current.data_source?.[key];
+    const nextSource = next.data_source?.[key];
+
+    if (currentSource?.source === "api" && nextSource?.source !== "api") {
+      mergedDataSource[key] = currentSource;
+    }
+  }
+
   return {
     ...next,
     source_videos: next.source_videos.length > 0 ? next.source_videos : current.source_videos,
     jobs: {
       ...next.jobs,
       jobs: next.jobs.jobs.length > 0 ? next.jobs.jobs : current.jobs.jobs
-    }
+    },
+    data_source: mergedDataSource
   };
 }
 
@@ -493,16 +574,15 @@ export function mergeAdminDashboardPanelData(
     metrics: AdminDashboardMetrics;
   }
 ): AdminDashboardData {
-  return {
+  return adminDashboardDataWithJobs({
     ...current,
     status: next.status,
-    jobs: next.jobs,
     metrics: next.metrics,
     indexes: {
       ...current.indexes,
       current_version: next.status.current_index_version || current.indexes.current_version
     }
-  };
+  }, next.jobs);
 }
 
 async function loadAdminDashboardPanelData(client: AdminApiClient): Promise<{
@@ -521,6 +601,27 @@ async function loadAdminDashboardPanelData(client: AdminApiClient): Promise<{
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
+}
+
+interface AdminConfirmationRequest {
+  title: string;
+  summary: string;
+  items: string[];
+  confirm_label?: string;
+  danger?: boolean;
+  run: () => Promise<void>;
+}
+
+interface AdminCommandProgressState {
+  label: string;
+  detail: string;
+  percent: number;
+  stop_requested: boolean;
+}
+
+interface AdminCommandResultState {
+  title: string;
+  items: string[];
 }
 
 interface AdminActionHandlers {
@@ -544,6 +645,7 @@ interface AdminActionHandlers {
   onStopPreprocessSupervisor: () => Promise<void>;
   onRepairIndex: () => Promise<void>;
   onRunDoctor: () => Promise<void>;
+  onReloadAdminData: () => void;
   onTestAsrConfig: () => Promise<void>;
   onSaveAdminSettings: (settings: AdminSettingsConfigUpdate) => Promise<void>;
   onUpdateSourceVideoMetadata: (
@@ -672,6 +774,22 @@ export function adminActionErrorMessage(label: string, error: unknown): string {
     return `${label}失败，请稍后重试。`;
   }
 
+  if (isAdminHttpError(error)) {
+    const info = adminErrorCodeInfo(error.code);
+
+    if (info) {
+      return `${label}失败：${info.title}。${info.action}`;
+    }
+
+    const serverMessage = error.serverMessage.trim();
+
+    if (serverMessage && containsChinese(serverMessage)) {
+      return `${label}失败：${serverMessage}（错误码：${error.code}）`;
+    }
+
+    return `${label}失败，请稍后重试。（错误码：${error.code}）`;
+  }
+
   const rawMessage = error.message.trim();
   const normalizedMessage = rawMessage.toLowerCase();
 
@@ -689,6 +807,65 @@ export function adminActionErrorMessage(label: string, error: unknown): string {
   }
 
   return `${label}失败，请稍后重试。`;
+}
+
+export function formatAdminRetryAfterSeconds(value: number): string {
+  const seconds = Math.max(1, Math.ceil(value));
+
+  if (seconds >= 60) {
+    return `${Math.ceil(seconds / 60)} 分钟`;
+  }
+
+  return `${seconds} 秒`;
+}
+
+export function adminAuthFormErrorMessage(label: string, error: unknown): string {
+  if (isAdminHttpError(error)) {
+    const retryAfterSeconds = (() => {
+      const details = error.details ?? {};
+      const direct = details.retry_after_seconds ?? details.retry_after;
+
+      if (typeof direct === "number" && Number.isFinite(direct) && direct > 0) {
+        return direct;
+      }
+
+      const milliseconds = details.retry_after_ms;
+
+      if (typeof milliseconds === "number" && Number.isFinite(milliseconds) && milliseconds > 0) {
+        return milliseconds / 1_000;
+      }
+
+      return null;
+    })();
+
+    const normalizedCode = error.code.toLowerCase();
+
+    if (error.status === 429 || normalizedCode === "login_rate_limited" || normalizedCode.includes("rate_limited")) {
+      return retryAfterSeconds
+        ? `登录失败次数过多，请在 ${formatAdminRetryAfterSeconds(retryAfterSeconds)}后重试。`
+        : "登录失败次数过多，请稍后重试。";
+    }
+
+    const serverMessage = error.serverMessage.trim();
+
+    if (normalizedCode === "registration_forbidden" || normalizedCode.includes("registration_token")) {
+      if (serverMessage && containsChinese(serverMessage)) {
+        return `注册失败：${serverMessage}`;
+      }
+
+      return "注册令牌不正确或已失效：请向部署管理员获取有效的注册令牌后重试。";
+    }
+
+    if (error.status === 403) {
+      if (serverMessage && containsChinese(serverMessage)) {
+        return `操作被拒绝：${serverMessage}`;
+      }
+
+      return "当前操作被服务端拒绝：请确认注册令牌或联系部署管理员。";
+    }
+  }
+
+  return adminActionErrorMessage(label, error);
 }
 
 function isActionResult(value: unknown): value is AdminActionResult {
@@ -833,7 +1010,11 @@ function renderPage(
     restoreExecution: CommandSnapshotRestoreExecutionState | null;
   },
   scanNewStatus: AdminLibraryScanNewStatus | null,
-  activeAdminCommandLabel: string
+  activeAdminCommandLabel: string,
+  capabilityState: AdminCapabilityState,
+  serviceModes: AdminServiceModes,
+  clientVersion: string,
+  onReloadCapabilities: () => void
 ) {
   const dockerMvpMode = surfaceMode === "docker-mvp-v0.1";
 
@@ -937,6 +1118,7 @@ function renderPage(
         onRepairIndex={dockerMvpMode ? undefined : actions.onRepairIndex}
         onPublishSourceVideo={actions.onPublishSourceVideo}
         onRunDoctor={actions.onRunDoctor}
+        capabilities={capabilityState}
       />
     );
   }
@@ -964,6 +1146,10 @@ function renderPage(
         runtimeDiagnostics={runtimeDiagnosticsState.history}
         runtimeDiagnosticsLoading={runtimeDiagnosticsState.loading}
         runtimeDiagnosticsError={runtimeDiagnosticsState.error}
+        capabilities={capabilityState}
+        serviceModes={serviceModes}
+        clientVersion={clientVersion}
+        onReloadCapabilities={onReloadCapabilities}
         onRunDoctor={actions.onRunDoctor}
         onExportDoctor={actions.onExportDoctor}
       />
@@ -981,6 +1167,8 @@ function renderPage(
         onTestAsrConfig={dockerMvpMode ? undefined : actions.onTestAsrConfig}
         onRunDoctor={actions.onRunDoctor}
         onExportDoctor={actions.onExportDoctor}
+        onReloadData={actions.onReloadAdminData}
+        serviceModes={serviceModes}
       />
     );
   }
@@ -1052,9 +1240,14 @@ export function AdminApp() {
   );
   const apiBaseUrl = useMemo(() => resolveAdminRuntimeApiBaseUrl({
     viteApiBaseUrl: import.meta.env?.VITE_MIXLAB_ADMIN_API_BASE_URL,
-    useFixtureData: import.meta.env?.VITE_MIXLAB_USE_FIXTURE_DATA === "true"
+    useFixtureData: import.meta.env?.VITE_MIXLAB_USE_FIXTURE_DATA === "true",
+    isProduction: import.meta.env?.PROD === true
   }), []);
   const apiMode = Boolean(apiBaseUrl);
+  const adminClientVersion = useMemo(
+    () => resolveAdminClientVersion(import.meta.env?.VITE_MIXLAB_BUILD_VERSION),
+    []
+  );
   const [adminAuthSession, setAdminAuthSession] = useState<StoredAdminAuthSession | null>(() => readAdminAuthSession());
   const [adminAuthStatus, setAdminAuthStatus] = useState<AdminAuthStatus | null>(() =>
     apiMode && adminAuthSession ? authStatusFromStoredSession(adminAuthSession) : null
@@ -1065,7 +1258,11 @@ export function AdminApp() {
   const [error, setError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionErrorTechnical, setActionErrorTechnical] = useState("");
   const [scanNewStatus, setScanNewStatus] = useState<AdminLibraryScanNewStatus | null>(null);
+  const [capabilityState, setCapabilityState] = useState<AdminCapabilityState>({ status: "loading" });
+  const [capabilityReloadToken, setCapabilityReloadToken] = useState(0);
+  const [serviceModes, setServiceModes] = useState<AdminServiceModes>(() => parseAdminServiceModes({}));
   const [activeAdminCommandLabel, setActiveAdminCommandLabel] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
   const [selectedSourceVideoId, setSelectedSourceVideoId] = useState("");
@@ -1079,6 +1276,7 @@ export function AdminApp() {
   const [sourceVideosHasMore, setSourceVideosHasMore] = useState(true);
   const [sourceVideosRuntime, setSourceVideosRuntime] = useState<AdminRuntimeEndpointMeta | null>(null);
   const [sourceVideoQuery, setSourceVideoQuery] = useState("");
+  const [sourceVideoQueryInput, setSourceVideoQueryInput] = useState("");
   const [sourceVideoStatusFilter, setSourceVideoStatusFilter] = useState<AdminPreprocessStatus | "all">("all");
   const [preprocessJobsLoading, setPreprocessJobsLoading] = useState(false);
   const [preprocessProcessHistory, setPreprocessProcessHistory] =
@@ -1115,12 +1313,17 @@ export function AdminApp() {
     useState<CommandSnapshotRestorePlanPreview | null>(null);
   const [commandSnapshotRestoreExecution, setCommandSnapshotRestoreExecution] =
     useState<CommandSnapshotRestoreExecutionState | null>(null);
+  const [adminConfirmation, setAdminConfirmation] = useState<AdminConfirmationRequest | null>(null);
+  const [adminCommandProgress, setAdminCommandProgress] = useState<AdminCommandProgressState | null>(null);
+  const [adminCommandResult, setAdminCommandResult] = useState<AdminCommandResultState | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const dashboardLoadingRef = useRef(false);
   const dashboardLoadedRef = useRef(false);
   const metricsLoadingRef = useRef(false);
   const dashboardPanelLoadingRef = useRef(false);
   const activeAdminCommandLabelRef = useRef("");
+  const adminConfirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const batchStopRequestedRef = useRef(false);
   const cutterUsersPrefetchLoadingRef = useRef(false);
   const cutterUsersRouteLoadingRef = useRef(false);
   const cutterUsersLoadedTokenRef = useRef(-1);
@@ -1141,6 +1344,104 @@ export function AdminApp() {
   const settingsRuntimeLoadingRef = useRef(false);
   const settingsRuntimeLoadedTokenRef = useRef(-1);
   const hasDashboardData = Boolean(data);
+  const authExpiredHandledRef = useRef(false);
+  const handleAdminAuthExpired = useCallback(() => {
+    if (authExpiredHandledRef.current) {
+      return;
+    }
+
+    authExpiredHandledRef.current = true;
+    setInstalledAdminAuthExpiredHandler(null);
+    clearAdminAuthSession();
+    setAdminAuthSession(null);
+    setAdminAuthStatus({
+      authenticated: false,
+      auth_mode: "password",
+      user: null,
+      bootstrap: {
+        has_admin: true,
+        registration_open: false
+      }
+    });
+    setAdminAuthError("登录已过期，请重新登录。");
+    setAdminAuthLoading(false);
+    activeAdminCommandLabelRef.current = "";
+    setActiveAdminCommandLabel("");
+    setActionError("");
+    setActionErrorTechnical("");
+    setActionNotice("");
+    setData(null);
+    dashboardLoadedRef.current = false;
+  }, []);
+  useEffect(() => {
+    setInstalledAdminAuthExpiredHandler(handleAdminAuthExpired);
+
+    return () => {
+      setInstalledAdminAuthExpiredHandler(null);
+    };
+  }, [handleAdminAuthExpired]);
+  const handleAdminRequestError = useCallback((label: string, requestError: unknown): string => {
+    if (isAdminAuthExpiredError(requestError)) {
+      handleAdminAuthExpired();
+      return "登录已过期，请重新登录。";
+    }
+
+    return adminActionErrorMessage(label, requestError);
+  }, [handleAdminAuthExpired]);
+  const clearActionError = useCallback(() => {
+    setActionError("");
+    setActionErrorTechnical("");
+  }, []);
+  const reportActionError = useCallback((label: string, actionFailure: unknown) => {
+    if (isAdminAuthExpiredError(actionFailure)) {
+      handleAdminAuthExpired();
+      return;
+    }
+
+    setActionError(adminActionErrorMessage(label, actionFailure));
+    setActionErrorTechnical(adminErrorTechnicalDetail(actionFailure));
+  }, [handleAdminAuthExpired]);
+  const requestAdminConfirmation = useCallback((request: AdminConfirmationRequest): Promise<boolean> => {
+    const activeLabel = activeAdminCommandLabelRef.current;
+
+    if (activeLabel) {
+      setActionError(adminCommandActionStartDecision(activeLabel, request.title).message);
+      setActionErrorTechnical("");
+      return Promise.resolve(false);
+    }
+
+    if (adminConfirmationResolverRef.current) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise<boolean>((resolve) => {
+      adminConfirmationResolverRef.current = resolve;
+      setAdminConfirmation(request);
+    });
+  }, []);
+  const settleAdminConfirmation = useCallback((confirmed: boolean) => {
+    const resolve = adminConfirmationResolverRef.current;
+    const request = adminConfirmation;
+    adminConfirmationResolverRef.current = null;
+    setAdminConfirmation(null);
+
+    if (resolve) {
+      resolve(confirmed);
+    }
+
+    if (confirmed && request) {
+      void request.run();
+    }
+  }, [adminConfirmation]);
+  const requestStopAdminCommand = useCallback(() => {
+    batchStopRequestedRef.current = true;
+    setAdminCommandProgress((current) => current ? { ...current, stop_requested: true } : current);
+  }, []);
+  const searchDebounce = useMemo(
+    () => createAdminDebouncedCallback((value: string) => setSourceVideoQuery(value), ADMIN_SEARCH_DEBOUNCE_MS),
+    []
+  );
+  useEffect(() => () => searchDebounce.cancel(), [searchDebounce]);
   const client = useMemo(
     () => createRuntimeClient(apiBaseUrl, adminAuthSession),
     [apiBaseUrl, adminAuthSession]
@@ -1158,7 +1459,7 @@ export function AdminApp() {
       setAdminRouteLocalReadError(
         current,
         key,
-        adminActionErrorMessage(adminRouteLocalReadLabel(key), error)
+        handleAdminRequestError(adminRouteLocalReadLabel(key), error)
       )
     );
   };
@@ -1202,7 +1503,6 @@ export function AdminApp() {
       setAdminAuthStatus((current) => current?.authenticated ? current : authStatusFromStoredSession(adminAuthSession));
     }
     setAdminAuthLoading(true);
-    setAdminAuthError("");
     requestScope.client.getAuthStatus()
       .then((status) => {
         if (cancelled) {
@@ -1210,22 +1510,33 @@ export function AdminApp() {
         }
 
         setAdminAuthStatus(status);
+        if (status.authenticated) {
+          authExpiredHandledRef.current = false;
+        }
         if (!status.authenticated && adminAuthSession) {
           clearAdminAuthSession();
           setAdminAuthSession(null);
+          setAdminAuthError("登录已过期，请重新登录。");
         }
       })
       .catch((statusError) => {
-        if (!cancelled) {
-          if (adminAuthSession) {
-            setAdminAuthStatus((current) =>
-              current?.authenticated ? current : authStatusFromStoredSession(adminAuthSession)
-            );
-          } else {
-            setAdminAuthStatus(null);
-          }
-          setAdminAuthError(adminLoadErrorMessage(statusError));
+        if (cancelled) {
+          return;
         }
+
+        if (isAdminAuthExpiredError(statusError)) {
+          handleAdminAuthExpired();
+          return;
+        }
+
+        if (adminAuthSession) {
+          setAdminAuthStatus((current) =>
+            current?.authenticated ? current : authStatusFromStoredSession(adminAuthSession)
+          );
+        } else {
+          setAdminAuthStatus(null);
+        }
+        setAdminAuthError(adminLoadErrorMessage(statusError));
       })
       .finally(() => {
         if (!cancelled) {
@@ -1238,6 +1549,62 @@ export function AdminApp() {
       requestScope.abort();
     };
   }, [adminAuthSession, apiBaseUrl, apiMode, client]);
+
+  useEffect(() => {
+    if (!canLoadAdminData) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestScope = createRuntimeRequestScope(apiBaseUrl, adminAuthSession);
+    setCapabilityState((current) => current.status === "ready" ? current : { status: "loading" });
+    void Promise.allSettled([
+      withAdminLoadTimeout(requestScope.client.getCapabilities(), "版本信息加载"),
+      requestScope.client.getHealth()
+    ])
+      .then(([capabilityResult, healthResult]) => {
+        if (cancelled) {
+          return;
+        }
+
+        let capabilityPayload: unknown = null;
+
+        if (capabilityResult.status === "fulfilled") {
+          capabilityPayload = capabilityResult.value;
+          setCapabilityState({ status: "ready", table: capabilityResult.value });
+        } else if (isAdminAuthExpiredError(capabilityResult.reason)) {
+          handleAdminAuthExpired();
+          return;
+        } else {
+          setCapabilityState({
+            status: "unavailable",
+            message: adminCapabilityUnavailableMessage(capabilityResult.reason)
+          });
+        }
+
+        let healthPayload: unknown = null;
+
+        if (healthResult.status === "fulfilled") {
+          healthPayload = healthResult.value;
+        } else if (isAdminAuthExpiredError(healthResult.reason)) {
+          handleAdminAuthExpired();
+          return;
+        }
+
+        setServiceModes(parseAdminServiceModes({
+          capabilities: capabilityPayload,
+          health: healthPayload
+        }));
+      })
+      .finally(() => {
+        requestScope.abort();
+      });
+
+    return () => {
+      cancelled = true;
+      requestScope.abort();
+    };
+  }, [adminAuthSession, apiBaseUrl, canLoadAdminData, capabilityReloadToken, handleAdminAuthExpired]);
 
   useEffect(() => {
     if (!canLoadAdminData) {
@@ -1316,20 +1683,34 @@ export function AdminApp() {
             pendingSettingsPathChecksRef.current = null;
             pendingSettingsRuntimeRef.current = null;
             const next = current ? mergeAdminDashboardShellData(current, result) : result;
-            return {
+            let merged: AdminDashboardData = {
               ...next,
-              ...(pendingJobs ? { jobs: pendingJobs } : {}),
               ...(pendingIndexes ? { indexes: pendingIndexes } : {}),
               ...(pendingIndexRequiredVideos ? { source_videos: pendingIndexRequiredVideos } : {}),
-              ...(pendingDoctor ? { doctor: pendingDoctor } : {}),
-              ...(pendingPathChecks ? { path_checks: pendingPathChecks } : {}),
-              ...(pendingRuntime ? { runtime: pendingRuntime } : {})
+              ...(pendingPathChecks ? { path_checks: pendingPathChecks } : {})
             };
+
+            if (pendingJobs) {
+              merged = adminDashboardDataWithJobs(merged, pendingJobs);
+            }
+            if (pendingDoctor) {
+              merged = adminDashboardDataWithDoctor(merged, pendingDoctor);
+            }
+            if (pendingRuntime) {
+              merged = adminDashboardDataWithRuntime(merged, pendingRuntime);
+            }
+
+            return merged;
           });
         }
       })
       .catch((loadError) => {
         if (!cancelled) {
+          if (isAdminAuthExpiredError(loadError)) {
+            handleAdminAuthExpired();
+            return;
+          }
+
           setError(adminLoadErrorMessage(loadError));
         }
       })
@@ -1393,7 +1774,7 @@ export function AdminApp() {
     return () => {
       routeLoad.cancel();
     };
-  }, [adminAuthSession, apiBaseUrl, client, hasDashboardData, route, sourceVideoQuery, sourceVideoStatusFilter]);
+  }, [adminAuthSession, apiBaseUrl, client, hasDashboardData, reloadToken, route, sourceVideoQuery, sourceVideoStatusFilter]);
 
   useEffect(() => {
     const routeLoad = startAdminRouteRequestLoad({
@@ -1420,14 +1801,14 @@ export function AdminApp() {
             }
 
             pendingPreprocessJobsRef.current = null;
-            return { ...current, jobs };
+            return adminDashboardDataWithJobs(current, jobs);
           });
         }
         preprocessJobsPrefetchTokenRef.current = reloadToken;
       },
       onError: (loadError) => {
         setRouteLocalReadError("preprocessJobs", loadError);
-        setPreprocessProcessHistoryError(adminActionErrorMessage("处理历史加载", loadError));
+        setPreprocessProcessHistoryError(handleAdminRequestError("处理历史加载", loadError));
       },
       onSettled: () => {
         setPreprocessJobsLoading(false);
@@ -1611,12 +1992,12 @@ export function AdminApp() {
         setData((current) => {
           doctorRouteLoadedTokenRef.current = reloadToken;
           if (!current) {
-            pendingDoctorReportRef.current = doctor;
+            pendingDoctorReportRef.current = { ...doctor, source: "api" };
             return current;
           }
 
           pendingDoctorReportRef.current = null;
-          return { ...current, doctor };
+          return adminDashboardDataWithDoctor(current, doctor);
         });
       },
       onError: (loadError) => {
@@ -1748,7 +2129,7 @@ export function AdminApp() {
           }
 
           pendingSettingsRuntimeRef.current = null;
-          return { ...current, runtime };
+          return adminDashboardDataWithRuntime(current, runtime);
         });
       },
       onError: (loadError) => {
@@ -1885,7 +2266,7 @@ export function AdminApp() {
             }
 
             pendingPreprocessJobsRef.current = null;
-            return { ...current, jobs };
+            return adminDashboardDataWithJobs(current, jobs);
           });
         }
         preprocessJobsPrefetchTokenRef.current = reloadToken;
@@ -2004,14 +2385,14 @@ export function AdminApp() {
             setPreprocessProcessHistory(processHistory);
             setPreprocessProcessHistoryError(processHistoryError);
             if (jobs) {
-              setData((current) => current ? { ...current, jobs } : current);
+              setData((current) => current ? adminDashboardDataWithJobs(current, jobs) : current);
             }
           }
         },
         onError: (loadError, { requestScope }) => {
           if (activeBackgroundRefresh?.requestScope === requestScope) {
             setRouteLocalReadError("preprocessJobs", loadError);
-            setPreprocessProcessHistoryError(adminActionErrorMessage("处理历史刷新", loadError));
+            setPreprocessProcessHistoryError(handleAdminRequestError("处理历史刷新", loadError));
           }
         },
         onSettled: ({ requestScope }) => {
@@ -2140,12 +2521,14 @@ export function AdminApp() {
     if (!decision.allowed) {
       setActionNotice("");
       setActionError(decision.message);
+      setActionErrorTechnical("");
       return false;
     }
 
     activeAdminCommandLabelRef.current = label;
     setActiveAdminCommandLabel(label);
     setActionError("");
+    setActionErrorTechnical("");
     setActionNotice(notice ?? `${label}中...`);
     return true;
   };
@@ -2157,22 +2540,37 @@ export function AdminApp() {
     }
   };
 
-  const runAction = async (label: string, action: (client: AdminApiClient) => Promise<unknown>) => {
+  const runAction = async (
+    label: string,
+    action: (client: AdminApiClient) => Promise<unknown>,
+    onSuccess?: (result: unknown) => void
+  ) => {
     if (!beginAdminCommandAction(label)) {
       return;
     }
 
     try {
       const result = await action(client);
+      onSuccess?.(result);
       setActionNotice(formatActionNotice(label, result));
       setReloadToken((current) => current + 1);
     } catch (actionFailure) {
       setActionNotice("");
-      setActionError(adminActionErrorMessage(label, actionFailure));
+      reportActionError(label, actionFailure);
     } finally {
       finishAdminCommandAction(label);
     }
   };
+
+  const runDoctorAction = () => runAction(
+    "运行系统检查",
+    (api) => api.runDoctor(),
+    (result) => {
+      setData((current) => current
+        ? adminDashboardDataWithDoctor(current, result as AdminDashboardData["doctor"])
+        : current);
+    }
+  );
 
   const runScanNewSourceVideos = async (api: AdminApiClient): Promise<AdminLibraryScanNewStatus | null> => {
     setScanNewStatus((current) => current?.state === "running" ? current : pendingScanNewStatus());
@@ -2187,46 +2585,99 @@ export function AdminApp() {
     }
   };
 
-  const runRepairIndexInBatches = async () => {
-    const batchLimit = 10;
-    const maxBatches = 100;
+  const executeBatchPublish = async () => {
+    if (!beginAdminCommandAction("上线全部已处理素材")) {
+      return;
+    }
 
-    return runAction("上线全部已处理素材", async (api) => {
-      let publishedCount = 0;
-      let skippedCount = 0;
-      let readyVideoCount = 0;
-      let remainingIndexRequiredCount = 0;
-      const publishedSourceVideoIds: string[] = [];
-      const skippedSourceVideoIds: string[] = [];
+    const totalTarget = Math.max(1, data?.status.index_required_video_count ?? 0);
+    batchStopRequestedRef.current = false;
+    let publishedCount = 0;
+    let skippedCount = 0;
+    let remainingIndexRequiredCount = totalTarget;
+    let batchCount = 0;
+    setAdminCommandProgress({
+      label: "批量上线",
+      detail: `准备上线 ${totalTarget} 个已处理素材`,
+      percent: 0,
+      stop_requested: false
+    });
 
-      for (let batchIndex = 0; batchIndex < maxBatches; batchIndex += 1) {
-        const result = await api.repairIndex({ limit: batchLimit });
+    try {
+      for (let batchIndex = 0; batchIndex < 100; batchIndex += 1) {
+        if (batchStopRequestedRef.current) {
+          break;
+        }
+
+        const result = await client.repairIndex({ limit: 10 });
+        batchCount += 1;
         publishedCount += result.published_count ?? 0;
         skippedCount += result.skipped_count ?? 0;
-        readyVideoCount = result.ready_video_count ?? readyVideoCount;
         remainingIndexRequiredCount = result.remaining_index_required_count ?? 0;
-        publishedSourceVideoIds.push(...(result.published_source_video_ids ?? []));
-        skippedSourceVideoIds.push(...(result.skipped_source_video_ids ?? []));
+
+        setAdminCommandProgress({
+          label: "批量上线",
+          detail: `第 ${batchCount} 批完成：已上线 ${publishedCount}/${totalTarget} 个，跳过 ${skippedCount} 个，剩余 ${remainingIndexRequiredCount} 个`,
+          percent: Math.min(100, Math.round((publishedCount / totalTarget) * 100)),
+          stop_requested: batchStopRequestedRef.current
+        });
 
         if (remainingIndexRequiredCount <= 0 || (result.published_count ?? 0) <= 0) {
           break;
         }
       }
 
-      return {
-        affected_count: publishedCount,
-        published_count: publishedCount,
-        skipped_count: skippedCount,
-        ready_video_count: readyVideoCount,
-        remaining_index_required_count: remainingIndexRequiredCount,
-        published_source_video_ids: publishedSourceVideoIds,
-        skipped_source_video_ids: skippedSourceVideoIds,
-        message: remainingIndexRequiredCount > 0
+      const stopped = batchStopRequestedRef.current;
+      const resultMessage = stopped
+        ? `已停止后续批次：本次上线 ${publishedCount} 个，跳过 ${skippedCount} 个，剩余 ${remainingIndexRequiredCount} 个。`
+        : remainingIndexRequiredCount > 0
           ? `已分批上线 ${publishedCount} 个素材，还有 ${remainingIndexRequiredCount} 个待上线。`
           : publishedCount > 0
             ? `已分批上线 ${publishedCount} 个素材，全部已处理素材都可以在剪辑端使用。`
-            : "没有需要上线的已处理素材。"
-      } satisfies AdminActionResult;
+            : "没有需要上线的已处理素材。";
+
+      setActionNotice(resultMessage);
+      setAdminCommandResult({
+        title: stopped ? "批量上线已停止后续批次" : "批量上线完成",
+        items: [
+          `执行批次：${batchCount} 批`,
+          `本次上线：${publishedCount} 个`,
+          `跳过：${skippedCount} 个`,
+          `剩余待上线：${remainingIndexRequiredCount} 个`,
+          resultMessage
+        ]
+      });
+      setReloadToken((current) => current + 1);
+    } catch (error) {
+      reportActionError("上线全部已处理素材", error);
+      setAdminCommandResult({
+        title: "批量上线未完成",
+        items: [
+          `已完成：${batchCount} 批，上线 ${publishedCount} 个`,
+          `剩余待上线：${remainingIndexRequiredCount} 个`,
+          "请先刷新确认实际状态，再决定是否重试"
+        ]
+      });
+    } finally {
+      setAdminCommandProgress(null);
+      finishAdminCommandAction("上线全部已处理素材");
+    }
+  };
+
+  const runRepairIndexInBatches = async () => {
+    if (!data) {
+      return;
+    }
+
+    const impact = adminBatchPublishImpact(data);
+
+    await requestAdminConfirmation({
+      title: impact.title,
+      summary: impact.summary,
+      items: impact.items,
+      confirm_label: "确认批量上线",
+      danger: true,
+      run: executeBatchPublish
     });
   };
 
@@ -2235,13 +2686,7 @@ export function AdminApp() {
     const supervisor = await api.startPreprocessSupervisor(undefined, {
       queue_unprocessed_limit: PREPROCESS_START_QUEUE_UNPROCESSED_LIMIT
     });
-    setData((current) => current ? {
-      ...current,
-      jobs: {
-        ...current.jobs,
-        supervisor
-      }
-    } : current);
+    setData((current) => current ? adminDashboardDataWithSupervisorStatus(current, supervisor) : current);
 
     return {
       affected_count: scanStatus?.written_video_count ?? 0,
@@ -2289,6 +2734,80 @@ export function AdminApp() {
     };
   };
 
+  const confirmAndRunStartPreprocess = async () => {
+    if (!data) {
+      return;
+    }
+
+    const impact = adminStartPreprocessImpact(data);
+
+    await requestAdminConfirmation({
+      title: impact.title,
+      summary: impact.summary,
+      items: impact.items,
+      confirm_label: "确认启动预处理",
+      run: async () => {
+        await runAction("启动预处理", startPreprocessBatch, (result) => {
+          setAdminCommandResult({
+            title: "启动预处理",
+            items: [formatActionNotice("启动预处理", result)]
+          });
+        });
+      }
+    });
+  };
+
+  const confirmAndRunPausePreprocess = async () => {
+    if (!data) {
+      return;
+    }
+
+    const impact = adminPausePreprocessImpact(data);
+
+    await requestAdminConfirmation({
+      title: impact.title,
+      summary: impact.summary,
+      items: impact.items,
+      confirm_label: "确认暂停预处理",
+      run: async () => {
+        await runAction("暂停预处理", (api) => api.stopPreprocessSupervisor(), (result) => {
+          setAdminCommandResult({
+            title: "暂停预处理",
+            items: [formatActionNotice("暂停预处理", result)]
+          });
+        });
+      }
+    });
+  };
+
+  const confirmAndRunLongAsr = async () => {
+    if (!data) {
+      return;
+    }
+
+    const impact = adminLongAsrImpact(data);
+
+    if (impact.target_count <= 0) {
+      setActionNotice("当前没有需要长任务语音识别处理的素材。");
+      return;
+    }
+
+    await requestAdminConfirmation({
+      title: impact.title,
+      summary: impact.summary,
+      items: impact.items,
+      confirm_label: "确认长任务识别",
+      run: async () => {
+        await runAction("长任务语音识别", startLongAsrBatch, (result) => {
+          setAdminCommandResult({
+            title: "长任务语音识别",
+            items: [formatActionNotice("长任务语音识别", result)]
+          });
+        });
+      }
+    });
+  };
+
   const runSmartScan = async () => {
     if (!beginAdminCommandAction("扫描新增素材", "正在扫描新增素材、检查系统状态并刷新生产状态...")) {
       return;
@@ -2305,7 +2824,7 @@ export function AdminApp() {
         : `扫描完成：${report.title}`);
     } catch (failure) {
       setActionNotice("");
-      setActionError(adminActionErrorMessage("扫描新增素材", failure));
+      reportActionError("扫描新增素材", failure);
     } finally {
       finishAdminCommandAction("扫描新增素材");
     }
@@ -2318,12 +2837,12 @@ export function AdminApp() {
     }
 
     if (action === "start-preprocess") {
-      await runAction("启动预处理", startPreprocessBatch);
+      await confirmAndRunStartPreprocess();
       return;
     }
 
     if (action === "start-long-asr") {
-      await runAction("长任务语音识别", startLongAsrBatch);
+      await confirmAndRunLongAsr();
       return;
     }
 
@@ -2344,15 +2863,22 @@ export function AdminApp() {
 
     if (action === "run-doctor") {
       window.location.hash = routeToHash("doctor");
-      await runAction("运行系统检查", (api) => api.runDoctor());
+      runDoctorAction();
     }
   };
 
-  const handleAdminRegister = async (input: { username: string; password: string; display_name?: string }) => {
+  const handleAdminRegister = async (input: {
+    username: string;
+    password: string;
+    display_name?: string;
+    registration_token?: string;
+  }) => {
     setAdminAuthError("");
     try {
       const result = await client.registerAdmin(input);
       const nextSession = adminAuthSessionFromResult(result);
+      authExpiredHandledRef.current = false;
+      setInstalledAdminAuthExpiredHandler(handleAdminAuthExpired);
       writeAdminAuthSession(nextSession);
       setAdminAuthSession(nextSession);
       setAdminAuthStatus({
@@ -2366,7 +2892,7 @@ export function AdminApp() {
       });
       setReloadToken((current) => current + 1);
     } catch (registerError) {
-      setAdminAuthError(adminActionErrorMessage("创建管理员", registerError));
+      setAdminAuthError(adminAuthFormErrorMessage("创建管理员", registerError));
     }
   };
 
@@ -2375,6 +2901,8 @@ export function AdminApp() {
     try {
       const result = await client.loginAdmin(input);
       const nextSession = adminAuthSessionFromResult(result);
+      authExpiredHandledRef.current = false;
+      setInstalledAdminAuthExpiredHandler(handleAdminAuthExpired);
       writeAdminAuthSession(nextSession);
       setAdminAuthSession(nextSession);
       setAdminAuthStatus({
@@ -2388,13 +2916,16 @@ export function AdminApp() {
       });
       setReloadToken((current) => current + 1);
     } catch (loginError) {
-      setAdminAuthError(adminActionErrorMessage("登录管理端", loginError));
+      setAdminAuthError(adminAuthFormErrorMessage("登录管理端", loginError));
     }
   };
 
   const handleAdminLogout = () => {
     void client.logoutAdmin().catch(() => undefined);
+    authExpiredHandledRef.current = false;
+    setInstalledAdminAuthExpiredHandler(handleAdminAuthExpired);
     clearAdminAuthSession();
+    setAdminAuthError("");
     setAdminAuthSession(null);
     setAdminAuthStatus((current) => current
       ? { ...current, authenticated: false, user: null }
@@ -2434,7 +2965,7 @@ export function AdminApp() {
         snapshotId,
         plan: null,
         loading: false,
-        error: adminActionErrorMessage("恢复预检加载", previewError)
+        error: handleAdminRequestError("恢复预检加载", previewError)
       });
     }
   };
@@ -2479,7 +3010,9 @@ export function AdminApp() {
     try {
       const result = await withAdminLoadTimeout(
         client.restoreCommandSnapshot(snapshotId),
-        "命令快照恢复"
+        "命令快照恢复",
+        ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS,
+        { command: true }
       );
       setCommandSnapshotRestoreExecution({
         snapshotId,
@@ -2489,6 +3022,15 @@ export function AdminApp() {
         result
       });
       setActionNotice(`命令快照恢复完成：恢复 ${result.restored_file_count} 个文件，阻断 ${result.blocked_file_count} 个文件`);
+      setAdminCommandResult({
+        title: "命令快照恢复完成",
+        items: [
+          `恢复文件：${result.restored_file_count} 个`,
+          `阻断文件：${result.blocked_file_count} 个`,
+          ...(result.blockers ?? []).map((blocker) => `阻断原因：${blocker}`),
+          "请刷新操作记录确认审计结果"
+        ]
+      });
       setReloadToken((current) => current + 1);
     } catch (restoreError) {
       setActionNotice("");
@@ -2496,9 +3038,13 @@ export function AdminApp() {
         snapshotId,
         armed: true,
         loading: false,
-        error: adminActionErrorMessage("命令快照恢复", restoreError),
+        error: handleAdminRequestError("命令快照恢复", restoreError),
         result: null
       });
+
+      if (isAdminAuthExpiredError(restoreError)) {
+        return;
+      }
     } finally {
       finishAdminCommandAction("命令快照恢复");
     }
@@ -2515,7 +3061,9 @@ export function AdminApp() {
     try {
       const result = await withAdminLoadTimeout(
         client.startReadModelReconcile(),
-        "启动后台对账"
+        "启动后台对账",
+        ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS,
+        { command: true }
       );
       setReadModelReconcileStatus(result.status);
       setActionNotice(result.accepted ? "后台对账已启动" : "后台对账已在运行");
@@ -2523,7 +3071,7 @@ export function AdminApp() {
     } catch (reconcileError) {
       setActionNotice("");
       setReadModelReconcileError(adminActionErrorMessage("启动后台对账", reconcileError));
-      setActionError(adminActionErrorMessage("启动后台对账", reconcileError));
+      reportActionError("启动后台对账", reconcileError);
     } finally {
       setReadModelReconcileCommandLoading(false);
       finishAdminCommandAction("启动后台对账");
@@ -2541,7 +3089,9 @@ export function AdminApp() {
     try {
       const result = await withAdminLoadTimeout(
         client.cancelReadModelReconcile(),
-        "请求停止对账"
+        "请求停止对账",
+        ADMIN_ROUTE_DATA_LOAD_TIMEOUT_MS,
+        { command: true }
       );
       setReadModelReconcileStatus(result.status);
       setActionNotice(result.accepted ? "已请求停止后台对账" : "后台对账当前未运行");
@@ -2549,7 +3099,7 @@ export function AdminApp() {
     } catch (cancelError) {
       setActionNotice("");
       setReadModelReconcileError(adminActionErrorMessage("请求停止对账", cancelError));
-      setActionError(adminActionErrorMessage("请求停止对账", cancelError));
+      reportActionError("请求停止对账", cancelError);
     } finally {
       setReadModelReconcileCommandLoading(false);
       finishAdminCommandAction("请求停止对账");
@@ -2573,7 +3123,7 @@ export function AdminApp() {
         setPreprocessProcessHistory(history);
       })
       .catch((filterError) => {
-        setPreprocessProcessHistoryError(adminActionErrorMessage("处理历史筛选", filterError));
+        setPreprocessProcessHistoryError(handleAdminRequestError("处理历史筛选", filterError));
       })
       .finally(() => {
         setPreprocessProcessHistoryLoading(false);
@@ -2581,7 +3131,7 @@ export function AdminApp() {
   };
 
   const actions: AdminActionHandlers = {
-    sourceVideoQuery,
+    sourceVideoQuery: sourceVideoQueryInput,
     sourceVideoStatusFilter,
     processHistoryFilters: preprocessProcessHistoryFilters,
     onInitializeLibrary: () => runAction("初始化素材库", (api) => api.initializeLibrary()),
@@ -2595,7 +3145,7 @@ export function AdminApp() {
       }),
     onQueueUnprocessedVideos: () => runAction("加入预处理队列", (api) => api.queueUnprocessedVideos()),
     onRetryFailedVideos: () => runAction("重试可继续处理的视频", (api) => api.retryFailedVideos()),
-    onStartLongAsrVideos: () => runAction("长任务语音识别", startLongAsrBatch),
+    onStartLongAsrVideos: confirmAndRunLongAsr,
     onRecoverProcessingVideos: () =>
       runAction("恢复卡住任务", (api) => api.recoverProcessingVideos()),
     onRunSmartScan: runSmartScan,
@@ -2617,26 +3167,37 @@ export function AdminApp() {
         setSelectedPreprocessJobLog(log);
       } catch (logFailure) {
         setSelectedPreprocessJobLog(null);
-        setPreprocessJobLogError(adminActionErrorMessage("读取任务日志", logFailure));
+        setPreprocessJobLogError(handleAdminRequestError("读取任务日志", logFailure));
       } finally {
         setPreprocessJobLogLoading(false);
       }
     },
-    onStartPreprocessSupervisor: () =>
-      runAction("启动预处理", startPreprocessBatch),
-    onStopPreprocessSupervisor: () =>
-      runAction("暂停预处理", (api) => api.stopPreprocessSupervisor()),
+    onStartPreprocessSupervisor: confirmAndRunStartPreprocess,
+    onStopPreprocessSupervisor: confirmAndRunPausePreprocess,
     onRepairIndex: runRepairIndexInBatches,
-    onRunDoctor: () => runAction("运行系统检查", (api) => api.runDoctor()),
+    onRunDoctor: () => runAction("运行系统检查", (api) => api.runDoctor(), (result) => setData((current) => current ? adminDashboardDataWithDoctor(current, result as AdminDashboardData["doctor"]) : current)),
+    onReloadAdminData: () => setReloadToken((current) => current + 1),
     onTestAsrConfig: () => runAction("检查语音识别", (api) => api.testAsrConfig()),
     onSaveAdminSettings: (settings) =>
       runAction("保存设置", (api) => api.saveAdminSettings(settings)),
     onUpdateSourceVideoMetadata: (sourceVideoId, metadata) =>
-      runAction("保存素材信息", (api) => api.updateSourceVideoMetadata(sourceVideoId, metadata)),
+      runAction("保存素材信息", (api) => api.updateSourceVideoMetadata(sourceVideoId, metadata), (result) => {
+        const updated = result as AdminSourceVideo;
+        setData((current) => current ? adminDashboardDataWithSourceVideoUpdated(current, updated) : current);
+        setSourceDetail((current) => current && current.source_video.source_video_id === updated.source_video_id
+          ? { ...current, source_video: { ...current.source_video, ...updated } }
+          : current);
+      }),
     onUpdateSourceVideoCover: (sourceVideoId, coverFile) =>
       runAction("保存封面", async (api) =>
         api.updateSourceVideoCover(sourceVideoId, await adminCoverUpdateFromFile(coverFile))
-      ),
+      , (result) => {
+        const updated = result as AdminSourceVideo;
+        setData((current) => current ? adminDashboardDataWithSourceVideoUpdated(current, updated) : current);
+        setSourceDetail((current) => current && current.source_video.source_video_id === updated.source_video_id
+          ? { ...current, source_video: { ...current.source_video, ...updated } }
+          : current);
+      }),
     onApproveCutterUser: (userId) =>
       runAction("通过剪辑师申请", async (api) => {
         const result = await api.approveCutterUser(userId);
@@ -2672,8 +3233,16 @@ export function AdminApp() {
       }
     },
     onSourceVideoFiltersChange: (filters) => {
-      setSourceVideoQuery(filters.query);
-      setSourceVideoStatusFilter(filters.status);
+      setSourceVideoQueryInput(filters.query);
+
+      if (filters.status !== sourceVideoStatusFilter) {
+        searchDebounce.cancel();
+        setSourceVideoQuery(filters.query);
+        setSourceVideoStatusFilter(filters.status);
+      } else {
+        searchDebounce.schedule(filters.query);
+      }
+
       setSourceVideosHasMore(true);
       clearRouteLocalReadError("sourceVideos");
     },
@@ -2728,6 +3297,7 @@ export function AdminApp() {
     return (
       <AdminLoginGate
         mode={adminAuthStatus?.bootstrap.registration_open ? "register" : "login"}
+        requiresRegistrationToken={adminAuthStatus?.bootstrap.registration_requires_token === true}
         loading={adminAuthLoading && !adminAuthStatus}
         error={adminAuthError || adminAuthStatus?.message || ""}
         onRegister={handleAdminRegister}
@@ -2755,14 +3325,33 @@ export function AdminApp() {
         <AdminTopbar data={data} authSession={adminAuthSession} onLogout={handleAdminLogout} />
         <section className="admin-workspace">
           {actionNotice || actionError ? (
-            <div className={`admin-action-notice${actionError ? " is-error" : ""}`} role="status">
-              {actionError || actionNotice}
+            <div
+              className={`admin-action-notice${actionError ? " is-error" : ""}`}
+              role={actionError ? "alert" : "status"}
+            >
+              <p>{actionError || actionNotice}</p>
+              {actionError && actionErrorTechnical ? (
+                <details className="admin-action-error-details">
+                  <summary>查看技术信息</summary>
+                  <pre>{actionErrorTechnical}</pre>
+                </details>
+              ) : null}
             </div>
           ) : null}
           <section className={`admin-content-split admin-route-${route}`}>
             {error ? (
               <InspectorPanel title="加载失败">
                 <p>{error}</p>
+                <button
+                  className="admin-primary-button"
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setReloadToken((current) => current + 1);
+                  }}
+                >
+                  重试加载
+                </button>
               </InspectorPanel>
             ) : data ? (
               renderPage(
@@ -2820,7 +3409,11 @@ export function AdminApp() {
                   restoreExecution: commandSnapshotRestoreExecution
                 },
                 scanNewStatus,
-                activeAdminCommandLabel
+                activeAdminCommandLabel,
+                capabilityState,
+                serviceModes,
+                adminClientVersion,
+                () => setCapabilityReloadToken((current) => current + 1)
               )
             ) : (
               <InspectorPanel title={routeTitle(route)}>
@@ -2830,6 +3423,35 @@ export function AdminApp() {
           </section>
         </section>
       </AppShell>
+      {adminCommandProgress ? (
+        <AdminCommandProgressPanel
+          label={adminCommandProgress.label}
+          detail={adminCommandProgress.detail}
+          percent={adminCommandProgress.percent}
+          stopRequested={adminCommandProgress.stop_requested}
+          onStop={requestStopAdminCommand}
+        />
+      ) : null}
+      {adminConfirmation ? (
+        <AdminConfirmDialog
+          view={{
+            title: adminConfirmation.title,
+            summary: adminConfirmation.summary,
+            items: adminConfirmation.items,
+            confirmLabel: adminConfirmation.confirm_label,
+            danger: adminConfirmation.danger
+          }}
+          onConfirm={() => settleAdminConfirmation(true)}
+          onCancel={() => settleAdminConfirmation(false)}
+        />
+      ) : null}
+      {adminCommandResult ? (
+        <AdminOperationResultDialog
+          title={adminCommandResult.title}
+          items={adminCommandResult.items}
+          onClose={() => setAdminCommandResult(null)}
+        />
+      ) : null}
     </main>
   );
 }

@@ -1,11 +1,22 @@
 import { Badge, InspectorPanel } from "@mixlab/ui-foundation";
 import { useEffect, useState } from "react";
-import type {
-  AdminDashboardData,
-  AdminPathCheck,
-  AdminSettingsConfigUpdate,
-  AdminSourceFolder
+import {
+  adminDashboardFieldSource,
+  adminDashboardSourceLabel,
+  adminDoctorReportStatus,
+  adminSettingsSaveBlockReason,
+  type AdminDashboardData,
+  type AdminPathCheck,
+  type AdminSettingsConfigUpdate,
+  type AdminSourceFolder
 } from "../../api.ts";
+import {
+  adminServiceModeRows,
+  adminServiceModesProvided,
+  adminServiceModesSummary,
+  parseAdminServiceModes,
+  type AdminServiceModes
+} from "../../app/service-modes.ts";
 import {
   asrModelLabel,
   asrProviderLabel,
@@ -101,7 +112,9 @@ export function SettingsPage({
   onInitializeLibrary,
   onTestAsrConfig,
   onRunDoctor,
-  onExportDoctor
+  onExportDoctor,
+  onReloadData,
+  serviceModes = null
 }: {
   data: AdminDashboardData;
   pathChecksError?: string;
@@ -111,6 +124,8 @@ export function SettingsPage({
   onTestAsrConfig?: () => void;
   onRunDoctor?: () => void;
   onExportDoctor?: () => void;
+  onReloadData?: () => void;
+  serviceModes?: AdminServiceModes | null;
 }) {
   const [libraryName, setLibraryName] = useState(data.settings.library_name);
   const [sourceFolders, setSourceFolders] = useState<AdminSourceFolder[]>(() =>
@@ -120,13 +135,24 @@ export function SettingsPage({
     ...data.settings.runtime_policy
   }));
   const [dashscopeApiKey, setDashscopeApiKey] = useState("");
-  const toolState = data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理";
+  const [saveBlockedMessage, setSaveBlockedMessage] = useState("");
+  const serviceModeInfo = serviceModes ?? parseAdminServiceModes({});
+  const settingsSource = adminDashboardFieldSource(data, "settings");
+  const runtimeSource = adminDashboardFieldSource(data, "runtime");
+  const doctorStatus = adminDoctorReportStatus(data);
+  const runtimeLoaded = runtimeSource.source === "api";
+  const settingsSaveBlockReason = adminSettingsSaveBlockReason(data);
+  const toolState = runtimeLoaded
+    ? data.runtime.ffmpeg.available && data.runtime.ffprobe.available ? "可用" : "需处理"
+    : "未读取";
   const initializationChecks = adminFirstRunInitializationChecks(data);
   const enabledSourceFolderCount = sourceFolders.filter((folder) => folder.enabled).length;
   const pathIssueCount = data.path_checks.filter((check) => check.status !== "pass").length;
-  const runtimeProbeState = toolState === "可用" && data.runtime.asr.dashscope_api_key_configured
-    ? "通过"
-    : "需关注";
+  const runtimeProbeState = !runtimeLoaded
+    ? "未读取"
+    : toolState === "可用" && data.runtime.asr.dashscope_api_key_configured
+      ? "通过"
+      : "需关注";
 
   useEffect(() => {
     setLibraryName(data.settings.library_name);
@@ -149,6 +175,14 @@ export function SettingsPage({
   };
 
   const saveSettings = async () => {
+    const blockedReason = adminSettingsSaveBlockReason(data);
+
+    if (blockedReason) {
+      setSaveBlockedMessage(blockedReason);
+      return;
+    }
+
+    setSaveBlockedMessage("");
     const nextApiKey = dashscopeApiKey.trim();
     await onSaveAdminSettings?.({
       library_name: libraryName,
@@ -217,6 +251,30 @@ export function SettingsPage({
             </div>
             <Badge tone="info">本地编辑</Badge>
           </header>
+          {settingsSaveBlockReason ? (
+            <section
+              className="admin-simple-status is-blocked"
+              aria-label="设置数据未读取，保存已禁用"
+              role="alert"
+            >
+              <span className="admin-status-badge is-failed">保存已禁用</span>
+              <div>
+                <h2>设置数据未读取，禁止保存</h2>
+                <p>{settingsSaveBlockReason}</p>
+                {onReloadData ? (
+                  <AdminControlButton
+                    label="重新加载设置数据"
+                    state="m9b-api"
+                    reason="重新读取管理端设置数据；只有真实接口数据才允许保存。"
+                    onClick={onReloadData}
+                  />
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+          {saveBlockedMessage ? (
+            <p className="admin-note admin-route-error" role="alert">{saveBlockedMessage}</p>
+          ) : null}
           <section className="ml-form-group">
             <h2 className="ml-form-group-title">素材库基本信息</h2>
             <div className="ml-form-row">
@@ -288,6 +346,14 @@ export function SettingsPage({
             </div>
             <Badge tone={runtimeProbeState === "通过" ? "success" : "warning"}>{runtimeProbeState}</Badge>
           </header>
+          {!runtimeLoaded ? (
+            <AdminStatusLine
+              tone="warning"
+              label="运行时状态未读取"
+              detail={`${adminDashboardSourceLabel(runtimeSource.source)}；以下运行策略与密钥状态为占位显示，不代表真实配置。`}
+              value="未读取"
+            />
+          ) : null}
           {runtimeSettingsError ? (
             <AdminStatusLine
               tone="failed"
@@ -333,16 +399,26 @@ export function SettingsPage({
                       </select>
                     )
                   },
-                  { label: "音视频工具", value: `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}` }
+                  {
+                    label: "音视频工具",
+                    value: runtimeLoaded
+                      ? `${runtimeSourceLabel(data.runtime.ffmpeg.source)} · ${toolState}`
+                      : "未读取"
+                  }
                 ]
               },
               {
                 title: "语音识别",
                 rows: [
-                  { label: "供应商", value: asrProviderLabel(data.runtime.asr.provider) },
-                  { label: "模型", value: asrModelLabel(data.runtime.asr.model) },
+                  { label: "供应商", value: runtimeLoaded ? asrProviderLabel(data.runtime.asr.provider) : "未读取" },
+                  { label: "模型", value: runtimeLoaded ? asrModelLabel(data.runtime.asr.model) : "未读取" },
                   { label: "当前音频", value: audioModeLabel(runtimePolicy.audio_mode) },
-                  { label: "密钥状态", value: redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured) },
+                  {
+                    label: "密钥状态",
+                    value: runtimeLoaded
+                      ? redactConfiguredSecret(data.runtime.asr.dashscope_api_key_configured)
+                      : "未读取"
+                  },
                   {
                     label: "填写密钥",
                     value: (
@@ -376,11 +452,19 @@ export function SettingsPage({
               onClick={onRunDoctor}
             />
           </header>
+          {!doctorStatus.loaded ? (
+            <AdminStatusLine
+              tone="warning"
+              label={doctorStatus.label}
+              detail="系统检查报告尚未从接口读取；点击“重新检查”或到“系统状态”页读取后再查看。"
+              value="未检查"
+            />
+          ) : null}
           <MetricBand
             items={[
-              { label: "通过", value: data.doctor.summary.pass, caption: "检查通过" },
-              { label: "警告", value: data.doctor.summary.warn, caption: "需要关注" },
-              { label: "失败", value: data.doctor.summary.fail, caption: "需要处理" }
+              { label: "通过", value: doctorStatus.loaded ? data.doctor.summary.pass : "—", caption: "检查通过" },
+              { label: "警告", value: doctorStatus.loaded ? data.doctor.summary.warn : "—", caption: "需要关注" },
+              { label: "失败", value: doctorStatus.loaded ? data.doctor.summary.fail : "—", caption: "需要处理" }
             ]}
           />
           <section className="admin-list-panel admin-settings-doctor-list">
@@ -463,17 +547,37 @@ export function SettingsPage({
                 { label: "语音识别密钥", value: "页面只显示是否配置，不显示密钥内容" },
                 { label: "保存影响", value: "影响后续处理，不会重跑已完成素材" }
               ]
+            },
+            {
+              title: "服务模式与迁移",
+              rows: [
+                ...adminServiceModeRows(serviceModeInfo).map((row) => ({
+                  label: row.label,
+                  value: row.value
+                })),
+                {
+                  label: "提示",
+                  value: adminServiceModesProvided(serviceModeInfo)
+                    ? adminServiceModesSummary(serviceModeInfo)
+                    : "服务端未提供服务模式字段，按旧共享文件模式显示（不阻塞页面）。"
+                }
+              ]
             }
           ]}
         />
         <section className="admin-action-stack">
           <AdminControlButton
             label="保存设置"
-            state="m9b-api"
-            reason="保存素材来源和预处理参数。"
+            state={settingsSaveBlockReason ? "read-only" : "m9b-api"}
+            reason={settingsSaveBlockReason || "保存素材来源和预处理参数。"}
             variant="primary"
-            onClick={onSaveAdminSettings ? saveSettings : undefined}
+            onClick={settingsSaveBlockReason ? undefined : onSaveAdminSettings ? saveSettings : undefined}
           />
+          {settingsSaveBlockReason ? (
+            <p className="admin-note admin-route-error" role="alert">
+              {settingsSaveBlockReason}
+            </p>
+          ) : null}
           <AdminControlButton
             label="检查语音识别"
             state="m9b-api"

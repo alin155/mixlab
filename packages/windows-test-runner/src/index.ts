@@ -1,8 +1,8 @@
-import { resolveRunnerConfig } from "./config.ts";
+import { assertRunnerSecurityConfig, resolveRunnerConfig } from "./config.ts";
 import { createWindowsTestRunnerServer } from "./server.ts";
 import { parseStartupRunRequest, startStartupRun } from "./startup-run.ts";
 
-export { resolveRunnerConfig, RUNNER_VERSION } from "./config.ts";
+export { assertRunnerSecurityConfig, isLoopbackHost, resolveRunnerConfig, RUNNER_VERSION } from "./config.ts";
 export { createWindowsTestRunnerServer } from "./server.ts";
 export { RunStore } from "./run-store.ts";
 export type {
@@ -24,6 +24,7 @@ export function startWindowsTestRunner(options: {
   startupRunJson?: string;
 } = {}): ReturnType<typeof createWindowsTestRunnerServer> {
   const config = resolveRunnerConfig();
+  assertRunnerSecurityConfig(config);
   const runner = createWindowsTestRunnerServer(config);
   runner.server.on("error", (error) => {
     console.error("MixLab Windows Test Runner failed to start.");
@@ -37,7 +38,8 @@ export function startWindowsTestRunner(options: {
       runner_version: config.runner_version,
       share_root: config.share_root,
       reports_root: config.reports_root,
-      cutter_api_base_url: config.cutter_api_base_url
+      cutter_api_base_url: config.cutter_api_base_url,
+      security: { host: config.host, auth_required: Boolean(config.auth_token) }
     }, null, 2));
     const startupRunJson = options.startupRunJson ?? process.env.MIXLAB_WINDOWS_TEST_RUNNER_START_RUN_JSON;
     try {

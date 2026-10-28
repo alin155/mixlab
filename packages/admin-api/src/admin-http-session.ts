@@ -5,10 +5,11 @@ import {
   type AdminCommandActor
 } from "./admin-command-audit.ts";
 import {
-  adminSessionTokenFromRequest
+  adminSessionTokenFromRequest,
+  rememberAdminAuthRequestRemoteAddress
 } from "./admin-auth-routes.ts";
 import {
-  apiError
+  apiContractError
 } from "./admin-route-adapter.ts";
 import {
   matchAdminSourceVideoCoverPath
@@ -37,7 +38,11 @@ export async function readAdminRequestJson(request: IncomingMessage): Promise<un
   }
 
   const raw = Buffer.concat(chunks).toString("utf8").trim();
-  return raw ? JSON.parse(raw) : {};
+  const value: unknown = raw ? JSON.parse(raw) : {};
+  // Public auth routes only receive the body from the dispatcher; attach the socket
+  // peer address so route-level guards/throttles can use the real transport source.
+  rememberAdminAuthRequestRemoteAddress(value, request.socket?.remoteAddress ?? "");
+  return value;
 }
 
 export function writeAdminJson(response: ServerResponse, statusCode: number, body: unknown): void {
@@ -82,7 +87,7 @@ export async function requireAdminSession(input: {
   deps: {
     validate_admin_session(
       libraryRoot: string,
-      session: { session_token: string; now: string }
+      session: { session_token: string; now: string; touch?: boolean }
     ): Promise<AdminSessionValidationResult>;
     write_json(response: ServerResponse, statusCode: number, body: unknown): void;
   };
@@ -93,16 +98,19 @@ export async function requireAdminSession(input: {
 
   const sessionToken = adminSessionTokenFromRequest(input.request);
   if (!sessionToken) {
-    input.deps.write_json(input.response, 401, apiError("login_required", "请先登录管理端"));
+    input.deps.write_json(input.response, 401, apiContractError("login_required", "请先登录管理端"));
     return null;
   }
 
   const validation = await input.deps.validate_admin_session(input.api_input.library_root, {
     session_token: sessionToken,
-    now: input.now
+    now: input.now,
+    // Sliding expiry: authenticated admin traffic renews the session (throttled
+    // inside validateAdminSession so this does not rewrite users.json per request).
+    touch: true
   });
   if (!validation.ok || !validation.user) {
-    input.deps.write_json(input.response, 401, apiError("login_required", validation.reason ?? "登录凭证无效"));
+    input.deps.write_json(input.response, 401, apiContractError("login_required", validation.reason ?? "登录凭证无效"));
     return null;
   }
 

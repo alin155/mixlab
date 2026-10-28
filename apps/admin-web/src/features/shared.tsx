@@ -21,6 +21,7 @@ import {
   formatAdminDuration,
   formatAdminFileSize
 } from "../app/view-model.ts";
+import { formatAdminDateTime } from "../app/datetime.ts";
 import {
   booleanLabel,
   chineseDiagnosticText,
@@ -525,10 +526,10 @@ export function JobRows({
           ? formatAdminDuration(averageProcessMs)
           : "等待估算";
         const estimatedStart = job.estimated_start_at
-          ? ` · 预计开始 ${job.estimated_start_at.replace("T", " ").slice(0, 16)}`
+          ? ` · 预计开始 ${formatAdminDateTime(job.estimated_start_at)}`
           : "";
         const estimatedDone = job.estimated_done_at
-          ? ` · 预计完成 ${job.estimated_done_at.replace("T", " ").slice(0, 16)}`
+          ? ` · 预计完成 ${formatAdminDateTime(job.estimated_done_at)}`
           : "";
         const detail = job.status === "queued"
           ? `${job.title} · ${job.status_label || "等待处理"} · 排队第 ${job.queue_position || index + 1} 位${estimatedStart} · 预计耗时 ${estimatedDuration}${estimatedDone}`
@@ -568,7 +569,7 @@ export function JobRows({
 export function IndexTable({ versions }: { versions: AdminIndexVersion[] }) {
   const columns: Array<TableColumn<AdminIndexVersion>> = [
     { id: "version", header: "版本", accessor: "index_version" },
-    { id: "created", header: "创建时间", accessor: "created_at" },
+    { id: "created", header: "创建时间", render: (version) => formatAdminDateTime(version.created_at) },
     { id: "ready", header: "已可用数量", accessor: "ready_video_count" },
     { id: "schema", header: "协议版本", accessor: "schema_version" },
     {
@@ -632,5 +633,123 @@ export function JobSummaryForm({ data }: { data: AdminDashboardData }) {
         }
       ]}
     />
+  );
+}
+
+export interface AdminConfirmActionView {
+  title: string;
+  summary: string;
+  items: readonly string[];
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+}
+
+export function AdminConfirmDialog({
+  view,
+  busy = false,
+  error = "",
+  onConfirm,
+  onCancel
+}: {
+  view: AdminConfirmActionView;
+  busy?: boolean;
+  error?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="admin-modal-backdrop" role="presentation">
+      <section className="admin-confirm-dialog" role="dialog" aria-modal="true" aria-label={view.title}>
+        <header>
+          <p>执行前确认</p>
+          <h2>{view.title}</h2>
+        </header>
+        <p>{view.summary}</p>
+        <ul className="admin-confirm-impact-list" aria-label="影响范围">
+          {view.items.map((item, index) => (
+            <li key={`${index}-${item}`}>{item}</li>
+          ))}
+        </ul>
+        {error ? <p className="admin-dialog-error" role="alert">{error}</p> : null}
+        <footer>
+          <button className="admin-secondary-button" type="button" onClick={onCancel} disabled={busy}>
+            {view.cancelLabel ?? "取消"}
+          </button>
+          <button
+            className={view.danger ? "admin-danger-button" : "admin-primary-button"}
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "执行中..." : view.confirmLabel ?? "确认执行"}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+export function AdminOperationResultDialog({
+  title,
+  items,
+  onClose
+}: {
+  title: string;
+  items: readonly string[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="admin-modal-backdrop" role="presentation">
+      <section className="admin-confirm-dialog" role="dialog" aria-modal="true" aria-label={title}>
+        <header>
+          <p>执行结果</p>
+          <h2>{title}</h2>
+        </header>
+        <ul className="admin-confirm-impact-list" aria-label="结果清单">
+          {items.map((item, index) => (
+            <li key={`${index}-${item}`}>{item}</li>
+          ))}
+        </ul>
+        <footer>
+          <button className="admin-primary-button" type="button" onClick={onClose}>
+            知道了
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+export function AdminCommandProgressPanel({
+  label,
+  detail,
+  percent,
+  stopRequested,
+  onStop
+}: {
+  label: string;
+  detail: string;
+  percent: number;
+  stopRequested: boolean;
+  onStop: () => void;
+}) {
+  return (
+    <section className="admin-command-progress" aria-label="命令执行进度" role="status">
+      <header>
+        <strong>{label}</strong>
+        <span>{detail}</span>
+      </header>
+      <meter min={0} max={100} value={Math.max(0, Math.min(100, Math.round(percent)))}>
+        {Math.round(percent)}%
+      </meter>
+      {stopRequested ? (
+        <p className="admin-muted">已请求停止后续批次，当前批次完成后停止。</p>
+      ) : (
+        <button className="admin-secondary-button" type="button" onClick={onStop}>
+          停止后续批次
+        </button>
+      )}
+    </section>
   );
 }

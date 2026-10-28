@@ -21,6 +21,12 @@ import {
   jobStageLabel,
   strictChineseDiagnosticText
 } from "../../app/chinese.ts";
+import {
+  adminDashboardFieldSource,
+  adminDashboardSourceLabel,
+  adminDoctorReportStatus
+} from "../../api.ts";
+import { formatAdminDateTime } from "../../app/datetime.ts";
 import { formatAdminDuration } from "../../app/view-model.ts";
 import {
   AdminControlButton,
@@ -31,6 +37,14 @@ import {
 } from "../shared.tsx";
 
 function productionStatus(data: AdminDashboardData): { title: string; detail: string; tone: "healthy" | "attention" | "blocked" } {
+  if (adminDashboardFieldSource(data, "supervisor").source !== "api") {
+    return {
+      title: "预处理服务状态未确认",
+      detail: `未能读取预处理服务状态（${adminDashboardSourceLabel(adminDashboardFieldSource(data, "supervisor").source)}），当前状态数字可能不完整，请刷新或稍后重试。`,
+      tone: "attention"
+    };
+  }
+
   const supervisorRunning = data.jobs.supervisor.state === "running" || data.jobs.supervisor.state === "stopping";
   const abnormalCount = data.jobs.jobs.filter((job) => job.status === "failed" && !job.retryable).length;
   const longAsrCount = data.jobs.jobs.filter((job) =>
@@ -120,7 +134,7 @@ function timeLabel(value: string): string {
     return "暂无估算";
   }
 
-  return value.replace("T", " ").slice(0, 16);
+  return formatAdminDateTime(value, { fallback: "暂无估算" });
 }
 
 function scanNewStageLabel(stage: AdminLibraryScanNewStatus["stage"]): string {
@@ -475,6 +489,10 @@ export function PreprocessJobsPage({
   );
   const failureDetailsPending = data.jobs.failed_count > 0 && failed.length < data.jobs.failed_count;
   const supervisor = data.jobs.supervisor;
+  const supervisorSource = adminDashboardFieldSource(data, "supervisor");
+  const supervisorConfirmed = supervisorSource.source === "api";
+  const doctorStatus = adminDoctorReportStatus(data);
+  const doctorSource = adminDashboardFieldSource(data, "doctor");
   const supervisorRunning = supervisor.state === "running" || supervisor.state === "stopping";
   const supervisorCurrentVideoId = supervisor.current_source_video_id;
   const supervisorCurrentStage = supervisor.current_stage;
@@ -531,13 +549,15 @@ export function PreprocessJobsPage({
   const currentRunProgressPercent = boundedPercent(
     currentRunTotal > 0 ? (currentRunClaimed / currentRunTotal) * 100 : 0
   );
-  const currentTaskLabel = currentJob
-    ? `${currentJob.source_video_id} · ${safeJobStageLabel(currentJob)}`
-    : supervisorCurrentVideoId
-      ? `${supervisorCurrentVideoId} · ${jobStageLabel(supervisorCurrentStage)}`
-      : supervisorRunning
-      ? "正在领取下一个视频"
-      : "空闲";
+  const currentTaskLabel = !supervisorConfirmed
+    ? "状态未确认"
+    : currentJob
+      ? `${currentJob.source_video_id} · ${safeJobStageLabel(currentJob)}`
+      : supervisorCurrentVideoId
+        ? `${supervisorCurrentVideoId} · ${jobStageLabel(supervisorCurrentStage)}`
+        : supervisorRunning
+        ? "正在领取下一个视频"
+        : "空闲";
   const currentTaskProgress = currentJob
     ? boundedPercent(currentJob.progress)
     : supervisorCurrentVideoId ? supervisorStageProgressPercent(supervisorCurrentStage) : 0;
@@ -545,18 +565,22 @@ export function PreprocessJobsPage({
   const currentTaskProgressLabel = currentJob
     ? `${currentTaskProgress}%`
     : supervisorCurrentVideoId ? `${currentTaskProgress}%` : supervisorRunning ? "等待任务状态" : "空闲";
-  const processingServiceValue = supervisorRunning
-    ? "运行中"
-    : data.status.processing_video_count > 0
-      ? data.status.processing_video_count
-      : "空闲";
-  const processingServiceCaption = supervisorRunning
-    ? currentJob
-      ? `${currentJob.source_video_id} 正在处理`
-      : currentTaskLabel
-    : data.status.processing_video_count > 0
-      ? "可能需要恢复"
-      : "当前没有任务";
+  const processingServiceValue = !supervisorConfirmed
+    ? "未确认"
+    : supervisorRunning
+      ? "运行中"
+      : data.status.processing_video_count > 0
+        ? data.status.processing_video_count
+        : "空闲";
+  const processingServiceCaption = !supervisorConfirmed
+    ? `未能读取预处理服务状态：${adminDashboardSourceLabel(supervisorSource.source)}`
+    : supervisorRunning
+      ? currentJob
+        ? `${currentJob.source_video_id} 正在处理`
+        : currentTaskLabel
+      : data.status.processing_video_count > 0
+        ? "可能需要恢复"
+        : "当前没有任务";
   const indexRequiredCaption = data.status.index_required_video_count > 0
     ? "等待上线剪辑端"
     : autoPublishIndexEnabled ? "已自动上线" : "没有待上线素材";
@@ -607,20 +631,24 @@ export function PreprocessJobsPage({
   const compactJobs = [...running, ...queued, ...failed, ...done].slice(0, 12);
   const throughputLabel = preprocessThroughputLabel(data, supervisorRunning);
   const currentValidationMessage = indexValidationMessageLabel(data.indexes.current_validation_message);
-  const currentJobStatusText = currentJob
-    ? supervisorRunning
-      ? `${currentJob.status_label} · ${safeJobStageLabel(currentJob)}`
-      : `待恢复 · ${safeJobStageLabel(currentJob)}`
-    : supervisorCurrentVideoId
-      ? `运行中 · ${jobStageLabel(supervisorCurrentStage)}`
-      : "流水线空闲或等待启动";
-  const currentJobHeading = currentJob
-    ? `${currentJob.source_video_id} · ${currentJob.title}`
-    : supervisorCurrentVideoId
-      ? supervisorCurrentVideoId
-      : supervisorRunning
-      ? "暂无正在处理的视频"
-      : "暂无待恢复的视频";
+  const currentJobStatusText = !supervisorConfirmed
+    ? "预处理服务状态未确认"
+    : currentJob
+      ? supervisorRunning
+        ? `${currentJob.status_label} · ${safeJobStageLabel(currentJob)}`
+        : `待恢复 · ${safeJobStageLabel(currentJob)}`
+      : supervisorCurrentVideoId
+        ? `运行中 · ${jobStageLabel(supervisorCurrentStage)}`
+        : "流水线空闲或等待启动";
+  const currentJobHeading = !supervisorConfirmed
+    ? "状态未确认"
+    : currentJob
+      ? `${currentJob.source_video_id} · ${currentJob.title}`
+      : supervisorCurrentVideoId
+        ? supervisorCurrentVideoId
+        : supervisorRunning
+        ? "暂无正在处理的视频"
+        : "暂无待恢复的视频";
   const activeMetricLabel = supervisorRunning ? "正在处理" : "待恢复";
   const activeMetricCaption = supervisorRunning ? "预处理服务已领取" : "服务未运行，停留在处理中";
   const currentStageSummary = running[0]
@@ -873,7 +901,7 @@ export function PreprocessJobsPage({
                     reason={nasWriteReason("检查 NAS 素材来源，把新视频登记到管理端。")}
                     onClick={gatedNasWriteAction(onScanSourceVideos)}
                   />
-                  {canStartSupervisor || canStopSupervisor ? (
+                  {supervisorConfirmed && (canStartSupervisor || canStopSupervisor) ? (
                     <AdminControlButton
                       label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
                       state={nasWriteState}
@@ -1052,8 +1080,12 @@ export function PreprocessJobsPage({
               </article>
               <article>
                 <span>系统检查</span>
-                <strong>{data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "通过"}</strong>
-                <p>失败 {data.doctor.summary.fail} · 警告 {data.doctor.summary.warn}</p>
+                <strong>{!doctorStatus.loaded
+                  ? doctorStatus.source === "fallback" ? "读取失败" : "未检查"
+                  : data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "通过"}</strong>
+                <p>{!doctorStatus.loaded
+                  ? adminDashboardSourceLabel(doctorSource.source)
+                  : `失败 ${data.doctor.summary.fail} · 警告 ${data.doctor.summary.warn}`}</p>
               </article>
             </div>
             {indexRequiredError ? (
@@ -1090,7 +1122,12 @@ export function PreprocessJobsPage({
               {
                 title: "当前状态",
                 rows: [
-                  { label: "服务", value: supervisor.state_label },
+                  {
+                    label: "服务",
+                    value: supervisorConfirmed
+                      ? supervisor.state_label
+                      : `未确认（${adminDashboardSourceLabel(supervisorSource.source)}）`
+                  },
                   { label: "当前阶段", value: currentStageSummary },
                   { label: "当前视频", value: currentTaskLabel },
                   { label: supervisorRunning ? "本次处理" : "上次处理", value: lastResult ? `领取 ${lastResult.total_claimed_count}，成功 ${lastResult.succeeded_count}，失败 ${lastResult.failed_count}` : "暂无记录" }
@@ -1122,7 +1159,7 @@ export function PreprocessJobsPage({
           <div className="admin-console-statusbar" aria-label="预处理状态">
             <span>
               <strong>服务状态</strong>
-              {supervisor.state_label}
+              {supervisorConfirmed ? supervisor.state_label : "未确认"}
             </span>
             <span>
               <strong>当前任务</strong>
@@ -1364,8 +1401,12 @@ export function PreprocessJobsPage({
             </article>
             <article>
               <span>系统检查</span>
-              <strong>{data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "通过"}</strong>
-              <p>警告 {data.doctor.summary.warn} · 失败 {data.doctor.summary.fail}</p>
+              <strong>{!doctorStatus.loaded
+                ? doctorStatus.source === "fallback" ? "读取失败" : "未检查"
+                : data.doctor.summary.fail > 0 ? "需处理" : data.doctor.summary.warn > 0 ? "需观察" : "通过"}</strong>
+              <p>{!doctorStatus.loaded
+                ? adminDashboardSourceLabel(doctorSource.source)
+                : `警告 ${data.doctor.summary.warn} · 失败 ${data.doctor.summary.fail}`}</p>
             </article>
           </div>
           {indexRequiredVideos.length ? (
@@ -1424,7 +1465,12 @@ export function PreprocessJobsPage({
             {
               title: "状态摘要",
               rows: [
-                { label: "服务状态", value: supervisor.state_label },
+                {
+                  label: "服务状态",
+                  value: supervisorConfirmed
+                    ? supervisor.state_label
+                    : `未确认（${adminDashboardSourceLabel(supervisorSource.source)}）`
+                },
                 { label: "当前阶段", value: currentStageSummary },
                 { label: "队列中", value: data.jobs.queued_count },
                 { label: failureMetricLabel, value: failureMetricValue },
@@ -1464,7 +1510,7 @@ export function PreprocessJobsPage({
         </section>
         ) : null}
         <section className="admin-action-stack">
-          {canStartSupervisor || canStopSupervisor ? (
+          {supervisorConfirmed && (canStartSupervisor || canStopSupervisor) ? (
             <AdminControlButton
               label={canStopSupervisor ? "暂停预处理" : "启动预处理"}
               state={nasWriteState}

@@ -29,6 +29,10 @@ import {
   readAdminReadModelStoreStatus,
   writeAdminSourceVideoStatusReadModelStore
 } from "./admin-read-model-store.ts";
+import {
+  readAdminLibraryScanNewStatus,
+  writeAdminLibraryScanNewStatus
+} from "./admin-library-scan-new-status.ts";
 import { buildAdminSourceVideoStatusReadModel } from "./admin-source-video-read-model.ts";
 
 async function makeLibraryRoot(): Promise<string> {
@@ -472,4 +476,190 @@ test("library scan snapshots with captured files remain restore-plan compatible"
     assert.ok(!file.source_relative_path?.startsWith(libraryRoot));
     assert.ok(!file.snapshot_relative_path?.startsWith(libraryRoot));
   }
+});
+
+function scanNewOwnerPath(libraryRoot: string): string {
+  return path.join(libraryRoot, ".mixlab-library", "admin", "library-scan-new-owner.json");
+}
+
+async function writeScanNewOwner(input: {
+  library_root: string;
+  owner_id: string;
+  started_at: string;
+  heartbeat_at: string;
+}): Promise<void> {
+  await writeText(scanNewOwnerPath(input.library_root), `${JSON.stringify({
+    schema_version: "1.0",
+    owner_id: input.owner_id,
+    pid: process.pid,
+    started_at: input.started_at,
+    heartbeat_at: input.heartbeat_at,
+    command: "library-scan-new"
+  }, null, 2)}\n`);
+}
+
+test("scan-new command rejects a run whose owner heartbeat is fresh", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedScannedLibrary({
+    library_root: libraryRoot,
+    now: "2026-06-26T10:20:00.000Z",
+    source_files: ["素材.mp4"]
+  });
+  await writeAdminLibraryScanNewStatus(libraryRoot, {
+    state: "running",
+    started_at: "2026-06-26T10:21:00.000Z",
+    updated_at: "2026-06-26T10:21:00.000Z",
+    stage: "listing"
+  });
+  await writeScanNewOwner({
+    library_root: libraryRoot,
+    owner_id: "another-live-owner",
+    started_at: "2026-06-26T10:21:00.000Z",
+    heartbeat_at: "2026-06-26T10:21:30.000Z"
+  });
+
+  await assert.rejects(
+    () => runAdminLibraryScanNewCommand({
+      library_root: libraryRoot,
+      library_id: "test-library",
+      library_name: "测试素材库",
+      command_now: "2026-06-26T10:22:00.000Z",
+      now: () => "2026-06-26T10:22:00.000Z"
+    }),
+    /正在运行/
+  );
+
+  const status = await readAdminLibraryScanNewStatus(libraryRoot);
+  assert.equal(status.state, "running");
+  assert.equal(status.started_at, "2026-06-26T10:21:00.000Z");
+  assert.equal(existsSync(scanNewOwnerPath(libraryRoot)), true);
+});
+
+test("scan-new command reclaims a stale running status based on heartbeat", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedScannedLibrary({
+    library_root: libraryRoot,
+    now: "2026-06-26T10:23:00.000Z",
+    source_files: ["素材.mp4"]
+  });
+  // Owner heartbeat is far beyond the stale window: the previous process died.
+  await writeAdminLibraryScanNewStatus(libraryRoot, {
+    state: "running",
+    started_at: "2026-06-26T08:00:00.000Z",
+    updated_at: "2026-06-26T08:00:00.000Z",
+    stage: "listing"
+  });
+  await writeScanNewOwner({
+    library_root: libraryRoot,
+    owner_id: "dead-owner",
+    started_at: "2026-06-26T08:00:00.000Z",
+    heartbeat_at: "2026-06-26T08:00:00.000Z"
+  });
+
+  const result = await runAdminLibraryScanNewCommand({
+    library_root: libraryRoot,
+    library_id: "test-library",
+    library_name: "测试素材库",
+    command_now: "2026-06-26T10:24:00.000Z",
+    now: () => "2026-06-26T10:24:01.000Z"
+  });
+
+  assert.equal(result.scan_mode, "additive-source-folder-scan");
+  const status = await readAdminLibraryScanNewStatus(libraryRoot);
+  assert.equal(status.state, "completed");
+  assert.equal(existsSync(scanNewOwnerPath(libraryRoot)), false);
+});
+
+test("scan-new command treats a fresh legacy running status without owner as busy", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedScannedLibrary({
+    library_root: libraryRoot,
+    now: "2026-06-26T10:25:00.000Z",
+    source_files: ["素材.mp4"]
+  });
+  await writeAdminLibraryScanNewStatus(libraryRoot, {
+    state: "running",
+    started_at: "2026-06-26T10:26:00.000Z",
+    updated_at: "2026-06-26T10:26:00.000Z",
+    stage: "listing"
+  });
+
+  await assert.rejects(
+    () => runAdminLibraryScanNewCommand({
+      library_root: libraryRoot,
+      library_id: "test-library",
+      library_name: "测试素材库",
+      command_now: "2026-06-26T10:26:30.000Z",
+      now: () => "2026-06-26T10:26:30.000Z"
+    }),
+    /正在运行/
+  );
+});
+
+test("scan-new command writes a CAS-guarded failed status when the scan itself fails", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  // A file occupying source-videos makes initialize/scan fail after the owner claimed running.
+  await writeText(path.join(libraryRoot, "source-videos"), "not-a-directory");
+
+  await assert.rejects(
+    () => runAdminLibraryScanNewCommand({
+      library_root: libraryRoot,
+      library_id: "test-library",
+      library_name: "测试素材库",
+      command_now: "2026-06-26T10:27:00.000Z",
+      now: () => "2026-06-26T10:27:00.000Z"
+    })
+  );
+
+  const status = await readAdminLibraryScanNewStatus(libraryRoot);
+  assert.equal(status.state, "failed");
+  assert.match(status.error_message, /source-videos|ENOTDIR|EEXIST/);
+  assert.equal(existsSync(scanNewOwnerPath(libraryRoot)), false);
+});
+
+test("scan-new command never lets a losing concurrent request overwrite the winner status", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await seedScannedLibrary({
+    library_root: libraryRoot,
+    now: "2026-06-26T10:28:00.000Z",
+    source_files: ["素材.mp4"]
+  });
+  for (let index = 0; index < 30; index += 1) {
+    await writeText(
+      path.join(sourceVideosRoot(libraryRoot), `并发新增-${index}.mp4`),
+      "fake video bytes"
+    );
+  }
+
+  const results = await Promise.allSettled([
+    runAdminLibraryScanNewCommand({
+      library_root: libraryRoot,
+      library_id: "test-library",
+      library_name: "测试素材库",
+      command_now: "2026-06-26T10:29:00.000Z",
+      now: () => "2026-06-26T10:29:00.000Z"
+    }),
+    runAdminLibraryScanNewCommand({
+      library_root: libraryRoot,
+      library_id: "test-library",
+      library_name: "测试素材库",
+      command_now: "2026-06-26T10:29:00.000Z",
+      now: () => "2026-06-26T10:29:00.000Z"
+    })
+  ]);
+
+  const fulfilled = results.filter((result) => result.status === "fulfilled");
+  const rejected = results.filter((result) => result.status === "rejected");
+  assert.equal(fulfilled.length >= 1, true);
+
+  for (const result of rejected) {
+    if (result.status === "rejected") {
+      const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      assert.match(message, /正在运行|门禁已被/);
+    }
+  }
+
+  const status = await readAdminLibraryScanNewStatus(libraryRoot);
+  assert.equal(status.state, "completed");
+  assert.equal(existsSync(scanNewOwnerPath(libraryRoot)), false);
 });

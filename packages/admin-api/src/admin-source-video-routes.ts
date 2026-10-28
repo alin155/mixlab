@@ -18,6 +18,9 @@ import {
   type AdminApiEnvelope
 } from "./admin-route-adapter.ts";
 
+export const ADMIN_SOURCE_VIDEO_ROUTE_DEFAULT_PAGE_LIMIT = 50;
+export const ADMIN_SOURCE_VIDEO_ROUTE_MAX_LIMIT = 500;
+
 export interface AdminSourceVideoRouteApiInput {
   library_root: string;
 }
@@ -82,10 +85,12 @@ export async function handleAdminSourceVideoRoutes<TManifest, TPublic, TDetail>(
     const manifestFallbackPolicy = input.search_params.get("manifest_fallback") === "forbid"
       ? "forbid"
       : undefined;
+    // Always page: an absent limit must never fall back to "all manifests". max 500 is enforced
+    // even when the caller sends an oversized or zero/negative limit.
     const limit = parseAdminRouteLimit(input.search_params, {
-      max_limit: 500,
-      default_limit: 0
-    }) ?? 0;
+      max_limit: ADMIN_SOURCE_VIDEO_ROUTE_MAX_LIMIT,
+      default_limit: ADMIN_SOURCE_VIDEO_ROUTE_DEFAULT_PAGE_LIMIT
+    }) ?? ADMIN_SOURCE_VIDEO_ROUTE_DEFAULT_PAGE_LIMIT;
     const offset = parseAdminRouteOffset(input.search_params);
     const status = input.deps.is_source_video_status(rawStatus) ? rawStatus : undefined;
     const result = await input.deps.read_source_video_list({

@@ -1,4 +1,5 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
+import path from "node:path";
 import {
   parseJsonText,
   readAllSourceVideoManifests,
@@ -21,7 +22,8 @@ import {
 import {
   readAdminLibraryScanNewStatus,
   scanProgressToStatus,
-  writeAdminLibraryScanNewStatus
+  writeAdminLibraryScanNewStatus,
+  type AdminLibraryScanNewStatus
 } from "./admin-library-scan-new-status.ts";
 import {
   adminLibraryManifestPath as libraryManifestPath,
@@ -182,16 +184,6 @@ function currentTime(input: AdminLibraryCommandContext): string {
   return input.now ? input.now() : input.command_now;
 }
 
-function isFreshRunningScanStatus(updatedAt: string, now: string): boolean {
-  const updatedMs = Date.parse(updatedAt);
-  const nowMs = Date.parse(now);
-  if (!Number.isFinite(updatedMs) || !Number.isFinite(nowMs)) {
-    return true;
-  }
-
-  return nowMs - updatedMs < 2 * 60 * 60 * 1000;
-}
-
 export async function initializeAdminLibrary(input: {
   library_root: string;
   library_id: string;
@@ -270,22 +262,175 @@ export async function runAdminLibraryScanCommand(
   });
 }
 
+
+interface AdminLibraryScanNewOwnerRecord {
+  schema_version: "1.0";
+  owner_id: string;
+  pid: number;
+  started_at: string;
+  heartbeat_at: string;
+  command: "library-scan-new";
+}
+
+/** Heartbeat cadence for a running scan-new owner; the owner file is the liveness source. */
+const SCAN_NEW_HEARTBEAT_INTERVAL_MS = 15_000;
+/** An owner whose heartbeat is older than this is considered dead and may be taken over. */
+const SCAN_NEW_HEARTBEAT_STALE_MS = 60_000;
+/** Legacy fallback for running status files written before owner/heartbeat existed. */
+const SCAN_NEW_LEGACY_STATUS_STALE_MS = 5 * 60 * 1000;
+
+function scanNewOwnerPath(libraryRoot: string): string {
+  return path.join(mixlabRoot(libraryRoot), "admin", "library-scan-new-owner.json");
+}
+
+function timestampMs(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function readScanNewOwnerRecord(
+  libraryRoot: string
+): Promise<AdminLibraryScanNewOwnerRecord | null> {
+  try {
+    const record = await readJsonFile<Partial<AdminLibraryScanNewOwnerRecord>>(
+      scanNewOwnerPath(libraryRoot)
+    );
+
+    if (
+      record.schema_version !== "1.0" ||
+      typeof record.owner_id !== "string" ||
+      record.owner_id.trim() === "" ||
+      typeof record.heartbeat_at !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      schema_version: "1.0",
+      owner_id: record.owner_id,
+      pid: typeof record.pid === "number" ? record.pid : 0,
+      started_at: typeof record.started_at === "string" ? record.started_at : "",
+      heartbeat_at: record.heartbeat_at,
+      command: "library-scan-new"
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function writeScanNewOwnerRecord(input: {
+  library_root: string;
+  owner_id: string;
+  started_at: string;
+  heartbeat_at: string;
+}): Promise<void> {
+  const filePath = scanNewOwnerPath(input.library_root);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeJsonFileAtomically(filePath, {
+    schema_version: "1.0",
+    owner_id: input.owner_id,
+    pid: process.pid,
+    started_at: input.started_at,
+    heartbeat_at: input.heartbeat_at,
+    command: "library-scan-new"
+  } satisfies AdminLibraryScanNewOwnerRecord);
+}
+
+async function removeScanNewOwnerRecordIfOwner(
+  libraryRoot: string,
+  ownerId: string
+): Promise<void> {
+  const owner = await readScanNewOwnerRecord(libraryRoot);
+
+  if (owner?.owner_id !== ownerId) {
+    return;
+  }
+
+  await rm(scanNewOwnerPath(libraryRoot), { force: true }).catch(() => {
+    // Best effort cleanup; a stale owner record is reclaimed by heartbeat staleness.
+  });
+}
+
+function isScanNewOwnerHeartbeatFresh(
+  owner: AdminLibraryScanNewOwnerRecord | null,
+  nowMs: number
+): boolean {
+  if (!owner) {
+    return false;
+  }
+
+  const heartbeatMs = timestampMs(owner.heartbeat_at);
+  return heartbeatMs > 0 && nowMs - heartbeatMs < SCAN_NEW_HEARTBEAT_STALE_MS;
+}
+
+/**
+ * Reject a concurrent scan-new start before any write happens. A running status without a
+ * fresh owner heartbeat is treated as crashed (stale) and can be reclaimed; the writer lease
+ * acquired by runAdminCommand remains the true mutual-exclusion gate.
+ */
+async function assertAdminLibraryScanNewNotRunning(input: {
+  library_root: string;
+  now: string;
+}): Promise<void> {
+  const previousStatus = await readAdminLibraryScanNewStatus(input.library_root);
+
+  if (previousStatus.state !== "running") {
+    return;
+  }
+
+  const nowMs = timestampMs(input.now) || Date.now();
+  const owner = await readScanNewOwnerRecord(input.library_root);
+
+  if (isScanNewOwnerHeartbeatFresh(owner, nowMs)) {
+    throw new Error("library_scan_new_busy: 新增素材扫描正在运行，请等待完成后再启动。");
+  }
+
+  if (!owner) {
+    const statusMs = timestampMs(previousStatus.updated_at);
+    if (statusMs > 0 && nowMs - statusMs < SCAN_NEW_LEGACY_STATUS_STALE_MS) {
+      throw new Error("library_scan_new_busy: 新增素材扫描正在运行，请等待完成后再启动。");
+    }
+  }
+}
+
+/** Compare-and-set finalization: only the current owner may move a running scan to a final state. */
+async function finalizeScanNewStatusIfOwner(input: {
+  library_root: string;
+  owner_id: string;
+  status: Partial<AdminLibraryScanNewStatus>;
+}): Promise<boolean> {
+  const currentStatus = await readAdminLibraryScanNewStatus(input.library_root);
+  const owner = await readScanNewOwnerRecord(input.library_root);
+
+  if (owner?.owner_id !== input.owner_id) {
+    return false;
+  }
+
+  if (currentStatus.state !== "running") {
+    return false;
+  }
+
+  await writeAdminLibraryScanNewStatus(input.library_root, input.status);
+  return true;
+}
+
 export async function runAdminLibraryScanNewCommand(
   input: AdminLibraryCommandContext
 ): Promise<AdminLibraryScanNewCommandResult> {
   const commandName = "library-scan-new";
   const command = adminCommandContract(commandName);
   const startedAt = currentTime(input);
-  const previousStatus = await readAdminLibraryScanNewStatus(input.library_root);
-  if (previousStatus.state === "running" && isFreshRunningScanStatus(previousStatus.updated_at, startedAt)) {
-    throw new Error("library_scan_new_busy: 新增素材扫描正在运行，请等待完成后再启动。");
-  }
-  await writeAdminLibraryScanNewStatus(input.library_root, {
-    state: "running",
-    started_at: startedAt,
-    updated_at: startedAt,
-    stage: "listing"
+  const ownerId = `library-scan-new:${process.pid}:${startedAt}:${
+    Math.random().toString(36).slice(2, 10)
+  }`;
+
+  // Step 1: only inspect status; never write "running" before the writer lease is acquired.
+  await assertAdminLibraryScanNewNotRunning({
+    library_root: input.library_root,
+    now: startedAt
   });
+
+  let heartbeatTimer: NodeJS.Timeout | null = null;
 
   try {
     return await runAdminCommand({
@@ -293,60 +438,110 @@ export async function runAdminLibraryScanNewCommand(
       command: command.command,
       now: input.command_now,
       actor: input.actor,
-      snapshot_files: librarySnapshotFiles(input.library_root)
+      snapshot_files_provider: async () => librarySnapshotFiles(input.library_root)
     }, async () => {
-      await initializeAdminLibrary({
+      // Step 2: the writer lease is held now, so claiming the owner record cannot race a
+      // competing scan-new request. Write owner first, then expose "running" to the UI.
+      await writeScanNewOwnerRecord({
         library_root: input.library_root,
-        library_id: input.library_id,
-        library_name: input.library_name,
-        now: currentTime(input)
+        owner_id: ownerId,
+        started_at: startedAt,
+        heartbeat_at: currentTime(input)
       });
-      const result = await scanNewSourceVideos({
-        library_root: input.library_root,
-        library_id: input.library_id,
-        library_name: input.library_name,
-        now: currentTime(input),
-        on_progress: async (progress) => {
-          await writeAdminLibraryScanNewStatus(
-            input.library_root,
-            scanProgressToStatus({ started_at: startedAt, progress })
-          );
-        }
-      });
-      const readModel = await markAdminReadModelStoreStaleForCommand({
-        library_root: input.library_root,
-        command: commandName,
-        invalidated_at: currentTime(input),
-        read_library_manifest: () => readAdminLibraryManifest(input.library_root)
-      });
+
+      heartbeatTimer = setInterval(() => {
+        void writeScanNewOwnerRecord({
+          library_root: input.library_root,
+          owner_id: ownerId,
+          started_at: startedAt,
+          heartbeat_at: currentTime(input)
+        }).catch(() => {
+          // Heartbeat failures are recovered by staleness reclamation on the next request.
+        });
+      }, SCAN_NEW_HEARTBEAT_INTERVAL_MS);
+      heartbeatTimer.unref?.();
+
       await writeAdminLibraryScanNewStatus(input.library_root, {
-        state: "completed",
+        state: "running",
         started_at: startedAt,
         updated_at: currentTime(input),
-        completed_at: currentTime(input),
-        stage: "completed",
-        new_video_count: result.new_video_count,
-        existing_video_count: result.existing_video_count,
-        total_video_count: result.total_video_count,
-        inactive_manifest_count: result.inactive_manifest_count,
-        inactive_ready_count: result.inactive_ready_count,
-        discovered_video_count: result.total_video_count,
-        indexed_file_count: result.total_video_count,
-        written_video_count: result.new_video_count
+        stage: "listing"
       });
-      return {
-        ...result,
-        read_model: readModel
-      };
+
+      try {
+        await initializeAdminLibrary({
+          library_root: input.library_root,
+          library_id: input.library_id,
+          library_name: input.library_name,
+          now: currentTime(input)
+        });
+        const result = await scanNewSourceVideos({
+          library_root: input.library_root,
+          library_id: input.library_id,
+          library_name: input.library_name,
+          now: currentTime(input),
+          on_progress: async (progress) => {
+            await writeAdminLibraryScanNewStatus(
+              input.library_root,
+              scanProgressToStatus({ started_at: startedAt, progress })
+            );
+          }
+        });
+        const readModel = await markAdminReadModelStoreStaleForCommand({
+          library_root: input.library_root,
+          command: commandName,
+          invalidated_at: currentTime(input),
+          read_library_manifest: () => readAdminLibraryManifest(input.library_root)
+        });
+        await finalizeScanNewStatusIfOwner({
+          library_root: input.library_root,
+          owner_id: ownerId,
+          status: {
+            state: "completed",
+            started_at: startedAt,
+            updated_at: currentTime(input),
+            completed_at: currentTime(input),
+            stage: "completed",
+            new_video_count: result.new_video_count,
+            existing_video_count: result.existing_video_count,
+            total_video_count: result.total_video_count,
+            inactive_manifest_count: result.inactive_manifest_count,
+            inactive_ready_count: result.inactive_ready_count,
+            discovered_video_count: result.total_video_count,
+            indexed_file_count: result.total_video_count,
+            written_video_count: result.new_video_count
+          }
+        });
+        return {
+          ...result,
+          read_model: readModel
+        };
+      } catch (error) {
+        // Step 3: CAS-style failure update; a request that lost the lease never owns the
+        // record and therefore never overwrites another runner's status.
+        await finalizeScanNewStatusIfOwner({
+          library_root: input.library_root,
+          owner_id: ownerId,
+          status: {
+            state: "failed",
+            started_at: startedAt,
+            updated_at: currentTime(input),
+            completed_at: currentTime(input),
+            error_message: error instanceof Error ? error.message : String(error)
+          }
+        });
+        throw error;
+      } finally {
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+        await removeScanNewOwnerRecordIfOwner(input.library_root, ownerId);
+      }
     });
-  } catch (error) {
-    await writeAdminLibraryScanNewStatus(input.library_root, {
-      state: "failed",
-      started_at: startedAt,
-      updated_at: currentTime(input),
-      completed_at: currentTime(input),
-      error_message: error instanceof Error ? error.message : String(error)
-    });
-    throw error;
+  } finally {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+    }
   }
 }

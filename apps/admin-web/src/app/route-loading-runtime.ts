@@ -268,6 +268,8 @@ export type AdminRouteRequestLoadErrorSurface =
 export interface AdminRouteRequestLoadSpec {
   key: AdminRouteRequestLoadKey;
   route: AdminRoute;
+  /** 可选：允许同一 loader 服务的多个路由（如 preprocess-jobs 与 index-publish 共用待上线列表）。 */
+  routes?: readonly AdminRoute[];
   loading_key: AdminRouteLoadingKey;
   local_read_key?: AdminRouteLocalReadKey;
   request_scope: "route-abortable";
@@ -589,6 +591,7 @@ export const ADMIN_ROUTE_REQUEST_LOAD_SPECS: Record<AdminRouteRequestLoadKey, Ad
   indexRequiredVideos: {
     key: "indexRequiredVideos",
     route: "preprocess-jobs",
+    routes: ["preprocess-jobs", "index-publish"],
     loading_key: "indexRequiredVideos",
     local_read_key: "indexRequiredVideos",
     request_scope: "route-abortable",
@@ -980,8 +983,9 @@ export function startAdminRouteTokenLoad<
 
 export function shouldStartAdminRouteRequestLoad(input: AdminRouteRequestLoadInput): boolean {
   const spec = ADMIN_ROUTE_REQUEST_LOAD_SPECS[input.key];
+  const allowedRoutes = spec.routes ?? [spec.route];
 
-  if (input.route !== spec.route) {
+  if (!allowedRoutes.includes(input.route)) {
     return false;
   }
 

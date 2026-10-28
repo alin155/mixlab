@@ -126,8 +126,19 @@
     "visual:ui-foundation": "tsx scripts/visual/check-ui-foundation-screenshots.ts",
     "build:searchd": "cargo build --manifest-path packages/searchd/Cargo.toml --release",
     "test:searchd": "cargo test --manifest-path packages/searchd/Cargo.toml",
+    "release:manifest": "node scripts/release/release-manifest.mjs --dry-run",
+    "release:manifest:write": "node scripts/release/release-manifest.mjs --out-dir dist/release",
+    "release:check": "node scripts/release/release-manifest.mjs --check",
+    "release:notes": "node scripts/release/release-notes.mjs --dry-run",
+    "release:bump": "node scripts/release/version-bump.mjs",
+    "release:changelog": "node scripts/release/changelog-entry.mjs",
+    "test:release": "node --test scripts/release/release-manifest.test.mjs",
     "test": "node --test --import tsx packages/*/src/*.test.ts apps/*/src/*.test.ts scripts/acceptance/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "ci:gate": "node scripts/ci/shared-packages-gate.mjs",
+    "ci:admin": "node scripts/ci/product-pipeline.mjs --product admin",
+    "ci:cutter": "node scripts/ci/product-pipeline.mjs --product cutter",
+    "ci:smart": "node scripts/ci/product-pipeline.mjs --product smart"
   },
   "dependencies": {
     "react": "^19.0.0",

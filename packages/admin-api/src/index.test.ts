@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -738,14 +738,51 @@ test("health reports build, runtime path profile, and shallow preprocess safety"
     assert.equal(health.data.build.sha, "abc123");
     assert.equal(health.data.build.version, "2026.06.25");
     assert.equal(health.data.build.image_tag, "abc123");
-    assert.equal(health.data.runtime.library_root, libraryRoot);
-    assert.equal(health.data.runtime.source_videos_path, path.join(libraryRoot, "source-videos"));
     assert.equal(health.data.runtime.path_profile, "local");
+    assert.equal(JSON.stringify(health).includes(libraryRoot), false);
     assert.equal(health.data.preprocess.processing.checked, false);
   } finally {
     server.close();
     await once(server, "close");
   }
+});
+
+test("ready endpoint separates dependency readiness from health liveness", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  await withServer(libraryRoot, async (baseUrl) => {
+    await postJson(baseUrl, "/api/admin/library/init");
+
+    const ready = await getJson(baseUrl, "/ready");
+    assert.equal(ready.ok, true);
+    assert.equal(ready.data.service, "admin-api");
+    assert.equal(ready.data.ready, true);
+    assert.equal(ready.data.status, "ready");
+    assert.deepEqual(
+      ready.data.checks.map((check: { id: string }) => check.id),
+      ["library_readable", "read_model_readable", "release_pointer_valid", "preprocess_safety"]
+    );
+    assert.deepEqual(ready.data.reasons, []);
+    assert.equal(JSON.stringify(ready.data).includes(libraryRoot), false);
+
+    const health = await getJson(baseUrl, "/health");
+    assert.equal(health.ok, true);
+    assert.equal(health.data.ok, true);
+
+    await rm(libraryRoot, { recursive: true, force: true });
+
+    const notReady = await getJson(baseUrl, "/ready");
+    assert.equal(notReady.ok, false);
+    assert.equal(notReady.error_code, "not_ready");
+    assert.equal(Array.isArray(notReady.details?.reasons), true);
+    assert.equal(notReady.details.reasons.length >= 1, true);
+    assert.equal(JSON.stringify(notReady).includes(libraryRoot), false);
+
+    // Liveness endpoint keeps its legacy contract even when dependencies are unavailable.
+    const healthWhileBroken = await getJson(baseUrl, "/health");
+    assert.equal(healthWhileBroken.ok, true);
+    assert.equal(healthWhileBroken.data.ok, true);
+  });
 });
 
 test("protection status and release gates expose Admin Architecture v1 blockers", async () => {
@@ -1756,7 +1793,7 @@ test("source video non-ready status list can read from fresh admin sqlite withou
   });
 });
 
-test("source-video read-only probe header disables page-time admin sqlite repair", async () => {
+test("source-video read path only repairs the admin sqlite store behind the legacy opt-in", async () => {
   const libraryRoot = await makeLibraryRoot();
   const library = {
     library_id: "lib_main_001",
@@ -1830,25 +1867,30 @@ test("source-video read-only probe header disables page-time admin sqlite repair
     assert.equal(noRepairProbe.meta.runtime.cache_status, "hit");
     assert.equal(noRepairProbe.meta.runtime.fallback_reason, "status-store:incomplete-manifest-rows");
     assert.equal(noRepairProbe.meta.runtime.repair_reason, undefined);
-    const historyAfterProbe = await getJson(baseUrl, "/api/admin/runtime/diagnostics/history?limit=10");
-    assert.deepEqual(historyAfterProbe.data.entries, []);
 
-    const normalPageRead = await getJson(baseUrl, "/api/admin/source-videos?status=queued&limit=1");
+    // Plain GET requests no longer write the admin sqlite store by default.
+    const defaultPageRead = await getJson(baseUrl, "/api/admin/source-videos?status=queued&limit=1");
 
-    assert.equal(normalPageRead.ok, true);
-    assert.equal(normalPageRead.data[0].source_video_id, "V000001");
-    assert.equal(normalPageRead.meta.runtime.actual_data_source, "admin-read-model");
-    assert.equal(normalPageRead.meta.runtime.cache_status, "hit");
-    assert.equal(
-      normalPageRead.meta.runtime.repair_reason,
-      "status-store:repaired-incomplete-manifest-rows"
-    );
-    const historyAfterNormalRead = await getJson(baseUrl, "/api/admin/runtime/diagnostics/history?limit=10");
-    assert.deepEqual(
-      historyAfterNormalRead.data.entries.map((entry: { runtime: { endpoint: string } }) => entry.runtime.endpoint),
-      ["/api/admin/source-videos"]
-    );
+    assert.equal(defaultPageRead.ok, true);
+    assert.equal(defaultPageRead.data[0].source_video_id, "V000001");
+    assert.equal(defaultPageRead.meta.runtime.actual_data_source, "admin-read-model");
+    assert.equal(defaultPageRead.meta.runtime.cache_status, "hit");
+    assert.equal(defaultPageRead.meta.runtime.repair_reason, undefined);
+
+    const storeDb = new DatabaseSync(adminReadModelStorePath(libraryRoot));
+    try {
+      const row = storeDb.prepare(
+        "SELECT manifest_json FROM source_video_status WHERE source_video_id = ?"
+      ).get("V000001") as { manifest_json: string } | undefined;
+      assert.equal(row?.manifest_json, "");
+    } finally {
+      storeDb.close();
+    }
   });
+
+  // Legacy page-time repair remains available through the facade-level opt-in
+  // (MIXLAB_ADMIN_READ_MODEL_STORE_REPAIR=1 at process start / store_repair_enabled), covered by
+  // admin-source-video-read-facade.test.ts; GET requests never write by default.
 });
 
 test("stale source video status read model is ignored and rebuilt from manifests", async () => {

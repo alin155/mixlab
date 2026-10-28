@@ -3,6 +3,7 @@ import test from "node:test";
 import type { PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
 import {
   listAdminSourceVideoManifests,
+  normalizeAdminSourceVideoListLimit,
   type AdminSourceVideoFilteredListQueryReaderInput,
   type AdminSourceVideoListQueryReaderInput,
   type AdminSourceVideoStatusesListQueryReaderInput,
@@ -303,4 +304,41 @@ test("source-video list query falls back to bounded filtered scan when indexed p
     status: undefined,
     max_scan_batches: 8
   }]);
+});
+
+test("source-video list query never reads the whole library for zero or absent limits", async () => {
+  const { calls, readers } = makeReaders({ default_page: [], indexed_ready: null });
+
+  const result = await listAdminSourceVideoManifests({
+    offset: 0,
+    limit: 0,
+    ...readers
+  });
+
+  assert.deepEqual(result, []);
+  assert.deepEqual(calls.default_page, [{ offset: 0, limit: 50 }]);
+  assert.equal(calls.all, 0);
+});
+
+test("source-video list query caps oversized limits at the documented maximum", async () => {
+  const { calls, readers } = makeReaders({ default_page: [], indexed_ready: null });
+
+  await listAdminSourceVideoManifests({
+    offset: 10,
+    limit: 9_999,
+    ...readers
+  });
+
+  assert.deepEqual(calls.default_page, [{ offset: 10, limit: 500 }]);
+  assert.equal(calls.all, 0);
+});
+
+test("source-video list limit normalization clamps unsafe values", () => {
+  assert.equal(normalizeAdminSourceVideoListLimit(0), 50);
+  assert.equal(normalizeAdminSourceVideoListLimit(-3), 50);
+  assert.equal(normalizeAdminSourceVideoListLimit(Number.NaN), 50);
+  assert.equal(normalizeAdminSourceVideoListLimit(Number.POSITIVE_INFINITY), 50);
+  assert.equal(normalizeAdminSourceVideoListLimit(12.9), 12);
+  assert.equal(normalizeAdminSourceVideoListLimit(500), 500);
+  assert.equal(normalizeAdminSourceVideoListLimit(5_000), 500);
 });

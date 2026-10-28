@@ -1,0 +1,74 @@
+name: shared-packages-gate
+# TEMPLATE（三仓通用）：三仓共享包逐文件 sha256 门禁。默认只读检查，不发布/不部署。
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "packages/contracts/**"
+      - "packages/library-format/**"
+      - "packages/service-clients/**"
+      - "scripts/ci/**"
+      - ".github/workflows/shared-packages-gate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-packages-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shared-packages-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      # 另外两个仓库用于跨仓一致性比较；私有仓需只读 PAT。
+      - name: Checkout admin repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MIXLAB_ADMIN_REPOSITORY }}
+          path: repos/mixlab
+          token: ${{ secrets.SHARED_REPOS_READ_TOKEN }}
+      - name: Checkout cutter repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MIXLAB_CUTTER_REPOSITORY }}
+          path: repos/mixlab-cutter
+          token: ${{ secrets.SHARED_REPOS_READ_TOKEN }}
+      - name: Checkout smart repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MIXLAB_SMART_REPOSITORY }}
+          path: repos/mixlab-smart-cutter
+          token: ${{ secrets.SHARED_REPOS_READ_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # NOTE(ci template): 仓库内 packages/{contracts,library-format,service-clients} 为 workspace 新包，
+      # 需先执行一次 `npm install --package-lock-only` 刷新 package-lock 后，npm ci 才能成功；
+      # 未刷新前模板使用 `npm ci || npm install` 兜底（不发布任何制品）。
+
+      - name: Install current repository deps
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Shared packages hash gate
+        run: |
+          node scripts/ci/shared-packages-gate.mjs \
+            --admin-root repos/mixlab \
+            --cutter-root repos/mixlab-cutter \
+            --smart-root repos/mixlab-smart-cutter \
+            --summary-out shared-packages-gate.json
+
+      - name: Upload gate summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-packages-gate-summary
+          path: shared-packages-gate.json
+          if-no-files-found: ignore
+          retention-days: 14

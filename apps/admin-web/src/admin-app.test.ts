@@ -139,13 +139,15 @@ function visibleText(html: string): string {
 test("admin navigation uses approved Chinese IA and legacy route aliases", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["首页", "素材处理", "剪辑师", "系统状态"]
+    ["首页", "素材库", "素材处理", "发布与索引", "保护中心", "剪辑师", "系统状态", "设置", "操作记录"]
   );
-  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "系统状态");
-  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "素材库"), false);
-  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "设置"), false);
+  assert.equal(ADMIN_NAV_ITEMS.at(-1)?.label, "操作记录");
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "素材库"), true);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "设置"), true);
   assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "公共素材库设置"), false);
-  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "发布与索引"), false);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "发布与索引"), true);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "保护中心"), true);
+  assert.equal(ADMIN_NAV_ITEMS.some((item) => item.label === "操作记录"), true);
   assert.equal(routeFromHash("#/library-settings"), "settings");
   assert.equal(routeFromHash("#/index-health"), "index-publish");
   assert.equal(routeFromHash("#/index-publish"), "index-publish");
@@ -3054,7 +3056,7 @@ test("route loading runtime runs request loader lifecycle through the execution 
     key: "indexRequiredVideos",
     route: "index-publish",
     loading: false
-  }), false);
+  }), true, "index-publish 页应复用待上线列表 loader");
   assert.equal(shouldStartAdminRouteRequestLoad({
     key: "indexRequiredVideos",
     route: "source-videos",

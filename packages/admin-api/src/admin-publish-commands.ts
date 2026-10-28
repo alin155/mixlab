@@ -10,7 +10,16 @@ import {
 import type { SourceVideoManifest } from "../../protocol/src/index.ts";
 import { adminCommandContract } from "./admin-command-guard.ts";
 import { runAdminCommand } from "./admin-command-runtime.ts";
-import type { AdminCommandActor } from "./admin-command-audit.ts";
+import {
+  adminCommandAuditArea,
+  adminCommandAuditDetails,
+  type AdminCommandActor
+} from "./admin-command-audit.ts";
+import {
+  appendAdminOperationLogEvent,
+  type AdminOperationLogAppendInput,
+  type AdminOperationLogEvent
+} from "./admin-operation-log.ts";
 import type { AdminCommandSnapshotFileInput } from "./admin-command-snapshot.ts";
 import { readAdminLibraryManifest } from "./admin-library-commands.ts";
 import {
@@ -21,6 +30,72 @@ import {
 } from "./admin-library-paths.ts";
 import { writeAdminSourceVideoManifestsToReadModelStore } from "./admin-read-model-store.ts";
 import { numericSourceVideoId } from "./admin-source-video-query.ts";
+
+export const READY_PUBLISH_WORKER_COMMAND = "preprocess-supervisor-publish-ready" as const;
+
+export function readyPublishWorkerHolder(processId = process.pid): string {
+  return `ready-publish-worker:${processId}`;
+}
+
+export type ReadyPublishWorkerAuditEventType =
+  | "started"
+  | "progress"
+  | "skipped"
+  | "succeeded"
+  | "failed";
+
+export interface ReadyPublishWorkerAuditInput {
+  library_root: string;
+  occurred_at: string;
+  event_type: ReadyPublishWorkerAuditEventType;
+  holder: string;
+  actor?: AdminCommandActor;
+  reason?: string;
+  error?: unknown;
+  details?: Record<string, unknown>;
+  append_operation_log_event?: (input: AdminOperationLogAppendInput) => Promise<AdminOperationLogEvent>;
+}
+
+/**
+ * Unified audit surface for the standalone ready-publish worker: same operation-log
+ * area/action/details contract as the Admin publish command, plus explicit
+ * skipped/progress events for policy skips and lease waits.
+ */
+export function readyPublishWorkerAuditDetails(
+  input: Pick<ReadyPublishWorkerAuditInput, "holder" | "actor" | "reason" | "error" | "details">
+): Record<string, unknown> {
+  return {
+    ...adminCommandAuditDetails({
+      command: READY_PUBLISH_WORKER_COMMAND,
+      holder: input.holder,
+      actor: input.actor,
+      error: input.error
+    }),
+    worker: "ready-publish-worker",
+    ...(input.reason ? { reason: input.reason } : {}),
+    ...(input.details ?? {})
+  };
+}
+
+export async function appendReadyPublishWorkerAuditEventBestEffort(
+  input: ReadyPublishWorkerAuditInput
+): Promise<void> {
+  const append = input.append_operation_log_event ?? appendAdminOperationLogEvent;
+
+  try {
+    await append({
+      library_root: input.library_root,
+      occurred_at: input.occurred_at,
+      area: adminCommandAuditArea(READY_PUBLISH_WORKER_COMMAND),
+      action: READY_PUBLISH_WORKER_COMMAND,
+      event_type: input.event_type,
+      message: `Ready publish worker ${input.event_type}${input.reason ? `: ${input.reason}` : ""}.`,
+      details: readyPublishWorkerAuditDetails(input)
+    });
+  } catch {
+    // Operation-log write failure must never block or fail the publish worker.
+  }
+}
 
 export interface ReadyPublishMedia {
   create_cover(input: {

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": false,
+  "commit": false,
+  "access": "private",
+  "baseBranch": "codex/windows-first-run-autostart-20260615104835",
+  "updateInternalDependencies": "patch",
+  "bumpVersionsWithWorkspaceProtocolOnly": false,
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
+  "fixed": [],
+  "linked": [],
+  "ignore": [
+    "@mixlab/ui-fixtures"
+  ]
+}
+

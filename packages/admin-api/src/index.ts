@@ -48,6 +48,7 @@ import {
   writeAdminNoContent as writeNoContent
 } from "./admin-http-session.ts";
 import {
+  createAdminCutterUserListService,
   runAdminApproveCutterUserCommand,
   runAdminDisableCutterUserCommand,
   runAdminResetCutterUserPasswordCommand,
@@ -64,6 +65,11 @@ import { runAdminCommand } from "./admin-command-runtime.ts";
 import {
   createAdminReadModelServerFacade
 } from "./admin-read-model-server-facade.ts";
+import {
+  createAdminDailyScanScheduler,
+  resolveAdminDailyScanHour,
+  runAdminDailyScanOnce
+} from "./admin-daily-scan-scheduler.ts";
 import {
   runAdminLibraryInitCommand,
   runAdminLibraryScanNewCommand
@@ -191,6 +197,7 @@ import {
   createDefaultAdminRuntimeDiagnosticsRecorder
 } from "./admin-runtime-diagnostics-recorder.ts";
 import {
+  apiContractError,
   apiError,
   apiOk
 } from "./admin-route-adapter.ts";
@@ -291,6 +298,12 @@ import {
   handleAdminAuthRoutes,
   isPublicAdminAuthRoute
 } from "./admin-auth-routes.ts";
+import {
+  handleAdminV1ContractRoutes
+} from "./admin-v1-contract-routes.ts";
+import {
+  handleAdminReleaseV2Routes
+} from "./admin-release-v2-routes.ts";
 import {
   createAdminAuthRouteServerDeps
 } from "./admin-auth-route-deps.ts";
@@ -582,8 +595,38 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       read_operation_log: readAdminOperationLog
     }
   });
+  const dailyScanScheduler = createAdminDailyScanScheduler({
+    env,
+    hour: resolveAdminDailyScanHour(env),
+    now,
+    run_once: () => runAdminDailyScanOnce({
+      library_root: input.library_root,
+      library_id: libraryId,
+      library_name: libraryName,
+      command_now: now(),
+      now,
+      env,
+      preprocess_runner_available: Boolean(input.preprocess_runner),
+      run_library_scan_new: runAdminLibraryScanNewCommand,
+      schedule_read_model_reconcile_after_scan:
+        readModelServerFacade.schedule_read_model_reconcile_after_scan,
+      clear_source_video_page_cache: clearAdminSourceVideoPageCache,
+      read_admin_settings: readAdminSettings,
+      refresh_runtime_secrets: refreshRuntimeSecrets,
+      assert_real_preprocess_start_ready: assertRealPreprocessStartReady,
+      read_preprocess_safety() {
+        return healthReadServices.read_preprocess_safety({
+          api_input: input,
+          include_processing_guard: true
+        });
+      },
+      assert_preprocess_safe_to_start: assertPreprocessSafeToStart,
+      read_preprocess_supervisor_status: () => supervisor.status(),
+      start_preprocess_supervisor: (startInput) => supervisor.start(startInput)
+    })
+  });
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
 
@@ -598,6 +641,19 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
       });
       const readOnlyProbe = isAdminReadOnlyProbe(request.headers);
 
+      // Control API v1 public contract endpoints (capabilities/errors) are versioned and
+      // session-free so contract-aware clients can negotiate before authenticating.
+      const contractRoute = await handleAdminV1ContractRoutes({
+        method: request.method ?? "",
+        pathname: url.pathname,
+        now: requestNow,
+        env
+      });
+      if (contractRoute.handled) {
+        writeJson(response, contractRoute.status_code, contractRoute.body);
+        return;
+      }
+
       const authRoute = await handleAdminAuthRoutes({
         method: request.method ?? "",
         pathname: url.pathname,
@@ -610,7 +666,8 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
           read_request_json() {
             return readRequestJson(request);
           },
-          read_health: healthReadServices.read_health
+          read_health: healthReadServices.read_health,
+          read_ready: healthReadServices.read_ready
         })
       });
       if (authRoute.handled) {
@@ -641,7 +698,18 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         requestActor = authenticatedActor;
       }
 
+      if (request.method === "GET" && url.pathname === "/api/admin/runtime/daily-scan") {
+        writeJson(response, 200, apiOk(dailyScanScheduler.status()));
+        return;
+      }
+
       const readRoute = await dispatchAdminJsonRoutes([
+        () => handleAdminReleaseV2Routes({
+          method: request.method ?? "",
+          pathname: url.pathname,
+          search_params: url.searchParams,
+          api_input: input
+        }),
         () => handleAdminSystemReadRoutes({
           method: request.method ?? "",
           pathname: url.pathname,
@@ -666,7 +734,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
                 env
               });
             },
-            list_cutter_users_service: listCutterUsers,
+            list_cutter_users_service: createAdminCutterUserListService(env),
             project_public_cutter_user: publicCutterUser
           })
         }),
@@ -1038,7 +1106,7 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
-      writeJson(response, 404, apiError("not_found", "路由不存在"));
+      writeJson(response, 404, apiContractError("not_found", "路由不存在"));
     } catch (error) {
       if (error instanceof AdminWriterLeaseError) {
         writeJson(response, 409, apiError(error.code, error.message, error.details));
@@ -1057,7 +1125,21 @@ export function createAdminApiServer(input: CreateAdminApiServerInput): Server {
         return;
       }
 
-      writeJson(response, 500, apiError("internal_error", (error as Error).message));
+      console.error("admin api request failed", error);
+      writeJson(response, 500, apiContractError("internal_error", "服务内部错误"));
     }
   });
+  server.on("listening", () => {
+    const dailyScanStatus = dailyScanScheduler.start();
+    console.log(JSON.stringify({
+      event: "admin_daily_scan_scheduler",
+      enabled: dailyScanStatus.enabled,
+      hour: dailyScanStatus.hour,
+      next_run_at: dailyScanStatus.next_run_at
+    }));
+  });
+  server.on("close", () => {
+    dailyScanScheduler.stop();
+  });
+  return server;
 }

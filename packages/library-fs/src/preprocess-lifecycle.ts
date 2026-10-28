@@ -7,6 +7,11 @@ import {
   type SourceVideoManifest
 } from "../../protocol/src/index.ts";
 import { jsonBytes, parseJsonText, writeTextAtomically } from "./atomic-json.ts";
+import {
+  assertLibraryPathInside,
+  assertValidSourceVideoId,
+  parseStoredSourceVideoManifest
+} from "./scanner.ts";
 
 export interface ClaimNextPreprocessJobInput {
   library_root: string;
@@ -116,6 +121,7 @@ function videosRoot(libraryRoot: string): string {
 }
 
 function videoDir(libraryRoot: string, sourceVideoId: string): string {
+  assertValidSourceVideoId(sourceVideoId);
   return path.join(videosRoot(libraryRoot), sourceVideoId);
 }
 
@@ -128,6 +134,7 @@ function preprocessJobPath(libraryRoot: string, sourceVideoId: string): string {
 }
 
 export function preprocessJobLogPath(sourceVideoId: string): string {
+  assertValidSourceVideoId(sourceVideoId);
   return `.mixlab-library/logs/${sourceVideoId}.log`;
 }
 
@@ -143,6 +150,7 @@ export async function appendPreprocessJobLog(input: {
   message: string;
 }): Promise<void> {
   const filePath = preprocessJobLogFilePath(input.library_root, input.source_video_id);
+  await assertLibraryPathInside(input.library_root, filePath, "预处理任务日志路径");
   await mkdir(path.dirname(filePath), { recursive: true });
   await appendFile(
     filePath,
@@ -157,6 +165,7 @@ export async function readPreprocessJobLog(
 ): Promise<PreprocessJobLog> {
   const filePath = preprocessJobLogFilePath(libraryRoot, sourceVideoId);
   const artifactPath = preprocessJobLogPath(sourceVideoId);
+  await assertLibraryPathInside(libraryRoot, filePath, "预处理任务日志路径");
 
   try {
     return {
@@ -263,9 +272,16 @@ export async function readSourceVideoManifest(
   libraryRoot: string,
   sourceVideoId: string
 ): Promise<SourceVideoManifest> {
-  return parseJsonText(
-    await readFile(sourceVideoManifestPath(libraryRoot, sourceVideoId), "utf8")
-  );
+  assertValidSourceVideoId(sourceVideoId);
+  const manifestPath = sourceVideoManifestPath(libraryRoot, sourceVideoId);
+  await assertLibraryPathInside(libraryRoot, manifestPath, "素材清单路径");
+  const manifest = parseStoredSourceVideoManifest(await readFile(manifestPath, "utf8"));
+
+  if (manifest.source_video_id !== sourceVideoId) {
+    throw new Error(`素材清单目录与 source_video_id 不一致：${sourceVideoId}`);
+  }
+
+  return manifest;
 }
 
 async function writeSourceVideoManifest(
@@ -273,6 +289,7 @@ async function writeSourceVideoManifest(
   manifest: SourceVideoManifest
 ): Promise<void> {
   const targetDir = videoDir(libraryRoot, manifest.source_video_id);
+  await assertLibraryPathInside(libraryRoot, targetDir, "素材清单目录");
   await mkdir(targetDir, { recursive: true });
   await writeTextAtomically(sourceVideoManifestPath(libraryRoot, manifest.source_video_id), jsonBytes(manifest));
 }
@@ -294,7 +311,9 @@ async function writePreprocessJob(
   libraryRoot: string,
   job: PreprocessJobRecord
 ): Promise<void> {
-  await mkdir(videoDir(libraryRoot, job.source_video_id), { recursive: true });
+  const targetDir = videoDir(libraryRoot, job.source_video_id);
+  await assertLibraryPathInside(libraryRoot, targetDir, "预处理任务目录");
+  await mkdir(targetDir, { recursive: true });
   await writeTextAtomically(preprocessJobPath(libraryRoot, job.source_video_id), jsonBytes(job));
 }
 
@@ -312,14 +331,15 @@ export async function readAllSourceVideoManifests(
   }
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) {
+    // Hidden entries are quarantine folders or in-progress temp folders; never treat them as videos.
+    if (!entry.isDirectory() || entry.name.startsWith(".")) {
       continue;
     }
 
     try {
       manifests.push(await readSourceVideoManifest(libraryRoot, entry.name));
     } catch {
-      // Malformed manifests are reported by Doctor; lifecycle operations skip them.
+      // Malformed or unsafe manifests are reported by Doctor; lifecycle operations skip them.
     }
   }
 
@@ -378,10 +398,9 @@ export async function refreshLibraryCounts(libraryRoot: string, now: string): Pr
     ...countByStatus(manifests)
   };
 
-  await writeTextAtomically(
-    path.join(libraryRoot, ".mixlab-library", "library.json"),
-    jsonBytes(libraryManifest)
-  );
+  const libraryManifestPath = path.join(libraryRoot, ".mixlab-library", "library.json");
+  await assertLibraryPathInside(libraryRoot, libraryManifestPath, "素材库清单路径");
+  await writeTextAtomically(libraryManifestPath, jsonBytes(libraryManifest));
 }
 
 export async function claimNextPreprocessJob(
@@ -573,6 +592,11 @@ export async function completeReadyVisualArtifacts(
   }
 
   const keyframesPath = `.mixlab-library/videos/${input.source_video_id}/keyframes.json`;
+  await assertLibraryPathInside(
+    input.library_root,
+    path.join(input.library_root, keyframesPath),
+    "关键帧产物路径"
+  );
   await writeTextAtomically(
     path.join(input.library_root, keyframesPath),
     jsonBytes({

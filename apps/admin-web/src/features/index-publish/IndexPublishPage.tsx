@@ -14,6 +14,11 @@ import {
   adminRuntimeScanReasonLabel,
   adminRuntimeSlowReasonLabel
 } from "../../app/runtime-observability-labels.ts";
+import {
+  adminCapabilityFeatureLabel,
+  adminCapabilityGate,
+  type AdminCapabilityState
+} from "../../app/capabilities.ts";
 import { AdminControlButton, AdminInfoGroups, AdminPageHeader, EmptyState, IndexTable, MetricBand } from "../shared.tsx";
 
 export function IndexPublishPage({
@@ -22,7 +27,8 @@ export function IndexPublishPage({
   indexRequiredError = "",
   onRepairIndex,
   onPublishSourceVideo,
-  onRunDoctor
+  onRunDoctor,
+  capabilities = null
 }: {
   data: AdminDashboardData;
   isLoadingIndexRequiredVideos?: boolean;
@@ -30,7 +36,9 @@ export function IndexPublishPage({
   onRepairIndex?: () => void;
   onPublishSourceVideo?: (sourceVideoId: string) => void;
   onRunDoctor?: () => void;
+  capabilities?: AdminCapabilityState | null;
 }) {
+  const releaseV2Gate = adminCapabilityGate(capabilities, "release_v2");
   const current = data.indexes.versions.find((version) => version.is_current);
   const currentValidationMessage = indexValidationMessageLabel(data.indexes.current_validation_message);
   const validationTone = data.indexes.current_validation_status === "pass"
@@ -89,6 +97,17 @@ export function IndexPublishPage({
             </div>
           )}
         />
+        {capabilities?.status === "ready" ? (
+          <p className="admin-note" aria-label="发布能力状态">
+            {releaseV2Gate.visible
+              ? `${adminCapabilityFeatureLabel("release_v2")}：已启用（当前管理端仍使用兼容发布入口，v2 专属入口待接入）。`
+              : releaseV2Gate.reason}
+          </p>
+        ) : capabilities?.status === "unavailable" ? (
+          <p className="admin-note admin-route-error" aria-label="发布能力状态">
+            {capabilities.message ?? "版本信息不可用"} 发布 v2 等相关入口按能力未知处理（隐藏）。
+          </p>
+        ) : null}
         <MetricBand
           items={[
             { label: "当前索引", value: data.indexes.current_version, caption: "当前搜索索引指针" },

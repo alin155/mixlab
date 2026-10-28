@@ -10,6 +10,7 @@ import {
   runAdminAuthLogoutCommand,
   runAdminAuthRegisterCommand
 } from "./admin-auth-commands.ts";
+import type { AdminReadyReport } from "./admin-health-query.ts";
 import type {
   AdminAuthRouteApiInput,
   AdminAuthRouteDeps
@@ -26,6 +27,7 @@ export interface CreateAdminAuthRouteDepsInput<
 > {
   read_request_json(): Promise<unknown>;
   read_health(input: TApiInput, options: { deep: boolean }): Promise<THealth>;
+  read_ready?(input: TApiInput, options: { deep: boolean }): Promise<AdminReadyReport>;
   read_bootstrap(input: TApiInput): Promise<TBootstrap>;
   validate_session(
     input: TApiInput,
@@ -72,6 +74,7 @@ export function createAdminAuthRouteDeps<
 > {
   return {
     read_health: input.read_health,
+    ...(input.read_ready ? { read_ready: input.read_ready } : {}),
     read_bootstrap: input.read_bootstrap,
     validate_session: input.validate_session,
     register_first_admin: input.register_first_admin,
@@ -89,6 +92,7 @@ export interface CreateAdminAuthRouteServerDepsInput<
   now: string;
   read_request_json(): Promise<unknown>;
   read_health(input: TApiInput, options: { deep: boolean }): Promise<THealth>;
+  read_ready?(input: TApiInput, options: { deep: boolean }): Promise<AdminReadyReport>;
 }
 
 export function createAdminAuthRouteServerDeps<
@@ -107,6 +111,7 @@ export function createAdminAuthRouteServerDeps<
 > {
   return createAdminAuthRouteDeps({
     read_health: input.read_health,
+    ...(input.read_ready ? { read_ready: input.read_ready } : {}),
     read_bootstrap(routeInput) {
       return getAdminAuthBootstrapStatus(routeInput.library_root);
     },

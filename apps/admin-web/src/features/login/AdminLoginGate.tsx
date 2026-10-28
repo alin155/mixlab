@@ -4,7 +4,13 @@ export interface AdminLoginGateProps {
   mode: "register" | "login";
   loading?: boolean;
   error?: string;
-  onRegister(input: { username: string; password: string; display_name?: string }): Promise<void> | void;
+  requiresRegistrationToken?: boolean;
+  onRegister(input: {
+    username: string;
+    password: string;
+    display_name?: string;
+    registration_token?: string;
+  }): Promise<void> | void;
   onLogin(input: { username: string; password: string }): Promise<void> | void;
   children?: ReactNode;
 }
@@ -13,6 +19,7 @@ export function AdminLoginGate({
   mode,
   loading = false,
   error = "",
+  requiresRegistrationToken = false,
   onRegister,
   onLogin,
   children
@@ -20,6 +27,7 @@ export function AdminLoginGate({
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [registrationToken, setRegistrationToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isRegister = mode === "register";
   const disabled = loading || isSubmitting;
@@ -37,7 +45,10 @@ export function AdminLoginGate({
         await onRegister({
           username: trimmedUsername,
           password,
-          display_name: displayName.trim() || undefined
+          display_name: displayName.trim() || undefined,
+          ...(requiresRegistrationToken && registrationToken.trim()
+            ? { registration_token: registrationToken.trim() }
+            : {})
         });
       } else {
         await onLogin({
@@ -82,6 +93,19 @@ export function AdminLoginGate({
                 placeholder="可选"
                 onChange={(event) => setDisplayName(event.currentTarget.value)}
               />
+            </label>
+          ) : null}
+          {isRegister && requiresRegistrationToken ? (
+            <label>
+              注册令牌（首次部署）
+              <input
+                autoComplete="one-time-code"
+                value={registrationToken}
+                disabled={disabled}
+                placeholder="向部署管理员索取"
+                onChange={(event) => setRegistrationToken(event.currentTarget.value)}
+              />
+              <small className="admin-auth-help">服务端已启用首次注册令牌；请向部署管理员索取后填写。</small>
             </label>
           ) : null}
           <label>

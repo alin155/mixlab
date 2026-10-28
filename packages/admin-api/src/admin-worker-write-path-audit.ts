@@ -246,17 +246,23 @@ export const adminWorkerWritePathAuditEntries: readonly AdminWorkerWritePathAudi
     owner: "standalone-ready-publish-worker",
     entrypoint: "scripts/workers/publish-ready-worker.ts",
     functions: [
+      "runReadyPublishWorker",
+      "readAdminSettings",
       "inspectPreprocessSafety",
+      "readAllSourceVideoManifests",
+      "readAdminWriterLease",
+      "withAdminWriterLeaseWait",
       "completeReadyVisualArtifacts",
       "publishIndexRequiredSourceVideos",
       "publishIndexPackage",
       "publishReadySourceVideo",
-      "publishCutterRelease"
+      "publishCutterRelease",
+      "appendReadyPublishWorkerAuditEventBestEffort"
     ],
     scan_mode: "status-scan",
-    writer_lease_coverage: "none",
-    command_names: [],
-    audit_surfaces: ["worker-stdout", "preprocess-job-log"],
+    writer_lease_coverage: "full",
+    command_names: ["preprocess-supervisor-publish-ready"],
+    audit_surfaces: ["command-audit", "worker-stdout", "preprocess-job-log"],
     mutation_targets: [
       "library-manifest",
       "source-video-manifest",
@@ -274,9 +280,9 @@ export const adminWorkerWritePathAuditEntries: readonly AdminWorkerWritePathAudi
     visible_to_cutters_effect: "show",
     safe_for_page_request: false,
     requires_explicit_enable_flag: true,
-    runtime_policy_flags_used: [],
+    runtime_policy_flags_used: ["auto_publish_index_enabled"],
     runtime_policy_flags_not_enforced: [],
-    gap: "The standalone publish worker is guarded by MIXLAB_ENABLE_READY_PUBLISH_WORKER, NAS Docker defaults the flag to 0, the Docker loop refuses to schedule it in Docker MVP v0.1, and the script exits before publishing in MVP mode. Outside MVP, publication remains outside Admin command snapshots/audit."
+    gap: "The standalone publish worker is guarded by MIXLAB_ENABLE_READY_PUBLISH_WORKER, NAS Docker defaults the flag to 0, the Docker loop refuses to schedule it in Docker MVP v0.1, and the script exits before publishing in MVP mode. Outside MVP it now acquires the same cross-process Admin writer lease as Admin commands (bounded wait via MIXLAB_READY_PUBLISH_LEASE_WAIT_MS, skipped+audited on timeout), enforces runtime_policy.auto_publish_index_enabled, and writes unified release-area operation-log audit events (started/progress/skipped/succeeded/failed) with a system actor; it still does status-scan only (no scan_before_claim path) and cover ffmpeg work stays inside the lease budget."
   },
   {
     id: "library-fs-preprocess-lifecycle-primitives",

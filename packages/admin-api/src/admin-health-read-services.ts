@@ -1,7 +1,9 @@
 import {
   getAdminHealth,
   getAdminPreprocessSafety,
-  type AdminHealthQueryApiInput
+  getAdminReady,
+  type AdminHealthQueryApiInput,
+  type AdminReadyReport
 } from "./admin-health-query.ts";
 
 export interface AdminHealthReadServicesApiInput extends AdminHealthQueryApiInput {}
@@ -28,6 +30,7 @@ export interface AdminHealthReadServices<
     include_processing_guard: boolean;
   }): ReturnType<typeof getAdminPreprocessSafety>;
   read_health(input: TApiInput, options: { deep: boolean }): ReturnType<typeof getAdminHealth>;
+  read_ready(input: TApiInput, options: { deep: boolean }): Promise<AdminReadyReport>;
 }
 
 export function createAdminHealthReadServices<
@@ -56,6 +59,15 @@ export function createAdminHealthReadServices<
         deep: options.deep,
         deps: {
           read_primary_source_videos_path: input.read_primary_source_videos_path,
+          read_processing_source_video_ids: readProcessingSourceVideoIds
+        }
+      });
+    },
+    read_ready(apiInput, options) {
+      return getAdminReady({
+        api_input: apiInput,
+        deep: options.deep,
+        deps: {
           read_processing_source_video_ids: readProcessingSourceVideoIds
         }
       });

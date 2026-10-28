@@ -1988,9 +1988,12 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
 }): Promise<CutterSourceLibrarySearchResult> {
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
+  const releaseState: FastLibraryReadState = cursorBackend === "searchd" || cursorBackend === "unknown"
+    ? { release_version: "" }
+    : await fastLibraryReadState(input.api_input);
   if (searchdBaseUrl && cursorBackend !== "local-index") {
     try {
-      return await searchCutterSourceLibraryViaSearchd({
+      const searchdResult = await searchCutterSourceLibraryViaSearchd({
         searchd_base_url: searchdBaseUrl,
         searchd_fetch: input.api_input.searchd_fetch,
         searchd_timeout_ms: input.api_input.searchd_timeout_ms,
@@ -1999,6 +2002,27 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
         cursor: input.cursor,
         source_folder_name: input.source_folder_name
       });
+      const searchdIndexVersion = searchdResult.index_version.trim();
+      const releaseIndexVersion = releaseState.release_version;
+
+      if (
+        !input.cursor &&
+        releaseState.release_root &&
+        releaseIndexVersion &&
+        searchdIndexVersion &&
+        searchdIndexVersion !== releaseIndexVersion &&
+        !searchdIndexVersion.endsWith(`-${releaseIndexVersion}`)
+      ) {
+        return await searchCutterSourceLibrary({
+          library_root: input.api_input.library_root,
+          release_root: releaseState.release_root,
+          query: input.query,
+          limit: input.limit,
+          source_folder_name: input.source_folder_name
+        });
+      }
+
+      return searchdResult;
     } catch (error) {
       if ((error as Error).message === "invalid_search_cursor" || cursorBackend === "searchd" || cursorBackend === "unknown") {
         throw error;
@@ -2008,10 +2032,9 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     }
   }
 
-  const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
   return searchCutterSourceLibrary({
     library_root: input.api_input.library_root,
-    ...(releaseRoot ? { release_root: releaseRoot } : {}),
+    ...(releaseState.release_root ? { release_root: releaseState.release_root } : {}),
     query: input.query,
     limit: input.limit,
     cursor: input.cursor,
@@ -3384,6 +3407,38 @@ function releaseCacheRootForInput(input: CreateCutterApiServerInput): string | u
   return input.release_cache_root?.trim() || undefined;
 }
 
+function currentReleasePointerPath(root: string): string {
+  return path.join(root, ".mixlab-library", "current-release.json");
+}
+
+async function readCurrentReleaseVersionBestEffort(libraryRoot: string): Promise<string | undefined> {
+  try {
+    const pointer = JSON.parse(await readFile(currentReleasePointerPath(libraryRoot), "utf8")) as {
+      current_version?: unknown;
+    };
+    const currentVersion = typeof pointer.current_version === "string"
+      ? pointer.current_version.trim()
+      : "";
+    return currentVersion || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function cachedReleaseStatusIsBehindSource(
+  input: CreateCutterApiServerInput,
+  status: CutterReleaseCacheRuntimeStatus
+): Promise<boolean> {
+  const sourceReleaseVersion = await readCurrentReleaseVersionBestEffort(input.library_root);
+  const cachedSourceVersion = status.source_release_version || status.active_release_version;
+
+  return Boolean(
+    sourceReleaseVersion &&
+    cachedSourceVersion &&
+    sourceReleaseVersion !== cachedSourceVersion
+  );
+}
+
 function releaseSyncTimeoutMs(input: CreateCutterApiServerInput): number {
   return Math.max(150, input.release_sync_timeout_ms ?? 450);
 }
@@ -3781,17 +3836,26 @@ async function syncCutterReleaseCacheBestEffort(
     releaseCacheRuntimeStatusByInput.set(input, cache);
   }
 
+  let cachedStatusIsBehindSource = false;
   if (cache.status && cache.expires_at_ms > nowMs) {
+    cachedStatusIsBehindSource = await cachedReleaseStatusIsBehindSource(input, cache.status);
+  }
+
+  if (cache.status && cache.expires_at_ms > nowMs && !cachedStatusIsBehindSource) {
     scheduleReleaseCacheWarmups(input, cache.status);
     return cache.status;
   }
 
   if (!cache.promise) {
-    cache.promise = new Promise<CutterReleaseCacheRuntimeStatus>((resolve, reject) => {
-      setTimeout(() => {
-        syncCutterReleaseCacheRuntimeStatusUncached(input).then(resolve, reject);
-      }, RELEASE_CACHE_BACKGROUND_SYNC_DELAY_MS);
-    })
+    const syncPromise = cachedStatusIsBehindSource
+      ? syncCutterReleaseCacheRuntimeStatusUncached(input)
+      : new Promise<CutterReleaseCacheRuntimeStatus>((resolve, reject) => {
+          setTimeout(() => {
+            syncCutterReleaseCacheRuntimeStatusUncached(input).then(resolve, reject);
+          }, RELEASE_CACHE_BACKGROUND_SYNC_DELAY_MS);
+        });
+
+    cache.promise = syncPromise
       .then((status) => {
         cache.status = status;
         cache.expires_at_ms = Date.now() + (
@@ -3828,7 +3892,9 @@ async function syncCutterReleaseCacheBestEffort(
 
   const status = await delayedFallback(
     pendingSync,
-    Math.min(releaseSyncTimeoutMs(input), RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS),
+    cachedStatusIsBehindSource
+      ? releaseSyncTimeoutMs(input)
+      : Math.min(releaseSyncTimeoutMs(input), RELEASE_CACHE_STATUS_INLINE_TIMEOUT_MS),
     localFallback
   );
   scheduleReleaseCacheWarmups(input, status);

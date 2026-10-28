@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 export interface AdminWriterLeaseDetails {
   holder: string;
@@ -110,6 +111,60 @@ export async function withAdminWriterLease<T>(
   };
 
   await acquireAdminWriterLease(normalized);
+  try {
+    return await operation();
+  } finally {
+    await rm(lockDir(input.library_root), { recursive: true, force: true });
+  }
+}
+
+export async function readAdminWriterLease(
+  libraryRoot: string
+): Promise<AdminWriterLeaseDetails | null> {
+  return readLease(libraryRoot);
+}
+
+export interface WaitForAdminWriterLeaseInput extends WithAdminWriterLeaseInput {
+  /** Bounded wait before surfacing admin_writer_busy; 0 keeps the immediate-throw behavior. */
+  wait_ms?: number;
+  poll_interval_ms?: number;
+}
+
+/**
+ * Same on-disk lease protocol as withAdminWriterLease, but background workers may
+ * wait (bounded) for an Admin command to release the gate instead of hard-failing.
+ */
+export async function withAdminWriterLeaseWait<T>(
+  input: WaitForAdminWriterLeaseInput,
+  operation: () => Promise<T>
+): Promise<T> {
+  const normalized: Required<WithAdminWriterLeaseInput> = {
+    library_root: input.library_root,
+    holder: input.holder,
+    reason: input.reason,
+    now: input.now,
+    stale_ms: input.stale_ms ?? DEFAULT_ADMIN_WRITER_LEASE_STALE_MS
+  };
+  const waitMs = Math.max(0, Math.trunc(input.wait_ms ?? 0));
+  const pollMs = Math.max(5, Math.trunc(input.poll_interval_ms ?? 25));
+  const deadline = Date.now() + waitMs;
+
+  for (;;) {
+    try {
+      await acquireAdminWriterLease(normalized);
+      break;
+    } catch (error) {
+      if (!(error instanceof AdminWriterLeaseError)) {
+        throw error;
+      }
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        throw error;
+      }
+      await delay(Math.min(pollMs, Math.max(1, remainingMs)));
+    }
+  }
+
   try {
     return await operation();
   } finally {

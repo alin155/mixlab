@@ -7,6 +7,7 @@ import {
   adminRuntimeDiagnosticsHistoryPath,
   appendAdminRuntimeDiagnosticsHistory,
   buildAdminRuntimeEndpointMeta,
+  compactAdminRuntimeDiagnosticsHistory,
   readAdminRuntimeDiagnosticsHistory
 } from "./admin-runtime-observability.ts";
 
@@ -143,15 +144,113 @@ test("runtime diagnostics history keeps a bounded newest-first tail", async () =
   });
 
   assert.equal(history.path, adminRuntimeDiagnosticsHistoryPath(libraryRoot));
-  assert.equal(history.total_line_count, 2);
+  // Append-only writes may hold up to one compaction interval (max_entries) of extra lines;
+  // explicit compaction is what bounds the file on disk.
+  assert.equal(history.total_line_count, 3);
   assert.equal(history.malformed_line_count, 0);
   assert.equal(history.truncated, false);
   assert.deepEqual(history.entries.map((entry) => entry.runtime.endpoint), [
     "/api/admin/dashboard/metrics",
-    "/api/admin/preprocess/jobs"
+    "/api/admin/preprocess/jobs",
+    "/api/admin/source-videos"
   ]);
   assert.equal(history.entries[1]?.runtime.slow, true);
   assert.equal(history.entries[1]?.runtime.slow_reason, "preprocess-jobs-page-above-target");
+
+  const compacted = await compactAdminRuntimeDiagnosticsHistory({
+    library_root: libraryRoot,
+    max_entries: 2
+  });
+  assert.equal(compacted.entry_count, 2);
+
+  const afterCompaction = await readAdminRuntimeDiagnosticsHistory({
+    library_root: libraryRoot,
+    generated_at: "2026-06-26T10:00:04.000Z",
+    limit: 10
+  });
+  assert.equal(afterCompaction.total_line_count, 2);
+  assert.deepEqual(afterCompaction.entries.map((entry) => entry.runtime.endpoint), [
+    "/api/admin/dashboard/metrics",
+    "/api/admin/preprocess/jobs"
+  ]);
+});
+
+test("runtime diagnostics history keeps concurrent appends and compacts periodically", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const entries = Array.from({ length: 40 }, (_, index) => ({
+    recorded_at: `2026-06-26T11:00:${String(index % 60).padStart(2, "0")}.000Z`,
+    runtime: buildAdminRuntimeEndpointMeta({
+      endpoint: `/api/admin/concurrent/${index}`,
+      method: "GET" as const,
+      started_at_ms: 0,
+      finished_at_ms: 5,
+      scan_mode: "no-scan" as const,
+      data_source: "admin-read-model" as const,
+      scan_reason: "route-owned-page" as const
+    })
+  }));
+
+  await Promise.all(entries.map((entry) => appendAdminRuntimeDiagnosticsHistory({
+    library_root: libraryRoot,
+    recorded_at: entry.recorded_at,
+    runtime: entry.runtime
+  })));
+
+  const history = await readAdminRuntimeDiagnosticsHistory({
+    library_root: libraryRoot,
+    generated_at: "2026-06-26T11:01:00.000Z",
+    limit: 200
+  });
+
+  assert.equal(history.malformed_line_count, 0);
+  assert.equal(history.total_line_count, 40);
+  assert.equal(history.entries.length, 40);
+  assert.equal(new Set(history.entries.map((entry) => entry.runtime.endpoint)).size, 40);
+  assert.equal(history.entries.at(-1)?.runtime.endpoint, "/api/admin/concurrent/0");
+  assert.equal(history.entries[0]?.runtime.endpoint, "/api/admin/concurrent/39");
+});
+
+test("runtime diagnostics history compacts periodically when max entries is small", async () => {
+  const libraryRoot = await makeLibraryRoot();
+
+  for (let index = 0; index < 12; index += 1) {
+    await appendAdminRuntimeDiagnosticsHistory({
+      library_root: libraryRoot,
+      recorded_at: `2026-06-26T12:00:${String(index).padStart(2, "0")}.000Z`,
+      runtime: buildAdminRuntimeEndpointMeta({
+        endpoint: `/api/admin/bounded/${index}`,
+        method: "GET",
+        started_at_ms: 0,
+        finished_at_ms: 5,
+        scan_mode: "no-scan",
+        data_source: "admin-read-model",
+        scan_reason: "route-owned-page"
+      }),
+      max_entries: 5
+    });
+  }
+
+  const history = await readAdminRuntimeDiagnosticsHistory({
+    library_root: libraryRoot,
+    generated_at: "2026-06-26T12:01:00.000Z",
+    limit: 200
+  });
+
+  assert.equal(history.malformed_line_count, 0);
+  // Periodic compaction bounds the append-only file to at most 2 * max_entries - 1 lines.
+  assert.equal(history.total_line_count <= 9, true);
+  assert.equal(history.entries[0]?.runtime.endpoint, "/api/admin/bounded/11");
+  assert.equal(history.entries.length, history.total_line_count);
+});
+
+test("runtime diagnostics history compaction tolerates missing history files", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const result = await compactAdminRuntimeDiagnosticsHistory({
+    library_root: libraryRoot,
+    max_entries: 10
+  });
+
+  assert.equal(result.entry_count, 0);
 });
 
 test("runtime diagnostics history tolerates malformed lines", async () => {

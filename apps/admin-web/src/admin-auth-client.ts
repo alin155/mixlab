@@ -14,7 +14,12 @@ export interface AdminAuthClientContext {
 export interface AdminAuthClientMethods {
   getAuthBootstrap(): Promise<AdminAuthBootstrapStatus>;
   getAuthStatus(): Promise<AdminAuthStatus>;
-  registerAdmin(input: { username: string; password: string; display_name?: string }): Promise<AdminAuthResult>;
+  registerAdmin(input: {
+    username: string;
+    password: string;
+    display_name?: string;
+    registration_token?: string;
+  }): Promise<AdminAuthResult>;
   loginAdmin(input: { username: string; password: string }): Promise<AdminAuthResult>;
   logoutAdmin(): Promise<{ removed: boolean }>;
 }

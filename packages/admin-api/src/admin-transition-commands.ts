@@ -62,6 +62,8 @@ export interface AdminTransitionCommandResult {
   skipped_count?: number;
   skipped_source_video_ids?: string[];
   skipped_reasons?: Record<string, string>;
+  /** Eligible items left untouched because the requested batch limit was reached. */
+  skipped_by_limit_count?: number;
   library_counts?: LibraryCounts;
 }
 
@@ -304,10 +306,12 @@ async function transitionManifests(input: {
     requested_source_video_ids: requestedIds
   });
 
-  const candidates = manifests.filter((manifest) =>
+  const eligible = manifests.filter((manifest) =>
     input.from.includes(manifest.preprocess_status) &&
     (!requestedIds || requestedIds.has(manifest.source_video_id))
-  ).slice(0, input.limit);
+  );
+  const candidates = eligible.slice(0, input.limit);
+  const skippedByLimitCount = Math.max(0, eligible.length - candidates.length);
   const affected: SourceVideoManifest[] = [];
   const skipped: Array<{ manifest: SourceVideoManifest; reason: string }> = [];
 
@@ -346,6 +350,7 @@ async function transitionManifests(input: {
   const result: AdminTransitionCommandResult = {
     affected_count: affected.length,
     source_video_ids: affected.map((manifest) => manifest.source_video_id),
+    skipped_by_limit_count: skippedByLimitCount,
     library_counts: await transitionLibraryCounts({
       library_root: input.library_root,
       manifests,

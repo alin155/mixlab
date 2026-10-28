@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryCounts, PreprocessStatus, SourceVideoManifest } from "../../protocol/src/index.ts";
 import {
@@ -6,7 +6,7 @@ import {
   writeAdminSettings,
   type AdminSourceFolder
 } from "./admin-settings.ts";
-import { writeJsonFileAtomically } from "./atomic-json.ts";
+import { stripTrailingNulls, writeJsonFileAtomically } from "./atomic-json.ts";
 
 const VIDEO_EXTENSIONS = new Set([
   ".mp4",
@@ -77,10 +77,17 @@ export interface SourceVideoScanPreviewResult extends ScanSourceVideosResult {
   blockers: SourceVideoScanBlocker[];
 }
 
+interface InvalidExistingManifest {
+  directory_name: string;
+  manifest_path: string;
+  reason: string;
+}
+
 interface ExistingManifestIndex {
   byRelativePath: Map<string, SourceVideoManifest>;
   manifests: SourceVideoManifest[];
   maxNumericId: number;
+  invalid_manifests: InvalidExistingManifest[];
 }
 
 interface ScanFolderRuntime {
@@ -103,12 +110,17 @@ interface SourceVideoScanPlan extends ScanSourceVideosResult {
   new_manifests: SourceVideoManifest[];
   active_source_video_ids: Set<string>;
   inactive_manifests: SourceVideoManifest[];
+  invalid_manifests: InvalidExistingManifest[];
   folder_stats: Map<string, SourceFolderScanStats>;
   skipped_source_folder_ids: Set<string>;
 }
 
+function mixlabRoot(libraryRoot: string): string {
+  return path.join(libraryRoot, ".mixlab-library");
+}
+
 function videosRoot(libraryRoot: string): string {
-  return path.join(libraryRoot, ".mixlab-library", "videos");
+  return path.join(mixlabRoot(libraryRoot), "videos");
 }
 
 function sourceVideosRoot(libraryRoot: string): string {
@@ -117,6 +129,222 @@ function sourceVideosRoot(libraryRoot: string): string {
 
 function toLibraryRelativePath(root: string, filePath: string): string {
   return path.relative(root, filePath).split(path.sep).join("/");
+}
+
+const SOURCE_VIDEO_ID_PATTERN = /^V\d{6}$/;
+const PROTECTED_INACTIVE_PRUNE_STATUSES: ReadonlySet<PreprocessStatus> = new Set<PreprocessStatus>([
+  "processing",
+  "queued",
+  "index-required"
+]);
+const MANIFEST_ARTIFACT_PATH_FIELDS = [
+  "transcript_path",
+  "srt_path",
+  "keyframes_path",
+  "cover_path"
+] as const;
+
+function scanAuditLog(event: string, details: Record<string, unknown>): void {
+  console.log(JSON.stringify({
+    time: new Date().toISOString(),
+    component: "library-fs.scanner",
+    event,
+    ...details
+  }));
+}
+
+export function isValidSourceVideoId(value: unknown): value is string {
+  return typeof value === "string" && SOURCE_VIDEO_ID_PATTERN.test(value);
+}
+
+export function assertValidSourceVideoId(
+  value: unknown,
+  label = "素材 ID"
+): asserts value is string {
+  if (!isValidSourceVideoId(value)) {
+    throw new Error(`${label}格式无效，必须是 V000001 形式`);
+  }
+}
+
+export function isSafeLibraryRelativePath(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim() === "" || value.includes("\u0000")) {
+    return false;
+  }
+
+  const normalized = value.replace(/\\/g, "/");
+
+  if (normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) {
+    return false;
+  }
+
+  return !normalized.split("/").filter(Boolean).includes("..");
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPreprocessStatusValue(value: unknown): value is PreprocessStatus {
+  return (
+    value === "unprocessed" ||
+    value === "queued" ||
+    value === "processing" ||
+    value === "ready" ||
+    value === "failed" ||
+    value === "index-required"
+  );
+}
+
+export function validateStoredSourceVideoManifest(value: unknown): SourceVideoManifest {
+  if (!isRecordValue(value)) {
+    throw new Error("素材清单必须是对象");
+  }
+
+  if (!isValidSourceVideoId(value.source_video_id)) {
+    throw new Error("素材清单 source_video_id 格式无效");
+  }
+
+  if (!isSafeLibraryRelativePath(value.relative_path)) {
+    throw new Error("素材清单 relative_path 必须是素材库内相对路径");
+  }
+
+  if (!isPreprocessStatusValue(value.preprocess_status)) {
+    throw new Error("素材清单 preprocess_status 无效");
+  }
+
+  if (
+    value.visible_to_cutters !== undefined &&
+    typeof value.visible_to_cutters !== "boolean"
+  ) {
+    throw new Error("素材清单 visible_to_cutters 必须是布尔值");
+  }
+
+  for (const field of MANIFEST_ARTIFACT_PATH_FIELDS) {
+    const artifactPath = value[field];
+
+    if (artifactPath === undefined) {
+      continue;
+    }
+
+    if (typeof artifactPath !== "string") {
+      throw new Error(`素材清单 ${field} 必须是字符串`);
+    }
+
+    if (artifactPath.trim() !== "" && !isSafeLibraryRelativePath(artifactPath)) {
+      throw new Error(`素材清单 ${field} 必须是素材库内相对路径`);
+    }
+  }
+
+  const sourceFolderId = value.source_folder_id;
+  if (
+    sourceFolderId !== undefined &&
+    sourceFolderId !== "src_default" &&
+    !(typeof sourceFolderId === "string" && /^src_\d+$/.test(sourceFolderId))
+  ) {
+    throw new Error("素材清单 source_folder_id 无效");
+  }
+
+  const sourceFolderRelativePath = value.source_folder_relative_path;
+  if (
+    sourceFolderRelativePath !== undefined &&
+    (
+      typeof sourceFolderRelativePath !== "string" ||
+      (
+        sourceFolderRelativePath.trim() !== "" &&
+        !isSafeLibraryRelativePath(sourceFolderRelativePath)
+      )
+    )
+  ) {
+    throw new Error("素材清单 source_folder_relative_path 必须是素材库内相对路径");
+  }
+
+  return value as unknown as SourceVideoManifest;
+}
+
+export function parseStoredSourceVideoManifest(text: string): SourceVideoManifest {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(stripTrailingNulls(text));
+  } catch {
+    throw new Error("素材清单文件 JSON 格式无效");
+  }
+
+  return validateStoredSourceVideoManifest(parsed);
+}
+
+export function isLibraryPathInside(libraryRoot: string, targetPath: string): boolean {
+  const root = path.resolve(libraryRoot);
+  const target = path.resolve(targetPath);
+  const relativePath = path.relative(root, target);
+
+  return (
+    relativePath !== "" &&
+    relativePath !== ".." &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
+  );
+}
+
+async function escapesLibraryThroughSymlink(
+  libraryRoot: string,
+  targetPath: string
+): Promise<boolean> {
+  const root = path.resolve(libraryRoot);
+  let realRoot: string;
+
+  try {
+    realRoot = await realpath(root);
+  } catch {
+    // Best effort: when the library root itself cannot be resolved, keep the lexical check only.
+    return false;
+  }
+
+  let ancestorPath = path.resolve(targetPath);
+  const missingParts: string[] = [];
+
+  for (;;) {
+    try {
+      const realAncestor = await realpath(ancestorPath);
+      const realTarget = missingParts.length === 0
+        ? realAncestor
+        : path.join(realAncestor, ...[...missingParts].reverse());
+      const relativePath = path.relative(realRoot, realTarget);
+
+      return (
+        relativePath === "" ||
+        relativePath === ".." ||
+        relativePath.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativePath)
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        return false;
+      }
+
+      const parentPath = path.dirname(ancestorPath);
+      if (parentPath === ancestorPath) {
+        return false;
+      }
+
+      missingParts.push(path.basename(ancestorPath));
+      ancestorPath = parentPath;
+    }
+  }
+}
+
+export async function assertLibraryPathInside(
+  libraryRoot: string,
+  targetPath: string,
+  label: string
+): Promise<void> {
+  if (!isLibraryPathInside(libraryRoot, targetPath)) {
+    throw new Error(`${label}超出素材库范围，已阻止操作`);
+  }
+
+  if (await escapesLibraryThroughSymlink(libraryRoot, targetPath)) {
+    throw new Error(`${label}通过符号链接指向素材库外，已阻止操作`);
+  }
 }
 
 async function readEnabledScanFolders(libraryRoot: string): Promise<ScanFolderRuntime[]> {
@@ -235,33 +463,55 @@ async function readExistingManifests(libraryRoot: string): Promise<ExistingManif
   const root = videosRoot(libraryRoot);
   const byRelativePath = new Map<string, SourceVideoManifest>();
   const manifests: SourceVideoManifest[] = [];
+  const invalidManifests: InvalidExistingManifest[] = [];
   let maxNumericId = 0;
 
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {
-    return { byRelativePath, manifests, maxNumericId };
+    return { byRelativePath, manifests, maxNumericId, invalid_manifests: invalidManifests };
   }
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) {
+    // Hidden entries include quarantine folders and in-progress temp folders; they never carry
+    // an active source-video manifest and must not be treated as source video directories.
+    if (!entry.isDirectory() || entry.name.startsWith(".")) {
       continue;
     }
 
     const manifestPath = path.join(root, entry.name, "source-video.json");
+    let raw: string;
 
     try {
-      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as SourceVideoManifest;
+      raw = await readFile(manifestPath, "utf8");
+    } catch {
+      // Directories without a manifest are not source video directories; skip them silently.
+      continue;
+    }
+
+    try {
+      const manifest = parseStoredSourceVideoManifest(raw);
       byRelativePath.set(manifest.relative_path, manifest);
       manifests.push(manifest);
       maxNumericId = Math.max(maxNumericId, numericSourceVideoId(manifest.source_video_id));
-    } catch {
-      // Ignore malformed existing manifests during scan; Doctor will report them later.
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "素材清单格式无效";
+      scanAuditLog("scan.invalid_manifest_skipped", { directory_name: entry.name, reason });
+
+      // Malformed JSON is likely a transient write on the shared library; skip it without moving
+      // the directory. Structurally unsafe manifests are collected for quarantine by full scans.
+      if (!reason.includes("JSON 格式无效")) {
+        invalidManifests.push({
+          directory_name: entry.name,
+          manifest_path: toLibraryRelativePath(libraryRoot, manifestPath),
+          reason
+        });
+      }
     }
   }
 
-  return { byRelativePath, manifests, maxNumericId };
+  return { byRelativePath, manifests, maxNumericId, invalid_manifests: invalidManifests };
 }
 
 function emptyArtifactPath(): string {
@@ -305,9 +555,79 @@ async function writeSourceVideoManifest(
   libraryRoot: string,
   manifest: SourceVideoManifest
 ): Promise<void> {
+  assertValidSourceVideoId(manifest.source_video_id);
   const targetDir = path.join(videosRoot(libraryRoot), manifest.source_video_id);
+  await assertLibraryPathInside(libraryRoot, targetDir, "素材清单目录");
   await mkdir(targetDir, { recursive: true });
   await writeJsonFileAtomically(path.join(targetDir, "source-video.json"), manifest);
+}
+
+async function quarantineInvalidManifestDirectories(input: {
+  library_root: string;
+  invalid_manifests: InvalidExistingManifest[];
+}): Promise<void> {
+  if (input.invalid_manifests.length === 0) {
+    return;
+  }
+
+  const root = videosRoot(input.library_root);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const quarantineRoot = path.join(root, `.quarantine-${timestamp}`);
+  const quarantinedEntries: Array<{
+    directory_name: string;
+    reason: string;
+    quarantined_to: string;
+  }> = [];
+
+  try {
+    await mkdir(quarantineRoot, { recursive: true });
+  } catch (error) {
+    scanAuditLog("scan.quarantine_unavailable", {
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+    return;
+  }
+
+  for (const invalidManifest of input.invalid_manifests) {
+    const sourceDirectory = path.join(root, invalidManifest.directory_name);
+    const targetDirectory = path.join(quarantineRoot, invalidManifest.directory_name);
+
+    try {
+      if (path.dirname(path.resolve(sourceDirectory)) !== path.resolve(root)) {
+        throw new Error("素材清单目录不是 videos 根目录的直接子目录");
+      }
+
+      await assertLibraryPathInside(input.library_root, sourceDirectory, "隔离素材清单目录");
+      await rename(sourceDirectory, targetDirectory);
+      const quarantinedTo = toLibraryRelativePath(input.library_root, targetDirectory);
+      quarantinedEntries.push({
+        directory_name: invalidManifest.directory_name,
+        reason: invalidManifest.reason,
+        quarantined_to: quarantinedTo
+      });
+      scanAuditLog("scan.invalid_manifest_quarantined", {
+        directory_name: invalidManifest.directory_name,
+        reason: invalidManifest.reason,
+        quarantined_to: quarantinedTo
+      });
+    } catch (error) {
+      // Never delete data: if the directory cannot be isolated it is left untouched and logged.
+      scanAuditLog("scan.invalid_manifest_quarantine_failed", {
+        directory_name: invalidManifest.directory_name,
+        reason: error instanceof Error ? error.message : "unknown"
+      });
+    }
+  }
+
+  if (quarantinedEntries.length > 0) {
+    await writeJsonFileAtomically(path.join(quarantineRoot, "quarantine.json"), {
+      schema_version: "1.0",
+      quarantined_at: new Date().toISOString(),
+      entries: quarantinedEntries
+    }).catch(() => {
+      // Best effort audit sidecar; the JSON audit log above is authoritative.
+    });
+  }
 }
 
 async function pruneInactiveManifestDirectories(input: {
@@ -315,15 +635,64 @@ async function pruneInactiveManifestDirectories(input: {
   existing_manifests: SourceVideoManifest[];
   active_source_video_ids: Set<string>;
 }): Promise<void> {
+  const root = videosRoot(input.library_root);
+
   for (const manifest of input.existing_manifests) {
     if (input.active_source_video_ids.has(manifest.source_video_id)) {
       continue;
     }
 
-    await rm(path.join(videosRoot(input.library_root), manifest.source_video_id), {
-      recursive: true,
-      force: true
+    if (
+      PROTECTED_INACTIVE_PRUNE_STATUSES.has(manifest.preprocess_status) ||
+      manifest.visible_to_cutters === true
+    ) {
+      scanAuditLog("scan.prune_skipped_protected", {
+        source_video_id: manifest.source_video_id,
+        preprocess_status: manifest.preprocess_status
+      });
+      continue;
+    }
+
+    if (!isValidSourceVideoId(manifest.source_video_id)) {
+      scanAuditLog("scan.prune_skipped_invalid_id", {
+        source_video_id: String(manifest.source_video_id)
+      });
+      continue;
+    }
+
+    const targetPath = path.join(root, manifest.source_video_id);
+    const relativePath = toLibraryRelativePath(input.library_root, targetPath);
+
+    try {
+      if (path.dirname(path.resolve(targetPath)) !== path.resolve(root)) {
+        throw new Error("清理目标不是 videos 根目录的直接子目录");
+      }
+
+      await assertLibraryPathInside(input.library_root, targetPath, "扫描清理目标");
+      const targetStat = await lstat(targetPath);
+
+      if (!targetStat.isDirectory() || targetStat.isSymbolicLink()) {
+        scanAuditLog("scan.prune_skipped_non_directory", {
+          source_video_id: manifest.source_video_id,
+          relative_path: relativePath
+        });
+        continue;
+      }
+    } catch (error) {
+      scanAuditLog("scan.prune_skipped_unsafe_path", {
+        source_video_id: manifest.source_video_id,
+        relative_path: relativePath,
+        reason: error instanceof Error ? error.message : "unknown"
+      });
+      continue;
+    }
+
+    scanAuditLog("scan.prune_delete", {
+      source_video_id: manifest.source_video_id,
+      relative_path: relativePath,
+      preprocess_status: manifest.preprocess_status
     });
+    await rm(targetPath, { recursive: true, force: true });
   }
 }
 
@@ -435,11 +804,10 @@ async function writeLibraryManifest(input: {
     ...counts
   };
 
-  await mkdir(path.join(input.library_root, ".mixlab-library"), { recursive: true });
-  await writeJsonFileAtomically(
-    path.join(input.library_root, ".mixlab-library", "library.json"),
-    libraryManifest
-  );
+  const libraryManifestPath = path.join(mixlabRoot(input.library_root), "library.json");
+  await assertLibraryPathInside(input.library_root, libraryManifestPath, "素材库清单路径");
+  await mkdir(mixlabRoot(input.library_root), { recursive: true });
+  await writeJsonFileAtomically(libraryManifestPath, libraryManifest);
 }
 
 async function emitScanProgress(
@@ -612,6 +980,7 @@ async function buildSourceVideoScanPlan(input: ScanSourceVideosInput): Promise<S
     new_manifests: newManifests,
     active_source_video_ids: includedSourceVideoIds,
     inactive_manifests: inactiveManifests,
+    invalid_manifests: existing.invalid_manifests,
     folder_stats: folderStats,
     skipped_source_folder_ids: skippedFolderIds
   };
@@ -629,7 +998,14 @@ export async function scanSourceVideos(
   const plan = await buildSourceVideoScanPlan(input);
   assertScanPlanCanApply(plan);
 
+  await assertLibraryPathInside(input.library_root, mixlabRoot(input.library_root), "素材库元数据目录");
+  await assertLibraryPathInside(input.library_root, videosRoot(input.library_root), "素材清单根目录");
   await mkdir(videosRoot(input.library_root), { recursive: true });
+
+  await quarantineInvalidManifestDirectories({
+    library_root: input.library_root,
+    invalid_manifests: plan.invalid_manifests
+  });
 
   await pruneInactiveManifestDirectories({
     library_root: input.library_root,
@@ -697,6 +1073,7 @@ export async function scanNewSourceVideos(
 ): Promise<ScanNewSourceVideosResult> {
   const plan = await buildSourceVideoScanPlan(input);
   const preservedManifests = [...plan.manifests, ...plan.inactive_manifests];
+  await assertLibraryPathInside(input.library_root, mixlabRoot(input.library_root), "素材库元数据目录");
   const preservedSourceVideoIds = sortSourceVideoIds(
     preservedManifests.map((manifest) => manifest.source_video_id)
   );

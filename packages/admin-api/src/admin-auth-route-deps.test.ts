@@ -74,6 +74,8 @@ test("auth route deps factory wires bootstrap register status login and logout w
       auth_mode: "password"
     },
     session_token: "",
+    remote_address: "127.0.0.1",
+    register_guard: { token: null },
     deps: routeDeps
   });
 
@@ -83,7 +85,8 @@ test("auth route deps factory wires bootstrap register status login and logout w
   if (bootstrapBefore.handled && bootstrapBefore.body.ok) {
     assert.deepEqual(bootstrapBefore.body.data, {
       has_admin: false,
-      registration_open: true
+      registration_open: true,
+      registration_requires_token: false
     });
   }
   assert.equal(register.handled, true);
@@ -148,6 +151,8 @@ test("auth route deps factory wires bootstrap register status login and logout w
       auth_mode: "password"
     },
     session_token: "",
+    remote_address: "127.0.0.1",
+    register_guard: { token: null },
     deps: loginDeps
   });
 

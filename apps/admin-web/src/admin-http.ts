@@ -12,16 +12,80 @@ export interface AdminListQueryOptions {
   manifest_fallback?: string;
 }
 
-export function unwrapAdminResponse<T>(envelope: AdminApiEnvelope<T>): T {
+export class AdminHttpError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details?: Record<string, unknown>;
+  readonly serverMessage: string;
+
+  constructor(code: string, message: string, status = 0, details?: Record<string, unknown>) {
+    super(`${code}: ${message}`);
+    this.name = "AdminHttpError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+    this.serverMessage = message;
+  }
+}
+
+export function isAdminHttpError(error: unknown): error is AdminHttpError {
+  return error instanceof AdminHttpError;
+}
+
+export function isAdminAuthExpiredError(error: unknown): boolean {
+  if (!isAdminHttpError(error)) {
+    return false;
+  }
+
+  const normalizedCode = error.code.toUpperCase();
+
+  return error.status === 401 ||
+    error.code === "login_required" ||
+    normalizedCode === "AUTH_REQUIRED";
+}
+
+function isAdminApiEnvelope(value: unknown): value is AdminApiEnvelope<unknown> {
+  return typeof value === "object" &&
+    value !== null &&
+    "ok" in value &&
+    typeof (value as { ok?: unknown }).ok === "boolean";
+}
+
+async function readAdminEnvelope<T>(response: Response): Promise<AdminApiEnvelope<T>> {
+  let payload: unknown;
+
+  try {
+    payload = await response.json();
+  } catch {
+    throw new AdminHttpError(
+      "invalid_response",
+      `管理端响应不是有效 JSON（HTTP ${response.status}）`,
+      response.status
+    );
+  }
+
+  if (!isAdminApiEnvelope(payload)) {
+    throw new AdminHttpError(
+      "invalid_response",
+      `管理端响应格式无效（HTTP ${response.status}）`,
+      response.status
+    );
+  }
+
+  return payload as AdminApiEnvelope<T>;
+}
+
+export function unwrapAdminResponse<T>(envelope: AdminApiEnvelope<T>, status = 0): T {
   if (envelope.ok) {
     return envelope.data;
   }
 
-  throw new Error(`${envelope.error_code}: ${envelope.message}`);
+  throw new AdminHttpError(envelope.error_code, envelope.message, status, envelope.details);
 }
 
 export function unwrapAdminResponseWithMeta<T>(
-  envelope: AdminApiEnvelope<T>
+  envelope: AdminApiEnvelope<T>,
+  status = 0
 ): { data: T; meta?: AdminApiResponseMeta } {
   if (envelope.ok) {
     return {
@@ -30,7 +94,7 @@ export function unwrapAdminResponseWithMeta<T>(
     };
   }
 
-  throw new Error(`${envelope.error_code}: ${envelope.message}`);
+  throw new AdminHttpError(envelope.error_code, envelope.message, status, envelope.details);
 }
 
 export function joinUrl(baseUrl: string, path: string): string {
@@ -73,8 +137,8 @@ export async function getJson<T>(
   const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
     ...(headers ? { headers } : {})
   });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponse(envelope);
+  const envelope = await readAdminEnvelope<T>(response);
+  return unwrapAdminResponse(envelope, response.status);
 }
 
 export async function getJsonWithMeta<T>(
@@ -86,8 +150,8 @@ export async function getJsonWithMeta<T>(
   const response = await fetchImpl(joinUrl(baseUrl, endpoint), {
     ...(headers ? { headers } : {})
   });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponseWithMeta(envelope);
+  const envelope = await readAdminEnvelope<T>(response);
+  return unwrapAdminResponseWithMeta(envelope, response.status);
 }
 
 export async function sendJson<T>(
@@ -106,8 +170,8 @@ export async function sendJson<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponse(envelope);
+  const envelope = await readAdminEnvelope<T>(response);
+  return unwrapAdminResponse(envelope, response.status);
 }
 
 export async function deleteJson<T>(
@@ -120,8 +184,8 @@ export async function deleteJson<T>(
     method: "DELETE",
     ...(headers ? { headers } : {})
   });
-  const envelope = (await response.json()) as AdminApiEnvelope<T>;
-  return unwrapAdminResponse(envelope);
+  const envelope = await readAdminEnvelope<T>(response);
+  return unwrapAdminResponse(envelope, response.status);
 }
 
 export function adminAuthHeaders(auth?: AdminHttpAuth): HeadersInit | undefined {

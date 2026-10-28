@@ -1,10 +1,27 @@
 import { Badge, InspectorPanel, Table, type BadgeTone, type TableColumn } from "@mixlab/ui-foundation";
-import type {
-  AdminDashboardData,
-  AdminRuntimeDiagnosticsHistoryResponse,
-  AdminRuntimeEndpointMeta
+import {
+  adminDashboardFieldSource,
+  adminDashboardSourceLabel,
+  adminDoctorReportStatus,
+  type AdminDashboardData,
+  type AdminRuntimeDiagnosticsHistoryResponse,
+  type AdminRuntimeEndpointMeta
 } from "../../api.ts";
+import {
+  adminCapabilityCompatibility,
+  adminCapabilityFeatureRows,
+  adminCapabilityFeatureSummary,
+  type AdminCapabilityState
+} from "../../app/capabilities.ts";
+import {
+  adminServiceModeRows,
+  adminServiceModesProvided,
+  adminServiceModesSummary,
+  parseAdminServiceModes,
+  type AdminServiceModes
+} from "../../app/service-modes.ts";
 import { strictChineseDiagnosticText } from "../../app/chinese.ts";
+import { formatAdminDateTime } from "../../app/datetime.ts";
 import { adminStatusTone } from "../../app/view-model.ts";
 import {
   AdminControlButton,
@@ -273,6 +290,10 @@ export function DoctorPage({
   runtimeDiagnostics,
   runtimeDiagnosticsLoading = false,
   runtimeDiagnosticsError = "",
+  capabilities = null,
+  serviceModes = null,
+  clientVersion = "0.1.0",
+  onReloadCapabilities,
   onRunDoctor,
   onExportDoctor
 }: {
@@ -281,20 +302,36 @@ export function DoctorPage({
   runtimeDiagnostics?: AdminRuntimeDiagnosticsHistoryResponse | null;
   runtimeDiagnosticsLoading?: boolean;
   runtimeDiagnosticsError?: string;
+  capabilities?: AdminCapabilityState | null;
+  serviceModes?: AdminServiceModes | null;
+  clientVersion?: string;
+  onReloadCapabilities?: () => void;
   onRunDoctor?: () => void;
   onExportDoctor?: () => void;
 }) {
+  const capabilityTable = capabilities?.status === "ready" ? capabilities.table : null;
+  const capabilityCompatibility = capabilityTable
+    ? adminCapabilityCompatibility(capabilityTable, clientVersion)
+    : null;
+  const capabilityRows = adminCapabilityFeatureRows(capabilityTable);
+  const serviceModeInfo = serviceModes ?? parseAdminServiceModes({});
+  const doctorStatus = adminDoctorReportStatus(data);
+  const doctorSource = adminDashboardFieldSource(data, "doctor");
   const attentionCount = data.doctor.summary.warn + data.doctor.summary.fail;
-  const reportTone: BadgeTone = data.doctor.summary.fail > 0
-    ? "danger"
-    : data.doctor.summary.warn > 0
-      ? "warning"
-      : "success";
-  const reportStatus = data.doctor.summary.fail > 0
-    ? "需处理"
-    : data.doctor.summary.warn > 0
-      ? "需关注"
-      : "通过";
+  const reportTone: BadgeTone = !doctorStatus.loaded
+    ? "warning"
+    : data.doctor.summary.fail > 0
+      ? "danger"
+      : data.doctor.summary.warn > 0
+        ? "warning"
+        : "success";
+  const reportStatus = !doctorStatus.loaded
+    ? "未检查"
+    : data.doctor.summary.fail > 0
+      ? "需处理"
+      : data.doctor.summary.warn > 0
+        ? "需关注"
+        : "通过";
   const diagnosticColumns: Array<TableColumn<DoctorCheckRow>> = [
     {
       id: "name",
@@ -381,10 +418,10 @@ export function DoctorPage({
         />
         <MetricBand
           items={[
-            { label: "通过", value: data.doctor.summary.pass, caption: "检查通过" },
-            { label: "警告", value: data.doctor.summary.warn, caption: "需要关注" },
-            { label: "失败", value: data.doctor.summary.fail, caption: "需要处理" },
-            { label: "需处理项", value: attentionCount, caption: "警告与失败合计" }
+            { label: "通过", value: doctorStatus.loaded ? data.doctor.summary.pass : "—", caption: "检查通过" },
+            { label: "警告", value: doctorStatus.loaded ? data.doctor.summary.warn : "—", caption: "需要关注" },
+            { label: "失败", value: doctorStatus.loaded ? data.doctor.summary.fail : "—", caption: "需要处理" },
+            { label: "需处理项", value: doctorStatus.loaded ? attentionCount : "—", caption: "警告与失败合计" }
           ]}
         />
         <section className="admin-list-section admin-runtime-diagnostics-history" aria-label="加载速度记录">
@@ -438,6 +475,96 @@ export function DoctorPage({
             <EmptyState title="暂无加载速度记录" detail="系统状态仍可使用；后续页面请求会逐步写入加载样本。" />
           )}
         </section>
+        <section className="admin-list-section admin-doctor-capabilities" aria-label="版本与能力">
+          <header className="admin-section-header">
+            <div>
+              <h2>版本与能力</h2>
+              <p>读取服务端 capabilities，展示契约版本、服务端版本与客户端兼容性；接口未就绪时降级显示。</p>
+            </div>
+            <Badge tone={capabilityTable ? "success" : capabilities?.status === "unavailable" ? "warning" : "info"}>
+              {capabilityTable ? "已读取" : capabilities?.status === "loading" ? "读取中" : "版本信息不可用"}
+            </Badge>
+          </header>
+          {capabilities?.status === "ready" && capabilityTable ? (
+            <>
+              <AdminInfoGroups
+                groups={[
+                  {
+                    title: "契约与版本",
+                    rows: [
+                      { label: "契约版本", value: capabilityTable.contract_version },
+                      { label: "服务端版本", value: capabilityTable.server_version },
+                      { label: "服务端产品", value: capabilityTable.server_product },
+                      { label: "最低客户端版本", value: capabilityTable.min_client_version },
+                      { label: "当前客户端版本", value: clientVersion },
+                      { label: "兼容状态", value: capabilityCompatibility?.label ?? "未确认" }
+                    ]
+                  },
+                  {
+                    title: "能力摘要",
+                    rows: capabilityRows.length > 0
+                      ? capabilityRows.map((row) => ({
+                          label: row.label,
+                          value: row.enabled ? "已启用" : "未启用"
+                        }))
+                      : [{ label: "能力清单", value: "未提供" }]
+                  }
+                ]}
+              />
+              <p className="admin-note">{adminCapabilityFeatureSummary(capabilityTable)}</p>
+            </>
+          ) : capabilities?.status === "unavailable" ? (
+            <>
+              <AdminStatusLine
+                tone="failed"
+                label="版本信息不可用"
+                detail={capabilities.message ?? "当前管理端 API 暂未提供 v1 capabilities 接口。"}
+                value="已降级"
+              />
+              {onReloadCapabilities ? (
+                <div className="admin-action-row">
+                  <AdminControlButton
+                    label="重试读取版本信息"
+                    state="m9b-api"
+                    reason="重新请求 GET /api/v1/capabilities。"
+                    onClick={onReloadCapabilities}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <EmptyState
+              title="正在读取版本与能力"
+              detail="读取 GET /api/v1/capabilities；若接口尚未就绪会自动降级为“版本信息不可用”。"
+            />
+          )}
+        </section>
+        <section className="admin-list-section admin-doctor-service-modes" aria-label="服务模式与迁移">
+          <header className="admin-section-header">
+            <div>
+              <h2>服务模式与迁移</h2>
+              <p>账号与事件服务当前运行模式及迁移状态；服务端未提供时按旧共享文件模式显示，不阻塞页面。</p>
+            </div>
+            <Badge tone={adminServiceModesProvided(serviceModeInfo) ? "success" : "neutral"}>
+              {adminServiceModesProvided(serviceModeInfo) ? "服务端已提供" : "缺省旧共享文件模式"}
+            </Badge>
+          </header>
+          <AdminInfoGroups
+            groups={[{
+              title: "accounts_service / usage_service",
+              rows: adminServiceModeRows(serviceModeInfo).map((row) => ({
+                label: row.label,
+                value: row.value
+              }))
+            }]}
+          />
+          {!adminServiceModesProvided(serviceModeInfo) ? (
+            <p className="admin-note">
+              服务端 capabilities/health 暂未提供服务模式字段，按旧共享文件模式显示（不影响页面与操作）。
+            </p>
+          ) : null}
+          <p className="admin-note">{adminServiceModesSummary(serviceModeInfo)}</p>
+        </section>
         <section className="admin-list-section admin-doctor-report-surface" aria-label="诊断报告">
           <header className="admin-section-header">
             <div>
@@ -446,6 +573,14 @@ export function DoctorPage({
             </div>
             <Badge tone={reportTone}>{reportStatus}</Badge>
           </header>
+          {!doctorStatus.loaded ? (
+            <AdminStatusLine
+              tone="warning"
+              label={doctorStatus.label}
+              detail={`${adminDashboardSourceLabel(doctorSource.source)}；未读取到真实系统检查报告，页面不显示“通过/正常”结论。`}
+              value="未检查"
+            />
+          ) : null}
           {doctorReportError ? (
             <AdminStatusLine
               tone="failed"
@@ -499,7 +634,7 @@ export function DoctorPage({
             {
               title: "报告",
               rows: [
-                { label: "生成时间", value: data.doctor.generated_at },
+                { label: "生成时间", value: formatAdminDateTime(data.doctor.generated_at) },
                 { label: "报告版本", value: data.doctor.schema_version },
                 { label: "库路径", value: data.doctor.library_root },
                 { label: "通过", value: data.doctor.summary.pass },

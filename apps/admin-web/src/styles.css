@@ -6441,3 +6441,54 @@ body,
     overflow-x: auto;
   }
 }
+
+/* Round2 admin P1 surfaces: 错误技术信息折叠 / 确认影响清单 / 命令进度 */
+.admin-action-error-details {
+  margin-top: 6px;
+}
+
+.admin-action-error-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.82;
+}
+
+.admin-action-error-details pre {
+  margin: 6px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}
+
+.admin-confirm-impact-list {
+  margin: 12px 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.admin-command-progress {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: min(420px, calc(100vw - 48px));
+  padding: 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 10px;
+}
+
+.admin-command-progress header {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-command-progress header span {
+  font-size: 12px;
+  color: #556070;
+}

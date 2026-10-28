@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface AdminSourceFolder {
@@ -62,8 +62,46 @@ function settingsPath(libraryRoot: string): string {
   return path.join(mixlabRoot(libraryRoot), "admin-settings.json");
 }
 
+export const ADMIN_RUNTIME_SECRETS_ENV_VAR = "MIXLAB_ADMIN_SECRETS_FILE";
+const DEFAULT_RUNTIME_SECRETS_FILE_NAME = "admin-runtime-secrets.json";
+
+export function resolveAdminRuntimeSecretsPath(
+  libraryRoot: string,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const overridePath = env[ADMIN_RUNTIME_SECRETS_ENV_VAR]?.trim();
+
+  if (overridePath) {
+    return path.resolve(overridePath);
+  }
+
+  return path.join(mixlabRoot(libraryRoot), DEFAULT_RUNTIME_SECRETS_FILE_NAME);
+}
+
 function runtimeSecretsPath(libraryRoot: string): string {
-  return path.join(mixlabRoot(libraryRoot), "admin-runtime-secrets.json");
+  return resolveAdminRuntimeSecretsPath(libraryRoot);
+}
+
+function usesDefaultRuntimeSecretsPath(libraryRoot: string): boolean {
+  return runtimeSecretsPath(libraryRoot) ===
+    path.join(mixlabRoot(libraryRoot), DEFAULT_RUNTIME_SECRETS_FILE_NAME);
+}
+
+let defaultRuntimeSecretsPathWarningEmitted = false;
+
+function warnDefaultRuntimeSecretsPath(filePath: string): void {
+  if (defaultRuntimeSecretsPathWarningEmitted) {
+    return;
+  }
+
+  defaultRuntimeSecretsPathWarningEmitted = true;
+  console.warn(JSON.stringify({
+    time: new Date().toISOString(),
+    component: "library-fs.admin-settings",
+    event: "admin_runtime_secrets_default_path",
+    message: "运行密钥仍保存在共享素材库内的默认路径，建议设置 MIXLAB_ADMIN_SECRETS_FILE 指向私有路径",
+    file_path: filePath
+  }));
 }
 
 function defaultSettings(libraryRoot: string): AdminSettings {
@@ -344,7 +382,7 @@ function nextSourceFolderId(sourceFolders: AdminSourceFolder[]): string {
   return `src_${String(maxSuffix + 1n).padStart(3, "0")}`;
 }
 
-export async function readAdminSettings(libraryRoot: string): Promise<AdminSettings> {
+async function readAdminSettingsOnce(libraryRoot: string): Promise<AdminSettings> {
   let raw: string;
 
   try {
@@ -370,11 +408,82 @@ export async function readAdminSettings(libraryRoot: string): Promise<AdminSetti
   }
 }
 
+async function tightenAdminRuntimeSecretsPermissions(filePath: string): Promise<void> {
+  if (process.platform === "win32") {
+    return;
+  }
+
+  let fileStat;
+  try {
+    fileStat = await stat(filePath);
+  } catch {
+    return;
+  }
+
+  const openPermissionBits = fileStat.mode & 0o077;
+  if (openPermissionBits === 0) {
+    return;
+  }
+
+  console.warn(JSON.stringify({
+    time: new Date().toISOString(),
+    component: "library-fs.admin-settings",
+    event: "admin_runtime_secrets_permissions_too_open",
+    message: "运行密钥文件权限过宽，已自动收紧为 0600",
+    file_path: filePath,
+    mode: `0${(fileStat.mode & 0o777).toString(8)}`
+  }));
+
+  await chmod(filePath, 0o600).catch(() => {
+    console.warn(JSON.stringify({
+      time: new Date().toISOString(),
+      component: "library-fs.admin-settings",
+      event: "admin_runtime_secrets_chmod_failed",
+      message: "运行密钥文件权限收紧失败，请检查共享库文件系统权限",
+      file_path: filePath
+    }));
+  });
+}
+
+/**
+ * Read the admin settings with a bounded retry for transient parse errors. Legacy (pre-atomic)
+ * writers and external tooling may briefly expose a partially written file; retrying keeps
+ * concurrent commands from failing on an otherwise healthy settings file.
+ */
+export async function readAdminSettings(libraryRoot: string): Promise<AdminSettings> {
+  const retryDelaysMs = [0, 30, 80];
+  let lastError: unknown;
+
+  for (const delayMs of retryDelaysMs) {
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    try {
+      return await readAdminSettingsOnce(libraryRoot);
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/格式无效|JSON/.test(message)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("管理员设置文件格式无效");
+}
+
 export async function readAdminRuntimeSecrets(libraryRoot: string): Promise<AdminRuntimeSecrets> {
+  const filePath = runtimeSecretsPath(libraryRoot);
+
+  if (usesDefaultRuntimeSecretsPath(libraryRoot)) {
+    warnDefaultRuntimeSecretsPath(filePath);
+  }
+
   let raw: string;
 
   try {
-    raw = await readFile(runtimeSecretsPath(libraryRoot), "utf8");
+    raw = await readFile(filePath, "utf8");
   } catch (error) {
     if ((error as NodeError).code === "ENOENT") {
       return defaultRuntimeSecrets();
@@ -382,6 +491,8 @@ export async function readAdminRuntimeSecrets(libraryRoot: string): Promise<Admi
 
     throw new Error("管理员运行密钥读取失败，请检查文件权限和路径");
   }
+
+  await tightenAdminRuntimeSecretsPermissions(filePath);
 
   try {
     const secrets = JSON.parse(raw) as unknown;
@@ -409,8 +520,41 @@ export async function writeAdminRuntimeSecrets(
     updated_at: new Date().toISOString()
   };
   validateRuntimeSecrets(next);
-  await mkdir(mixlabRoot(libraryRoot), { recursive: true });
-  await writeFile(runtimeSecretsPath(libraryRoot), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  const filePath = runtimeSecretsPath(libraryRoot);
+
+  if (usesDefaultRuntimeSecretsPath(libraryRoot)) {
+    warnDefaultRuntimeSecretsPath(filePath);
+  }
+
+  const directoryPath = path.dirname(filePath);
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${
+    Math.random().toString(36).slice(2)
+  }`;
+
+  await mkdir(directoryPath, { recursive: true });
+
+  try {
+    const fileHandle = await open(tempPath, "w", 0o600);
+
+    try {
+      await fileHandle.writeFile(`${JSON.stringify(next, null, 2)}\n`, "utf8");
+      await fileHandle.sync();
+    } finally {
+      await fileHandle.close();
+    }
+
+    await chmod(tempPath, 0o600).catch(() => {
+      // Best effort for SMB/NAS filesystems that may not support POSIX modes.
+    });
+    await rename(tempPath, filePath);
+    await chmod(filePath, 0o600).catch(() => {
+      // Best effort for SMB/NAS filesystems that may not support POSIX modes.
+    });
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
+
   return next;
 }
 
@@ -436,6 +580,10 @@ export async function applyAdminRuntimeSecretsToEnv(
 
   if (apiKey) {
     env.DASHSCOPE_API_KEY = apiKey;
+  } else {
+    // Clearing the key must also clear the long-lived worker/API process env, otherwise the
+    // previous key keeps being used until the next restart.
+    delete env.DASHSCOPE_API_KEY;
   }
 }
 
@@ -448,7 +596,27 @@ export async function writeAdminSettings(
   assertAbsoluteSourceFolderPaths(runtimeSettings.source_folders);
   const next = { ...runtimeSettings, updated_at: new Date().toISOString() };
   await mkdir(mixlabRoot(libraryRoot), { recursive: true });
-  await writeFile(settingsPath(libraryRoot), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  // Write-then-rename keeps concurrent readers from parsing a partially written JSON file
+  // (Round4 gate observed a transient "settings JSON invalid" during two concurrent scan
+  // commands). fsync the temp file before the atomic rename so a crash cannot truncate it.
+  const targetPath = settingsPath(libraryRoot);
+  const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const handle = await open(tempPath, "w", 0o644);
+
+  try {
+    await handle.writeFile(`${JSON.stringify(next, null, 2)}\n`, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+
+  try {
+    await rename(tempPath, targetPath);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+
   return next;
 }
 

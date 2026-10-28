@@ -7,6 +7,10 @@ import {
   appendUsageEvent,
   type UsageMetrics
 } from "../../library-fs/src/index.ts";
+import type {
+  UsageServiceConnection,
+  UsageServiceMetricsResponse
+} from "../../library-fs/src/usage-service-client.ts";
 import {
   adminUsageMetricsStorePath,
   readAdminUsageMetricsWithRuntime
@@ -293,3 +297,107 @@ test("usage metrics query exposes summary write failures without failing dashboa
   assert.equal(second.projection_status, "summary-stored");
   assert.equal(second.metrics.search_request_count, 6);
 });
+
+test("usage metrics query keeps the legacy path when the usage service flag is unset", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeUsageEvents(libraryRoot, "{\"event_id\":\"evt-legacy-flag\"}\n");
+  let serviceReadCount = 0;
+
+  const result = await readAdminUsageMetricsWithRuntime({
+    library_root: libraryRoot,
+    env: {} as NodeJS.ProcessEnv,
+    async read_usage_service_metrics() {
+      serviceReadCount += 1;
+      throw new Error("usage service must not be read without the feature flag");
+    },
+    async read_usage_metrics() {
+      return usageMetrics({ search_request_count: 5, active_user_count: 2 });
+    }
+  });
+
+  assert.equal(serviceReadCount, 0);
+  assert.equal(result.metrics_source, "legacy-events");
+  assert.equal(result.actual_data_source, "usage-events");
+  assert.equal(result.metrics.search_request_count, 5);
+});
+
+test("usage metrics query reads the isolated service when the feature flag is enabled", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  let capturedConnection: UsageServiceConnection | undefined;
+
+  const response: UsageServiceMetricsResponse<UsageMetrics> = {
+    store_id: "store-usage-service",
+    schema_version: "1",
+    contract_version: "1.0.0",
+    generated_at: "2026-10-27T10:00:00.000Z",
+    query: {},
+    event_count: 42,
+    truncated: false,
+    metrics: usageMetrics({
+      search_request_count: 7,
+      cut_success_count: 3,
+      active_user_count: 4
+    }),
+    by_day: [{
+      date: "2026-10-27",
+      event_count: 42,
+      active_user_count: 4,
+      search_request_count: 7
+    }]
+  };
+
+  const result = await readAdminUsageMetricsWithRuntime({
+    library_root: libraryRoot,
+    env: {
+      MIXLAB_USAGE_SERVICE_URL: "http://127.0.0.1:3892",
+      MIXLAB_USAGE_SERVICE_TOKEN: "client-token",
+      MIXLAB_USAGE_SERVICE_ADMIN_TOKEN: "admin-token"
+    } as NodeJS.ProcessEnv,
+    async read_usage_service_metrics(connection) {
+      capturedConnection = connection;
+      return response;
+    },
+    async read_usage_metrics() {
+      throw new Error("legacy NDJSON must not be read in usage-service mode");
+    }
+  });
+
+  assert.deepEqual(capturedConnection, {
+    base_url: "http://127.0.0.1:3892",
+    token: "admin-token",
+    admin_token: "admin-token"
+  });
+  assert.equal(result.metrics_source, "usage-service");
+  assert.equal(result.projection_status, "usage-service");
+  assert.equal(result.actual_data_source, "usage-events");
+  assert.equal(result.cache_status, "miss");
+  assert.equal(result.projection_path, "");
+  assert.equal(result.metrics.search_request_count, 7);
+  assert.equal(result.metrics.cut_success_count, 3);
+  assert.deepEqual(result.usage_service, {
+    store_id: "store-usage-service",
+    event_count: 42,
+    by_day: response.by_day
+  });
+});
+
+test("usage metrics query respects an explicit legacy override even when env enables the service", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  await writeUsageEvents(libraryRoot, "{\"event_id\":\"evt-forced-legacy\"}\n");
+
+  const result = await readAdminUsageMetricsWithRuntime({
+    library_root: libraryRoot,
+    env: {
+      MIXLAB_USAGE_SERVICE_URL: "http://127.0.0.1:3892",
+      MIXLAB_USAGE_SERVICE_TOKEN: "client-token"
+    } as NodeJS.ProcessEnv,
+    usage_service_connection: null,
+    async read_usage_metrics() {
+      return usageMetrics({ search_request_count: 1 });
+    }
+  });
+
+  assert.equal(result.metrics_source, "legacy-events");
+  assert.equal(result.metrics.search_request_count, 1);
+});
+

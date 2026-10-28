@@ -16,6 +16,11 @@ MIXLAB_WINDOWS_TEST_RUNNER_PORT
 MIXLAB_WINDOWS_TEST_RUNNER_SHARE_ROOT
 MIXLAB_WINDOWS_TEST_RUNNER_REPORTS_ROOT
 MIXLAB_CUTTER_API_BASE_URL
+MIXLAB_WINDOWS_TEST_RUNNER_TOKEN
+MIXLAB_WINDOWS_TEST_RUNNER_REQUIRE_CONFIRM
+MIXLAB_WINDOWS_TEST_RUNNER_REQUIRE_INSTALLER_SHA256
+MIXLAB_WINDOWS_TEST_RUNNER_MAX_BODY_BYTES
+MIXLAB_WINDOWS_TEST_RUNNER_ALLOWED_ORIGINS
 ```
 
 Default port:
@@ -23,6 +28,23 @@ Default port:
 ```text
 3799
 ```
+
+## Security defaults
+
+- Default bind address is `127.0.0.1`. Binding to `0.0.0.0` or a LAN address **requires**
+  `MIXLAB_WINDOWS_TEST_RUNNER_TOKEN` (at least 16 characters) or the Runner refuses to start.
+- Every endpoint except `GET /health` requires `Authorization: Bearer <token>`
+  (or `X-MixLab-Runner-Token`). `/health` only reports liveness.
+- Browser requests with an `Origin` header are accepted only for loopback origins or
+  origins listed in `MIXLAB_WINDOWS_TEST_RUNNER_ALLOWED_ORIGINS`.
+- Request bodies are limited by `MIXLAB_WINDOWS_TEST_RUNNER_MAX_BODY_BYTES` (default 1 MiB).
+- Destructive suites (`real_cut_smoke`, `windows_acceptance`, `desktop_ui_screenshot_smoke`,
+  `desktop_incident_diagnostics`, `install_latest_and_smoke`) must carry `"confirm": true`.
+- `install_latest_and_smoke` only accepts `installer_path` values inside the share root and
+  requires `installer_sha256` when `MIXLAB_WINDOWS_TEST_RUNNER_REQUIRE_INSTALLER_SHA256=1`
+  (default on for LAN/token deployments).
+- Never expose this Runner to the public internet. Prefer loopback-only access or a
+  dedicated isolated test Windows machine.
 
 ## Phase 1 API
 

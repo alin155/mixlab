@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  ADMIN_RUNTIME_SECRETS_ENV_VAR,
   addAdminSourceFolder,
   applyAdminRuntimeSecretsToEnv,
   readAdminSettings,
   readAdminRuntimeSecrets,
   removeAdminSourceFolder,
+  resolveAdminRuntimeSecretsPath,
   updateAdminRuntimeSecrets,
   updateAdminRuntimePolicy,
   updateAdminSettings,
@@ -457,4 +459,135 @@ test("rejects relative source folder paths when saving settings", async () => {
     }),
     /素材来源路径必须是绝对路径/
   );
+});
+
+function runtimeSecretsFilePath(root: string): string {
+  return path.join(root, ".mixlab-library", "admin-runtime-secrets.json");
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const skipOnWindows = process.platform === "win32";
+
+test("writes runtime secrets with owner-only permissions", { skip: skipOnWindows }, async () => {
+  const root = await makeRoot();
+  await updateAdminRuntimeSecrets(root, { dashscope_api_key: "sk-permission-test" });
+
+  const fileStat = await stat(runtimeSecretsFilePath(root));
+  assert.equal(fileStat.mode & 0o777, 0o600);
+});
+
+test("honors the private runtime secrets path from the environment", async () => {
+  const root = await makeRoot();
+  const privateDirectory = await mkdtemp(path.join(tmpdir(), "mixlab-private-secrets-"));
+  const privateFilePath = path.join(privateDirectory, "runtime-secrets.json");
+  const previousOverride = process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR];
+  process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR] = privateFilePath;
+
+  try {
+    assert.equal(resolveAdminRuntimeSecretsPath(root), privateFilePath);
+
+    await updateAdminRuntimeSecrets(root, { dashscope_api_key: "sk-private-path" });
+
+    assert.equal(await pathExists(privateFilePath), true);
+    assert.equal(await pathExists(runtimeSecretsFilePath(root)), false);
+
+    const persisted = JSON.parse(await readFile(privateFilePath, "utf8")) as {
+      dashscope_api_key: string;
+    };
+    assert.equal(persisted.dashscope_api_key, "sk-private-path");
+    assert.equal((await readAdminRuntimeSecrets(root)).dashscope_api_key, "sk-private-path");
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR];
+    } else {
+      process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR] = previousOverride;
+    }
+  }
+});
+
+test("tightens overly permissive runtime secrets permissions on read", {
+  skip: skipOnWindows
+}, async () => {
+  const root = await makeRoot();
+  const filePath = runtimeSecretsFilePath(root);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(
+    filePath,
+    `${JSON.stringify({
+      schema_version: "1.0",
+      dashscope_api_key: "sk-wide-permissions",
+      updated_at: "2026-05-02T00:00:00.000Z"
+    }, null, 2)}\n`,
+    "utf8"
+  );
+  await chmod(filePath, 0o644);
+
+  const secrets = await readAdminRuntimeSecrets(root);
+
+  assert.equal(secrets.dashscope_api_key, "sk-wide-permissions");
+  assert.equal((await stat(filePath)).mode & 0o777, 0o600);
+});
+
+test("does not leak runtime secrets in read or write error messages", async () => {
+  const root = await makeRoot();
+  const filePath = runtimeSecretsFilePath(root);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(
+    filePath,
+    "{ \"dashscope_api_key\": \"sk-leak-canary\", ",
+    "utf8"
+  );
+
+  await assert.rejects(
+    () => readAdminRuntimeSecrets(root),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.match(message, /管理员运行密钥读取失败/);
+      assert.equal(message.includes("sk-leak-canary"), false);
+      return true;
+    }
+  );
+
+  const privateDirectory = await mkdtemp(path.join(tmpdir(), "mixlab-private-secrets-"));
+  const directoryAsFilePath = path.join(privateDirectory, "runtime-secrets.json");
+  await mkdir(directoryAsFilePath, { recursive: true });
+  const previousOverride = process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR];
+  process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR] = directoryAsFilePath;
+
+  try {
+    await assert.rejects(
+      () => updateAdminRuntimeSecrets(root, { dashscope_api_key: "sk-write-canary" }),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        assert.equal(message.includes("sk-write-canary"), false);
+        return true;
+      }
+    );
+  } finally {
+    if (previousOverride === undefined) {
+      delete process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR];
+    } else {
+      process.env[ADMIN_RUNTIME_SECRETS_ENV_VAR] = previousOverride;
+    }
+  }
+});
+
+test("clearing runtime secrets removes the process env key", async () => {
+  const root = await makeRoot();
+  await updateAdminRuntimeSecrets(root, { dashscope_api_key: "sk-clear-me" });
+  const env: NodeJS.ProcessEnv = {};
+  await applyAdminRuntimeSecretsToEnv(root, env);
+  assert.equal(env.DASHSCOPE_API_KEY, "sk-clear-me");
+
+  await updateAdminRuntimeSecrets(root, { dashscope_api_key: "" });
+  await applyAdminRuntimeSecretsToEnv(root, env);
+  assert.equal(env.DASHSCOPE_API_KEY, undefined);
 });

@@ -45,15 +45,14 @@ test("health read services assemble shallow health without reading processing gu
     } as NodeJS.ProcessEnv
   }, { deep: false });
 
-  assert.deepEqual(calls, [`source-path:${libraryRoot}`]);
+  assert.deepEqual(calls, []);
   assert.equal(health.ok, true);
   assert.equal(health.service, "admin-api");
   assert.equal(health.build.sha, "sha-r204");
   assert.equal(health.build.version, "r204");
   assert.equal(health.build.image_tag, "admin-api:r204");
-  assert.equal(health.runtime.library_root, libraryRoot);
-  assert.equal(health.runtime.source_videos_path, path.join(libraryRoot, "source-videos"));
   assert.equal(health.runtime.path_profile, "local");
+  assert.equal(JSON.stringify(health).includes(libraryRoot), false);
   assert.equal(health.preprocess.processing.checked, false);
 });
 
@@ -116,4 +115,36 @@ test("health read services expose processing ids as a local query service", asyn
     "V000007",
     "V000009"
   ]);
+});
+
+test("health read services expose a readiness check with dependency status", async () => {
+  const libraryRoot = await makeLibraryRoot();
+  const services = createAdminHealthReadServices<TestApiInput>({
+    async read_source_video_status_read_model(root) {
+      assert.equal(root, libraryRoot);
+      return {
+        ids_by_status: {
+          processing: []
+        }
+      };
+    },
+    async read_primary_source_videos_path(root) {
+      return path.join(root, "source-videos");
+    }
+  });
+
+  const report = await services.read_ready({
+    library_root: libraryRoot,
+    request_id: "req-ready",
+    now: () => "2026-06-27T04:47:00.000Z",
+    env: {} as NodeJS.ProcessEnv
+  }, { deep: false });
+
+  assert.equal(report.ready, true);
+  assert.equal(report.status, "ready");
+  assert.deepEqual(
+    report.checks.map((check) => check.id),
+    ["library_readable", "read_model_readable", "release_pointer_valid", "preprocess_safety"]
+  );
+  assert.equal(JSON.stringify(report).includes(libraryRoot), false);
 });

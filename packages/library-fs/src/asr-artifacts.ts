@@ -1,5 +1,6 @@
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { assertLibraryPathInside, assertValidSourceVideoId } from "./scanner.ts";
 
 export interface WriteAsrTextArtifactsInput {
   library_root: string;
@@ -37,6 +38,7 @@ async function cleanupTemporaryArtifacts(paths: string[]): Promise<void> {
 export async function writeAsrTextArtifacts(
   input: WriteAsrTextArtifactsInput
 ): Promise<AsrTextArtifactPaths> {
+  assertValidSourceVideoId(input.source_video_id);
   const transcriptPath = videoArtifactRelativePath(input.source_video_id, "transcript.json");
   const srtPath = videoArtifactRelativePath(input.source_video_id, "subtitles.srt");
   const transcriptBytes = jsonBytes(input.transcript_artifact);
@@ -47,6 +49,8 @@ export async function writeAsrTextArtifacts(
   const temporarySrtPath = temporaryArtifactPath(absoluteSrtPath);
   const temporaryPaths = [temporaryTranscriptPath, temporarySrtPath];
 
+  await assertLibraryPathInside(input.library_root, absoluteTranscriptPath, "转写产物路径");
+  await assertLibraryPathInside(input.library_root, absoluteSrtPath, "字幕产物路径");
   await mkdir(videoArtifactDir, { recursive: true });
 
   try {

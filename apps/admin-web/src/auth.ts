@@ -10,6 +10,7 @@ export interface StoredAdminAuthSession {
   session_token: string;
   created_at: string;
   last_seen_at: string;
+  expires_at?: string;
 }
 
 function storageAvailable(): Storage | null {
@@ -32,7 +33,8 @@ function isStoredAdminAuthSession(value: unknown): value is StoredAdminAuthSessi
     typeof record.role === "string" &&
     typeof record.session_token === "string" &&
     typeof record.created_at === "string" &&
-    typeof record.last_seen_at === "string";
+    typeof record.last_seen_at === "string" &&
+    (record.expires_at === undefined || typeof record.expires_at === "string");
 }
 
 export function adminAuthSessionFromResult(result: AdminAuthResult): StoredAdminAuthSession {
@@ -43,7 +45,8 @@ export function adminAuthSessionFromResult(result: AdminAuthResult): StoredAdmin
     role: result.user.role,
     session_token: result.session.session_token,
     created_at: result.session.created_at,
-    last_seen_at: result.session.last_seen_at
+    last_seen_at: result.session.last_seen_at,
+    ...(result.session.expires_at ? { expires_at: result.session.expires_at } : {})
   };
 }
 

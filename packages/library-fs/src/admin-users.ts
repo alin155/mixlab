@@ -23,6 +23,140 @@ export interface AdminSessionRecord {
   session_token: string;
   created_at: string;
   last_seen_at: string;
+  /** Absolute expiry; absent only on legacy sessions written before SEC-01. */
+  expires_at?: string;
+}
+
+export interface AdminSessionPolicy {
+  ttl_ms: number;
+  max_sessions_per_user: number;
+  touch_interval_ms: number;
+}
+
+export const DEFAULT_ADMIN_SESSION_TTL_MINUTES = 720;
+export const DEFAULT_ADMIN_MAX_SESSIONS_PER_USER = 10;
+export const DEFAULT_ADMIN_SESSION_TOUCH_INTERVAL_SECONDS = 60;
+
+function positiveIntegerSetting(value: string | undefined, fallback: number, minimum = 1): number {
+  const parsed = Number.parseInt((value ?? "").trim(), 10);
+  return Number.isSafeInteger(parsed) && parsed >= minimum ? parsed : fallback;
+}
+
+export function readAdminSessionPolicy(env: NodeJS.ProcessEnv = process.env): AdminSessionPolicy {
+  return {
+    ttl_ms: positiveIntegerSetting(env.MIXLAB_ADMIN_SESSION_TTL_MINUTES, DEFAULT_ADMIN_SESSION_TTL_MINUTES) * 60_000,
+    max_sessions_per_user: positiveIntegerSetting(
+      env.MIXLAB_ADMIN_MAX_SESSIONS_PER_USER,
+      DEFAULT_ADMIN_MAX_SESSIONS_PER_USER
+    ),
+    touch_interval_ms:
+      positiveIntegerSetting(
+        env.MIXLAB_ADMIN_SESSION_TOUCH_INTERVAL_SECONDS,
+        DEFAULT_ADMIN_SESSION_TOUCH_INTERVAL_SECONDS,
+        0
+      ) * 1000
+  };
+}
+
+function resolveAdminSessionPolicy(overrides?: Partial<AdminSessionPolicy>): AdminSessionPolicy {
+  const base = readAdminSessionPolicy();
+
+  if (!overrides) {
+    return base;
+  }
+
+  return {
+    ttl_ms:
+      typeof overrides.ttl_ms === "number" && Number.isFinite(overrides.ttl_ms) && overrides.ttl_ms > 0
+        ? Math.floor(overrides.ttl_ms)
+        : base.ttl_ms,
+    max_sessions_per_user:
+      typeof overrides.max_sessions_per_user === "number" &&
+      Number.isFinite(overrides.max_sessions_per_user) &&
+      overrides.max_sessions_per_user >= 1
+        ? Math.floor(overrides.max_sessions_per_user)
+        : base.max_sessions_per_user,
+    touch_interval_ms:
+      typeof overrides.touch_interval_ms === "number" &&
+      Number.isFinite(overrides.touch_interval_ms) &&
+      overrides.touch_interval_ms >= 0
+        ? Math.floor(overrides.touch_interval_ms)
+        : base.touch_interval_ms
+  };
+}
+
+function parseAdminTimeMs(now: string): number {
+  const value = Date.parse(now);
+  if (!Number.isFinite(value)) {
+    throw new Error("管理端时间无效");
+  }
+
+  return value;
+}
+
+export function adminSessionExpiryIso(now: string, ttlMs: number): string {
+  return new Date(parseAdminTimeMs(now) + ttlMs).toISOString();
+}
+
+/** Legacy sessions without expires_at get the same TTL budget measured from created_at (never unlimited). */
+function adminSessionExpiresAtMs(session: AdminSessionRecord, ttlMs: number): number {
+  if (session.expires_at !== undefined) {
+    return Date.parse(session.expires_at);
+  }
+
+  const createdMs = Date.parse(session.created_at);
+  return Number.isFinite(createdMs) ? createdMs + ttlMs : Number.NaN;
+}
+
+export function isAdminSessionExpired(
+  session: AdminSessionRecord,
+  nowMs: number,
+  ttlMs: number
+): boolean {
+  const expiresAtMs = adminSessionExpiresAtMs(session, ttlMs);
+  return !Number.isFinite(expiresAtMs) || nowMs >= expiresAtMs;
+}
+
+/** Pure cleanup: returns a new array with expired sessions removed. */
+export function pruneExpiredAdminSessions(
+  sessions: AdminSessionRecord[],
+  nowMs: number,
+  ttlMs: number
+): AdminSessionRecord[] {
+  return sessions.filter((session) => !isAdminSessionExpired(session, nowMs, ttlMs));
+}
+
+/** Pure cap: keeps the newest maxSessions sessions of one admin (dropping the oldest). */
+export function limitAdminSessionsPerUser(
+  sessions: AdminSessionRecord[],
+  adminId: string,
+  maxSessions: number
+): AdminSessionRecord[] {
+  const limit = Math.max(1, Math.floor(maxSessions));
+  const indexed = sessions.map((session, index) => ({ session, index }));
+  const owned = indexed.filter((item) => item.session.admin_id === adminId);
+
+  if (owned.length <= limit) {
+    return sessions;
+  }
+
+  const kept = new Set(
+    owned
+      .slice()
+      .sort((left, right) => {
+        const leftMs = Date.parse(left.session.created_at);
+        const rightMs = Date.parse(right.session.created_at);
+        const leftKey = Number.isFinite(leftMs) ? leftMs : 0;
+        const rightKey = Number.isFinite(rightMs) ? rightMs : 0;
+        return leftKey - rightKey || left.index - right.index;
+      })
+      .slice(owned.length - limit)
+      .map((item) => item.index)
+  );
+
+  return indexed
+    .filter((item) => item.session.admin_id !== adminId || kept.has(item.index))
+    .map((item) => item.session);
 }
 
 interface AdminUserStore {
@@ -103,6 +237,9 @@ function validateSession(value: unknown, field: string): AdminSessionRecord {
   assertNonEmptyString(value.session_token, `${field}.session_token`);
   assertNonEmptyString(value.created_at, `${field}.created_at`);
   assertNonEmptyString(value.last_seen_at, `${field}.last_seen_at`);
+  if (value.expires_at !== undefined) {
+    assertNonEmptyString(value.expires_at, `${field}.expires_at`);
+  }
 
   return value as unknown as AdminSessionRecord;
 }
@@ -347,8 +484,17 @@ export async function getAdminAuthBootstrapStatus(libraryRoot: string): Promise<
 
 export async function registerFirstAdmin(
   libraryRoot: string,
-  input: { username: string; password: string; display_name?: string; now: string }
+  input: {
+    username: string;
+    password: string;
+    display_name?: string;
+    now: string;
+    session_policy?: Partial<AdminSessionPolicy>;
+  }
 ): Promise<{ user: AdminUserRecord; session: AdminSessionRecord }> {
+  const policy = resolveAdminSessionPolicy(input.session_policy);
+  const nowMs = parseAdminTimeMs(input.now);
+
   return withMutation(libraryRoot, async () => {
     const store = await readStore(libraryRoot);
     if (store.users.some((user) => user.status === "active")) {
@@ -375,10 +521,15 @@ export async function registerFirstAdmin(
       admin_id: user.admin_id,
       session_token: randomUUID(),
       created_at: input.now,
-      last_seen_at: input.now
+      last_seen_at: input.now,
+      expires_at: adminSessionExpiryIso(input.now, policy.ttl_ms)
     };
     store.users.push(user);
-    store.sessions.push(session);
+    store.sessions = limitAdminSessionsPerUser(
+      [...pruneExpiredAdminSessions(store.sessions, nowMs, policy.ttl_ms), session],
+      user.admin_id,
+      policy.max_sessions_per_user
+    );
     await writeStore(libraryRoot, store);
     return { user, session };
   });
@@ -386,8 +537,11 @@ export async function registerFirstAdmin(
 
 export async function loginAdmin(
   libraryRoot: string,
-  input: { username: string; password: string; now: string }
+  input: { username: string; password: string; now: string; session_policy?: Partial<AdminSessionPolicy> }
 ): Promise<{ ok: true; user: AdminUserRecord; session: AdminSessionRecord } | { ok: false; reason: string }> {
+  const policy = resolveAdminSessionPolicy(input.session_policy);
+  const nowMs = parseAdminTimeMs(input.now);
+
   return withMutation(libraryRoot, async () => {
     const store = await readStore(libraryRoot);
     const usernameKey = normalizeUsername(input.username);
@@ -403,10 +557,15 @@ export async function loginAdmin(
       admin_id: user.admin_id,
       session_token: randomUUID(),
       created_at: input.now,
-      last_seen_at: input.now
+      last_seen_at: input.now,
+      expires_at: adminSessionExpiryIso(input.now, policy.ttl_ms)
     };
     user.last_login_at = input.now;
-    store.sessions.push(session);
+    store.sessions = limitAdminSessionsPerUser(
+      [...pruneExpiredAdminSessions(store.sessions, nowMs, policy.ttl_ms), session],
+      user.admin_id,
+      policy.max_sessions_per_user
+    );
     await writeStore(libraryRoot, store);
     return { ok: true, user, session };
   });
@@ -414,14 +573,28 @@ export async function loginAdmin(
 
 export async function validateAdminSession(
   libraryRoot: string,
-  input: { session_token: string; now: string; touch?: boolean }
+  input: {
+    session_token: string;
+    now: string;
+    touch?: boolean;
+    session_policy?: Partial<AdminSessionPolicy>;
+  }
 ): Promise<{ ok: true; user: AdminUserRecord } | { ok: false; reason: string }> {
+  const policy = resolveAdminSessionPolicy(input.session_policy);
+  const nowMs = parseAdminTimeMs(input.now);
+
   function validateStoreSession(
-    store: AdminUserStore
-  ): { ok: true; user: AdminUserRecord; store: AdminUserStore } | { ok: false; reason: string } {
+    store: AdminUserStore,
+    touch: boolean
+  ):
+    | { ok: true; user: AdminUserRecord; dirty: boolean }
+    | { ok: false; reason: string } {
     const session = store.sessions.find((candidate) => candidate.session_token === input.session_token);
     if (!session) {
       return { ok: false, reason: "登录凭证无效" };
+    }
+    if (isAdminSessionExpired(session, nowMs, policy.ttl_ms)) {
+      return { ok: false, reason: "登录已过期，请重新登录" };
     }
     const user = store.users.find((candidate) => candidate.admin_id === session.admin_id);
     if (!user) {
@@ -430,27 +603,50 @@ export async function validateAdminSession(
     if (user.status !== "active") {
       return { ok: false, reason: "管理员账号已停用" };
     }
-    if (!input.touch) {
-      return { ok: true, user, store };
+    if (!touch) {
+      return { ok: true, user, dirty: false };
     }
 
-    session.last_seen_at = input.now;
-    user.last_login_at = input.now;
+    // Sliding renewal is throttled so ordinary admin API traffic does not rewrite the
+    // shared users.json on every request (NAS friendly) while sessions still slide.
+    const lastSeenMs = Date.parse(session.last_seen_at);
+    const dirty = !Number.isFinite(lastSeenMs) || nowMs - lastSeenMs >= policy.touch_interval_ms;
+    if (dirty) {
+      session.expires_at = adminSessionExpiryIso(input.now, policy.ttl_ms);
+      session.last_seen_at = input.now;
+      user.last_login_at = input.now;
+    }
 
-    return { ok: true, user, store };
+    return { ok: true, user, dirty };
   }
 
   if (!input.touch) {
-    const validation = validateStoreSession(await readStore(libraryRoot));
+    const validation = validateStoreSession(await readStore(libraryRoot), false);
     return validation.ok ? { ok: true, user: validation.user } : validation;
   }
 
+  // Cheap probe first: only requests past the throttle interval enter the
+  // mutation queue, so ordinary read traffic never serializes behind it.
+  const probe = validateStoreSession(await readStore(libraryRoot), true);
+  if (!probe.ok || !probe.dirty) {
+    return probe.ok ? { ok: true, user: probe.user } : probe;
+  }
+
   return withMutation(libraryRoot, async () => {
-    const validation = validateStoreSession(await readStore(libraryRoot));
+    const store = await readStore(libraryRoot);
+    const validation = validateStoreSession(store, true);
     if (!validation.ok) {
-      return validation;
+      return { ok: false, reason: validation.reason };
     }
-    await writeStore(libraryRoot, validation.store);
+
+    const prunedSessions = pruneExpiredAdminSessions(store.sessions, nowMs, policy.ttl_ms);
+    if (prunedSessions.length !== store.sessions.length) {
+      store.sessions = prunedSessions;
+    }
+    if (validation.dirty) {
+      await writeStore(libraryRoot, store);
+    }
+
     return { ok: true, user: validation.user };
   });
 }

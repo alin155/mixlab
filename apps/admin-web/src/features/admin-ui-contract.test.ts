@@ -47,7 +47,7 @@ test("admin UI contract defines the Admin Architecture v1 production-console pag
 test("navigation uses product-approved page labels", () => {
   assert.deepEqual(
     ADMIN_NAV_ITEMS.map((item) => item.label),
-    ["首页", "素材处理", "剪辑师", "系统状态"]
+    ["首页", "素材库", "素材处理", "发布与索引", "保护中心", "剪辑师", "系统状态", "设置", "操作记录"]
   );
 });
 

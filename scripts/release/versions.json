@@ -1,0 +1,291 @@
+{
+  "schema_version": "1.0",
+  "generated_by": "Round5 release engineering (task-43)",
+  "default_train": "weekly",
+  "release_trains": {
+    "weekly": {
+      "cadence": "每周",
+      "window": "周一 10:00 - 周三 18:00 (America/Los_Angeles) 合并窗口；周四冻结，周五发布候选",
+      "products": [
+        "admin-web",
+        "admin-api",
+        "admin-worker"
+      ],
+      "freeze_policy": "发布日前一天起冻结 admin 仓；紧急修复需双人 review 并记录绕行原因"
+    },
+    "biweekly": {
+      "cadence": "每两周",
+      "window": "与 weekly 同一窗口，第二周周四发布 Windows 安装包；需 Windows 空闲机验收证据",
+      "products": [
+        "cutter-web",
+        "cutter-desktop"
+      ],
+      "freeze_policy": "安装包构建后不得替换产物；回滚包必须与上一版同时保留"
+    },
+    "monthly": {
+      "cadence": "每月",
+      "window": "每月最后一个完整周；smart 端与契约/库格式同批评审",
+      "products": [
+        "smart-cutter-web",
+        "smart-cutter-desktop",
+        "contracts",
+        "library-format",
+        "service-clients"
+      ],
+      "freeze_policy": "契约与库格式只允许加法演进；删除/改语义必须 bump major 并单独评审"
+    }
+  },
+  "contracts": {
+    "package_name": "@mixlab/contracts",
+    "expected_package_version": "1.0.0",
+    "contract_version": "1.0.0",
+    "source_path": "packages/contracts/src",
+    "evolution": "additive-only"
+  },
+  "library_format": {
+    "package_name": "@mixlab/library-format",
+    "expected_package_version": "0.1.0",
+    "source_path": "packages/library-format/src",
+    "evolution": "additive-only"
+  },
+  "service_clients": {
+    "status": "active",
+    "package_name": "@mixlab/service-clients",
+    "expected_path": "packages/service-clients",
+    "expected_version": "1.0.0",
+    "note": "Identity/event service clients v1 present in worktree as untracked files (parallel Round5 workflow); manifest requires the package to be git-tracked before it can be released."
+  },
+  "products": [
+    {
+      "product": "admin-web",
+      "display_name": "管理端 Web",
+      "repo": "mixlab",
+      "package_path": "apps/admin-web",
+      "train": "weekly",
+      "version_source": "package-json",
+      "expected_version": "0.1.0",
+      "rollback_kind": "static-web-image",
+      "artifact": {
+        "kind": "web-dist",
+        "paths": [
+          "apps/admin-web/dist/assets"
+        ],
+        "extensions": [
+          ".js",
+          ".css"
+        ]
+      }
+    },
+    {
+      "product": "admin-api",
+      "display_name": "管理端 API/Worker 服务",
+      "repo": "mixlab",
+      "package_path": "packages/admin-api",
+      "train": "weekly",
+      "version_source": "package-json",
+      "expected_version": "0.1.0",
+      "rollback_kind": "service-image",
+      "artifact": {
+        "kind": "source-tree",
+        "paths": [
+          "packages/admin-api/src"
+        ],
+        "extensions": [
+          ".ts"
+        ]
+      }
+    },
+    {
+      "product": "admin-worker",
+      "display_name": "预处理/发布 Worker 脚本",
+      "repo": "mixlab",
+      "train": "weekly",
+      "version_source": "repo",
+      "expected_version": "",
+      "rollback_kind": "service-image",
+      "artifact": {
+        "kind": "source-tree",
+        "paths": [
+          "scripts/workers",
+          "scripts/docker"
+        ],
+        "extensions": [
+          ".ts",
+          ".sh",
+          ".yml"
+        ]
+      }
+    },
+    {
+      "product": "cutter-web",
+      "display_name": "剪辑端 Web",
+      "repo": "cutter",
+      "package_path": "apps/cutter-web",
+      "train": "biweekly",
+      "version_source": "package-json",
+      "expected_version": "0.1.0",
+      "rollback_kind": "static-web-image",
+      "artifact": {
+        "kind": "web-dist",
+        "paths": [
+          "apps/cutter-web/dist/assets"
+        ],
+        "extensions": [
+          ".js",
+          ".css"
+        ]
+      }
+    },
+    {
+      "product": "cutter-desktop",
+      "display_name": "剪辑端 Windows 桌面",
+      "repo": "cutter",
+      "package_path": "apps/cutter-desktop",
+      "train": "biweekly",
+      "version_source": "package-json",
+      "expected_version": "0.18.10",
+      "rollback_kind": "desktop-installer",
+      "artifact": {
+        "kind": "desktop-bundle",
+        "paths": [
+          "apps/cutter-desktop/src-tauri/target/release/bundle"
+        ],
+        "extensions": [
+          ".msi",
+          ".exe",
+          ".dmg"
+        ]
+      }
+    },
+    {
+      "product": "smart-cutter-web",
+      "display_name": "智能剪辑端 Web",
+      "repo": "smart-cutter",
+      "package_path": "apps/smart-cutter-web",
+      "train": "monthly",
+      "version_source": "package-json",
+      "expected_version": "0.1.0",
+      "rollback_kind": "static-web-image",
+      "artifact": {
+        "kind": "web-dist",
+        "paths": [
+          "apps/smart-cutter-web/dist/assets"
+        ],
+        "extensions": [
+          ".js",
+          ".css"
+        ]
+      }
+    },
+    {
+      "product": "smart-cutter-desktop",
+      "display_name": "智能剪辑端桌面",
+      "repo": "smart-cutter",
+      "package_path": "apps/smart-cutter-desktop",
+      "train": "monthly",
+      "version_source": "package-json",
+      "expected_version": "0.1.0",
+      "rollback_kind": "desktop-installer",
+      "artifact": {
+        "kind": "desktop-bundle",
+        "paths": [
+          "apps/smart-cutter-desktop/src-tauri/target/release/bundle"
+        ],
+        "extensions": [
+          ".msi",
+          ".exe",
+          ".dmg"
+        ]
+      }
+    },
+    {
+      "product": "contracts",
+      "display_name": "共享契约 contracts v1",
+      "repo": "mixlab",
+      "package_path": "packages/contracts",
+      "train": "monthly",
+      "version_source": "package-json",
+      "expected_version": "1.0.0",
+      "rollback_kind": "additive-only",
+      "artifact": {
+        "kind": "source-tree",
+        "paths": [
+          "packages/contracts/src"
+        ],
+        "extensions": [
+          ".ts"
+        ]
+      }
+    },
+    {
+      "product": "library-format",
+      "display_name": "公共库格式 library-format",
+      "repo": "mixlab",
+      "package_path": "packages/library-format",
+      "train": "monthly",
+      "version_source": "package-json",
+      "expected_version": "0.1.0",
+      "rollback_kind": "additive-only",
+      "artifact": {
+        "kind": "source-tree",
+        "paths": [
+          "packages/library-format/src"
+        ],
+        "extensions": [
+          ".ts"
+        ]
+      }
+    },
+    {
+      "product": "service-clients",
+      "display_name": "Phase3 身份/事件服务客户端",
+      "repo": "mixlab",
+      "package_path": "packages/service-clients",
+      "train": "monthly",
+      "version_source": "package-json",
+      "expected_version": "1.0.0",
+      "rollback_kind": "feature-flag-off",
+      "artifact": {
+        "kind": "source-tree",
+        "paths": [
+          "packages/service-clients/src"
+        ],
+        "extensions": [
+          ".ts"
+        ]
+      }
+    }
+  ],
+  "rollback_triggers": [
+    {
+      "id": "RB-01",
+      "severity": "P0",
+      "trigger": "发布后出现数据丢失、错误覆盖已完成素材或公共库被非预期删除",
+      "action": "立即停止发布列车，按 rollback-runbook 回滚服务镜像/静态资源，保留现场证据"
+    },
+    {
+      "id": "RB-02",
+      "severity": "P0",
+      "trigger": "发布指针异常或剪辑端读不到/读错公共库版本",
+      "action": "回滚发布指针到上一已验证版本；禁止手工编辑指针，使用发布恢复工具"
+    },
+    {
+      "id": "RB-03",
+      "severity": "P1",
+      "trigger": "Windows 桌面安装失败率或崩溃率超过约定阈值（>=5% 或同批多机复现）",
+      "action": "撤回安装包下载，回滚上一版安装包并通知用户恢复工作区备份"
+    },
+    {
+      "id": "RB-04",
+      "severity": "P1",
+      "trigger": "契约/库格式出现非加法变更或客户端兼容性错误率上升",
+      "action": "停止列车，回滚契约包与客户端；按 contracts additive-only 规则单独评审"
+    },
+    {
+      "id": "RB-05",
+      "severity": "P1",
+      "trigger": "身份/事件服务（service 模式）错误率上升或迁移导致登录/事件不可用",
+      "action": "feature flag 关闭新路径，切回 legacy 共享文件模式（需确认旧写入者与 outbox 状态）"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AdminScanDataSource,
@@ -312,25 +312,101 @@ export function buildAdminRuntimeEndpointMeta(input: {
   };
 }
 
+const runtimeDiagnosticsWriteQueues = new Map<string, Promise<unknown>>();
+const runtimeDiagnosticsAppendsSinceCompaction = new Map<string, number>();
+
+function enqueueRuntimeDiagnosticsWrite<T>(
+  targetPath: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const previous = runtimeDiagnosticsWriteQueues.get(targetPath) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(operation);
+  runtimeDiagnosticsWriteQueues.set(targetPath, next);
+  void next.then(
+    () => cleanupRuntimeDiagnosticsWriteQueue(targetPath, next),
+    () => cleanupRuntimeDiagnosticsWriteQueue(targetPath, next)
+  );
+  return next;
+}
+
+function cleanupRuntimeDiagnosticsWriteQueue(targetPath: string, completed: Promise<unknown>): void {
+  if (runtimeDiagnosticsWriteQueues.get(targetPath) === completed) {
+    runtimeDiagnosticsWriteQueues.delete(targetPath);
+  }
+}
+
+async function compactRuntimeDiagnosticsHistoryFile(
+  targetPath: string,
+  maxEntries: number
+): Promise<void> {
+  const history = await readRuntimeDiagnosticsHistoryEntries(targetPath);
+  const boundedEntries = history.entries.slice(-maxEntries);
+  const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${
+    Math.random().toString(36).slice(2)
+  }`;
+
+  await mkdir(path.dirname(targetPath), { recursive: true });
+
+  try {
+    await writeFile(
+      tempPath,
+      boundedEntries.map((entry) => JSON.stringify(entry)).join("\n") +
+        (boundedEntries.length > 0 ? "\n" : ""),
+      "utf8"
+    );
+    await rename(tempPath, targetPath);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+/**
+ * Explicit maintenance entry point: compact the append-only history file in place.
+ * The public HTTP API stays read-only; operators/workers call this from maintenance code.
+ */
+export async function compactAdminRuntimeDiagnosticsHistory(input: {
+  library_root: string;
+  max_entries?: number;
+}): Promise<{ entry_count: number }> {
+  const targetPath = adminRuntimeDiagnosticsHistoryPath(input.library_root);
+  const maxEntries = normalizeRuntimeDiagnosticsHistoryMaxEntries(input.max_entries);
+
+  return enqueueRuntimeDiagnosticsWrite(targetPath, async () => {
+    await compactRuntimeDiagnosticsHistoryFile(targetPath, maxEntries);
+    runtimeDiagnosticsAppendsSinceCompaction.set(targetPath, 0);
+    const history = await readRuntimeDiagnosticsHistoryEntries(targetPath);
+    return { entry_count: history.entries.length };
+  });
+}
+
 export async function appendAdminRuntimeDiagnosticsHistory(
   input: AppendAdminRuntimeDiagnosticsHistoryInput
 ): Promise<AdminRuntimeDiagnosticsHistoryEntry> {
   const targetPath = adminRuntimeDiagnosticsHistoryPath(input.library_root);
   const maxEntries = normalizeRuntimeDiagnosticsHistoryMaxEntries(input.max_entries);
-  const history = await readRuntimeDiagnosticsHistoryEntries(targetPath);
   const entry: AdminRuntimeDiagnosticsHistoryEntry = {
     schema_version: "1.0",
     recorded_at: input.recorded_at,
     runtime: input.runtime
   };
-  const boundedEntries = [...history.entries, entry].slice(-maxEntries);
 
-  await mkdir(path.dirname(targetPath), { recursive: true });
-  await writeFile(
-    targetPath,
-    boundedEntries.map((historyEntry) => JSON.stringify(historyEntry)).join("\n") + "\n",
-    "utf8"
-  );
+  // Append-only NDJSON: concurrent writers never read-rewrite the whole file, so a slow
+  // request cannot clobber entries written by another request. Compaction is periodic and
+  // serialized within this process (cross-process appends still use atomic O_APPEND writes).
+  await enqueueRuntimeDiagnosticsWrite(targetPath, async () => {
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await appendFile(targetPath, `${JSON.stringify(entry)}\n`, "utf8");
+    const appendsSinceCompaction =
+      (runtimeDiagnosticsAppendsSinceCompaction.get(targetPath) ?? 0) + 1;
+
+    if (appendsSinceCompaction >= maxEntries) {
+      runtimeDiagnosticsAppendsSinceCompaction.set(targetPath, 0);
+      await compactRuntimeDiagnosticsHistoryFile(targetPath, maxEntries);
+    } else {
+      runtimeDiagnosticsAppendsSinceCompaction.set(targetPath, appendsSinceCompaction);
+    }
+  });
 
   return entry;
 }

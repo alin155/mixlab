@@ -7,6 +7,11 @@ import {
 } from "../../search-sqlite/src/index.ts";
 import { sourceFolderNameFromRelativePath } from "./source-folders.ts";
 import {
+  isSafeLibraryRelativePath,
+  parseIndexCurrentPointer,
+  parseJsonText
+} from "../../library-format/src/index.ts";
+import {
   validateIndexPackageManifest,
   type IndexCurrentPointer,
   type IndexPackageManifest,
@@ -79,6 +84,9 @@ export * from "./admin-settings.ts";
 export * from "./admin-users.ts";
 export * from "./admin-writer-lease.ts";
 export * from "./cutter-users.ts";
+export * from "./cutter-account-lock.ts";
+export * from "./cutter-account-client.ts";
+export * from "./cutter-account-migration.ts";
 export * from "./password-auth.ts";
 export * from "./preprocess-safety.ts";
 export * from "./usage-events.ts";
@@ -201,14 +209,6 @@ function nextIndexVersion(currentVersion: string | undefined): string {
   const next = match ? Number.parseInt(match[1] ?? "0", 10) + 1 : 1;
 
   return `v${String(next).padStart(6, "0")}`;
-}
-
-function isSafeLibraryRelativePath(relativePath: string): boolean {
-  return (
-    relativePath.trim() !== "" &&
-    !path.isAbsolute(relativePath) &&
-    !relativePath.split(/[\\/]+/).includes("..")
-  );
 }
 
 async function artifactExists(libraryRoot: string, relativePath: string): Promise<boolean> {
@@ -348,7 +348,16 @@ export async function readCurrentIndexPointer(
   libraryRoot: string
 ): Promise<IndexCurrentPointer> {
   const currentPath = path.join(indexRoot(libraryRoot), "current.json");
-  return JSON.parse(await readFile(currentPath, "utf8")) as IndexCurrentPointer;
+  // Round5: index-current 解析切换到 library-format（版本段安全 + JSON 错误语义）。
+  const pointer = parseIndexCurrentPointer(
+    parseJsonText(await readFile(currentPath, "utf8"), "索引指针 current.json")
+  );
+
+  return {
+    library_id: pointer.library_id ?? "",
+    current_version: pointer.current_version,
+    updated_at: pointer.updated_at ?? ""
+  };
 }
 
 export async function resolveCurrentSourceTranscriptIndexFilePath(
@@ -363,7 +372,10 @@ async function readJsonArtifact<T>(libraryRoot: string, relativePath: string): P
     throw new Error("artifact path must be a safe library-relative path");
   }
 
-  return JSON.parse(await readFile(path.join(libraryRoot, relativePath), "utf8")) as T;
+  return parseJsonText(
+    await readFile(path.join(libraryRoot, relativePath), "utf8"),
+    "库内 JSON 文件"
+  ) as T;
 }
 
 async function buildSearchSqliteVideosFromManifests(input: {

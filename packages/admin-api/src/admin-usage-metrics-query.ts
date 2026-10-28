@@ -11,6 +11,12 @@ import {
   usageMetricsSummaryProjectionPath,
   writeUsageMetricsSummaryProjection
 } from "../../library-fs/src/index.ts";
+import {
+  readUsageServiceMetrics,
+  usageServiceFromEnv,
+  type UsageServiceConnection,
+  type UsageServiceMetricsResponse
+} from "../../service-clients/src/usage-service-client.ts";
 import type { AdminScanDataSource } from "./admin-scan-modes.ts";
 import type { AdminRuntimeCacheStatus } from "./admin-runtime-observability.ts";
 
@@ -21,7 +27,10 @@ export type AdminUsageMetricsProjectionStatus =
   | "summary-hit"
   | "summary-stored"
   | "summary-write-failed"
-  | "usage-events-changed-during-read";
+  | "usage-events-changed-during-read"
+  | "usage-service";
+
+export type AdminUsageMetricsSource = "legacy-events" | "usage-service";
 
 export interface AdminUsageMetricsRuntimeResult {
   metrics: UsageMetrics;
@@ -29,6 +38,14 @@ export interface AdminUsageMetricsRuntimeResult {
   cache_status: AdminRuntimeCacheStatus;
   projection_status: AdminUsageMetricsProjectionStatus;
   projection_path: string;
+  /** Round4 feature flag: which source produced the report (legacy default). */
+  metrics_source?: AdminUsageMetricsSource;
+  /** Only present in usage-service mode. */
+  usage_service?: {
+    store_id: string;
+    event_count: number;
+    by_day: UsageServiceMetricsResponse["by_day"];
+  };
 }
 
 export function adminUsageMetricsStorePath(libraryRoot: string): string {
@@ -38,10 +55,38 @@ export function adminUsageMetricsStorePath(libraryRoot: string): string {
 export async function readAdminUsageMetricsWithRuntime(input: {
   library_root: string;
   now?: () => string;
+  env?: NodeJS.ProcessEnv;
+  /** Injectable override: undefined resolves from env; null forces the legacy path. */
+  usage_service_connection?: UsageServiceConnection | null;
+  read_usage_service_metrics?: (connection: UsageServiceConnection) => Promise<UsageServiceMetricsResponse<UsageMetrics>>;
   read_usage_metrics?: (libraryRoot: string) => Promise<UsageMetrics>;
   read_usage_metrics_projection?: (libraryRoot: string) => Promise<UsageMetricsProjection>;
   write_usage_metrics_summary_projection?: typeof writeUsageMetricsSummaryProjection;
 }): Promise<AdminUsageMetricsRuntimeResult> {
+  // Round4 feature flag: MIXLAB_USAGE_SERVICE_URL unset keeps the legacy NDJSON/read-model path.
+  const connection = input.usage_service_connection === undefined
+    ? usageServiceFromEnv(input.env ?? process.env, "admin")
+    : input.usage_service_connection;
+
+  if (connection) {
+    const response = await (input.read_usage_service_metrics ??
+      ((serviceConnection: UsageServiceConnection) => readUsageServiceMetrics<UsageMetrics>(serviceConnection)))(connection);
+
+    return {
+      metrics: response.metrics,
+      actual_data_source: "usage-events",
+      cache_status: "miss",
+      projection_status: "usage-service",
+      projection_path: "",
+      metrics_source: "usage-service",
+      usage_service: {
+        store_id: response.store_id,
+        event_count: response.event_count,
+        by_day: response.by_day
+      }
+    };
+  }
+
   const signatureBeforeRead = await readUsageEventsFileSignature(input.library_root);
   const projectionPath = adminUsageMetricsStorePath(input.library_root);
   const stored = readUsageMetricsSummaryProjection({
@@ -54,7 +99,8 @@ export async function readAdminUsageMetricsWithRuntime(input: {
       actual_data_source: "admin-read-model",
       cache_status: "hit",
       projection_status: "summary-hit",
-      projection_path: projectionPath
+      projection_path: projectionPath,
+      metrics_source: "legacy-events"
     };
   }
 
@@ -91,6 +137,7 @@ export async function readAdminUsageMetricsWithRuntime(input: {
     actual_data_source: "usage-events",
     cache_status: "miss",
     projection_status: projectionStatus,
-    projection_path: projectionPath
+    projection_path: projectionPath,
+    metrics_source: "legacy-events"
   };
 }

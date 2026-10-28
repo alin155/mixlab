@@ -157,21 +157,24 @@ test("preprocess command routes dispatch bulk queue and retry commands without c
   assert.equal(retried.handled, true);
   assert.deepEqual(calls.map((call) => ({
     api_input: call.api_input,
-    command: call.command
+    command: call.command,
+    limit: call.limit
   })), [
     {
       api_input: {
         library_root: "/tmp/PublicLibrary",
         request_id: "req-1"
       },
-      command: "preprocess-queue-unprocessed"
+      command: "preprocess-queue-unprocessed",
+      limit: 1
     },
     {
       api_input: {
         library_root: "/tmp/PublicLibrary",
         request_id: "req-1"
       },
-      command: "preprocess-retry-failed"
+      command: "preprocess-retry-failed",
+      limit: 1
     }
   ]);
   assert.deepEqual(cleared, ["/tmp/PublicLibrary", "/tmp/PublicLibrary"]);
@@ -718,4 +721,94 @@ test("preprocess command routes stop supervisor and ignore unrelated routes", as
   }), {
     handled: false
   });
+});
+
+test("preprocess bulk routes forward a bounded default limit when the body is empty", async () => {
+  const calls: Array<AdminBulkPreprocessRouteCommandInput<TestApiInput>> = [];
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/queue-unprocessed",
+    deps: makeDeps({
+      read_request_json: async () => ({}),
+      run_bulk_transition_command: async (input) => {
+        calls.push(input);
+        return {
+          affected_count: 3,
+          source_video_ids: ["V000001", "V000002", "V000003"],
+          skipped_by_limit_count: 120
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(calls.map((call) => call.limit), [100]);
+  if (result.handled && result.body.ok) {
+    assert.deepEqual(result.body.data, {
+      affected_count: 3,
+      source_video_ids: ["V000001", "V000002", "V000003"],
+      skipped_by_limit_count: 120
+    });
+  }
+});
+
+test("preprocess bulk routes cap oversized limits and reject invalid ones", async () => {
+  const limits: Array<number | undefined> = [];
+  const oversized = await callRoute({
+    pathname: "/api/admin/preprocess/retry-failed",
+    deps: makeDeps({
+      read_request_json: async () => ({ limit: 9_999 }),
+      run_bulk_transition_command: async (input) => {
+        limits.push(input.limit);
+        return {
+          affected_count: 0,
+          source_video_ids: []
+        };
+      }
+    })
+  });
+
+  assert.equal(oversized.handled, true);
+  assert.deepEqual(limits, [500]);
+
+  for (const invalidLimit of [0, -1, 1.5, "abc"]) {
+    const invalid = await callRoute({
+      pathname: "/api/admin/preprocess/recover-processing",
+      deps: makeDeps({
+        read_request_json: async () => ({ limit: invalidLimit }),
+        run_bulk_transition_command: async () => {
+          throw new Error("must not run for invalid limit");
+        }
+      })
+    });
+
+    assert.equal(invalid.handled, true);
+    if (invalid.handled) {
+      assert.equal(invalid.status_code, 400);
+      assert.equal(invalid.body.ok, false);
+      if (invalid.body.ok === false) {
+        assert.equal(invalid.body.error_code, "invalid_request");
+        assert.match(invalid.body.message, /批量处理数量/);
+      }
+    }
+  }
+});
+
+test("preprocess queue-unprocessed accepts queue_unprocessed_limit as a bounded fallback", async () => {
+  const limits: Array<number | undefined> = [];
+  const result = await callRoute({
+    pathname: "/api/admin/preprocess/queue-unprocessed",
+    deps: makeDeps({
+      read_request_json: async () => ({ queue_unprocessed_limit: 25 }),
+      run_bulk_transition_command: async (input) => {
+        limits.push(input.limit);
+        return {
+          affected_count: 1,
+          source_video_ids: ["V000001"]
+        };
+      }
+    })
+  });
+
+  assert.equal(result.handled, true);
+  assert.deepEqual(limits, [25]);
 });
