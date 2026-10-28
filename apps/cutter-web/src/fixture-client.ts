@@ -917,6 +917,33 @@ export function createFixtureCutterApiClient(): CutterApiClient {
     async getRuntimeStatus() {
       return data.runtimeStatus;
     },
+    async getCacheInventory(options?: { include?: readonly string[] }) {
+      const include = options?.include && options.include.length > 0
+        ? new Set(options.include)
+        : new Set(["searchd", "thumbnail", "source_video", "cut_temp", "release"]);
+      const runtime = data.runtimeStatus;
+      const targets = [
+        { id: "searchd", label: "搜索索引缓存", path: runtime.local_cache?.searchd_cache_root_path ?? "/fixture/cache/searchd", size_bytes: runtime.local_cache?.searchd_cache_size_bytes ?? 0, file_count: 0, writable: true, deletable: true, deletable_bytes: runtime.local_cache?.searchd_cache_size_bytes ?? 0 },
+        { id: "thumbnail", label: "缩略图缓存", path: runtime.local_cache?.thumbnail_cache_root_path ?? "/fixture/cache/thumbnail", size_bytes: runtime.local_cache?.thumbnail_cache_size_bytes ?? 0, file_count: 0, writable: true, deletable: true, deletable_bytes: runtime.local_cache?.thumbnail_cache_size_bytes ?? 0 },
+        { id: "cut_temp", label: "剪切临时区", path: runtime.local_cache?.cut_temp_cache.cache_root_path ?? "/fixture/cache/cut-temp", size_bytes: runtime.local_cache?.cut_temp_cache.size_bytes ?? 0, file_count: runtime.local_cache?.cut_temp_cache.file_count ?? 0, writable: true, deletable: true, deletable_bytes: runtime.local_cache?.cut_temp_cache.size_bytes ?? 0 },
+        { id: "release", label: "Release 缓存", path: runtime.release_cache?.cache_root_path ?? "/fixture/cache/release", size_bytes: runtime.release_cache?.cache_size_bytes ?? 0, file_count: 0, writable: true, deletable: false, deletable_bytes: 0, reason: "由 release cache 单独管理" }
+      ].filter((target) => include.has(target.id));
+      return {
+        targets,
+        protected: [{ kind: "project", ref_id: "fixture-project", title: "Fixture 项目", reason: "作品引用不参与缓存清理" }],
+        warnings: [],
+        confirm_token: "fixture-confirm-token",
+        expected_bytes: targets.reduce((sum, target) => sum + target.deletable_bytes, 0)
+      };
+    },
+    async cleanCache(request: { targets: string[]; confirm_token: string; expected_bytes: number }) {
+      return {
+        cleaned: [...request.targets],
+        freed_bytes: 0,
+        skipped: [],
+        errors: []
+      };
+    },
     async listSourceLibrary(options?: {
       limit?: number;
       offset?: number;

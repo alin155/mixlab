@@ -511,6 +511,53 @@ export interface CutterRuntimeStatus {
   };
 }
 
+export interface CutterCacheInventoryTarget {
+  id: string;
+  label: string;
+  path: string;
+  size_bytes: number;
+  file_count: number;
+  updated_at?: string;
+  writable: boolean;
+  deletable: boolean;
+  deletable_bytes: number;
+  reason?: string;
+}
+
+export interface CutterCacheInventoryProtectedItem {
+  kind: string;
+  ref_id: string;
+  title: string;
+  reason: string;
+}
+
+export interface CutterCacheInventoryWarning {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface CutterCacheInventory {
+  targets: CutterCacheInventoryTarget[];
+  protected: CutterCacheInventoryProtectedItem[];
+  warnings: CutterCacheInventoryWarning[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterCacheCleanRequest {
+  targets: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterCacheCleanResult {
+  cleaned: string[];
+  freed_bytes: number;
+  skipped: Array<{ id: string; reason: string }>;
+  errors: Array<{ code: string; path?: string; message: string }>;
+}
+
 export interface CutterAuthHeaders {
   device_id: string;
   session_token: string;
@@ -566,6 +613,8 @@ export interface CutterApiClient {
   getCapabilities(): Promise<CapabilityTableV1 | null>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
+  getCacheInventory(options?: { include?: readonly string[] }): Promise<CutterCacheInventory>;
+  cleanCache(request: CutterCacheCleanRequest): Promise<CutterCacheCleanResult>;
   listSourceLibrary(options?: {
     limit?: number;
     offset?: number;
@@ -837,6 +886,33 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         appendPath(input.base_url, `/cutter/runtime-status${query ? `?${query}` : ""}`),
         {
           headers: protectedHeaders
+        }
+      );
+    },
+
+    getCacheInventory(options) {
+      const params = new URLSearchParams();
+      if (options?.include && options.include.length > 0) {
+        params.set("include", options.include.join(","));
+      }
+      const query = params.toString();
+      return requestEnvelope<CutterCacheInventory>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cache/inventory${query ? `?${query}` : ""}`),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    cleanCache(request) {
+      return requestEnvelope<CutterCacheCleanResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/cache/clean"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
         }
       );
     },

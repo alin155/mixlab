@@ -1452,6 +1452,7 @@ function renderPage(
     appVersion?: string;
     buildCommit?: string;
     runtimeEnvironment: string;
+    cacheApiClient?: Pick<CutterApiClient, "getCacheInventory" | "cleanCache">;
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
@@ -1702,6 +1703,7 @@ function renderPage(
       <CacheManagementPage
         runtimeStatus={data.runtimeStatus}
         releaseV2Enabled={viewState.releaseV2Enabled}
+        client={viewState.cacheApiClient}
       />
     );
   }
@@ -4633,6 +4635,7 @@ export function CutterApp() {
                 appVersion: isDesktopMode ? desktopAppVersionText || "读取中" : undefined,
                 buildCommit,
                 runtimeEnvironment: isDesktopMode ? "Windows 桌面端" : "Web 端",
+                cacheApiClient: client,
                 selectedCutMode,
                 localWorkspacePath: isDesktopMode ? desktopConfig.local_workspace_root : undefined,
                 workspaceConfigNotice,

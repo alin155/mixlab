@@ -123,6 +123,15 @@ import {
   createCutterAccounts,
   type AccountServiceConnection
 } from "../../library-fs/src/cutter-account-client.ts";
+import {
+  CacheMaintenanceError,
+  createCacheMaintenanceService,
+  type CacheMaintenanceService
+} from "./cache-maintenance.ts";
+export {
+  CACHE_MAINTENANCE_ERROR_CODES,
+  CacheMaintenanceError
+} from "./cache-maintenance.ts";
 
 export interface CreateCutterApiServerInput {
   /** 隔离事件服务连接（默认从 MIXLAB_USAGE_SERVICE_URL 读取；未配置走旧共享 NDJSON）。 */
@@ -142,6 +151,8 @@ export interface CreateCutterApiServerInput {
   source_video_cache_cut_wait_ms?: number;
   source_video_cache_copy_file?: (source_path: string, output_path: string) => Promise<void>;
   searchd_cache_root?: string;
+  /** 磁盘缓存清理 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
+  cache_confirm_ttl_ms?: number;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
@@ -199,6 +210,8 @@ export interface CutterApiErrorBody {
   error: {
     code: string;
     message: string;
+    /** 可选修复建议（D1b 缓存清理错误新增；旧客户端忽略即可）。 */
+    remediation?: string;
   };
 }
 
@@ -706,6 +719,12 @@ function thumbnailCacheRoot(input: CreateCutterApiServerInput): string {
 
 function sourceVideoCacheRoot(input: CreateCutterApiServerInput): string {
   return path.join(localCacheRootForInput(input), "source-videos");
+}
+
+function cutTempCacheRootForInput(input: CreateCutterApiServerInput): string {
+  return input.workspace_root
+    ? path.join(input.workspace_root, "cache", "cut-temp")
+    : path.join(localCacheRootForInput(input), "cut-temp");
 }
 
 function searchdCacheRoot(input: CreateCutterApiServerInput): string {
@@ -1516,14 +1535,26 @@ function writeError(
   response: ServerResponse,
   statusCode: number,
   code: string,
-  message: string
+  message: string,
+  remediation?: string
 ): void {
   writeJson(response, statusCode, {
     error: {
       code,
-      message
+      message,
+      ...(remediation ? { remediation } : {})
     }
   } satisfies CutterApiErrorBody);
+}
+
+/** 将 D1b 缓存清理稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
+function writeCacheMaintenanceError(response: ServerResponse, error: unknown): boolean {
+  if (!(error instanceof CacheMaintenanceError)) {
+    return false;
+  }
+
+  writeError(response, error.status, error.code, error.message, error.remediation);
+  return true;
 }
 
 function logUnhandledCutterApiError(request: IncomingMessage, error: unknown): void {
@@ -5716,6 +5747,13 @@ export function cutterUsageOutbox(server: Server): UsageOutbox | undefined {
   return usageOutboxes.get(server);
 }
 
+const cacheMaintenanceServices = new WeakMap<Server, CacheMaintenanceService>();
+
+/** 测试/诊断入口：返回该 server 实例的磁盘缓存清理服务（confirm_token/busy 状态在实例内）。 */
+export function cutterCacheMaintenanceService(server: Server): CacheMaintenanceService | undefined {
+  return cacheMaintenanceServices.get(server);
+}
+
 function envPositiveInteger(name: string): number | undefined {
   const parsed = Number.parseInt(process.env[name]?.trim() ?? "", 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
@@ -5751,6 +5789,48 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       await usageOutbox.enqueue(event);
     };
   }
+
+  // D1b 磁盘缓存清理：token/busy 状态跟随 server 实例；路径与运行态失效复用本文件 helper。
+  const cacheMaintenance = createCacheMaintenanceService({
+    cache_root: localCacheRootForInput(input),
+    ...(input.workspace_root ? { workspace_cache_root: path.join(input.workspace_root, "cache") } : {}),
+    target_paths: {
+      searchd: searchdCacheRoot(input),
+      thumbnail: thumbnailCacheRoot(input),
+      source_video: sourceVideoCacheRoot(input),
+      cut_temp: cutTempCacheRootForInput(input),
+      release: path.join(localCacheRootForInput(input), ".mixlab-library")
+    },
+    read_source_video_cache_status: async () => {
+      const status = await readSourceVideoCacheStatus(input);
+      return {
+        active_prefetch_count: status.active_prefetch_count,
+        cache_root_path: status.cache_root_path
+      };
+    },
+    list_active_cut_jobs: async () => {
+      if (!input.workspace_root) {
+        return [];
+      }
+
+      try {
+        const catalog = await listCutJobs({ workspace_root: input.workspace_root, limit: 100 });
+        return catalog.jobs
+          .filter((job) => job.status === "pending" || job.status === "running")
+          .map((job) => ({
+            cut_job_id: job.cut_job_id,
+            ...(job.project_title ? { title: job.project_title } : {}),
+            status: job.status
+          }));
+      } catch {
+        return [];
+      }
+    },
+    invalidate_runtime_status: () => invalidateLocalCacheRuntimeStatus(input),
+    ...(input.cache_confirm_ttl_ms !== undefined
+      ? { confirm_ttl_ms: input.cache_confirm_ttl_ms }
+      : {})
+  });
 
   let cutQueueDrainRunning = false;
   let cutQueueDrainRequested = false;
@@ -6599,6 +6679,40 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/cache/clean") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        let body: unknown;
+        try {
+          body = await readRequestJson(request);
+        } catch (error) {
+          writeError(
+            response,
+            400,
+            "invalid_request",
+            (error as Error).message === "invalid_json"
+              ? "请求 JSON 格式不正确"
+              : "请求体过大或格式不正确"
+          );
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await cacheMaintenance.clean(body)));
+        } catch (error) {
+          if (!writeCacheMaintenanceError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
       const projectOutputsDeleteMatch = /^\/cutter\/projects\/([^/]+)\/outputs$/.exec(url.pathname);
       if (request.method === "DELETE" && projectOutputsDeleteMatch) {
         if (!(await requireCutterSession({
@@ -6691,6 +6805,29 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           auth,
           include_local_cache: url.searchParams.get("include_cache") === "1"
         })));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/cutter/cache/inventory") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        try {
+          writeJson(
+            response,
+            200,
+            apiResponse(await cacheMaintenance.inventory(url.searchParams.get("include")))
+          );
+        } catch (error) {
+          if (!writeCacheMaintenanceError(response, error)) {
+            throw error;
+          }
+        }
         return;
       }
 
@@ -7257,6 +7394,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       writeError(response, 500, "internal_error", "Internal server error");
     }
   });
+
+  cacheMaintenanceServices.set(server, cacheMaintenance);
 
   server.once("close", () => {
     void workspaceLease?.release();

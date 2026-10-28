@@ -24,7 +24,12 @@ import { CutTasksTabNav } from "./features/cut-tasks/CutTasksTabNav.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
-import { CacheManagementPage, cacheClearPreviewText } from "./features/cache-management/CacheManagementPage.tsx";
+import {
+  CacheManagementPage,
+  cacheClearPreviewText,
+  cacheCleanupPreviewText,
+  diskCleanResultSummary
+} from "./features/cache-management/CacheManagementPage.tsx";
 import { DesktopFirstRunPage } from "./features/desktop/DesktopFirstRunPage.tsx";
 import {
   ProjectCreateDialog,
@@ -6261,6 +6266,45 @@ test("cache management previews protected user data before clearing UI cache", (
   assert.match(html, /清除界面缓存/);
   assert.match(html, /刷新明细/);
   assert.equal(html.includes("确认清除界面缓存"), false);
+});
+
+test("disk cache cleanup previews selected targets and summarizes clean results", () => {
+  const inventory = {
+    targets: [
+      { id: "searchd", label: "搜索索引", path: "/cache/searchd", size_bytes: 1024, file_count: 3, writable: true, deletable: true, deletable_bytes: 1024 },
+      { id: "release", label: "Release", path: "/cache/release", size_bytes: 4096, file_count: 1, writable: true, deletable: true, deletable_bytes: 4096 }
+    ],
+    protected: [{ kind: "project", ref_id: "P1", title: "现金流项目", reason: "作品引用" }],
+    warnings: [],
+    confirm_token: "token",
+    expected_bytes: 5120
+  };
+  const preview = cacheCleanupPreviewText(inventory, ["searchd"]);
+  assert.match(preview, /将清理 1 个磁盘缓存目标（1 KB）：搜索索引/);
+  assert.match(preview, /被引用的本地素材和未完成导出不会删除/);
+
+  const summary = diskCleanResultSummary({
+    cleaned: ["searchd"],
+    freed_bytes: 1024,
+    skipped: [{ id: "release", reason: "release_cache_pinned" }],
+    errors: [{ code: "cache_path_not_writable", message: "locked" }]
+  });
+  assert.match(summary, /已清理 1 个目标，释放 1 KB/);
+  assert.match(summary, /跳过 1 个/);
+  assert.match(summary, /失败 1 个（cache_path_not_writable）/);
+
+  const data = createFixtureCutterData();
+  const html = renderToStaticMarkup(
+    h(CacheManagementPage, {
+      runtimeStatus: data.runtimeStatus,
+      client: {
+        getCacheInventory: async () => inventory,
+        cleanCache: async () => ({ cleaned: [], freed_bytes: 0, skipped: [], errors: [] })
+      }
+    })
+  );
+  assert.match(html, /磁盘缓存清理/);
+  assert.match(html, /预览清理/);
 });
 
 test("pending login polling retries transient errors only", () => {

@@ -1,6 +1,21 @@
 import { Badge, Button, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
-import { useMemo, useState } from "react";
-import type { CutterRuntimeStatus } from "../../api.ts";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CutterApiError,
+  type CutterApiClient,
+  type CutterCacheInventory,
+  type CutterCacheInventoryTarget,
+  type CutterCacheCleanResult,
+  type CutterRuntimeStatus
+} from "../../api.ts";
+
+function describeCacheError(error: unknown): string {
+  if (error instanceof CutterApiError) {
+    return [error.code, error.message, error.remediation].filter(Boolean).join(" · ");
+  }
+
+  return error instanceof Error ? error.message : "缓存操作失败";
+}
 import {
   clearCutterLocalCache,
   cutterCachePercent,
@@ -170,6 +185,30 @@ function cacheDetailRows(
   ];
 }
 
+export function cacheCleanupPreviewText(
+  inventory: CutterCacheInventory,
+  selectedTargetIds: readonly string[]
+): string {
+  const selected = inventory.targets.filter((target) => selectedTargetIds.includes(target.id));
+  const expectedBytes = selected.reduce((sum, target) => sum + target.deletable_bytes, 0);
+  return [
+    `将清理 ${selected.length} 个磁盘缓存目标（${formatCutterCacheSize(expectedBytes)}）：${selected.map((target) => target.label).join("、")}。`,
+    "项目、待剪清单、被引用的本地素材和未完成导出不会删除；被引用/被固定的缓存会被跳过。",
+    "清理为一次性操作，需要服务端确认令牌；不会静默删除。"
+  ].join("\n");
+}
+
+export function diskCleanResultSummary(result: CutterCacheCleanResult): string {
+  const parts = ["已清理 " + result.cleaned.length + " 个目标，释放 " + formatCutterCacheSize(result.freed_bytes)];
+  if (result.skipped.length > 0) {
+    parts.push("跳过 " + result.skipped.length + " 个（" + result.skipped.map((item) => item.reason).join("、") + "）");
+  }
+  if (result.errors.length > 0) {
+    parts.push("失败 " + result.errors.length + " 个（" + result.errors.map((item) => item.code).join("、") + "）");
+  }
+  return parts.join("；");
+}
+
 export function cacheClearPreviewText(input: {
   ui_key_count: number;
   ui_bytes: number;
@@ -213,17 +252,28 @@ function CacheStatCard({
 
 export function CacheManagementPage({
   runtimeStatus,
-  releaseV2Enabled = false
+  releaseV2Enabled = false,
+  client
 }: {
   runtimeStatus?: CutterRuntimeStatus;
   /** Only true when the engine capability table explicitly advertises release_v2. */
   releaseV2Enabled?: boolean;
+  /** Optional API client; when present the page enables disk-cache inventory/clean. */
+  client?: Pick<CutterApiClient, "getCacheInventory" | "cleanCache">;
 }) {
   const [localStorageCache, setLocalStorageCache] = useState(() => cutterLocalCacheSnapshot());
   const [userDataCache] = useState(() => cutterUserDataStorageSnapshot());
   const [pendingClear, setPendingClear] = useState(false);
   const [clearNotice, setClearNotice] = useState("");
   const [clearError, setClearError] = useState("");
+  const [inventory, setInventory] = useState<CutterCacheInventory | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState("");
+  const [selectedCacheTargets, setSelectedCacheTargets] = useState<string[]>([]);
+  const [pendingDiskClear, setPendingDiskClear] = useState(false);
+  const [diskCleanResult, setDiskCleanResult] = useState<CutterCacheCleanResult | null>(null);
+  const [diskCleanError, setDiskCleanError] = useState("");
+  const [diskCleaning, setDiskCleaning] = useState(false);
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -264,6 +314,71 @@ export function CacheManagementPage({
     setClearError("");
     setClearNotice("已刷新界面缓存明细；磁盘缓存数据由本机服务上报，建议在服务重连后再核对。");
   }
+
+  async function loadCacheInventory() {
+    if (!client) {
+      return;
+    }
+    setInventoryLoading(true);
+    setInventoryError("");
+    try {
+      const next = await client.getCacheInventory({
+        include: ["searchd", "thumbnail", "source_video", "cut_temp", "release"]
+      });
+      setInventory(next);
+      setSelectedCacheTargets(
+        next.targets.filter((target) => target.deletable && target.writable).map((target) => target.id)
+      );
+      setPendingDiskClear(false);
+    } catch (error) {
+      setInventoryError(describeCacheError(error));
+    } finally {
+      setInventoryLoading(false);
+    }
+  }
+
+  async function handleConfirmDiskClean() {
+    if (!client || !inventory) {
+      return;
+    }
+    setDiskCleaning(true);
+    setDiskCleanError("");
+    setDiskCleanResult(null);
+    try {
+      const selected = inventory.targets.filter((target) => selectedCacheTargets.includes(target.id));
+      const expectedBytes = selected.reduce((sum, target) => sum + target.deletable_bytes, 0);
+      const result = await client.cleanCache({
+        targets: selectedCacheTargets,
+        confirm_token: inventory.confirm_token,
+        expected_bytes: expectedBytes
+      });
+      setDiskCleanResult(result);
+      setPendingDiskClear(false);
+      await loadCacheInventory();
+    } catch (error) {
+      setDiskCleanError(describeCacheError(error));
+    } finally {
+      setDiskCleaning(false);
+    }
+  }
+
+  function toggleCacheTarget(target: CutterCacheInventoryTarget) {
+    if (!target.deletable || !target.writable) {
+      return;
+    }
+    setSelectedCacheTargets((current) =>
+      current.includes(target.id)
+        ? current.filter((id) => id !== target.id)
+        : [...current, target.id]
+    );
+  }
+
+  useEffect(() => {
+    if (client) {
+      void loadCacheInventory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client]);
 
   return (
     <section className="cutter-page cutter-cache-management cutter-operational-page ml-workbench-page ml-workbench-page--fluid" data-page="cache-management">
@@ -332,6 +447,112 @@ export function CacheManagementPage({
         </section>
 
         <section className="cutter-cache-panels ml-panel-grid ml-scroll-region">
+          <div style={{ gridColumn: "1 / -1" }}>
+          {client ? (
+            <Card
+              className="cutter-cache-panel ml-panel-card"
+              bodyFlush
+              bodyClassName="cutter-cache-panel-body"
+              title="磁盘缓存清理"
+              subtitle="先预览再确认；需要本机服务生成一次性确认令牌。项目、被引用素材与未完成导出不会被删除。"
+              actions={
+                <div className="ml-control-cluster">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void loadCacheInventory()} disabled={inventoryLoading}>
+                    刷新清单
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={inventoryLoading || selectedCacheTargets.length === 0}
+                    onClick={() => {
+                      void loadCacheInventory().then(() => setPendingDiskClear(true));
+                    }}
+                  >
+                    预览清理（{selectedCacheTargets.length}）
+                  </Button>
+                </div>
+              }
+            >
+              {inventoryLoading ? <p className="ml-metric-description">正在读取磁盘缓存清单…</p> : null}
+              {inventoryError ? (
+                <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                  <strong>磁盘缓存清单读取失败</strong>
+                  <span>{inventoryError}</span>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void loadCacheInventory()}>
+                    重试
+                  </Button>
+                </div>
+              ) : null}
+              {inventory ? (
+                <div className="cutter-cache-disk-body">
+                  <ul className="cutter-cache-disk-targets">
+                    {inventory.targets.map((target) => (
+                      <li key={target.id}>
+                        <label className="cutter-cache-disk-target">
+                          <input
+                            type="checkbox"
+                            checked={selectedCacheTargets.includes(target.id)}
+                            disabled={!target.deletable || !target.writable || diskCleaning}
+                            onChange={() => toggleCacheTarget(target)}
+                          />
+                          <span>
+                            <strong>{target.label}</strong>
+                            <span> {formatCutterCacheSize(target.deletable_bytes)}</span>
+                            {!target.writable ? <Badge tone="warning">不可写</Badge> : null}
+                            {!target.deletable ? <Badge tone="info">受保护</Badge> : null}
+                            <code>{target.path}</code>
+                            {target.reason ? <em>{target.reason}</em> : null}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  {inventory.protected.length > 0 ? (
+                    <p className="ml-metric-description">
+                      保护项：{inventory.protected.map((item) => item.title + "（" + item.reason + "）").join("；")}
+                    </p>
+                  ) : null}
+                  {inventory.warnings.length > 0 ? (
+                    <p className="ml-metric-description" role="status">
+                      {inventory.warnings.map((warning) => warning.code + "：" + warning.message).join("；")}
+                    </p>
+                  ) : null}
+                  {pendingDiskClear ? (
+                    <div className="ml-empty-panel ml-empty-panel--plain" role="alertdialog" aria-label="确认清理磁盘缓存">
+                      <strong>确认清理磁盘缓存？</strong>
+                      <span style={{ whiteSpace: "pre-line" }}>
+                        {cacheCleanupPreviewText(inventory, selectedCacheTargets)}
+                      </span>
+                      <div className="ml-control-cluster">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setPendingDiskClear(false)}>
+                          取消
+                        </Button>
+                        <Button type="button" variant="danger" size="sm" onClick={() => void handleConfirmDiskClean()} disabled={diskCleaning}>
+                          {diskCleaning ? "清理中…" : "确认清理"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {diskCleanResult ? (
+                    <p className="cutter-cache-clear-notice" role="status">
+                      {diskCleanResultSummary(diskCleanResult)}
+                    </p>
+                  ) : null}
+                  {diskCleanError ? (
+                    <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                      <strong>磁盘缓存清理失败</strong>
+                      <span>{diskCleanError}</span>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => void loadCacheInventory()}>
+                        刷新后重试
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
+          </div>
           <Card
             className="cutter-cache-panel ml-panel-card"
             bodyFlush
