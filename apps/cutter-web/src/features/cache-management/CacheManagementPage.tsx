@@ -6,7 +6,11 @@ import {
   type CutterCacheInventory,
   type CutterCacheInventoryTarget,
   type CutterCacheCleanResult,
-  type CutterRuntimeStatus
+  type CutterReleaseCacheEvictResult,
+  type CutterReleaseCachePins,
+  type CutterRuntimeStatus,
+  type CutterWorkspaceResidue,
+  type CutterWorkspaceResidueCleanResult
 } from "../../api.ts";
 
 function describeCacheError(error: unknown): string {
@@ -185,6 +189,15 @@ function cacheDetailRows(
   ];
 }
 
+export function workspaceResidueSummary(residue: CutterWorkspaceResidue): string {
+  const safe = residue.items.filter((item) => item.safe_to_delete).length;
+  return "残留 " + residue.items.length + " 项（" + formatCutterCacheSize(residue.total_bytes) + "），其中 " + safe + " 项可安全清理";
+}
+
+export function releaseCachePinsSummary(pins: CutterReleaseCachePins): string {
+  return "已缓存 " + (pins.pinned.length + pins.unpinned.length) + " 个版本，其中被引用 " + pins.pinned.length + " 个（上限 " + pins.max_cached_releases + "）";
+}
+
 export function cacheCleanupPreviewText(
   inventory: CutterCacheInventory,
   selectedTargetIds: readonly string[]
@@ -259,7 +272,15 @@ export function CacheManagementPage({
   /** Only true when the engine capability table explicitly advertises release_v2. */
   releaseV2Enabled?: boolean;
   /** Optional API client; when present the page enables disk-cache inventory/clean. */
-  client?: Pick<CutterApiClient, "getCacheInventory" | "cleanCache">;
+  client?: Pick<
+    CutterApiClient,
+    | "getCacheInventory"
+    | "cleanCache"
+    | "getWorkspaceResidue"
+    | "cleanWorkspaceResidue"
+    | "getReleaseCachePins"
+    | "evictReleaseCache"
+  >;
 }) {
   const [localStorageCache, setLocalStorageCache] = useState(() => cutterLocalCacheSnapshot());
   const [userDataCache] = useState(() => cutterUserDataStorageSnapshot());
@@ -274,6 +295,22 @@ export function CacheManagementPage({
   const [diskCleanResult, setDiskCleanResult] = useState<CutterCacheCleanResult | null>(null);
   const [diskCleanError, setDiskCleanError] = useState("");
   const [diskCleaning, setDiskCleaning] = useState(false);
+  const [residue, setResidue] = useState<CutterWorkspaceResidue | null>(null);
+  const [residueLoading, setResidueLoading] = useState(false);
+  const [residueError, setResidueError] = useState("");
+  const [selectedResidueIds, setSelectedResidueIds] = useState<string[]>([]);
+  const [pendingResidueClean, setPendingResidueClean] = useState(false);
+  const [residueCleanResult, setResidueCleanResult] = useState<CutterWorkspaceResidueCleanResult | null>(null);
+  const [residueCleanError, setResidueCleanError] = useState("");
+  const [residueCleaning, setResidueCleaning] = useState(false);
+  const [releasePins, setReleasePins] = useState<CutterReleaseCachePins | null>(null);
+  const [releasePinsLoading, setReleasePinsLoading] = useState(false);
+  const [releasePinsError, setReleasePinsError] = useState("");
+  const [selectedReleaseVersions, setSelectedReleaseVersions] = useState<string[]>([]);
+  const [pendingEvict, setPendingEvict] = useState(false);
+  const [evictResult, setEvictResult] = useState<CutterReleaseCacheEvictResult | null>(null);
+  const [evictError, setEvictError] = useState("");
+  const [evicting, setEvicting] = useState(false);
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -337,6 +374,94 @@ export function CacheManagementPage({
     }
   }
 
+  async function loadWorkspaceResidue() {
+    if (!client) {
+      return;
+    }
+    setResidueLoading(true);
+    setResidueError("");
+    try {
+      const next = await client.getWorkspaceResidue();
+      setResidue(next);
+      setSelectedResidueIds(next.items.filter((item) => item.safe_to_delete).map((item) => item.id));
+      setPendingResidueClean(false);
+    } catch (error) {
+      setResidueError(describeCacheError(error));
+    } finally {
+      setResidueLoading(false);
+    }
+  }
+
+  async function handleConfirmResidueClean() {
+    if (!client || !residue) {
+      return;
+    }
+    setResidueCleaning(true);
+    setResidueCleanError("");
+    setResidueCleanResult(null);
+    try {
+      const selected = residue.items.filter((item) => selectedResidueIds.includes(item.id));
+      const result = await client.cleanWorkspaceResidue({
+        ids: selected.map((item) => item.id),
+        confirm_token: residue.confirm_token,
+        expected_bytes: selected.reduce((sum, item) => sum + item.size_bytes, 0)
+      });
+      setResidueCleanResult(result);
+      setPendingResidueClean(false);
+      await loadWorkspaceResidue();
+    } catch (error) {
+      setResidueCleanError(describeCacheError(error));
+    } finally {
+      setResidueCleaning(false);
+    }
+  }
+
+  async function loadReleaseCachePins() {
+    if (!client) {
+      return;
+    }
+    setReleasePinsLoading(true);
+    setReleasePinsError("");
+    try {
+      const next = await client.getReleaseCachePins();
+      setReleasePins(next);
+      setSelectedReleaseVersions(
+        next.unpinned
+          .filter((version) => version.version !== next.active_release_version && (version.referenced_by?.length ?? 0) === 0)
+          .map((version) => version.version)
+      );
+      setPendingEvict(false);
+    } catch (error) {
+      setReleasePinsError(describeCacheError(error));
+    } finally {
+      setReleasePinsLoading(false);
+    }
+  }
+
+  async function handleConfirmEvict() {
+    if (!client || !releasePins) {
+      return;
+    }
+    setEvicting(true);
+    setEvictError("");
+    setEvictResult(null);
+    try {
+      const selected = releasePins.unpinned.filter((version) => selectedReleaseVersions.includes(version.version));
+      const result = await client.evictReleaseCache({
+        versions: selected.map((version) => version.version),
+        confirm_token: releasePins.confirm_token,
+        expected_bytes: selected.reduce((sum, version) => sum + version.size_bytes, 0)
+      });
+      setEvictResult(result);
+      setPendingEvict(false);
+      await loadReleaseCachePins();
+    } catch (error) {
+      setEvictError(describeCacheError(error));
+    } finally {
+      setEvicting(false);
+    }
+  }
+
   async function handleConfirmDiskClean() {
     if (!client || !inventory) {
       return;
@@ -376,6 +501,8 @@ export function CacheManagementPage({
   useEffect(() => {
     if (client) {
       void loadCacheInventory();
+      void loadWorkspaceResidue();
+      void loadReleaseCachePins();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
@@ -553,6 +680,121 @@ export function CacheManagementPage({
             </Card>
           ) : null}
           </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            {client ? (
+              <Card
+                className="cutter-cache-panel ml-panel-card"
+                bodyFlush
+                bodyClassName="cutter-cache-panel-body"
+                title="工作区残留与 Release 缓存"
+                subtitle="残留仅删除失败/中断临时文件与未完成导出；Release 缓存淘汰会保护被作品引用的版本。"
+              >
+                {residueLoading ? <p className="ml-metric-description">正在扫描工作区残留…</p> : null}
+                {residueError ? (
+                  <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                    <strong>工作区残留扫描失败</strong>
+                    <span>{residueError}</span>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => void loadWorkspaceResidue()}>重试</Button>
+                  </div>
+                ) : null}
+                {residue ? (
+                  <section aria-label="工作区残留">
+                    <strong>工作区残留</strong>
+                    <span className="ml-metric-description">{workspaceResidueSummary(residue)}</span>
+                    <ul>
+                      {residue.items.map((item) => (
+                        <li key={item.id}>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={selectedResidueIds.includes(item.id)}
+                              disabled={!item.safe_to_delete || residueCleaning}
+                              onChange={() => setSelectedResidueIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])}
+                            />
+                            <span>{item.kind} · {formatCutterCacheSize(item.size_bytes)} · {item.path}{item.reason ? "（" + item.reason + "）" : ""}</span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="ml-control-cluster">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => void loadWorkspaceResidue()}>刷新扫描</Button>
+                      <Button type="button" variant="secondary" size="sm" disabled={residueCleaning || selectedResidueIds.length === 0} onClick={() => setPendingResidueClean(true)}>
+                        预览清理（{selectedResidueIds.length}）
+                      </Button>
+                    </div>
+                    {pendingResidueClean ? (
+                      <div className="ml-empty-panel ml-empty-panel--plain" role="alertdialog" aria-label="确认清理工作区残留">
+                        <strong>确认清理选中的工作区残留？</strong>
+                        <span>只删除选中的临时/未完成文件；项目成片与引用文件不会被删除。</span>
+                        <div className="ml-control-cluster">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setPendingResidueClean(false)}>取消</Button>
+                          <Button type="button" variant="danger" size="sm" onClick={() => void handleConfirmResidueClean()} disabled={residueCleaning}>
+                            {residueCleaning ? "清理中…" : "确认清理"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {residueCleanResult ? <p role="status">{"已清理 " + residueCleanResult.removed.length + " 项残留，释放 " + formatCutterCacheSize(residueCleanResult.freed_bytes)}</p> : null}
+                    {residueCleanError ? <p role="alert">{residueCleanError}</p> : null}
+                  </section>
+                ) : null}
+                {releasePinsLoading ? <p className="ml-metric-description">正在读取 Release 缓存 pin 状态…</p> : null}
+                {releasePinsError ? (
+                  <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                    <strong>Release 缓存读取失败</strong>
+                    <span>{releasePinsError}</span>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => void loadReleaseCachePins()}>重试</Button>
+                  </div>
+                ) : null}
+                {releasePins ? (
+                  <section aria-label="Release 缓存管理">
+                    <strong>Release 缓存</strong>
+                    <span className="ml-metric-description">{releaseCachePinsSummary(releasePins)}</span>
+                    <ul>
+                      {releasePins.unpinned.map((version) => {
+                        const active = version.version === releasePins.active_release_version;
+                        const referenced = (version.referenced_by?.length ?? 0) > 0;
+                        return (
+                          <li key={version.version}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={selectedReleaseVersions.includes(version.version)}
+                                disabled={active || referenced || evicting}
+                                onChange={() => setSelectedReleaseVersions((current) => current.includes(version.version) ? current.filter((item) => item !== version.version) : [...current, version.version])}
+                              />
+                              <span>{version.version} · {formatCutterCacheSize(version.size_bytes)}{active ? "（当前 active，不可淘汰）" : ""}{referenced ? "（被作品引用，不可淘汰）" : ""}</span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="ml-control-cluster">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => void loadReleaseCachePins()}>刷新 pin 状态</Button>
+                      <Button type="button" variant="secondary" size="sm" disabled={evicting || selectedReleaseVersions.length === 0} onClick={() => setPendingEvict(true)}>
+                        预览淘汰（{selectedReleaseVersions.length}）
+                      </Button>
+                    </div>
+                    {pendingEvict ? (
+                      <div className="ml-empty-panel ml-empty-panel--plain" role="alertdialog" aria-label="确认淘汰 Release 缓存">
+                        <strong>确认淘汰选中的 Release 缓存版本？</strong>
+                        <span>被作品引用或当前 active 的版本会被阻止，不会静默删除；仅删除选中的缓存版本目录。</span>
+                        <div className="ml-control-cluster">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setPendingEvict(false)}>取消</Button>
+                          <Button type="button" variant="danger" size="sm" onClick={() => void handleConfirmEvict()} disabled={evicting}>
+                            {evicting ? "淘汰中…" : "确认淘汰"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {evictResult ? <p role="status">{"已淘汰 " + evictResult.evicted.length + " 个版本，释放 " + formatCutterCacheSize(evictResult.freed_bytes) + (evictResult.blocked.length > 0 ? "；阻止 " + evictResult.blocked.length + " 个（" + evictResult.blocked.map((item) => item.reason).join("、") + "）" : "")}</p> : null}
+                    {evictError ? <p role="alert">{evictError}</p> : null}
+                  </section>
+                ) : null}
+              </Card>
+            ) : null}
+          </div>
+
           <Card
             className="cutter-cache-panel ml-panel-card"
             bodyFlush

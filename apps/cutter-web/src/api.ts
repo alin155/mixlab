@@ -482,6 +482,9 @@ export interface CutterRuntimeStatus {
     disk_low?: boolean;
     disk_unavailable_reason?: string;
   };
+  workspace_residue_count?: number;
+  workspace_residue_bytes?: number;
+  workspace_residue_reason?: string;
   source_video_preflight?: {
     status: "ready" | "checking" | "blocked" | "unavailable";
     checked_count: number;
@@ -513,6 +516,71 @@ export interface CutterRuntimeStatus {
     username: string;
     display_name: string;
   };
+}
+
+export interface CutterWorkspaceResidueItem {
+  id: string;
+  kind: string;
+  path: string;
+  size_bytes: number;
+  created_at?: string;
+  safe_to_delete: boolean;
+  reason?: string;
+}
+
+export interface CutterWorkspaceResidue {
+  items: CutterWorkspaceResidueItem[];
+  total_bytes: number;
+  expected_bytes: number;
+  confirm_token: string;
+}
+
+export interface CutterWorkspaceResidueCleanRequest {
+  ids: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterWorkspaceResidueCleanResult {
+  removed: string[];
+  freed_bytes: number;
+  skipped: Array<{ id: string; reason: string }>;
+  errors: Array<{ id: string; code: string; message: string; path?: string }>;
+}
+
+export interface CutterReleaseCacheReference {
+  project_id: string;
+  title: string;
+  kind: string;
+}
+
+export interface CutterReleaseCacheVersion {
+  version: string;
+  size_bytes: number;
+  last_used_at?: string;
+  referenced_by?: CutterReleaseCacheReference[];
+}
+
+export interface CutterReleaseCachePins {
+  pinned: CutterReleaseCacheVersion[];
+  unpinned: CutterReleaseCacheVersion[];
+  active_release_version?: string;
+  max_cached_releases: number;
+  expected_bytes: number;
+  confirm_token: string;
+  warnings: Array<{ code: string; message: string }>;
+}
+
+export interface CutterReleaseCacheEvictRequest {
+  versions: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterReleaseCacheEvictResult {
+  evicted: string[];
+  freed_bytes: number;
+  blocked: Array<{ version: string; reason: string; referenced_by?: CutterReleaseCacheReference[] }>;
 }
 
 export interface CutterLocalClipIntegrityReference {
@@ -653,6 +721,10 @@ export interface CutterApiClient {
   cleanCache(request: CutterCacheCleanRequest): Promise<CutterCacheCleanResult>;
   getLocalClipIntegrity(): Promise<CutterLocalClipIntegrity>;
   cleanLocalClips(request: CutterLocalClipCleanRequest): Promise<CutterLocalClipCleanResult>;
+  getWorkspaceResidue(): Promise<CutterWorkspaceResidue>;
+  cleanWorkspaceResidue(request: CutterWorkspaceResidueCleanRequest): Promise<CutterWorkspaceResidueCleanResult>;
+  getReleaseCachePins(): Promise<CutterReleaseCachePins>;
+  evictReleaseCache(request: CutterReleaseCacheEvictRequest): Promise<CutterReleaseCacheEvictResult>;
   listSourceLibrary(options?: {
     limit?: number;
     offset?: number;
@@ -974,6 +1046,38 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
           headers: jsonHeaders(input.auth),
           body: JSON.stringify(request)
         }
+      );
+    },
+
+    getWorkspaceResidue() {
+      return requestEnvelope<CutterWorkspaceResidue>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/workspace/residue"),
+        { headers: protectedHeaders }
+      );
+    },
+
+    cleanWorkspaceResidue(request) {
+      return requestEnvelope<CutterWorkspaceResidueCleanResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/workspace/residue/clean"),
+        { method: "POST", headers: jsonHeaders(input.auth), body: JSON.stringify(request) }
+      );
+    },
+
+    getReleaseCachePins() {
+      return requestEnvelope<CutterReleaseCachePins>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/release-cache/pins"),
+        { headers: protectedHeaders }
+      );
+    },
+
+    evictReleaseCache(request) {
+      return requestEnvelope<CutterReleaseCacheEvictResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/release-cache/evict"),
+        { method: "POST", headers: jsonHeaders(input.auth), body: JSON.stringify(request) }
       );
     },
 

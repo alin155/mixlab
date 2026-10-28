@@ -33,7 +33,9 @@ import {
   CacheManagementPage,
   cacheClearPreviewText,
   cacheCleanupPreviewText,
-  diskCleanResultSummary
+  diskCleanResultSummary,
+  releaseCachePinsSummary,
+  workspaceResidueSummary
 } from "./features/cache-management/CacheManagementPage.tsx";
 import { DesktopFirstRunPage } from "./features/desktop/DesktopFirstRunPage.tsx";
 import {
@@ -6304,12 +6306,55 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
       runtimeStatus: data.runtimeStatus,
       client: {
         getCacheInventory: async () => inventory,
-        cleanCache: async () => ({ cleaned: [], freed_bytes: 0, skipped: [], errors: [] })
+        cleanCache: async () => ({ cleaned: [], freed_bytes: 0, skipped: [], errors: [] }),
+        getWorkspaceResidue: async () => ({
+          items: [{ id: "r1", kind: "restart_temp", path: "/ws/cache/cut-temp/r1", size_bytes: 512, safe_to_delete: true }],
+          total_bytes: 512,
+          expected_bytes: 512,
+          confirm_token: "t"
+        }),
+        cleanWorkspaceResidue: async () => ({ removed: [], freed_bytes: 0, skipped: [], errors: [] }),
+        getReleaseCachePins: async () => ({
+          pinned: [{ version: "v000001", size_bytes: 2048, referenced_by: [{ project_id: "P1", title: "项目 A", kind: "project" }] }],
+          unpinned: [{ version: "v000002", size_bytes: 1024 }],
+          active_release_version: "v000001",
+          max_cached_releases: 2,
+          expected_bytes: 1024,
+          confirm_token: "t",
+          warnings: []
+        }),
+        evictReleaseCache: async () => ({ evicted: [], freed_bytes: 0, blocked: [] })
       }
     })
   );
   assert.match(html, /磁盘缓存清理/);
   assert.match(html, /预览清理/);
+  assert.match(html, /工作区残留与 Release 缓存/);
+  assert.match(html, /预览清理（0）/);
+
+  assert.match(
+    workspaceResidueSummary({
+      items: [
+        { id: "a", kind: "failed_export", path: "/a", size_bytes: 1024, safe_to_delete: true },
+        { id: "b", kind: "restart_temp", path: "/b", size_bytes: 1024, safe_to_delete: false }
+      ],
+      total_bytes: 2048,
+      expected_bytes: 1024,
+      confirm_token: "t"
+    }),
+    /残留 2 项（2 KB），其中 1 项可安全清理/
+  );
+  assert.match(
+    releaseCachePinsSummary({
+      pinned: [{ version: "v000001", size_bytes: 2048 }],
+      unpinned: [{ version: "v000002", size_bytes: 1024 }],
+      max_cached_releases: 2,
+      expected_bytes: 1024,
+      confirm_token: "t",
+      warnings: []
+    }),
+    /已缓存 2 个版本，其中被引用 1 个（上限 2）/
+  );
 });
 
 test("local clip governance summarizes orphans, references and cleanup results", () => {

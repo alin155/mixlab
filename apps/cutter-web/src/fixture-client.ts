@@ -964,6 +964,32 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         skipped: []
       };
     },
+    async getWorkspaceResidue() {
+      return {
+        items: [{ id: "failed_export:export-clips/.tmp-1", kind: "failed_export", path: "/fixture/ws/export-clips/.tmp-1", size_bytes: 1024, created_at: "2026-10-29T00:00:00Z", safe_to_delete: true, reason: "" }],
+        total_bytes: 1024,
+        expected_bytes: 1024,
+        confirm_token: "fixture-residue-token"
+      };
+    },
+    async cleanWorkspaceResidue(request: { ids: string[]; confirm_token: string; expected_bytes: number }) {
+      return { removed: [...request.ids], freed_bytes: request.expected_bytes, skipped: [], errors: [] };
+    },
+    async getReleaseCachePins() {
+      return {
+        pinned: [{ version: "v000001", size_bytes: 4096, referenced_by: [{ project_id: "P1", title: "Fixture 项目", kind: "project" }] }],
+        unpinned: [{ version: "v000002", size_bytes: 2048, last_used_at: "2026-10-01T00:00:00Z" }],
+        active_release_version: "v000001",
+        max_cached_releases: 2,
+        expected_bytes: 2048,
+        confirm_token: "fixture-release-token",
+        warnings: []
+      };
+    },
+    async evictReleaseCache(request: { versions: string[]; confirm_token: string; expected_bytes: number }) {
+      return { evicted: [...request.versions], freed_bytes: request.expected_bytes, blocked: [] };
+    },
+
     async listSourceLibrary(options?: {
       limit?: number;
       offset?: number;

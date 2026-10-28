@@ -153,6 +153,16 @@ export {
   WorkspaceResidueError,
   isWorkspaceResiduePathAllowed
 } from "./workspace-residue.ts";
+import {
+  ReleaseCacheMaintenanceError,
+  createReleaseCacheMaintenanceService,
+  type ReleaseCacheMaintenanceService
+} from "./release-cache-maintenance.ts";
+export {
+  RELEASE_CACHE_MAINTENANCE_ERROR_CODES,
+  ReleaseCacheMaintenanceError,
+  isReleaseCacheEvictionPathAllowed
+} from "./release-cache-maintenance.ts";
 
 export interface CreateCutterApiServerInput {
   /** 隔离事件服务连接（默认从 MIXLAB_USAGE_SERVICE_URL 读取；未配置走旧共享 NDJSON）。 */
@@ -178,6 +188,8 @@ export interface CreateCutterApiServerInput {
   local_clip_confirm_ttl_ms?: number;
   /** 工作区残留清理 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
   workspace_residue_confirm_ttl_ms?: number;
+  /** Release 缓存淘汰 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
+  release_cache_evict_confirm_ttl_ms?: number;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
@@ -1614,6 +1626,16 @@ function writeLocalClipMaintenanceError(response: ServerResponse, error: unknown
 /** 将 D3 工作区残留稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
 function writeWorkspaceResidueError(response: ServerResponse, error: unknown): boolean {
   if (!(error instanceof WorkspaceResidueError)) {
+    return false;
+  }
+
+  writeError(response, error.status, error.code, error.message, error.remediation);
+  return true;
+}
+
+/** 将 D4 Release 缓存淘汰稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
+function writeReleaseCacheMaintenanceError(response: ServerResponse, error: unknown): boolean {
+  if (!(error instanceof ReleaseCacheMaintenanceError)) {
     return false;
   }
 
@@ -4443,6 +4465,15 @@ function scheduleReleaseCacheWarmups(
   scheduleSearchIndexWarmup(input, status);
 }
 
+export interface CutterWorkspaceReleaseReferenceDetail {
+  release_version: string;
+  kind: "project" | "cut_job" | "clip_list" | "export_clip";
+  ref_id: string;
+  title: string;
+  /** 命中的清单相对路径（不含绝对路径）。 */
+  artifact: string;
+}
+
 export interface CutterWorkspaceReleaseReferences {
   /** workspace 中是否存在项目/切片清单/剪切任务/本地素材等历史作品产物。 */
   referenced: boolean;
@@ -4452,12 +4483,16 @@ export interface CutterWorkspaceReleaseReferences {
   /** 命中的清单相对路径样例（最多 5 条，便于审计，不含绝对路径）。 */
   source_artifacts: string[];
   warnings: string[];
+  /** 逐版本引用明细（D4 release cache pins 用）；旧调用方可忽略。 */
+  version_references: CutterWorkspaceReleaseReferenceDetail[];
 }
 
 const CUTTER_WORKSPACE_REFERENCE_DIRECTORIES = [
   "projects",
   "clip-lists",
+  // 历史清单目录名；cutter-local 当前实际把任务写在 clip-jobs/，两个都扫以保护 release 版本。
   "cut-jobs",
+  "clip-jobs",
   "export-clips"
 ] as const;
 const CUTTER_RELEASE_REFERENCE_KEYS = new Set([
@@ -4479,8 +4514,64 @@ export function emptyWorkspaceReleaseReferences(): CutterWorkspaceReleaseReferen
     release_versions: [],
     scanned_files: 0,
     source_artifacts: [],
-    warnings: []
+    warnings: [],
+    version_references: []
   };
+}
+
+function workspaceReleaseReferenceKind(relativePath: string): CutterWorkspaceReleaseReferenceDetail["kind"] | undefined {
+  const directory = relativePath.split("/")[0];
+  if (directory === "projects") {
+    return "project";
+  }
+  if (directory === "cut-jobs" || directory === "clip-jobs") {
+    return "cut_job";
+  }
+  if (directory === "clip-lists") {
+    return "clip_list";
+  }
+  if (directory === "export-clips") {
+    return "export_clip";
+  }
+  return undefined;
+}
+
+function workspaceReleaseReferenceDetail(input: {
+  relative_path: string;
+  parsed: unknown;
+  versions: Set<string>;
+}): CutterWorkspaceReleaseReferenceDetail[] {
+  const kind = workspaceReleaseReferenceKind(input.relative_path);
+  if (!kind || input.versions.size === 0) {
+    return [];
+  }
+
+  const parts = input.relative_path.split("/");
+  const folderName = parts.length >= 2 ? parts[1] : "";
+  const record = input.parsed && typeof input.parsed === "object" && !Array.isArray(input.parsed)
+    ? input.parsed as Record<string, unknown>
+    : {};
+  const artifactName = parts[parts.length - 1]?.replace(/[.]json$/i, "") ?? "";
+  const candidateIds = [
+    // 历史作品通常以 project_id 标识归属；缺失时回退到各类清单自身 id。
+    record.project_id,
+    kind === "project" ? record.project_id : undefined,
+    kind === "cut_job" ? record.cut_job_id : undefined,
+    kind === "clip_list" ? record.clip_list_id : undefined,
+    kind === "export_clip" ? record.export_clip_id : undefined
+  ].filter((value): value is string => typeof value === "string" && value.trim() !== "");
+  const refId = candidateIds[0] ?? (folderName || artifactName);
+  const candidateTitles = [record.project_title, record.title, record.source_title, record.clip_list_title]
+    .filter((value): value is string => typeof value === "string" && value.trim() !== "");
+  const title = candidateTitles[0] ?? refId;
+
+  return [...input.versions].sort().map((releaseVersion) => ({
+    release_version: releaseVersion,
+    kind,
+    ref_id: refId,
+    title,
+    artifact: input.relative_path
+  }));
 }
 
 function collectReleaseVersionValues(
@@ -4546,6 +4637,7 @@ export async function collectWorkspaceReleaseReferences(input: {
     Math.min(2000, Math.floor(input.max_files ?? CUTTER_REFERENCE_SCAN_MAX_FILES))
   );
   const versions = new Set<string>();
+  const detailKeys = new Set<string>();
   const warn = (message: string): void => {
     if (result.warnings.length < CUTTER_REFERENCE_SCAN_WARNING_LIMIT) {
       result.warnings.push(message);
@@ -4596,7 +4688,20 @@ export async function collectWorkspaceReleaseReferences(input: {
         }
 
         const parsed = JSON.parse(await readFile(childPath, "utf8")) as unknown;
+        const artifactVersions = new Set<string>();
         collectReleaseVersionValues(parsed, versions);
+        collectReleaseVersionValues(parsed, artifactVersions);
+        for (const detail of workspaceReleaseReferenceDetail({
+          relative_path: childRelative,
+          parsed,
+          versions: artifactVersions
+        })) {
+          const key = detail.release_version + "|" + detail.kind + "|" + detail.ref_id;
+          if (!detailKeys.has(key)) {
+            detailKeys.add(key);
+            result.version_references.push(detail);
+          }
+        }
       } catch {
         warn(`清单无法解析，已跳过：${childRelative}`);
       }
@@ -5904,6 +6009,15 @@ export function cutterWorkspaceResidueService(
   return workspaceResidueServices.get(server);
 }
 
+const releaseCacheMaintenanceServices = new WeakMap<Server, ReleaseCacheMaintenanceService>();
+
+/** 测试/诊断入口：返回该 server 实例的 Release 缓存淘汰服务（confirm_token/busy 状态在实例内）。 */
+export function cutterReleaseCacheMaintenanceService(
+  server: Server
+): ReleaseCacheMaintenanceService | undefined {
+  return releaseCacheMaintenanceServices.get(server);
+}
+
 function envPositiveInteger(name: string): number | undefined {
   const parsed = Number.parseInt(process.env[name]?.trim() ?? "", 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
@@ -5995,6 +6109,26 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
     ...(input.workspace_root ? { workspace_root: input.workspace_root } : {}),
     ...(input.workspace_residue_confirm_ttl_ms !== undefined
       ? { confirm_ttl_ms: input.workspace_residue_confirm_ttl_ms }
+      : {})
+  });
+
+  // D4 Release 缓存 pin/淘汰：引用扫描复用 collectWorkspaceReleaseReferences。
+  const releaseCacheMaintenance = createReleaseCacheMaintenanceService({
+    cache_root: releaseCacheRootForInput(input) ?? localCacheRootForInput(input),
+    max_cached_releases: releaseCacheMaxReleases(input) ?? 2,
+    collect_workspace_references: async () => {
+      const references = await collectWorkspaceReleaseReferences({
+        workspace_root: input.workspace_root
+      });
+      return {
+        referenced: references.referenced,
+        release_versions: references.release_versions,
+        version_references: references.version_references,
+        warnings: references.warnings
+      };
+    },
+    ...(input.release_cache_evict_confirm_ttl_ms !== undefined
+      ? { confirm_ttl_ms: input.release_cache_evict_confirm_ttl_ms }
       : {})
   });
 
@@ -6947,6 +7081,40 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/release-cache/evict") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        let body: unknown;
+        try {
+          body = await readRequestJson(request);
+        } catch (error) {
+          writeError(
+            response,
+            400,
+            "invalid_request",
+            (error as Error).message === "invalid_json"
+              ? "请求 JSON 格式不正确"
+              : "请求体过大或格式不正确"
+          );
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await releaseCacheMaintenance.evict(body)));
+        } catch (error) {
+          if (!writeReleaseCacheMaintenanceError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
       const projectOutputsDeleteMatch = /^\/cutter\/projects\/([^/]+)\/outputs$/.exec(url.pathname);
       if (request.method === "DELETE" && projectOutputsDeleteMatch) {
         if (!(await requireCutterSession({
@@ -7078,6 +7246,25 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           writeJson(response, 200, apiResponse(await workspaceResidue.inventory()));
         } catch (error) {
           if (!writeWorkspaceResidueError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/cutter/release-cache/pins") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await releaseCacheMaintenance.pins()));
+        } catch (error) {
+          if (!writeReleaseCacheMaintenanceError(response, error)) {
             throw error;
           }
         }
@@ -7699,6 +7886,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
   cacheMaintenanceServices.set(server, cacheMaintenance);
   localClipMaintenanceServices.set(server, localClipMaintenance);
   workspaceResidueServices.set(server, workspaceResidue);
+  releaseCacheMaintenanceServices.set(server, releaseCacheMaintenance);
 
   server.once("close", () => {
     void workspaceLease?.release();

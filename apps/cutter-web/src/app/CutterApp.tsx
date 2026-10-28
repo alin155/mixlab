@@ -1452,7 +1452,17 @@ function renderPage(
     appVersion?: string;
     buildCommit?: string;
     runtimeEnvironment: string;
-    cacheApiClient?: Pick<CutterApiClient, "getCacheInventory" | "cleanCache" | "getLocalClipIntegrity" | "cleanLocalClips">;
+    cacheApiClient?: Pick<
+      CutterApiClient,
+      | "getCacheInventory"
+      | "cleanCache"
+      | "getLocalClipIntegrity"
+      | "cleanLocalClips"
+      | "getWorkspaceResidue"
+      | "cleanWorkspaceResidue"
+      | "getReleaseCachePins"
+      | "evictReleaseCache"
+    >;
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
@@ -4563,6 +4573,15 @@ export function CutterApp() {
               >
                 关闭
               </Button>
+            </div>
+          ) : null}
+          {data?.runtimeStatus.workspace_residue_count ? (
+            <div className="cutter-contract-notice" role="status">
+              <div className="cutter-contract-notice-body">
+                <strong>发现 {data.runtimeStatus.workspace_residue_count} 个工作区临时残留</strong>
+                <span>可在缓存管理页预览并清理；项目与已完成作品不会被删除。</span>
+                <a href={routeToHash("cache-management")}>去清理</a>
+              </div>
             </div>
           ) : null}
           {shouldRenderGlobalCutterError({ error, hasData: Boolean(data) }) ? (
