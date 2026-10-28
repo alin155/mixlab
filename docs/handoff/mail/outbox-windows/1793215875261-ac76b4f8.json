@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793215875261-ac76b4f8",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793215875261-ac76b4f8",
+  "reply_to": "1793215256460-1329577f",
+  "created_at": "2026-10-28T19:31:15.262Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "D2 限制 6 已按 Mac 要求改为 fail-safe，并完成最终回归与 NSIS 重建。\n\n【fail-safe 修复（提交 b0e4641）】\n1) integrity：引用索引读取失败/损坏时返回 degraded=true + warning code=local_clip_reference_index_unreadable，orphans=[]、expected_bytes=0、confirm_token 绑定空集合；任一本地素材 manifest 缺失/损坏也视为引用未知并降级（不会把未知引用素材当孤儿）。\n2) clean：检测到 degraded 直接 409 local_clip_reference_index_unreadable，不删除任何文件；token/expected 校验顺序在 degraded 之后（即使 token 正确也拒绝）。\n3) DELETE /cutter/local-clips/{id}：inspect 返回 degraded=true 时同样 409 拒绝（fail-safe，避免引用未知时删除）。\n4) UI：本地素材治理面板显示「引用索引损坏，已暂停孤儿识别与清理」警告，并禁用清理按钮（orphans 为空 + disabled）。\n5) 新增 HTTP 用例：损坏 export-clip manifest + 损坏 clip-list 索引 → integrity degraded/警告/orphans 空；clean 409 且 media.mp4 仍在；DELETE 409 且文件仍在。\n【验证】typecheck PASS；cutter-api 132/132（D2 新增 fail-safe 用例通过）；cutter-web 301/301；全量 544/544（cutter-api 132、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7）；smoke status=passed ✅。\n\n【D3/D4 状态】D3 UI 已接线（工作区残留面板 + 启动提示）、D4 后端+UI 已完成，均已在之前两条 reply 中报告（D3=1793215571727-c25c014c、D4=1793215577070-b6a0b388），D2 新限制已随本提交补上。\n\n【NSIS 最终产物】重建（含 A1/A2+B+D+fail-safe）：MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=A8620F85131402EA079401B6F5F88D029491E75896D416B7EFEE6DDD0EAAE778。\n\n【遗留】D5（治理操作记录/审计）未做（可选）；A2 真 pause/resume/delete 契约留后续批次；B 的 2000+ 真实 searchd 压测/UI 降级截图可作演示补充。"
+}
