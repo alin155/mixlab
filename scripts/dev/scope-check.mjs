@@ -26,7 +26,8 @@ const WINDOWS_WRITE = [
   "scripts/desktop/",
   "scripts/acceptance/windows-",
   "scripts/servers/cutter-api-server.ts",
-  "docs/handoff/status/windows-latest.md"
+  "docs/handoff/status/windows-latest.md",
+  "docs/handoff/mail/outbox-windows/"
 ];
 const SYNC_ONLY = [
   "packages/contracts/",

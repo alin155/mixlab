@@ -12,6 +12,8 @@ on:
     branches:
       - dev/admin
       - dev/cutter
+    paths-ignore:
+      - "docs/handoff/mail/**"
   pull_request:
     branches:
       - dev/admin

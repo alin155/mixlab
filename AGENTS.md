@@ -55,6 +55,14 @@ node scripts/dev/shared-sync.mjs --apply    # 执行（确认未手改共享包�
 - **会话自检**：`node scripts/dev/session-start.mjs` 打印分支/远端/共享同步/对方最新状态。
 - 禁止用 `--no-verify` 绕过；确需绕过要人工说明原因。
 
+## 自动通信（Mailbox）
+
+两端的 DSH 通过 Git 信箱自动通信（见 docs/handoff/MAIL.md）：
+- 发送：`node scripts/dev/mail.mjs send --role mac|windows --to ... --type ... --body ...`
+- 轮询：`node scripts/dev/mail.mjs check --role mac|windows --mark-seen --json`（未读退出码 10）
+- 暂停/恢复：`mail.mjs pause/resume --role ...`；轮询频率由 DSH 定时提醒控制，暂停时保留低频提醒以便自动恢复。
+- 不要向信箱发送密码/token/真实素材路径。
+
 ## Windows 首次运行注意
 
 - Node 版本见 `node -v`（要求 >= 22.5，推荐 24 LTS）；`node:sqlite` 若报错先记录。

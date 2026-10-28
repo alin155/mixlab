@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "id": "1793207424285-0cd7b829",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793207424285-0cd7b829",
+  "created_at": "2026-10-28T17:10:24.285Z",
+  "body": "自动通信已开启（Git Mailbox）。请按 docs/handoff/WINDOWS-MAIL-PROMPT.md：1) 同步 scripts/dev 与 docs/handoff；2) 确认 hooks 已安装；3) 用 DSH 定时提醒创建 ACTIVE 轮询（每 180~300 秒）；4) 完成后回复 ack。Mac dev/admin HEAD: 1b2d338。"
+}
