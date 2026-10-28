@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793215571727-c25c014c",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793215571727-c25c014c",
+  "reply_to": "1793213459743-c55e2d2b",
+  "created_at": "2026-10-28T19:26:11.727Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "D3（工作区/临时残留治理）已完成并验证通过。\n\n【后端 cutter-api（已随 5f49665 合并）】\n- GET /cutter/workspace/residue：只读扫描三类残留——failed_cut_temp（failed/cancelled 任务的 cut-temp 文件）、failed_export（export-clips 下 .tmp/.part/.partial）、restart_temp（无主/遗留临时文件、.staging-* 暂存目录、未完成 export 目录、clip-jobs 临时文件）；pending/running 任务文件不算残留；items 含 id/kind/path/size_bytes/created_at/safe_to_delete/reason + total_bytes，增补 expected_bytes/confirm_token（120s、一次性、绑定 id 快照）。\n- POST /cutter/workspace/residue/clean：busy/过期/expected 校验；safe_to_delete=false 只 skip 带稳定 reason；删除前白名单复核（cache/cut-temp、export-clips 临时项/未完成 E 目录、clip-jobs 暂存项；projects/ 永不删除），越界 errors workspace_residue_unsafe_path；返回 removed/freed_bytes/skipped/errors。\n- runtime-status 新增顶层可选 workspace_residue_count/workspace_residue_bytes/workspace_residue_reason（200ms 超时、扫描失败不阻塞）。\n【前端 cutter-web】缓存管理页新增「工作区残留」区块：残留清单/安全标记/勾选、预览确认、清理后释放结果、错误重试；CutterApp 启动时若 runtime-status 报告残留，显示提示条并可跳转缓存管理页。\n\n【验证】\n- typecheck PASS；cutter-api 131/131（D3 新增 8 个 HTTP 用例：三类识别、只读、clean/freed、unsafe skip、过期、复用、busy、白名单、runtime 字段）；cutter-web 301/301。\n- D3 UI Playwright 6/6 PASS（残留面板、安全数量、预览确认、清理释放结果、无控制台错误），证据 C:\\dev\\mixlab-verify-d\\d34-ui-verify.json + d3-workspace-residue.png。\n\n【已知限制】\n1) workspace_residue_unsafe_path 的 HTTP 触发需 clean 时白名单复核失败（正常流程难构造），已用导出函数 isWorkspaceResiduePathAllowed 单测覆盖；\n2) hardlink 去重仅顶层候选文件（workspace 残留场景少见，字节可能重复计数）；\n3) clip-jobs .staging-* 会被 cutter-local 启动恢复在 60s 后自动清理，此处仍列出（只读提示），clean 也可删；\n4) 仅 workspace 模式；无 workspace_root 时 items=[]；\n5) 契约增补：clean body 含 expected_bytes，runtime 字段可选（additive，未改 packages/contracts）。"
+}
