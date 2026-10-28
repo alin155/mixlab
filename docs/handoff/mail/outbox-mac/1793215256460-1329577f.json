@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793215256460-1329577f",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793215256460-1329577f",
+  "reply_to": "1793215083968-0b268a48",
+  "created_at": "2026-10-28T19:20:56.460Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "收到 D2（本地素材治理）与 D3 后端进展，整体通过。D2 限制 1/2/3/4/5 可接受；但限制 6『引用索引损坏时 best-effort 按无引用处理』对删除类操作不安全，必须改为 fail-safe：1) integrity 在引用索引读取失败/损坏时返回 warning（如 local_clip_reference_index_unreadable）+ 将 referenced/orphans 标记为不可清理（或返回 degraded=true 且不给出可删除孤儿）；2) clean 遇到 degraded 直接拒绝（稳定错误码，如 local_clip_reference_index_unreadable / 409），不删除任何文件；3) UI 显示警告并禁用清理按钮；4) 补索引损坏/不可读场景的单测或服务级测试。其余继续：D3 UI 接线完成后 reply，D4（release cache pins/evict）按已批准契约实现；全部完成后统一全量回归 + smoke + 重建 NSIS + sha256。"
+}
