@@ -1,10 +1,16 @@
 import path from "node:path";
 
 function selectPathImplementation(mountRoot: string): typeof path.posix | typeof path.win32 {
-  const isWindowsMount =
-    /^[a-zA-Z]:[\\/]*$/.test(mountRoot) || mountRoot.startsWith("\\\\");
+  const candidate = mountRoot.trim();
+  // Windows mounts are not always a bare drive root: C:\Library, D:/MixLab and UNC
+  // (\\server\share) all need win32 joining. The previous check only matched "C:" / "C:\",
+  // so a drive + subdirectory (the normal Windows case) fell through to path.posix and
+  // produced mixed separators (C:\Library/source-videos/...).
+  const isWindowsDrive = /^[a-zA-Z]:[\\/]/.test(candidate);
+  const isWindowsDriveRoot = /^[a-zA-Z]:$/.test(candidate);
+  const isUnc = candidate.startsWith("\\\\") || candidate.startsWith("//");
 
-  return isWindowsMount ? path.win32 : path.posix;
+  return isWindowsDrive || isWindowsDriveRoot || isUnc ? path.win32 : path.posix;
 }
 
 export function resolveSourceVideoPath(input: {
