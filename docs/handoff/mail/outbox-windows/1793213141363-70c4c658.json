@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793213141363-70c4c658",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793213141363-70c4c658",
+  "reply_to": "1793212556076-461568ac",
+  "created_at": "2026-10-28T18:45:41.364Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Windows 完成 B 收尾 3 项 + D 阶段提案：\n\n【1) B3 大数据量：2000 命中 / 40 页分页证据】\n- 构造 40 页 × 50 组 = 2000 命中，逐页 merge + searchPageAddsNewResults：5/5 PASS —— 组数=2000、片段=2000 且重复=0、source_video_id 全唯一、重复页判定无新增（可终止分页）、合并耗时 12ms。\n- 证据：C:\\dev\\mixlab-verify-b\\b3-large-pagination-evidence.json（含全部 checks/数字）。\n- 边界：这是纯函数/分页数据级证据，未构造真实 2000+ 素材的 searchd 索引服务压测（需生成大库并等索引构建，成本高）；UI 分页状态已有前一轮 fixture E2E + 服务级 searchd 1 页验证。若必须真实 2000+ 服务压测，我可以再排一轮。\n\n【2) B4 真实 searchd 降级：5/5 PASS】\n- 真实启动混剪 searchd（真实 library + published 索引）→ API 搜索 search_mode=searchd、hits=1、runtime backend mode=searchd；\n- 真实 kill 掉 searchd 进程（确认不可达）→ 搜索接口仍 200，自动回退 search_mode=sqlite-index、hits=1，runtime search_backend degraded=true；\n- 证据：C:\\dev\\mixlab-verify-b\\b4-real-degradation.json、C:\\dev\\logs\\b4-real.log。\n- 说明：未截 UI 图（服务级 harness，未起浏览器+登录栈）；UI「已回退到 X（searchd 不可用）」提示与重试已由上一轮 render/helper 测试覆盖。\n\n【3) B1 双 query 竞态：守卫 + 单测】\n- 新增 shouldApplyMaterialSearchPage 守卫并接入加载更多路径：旧 requestId 响应丢弃；响应 query 与当前 active query 不一致也丢弃（normalize 比较）；新增 4 例单测（旧请求拒绝、非当前 query 拒绝、同 query 通过、空白归一化通过）。\n- 边界：Playwright 延迟拦截 E2E 未跑（fixture 返回静态结果无法制造竞态；API 模式需 mock auth+完整服务栈），竞态保护由 requestId+query 双重判断与单测覆盖。\n\n【回归】typecheck PASS；cutter-web 298/298 PASS；smoke status=passed ✅；上一轮全量 502/502（本次仅 cutter-web 逻辑+测试改动）。\n【提交】2477293 fix(cutter-web): B acceptance tail；e2fc644 状态报告。\n\n=========== D 阶段提案（缓存/本地素材治理，等批准后实现，只改 Windows 目录）===========\nD1 缓存治理信息准确性（建议先做）\n- 内容：缓存管理页统一展示 searchd cache / 本地缓存 / 工作区占用（路径、大小、更新时间、可写性）；清理前预览将删除范围与保护项（当前项目、未完成导出、被引用本地素材）；清理后刷新并提示释放字节；路径/权限错误显示 code+路径+重试入口。\n- 验收：展示值与磁盘实测一致（±5%）；清除不触碰作品/被引用文件；错误可重试且有路径；清除后刷新一致性；单测 + Playwright 证据。\nD2 本地素材治理\n- 内容：本地素材列表/详情标注来源、大小、引用状态；删除时引用保护（被项目/队列引用时明确提示或禁止）；孤儿文件识别与批量清理；磁盘空间告警阈值（剩余 <5% 或占用超阈值）。\n- 验收：被引用素材不可静默删除；孤儿识别无误删；告警可见；误删恢复说明清晰。\nD3 工作区/临时文件残留治理\n- 内容：失败任务、导出失败、重启后的临时残留识别与一键清理；启动时检测未完成导出/任务并提示恢复或清理；完成后不影响已有作品。\n- 验收：模拟失败任务可识别并清理；重启提示准确；清理不删除已完成作品/导出；重复启动无残留回归。\nD4 release cache pin/淘汰与作品引用一致性\n- 内容：pin 列表显示被哪些作品/项目引用；淘汰时阻止被引用版本并解释原因；UI 展示 pin 原因/淘汰建议与释放空间；错误可重试。\n- 验收：被引用版本不可淘汰；未引用版本可淘汰并显示释放量；状态与引用关系一致（无静默删除）。\nD5（可选）治理操作记录/审计\n- 内容：记录最近清理操作（时间/范围/释放空间/失败），不恢复文件但提示来源；失败可重试。\n- 验收：操作记录可见、无静默删除、失败可重试。\n\n请批准 D 范围（建议 D1→D2→D3→D4，D5 可选）；涉及 API/契约会先发 task。A2 真 pause/resume/delete 契约草案继续留到后续批次。"
+}
