@@ -1,17 +1,17 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T17:10:11.867Z
+- generated_at: 2026-10-28T17:14:31.930Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: dcc01c2e4d3b792dd96c9535e12836e033a752ed
-- head_subject: docs(dev): document status mailbox file ownership exception
-- head_time: 2026-10-28T10:03:13-07:00
-- dirty_tracked: 4
-- dirty_untracked: 3
+- head: 84e8f72b2c14b2279a02bed8e213d07d9f50b73f
+- head_subject: [mail][mac→windows] notice 1793207424285-0cd7b829
+- head_time: 2026-10-28T10:10:24-07:00
+- dirty_tracked: 1
+- dirty_untracked: 1
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME
 

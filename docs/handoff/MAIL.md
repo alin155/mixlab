@@ -70,3 +70,24 @@ PAUSED 模式（每 900~1800 秒）：
 - 每次发送都会产生一次 commit+push；轮询无新消息时不会写文件。
 - 延迟取决于轮询间隔与 DSH 是否打开；两端都关闭时消息在 Git 里排队，下次打开后处理。
 - 如 Git 网络不可用：发送失败不会丢消息（本地已提交），下次可 `git push` 补推。
+
+
+## 可视化看板（实时查看沟通记录）
+
+在 Mac 上运行（只读、仅监听 127.0.0.1）：
+
+```bash
+cd ~/Documents/mixlab
+node scripts/dev/mail-server.mjs --port 8791
+```
+
+浏览器打开：<http://127.0.0.1:8791>
+
+- 页面每 2.5 秒自动刷新；服务端每 15 秒 `git fetch` 一次，Windows 消息通常在 push 后 15~20 秒内出现；
+- 展示：双方消息（类型/方向/时间/线程）、暂停/恢复状态、双方最新状态报告；
+- 只读：不写仓库、不 commit；可随时 Ctrl+C 停止；
+- 需要后台常驻时：
+  ```bash
+  nohup node scripts/dev/mail-server.mjs --port 8791 > /tmp/mixlab-mail-dashboard.log 2>&1 &
+  ```
+- 参数：`--refresh 3000`（页面/API 刷新缓存）、`--fetch 15000`（Git 拉取间隔）、`--no-fetch`（离线只读本地）。
