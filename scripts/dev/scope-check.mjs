@@ -22,7 +22,9 @@ const WINDOWS_WRITE = [
   "packages/cutter-local/",
   "packages/ffmpeg-core/",
   "packages/desktop-runtime/",
+  "packages/windows-test-runner/",
   "scripts/desktop/",
+  "scripts/acceptance/windows-",
   "scripts/servers/cutter-api-server.ts"
 ];
 const SYNC_ONLY = [

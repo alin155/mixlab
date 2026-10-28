@@ -15,7 +15,7 @@
 1. **不要做整分支 merge**（`git merge dev/admin` 等）：两条交付线的 `library-fs`/`cutter-api` 内部 API 已分叉，合并需要专门的 Phase B 迁移，不是日常操作。
 2. **只改自己机器的目录**：
    - Mac：`apps/admin-web/`、`packages/admin-api/`、`packages/library-fs/`、`scripts/servers/admin-api-server.ts`、`scripts/workers/`；
-   - Windows：`apps/cutter-web/`、`apps/cutter-desktop/`、`packages/cutter-api/`、`packages/cutter-local/`、`packages/ffmpeg-core/`、`packages/desktop-runtime/`、`scripts/desktop/`。
+   - Windows：`apps/cutter-web/`、`apps/cutter-desktop/`、`packages/cutter-api/`、`packages/cutter-local/`、`packages/ffmpeg-core/`、`packages/desktop-runtime/`、`packages/windows-test-runner/`、`scripts/desktop/`、`scripts/acceptance/windows-*`。
 3. **共享包只能 Mac 侧修改**：`packages/contracts/`、`packages/library-format/`、`packages/service-clients/`、`packages/protocol/`、`packages/runtime-config/`、`packages/ui-foundation/`。
    Windows 只允许通过 `node scripts/dev/shared-sync.mjs --apply` 单向同步，不允许手改。
 4. **共享工具/规则同样单向同步**：`scripts/dev/`、`docs/handoff/`、`AGENTS.md` 由 Mac 维护，Windows 只读。

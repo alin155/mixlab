@@ -1,17 +1,17 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T15:43:21.480Z
+- generated_at: 2026-10-28T16:01:56.193Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 2eac47e7aaf7b2f8713982c0712336f9d942240d
-- head_subject: chore(dev): include packages/protocol in status fingerprint
-- head_time: 2026-10-28T08:36:04-07:00
-- dirty_tracked: 5
-- dirty_untracked: 6
+- head: 3ae5d0592152c0eabe1b2ece512abbef157504be
+- head_subject: feat(dev): automated anti-conflict guards (hooks, scope check, CI sync-guard, status notify)
+- head_time: 2026-10-28T08:43:21-07:00
+- dirty_tracked: 2
+- dirty_untracked: 0
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME
 
