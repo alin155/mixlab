@@ -2124,6 +2124,25 @@ function optionalLibraryRelativeFilePath(libraryRoot: string, libraryRelativePat
     : "";
 }
 
+/**
+ * 共享包 packages/protocol 的 resolveSourceVideoPath 在 Windows 深度挂载根（例如
+ * C:\Users\...\library）下会退回 path.posix 实现，拼出
+ * `C:\root/source-videos/a.mp4` 这种混合分隔符路径。Windows 文件系统 API 能容忍它，
+ * 但路径相等比较、本地缓存清单核对和返回给前端的绝对路径都会出错。这里在 Cutter API
+ * 边界统一规范为宿主平台路径；macOS（纯 POSIX 路径）上是无副作用的空操作。
+ */
+function normalizeHostPath(value: string): string {
+  return value ? path.normalize(value) : value;
+}
+
+function withNormalizedSourceVideoPath<T extends { source_video_file_path: string }>(value: T): T {
+  const normalized = normalizeHostPath(value.source_video_file_path);
+
+  return normalized === value.source_video_file_path
+    ? value
+    : { ...value, source_video_file_path: normalized };
+}
+
 function searchdTranscriptDetail(input: {
   library_root: string;
   indexed: ReturnType<typeof coerceSearchdSourceVideoDetailPayload>;
@@ -2143,10 +2162,12 @@ function searchdTranscriptDetail(input: {
     source_folder_name: input.indexed.source_folder_name,
     logical_uri: "",
     source_video_file_path: input.indexed.relative_path
-      ? resolveSourceVideoPath({
-          mount_root: input.library_root,
-          relative_path: input.indexed.relative_path
-        })
+      ? normalizeHostPath(
+          resolveSourceVideoPath({
+            mount_root: input.library_root,
+            relative_path: input.indexed.relative_path
+          })
+        )
       : "",
     cover_path: input.indexed.cover_path,
     cover_file_path: optionalLibraryRelativeFilePath(input.library_root, input.indexed.cover_path),
@@ -3528,7 +3549,7 @@ async function loadVisibleDetailUncached(
     });
 
     if (searchdDetail) {
-      return searchdDetail;
+      return withNormalizedSourceVideoPath(searchdDetail);
     }
   } catch {
     // If searchd is restarting or does not expose detail yet, preserve the
@@ -3537,11 +3558,13 @@ async function loadVisibleDetailUncached(
 
   try {
     const releaseRoot = await releaseRootForFastLibraryRead(input);
-    return await getCutterSourceVideoDetail({
+    const detail = await getCutterSourceVideoDetail({
       library_root: input.library_root,
       ...(releaseRoot ? { release_root: releaseRoot } : {}),
       source_video_id: sourceVideoId
     });
+
+    return detail ? withNormalizedSourceVideoPath(detail) : detail;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
@@ -4271,7 +4294,7 @@ async function loadSourceLibraryPageWithState(
       library_id: await readLibraryIdBestEffort(input),
       available_video_count: library.available_video_count,
       ...(library.source_folders ? { source_folders: library.source_folders } : {}),
-      videos: library.videos.map(addSourceVideoUrls)
+      videos: library.videos.map((video) => addSourceVideoUrls(withNormalizedSourceVideoPath(video)))
     };
   })().catch((error) => {
     cache.delete(key);
@@ -4840,8 +4863,9 @@ async function readSourceVideoPreflightStatusUncached(
     limit: SOURCE_PREFLIGHT_SAMPLE_COUNT,
     offset: 0
   });
+  const videos = library.videos.map(withNormalizedSourceVideoPath);
 
-  if (library.videos.length === 0) {
+  if (videos.length === 0) {
     return {
       status: "unavailable",
       checked_count: 0,
@@ -4855,7 +4879,7 @@ async function readSourceVideoPreflightStatusUncached(
   }
 
   const samples = await Promise.all(
-    library.videos.map(async (video): Promise<CutterSourceVideoPreflightSample> => {
+    videos.map(async (video): Promise<CutterSourceVideoPreflightSample> => {
       const readable = await fileIsReadable(video.source_video_file_path);
       const mediaProbe = readable.readable
         ? await probeSourceVideoMedia({

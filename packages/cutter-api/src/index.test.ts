@@ -3693,7 +3693,10 @@ test("persists clip lists and runs queued workspace cut jobs", async () => {
         { begin_ms: 250, end_ms: 700 }
       ]
     );
-    assert.match(cutOutputs[1]!.source_video_path, /export-clips\/E000001\/001-现金流清单-01_现金流\.mp4$/);
+    assert.equal(
+      cutOutputs[1]!.source_video_path,
+      path.join(workspaceRoot, "export-clips", "E000001", "001-现金流清单-01_现金流.mp4")
+    );
 
     const reusedLocalClips = await (await fetch(`${baseUrl}/cutter/local-clips`, { headers })).json() as any;
     assert.equal(reusedLocalClips.data.local_clip_count, 2);
