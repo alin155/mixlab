@@ -24,7 +24,7 @@ const SHARED_PATHS = [
 ];
 const SOURCE_BRANCH = "dev/admin";
 // 状态信箱里各端自己拥有的文件：同步时保留，不参与"共享一致性"比较。
-const PARITY_EXCLUDES = ["docs/handoff/status/windows-latest.md"];
+const PARITY_EXCLUDES = ["docs/handoff/status/windows-latest.md", "docs/handoff/status/mac-latest.md", "docs/handoff/mail/"];
 const EXCLUDE_PATHSPECS = PARITY_EXCLUDES.map((file) => ":(exclude)" + file);
 
 function git(args) {
@@ -108,7 +108,7 @@ function main() {
     process.exit(1);
   }
 
-  git(["checkout", "origin/" + args.source, "--", ...SHARED_PATHS]);
+  git(["checkout", "origin/" + args.source, "--", ...SHARED_PATHS, ...EXCLUDE_PATHSPECS]);
   const after = gitTry(["diff", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS, ...EXCLUDE_PATHSPECS]) || "";
   const changed = (gitTry(["status", "--porcelain", "--", ...SHARED_PATHS]) || "").split("\n").filter(Boolean);
   console.log("");
