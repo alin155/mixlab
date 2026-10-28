@@ -156,6 +156,7 @@ export {
 import {
   ReleaseCacheMaintenanceError,
   createReleaseCacheMaintenanceService,
+  tryAcquireReleaseCacheMaintenanceLock,
   type ReleaseCacheMaintenanceService
 } from "./release-cache-maintenance.ts";
 export {
@@ -4761,6 +4762,18 @@ async function syncCutterReleaseCacheRuntimeStatusUncached(
   // PLAT-06：淘汰未引用旧版本前，先按本机历史作品清单保护引用版本；
   // 扫描是只读 best-effort，异常时保守保留全部缓存，绝不阻塞同步。
   const referenceOptions = await workspaceReleaseCacheReferenceOptions(input.workspace_root);
+  // D4 收口：与 POST /cutter/release-cache/evict 共用 cache_root 文件锁，避免同步/淘汰交叉修改缓存目录。
+  const maintenanceLock = await tryAcquireReleaseCacheMaintenanceLock(cacheRoot);
+  if (!maintenanceLock) {
+    return releaseCacheRuntimeStatusFromLocal(
+      await statusReader({
+        cache_root: cacheRoot,
+        max_cached_releases: releaseCacheMaxReleases(input),
+        include_cache_size: false
+      }),
+      "syncing"
+    );
+  }
 
   try {
     const clientVersion = resolveCutterClientVersion(input);
@@ -4831,6 +4844,8 @@ async function syncCutterReleaseCacheRuntimeStatusUncached(
       }),
       "failed"
     );
+  } finally {
+    await maintenanceLock.release();
   }
 }
 

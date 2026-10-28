@@ -7,6 +7,7 @@ import test from "node:test";
 import { approveCutterUser, createCutterLoginApplication } from "../../library-fs/src/index.ts";
 import {
   RELEASE_CACHE_MAINTENANCE_ERROR_CODES,
+  tryAcquireReleaseCacheMaintenanceLock,
   type ReleaseCacheEvictResult,
   type ReleaseCacheMaintenanceService,
   type ReleaseCachePinsInventory
@@ -519,3 +520,32 @@ test("release cache pins conservatively keeps versions when workspace artifacts 
     });
   });
 });
+
+test("release cache evict is blocked by the cross-process maintenance lock", async () => {
+  await withReleaseFixture(async (fixture) => {
+    const sizes = await seedReleaseCache(fixture);
+    const lock = await tryAcquireReleaseCacheMaintenanceLock(fixture.cache_root);
+    assert.ok(lock, "maintenance lock should be acquirable");
+    try {
+      await withReleaseApi(fixture, async (context) => {
+        const pins = await readPins(context);
+        const response = await fetch(context.base_url + "/cutter/release-cache/evict", {
+          method: "POST",
+          headers: { ...context.headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            versions: ["v000001"],
+            confirm_token: pins.confirm_token,
+            expected_bytes: sizes.v000001
+          })
+        });
+        assert.equal(response.status, 409);
+        const payload = await response.json() as any;
+        assert.equal(payload.error.code, RELEASE_CACHE_MAINTENANCE_ERROR_CODES.release_cache_busy);
+        assert.equal(await pathExists(releaseDirectory(fixture.cache_root, "v000001")), true);
+      });
+    } finally {
+      await lock.release();
+    }
+  });
+});
+

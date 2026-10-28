@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { type Stats } from "node:fs";
-import { readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -73,6 +73,72 @@ export class ReleaseCacheMaintenanceError extends Error {
     this.status = RELEASE_CACHE_ERROR_STATUS[code];
     this.remediation = RELEASE_CACHE_ERROR_REMEDIATION[code];
   }
+}
+
+/** 跨进程/跨实例的 Release 缓存维护锁（与后台 release sync 互斥）。 */
+const RELEASE_CACHE_MAINTENANCE_LOCK_RELATIVE = path.join(
+  ".mixlab-library",
+  "locks",
+  "release-cache-maintenance.lock"
+);
+const RELEASE_CACHE_MAINTENANCE_LOCK_STALE_MS = 10 * 60 * 1000;
+
+export interface ReleaseCacheMaintenanceLock {
+  release(): Promise<void>;
+}
+
+export async function tryAcquireReleaseCacheMaintenanceLock(
+  cacheRoot: string | undefined
+): Promise<ReleaseCacheMaintenanceLock | null> {
+  const root = cacheRoot?.trim();
+  if (!root) {
+    return null;
+  }
+
+  const lockPath = path.join(root, RELEASE_CACHE_MAINTENANCE_LOCK_RELATIVE);
+  try {
+    await mkdir(path.dirname(lockPath), { recursive: true });
+  } catch {
+    return null;
+  }
+
+  const tryCreate = async (): Promise<boolean> => {
+    try {
+      await writeFile(lockPath, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }), {
+        flag: "wx"
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (!(await tryCreate())) {
+    // 进程崩溃可能留下锁文件；超过 stale 阈值才回收，避免误删活跃同步。
+    try {
+      const info = await stat(lockPath);
+      if (Date.now() - info.mtimeMs <= RELEASE_CACHE_MAINTENANCE_LOCK_STALE_MS) {
+        return null;
+      }
+      await rm(lockPath, { force: true });
+    } catch {
+      return null;
+    }
+    if (!(await tryCreate())) {
+      return null;
+    }
+  }
+
+  let released = false;
+  return {
+    async release() {
+      if (released) {
+        return;
+      }
+      released = true;
+      await rm(lockPath, { force: true }).catch(() => undefined);
+    }
+  };
 }
 
 export interface ReleaseCacheReferenceDetail {
@@ -567,6 +633,15 @@ export function createReleaseCacheMaintenanceService(
       );
     }
 
+    const maintenanceLock = await tryAcquireReleaseCacheMaintenanceLock(env.cache_root);
+    if (!maintenanceLock) {
+      releaseBusy();
+      throw new ReleaseCacheMaintenanceError(
+        RELEASE_CACHE_MAINTENANCE_ERROR_CODES.release_cache_busy,
+        "Release 缓存同步/淘汰正在进行中（跨进程锁被占用），请稍后再试。"
+      );
+    }
+
     try {
       const request = parseEvictRequest(body);
       const tokenRecord = readConfirmToken(request.confirm_token);
@@ -659,6 +734,7 @@ export function createReleaseCacheMaintenanceService(
       };
     } finally {
       releaseBusy();
+      await maintenanceLock.release();
     }
   }
 
