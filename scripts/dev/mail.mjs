@@ -40,7 +40,7 @@ function gitTry(args) {
 }
 
 function parseArgs(argv) {
-  const result = { command: "", role: "mac", to: "", type: "notice", body: "", thread: "", replyTo: "", action: "", markSeen: false, json: false, noFetch: false, noPush: false, quiet: false };
+  const result = { command: "", role: "mac", to: "", type: "notice", body: "", thread: "", replyTo: "", action: "", markSeen: false, json: false, noFetch: false, noPush: false, quiet: false, blocking: false, needs: "", evidence: [] };
   const positional = [];
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -57,6 +57,9 @@ function parseArgs(argv) {
     else if (arg === "--no-fetch") result.noFetch = true;
     else if (arg === "--no-push") result.noPush = true;
     else if (arg === "--quiet") result.quiet = true;
+    else if (arg === "--blocking") result.blocking = true;
+    else if (arg === "--needs") result.needs = argv[++index] ?? "";
+    else if (arg === "--evidence") result.evidence.push(argv[++index] ?? "");
     else if (arg === "--help" || arg === "-h") result.help = true;
     else if (!arg.startsWith("--")) positional.push(arg);
   }
@@ -99,12 +102,40 @@ function messagePath(id, role) {
   return outboxDir(role) + "/" + id + ".json";
 }
 
+async function localOutbox(repo, role) {
+  const dir = path.join(repo, outboxDir(role));
+  let names = [];
+  try {
+    names = (await readdir(dir)).filter((name) => name.endsWith(".json")).sort();
+  } catch {
+    return [];
+  }
+  const messages = [];
+  for (const name of names) {
+    try {
+      messages.push(JSON.parse(await readFile(path.join(dir, name), "utf8")));
+    } catch {
+      // 忽略损坏消息文件
+    }
+  }
+  return messages;
+}
+
 async function sendMessage(args, repo) {
   const role = args.role;
   const to = args.to || PEER[role];
   if (!ROLE_BRANCH[role]) throw new Error("role 必须是 mac 或 windows");
   if (!TYPES.has(args.type)) throw new Error("type 必须是 " + [...TYPES].join("/"));
+  if (args.type !== "ack" && !String(args.body ?? "").trim()) {
+    throw new Error("除 ack 外，消息必须带 --body（Windows PowerShell 用单引号包住正文）");
+  }
   const id = Date.now() + "-" + randomUUID().slice(0, 8);
+  const defaultNeeds = args.type === "task" ? "action" : "none";
+  const flags = {
+    needs: args.needs || defaultNeeds,
+    ...(args.blocking ? { blocking: true } : {}),
+    ...(args.evidence.filter(Boolean).length > 0 ? { evidence: args.evidence.filter(Boolean) } : {})
+  };
   const message = {
     schema_version: "1",
     id,
@@ -115,6 +146,7 @@ async function sendMessage(args, repo) {
     thread: args.thread || id,
     ...(args.replyTo ? { reply_to: args.replyTo } : {}),
     created_at: new Date().toISOString(),
+    flags,
     body: args.body
   };
   const file = messagePath(id, role);
@@ -158,6 +190,87 @@ function peerMessages(repo, role, args) {
   return { peer, peerBranch, messages, error: "" };
 }
 
+function mergeMessages(...lists) {
+  const byId = new Map();
+  for (const list of lists) {
+    for (const message of list) {
+      if (message && typeof message.id === "string") byId.set(message.id, message);
+    }
+  }
+  return [...byId.values()].sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)));
+}
+
+async function allMessages(repo, role, fetchFlag) {
+  const local = await localOutbox(repo, role);
+  const peer = peerMessages(repo, role, { noFetch: !fetchFlag }).messages;
+  return mergeMessages(local, peer);
+}
+
+function briefMessage(message) {
+  return {
+    id: message.id,
+    from: message.from,
+    to: message.to,
+    type: message.type,
+    needs: message.flags?.needs ?? "",
+    blocking: Boolean(message.flags?.blocking),
+    created_at: message.created_at,
+    reply_to: message.reply_to ?? "",
+    preview: String(message.body ?? "").slice(0, 160)
+  };
+}
+
+/**
+ * 待办/阻塞派生：
+ * - needs_you：对方发来、需要我回应的 action/decision
+ * - decisions：需要人工决策的项
+ * - awaiting_peer：我已发出、等对方回应的项
+ * - blocking：其中被标记 blocking 的
+ */
+function computeAttention(messages, role) {
+  const replies = new Map();
+  for (const message of messages) {
+    if (!message.reply_to) continue;
+    const list = replies.get(message.reply_to) ?? [];
+    list.push(message);
+    replies.set(message.reply_to, list);
+  }
+  const unresolved = messages.filter((message) => {
+    const needs = message.flags?.needs;
+    if (needs !== "action" && needs !== "decision") return false;
+    if (message.type !== "task" && message.type !== "notice") return false;
+    return (replies.get(message.id) ?? []).length === 0;
+  });
+  return {
+    needs_you: unresolved.filter((message) => message.from !== role).map(briefMessage),
+    decisions: unresolved.filter((message) => message.flags?.needs === "decision").map(briefMessage),
+    awaiting_peer: unresolved.filter((message) => message.from === role).map(briefMessage),
+    blocking: unresolved.filter((message) => message.flags?.blocking).map(briefMessage)
+  };
+}
+
+async function pending(args, repo) {
+  const role = args.role;
+  const messages = await allMessages(repo, role, !args.noFetch);
+  const attention = computeAttention(messages, role);
+  if (args.json) {
+    console.log(JSON.stringify({ role, generated_at: new Date().toISOString(), attention }, null, 2));
+    return;
+  }
+  console.log("=== MIXLAB MAIL PENDING ===");
+  console.log("role: " + role);
+  console.log("needs_you: " + attention.needs_you.length + "  decisions: " + attention.decisions.length + "  awaiting_peer: " + attention.awaiting_peer.length + "  blocking: " + attention.blocking.length);
+  for (const [group, list] of Object.entries(attention)) {
+    if (list.length === 0) continue;
+    console.log("");
+    console.log("[" + group + "]");
+    for (const item of list) {
+      console.log("- " + item.type + " id=" + item.id + " from=" + item.from + " needs=" + item.needs + (item.blocking ? " BLOCKING" : "") + " | " + item.preview.replace(/\n/g, " "));
+    }
+  }
+  console.log("=== END MAIL PENDING ===");
+}
+
 async function check(args, repo) {
   const role = args.role;
   const state = await loadState(repo, role);
@@ -181,7 +294,7 @@ async function check(args, repo) {
     for (const message of unread) {
       console.log("");
       console.log("--- " + message.type + (message.action ? ":" + message.action : "") + "  id=" + message.id);
-      console.log("from: " + message.from + "  to: " + message.to + "  time: " + message.created_at + (message.reply_to ? "  reply_to: " + message.reply_to : ""));
+      console.log("from: " + message.from + "  to: " + message.to + "  time: " + message.created_at + (message.reply_to ? "  reply_to: " + message.reply_to : "") + (message.flags ? "  flags: " + JSON.stringify(message.flags) : ""));
       console.log(message.body);
     }
     console.log("");
@@ -219,7 +332,7 @@ async function control(args, repo, action) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || !args.command) {
-    console.log("用法：node scripts/dev/mail.mjs <send|check|status|pause|resume> --role mac|windows [options]");
+    console.log("用法：node scripts/dev/mail.mjs <send|check|status|pending|pause|resume> --role mac|windows [options]");
     console.log("详见 docs/handoff/MAIL.md");
     process.exit(args.help ? 0 : 2);
   }
@@ -228,6 +341,7 @@ async function main() {
   if (args.command === "send") await sendMessage(args, repo);
   else if (args.command === "check") await check(args, repo);
   else if (args.command === "status") await status(args, repo);
+  else if (args.command === "pending") await pending(args, repo);
   else if (args.command === "pause") await control(args, repo, "pause");
   else if (args.command === "resume") await control(args, repo, "resume");
   else {

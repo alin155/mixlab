@@ -118,6 +118,42 @@ function inferPaused(messages) {
   return { mac: latest.mac === "pause", windows: latest.windows === "pause" };
 }
 
+function briefMessage(message) {
+  return {
+    id: message.id,
+    from: message.from,
+    to: message.to,
+    type: message.type,
+    needs: message.flags?.needs ?? "",
+    blocking: Boolean(message.flags?.blocking),
+    created_at: message.created_at,
+    reply_to: message.reply_to ?? "",
+    preview: String(message.body ?? "").slice(0, 160)
+  };
+}
+
+function computeAttention(messages, role) {
+  const replies = new Map();
+  for (const message of messages) {
+    if (!message.reply_to) continue;
+    const list = replies.get(message.reply_to) ?? [];
+    list.push(message);
+    replies.set(message.reply_to, list);
+  }
+  const unresolved = messages.filter((message) => {
+    const needs = message.flags?.needs;
+    if (needs !== "action" && needs !== "decision") return false;
+    if (message.type !== "task" && message.type !== "notice") return false;
+    return (replies.get(message.id) ?? []).length === 0;
+  });
+  return {
+    needs_you: unresolved.filter((message) => message.from !== role).map(briefMessage),
+    decisions: unresolved.filter((message) => message.flags?.needs === "decision").map(briefMessage),
+    awaiting_peer: unresolved.filter((message) => message.from === role).map(briefMessage),
+    blocking: unresolved.filter((message) => message.flags?.blocking).map(briefMessage)
+  };
+}
+
 async function buildSnapshot(repo, options) {
   if (!options.noFetch) {
     gitTry(["fetch", "origin", "dev/cutter", "--quiet"]);
@@ -136,6 +172,7 @@ async function buildSnapshot(repo, options) {
     paused: inferPaused(messages),
     heads: { mac: macHead, windows: windowsHead },
     messages,
+    attention: computeAttention(messages, "mac"),
     statuses: { mac: macStatus, windows: windowsStatus },
     counts: {
       total: messages.length,
@@ -182,7 +219,12 @@ const PAGE = String.raw`<!doctype html>
   .statusbox { padding:12px 14px; }
   .statusbox pre { margin:0; white-space:pre-wrap; word-break:break-word; font-size:11.5px; color:#c9d1d9; max-height:320px; overflow:auto; }
   details summary { cursor:pointer; color:var(--muted); font-size:12px; }
-  footer { color:var(--muted); font-size:11px; padding:8px 20px 24px; text-align:center; }
+  .attn-item { border-left:3px solid var(--border); padding:6px 8px; margin-bottom:8px; background:#0f141b; border-radius:5px; font-size:12px; }
+  .attn-item.blocking { border-left-color:var(--bad); }
+  .attn-item.decision { border-left-color:var(--warn); }
+  .attn-item .attn-meta { color:var(--muted); font-size:11px; }
+  .chip.attn { color:var(--warn); border-color:rgba(210,153,34,.5); }
+  .footer { color:var(--muted); font-size:11px; padding:8px 20px 24px; text-align:center; }
   a { color:var(--mac); }
 </style>
 </head>
@@ -195,6 +237,7 @@ const PAGE = String.raw`<!doctype html>
   <span class="chip paused" id="paused-chip" style="display:none">通信已暂停</span>
   <span class="spacer"></span>
   <span class="chip" id="counts">消息 0</span>
+  <span class="chip attn" id="attn-count">待处理 0</span>
   <label class="chip"><input type="checkbox" id="autoscroll" checked /> 自动滚动</label>
 </header>
 <main>
@@ -203,6 +246,10 @@ const PAGE = String.raw`<!doctype html>
     <div id="messages"><div class="empty">加载中…</div></div>
   </section>
   <aside class="side">
+    <section class="panel">
+      <h2>待处理 / 阻塞</h2>
+      <div class="statusbox" id="attention" style="color:var(--muted)">加载中…</div>
+    </section>
     <section class="panel">
       <h2>双方最新状态</h2>
       <div class="statusbox">
@@ -229,6 +276,47 @@ function fmtTime(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 function esc(value) { return String(value ?? ""); }
+function attnItem(item, kind) {
+  const div = document.createElement("div");
+  div.className = "attn-item" + (item.blocking ? " blocking" : "") + (item.needs === "decision" ? " decision" : "");
+  const head = document.createElement("div");
+  head.textContent = "[" + kind + "] " + item.type + " · " + (item.from === "mac" ? "Mac" : "Windows") + " → " + (item.to === "mac" ? "Mac" : "Windows") + (item.blocking ? " · 阻塞" : "") + (item.needs === "decision" ? " · 需决策" : "");
+  const meta = document.createElement("div");
+  meta.className = "attn-meta";
+  meta.textContent = fmtTime(item.created_at) + " · " + item.id;
+  const body = document.createElement("div");
+  body.textContent = item.preview || "";
+  div.append(head, meta, body);
+  return div;
+}
+
+function renderAttention(attention) {
+  const box = $("attention");
+  box.textContent = "";
+  const groups = [
+    ["需要你处理", attention.needs_you || []],
+    ["需要人工决策", attention.decisions || []],
+    ["等待 Windows 回复", attention.awaiting_peer || []],
+    ["阻塞项", attention.blocking || []]
+  ];
+  const total = groups.reduce((sum, [, list]) => sum + list.length, 0);
+  $("attn-count").textContent = "待处理 " + total;
+  if (total === 0) {
+    const empty = document.createElement("div");
+    empty.textContent = "没有待处理/阻塞项。";
+    box.appendChild(empty);
+    return;
+  }
+  for (const [title, list] of groups) {
+    if (!list || list.length === 0) continue;
+    const heading = document.createElement("div");
+    heading.style.cssText = "color:var(--muted);font-size:11px;margin:2px 0 6px;text-transform:uppercase;letter-spacing:.04em";
+    heading.textContent = title + " (" + list.length + ")";
+    box.appendChild(heading);
+    for (const item of list) box.appendChild(attnItem(item, title));
+  }
+}
+
 function render(snapshot) {
   const messages = snapshot.messages || [];
   $("mac-head").textContent = "Mac: " + (snapshot.heads?.mac || "?").slice(0, 8);
@@ -239,6 +327,7 @@ function render(snapshot) {
   pausedChip.style.display = paused.mac || paused.windows ? "" : "none";
   pausedChip.textContent = "通信已暂停" + (paused.mac ? " (Mac)" : "") + (paused.windows ? " (Windows)" : "");
   $("counts").textContent = "消息 " + messages.length;
+  renderAttention(snapshot.attention || {});
   $("win-status").textContent = snapshot.statuses?.windows || "（暂无 Windows 状态报告）";
   $("mac-status").textContent = snapshot.statuses?.mac || "（暂无 Mac 状态报告）";
 
@@ -267,7 +356,17 @@ function render(snapshot) {
     const id = document.createElement("span");
     id.className = "id";
     id.textContent = message.id + (message.reply_to ? " ↳ " + message.reply_to : "");
-    meta.append(badge, direction, time, id);
+    meta.append(badge);
+    if (message.flags?.blocking) {
+      const flag = document.createElement("span"); flag.className = "badge control"; flag.textContent = "阻塞"; meta.appendChild(flag);
+    }
+    if (message.flags?.needs === "decision") {
+      const flag = document.createElement("span"); flag.className = "badge control"; flag.textContent = "需决策"; meta.appendChild(flag);
+    }
+    if (message.flags?.needs === "action" && message.from !== "mac") {
+      const flag = document.createElement("span"); flag.className = "badge task"; flag.textContent = "需处理"; meta.appendChild(flag);
+    }
+    meta.append(direction, time, id);
     const body = document.createElement("div");
     body.className = "body";
     body.textContent = message.body ?? "";
