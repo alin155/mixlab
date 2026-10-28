@@ -15,6 +15,7 @@ const SHARED_PATHS = [
   "packages/contracts",
   "packages/library-format",
   "packages/service-clients",
+  "packages/protocol",
   "scripts/dev",
   "docs/handoff",
   "AGENTS.md"

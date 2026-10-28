@@ -73,7 +73,7 @@ git status --short
 
 ```powershell
 git fetch origin dev/admin
-git checkout origin/dev/admin -- AGENTS.md scripts/dev docs/handoff packages/contracts packages/library-format packages/service-clients
+git checkout origin/dev/admin -- AGENTS.md scripts/dev docs/handoff packages/contracts packages/library-format packages/service-clients packages/protocol
 git status --short
 git add -A
 git commit -m "chore(windows): sync shared tooling/rules from dev/admin"

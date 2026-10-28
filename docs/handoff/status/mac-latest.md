@@ -1,17 +1,17 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T14:14:52.759Z
+- generated_at: 2026-10-28T15:35:51.608Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 08c297d63698d5aafdef98512191d9ab98ce1bec
-- head_subject: chore(admin): phase0-3 remediation snapshot (admin/platform)
-- head_time: 2026-10-28T06:54:14-07:00
-- dirty_tracked: 0
-- dirty_untracked: 5
+- head: 5a815bd8d020303a595b8a0ffa860b8319126b58
+- head_subject: chore(admin): add dual-machine sync protocol, status scripts and initial mac status
+- head_time: 2026-10-28T07:15:03-07:00
+- dirty_tracked: 5
+- dirty_untracked: 0
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME
 
@@ -26,8 +26,10 @@
 <!-- MANUAL:BEGIN -->
 ## 人工补充（自检/阻塞/下一步）
 
-- typecheck: PASS（2026-10-27 Round7 最终验收）
-- tests: admin 2073/2073 PASS；contracts 6/6；Round1-6 独立回归全 PASS
-- blockers: 无（外部待办：Windows/NAS 实机验收）
-- next: Windows 端环境就绪 + 首次测试基线；Mac 继续管理端开发
+- typecheck: PASS（protocol 路径修复后全量 tsc --noEmit exit 0）
+- tests: admin 2076/2076 PASS（新增 3 个 Windows path 回归测试）
+- blockers: 无
+- next: Windows 端同步 protocol 修复后继续页面验证；Mac 继续管理端开发
+- protocol_fix: packages/protocol/src/paths.ts selectPathImplementation 支持 Windows 盘符+子目录（C:\Library / D:/MixLab）与 UNC；Windows 根因已由 Mac 修复）
+
 <!-- MANUAL:END -->
