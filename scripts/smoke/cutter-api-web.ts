@@ -449,26 +449,28 @@ async function main(): Promise<void> {
       ]
     );
 
+    // 运行状态/搜索后端标签当前在“缓存管理”页展示（Round3-5 后设置页不再有联调状态块）。
+    await page.goto(`${webBaseUrl}/#cache-management`, { waitUntil: "networkidle" });
+    await page.getByText("真实 Cutter API 模式").first().waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByText("本地 searchd").first().waitFor({ state: "visible", timeout: 10_000 });
+
     await page.goto(`${webBaseUrl}/#settings`, { waitUntil: "networkidle" });
-    await page.getByText("真实模式联调状态").waitFor({ state: "visible", timeout: 10_000 });
-    await page.getByText("真实 Cutter API 模式").waitFor({ state: "visible", timeout: 10_000 });
     await page.getByText("烟测剪辑师").first().waitFor({ state: "visible", timeout: 10_000 });
 
     await page.goto(`${webBaseUrl}/#material-locator?query=${encodeURIComponent("现金流")}`, {
       waitUntil: "networkidle"
     });
-    await page.getByText("本地 searchd").waitFor({ state: "visible", timeout: 10_000 });
     const firstHitSegment = page.locator("[data-segment-id='V000001-S000001']").first();
     await firstHitSegment.waitFor({ state: "visible", timeout: 10_000 });
     const keywordHit = firstHitSegment.locator("mark[data-testid='transcript-hit']").first();
     await keywordHit.waitFor({ state: "visible", timeout: 10_000 });
     assert.equal(await keywordHit.innerText(), "现金流");
     await keywordHit.click();
-    await page.locator(".cutter-locator-selected-copy p").getByText("现金流", { exact: true }).waitFor({
-      state: "visible",
-      timeout: 10_000
-    });
-    await page.getByRole("button", { name: /导出片段/ }).click();
+    const selectedCopy = page.locator(".cutter-locator-selected-copy p").first();
+    await selectedCopy.waitFor({ state: "visible", timeout: 10_000 });
+    // 现在点击命中默认选中整段文案，选区文案会包含关键词而不是仅关键词本身。
+    assert.match(await selectedCopy.innerText(), /现金流/);
+    await page.getByRole("button", { name: "剪切这段" }).click();
     await page.getByText("剪切完成 · 本地素材已更新 1").waitFor({ state: "visible", timeout: 30_000 });
 
     const jobsAfterCut = await (await fetch(`${apiBaseUrl}/cutter/cut-jobs`, {
@@ -476,9 +478,12 @@ async function main(): Promise<void> {
     })).json() as any;
     assert.equal(jobsAfterCut.data?.job_count, 1);
     assert.equal(jobsAfterCut.data?.jobs?.[0]?.status, "done");
-    assert.equal(jobsAfterCut.data?.jobs?.[0]?.selected_text, "现金流");
+    assert.match(String(jobsAfterCut.data?.jobs?.[0]?.selected_text ?? ""), /现金流/);
     assert.equal(jobsAfterCut.data?.jobs?.[0]?.begin_ms, 500);
-    assert.equal(jobsAfterCut.data?.jobs?.[0]?.end_ms, 964);
+    assert.ok(
+      Number(jobsAfterCut.data?.jobs?.[0]?.end_ms) >= 500 && Number(jobsAfterCut.data?.jobs?.[0]?.end_ms) <= 2200,
+      "selected range should stay inside the first transcript segment"
+    );
     assert.equal(
       await fileOrDirExists(workspaceRelativePath(workspaceRoot, jobsAfterCut.data?.jobs?.[0]?.output_file)),
       true
@@ -488,17 +493,15 @@ async function main(): Promise<void> {
       headers: authHeaders
     })).json() as any;
     assert.equal(localClipsAfterCut.data?.local_clip_count, 1);
-    assert.equal(localClipsAfterCut.data?.clips?.[0]?.selected_text, "现金流");
+    assert.match(String(localClipsAfterCut.data?.clips?.[0]?.selected_text ?? ""), /现金流/);
     assert.equal(localClipsAfterCut.data?.clips?.[0]?.begin_ms, 500);
-    assert.equal(localClipsAfterCut.data?.clips?.[0]?.end_ms, 964);
-    assert.deepEqual(
-      localClipsAfterCut.data?.clips?.[0]?.transcript_segments?.map((segment: any) => [
-        segment.begin_ms,
-        segment.end_ms,
-        segment.text
-      ]),
-      [[0, 464, "现金流"]]
+    assert.ok(
+      Number(localClipsAfterCut.data?.clips?.[0]?.end_ms) >= 500 && Number(localClipsAfterCut.data?.clips?.[0]?.end_ms) <= 2200,
+      "local clip range should stay inside the first transcript segment"
     );
+    const clipSegments = localClipsAfterCut.data?.clips?.[0]?.transcript_segments ?? [];
+    assert.ok(Array.isArray(clipSegments) && clipSegments.length > 0, "clip should carry transcript segments");
+    assert.match(clipSegments.map((segment: any) => String(segment.text ?? "")).join(" "), /现金流/);
     assert.equal(
       await fileOrDirExists(path.join(workspaceRoot, "export-clips", "E000001", "export-clip.json")),
       true
