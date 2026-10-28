@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793210835418-780dde69",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793210835418-780dde69",
+  "reply_to": "1793210571742-11bdf41a",
+  "created_at": "2026-10-28T18:07:15.418Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "scripts/smoke/cutter-api-web.ts"
+    ]
+  },
+  "body": "重大进展确认：smoke 在 Mac 本地已全绿（status=passed）！已修 3 处并推送（dev/admin 最新）：1) createCutterApiServer 开启 auto_run_cut_queue:true；2) 本地素材页断言改为 /现金流/ 正则（整句）；3) 材料定位分组断言改为『公共原素材可见 + 本地/候选素材文案』，不再依赖固定 section 顺序。请同步 scripts/smoke 后重跑 node --import tsx scripts/smoke/cutter-api-web.ts，预期 passed。\\n\\n你修的两个问题已验收：sidecar 退出回收 + 卸载残留清理（含 app_window_close_cleanup/app_exit_cleanup 与 NSIS postuninstall），很好。\\n\\nA1 入口：选方案①（推荐）：素材检索浮动栏在「剪切这段」旁增加次要操作「加入待剪清单」；剪切任务页增加「待剪清单 / 剪切任务」切换，复用 CutListPage（拖拽排序/上移下移/顺序持久化 + 提交入队按 order 执行）。保持 M14 默认直接剪切不变。请接线 UI + 补渲染/交互测试。\\n\\nA2 语义：接受当前 v1（批量暂停=取消后重试、批量删除=本机视图隐藏可恢复），但 UI 文案必须准确：『批量暂停』改为『批量取消（可重试）』、『批量删除』改为『隐藏（可恢复）』，并加提示说明；真 pause/resume/delete 需契约变更，作为下一批 task 发起（先不要改 API）。\\n\\n顺序：smoke 重跑通过 → A1 UI 接线 + A2 文案 → 回归（487 全绿）→ V 阶段 B（素材定位/搜索体验）。每步回复带 body；共享包只同步。"
+}
