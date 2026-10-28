@@ -170,6 +170,18 @@ function cacheDetailRows(
   ];
 }
 
+export function cacheClearPreviewText(input: {
+  ui_key_count: number;
+  ui_bytes: number;
+  protected_key_count: number;
+}): string {
+  return [
+    `将清除 ${input.ui_key_count} 个界面偏好键（${formatCutterCacheSize(input.ui_bytes)}）：显示、筛选、排序等本机偏好。`,
+    `不会删除项目、待剪清单、任务归属、登录状态与 ${input.protected_key_count} 个用户数据键。`,
+    "磁盘缓存（Release/搜索索引/缩略图/原视频/临时区）由本机服务管理，清理前需服务端预览接口。"
+  ].join("\n");
+}
+
 function CacheStatCard({
   title,
   value,
@@ -209,6 +221,9 @@ export function CacheManagementPage({
 }) {
   const [localStorageCache, setLocalStorageCache] = useState(() => cutterLocalCacheSnapshot());
   const [userDataCache] = useState(() => cutterUserDataStorageSnapshot());
+  const [pendingClear, setPendingClear] = useState(false);
+  const [clearNotice, setClearNotice] = useState("");
+  const [clearError, setClearError] = useState("");
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -221,9 +236,33 @@ export function CacheManagementPage({
     [runtimeStatus, localStorageCache, userDataCache, releaseV2Enabled]
   );
 
+  const clearPreview = cacheClearPreviewText({
+    ui_key_count: localStorageCache.keys.length,
+    ui_bytes: localStorageCache.bytes,
+    protected_key_count: userDataCache.keys.length
+  });
+
   function handleClearLocalStorageCache() {
-    clearCutterLocalCache();
+    try {
+      clearCutterLocalCache();
+      const next = cutterLocalCacheSnapshot();
+      setLocalStorageCache(next);
+      setClearError("");
+      setClearNotice(
+        `已清除界面缓存，释放 ${formatCutterCacheSize(localStorageCache.bytes)}；剩余 ${next.keys.length} 个界面偏好键，项目/待剪清单/登录状态未受影响。`
+      );
+    } catch (error) {
+      setClearNotice("");
+      setClearError(error instanceof Error ? error.message : "清除界面缓存失败，请重试");
+    } finally {
+      setPendingClear(false);
+    }
+  }
+
+  function handleRefreshLocalStorageCache() {
     setLocalStorageCache(cutterLocalCacheSnapshot());
+    setClearError("");
+    setClearNotice("已刷新界面缓存明细；磁盘缓存数据由本机服务上报，建议在服务重连后再核对。");
   }
 
   return (
@@ -343,16 +382,58 @@ export function CacheManagementPage({
             bodyClassName="cutter-cache-panel-body"
             title="缓存明细"
             actions={
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleClearLocalStorageCache}
-              >
-                清除界面缓存
-              </Button>
+              <div className="ml-control-cluster">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefreshLocalStorageCache}
+                >
+                  刷新明细
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setClearNotice("");
+                    setClearError("");
+                    setPendingClear(true);
+                  }}
+                >
+                  清除界面缓存
+                </Button>
+              </div>
             }
           >
+            {pendingClear ? (
+              <div className="cutter-cache-clear-confirm ml-empty-panel ml-empty-panel--plain" role="alertdialog" aria-label="确认清除界面缓存">
+                <strong>确认清除界面缓存？</strong>
+                <span className="cutter-cache-clear-preview" style={{ whiteSpace: "pre-line" }}>{clearPreview}</span>
+                <div className="ml-control-cluster">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setPendingClear(false)}>
+                    取消
+                  </Button>
+                  <Button type="button" variant="danger" size="sm" onClick={handleClearLocalStorageCache}>
+                    确认清除
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            {clearNotice ? (
+              <p className="cutter-cache-clear-notice" role="status">
+                {clearNotice}
+              </p>
+            ) : null}
+            {clearError ? (
+              <div className="cutter-cache-clear-error ml-empty-panel ml-empty-panel--plain" role="alert">
+                <strong>清除失败</strong>
+                <span>{clearError}</span>
+                <Button type="button" variant="secondary" size="sm" onClick={handleClearLocalStorageCache}>
+                  重试
+                </Button>
+              </div>
+            ) : null}
             <dl className="ml-data-list ml-data-list--grid ml-data-list--stacked-detail cutter-cache-detail-list">
               {detailRows.map((row) => (
                 <div className="ml-data-row ml-data-row--wide-detail cutter-cache-detail-row" key={row.label}>

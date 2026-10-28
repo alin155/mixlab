@@ -24,7 +24,7 @@ import { CutTasksTabNav } from "./features/cut-tasks/CutTasksTabNav.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
-import { CacheManagementPage } from "./features/cache-management/CacheManagementPage.tsx";
+import { CacheManagementPage, cacheClearPreviewText } from "./features/cache-management/CacheManagementPage.tsx";
 import { DesktopFirstRunPage } from "./features/desktop/DesktopFirstRunPage.tsx";
 import {
   ProjectCreateDialog,
@@ -6239,6 +6239,28 @@ test("401 login_required status errors clear stored session and show an honest C
 
   assert.equal(shouldClearSessionForLoginStatusError(error), true);
   assert.equal(loginMessageForAuthError(error), "登录已失效，请重新申请或联系管理员。");
+});
+
+test("cache management previews protected user data before clearing UI cache", () => {
+  const preview = cacheClearPreviewText({
+    ui_key_count: 7,
+    ui_bytes: 2048,
+    protected_key_count: 3
+  });
+  assert.match(preview, /将清除 7 个界面偏好键（2 KB）/);
+  assert.match(preview, /不会删除项目、待剪清单、任务归属、登录状态与 3 个用户数据键/);
+  assert.match(preview, /磁盘缓存.*由本机服务管理/);
+
+  const data = createFixtureCutterData();
+  const html = renderToStaticMarkup(
+    h(CacheManagementPage, {
+      runtimeStatus: data.runtimeStatus,
+      releaseV2Enabled: true
+    })
+  );
+  assert.match(html, /清除界面缓存/);
+  assert.match(html, /刷新明细/);
+  assert.equal(html.includes("确认清除界面缓存"), false);
 });
 
 test("pending login polling retries transient errors only", () => {
