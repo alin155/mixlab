@@ -47,6 +47,9 @@ import {
   ProjectRenameDialog,
   type ProjectDeleteMode
 } from "../features/project-home/ProjectHomePage.tsx";
+import { CutListPage } from "../features/cut-list/CutListPage.tsx";
+import { CutTasksTabNav } from "../features/cut-tasks/CutTasksTabNav.tsx";
+import type { CutTasksTab } from "../features/cut-tasks/cut-tasks-tab.ts";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import {
   DesktopFirstRunPage,
@@ -57,6 +60,7 @@ import { CacheManagementPage } from "../features/cache-management/CacheManagemen
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
 import {
   CUT_LIST_STORAGE_KEY,
+  appendCutListItem,
   clearCutList,
   createCutListItemFromSegments,
   moveCutListItem,
@@ -1398,6 +1402,7 @@ function renderPage(
     localClipsLoadingMore: boolean;
     cutJobsLoadingMore: boolean;
     cutJobsTotalCount: number;
+    cutTasksTab: CutTasksTab;
     cutNotice: string;
     autoRefreshCutJobs: boolean;
     lastQueueUpdatedLabel: string;
@@ -1416,6 +1421,7 @@ function renderPage(
   },
   handlers: {
     addSelectedSpan: () => void;
+    addSelectionToCutList: () => void;
     search: (query: string) => void;
     searchFromProjectHome: (query: string) => void;
     selectMaterial: (result: MaterialLocatorResult) => void;
@@ -1448,6 +1454,7 @@ function renderPage(
     deleteProject: (projectId: string, mode: ProjectDeleteMode) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
     reorderCut: (cutListItemId: string, targetIndex: number) => void;
+    selectCutTasksTab: (tab: CutTasksTab) => void;
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
     submitCuts: () => void;
@@ -1547,6 +1554,7 @@ function renderPage(
         onNavigateHit={handlers.navigateHit}
         onLoadMoreSearchResults={handlers.loadMoreSearchResults}
         onCutSelection={handlers.addSelectedSpan}
+        onAddToCutList={handlers.addSelectionToCutList}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
         onSetCutMode={handlers.setCutMode}
@@ -1578,27 +1586,45 @@ function renderPage(
 
   if (route === "cut-tasks") {
     return (
-      <CutQueuePage
-        jobs={queue}
-        project={viewState.currentProject}
-        autoRefreshEnabled={viewState.autoRefreshCutJobs}
-        lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
-        pipelineState={viewState.cutPipelineState}
-        totalJobCount={viewState.cutJobsTotalCount}
-        isLoadingMore={viewState.cutJobsLoadingMore}
-        onRefresh={handlers.refreshQueue}
-        onRunNext={handlers.runNextJob}
-        onRetryFailed={handlers.retryFailedCutJob}
-        onCancelJob={handlers.cancelCutJob}
-        onBatchRetry={handlers.batchRetryCutJobs}
-        onBatchPause={handlers.batchPauseCutJobs}
-        onBatchDelete={handlers.batchDeleteCutJobs}
-        hiddenJobCount={viewState.hiddenCutJobCount}
-        onRestoreHiddenJobs={handlers.restoreHiddenCutJobs}
-        onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
-        onLoadMore={handlers.loadMoreCutJobs}
-        verificationEnabled={viewState.verificationEnabled}
-      />
+      <div className="cutter-cut-tasks-shell" data-cut-tasks-tab={viewState.cutTasksTab}>
+        <CutTasksTabNav
+          activeTab={viewState.cutTasksTab}
+          cutListCount={cutList.length}
+          onSelectTab={handlers.selectCutTasksTab}
+        />
+        {viewState.cutTasksTab === "cut-list" ? (
+          <CutListPage
+            items={cutList}
+            onMove={handlers.moveCut}
+            onReorder={handlers.reorderCut}
+            onRemove={handlers.removeCut}
+            onClear={handlers.clearCuts}
+            onSubmit={handlers.submitCuts}
+          />
+        ) : (
+          <CutQueuePage
+            jobs={queue}
+            project={viewState.currentProject}
+            autoRefreshEnabled={viewState.autoRefreshCutJobs}
+            lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
+            pipelineState={viewState.cutPipelineState}
+            totalJobCount={viewState.cutJobsTotalCount}
+            isLoadingMore={viewState.cutJobsLoadingMore}
+            onRefresh={handlers.refreshQueue}
+            onRunNext={handlers.runNextJob}
+            onRetryFailed={handlers.retryFailedCutJob}
+            onCancelJob={handlers.cancelCutJob}
+            onBatchRetry={handlers.batchRetryCutJobs}
+            onBatchPause={handlers.batchPauseCutJobs}
+            onBatchDelete={handlers.batchDeleteCutJobs}
+            hiddenJobCount={viewState.hiddenCutJobCount}
+            onRestoreHiddenJobs={handlers.restoreHiddenCutJobs}
+            onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
+            onLoadMore={handlers.loadMoreCutJobs}
+            verificationEnabled={viewState.verificationEnabled}
+          />
+        )}
+      </div>
     );
   }
 
@@ -1704,6 +1730,7 @@ export function CutterApp() {
   const [publicLibraryFilenameQuery, setPublicLibraryFilenameQuery] = useState("");
   const [publicLibraryFilenameSearching, setPublicLibraryFilenameSearching] = useState(false);
   const [selectedCutMode, setSelectedCutMode] = useState<CutMode>(() => readCutterDefaultCutMode());
+  const [cutTasksTab, setCutTasksTab] = useState<CutTasksTab>("queue");
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
   const [locatorCurrentHitIndex, setLocatorCurrentHitIndex] = useState(0);
@@ -3796,6 +3823,27 @@ export function CutterApp() {
         }, 900);
       }
     },
+    addSelectionToCutList() {
+      if (!data || !selectedDetail || selectedTranscriptSegments.length === 0) {
+        return;
+      }
+
+      // In fixture/API cold start the visible list can be a seeded default while state is
+      // still empty; append to the visible base so the seeded items do not disappear.
+      const baseItems = cutList.length === 0 ? visibleCutList : cutList;
+      const item = createCutListItemFromSegments({
+        sourceVideo: selectedDetail,
+        segments: selectedTranscriptSegments,
+        cutMode: selectedCutMode,
+        order: baseItems.length + 1,
+        title: `${selectedDetail.title} 片段`,
+        startCharOffset: selectedTranscriptSelection.startCharOffset,
+        endCharOffset: selectedTranscriptSelection.endCharOffset
+      });
+      setCutList(appendCutListItem(baseItems, item));
+      setTranscriptSelection({});
+      setCutNotice(`已加入待剪清单，共 ${baseItems.length + 1} 条`);
+    },
     search: performMaterialSearch,
     searchFromProjectHome: startProjectHomeSearch,
     selectProject(projectId: string) {
@@ -3911,6 +3959,9 @@ export function CutterApp() {
     selectLocalClip: setLocalLibrarySelectedClipId,
     setLocalLibraryViewMode,
     renameProject: handleRenameProject,
+    selectCutTasksTab(tab: CutTasksTab) {
+      setCutTasksTab(tab);
+    },
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
     },
@@ -4499,6 +4550,7 @@ export function CutterApp() {
                 localClipsLoadingMore,
                 cutJobsLoadingMore,
                 cutJobsTotalCount,
+                cutTasksTab,
                 cutNotice,
                 autoRefreshCutJobs,
                 lastQueueUpdatedLabel,

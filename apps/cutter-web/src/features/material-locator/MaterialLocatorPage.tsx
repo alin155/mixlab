@@ -576,6 +576,7 @@ export function MaterialLocatorPage({
   onNavigateHit,
   onLoadMoreSearchResults,
   onCutSelection,
+  onAddToCutList,
   onCancelSelection,
   onOpenCutOutputDirectory
 }: {
@@ -618,6 +619,7 @@ export function MaterialLocatorPage({
   onNavigateHit?: (direction: "previous" | "next") => void;
   onLoadMoreSearchResults?: () => void;
   onCutSelection?: () => void;
+  onAddToCutList?: () => void;
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
   onSetCutMode?: (mode: CutMode) => void;
@@ -1117,6 +1119,13 @@ export function MaterialLocatorPage({
     onCutSelection?.();
   }
 
+  function handleAddToCutList() {
+    pauseSelectionPreview();
+    setSelectionBarAnchor(null);
+    setTimeSelectionStartSegmentId(undefined);
+    onAddToCutList?.();
+  }
+
   useEffect(() => {
     if (!hasSelectedTextRange) {
       setSelectionBarAnchor(null);
@@ -1588,6 +1597,17 @@ export function MaterialLocatorPage({
                   >
                     剪切这段
                   </Button>
+                  {onAddToCutList ? (
+                    <Button
+                      className="cutter-floating-add-to-cut-list-button"
+                      type="button"
+                      onClick={handleAddToCutList}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      加入待剪清单
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </section>

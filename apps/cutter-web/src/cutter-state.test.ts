@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CutJob, LocalClipCatalog, SearchHitSegment, SearchResponse, SourceLibraryResponse, SourceVideoCard, TranscriptSegment } from "./api.ts";
 import {
+  appendCutListItem,
   clearCutList,
   createCutListItemFromSegments,
   deserializeCutList,
@@ -1238,6 +1239,23 @@ test("cut-list drag reorder and up/down boundaries keep stable order numbers", (
     ["cut-a", 2],
     ["cut-c", 3]
   ]);
+});
+
+test("cut-list append keeps 1..N order for pending queue submission", () => {
+  const list = [
+    item({ cut_list_item_id: "cut-a", order: 1 }),
+    item({ cut_list_item_id: "cut-b", order: 2 })
+  ];
+  const appended = appendCutListItem(list, item({ cut_list_item_id: "cut-c", order: 99 }));
+
+  assert.deepEqual(
+    appended.map((cut) => [cut.cut_list_item_id, cut.order]),
+    [
+      ["cut-a", 1],
+      ["cut-b", 2],
+      ["cut-c", 3]
+    ]
+  );
 });
 
 test("cut-list items submit as local clip requests without public source mutation APIs", () => {

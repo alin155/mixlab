@@ -19,6 +19,7 @@ import {
   materialLocatorTimeSelectionRange
 } from "./features/material-locator/MaterialLocatorPage.tsx";
 import { CutListPage } from "./features/cut-list/CutListPage.tsx";
+import { CutTasksTabNav } from "./features/cut-tasks/CutTasksTabNav.tsx";
 import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
@@ -4537,7 +4538,7 @@ test("cut tasks page exposes batch retry, pause and delete with empty-selection 
     })
   );
 
-  for (const text of ["0 个已选", "批量重试（0）", "批量暂停（0）", "批量删除（0）", "恢复已删除（2）"]) {
+  for (const text of ["0 个已选", "批量重试（0）", "批量取消（可重试）（0）", "隐藏（可恢复）（0）", "恢复已隐藏（2）"]) {
     assert.match(html, new RegExp(text));
   }
   assert.match(html, /aria-label="全选当前任务"/);
@@ -4553,7 +4554,7 @@ test("cut tasks page hides batch controls when no batch handlers are wired", () 
     })
   );
 
-  for (const text of ["批量重试", "批量暂停", "批量删除", "全选当前任务"]) {
+  for (const text of ["批量重试", "批量取消", "隐藏", "全选当前任务"]) {
     assert.equal(html.includes(text), false, text);
   }
 });
@@ -6093,4 +6094,31 @@ test("pending login polling retries transient errors only", () => {
     true
   );
   assert.equal(shouldRetryPendingLoginError(new TypeError("网络中断")), true);
+});
+
+test("cut tasks tabs expose queue and pending cut-list views", () => {
+  const queueHtml = renderToStaticMarkup(
+    h(CutTasksTabNav, {
+      activeTab: "queue",
+      cutListCount: 3,
+      onSelectTab: () => undefined
+    })
+  );
+  assert.match(queueHtml, /role="tablist"/);
+  assert.match(queueHtml, /aria-label="剪切任务视图"/);
+  assert.match(queueHtml, /待剪清单（3）/);
+  assert.equal((queueHtml.match(/role="tab"/g) ?? []).length, 2);
+  assert.equal((queueHtml.match(/aria-selected="true"/g) ?? []).length, 1);
+  assert.match(queueHtml, /class="cutter-cut-tasks-tab is-active"[^>]*>剪切任务/);
+
+  const cutListHtml = renderToStaticMarkup(
+    h(CutTasksTabNav, {
+      activeTab: "cut-list",
+      cutListCount: 0,
+      onSelectTab: () => undefined
+    })
+  );
+  assert.match(cutListHtml, /待剪清单（0）/);
+  assert.match(cutListHtml, /class="cutter-cut-tasks-tab is-active"[^>]*>待剪清单/);
+  assert.match(cutListHtml, /class="cutter-cut-tasks-tab"[^>]*>剪切任务/);
 });

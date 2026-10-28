@@ -409,3 +409,45 @@ body,
   accent-color: var(--ml-color-accent, #4ea3ff);
   cursor: pointer;
 }
+
+.cutter-queue-batch-hint {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  color: var(--ml-color-text-secondary, #c7ccd4);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.cutter-cut-tasks-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.cutter-cut-tasks-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+
+.cutter-cut-tasks-tab {
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: inherit;
+  background: transparent;
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.cutter-cut-tasks-tab.is-active {
+  border-color: rgba(78, 163, 255, 0.7);
+  background: rgba(78, 163, 255, 0.18);
+}
+
+.cutter-floating-add-to-cut-list-button {
+  margin-left: 8px;
+}

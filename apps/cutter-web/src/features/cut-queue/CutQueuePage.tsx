@@ -505,7 +505,7 @@ export function CutQueuePage({
                 size="sm"
                 variant="secondary"
               >
-                {batchPending === "pause" ? "暂停中" : `批量暂停（${pauseTargetCount}）`}
+                {batchPending === "pause" ? "取消中" : `批量取消（可重试）（${pauseTargetCount}）`}
               </Button>
               <Button
                 className="cutter-queue-batch-button"
@@ -514,7 +514,7 @@ export function CutQueuePage({
                 size="sm"
                 variant="danger"
               >
-                {batchPending === "delete" ? "删除中" : `批量删除（${deleteTargetCount}）`}
+                {batchPending === "delete" ? "隐藏中" : `隐藏（可恢复）（${deleteTargetCount}）`}
               </Button>
               {hiddenJobCount > 0 && onRestoreHiddenJobs ? (
                 <Button
@@ -523,10 +523,15 @@ export function CutQueuePage({
                   size="sm"
                   variant="ghost"
                 >
-                  {`恢复已删除（${hiddenJobCount}）`}
+                  {`恢复已隐藏（${hiddenJobCount}）`}
                 </Button>
               ) : null}
             </div>
+          ) : null}
+          {batchEnabled ? (
+            <p className="cutter-queue-batch-hint">
+              批量取消可在稍后重新重试；隐藏只影响本机视图，可恢复，不会删除任务文件。
+            </p>
           ) : null}
         </header>
 

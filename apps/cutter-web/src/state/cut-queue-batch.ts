@@ -260,9 +260,9 @@ export function cutQueueBatchActionLabel(action: CutQueueBatchAction): string {
     case "retry":
       return "批量重试";
     case "pause":
-      return "批量暂停";
+      return "批量取消";
     case "delete":
-      return "批量删除";
+      return "批量隐藏";
   }
 }
 
@@ -297,9 +297,9 @@ export function cutQueueBatchSummaryMessage(
     case "retry":
       return `${cutQueueBatchActionLabel(action)}完成：已重新加入 ${result.processed} 个任务${suffix}`;
     case "pause":
-      return `${cutQueueBatchActionLabel(action)}完成：已停止 ${result.processed} 个任务的执行，可在队列中重新剪切${suffix}`;
+      return `${cutQueueBatchActionLabel(action)}完成：已取消 ${result.processed} 个任务，可在队列中重新剪切${suffix}`;
     case "delete":
-      return `${cutQueueBatchActionLabel(action)}完成：已从列表移除 ${result.processed} 个任务${suffix}`;
+      return `${cutQueueBatchActionLabel(action)}完成：已隐藏 ${result.processed} 个任务，可恢复（不会删除文件）${suffix}`;
   }
 }
 

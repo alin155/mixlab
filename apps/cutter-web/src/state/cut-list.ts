@@ -225,6 +225,11 @@ export function reorderCutListItem(
   return normalizeOrder(next);
 }
 
+/** Append a freshly created cut item, keeping the 1..N order invariant. */
+export function appendCutListItem(items: readonly CutListItem[], item: CutListItem): CutListItem[] {
+  return normalizeOrder([...items, item]);
+}
+
 export function removeCutListItem(items: readonly CutListItem[], cutListItemId: string): CutListItem[] {
   return normalizeOrder(items.filter((item) => item.cut_list_item_id !== cutListItemId));
 }

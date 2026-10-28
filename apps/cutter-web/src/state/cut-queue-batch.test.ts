@@ -199,7 +199,7 @@ test("batch pause executor only cancels active jobs", async () => {
   assert.equal(result.processed, 2);
   assert.equal(result.skipped, 1);
   assert.equal(result.failed, 0);
-  assert.match(result.message, /批量暂停完成：已停止 2 个任务的执行/);
+  assert.match(result.message, /批量取消完成：已取消 2 个任务/);
   assert.match(result.message, /可在队列中重新剪切/);
 });
 
@@ -242,7 +242,7 @@ test("batch delete cancels active jobs before hiding and hides finished jobs dir
   assert.equal(result.cancelled, 1);
   assert.equal(result.failed, 1);
   assert.equal(result.skipped, 1);
-  assert.match(result.message, /批量删除完成：已从列表移除 4 个任务/);
+  assert.match(result.message, /批量隐藏完成：已隐藏 4 个任务/);
   assert.match(result.message, /1 个进行中任务已取消/);
   assert.match(result.message, /1 个处理失败/);
 });
@@ -265,7 +265,7 @@ test("batch executors report an empty selection as a no-op", async () => {
     selected_job_ids: [],
     pauseJob: async () => undefined
   });
-  assert.match(pause.message, /批量暂停未执行：没有符合条件的任务/);
+  assert.match(pause.message, /批量取消未执行：没有符合条件的任务/);
 
   const deleted = await executeCutQueueBatchDelete({
     jobs,
@@ -273,7 +273,7 @@ test("batch executors report an empty selection as a no-op", async () => {
     cancelJob: async () => undefined,
     hideJob: () => undefined
   });
-  assert.match(deleted.message, /批量删除未执行：没有符合条件的任务/);
+  assert.match(deleted.message, /批量隐藏未执行：没有符合条件的任务/);
 });
 
 test("batch summary distinguishes completed, skipped and failed counts", () => {
@@ -283,15 +283,15 @@ test("batch summary distinguishes completed, skipped and failed counts", () => {
   );
   assert.equal(
     cutQueueBatchSummaryMessage("pause", { processed: 1, skipped: 1, failed: 0, cancelled: 0 }),
-    "批量暂停完成：已停止 1 个任务的执行，可在队列中重新剪切（跳过 1 个任务）"
+    "批量取消完成：已取消 1 个任务，可在队列中重新剪切（跳过 1 个任务）"
   );
   assert.equal(
     cutQueueBatchSummaryMessage("delete", { processed: 2, skipped: 0, failed: 0, cancelled: 1 }),
-    "批量删除完成：已从列表移除 2 个任务（1 个进行中任务已取消）"
+    "批量隐藏完成：已隐藏 2 个任务，可恢复（不会删除文件）（1 个进行中任务已取消）"
   );
   assert.equal(
     cutQueueBatchSummaryMessage("delete", { processed: 0, skipped: 0, failed: 1, cancelled: 0 }),
-    "批量删除失败（1 个处理失败）"
+    "批量隐藏失败（1 个处理失败）"
   );
 });
 
