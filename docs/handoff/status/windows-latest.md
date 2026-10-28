@@ -1,15 +1,15 @@
 # windows 状态报告
 
-- generated_at: 2026-10-28T17:45:46.486Z
+- generated_at: 2026-10-28T18:02:23.055Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: a81c0ea3c07a62cc45663037c2b108c5638bd95f
-- head_subject: [mail][windows→mac] reply 1793209535840-9cf965e0
-- head_time: 2026-10-29T01:45:35+08:00
+- head: 9460b117497c1006e7cae9e7685cf50c75367560
+- head_subject: feat(cutter-web): cut-list drag reorder and cut-queue batch actions
+- head_time: 2026-10-29T02:00:37+08:00
 - dirty_tracked: 0
 - dirty_untracked: 0
 - peer_branch: dev/admin
@@ -28,13 +28,13 @@
 ## 人工补充（自检/阻塞/下一步）
 
 - guards: 已激活并生效（pre-commit/pre-push 实测拦截越界提交）；CI sync-guard 持续 success，windows-status-notify 自动更新 Issue #6。
-- toolchain: Rust/cargo/rustc 1.99.1（rustup stable, x86_64-pc-windows-msvc）、VS Build Tools 2022 17.14.42 + MSVC 14.44.35207（C++ 桌面工作负载）、WebView2 Runtime 156.0.4314.50、Playwright chromium 已安装。
-- mailbox: SLA/工具同步至 admin@e6a7b67；ACTIVE 每 240s（schedule-bed96ea5-607f-4584-95e8-fa0030859d15）；ack=1793208223339-958d4ffe；task 1793208878185 reply=1793209179101-9051f274；task 1793209086655 reply=1793209535840-9cf965e0（body 2402 字符，空 body bug 已修复）。
-- nsis_install: PASS 全流程（干净环境）：installer sha256=73C8D30ED1B70FA56D79B561ABDC17050DC17F3D289EE177BA6341AF53158270；静默安装 /S exit=0；首启 + 新用户 config（新库/工作区）→ 自动 engine_start_requested → searchd :3790 + cutter-api sidecar :3789 ready；reviewed 登录（未登录 401，审批 session 后全 200）；检索 sqlite-index 命中、local-clip 201 done、export-clip/project 输出落盘；退出后桌面进程退出但 sidecar 残留（3789/3790 未回收，待确认设计）；卸载 /S exit=0 清理安装文件/卸载项/快捷方式，残留 cache\searchd 空目录 + HKCU\Software\MixLab\MixLab Cutter 键 + AppData 用户数据；重装 exit=0、覆盖升级 exit=0（版本 0.18.10 保持）；测试后原 0.18.10 安装与 AppData 已还原。证据 C:\dev\mixlab-verify-nsis。
-- searchd_verify: PASS 8/8（实机）：searchd 启动并完成索引、runtime-status search_backend.mode=searchd、检索 match_ranges=[[0,3]]、详情 transcript provider=sqlite-index、源视频 Range 206、UI 命中高亮、缓存管理页显示「本地 searchd」、控制台无错误。
-- tauri_verify: PASS：sidecar/assets/cargo build 均通过；实机启动窗口正常（sidecar :3789、searchd :3790）；NSIS 打包全链路 PASS，产物 apps/cutter-desktop/src-tauri/target/release/bundle/nsis/MixLab Cutter_0.18.10_x64-setup.exe（56.2MB）；仅 2 条既有编译 warning。
-- smoke_verify: admin@e6a7b67 更新断言后重跑：缓存管理页/设置页/选中文案断言通过；首个失败 L473 点「剪切这段」超时——当前 UI 需先在文案区拖选文本才出现浮动按钮（证据 C:\dev\logs\smoke-cutter-api-web.log，已回报 Mac 补 drag 步骤）。
-- tests: 沿用 472/472 PASS（cutter-api 94、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 267、cutter-desktop 7）；本轮无产品代码改动，未重跑。
-- blockers: smoke L473 待 Mac 补拖选步骤；桌面退出未回收 sidecar（待确认是否设计）；NSIS 卸载残留 cache 目录/HKCU 键（已反馈）。
-- next: A（剪辑队列/待剪清单 UX）5 项提案已随 reply 发送，等批准后实现；等 Mac 更新 smoke 后重跑回归。
+- toolchain: Rust/cargo/rustc 1.99.1、VS Build Tools 2022 17.14.42 + MSVC 14.44.35207、WebView2 156.0.4314.50、Playwright chromium 已安装。
+- mailbox: 同步至 admin@cb0c1bf；ACTIVE 每 240s；ack/reply 已发多条；当前 task 1793209585935 已处理待回（本条 push 后 reply）。
+- desktop_fixes: (a) 关闭窗口/退出时回收 cutter-api sidecar + searchd（Tauri CloseRequested/RunEvent::Exit → taskkill；新增 app_window_close_cleanup/app_exit_cleanup 日志 + cargo 单测），实测关窗后进程/端口全 0；(b) NSIS POSTUNINSTALL 清理 INSTDIR\cache、INSTDIR、HKCU\Software\MixLab\MixLab Cutter（父键 ifempty），实测卸载后这些全部清除。提交 6d7ae3f；cargo test 6/6。
+- nsis_artifact: 最终安装包（含 A1/A2 前端）MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=8136F1E8B3A236AE6E82F3F58228D0659861B00A364921F053933604C1BB49AD；测试环境已还原原 0.18.10 安装。
+- smoke_verify: admin@f7e3a7e 拖选补丁后重跑：L473 已过；最新失败 L491 等「剪切完成 · 本地素材已更新 1」超时，实际 UI 提示「已创建剪切项目：… · 等待中 1」——smoke 内嵌 createCutterApiServer 未开 auto_run_cut_queue（默认 false），任务 pending 不自动 drain。建议 Mac 加 auto_run_cut_queue: true（或提交后调 run-next 再断言）。证据 C:\dev\logs\smoke-cutter-api-web.log。
+- A1A2: A2 已实现（批量重试仅 failed/cancelled、暂停=cancel 近似、删除=本地隐藏持久化+恢复；汇总反馈）；A1 代码/测试完成（拖拽+上下移+localStorage 持久化+提交顺序），但当前 App 无待剪清单入口（M14 移除），需 Mac 决策入口方案。提交 9460b11。
+- tests: 487/487 PASS（cutter-api 94、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 282、cutter-desktop 7）；typecheck PASS。
+- blockers: smoke auto_run 待 Mac；A1 入口方案待 Mac；A2 真 pause/delete 需后端契约（可选后续）。
+- next: 等 smoke/入口决策后接线 A1 + 重跑 smoke；随后按 B（素材定位/搜索体验）推进。
 <!-- MANUAL:END -->
