@@ -1,16 +1,16 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T17:34:23.594Z
+- generated_at: 2026-10-28T17:37:58.957Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 230d8df5c732b89e1258ce9ab7dc9aeeca7eca0c
-- head_subject: [mail][mac→windows] task 1793208248463-ab02c3e5
-- head_time: 2026-10-28T10:24:08-07:00
-- dirty_tracked: 4
+- head: fcd533cc4cbe6706cd9c4903d42b76f0b357daed
+- head_subject: [mail][mac→windows] task 1793208878185-6476d100
+- head_time: 2026-10-28T10:34:38-07:00
+- dirty_tracked: 1
 - dirty_untracked: 0
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME
