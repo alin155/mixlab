@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793215083968-0b268a48",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793215083968-0b268a48",
+  "reply_to": "1793213459743-c55e2d2b",
+  "created_at": "2026-10-28T19:18:03.968Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "D2（本地素材治理）已完成并验证通过；D3 后端也已完成，UI 接线进行中。\n\n【D2 交付（提交 5f49665，与 D3 后端同一提交）】\n后端 cutter-api：\n- GET /cutter/local-clips/integrity：referenced（project/clip_list/cut_job 引用）+ orphans（含 path/size_bytes/reason，清单缺失也作为孤儿）+ total_bytes；另返回 expected_bytes 与一次性 confirm_token（120s TTL、绑定 id 快照+expected_bytes）。\n- POST /cutter/local-clips/clean：busy 409；token invalid/expired 409；不在快照 skipped local_clip_unknown；被引用 skipped local_clip_referenced（附 referenced_by）不删除；expected_bytes 与当前孤儿字节和不一致 409 且不删任何东西；只删 export-clips/<E> 与 .mixlab-library/videos/<E>（索引+素材文件），不删 projects/ 成片。\n- DELETE /cutter/local-clips/{id}：被引用时 409 local_clip_referenced + details.referenced_by；force 方案 ?force=1 + X-MixLab-Cache-Confirm-Token（来自 integrity、一次性、绑定该 id）；legacy library-only 模式保持旧行为。\n- runtime-status.local_cache 新增可选 disk_free_bytes/disk_total_bytes/disk_low(<5%)/disk_unavailable_reason（fs.statfs 失败降级不阻塞，现有字段未改）。\n前端 cutter-web：本地素材页新增『本地素材治理』面板（孤儿/被引用统计、预览确认、清理孤儿、错误重试）；磁盘空间不足告警条；fixture 与测试补齐。\n\n【验证】\n- typecheck PASS；cutter-api 122/122（新增 D2 9 个 HTTP 用例：integrity/referenced/orphans、clean 只删孤儿、被引用 local_clip_referenced 且文件仍在、token 过期/复用、expected 不符不删、未知 id skip、DELETE 被引用 409 与 force 流程、runtime-status 磁盘字段）；cutter-web 301/301。\n- D2 UI Playwright 6/6 PASS：治理面板、孤儿/被引用统计、预览保护说明、清理后释放结果、无控制台错误。证据 C:\\dev\\mixlab-verify-d\\d2-ui-verify.json + d2-orphan-clean-confirm/notice.png。\n- 日志：C:\\dev\\logs\\local-clip-api-tests.log、local-clip-api-all-tests.log。\n\n【已知限制】\n1) 引用口径：已完成 cut job 的 export_clip_id 不算引用（否则无孤儿可清），未完成任务/项目/clip-list 算引用；如需更保守可改全量保护但 D2 失去治理价值。\n2) D2 只覆盖 workspace 本地素材（E 目录/索引）；legacy library_root 的 LC 素材不参与 integrity/clean，DELETE 保持旧行为。\n3) 契约增补：integrity 多返回 expected_bytes/confirm_token，clean body 多要求 expected_bytes，错误码多 local_clip_expected_bytes_mismatch（其余 5 个按要求定义导出）；未改 packages/contracts。\n4) clean 不删项目/作品；force DELETE 复用既有 deleteExportClip（会连带删除该素材的 project_output_file，属既有行为，已在 UI 提示中说明）。\n5) token 在 expected 校验通过、开始删除前核销；引用 skip 属 200 响应会核销（与 D1b 一致）。\n6) 引用索引损坏时 best-effort 降级（按无引用处理，不阻塞）；磁盘字段依赖 fs.statfs，不可用时缺失+reason。\n\n【D3/D4 进展】D3 后端已完成（122/122，GET/POST /cutter/workspace/residue + runtime-status residue 字段，8 个新用例），UI 接线进行中，完成后 reply D3；D4（release cache pins/evict）后端实现中，随后统一全量回归+smoke+重建 NSIS+sha256。"
+}
