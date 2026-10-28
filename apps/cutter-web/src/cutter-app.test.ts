@@ -76,6 +76,7 @@ import {
   materialLocatorHitTargets,
   materialSearchHitCount,
   searchPageAddsNewResults,
+  shouldApplyMaterialSearchPage,
   materialSearchFailureFeedback,
   materialSearchStatusLabels,
   mergeMaterialLocatorReloadData,
@@ -2350,6 +2351,45 @@ test("material locator renders the fallback backend notice and retry affordance"
   assert.match(html, /已回退到本地索引（SQLite）（searchd 不可用）/);
   assert.match(html, /搜索失败/);
   assert.match(html, /重新搜索/);
+});
+
+test("material search applies only the newest request and active query (stale response guard)", () => {
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 2,
+      current_request_id: 3,
+      query: "现金流",
+      active_query: "现金流"
+    }),
+    false
+  );
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 3,
+      current_request_id: 3,
+      query: "现金流",
+      active_query: "现金流"
+    }),
+    true
+  );
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 3,
+      current_request_id: 3,
+      query: "现金流",
+      active_query: "组织效率"
+    }),
+    false
+  );
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 3,
+      current_request_id: 3,
+      query: " 现金流 ",
+      active_query: "现金流"
+    }),
+    true
+  );
 });
 
 test("material search pagination terminates when a page adds no new hits", () => {

@@ -1020,6 +1020,23 @@ export function mergeMaterialSearchResponses(
  * "继续加载中 / 加载更多" loop when the backend keeps returning the same page
  * (B3: pagination must reach a terminal state).
  */
+/**
+ * B1 race guard: a paginated search response may only be applied when its request
+ * is still the newest one and the query it was issued for is still active.
+ */
+export function shouldApplyMaterialSearchPage(input: {
+  request_id: number;
+  current_request_id: number;
+  query: string;
+  active_query: string;
+}): boolean {
+  if (input.request_id !== input.current_request_id) {
+    return false;
+  }
+
+  return normalizeLocatorQuery(input.query) === normalizeLocatorQuery(input.active_query);
+}
+
 export function searchPageAddsNewResults(current: SearchResponse, next: SearchResponse): boolean {
   const groupIds = new Set(current.groups.map(searchGroupIdentity));
   const segmentIds = new Set<string>();
@@ -2997,12 +3014,13 @@ export function CutterApp() {
         })
       );
 
-      if (materialSearchRequestIdRef.current !== requestId) {
-        return;
-      }
-
       const latestQuery = normalizeLocatorQuery(current.search.normalized_query || current.search.query);
-      if (latestQuery !== normalizeLocatorQuery(query)) {
+      if (!shouldApplyMaterialSearchPage({
+        request_id: requestId,
+        current_request_id: materialSearchRequestIdRef.current,
+        query,
+        active_query: latestQuery
+      })) {
         return;
       }
 
