@@ -405,10 +405,13 @@ async function main(): Promise<void> {
     });
 
     const webPort = await freePort();
-    const viteBin = path.join(process.cwd(), "node_modules", ".bin", "vite");
+    // Windows 上 node_modules/.bin/vite 是 shell shim，直接 spawn 会失败；
+    // 统一用当前 Node 执行 vite 的 JS 入口，跨 macOS/Windows。
+    const viteEntry = path.join(process.cwd(), "node_modules", "vite", "bin", "vite.js");
     web = spawn(
-      viteBin,
+      process.execPath,
       [
+        viteEntry,
         "--host",
         "127.0.0.1",
         "--port",
