@@ -17,6 +17,7 @@ const SHARED_PATHS = [
   "packages/service-clients",
   "packages/protocol",
   "scripts/dev",
+  "scripts/smoke",
   "docs/handoff",
   ".github/workflows/sync-guard.yml",
   ".github/workflows/windows-status-notify.yml",
