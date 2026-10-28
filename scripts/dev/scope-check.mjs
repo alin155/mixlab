@@ -25,7 +25,8 @@ const WINDOWS_WRITE = [
   "packages/windows-test-runner/",
   "scripts/desktop/",
   "scripts/acceptance/windows-",
-  "scripts/servers/cutter-api-server.ts"
+  "scripts/servers/cutter-api-server.ts",
+  "docs/handoff/status/windows-latest.md"
 ];
 const SYNC_ONLY = [
   "packages/contracts/",
@@ -35,7 +36,7 @@ const SYNC_ONLY = [
   "scripts/dev/",
   "docs/handoff/",
   ".github/workflows/sync-guard.yml",
-  ".github/workflows/status-notify.yml",
+  ".github/workflows/windows-status-notify.yml",
   "AGENTS.md"
 ];
 const MAC_DENY = [ ...WINDOWS_WRITE.map((prefix) => prefix) ];

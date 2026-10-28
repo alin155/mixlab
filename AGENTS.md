@@ -19,7 +19,7 @@
 3. **共享包只能 Mac 侧修改**：`packages/contracts/`、`packages/library-format/`、`packages/service-clients/`、`packages/protocol/`、`packages/runtime-config/`、`packages/ui-foundation/`。
    Windows 只允许通过 `node scripts/dev/shared-sync.mjs --apply` 单向同步，不允许手改。
 4. **共享工具/规则同样单向同步**：`scripts/dev/`、`docs/handoff/`、`AGENTS.md` 由 Mac 维护，Windows 只读。
-5. **不 push --force**；不删除对方分支；不提交 `node_modules`、`.env`、token、真实素材、`docs/acceptance/artifacts/`。
+5. **不 push --force**；不删除对方分支；不提交 `node_modules`、`.env`、token、真实素材、`docs/acceptance/artifacts/`。状态信箱例外：`docs/handoff/status/<自己>-latest.md` 由各端自己拥有（Mac: mac-latest.md，Windows: windows-latest.md）。
 6. **提交前必须**：`git status` 确认只改了自己的目录；`npm run typecheck`；相关测试通过。
 7. **状态信箱**：每次阶段性进展/收工，运行
    `node scripts/dev/sync-report.mjs --role mac|windows`

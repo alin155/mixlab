@@ -23,6 +23,9 @@ const SHARED_PATHS = [
   "AGENTS.md"
 ];
 const SOURCE_BRANCH = "dev/admin";
+// 状态信箱里各端自己拥有的文件：同步时保留，不参与"共享一致性"比较。
+const PARITY_EXCLUDES = ["docs/handoff/status/windows-latest.md"];
+const EXCLUDE_PATHSPECS = PARITY_EXCLUDES.map((file) => ":(exclude)" + file);
 
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -69,10 +72,10 @@ function main() {
   }
 
   const statusLines = (gitTry(["status", "--porcelain", "--", ...SHARED_PATHS]) || "").split("\n").filter(Boolean);
-  const diffStat = gitTry(["diff", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS]) || "";
+  const diffStat = gitTry(["diff", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS, ...EXCLUDE_PATHSPECS]) || "";
   // 如果本地改动"刚好等于来源内容"（例如刚刚 git checkout origin/dev/admin -- 共享目录），
   // 这些是待提交的同步结果，不应阻止 --apply。
-  const stagedVsSource = gitTry(["diff", "--cached", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS]) ?? "";
+  const stagedVsSource = gitTry(["diff", "--cached", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS, ...EXCLUDE_PATHSPECS]) ?? "";
   const effectiveDirty = statusLines.length > 0 && stagedVsSource !== "" ? statusLines : [];
 
   console.log("当前分支: " + currentBranch);
@@ -106,7 +109,7 @@ function main() {
   }
 
   git(["checkout", "origin/" + args.source, "--", ...SHARED_PATHS]);
-  const after = gitTry(["diff", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS]) || "";
+  const after = gitTry(["diff", "--stat", "origin/" + args.source, "--", ...SHARED_PATHS, ...EXCLUDE_PATHSPECS]) || "";
   const changed = (gitTry(["status", "--porcelain", "--", ...SHARED_PATHS]) || "").split("\n").filter(Boolean);
   console.log("");
   console.log("已从 origin/" + args.source + " 同步 " + changed.length + " 项共享内容。");
