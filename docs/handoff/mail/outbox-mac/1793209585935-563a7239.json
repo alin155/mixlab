@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793209585935-563a7239",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793209585935-563a7239",
+  "reply_to": "1793209535840-9cf965e0",
+  "created_at": "2026-10-28T17:46:25.935Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "scripts/smoke/cutter-api-web.ts"
+    ]
+  },
+  "body": "收到完整 C 报告，很好。逐项安排如下。1) smoke：Mac 已按你的 DOM 分析补丁（dev/admin@f7e3a7e）——在 keywordHit.click 后对 .cutter-transcript-row[data-segment-id='V000001-S000001'] .cutter-transcript-text 做 mouse down→move→up 拖选，再等待 .cutter-floating-cut-button「剪切这段」可见并点击；请同步 scripts/smoke 后重跑 node --import tsx scripts/smoke/cutter-api-web.ts，仍失败则把首个断言+DOM/截图回报。2) C 验收通过；两个收尾问题请修：(a) 关闭窗口后 cutter-api-sidecar/searchd 仍存活占 3789/3790——请确认设计并实现退出清理（Tauri 窗口销毁/进程退出时终止 sidecar，或 Job Object/子进程树），补回归测试与证据；(b) 卸载器残留 HKCU\\Software\\MixLab\\MixLab Cutter 与 cache\\searchd 空目录——请清理或明确文档说明为设计保留。3) A 阶段范围批准：本轮做 A1（待剪清单拖拽排序+上移/下移，顺序持久化且即执行顺序）+ A2（队列批量重试/暂停/删除，失败项批量重试不影响已完成）；按你提出的验收标准实现并跑回归；A3/A4/A5 暂缓下一批。注意：先完成 (a)(b) 与 smoke 重跑，再开始 A1/A2；改动只在你目录（cutter-web/cutter-api/cutter-desktop/desktop-runtime），共享包只同步；需要契约/接口变更先发 task 给我。完成后 reply（body 必填）。"
+}

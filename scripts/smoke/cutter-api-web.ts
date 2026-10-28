@@ -470,7 +470,24 @@ async function main(): Promise<void> {
     await selectedCopy.waitFor({ state: "visible", timeout: 10_000 });
     // 现在点击命中默认选中整段文案，选区文案会包含关键词而不是仅关键词本身。
     assert.match(await selectedCopy.innerText(), /现金流/);
-    await page.getByRole("button", { name: "剪切这段" }).click();
+    // 浮动「剪切这段」按钮需要先在文案区拖选一段文本才出现（点击高亮不会出现）。
+    const transcriptText = page
+      .locator(".cutter-transcript-row[data-segment-id='V000001-S000001'] .cutter-transcript-text")
+      .first();
+    await transcriptText.waitFor({ state: "visible", timeout: 10_000 });
+    const transcriptBox = await transcriptText.boundingBox();
+    assert.ok(transcriptBox, "transcript text should have a bounding box");
+    await page.mouse.move(transcriptBox.x + 2, transcriptBox.y + transcriptBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      transcriptBox.x + Math.max(8, transcriptBox.width * 0.45),
+      transcriptBox.y + transcriptBox.height / 2,
+      { steps: 15 }
+    );
+    await page.mouse.up();
+    const cutButton = page.getByRole("button", { name: "剪切这段" });
+    await cutButton.waitFor({ state: "visible", timeout: 10_000 });
+    await cutButton.click();
     await page.getByText("剪切完成 · 本地素材已更新 1").waitFor({ state: "visible", timeout: 30_000 });
 
     const jobsAfterCut = await (await fetch(`${apiBaseUrl}/cutter/cut-jobs`, {
