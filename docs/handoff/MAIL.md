@@ -101,3 +101,41 @@ node scripts/dev/mail-server.mjs --port 8791
   nohup node scripts/dev/mail-server.mjs --port 8791 > /tmp/mixlab-mail-dashboard.log 2>&1 &
   ```
 - 参数：`--refresh 3000`（页面/API 刷新缓存）、`--fetch 15000`（Git 拉取间隔）、`--no-fetch`（离线只读本地）。
+
+
+## 沟通准则与 SLA（Round7 补充）
+
+### 判断表
+
+| 情况 | 动作 |
+|---|---|
+| 改共享包/契约/protocol/行为语义 | 先发 task，Mac 单写者修改；Windows 同步后再继续 |
+| 对契约/错误码/路径/格式不确定 | 发 task（附代码位置/期望），等 reply 再动手 |
+| 平台差异（Windows/macOS/Linux） | 发 task + 证据（命令/日志/文件路径） |
+| 被阻塞 ≥30 分钟 | 发 task 并加 `--blocking` |
+| 需要人工决策（优先级/验收/上线） | 发 task `--needs decision` |
+| 只改自己目录且测试全绿 | 不发消息（护栏自动校验） |
+
+### 消息字段
+
+```bash
+node scripts/dev/mail.mjs send --role windows --to mac --type task \
+  --needs action --blocking --evidence "C:/dev/logs/smoke.log" \
+  --reply-to <可选> --body '一句话说明需要对方做什么'
+```
+
+- `--needs action|decision|none`：请求行动/请求决策/仅通知；
+- `--blocking`：阻塞项；
+- `--evidence <path>`：证据路径（可重复）；
+- **除 ack 外正文不能为空**（脚本会拒绝）。
+
+### SLA
+
+- ACTIVE（轮询 180~300s）：task/reply 在下一次轮询处理，blocking 优先；
+- PAUSED：只处理 control resume/request-resume；
+- 48 小时无状态报告视为停滞。
+
+### 待办/看板
+
+- 终端：`node scripts/dev/mail.mjs pending --role mac|windows --json`（needs_you / decisions / awaiting_peer / blocking）
+- 看板：<http://127.0.0.1:8791> 右侧"待处理 / 阻塞"面板会列出需要我/你处理的项，消息卡片显示"阻塞/需决策/需处理"标记。
