@@ -483,17 +483,54 @@ export function materialLocatorSectionFooterLabel(input: {
   sectionKey: MaterialSource;
   itemCount: number;
   isSearching: boolean;
+  isLoadingMore?: boolean;
   hasMoreSearchResults: boolean;
 }): string {
-  if (input.sectionKey === "public" && input.isSearching) {
+  if (input.sectionKey !== "public") {
+    return `已显示全部（${input.itemCount}）`;
+  }
+
+  // 「继续加载中」只属于翻页；首次检索显示「首批搜索中」，避免被误读成
+  // 分页一直卡在加载中（B3）。空闲但仍有 cursor 时才提示可加载更多。
+  if (input.isLoadingMore) {
     return `继续加载中（已显示 ${input.itemCount}）`;
   }
 
-  if (input.sectionKey === "public" && input.hasMoreSearchResults) {
+  if (input.isSearching) {
+    return `首批搜索中（已显示 ${input.itemCount}）`;
+  }
+
+  if (input.hasMoreSearchResults) {
     return `加载更多（已显示 ${input.itemCount}）`;
   }
 
   return `已显示全部（${input.itemCount}）`;
+}
+
+/**
+ * B4: surface a visible, stable degradation notice when the search backend is
+ * running in a fallback mode (e.g. searchd unavailable -> sqlite-index).
+ */
+export interface MaterialLocatorBackendStatus {
+  mode: string;
+  preferred_mode: string;
+  label: string;
+  degraded: boolean;
+  message?: string;
+}
+
+export function materialLocatorBackendNotice(backend?: MaterialLocatorBackendStatus): string {
+  if (!backend) {
+    return "";
+  }
+
+  const degraded = backend.degraded || backend.mode !== backend.preferred_mode;
+  if (!degraded) {
+    return "";
+  }
+
+  const detail = backend.message?.trim();
+  return `已回退到${backend.label}（searchd 不可用）${detail ? `：${detail}` : ""}`;
 }
 
 function shouldIgnoreSelectionShortcutTarget(target: EventTarget | null): boolean {
@@ -565,6 +602,9 @@ export function MaterialLocatorPage({
   globalHitCount,
   selectedMaterialKey,
   isSearching = false,
+  isLoadingMore = false,
+  searchFailed = false,
+  backendNotice = "",
   cutNotice = "",
   queue,
   onSearch,
@@ -578,7 +618,8 @@ export function MaterialLocatorPage({
   onCutSelection,
   onAddToCutList,
   onCancelSelection,
-  onOpenCutOutputDirectory
+  onOpenCutOutputDirectory,
+  onRetrySearch
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
@@ -600,6 +641,9 @@ export function MaterialLocatorPage({
   globalHitCount?: number;
   selectedMaterialKey?: string;
   isSearching?: boolean;
+  isLoadingMore?: boolean;
+  searchFailed?: boolean;
+  backendNotice?: string;
   recentSearches?: readonly MaterialSearchHistoryItem[];
   cutNotice?: string;
   searchStatus?: MaterialLocatorSearchStatus;
@@ -622,6 +666,7 @@ export function MaterialLocatorPage({
   onAddToCutList?: () => void;
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
+  onRetrySearch?: () => void;
   onSetCutMode?: (mode: CutMode) => void;
 }) {
   const sections = buildMaterialLocatorSections({
@@ -1349,9 +1394,25 @@ export function MaterialLocatorPage({
                 <div className="ml-list-panel-heading">
                   <h2 className="ml-section-title ml-section-title--dense">候选素材</h2>
                   <span className="ml-section-meta" aria-live="polite">{candidateSummaryLabel}</span>
+                  {backendNotice ? (
+                    <span className="ml-section-meta cutter-locator-backend-notice" role="status">
+                      {backendNotice}
+                    </span>
+                  ) : null}
                 </div>
               </header>
               <div className="cutter-locator-results ml-pane-scroll">
+                {searchFailed && !isSearching ? (
+                  <div className="cutter-locator-search-error ml-empty-panel ml-empty-panel--plain" role="alert">
+                    <strong>搜索失败</strong>
+                    <span>本机搜索服务可能暂时不可用，可重试或稍后再试。</span>
+                    {onRetrySearch ? (
+                      <Button type="button" onClick={onRetrySearch} size="sm" variant="secondary">
+                        重新搜索
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {!hasActiveQuery ? (
                   <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
                     <strong>{searchMode === "folder" ? "先搜索文件夹" : "先搜索文案"}</strong>
@@ -1405,7 +1466,7 @@ export function MaterialLocatorPage({
                       {section.key === "public" && canLoadMoreSearchResults ? (
                         <Button
                           className="cutter-locator-load-more ml-list-footer-action"
-                          disabled={isSearching}
+                          disabled={isSearching || isLoadingMore}
                           onClick={() => onLoadMoreSearchResults?.()}
                           size="sm"
                           type="button"
@@ -1415,6 +1476,7 @@ export function MaterialLocatorPage({
                             sectionKey: section.key,
                             itemCount: section.items.length,
                             isSearching,
+                            isLoadingMore,
                             hasMoreSearchResults
                           })}
                         </Button>
@@ -1424,6 +1486,7 @@ export function MaterialLocatorPage({
                             sectionKey: section.key,
                             itemCount: section.items.length,
                             isSearching,
+                            isLoadingMore,
                             hasMoreSearchResults
                           })}
                         </span>

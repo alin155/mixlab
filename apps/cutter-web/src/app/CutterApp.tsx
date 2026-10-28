@@ -38,6 +38,7 @@ import {
 } from "../features/local-library/LocalLibraryPage.tsx";
 import {
   MaterialLocatorPage,
+  materialLocatorBackendNotice,
   type MaterialLocatorSearchStatus,
   type MaterialSearchHistoryItem
 } from "../features/material-locator/MaterialLocatorPage.tsx";
@@ -1014,6 +1015,26 @@ export function mergeMaterialSearchResponses(
   };
 }
 
+/**
+ * Whether a pagination page brings any new group/hit segment. Used to stop the
+ * "继续加载中 / 加载更多" loop when the backend keeps returning the same page
+ * (B3: pagination must reach a terminal state).
+ */
+export function searchPageAddsNewResults(current: SearchResponse, next: SearchResponse): boolean {
+  const groupIds = new Set(current.groups.map(searchGroupIdentity));
+  const segmentIds = new Set<string>();
+  for (const group of current.groups) {
+    for (const segment of group.hit_segments) {
+      segmentIds.add(`${group.source_video_id}:${segment.segment_id}`);
+    }
+  }
+
+  return next.groups.some((group) =>
+    !groupIds.has(searchGroupIdentity(group)) ||
+    group.hit_segments.some((segment) => !segmentIds.has(`${group.source_video_id}:${segment.segment_id}`))
+  );
+}
+
 export function materialSearchHitCount(search: SearchResponse): number {
   return search.groups.reduce((sum, group) => sum + group.hit_count, 0);
 }
@@ -1377,6 +1398,8 @@ function renderPage(
     globalHitCount: number;
     selectedMaterialKey?: string;
     materialSearchPending: boolean;
+    materialSearchLoadingMore: boolean;
+    materialSearchFailed: boolean;
     localLibrarySelectedClipId?: string;
     localLibraryViewMode: LocalLibraryViewMode;
     recentSearches: readonly MaterialSearchHistoryItem[];
@@ -1444,6 +1467,7 @@ function renderPage(
     selectPublicSourceVideo: (sourceVideoId: string) => void;
     loadMoreSourceLibrary: () => void;
     loadMoreSearchResults: () => void;
+    retryMaterialSearch: () => void;
     loadMoreLocalClips: () => void;
     loadMoreCutJobs: () => void;
     selectProject: (projectId: string) => void;
@@ -1540,6 +1564,9 @@ function renderPage(
         globalHitCount={viewState.globalHitCount}
         selectedMaterialKey={viewState.selectedMaterialKey}
         isSearching={viewState.materialSearchPending}
+        isLoadingMore={viewState.materialSearchLoadingMore}
+        searchFailed={viewState.materialSearchFailed}
+        backendNotice={materialLocatorBackendNotice(data.runtimeStatus?.search_backend)}
         recentSearches={viewState.recentSearches}
         cutNotice={viewState.cutNotice}
         searchStatus={viewState.searchStatus}
@@ -1553,6 +1580,7 @@ function renderPage(
         onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onNavigateHit={handlers.navigateHit}
         onLoadMoreSearchResults={handlers.loadMoreSearchResults}
+        onRetrySearch={handlers.retryMaterialSearch}
         onCutSelection={handlers.addSelectedSpan}
         onAddToCutList={handlers.addSelectionToCutList}
         onCancelSelection={handlers.cancelTranscriptSelection}
@@ -1740,6 +1768,8 @@ export function CutterApp() {
       routeFromHash(window.location.hash) === "material-locator" &&
       searchQueryFromHash(window.location.hash).trim().length > 0
   );
+  const [materialSearchLoadingMore, setMaterialSearchLoadingMore] = useState(false);
+  const [materialSearchFailed, setMaterialSearchFailed] = useState(false);
   const [materialSearchRevision, setMaterialSearchRevision] = useState(0);
   const [lastMaterialSearchDurationMs, setLastMaterialSearchDurationMs] = useState<number | undefined>();
   const [recentMaterialSearches, setRecentMaterialSearches] = useState<MaterialSearchHistoryItem[]>([]);
@@ -2805,9 +2835,12 @@ export function CutterApp() {
     const startedAtMs = Date.now();
     materialSearchRequestIdRef.current = requestId;
     setMaterialSearchPending(true);
+    setMaterialSearchLoadingMore(false);
+    setMaterialSearchFailed(false);
     const timeout = window.setTimeout(() => {
       if (!cancelled && materialSearchRequestIdRef.current === requestId) {
         setMaterialSearchPending(false);
+        setMaterialSearchFailed(true);
         showRecoverableError(MATERIAL_SEARCH_TIMEOUT_NOTICE);
       }
     }, 12_000);
@@ -2894,10 +2927,12 @@ export function CutterApp() {
           clearMaterialLocatorFocus();
         }
         rememberSearch(firstPage);
+        setMaterialSearchFailed(false);
         setError("");
       } catch (searchError) {
         if (!cancelled && materialSearchRequestIdRef.current === requestId) {
           window.clearTimeout(timeout);
+          setMaterialSearchFailed(true);
           setLastMaterialSearchDurationMs(Math.max(0, Date.now() - startedAtMs));
           const feedback = materialSearchFailureFeedback({
             hasFirstPage,
@@ -2942,7 +2977,7 @@ export function CutterApp() {
     const query = searchQuery.trim();
     const nextCursor = current?.search.next_cursor;
 
-    if (!current || !query || !nextCursor || materialSearchPending) {
+    if (!current || !query || !nextCursor || materialSearchPending || materialSearchLoadingMore) {
       return;
     }
 
@@ -2950,6 +2985,7 @@ export function CutterApp() {
     const startedAtMs = Date.now();
     materialSearchRequestIdRef.current = requestId;
     setMaterialSearchPending(true);
+    setMaterialSearchLoadingMore(true);
 
     try {
       const page = resolveSearchResponseUrls(
@@ -2970,7 +3006,14 @@ export function CutterApp() {
         return;
       }
 
-      const mergedSearch = mergeMaterialSearchResponses(current.search, page);
+      const pageAddsResults = searchPageAddsNewResults(current.search, page);
+      const mergedSearch = pageAddsResults
+        ? mergeMaterialSearchResponses(current.search, page)
+        : {
+            ...mergeMaterialSearchResponses(current.search, page),
+            next_cursor: undefined,
+            has_more: false
+          };
       setData((latest) => {
         if (!latest) {
           return latest;
@@ -2983,7 +3026,13 @@ export function CutterApp() {
 
         return {
           ...latest,
-          search: mergeMaterialSearchResponses(latest.search, page)
+          search: pageAddsResults
+            ? mergeMaterialSearchResponses(latest.search, page)
+            : {
+                ...mergeMaterialSearchResponses(latest.search, page),
+                next_cursor: undefined,
+                has_more: false
+              }
         };
       });
 
@@ -3015,6 +3064,7 @@ export function CutterApp() {
     } finally {
       if (materialSearchRequestIdRef.current === requestId) {
         setMaterialSearchPending(false);
+        setMaterialSearchLoadingMore(false);
       }
     }
   }
@@ -3953,6 +4003,9 @@ export function CutterApp() {
     selectPublicSourceVideo: setPublicLibrarySelectedSourceVideoId,
     loadMoreSourceLibrary: handleLoadMoreSourceLibrary,
     loadMoreSearchResults: handleLoadMoreMaterialSearchResults,
+    retryMaterialSearch() {
+      performMaterialSearch(searchQuery);
+    },
     loadMoreLocalClips: handleLoadMoreLocalClips,
     loadMoreCutJobs: handleLoadMoreCutJobs,
     setCutMode: handleSetCutMode,
@@ -4525,6 +4578,8 @@ export function CutterApp() {
                 globalHitCount,
                 selectedMaterialKey,
                 materialSearchPending,
+                materialSearchLoadingMore,
+                materialSearchFailed,
                 localLibrarySelectedClipId,
                 localLibraryViewMode,
                 recentSearches:

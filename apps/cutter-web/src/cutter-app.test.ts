@@ -12,6 +12,7 @@ import { LibraryGallery } from "./features/library-gallery.tsx";
 import { SourceDetailPage } from "./features/source-detail/SourceDetailPage.tsx";
 import {
   MaterialLocatorPage,
+  materialLocatorBackendNotice,
   materialLocatorCandidateSummary,
   materialLocatorDisplayDurationMs,
   materialLocatorSectionFooterLabel,
@@ -74,6 +75,7 @@ import {
   materialFocusFromResult,
   materialLocatorHitTargets,
   materialSearchHitCount,
+  searchPageAddsNewResults,
   materialSearchFailureFeedback,
   materialSearchStatusLabels,
   mergeMaterialLocatorReloadData,
@@ -2295,6 +2297,105 @@ test("material search pages merge cursor batches without delaying first results"
   assert.equal(materialSearchHitCount(merged), 12);
 });
 
+test("material locator surfaces a stable fallback notice when searchd degrades", () => {
+  const data = createFixtureCutterData();
+  const degraded = {
+    mode: "sqlite-index",
+    preferred_mode: "searchd",
+    label: "本地索引（SQLite）",
+    degraded: true,
+    message: "searchd 连接超时，已回退 sqlite-index"
+  };
+  const healthy = {
+    mode: "searchd",
+    preferred_mode: "searchd",
+    label: "本地 searchd",
+    degraded: false,
+    message: ""
+  };
+
+  assert.match(materialLocatorBackendNotice(degraded), /已回退到本地索引（SQLite）/);
+  assert.match(materialLocatorBackendNotice(degraded), /searchd 不可用/);
+  assert.equal(materialLocatorBackendNotice(healthy), "");
+  assert.equal(materialLocatorBackendNotice(undefined), "");
+});
+
+test("material locator renders the fallback backend notice and retry affordance", () => {
+  const data = createFixtureCutterData();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: { ...data.localClips, clips: [] },
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "public",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: `public:${data.search.groups[0]!.source_video_id}`,
+      selectedSegments: [],
+      searchFailed: true,
+      backendNotice: materialLocatorBackendNotice({
+        mode: "sqlite-index",
+        preferred_mode: "searchd",
+        label: "本地索引（SQLite）",
+        degraded: true,
+        message: "searchd 连接超时，已回退"
+      }),
+      onRetrySearch: () => undefined,
+      queue: []
+    })
+  );
+
+  assert.match(html, /class="[^"]*cutter-locator-backend-notice" role="status"/);
+  assert.match(html, /已回退到本地索引（SQLite）（searchd 不可用）/);
+  assert.match(html, /搜索失败/);
+  assert.match(html, /重新搜索/);
+});
+
+test("material search pagination terminates when a page adds no new hits", () => {
+  const data = createFixtureCutterData();
+  const firstGroup = data.search.groups[0]!;
+  const firstPage = {
+    ...data.search,
+    groups: [firstGroup],
+    next_cursor: "sqlite:1",
+    has_more: true
+  };
+  const repeatedPage = {
+    ...data.search,
+    groups: [firstGroup],
+    cursor: "sqlite:1",
+    next_cursor: "sqlite:1",
+    has_more: true
+  };
+  const newSegmentPage = {
+    ...data.search,
+    groups: [
+      {
+        ...firstGroup,
+        hit_segments: [
+          ...firstGroup.hit_segments,
+          { ...firstGroup.hit_segments[0]!, segment_id: "s-new-hit" }
+        ]
+      }
+    ],
+    cursor: "sqlite:1",
+    next_cursor: "",
+    has_more: false
+  };
+  const newGroupPage = {
+    ...data.search,
+    groups: [data.search.groups[1]!],
+    cursor: "sqlite:1",
+    next_cursor: "",
+    has_more: false
+  };
+
+  assert.equal(searchPageAddsNewResults(firstPage, repeatedPage), false);
+  assert.equal(searchPageAddsNewResults(firstPage, newSegmentPage), true);
+  assert.equal(searchPageAddsNewResults(firstPage, newGroupPage), true);
+});
+
 test("material search page merge deduplicates a repeated source video and preserves hit text", () => {
   const data = createFixtureCutterData();
   const firstSegment = data.search.groups[0]!.hit_segments[0]!;
@@ -2489,7 +2590,35 @@ test("material locator candidate summary reports background search loading and c
       isSearching: true,
       hasMoreSearchResults: true
     }),
+    "首批搜索中（已显示 20）"
+  );
+  assert.equal(
+    materialLocatorSectionFooterLabel({
+      sectionKey: "public",
+      itemCount: 20,
+      isSearching: true,
+      isLoadingMore: true,
+      hasMoreSearchResults: true
+    }),
     "继续加载中（已显示 20）"
+  );
+  assert.equal(
+    materialLocatorSectionFooterLabel({
+      sectionKey: "public",
+      itemCount: 20,
+      isSearching: false,
+      hasMoreSearchResults: true
+    }),
+    "加载更多（已显示 20）"
+  );
+  assert.equal(
+    materialLocatorSectionFooterLabel({
+      sectionKey: "public",
+      itemCount: 20,
+      isSearching: false,
+      hasMoreSearchResults: false
+    }),
+    "已显示全部（20）"
   );
   assert.equal(
     materialLocatorSectionFooterLabel({
@@ -2535,7 +2664,7 @@ test("material locator renders high-hit search loading as passive status instead
   );
 
   assert.match(html, /已载入1条 · 命中\d+处 · 加载中/);
-  assert.match(html, /继续加载中（已显示 1）/);
+  assert.match(html, /首批搜索中（已显示 1）/);
   assert.equal(html.includes("展开全部"), false);
 });
 
