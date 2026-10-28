@@ -1,0 +1,48 @@
+name: windows-status-notify
+
+# 可选增强：Windows 每次 push 状态报告时，自动创建/更新 GitHub Issue，
+# Mac 侧可在 GitHub 通知/Issue 里看到；不替代 Git 状态信箱。
+on:
+  push:
+    branches:
+      - dev/cutter
+    paths:
+      - docs/handoff/status/windows-latest.md
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('docs/handoff/status/windows-latest.md', 'utf8');
+            const title = '[windows-status] Windows 最新进度';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body
+              });
+            }

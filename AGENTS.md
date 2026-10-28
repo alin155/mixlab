@@ -44,6 +44,17 @@ node scripts/dev/shared-sync.mjs            # 只检查
 node scripts/dev/shared-sync.mjs --apply    # 执行（确认未手改共享包）
 ```
 
+## 自动化护栏（防冲突）
+
+每个克隆执行一次：`node scripts/dev/install-hooks.mjs`
+
+- **pre-commit**：按分支角色拦截越界文件（Windows 只能改剪辑端；Mac 不能改剪辑端；共享内容只允许与 dev/admin 一致的同步）。
+- **pre-push**：拒绝落后远端、拒绝 merge commit、拒绝越界、Windows 要求共享内容已同步。
+- **CI（sync-guard workflow）**：push/PR 时自动重跑同样的检查（写入域、禁止 merge、共享一致性）。
+- **状态通知（可选）**：push 状态报告时自动更新 GitHub Issue `[windows-status]`。
+- **会话自检**：`node scripts/dev/session-start.mjs` 打印分支/远端/共享同步/对方最新状态。
+- 禁止用 `--no-verify` 绕过；确需绕过要人工说明原因。
+
 ## Windows 首次运行注意
 
 - Node 版本见 `node -v`（要求 >= 22.5，推荐 24 LTS）；`node:sqlite` 若报错先记录。

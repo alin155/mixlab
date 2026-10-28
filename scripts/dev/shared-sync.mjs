@@ -18,6 +18,8 @@ const SHARED_PATHS = [
   "packages/protocol",
   "scripts/dev",
   "docs/handoff",
+  ".github/workflows/sync-guard.yml",
+  ".github/workflows/windows-status-notify.yml",
   "AGENTS.md"
 ];
 const SOURCE_BRANCH = "dev/admin";

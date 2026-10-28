@@ -1,17 +1,17 @@
 # mac 状态报告
 
-- generated_at: 2026-10-28T15:36:04.312Z
+- generated_at: 2026-10-28T15:43:21.480Z
 - role: mac
 - host: huaqihangdeMac-mini.local
 - platform: darwin arm64
 - node_version: v26.0.0
 - repo_root: /Users/huaqihang/Documents/mixlab
 - branch: dev/admin
-- head: 6aba51ef47faa09fcf4cbd30ee4d61c2e72d310c
-- head_subject: fix(protocol): resolve Windows mount roots with drive subpaths and UNC (win32 join)
-- head_time: 2026-10-28T08:35:51-07:00
-- dirty_tracked: 1
-- dirty_untracked: 0
+- head: 2eac47e7aaf7b2f8713982c0712336f9d942240d
+- head_subject: chore(dev): include packages/protocol in status fingerprint
+- head_time: 2026-10-28T08:36:04-07:00
+- dirty_tracked: 5
+- dirty_untracked: 6
 - peer_branch: dev/cutter
 - shared_vs_admin: SAME
 

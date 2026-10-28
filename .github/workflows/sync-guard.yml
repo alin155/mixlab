@@ -1,0 +1,73 @@
+name: sync-guard
+
+# 双端防冲突自动护栏：
+# 1) 写入域检查（越界文件直接失败）
+# 2) 交付分支禁止 merge commit
+# 3) dev/cutter 的共享内容必须与 dev/admin 一致
+#
+# 启用前提：GitHub Settings -> Actions 允许运行；不需要额外 secrets。
+
+on:
+  push:
+    branches:
+      - dev/admin
+      - dev/cutter
+  pull_request:
+    branches:
+      - dev/admin
+      - dev/cutter
+
+permissions:
+  contents: read
+
+jobs:
+  scope-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Resolve base commit
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git merge-base HEAD origin/${{ github.base_ref || 'main' }} 2>/dev/null || git rev-parse HEAD~1)"
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+      - name: Fetch peer branches
+        run: git fetch origin dev/admin dev/cutter || true
+      - name: Write-scope guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROLE=mac
+          REF="${{ github.ref_name }}"
+          HEADREF="${{ github.head_ref }}"
+          BASEREF="${{ github.base_ref }}"
+          if [ "$REF" = "dev/cutter" ] || [ "$HEADREF" = "dev/cutter" ] || [ "$BASEREF" = "dev/cutter" ]; then ROLE=windows; fi
+          node scripts/dev/scope-check.mjs --range "${{ steps.base.outputs.base }}" --role "$ROLE"
+      - name: Reject merge commits on delivery branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          COUNT=$(git rev-list --merges "${{ steps.base.outputs.base }}..HEAD" | wc -l | tr -d ' ')
+          if [ "$COUNT" -gt 0 ]; then
+            echo "交付分支禁止 merge commit（发现 $COUNT 个）。请用 rebase/cherry-pick 或重新提交。"
+            exit 1
+          fi
+      - name: Shared parity (dev/cutter must equal dev/admin)
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF="${{ github.ref_name }}"
+          HEADREF="${{ github.head_ref }}"
+          if [ "$REF" = "dev/cutter" ] || [ "$HEADREF" = "dev/cutter" ]; then
+            git fetch origin dev/admin
+            git diff --exit-code origin/dev/admin -- packages/contracts packages/library-format packages/service-clients packages/protocol
+          fi
