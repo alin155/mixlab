@@ -1452,7 +1452,7 @@ function renderPage(
     appVersion?: string;
     buildCommit?: string;
     runtimeEnvironment: string;
-    cacheApiClient?: Pick<CutterApiClient, "getCacheInventory" | "cleanCache">;
+    cacheApiClient?: Pick<CutterApiClient, "getCacheInventory" | "cleanCache" | "getLocalClipIntegrity" | "cleanLocalClips">;
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
@@ -1626,6 +1626,10 @@ function renderPage(
         onDeleteLocalClip={handlers.deleteLocalClip}
         onLoadMore={handlers.loadMoreLocalClips}
         isLoadingMore={viewState.localClipsLoadingMore}
+        client={viewState.cacheApiClient}
+        diskLow={data.runtimeStatus.local_cache?.disk_low}
+        diskFreeBytes={data.runtimeStatus.local_cache?.disk_free_bytes}
+        diskTotalBytes={data.runtimeStatus.local_cache?.disk_total_bytes}
       />
     );
   }

@@ -21,7 +21,12 @@ import {
 } from "./features/material-locator/MaterialLocatorPage.tsx";
 import { CutListPage } from "./features/cut-list/CutListPage.tsx";
 import { CutTasksTabNav } from "./features/cut-tasks/CutTasksTabNav.tsx";
-import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
+import {
+  LocalLibraryPage,
+  localClipCleanPreviewText,
+  localClipCleanResultSummary,
+  localClipGovernanceSummary
+} from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
 import {
@@ -6305,6 +6310,29 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
   );
   assert.match(html, /磁盘缓存清理/);
   assert.match(html, /预览清理/);
+});
+
+test("local clip governance summarizes orphans, references and cleanup results", () => {
+  const integrity = {
+    referenced: [{ local_clip_id: "E000001", referenced_by: [{ kind: "project", ref_id: "P1", title: "项目 A" }] }],
+    orphans: [
+      { local_clip_id: "E000002", path: "/ws/export-clips/E000002", size_bytes: 2048, reason: "清单缺失" }
+    ],
+    total_bytes: 2048,
+    expected_bytes: 2048,
+    confirm_token: "token"
+  };
+  assert.match(localClipGovernanceSummary(integrity), /孤儿素材 1 个（2 KB） · 被引用素材 1 个/);
+  const preview = localClipCleanPreviewText(integrity);
+  assert.match(preview, /将清理 1 个孤儿本地素材（2 KB）/);
+  assert.match(preview, /项目成片、被引用素材不会被删除/);
+  const summary = localClipCleanResultSummary({
+    removed: ["E000002"],
+    freed_bytes: 2048,
+    skipped: [{ local_clip_id: "E000003", reason: "local_clip_referenced" }]
+  });
+  assert.match(summary, /已清理 1 个孤儿素材，释放 2 KB/);
+  assert.match(summary, /跳过 1 个/);
 });
 
 test("pending login polling retries transient errors only", () => {

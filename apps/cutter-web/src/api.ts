@@ -477,6 +477,10 @@ export interface CutterRuntimeStatus {
       size_bytes: number;
       file_count: number;
     };
+    disk_free_bytes?: number;
+    disk_total_bytes?: number;
+    disk_low?: boolean;
+    disk_unavailable_reason?: string;
   };
   source_video_preflight?: {
     status: "ready" | "checking" | "blocked" | "unavailable";
@@ -509,6 +513,38 @@ export interface CutterRuntimeStatus {
     username: string;
     display_name: string;
   };
+}
+
+export interface CutterLocalClipIntegrityReference {
+  local_clip_id: string;
+  referenced_by: Array<{ kind: string; ref_id: string; title: string }>;
+}
+
+export interface CutterLocalClipOrphan {
+  local_clip_id: string;
+  path: string;
+  size_bytes: number;
+  reason: string;
+}
+
+export interface CutterLocalClipIntegrity {
+  referenced: CutterLocalClipIntegrityReference[];
+  orphans: CutterLocalClipOrphan[];
+  total_bytes: number;
+  expected_bytes: number;
+  confirm_token: string;
+}
+
+export interface CutterLocalClipCleanRequest {
+  local_clip_ids: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterLocalClipCleanResult {
+  removed: string[];
+  freed_bytes: number;
+  skipped: Array<{ local_clip_id: string; reason: string }>;
 }
 
 export interface CutterCacheInventoryTarget {
@@ -615,6 +651,8 @@ export interface CutterApiClient {
   getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
   getCacheInventory(options?: { include?: readonly string[] }): Promise<CutterCacheInventory>;
   cleanCache(request: CutterCacheCleanRequest): Promise<CutterCacheCleanResult>;
+  getLocalClipIntegrity(): Promise<CutterLocalClipIntegrity>;
+  cleanLocalClips(request: CutterLocalClipCleanRequest): Promise<CutterLocalClipCleanResult>;
   listSourceLibrary(options?: {
     limit?: number;
     offset?: number;
@@ -909,6 +947,28 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       return requestEnvelope<CutterCacheCleanResult>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/cache/clean"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    getLocalClipIntegrity() {
+      return requestEnvelope<CutterLocalClipIntegrity>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/local-clips/integrity"),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    cleanLocalClips(request) {
+      return requestEnvelope<CutterLocalClipCleanResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/local-clips/clean"),
         {
           method: "POST",
           headers: jsonHeaders(input.auth),

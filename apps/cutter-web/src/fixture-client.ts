@@ -944,6 +944,26 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         errors: []
       };
     },
+    async getLocalClipIntegrity() {
+      const orphanId = "E999999";
+      return {
+        referenced: data.localClips.clips.slice(0, 1).map((clip) => ({
+          local_clip_id: clip.local_clip_id,
+          referenced_by: [{ kind: "project", ref_id: "fixture-project", title: "Fixture 项目" }]
+        })),
+        orphans: [{ local_clip_id: orphanId, path: "/fixture/local/export-clips/" + orphanId, size_bytes: 2048, reason: "清单缺失" }],
+        total_bytes: 2048,
+        expected_bytes: 2048,
+        confirm_token: "fixture-local-token"
+      };
+    },
+    async cleanLocalClips(request: { local_clip_ids: string[]; confirm_token: string; expected_bytes: number }) {
+      return {
+        removed: [...request.local_clip_ids],
+        freed_bytes: request.expected_bytes,
+        skipped: []
+      };
+    },
     async listSourceLibrary(options?: {
       limit?: number;
       offset?: number;

@@ -1,9 +1,27 @@
 import { Button, InspectorPanel } from "@mixlab/ui-foundation";
-import { formatDuration, formatFileSize, type LocalClipCatalog } from "../../api.ts";
+import { useEffect, useState } from "react";
+import {
+  CutterApiError,
+  formatDuration,
+  formatFileSize,
+  type CutterApiClient,
+  type CutterLocalClipCleanResult,
+  type CutterLocalClipIntegrity,
+  type LocalClipCatalog
+} from "../../api.ts";
 import {
   projectDisplayTitle,
   type CutterProject
 } from "../../state/cutter-projects.ts";
+import { formatCutterCacheSize } from "../../state/cutter-cache.ts";
+
+function describeIntegrityError(error: unknown): string {
+  if (error instanceof CutterApiError) {
+    return [error.code, error.message, error.remediation].filter(Boolean).join(" · ");
+  }
+
+  return error instanceof Error ? error.message : "本地素材治理操作失败";
+}
 import {
   matchesOrientationFilter,
   videoOrientationLabel,
@@ -101,6 +119,26 @@ function sortLocalProjectGroups(
   });
 }
 
+export function localClipGovernanceSummary(integrity: CutterLocalClipIntegrity): string {
+  return "孤儿素材 " + integrity.orphans.length + " 个（" + formatCutterCacheSize(integrity.total_bytes) + "） · 被引用素材 " + integrity.referenced.length + " 个";
+}
+
+export function localClipCleanPreviewText(integrity: CutterLocalClipIntegrity): string {
+  return [
+    "将清理 " + integrity.orphans.length + " 个孤儿本地素材（" + formatCutterCacheSize(integrity.total_bytes) + "）。",
+    "仅删除未被项目、待剪清单或未完成任务引用的本地素材文件与索引；项目成片、被引用素材不会被删除。",
+    "清理需要服务端一次性确认令牌，失败不会静默删除。"
+  ].join("\n");
+}
+
+export function localClipCleanResultSummary(result: CutterLocalClipCleanResult): string {
+  const parts = ["已清理 " + result.removed.length + " 个孤儿素材，释放 " + formatCutterCacheSize(result.freed_bytes)];
+  if (result.skipped.length > 0) {
+    parts.push("跳过 " + result.skipped.length + " 个（" + result.skipped.map((item) => item.reason).join("、") + "）");
+  }
+  return parts.join("；");
+}
+
 export function LocalLibraryPage({
   catalog,
   query = "",
@@ -116,7 +154,11 @@ export function LocalLibraryPage({
   onOpenLocalClipDirectory,
   onDeleteLocalClip,
   onLoadMore,
-  isLoadingMore = false
+  isLoadingMore = false,
+  client,
+  diskLow = false,
+  diskFreeBytes,
+  diskTotalBytes
 }: {
   catalog: LocalClipCatalog;
   query?: string;
@@ -133,7 +175,63 @@ export function LocalLibraryPage({
   onDeleteLocalClip?: (localClip: LocalClip) => void;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  client?: Pick<CutterApiClient, "getLocalClipIntegrity" | "cleanLocalClips">;
+  diskLow?: boolean;
+  diskFreeBytes?: number;
+  diskTotalBytes?: number;
 }) {
+  const [integrity, setIntegrity] = useState<CutterLocalClipIntegrity | null>(null);
+  const [integrityLoading, setIntegrityLoading] = useState(false);
+  const [integrityError, setIntegrityError] = useState("");
+  const [pendingOrphanClean, setPendingOrphanClean] = useState(false);
+  const [orphanCleanResult, setOrphanCleanResult] = useState<CutterLocalClipCleanResult | null>(null);
+  const [orphanCleanError, setOrphanCleanError] = useState("");
+  const [orphanCleaning, setOrphanCleaning] = useState(false);
+
+  async function loadLocalClipIntegrity() {
+    if (!client) {
+      return;
+    }
+    setIntegrityLoading(true);
+    setIntegrityError("");
+    try {
+      setIntegrity(await client.getLocalClipIntegrity());
+    } catch (error) {
+      setIntegrityError(describeIntegrityError(error));
+    } finally {
+      setIntegrityLoading(false);
+    }
+  }
+
+  async function handleCleanOrphans() {
+    if (!client || !integrity) {
+      return;
+    }
+    setOrphanCleaning(true);
+    setOrphanCleanError("");
+    setOrphanCleanResult(null);
+    try {
+      const result = await client.cleanLocalClips({
+        local_clip_ids: integrity.orphans.map((orphan) => orphan.local_clip_id),
+        confirm_token: integrity.confirm_token,
+        expected_bytes: integrity.expected_bytes
+      });
+      setOrphanCleanResult(result);
+      setPendingOrphanClean(false);
+      await loadLocalClipIntegrity();
+    } catch (error) {
+      setOrphanCleanError(describeIntegrityError(error));
+    } finally {
+      setOrphanCleaning(false);
+    }
+  }
+
+  useEffect(() => {
+    if (client) {
+      void loadLocalClipIntegrity();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client]);
   const projectById = new Map(projects.map((project) => [project.project_id, project]));
   const filtered = query
     ? catalog.clips.filter((clip) => `${clip.title} ${clip.source_title} ${clip.selected_text}`.includes(query))
@@ -234,6 +332,79 @@ export function LocalLibraryPage({
             </div>
           </div>
         </header>
+
+        {diskLow ? (
+          <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+            <strong>磁盘空间不足</strong>
+            <span>
+              当前可用 {formatCutterCacheSize(diskFreeBytes ?? 0)}
+              {typeof diskTotalBytes === "number" ? " / 总计 " + formatCutterCacheSize(diskTotalBytes) : ""}
+              ，建议清理孤儿素材或缓存后再继续剪辑。
+            </span>
+          </div>
+        ) : null}
+        {client ? (
+          <section className="cutter-local-governance" aria-label="本地素材治理">
+            {integrityLoading ? <p className="ml-metric-description">正在检查本地素材引用…</p> : null}
+            {integrityError ? (
+              <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                <strong>本地素材检查失败</strong>
+                <span>{integrityError}</span>
+                <Button type="button" variant="secondary" size="sm" onClick={() => void loadLocalClipIntegrity()}>
+                  重试
+                </Button>
+              </div>
+            ) : null}
+            {integrity ? (
+              <div className="ml-empty-panel ml-empty-panel--plain">
+                <strong>本地素材治理</strong>
+                <span>{localClipGovernanceSummary(integrity)}</span>
+                <div className="ml-control-cluster">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void loadLocalClipIntegrity()}>
+                    刷新检查
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={integrity.orphans.length === 0 || integrityLoading}
+                    onClick={() => {
+                      setOrphanCleanResult(null);
+                      setOrphanCleanError("");
+                      setPendingOrphanClean(true);
+                    }}
+                  >
+                    清理孤儿素材（{integrity.orphans.length}）
+                  </Button>
+                </div>
+                {pendingOrphanClean ? (
+                  <div className="ml-empty-panel ml-empty-panel--plain" role="alertdialog" aria-label="确认清理孤儿素材">
+                    <strong>确认清理孤儿素材？</strong>
+                    <span style={{ whiteSpace: "pre-line" }}>{localClipCleanPreviewText(integrity)}</span>
+                    <div className="ml-control-cluster">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setPendingOrphanClean(false)}>
+                        取消
+                      </Button>
+                      <Button type="button" variant="danger" size="sm" onClick={() => void handleCleanOrphans()} disabled={orphanCleaning}>
+                        {orphanCleaning ? "清理中…" : "确认清理"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {orphanCleanResult ? <p role="status">{localClipCleanResultSummary(orphanCleanResult)}</p> : null}
+                {orphanCleanError ? (
+                  <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                    <strong>孤儿素材清理失败</strong>
+                    <span>{orphanCleanError}</span>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => void loadLocalClipIntegrity()}>
+                      刷新后重试
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className="cutter-local-library-scroll ml-scroll-region">
           {viewMode === "all" ? (

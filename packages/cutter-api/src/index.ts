@@ -1,6 +1,6 @@
 import { constants, createReadStream } from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
-import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, statfs, utimes, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import os from "node:os";
@@ -132,6 +132,27 @@ export {
   CACHE_MAINTENANCE_ERROR_CODES,
   CacheMaintenanceError
 } from "./cache-maintenance.ts";
+import {
+  LOCAL_CLIP_MAINTENANCE_ERROR_CODES,
+  LocalClipMaintenanceError,
+  createLocalClipMaintenanceService,
+  type LocalClipMaintenanceService
+} from "./local-clip-maintenance.ts";
+export {
+  LOCAL_CLIP_MAINTENANCE_ERROR_CODES,
+  LocalClipMaintenanceError
+} from "./local-clip-maintenance.ts";
+import {
+  WorkspaceResidueError,
+  createWorkspaceResidueService,
+  readWorkspaceResidueSummaryBestEffort,
+  type WorkspaceResidueService
+} from "./workspace-residue.ts";
+export {
+  WORKSPACE_RESIDUE_ERROR_CODES,
+  WorkspaceResidueError,
+  isWorkspaceResiduePathAllowed
+} from "./workspace-residue.ts";
 
 export interface CreateCutterApiServerInput {
   /** 隔离事件服务连接（默认从 MIXLAB_USAGE_SERVICE_URL 读取；未配置走旧共享 NDJSON）。 */
@@ -153,6 +174,10 @@ export interface CreateCutterApiServerInput {
   searchd_cache_root?: string;
   /** 磁盘缓存清理 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
   cache_confirm_ttl_ms?: number;
+  /** 本地素材治理 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
+  local_clip_confirm_ttl_ms?: number;
+  /** 工作区残留清理 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
+  workspace_residue_confirm_ttl_ms?: number;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
@@ -212,7 +237,11 @@ export interface CutterApiErrorBody {
     message: string;
     /** 可选修复建议（D1b 缓存清理错误新增；旧客户端忽略即可）。 */
     remediation?: string;
+    /** 可选结构化细节（如 D2 local_clip_referenced 的 referenced_by）；旧客户端忽略即可。 */
+    details?: Record<string, unknown>;
   };
+  /** 兼容客户端从顶层读取 details 的约定（与 error.details 同值）。 */
+  details?: Record<string, unknown>;
 }
 
 interface ApiSourceVideoUrls {
@@ -352,6 +381,10 @@ interface CutterRuntimeStatusPayload {
   /** 事件/账号服务模式（默认关闭时保持旧路径）。 */
   usage_service_mode?: "isolated-service" | "legacy-ndjson";
   accounts_service_mode?: "isolated-service" | "local-users-file";
+  /** D3：工作区残留条目数与字节数（扫描失败/超时时省略并给出 reason）。 */
+  workspace_residue_count?: number;
+  workspace_residue_bytes?: number;
+  workspace_residue_reason?: string;
   diagnostics?: {
     runtime_timings_ms: Record<string, number>;
     search_index_warmup?: SearchIndexWarmupStatus;
@@ -381,6 +414,14 @@ interface CutterLocalCacheRuntimeStatus {
   thumbnail_cache_checksum_entry_count: number;
   source_video_cache: CutterSourceVideoCacheStatus;
   cut_temp_cache: CutTempCacheStatus;
+  /** D2：缓存所在磁盘剩余字节（statfs 不可用时省略）。 */
+  disk_free_bytes?: number;
+  /** D2：缓存所在磁盘总字节（statfs 不可用时省略）。 */
+  disk_total_bytes?: number;
+  /** D2：剩余空间 <5% 时为 true（磁盘信息不可用时为 false）。 */
+  disk_low?: boolean;
+  /** D2：磁盘信息不可用时的原因说明（尽力而为，不阻塞 runtime-status）。 */
+  disk_unavailable_reason?: string;
 }
 
 interface CutterSourceVideoCacheStatus {
@@ -1503,7 +1544,7 @@ function setCorsHeaders(response: ServerResponse): void {
   response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,DELETE,OPTIONS");
   response.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type,Range,X-MixLab-Device-Id,X-MixLab-Session-Token"
+    "Content-Type,Range,X-MixLab-Device-Id,X-MixLab-Session-Token,X-MixLab-Cache-Confirm-Token"
   );
   response.setHeader("Access-Control-Expose-Headers", "Content-Length,Content-Range,Accept-Ranges");
 }
@@ -1536,20 +1577,43 @@ function writeError(
   statusCode: number,
   code: string,
   message: string,
-  remediation?: string
+  remediation?: string,
+  details?: Record<string, unknown>
 ): void {
   writeJson(response, statusCode, {
     error: {
       code,
       message,
-      ...(remediation ? { remediation } : {})
-    }
+      ...(remediation ? { remediation } : {}),
+      ...(details ? { details } : {})
+    },
+    ...(details ? { details } : {})
   } satisfies CutterApiErrorBody);
 }
 
 /** 将 D1b 缓存清理稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
 function writeCacheMaintenanceError(response: ServerResponse, error: unknown): boolean {
   if (!(error instanceof CacheMaintenanceError)) {
+    return false;
+  }
+
+  writeError(response, error.status, error.code, error.message, error.remediation);
+  return true;
+}
+
+/** 将 D2 本地素材治理稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
+function writeLocalClipMaintenanceError(response: ServerResponse, error: unknown): boolean {
+  if (!(error instanceof LocalClipMaintenanceError)) {
+    return false;
+  }
+
+  writeError(response, error.status, error.code, error.message, error.remediation);
+  return true;
+}
+
+/** 将 D3 工作区残留稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
+function writeWorkspaceResidueError(response: ServerResponse, error: unknown): boolean {
+  if (!(error instanceof WorkspaceResidueError)) {
     return false;
   }
 
@@ -5004,6 +5068,62 @@ async function readSourceVideoPreflightStatus(
   return cache.status ?? checkingSourceVideoPreflightStatus();
 }
 
+const CACHE_DISK_STATS_TIMEOUT_MS = 150;
+const DISK_LOW_FREE_RATIO = 0.05;
+
+/** D2：缓存磁盘空间信息（statfs 尽力而为、150ms 超时；失败不阻塞 runtime-status）。 */
+async function readCacheDiskUsage(input: CreateCutterApiServerInput): Promise<{
+  disk_free_bytes?: number;
+  disk_total_bytes?: number;
+  disk_low: boolean;
+  disk_unavailable_reason?: string;
+}> {
+  const candidates = [
+    localCacheRootForInput(input),
+    ...(input.workspace_root ? [input.workspace_root] : []),
+    os.homedir()
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      let timer: NodeJS.Timeout | undefined;
+      const stats = await Promise.race([
+        statfs(candidate),
+        new Promise<undefined>((resolve) => {
+          timer = setTimeout(() => resolve(undefined), CACHE_DISK_STATS_TIMEOUT_MS);
+        })
+      ]).finally(() => {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      });
+      if (!stats) {
+        continue;
+      }
+
+      const blockSize = Number(stats.bsize);
+      const totalBytes = Number(stats.blocks) * blockSize;
+      const freeBytes = Number(stats.bavail) * blockSize;
+      if (!Number.isFinite(totalBytes) || totalBytes <= 0 || !Number.isFinite(freeBytes)) {
+        continue;
+      }
+
+      return {
+        disk_free_bytes: Math.max(0, Math.floor(freeBytes)),
+        disk_total_bytes: Math.floor(totalBytes),
+        disk_low: freeBytes / totalBytes < DISK_LOW_FREE_RATIO
+      };
+    } catch {
+      // 尝试下一个候选路径（目录尚不存在时 statfs 会失败）。
+    }
+  }
+
+  return {
+    disk_low: false,
+    disk_unavailable_reason: "本机磁盘空间信息暂不可用（statfs 失败或超时）"
+  };
+}
+
 async function readLocalCacheRuntimeStatus(
   input: CreateCutterApiServerInput
 ): Promise<CutterLocalCacheRuntimeStatus> {
@@ -5022,6 +5142,7 @@ async function readLocalCacheRuntimeStatus(
         size_bytes: 0,
         file_count: 0
       };
+  const diskUsage = await readCacheDiskUsage(input);
 
   return {
     cache_root_path: cacheRoot,
@@ -5036,7 +5157,8 @@ async function readLocalCacheRuntimeStatus(
       typeof entry.checksum_sha256 === "string" && entry.checksum_sha256.length === 64
     ).length,
     source_video_cache: sourceVideoCacheStatus,
-    cut_temp_cache: cutTempStatus
+    cut_temp_cache: cutTempStatus,
+    ...diskUsage
   };
 }
 
@@ -5070,7 +5192,8 @@ function checkingLocalCacheRuntimeStatus(input: CreateCutterApiServerInput): Cut
       max_bytes: cutTempMaxBytes(input),
       size_bytes: 0,
       file_count: 0
-    }
+    },
+    disk_low: false
   };
 }
 
@@ -5208,6 +5331,13 @@ async function runtimeStatusForSession(input: {
   const libraryId = await timeAsync("library_id", () =>
     readLibraryIdBestEffort(input.api_input)
   );
+  // D3：残留扫描与其它状态并行，最多等 200ms；失败/超时不阻塞 runtime-status。
+  const workspaceResiduePromise = timeAsync("workspace_residue", () =>
+    readWorkspaceResidueSummaryBestEffort({
+      ...(input.api_input.workspace_root ? { workspace_root: input.api_input.workspace_root } : {}),
+      timeout_ms: 200
+    })
+  );
   const [searchBackend, localCache, sourceVideoPreflight] = await Promise.all([
     timeAsync("search_backend", () => readSearchBackendStatus(input.api_input, availableVideoCount)),
     timeAsync("local_cache", () => input.include_local_cache
@@ -5215,6 +5345,7 @@ async function runtimeStatusForSession(input: {
       : Promise.resolve(checkingLocalCacheRuntimeStatus(input.api_input))),
     timeAsync("source_video_preflight", () => readSourceVideoPreflightStatus(input.api_input))
   ]);
+  const workspaceResidue = await workspaceResiduePromise;
   const effectiveAvailableVideoCount =
     releaseCache.ready && releaseCache.ready_video_count > 0
       ? releaseCache.ready_video_count
@@ -5233,6 +5364,7 @@ async function runtimeStatusForSession(input: {
     workspace_enabled: Boolean(input.api_input.workspace_root),
     workspace_root_label: pathLabel(input.api_input.workspace_root, "未启用本地剪切工作区"),
     workspace_root_path: input.api_input.workspace_root ?? "",
+    ...workspaceResidue,
     local_clip_count: localClips.local_clip_count,
     ffmpeg_status: ffmpegStatus,
     ffmpeg_source: ffmpegSource,
@@ -5754,6 +5886,24 @@ export function cutterCacheMaintenanceService(server: Server): CacheMaintenanceS
   return cacheMaintenanceServices.get(server);
 }
 
+const localClipMaintenanceServices = new WeakMap<Server, LocalClipMaintenanceService>();
+
+/** 测试/诊断入口：返回该 server 实例的本地素材治理服务（confirm_token/busy 状态在实例内）。 */
+export function cutterLocalClipMaintenanceService(
+  server: Server
+): LocalClipMaintenanceService | undefined {
+  return localClipMaintenanceServices.get(server);
+}
+
+const workspaceResidueServices = new WeakMap<Server, WorkspaceResidueService>();
+
+/** 测试/诊断入口：返回该 server 实例的工作区残留清理服务（confirm_token/busy 状态在实例内）。 */
+export function cutterWorkspaceResidueService(
+  server: Server
+): WorkspaceResidueService | undefined {
+  return workspaceResidueServices.get(server);
+}
+
 function envPositiveInteger(name: string): number | undefined {
   const parsed = Number.parseInt(process.env[name]?.trim() ?? "", 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
@@ -5829,6 +5979,22 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
     invalidate_runtime_status: () => invalidateLocalCacheRuntimeStatus(input),
     ...(input.cache_confirm_ttl_ms !== undefined
       ? { confirm_ttl_ms: input.cache_confirm_ttl_ms }
+      : {})
+  });
+
+  // D2 本地素材治理：confirm_token/busy 状态跟随 server 实例；引用扫描复用 cutter-local 读取函数。
+  const localClipMaintenance = createLocalClipMaintenanceService({
+    ...(input.workspace_root ? { workspace_root: input.workspace_root } : {}),
+    ...(input.local_clip_confirm_ttl_ms !== undefined
+      ? { confirm_ttl_ms: input.local_clip_confirm_ttl_ms }
+      : {})
+  });
+
+  // D3 工作区/临时残留：token/busy 状态跟随 server 实例。
+  const workspaceResidue = createWorkspaceResidueService({
+    ...(input.workspace_root ? { workspace_root: input.workspace_root } : {}),
+    ...(input.workspace_residue_confirm_ttl_ms !== undefined
+      ? { confirm_ttl_ms: input.workspace_residue_confirm_ttl_ms }
       : {})
   });
 
@@ -6713,6 +6879,74 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/cutter/local-clips/clean") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        let body: unknown;
+        try {
+          body = await readRequestJson(request);
+        } catch (error) {
+          writeError(
+            response,
+            400,
+            "invalid_request",
+            (error as Error).message === "invalid_json"
+              ? "请求 JSON 格式不正确"
+              : "请求体过大或格式不正确"
+          );
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await localClipMaintenance.clean(body)));
+        } catch (error) {
+          if (!writeLocalClipMaintenanceError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/cutter/workspace/residue/clean") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        let body: unknown;
+        try {
+          body = await readRequestJson(request);
+        } catch (error) {
+          writeError(
+            response,
+            400,
+            "invalid_request",
+            (error as Error).message === "invalid_json"
+              ? "请求 JSON 格式不正确"
+              : "请求体过大或格式不正确"
+          );
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await workspaceResidue.clean(body)));
+        } catch (error) {
+          if (!writeWorkspaceResidueError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
       const projectOutputsDeleteMatch = /^\/cutter\/projects\/([^/]+)\/outputs$/.exec(url.pathname);
       if (request.method === "DELETE" && projectOutputsDeleteMatch) {
         if (!(await requireCutterSession({
@@ -6825,6 +7059,25 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           );
         } catch (error) {
           if (!writeCacheMaintenanceError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/cutter/workspace/residue") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await workspaceResidue.inventory()));
+        } catch (error) {
+          if (!writeWorkspaceResidueError(response, error)) {
             throw error;
           }
         }
@@ -6984,6 +7237,25 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      if (url.pathname === "/cutter/local-clips/integrity") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        try {
+          writeJson(response, 200, apiResponse(await localClipMaintenance.integrity()));
+        } catch (error) {
+          if (!writeLocalClipMaintenanceError(response, error)) {
+            throw error;
+          }
+        }
+        return;
+      }
+
       if (url.pathname === "/cutter/local-clips") {
         if (!(await requireCutterSession({
           api_input: input,
@@ -7066,6 +7338,35 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             if (!/^E\d{6}$/.test(localClipRoute.local_clip_id)) {
               writeError(response, 404, "local_clip_not_found", "Local clip not found");
               return;
+            }
+
+            // D2：被项目/任务/清单引用时拒绝；?force=1 + X-MixLab-Cache-Confirm-Token 才允许强制删除。
+            const inspection = await localClipMaintenance.inspect(localClipRoute.local_clip_id);
+            if (inspection.known && inspection.referenced_by.length > 0) {
+              const force = url.searchParams.get("force") === "1";
+              if (!force) {
+                writeError(
+                  response,
+                  409,
+                  LOCAL_CLIP_MAINTENANCE_ERROR_CODES.local_clip_referenced,
+                  "本地素材被项目、待剪任务或清单引用，未删除。",
+                  "如确认删除，请重新调用 GET /cutter/local-clips/integrity 并在 DELETE 请求携带 ?force=1 与 X-MixLab-Cache-Confirm-Token 请求头。",
+                  { referenced_by: inspection.referenced_by }
+                );
+                return;
+              }
+
+              try {
+                localClipMaintenance.consumeForceToken(
+                  firstHeaderValue(request.headers["x-mixlab-cache-confirm-token"]),
+                  localClipRoute.local_clip_id
+                );
+              } catch (error) {
+                if (!writeLocalClipMaintenanceError(response, error)) {
+                  throw error;
+                }
+                return;
+              }
             }
 
             const result = await deleteExportClip({
@@ -7396,6 +7697,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
   });
 
   cacheMaintenanceServices.set(server, cacheMaintenance);
+  localClipMaintenanceServices.set(server, localClipMaintenance);
+  workspaceResidueServices.set(server, workspaceResidue);
 
   server.once("close", () => {
     void workspaceLease?.release();
