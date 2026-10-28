@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793210571742-11bdf41a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793210571742-11bdf41a",
+  "reply_to": "1793209585935-563a7239",
+  "created_at": "2026-10-28T18:02:51.742Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Windows 完成本轮（C 收尾 + smoke 重跑 + A1/A2），结果如下：\n\n【1) smoke 重跑（同步 admin@f7e3a7e 拖选补丁后）】\nL473 拖选/浮动按钮问题已通过；最新首个失败是 L491 等 `剪切完成 · 本地素材已更新 1` 超时 30s。实际 UI 提示为「已创建剪切项目：10月29日 · 等待中 1」，最近任务显示「等待中」。\n根因：smoke 里 `createCutterApiServer` 未开启 `auto_run_cut_queue`（默认 false），而当前 UI「剪切这段」是提交 clip-list/cut-job 到队列，服务端不自动 drain，所以不会出现完成 toast。\n建议（scripts/smoke Mac 单写，我没改）：在 smoke 的 createCutterApiServer options 加 `auto_run_cut_queue: true`；或点击后调 `POST /cutter/cut-jobs/run-next` 再轮询 done 再断言完成/本地素材。证据：C:\\dev\\logs\\smoke-cutter-api-web.log（page_text 含“已创建剪切项目…等待中 1”）。\n\n【2) (a)(b) 修复完成并实测通过】\n(a) 桌面退出回收 sidecar：Tauri `CloseRequested` + `RunEvent::Exit` 调用 stop_engine_sidecars（taskkill cutter-api-sidecar/searchd），新增 desktop-host 事件 app_window_close_cleanup / app_exit_cleanup，以及 cargo 单测 engine_cleanup_targets_both_sidecars。实测：安装→新配置→引擎 ready（3789/3790 监听）→关窗 8s 后 desktop/sidecar/searchd 进程全 0、端口 0。\n(b) 卸载残留：installer-hooks.nsh 新增 NSIS_HOOK_POSTUNINSTALL，清理 $INSTDIR\\cache、$INSTDIR、HKCU\\Software\\MixLab\\MixLab Cutter（父键 /ifempty）。实测卸载 /S exit=0 后 install_dir/cache/HKCU Software 键/HKCU 卸载键/桌面与开始菜单快捷方式全部不存在。\n提交：6d7ae3f fix(desktop): terminate engine sidecars on exit; clean uninstall residue；cargo test 6/6。\n最终安装包（含 A1/A2 前端）：MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=8136F1E8B3A236AE6E82F3F58228D0659861B00A364921F053933604C1BB49AD；测试后原 0.18.10 安装/注册表/快捷方式/AppData 已还原。证据 C:\\dev\\mixlab-verify-nsis（fix-verify-residue.json、evidence.log）。\n\n【3) A1/A2 已提交 9460b11】\nA2 可用：剪切任务页多选 + 批量重试（仅 failed/cancelled，done/pending/running 跳过）/批量暂停（复用 cancel，任务保留可再重试）/批量删除（终态隐藏并持久化 localStorage，刷新不回显，可“恢复已删除”；活动任务先 cancel 再隐藏）；空选禁用、汇总反馈 role=status；测试覆盖。语义限制：暂停=取消后重试（非真 pause）；删除=本机视图隐藏（后端记录仍在）。若需要真 pause/resume/delete，请确认契约（建议 POST /cutter/cut-jobs/{id}/pause|resume、DELETE ...，并扩展 CutJobStatus/drain 逻辑），我再实现。\nA1 代码/测试已完成（拖拽排序+上移/下移+localStorage 顺序持久化+提交 clip-list/入队按 order 的执行顺序链路、单测覆盖），但**当前 App 没有待剪清单入口**：M14 移除了待剪清单主流程，`#/cut-list` 路由被映射到 cut-tasks，「剪切这段」直接提交队列、不写入 cutList。A1 UI 需要你决策入口方案（前端改动，无契约变更）：\n  方案①（推荐，最小改动）：素材检索浮动栏在「剪切这段」旁增加次要操作「加入待剪清单」；剪切任务页加「待剪清单 / 剪切任务」切换（复用 CutListPage，拖拽排序 + 提交入队）。\n  方案②：恢复待剪清单为主流程（剪切先入清单、再手动提交），改动较大，需明确是否推翻 M14。\n  方案③：暂不暴露入口，A1 作为基础能力与 A4（检索联动）一起上线。\n请选一个，我按选择接线 UI 并补渲染测试。\n\n【4) 回归】typecheck PASS；剪辑端全量 487/487 PASS（cutter-api 94、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 282、cutter-desktop 7）。\n\n【5) 下一步】等 smoke auto_run 修复后重跑回归；等 A1 入口方案后接线；随后按 B（素材定位/搜索体验）推进。"
+}
