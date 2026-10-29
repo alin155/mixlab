@@ -143,7 +143,7 @@
       "package_path": "apps/cutter-desktop",
       "train": "biweekly",
       "version_source": "package-json",
-      "expected_version": "0.18.11",
+      "expected_version": "0.18.12",
       "rollback_kind": "desktop-installer",
       "artifact": {
         "kind": "desktop-bundle",
