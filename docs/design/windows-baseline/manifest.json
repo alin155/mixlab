@@ -1,0 +1,1008 @@
+{
+  "generated_at": "2026-10-29T19:30:28.584Z",
+  "app_version": "0.18.13 (candidate 0.18.13.1-win@28508c1)",
+  "installer_sha256": "8429C9D76062CF9DFD3B3802B2850E0AF9EC1400D53E39EA942EB4F9AA9CE617",
+  "windows": "Windows 11 Pro 10.0.26200 build 26200",
+  "system": {
+    "screen": [
+      1920,
+      1080
+    ],
+    "dpr": 1,
+    "inner": [
+      1440,
+      900
+    ],
+    "os": "Microsoft Windows 11 Pro 10.0.26200 build 26200",
+    "actual_display": "1920x1080, system scaling 100%, DPR1",
+    "scaling_mode": "125%/150% 仅缩小 CSS 视口模拟；系统缩放未改，DPR 仍 1",
+    "app_version": "0.18.13 (candidate 0.18.13.1-win@28508c1)",
+    "installer_sha256": "8429C9D76062CF9DFD3B3802B2850E0AF9EC1400D53E39EA942EB4F9AA9CE617",
+    "branch": "hotfix/0.18.13.1-win @ 28508c1"
+  },
+  "shots": [
+    {
+      "file": "home-1536x1024-100.png",
+      "label": "首页/项目首页",
+      "sha256": "4fc62aab8b6d2e3237daae9cb407bfe15f518b4c074b470cb03538c2f3da87f5",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n0 KB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归"
+    },
+    {
+      "file": "new-project-1536x1024-100.png",
+      "label": "新建项目弹窗",
+      "sha256": "7a0c464cb84f8d2b16c5788c3145afae341ecb99d99c97a74bc8fcc39dcbca88",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n0 KB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归"
+    },
+    {
+      "file": "search-results-1536x1024-100.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "aea6db9096ef00f5996ebbad38f4c1eafe421d36405af9d688fdf1c0510713c2",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-selected-1536x1024-100.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "f32545d24f65a0e4cf65053cb9f13c03d7a1923c24efa9892f67071a60c70b93",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-floating-1536x1024-100.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "109cfaddc911a2ce23108ab69ca2dd1b2b650ce77ee724bd8f4ae0be9df293c3",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "cut-tasks-1536x1024-100.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "6d51fedf180554b513566c708f7f0b389db41b32f427e7e6353fc6807b0aa01c",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "cut-task-detail-1536x1024-100.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "2ef4d283c8ecdbc99a2caeb27abd75acaeb0a87636598b6bd90152b8ebd33b29",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "local-library-1536x1024-100.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "1b155a6065f7c3cd5a808c63d359178ec41d457988d204021b72868a0d5cd65b",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n10月30日 · 15 个当前项目素材\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引用…"
+    },
+    {
+      "file": "local-all-1536x1024-100.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "7a82ad99a02caacd3f0879c778b07465909d3ed4ecd1eb1213fa9e1fd56808c8",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-clip-detail-1536x1024-100.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "92a1ef162999763c5e917fab1f93812faad79645a2a96287111bcd2f663c2da8",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "public-library-1536x1024-100.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "460477773a6b3363755d8d8b9e0a720ee7bc05d7959de19c481f9a847c619fda",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n公共素材库\n\n可用原素材\n\n浏览管理端已经发布到剪辑端的原视频。\n\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276"
+    },
+    {
+      "file": "cache-1536x1024-100.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "2f0b5e3c46638afde3f89a584f4982b9b216607e0df9a95c934fe4b8c9c4bebb",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nLocal Runtime\n\n缓存管理\n\n查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除"
+    },
+    {
+      "file": "settings-1536x1024-100.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "23286a5d330070bf51dfd6302478cd43be080d02e4127d8411b941e41aebdfcf",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n运行环境\n\n设置\n\n管理本地工作区、默认剪切方式和界面显示。\n\n服务状态\n运行环境\nWindows 桌面端\n应用版本\nv0.18.13\n"
+    },
+    {
+      "file": "home-1229x819-125sim.png",
+      "label": "首页/项目首页",
+      "sha256": "534660fd69a9b1af8afce9f4c7439a7cb06adb600265d35fd1ad4a05e6e63f69",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项"
+    },
+    {
+      "file": "new-project-1229x819-125sim.png",
+      "label": "新建项目弹窗",
+      "sha256": "1966486e42756c06b84f0f4737be496fc5f50a25fbb2cd9ca879bd5a0b44e476",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项"
+    },
+    {
+      "file": "search-results-1229x819-125sim.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "b4d33221caac416bf72d0f117e1fd8eec3857d81dc1f1b6232997417fbd08dd3",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-selected-1229x819-125sim.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "fed80153657a80a50926c8166e803bb35f5763a935803bfdbd33eeb67eb075d3",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-floating-1229x819-125sim.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "2087399606a835ece4fd82869d1fe50e30933feaad1d6cdcd821d4892773f6a1",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "cut-tasks-1229x819-125sim.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "2c68b10ef9f48f73c27f44ef0e01db2700ab7ddc62cd9d3bd0e3ed07a24e53ab",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "cut-task-detail-1229x819-125sim.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "7e28038b0341f8eee5f32cabe501d654f72b0cc3f1a6af8e9a5b1886b0f37c4d",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "local-library-1229x819-125sim.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "99b8f74ae8a17ce5bdccdddc182ccbe623e445c296a97db672794caccd784bf6",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-all-1229x819-125sim.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "b0d13abeffb3d7ee65e8a6f364a1e8290bbff29ca5abb7f3b8a075a27d01b8d6",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-clip-detail-1229x819-125sim.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "fc0ee1477280078f6779ff4afddf20bf37db639649894ad0311dbbd74866b0b1",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "public-library-1229x819-125sim.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "0682a9819f9d213c28d7656de738be40c91febcfeed856188ea8371e6f4ba8f1",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n公共素材库\n\n可用原素材\n\n浏览管理端已经发布到剪辑端的原视频。\n\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276"
+    },
+    {
+      "file": "cache-1229x819-125sim.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "698a2c664e54e4dbf935d5949df194c67781ac2bbc9409d110ea3229676894f8",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nLocal Runtime\n\n缓存管理\n\n查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除"
+    },
+    {
+      "file": "settings-1229x819-125sim.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "6fc318a1337b58c268543975d03ada5178f296bbf7dae4309a6730b8376d8192",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n运行环境\n\n设置\n\n管理本地工作区、默认剪切方式和界面显示。\n\n服务状态\n运行环境\nWindows 桌面端\n应用版本\nv0.18.13\n"
+    },
+    {
+      "file": "home-1024x683-150sim.png",
+      "label": "首页/项目首页",
+      "sha256": "b5ede6e34560c289b4ee5416b0da8762643927ed7272822a17b067e4812917f1",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项"
+    },
+    {
+      "file": "new-project-1024x683-150sim.png",
+      "label": "新建项目弹窗",
+      "sha256": "858e0c75b868463a8de78593a02ac1af0b3e815271f3693a31cf0ec4f74abe81",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项"
+    },
+    {
+      "file": "search-results-1024x683-150sim.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "cc19ce4b0bbde99a18413aee6ebf92e4a49f293e9430d4cdf8efcddf0422facb",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-selected-1024x683-150sim.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "c84ec2231e89c91a79e090e45cf866d1c32be6d28fa9a20bc016f55226e15074",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-floating-1024x683-150sim.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "10eb06002d14e8afd7deabc16d2d124a067e92465da7f3f2a5e1029cda2d1e06",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "cut-tasks-1024x683-150sim.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "0049f1e7e0623bb51302142a7c9f99f51e2e93fc7a26617da92e8a1e4d51dbc6",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "cut-task-detail-1024x683-150sim.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "0b23b8785926e624de6a8bcee3674d873c8026c2ad4ea4c80da5e5b142ad4038",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "local-library-1024x683-150sim.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "014518fdeeb09ab80f5156cd91fb5728f09b275526b7cf8681163cf19f2eadda",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-all-1024x683-150sim.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "1c02209b1039de0c6b2747b6226d74f5aa5afdc1982e0146c5d3f3f9ea1be77e",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-clip-detail-1024x683-150sim.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "902a1c739126aacf0d0e9ad5765089e704cc9cc0d3ec8f483cc7f973152ef8eb",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "public-library-1024x683-150sim.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "07d28d4953fc35ff6bdb71512e4a36d133ca8b20b7973a45b01fcbba16623c27",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n公共素材库\n\n可用原素材\n\n浏览管理端已经发布到剪辑端的原视频。\n\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276"
+    },
+    {
+      "file": "cache-1024x683-150sim.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "39e5779b706a9a8f289ac04b0d51ad69bc000c83851261cae42087a4de5d20fe",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nLocal Runtime\n\n缓存管理\n\n查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除"
+    },
+    {
+      "file": "settings-1024x683-150sim.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "c5e00edb9b1afb088baf8c2b0a6fe892cca06cfd2ec121dfdec15cb81025f511",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n运行环境\n\n设置\n\n管理本地工作区、默认剪切方式和界面显示。\n\n服务状态\n运行环境\nWindows 桌面端\n应用版本\nv0.18.13\n"
+    },
+    {
+      "file": "home-1440x900-100.png",
+      "label": "首页/项目首页",
+      "sha256": "434ec78c42ae1109cb66f46520aaaeaba99af6f13e3c85d83964f40b7cc2017c",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项"
+    },
+    {
+      "file": "new-project-1440x900-100.png",
+      "label": "新建项目弹窗",
+      "sha256": "6f0db2427593a5d5f86dd73da3e3d86f4ae90359a980a3527b1030cb4f7d535e",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nCutter / Project Home\n\n选择项目，然后开始搜索素材\n\n根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项"
+    },
+    {
+      "file": "search-results-1440x900-100.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "de6a53edafa967ae2d21c0cf0a66329f080ce5cf269212291e386ca79ed5a74b",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-selected-1440x900-100.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "15cb17649c20631c4f8804cf308913c2e0378d2568cc73ec13c9a5f519a70e9a",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "search-floating-1440x900-100.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "b013e66c917b3be0d1929a732536a3e816d078d53c7397f5483db87306971724",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": "",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276）\n陶矜2（9688）\n文件夹\n候选素材\n已载入10条 · 命中38处"
+    },
+    {
+      "file": "cut-tasks-1440x900-100.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "26989732102dff55ff6afcc8389d847cdcfd927b1a6abbf47abdc4741172e840",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "cut-task-detail-1440x900-100.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "c497d262adc57466841a2bf5789967b2001e9774655b619d250c0d6684241190",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n剪切任务\n待剪清单（1）\n剪切任务\n\n18 个任务 · 2 个需要处理 · 当前项目 10月30日 · 全部 83 个任务\n\n0 个已选\n"
+    },
+    {
+      "file": "local-library-1440x900-100.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "1554843dfe806f4798c90061449a04b4795f3013a8baff26aee8d283d4d5b41e",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-all-1440x900-100.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "09606ecd31ec576d8ef47022fd6fd0c3e54c5e9d22b7c97877987aa54097d654",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "local-clip-detail-1440x900-100.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "9af6ef163d45c67136db6916eb1fec66155972cf9838cbb3e32531325a0b38e0",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n本地素材库\n\n本地可复剪素材\n\n78 个本地可复剪素材，来自本机剪切输出。\n\n当前项目\n全部素材\n全部\n横版\n竖版\n\n正在检查本地素材引"
+    },
+    {
+      "file": "public-library-1440x900-100.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "3826e0597a93cb0ddd8aead7ebe3f2a214311184bea5df0d4d32a8328dd5710b",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n公共素材库\n\n可用原素材\n\n浏览管理端已经发布到剪辑端的原视频。\n\n搜索\n全部素材\n王牧笛（1478）\n陈永亮（427）\n陶矜（1276"
+    },
+    {
+      "file": "cache-1440x900-100.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "036d30b89e07265a6acea940af9eff29431463f43173307c53d2bccfd54923c2",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\nLocal Runtime\n\n缓存管理\n\n查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除"
+    },
+    {
+      "file": "settings-1440x900-100.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "c5c34ccca575f8b162dcb0c3384be49374695ff16109eefe01200260e5d19216",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置",
+      "text": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 78 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n缓存\n5.0 GB\n账户\n发现 5 个工作区临时残留\n可在缓存管理页预览并清理；项目与已完成作品不会被删除。\n去清理\n\n运行环境\n\n设置\n\n管理本地工作区、默认剪切方式和界面显示。\n\n服务状态\n运行环境\nWindows 桌面端\n应用版本\nv0.18.13\n"
+    }
+  ],
+  "failures": [],
+  "notes": [],
+  "yellow_banner": {
+    "text": "MLMixLab Cutter项目化素材剪切首页素材搜索剪切任务本地素材公共素材库缓存管理设置当前项目10月30日素材库本地 78 / 公共 12869剪切任务空闲本机服务正常Allen缓存5.0 GB账户发现 5 个工作区临时残留可在缓存管理页预览并清理；项目与已完成作品不会被删除。去清理Cutter / Project Home选择项目，然后开始搜索素材根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归档。全部素材王牧笛（1478）陈永亮（427）陶矜（1276）陶矜2（9688）文件夹搜索新建项目最近项目10月30日已剪 15待剪 38进入项目打开文件目录6月24日已剪 4",
+    "background": "rgb(234, 242, 251)",
+    "rect": {
+      "x": 0,
+      "y": 0,
+      "width": 1440,
+      "height": 900,
+      "top": 0,
+      "right": 1440,
+      "bottom": 900,
+      "left": 0
+    }
+  },
+  "floating_cut": {
+    "size": "1440x900-100",
+    "floating_bar": 1,
+    "cut_button": 1
+  },
+  "notice": {
+    "selector": ".cutter-contract-notice",
+    "text": "发现 5 个工作区临时残留，可在缓存管理页预览并清理；项目与已完成作品不会被删除。去清理",
+    "explanation": "不是版本/权限提示；是工作区临时残留清理提示。1536×1024 截图中显示在顶部且被裁切/显示不完整，疑似内容区滚动位置或布局遮挡；1440×900 原生截图未显示该条。"
+  },
+  "coverage": {
+    "sizes": [
+      "1536x1024 @100% (real CSS viewport)",
+      "1229x819 @125% layout simulation (DPR1, not system scaling)",
+      "1024x683 @150% layout simulation (DPR1, not system scaling)",
+      "1440x900 @100% (real CSS viewport)"
+    ],
+    "states": [
+      "首页/项目首页",
+      "新建项目弹窗",
+      "素材搜索结果",
+      "素材搜索选中详情",
+      "素材搜索浮层/剪切这段 (部分尺寸)",
+      "剪切任务列表",
+      "剪切任务详情",
+      "本地素材网格",
+      "本地素材全部素材",
+      "本地素材详情",
+      "公共素材库",
+      "缓存管理",
+      "设置"
+    ],
+    "not_covered": [
+      "真实系统级 125%/150% DPI 缩放（未改 Windows 显示缩放）",
+      "首次运行空态（已有安装配置）",
+      "悬浮剪切按钮在全部尺寸/所有状态下的完整性（仅程序化选区触发部分尺寸）"
+    ],
+    "duplicate_hash_check": "PASS: all screenshots have unique sha256"
+  }
+}
