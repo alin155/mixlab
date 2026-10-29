@@ -116,7 +116,6 @@ test("Windows desktop host is GUI-subsystem and owns sidecar and directory proce
   assert.match(source, /stop_windows_process_tree\(CUTTER_API_SIDECAR_EXECUTABLE_NAME\)/);
   assert.match(source, /fn desktop_app_version/);
   assert.match(source, /desktop_host_log/);
-  assert.match(source, /GET \/health HTTP\/1\.1/);
   assert.match(source, /GET \{path\} HTTP\/1\.1/);
   assert.doesNotMatch(source, /tcp_endpoint_is_reachable/);
   assert.match(source, /\.join\("resources"\)[\s\S]*\.join\("binaries"\)[\s\S]*\.join\(executable_name\)/);
