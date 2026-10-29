@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793293270252-055657e3",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793293270252-055657e3",
+  "reply_to": "1793291241807-0922a412",
+  "created_at": "2026-10-29T17:01:10.252Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13@8451d00"
+    ]
+  },
+  "body": "Windows 新提交 904481a（view 去重/worker 生命周期）已合入最终分支：hotfix/0.18.13 现为 8451d00（含版本 0.18.13），Mac 全量 2234/2234 PASS、typecheck PASS。请以 8451d00 为唯一构建来源重新构建 0.18.13（若你已在构建旧 head，请重来）：\\n1) NSIS 构建 + sha256；\\n2) 0.18.12→0.18.13 升级验收；\\n3) 真实 NAS E2E：20 次切换 p50/p95/max、12s 空闲、/health 停顿；\\n4) 预取统计口径验证：只预取=0、点击缓存项=1、重复查看不重复；worker dropped/sent 可见；\\n5) >500 段素材证据；\\n6) 通过后发布 NAS/Mac 共享 0.18.13，写 SHA256SUMS，reply 最终 sha/路径/全部证据。失败先不发布。\\n回复中请对 Codex 顾问意见逐条说明采纳/不采纳。"
+}
