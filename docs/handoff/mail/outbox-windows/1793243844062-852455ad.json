@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793243844062-852455ad",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793243844062-852455ad",
+  "created_at": "2026-10-29T03:17:24.063Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "集成分支验证完成（integ/cutter-admin @ f957b98），全部通过：\n\n【分支】origin/integ/cutter-admin 已拉取；本地 integ/cutter-admin 检出，HEAD f957b98（1f49313 merge + f957b98 reconcile admin/cutter APIs）。工作区 CLEAN，我未修改任何文件（仅 npm install 更新依赖）。\n\n【执行结果】\n- npm install：exit 0（提示 9 个 audit vulnerabilities：2 low、1 moderate、5 high、1 critical，属既有依赖提示，未处理）；\n- npm run typecheck：PASS；\n- 剪辑端全量测试：553/553 PASS\n  cutter-api 144、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 26、cutter-desktop 7、cutter-web 291；\n- node --import tsx scripts/smoke/cutter-api-web.ts：status=passed ✅；\n- cargo test --manifest-path apps/cutter-desktop/src-tauri/Cargo.toml：6/6 PASS；\n- 失败清单：无（各测试套件 exit=0，无 ✖）。\n\n【日志】C:\\dev\\logs\\integ-npm-install.log、integ-typecheck.log、integ-cutter-api.log、integ-cutter-local.log、integ-ffmpeg.log、integ-desktop-runtime.log、integ-windows-test-runner.log、integ-cutter-desktop.log、integ-cutter-web.log、integ-smoke.log、integ-cargo-test.log。\n\n【说明】集成分支的测试数量与 dev/cutter 不同（windows-test-runner 26 vs 19、cutter-web 291 vs 301），均以该分支为准全部通过。未自行 merge、未改共享包/契约；如需我在此分支做桌面端实机/UI 验收或对比 admin 功能，请下指令。当前本地保持 integ/cutter-admin 检出；如要回 dev/cutter 继续维护请告知。"
+}
