@@ -164,6 +164,23 @@ export {
   ReleaseCacheMaintenanceError,
   isReleaseCacheEvictionPathAllowed
 } from "./release-cache-maintenance.ts";
+import {
+  GOVERNANCE_AUDIT_ERROR_CODES,
+  GovernanceAuditError,
+  createGovernanceAuditStore,
+  parseGovernanceAuditLimit,
+  type GovernanceAuditEntry,
+  type GovernanceAuditResult,
+  type GovernanceAuditStore
+} from "./governance-audit.ts";
+export {
+  GOVERNANCE_AUDIT_ERROR_CODES,
+  GOVERNANCE_AUDIT_MAX_ENTRIES,
+  GOVERNANCE_AUDIT_OPERATIONS,
+  GovernanceAuditError,
+  createGovernanceAuditStore,
+  parseGovernanceAuditLimit
+} from "./governance-audit.ts";
 
 export interface CreateCutterApiServerInput {
   /** 隔离事件服务连接（默认从 MIXLAB_USAGE_SERVICE_URL 读取；未配置走旧共享 NDJSON）。 */
@@ -191,6 +208,8 @@ export interface CreateCutterApiServerInput {
   workspace_residue_confirm_ttl_ms?: number;
   /** Release 缓存淘汰 confirm_token TTL（毫秒，默认 120000；测试可注入短 TTL）。 */
   release_cache_evict_confirm_ttl_ms?: number;
+  /** D5 治理审计（仅测试用）：替换默认 JSONL 写入器，抛错用于验证写失败不阻塞清理操作。 */
+  governance_audit_writer?: (entry: GovernanceAuditEntry) => Promise<void>;
   release_sync_timeout_ms?: number;
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
@@ -1642,6 +1661,99 @@ function writeReleaseCacheMaintenanceError(response: ServerResponse, error: unkn
 
   writeError(response, error.status, error.code, error.message, error.remediation);
   return true;
+}
+
+/** 将 D5 治理审计稳定错误写成 CutterApiError envelope；非该类错误返回 false 交给上层兜底。 */
+function writeGovernanceAuditError(response: ServerResponse, error: unknown): boolean {
+  if (!(error instanceof GovernanceAuditError)) {
+    return false;
+  }
+
+  writeError(response, error.status, error.code, error.message, error.remediation);
+  return true;
+}
+
+/** D5：从请求体提取审计 targets（仅展示用，best-effort）。 */
+function governanceAuditTargetsFromBody(body: unknown, key: string): string[] {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return [];
+  }
+
+  const value = (body as Record<string, unknown>)[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim() !== "")
+    .map((item) => item.trim());
+}
+
+/** D5：ok=全部成功、partial=部分成功、failed=全失败。 */
+function governanceAuditResultOf(input: {
+  target_count: number;
+  removed_count: number;
+  skipped_count: number;
+  error_count: number;
+}): GovernanceAuditResult {
+  const attempted = Math.max(
+    input.target_count,
+    input.removed_count + input.skipped_count + input.error_count
+  );
+  if (attempted === 0) {
+    return "ok";
+  }
+  if (input.removed_count === 0) {
+    return "failed";
+  }
+  if (
+    input.skipped_count > 0 ||
+    input.error_count > 0 ||
+    input.removed_count < input.target_count
+  ) {
+    return "partial";
+  }
+  return "ok";
+}
+
+/** D5：写治理审计；失败只返回中文原因，绝不影响清理操作结果。 */
+async function recordGovernanceAuditBestEffort(
+  store: GovernanceAuditStore,
+  entry: Omit<GovernanceAuditEntry, "at">
+): Promise<string | undefined> {
+  if (!store.isEnabled()) {
+    return undefined;
+  }
+
+  const result = await store.record(entry);
+  return result.ok ? undefined : result.error ?? "治理操作审计写入失败";
+}
+
+/** D5：成功响应追加可选 audit_error；不改变原有字段。 */
+function withAuditError<T extends object>(
+  data: T,
+  auditError: string | undefined
+): T & { audit_error?: string } {
+  return {
+    ...data,
+    ...(auditError ? { audit_error: auditError } : {})
+  };
+}
+
+/** D5：force delete 审计用删除前字节估算（hardlink 未去重，仅审计展示）。 */
+async function measureLocalClipAuditFreedBytes(
+  workspaceRoot: string,
+  localClipId: string
+): Promise<number> {
+  try {
+    const exportBytes = await recursiveFileCacheSize(path.join(workspaceRoot, "export-clips", localClipId));
+    const assetBytes = await recursiveFileCacheSize(
+      path.join(workspaceRoot, ".mixlab-library", "videos", localClipId)
+    );
+    return exportBytes + assetBytes;
+  } catch {
+    return 0;
+  }
 }
 
 function logUnhandledCutterApiError(request: IncomingMessage, error: unknown): void {
@@ -6127,6 +6239,12 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       : {})
   });
 
+  // D5 治理操作审计：append-only JSONL、保留最近 50 条；写/读失败不阻塞清理操作。
+  const governanceAudit = createGovernanceAuditStore({
+    ...(input.workspace_root ? { workspace_root: input.workspace_root } : {}),
+    ...(input.governance_audit_writer ? { writer: input.governance_audit_writer } : {})
+  });
+
   // D4 Release 缓存 pin/淘汰：引用扫描复用 collectWorkspaceReleaseReferences。
   const releaseCacheMaintenance = createReleaseCacheMaintenanceService({
     cache_root: releaseCacheRootForInput(input) ?? localCacheRootForInput(input),
@@ -7018,8 +7136,29 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
+        const auditStartedAt = Date.now();
         try {
-          writeJson(response, 200, apiResponse(await cacheMaintenance.clean(body)));
+          const cleanResult = await cacheMaintenance.clean(body);
+          const auditTargets = governanceAuditTargetsFromBody(body, "targets");
+          const auditError = await recordGovernanceAuditBestEffort(governanceAudit, {
+            operation: "cache_clean",
+            targets: auditTargets,
+            removed_count: cleanResult.cleaned.length,
+            freed_bytes: cleanResult.freed_bytes,
+            skipped_count: cleanResult.skipped.length,
+            errors: cleanResult.errors.map((item) => ({
+              code: item.code,
+              message: item.message
+            })),
+            result: governanceAuditResultOf({
+              target_count: auditTargets.length,
+              removed_count: cleanResult.cleaned.length,
+              skipped_count: cleanResult.skipped.length,
+              error_count: cleanResult.errors.length
+            }),
+            duration_ms: Date.now() - auditStartedAt
+          });
+          writeJson(response, 200, apiResponse(withAuditError(cleanResult, auditError)));
         } catch (error) {
           if (!writeCacheMaintenanceError(response, error)) {
             throw error;
@@ -7052,8 +7191,26 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
+        const auditStartedAt = Date.now();
         try {
-          writeJson(response, 200, apiResponse(await localClipMaintenance.clean(body)));
+          const cleanResult = await localClipMaintenance.clean(body);
+          const auditTargets = governanceAuditTargetsFromBody(body, "local_clip_ids");
+          const auditError = await recordGovernanceAuditBestEffort(governanceAudit, {
+            operation: "local_clip_clean",
+            targets: auditTargets,
+            removed_count: cleanResult.removed.length,
+            freed_bytes: cleanResult.freed_bytes,
+            skipped_count: cleanResult.skipped.length,
+            errors: [],
+            result: governanceAuditResultOf({
+              target_count: auditTargets.length,
+              removed_count: cleanResult.removed.length,
+              skipped_count: cleanResult.skipped.length,
+              error_count: 0
+            }),
+            duration_ms: Date.now() - auditStartedAt
+          });
+          writeJson(response, 200, apiResponse(withAuditError(cleanResult, auditError)));
         } catch (error) {
           if (!writeLocalClipMaintenanceError(response, error)) {
             throw error;
@@ -7086,8 +7243,29 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
+        const auditStartedAt = Date.now();
         try {
-          writeJson(response, 200, apiResponse(await workspaceResidue.clean(body)));
+          const cleanResult = await workspaceResidue.clean(body);
+          const auditTargets = governanceAuditTargetsFromBody(body, "ids");
+          const auditError = await recordGovernanceAuditBestEffort(governanceAudit, {
+            operation: "workspace_residue_clean",
+            targets: auditTargets,
+            removed_count: cleanResult.removed.length,
+            freed_bytes: cleanResult.freed_bytes,
+            skipped_count: cleanResult.skipped.length,
+            errors: cleanResult.errors.map((item) => ({
+              code: item.code,
+              message: item.message
+            })),
+            result: governanceAuditResultOf({
+              target_count: auditTargets.length,
+              removed_count: cleanResult.removed.length,
+              skipped_count: cleanResult.skipped.length,
+              error_count: cleanResult.errors.length
+            }),
+            duration_ms: Date.now() - auditStartedAt
+          });
+          writeJson(response, 200, apiResponse(withAuditError(cleanResult, auditError)));
         } catch (error) {
           if (!writeWorkspaceResidueError(response, error)) {
             throw error;
@@ -7120,8 +7298,26 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
+        const auditStartedAt = Date.now();
         try {
-          writeJson(response, 200, apiResponse(await releaseCacheMaintenance.evict(body)));
+          const evictResult = await releaseCacheMaintenance.evict(body);
+          const auditTargets = governanceAuditTargetsFromBody(body, "versions");
+          const auditError = await recordGovernanceAuditBestEffort(governanceAudit, {
+            operation: "release_cache_evict",
+            targets: auditTargets,
+            removed_count: evictResult.evicted.length,
+            freed_bytes: evictResult.freed_bytes,
+            skipped_count: evictResult.blocked.length,
+            errors: [],
+            result: governanceAuditResultOf({
+              target_count: auditTargets.length,
+              removed_count: evictResult.evicted.length,
+              skipped_count: evictResult.blocked.length,
+              error_count: 0
+            }),
+            duration_ms: Date.now() - auditStartedAt
+          });
+          writeJson(response, 200, apiResponse(withAuditError(evictResult, auditError)));
         } catch (error) {
           if (!writeReleaseCacheMaintenanceError(response, error)) {
             throw error;
@@ -7283,6 +7479,33 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             throw error;
           }
         }
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/cutter/governance/audit") {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        let limit: number;
+        try {
+          limit = parseGovernanceAuditLimit(url.searchParams.get("limit"));
+        } catch (error) {
+          if (!writeGovernanceAuditError(response, error)) {
+            throw error;
+          }
+          return;
+        }
+
+        const auditRead = await governanceAudit.readRecent(limit);
+        writeJson(response, 200, apiResponse({
+          entries: auditRead.entries,
+          ...(auditRead.error ? { audit_error: auditRead.error } : {})
+        }));
         return;
       }
 
@@ -7555,6 +7778,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               return;
             }
 
+            // D5：force 删除成功后追加治理审计（普通删除不审计）。
+            let forceDeleteAuthorized = false;
+
             // D2：被项目/任务/清单引用时拒绝；?force=1 + X-MixLab-Cache-Confirm-Token 才允许强制删除。
             if (inspection.known && inspection.referenced_by.length > 0) {
               const force = url.searchParams.get("force") === "1";
@@ -7575,6 +7801,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
                   firstHeaderValue(request.headers["x-mixlab-cache-confirm-token"]),
                   localClipRoute.local_clip_id
                 );
+                forceDeleteAuthorized = true;
               } catch (error) {
                 if (!writeLocalClipMaintenanceError(response, error)) {
                   throw error;
@@ -7583,6 +7810,13 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               }
             }
 
+            const auditStartedAt = Date.now();
+            const auditFreedBytes = forceDeleteAuthorized && governanceAudit.isEnabled()
+              ? await measureLocalClipAuditFreedBytes(
+                  input.workspace_root,
+                  localClipRoute.local_clip_id
+                )
+              : 0;
             const result = await deleteExportClip({
               workspace_root: input.workspace_root,
               export_clip_id: localClipRoute.local_clip_id
@@ -7593,10 +7827,23 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
               return;
             }
 
-            writeJson(response, 200, apiResponse({
+            const auditError = forceDeleteAuthorized
+              ? await recordGovernanceAuditBestEffort(governanceAudit, {
+                  operation: "local_clip_force_delete",
+                  targets: [localClipRoute.local_clip_id],
+                  removed_count: 1,
+                  freed_bytes: auditFreedBytes,
+                  skipped_count: 0,
+                  errors: [],
+                  result: "ok",
+                  duration_ms: Date.now() - auditStartedAt
+                })
+              : undefined;
+
+            writeJson(response, 200, apiResponse(withAuditError({
               local_clip_id: result.export_clip_id,
               deleted: result.deleted
-            }));
+            }, auditError)));
             return;
           }
 

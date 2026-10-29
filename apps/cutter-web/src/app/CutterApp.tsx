@@ -1460,6 +1460,7 @@ function renderPage(
       | "cleanLocalClips"
       | "getWorkspaceResidue"
       | "cleanWorkspaceResidue"
+      | "getGovernanceAudit"
       | "getReleaseCachePins"
       | "evictReleaseCache"
     >;

@@ -966,6 +966,33 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         skipped: []
       };
     },
+    async getGovernanceAudit(limit = 50) {
+      const entries = [
+        {
+          at: "2026-10-29T01:00:00.000Z",
+          operation: "cache_clean",
+          targets: ["searchd", "cut_temp"],
+          removed_count: 2,
+          freed_bytes: 2048,
+          skipped_count: 0,
+          errors: [],
+          result: "ok" as const,
+          duration_ms: 12
+        },
+        {
+          at: "2026-10-29T01:05:00.000Z",
+          operation: "release_cache_evict",
+          targets: ["v000002"],
+          removed_count: 1,
+          freed_bytes: 1024,
+          skipped_count: 1,
+          errors: [{ code: "release_cache_pinned", message: "被作品引用" }],
+          result: "partial" as const,
+          duration_ms: 8
+        }
+      ];
+      return { entries: entries.slice(0, limit) };
+    },
     async getWorkspaceResidue() {
       return {
         items: [{ id: "failed_export:export-clips/.tmp-1", kind: "failed_export", path: "/fixture/ws/export-clips/.tmp-1", size_bytes: 1024, created_at: "2026-10-29T00:00:00Z", safe_to_delete: true, reason: "" }],

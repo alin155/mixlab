@@ -583,6 +583,23 @@ export interface CutterReleaseCacheEvictResult {
   blocked: Array<{ version: string; reason: string; referenced_by?: CutterReleaseCacheReference[] }>;
 }
 
+export interface CutterGovernanceAuditEntry {
+  at: string;
+  operation: string;
+  targets: string[];
+  removed_count: number;
+  freed_bytes: number;
+  skipped_count: number;
+  errors: Array<{ code: string; message: string }>;
+  result: "ok" | "partial" | "failed";
+  duration_ms: number;
+}
+
+export interface CutterGovernanceAudit {
+  entries: CutterGovernanceAuditEntry[];
+  audit_error?: string;
+}
+
 export interface CutterLocalClipIntegrityReference {
   local_clip_id: string;
   referenced_by: Array<{ kind: string; ref_id: string; title: string }>;
@@ -724,6 +741,7 @@ export interface CutterApiClient {
   cleanCache(request: CutterCacheCleanRequest): Promise<CutterCacheCleanResult>;
   getLocalClipIntegrity(): Promise<CutterLocalClipIntegrity>;
   cleanLocalClips(request: CutterLocalClipCleanRequest): Promise<CutterLocalClipCleanResult>;
+  getGovernanceAudit(limit?: number): Promise<CutterGovernanceAudit>;
   getWorkspaceResidue(): Promise<CutterWorkspaceResidue>;
   cleanWorkspaceResidue(request: CutterWorkspaceResidueCleanRequest): Promise<CutterWorkspaceResidueCleanResult>;
   getReleaseCachePins(): Promise<CutterReleaseCachePins>;
@@ -1049,6 +1067,15 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
           headers: jsonHeaders(input.auth),
           body: JSON.stringify(request)
         }
+      );
+    },
+
+    getGovernanceAudit(limit = 50) {
+      const params = new URLSearchParams({ limit: String(limit) });
+      return requestEnvelope<CutterGovernanceAudit>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/governance/audit?" + params.toString()),
+        { headers: protectedHeaders }
       );
     },
 

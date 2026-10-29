@@ -35,6 +35,8 @@ import {
   cacheClearPreviewText,
   cacheCleanupPreviewText,
   diskCleanResultSummary,
+  governanceAuditOperationLabel,
+  governanceAuditSummary,
   releaseCachePinsSummary,
   workspaceResidueSummary
 } from "./features/cache-management/CacheManagementPage.tsx";
@@ -6324,7 +6326,8 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
           confirm_token: "t",
           warnings: []
         }),
-        evictReleaseCache: async () => ({ evicted: [], freed_bytes: 0, blocked: [] })
+        evictReleaseCache: async () => ({ evicted: [], freed_bytes: 0, blocked: [] }),
+        getGovernanceAudit: async () => ({ entries: [] })
       }
     })
   );
@@ -6332,6 +6335,22 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
   assert.match(html, /预览清理/);
   assert.match(html, /工作区残留与 Release 缓存/);
   assert.match(html, /预览清理（0）/);
+  assert.match(html, /治理操作记录/);
+  assert.equal(governanceAuditOperationLabel("cache_clean"), "磁盘缓存清理");
+  assert.match(
+    governanceAuditSummary({
+      at: "2026-10-29T01:00:00.000Z",
+      operation: "release_cache_evict",
+      targets: ["v000002"],
+      removed_count: 1,
+      freed_bytes: 1024,
+      skipped_count: 1,
+      errors: [{ code: "release_cache_pinned", message: "被引用" }],
+      result: "partial",
+      duration_ms: 8
+    }),
+    /Release 缓存淘汰 · 1 项 · 1 KB · 跳过 1 项 · 错误 release_cache_pinned/
+  );
 
   assert.match(
     workspaceResidueSummary({

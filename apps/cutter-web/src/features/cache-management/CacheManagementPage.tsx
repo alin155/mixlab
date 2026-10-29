@@ -6,6 +6,8 @@ import {
   type CutterCacheInventory,
   type CutterCacheInventoryTarget,
   type CutterCacheCleanResult,
+  type CutterGovernanceAudit,
+  type CutterGovernanceAuditEntry,
   type CutterReleaseCacheEvictResult,
   type CutterReleaseCachePins,
   type CutterRuntimeStatus,
@@ -189,6 +191,33 @@ function cacheDetailRows(
   ];
 }
 
+const GOVERNANCE_AUDIT_OPERATION_LABELS: Record<string, string> = {
+  cache_clean: "磁盘缓存清理",
+  local_clip_clean: "本地素材清理",
+  local_clip_force_delete: "强制删除本地素材",
+  workspace_residue_clean: "工作区残留清理",
+  release_cache_evict: "Release 缓存淘汰"
+};
+
+export function governanceAuditOperationLabel(operation: string): string {
+  return GOVERNANCE_AUDIT_OPERATION_LABELS[operation] ?? operation;
+}
+
+export function governanceAuditSummary(entry: CutterGovernanceAuditEntry): string {
+  const parts = [
+    governanceAuditOperationLabel(entry.operation),
+    entry.removed_count + " 项",
+    formatCutterCacheSize(entry.freed_bytes)
+  ];
+  if (entry.skipped_count > 0) {
+    parts.push("跳过 " + entry.skipped_count + " 项");
+  }
+  if (entry.errors.length > 0) {
+    parts.push("错误 " + entry.errors.map((error) => error.code).join("、"));
+  }
+  return parts.join(" · ");
+}
+
 export function workspaceResidueSummary(residue: CutterWorkspaceResidue): string {
   const safe = residue.items.filter((item) => item.safe_to_delete).length;
   return "残留 " + residue.items.length + " 项（" + formatCutterCacheSize(residue.total_bytes) + "），其中 " + safe + " 项可安全清理";
@@ -280,6 +309,7 @@ export function CacheManagementPage({
     | "cleanWorkspaceResidue"
     | "getReleaseCachePins"
     | "evictReleaseCache"
+    | "getGovernanceAudit"
   >;
 }) {
   const [localStorageCache, setLocalStorageCache] = useState(() => cutterLocalCacheSnapshot());
@@ -311,6 +341,9 @@ export function CacheManagementPage({
   const [evictResult, setEvictResult] = useState<CutterReleaseCacheEvictResult | null>(null);
   const [evictError, setEvictError] = useState("");
   const [evicting, setEvicting] = useState(false);
+  const [audit, setAudit] = useState<CutterGovernanceAudit | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -416,6 +449,21 @@ export function CacheManagementPage({
     }
   }
 
+  async function loadGovernanceAudit() {
+    if (!client) {
+      return;
+    }
+    setAuditLoading(true);
+    setAuditError("");
+    try {
+      setAudit(await client.getGovernanceAudit(50));
+    } catch (error) {
+      setAuditError(describeCacheError(error));
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
   async function loadReleaseCachePins() {
     if (!client) {
       return;
@@ -503,6 +551,7 @@ export function CacheManagementPage({
       void loadCacheInventory();
       void loadWorkspaceResidue();
       void loadReleaseCachePins();
+      void loadGovernanceAudit();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
@@ -680,6 +729,55 @@ export function CacheManagementPage({
             </Card>
           ) : null}
           </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            {client ? (
+              <Card
+                className="cutter-cache-panel ml-panel-card"
+                bodyFlush
+                bodyClassName="cutter-cache-panel-body"
+                title="治理操作记录"
+                subtitle="仅记录最近 50 次清理/淘汰操作，不支持文件恢复；写入失败不影响清理本身。"
+                actions={
+                  <Button type="button" variant="ghost" size="sm" onClick={() => void loadGovernanceAudit()} disabled={auditLoading}>
+                    刷新记录
+                  </Button>
+                }
+              >
+                {auditLoading ? <p className="ml-metric-description">正在读取治理操作记录…</p> : null}
+                {auditError ? (
+                  <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
+                    <strong>治理操作记录读取失败</strong>
+                    <span>{auditError}</span>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => void loadGovernanceAudit()}>重启读取</Button>
+                  </div>
+                ) : null}
+                {audit ? (
+                  audit.entries.length === 0 ? (
+                    <p className="ml-metric-description">暂无治理操作记录；执行清理/淘汰后会在这里留下审计记录。</p>
+                  ) : (
+                    <ul className="cutter-governance-audit-list">
+                      {audit.entries.map((entry, index) => (
+                        <li key={entry.at + "-" + index}>
+                          <strong>{governanceAuditOperationLabel(entry.operation)}</strong>
+                          <span>{governanceAuditSummary(entry)}</span>
+                          <span className="ml-metric-description">
+                            {new Date(entry.at).toLocaleString("zh-CN")} · 耗时 {entry.duration_ms}ms · 结果 {entry.result}
+                          </span>
+                          {entry.errors.map((error) => (
+                            <span key={error.code} className="ml-metric-description">错误 {error.code}：{error.message}</span>
+                          ))}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
+                {audit?.audit_error ? (
+                  <p className="ml-metric-description" role="status">审计写入警告：{audit.audit_error}</p>
+                ) : null}
+              </Card>
+            ) : null}
+          </div>
+
           <div style={{ gridColumn: "1 / -1" }}>
             {client ? (
               <Card
