@@ -1079,6 +1079,9 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         ? data.primaryDetail
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
+    async recordSourceVideoView(_sourceVideoId: string) {
+      // fixture 模式不产生 usage analytics。
+    },
     async searchSourceLibrary(
       query: string,
       limit = 20,

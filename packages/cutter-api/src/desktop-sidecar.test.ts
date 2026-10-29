@@ -350,5 +350,66 @@ test("async usage recorder hands events to the worker pipe without awaiting the 
   const payload = JSON.parse(writes[0]!) as { library_root: string; event: { event_type: string } };
   assert.equal(payload.library_root, "C:\\logs\\usage-worker-test");
   assert.equal(payload.event.event_type, "view_source_video");
-  recorder.dispose();
+  await recorder.dispose();
+});
+
+test("async usage recorder bounds its in-memory queue and exposes dropped stats", async () => {
+  const recorder = createAsyncUsageEventRecorder({
+    queue_limit: 1,
+    spawn_child: () => {
+      throw new Error("worker unavailable");
+    }
+  });
+  const event = {
+    event_id: "22222222-2222-4222-8222-222222222222",
+    user_id: "CU000001",
+    username: "Allen",
+    device_id: "cutter-test",
+    event_type: "view_source_video",
+    occurred_at: "2026-10-30T00:00:00.000Z",
+    source_video_id: "V000002"
+  };
+
+  recorder.record("C:\\logs\\usage-worker-test", event as never);
+  recorder.record("C:\\logs\\usage-worker-test", event as never);
+
+  const stats = recorder.stats();
+  assert.equal(stats.queued, 1);
+  assert.equal(stats.dropped, 1);
+  assert.equal(stats.worker_alive, false);
+  await recorder.dispose();
+});
+
+test("async usage recorder best-effort flushes queued events before shutdown", async () => {
+  const writes: string[] = [];
+  const child = new EventEmitter() as EventEmitter & {
+    stdin: EventEmitter & { writable: boolean; write: (chunk: string) => boolean; end: () => void };
+    killed: boolean;
+  };
+  child.stdin = Object.assign(new EventEmitter(), {
+    writable: true,
+    write: (chunk: string) => {
+      writes.push(chunk);
+      return true;
+    },
+    end: () => {
+      queueMicrotask(() => child.emit("exit", 0));
+    }
+  });
+  child.killed = false;
+
+  const recorder = createAsyncUsageEventRecorder({ spawn_child: () => child as never });
+  recorder.record("C:\\logs\\usage-worker-test", {
+    event_id: "33333333-3333-4333-8333-333333333333",
+    user_id: "CU000001",
+    username: "Allen",
+    device_id: "cutter-test",
+    event_type: "search",
+    occurred_at: "2026-10-30T00:00:00.000Z",
+    query: "test",
+    result_status: "success"
+  } as never);
+
+  await recorder.dispose();
+  assert.equal(writes.length, 1);
 });

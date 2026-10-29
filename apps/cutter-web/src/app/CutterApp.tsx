@@ -1905,14 +1905,14 @@ export function CutterApp() {
 
   useEffect(() => {
     const ids = (data?.search.groups ?? [])
-      .slice(0, 24)
+      .slice(0, 40)
       .map((group) => group.source_video_id)
       .filter((id): id is string => Boolean(id));
     let cancelled = false;
-    // 小批量预取，避免首屏同时抢占连接/主线程；新搜索或加载更多时自动补下一批。
+    // 批量预取，优先覆盖可点击候选；新搜索或加载更多时自动补下一批。
     void (async () => {
-      for (let index = 0; index < ids.length; index += 4) {
-        await Promise.all(ids.slice(index, index + 4).map((id) => prefetchSourceVideoDetail(id)));
+      for (let index = 0; index < ids.length; index += 8) {
+        await Promise.all(ids.slice(index, index + 8).map((id) => prefetchSourceVideoDetail(id)));
         if (cancelled) {
           return;
         }
@@ -2125,10 +2125,15 @@ export function CutterApp() {
     setError(presentation.message);
   }
 
+  function sourceDetailCacheKey(sourceVideoId: string): string {
+    return `${dataRef.current?.library.library_id ?? "unknown-library"}:${sourceVideoId}`;
+  }
+
   function rememberSourceVideoDetail(sourceVideoId: string, detail: SourceVideoDetail) {
     const cache = sourceDetailCacheRef.current;
-    cache.delete(sourceVideoId);
-    cache.set(sourceVideoId, detail);
+    const key = sourceDetailCacheKey(sourceVideoId);
+    cache.delete(key);
+    cache.set(key, detail);
     if (cache.size > 50) {
       const oldestKey = cache.keys().next().value;
       if (oldestKey) {
@@ -2137,35 +2142,36 @@ export function CutterApp() {
     }
   }
 
-  function fetchSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail> {
-    const cached = sourceDetailCacheRef.current.get(sourceVideoId);
+  function fetchSourceVideoDetail(sourceVideoId: string, prefetch = false): Promise<SourceVideoDetail> {
+    const key = sourceDetailCacheKey(sourceVideoId);
+    const cached = sourceDetailCacheRef.current.get(key);
     if (cached) {
       return Promise.resolve(cached);
     }
 
-    const inFlight = sourceDetailInFlightRef.current.get(sourceVideoId);
+    const inFlight = sourceDetailInFlightRef.current.get(key);
     if (inFlight) {
       return inFlight;
     }
 
     let promise: Promise<SourceVideoDetail>;
-    promise = client.getSourceVideoDetail(sourceVideoId)
+    promise = client.getSourceVideoDetail(sourceVideoId, prefetch ? { prefetch: true } : undefined)
       .then((detail) => {
         const resolvedDetail = resolveSourceVideoDetailUrls(client, detail);
         rememberSourceVideoDetail(sourceVideoId, resolvedDetail);
         return resolvedDetail;
       })
       .finally(() => {
-        if (sourceDetailInFlightRef.current.get(sourceVideoId) === promise) {
-          sourceDetailInFlightRef.current.delete(sourceVideoId);
+        if (sourceDetailInFlightRef.current.get(key) === promise) {
+          sourceDetailInFlightRef.current.delete(key);
         }
       });
-    sourceDetailInFlightRef.current.set(sourceVideoId, promise);
+    sourceDetailInFlightRef.current.set(key, promise);
     return promise;
   }
 
   async function prefetchSourceVideoDetail(sourceVideoId: string) {
-    if (!sourceVideoId || sourceDetailCacheRef.current.has(sourceVideoId)) {
+    if (!sourceVideoId || sourceDetailCacheRef.current.has(sourceDetailCacheKey(sourceVideoId))) {
       return;
     }
     if (dataRef.current?.primaryDetail.source_video_id === sourceVideoId) {
@@ -2173,7 +2179,7 @@ export function CutterApp() {
     }
 
     try {
-      await fetchSourceVideoDetail(sourceVideoId);
+      await fetchSourceVideoDetail(sourceVideoId, true);
     } catch {
       // 预取失败不影响正常点击路径。
     }
@@ -2183,7 +2189,7 @@ export function CutterApp() {
     const requestId = focusedSourceDetailRequestIdRef.current + 1;
     focusedSourceDetailRequestIdRef.current = requestId;
 
-    const cachedDetail = sourceDetailCacheRef.current.get(sourceVideoId);
+    const cachedDetail = sourceDetailCacheRef.current.get(sourceDetailCacheKey(sourceVideoId));
     if (cachedDetail) {
       setDetailLoadingSourceVideoId(undefined);
       setData((current) =>
@@ -2195,12 +2201,17 @@ export function CutterApp() {
           : current
       );
       setError("");
+      // 缓存点击不再走 detail GET；单独记录真实浏览（fire-and-forget，不阻塞切换）。
+      void client.recordSourceVideoView(sourceVideoId).catch(() => undefined);
       return;
     }
 
     setDetailLoadingSourceVideoId(sourceVideoId);
-    void fetchSourceVideoDetail(sourceVideoId)
-      .then((resolvedDetail) => {
+    // 缓存未命中时走 detail GET：后端记录 view_source_video 并返回详情。
+    void client.getSourceVideoDetail(sourceVideoId)
+      .then((detail) => {
+        const resolvedDetail = resolveSourceVideoDetailUrls(client, detail);
+        rememberSourceVideoDetail(sourceVideoId, resolvedDetail);
         if (focusedSourceDetailRequestIdRef.current !== requestId) {
           return;
         }
@@ -3877,7 +3888,7 @@ export function CutterApp() {
 
   const handlers = {
     async addSelectedSpan() {
-      if (!data) {
+      if (!data || detailLoadingSourceVideoId) {
         return;
       }
       if (selectedTranscriptSegments.length === 0) {
@@ -4013,6 +4024,9 @@ export function CutterApp() {
       }
     },
     addSelectionToCutList() {
+      if (detailLoadingSourceVideoId) {
+        return;
+      }
       if (!data || !selectedDetail || selectedTranscriptSegments.length === 0) {
         return;
       }
@@ -4117,9 +4131,15 @@ export function CutterApp() {
       focusMaterialTarget(target, nextIndex);
     },
     selectTranscriptSegment(segmentId: string) {
+      if (detailLoadingSourceVideoId) {
+        return;
+      }
       setTranscriptSelection((current) => nextTranscriptSelectionRange(current, segmentId));
     },
     selectTranscriptRange(startSegmentId: string, endSegmentId: string) {
+      if (detailLoadingSourceVideoId) {
+        return;
+      }
       setTranscriptSelection(transcriptSelectionRangeFromDrag(startSegmentId, endSegmentId));
     },
     selectTranscriptTextRange(
@@ -4128,6 +4148,9 @@ export function CutterApp() {
       endSegmentId: string,
       endCharOffset: number
     ) {
+      if (detailLoadingSourceVideoId) {
+        return;
+      }
       setTranscriptSelection(transcriptSelectionRangeFromText(
         startSegmentId,
         startCharOffset,

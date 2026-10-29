@@ -758,7 +758,11 @@ export interface CutterApiClient {
     folderQuery?: string;
   }): Promise<SourceLibraryResponse>;
   listSourceFolders(): Promise<SourceFolderResponse>;
-  getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
+  getSourceVideoDetail(
+    sourceVideoId: string,
+    options?: { prefetch?: boolean }
+  ): Promise<SourceVideoDetail>;
+  recordSourceVideoView(sourceVideoId: string): Promise<void>;
   searchSourceLibrary(
     query: string,
     limit?: number,
@@ -1152,14 +1156,33 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
-    getSourceVideoDetail(sourceVideoId: string) {
+    getSourceVideoDetail(sourceVideoId: string, options?: { prefetch?: boolean }) {
+      const path = appendPath(input.base_url, `/cutter/source-videos/${encodeURIComponent(sourceVideoId)}`);
       return requestEnvelope<SourceVideoDetail>(
         fetchImpl,
-        appendPath(input.base_url, `/cutter/source-videos/${encodeURIComponent(sourceVideoId)}`),
+        options?.prefetch ? `${path}?prefetch=1` : path,
         {
           headers: protectedHeaders
         }
       );
+    },
+
+    recordSourceVideoView(sourceVideoId: string) {
+      return fetchImpl(
+        appendPath(input.base_url, `/cutter/source-videos/${encodeURIComponent(sourceVideoId)}/view`),
+        {
+          method: "POST",
+          headers: protectedHeaders
+        }
+      ).then(async (response) => {
+        if (!response.ok) {
+          throw new CutterApiError({
+            status: response.status,
+            code: "usage_event_failed",
+            message: "failed to record source video view"
+          });
+        }
+      });
     },
 
     searchSourceLibrary(query: string, limit = 20, options = {}) {

@@ -244,6 +244,14 @@ export interface CreateCutterApiServerInput {
     input: SyncCutterReleaseCacheInput
   ) => Promise<SyncCutterReleaseCacheResult>;
   usage_event_recorder?: CutterUsageEventRecorder;
+  /** usage worker 的 additive 运行指标，仅桌面 sidecar 注入；health 只读暴露。 */
+  usage_event_worker_stats?: () => {
+    queued: number;
+    dropped: number;
+    spawn_failures: number;
+    worker_alive: boolean;
+    worker_pid?: number;
+  };
   auth_mode?: "reviewed" | "local_trusted";
   trusted_user_id?: string;
   trusted_username?: string;
@@ -7594,6 +7602,35 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         return;
       }
 
+      const sourceViewMatch = /^\/cutter\/source-videos\/([^/]+)\/view$/.exec(url.pathname);
+      if (request.method === "POST" && sourceViewMatch) {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+        if (!auth) {
+          return;
+        }
+        try {
+          const sourceVideoId = decodeURIComponent(sourceViewMatch[1] ?? "");
+          if (!/^V\d{6}$/.test(sourceVideoId)) {
+            writeError(response, 400, "invalid_source_video_id", "source_video_id must use V000001 format");
+            return;
+          }
+          await recordCutterUsageEventBestEffort({
+            api_input: input,
+            auth,
+            event_type: "view_source_video",
+            source_video_id: sourceVideoId
+          });
+          writeNoContent(response);
+        } catch {
+          writeError(response, 500, "usage_event_failed", "failed to record source video view");
+        }
+        return;
+      }
+
       if (request.method === "POST") {
         writeError(response, 404, "not_found", "Route not found");
         return;
@@ -7604,6 +7641,9 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           ok: true,
           searchd_configured: Boolean(optionalTrimmed(input.searchd_base_url)),
           usage_service_mode: usageServiceMode(input.usage_service),
+          ...(input.usage_event_worker_stats
+            ? { usage_event_worker: input.usage_event_worker_stats() }
+            : {}),
           accounts_service_mode: accountsServiceMode(input.account_service),
           library_root_path: input.library_root,
           workspace_root_path: input.workspace_root ?? "",
@@ -8241,12 +8281,15 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           }
 
           writeJson(response, 200, apiResponse(addSourceVideoUrls(detail) as ApiSourceVideoDetail));
-          await recordCutterUsageEventBestEffort({
-            api_input: input,
-            auth,
-            event_type: "view_source_video",
-            source_video_id: detail.source_video_id
-          });
+          // 预取详情不算真实浏览，避免污染 usage analytics；点击路径不传 prefetch=1。
+          if (url.searchParams.get("prefetch") !== "1") {
+            await recordCutterUsageEventBestEffort({
+              api_input: input,
+              auth,
+              event_type: "view_source_video",
+              source_video_id: detail.source_video_id
+            });
+          }
           return;
         }
 

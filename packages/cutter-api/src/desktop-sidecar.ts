@@ -51,7 +51,10 @@ type SidecarEvent =
 
 const USAGE_EVENT_WORKER_ARG = "--usage-event-worker";
 const USAGE_EVENT_WORKER_ENV = "MIXLAB_SIDECAR_USAGE_WORKER";
-const USAGE_EVENT_WORKER_QUEUE_LIMIT = 200;
+const USAGE_EVENT_WORKER_QUEUE_LIMIT = 1_000;
+const USAGE_EVENT_WORKER_FLUSH_TIMEOUT_MS = 2_000;
+const USAGE_EVENT_WORKER_BACKOFF_MIN_MS = 500;
+const USAGE_EVENT_WORKER_BACKOFF_MAX_MS = 30_000;
 
 function isPackagedSidecarExecutable(): boolean {
   const pkg = (process as typeof process & { pkg?: unknown }).pkg;
@@ -76,15 +79,25 @@ function usageEventWorkerSpawnEnv(): NodeJS.ProcessEnv {
   return { ...process.env, [USAGE_EVENT_WORKER_ENV]: "1" };
 }
 
+export interface UsageEventWorkerStats {
+  queued: number;
+  dropped: number;
+  spawn_failures: number;
+  worker_alive: boolean;
+  worker_pid?: number;
+}
+
 interface AsyncUsageEventRecorderHandle {
   record: CutterUsageEventRecorder;
-  dispose: () => void;
+  dispose: () => Promise<void>;
+  stats: () => UsageEventWorkerStats;
 }
 
 /**
  * usage analytics 不能阻塞 sidecar 事件循环：NAS 上的 usage SQLite/JSONL 同步写入
  * 会让后续 detail/search/health 请求排队（0.18.13 切换卡顿根因）。
  * 用独立子进程承接写库，主进程只做无 await 的入队/管道写入，队列满时丢弃。
+ * worker 崩溃按指数退避重建；sidecar 关闭时 best-effort flush 最多 2s。
  */
 export function createAsyncUsageEventRecorder(input: {
   spawn_child?: () => ChildProcess;
@@ -95,6 +108,10 @@ export function createAsyncUsageEventRecorder(input: {
   let child: ChildProcess | null = null;
   let disposed = false;
   let dropped = 0;
+  let spawnFailures = 0;
+  let backoffUntil = 0;
+  let retryTimer: NodeJS.Timeout | null = null;
+  let draining = false;
 
   const spawnChild = input.spawn_child ?? (() => spawn(process.execPath, usageEventWorkerSpawnArgs(), {
     env: usageEventWorkerSpawnEnv(),
@@ -102,71 +119,107 @@ export function createAsyncUsageEventRecorder(input: {
     windowsHide: true
   }));
 
-  const ensureChild = (): ChildProcess => {
+  function scheduleFlush(delayMs: number): void {
+    if (disposed || retryTimer) {
+      return;
+    }
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      flush();
+    }, Math.max(0, delayMs));
+    retryTimer.unref?.();
+  }
+
+  function recordWorkerFailure(reason: string): void {
+    spawnFailures += 1;
+    const attempt = Math.min(spawnFailures, 8);
+    const delayMs = Math.min(
+      USAGE_EVENT_WORKER_BACKOFF_MAX_MS,
+      USAGE_EVENT_WORKER_BACKOFF_MIN_MS * 2 ** Math.max(0, attempt - 1)
+    );
+    backoffUntil = Date.now() + delayMs;
+    try {
+      console.error(JSON.stringify({
+        event: "cutter_usage_worker_restart_scheduled",
+        reason,
+        spawn_failures: spawnFailures,
+        delay_ms: delayMs
+      }));
+    } catch {
+      // ignore diagnostics failures
+    }
+    if (!disposed && queue.length > 0) {
+      scheduleFlush(delayMs);
+    }
+  }
+
+  function ensureChild(): ChildProcess | null {
     if (child && !child.killed && child.stdin?.writable) {
       return child;
+    }
+    if (Date.now() < backoffUntil) {
+      scheduleFlush(backoffUntil - Date.now());
+      return null;
     }
 
     try {
       child = spawnChild();
-      console.error(JSON.stringify({
-        event: "cutter_usage_worker_spawned",
-        exec_path: process.execPath,
-        packaged: isPackagedSidecarExecutable()
-      }));
+      spawnFailures = 0;
+      backoffUntil = 0;
+      const spawned = child;
+      try {
+        console.error(JSON.stringify({ event: "cutter_usage_worker_spawned", pid: spawned.pid }));
+      } catch {
+        // ignore diagnostics failures
+      }
+      spawned.stdin?.on("error", () => undefined);
+      spawned.on("exit", (code) => {
+        if (child === spawned) {
+          child = null;
+        }
+        recordWorkerFailure("exit:" + String(code));
+      });
+      spawned.on("error", (error) => {
+        if (child === spawned) {
+          child = null;
+        }
+        recordWorkerFailure(error instanceof Error ? error.message : String(error));
+      });
+      return spawned;
     } catch (error) {
-      console.error(JSON.stringify({
-        event: "cutter_usage_worker_spawn_failed",
-        error: error instanceof Error ? error.message : String(error)
-      }));
       child = null;
-      throw error;
+      recordWorkerFailure(error instanceof Error ? error.message : String(error));
+      return null;
     }
-    child.stdin?.on("error", () => undefined);
-    child.on("exit", (code) => {
-      try {
-        console.error(JSON.stringify({ event: "cutter_usage_worker_exit", code }));
-      } catch {
-        // ignore diagnostics failures
-      }
-      child = null;
-      if (!disposed && queue.length > 0) {
-        setImmediate(flush);
-      }
-    });
-    child.on("error", (error) => {
-      try {
-        console.error(JSON.stringify({
-          event: "cutter_usage_worker_error",
-          error: error instanceof Error ? error.message : String(error)
-        }));
-      } catch {
-        // ignore diagnostics failures
-      }
-      child = null;
-    });
-    return child;
-  };
+  }
 
   function flush(): void {
-    if (disposed || queue.length === 0) {
+    if (disposed || draining || queue.length === 0) {
       return;
     }
 
+    const activeChild = ensureChild();
+    if (!activeChild?.stdin?.writable) {
+      return;
+    }
+
+    draining = true;
     try {
-      const activeChild = ensureChild();
       while (queue.length > 0) {
-        const line = queue[0];
-        const ok = activeChild.stdin?.write(line);
+        const ok = activeChild.stdin.write(queue[0]);
         if (!ok) {
-          // 等待 drain 后继续；backpressure 只影响 analytics 延迟，不影响请求线程。
-          activeChild.stdin?.once("drain", flush);
+          activeChild.stdin.once("drain", () => {
+            draining = false;
+            flush();
+          });
           return;
         }
         queue.shift();
       }
     } catch {
       // analytics 是 best-effort；子进程失败时下一次事件会重建。
+    } finally {
+      draining = false;
     }
   }
 
@@ -193,25 +246,71 @@ export function createAsyncUsageEventRecorder(input: {
 
     try {
       queue.push(JSON.stringify({ library_root: libraryRoot, event }) + "\n");
-      setImmediate(flush);
+      scheduleFlush(0);
     } catch {
       dropped += 1;
     }
   };
 
-  return {
-    record,
-    dispose: () => {
-      disposed = true;
-      queue.length = 0;
+  async function dispose(): Promise<void> {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+
+    let activeChild: ChildProcess | null = null;
+    try {
+      activeChild = ensureChild();
+    } catch {
+      activeChild = null;
+    }
+
+    if (activeChild?.stdin?.writable) {
       try {
-        child?.stdin?.end();
-        child?.kill();
+        while (queue.length > 0) {
+          if (!activeChild.stdin.write(queue.shift()!)) {
+            break;
+          }
+        }
+        activeChild.stdin.end();
+      } catch {
+        // best-effort flush
+      }
+    }
+
+    if (activeChild) {
+      await Promise.race([
+        new Promise<void>((resolve) => activeChild!.once("exit", () => resolve())),
+        new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, USAGE_EVENT_WORKER_FLUSH_TIMEOUT_MS);
+          timer.unref?.();
+        })
+      ]);
+      try {
+        activeChild.kill();
       } catch {
         // ignore shutdown errors
       }
-      child = null;
     }
+
+    child = null;
+    queue.length = 0;
+  }
+
+  return {
+    record,
+    dispose,
+    stats: () => ({
+      queued: queue.length,
+      dropped,
+      spawn_failures: spawnFailures,
+      worker_alive: Boolean(child && !child.killed),
+      ...(child?.pid ? { worker_pid: child.pid } : {})
+    })
   };
 }
 
@@ -470,13 +569,20 @@ export async function startCutterApiSidecar(
     const env = buildCutterApiEnv(config);
     (input.apply_env ?? ((values) => Object.assign(process.env, values)))(env);
     const serverInput = buildCutterApiServerInputFromDesktopConfig(config, input.env ?? process.env);
+    const usageServiceConfigured = Boolean(process.env.MIXLAB_USAGE_SERVICE_URL?.trim());
     const usageRecorder =
-      !input.create_server && (isPackagedSidecarExecutable() || process.env.MIXLAB_CUTTER_USAGE_ASYNC === "1")
+      !input.create_server &&
+      !usageServiceConfigured &&
+      (isPackagedSidecarExecutable() || process.env.MIXLAB_CUTTER_USAGE_ASYNC === "1")
         ? createAsyncUsageEventRecorder()
         : undefined;
     if (usageRecorder) {
-      console.error(JSON.stringify({ event: "cutter_usage_worker_enabled" }));
+      console.error(JSON.stringify({
+        event: "cutter_usage_worker_enabled",
+        existing_usage_service: usageServiceConfigured
+      }));
       serverInput.usage_event_recorder = usageRecorder.record;
+      serverInput.usage_event_worker_stats = usageRecorder.stats;
     }
     const server = createServer(serverInput);
 
@@ -492,7 +598,7 @@ export async function startCutterApiSidecar(
         const stoppingEvent: SidecarEvent = { event: "stopping" };
         emitSidecarEvent(stdout, stoppingEvent);
         await writeSidecarEventLogBestEffort(logEvent, stoppingEvent);
-        usageRecorder?.dispose();
+        await usageRecorder?.dispose();
         await close(server);
       }
     };
