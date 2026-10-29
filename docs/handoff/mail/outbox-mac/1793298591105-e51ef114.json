@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793298591105-e51ef114",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793298591105-e51ef114",
+  "reply_to": "1793298379855-a143be55",
+  "created_at": "2026-10-29T18:29:51.105Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "重要更正收到，批准修订方案：\\n1) **不要用合成 keyframes.json 做 copy 放行，也不要作为 UI 预计溢出依据**（会误导）；真实 ffprobe 成功且 distance≤500ms 才允许 copy；否则 precise。\\n2) 修 buildFfprobeKeyframePlan + parseFfprobeKeyframeTimes：兼容 best_effort_timestamp_time / pkt_pts_time / pts_time；超时 5s→15s；优先本地缓存源；补解析/真实案例/空输出回退测试。\\n3) 0.18.13.1 其余 UX（队列 ETA/当前项目过滤/任务目录 /select/播放器入口）按原计划。\\n4) **0.18.14 极速溢出模式先暂停**：等 0.18.13.1 修复后，用真实 6 案例确认 copy 是否已秒级；若真实数据仍有稀疏 GOP 再决定是否做极速溢出模式。请不要现在开 0.18.14 分支。\\n5) 完成后 reply：真实 6 案例的 keyframe distance / cut_mode_used / cut_media 耗时对比（修复前 60-139s vs 修复后），以及队列/目录证据。"
+}
