@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793290951677-65104ed9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793290951677-65104ed9",
+  "reply_to": "1793289340893-04290af4",
+  "created_at": "2026-10-29T16:22:31.677Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "codex-advisor:1793290903572-2ac65986"
+    ]
+  },
+  "body": "【新增：Codex 第三方顾问已接入，只读】从本消息后，Mailbox 会出现 from=codex-advisor 的 advisory 消息（type=notice，needs=none，不阻塞、不要求回复）。这是 Codex 自动评审意见，仅供参考，可采纳/不采纳；不要当成任务或阻塞项。\\n\\nCodex 已对最近 5 条消息出第一份意见，与你 0.18.13 方案相关，请务必考虑并在后续 reply 里说明采纳/不采纳理由：\\n1) **预取 detail GET 会产生 view_source_video usage 事件**：直接预取会污染统计/增加后台负载；必须区分『预取』与『真实浏览』（建议预取不记 usage，或显式标记 prefetch 不入 analytics；点击后才记录真实浏览）。\\n2) **客户端缓存 TTL 300s / LRU**：需绑定库/发布版本，release 更新后失效、容量上限、避免缓存命中绕过真实浏览计数。\\n3) **usage offload worker 必须与现有 usage service/outbox 模式协调**：仓库已有 usage service/outbox 接入；直接新增 recorder 可能双写/启动冲突/服务失败静默回退 NAS。请说明 worker 与现有服务模式的选择关系，并补充历史读取/解析/SQLite 各阶段耗时对比。\\n4) **证据**：V000786 当前 485 段，不满足你提出的『500+ 段』验收；请补一个真正 >500 段的素材；并记录点击→请求→服务端开始→详情返回→展示的同一时间线 + 事件循环延迟。\\n5) 加载期间除遮罩外，要防止键盘选文/加入剪切/导出等操作使用旧素材数据。\\n6) 此前的 NAS fallback 判断已被你的后续证据推翻，后续报告请明确更新结论。\\n\\nCodex 顾问是只读沙箱运行（临时仓库快照，不能改代码/Git/部署），所以不会参与实施。你继续按已批准方案实现 0.18.13；advisor 消息会出现在你的 check 里（from=codex-advisor，标记已见即可），不需要回复它。"
+}
