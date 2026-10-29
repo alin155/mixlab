@@ -2,7 +2,7 @@
 
 - 日期：2026-10-29（北京时间）
 - 目标：把 dev/cutter 剪辑端交付线与 dev/admin 管理端/平台线收敛到可发布 main，消除长期分支漂移。
-- 结果：**已完成 main fast-forward**，两线汇合；RC 待 Windows 安装验收。
+- 结果：**已完成 main fast-forward**，两线汇合；RC 安装验收通过，最终交付包已构建并记录 sha256（见第 6 节）。
 
 ## 1. 分支与提交
 
@@ -54,3 +54,17 @@
 2. npm audit：9 个既有依赖告警（2 low、1 moderate、5 high、1 critical），未在本轮处理。
 3. 原有残留：A2 真 pause/resume/delete 契约、B 真实 2000+ searchd 压测、D5 审计边界、D4 外部写方锁、安装包代码签名。
 4. Windows 集成分支若需继续维护，使用 verify/* 分支，不改 dev/cutter（已冻结）。
+
+## 6. 最终交付（2026-10-29）
+
+- **main**：27ee57e（集成代码 3735253 + mail 工具/文档提交）
+- **最终安装包**：`MixLab Cutter_0.18.10_x64-setup.exe`（56.3MB）
+  - 构建来源：`origin/main @ 27ee57e`
+  - sha256：`3320915BF209B81FB274F6E2D922C38FB2195B85208F944E0FBA270B7CFB7E6F`
+  - 构建日志（Windows）：`C:\dev\logs\final-nsis-package.log`
+- **RC 包（安装验收对象）**：release@3735253，sha256 `E81F5BF4…B488F`，证据 `C:\dev\mixlab-verify-rc`
+- **交付线**：dev/cutter HEAD 65d9c65（冻结，仅状态/mail 提交）
+- **测试**：集成验收 typecheck PASS、全量 553/553、smoke passed、cargo 6/6；交付线此前 556/556
+- **证据索引**：`C:\dev\mixlab-verify-final\EVIDENCE-INDEX.md`、`docs/handoff/status/windows-latest.md`、`C:\dev\mixlab-verify-final\WINDOWS-MAIL-SOP.md`
+- **残余风险**：首启需 UTF-8 无 BOM config（设计）；卸载保留 AppData（设计）；B 真实 2000+ searchd 压测未做；D4 外部写方锁边界；D5 审计仅成功操作/多进程 best-effort；A2 真 pause/resume/delete 未实现；A1 顺序仅设备本地。
+- **发布标签**：`cutter-v0.18.10-20261029`
