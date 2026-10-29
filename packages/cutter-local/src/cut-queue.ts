@@ -2004,6 +2004,12 @@ function buildCutOutputVerification(input: {
   keyframe_distance_ms?: number;
 }): CutOutputVerification {
   const checks: CutOutputVerificationCheck[] = [];
+  // copy 模式受关键帧对齐影响，视频/音频流时长天然可能相差一个关键帧距离；
+  // 此时允许的 A/V 时长差应与时长容差一致（上限由 outputToleranceMs 给出），否则会误杀正常成片。
+  const avDurationDeltaToleranceMs =
+    input.cut_mode_used === "copy"
+      ? Math.max(AV_DURATION_DELTA_TOLERANCE_MS, input.tolerance_ms)
+      : AV_DURATION_DELTA_TOLERANCE_MS;
   const actualDurationMs =
     normalizeProbeMilliseconds(input.probe.duration_ms) ??
     normalizeProbeMilliseconds(input.probe.video_duration_ms) ??
@@ -2065,11 +2071,11 @@ function buildCutOutputVerification(input: {
     passed:
       videoDurationMs === undefined ||
       audioDurationMs === undefined ||
-      Math.abs(videoDurationMs - audioDurationMs) <= AV_DURATION_DELTA_TOLERANCE_MS,
+      Math.abs(videoDurationMs - audioDurationMs) <= avDurationDeltaToleranceMs,
     detail:
       videoDurationMs === undefined || audioDurationMs === undefined
         ? "缺少音视频流时长，跳过音画时长差检查"
-        : `视频流 ${videoDurationMs}ms、音频流 ${audioDurationMs}ms，时长差 ${Math.abs(videoDurationMs - audioDurationMs)}ms，阈值 ${AV_DURATION_DELTA_TOLERANCE_MS}ms`
+        : `视频流 ${videoDurationMs}ms、音频流 ${audioDurationMs}ms，时长差 ${Math.abs(videoDurationMs - audioDurationMs)}ms，阈值 ${avDurationDeltaToleranceMs}ms`
   });
 
   return {

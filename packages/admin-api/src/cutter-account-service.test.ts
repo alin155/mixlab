@@ -7,7 +7,7 @@ import {
   applyCutterAccountMigration
 } from "../../library-fs/src/cutter-account-migration.ts";
 import {
-  createCutterAccounts,
+  createCutterAccountsLegacy,
   cutterAccountsServiceFromEnv
 } from "../../library-fs/src/cutter-account-client.ts";
 import * as localAccounts from "../../library-fs/src/cutter-users.ts";
@@ -184,7 +184,7 @@ test("account service is private-state only and feature flag switches clients to
   cleanups.push(() => service.close());
   const baseUrl = await listen(service);
 
-  const client = createCutterAccounts({ base_url: baseUrl, token: TOKEN });
+  const client = createCutterAccountsLegacy({ base_url: baseUrl, token: TOKEN });
   assert.equal(client.mode, "service");
   const clientNow = new Date().toISOString();
   const registered = await client.registerCutterAccount("ignored", { ...registration, now: clientNow });
@@ -228,7 +228,7 @@ test("feature flag resolver is default-off, validates loopback URL and surfaces 
     );
   }
 
-  const client = createCutterAccounts({
+  const client = createCutterAccountsLegacy({
     base_url: "http://127.0.0.1:9",
     token: "token"
   });
@@ -242,7 +242,7 @@ test("feature flag resolver is default-off, validates loopback URL and surfaces 
 });
 
 function crateAccountsForTest(url: string) {
-  return createCutterAccounts({ base_url: url, token: "token" });
+  return createCutterAccountsLegacy({ base_url: url, token: "token" });
 }
 
 test("migrated users can log in through the account service", async (t) => {

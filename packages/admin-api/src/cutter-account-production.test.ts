@@ -9,7 +9,7 @@ import {
 } from "../../library-fs/src/cutter-account-migration.ts";
 import { accountDirectory } from "../../library-fs/src/cutter-account-lock.ts";
 import {
-  createCutterAccounts,
+  createCutterAccountsLegacy,
   type CutterAccountConnection
 } from "../../library-fs/src/cutter-account-client.ts";
 import * as localAccounts from "../../library-fs/src/cutter-users.ts";
@@ -181,7 +181,7 @@ test("read providers follow the flag: legacy when off, service when on, fail-clo
   });
   cleanups.push(() => service.close());
   const baseUrl = await listen(service);
-  const accounts = createCutterAccounts(connection(baseUrl));
+  const accounts = createCutterAccountsLegacy(connection(baseUrl));
 
   // Add a service-only user; legacy store must stay unchanged.
   const serviceUser = await accounts.registerCutterAccount("ignored", { ...REGISTRATION, username: "service-only", now: timestamp });
@@ -210,7 +210,7 @@ test("read providers follow the flag: legacy when off, service when on, fail-clo
   assert.deepEqual(localEntitlements.accounts, {});
 
   // Service unavailable => fail closed (no silent legacy fallback).
-  const unavailable = createCutterAccounts({ base_url: "http://127.0.0.1:9", token: CLIENT_TOKEN });
+  const unavailable = createCutterAccountsLegacy({ base_url: "http://127.0.0.1:9", token: CLIENT_TOKEN });
   await assert.rejects(
     () => listCutterUsersForAdmin({ library_root: legacy, accounts: unavailable }),
     (error) => {
@@ -244,7 +244,7 @@ test("E2E: migrate -> flag on read path -> login -> disable -> rollback", async 
   });
   cleanups.push(() => service.close());
   const baseUrl = await listen(service);
-  const accounts = createCutterAccounts(connection(baseUrl));
+  const accounts = createCutterAccountsLegacy(connection(baseUrl));
 
   const read = await listCutterUsersForAdmin({ library_root: legacy, env: flagEnv(baseUrl) });
   assert.deepEqual(read.users.map((user) => user.username), ["alice"]);

@@ -7,7 +7,10 @@ import {
   type UsageServiceConnection
 } from "../../service-clients/src/usage-service-client.ts";
 
-export type { UsageServiceConnection } from "../../service-clients/src/usage-service-client.ts";
+export type {
+  UsageServiceConnection,
+  UsageServiceMetricsResponse
+} from "../../service-clients/src/usage-service-client.ts";
 export type UsageServiceMode = "isolated-service" | "legacy-ndjson";
 
 export const USAGE_SERVICE_MODE_ENV = "MIXLAB_USAGE_SERVICE_URL";
@@ -22,3 +25,4 @@ export const usageServiceFromEnv = contract.usageServiceFromEnv;
 export const usageServiceUrl = contract.usageServiceUrl;
 export const requestUsageService = contract.requestUsageService;
 export const readUsageServiceMetrics = contract.readUsageServiceMetrics;
+

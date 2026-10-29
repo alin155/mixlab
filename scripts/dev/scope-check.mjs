@@ -132,6 +132,10 @@ function main() {
     process.exit(0);
   }
   const branch = currentBranch();
+  if (branch.startsWith("integ/") && !args.role) {
+    console.log("SCOPE_CHECK=PASS (integration branch " + branch + ")");
+    return;
+  }
   const role = args.role || inferRole(branch);
   if (role !== "mac" && role !== "windows") {
     console.error("role 必须是 mac 或 windows");

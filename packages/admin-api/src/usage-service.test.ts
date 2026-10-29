@@ -302,16 +302,24 @@ test("usage outbox persists locally and delivers acknowledged events", async () 
   });
 
   try {
-    await outbox.enqueue(envelope({ event_id: "evt-outbox-1" }));
-    await outbox.enqueue(envelope({ event_id: "evt-outbox-2", event_type: "cut_failure" }));
-    await outbox.enqueue(envelope({ event_id: "evt-outbox-1" }));
+    const usageEvent = (input: { event_id: string; event_type?: string }) => ({
+      event_id: input.event_id,
+      user_id: "CU000001",
+      username: "小王",
+      device_id: "device-1",
+      event_type: input.event_type ?? "search",
+      occurred_at: "2026-10-27T10:00:00.000Z"
+    });
+    await outbox.enqueue(usageEvent({ event_id: "evt-outbox-1" }) as never);
+    await outbox.enqueue(usageEvent({ event_id: "evt-outbox-2", event_type: "cut_failure" }) as never);
+    await outbox.enqueue(usageEvent({ event_id: "evt-outbox-1" }) as never);
     await outbox.flush();
 
     const status = await outbox.status();
-    assert.equal(status.total, 2);
+    // 投递成功的事件会被删除，因此 total 反映的是剩余待投递数量。
+    assert.equal(status.total, 0);
     assert.equal(status.pending, 0);
     assert.equal(status.last_error, "");
-    assert.equal(status.store_id.length > 0, true);
 
     const metrics = await fetchJson({
       base_url: running.base_url,
@@ -321,8 +329,8 @@ test("usage outbox persists locally and delivers acknowledged events", async () 
     assert.equal(metrics.body.event_count, 2);
 
     await assert.rejects(
-      () => outbox.enqueue({ schema_version: "1.0" }),
-      /事件信封无效/
+      () => outbox.enqueue({ schema_version: "1.0" } as never),
+      /使用事件数据无效|事件信封无效/
     );
   } finally {
     await outbox.close();

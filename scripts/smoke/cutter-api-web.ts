@@ -374,6 +374,7 @@ async function main(): Promise<void> {
     }
   );
   let apiServer: Server | undefined;
+  let authHeaders: Record<string, string> = {};
   let web: ChildProcess | undefined;
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let pageText = "";
@@ -397,7 +398,7 @@ async function main(): Promise<void> {
     await new Promise<void>((resolve) => apiServer!.listen(0, "127.0.0.1", resolve));
     const apiPort = (apiServer.address() as AddressInfo).port;
     apiBaseUrl = `http://127.0.0.1:${apiPort}`;
-    const authHeaders = {
+    authHeaders = {
       "x-mixlab-device-id": approved.session.device_id,
       "x-mixlab-session-token": approved.session.session_token
     };
@@ -580,6 +581,14 @@ async function main(): Promise<void> {
       throw new Error("材料定位页未显示本地/候选素材文案");
     }
   } catch (error) {
+    let cutJobsDiagnostic: unknown = null;
+    if (apiBaseUrl && authHeaders["x-mixlab-session-token"]) {
+      try {
+        cutJobsDiagnostic = await (await fetch(apiBaseUrl + "/cutter/cut-jobs", { headers: authHeaders })).json();
+      } catch (diagnosticError) {
+        cutJobsDiagnostic = { error: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError) };
+      }
+    }
     const pages = browser?.contexts().flatMap((context) => context.pages()) ?? [];
     const currentPage = pages[0];
     if (currentPage) {
@@ -590,6 +599,7 @@ async function main(): Promise<void> {
       smoke_error_context: {
         page_url: pageUrl,
         page_text: pageText.slice(0, 1200),
+        cut_jobs: cutJobsDiagnostic,
         browser_messages: browserMessages.slice(-20)
       }
     }, null, 2));
