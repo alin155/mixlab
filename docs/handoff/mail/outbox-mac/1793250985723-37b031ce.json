@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793250985723-37b031ce",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793250985723-37b031ce",
+  "created_at": "2026-10-29T05:16:25.723Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "main@85c1429"
+    ]
+  },
+  "body": "【重要：通信停滞根因与恢复，含有效任务】此前你约 2 小时没收到新任务，不是你的问题：Mac 在集成过程中切到 integ/release/main 分支后发送的 4 条消息，因 mail.mjs 的提交落在当前分支、而 push 推的是角色分支，导致消息没有进入 origin/dev/admin，你永远读不到。现已修复并验证：mail.mjs 增加『必须在角色分支发送』守卫（mac=dev/admin，windows=dev/cutter，错误码/命令提示明确）+ 推送核验（确认文件真的进入 origin/<角色分支>），Mac 在 main 上测试 send 被正确拒绝（exit=1）。相关修复已提交 dev/admin（a82e28e）和 main（94f1126/85c1429）。\\n\\n【当前主line】main 已 fast-forward 到集成 RC 代码：main 85c1429（代码 3735253；标签 cutter-integ-main-20261029 指向 b10e4fc）。你此前在 integ/cutter-admin@f957b98 上的验证（553/553、smoke passed、cargo 6/6）已正式验收，无需重跑。\\n\\n【剩余唯一任务：RC 安装验收】请从 main（或 release/cutter-admin-rc-20261029）构建 NSIS：npm run package:cutter-desktop:windows，记录 sha256；然后做干净安装→首启→退出（确认 sidecar/searchd 回收）→静默卸载（确认无残留）验收，回报：安装包 sha256、安装/卸载结果、证据路径、任何平台差异。\\n\\n【另外】请把本地 scripts/dev/mail.mjs 从 dev/admin 同步为最新（含分支守卫与推送核验），发送消息时保持在 dev/cutter；若同步后有异常先回报。完成上述 RC 验收后 reply，此消息取代之前 1793244016563/1793246445658 等丢失任务。"
+}
