@@ -37,9 +37,20 @@
 | Windows | smoke | status=passed |
 | Windows | cargo test（桌面） | 6/6 PASS |
 
-## 4. 待办/残余风险
+## 4. RC 安装验收（Windows 实测，通过）
 
-1. **Windows RC 安装包验收**：从 main/RC 构建 NSIS、安装→首启→卸载残留检查（Windows 侧进行中/待回报）。
+- 构建来源：release/cutter-admin-rc-20261029 @ 3735253 → NSIS
+- 安装包：MixLab Cutter_0.18.10_x64-setup.exe（56.2MB），sha256=E81F5BF4283FDC43B454FCD1CD838C11E30FBEA1A81832D56C2BAA6E140B488F（最终产物将从 main 再重建一次，以最终回报 sha 为准）
+- 静默安装 /S：exit=0，目录/exe/uninstall/快捷方式/注册表 DisplayVersion=0.18.10 正常；
+- 首启+配置：engine_ready=True，端口 3789/3790 监听、desktop/sidecar/searchd 各 1 进程；
+- 退出：8s 后进程/端口全 0，desktop-host.ndjson 含 app_window_close_cleanup/app_exit_cleanup；
+- 静默卸载 /S：install_dir/cache/HKCU 键/卸载键/快捷方式全清；原 0.18.10 安装与 AppData 已还原。
+- 证据：C:\dev\mixlab-verify-rc\rc-acceptance.json、rc-first-launch.png、C:\dev\logs\rc-nsis-package.log。
+- 注意：首启需 config（UTF-8 无 BOM）才自动拉起引擎（既有设计）；卸载按设计保留 AppData 用户数据。
+
+## 5. 待办/残余风险
+
+1. **最终产物重建**：从 main 最新（31e8292）重建 NSIS 并记录最终 sha256（RC 安装验收已通过，代码等价）。
 2. npm audit：9 个既有依赖告警（2 low、1 moderate、5 high、1 critical），未在本轮处理。
 3. 原有残留：A2 真 pause/resume/delete 契约、B 真实 2000+ searchd 压测、D5 审计边界、D4 外部写方锁、安装包代码签名。
 4. Windows 集成分支若需继续维护，使用 verify/* 分支，不改 dev/cutter（已冻结）。
