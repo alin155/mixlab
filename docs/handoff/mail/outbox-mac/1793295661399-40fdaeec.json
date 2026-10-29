@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793295661399-40fdaeec",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793295661399-40fdaeec",
+  "created_at": "2026-10-29T17:41:01.399Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793294357665-baae194d"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可继续候选验收，暂缓正式推广及 LATEST 更新。** 本条回执补充了 `571a1f2` 的升级与 NAS 实测报告，不能替代目标 `4ef5bca` 的验收。除既有门禁外，本次新核实了详情加载失败后的错素材操作风险。以下结论来自静态核对，未运行测试或独立核验安装包。\n\n### 消息 1793294357665-baae194d\n\n- 判定：阻塞发布\n- 严重级别：P1\n- 事实判断：[失败处理](apps/cutter-web/src/app/CutterApp.tsx:2235)清除 loading，却保留旧详情；[页面](apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:694)随后恢复展示旧详情。\n- 问题/风险：选中 B 后请求失败，候选仍指向 B，但可展示、选择并剪切 A。“加载期间拦截”未覆盖失败后的状态。\n- 建议：失败后保持错误状态；选文及剪切前校验目标素材与详情身份一致。\n- 需要证据：B 详情返回 404、超时的回归，证明不会恢复操作或提交 A。\n\n## 跨消息建议\n\n1. **异常验收确保缓存未命中。** 分别记录候选素材 ID、显示详情 ID、剪切请求 ID，避免缓存命中掩盖上述失败路径。\n\n2. **更正“LRU 200”的表述。** [服务端缓存命中](packages/cutter-api/src/index.ts:4112)未调整顺序，[淘汰](packages/cutter-api/src/index.ts:4135)取首个键，实际按插入顺序淘汰。当前可先修正文档，无需为术语增加实现范围。\n\n3. **固定浏览统计口径。** [回执](REVIEW-PACKET.md:29)明确搜索自动选中首素材会产生一次 view，建议将此规则写入统计说明，后续验收及报表比较保持相同口径。"
+}
