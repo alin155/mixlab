@@ -247,7 +247,9 @@ export interface CreateCutterApiServerInput {
   /** usage worker 的 additive 运行指标，仅桌面 sidecar 注入；health 只读暴露。 */
   usage_event_worker_stats?: () => {
     queued: number;
+    sent: number;
     dropped: number;
+    failed: number;
     spawn_failures: number;
     worker_alive: boolean;
     worker_pid?: number;
@@ -3919,6 +3921,27 @@ async function defaultCutKeyframeProbe(input: {
 }
 
 const VISIBLE_DETAIL_CACHE_TTL_MS = 300_000;
+const VISIBLE_DETAIL_CACHE_MAX_ENTRIES = 200;
+const SOURCE_VIEW_DEDUPE_MS = 30_000;
+const SOURCE_VIEW_DEDUPE_MAX_ENTRIES = 1_000;
+const sourceViewRecordedAtByUser = new Map<string, number>();
+
+function shouldRecordSourceView(auth: { user: { user_id: string } }, sourceVideoId: string): boolean {
+  const key = `${auth.user.user_id}:${sourceVideoId}`;
+  const now = Date.now();
+  const last = sourceViewRecordedAtByUser.get(key) ?? 0;
+  if (now - last < SOURCE_VIEW_DEDUPE_MS) {
+    return false;
+  }
+  sourceViewRecordedAtByUser.set(key, now);
+  if (sourceViewRecordedAtByUser.size > SOURCE_VIEW_DEDUPE_MAX_ENTRIES) {
+    const oldest = sourceViewRecordedAtByUser.keys().next().value;
+    if (oldest) {
+      sourceViewRecordedAtByUser.delete(oldest);
+    }
+  }
+  return true;
+}
 
 interface VisibleDetailCacheEntry {
   expires_at_ms: number;
@@ -4076,6 +4099,12 @@ async function loadVisibleDetail(
     expires_at_ms: nowMs + VISIBLE_DETAIL_CACHE_TTL_MS,
     promise
   });
+  if (cache.size > VISIBLE_DETAIL_CACHE_MAX_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) {
+      cache.delete(oldestKey);
+    }
+  }
 
   return promise;
 }
@@ -7618,12 +7647,14 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             writeError(response, 400, "invalid_source_video_id", "source_video_id must use V000001 format");
             return;
           }
-          await recordCutterUsageEventBestEffort({
-            api_input: input,
-            auth,
-            event_type: "view_source_video",
-            source_video_id: sourceVideoId
-          });
+          if (shouldRecordSourceView(auth, sourceVideoId)) {
+            await recordCutterUsageEventBestEffort({
+              api_input: input,
+              auth,
+              event_type: "view_source_video",
+              source_video_id: sourceVideoId
+            });
+          }
           writeNoContent(response);
         } catch {
           writeError(response, 500, "usage_event_failed", "failed to record source video view");
@@ -7693,11 +7724,15 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           return;
         }
 
-        writeJson(response, 200, apiResponse(await runtimeStatusForSession({
+        const runtimeStatus = await runtimeStatusForSession({
           api_input: input,
           auth,
           include_local_cache: url.searchParams.get("include_cache") === "1"
-        })));
+        });
+        writeJson(response, 200, apiResponse({
+          ...runtimeStatus,
+          ...(input.usage_event_worker_stats ? { usage_event_worker: input.usage_event_worker_stats() } : {})
+        }));
         return;
       }
 
@@ -8282,7 +8317,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
           writeJson(response, 200, apiResponse(addSourceVideoUrls(detail) as ApiSourceVideoDetail));
           // 预取详情不算真实浏览，避免污染 usage analytics；点击路径不传 prefetch=1。
-          if (url.searchParams.get("prefetch") !== "1") {
+          if (url.searchParams.get("prefetch") !== "1" && shouldRecordSourceView(auth, detail.source_video_id)) {
             await recordCutterUsageEventBestEffort({
               api_input: input,
               auth,

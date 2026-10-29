@@ -81,7 +81,9 @@ function usageEventWorkerSpawnEnv(): NodeJS.ProcessEnv {
 
 export interface UsageEventWorkerStats {
   queued: number;
+  sent: number;
   dropped: number;
+  failed: number;
   spawn_failures: number;
   worker_alive: boolean;
   worker_pid?: number;
@@ -108,6 +110,8 @@ export function createAsyncUsageEventRecorder(input: {
   let child: ChildProcess | null = null;
   let disposed = false;
   let dropped = 0;
+  let sent = 0;
+  let failed = 0;
   let spawnFailures = 0;
   let backoffUntil = 0;
   let retryTimer: NodeJS.Timeout | null = null;
@@ -131,6 +135,7 @@ export function createAsyncUsageEventRecorder(input: {
   }
 
   function recordWorkerFailure(reason: string): void {
+    failed += 1;
     spawnFailures += 1;
     const attempt = Math.min(spawnFailures, 8);
     const delayMs = Math.min(
@@ -215,6 +220,7 @@ export function createAsyncUsageEventRecorder(input: {
           return;
         }
         queue.shift();
+        sent += 1;
       }
     } catch {
       // analytics 是 best-effort；子进程失败时下一次事件会重建。
@@ -306,7 +312,9 @@ export function createAsyncUsageEventRecorder(input: {
     dispose,
     stats: () => ({
       queued: queue.length,
+      sent,
       dropped,
+      failed,
       spawn_failures: spawnFailures,
       worker_alive: Boolean(child && !child.killed),
       ...(child?.pid ? { worker_pid: child.pid } : {})
