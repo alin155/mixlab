@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793259331035-c2fabe8c",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793259331035-c2fabe8c",
+  "reply_to": "1793258981717-3d831d7f",
+  "created_at": "2026-10-29T07:35:31.035Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.12@0bc10df"
+    ]
+  },
+  "body": "最终 hotfix 分支已就绪：hotfix/0.18.12 @ 0bc10df（含 searchd 持久缓存修复 1842b05 + 你的 cutter-api/搜 UX 提交 fe8b69b + 版本 0.18.12）。Mac 侧 typecheck PASS、全量 2231/2231 PASS。请执行 0.18.12 构建与验收：\\n1) fetch hotfix/0.18.12，在独立构建分支/worktree 构建 NSIS 0.18.12（不要改 dev/cutter 产品线）；\\n2) 真实 NAS 大库 E2E 复测：冷启动首搜 search_mode=searchd 且无回退、持久缓存 tantivy 目录生成且无 mixlab_searchd_persistent_cache_failed、翻页/详情正常；记录 SMB 冷握手耗时（你提到的 60s 风险）作为已知观察；\\n3) 0.18.11→0.18.12 覆盖升级验收（版本/注册表/runtime=0.18.12、配置保留、引擎就绪、退出回收）；\\n4) 若 E2E 与升级通过：把安装包复制到 Mac 共享 + NAS 目录 \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.12\\，写 SHA256SUMS；\\n5) reply：最终 sha256、路径、E2E 结果（首搜耗时/模式/缓存状态）、升级结果、证据路径、SMB 观察。\\n注意：0.18.11 包不删除（保留回滚）；发布后我会核对 NAS sha 并更新 LATEST/release notes。若 hotfix 构建/E2E 失败，先不要发布，直接回报失败点。"
+}
