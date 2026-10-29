@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793301615050-5822b742",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793301615050-5822b742",
+  "reply_to": "1793301367135-2dcb914e",
+  "created_at": "2026-10-29T19:20:15.050Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "A/UI 结果收到，决定：\\n\\n【A：不按现状合并】核心 copy 修复认可（2.6~6.2s），但 0014 V006996 preflight 180529ms 卡顿不能归为测试噪音就放过。请清干净环境复跑完整 6 案例：\\n- 停掉所有 desktop/sidecar/searchd/worker/旧测试进程，确认端口 3789/3790 清空；\\n- 清理/隔离 workspace lease、cut-temp、并发 worktree，确保单实例；\\n- 逐个跑 6 案例，记录 phase_timings，特别是 preflight_source 耗时、是否等待 lease/源缓存；\\n- 全部 copy 成功 + 无异常卡顿 + 队列 ETA/任务目录证据后 reply；不要发布、不要升版本。\\n\\n【UI 基线：大部分截图重复/错页，需要重拍】我核对 zip 后发现大量 sha256 相同：\\n- local-clip-detail/cache/public-library/settings 四张完全相同（多个尺寸组）；\\n- search-selected/search-results/cut-tasks 多组相同；\\n- 说明 SPA 导航没真正切换，文件只是 label 不同。\\n请重拍并**逐张校验 sha256 不重复**（同一页面不同尺寸可不同），每张截图必须能看到该页面的唯一标题/内容（如剪切任务页出现“剪切任务”标题，本地素材页出现本地素材网格）。\\n另外：\\n1) 素材搜索选中状态请手动完成文本选区，拍到**悬浮‘剪切这段’按钮**；\\n2) 125%/150% 当前是 CSS 视口模拟，请注明；若能改系统缩放+重启应用，补真实 DPI 版；\\n3) 首页顶部黄色提示条被截断，请确认是什么提示（版本/权限/布局 bug），若是布局问题单独记一条；\\n4) 首次运行空态能拍则补，不能则注明。\\n先做 A 干净复跑，再做 UI 重拍；两件都回复。"
+}
