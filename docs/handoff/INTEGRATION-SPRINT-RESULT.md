@@ -58,13 +58,14 @@
 ## 6. 最终交付（2026-10-29）
 
 - **main**：27ee57e（集成代码 3735253 + mail 工具/文档提交）
-- **最终安装包**：`MixLab Cutter_0.18.10_x64-setup.exe`（56.3MB）
-  - 构建来源：`origin/main @ 27ee57e`
-  - sha256：`3320915BF209B81FB274F6E2D922C38FB2195B85208F944E0FBA270B7CFB7E6F`
+- **最终安装包**：`MixLab Cutter_0.18.11_x64-setup-5e26771.exe`（58,966,667 bytes）
+  - 构建来源：`origin/main @ 5e26771`（0.18.11 版本提交）
+  - sha256：`c6555617aa4f774b86d515d1b9427a255575898889ab111610330603e5c90a0a`
+  - 发布位置：`\\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.11\`（含 release-notes/SHA256SUMS）
   - 构建日志（Windows）：`C:\dev\logs\final-nsis-package.log`
 - **RC 包（安装验收对象）**：release@3735253，sha256 `E81F5BF4…B488F`，证据 `C:\dev\mixlab-verify-rc`
 - **交付线**：dev/cutter HEAD 65d9c65（冻结，仅状态/mail 提交）
 - **测试**：集成验收 typecheck PASS、全量 553/553、smoke passed、cargo 6/6；交付线此前 556/556
 - **证据索引**：`C:\dev\mixlab-verify-final\EVIDENCE-INDEX.md`、`docs/handoff/status/windows-latest.md`、`C:\dev\mixlab-verify-final\WINDOWS-MAIL-SOP.md`
 - **残余风险**：首启需 UTF-8 无 BOM config（设计）；卸载保留 AppData（设计）；B 真实 2000+ searchd 压测未做；D4 外部写方锁边界；D5 审计仅成功操作/多进程 best-effort；A2 真 pause/resume/delete 未实现；A1 顺序仅设备本地。
-- **发布标签**：`cutter-v0.18.10-20261029`
+- **发布标签**：`cutter-v0.18.11-20261029`（旧 0.18.10 标签保留）
