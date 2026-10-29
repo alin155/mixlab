@@ -1,15 +1,15 @@
 # windows 状态报告
 
-- generated_at: 2026-10-29T08:00:55.616Z
+- generated_at: 2026-10-29T08:08:11.260Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: 390477610701d90a079a4fe057228458c5b4fad8
-- head_subject: [mail][windows→mac] reply 1793260843094-7d0d13f8
-- head_time: 2026-10-29T16:00:43+08:00
+- head: 14977c9cff152be3e54f13e0fc730dc6c46ff038
+- head_subject: chore(windows): status 2026-10-29 16:01 — 0.18.12 search hotfix released; ready gate E2E passed
+- head_time: 2026-10-29T16:01:05+08:00
 - dirty_tracked: 0
 - dirty_untracked: 0
 - peer_branch: dev/admin
@@ -42,5 +42,6 @@
 - release_0_18_11: 从 main@5e26771（临时分支 build-0.18.11，未改 dev/cutter）构建 0.18.11 成功：56.2MB，sha256=c6555617aa4f774b86d515d1b9427a255575898889ab111610330603e5c90a0a；已发布 NAS \\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.11\ 与 Mac 共享 \\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\（exe+SHA256SUMS，含版本化 sums；两端 sha256 校验一致）。升级验收 0.18.10→0.18.11 全通过：注册/exe FileVersion/Tauri runtime 均 0.18.11、config 哈希不变、引擎 ready、退出 sidecar/searchd 回收、cleanup 日志；设置页需登录未截图，已用 runtime 探针+文件版本为证。证据 C:\dev\mixlab-verify-release-01811。reply 1793253368046-38287cfe。
 - search_hotfix_0_18_12: 根因=searchd Windows 持久缓存 os error 5（每次重建索引/预热）+ sidecar 1.5s 硬超时回退 SQLite + 桌面端把 /health 200 当 ready 提前拉起 sidecar。修复：Mac searchd 1842b05；Windows 97d92ec（cutter-api 首屏 10s 超时/18s 预算/8 次重试+fallback 原因；web 30s 超时+预热提示；desktop 严格等待 data.ready 120s+warming 日志+启动页提示；cargo 8/8）。
 - release_0_18_12: 从 hotfix/0.18.12-readygate@97d92ec 构建 MixLab Cutter_0.18.12_x64-setup-97d92ec.exe（56.3MB，sha256=17947BEE7FC17973625D06752567C8E7B1A8B5D9C98424789DA1F99B46A2CC16）；已发布 NAS \\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.12\ 与 Mac 共享 \\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\（sha 两端核对一致）。真实 NAS 冷缓存 E2E PASS：等待 searchd 预热 25.6s、进工作台 28.4s、首搜 search_mode=searchd 8ms 无回退、翻页 searchd、连续切换 10 素材响应、详情正常；缓存 tantivy/v012758 生成、.building=0、无新增 persistent_cache_failed；0.18.12 安装/config 保留/退出回收（偶发一次 sidecar 残留，热缓存复测全回收）。证据 C:\dev\mixlab-verify-01812；reply 1793260843094-7d0d13f8；0.18.11 保留回滚。
-- next: 等 Mac 合并 97d92ec 进 hotfix/0.18.12、核对 NAS sha 并更新 LATEST/release notes；0.18.13 候选=bootstrap NAS 请求超时/取消+UI 进度；dev/cutter 冻结仅 bugfix；轮询 240s。
+- release_0_18_12_final: Mac 已验收并合并到 main@7c99d00，tag cutter-v0.18.12-20261029（构建提交 97d92ec）；NAS/Mac 共享 0.18.12 包 sha256=17947bee...cc16 已核对，LATEST 与 release notes 已更新；Mac 全量 2231/2231 PASS。Windows 侧 0.18.12 已安装（D:\应用\MixLab Cutter），0.18.11 包保留回滚。
+- next: 只读待命，不再改产品代码；NAS SMB 冷启动（首次 40-60s）列入 0.18.13 后续项；等待后续批次任务；轮询 240s。
 <!-- MANUAL:END -->
