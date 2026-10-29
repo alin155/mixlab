@@ -1,15 +1,15 @@
 # windows 状态报告
 
-- generated_at: 2026-10-29T05:30:04.360Z
+- generated_at: 2026-10-29T05:56:19.740Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: 65d9c655577d0910ac12c813631d7c03def84465
-- head_subject: chore(windows): status 2026-10-29 13:23 — RC installation acceptance passed; mail guard synced
-- head_time: 2026-10-29T13:23:44+08:00
+- head: 19eacd0786ea46f4e2405a8b154a479665cb0896
+- head_subject: [mail][windows→mac] reply 1793253368046-38287cfe
+- head_time: 2026-10-29T13:56:08+08:00
 - dirty_tracked: 0
 - dirty_untracked: 0
 - peer_branch: dev/admin
@@ -38,6 +38,7 @@
 - tests: typecheck PASS；cutter-api 144、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7 = 556/556；smoke status=passed。
 - rc_acceptance: RC 安装包（release@3735253 构建）MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=E81F5BF4283FDC43B454FCD1CD838C11E30FBEA1A81832D56C2BAA6E140B488F；干净安装 exit0（注册版本 0.18.10、快捷方式/文件齐全）→首启引擎 ready（3789/3790 监听、3 进程）→关窗后 desktop/sidecar/searchd=0、端口 0（cleanup 日志已记录）→静默卸载 exit0，安装目录/cache/HKCU 键/快捷方式残留全部 false；证据 C:\dev\mixlab-verify-rc\rc-acceptance.json + rc-first-launch.png；测试后旧 0.18.10 环境已还原。最终包（main@27ee57e 重建）：56.3MB，sha256=3320915BF209B81FB274F6E2D922C38FB2195B85208F944E0FBA270B7CFB7E6F（代码=RC+mail/文档，未重复完整安装验收）；构建日志 C:\dev\logs\final-nsis-package.log。
 - integration_stage: integ/cutter-admin@f957b98 验证通过（553/553、smoke passed、cargo 6/6，已回执）；main 已推进（fetch 到 31e8292）；RC 分支 release/cutter-admin-rc-20261029@3735253。证据索引 C:\dev\mixlab-verify-final\EVIDENCE-INDEX.md；同步实践：Mail 发送前必须 dev/cutter 分支（SOP：C:\dev\mixlab-verify-final\WINDOWS-MAIL-SOP.md）。
-- final_delivery: 最终交付摘要已 reply（1793251841116-691f09c9，含最终 commit main@27ee57e、安装包 sha256、集成 553/553 与 RC 验收结论、残余风险）；EVIDENCE-INDEX 已追加最终交付章节；文档/状态已更新。当前 dev/cutter HEAD e7883c2（mail），功能冻结。
-- next: 冻结待命；不再改产品代码；仅响 Mac 最终发布指令或必要 bugfix；轮询每 240s 保持。
+- final_delivery: 最终交付摘要已 reply（1793251841116-691f09c9，含最终 commit main@27ee57e、安装包 sha256、集成 553/553 与 RC 验收结论、残余风险）；EVIDENCE-INDEX 已追加最终交付章节；文档/状态已更新。
+- release_0_18_11: 从 main@5e26771（临时分支 build-0.18.11，未改 dev/cutter）构建 0.18.11 成功：56.2MB，sha256=c6555617aa4f774b86d515d1b9427a255575898889ab111610330603e5c90a0a；已发布 NAS \\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.11\ 与 Mac 共享 \\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\（exe+SHA256SUMS，含版本化 sums；两端 sha256 校验一致）。升级验收 0.18.10→0.18.11 全通过：注册/exe FileVersion/Tauri runtime 均 0.18.11、config 哈希不变、引擎 ready、退出 sidecar/searchd 回收、cleanup 日志；设置页需登录未截图，已用 runtime 探针+文件版本为证。证据 C:\dev\mixlab-verify-release-01811。reply 1793253368046-38287cfe。
+- next: 0.18.11 发布+升级验收已回报，等 Mac 确认（含设置页版本截图方式）；dev/cutter 保持冻结（不新增产品改动），仅必要 bugfix；轮询每 240s 保持。
 <!-- MANUAL:END -->
