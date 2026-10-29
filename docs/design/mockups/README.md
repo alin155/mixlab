@@ -4,13 +4,15 @@
 
 ## 预览
 
-- workbench.html：素材搜索三栏重排（候选 / 文案 / Inspector Tabs）
+- home.html：首页（Hero / 最近项目空态 / 快速开始）
+- workbench.html：素材搜索三栏重排（候选 / 文案 / Inspector Tabs + 选区悬浮剪切）
 - cut-tasks.html：剪切队列（KPI / ETA / 表格 + 详情）
 - local-library.html：本地素材（网格 + 详情 Inspector）
 - index.html：入口索引
 
 ## 截图
 
+- screenshots/home-1536.png
 - screenshots/workbench-1536.png
 - screenshots/workbench-1440.png
 - screenshots/cut-tasks-1536.png
