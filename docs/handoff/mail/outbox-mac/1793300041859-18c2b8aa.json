@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793300041859-18c2b8aa",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793300041859-18c2b8aa",
+  "created_at": "2026-10-29T18:54:01.859Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793299913297-cda0647e"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进真实 Windows UI 基线采集，本条不新增发布阻塞。** 当前只有截图请求，尚无截图及 manifest 回执，不能判断页面差异原因或认定采集完成。快照与 main 相同，`DIFF.patch` 为空；本轮仅静态阅读，未执行测试或写操作。\n\n### 消息 1793299913297-cda0647e\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[fixture 截图](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-p89ZYb/scripts/visual/check-ui-foundation-screenshots.ts:90)固定 viewport 为 1536×1024、DPR=1；[Runner](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-p89ZYb/packages/windows-test-runner/src/actions/desktop-ui-screenshot-smoke.ts:203)读取窗口外框。\n- 问题/风险：外框、客户区、CSS 视口及 DPI 混用，会影响差异归因。\n- 建议：manifest 分别记录客户区物理尺寸、CSS 视口、DPR、系统缩放、WebView 缩放及版本，保留原始 PNG。\n- 需要证据：实际截图、逐图 manifest、未覆盖项及原因。\n\n## 跨消息建议\n\n1. **确认 A 验收后的实际截图版本。** 请求安排在 A 的 E2E 后，应核对运行进程仍为稳定版。[发布记录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-p89ZYb/docs/handoff/RELEASE-0.18.13.md:5)明确 0.18.13 构建为 `4ef5bca`；manifest 记录进程路径与实际版本，避免候选安装覆盖后混入基线。\n\n2. **按“页面×状态”核对覆盖。** 现有 [Runner 判定](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-p89ZYb/packages/windows-test-runner/src/actions/desktop-ui-screenshot-smoke.ts:641)检查截图数量及哈希差异，未验证选区、浮层或任务状态。即使返回通过，也应逐图确认；首启等不可达状态明确标为未覆盖。\n\n3. **将点击前后关联到同一任务。** [点击处理](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-p89ZYb/apps/cutter-web/src/app/CutterApp.tsx:3915)先显示乐观任务，再提交真实剪切。建议使用临时测试项目，记录选区、任务 ID、提交反馈和最终状态，避免把即时反馈当作剪切完成证据。\n\n4. **回收后先形成配对差异清单。** 固定页面、素材、选区、主题和 CSS 视口，对照字号、间距、溢出及浮层位置；分别记录布局差异与数据状态差异，据此确定下一批 UI 修复范围。"
+}
