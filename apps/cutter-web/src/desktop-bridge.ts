@@ -218,3 +218,12 @@ export async function openDesktopDirectory(pathValue: string, options: DesktopNa
   const invoke = resolveDesktopInvoke(options);
   await invoke<void>("desktop_open_directory", { pathValue });
 }
+
+export async function openDesktopFileLocation(pathValue: string, options: DesktopNativeCommandOptions = {}): Promise<void> {
+  if (!pathValue) {
+    return;
+  }
+
+  const invoke = resolveDesktopInvoke(options);
+  await invoke<void>("desktop_open_file_location", { pathValue });
+}

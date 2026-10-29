@@ -8,6 +8,7 @@ import type {
   LocalClip,
   LocalClipCatalog,
   OpenCutOutputDirectoryRequest,
+  OpenCutJobOutputDirectoryRequest,
   OpenSourceVideoDirectoryRequest,
   SearchResponse,
   SourceFolderOption,
@@ -1273,6 +1274,13 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         path: request?.project_title
           ? `/fixture-workspace/projects/${request.project_title}`
           : "/fixture-workspace/export-clips"
+      };
+    },
+    async openCutJobOutputDirectory(cutJobId: string, _request?: OpenCutJobOutputDirectoryRequest) {
+      const filePath = `/fixture-workspace/export-clips/${cutJobId}/output.mp4`;
+      return {
+        path: `/fixture-workspace/export-clips/${cutJobId}`,
+        file_path: filePath
       };
     },
     async openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {

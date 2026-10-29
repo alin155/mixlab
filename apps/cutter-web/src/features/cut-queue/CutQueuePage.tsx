@@ -39,6 +39,7 @@ import {
   type CutPipelineState
 } from "../../state/cut-pipeline.ts";
 import { cutQueueSummary } from "../../state/cut-task-refresh.ts";
+import { estimateCutQueueProgress } from "./cut-queue-progress.ts";
 import { projectDisplayTitle, type CutterProject } from "../../state/cutter-projects.ts";
 
 type CutTaskFilter = "all" | CutQueueJob["status"];
@@ -206,6 +207,7 @@ export function CutQueuePage({
   onRetryFailed,
   onCancelJob,
   onOpenCutOutputDirectory,
+  onOpenCutJobDirectory,
   onLoadMore,
   verificationEnabled = true,
   hiddenJobCount = 0,
@@ -226,6 +228,7 @@ export function CutQueuePage({
   onRetryFailed?: (cutJobId: string) => void;
   onCancelJob?: (cutJobId: string) => void;
   onOpenCutOutputDirectory?: () => void;
+  onOpenCutJobDirectory?: (job: CutQueueJob) => void;
   onLoadMore?: () => void;
   /**
    * Capability negotiation result for output verification. Default true keeps
@@ -345,6 +348,20 @@ export function CutQueuePage({
       width: "86px",
       align: "center",
       render: (job) => <Badge tone={statusTone(job.status)}>{labelForStatus(job.status)}</Badge>
+    },
+    {
+      id: "queue",
+      header: "队列",
+      width: "150px",
+      align: "center",
+      render: (job) => {
+        const progress = estimateCutQueueProgress(jobs, job, nowMs);
+        return progress ? (
+          <span className="cutter-queue-eta ml-table-muted-text" title={progress.label}>
+            {progress.label}
+          </span>
+        ) : null;
+      }
     },
     {
       id: "source",
@@ -478,8 +495,14 @@ export function CutQueuePage({
               {summary.total} 个任务
               {summary.running > 0 ? ` · ${summary.running} 个剪切中` : ""}
               {summary.failed > 0 ? ` · ${summary.failed} 个需要处理` : ""}
-              {projectTitle ? ` · ${projectTitle}` : ""}
+              {projectTitle ? ` · 当前项目 ${projectTitle}` : " · 全部项目"}
+              {totalCount > 0 ? ` · 全部 ${totalCount} 个任务` : ""}
             </p>
+            {jobs.length === 0 && totalCount > 0 ? (
+              <p className="cutter-queue-batch-notice" role="status">
+                当前项目暂无剪切任务；可切换项目查看。全部项目共 {totalCount} 个任务。
+              </p>
+            ) : null}
             {batchResult ? (
               <p className="cutter-queue-batch-notice" role="status">
                 {batchResult.message}
@@ -659,6 +682,16 @@ export function CutQueuePage({
                 variant="secondary"
               >
                 打开文件目录
+              </Button>
+            ) : null}
+            {onOpenCutJobDirectory ? (
+              <Button
+                className="cutter-queue-detail-directory cutter-queue-detail-job-directory"
+                leadingIcon={<FolderIcon />}
+                onClick={() => onOpenCutJobDirectory(selectedJob)}
+                variant="secondary"
+              >
+                打开任务目录
               </Button>
             ) : null}
           </div>
