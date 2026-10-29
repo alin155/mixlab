@@ -93,3 +93,7 @@ node scripts/dev/shared-sync.mjs --apply    # 执行（确认未手改共享包�
 - Node 版本见 `node -v`（要求 >= 22.5，推荐 24 LTS）；`node:sqlite` 若报错先记录。
 - 不要用 CRLF：`git config --global core.autocrlf false`。
 - 首次 Windows 全量测试失败是预期（此前只在 macOS 验收），逐项修复并记录。
+
+## 沟通纪律（mail 分支规则）
+
+- mail 必须在角色分支：mac=`dev/admin`、windows=`dev/cutter`。`mail.mjs send` 已强制守卫并做推送核验；离开角色分支前先处理邮箱，否则消息会落到错误分支、对端读不到。
