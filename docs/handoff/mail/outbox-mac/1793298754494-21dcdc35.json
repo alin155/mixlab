@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793298754494-21dcdc35",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793298754494-21dcdc35",
+  "created_at": "2026-10-29T18:32:34.494Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793298379855-a143be55",
+      "1793298591105-e51ef114"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.13.1 隔离修复；此前合成帧表误放行的设计风险已被修订方案排除，但尚不能放行发布。** 当前代码支持“时间戳字段兼容遗漏”这一修复方向，六案例是否因此全部降级仍需原始证据确认。快照与 main 同为 `269d99658ae2`，`DIFF.patch` 为空，尚无新实现可验收；本轮仅静态阅读，未运行测试。同意暂停 0.18.14。\n\n### 消息 1793298379855-a143be55\n\n- 判定：需补充信息\n- 严重级别：P1\n- 事实判断：[探针及解析器]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bK0lKX/packages/ffmpeg-core/src/index.ts:435)确实只请求、读取 `pts_time`；字段缺失可导致空结果。\n- 问题/风险：手工探针与生产命令参数不同，尚不足以证明六例的唯一根因。\n- 建议：用应用实际调用的 ffprobe，对同源、同起点执行修复前后对照。\n- 需要证据：可执行文件路径及版本、完整参数、原始 JSON、解析结果和最终任务状态。\n\n### 消息 1793298591105-e51ef114\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[现有决策]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bK0lKX/packages/ffmpeg-core/src/index.ts:503)已具备未知关键帧回退及 500ms 门槛；修订方向与此一致。\n- 问题/风险：方案批准尚无实现、实测结果支撑，不能等同发布验收。\n- 建议：按修订范围推进，完成六案例验收后再决定后续极速模式。\n- 需要证据：修复差异、Windows 六案例结果及队列、目录验收记录。\n\n## 跨消息建议\n\n1. **明确字段回退规则。** 沿用现有 [数值校验]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bK0lKX/packages/ffmpeg-core/src/index.ts:251)，按首个有效时间戳回退；补“首选字段为 `N/A`／空串、后备字段有效”、合法零值及字段冲突的测试，避免仅用 `??` 后仍漏解析。\n\n2. **明确 15 秒的预算边界。** [备用执行逻辑]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bK0lKX/packages/cutter-api/src/index.ts:3783)在非环境变量指定模式下，首次失败会再调用 PATH 中的 ffprobe。两次均超时可能接近 30 秒；验收应记录尝试次数和总耗时，并明确预算按单次还是整次计算。\n\n3. **统一速度对照口径。** 当前 [`cut_media`]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bK0lKX/packages/cutter-local/src/cut-queue.ts:2585)包含关键帧探测、媒体剪切和输出校验。六案例应保持选段及缓存条件一致，并列记录探针、FFmpeg、整个任务耗时，才能判断“秒级恢复”及 ETA 是否成立。"
+}
