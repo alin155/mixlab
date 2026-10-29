@@ -119,6 +119,10 @@ export interface SearchResponse {
   index_version?: string;
   search_ms?: number;
   search_mode?: "sqlite-index" | "transcript-artifact-fallback" | "searchd";
+  /** 首屏 searchd 失败回退原因（timeout/warming/unavailable）。 */
+  searchd_fallback_reason?: "timeout" | "warming" | "unavailable";
+  /** 首屏 searchd 实际尝试次数（回退诊断用）。 */
+  searchd_attempts?: number;
 }
 
 export interface LocalClip {

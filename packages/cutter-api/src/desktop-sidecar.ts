@@ -11,6 +11,11 @@ import {
 import { createCutterApiServer, type CreateCutterApiServerInput } from "./index.ts";
 
 const DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS = 20_000;
+const DEFAULT_DESKTOP_SEARCHD_FIRST_PAGE_TIMEOUT_MS = 10_000;
+const DEFAULT_DESKTOP_SEARCHD_CURSOR_TIMEOUT_MS = 4_000;
+const DEFAULT_DESKTOP_SEARCHD_RETRY_ATTEMPTS = 8;
+const DEFAULT_DESKTOP_SEARCHD_RETRY_BACKOFF_MS = 1_200;
+const DEFAULT_DESKTOP_SEARCHD_FIRST_PAGE_BUDGET_MS = 18_000;
 
 export interface ResolveDesktopSidecarConfigPathInput {
   args?: readonly string[];
@@ -132,6 +137,21 @@ export function buildCutterApiServerInputFromDesktopConfig(
   const searchdTimeoutMs = optionalPositiveInteger(
     env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
   ) ?? DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS;
+  const searchdFirstPageTimeoutMs = optionalPositiveInteger(
+    env.MIXLAB_CUTTER_SEARCHD_FIRST_PAGE_TIMEOUT_MS ?? env.MIXLAB_SEARCHD_FIRST_PAGE_TIMEOUT_MS
+  ) ?? DEFAULT_DESKTOP_SEARCHD_FIRST_PAGE_TIMEOUT_MS;
+  const searchdCursorTimeoutMs = optionalPositiveInteger(
+    env.MIXLAB_CUTTER_SEARCHD_CURSOR_TIMEOUT_MS ?? env.MIXLAB_SEARCHD_CURSOR_TIMEOUT_MS
+  ) ?? DEFAULT_DESKTOP_SEARCHD_CURSOR_TIMEOUT_MS;
+  const searchdRetryAttempts = optionalPositiveInteger(
+    env.MIXLAB_CUTTER_SEARCHD_RETRY_ATTEMPTS ?? env.MIXLAB_SEARCHD_RETRY_ATTEMPTS
+  ) ?? DEFAULT_DESKTOP_SEARCHD_RETRY_ATTEMPTS;
+  const searchdRetryBackoffMs = optionalPositiveInteger(
+    env.MIXLAB_CUTTER_SEARCHD_RETRY_BACKOFF_MS ?? env.MIXLAB_SEARCHD_RETRY_BACKOFF_MS
+  ) ?? DEFAULT_DESKTOP_SEARCHD_RETRY_BACKOFF_MS;
+  const searchdFirstPageBudgetMs = optionalPositiveInteger(
+    env.MIXLAB_CUTTER_SEARCHD_FIRST_PAGE_BUDGET_MS ?? env.MIXLAB_SEARCHD_FIRST_PAGE_BUDGET_MS
+  ) ?? DEFAULT_DESKTOP_SEARCHD_FIRST_PAGE_BUDGET_MS;
   const authMode = env.MIXLAB_CUTTER_AUTH_MODE?.trim() === "local_trusted"
     ? "local_trusted"
     : "reviewed";
@@ -151,7 +171,12 @@ export function buildCutterApiServerInputFromDesktopConfig(
     ...(searchdBaseUrl
       ? {
           searchd_base_url: searchdBaseUrl,
-          searchd_timeout_ms: searchdTimeoutMs
+          searchd_timeout_ms: searchdTimeoutMs,
+          searchd_first_page_timeout_ms: searchdFirstPageTimeoutMs,
+          searchd_cursor_timeout_ms: searchdCursorTimeoutMs,
+          searchd_retry_attempts: searchdRetryAttempts,
+          searchd_retry_backoff_ms: searchdRetryBackoffMs,
+          searchd_first_page_budget_ms: searchdFirstPageBudgetMs
         }
       : {})
   };

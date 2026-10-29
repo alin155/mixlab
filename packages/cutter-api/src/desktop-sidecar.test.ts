@@ -144,7 +144,12 @@ test("maps desktop searchd env to cutter API server input", () => {
       auth_mode: "reviewed",
       searchd_cache_root: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`,
       searchd_base_url: "http://127.0.0.1:3799",
-      searchd_timeout_ms: 20000
+      searchd_timeout_ms: 20000,
+      searchd_first_page_timeout_ms: 10000,
+      searchd_cursor_timeout_ms: 4000,
+      searchd_retry_attempts: 8,
+      searchd_retry_backoff_ms: 1200,
+      searchd_first_page_budget_ms: 18000
     }
   );
 });

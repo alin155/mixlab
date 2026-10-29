@@ -214,6 +214,16 @@ export interface CreateCutterApiServerInput {
   searchd_base_url?: string;
   searchd_fetch?: typeof fetch;
   searchd_timeout_ms?: number;
+  /** 首屏搜索等待 searchd 的上限（毫秒，默认 10000；大库冷启动/索引预热需要）。 */
+  searchd_first_page_timeout_ms?: number;
+  /** 翻页搜索等待 searchd 的上限（毫秒，默认 4000）。 */
+  searchd_cursor_timeout_ms?: number;
+  /** 首屏 searchd 失败后的重试次数（默认 8，含首次）。 */
+  searchd_retry_attempts?: number;
+  /** searchd 重试退避基数（毫秒，默认 1200，按 attempt 线性递增并封顶 2500ms）。 */
+  searchd_retry_backoff_ms?: number;
+  /** 首屏搜索等待 searchd 的总预算（毫秒，默认 18000；预算内重试/预热等待，超时才回退）。 */
+  searchd_first_page_budget_ms?: number;
   release_cache_status_reader?: (input: {
     cache_root: string;
     max_cached_releases?: number;
@@ -1562,6 +1572,21 @@ export function resolveCutterApiRuntimeConfigFromEnv(
     searchd_timeout_ms: optionalPositiveInteger(
       env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
     ),
+    searchd_first_page_timeout_ms: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SEARCHD_FIRST_PAGE_TIMEOUT_MS ?? env.MIXLAB_SEARCHD_FIRST_PAGE_TIMEOUT_MS
+    ),
+    searchd_cursor_timeout_ms: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SEARCHD_CURSOR_TIMEOUT_MS ?? env.MIXLAB_SEARCHD_CURSOR_TIMEOUT_MS
+    ),
+    searchd_retry_attempts: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SEARCHD_RETRY_ATTEMPTS ?? env.MIXLAB_SEARCHD_RETRY_ATTEMPTS
+    ),
+    searchd_retry_backoff_ms: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SEARCHD_RETRY_BACKOFF_MS ?? env.MIXLAB_SEARCHD_RETRY_BACKOFF_MS
+    ),
+    searchd_first_page_budget_ms: optionalPositiveInteger(
+      env.MIXLAB_CUTTER_SEARCHD_FIRST_PAGE_BUDGET_MS ?? env.MIXLAB_SEARCHD_FIRST_PAGE_BUDGET_MS
+    ),
     cut_timeout_ms_max: optionalPositiveInteger(env.MIXLAB_CUTTER_FFMPEG_TIMEOUT_MS),
     host: optionalTrimmed(env.MIXLAB_CUTTER_API_HOST) ?? "127.0.0.1",
     port,
@@ -1908,8 +1933,29 @@ function booleanField(record: Record<string, unknown>, key: string, fallback = f
   return typeof value === "boolean" ? value : fallback;
 }
 
-function searchdInteractiveTimeoutMs(searchdTimeoutMs: number | undefined): number {
-  return Math.max(250, Math.min(searchdTimeoutMs ?? 1500, 1500));
+const DEFAULT_SEARCHD_FIRST_PAGE_TIMEOUT_MS = 10_000;
+const DEFAULT_SEARCHD_CURSOR_TIMEOUT_MS = 4_000;
+const DEFAULT_SEARCHD_DETAIL_TIMEOUT_MS = 5_000;
+const DEFAULT_SEARCHD_RETRY_ATTEMPTS = 8;
+const DEFAULT_SEARCHD_RETRY_BACKOFF_MS = 1_200;
+const DEFAULT_SEARCHD_RETRY_MAX_DELAY_MS = 2_500;
+const DEFAULT_SEARCHD_FIRST_PAGE_BUDGET_MS = 18_000;
+
+function searchdDetailTimeoutMs(searchdTimeoutMs: number | undefined): number {
+  return Math.max(250, Math.min(searchdTimeoutMs ?? DEFAULT_SEARCHD_DETAIL_TIMEOUT_MS, DEFAULT_SEARCHD_DETAIL_TIMEOUT_MS));
+}
+
+function searchdPageTimeoutMs(input: {
+  searchd_timeout_ms?: number;
+  searchd_first_page_timeout_ms?: number;
+  searchd_cursor_timeout_ms?: number;
+  cursor?: string;
+}): number {
+  const isCursor = Boolean(input.cursor);
+  const configured = isCursor
+    ? input.searchd_cursor_timeout_ms ?? input.searchd_timeout_ms ?? DEFAULT_SEARCHD_CURSOR_TIMEOUT_MS
+    : input.searchd_first_page_timeout_ms ?? input.searchd_timeout_ms ?? DEFAULT_SEARCHD_FIRST_PAGE_TIMEOUT_MS;
+  return Math.max(250, configured);
 }
 
 function normalizeSearchdBaseUrl(baseUrl: string): string {
@@ -2272,6 +2318,8 @@ async function searchCutterSourceLibraryViaSearchd(input: {
   searchd_base_url: string;
   searchd_fetch?: typeof fetch;
   searchd_timeout_ms?: number;
+  searchd_first_page_timeout_ms?: number;
+  searchd_cursor_timeout_ms?: number;
   query: string;
   limit: number;
   cursor?: string;
@@ -2280,7 +2328,11 @@ async function searchCutterSourceLibraryViaSearchd(input: {
   const startedAt = Date.now();
   const fetchImpl = input.searchd_fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), searchdInteractiveTimeoutMs(input.searchd_timeout_ms));
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, searchdPageTimeoutMs(input));
 
   try {
     const response = await fetchImpl(searchdSourceSearchUrl({
@@ -2307,8 +2359,24 @@ async function searchCutterSourceLibraryViaSearchd(input: {
       if (errorCode === "invalid_search_cursor" || response.status === 400) {
         throw new Error("invalid_search_cursor");
       }
+      if (
+        response.status === 503 ||
+        errorCode === "searchd_warming" ||
+        errorCode === "index_warming" ||
+        errorCode === "searchd_not_ready"
+      ) {
+        throw new Error("searchd_warming");
+      }
 
       throw new Error("searchd_unavailable");
+    }
+
+    const unwrappedPayload = unwrapSearchdPayload(payload);
+    if (
+      isRecord(unwrappedPayload) &&
+      (unwrappedPayload.status === "warming" || unwrappedPayload.ready === false)
+    ) {
+      throw new Error("searchd_warming");
     }
 
     return coerceSearchdResult({
@@ -2321,6 +2389,12 @@ async function searchCutterSourceLibraryViaSearchd(input: {
   } catch (error) {
     if ((error as Error).message === "invalid_search_cursor") {
       throw error;
+    }
+    if ((error as Error).message === "searchd_warming") {
+      throw error;
+    }
+    if (timedOut || (error as Error).name === "AbortError") {
+      throw new Error("searchd_timeout");
     }
 
     throw new Error("searchd_unavailable");
@@ -2427,7 +2501,7 @@ async function searchCutterSourceVideoTranscriptDetailViaSearchd(input: {
 
   const fetchImpl = input.api_input.searchd_fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), searchdInteractiveTimeoutMs(input.api_input.searchd_timeout_ms));
+  const timeout = setTimeout(() => controller.abort(), searchdDetailTimeoutMs(input.api_input.searchd_timeout_ms));
 
   try {
     const response = await fetchImpl(searchdSourceVideoDetailUrl({
@@ -2475,7 +2549,7 @@ async function searchCutterSourceVideoDetailViaSearchd(input: {
 
   const fetchImpl = input.api_input.searchd_fetch ?? fetch;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), searchdInteractiveTimeoutMs(input.api_input.searchd_timeout_ms));
+  const timeout = setTimeout(() => controller.abort(), searchdDetailTimeoutMs(input.api_input.searchd_timeout_ms));
 
   try {
     const response = await fetchImpl(searchdSourceVideoDetailUrl({
@@ -2512,6 +2586,27 @@ async function searchCutterSourceVideoDetailViaSearchd(input: {
   }
 }
 
+interface CutterSourceLibrarySearchResultWithMeta extends CutterSourceLibrarySearchResult {
+  /** 首屏 searchd 失败并回退到本地索引时的原因（成功或未尝试时省略）。 */
+  searchd_fallback_reason?: "timeout" | "warming" | "unavailable";
+  /** 首屏 searchd 实际尝试次数（回退时用于诊断）。 */
+  searchd_attempts?: number;
+}
+
+function searchdFallbackReason(error: Error): "timeout" | "warming" | "unavailable" {
+  if (error.message === "searchd_timeout") {
+    return "timeout";
+  }
+  if (error.message === "searchd_warming") {
+    return "warming";
+  }
+  return "unavailable";
+}
+
+function searchdRetryDelayMs(backoffMs: number, attempt: number): number {
+  return Math.min(Math.max(0, backoffMs) * attempt, DEFAULT_SEARCHD_RETRY_MAX_DELAY_MS);
+}
+
 async function searchCutterSourceLibraryWithPreferredBackend(input: {
   api_input: CreateCutterApiServerInput;
   query: string;
@@ -2519,7 +2614,7 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
   cursor?: string;
   source_folder_name?: string;
   folder_query?: string;
-}): Promise<CutterSourceLibrarySearchResult> {
+}): Promise<CutterSourceLibrarySearchResultWithMeta> {
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
   if (input.folder_query?.trim()) {
@@ -2551,34 +2646,84 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     }
   }
 
+  let searchdFallback: "timeout" | "warming" | "unavailable" | undefined;
+  let searchdAttempts = 0;
   if (searchdBaseUrl && cursorBackend !== "local-index") {
-    try {
-      const searchdResult = await searchCutterSourceLibraryViaSearchd({
-        searchd_base_url: searchdBaseUrl,
-        searchd_fetch: input.api_input.searchd_fetch,
-        searchd_timeout_ms: input.api_input.searchd_timeout_ms,
-        query: input.query,
-        limit: input.limit,
-        cursor: input.cursor,
-        source_folder_name: input.source_folder_name
-      });
-      if (input.cursor || searchdResult.groups.length > 0) {
-        return searchdResult;
+    const attempts = input.cursor
+      ? 1
+      : Math.max(1, Math.min(input.api_input.searchd_retry_attempts ?? DEFAULT_SEARCHD_RETRY_ATTEMPTS, 12));
+    const backoffMs = input.api_input.searchd_retry_backoff_ms ?? DEFAULT_SEARCHD_RETRY_BACKOFF_MS;
+    const firstPageBudgetMs = input.cursor
+      ? Number.POSITIVE_INFINITY
+      : Math.max(250, input.api_input.searchd_first_page_budget_ms ?? DEFAULT_SEARCHD_FIRST_PAGE_BUDGET_MS);
+    const loopStartedAt = Date.now();
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      searchdAttempts = attempt;
+      const remainingBudgetMs = firstPageBudgetMs - (Date.now() - loopStartedAt);
+      if (remainingBudgetMs < 250) {
+        break;
       }
-      // Searchd is transcript-indexed. Keep filename-only queries usable by
-      // falling through to the local library search, which can supplement by
-      // source title/path when the first page has no transcript hits.
-    } catch (error) {
-      if ((error as Error).message === "invalid_search_cursor" || cursorBackend === "searchd" || cursorBackend === "unknown") {
-        throw error;
+      const perAttemptTimeoutMs = input.cursor
+        ? input.api_input.searchd_first_page_timeout_ms
+        : Math.max(
+            250,
+            Math.min(
+              input.api_input.searchd_first_page_timeout_ms ?? DEFAULT_SEARCHD_FIRST_PAGE_TIMEOUT_MS,
+              remainingBudgetMs
+            )
+          );
+      try {
+        const searchdResult = await searchCutterSourceLibraryViaSearchd({
+          searchd_base_url: searchdBaseUrl,
+          searchd_fetch: input.api_input.searchd_fetch,
+          searchd_timeout_ms: input.api_input.searchd_timeout_ms,
+          searchd_first_page_timeout_ms: perAttemptTimeoutMs,
+          searchd_cursor_timeout_ms: input.api_input.searchd_cursor_timeout_ms,
+          query: input.query,
+          limit: input.limit,
+          cursor: input.cursor,
+          source_folder_name: input.source_folder_name
+        });
+        if (input.cursor || searchdResult.groups.length > 0) {
+          return searchdResult;
+        }
+        // Searchd is transcript-indexed. Keep filename-only queries usable by
+        // falling through to the local library search, which can supplement by
+        // source title/path when the first page has no transcript hits.
+        lastError = undefined;
+        break;
+      } catch (error) {
+        const failure = error as Error;
+        if (
+          failure.message === "invalid_search_cursor" ||
+          cursorBackend === "searchd" ||
+          cursorBackend === "unknown"
+        ) {
+          throw failure;
+        }
+        lastError = failure;
+        if (attempt < attempts) {
+          const remainingAfterFailureMs = firstPageBudgetMs - (Date.now() - loopStartedAt);
+          const delayMs = Math.min(
+            searchdRetryDelayMs(backoffMs, attempt),
+            Math.max(0, remainingAfterFailureMs)
+          );
+          if (delayMs > 0) {
+            await delay(delayMs);
+          }
+        }
       }
-      // First-page search remains usable if local searchd is restarting or absent.
-      // Cursor continuations stay on the same backend to avoid mixing result windows.
+    }
+
+    if (lastError) {
+      searchdFallback = searchdFallbackReason(lastError);
     }
   }
 
   const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
-  return searchCutterSourceLibrary({
+  const localResult = await searchCutterSourceLibrary({
     library_root: input.api_input.library_root,
     ...(releaseRoot ? { release_root: releaseRoot } : {}),
     query: input.query,
@@ -2586,6 +2731,15 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     cursor: input.cursor,
     source_folder_name: input.source_folder_name
   });
+
+  if (searchdFallback) {
+    return {
+      ...localResult,
+      searchd_fallback_reason: searchdFallback,
+      searchd_attempts: searchdAttempts
+    };
+  }
+  return localResult;
 }
 
 function parseSourceVideoRoute(
@@ -8102,6 +8256,11 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
       if ((error as Error).message === "searchd_unavailable") {
         writeError(response, 502, "searchd_unavailable", "本地搜索服务暂不可用，请重试搜索。");
+        return;
+      }
+
+      if ((error as Error).message === "searchd_timeout" || (error as Error).message === "searchd_warming") {
+        writeError(response, 502, "searchd_unavailable", "本地搜索服务暂不可用，请稍后重试搜索。");
         return;
       }
 

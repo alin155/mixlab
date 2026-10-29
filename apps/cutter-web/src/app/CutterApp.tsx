@@ -2877,7 +2877,7 @@ export function CutterApp() {
         setMaterialSearchFailed(true);
         showRecoverableError(MATERIAL_SEARCH_TIMEOUT_NOTICE);
       }
-    }, 12_000);
+    }, 30_000);
     const requestProjectId = currentProjectIdRef.current;
 
     const rememberSearch = (searchResult: SearchResponse) => {
