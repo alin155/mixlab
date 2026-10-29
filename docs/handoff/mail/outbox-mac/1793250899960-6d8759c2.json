@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793250899960-6d8759c2",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793250899960-6d8759c2",
+  "created_at": "2026-10-29T05:14:59.960Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "guard-test-should-fail"
+}
