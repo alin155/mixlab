@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793297073066-74f4c478",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793297073066-74f4c478",
+  "created_at": "2026-10-29T18:04:33.067Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "0.18.13 user report"
+    ]
+  },
+  "body": "用户实测 0.18.13 反馈三件事，请立即在真实安装版+NAS 大库上排查（不要改 0.18.13 已发布包，先查证据）：\\n1) **剪切 3 个片段**：任务列表长时间一个『剪切中』、两个『等待』，之后全部成功。请复现并记录每个 cut job 的 phase_timings（queue_wait/resolve_source/preflight_source/cut_media/write_project_output/preprocess_local_asset/generate_cover/write_manifest）、总耗时、并发/串行行为、ffmpeg 耗时、源素材缓存 copy 耗时、sidecar/SMB 日志。判断：正常串行等待 vs 首任务异常慢/队列 drain 延迟/缓存阻塞。\\n2) **任务详情『打开文件目录』无反应**：点击后检查 desktop-host.ndjson 是否有 open_directory_requested/spawned/failed、传入路径、错误；检查 Explorer 是否实际启动但被窗口遮挡；分别测试任务列表按钮/任务详情按钮/项目目录。\\n3) **本地素材能显示但详情播放不了**：打开三个本地素材，检查  请求状态/range/content-type、视频元素 error code、浏览器控制台；检查 media_file_path 是否存在、ffprobe 可读、URL 是否为绝对地址/端口正确、是否 NAS 路径不可达；对比公共素材播放。\\n4) 用 3 个相似片段完整复现（记录项目/任务/素材 id、截图、日志、JSON），明确哪些是 bug、哪些是预期；必要时出 0.18.13.1 热修分支（不改 0.18.13）。\\n5) 请回复时附：剪切片段的 queue 等待/执行分段耗时、open-directory 日志与路径、local-clip media 请求/错误、复现证据路径。若需要用户的具体 task id/素材名，告诉我，我让用户提供。"
+}
