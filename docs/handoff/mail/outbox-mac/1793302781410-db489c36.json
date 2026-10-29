@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793302781410-db489c36",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793302781410-db489c36",
+  "created_at": "2026-10-29T19:39:41.410Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793302240147-c3c2d470",
+      "1793302576524-164accf9"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.14 构建与验收；正式放行仍需最终包结果，本批未发现新增确定性发布缺陷。** 当前[快照与 main 相同](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/REVIEW-PACKET.md:4)，差异为空，未包含 `28508c1`、`6569ecb`。以下为只读静态评审，未独立校验截图 ZIP、安装包或 Windows 运行结果。\n\n### 消息 1793302240147-c3c2d470\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：回执报告52图唯一；[前端](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/apps/cutter-web/src/app/CutterApp.tsx:4711)按残留数量显示黄条，[扫描超时或失败](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/packages/cutter-api/src/workspace-residue.ts:697)会省略数量。\n- 问题/风险：1440×900未显示可能源于状态差异；1536×1024裁切仍需定位。\n- 建议：同步记录两尺寸的数量、reason、元素边界及祖先滚动位置，再判定是否修布局。\n- 需要证据：对应截图的 runtime-status 与 DOM 测量结果。\n\n### 消息 1793302576524-164accf9\n\n- 判定：同意\n- 严重级别：P1\n- 事实判断：[任务](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/REVIEW-PACKET.md:43)固定 `6569ecb`，要求升级、真实 NAS 验收、保留回滚且不改 LATEST，交付顺序合理。\n- 问题/风险：当前是任务下发，尚无最终包执行结果；先完成包验收不能代表 UI 已通过。\n- 建议：按顺序推进，最终回执分别标明安装/NAS与UI验收状态；阻塞问题导致代码变化时重新绑定构建与验收记录。\n- 需要证据：最终包 SHA256、升级/NAS报告、最终包 UI 结论。\n\n## 跨消息建议\n\n1. **黄条修复须覆盖两类提示。** [升级告警](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/apps/cutter-web/src/app/CutterApp.tsx:4654)也复用 `.cutter-contract-notice`。若确认需要调整样式，同时复核升级告警与残留提示的换行、遮挡及入口可达性。\n\n2. **版本更名核对发布元数据。** 在 `6569ecb` 核对桌面版本文件及 `scripts/release/versions.json`；现有[发布检查](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/scripts/release/lib.mjs:322)会比较 `expected_version`，仅更改安装包版本可能留下版本漂移。\n\n3. **首启空态使用隔离用户补拍。** [桌面配置取自用户配置目录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aJxqSV/apps/cutter-desktop/src-tauri/src/main.rs:65)，单换工作区不足以形成首启状态。建议使用独立 Windows 测试用户与临时工作区，保留现用配置及升级验收环境。"
+}
