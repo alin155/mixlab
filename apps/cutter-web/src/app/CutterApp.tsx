@@ -18,7 +18,8 @@ import {
   type SearchGroup,
   type SearchResponse,
   type SourceFolderOption,
-  type SourceVideoCard
+  type SourceVideoCard,
+  type SourceVideoDetail
 } from "../api.ts";
 import {
   createFixtureCutterApiClient,
@@ -1414,6 +1415,7 @@ function renderPage(
     currentHitSegmentId?: string;
     globalHitCount: number;
     selectedMaterialKey?: string;
+    detailLoading: boolean;
     materialSearchPending: boolean;
     materialSearchLoadingMore: boolean;
     materialSearchFailed: boolean;
@@ -1477,6 +1479,7 @@ function renderPage(
     search: (query: string) => void;
     searchFromProjectHome: (query: string) => void;
     selectMaterial: (result: MaterialLocatorResult) => void;
+    prefetchMaterial: (result: MaterialLocatorResult) => void;
     selectTranscriptSegment: (segmentId: string) => void;
     selectTranscriptRange: (startSegmentId: string, endSegmentId: string) => void;
     selectTranscriptTextRange: (
@@ -1592,6 +1595,7 @@ function renderPage(
         currentHitSegmentId={viewState.currentHitSegmentId}
         globalHitCount={viewState.globalHitCount}
         selectedMaterialKey={viewState.selectedMaterialKey}
+        detailLoading={viewState.detailLoading}
         isSearching={viewState.materialSearchPending}
         isLoadingMore={viewState.materialSearchLoadingMore}
         searchFailed={viewState.materialSearchFailed}
@@ -1604,6 +1608,7 @@ function renderPage(
         onSearch={handlers.search}
         onSetMaterialScope={handlers.setMaterialScope}
         onSelectMaterial={handlers.selectMaterial}
+        onPrefetchMaterial={handlers.prefetchMaterial}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
         onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
         onSelectTranscriptSegment={handlers.selectTranscriptSegment}
@@ -1841,6 +1846,9 @@ export function CutterApp() {
   const authFailureHandlerRef = useRef<((error: CutterApiError) => void) | null>(null);
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const dataRef = useRef<CutterFixtureData | null>(data);
+  const sourceDetailCacheRef = useRef(new Map<string, SourceVideoDetail>());
+  const sourceDetailInFlightRef = useRef(new Map<string, Promise<SourceVideoDetail>>());
+  const [detailLoadingSourceVideoId, setDetailLoadingSourceVideoId] = useState<string | undefined>();
   const [cutList, setCutList] = useState<CutListItem[]>(() => readCutListFromStorage());
   const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
   const [pendingLogin, setPendingLogin] = useState<CutterPendingLogin | null>(() =>
@@ -1894,6 +1902,28 @@ export function CutterApp() {
   currentProjectIdRef.current = currentProjectId;
   dataRef.current = data;
   queueJobsRef.current = queueJobs;
+
+  useEffect(() => {
+    const ids = (data?.search.groups ?? [])
+      .slice(0, 24)
+      .map((group) => group.source_video_id)
+      .filter((id): id is string => Boolean(id));
+    let cancelled = false;
+    // 小批量预取，避免首屏同时抢占连接/主线程；新搜索或加载更多时自动补下一批。
+    void (async () => {
+      for (let index = 0; index < ids.length; index += 4) {
+        await Promise.all(ids.slice(index, index + 4).map((id) => prefetchSourceVideoDetail(id)));
+        if (cancelled) {
+          return;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // 只在搜索结果对象变化（新搜索/加载更多）时预取；detail 到达不触发重跑。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.search]);
 
   // Unified 401 handling (CW-10): any protected request that reports an expired
   // session clears the stored session and returns to the login gate.
@@ -2095,17 +2125,87 @@ export function CutterApp() {
     setError(presentation.message);
   }
 
+  function rememberSourceVideoDetail(sourceVideoId: string, detail: SourceVideoDetail) {
+    const cache = sourceDetailCacheRef.current;
+    cache.delete(sourceVideoId);
+    cache.set(sourceVideoId, detail);
+    if (cache.size > 50) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey) {
+        cache.delete(oldestKey);
+      }
+    }
+  }
+
+  function fetchSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail> {
+    const cached = sourceDetailCacheRef.current.get(sourceVideoId);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+
+    const inFlight = sourceDetailInFlightRef.current.get(sourceVideoId);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    let promise: Promise<SourceVideoDetail>;
+    promise = client.getSourceVideoDetail(sourceVideoId)
+      .then((detail) => {
+        const resolvedDetail = resolveSourceVideoDetailUrls(client, detail);
+        rememberSourceVideoDetail(sourceVideoId, resolvedDetail);
+        return resolvedDetail;
+      })
+      .finally(() => {
+        if (sourceDetailInFlightRef.current.get(sourceVideoId) === promise) {
+          sourceDetailInFlightRef.current.delete(sourceVideoId);
+        }
+      });
+    sourceDetailInFlightRef.current.set(sourceVideoId, promise);
+    return promise;
+  }
+
+  async function prefetchSourceVideoDetail(sourceVideoId: string) {
+    if (!sourceVideoId || sourceDetailCacheRef.current.has(sourceVideoId)) {
+      return;
+    }
+    if (dataRef.current?.primaryDetail.source_video_id === sourceVideoId) {
+      return;
+    }
+
+    try {
+      await fetchSourceVideoDetail(sourceVideoId);
+    } catch {
+      // 预取失败不影响正常点击路径。
+    }
+  }
+
   function loadFocusedSourceVideoDetail(sourceVideoId: string) {
     const requestId = focusedSourceDetailRequestIdRef.current + 1;
     focusedSourceDetailRequestIdRef.current = requestId;
 
-    void client.getSourceVideoDetail(sourceVideoId)
-      .then((detail) => {
+    const cachedDetail = sourceDetailCacheRef.current.get(sourceVideoId);
+    if (cachedDetail) {
+      setDetailLoadingSourceVideoId(undefined);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              primaryDetail: cachedDetail
+            }
+          : current
+      );
+      setError("");
+      return;
+    }
+
+    setDetailLoadingSourceVideoId(sourceVideoId);
+    void fetchSourceVideoDetail(sourceVideoId)
+      .then((resolvedDetail) => {
         if (focusedSourceDetailRequestIdRef.current !== requestId) {
           return;
         }
 
-        const resolvedDetail = resolveSourceVideoDetailUrls(client, detail);
+        setDetailLoadingSourceVideoId(undefined);
         setData((current) =>
           current
             ? {
@@ -2121,6 +2221,7 @@ export function CutterApp() {
           return;
         }
 
+        setDetailLoadingSourceVideoId(undefined);
         setCutNotice(
           detailError instanceof Error
             ? `原视频完整文案加载失败：${detailError.message}`
@@ -2140,12 +2241,15 @@ export function CutterApp() {
     if (target.material.source === "local") {
       setSelectedLocalClipId(target.material.id);
       setSelectedSourceVideoId(undefined);
+      setDetailLoadingSourceVideoId(undefined);
       return;
     }
 
     setSelectedLocalClipId(undefined);
     if (dataRef.current?.primaryDetail.source_video_id !== target.material.id) {
       loadFocusedSourceVideoDetail(target.material.id);
+    } else {
+      setDetailLoadingSourceVideoId(undefined);
     }
   }
 
@@ -3998,6 +4102,11 @@ export function CutterApp() {
         0
       );
     },
+    prefetchMaterial(result: MaterialLocatorResult) {
+      if (result.source !== "local") {
+        prefetchSourceVideoDetail(result.id);
+      }
+    },
     navigateHit(direction: "previous" | "next") {
       const nextIndex = nextMaterialLocatorHitIndex(locatorCurrentHitIndex, direction, globalHitCount);
       const target = locatorHitTargets[nextIndex];
@@ -4621,6 +4730,7 @@ export function CutterApp() {
                 currentHitSegmentId,
                 globalHitCount,
                 selectedMaterialKey,
+                detailLoading: Boolean(detailLoadingSourceVideoId),
                 materialSearchPending,
                 materialSearchLoadingMore,
                 materialSearchFailed,

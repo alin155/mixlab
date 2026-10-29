@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   buildCutterApiServerInputFromDesktopConfig,
+  createAsyncUsageEventRecorder,
   readCutterDesktopConfig,
   resolveDesktopSidecarConfigPath,
   shouldRunDirectSidecar,
@@ -314,4 +315,40 @@ test("logs sidecar failure after config has been loaded", async () => {
       { event: "failed", stage: "sidecar_startup", error: "端口已被占用" }
     ]
   );
+});
+
+test("async usage recorder hands events to the worker pipe without awaiting the request path", async () => {
+  const writes: string[] = [];
+  const child = new EventEmitter() as EventEmitter & {
+    stdin: EventEmitter & { writable: boolean; write: (chunk: string) => boolean };
+    killed: boolean;
+  };
+  child.stdin = Object.assign(new EventEmitter(), {
+    writable: true,
+    write: (chunk: string) => {
+      writes.push(chunk);
+      return true;
+    }
+  });
+  child.killed = false;
+
+  const recorder = createAsyncUsageEventRecorder({ spawn_child: () => child as never });
+  recorder.record("C:\\logs\\usage-worker-test", {
+    event_id: "11111111-1111-4111-8111-111111111111",
+    user_id: "CU000001",
+    username: "Allen",
+    device_id: "cutter-test",
+    event_type: "view_source_video",
+    occurred_at: "2026-10-30T00:00:00.000Z",
+    source_video_id: "V000001"
+  } as never);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(writes.length, 1);
+  const payload = JSON.parse(writes[0]!) as { library_root: string; event: { event_type: string } };
+  assert.equal(payload.library_root, "C:\\logs\\usage-worker-test");
+  assert.equal(payload.event.event_type, "view_source_video");
+  recorder.dispose();
 });

@@ -3910,7 +3910,7 @@ async function defaultCutKeyframeProbe(input: {
   }
 }
 
-const VISIBLE_DETAIL_CACHE_TTL_MS = 10_000;
+const VISIBLE_DETAIL_CACHE_TTL_MS = 300_000;
 
 interface VisibleDetailCacheEntry {
   expires_at_ms: number;
@@ -3922,34 +3922,111 @@ const visibleDetailCacheByInput = new WeakMap<
   Map<string, VisibleDetailCacheEntry>
 >();
 
+interface CutterDetailTimingLog {
+  event: "cutter_detail_timing";
+  source_video_id: string;
+  cache_hit: boolean;
+  searchd_ms?: number;
+  searchd_status?: "ok" | "not_found" | "error";
+  searchd_error?: string;
+  fallback_used?: boolean;
+  fallback_ms?: number;
+  release_root_path?: string;
+  transcript_segments?: number;
+  total_ms: number;
+}
+
+function logCutterDetailTiming(event: CutterDetailTimingLog): void {
+  if (event.total_ms < 500 && !event.fallback_used && (event.searchd_ms ?? 0) < 500) {
+    return;
+  }
+  try {
+    // 慢详情/回退详情写入 sidecar stderr，供桌面日志与 E2E 采集。
+    console.error(JSON.stringify({ at: new Date().toISOString(), ...event }));
+  } catch {
+    // Diagnostics must never affect request behavior.
+  }
+}
+
 async function loadVisibleDetailUncached(
   input: CreateCutterApiServerInput,
   sourceVideoId: string
 ): Promise<CutterSourceVideoDetail | null> {
+  const startedAt = performance.now();
+  const searchdStartedAt = performance.now();
+  let searchdMs = -1;
+  let searchdStatus: "ok" | "not_found" | "error" = "error";
+  let searchdError = "";
+
   try {
     const searchdDetail = await searchCutterSourceVideoDetailViaSearchd({
       api_input: input,
       source_video_id: sourceVideoId
     });
+    searchdMs = Math.round(performance.now() - searchdStartedAt);
 
     if (searchdDetail) {
-      return withNormalizedSourceVideoPath(searchdDetail);
+      const normalized = withNormalizedSourceVideoPath(searchdDetail);
+      logCutterDetailTiming({
+        event: "cutter_detail_timing",
+        source_video_id: sourceVideoId,
+        cache_hit: false,
+        searchd_ms: searchdMs,
+        searchd_status: "ok",
+        fallback_used: false,
+        transcript_segments: normalized.transcript.segments.length,
+        total_ms: Math.round(performance.now() - startedAt)
+      });
+      return normalized;
     }
-  } catch {
+
+    searchdStatus = "not_found";
+  } catch (error) {
+    searchdMs = Math.round(performance.now() - searchdStartedAt);
+    searchdStatus = "error";
+    searchdError = error instanceof Error ? error.message : String(error);
     // If searchd is restarting or does not expose detail yet, preserve the
     // existing artifact-backed detail path.
   }
 
+  const fallbackStartedAt = performance.now();
+  let releaseRootPath = "";
   try {
     const releaseRoot = await releaseRootForFastLibraryRead(input);
+    releaseRootPath = releaseRoot ?? "";
     const detail = await getCutterSourceVideoDetail({
       library_root: input.library_root,
       ...(releaseRoot ? { release_root: releaseRoot } : {}),
       source_video_id: sourceVideoId
     });
-
-    return detail ? withNormalizedSourceVideoPath(detail) : detail;
+    const normalized = detail ? withNormalizedSourceVideoPath(detail) : detail;
+    logCutterDetailTiming({
+      event: "cutter_detail_timing",
+      source_video_id: sourceVideoId,
+      cache_hit: false,
+      searchd_ms: searchdMs,
+      searchd_status: searchdStatus,
+      ...(searchdError ? { searchd_error: searchdError } : {}),
+      fallback_used: true,
+      fallback_ms: Math.round(performance.now() - fallbackStartedAt),
+      release_root_path: releaseRootPath,
+      transcript_segments: normalized?.transcript.segments.length,
+      total_ms: Math.round(performance.now() - startedAt)
+    });
+    return normalized;
   } catch (error) {
+    logCutterDetailTiming({
+      event: "cutter_detail_timing",
+      source_video_id: sourceVideoId,
+      cache_hit: false,
+      searchd_ms: searchdMs,
+      searchd_status: searchdStatus,
+      ...(searchdError ? { searchd_error: searchdError } : {}),
+      fallback_used: true,
+      fallback_ms: Math.round(performance.now() - fallbackStartedAt),
+      release_root_path: releaseRootPath,
+      total_ms: Math.round(performance.now() - startedAt)
+    });
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
     }
@@ -3971,7 +4048,16 @@ async function loadVisibleDetail(
 
   const cached = cache.get(sourceVideoId);
   if (cached && cached.expires_at_ms > nowMs) {
-    return cached.promise;
+    const startedAt = performance.now();
+    const value = await cached.promise;
+    logCutterDetailTiming({
+      event: "cutter_detail_timing",
+      source_video_id: sourceVideoId,
+      cache_hit: true,
+      transcript_segments: value?.transcript.segments.length,
+      total_ms: Math.round(performance.now() - startedAt)
+    });
+    return value;
   }
 
   const promise = loadVisibleDetailUncached(input, sourceVideoId).catch((error) => {

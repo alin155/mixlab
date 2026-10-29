@@ -605,6 +605,7 @@ export function MaterialLocatorPage({
   currentHitSegmentId,
   globalHitCount,
   selectedMaterialKey,
+  detailLoading = false,
   isSearching = false,
   isLoadingMore = false,
   searchFailed = false,
@@ -614,6 +615,7 @@ export function MaterialLocatorPage({
   onSearch,
   onSetMaterialScope,
   onSelectMaterial,
+  onPrefetchMaterial,
   onSelectTranscriptRange,
   onSelectTranscriptTextRange,
   onSelectTranscriptSegment,
@@ -644,6 +646,7 @@ export function MaterialLocatorPage({
   currentHitSegmentId?: string;
   globalHitCount?: number;
   selectedMaterialKey?: string;
+  detailLoading?: boolean;
   isSearching?: boolean;
   isLoadingMore?: boolean;
   searchFailed?: boolean;
@@ -656,6 +659,7 @@ export function MaterialLocatorPage({
   onSearch?: (query: string) => void;
   onSetMaterialScope?: (scope: string) => void;
   onSelectMaterial?: (result: MaterialLocatorResult) => void;
+  onPrefetchMaterial?: (result: MaterialLocatorResult) => void;
   onSelectTranscriptRange?: (startSegmentId: string, endSegmentId: string) => void;
   onSelectTranscriptTextRange?: (
     startSegmentId: string,
@@ -686,7 +690,8 @@ export function MaterialLocatorPage({
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
   const hasActiveQuery = query.trim().length > 0;
   const hasFocusedMaterial = hasActiveQuery && Boolean(selectedMaterialKey);
-  const focusedDetail = hasFocusedMaterial ? selectedDetail : undefined;
+  // detail 还没到时不把旧素材内容伪装成新选中内容（0.18.13 切换卡顿 UX）。
+  const focusedDetail = hasFocusedMaterial && !detailLoading ? selectedDetail : undefined;
   const selectedIds = new Set(selectedSegments.map((segment) => segment.segment_id));
   const highlightedIds = new Set(highlightedSegmentIds);
   const highlightedRangesBySegmentId = new Map<string, Array<[number, number]>>();
@@ -1451,6 +1456,8 @@ export function MaterialLocatorPage({
                             type="button"
                             key={`${item.source}-${item.id}`}
                             onClick={() => onSelectMaterial?.(item)}
+                            onFocus={() => onPrefetchMaterial?.(item)}
+                            onMouseEnter={() => onPrefetchMaterial?.(item)}
                           >
                             {item.cover_url ? (
                               <img className="ml-media-row-thumb" src={item.cover_url} alt="" />

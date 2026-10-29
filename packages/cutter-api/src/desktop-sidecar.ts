@@ -1,6 +1,8 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import path from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import {
   buildCutterApiEnv,
@@ -8,7 +10,12 @@ import {
   normalizeDesktopPathForStorage,
   type CutterDesktopConfig
 } from "../../desktop-runtime/src/index.ts";
-import { createCutterApiServer, type CreateCutterApiServerInput } from "./index.ts";
+import { appendUsageEvent } from "../../library-fs/src/usage-events.ts";
+import {
+  createCutterApiServer,
+  type CreateCutterApiServerInput,
+  type CutterUsageEventRecorder
+} from "./index.ts";
 
 const DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS = 20_000;
 const DEFAULT_DESKTOP_SEARCHD_FIRST_PAGE_TIMEOUT_MS = 10_000;
@@ -41,6 +48,205 @@ type SidecarEvent =
   | { event: "ready"; api_address: string }
   | { event: "failed"; stage: string; error: string }
   | { event: "stopping" };
+
+const USAGE_EVENT_WORKER_ARG = "--usage-event-worker";
+const USAGE_EVENT_WORKER_ENV = "MIXLAB_SIDECAR_USAGE_WORKER";
+const USAGE_EVENT_WORKER_QUEUE_LIMIT = 200;
+
+function isPackagedSidecarExecutable(): boolean {
+  const pkg = (process as typeof process & { pkg?: unknown }).pkg;
+  if (pkg) {
+    return true;
+  }
+
+  return path.basename(process.execPath).toLowerCase().includes("cutter-api-sidecar");
+}
+
+function usageEventWorkerSpawnArgs(): string[] {
+  if (isPackagedSidecarExecutable()) {
+    // pkg 会把 CLI 首个参数当作 entry 路径；worker 模式改用环境变量触发。
+    return [];
+  }
+
+  const scriptPath = process.argv[1];
+  return scriptPath ? [...process.execArgv, scriptPath] : [];
+}
+
+function usageEventWorkerSpawnEnv(): NodeJS.ProcessEnv {
+  return { ...process.env, [USAGE_EVENT_WORKER_ENV]: "1" };
+}
+
+interface AsyncUsageEventRecorderHandle {
+  record: CutterUsageEventRecorder;
+  dispose: () => void;
+}
+
+/**
+ * usage analytics 不能阻塞 sidecar 事件循环：NAS 上的 usage SQLite/JSONL 同步写入
+ * 会让后续 detail/search/health 请求排队（0.18.13 切换卡顿根因）。
+ * 用独立子进程承接写库，主进程只做无 await 的入队/管道写入，队列满时丢弃。
+ */
+export function createAsyncUsageEventRecorder(input: {
+  spawn_child?: () => ChildProcess;
+  queue_limit?: number;
+} = {}): AsyncUsageEventRecorderHandle {
+  const queueLimit = input.queue_limit ?? USAGE_EVENT_WORKER_QUEUE_LIMIT;
+  const queue: string[] = [];
+  let child: ChildProcess | null = null;
+  let disposed = false;
+  let dropped = 0;
+
+  const spawnChild = input.spawn_child ?? (() => spawn(process.execPath, usageEventWorkerSpawnArgs(), {
+    env: usageEventWorkerSpawnEnv(),
+    stdio: ["pipe", "inherit", "inherit"],
+    windowsHide: true
+  }));
+
+  const ensureChild = (): ChildProcess => {
+    if (child && !child.killed && child.stdin?.writable) {
+      return child;
+    }
+
+    try {
+      child = spawnChild();
+      console.error(JSON.stringify({
+        event: "cutter_usage_worker_spawned",
+        exec_path: process.execPath,
+        packaged: isPackagedSidecarExecutable()
+      }));
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "cutter_usage_worker_spawn_failed",
+        error: error instanceof Error ? error.message : String(error)
+      }));
+      child = null;
+      throw error;
+    }
+    child.stdin?.on("error", () => undefined);
+    child.on("exit", (code) => {
+      try {
+        console.error(JSON.stringify({ event: "cutter_usage_worker_exit", code }));
+      } catch {
+        // ignore diagnostics failures
+      }
+      child = null;
+      if (!disposed && queue.length > 0) {
+        setImmediate(flush);
+      }
+    });
+    child.on("error", (error) => {
+      try {
+        console.error(JSON.stringify({
+          event: "cutter_usage_worker_error",
+          error: error instanceof Error ? error.message : String(error)
+        }));
+      } catch {
+        // ignore diagnostics failures
+      }
+      child = null;
+    });
+    return child;
+  };
+
+  function flush(): void {
+    if (disposed || queue.length === 0) {
+      return;
+    }
+
+    try {
+      const activeChild = ensureChild();
+      while (queue.length > 0) {
+        const line = queue[0];
+        const ok = activeChild.stdin?.write(line);
+        if (!ok) {
+          // 等待 drain 后继续；backpressure 只影响 analytics 延迟，不影响请求线程。
+          activeChild.stdin?.once("drain", flush);
+          return;
+        }
+        queue.shift();
+      }
+    } catch {
+      // analytics 是 best-effort；子进程失败时下一次事件会重建。
+    }
+  }
+
+  const record: CutterUsageEventRecorder = (libraryRoot, event) => {
+    if (disposed) {
+      return;
+    }
+
+    if (queue.length >= queueLimit) {
+      dropped += 1;
+      if (dropped === 1 || dropped % 100 === 0) {
+        try {
+          console.error(JSON.stringify({
+            event: "cutter_usage_worker_queue_full",
+            queue_limit: queueLimit,
+            dropped
+          }));
+        } catch {
+          // ignore diagnostics failures
+        }
+      }
+      return;
+    }
+
+    try {
+      queue.push(JSON.stringify({ library_root: libraryRoot, event }) + "\n");
+      setImmediate(flush);
+    } catch {
+      dropped += 1;
+    }
+  };
+
+  return {
+    record,
+    dispose: () => {
+      disposed = true;
+      queue.length = 0;
+      try {
+        child?.stdin?.end();
+        child?.kill();
+      } catch {
+        // ignore shutdown errors
+      }
+      child = null;
+    }
+  };
+}
+
+export async function runUsageEventWorker(): Promise<void> {
+  try {
+    console.error(JSON.stringify({
+      event: "cutter_usage_worker_started",
+      argv: process.argv,
+      exec_path: process.execPath
+    }));
+  } catch {
+    // ignore diagnostics failures
+  }
+  const reader = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  for await (const line of reader) {
+    if (!line.trim()) {
+      continue;
+    }
+    try {
+      const payload = JSON.parse(line) as { library_root?: unknown; event?: unknown };
+      if (typeof payload.library_root === "string" && payload.event && typeof payload.event === "object") {
+        await appendUsageEvent(payload.library_root, payload.event as Parameters<typeof appendUsageEvent>[1]);
+      }
+    } catch (error) {
+      try {
+        console.error(JSON.stringify({
+          event: "cutter_usage_worker_error",
+          error: error instanceof Error ? error.message : String(error)
+        }));
+      } catch {
+        // Worker diagnostics are best-effort.
+      }
+    }
+  }
+}
 
 function normalizeDesktopPathForCompare(pathValue: string): string {
   return pathValue.replaceAll("/", "\\").replace(/\\+$/u, "").trim().toLowerCase();
@@ -263,7 +469,16 @@ export async function startCutterApiSidecar(
     await writeSidecarEventLogBestEffort(logEvent, startingEvent);
     const env = buildCutterApiEnv(config);
     (input.apply_env ?? ((values) => Object.assign(process.env, values)))(env);
-    const server = createServer(buildCutterApiServerInputFromDesktopConfig(config, input.env ?? process.env));
+    const serverInput = buildCutterApiServerInputFromDesktopConfig(config, input.env ?? process.env);
+    const usageRecorder =
+      !input.create_server && (isPackagedSidecarExecutable() || process.env.MIXLAB_CUTTER_USAGE_ASYNC === "1")
+        ? createAsyncUsageEventRecorder()
+        : undefined;
+    if (usageRecorder) {
+      console.error(JSON.stringify({ event: "cutter_usage_worker_enabled" }));
+      serverInput.usage_event_recorder = usageRecorder.record;
+    }
+    const server = createServer(serverInput);
 
     await listen(server, config.api_port, config.api_host);
     const apiAddress = `http://${config.api_host}:${config.api_port}`;
@@ -277,6 +492,7 @@ export async function startCutterApiSidecar(
         const stoppingEvent: SidecarEvent = { event: "stopping" };
         emitSidecarEvent(stdout, stoppingEvent);
         await writeSidecarEventLogBestEffort(logEvent, stoppingEvent);
+        usageRecorder?.dispose();
         await close(server);
       }
     };
@@ -320,7 +536,19 @@ async function runDirectSidecar(): Promise<void> {
   });
 }
 
-if (shouldRunDirectSidecar({
+const isUsageEventWorkerProcess =
+  process.env[USAGE_EVENT_WORKER_ENV] === "1" || process.argv.includes(USAGE_EVENT_WORKER_ARG);
+
+if (isUsageEventWorkerProcess) {
+  void runUsageEventWorker().catch((error) => {
+    try {
+      process.stderr.write((error instanceof Error ? error.stack ?? error.message : String(error)) + "\n");
+    } catch {
+      // Packaged GUI executables may not have a writable stderr.
+    }
+    process.exitCode = 1;
+  });
+} else if (shouldRunDirectSidecar({
   module_url: import.meta.url,
   script_path: process.argv[1],
   is_pkg: Boolean((process as typeof process & { pkg?: unknown }).pkg)
