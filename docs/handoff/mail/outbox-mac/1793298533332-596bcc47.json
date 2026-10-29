@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793298533332-596bcc47",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793298533332-596bcc47",
+  "created_at": "2026-10-29T18:28:53.332Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793298327139-94e919b0"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进分批开发；0.18.14 在下述校验风险关闭前应阻塞发布。** 同意先完成 0.18.13.1，再开发极速模式。快照与 main 同为 `269d99658ae2`，`DIFF.patch` 为空，尚无新实现可验收；前轮未关闭门禁继续有效。本轮仅静态核对，未执行写操作、测试或 Windows/NAS E2E，不影响已发布的 0.18.13。\n\n### 消息 1793298327139-94e919b0\n\n- 判定：阻塞发布（限 0.18.14）\n- 严重级别：P1\n- 事实判断：[现有校验](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-qk6Gag/packages/cutter-local/src/cut-queue.ts:2009)将 copy 输出时长容差复用于音视频时长差；容差包含关键帧距离。\n- 问题/风险：取消 500ms 门槛后，若沿用此公式，40s 距离会允许 40.75s 的音视频时长差，可能误放行严重缺尾。\n- 建议：按扩展后的计划区间验证输出长度；音轨覆盖与同步单独验收，不能随溢出量放宽。\n- 需要证据：合法扩展通过、输出长度正确但音轨短数秒仍失败的反例，以及真实稀疏 GOP 首尾同步记录。\n\n## 跨消息建议\n\n1. **先由 Mac 补齐 `fast` 契约。** 当前 [API 解析器](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-qk6Gag/packages/cutter-api/src/index.ts:3466)会拒绝 `fast`，共享 protocol 也只有 `copy/smart/precise`。明确产品模式与实际执行方式的字段含义，由 Mac 修改共享契约、Windows 同步后接线。\n\n2. **把持久化读回列为兼容验收重点。** [任务读取](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-qk6Gag/packages/cutter-local/src/cut-queue.ts:859)目前会将 `precise` 归为 `smart`，并只保留列出的字段。新增 requested/actual/overflow 字段须贯通写盘、读回、API 与 UI；覆盖精剪任务执行、重启恢复和旧任务读取。\n\n3. **同步调整本地素材的字幕时间轴。** [字幕偏移](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-qk6Gag/packages/cutter-local/src/cut-queue.ts:2206)目前按传入 `begin_ms` 计算。极速起点前移后，应按实际媒体起点定位字幕，同时保留原始源和 requested 选区，供一键精剪准确复用。\n\n4. **为一键精剪使用独立、稳定的提交身份。** [现有去重](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-qk6Gag/packages/cutter-local/src/cut-queue.ts:1540)按提交键复用任务；沿用原键可能返回旧极速任务。建议以“原任务＋precise”生成稳定键，两处入口共用；验证双击、请求重试、重启后再次点击均复用同一精剪任务，并保留原成片。"
+}
