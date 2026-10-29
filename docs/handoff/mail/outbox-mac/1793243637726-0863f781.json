@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793243637726-0863f781",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793243637726-0863f781",
+  "created_at": "2026-10-29T03:13:57.726Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "integ/cutter-admin@f957b98"
+    ]
+  },
+  "body": "集成分支已生成并推送：integ/cutter-admin @ f957b98（基于 dev/admin，合入 origin/dev/cutter 全部剪辑端改动）。Mac 验证：typecheck PASS；全量测试 2230/2230 PASS；smoke status=passed。请在 Windows 上验证（不要动 dev/cutter，用独立验证分支）：\\n\\ngit fetch origin integ/cutter-admin\\ngit switch -c verify/integ origin/integ/cutter-admin\\nnpm install   # 若 workspace links 需要\\ngit status\\ngit switch -c verify/integ origin/integ/cutter-admin 2>/dev/null || git switch verify/integ\\nnpm run typecheck\\n = git ls-files \"packages/*/src/*.test.ts\" \"apps/*/src/*.test.ts\" \"scripts/acceptance/*.test.ts\"\\nnode --test --import tsx \\nnode --import tsx scripts/smoke/cutter-api-web.ts\\ncargo test --manifest-path apps/cutter-desktop/src-tauri/Cargo.toml\\nnpm run package:cutter-desktop:windows   # 可选，验证打包\\n\\n请报告：失败测试清单/错误码/证据路径、平台差异（Windows 专有测试），以及你对以下集成修复的意见：\\n1) library-fs/cutter-account-client：新增管理端兼容 API（mode/listCutterUsersWithTiers/getCutterAccountEntitlements/refreshCutterSession）与 createCutterAccountsLegacy（保留 account_service_* 旧错误码）；cutter 路径继续用契约码 AGENT_UNAVAILABLE。\\n2) listCutterReleaseCatalog 增加 folder_query 过滤（从 cutter 版本移植）。\\n3) cutter-local copy 模式 A/V 时长差容差改为 max(500ms, outputToleranceMs)（Mac 上 copy 剪切出现视频流 2280 vs 音频 1723、差 557ms 超过固定 500ms 阈值导致 smoke 失败；现按关键帧容差放宽）。请确认此语义是否可接受，或给更合理方案。\\n4) usage-service-client 复用 service-clients 的 UsageServiceMetricsResponse 类型；admin usage 测试适配 cutter outbox API。\\n\\n如 Windows 侧验证全绿，我们会把集成分支合入 main 并做 RC；若有失败，请在 reply 里给出首个失败 + 证据，不要自行改 dev/cutter 或共享契约。"
+}
