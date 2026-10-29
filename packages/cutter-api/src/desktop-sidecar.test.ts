@@ -353,6 +353,43 @@ test("async usage recorder hands events to the worker pipe without awaiting the 
   await recorder.dispose();
 });
 
+test("async usage recorder does not resend accepted events when the worker pipe backpressures", async () => {
+  const writes: string[] = [];
+  const child = new EventEmitter() as EventEmitter & {
+    stdin: EventEmitter & { writable: boolean; write: (chunk: string) => boolean; end: () => void };
+    killed: boolean;
+  };
+  child.stdin = Object.assign(new EventEmitter(), {
+    writable: true,
+    write: (chunk: string) => {
+      writes.push(chunk);
+      return false;
+    },
+    end: () => undefined
+  });
+  child.killed = false;
+
+  const recorder = createAsyncUsageEventRecorder({ spawn_child: () => child as never });
+  recorder.record("C:/logs/usage-worker-test", {
+    event_id: "44444444-4444-4444-8444-444444444444",
+    user_id: "CU000001",
+    username: "Allen",
+    device_id: "cutter-test",
+    event_type: "view_source_video",
+    occurred_at: "2026-10-30T00:00:00.000Z",
+    source_video_id: "V000004"
+  } as never);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(writes.length, 1);
+  assert.equal(recorder.stats().sent, 1);
+
+  child.stdin.emit("drain");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(writes.length, 1);
+
+  await recorder.dispose();
+});
+
 test("async usage recorder bounds its in-memory queue and exposes dropped stats", async () => {
   const recorder = createAsyncUsageEventRecorder({
     queue_limit: 1,

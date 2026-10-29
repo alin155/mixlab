@@ -211,7 +211,12 @@ export function createAsyncUsageEventRecorder(input: {
     draining = true;
     try {
       while (queue.length > 0) {
-        const ok = activeChild.stdin.write(queue[0]);
+        const value = queue[0]!;
+        const ok = activeChild.stdin.write(value);
+        // write() 返回 false 只表示缓冲区已满，数据仍已被接收；必须先出队，
+        // 否则 drain 后会重复发送同一条事件。
+        queue.shift();
+        sent += 1;
         if (!ok) {
           activeChild.stdin.once("drain", () => {
             draining = false;
@@ -219,8 +224,6 @@ export function createAsyncUsageEventRecorder(input: {
           });
           return;
         }
-        queue.shift();
-        sent += 1;
       }
     } catch {
       // analytics 是 best-effort；子进程失败时下一次事件会重建。
