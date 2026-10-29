@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793252369060-402b1800",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793252369060-402b1800",
+  "created_at": "2026-10-29T05:39:29.061Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "main@5e26771"
+    ]
+  },
+  "body": "用户确认要把最终包发到 NAS 给剪辑师下载更新。已把版本从 0.18.10 升到 0.18.11 并推送 main（5e26771，全量 2230/2230 通过）。请完成：\\n1) fetch main@5e26771，从 main 建临时构建分支（不要改 dev/cutter），构建 NSIS（应显示版本 0.18.11）。\\n2) 发布到 NAS：目标目录 \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.11\\（本机 SMB 挂载为 /Volumes/MixLab/安装包/MixLab Cutter/0.18.11）。请放入安装包（文件名建议 MixLab Cutter_0.18.11_x64-setup-<commit7>.exe）与 SHA256SUMS.txt；若 Windows 访问 NAS 无权限，请改为复制到 Mac 共享目录 \\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\ 并在 report 中说明，我这边镜像到 NAS。\\n3) 同时把安装包复制到 Mac 共享目录（便于 Mac 校验/镜像），并报告路径。\\n4) 升级验收：从已安装的 0.18.10 直接安装 0.18.11，确认设置页显示 v0.18.11、配置/数据保留、引擎就绪、退出后 sidecar/searchd 回收；留截图/日志。\\n5) 回报：最终 sha256、NAS 与 Mac 共享路径、升级验收结果、版本显示、任何权限/平台问题。dev/cutter 保持冻结。"
+}
