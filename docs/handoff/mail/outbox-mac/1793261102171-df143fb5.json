@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793261102171-df143fb5",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793261102171-df143fb5",
+  "created_at": "2026-10-29T08:05:02.171Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.12 热修验收通过并已发布：最终 hotfix 分支已合并到 main@7c99d00，标签 cutter-v0.18.12-20261029（构建提交 97d92ec）；NAS/Mac 共享 0.18.12 包 sha256=17947bee...cc16 已核对，LATEST 与 release notes 已更新。Mac 全量 2231/2231 PASS。请更新 dev/cutter 状态报告记录 0.18.12 发布/冻结，保持只读待命，不再改产品代码；NAS SMB 冷启动问题列入 0.18.13 后续项，无需回复本通知。"
+}
