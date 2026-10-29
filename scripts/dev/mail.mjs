@@ -39,6 +39,34 @@ function gitTry(args) {
   }
 }
 
+function currentBranch() {
+  return gitTry(["branch", "--show-current"]) ?? "";
+}
+
+/**
+ * 通信停滞根因防护：mail 提交必须落在角色分支上。
+ * 若在 main/integ/其它分支发送，commit 会落在当前分支，而 push 推的是角色分支，
+ * 对端永远看不到这条消息（2026-10-29 集成冲刺曾因此停滞约 2 小时）。
+ */
+function assertMailBranch(role) {
+  const expected = ROLE_BRANCH[role];
+  const branch = currentBranch();
+  if (branch !== expected) {
+    throw new Error(
+      "邮件必须在角色分支 " + expected + " 上发送（当前: " + (branch || "<detached>") + "）。" +
+      "消息若提交到其它分支，对端永远读不到。请先执行: git switch " + expected + "，再重发本条消息。"
+    );
+  }
+}
+
+function warnMailBranch(role) {
+  const expected = ROLE_BRANCH[role];
+  const branch = currentBranch();
+  if (branch && branch !== expected) {
+    console.error("[mail][warn] 当前分支 " + branch + " ≠ 角色分支 " + expected + "；check 可读取，但 send 会被拒绝。");
+  }
+}
+
 function parseArgs(argv) {
   const result = { command: "", role: "mac", to: "", type: "notice", body: "", thread: "", replyTo: "", action: "", markSeen: false, json: false, noFetch: false, noPush: false, quiet: false, blocking: false, needs: "", evidence: [] };
   const positional = [];
@@ -125,6 +153,7 @@ async function sendMessage(args, repo) {
   const role = args.role;
   const to = args.to || PEER[role];
   if (!ROLE_BRANCH[role]) throw new Error("role 必须是 mac 或 windows");
+  assertMailBranch(role);
   if (!TYPES.has(args.type)) throw new Error("type 必须是 " + [...TYPES].join("/"));
   if (args.type !== "ack" && !String(args.body ?? "").trim()) {
     throw new Error("除 ack 外，消息必须带 --body（Windows PowerShell 用单引号包住正文）");
@@ -159,6 +188,14 @@ async function sendMessage(args, repo) {
   if (!args.noPush) {
     const pushed = gitTry(["push", "origin", ROLE_BRANCH[role]]);
     if (pushed === null) throw new Error("git push 失败（网络/权限）；消息已本地提交，可稍后 git push origin " + ROLE_BRANCH[role]);
+    // 推送核验：确认消息文件真的出现在对端读取的 origin/<角色分支> 上，避免"推错分支"式静默丢失。
+    const remoteRef = "origin/" + ROLE_BRANCH[role];
+    gitTry(["fetch", "origin", ROLE_BRANCH[role]]);
+    if (gitTry(["cat-file", "-e", remoteRef + ":" + file]) === null) {
+      throw new Error(
+        "邮件推送核验失败：" + remoteRef + " 上找不到 " + file + "。消息可能提交到了其它分支，请检查当前分支并重发。"
+      );
+    }
   }
   const state = await loadState(repo, role);
   state.last_send = new Date().toISOString();
@@ -250,6 +287,7 @@ function computeAttention(messages, role) {
 }
 
 async function pending(args, repo) {
+  warnMailBranch(args.role);
   const role = args.role;
   const messages = await allMessages(repo, role, !args.noFetch);
   const attention = computeAttention(messages, role);
@@ -272,6 +310,7 @@ async function pending(args, repo) {
 }
 
 async function check(args, repo) {
+  warnMailBranch(args.role);
   const role = args.role;
   const state = await loadState(repo, role);
   const { peer, peerBranch, messages, error } = peerMessages(repo, role, args);
@@ -304,6 +343,7 @@ async function check(args, repo) {
 }
 
 async function status(args, repo) {
+  warnMailBranch(args.role);
   const role = args.role;
   const state = await loadState(repo, role);
   const { peer, messages } = peerMessages(repo, role, { ...args, noFetch: true });
