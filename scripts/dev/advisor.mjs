@@ -9,6 +9,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +20,7 @@ const OUTBOX_MAC = "docs/handoff/mail/outbox-mac";
 const OUTBOX_WIN = "docs/handoff/mail/outbox-windows";
 const STATE_FILE = ".git/mixlab-mail/advisor-state.json";
 const ADVISOR_FROM = "codex-advisor";
+const NL = String.fromCharCode(10);
 const CODEX_CLI = process.env.MIXLAB_CODEX_CLI || "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex";
 
 function parseArgs(argv) {
@@ -98,57 +100,143 @@ function summary(message) {
   ].join("\n");
 }
 
-function makePrompt(count) {
-  return [
-    "你是 MixLab Cutter 的第三方技术顾问（Codex），评审 Mac/Windows 通过 Git Mailbox 的方案与结果。",
+function makePrompt(count, info) {
+  const lines = [
+    "你是 MixLab Cutter 的第三方技术顾问（Codex），独立评审 Mac/Windows 通过 Git Mailbox 的方案与结果。",
+    "评审对象：仓库快照已切换到 " + (info.target || "main") + "（" + (info.targetCommit || "").slice(0, 12) + "）；对比基线 main（" + (info.mainCommit || "").slice(0, 12) + "）。",
     "严格约束：只给建议，不参与实施，不修改任何文件，不执行写操作或 git 写操作。",
-    "当前目录是只读仓库快照；先读 REVIEW-PACKET.md，再按需阅读代码/docs 核实。",
-    "对每一条新消息给出：事实判断、风险/遗漏、具体建议、结论（同意/警惕/需补充信息）。",
-    "最后给 3-5 条跨消息总体建议。输出中文 Markdown，开头写【Codex 顾问意见】。",
-    "本次消息数量：" + count
-  ].join("\n");
+    "先读 REVIEW-PACKET.md；可继续阅读快照里的代码、docs、DIFF.patch、TARGET-COMMITS.txt 核实事实。",
+    "输出格式（中文 Markdown，开头写【Codex 顾问意见】）：",
+    "## 总体判断",
+    "一段话说明本批是否可推进/是否阻塞发布。",
+    "### 消息 <message_id>",
+    "- 判定：同意 / 警惕 / 需补充信息 / 阻塞发布",
+    "- 严重级别：P0/P1/P2/P3",
+    "- 事实判断：引用代码或证据",
+    "- 问题/风险：具体、可执行",
+    "- 建议：具体到下一步",
+    "- 需要证据：如果没有就写无",
+    "## 跨消息建议",
+    "3-5 条。不要重复之前顾问已提出且未出现回归的事项；每条消息意见尽量不超过 300 字。"
+  ];
+  lines.push("本次评审消息数量：" + count);
+  return lines.join(NL);
 }
 
 async function snapshot(repo, messages) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "mixlab-advisor-"));
-  execFileSync("bash", ["-c", "git archive main | tar -x -C " + JSON.stringify(dir)], { cwd: repo, stdio: ["ignore", "pipe", "pipe"] });
+  const target = process.env.MIXLAB_ADVISOR_TARGET_BRANCH ||
+    (gitTry(["rev-parse", "--verify", "origin/hotfix/0.18.13"]) ? "origin/hotfix/0.18.13" : "main");
+  const targetCommit = gitTry(["rev-parse", target]) || "";
+  const mainCommit = gitTry(["rev-parse", "main"]) || "";
+  let archiveTarget = target;
+  try {
+    execFileSync("bash", ["-c", "git archive " + archiveTarget + " | tar -x -C " + JSON.stringify(dir)], { cwd: repo, stdio: ["ignore", "pipe", "pipe"] });
+  } catch {
+    archiveTarget = "main";
+    execFileSync("bash", ["-c", "git archive main | tar -x -C " + JSON.stringify(dir)], { cwd: repo, stdio: ["ignore", "pipe", "pipe"] });
+  }
+  const targetLog = gitTry(["log", target, "--oneline", "-30"]) || "";
+  const mainLog = gitTry(["log", "main", "--oneline", "-15"]) || "";
+  const diffStat = gitTry(["diff", "--stat", "main..." + target]) || "";
+  const diffPatch = (gitTry(["diff", "main..." + target]) || "").slice(0, 120000);
   const statusWindows = gitTry(["show", "origin/dev/cutter:docs/handoff/status/windows-latest.md"]) || "";
-  const recentLog = gitTry(["log", "--oneline", "-30"]) || "";
+  const statusMac = gitTry(["show", "dev/admin:docs/handoff/status/mac-latest.md"]) || "";
+  const previous = (await localMessages(repo, OUTBOX_MAC))
+    .filter((message) => message.from === ADVISOR_FROM)
+    .slice(-3);
   const packet = [
     "# Codex advisor review packet",
     "- generated_at: " + new Date().toISOString(),
-    "- branch: " + currentBranch(),
-    "- main: " + (gitTry(["rev-parse", "main"]) || "").slice(0, 12),
+    "- snapshot_branch: " + archiveTarget,
+    "- snapshot_commit: " + (gitTry(["rev-parse", archiveTarget]) || ""),
+    "- target_branch: " + target,
+    "- target_commit: " + targetCommit,
+    "- main_commit: " + mainCommit,
+    "- new_message_count: " + messages.length,
     "",
-    "## New messages (" + messages.length + ")",
-    messages.map(summary).join("\n\n"),
+    "## New messages",
+    messages.map(summary).join(NL + NL),
     "",
-    "## Recent commits",
+    "## Diff stat (main...target)",
     "~~~text",
-    recentLog,
+    diffStat.slice(0, 12000),
+    "~~~",
+    "",
+    "## Target commits",
+    "~~~text",
+    targetLog,
+    "~~~",
+    "",
+    "## Main recent commits",
+    "~~~text",
+    mainLog,
     "~~~",
     "",
     "## Windows status",
     "~~~text",
-    statusWindows.slice(0, 4000),
-    "~~~"
-  ].join("\n");
+    statusWindows.slice(0, 6000),
+    "~~~",
+    "",
+    "## Mac status",
+    "~~~text",
+    statusMac.slice(0, 4000),
+    "~~~",
+    "",
+    "## Previous advisor opinions（避免重复；只有出现回归才重申）",
+    previous.map((message) => message.id + ":" + NL + String(message.body || "").slice(0, 1200)).join(NL + NL)
+  ].join(NL);
   await writeFile(path.join(dir, "REVIEW-PACKET.md"), packet, "utf8");
-  return dir;
+  await writeFile(path.join(dir, "DIFF.patch"), diffPatch, "utf8");
+  await writeFile(path.join(dir, "TARGET-COMMITS.txt"), targetLog, "utf8");
+  return { dir: dir, target: target, archiveTarget: archiveTarget, targetCommit: targetCommit, mainCommit: mainCommit };
+}
+
+function sleepSync(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 function runCodex(dir, prompt) {
   const advicePath = path.join(dir, "ADVICE.md");
-  const result = spawnSync(CODEX_CLI, [
-    "exec", "--sandbox", "read-only", "--skip-git-repo-check", "--ephemeral",
-    "-C", dir, "-o", advicePath, prompt
-  ], { cwd: dir, encoding: "utf8", timeout: 600000, maxBuffer: 64 * 1024 * 1024, env: process.env });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error("codex exit=" + result.status + " " + String(result.stderr || "").slice(-1000));
-  return readFile(advicePath, "utf8").then((text) => text.trim());
+  const attempts = Math.max(1, Number(process.env.MIXLAB_ADVISOR_RETRIES || 3));
+  const model = (process.env.MIXLAB_ADVISOR_MODEL || "").trim();
+  let lastError = "";
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const args = [
+      "exec", "--sandbox", "read-only", "--skip-git-repo-check", "--ephemeral",
+      "-C", dir, "-o", advicePath
+    ];
+    if (model) {
+      args.push("-m", model);
+    }
+    args.push(prompt);
+    const result = spawnSync(CODEX_CLI, args, { cwd: dir, encoding: "utf8", timeout: 600000, maxBuffer: 64 * 1024 * 1024, env: process.env });
+    if (result.error) {
+      lastError = result.error.message;
+    } else if (result.status === 0) {
+      const advice = requireReadFile(advicePath);
+      if (advice) return advice;
+      lastError = "codex produced empty advice";
+    } else {
+      lastError = "codex exit=" + result.status + " " + String(result.stderr || "").slice(-800);
+    }
+    console.error("[advisor] codex attempt " + attempt + "/" + attempts + " failed: " + lastError.slice(0, 400));
+    if (attempt < attempts) {
+      sleepSync(30000 * attempt);
+    }
+  }
+  throw new Error("codex failed after retries: " + lastError.slice(0, 1000));
 }
 
-async function postAdvisory(repo, advice, messages, options) {
+function requireReadFile(filePath) {
+  try {
+    return readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function postAdvisory(repo, advice, messages, options, info) {
   const id = Date.now() + "-" + randomUUID().slice(0, 8);
   const message = {
     schema_version: "1",
@@ -198,13 +286,23 @@ async function runOnce(args) {
     return { reviewed: 0 };
   }
   console.log("[advisor] reviewing " + fresh.length + " messages");
-  const dir = await snapshot(repo, fresh);
+  const startedAt = Date.now();
+  const info = await snapshot(repo, fresh);
+  console.log("[advisor] snapshot ready target=" + info.target + "@" + (info.targetCommit || "").slice(0, 12));
   let advice = "";
-  try { advice = await runCodex(dir, makePrompt(fresh.length)); }
-  finally { await rm(dir, { recursive: true, force: true }); }
-  const posted = await postAdvisory(repo, advice, fresh, args);
+  try {
+    console.log("[advisor] codex start");
+    advice = await runCodex(info.dir, makePrompt(fresh.length, info));
+    console.log("[advisor] codex done");
+  } finally {
+    await rm(info.dir, { recursive: true, force: true });
+  }
+  const posted = await postAdvisory(repo, advice, fresh, args, info);
   state.reviewed_ids = state.reviewed_ids.concat(fresh.map((message) => message.id)).slice(-2000);
   state.last_run = new Date().toISOString();
+  state.last_target = info.target;
+  state.last_target_commit = info.targetCommit;
+  state.last_duration_ms = Date.now() - startedAt;
   await saveState(repo, state);
   console.log("[advisor] posted " + posted.id + " (" + posted.file + ")");
   return { reviewed: fresh.length, advisory_id: posted.id };
