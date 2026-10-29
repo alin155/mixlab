@@ -88,6 +88,26 @@ async function saveState(repo, state) {
   await writeFile(path.join(repo, STATE_FILE), JSON.stringify(state, null, 2) + "\n", "utf8");
 }
 
+async function advisorFeedback(repo) {
+  const raw = await readFile(path.join(repo, "docs/handoff/advisor-feedback.jsonl"), "utf8").catch(() => "");
+  const rows = raw.split(NL).filter(Boolean).map((line) => {
+    try { return JSON.parse(line); } catch { return null; }
+  }).filter(Boolean);
+  const counts = { adopted: 0, rejected: 0, deferred: 0 };
+  for (const row of rows) {
+    if (counts[row.decision] !== undefined) counts[row.decision] += 1;
+  }
+  const decided = counts.adopted + counts.rejected;
+  const rate = decided > 0 ? Math.round((counts.adopted / decided) * 100) : 0;
+  const recent = rows.slice(-12).map((row) =>
+    "- [" + row.decision + "] " + row.suggestion + "｜advisory=" + row.advisory_id + "｜原因：" + String(row.reason || "").slice(0, 300)
+  ).join(NL);
+  return {
+    summary: "采纳率 " + rate + "%（adopted=" + counts.adopted + " / rejected=" + counts.rejected + " / deferred=" + counts.deferred + "）",
+    text: recent
+  };
+}
+
 function summary(message) {
   return [
     "### " + message.id,
@@ -117,7 +137,8 @@ function makePrompt(count, info) {
     "- 建议：具体到下一步",
     "- 需要证据：如果没有就写无",
     "## 跨消息建议",
-    "3-5 条。不要重复之前顾问已提出且未出现回归的事项；每条消息意见尽量不超过 300 字。"
+    "3-5 条。不要重复之前顾问已提出且未出现回归的事项；每条消息意见尽量不超过 300 字。",
+    "历史反馈：" + (info.feedback ? info.feedback.summary : "暂无") + "。如果某条建议已被拒绝且没有新证据，不要重复；参考不采纳原因调整建议范围。"
   ];
   lines.push("本次评审消息数量：" + count);
   return lines.join(NL);
@@ -145,6 +166,7 @@ async function snapshot(repo, messages) {
   const previous = (await localMessages(repo, OUTBOX_MAC))
     .filter((message) => message.from === ADVISOR_FROM)
     .slice(-3);
+  const feedback = await advisorFeedback(repo);
   const packet = [
     "# Codex advisor review packet",
     "- generated_at: " + new Date().toISOString(),
@@ -184,12 +206,18 @@ async function snapshot(repo, messages) {
     "~~~",
     "",
     "## Previous advisor opinions（避免重复；只有出现回归才重申）",
-    previous.map((message) => message.id + ":" + NL + String(message.body || "").slice(0, 1200)).join(NL + NL)
+    previous.map((message) => message.id + ":" + NL + String(message.body || "").slice(0, 1200)).join(NL + NL),
+    "",
+    "## Advisor feedback history（采纳率与不采纳原因）",
+    feedback.summary,
+    "~~~text",
+    feedback.text,
+    "~~~"
   ].join(NL);
   await writeFile(path.join(dir, "REVIEW-PACKET.md"), packet, "utf8");
   await writeFile(path.join(dir, "DIFF.patch"), diffPatch, "utf8");
   await writeFile(path.join(dir, "TARGET-COMMITS.txt"), targetLog, "utf8");
-  return { dir: dir, target: target, archiveTarget: archiveTarget, targetCommit: targetCommit, mainCommit: mainCommit };
+  return { dir: dir, target: target, archiveTarget: archiveTarget, targetCommit: targetCommit, mainCommit: mainCommit, feedback: feedback };
 }
 
 function sleepSync(milliseconds) {

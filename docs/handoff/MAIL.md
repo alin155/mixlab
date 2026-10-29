@@ -159,3 +159,9 @@ node scripts/dev/mail.mjs send --role windows --to mac --type task \
 - 顾问意见写入 `outbox-mac`，消息标记 `from=codex-advisor`、`type=notice`、`needs=none`；不阻塞、不进入待办，可采纳或不采纳。
 - 看板新增 Codex 顾问最新意见面板与筛选；日志 `~/Library/Logs/MixLab/advisor.log`。
 - 暂停顾问：停掉 dashboard/launcher 中的 advisor watcher 进程即可；不影响双端通信。
+
+## Codex 顾问反馈闭环
+
+- 每次采纳/拒绝/延后顾问建议，记录到 `docs/handoff/advisor-feedback.jsonl`（`scripts/dev/advisor-feedback.mjs add/list/stats`）。
+- 顾问评审包会自动带上历史采纳率与最近原因；提示词要求不重复已拒绝且无新证据的建议。
+- 看板显示 Codex 采纳率；该反馈只用于校准建议，不允许顾问据此改变发布决策。

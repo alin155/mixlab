@@ -161,6 +161,25 @@ function computeAttention(messages, role) {
   };
 }
 
+async function readAdvisorFeedback(repo) {
+  const raw = await readFile(path.join(repo, "docs/handoff/advisor-feedback.jsonl"), "utf8").catch(() => "");
+  const rows = raw.split(String.fromCharCode(10)).filter(Boolean).map((line) => {
+    try { return JSON.parse(line); } catch { return null; }
+  }).filter(Boolean);
+  const counts = { adopted: 0, rejected: 0, deferred: 0 };
+  for (const row of rows) {
+    if (counts[row.decision] !== undefined) counts[row.decision] += 1;
+  }
+  const decided = counts.adopted + counts.rejected;
+  return {
+    total: rows.length,
+    adopted: counts.adopted,
+    rejected: counts.rejected,
+    deferred: counts.deferred,
+    adoption_rate: decided > 0 ? Math.round((counts.adopted / decided) * 100) : 0
+  };
+}
+
 async function buildSnapshot(repo, options) {
   if (!options.noFetch) {
     gitTry(["fetch", "origin", "dev/cutter", "--quiet"]);
@@ -174,8 +193,10 @@ async function buildSnapshot(repo, options) {
   const windowsHead = gitTry(["rev-parse", "origin/dev/cutter"]) || "";
   const macStatus = (await readLocalFile(repo, "docs/handoff/status/mac-latest.md")) || readRemoteFile(repo, "mac", "docs/handoff/status/mac-latest.md");
   const windowsStatus = readRemoteFile(repo, "windows", "docs/handoff/status/windows-latest.md");
+  const advisorFeedback = await readAdvisorFeedback(repo);
   return {
     generated_at: new Date().toISOString(),
+    advisor_feedback: advisorFeedback,
     paused: inferPaused(messages),
     heads: { mac: macHead, windows: windowsHead },
     messages,
@@ -251,6 +272,7 @@ const PAGE = String.raw`<!doctype html>
   <span class="spacer"></span>
   <span class="chip" id="counts">消息 0</span>
   <span class="chip attn" id="attn-count">待处理 0</span>
+  <span class="chip" id="advisor-rate" title="Codex 建议采纳/拒绝统计">Codex 采纳率 …</span>
   <label class="chip"><input type="checkbox" id="autoscroll" checked /> 自动滚动</label>
 </header>
 <main>
@@ -269,6 +291,7 @@ const PAGE = String.raw`<!doctype html>
     <section class="panel">
       <h2>Codex 顾问（最新意见）</h2>
       <div class="statusbox" id="advisor-box" style="white-space:pre-wrap;max-height:360px;overflow:auto;color:#d29922;font-size:12px">暂无顾问意见</div>
+      <div class="statusbox" id="advisor-feedback" style="color:var(--muted);font-size:11px"></div>
     </section>
     <section class="panel">
       <h2>待处理 / 阻塞</h2>
@@ -365,9 +388,13 @@ function render(snapshot) {
     return (String(message.body || "") + " " + String(message.from || "") + " " + String(message.type || "")).toLowerCase().includes(searchText);
   });
   $("counts").textContent = "消息 " + (visibleMessages.length === messages.length ? messages.length : visibleMessages.length + "/" + messages.length);
+  const feedback = snapshot.advisor_feedback;
+  $("advisor-rate").textContent = "Codex 采纳率 " + (feedback ? feedback.adoption_rate : "?") + "%";
+  $("advisor-rate").title = feedback ? ("采纳 " + feedback.adopted + " / 拒绝 " + feedback.rejected + " / 延后 " + feedback.deferred) : "暂无反馈";
   const advisorMessages = messages.filter((message) => message.from === "codex-advisor");
   const latestAdvisor = advisorMessages[advisorMessages.length - 1];
   $("advisor-box").textContent = latestAdvisor ? String(latestAdvisor.body || "").slice(0, 4000) : "暂无顾问意见";
+  $("advisor-feedback").textContent = feedback ? ("历史建议采纳率 " + feedback.adoption_rate + "%（采纳 " + feedback.adopted + " / 拒绝 " + feedback.rejected + " / 延后 " + feedback.deferred + "）") : "暂无顾问反馈";
   renderAttention(snapshot.attention || {});
   $("win-status").textContent = snapshot.statuses?.windows || "（暂无 Windows 状态报告）";
   $("mac-status").textContent = snapshot.statuses?.mac || "（暂无 Mac 状态报告）";
