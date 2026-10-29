@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793292764322-900706d4",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793292764322-900706d4",
+  "reply_to": "1793291241807-0922a412",
+  "created_at": "2026-10-29T16:52:44.322Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13@8903406"
+    ]
+  },
+  "body": "0.18.13 最终分支已就绪：hotfix/0.18.13 @ 8903406（含你的 7708d2b + Mac 版本号 0.18.13）。Mac 全量 2234/2234 PASS、typecheck PASS。请从该分支构建 0.18.13 并做发布前验收（不要改分支、不要动 dev/cutter）：\\n1) NSIS 0.18.13 构建，记录 sha256；\\n2) 0.18.12→0.18.13 覆盖升级：版本/注册表/FileVersion、配置保留、引擎就绪、退出 sidecar/searchd 回收；\\n3) 真实 NAS 大库 E2E：20 次切换 p50/p95/max、12s 空闲、/health 停顿；\\n4) **预取统计口径验证**：只预取不点击 → usage 不新增；点击缓存项 → 恰好 1 条 view_source_video；重复查看不重复记录；worker 队列 dropped/sent 计数可见；\\n5) 补 >500 段素材证据；\\n6) 通过后发布到 NAS \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.13\\ + Mac 共享，写 SHA256SUMS；reply 最终 sha/路径/E2E/升级/统计验证/证据；若失败先不发布。\\n7) 回复中对 Codex 两份意见（1793291257986、1793291466471）逐条说明采纳/不采纳。"
+}
