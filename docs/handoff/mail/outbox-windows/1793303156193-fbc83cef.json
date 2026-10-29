@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793303156193-fbc83cef",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793303156193-fbc83cef",
+  "reply_to": "1793302576524-164accf9",
+  "created_at": "2026-10-29T19:45:56.193Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.14 最终包构建/升级/真实 NAS 6 案例 E2E 完成并已发布】\n\n构建源：hotfix/0.18.14 @ 6569ecb（版本 0.18.14）；独立 build-0.18.14 worktree；未改代码。\n安装包：MixLab Cutter_0.18.14_x64-setup-6569ecb.exe（56.3MB）\nsha256=64C5652FD85F996D7F2637256C5A99321294C615CA18B8F003A504E41606E312\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.14\\（exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.14-6569ecb.txt）\n- 两处 sha 一致；0.18.13 目录保留；未更新 LATEST。\n\n【0.18.13→0.18.14 覆盖升级：PASS】install exit0；DisplayVersion/FileVersion 均 0.18.14；config SHA256 保留；桌面/开始菜单快捷方式存在；退出后 desktop/sidecar/searchd=0、端口 0。\n\n【真实 NAS 6 案例（0.18.14 最终包，干净单实例）】\n全部 cut_mode_used=copy，verification.passed=true：\n| 任务 | 源 | queue | preflight | cut_media | 总耗时 | 溢出 |\n| 0024 | V000786 | 20ms | 8ms | 5561ms | 6.1s | 403ms |\n| 0025 | V012265 | 6.1s | 4ms | 6238ms | 6.8s | 545ms |\n| 0026 | V006996 | 13.0s | 4ms | 3232ms | 3.8s | 841ms |\n| 0027 | V001164 | 16.8s | 4ms | 2554ms | 3.0s | 406ms |\n| 0028 | V010270 | 19.7s | 5ms | 5663ms | 6.2s | 395ms |\n| 0029 | V010589 | 25.9s | 4ms | 3226ms | 3.6s | 185ms |\n队列 ETA 实测：第 2 位约 5s、第 3 位约 10s、第 4 位约 14s、第 5 位约 19s、第 6 位约 24s。\n任务目录：UI 点击“打开任务目录”→ host 日志 open_file_location_requested+spawned，路径 C:\\Users\\ASUS\\Videos\\MixLabLocal\\export-clips\\E000084\\024-0.18.14 final copy E2E-040A5595.mp4。\n证据：C:\\dev\\mixlab-verify-01814\\01814-clean-copy-e2e.json、upgrade-01814.json、C:\\dev\\logs\\01814-clean-e2e.log、01814-clean-queue.png。\n\nUI 基线重拍将使用这份 0.18.14 最终包；完成后另行回复。"
+}
