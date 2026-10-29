@@ -4450,7 +4450,7 @@ export function CutterApp() {
           >
             <section className="cutter-content ml-workbench-content">
               <InspectorPanel title="启动中">
-                <p>正在启动本机剪切引擎，完成后会直接进入工作台。</p>
+                <p>正在启动本机剪切引擎（首次会预热搜索索引，可能较慢），完成后会直接进入工作台。</p>
               </InspectorPanel>
             </section>
           </AppShell>

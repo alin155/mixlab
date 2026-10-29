@@ -33,7 +33,7 @@ const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd";
 
 const SEARCHD_HOST: &str = "127.0.0.1";
 const SEARCHD_PORT: u16 = 3790;
-const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
+const SEARCHD_READY_TIMEOUT_MS: u64 = 120_000;
 const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
 const SEARCHD_API_TIMEOUT_MS: &str = "20000";
 
@@ -159,29 +159,99 @@ fn health_response_is_ready(response: &str) -> bool {
         && response.contains("\"ok\":true")
 }
 
+fn health_response_body(response: &str) -> Option<Value> {
+    if !(response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200")) {
+        return None;
+    }
+    let body = response
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .unwrap_or(response);
+    serde_json::from_str::<Value>(body.trim()).ok()
+}
+
+/// searchd 预热时会返回 HTTP 200 + ok:true，但 data.ready=false/status=warming。
+/// 桌面端必须等真正 ready 后才启动 sidecar，避免首个搜索落到 SQLite 回退。
+fn searchd_health_response_is_ready(response: &str) -> bool {
+    if !health_response_is_ready(response) {
+        return false;
+    }
+    let Some(payload) = health_response_body(response) else {
+        return false;
+    };
+    let Some(data) = payload.get("data") else {
+        return false;
+    };
+    let ok = data.get("ok").and_then(Value::as_bool).unwrap_or(false);
+    let ready = data.get("ready").and_then(Value::as_bool).unwrap_or(false);
+    let status_ready = data
+        .get("status")
+        .and_then(Value::as_str)
+        .map(|status| status.eq_ignore_ascii_case("ready"))
+        .unwrap_or(false);
+    ok && (ready || status_ready)
+}
+
+fn http_get_response_with_timeouts(
+    host: &str,
+    port: u16,
+    path: &str,
+    connect_timeout: Duration,
+    io_timeout: Duration,
+) -> Option<String> {
+    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
+        return None;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, connect_timeout) else {
+        return None;
+    };
+
+    let _ = stream.set_read_timeout(Some(io_timeout));
+    let _ = stream.set_write_timeout(Some(io_timeout));
+    let request =
+        format!("GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).is_err() {
+        return None;
+    }
+
+    let mut response = String::new();
+    if stream.read_to_string(&mut response).is_err() {
+        return None;
+    }
+    Some(response)
+}
+
 fn http_health_endpoint_is_ready_with_timeouts(
     host: &str,
     port: u16,
     connect_timeout: Duration,
     io_timeout: Duration,
 ) -> bool {
-    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
-        return false;
-    };
-    let Ok(mut stream) = TcpStream::connect_timeout(&address, connect_timeout) else {
-        return false;
-    };
+    http_get_response_with_timeouts(host, port, "/health", connect_timeout, io_timeout)
+        .map(|response| health_response_is_ready(&response))
+        .unwrap_or(false)
+}
 
-    let _ = stream.set_read_timeout(Some(io_timeout));
-    let _ = stream.set_write_timeout(Some(io_timeout));
-    let request =
-        format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
-    if stream.write_all(request.as_bytes()).is_err() {
-        return false;
-    }
+fn searchd_http_health_is_ready_with_timeouts(
+    connect_timeout: Duration,
+    io_timeout: Duration,
+) -> bool {
+    http_get_response_with_timeouts(
+        SEARCHD_HOST,
+        SEARCHD_PORT,
+        "/health",
+        connect_timeout,
+        io_timeout,
+    )
+    .map(|response| searchd_health_response_is_ready(&response))
+    .unwrap_or(false)
+}
 
-    let mut response = String::new();
-    stream.read_to_string(&mut response).is_ok() && health_response_is_ready(&response)
+fn searchd_http_health_is_ready() -> bool {
+    searchd_http_health_is_ready_with_timeouts(
+        Duration::from_millis(250),
+        Duration::from_millis(1_000),
+    )
 }
 
 fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
@@ -611,18 +681,59 @@ fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), St
 }
 
 fn wait_for_searchd_ready(app: &AppHandle) -> bool {
-    wait_for_health_endpoint(
-        app,
-        "searchd",
-        SEARCHD_HOST,
-        SEARCHD_PORT,
-        Duration::from_millis(SEARCHD_READY_TIMEOUT_MS),
-        Duration::from_millis(SEARCHD_HEALTH_READ_TIMEOUT_MS),
-    )
+    let started = Instant::now();
+    let mut attempt = 0_u32;
+    let mut last_warming_log_secs = 0_u64;
+
+    loop {
+        attempt += 1;
+        if searchd_http_health_is_ready_with_timeouts(
+            Duration::from_millis(500),
+            Duration::from_millis(1_000),
+        ) {
+            desktop_host_log(
+                app,
+                "searchd_ready",
+                json!({ "attempt": attempt, "elapsed_ms": started.elapsed().as_millis() }),
+            );
+            return true;
+        }
+
+        let elapsed = started.elapsed();
+        if elapsed >= Duration::from_millis(SEARCHD_READY_TIMEOUT_MS) {
+            desktop_host_log(
+                app,
+                "searchd_ready_timeout",
+                json!({
+                    "attempt": attempt,
+                    "elapsed_ms": elapsed.as_millis(),
+                    "timeout_ms": SEARCHD_READY_TIMEOUT_MS
+                }),
+            );
+            return false;
+        }
+
+        let elapsed_secs = elapsed.as_secs();
+        if elapsed_secs >= last_warming_log_secs.saturating_add(5) {
+            last_warming_log_secs = elapsed_secs;
+            desktop_host_log(
+                app,
+                "searchd_warming",
+                json!({
+                    "attempt": attempt,
+                    "elapsed_ms": elapsed.as_millis(),
+                    "timeout_ms": SEARCHD_READY_TIMEOUT_MS,
+                    "message": "正在预热搜索索引，首次启动可能较慢"
+                }),
+            );
+        }
+
+        thread::sleep(Duration::from_millis(500));
+    }
 }
 
 fn ensure_searchd_started(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
-    let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
+    let mut searchd_is_ready = searchd_http_health_is_ready();
     if searchd_is_ready {
         if searchd_matches_desktop_config(config) {
             desktop_host_log(
@@ -1494,5 +1605,24 @@ mod tests {
             .message
             .unwrap_or_default()
             .contains("抽样源视频不可读"));
+    }
+
+        #[test]
+    fn searchd_health_requires_ready_not_just_http_ok() {
+        let warming = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"ready\":false,\"status\":\"warming\"}}";
+        let ready = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"ready\":true,\"status\":\"ready\"}}";
+        let legacy_ready = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"status\":\"ready\"}}";
+        let not_ok = "HTTP/1.1 500 Internal Server Error\r\n\r\n{\"data\":{\"ok\":false}}";
+
+        assert!(!searchd_health_response_is_ready(warming));
+        assert!(searchd_health_response_is_ready(ready));
+        assert!(searchd_health_response_is_ready(legacy_ready));
+        assert!(!searchd_health_response_is_ready(not_ok));
+    }
+
+    #[test]
+    fn cutter_api_health_keeps_ok_true_semantics() {
+        let api = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"searchd_configured\":true}}";
+        assert!(health_response_is_ready(api));
     }
 }
