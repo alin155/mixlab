@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793297855552-f4f641ed",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793297855552-f4f641ed",
+  "reply_to": "1793297653390-083fc2ae",
+  "created_at": "2026-10-29T18:17:35.553Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13.1"
+    ]
+  },
+  "body": "根因清楚，批准启动 0.18.13.1（不改 0.18.13 已发布包）。请在独立 worktree 从 origin/main（269d996，含 0.18.13）建 hotfix/0.18.13.1-win 分支实施：\\n1) **关键帧修复**：优先读 library_root/.mixlab-library/videos/<id>/keyframes.json（按 mtime 缓存），用真实 keyframes_ms 决定 copy/precise；缺失时才 ffprobe，超时 5s→15s 且优先本地缓存源；降级文案改为“起点距最近关键帧 Xms，超过 500ms 阈值，已精剪”；测试：稀疏关键帧→precise+正确距离、artifact 存在不调用 ffprobe、ffprobe 超时路径。\\n2) **队列 UX**：客户端显示“第 N 位/前面 M 个”+预计等待（当前 running 剩余+前面 pending 中位耗时）；服务端可加 additive 字段 queue_position/queue_ahead_count/estimated_wait_ms；当前项目过滤显式显示“当前项目 X / 全部项目 65”，当前项目为空时给切换提示（默认全部项目可评估）；测试 1 running+2 pending、跨项目、空项目。\\n3) **任务详情打开目录**：新增按 cut_job 打开精确输出目录（export-clips/E000xx），Windows 用 explorer.exe /select,<file> 并尝试置前，页面明确 toast；保留现有项目目录按钮。\\n4) 播放器：等用户提供具体入口/截图后再补；media URL/鉴权不动。\\n5) 验收：真实 NAS 大库 3 片段复现：关键帧决定日志正确、队列 ETA 合理、任务目录打开事件/截图；Mac 全量 + 你的产品测试；完成后 push 分支 reply，我再合并/升 0.18.13.1/构建发布。"
+}
