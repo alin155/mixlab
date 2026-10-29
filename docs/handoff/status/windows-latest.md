@@ -1,15 +1,15 @@
 # windows 状态报告
 
-- generated_at: 2026-10-29T05:56:19.740Z
+- generated_at: 2026-10-29T08:00:55.616Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: 19eacd0786ea46f4e2405a8b154a479665cb0896
-- head_subject: [mail][windows→mac] reply 1793253368046-38287cfe
-- head_time: 2026-10-29T13:56:08+08:00
+- head: 390477610701d90a079a4fe057228458c5b4fad8
+- head_subject: [mail][windows→mac] reply 1793260843094-7d0d13f8
+- head_time: 2026-10-29T16:00:43+08:00
 - dirty_tracked: 0
 - dirty_untracked: 0
 - peer_branch: dev/admin
@@ -29,7 +29,7 @@
 
 - guards: 已激活并生效（pre-commit/pre-push 实测拦截越界提交）；CI sync-guard 持续 success，windows-status-notify 自动更新 Issue #6。
 - toolchain: Rust/cargo/rustc 1.99.1、VS Build Tools 2022 17.14.42 + MSVC 14.44.35207、WebView2 156.0.4314.50、Playwright chromium 已安装。
-- mailbox: dev/admin 同步至最新（含 mail 角色分支守卫 + push 核验，rollout 提交 4544f3a）；ACTIVE 每 240s；RC 任务 1793250985723 已 reply（1793251401929-3b05f57e）；最终 task 1793251633263 已 reply（1793251841116-691f09c9）；pending needs_you/awaiting_peer/stalled 均空。
+- mailbox: dev/admin 同步最新（mail 角色守卫+push 核验）；ACTIVE 每 240s；0.18.12 热修任务链已 reply：1793258981717-3d831d7f、1793259747909-7005d9aa、1793260843094-7d0d13f8；pending 全空。
 - desktop_fixes: (a) 关闭窗口/退出时回收 cutter-api sidecar + searchd（Tauri CloseRequested/RunEvent::Exit → taskkill；新增 app_window_close_cleanup/app_exit_cleanup 日志 + cargo 单测），实测关窗后进程/端口全 0；(b) NSIS POSTUNINSTALL 清理 INSTDIR\cache、INSTDIR、HKCU\Software\MixLab\MixLab Cutter（父键 ifempty），实测卸载后这些全部清除。提交 6d7ae3f；cargo test 6/6。
 - smoke_verify: 多次重跑 status=passed ✅（含 D1b 后回归）。
 - A1A2: 已接线（78e9c86）；Playwright 11/11（C:\dev\mixlab-verify-a1a2）。
@@ -40,5 +40,7 @@
 - integration_stage: integ/cutter-admin@f957b98 验证通过（553/553、smoke passed、cargo 6/6，已回执）；main 已推进（fetch 到 31e8292）；RC 分支 release/cutter-admin-rc-20261029@3735253。证据索引 C:\dev\mixlab-verify-final\EVIDENCE-INDEX.md；同步实践：Mail 发送前必须 dev/cutter 分支（SOP：C:\dev\mixlab-verify-final\WINDOWS-MAIL-SOP.md）。
 - final_delivery: 最终交付摘要已 reply（1793251841116-691f09c9，含最终 commit main@27ee57e、安装包 sha256、集成 553/553 与 RC 验收结论、残余风险）；EVIDENCE-INDEX 已追加最终交付章节；文档/状态已更新。
 - release_0_18_11: 从 main@5e26771（临时分支 build-0.18.11，未改 dev/cutter）构建 0.18.11 成功：56.2MB，sha256=c6555617aa4f774b86d515d1b9427a255575898889ab111610330603e5c90a0a；已发布 NAS \\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.11\ 与 Mac 共享 \\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\（exe+SHA256SUMS，含版本化 sums；两端 sha256 校验一致）。升级验收 0.18.10→0.18.11 全通过：注册/exe FileVersion/Tauri runtime 均 0.18.11、config 哈希不变、引擎 ready、退出 sidecar/searchd 回收、cleanup 日志；设置页需登录未截图，已用 runtime 探针+文件版本为证。证据 C:\dev\mixlab-verify-release-01811。reply 1793253368046-38287cfe。
-- next: 0.18.11 发布+升级验收已回报，等 Mac 确认（含设置页版本截图方式）；dev/cutter 保持冻结（不新增产品改动），仅必要 bugfix；轮询每 240s 保持。
+- search_hotfix_0_18_12: 根因=searchd Windows 持久缓存 os error 5（每次重建索引/预热）+ sidecar 1.5s 硬超时回退 SQLite + 桌面端把 /health 200 当 ready 提前拉起 sidecar。修复：Mac searchd 1842b05；Windows 97d92ec（cutter-api 首屏 10s 超时/18s 预算/8 次重试+fallback 原因；web 30s 超时+预热提示；desktop 严格等待 data.ready 120s+warming 日志+启动页提示；cargo 8/8）。
+- release_0_18_12: 从 hotfix/0.18.12-readygate@97d92ec 构建 MixLab Cutter_0.18.12_x64-setup-97d92ec.exe（56.3MB，sha256=17947BEE7FC17973625D06752567C8E7B1A8B5D9C98424789DA1F99B46A2CC16）；已发布 NAS \\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.12\ 与 Mac 共享 \\192.168.1.21\“华启航”的公共文件夹\MixLabWindowsBuilds\（sha 两端核对一致）。真实 NAS 冷缓存 E2E PASS：等待 searchd 预热 25.6s、进工作台 28.4s、首搜 search_mode=searchd 8ms 无回退、翻页 searchd、连续切换 10 素材响应、详情正常；缓存 tantivy/v012758 生成、.building=0、无新增 persistent_cache_failed；0.18.12 安装/config 保留/退出回收（偶发一次 sidecar 残留，热缓存复测全回收）。证据 C:\dev\mixlab-verify-01812；reply 1793260843094-7d0d13f8；0.18.11 保留回滚。
+- next: 等 Mac 合并 97d92ec 进 hotfix/0.18.12、核对 NAS sha 并更新 LATEST/release notes；0.18.13 候选=bootstrap NAS 请求超时/取消+UI 进度；dev/cutter 冻结仅 bugfix；轮询 240s。
 <!-- MANUAL:END -->
