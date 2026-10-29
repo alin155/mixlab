@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793299207529-dd461159",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793299207529-dd461159",
+  "created_at": "2026-10-29T18:40:07.529Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793298837595-e9634ee6"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可继续推进 0.18.13.1 候选打包验收，暂不放行发布，沿用前轮未关闭的验收门禁。** 本轮新增发现是热修分支的角色识别问题，可解释部分护栏报错，尚不足以认定包归属改变。[评审包](REVIEW-PACKET.md:4)中快照与 main 相同，差异为空，未包含所称 `28508c1`，因此本地适配实现仍未获独立核验。本轮仅静态阅读。\n\n### 消息 1793298837595-e9634ee6\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[角色推断](scripts/dev/scope-check.mjs:88)仅将 `dev/cutter` 识别为 Windows，其余默认 Mac；[提交钩子](scripts/dev/install-hooks.mjs:24)未显式传角色。\n- 问题/风险：若报错发生于热修分支，可能是角色误判；移到同属 Windows 写入域的 `cutter-api` 不能解释根因。\n- 建议：先核对报错时分支、角色与实际钩子版本，再确定修复位置；候选打包验收可并行。\n- 需要证据：护栏原始输出中的 branch、role、违规路径及钩子版本。\n\n## 跨消息建议\n\n1. **补齐热修分支的护栏覆盖。** [pre-push](scripts/dev/pre-push-guard.mjs:55)跳过两个角色分支以外的分支，[CI](.github/workflows/sync-guard.yml:10)也仅覆盖角色分支。建议 Mac 工具维护者统一热修分支策略，明确实际执行了哪些检查；推送成功本身不能证明护栏通过。\n\n2. **检查目录动作是否重复触发。** 现有[目录 API](packages/cutter-api/src/index.ts:6276)默认直接打开目录。新增 POST 与桌面命令若串联使用，应统一由一层启动 Explorer；沿用 `open:false` 返回路径的约定，并验收一次点击只触发一次打开。\n\n3. **ETA 应覆盖完整任务占用时间。** 当前任务先执行[关键帧探测](packages/cutter-local/src/cut-queue.ts:2605)，随后还有输出校验、交付写入和素材处理。建议新增慢探针、慢交付案例，核对等待估算是否覆盖这些阶段，避免仅按 FFmpeg 耗时估算。"
+}
