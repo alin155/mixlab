@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793297323021-31e245f0",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793297323021-31e245f0",
+  "created_at": "2026-10-29T18:08:43.021Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793297073066-74f4c478"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**同意推进排查；本轮不足以批准后续热修发布。** 目标与 main 同为 `269d99658ae2`，`DIFF.patch` 为空，本批只有诊断指令。串行等待有代码依据，但不能据此解释长耗时；目录与播放异常仍待实测定界。建议在播放问题明确前暂缓扩大推广。以下为只读静态评审，未运行测试或核验 Windows 安装版。\n\n### 消息 1793297073066-74f4c478\n\n- 判定：同意\n- 严重级别：P1\n- 事实判断：[自动队列](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6v7bvG/packages/cutter-api/src/index.ts:6697)逐个等待任务完成，“一运行、两等待”符合执行方式。\n- 问题/风险：最终成功不能证明耗时正常；目录和播放尚无诊断结果。\n- 建议：按三条链路分别取证、归因，再决定是否修复；保留已发布包。\n- 需要证据：任务分段时间、目录点击链路、媒体请求及 WebView2 错误的关联记录。\n\n## 跨消息建议\n\n1. **用任务间隔判断调度延迟。** 对比“下一任务开始－上一任务结束”，不要把累计 `queue_wait` 全算成 drain 延迟。[`cut_media`](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6v7bvG/packages/cutter-local/src/cut-queue.ts:2585)还包含关键帧探测、输出校验和文件处理，应另列 ffmpeg 耗时，并记录 `cut_mode_used`、降级原因。\n\n2. **区分后台复制与剪切实际读取。** [缓存准备逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6v7bvG/packages/cutter-api/src/index.ts:1394)只限时等待已有预取，未就绪可直接读取原素材。记录每次实际输入路径、缓存命中及复制重叠区间，再判断是否为 SMB 争用；不能预设首任务同步复制完整源文件。\n\n3. **补齐目录日志之前的失败分支。** [创建目录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6v7bvG/apps/cutter-desktop/src-tauri/src/main.rs:918)发生在 `requested` 日志之前；没有日志也可能是前置失败。应同时采集 API 响应路径和原生调用拒绝错误。`spawned` 仅证明进程启动，仍需确认 Explorer 展示了正确目录。\n\n4. **播放检查增加解码分支。** HTTP 与 Range 正常、ffprobe 可读后，继续记录 codec、profile、像素格式及视频元素错误，并用同一文件对照 WebView2 与外部播放器。[copy 模式保留视频编码](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6v7bvG/packages/ffmpeg-core/src/index.ts:91)，剪切成功不能证明内嵌播放器可解码。"
+}
