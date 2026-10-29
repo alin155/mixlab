@@ -7,19 +7,18 @@ import os from "node:os";
 import path from "node:path";
 import {
   buildFfprobeFirstFramePtsPlan,
-  buildFfprobeKeyframePlan,
   buildFfprobeOutputVerificationPlan,
   buildFfprobeSourceMetadataPlan,
   buildFfmpegCoverImagePlan,
   buildFfmpegCutPlan,
   parseFfprobeFirstFramePts,
-  parseFfprobeKeyframeTimes,
   parseFfprobeOutputProbe,
   parseFfprobeSourceMetadata,
   resolveFfmpegRuntime,
   type SourceVideoMediaMetadata,
   type CutMode
 } from "../../ffmpeg-core/src/index.ts";
+import { buildCutKeyframeProbeArgs, parseCutKeyframeProbeTimes } from "./keyframe-probe.ts";
 import {
   allocateNextLocalClipId,
   appendUsageEvent,
@@ -3778,7 +3777,7 @@ async function defaultSourceVideoProbeRunner(input: {
 
 const OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS = 10_000;
 const SOURCE_DURATION_PROBE_TIMEOUT_MS = 10_000;
-const KEYFRAME_PROBE_TIMEOUT_MS = 5_000;
+const KEYFRAME_PROBE_TIMEOUT_MS = 15_000;
 
 async function runFfprobeWithFallback(
   args: string[],
@@ -3907,14 +3906,14 @@ async function defaultCutKeyframeProbe(input: {
 }): Promise<{ keyframe_times_ms: number[] }> {
   try {
     const stdout = await runFfprobeWithFallback(
-      buildFfprobeKeyframePlan({
+      buildCutKeyframeProbeArgs({
         source_path: input.source_video_path,
         begin_ms: input.begin_ms
-      }).args,
+      }),
       KEYFRAME_PROBE_TIMEOUT_MS,
       "ffprobe keyframe preflight"
     );
-    return { keyframe_times_ms: parseFfprobeKeyframeTimes(stdout) };
+    return { keyframe_times_ms: parseCutKeyframeProbeTimes(stdout) };
   } catch {
     return { keyframe_times_ms: [] };
   }
