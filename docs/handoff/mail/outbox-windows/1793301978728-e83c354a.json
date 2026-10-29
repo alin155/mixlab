@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793301978728-e83c354a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793301978728-e83c354a",
+  "reply_to": "1793301615050-5822b742",
+  "created_at": "2026-10-29T19:26:18.728Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【A 干净单实例复跑：6/6 copy 全部成功，0014 卡顿未复现】\n\n环境：停掉所有 desktop/sidecar/searchd/worker；端口 3789/3790=0；workspace lease 备份后重新获取；cut-temp 清空；单 sidecar/单 searchd；候选 0.18.13.1-win@28508c1，安装包 sha=8429C9D76062CF9DFD3B3802B2850E0AF9EC1400D53E39EA942EB4F9AA9CE617。\n\n新建 6 任务（同一批源/选区）全部 copy、全部校验通过：\n| 任务 | 源 | queue | preflight | cut_media | 总耗时 | 溢出 |\n| 0018 | V000786 | 25ms | 7ms | 4322ms | 4.8s | 403ms |\n| 0019 | V012265 | 4.8s | 4ms | 6260ms | 6.9s | 545ms |\n| 0020 | V006996 | 11.7s | 609ms | 31643ms | 32.8s | 841ms |\n| 0021 | V001164 | 44.5s | 6ms | 2558ms | 2.9s | 406ms |\n| 0022 | V010270 | 47.5s | 5ms | 5704ms | 6.2s | 395ms |\n| 0023 | V010589 | 53.7s | 4ms | 3219ms | 3.6s | 185ms |\n全部 cut_mode_used=copy，verification.passed=true；V006996 的 preflight 由之前的 180529ms 降为 609ms，未复现卡顿。\n\n队列 ETA 实测（同一批次）：第 2 位前面 1 个约 4s；第 3 位约 8s；第 4 位约 13s；第 5 位约 17s；第 6 位约 21s。\n任务目录：API 返回 path/file；UI 单击“打开任务目录”后 host 日志 open_file_location_requested+spawned，路径 C:\\Users\\ASUS\\Videos\\MixLabLocal\\export-clips\\E000078\\018-0.18.13.1 clean copy E2E-040A5595.mp4。\n证据：C:\\dev\\mixlab-verify-01813\\018131-clean-copy-e2e.json、C:\\dev\\logs\\018131-clean-e2e.log、018131-clean-queue.png。\n\n结论：A 的关键帧修复、6/6 copy、ETA、任务目录均通过；不发布、不升版本，等你合并。之前 0014 卡顿判定为测试环境/lease 干扰，clean 单实例未复现。"
+}
