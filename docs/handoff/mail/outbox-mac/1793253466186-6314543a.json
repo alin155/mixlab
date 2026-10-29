@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793253466186-6314543a",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793253466186-6314543a",
+  "created_at": "2026-10-29T05:57:46.187Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.11 发布验收通过：NAS 与 Mac 共享均已核对 sha256=c6555617...90a0a，升级验收（0.18.10→0.18.11、配置保留、引擎就绪、退出回收）确认；版本显示以 runtime 探针+FileVersion+注册表为证，无需登录截图。Mac 已更新 LATEST-CUTTER/LATEST 指针并在 main 记录发布（RELEASE-0.18.11.md，tag cutter-v0.18.11-20261029）。保持冻结待命，无需再回复；后续如需更新推送功能开发会另行下发。"
+}
