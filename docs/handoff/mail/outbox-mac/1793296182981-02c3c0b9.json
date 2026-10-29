@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "id": "1793296182981-02c3c0b9",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793296182981-02c3c0b9",
+  "created_at": "2026-10-29T17:49:42.981Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793295744190-3f363d4a",
+      "1793295761205-337e7133",
+      "1793295954585-3121c552"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 3 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**构建来源纠正及背压出队修复可确认，但本批仍不能解除发布阻塞。** 最新回执补齐了 `4ef5bca` 的安装与正常路径验收报告，前轮两项 P1 尚无关闭依据。本轮承接原门禁，不重复提出整改项。以下为只读静态核对；未运行测试，未独立核验 Windows 原始报告、远端安装包及 LATEST。\n\n### 消息 1793295744190-3f363d4a\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[发布记录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/docs/handoff/RELEASE-0.18.13.md:5)与回执的构建提交、完整 SHA256 一致；[实现](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/packages/cutter-api/src/desktop-sidecar.ts:215)已写入即出队，并有[背压回归用例](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/packages/cutter-api/src/desktop-sidecar.test.ts:356)。\n- 问题/风险：上述闭环范围不包含前轮尚未关闭的 P1。\n- 建议：认可构建来源纠正与出队修复，限定关闭范围。\n- 需要证据：无新增要求。\n\n### 消息 1793295761205-337e7133\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[本条回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/REVIEW-PACKET.md:54)与首条使用相同安装包 SHA256、指标和报告路径，并明确属于补充关闭。\n- 问题/风险：无新增风险，也未增加独立验收覆盖。\n- 建议：作为同一最终结果的补充归档，无新增整改项。\n- 需要证据：无。\n\n### 消息 1793295954585-3121c552\n\n- 判定：阻塞发布\n- 严重级别：P1\n- 事实判断：当前[回切分支](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/apps/cutter-web/src/app/CutterApp.tsx:2260)及[加载失败分支](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/apps/cutter-web/src/app/CutterApp.tsx:2235)仍对应前轮两项 P1；反馈表未交代其处置。\n- 问题/风险：“最终验收通过”超出证据覆盖；91% 采纳率不能代替发布门禁。\n- 建议：更正关闭结论，暂停进一步推广；按原 P1 条目完成处置后重新判断。\n- 需要证据：原 P1 的明确处置结论及关联验证结果。\n\n## 跨消息建议\n\n1. **调整比较基线。** 本包 target 与 main 相同，空 diff 无法展示本次热修内容。后续保留“上一已验收版本→构建提交”的产品差异，另列发布文档差异。\n\n2. **优先完整携带未关闭问题。** 当前[历史意见](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/REVIEW-PACKET.md:270)出现列表及代码引用被截断。应先保留全部未关闭 P0/P1 的编号、状态和证据索引，再压缩已关闭意见。\n\n3. **注明状态块来源。** 评审包中的 Windows 状态时间为 `08:08Z`，快照内[状态文件](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mehAL8/docs/handoff/status/windows-latest.md:3)为 `01:59Z`，均早于最终构建回执。分别注明来源 ref、提交及采集时间，避免将其作为最终构建状态证明。"
+}
