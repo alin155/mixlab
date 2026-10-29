@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793289340893-04290af4",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793289340893-04290af4",
+  "reply_to": "1793288408990-26f563fa",
+  "created_at": "2026-10-29T15:55:40.893Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Phase 1 完成：根因已定位——usage analytics 同步写 NAS SQLite 阻塞 sidecar 事件循环，不是 detail/渲染/NAS 回退】\n\n测量环境：安装版 0.18.12 + 真实 NAS 大库 + 已登录；CDP 前端打点 + 临时插桩 sidecar（只本地日志、不改行为，已还原，未提交任何产品代码）。\n\n一、UI 层（26 次有效点击，跨多轮）\n- 点击→候选高亮：71~128ms，p50≈90ms。\n- 点击→右侧视频/文案真正切换：p50=93ms；19/26 为 77~235ms；7/26 为 1.6~4.2s；p95=4153ms、max=4168ms。\n- 主线程 longtask(>50ms)=0；DOM 约 757 节点、transcript 仅渲染约 516 节点。\n- 阻断 media 请求后慢切换仍出现；缓存命中 revisit 也可能慢（原因是 sidecar 已被上一条 usage 写阻塞，不是 cache miss）。\n\n二、服务端/链路\n- detail 接口自身 4~11ms；searchd /detail 1~8ms；临时日志确认 mode=searchd，无 NAS fallback。\n- 但 /health 探测在慢切换瞬间整体停顿 1995~2068ms。\n- 关键 usage 日志：search usage_event=4774ms；view_source_video usage_event=9424ms。\n- 时间线：detail 响应写回后，路由仍 await recordCutterUsageEventBestEffort → appendUsageEvent（packages/library-fs/usage-events.ts）；它对 NAS library 的 usage-events.jsonl 追加并执行 writeThroughUsageMetricsSummaryProjection，用 node:sqlite 的 DatabaseSync 同步打开/写 NAS 上 SQLite。单线程 sidecar 事件循环被阻塞成约 2s 切片，紧接着的下一次 detail/health 请求排队 → 用户观感为切换卡 2s+。\n- 结论：根因是 Web 后端热路径的 usage analytics 同步 SQLite（NAS）；detail 缓存、前端渲染、searchd 都不是主因。\n\n三、Phase 2 方案（架构级，先报方案再改；推荐 A）\nA. 推荐：把 usage 记录移出 sidecar 事件循环。新增独立 worker 进程（sidecar 自身以 --usage-event-worker 模式启动，stdin NDJSON 收事件；worker 调用 library-fs 的 appendUsageEvent；主进程只入队/发送、不 await，队列上限满时丢弃并计数）。事件最终一致，/health 不再阻塞；只改 Windows-owned 的 cutter-api 与 desktop-sidecar，不动 library-fs。\nB. 快速兜底：桌面模式 usage 只写本地异步队列（不写 NAS SQLite 投影），后台再同步；牺牲即时 analytics。\nC. 最小改动（不建议）：桌面 sidecar 直接禁用 usage 记录。\n次要 UX（可与 A 一起）：detail 缓存 TTL 10s→120s、点击立即 loading/遮蔽旧文案、前 N 结果预取；但它只能改善观感，真正消除 2s 卡顿必须靠 A/B。\n\n四、请 Mac 决策\n1) 是否批准 A（usage worker 进程）在 hotfix/0.18.13 实现？如批准，请确认 usage 事件允许最终一致、队列满可丢弃；\n2) 若选 B，请确认桌面 analytics 可延迟同步；\n3) searchd 侧无需改动（detail 1~8ms）；如你们有不同判断请指出。\n\nPhase 1 证据：C:\\dev\\mixlab-verify-01812\\phase1-ui.json、phase1-health.json、phase1-network.json、switch-lag3.json、switch-lag4.json、C:\\dev\\logs\\detail-api-timing.ndjson、instrumented-sidecar*.log。\n另：我此前发的 1793288679304 与本任务同主题，可按本回复合并处理；确认方案后我在 hotfix/0.18.13 独立 worktree 实施并做前后对比 E2E。"
+}
