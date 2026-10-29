@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793297799096-2cb99557",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793297799096-2cb99557",
+  "created_at": "2026-10-29T18:16:39.096Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793297391569-1a7a958d"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进只读调查与候选方案准备，本轮不新增发布阻塞，但不能据此批准 0.18.13.1 发布。** 目标与 main 同为 `269d99658ae2`，`DIFF.patch` 为空。本次仅核对快照，未运行测试或独立核验 Windows 现场；历史未关闭事项沿用原结论，不重复展开。\n\n### 消息 1793297391569-1a7a958d\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[生产探针](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kcBSEU/packages/cutter-api/src/index.ts:3903)直接对视频执行 ffprobe；当前剪切决策未读取发布帧表。\n- 问题/风险：将根因限定为“源记录缺失／缓存漏同步”不够完整；单补 `keyframes.json` 未必影响降级或耗时。\n- 建议：同意暂不改代码、不发包；先核实实际决策链，再评估三个候选方向。\n- 需要证据：三素材实际视频输入、发布帧表与剪切决策之间的对应关系。\n\n## 跨消息建议\n\n1. **区分关键帧门槛与输出容差。** 现有[copy 决策](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kcBSEU/packages/ffmpeg-core/src/index.ts:484)已有 500ms 门槛，[输出验收](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kcBSEU/packages/cutter-local/src/cut-queue.ts:1986)另有容差。“优先 copy＋容差”应明确改哪一层，保留关键帧未知或超距时的精准剪切回退；验收须检查选段首尾内容和音画同步。\n\n2. **帧表复用需要验证源文件身份。** 若候选方案新增读取发布帧表，应说明它如何匹配实际剪切输入的源文件版本，失配时如何回退。当前[剪切前可能替换为本机缓存路径](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kcBSEU/packages/cutter-api/src/index.ts:6201)，不能仅凭素材 ID 或 JSON 存在判定可用。\n\n3. **排位必须依据完整执行队列。** [列表按更新时间倒序，执行按创建时间正序](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kcBSEU/packages/cutter-local/src/cut-queue.ts:1891)。建议服务端基于整个 workspace 的待执行任务计算排位，明确是否包含正在执行的任务；项目过滤与分页只影响展示。预计等待允许为空，方案验收覆盖跨项目、翻页、重试和取消。"
+}
