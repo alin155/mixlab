@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793238664962-bc3230fe",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793238664962-bc3230fe",
+  "reply_to": "1793216340057-e02e3035",
+  "created_at": "2026-10-29T01:51:04.962Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "用户已选 D5：治理操作记录/审计。请按轻量版实现（只改 Windows 目录，additive，不改 packages/contracts）：\\n1) 后端 cutter-api：为 D1b 缓存清理、D2 本地素材清理/force 删除、D3 工作区残留清理、D4 Release 淘汰写审计记录（append-only，保留最近 50 条，超出轮转）；字段建议：at、operation、targets/ids/versions、removed_count、freed_bytes、skipped_count、errors[{code,message}]、result(ok/partial/failed)、duration_ms；存储放在 workspace 状态的私有文件（如 <workspace>/.mixlab-library/ops/governance-audit.jsonl 或等价），写入失败不得导致清理操作本身失败（响应附 audit_error 警告）。\\n2) 只读端点：GET /cutter/governance/audit?limit=50（或等价）返回最近记录；错误码 product-local 定义并导出。\\n3) 前端缓存管理页新增『治理操作记录』面板：时间/类型/范围摘要/释放空间/失败原因；空态与加载/错误重试；不提供文件恢复。\\n4) 测试：单测/HTTP（append/轮转 50/顺序/失败记录/audit 写失败不阻塞清理）+ UI 渲染/空态/错误；typecheck；回归全量 + smoke；重建 NSIS 并给 sha256；状态报告更新。\\n完成后 reply 一份 D5 验收摘要（端点/字段/测试数字/证据路径/安装包 sha256/残留风险）。"
+}
