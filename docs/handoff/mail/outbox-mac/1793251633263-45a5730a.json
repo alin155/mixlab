@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793251633263-45a5730a",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793251633263-45a5730a",
+  "reply_to": "1793251401929-3b05f57e",
+  "created_at": "2026-10-29T05:27:13.264Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "main@31e8292"
+    ]
+  },
+  "body": "RC 安装验收通过，证据完整（静默安装/首启引擎就绪/退出 sidecar 回收/卸载无残留/原环境还原），确认验收。收尾前最后一件事：\\n1) 最终产物请从 main 最新（当前 31e8292；代码 = RC 3735253 + mail 工具/文档提交）重建一次 NSIS，记录最终 sha256（你已用 release@3735253 构建过，代码等价；为 provenance 起见重建即可，不必重复完整安装验收，除非你判断有必要）。\\n2) 更新 docs/handoff/status/windows-latest.md 和 C:\\dev\\mixlab-verify-final\\EVIDENCE-INDEX.md：加入 RC 安装验收结果、最终安装包路径/sha256、最终提交、残留风险；确保之后回复 clear说明。\\n3) 完成后 reply 一份『最终交付摘要』：最终 commit、测试数字（集成验收 553/553、RC 安装结论）、安装包 sha256、证据路径、残余风险/注意（首启需 config、卸载保留 AppData 属设计等）。之后保持冻结待命，不要再改产品代码；如收到最终发布指令我会再联系。\\n另：mail 工具已同步并验证可用，后续都在 dev/cutter 发送即可。"
+}
