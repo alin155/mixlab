@@ -33,6 +33,17 @@ export function cutQueueSummary(jobs: readonly CutQueueJob[]): CutQueueSummary {
   return summary;
 }
 
+/**
+ * Only the newest queue refresh may write state; older in-flight NAS responses
+ * are dropped so a finished task cannot be shown as running again (CW-12).
+ */
+export function shouldApplyQueueRefresh(
+  requestId: number,
+  latestRequestId: number
+): boolean {
+  return requestId === latestRequestId;
+}
+
 export function hasActiveCutJobs(jobs: readonly CutQueueJob[]): boolean {
   return jobs.some((job) => job.status === "pending" || job.status === "running");
 }

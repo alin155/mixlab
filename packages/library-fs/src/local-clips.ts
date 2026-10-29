@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { CutMode } from "../../ffmpeg-core/src/index.ts";
 import { validateLocalClipManifest } from "../../protocol/src/index.ts";
@@ -57,6 +57,16 @@ export interface LocalClipCatalog {
 export interface GetLocalClipDetailInput {
   library_root: string;
   local_clip_id: string;
+}
+
+export interface DeleteLocalClipInput {
+  library_root: string;
+  local_clip_id: string;
+}
+
+export interface DeleteLocalClipResult {
+  local_clip_id: string;
+  deleted: boolean;
 }
 
 export interface LocalClipArtifactPaths {
@@ -273,4 +283,25 @@ export async function getLocalClipDetail(
 
     throw error;
   }
+}
+
+export async function deleteLocalClip(
+  input: DeleteLocalClipInput
+): Promise<DeleteLocalClipResult> {
+  assertLocalClipId(input.local_clip_id);
+
+  const clipRoot = path.join(localClipsRoot(input.library_root), input.local_clip_id);
+  const existing = await getLocalClipDetail(input);
+  if (!existing) {
+    return {
+      local_clip_id: input.local_clip_id,
+      deleted: false
+    };
+  }
+
+  await rm(clipRoot, { recursive: true, force: true });
+  return {
+    local_clip_id: input.local_clip_id,
+    deleted: true
+  };
 }

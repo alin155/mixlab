@@ -18,3 +18,11 @@
 !macro NSIS_HOOK_PREUNINSTALL
   !insertmacro _MIXLAB_STOP_RUNNING_APP
 !macroend
+
+; 卸载后清理 Tauri 卸载器不感知的运行时残留：安装目录内 cache\ 与 HKCU 注册表项。
+!macro NSIS_HOOK_POSTUNINSTALL
+  RMDir /r "$INSTDIR\cache"
+  RMDir "$INSTDIR"
+  DeleteRegKey HKCU "Software\MixLab\MixLab Cutter"
+  DeleteRegKey /ifempty HKCU "Software\MixLab"
+!macroend

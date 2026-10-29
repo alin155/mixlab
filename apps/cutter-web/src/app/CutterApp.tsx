@@ -38,6 +38,7 @@ import {
 } from "../features/local-library/LocalLibraryPage.tsx";
 import {
   MaterialLocatorPage,
+  materialLocatorBackendNotice,
   type MaterialLocatorSearchStatus,
   type MaterialSearchHistoryItem
 } from "../features/material-locator/MaterialLocatorPage.tsx";
@@ -47,6 +48,9 @@ import {
   ProjectRenameDialog,
   type ProjectDeleteMode
 } from "../features/project-home/ProjectHomePage.tsx";
+import { CutListPage } from "../features/cut-list/CutListPage.tsx";
+import { CutTasksTabNav } from "../features/cut-tasks/CutTasksTabNav.tsx";
+import type { CutTasksTab } from "../features/cut-tasks/cut-tasks-tab.ts";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import {
   DesktopFirstRunPage,
@@ -57,11 +61,13 @@ import { CacheManagementPage } from "../features/cache-management/CacheManagemen
 import { SourceDetailPage } from "../features/source-detail/SourceDetailPage.tsx";
 import {
   CUT_LIST_STORAGE_KEY,
+  appendCutListItem,
   clearCutList,
   createCutListItemFromSegments,
-  deserializeCutList,
   moveCutListItem,
+  readCutListFromStorage,
   removeCutListItem,
+  reorderCutListItem,
   serializeCutList,
   toCreateClipListRequest,
   type CutListItem,
@@ -69,6 +75,7 @@ import {
   type MoveDirection
 } from "../state/cut-list.ts";
 import {
+  MATERIAL_SCOPE_FOLDER_VALUE,
   buildMaterialLocatorSections,
   localClipToSourceVideoDetail,
   normalizedMaterialSearchQuery,
@@ -89,7 +96,26 @@ import {
 } from "../auth.ts";
 import { CutterLoginGate } from "../features/login/CutterLoginGate.tsx";
 import {
+  MATERIAL_SEARCH_TIMEOUT_NOTICE,
+  shouldClearCutterSessionForApiError
+} from "../state/notice.ts";
+import {
+  contractErrorPresentation,
+  retryabilityLabel,
+  type CutterErrorPresentation
+} from "../state/contract-errors.ts";
+import {
+  capabilityUpgradeNotice,
+  cutVerificationUiEnabled,
+  parseCutterCapabilities,
+  releaseV2UiEnabled,
+  resolveCutterClientVersion,
+  type CapabilityUpgradeNotice,
+  type CutterCapabilityTable
+} from "../state/cut-capabilities.ts";
+import {
   createQueueJobsFromCutList,
+  cutJobNeedsRecut,
   filterCutQueueJobsByProject,
   mapApiCutJobsToQueueJobs,
   readCutJobProjectIndex,
@@ -102,7 +128,20 @@ import {
   type CutQueueJob
 } from "../state/cut-queue.ts";
 import {
+  addHiddenCutJobIds,
+  countHiddenCutJobs,
+  executeCutQueueBatchDelete,
+  executeCutQueueBatchPause,
+  executeCutQueueBatchRetry,
+  filterHiddenCutJobs,
+  hiddenCutJobIdSet,
+  readHiddenCutJobIds,
+  writeHiddenCutJobIds,
+  type CutQueueBatchResult
+} from "../state/cut-queue-batch.ts";
+import {
   hasActiveCutJobs,
+  shouldApplyQueueRefresh,
   shouldAutoRefreshCutJobs,
   shouldRefreshLocalClipsAfterQueueUpdate
 } from "../state/cut-task-refresh.ts";
@@ -119,13 +158,16 @@ import {
 } from "../state/cutter-cache.ts";
 import {
   CUTTER_NAV_ITEMS,
+  materialSearchModeFromHash,
   routeFromHash,
   routeToHash,
   searchHash,
   searchQueryFromHash,
+  searchSourceFolderFromHash,
   sourceDetailContextFromHash,
   sourceVideoIdFromHash,
-  type CutterRoute
+  type CutterRoute,
+  type MaterialSearchMode
 } from "./navigation.ts";
 
 export {
@@ -158,6 +200,10 @@ export async function openOutputDirectoryForRuntime(input: {
   }
 
   return opened;
+}
+
+function materialSearchSourceFolderName(mode: MaterialSearchMode, folderName: string): string {
+  return mode === "folder" ? "" : folderName.trim();
 }
 
 function mergeSourceVideoCards(
@@ -289,7 +335,11 @@ function getCutterBuildCommit(): string {
   return resolveCutterBuildCommit(import.meta.env?.VITE_MIXLAB_BUILD_COMMIT);
 }
 
-function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | null) {
+function createRuntimeClient(
+  baseUrl: string,
+  authSession: CutterAuthSession | null,
+  onUnauthenticated?: (error: CutterApiError) => void
+) {
   return baseUrl
     ? createCutterApiClient({
         base_url: baseUrl,
@@ -300,7 +350,8 @@ function createRuntimeClient(baseUrl: string, authSession: CutterAuthSession | n
                 session_token: authSession.session_token
               }
             }
-          : {})
+          : {}),
+        ...(onUnauthenticated ? { on_unauthenticated: onUnauthenticated } : {})
       })
     : createFixtureCutterApiClient();
 }
@@ -397,11 +448,14 @@ export function shouldStartMaterialSearchForHashChange(input: {
   hash: string;
   currentSearchQuery: string;
   nextSearchQuery: string;
+  currentSearchMode?: MaterialSearchMode;
+  nextSearchMode?: MaterialSearchMode;
 }): boolean {
   return (
     routeFromHash(input.hash) === "material-locator" &&
     input.nextSearchQuery.trim().length > 0 &&
-    normalizeLocatorQuery(input.nextSearchQuery) !== normalizeLocatorQuery(input.currentSearchQuery)
+    (normalizeLocatorQuery(input.nextSearchQuery) !== normalizeLocatorQuery(input.currentSearchQuery) ||
+      input.nextSearchMode !== input.currentSearchMode)
   );
 }
 
@@ -491,7 +545,9 @@ export function CutterSidebarFooter({
   activeTaskCount,
   engineReady,
   currentProjectLabel = "未选择",
-  cacheBytes
+  cacheBytes,
+  onLogout,
+  onSwitchAccount
 }: {
   username: string;
   localCount: number;
@@ -500,8 +556,11 @@ export function CutterSidebarFooter({
   engineReady: boolean;
   currentProjectLabel?: string;
   cacheBytes?: number;
+  onLogout?: () => void;
+  onSwitchAccount?: () => void;
 }) {
   const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
   const libraryCountLabel = `本地 ${localCount} / 公共 ${publicCount}`;
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
@@ -562,11 +621,30 @@ export function CutterSidebarFooter({
           variant={cacheMenuOpen ? "secondary" : "ghost"}
           aria-haspopup="menu"
           aria-expanded={cacheMenuOpen}
-          onClick={() => setCacheMenuOpen((open) => !open)}
+          onClick={() => {
+            setAccountMenuOpen(false);
+            setCacheMenuOpen((open) => !open);
+          }}
         >
           <span>缓存</span>
           <strong>{cacheLabel}</strong>
         </Button>
+        {onLogout || onSwitchAccount ? (
+          <Button
+            type="button"
+            className="cutter-sidebar-account-button ml-sidebar-cache-button"
+            size="sm"
+            variant={accountMenuOpen ? "secondary" : "ghost"}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onClick={() => {
+              setCacheMenuOpen(false);
+              setAccountMenuOpen((open) => !open);
+            }}
+          >
+            <span>账户</span>
+          </Button>
+        ) : null}
         {cacheMenuOpen ? (
           <div className="cutter-sidebar-cache-menu ml-sidebar-menu" role="menu" aria-label="缓存操作">
             <Button
@@ -579,6 +657,40 @@ export function CutterSidebarFooter({
             >
               清除界面缓存
             </Button>
+          </div>
+        ) : null}
+        {accountMenuOpen && (onLogout || onSwitchAccount) ? (
+          <div className="cutter-sidebar-account-menu ml-sidebar-menu" role="menu" aria-label="账户操作">
+            {onSwitchAccount ? (
+              <Button
+                type="button"
+                className="cutter-sidebar-account-menu-action ml-sidebar-menu-action"
+                role="menuitem"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  onSwitchAccount();
+                }}
+              >
+                切换账号
+              </Button>
+            ) : null}
+            {onLogout ? (
+              <Button
+                type="button"
+                className="cutter-sidebar-account-menu-action ml-sidebar-menu-action"
+                role="menuitem"
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  onLogout();
+                }}
+              >
+                退出登录
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -656,7 +768,19 @@ function buildQueueFixture(jobs: CutQueueJob[]): CutQueueJob[] {
   return [
     base,
     { ...base, queue_job_id: "job-running", status: "running", progress: 67 },
-    { ...base, queue_job_id: "job-done", status: "done", progress: 100 },
+    {
+      ...base,
+      queue_job_id: "job-done",
+      status: "done",
+      progress: 100,
+      verification: {
+        passed: true,
+        expected_duration_ms: Math.max(0, base.end_ms - base.begin_ms),
+        actual_duration_ms: Math.max(0, base.end_ms - base.begin_ms),
+        tolerance_ms: 200,
+        checks: []
+      }
+    },
     {
       ...base,
       queue_job_id: "job-failed",
@@ -891,6 +1015,43 @@ export function mergeMaterialSearchResponses(
   };
 }
 
+/**
+ * Whether a pagination page brings any new group/hit segment. Used to stop the
+ * "继续加载中 / 加载更多" loop when the backend keeps returning the same page
+ * (B3: pagination must reach a terminal state).
+ */
+/**
+ * B1 race guard: a paginated search response may only be applied when its request
+ * is still the newest one and the query it was issued for is still active.
+ */
+export function shouldApplyMaterialSearchPage(input: {
+  request_id: number;
+  current_request_id: number;
+  query: string;
+  active_query: string;
+}): boolean {
+  if (input.request_id !== input.current_request_id) {
+    return false;
+  }
+
+  return normalizeLocatorQuery(input.query) === normalizeLocatorQuery(input.active_query);
+}
+
+export function searchPageAddsNewResults(current: SearchResponse, next: SearchResponse): boolean {
+  const groupIds = new Set(current.groups.map(searchGroupIdentity));
+  const segmentIds = new Set<string>();
+  for (const group of current.groups) {
+    for (const segment of group.hit_segments) {
+      segmentIds.add(`${group.source_video_id}:${segment.segment_id}`);
+    }
+  }
+
+  return next.groups.some((group) =>
+    !groupIds.has(searchGroupIdentity(group)) ||
+    group.hit_segments.some((segment) => !segmentIds.has(`${group.source_video_id}:${segment.segment_id}`))
+  );
+}
+
 export function materialSearchHitCount(search: SearchResponse): number {
   return search.groups.reduce((sum, group) => sum + group.hit_count, 0);
 }
@@ -1013,7 +1174,11 @@ export function mergeMaterialLocatorReloadData(
   return {
     ...next,
     library,
-    search
+    search,
+    primaryDetail:
+      normalizedActiveQuery && normalizedCurrentSearchQuery === normalizedActiveQuery
+        ? current.primaryDetail
+        : next.primaryDetail
   };
 }
 
@@ -1243,12 +1408,15 @@ function renderPage(
   queue: readonly CutQueueJob[],
   viewState: {
     searchQuery: string;
+    materialSearchMode: MaterialSearchMode;
     highlightedSegmentIds: readonly string[];
     currentHitIndex: number;
     currentHitSegmentId?: string;
     globalHitCount: number;
     selectedMaterialKey?: string;
     materialSearchPending: boolean;
+    materialSearchLoadingMore: boolean;
+    materialSearchFailed: boolean;
     localLibrarySelectedClipId?: string;
     localLibraryViewMode: LocalLibraryViewMode;
     recentSearches: readonly MaterialSearchHistoryItem[];
@@ -1268,10 +1436,13 @@ function renderPage(
     orientationFilter: VideoOrientationFilter;
     publicLibraryOrientationFilter: VideoOrientationFilter;
     publicLibrarySelectedSourceVideoId?: string;
+    publicLibraryFilenameQuery: string;
+    publicLibraryFilenameSearching: boolean;
     sourceLibraryLoadingMore: boolean;
     localClipsLoadingMore: boolean;
     cutJobsLoadingMore: boolean;
     cutJobsTotalCount: number;
+    cutTasksTab: CutTasksTab;
     cutNotice: string;
     autoRefreshCutJobs: boolean;
     lastQueueUpdatedLabel: string;
@@ -1281,12 +1452,28 @@ function renderPage(
     appVersion?: string;
     buildCommit?: string;
     runtimeEnvironment: string;
+    cacheApiClient?: Pick<
+      CutterApiClient,
+      | "getCacheInventory"
+      | "cleanCache"
+      | "getLocalClipIntegrity"
+      | "cleanLocalClips"
+      | "getWorkspaceResidue"
+      | "cleanWorkspaceResidue"
+      | "getGovernanceAudit"
+      | "getReleaseCachePins"
+      | "evictReleaseCache"
+    >;
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
+    hiddenCutJobCount: number;
+    verificationEnabled: boolean;
+    releaseV2Enabled: boolean;
   },
   handlers: {
     addSelectedSpan: () => void;
+    addSelectionToCutList: () => void;
     search: (query: string) => void;
     searchFromProjectHome: (query: string) => void;
     selectMaterial: (result: MaterialLocatorResult) => void;
@@ -1301,12 +1488,15 @@ function renderPage(
     navigateHit: (direction: "previous" | "next") => void;
     cancelTranscriptSelection: () => void;
     setSourceFilter: (filter: MaterialSearchSourceFilter) => void;
+    setMaterialScope: (scope: string) => void;
     setSourceFolderFilter: (folderName: string) => void;
     setOrientationFilter: (filter: VideoOrientationFilter) => void;
     setPublicLibraryOrientationFilter: (filter: VideoOrientationFilter) => void;
+    searchPublicLibraryFilename: (query: string) => void;
     selectPublicSourceVideo: (sourceVideoId: string) => void;
     loadMoreSourceLibrary: () => void;
     loadMoreSearchResults: () => void;
+    retryMaterialSearch: () => void;
     loadMoreLocalClips: () => void;
     loadMoreCutJobs: () => void;
     selectProject: (projectId: string) => void;
@@ -1316,14 +1506,22 @@ function renderPage(
     renameProject: (projectId?: string) => void;
     deleteProject: (projectId: string, mode: ProjectDeleteMode) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
+    reorderCut: (cutListItemId: string, targetIndex: number) => void;
+    selectCutTasksTab: (tab: CutTasksTab) => void;
     removeCut: (cutListItemId: string) => void;
     clearCuts: () => void;
     submitCuts: () => void;
     refreshQueue?: () => void;
     runNextJob?: () => void;
     retryFailedCutJob?: (cutJobId: string) => void;
+    cancelCutJob?: (cutJobId: string) => void;
+    batchRetryCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+    batchPauseCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+    batchDeleteCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+    restoreHiddenCutJobs?: () => void;
     openCutOutputDirectory: () => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
+    deleteLocalClip: (localClip: LocalClip) => void;
     selectLocalClip: (localClipId: string) => void;
     setLocalLibraryViewMode: (mode: LocalLibraryViewMode) => void;
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
@@ -1340,7 +1538,11 @@ function renderPage(
         projects={viewState.projects}
         selectedProjectId={viewState.homeSelectedProjectId}
         queue={queue}
+        sourceFolderFilter={viewState.sourceFolderFilter}
+        sourceFolders={viewState.sourceFolders}
+        searchMode={viewState.materialSearchMode}
         onSearch={handlers.searchFromProjectHome}
+        onSetMaterialScope={handlers.setMaterialScope}
         onSelectProject={handlers.selectProject}
         onOpenProject={handlers.openProject}
         onOpenProjectDirectory={handlers.openProjectDirectory}
@@ -1356,8 +1558,13 @@ function renderPage(
       <SourceDetailPage
         detail={data.primaryDetail}
         selectedSegments={viewState.selectedSegments}
+        selectedStartCharOffset={viewState.selectedStartCharOffset}
+        selectedEndCharOffset={viewState.selectedEndCharOffset}
         highlightedSegmentIds={viewState.highlightedSegmentIds}
-        onSelectSegment={handlers.selectTranscriptSegment}
+        onSelectTranscriptRange={handlers.selectTranscriptRange}
+        onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
+        onSelectTranscriptSegment={handlers.selectTranscriptSegment}
+        onCancelSelection={handlers.cancelTranscriptSelection}
         onAddToCutList={handlers.addSelectedSpan}
       />
     );
@@ -1370,6 +1577,7 @@ function renderPage(
         localClips={data.localClips}
         search={data.search}
         query={viewState.searchQuery}
+        searchMode={viewState.materialSearchMode}
         sourceFilter={viewState.sourceFilter}
         sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
@@ -1385,19 +1593,25 @@ function renderPage(
         globalHitCount={viewState.globalHitCount}
         selectedMaterialKey={viewState.selectedMaterialKey}
         isSearching={viewState.materialSearchPending}
+        isLoadingMore={viewState.materialSearchLoadingMore}
+        searchFailed={viewState.materialSearchFailed}
+        backendNotice={materialLocatorBackendNotice(data.runtimeStatus?.search_backend)}
         recentSearches={viewState.recentSearches}
         cutNotice={viewState.cutNotice}
         searchStatus={viewState.searchStatus}
         queue={queue}
         cutMode={viewState.selectedCutMode}
         onSearch={handlers.search}
-        onSetSourceFolderFilter={handlers.setSourceFolderFilter}
+        onSetMaterialScope={handlers.setMaterialScope}
         onSelectMaterial={handlers.selectMaterial}
         onSelectTranscriptRange={handlers.selectTranscriptRange}
         onSelectTranscriptTextRange={handlers.selectTranscriptTextRange}
+        onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onNavigateHit={handlers.navigateHit}
         onLoadMoreSearchResults={handlers.loadMoreSearchResults}
+        onRetrySearch={handlers.retryMaterialSearch}
         onCutSelection={handlers.addSelectedSpan}
+        onAddToCutList={handlers.addSelectionToCutList}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
         onSetCutMode={handlers.setCutMode}
@@ -1420,28 +1634,58 @@ function renderPage(
         onSetOrientationFilter={handlers.setOrientationFilter}
         onSelectLocalClip={handlers.selectLocalClip}
         onOpenLocalClipDirectory={handlers.openLocalClipDirectory}
+        onDeleteLocalClip={handlers.deleteLocalClip}
         onLoadMore={handlers.loadMoreLocalClips}
         isLoadingMore={viewState.localClipsLoadingMore}
+        client={viewState.cacheApiClient}
+        diskLow={data.runtimeStatus.local_cache?.disk_low}
+        diskFreeBytes={data.runtimeStatus.local_cache?.disk_free_bytes}
+        diskTotalBytes={data.runtimeStatus.local_cache?.disk_total_bytes}
       />
     );
   }
 
   if (route === "cut-tasks") {
     return (
-      <CutQueuePage
-        jobs={queue}
-        project={viewState.currentProject}
-        autoRefreshEnabled={viewState.autoRefreshCutJobs}
-        lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
-        pipelineState={viewState.cutPipelineState}
-        totalJobCount={viewState.cutJobsTotalCount}
-        isLoadingMore={viewState.cutJobsLoadingMore}
-        onRefresh={handlers.refreshQueue}
-        onRunNext={handlers.runNextJob}
-        onRetryFailed={handlers.retryFailedCutJob}
-        onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
-        onLoadMore={handlers.loadMoreCutJobs}
-      />
+      <div className="cutter-cut-tasks-shell" data-cut-tasks-tab={viewState.cutTasksTab}>
+        <CutTasksTabNav
+          activeTab={viewState.cutTasksTab}
+          cutListCount={cutList.length}
+          onSelectTab={handlers.selectCutTasksTab}
+        />
+        {viewState.cutTasksTab === "cut-list" ? (
+          <CutListPage
+            items={cutList}
+            onMove={handlers.moveCut}
+            onReorder={handlers.reorderCut}
+            onRemove={handlers.removeCut}
+            onClear={handlers.clearCuts}
+            onSubmit={handlers.submitCuts}
+          />
+        ) : (
+          <CutQueuePage
+            jobs={queue}
+            project={viewState.currentProject}
+            autoRefreshEnabled={viewState.autoRefreshCutJobs}
+            lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
+            pipelineState={viewState.cutPipelineState}
+            totalJobCount={viewState.cutJobsTotalCount}
+            isLoadingMore={viewState.cutJobsLoadingMore}
+            onRefresh={handlers.refreshQueue}
+            onRunNext={handlers.runNextJob}
+            onRetryFailed={handlers.retryFailedCutJob}
+            onCancelJob={handlers.cancelCutJob}
+            onBatchRetry={handlers.batchRetryCutJobs}
+            onBatchPause={handlers.batchPauseCutJobs}
+            onBatchDelete={handlers.batchDeleteCutJobs}
+            hiddenJobCount={viewState.hiddenCutJobCount}
+            onRestoreHiddenJobs={handlers.restoreHiddenCutJobs}
+            onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
+            onLoadMore={handlers.loadMoreCutJobs}
+            verificationEnabled={viewState.verificationEnabled}
+          />
+        )}
+      </div>
     );
   }
 
@@ -1470,7 +1714,13 @@ function renderPage(
   }
 
   if (route === "cache-management") {
-    return <CacheManagementPage runtimeStatus={data.runtimeStatus} />;
+    return (
+      <CacheManagementPage
+        runtimeStatus={data.runtimeStatus}
+        releaseV2Enabled={viewState.releaseV2Enabled}
+        client={viewState.cacheApiClient}
+      />
+    );
   }
 
   return (
@@ -1478,13 +1728,17 @@ function renderPage(
       library={data.library}
       selectedSourceVideoId={viewState.publicLibrarySelectedSourceVideoId}
       orientationFilter={viewState.publicLibraryOrientationFilter}
+      searchMode={viewState.materialSearchMode}
       sourceFolderFilter={viewState.sourceFolderFilter}
+      filenameQuery={viewState.publicLibraryFilenameQuery}
       sourceFolders={viewState.sourceFolders}
       runtimeStatus={data.runtimeStatus}
       isLoadingMore={viewState.sourceLibraryLoadingMore}
+      isSearchingFilename={viewState.publicLibraryFilenameSearching}
       hasMore={data.library.videos.length < data.library.available_video_count}
       onSetOrientationFilter={handlers.setPublicLibraryOrientationFilter}
-      onSetSourceFolderFilter={handlers.setSourceFolderFilter}
+      onSetMaterialScope={handlers.setMaterialScope}
+      onSearchFilename={handlers.searchPublicLibraryFilename}
       onSelectSourceVideo={handlers.selectPublicSourceVideo}
       onLoadMore={handlers.loadMoreSourceLibrary}
     />
@@ -1513,6 +1767,9 @@ export function CutterApp() {
     sourceVideoIdFromHash(window.location.hash)
   );
   const [searchQuery, setSearchQuery] = useState(() => searchQueryFromHash(window.location.hash));
+  const [materialSearchMode, setMaterialSearchMode] = useState<MaterialSearchMode>(() =>
+    materialSearchModeFromHash(window.location.hash)
+  );
   const [sourceDetailContext, setSourceDetailContext] = useState(() =>
     sourceDetailContextFromHash(window.location.hash)
   );
@@ -1522,7 +1779,9 @@ export function CutterApp() {
   const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>(() =>
     readCutterDefaultSourceFilter()
   );
-  const [sourceFolderFilter, setSourceFolderFilter] = useState("");
+  const [sourceFolderFilter, setSourceFolderFilter] = useState(() =>
+    searchSourceFolderFromHash(window.location.hash)
+  );
   const [orientationFilter, setOrientationFilter] = useState<VideoOrientationFilter>(() =>
     readCutterDefaultOrientationFilter()
   );
@@ -1530,7 +1789,10 @@ export function CutterApp() {
     useState<VideoOrientationFilter>("all");
   const [publicLibrarySelectedSourceVideoId, setPublicLibrarySelectedSourceVideoId] =
     useState<string | undefined>();
+  const [publicLibraryFilenameQuery, setPublicLibraryFilenameQuery] = useState("");
+  const [publicLibraryFilenameSearching, setPublicLibraryFilenameSearching] = useState(false);
   const [selectedCutMode, setSelectedCutMode] = useState<CutMode>(() => readCutterDefaultCutMode());
+  const [cutTasksTab, setCutTasksTab] = useState<CutTasksTab>("queue");
   const [transcriptSelection, setTranscriptSelection] = useState<TranscriptSelectionRange>({});
   const [locatorHighlightedSegmentIds, setLocatorHighlightedSegmentIds] = useState<string[]>([]);
   const [locatorCurrentHitIndex, setLocatorCurrentHitIndex] = useState(0);
@@ -1540,6 +1802,8 @@ export function CutterApp() {
       routeFromHash(window.location.hash) === "material-locator" &&
       searchQueryFromHash(window.location.hash).trim().length > 0
   );
+  const [materialSearchLoadingMore, setMaterialSearchLoadingMore] = useState(false);
+  const [materialSearchFailed, setMaterialSearchFailed] = useState(false);
   const [materialSearchRevision, setMaterialSearchRevision] = useState(0);
   const [lastMaterialSearchDurationMs, setLastMaterialSearchDurationMs] = useState<number | undefined>();
   const [recentMaterialSearches, setRecentMaterialSearches] = useState<MaterialSearchHistoryItem[]>([]);
@@ -1547,6 +1811,10 @@ export function CutterApp() {
   const focusedSourceDetailRequestIdRef = useRef(0);
   const didAutoApplyLocalTrustedLoginRef = useRef(false);
   const [cutNotice, setCutNotice] = useState("");
+  const [recoverableNotice, setRecoverableNotice] = useState("");
+  const [recoverableError, setRecoverableError] = useState<CutterErrorPresentation | null>(null);
+  const [errorPresentation, setErrorPresentation] = useState<CutterErrorPresentation | null>(null);
+  const [capabilities, setCapabilities] = useState<CutterCapabilityTable | null>(null);
   const [workspaceConfigNotice, setWorkspaceConfigNotice] = useState("");
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
@@ -1567,11 +1835,13 @@ export function CutterApp() {
   const [cutPipelineState, setCutPipelineState] = useState<CutPipelineState>(idleCutPipelineState);
   const cutPipelineRunningRef = useRef(false);
   const cutPipelineRerunRequestedRef = useRef(false);
+  const cutPipelineAbortRef = useRef<AbortController | null>(null);
+  const cutPipelineProjectIdRef = useRef<string | undefined>(undefined);
+  const queueRefreshRequestIdRef = useRef(0);
+  const authFailureHandlerRef = useRef<((error: CutterApiError) => void) | null>(null);
   const [data, setData] = useState<CutterFixtureData | null>(null);
   const dataRef = useRef<CutterFixtureData | null>(data);
-  const [cutList, setCutList] = useState<CutListItem[]>(() =>
-    deserializeCutList(safeLocalStorageGetItem(CUT_LIST_STORAGE_KEY))
-  );
+  const [cutList, setCutList] = useState<CutListItem[]>(() => readCutListFromStorage());
   const [authSession, setAuthSession] = useState<CutterAuthSession | null>(() => readCutterAuthSession());
   const [pendingLogin, setPendingLogin] = useState<CutterPendingLogin | null>(() =>
     apiMode ? readCutterPendingLogin() : null
@@ -1584,6 +1854,9 @@ export function CutterApp() {
   const [loginPollTick, setLoginPollTick] = useState(0);
   const [queueJobs, setQueueJobs] = useState<CutQueueJob[]>([]);
   const queueJobsRef = useRef<CutQueueJob[]>(queueJobs);
+  // Batch delete hides queue rows locally; the ids survive refresh/restart.
+  const [hiddenCutJobIds, setHiddenCutJobIds] = useState<string[]>(() => readHiddenCutJobIds());
+  const hiddenCutJobIdsSet = hiddenCutJobIdSet(hiddenCutJobIds);
   const [sourceLibraryLoadingMore, setSourceLibraryLoadingMore] = useState(false);
   const [localClipsLoadingMore, setLocalClipsLoadingMore] = useState(false);
   const [cutJobsLoadingMore, setCutJobsLoadingMore] = useState(false);
@@ -1594,7 +1867,11 @@ export function CutterApp() {
   const [didSeedCutList, setDidSeedCutList] = useState(false);
   const [error, setError] = useState("");
   const client = useMemo(
-    () => createRuntimeClient(apiBaseUrl, authSession),
+    () => createRuntimeClient(
+      apiBaseUrl,
+      authSession,
+      (error) => authFailureHandlerRef.current?.(error)
+    ),
     [apiBaseUrl, authSession]
   );
 
@@ -1617,6 +1894,69 @@ export function CutterApp() {
   currentProjectIdRef.current = currentProjectId;
   dataRef.current = data;
   queueJobsRef.current = queueJobs;
+
+  // Unified 401 handling (CW-10): any protected request that reports an expired
+  // session clears the stored session and returns to the login gate.
+  useEffect(() => {
+    authFailureHandlerRef.current = (error: CutterApiError) => {
+      if (!shouldClearCutterSessionForApiError(error)) {
+        return;
+      }
+
+      cutPipelineAbortRef.current?.abort();
+      clearCutterAuthSession();
+      setAuthSession(null);
+      setLoginStatus("unknown");
+      setLoginMessage("登录已失效，请重新登录后再试。");
+    };
+  });
+
+  // Cancel queue observation on logout, project switch and unmount (CW-13).
+  useEffect(() => {
+    if (!cutPipelineRunningRef.current) {
+      return;
+    }
+    if (loginGateVisible) {
+      cutPipelineAbortRef.current?.abort();
+    }
+  }, [loginGateVisible]);
+
+  useEffect(() => {
+    if (!cutPipelineRunningRef.current) {
+      return;
+    }
+    if (cutPipelineProjectIdRef.current !== currentProjectId) {
+      cutPipelineAbortRef.current?.abort();
+    }
+  }, [currentProjectId]);
+
+  useEffect(() => () => cutPipelineAbortRef.current?.abort(), []);
+
+  // Contract v1 capability negotiation: missing endpoint (legacy engine) or
+  // malformed table silently degrades to the pre-contract behaviour.
+  useEffect(() => {
+    if (!apiMode || loginGateVisible) {
+      return;
+    }
+
+    let cancelled = false;
+    client
+      .getCapabilities()
+      .then((table) => {
+        if (!cancelled) {
+          setCapabilities(parseCutterCapabilities(table));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCapabilities(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, client, loginGateVisible]);
 
   function commitProjects(nextProjects: readonly CutterProject[], nextProjectId?: string) {
     const sortedProjects = [...nextProjects].sort((left, right) => right.updated_at.localeCompare(left.updated_at));
@@ -1708,6 +2048,7 @@ export function CutterApp() {
     );
     clearMaterialLocatorFocus();
     setCutNotice("");
+    setRecoverableNotice("");
     window.location.hash = routeToHash("project-home");
     setRoute("project-home");
   }
@@ -1721,13 +2062,37 @@ export function CutterApp() {
   }
 
   function showRecoverableError(message: string) {
+    setRecoverableError(null);
+    setErrorPresentation(null);
+
     if (dataRef.current) {
       setCutNotice(message);
+      setRecoverableNotice(message);
       setError("");
       return;
     }
 
     setError(message);
+  }
+
+  /**
+   * Contract-aware failure surface: known stable codes render their shared
+   * Chinese message + remediation + retryability; unknown codes keep the
+   * existing wording and expose the raw detail in an expandable section.
+   */
+  function showCutterError(error: unknown, fallbackMessage: string) {
+    const presentation = contractErrorPresentation(error, fallbackMessage);
+    setRecoverableNotice("");
+
+    if (dataRef.current) {
+      setCutNotice(presentation.message);
+      setRecoverableError(presentation);
+      setError("");
+      return;
+    }
+
+    setErrorPresentation(presentation);
+    setError(presentation.message);
   }
 
   function loadFocusedSourceVideoDetail(sourceVideoId: string) {
@@ -1770,6 +2135,7 @@ export function CutterApp() {
     setLocatorCurrentHitIndex(globalHitIndex);
     setSelectedMaterialFocusKey(target.materialKey);
     setCutNotice("");
+    setRecoverableNotice("");
 
     if (target.material.source === "local") {
       setSelectedLocalClipId(target.material.id);
@@ -2181,6 +2547,9 @@ export function CutterApp() {
   }, [client]);
 
   const refreshQueueJobs = useCallback(async (projectIndexOverride?: CutJobProjectIndex): Promise<readonly CutQueueJob[]> => {
+    const requestId = queueRefreshRequestIdRef.current + 1;
+    queueRefreshRequestIdRef.current = requestId;
+
     if (!apiMode) {
       return queueJobsRef.current;
     }
@@ -2189,6 +2558,13 @@ export function CutterApp() {
       const catalog = await client.listCutJobs({
         limit: Math.max(CUTTER_CUT_JOB_REFRESH_LIMIT, queueJobsRef.current.length)
       });
+
+      // Only the newest refresh may write queue state: a slow NAS response must
+      // not roll a task back from done/failed to running (CW-12).
+      if (!shouldApplyQueueRefresh(requestId, queueRefreshRequestIdRef.current)) {
+        return queueJobsRef.current;
+      }
+
       setCutJobsTotalCount(catalog.job_count);
       const nextJobs = mapApiCutJobsToQueueJobs(catalog, {
         projectIndex: projectIndexOverride ?? cutJobProjectIndex,
@@ -2217,6 +2593,10 @@ export function CutterApp() {
       }
       return nextJobs;
     } catch (queueError) {
+      if (!shouldApplyQueueRefresh(requestId, queueRefreshRequestIdRef.current)) {
+        return queueJobsRef.current;
+      }
+
       setCutNotice(
         queueError instanceof Error
           ? `剪切任务列表刷新失败：${queueError.message}`
@@ -2257,10 +2637,9 @@ export function CutterApp() {
       );
       setError("");
     } catch (loadError) {
-      showRecoverableError(
-        loadError instanceof Error
-          ? `继续加载本地素材失败：${loadError.message}`
-          : "继续加载本地素材失败，可继续使用当前列表。"
+      showCutterError(
+        loadError,
+        loadError instanceof Error ? "继续加载本地素材失败" : "继续加载本地素材失败，可继续使用当前列表。"
       );
     } finally {
       setLocalClipsLoadingMore(false);
@@ -2292,10 +2671,9 @@ export function CutterApp() {
       setLastQueueUpdatedLabel("刚刚更新");
       setError("");
     } catch (loadError) {
-      showRecoverableError(
-        loadError instanceof Error
-          ? `继续加载剪切任务失败：${loadError.message}`
-          : "继续加载剪切任务失败，可继续使用当前列表。"
+      showCutterError(
+        loadError,
+        loadError instanceof Error ? "继续加载剪切任务失败" : "继续加载剪切任务失败，可继续使用当前列表。"
       );
     } finally {
       setCutJobsLoadingMore(false);
@@ -2306,6 +2684,7 @@ export function CutterApp() {
     const listener = () => {
       const nextHash = window.location.hash;
       const nextRoute = routeFromHash(nextHash);
+      const nextSearchMode = materialSearchModeFromHash(nextHash);
       const nextSearchQuery = materialLocatorSearchQueryForHashChange({
         hash: nextHash,
         currentSearchQuery: searchQuery
@@ -2325,6 +2704,10 @@ export function CutterApp() {
       setSelectedSourceVideoId(sourceVideoIdFromHash(nextHash));
       setSelectedLocalClipId(undefined);
       setSearchQuery(nextSearchQuery);
+      setMaterialSearchMode(nextSearchMode);
+      if (nextRoute === "material-locator") {
+        setSourceFolderFilter(searchSourceFolderFromHash(nextHash));
+      }
       setSourceDetailContext(sourceDetailContextFromHash(nextHash));
       setTranscriptSelection({});
       setLocatorHighlightedSegmentIds([]);
@@ -2333,13 +2716,17 @@ export function CutterApp() {
       setMaterialSearchPending(shouldStartMaterialSearchForHashChange({
         hash: nextHash,
         currentSearchQuery: searchQuery,
-        nextSearchQuery
+        nextSearchQuery,
+        currentSearchMode: materialSearchMode,
+        nextSearchMode
       }));
       setCutNotice("");
+      setRecoverableNotice("");
+      setRecoverableError(null);
     };
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
-  }, [homeSelectedProjectId, searchQuery]);
+  }, [homeSelectedProjectId, materialSearchMode, searchQuery]);
 
   const workbenchPreferredSourceVideoId = workbenchPreferredSourceVideoIdForRoute({
     route,
@@ -2363,21 +2750,35 @@ export function CutterApp() {
       includeSourceLibrary: route === "public-library",
       includeRuntimeCache: route === "cache-management",
       sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
-      sourceFolderName: sourceFolderFilter || undefined,
+      sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+      sourceLibraryFilenameQuery:
+        route === "public-library" && materialSearchMode !== "folder"
+          ? publicLibraryFilenameQuery || undefined
+          : undefined,
+      sourceLibraryFolderQuery:
+        route === "public-library" && materialSearchMode === "folder"
+          ? publicLibraryFilenameQuery || undefined
+          : undefined,
       localClipLimit: CUTTER_LOCAL_CLIP_INITIAL_LOAD_LIMIT
     })
       .then((result) => {
         if (!cancelled) {
           setData((current) => mergeMaterialLocatorReloadData(current, result, searchQuery));
           setError("");
+          setErrorPresentation(null);
+          if (route === "public-library") {
+            setPublicLibraryFilenameSearching(false);
+          }
         }
       })
       .catch((loadError) => {
         if (!cancelled) {
-          showRecoverableError(
-            loadError instanceof Error
-              ? `工作台刷新失败：${loadError.message}`
-              : "工作台刷新失败，可继续使用当前数据。"
+          if (route === "public-library") {
+            setPublicLibraryFilenameSearching(false);
+          }
+          showCutterError(
+            loadError,
+            loadError instanceof Error ? "工作台刷新失败" : "工作台刷新失败，可继续使用当前数据。"
           );
         }
       });
@@ -2385,7 +2786,16 @@ export function CutterApp() {
     return () => {
       cancelled = true;
     };
-  }, [client, desktopSetupReady, loginGateVisible, route, sourceFolderFilter, workbenchPreferredSourceVideoId]);
+  }, [
+    client,
+    desktopSetupReady,
+    loginGateVisible,
+    materialSearchMode,
+    publicLibraryFilenameQuery,
+    route,
+    sourceFolderFilter,
+    workbenchPreferredSourceVideoId
+  ]);
 
   useEffect(() => {
     setData((current) =>
@@ -2404,6 +2814,7 @@ export function CutterApp() {
       data
         ? materialLocatorHitTargets({
             query: searchQuery,
+            searchMode: materialSearchMode,
             sourceFilter,
             orientationFilter,
             localClips: data.localClips,
@@ -2411,7 +2822,7 @@ export function CutterApp() {
             search: data.search
           })
         : [],
-    [data, orientationFilter, searchQuery, sourceFilter]
+    [data, materialSearchMode, orientationFilter, searchQuery, sourceFilter]
   );
   const globalHitCount = locatorHitTargets.length;
 
@@ -2458,10 +2869,13 @@ export function CutterApp() {
     const startedAtMs = Date.now();
     materialSearchRequestIdRef.current = requestId;
     setMaterialSearchPending(true);
+    setMaterialSearchLoadingMore(false);
+    setMaterialSearchFailed(false);
     const timeout = window.setTimeout(() => {
       if (!cancelled && materialSearchRequestIdRef.current === requestId) {
         setMaterialSearchPending(false);
-        setError("搜索响应较慢，请缩短关键词或稍后重试。");
+        setMaterialSearchFailed(true);
+        showRecoverableError(MATERIAL_SEARCH_TIMEOUT_NOTICE);
       }
     }, 12_000);
     const requestProjectId = currentProjectIdRef.current;
@@ -2501,7 +2915,8 @@ export function CutterApp() {
         const firstPage = resolveSearchResponseUrls(
           client,
           await client.searchSourceLibrary(query, MATERIAL_SEARCH_FIRST_BATCH_LIMIT, {
-            sourceFolderName: sourceFolderFilter || undefined
+            sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+            folderQuery: materialSearchMode === "folder" ? query : undefined
           })
         );
         if (cancelled || materialSearchRequestIdRef.current !== requestId) {
@@ -2520,13 +2935,20 @@ export function CutterApp() {
             : current
         );
         const latestData = dataRef.current;
-        const hitTargets = latestData
+        const searchData = latestData
+          ? {
+              ...latestData,
+              search: firstPage
+            }
+          : undefined;
+        const hitTargets = searchData
           ? materialLocatorHitTargets({
               query,
+              searchMode: materialSearchMode,
               sourceFilter,
               orientationFilter,
-              localClips: latestData.localClips,
-              library: latestData.library,
+              localClips: searchData.localClips,
+              library: searchData.library,
               search: firstPage
             })
           : [];
@@ -2539,10 +2961,12 @@ export function CutterApp() {
           clearMaterialLocatorFocus();
         }
         rememberSearch(firstPage);
+        setMaterialSearchFailed(false);
         setError("");
       } catch (searchError) {
         if (!cancelled && materialSearchRequestIdRef.current === requestId) {
           window.clearTimeout(timeout);
+          setMaterialSearchFailed(true);
           setLastMaterialSearchDurationMs(Math.max(0, Date.now() - startedAtMs));
           const feedback = materialSearchFailureFeedback({
             hasFirstPage,
@@ -2574,6 +2998,7 @@ export function CutterApp() {
     Boolean(data),
     loginGateVisible,
     materialSearchRevision,
+    materialSearchMode,
     orientationFilter,
     route,
     searchQuery,
@@ -2586,7 +3011,7 @@ export function CutterApp() {
     const query = searchQuery.trim();
     const nextCursor = current?.search.next_cursor;
 
-    if (!current || !query || !nextCursor || materialSearchPending) {
+    if (!current || !query || !nextCursor || materialSearchPending || materialSearchLoadingMore) {
       return;
     }
 
@@ -2594,26 +3019,36 @@ export function CutterApp() {
     const startedAtMs = Date.now();
     materialSearchRequestIdRef.current = requestId;
     setMaterialSearchPending(true);
+    setMaterialSearchLoadingMore(true);
 
     try {
       const page = resolveSearchResponseUrls(
         client,
         await client.searchSourceLibrary(query, MATERIAL_SEARCH_NEXT_BATCH_LIMIT, {
           cursor: nextCursor,
-          sourceFolderName: sourceFolderFilter || undefined
+          sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+          folderQuery: materialSearchMode === "folder" ? query : undefined
         })
       );
 
-      if (materialSearchRequestIdRef.current !== requestId) {
-        return;
-      }
-
       const latestQuery = normalizeLocatorQuery(current.search.normalized_query || current.search.query);
-      if (latestQuery !== normalizeLocatorQuery(query)) {
+      if (!shouldApplyMaterialSearchPage({
+        request_id: requestId,
+        current_request_id: materialSearchRequestIdRef.current,
+        query,
+        active_query: latestQuery
+      })) {
         return;
       }
 
-      const mergedSearch = mergeMaterialSearchResponses(current.search, page);
+      const pageAddsResults = searchPageAddsNewResults(current.search, page);
+      const mergedSearch = pageAddsResults
+        ? mergeMaterialSearchResponses(current.search, page)
+        : {
+            ...mergeMaterialSearchResponses(current.search, page),
+            next_cursor: undefined,
+            has_more: false
+          };
       setData((latest) => {
         if (!latest) {
           return latest;
@@ -2626,7 +3061,13 @@ export function CutterApp() {
 
         return {
           ...latest,
-          search: mergeMaterialSearchResponses(latest.search, page)
+          search: pageAddsResults
+            ? mergeMaterialSearchResponses(latest.search, page)
+            : {
+                ...mergeMaterialSearchResponses(latest.search, page),
+                next_cursor: undefined,
+                has_more: false
+              }
         };
       });
 
@@ -2639,6 +3080,7 @@ export function CutterApp() {
       );
       setError("");
       setCutNotice("");
+      setRecoverableNotice("");
     } catch (searchError) {
       if (materialSearchRequestIdRef.current !== requestId) {
         return;
@@ -2657,6 +3099,7 @@ export function CutterApp() {
     } finally {
       if (materialSearchRequestIdRef.current === requestId) {
         setMaterialSearchPending(false);
+        setMaterialSearchLoadingMore(false);
       }
     }
   }
@@ -2735,7 +3178,7 @@ export function CutterApp() {
   const selectedDetail = selectedLocalClip ? localClipToSourceVideoDetail(selectedLocalClip) : data?.primaryDetail;
   const selectedMaterialKey =
     route === "material-locator" && searchQuery.trim() ? selectedMaterialFocusKey : undefined;
-  const allVisibleQueue =
+  const allVisibleQueue = filterHiddenCutJobs(
     apiMode
       ? queueJobs
       : queueJobs.length > 0
@@ -2746,7 +3189,9 @@ export function CutterApp() {
             projectId: currentProjectId,
             projectTitle: currentProject ? projectDisplayTitle(currentProject) : undefined
           })
-        );
+        ),
+    hiddenCutJobIdsSet
+  );
   const visibleQueue = currentProjectId
     ? filterCutQueueJobsByProject(allVisibleQueue, currentProjectId)
     : allVisibleQueue;
@@ -2795,12 +3240,21 @@ export function CutterApp() {
     }
 
     cutPipelineRunningRef.current = true;
+    const abortController = new AbortController();
+    cutPipelineAbortRef.current = abortController;
+    cutPipelineProjectIdRef.current = currentProjectIdRef.current;
     try {
       do {
+        if (abortController.signal.aborted) {
+          break;
+        }
+
         cutPipelineRerunRequestedRef.current = false;
         const baselineTerminalJobIds = new Set(
           queueJobsRef.current
-            .filter((job) => job.status === "done" || job.status === "failed")
+            .filter((job) =>
+              job.status === "done" || job.status === "failed" || job.status === "cancelled"
+            )
             .map((job) => job.queue_job_id)
         );
         const result = await observeServiceCutQueue({
@@ -2810,8 +3264,14 @@ export function CutterApp() {
           onState: setCutPipelineState,
           baselineTerminalJobIds,
           pollIntervalMs: 1000,
-          maxWaitMs: 120_000
+          maxWaitMs: 120_000,
+          signal: abortController.signal
         });
+
+        if (abortController.signal.aborted) {
+          break;
+        }
+
         const notice = cutNoticeForPipelineResult(result);
         if (notice) {
           setCutNotice(notice);
@@ -2821,7 +3281,9 @@ export function CutterApp() {
           await refreshLocalClips();
         }
       } while (cutPipelineRerunRequestedRef.current);
-      setHasSubmittedCutJobs(false);
+      if (!abortController.signal.aborted) {
+        setHasSubmittedCutJobs(false);
+      }
     } catch (pipelineError) {
       setCutNotice(
         pipelineError instanceof Error
@@ -2830,8 +3292,36 @@ export function CutterApp() {
       );
     } finally {
       cutPipelineRunningRef.current = false;
+      if (cutPipelineAbortRef.current === abortController) {
+        cutPipelineAbortRef.current = null;
+      }
     }
   }, [apiMode, client, loginGateVisible, refreshLocalClips, refreshQueueJobs]);
+
+  const handleLogout = useCallback(async (switchAccount = false) => {
+    cutPipelineAbortRef.current?.abort();
+
+    try {
+      await client.logoutAccount();
+    } catch {
+      // Local logout must always succeed even if the engine is unreachable.
+    }
+
+    clearCutterAuthSession();
+    clearCutterPendingLogin();
+    setPendingLogin(null);
+    setAuthSession(null);
+    setLoginStatus("unknown");
+    setLoginMessage(switchAccount ? "请使用其他账号登录。" : "已退出登录，请重新申请或联系管理员。");
+    setRecoverableError(null);
+    setErrorPresentation(null);
+    setData(null);
+    setQueueJobs([]);
+    setCutJobsTotalCount(0);
+    setHasSubmittedCutJobs(false);
+    setCutPipelineState(idleCutPipelineState);
+    setRecoverableNotice("");
+  }, [client]);
 
   const handleSetAppearanceMode = (mode: CutterAppearanceMode) => {
     setAppearanceMode(mode);
@@ -2850,10 +3340,35 @@ export function CutterApp() {
     writeCutterDefaultSourceFilter(supportedFilter);
   };
 
-  const handleSetSourceFolderFilter = (folderName: string) => {
-    setSourceFolderFilter(folderName.trim());
+  const handleSetMaterialScope = (scope: string) => {
+    const trimmedScope = scope.trim();
+    const nextMode: MaterialSearchMode = trimmedScope === MATERIAL_SCOPE_FOLDER_VALUE ? "folder" : "content";
+    const nextFolderName = nextMode === "folder" ? "" : trimmedScope;
+    setMaterialSearchMode(nextMode);
+    setSourceFolderFilter(nextFolderName);
     setPublicLibrarySelectedSourceVideoId(undefined);
     clearMaterialLocatorFocus();
+    if (route === "material-locator") {
+      window.location.hash = searchHash(searchQuery, {
+        sourceFolderName: nextFolderName || undefined,
+        searchMode: nextMode
+      });
+    } else if (route === "public-library" && publicLibraryFilenameQuery.trim()) {
+      setPublicLibraryFilenameSearching(true);
+    }
+  };
+
+  const handleSetSourceFolderFilter = (folderName: string) => {
+    const nextFolderName = folderName.trim();
+    setSourceFolderFilter(nextFolderName);
+    setPublicLibrarySelectedSourceVideoId(undefined);
+    clearMaterialLocatorFocus();
+    if (route === "material-locator") {
+      window.location.hash = searchHash(searchQuery, {
+        sourceFolderName: materialSearchSourceFolderName(materialSearchMode, nextFolderName) || undefined,
+        searchMode: materialSearchMode
+      });
+    }
   };
 
   const handleSetOrientationFilter = (filter: VideoOrientationFilter) => {
@@ -2864,6 +3379,15 @@ export function CutterApp() {
 
   const handleSetPublicLibraryOrientationFilter = (filter: VideoOrientationFilter) => {
     setPublicLibraryOrientationFilter(normalizeVideoOrientationFilter(filter));
+  };
+
+  const handleSearchPublicLibraryFilename = (query: string) => {
+    const nextQuery = query.trim();
+    setPublicLibraryFilenameQuery(nextQuery);
+    setPublicLibrarySelectedSourceVideoId(undefined);
+    if (route === "public-library") {
+      setPublicLibraryFilenameSearching(true);
+    }
   };
 
   const handleChangePassword = async (passwordInput: CutterPasswordChangeRequest) => {
@@ -2934,7 +3458,9 @@ export function CutterApp() {
       const nextPage = await client.listSourceLibrary({
         limit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
         offset,
-        sourceFolderName: sourceFolderFilter || undefined
+        sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+        filenameQuery: materialSearchMode === "folder" ? undefined : publicLibraryFilenameQuery || undefined,
+        folderQuery: materialSearchMode === "folder" ? publicLibraryFilenameQuery || undefined : undefined
       });
       const nextVideos = nextPage.videos.map((video) => resolveSourceVideoCardUrls(client, video));
 
@@ -2960,7 +3486,7 @@ export function CutterApp() {
     } finally {
       setSourceLibraryLoadingMore(false);
     }
-  }, [client, sourceFolderFilter, sourceLibraryLoadingMore]);
+  }, [client, materialSearchMode, publicLibraryFilenameQuery, sourceFolderFilter, sourceLibraryLoadingMore]);
 
   const commitDesktopConfigDraft = (config: DesktopConfig, stage = desktopSetupStageForConfig(config)) => {
     setDesktopConfig(config);
@@ -3140,7 +3666,11 @@ export function CutterApp() {
     setMaterialSearchPending(Boolean(nextQuery));
     setLastMaterialSearchDurationMs(undefined);
     setCutNotice("");
-    window.location.hash = searchHash(nextQuery);
+    setRecoverableNotice("");
+    window.location.hash = searchHash(nextQuery, {
+      sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+      searchMode: materialSearchMode
+    });
   }
 
   function startProjectHomeSearch(query: string) {
@@ -3159,6 +3689,86 @@ export function CutterApp() {
     }
 
     performMaterialSearch(nextQuery);
+  }
+
+  function hideCutQueueJobs(cutJobIds: readonly string[]) {
+    if (cutJobIds.length === 0) {
+      return;
+    }
+
+    setHiddenCutJobIds((current) => writeHiddenCutJobIds(addHiddenCutJobIds(current, cutJobIds)));
+  }
+
+  function restoreHiddenCutQueueJobs() {
+    setHiddenCutJobIds(writeHiddenCutJobIds([]));
+  }
+
+  async function retrySingleCutJob(cutJobId: string): Promise<void> {
+    if (!apiMode) {
+      setQueueJobs((current) =>
+        current.map((job) =>
+          job.queue_job_id === cutJobId && cutJobNeedsRecut(job)
+            ? {
+                ...job,
+                status: "pending",
+                progress: 0,
+                error_message: undefined,
+                verification: undefined
+              }
+            : job
+        )
+      );
+      return;
+    }
+
+    const retried = await client.retryCutJob(cutJobId);
+    const retriedQueueJob = mapApiCutJobsToQueueJobs({
+      job_count: 1,
+      jobs: [retried]
+    }, {
+      projectIndex: cutJobProjectIndex,
+      projectTitlesById: cutterProjectTitlesById(projects)
+    })[0];
+
+    if (retriedQueueJob) {
+      setQueueJobs((current) => [
+        retriedQueueJob,
+        ...current.filter((job) => job.queue_job_id !== cutJobId)
+      ]);
+    }
+  }
+
+  async function cancelSingleCutJob(cutJobId: string): Promise<void> {
+    if (!apiMode) {
+      setQueueJobs((current) =>
+        current.map((job) =>
+          job.queue_job_id === cutJobId && (job.status === "pending" || job.status === "running")
+            ? {
+                ...job,
+                status: "cancelled",
+                progress: 0,
+                error_message: "用户取消剪辑任务"
+              }
+            : job
+        )
+      );
+      return;
+    }
+
+    const cancelled = await client.cancelCutJob(cutJobId);
+    const cancelledQueueJob = mapApiCutJobsToQueueJobs({
+      job_count: 1,
+      jobs: [cancelled]
+    }, {
+      projectIndex: cutJobProjectIndex,
+      projectTitlesById: cutterProjectTitlesById(projects)
+    })[0];
+
+    if (cancelledQueueJob) {
+      setQueueJobs((current) =>
+        current.map((job) => job.queue_job_id === cutJobId ? cancelledQueueJob : job)
+      );
+    }
   }
 
   const handlers = {
@@ -3298,6 +3908,27 @@ export function CutterApp() {
         }, 900);
       }
     },
+    addSelectionToCutList() {
+      if (!data || !selectedDetail || selectedTranscriptSegments.length === 0) {
+        return;
+      }
+
+      // In fixture/API cold start the visible list can be a seeded default while state is
+      // still empty; append to the visible base so the seeded items do not disappear.
+      const baseItems = cutList.length === 0 ? visibleCutList : cutList;
+      const item = createCutListItemFromSegments({
+        sourceVideo: selectedDetail,
+        segments: selectedTranscriptSegments,
+        cutMode: selectedCutMode,
+        order: baseItems.length + 1,
+        title: `${selectedDetail.title} 片段`,
+        startCharOffset: selectedTranscriptSelection.startCharOffset,
+        endCharOffset: selectedTranscriptSelection.endCharOffset
+      });
+      setCutList(appendCutListItem(baseItems, item));
+      setTranscriptSelection({});
+      setCutNotice(`已加入待剪清单，共 ${baseItems.length + 1} 条`);
+    },
     search: performMaterialSearch,
     searchFromProjectHome: startProjectHomeSearch,
     selectProject(projectId: string) {
@@ -3309,7 +3940,10 @@ export function CutterApp() {
       const latestQuery = project?.searches[0]?.query.trim() ?? "";
       if (latestQuery) {
         setSearchQuery(latestQuery);
-        window.location.hash = searchHash(latestQuery);
+        window.location.hash = searchHash(latestQuery, {
+          sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
+          searchMode: materialSearchMode
+        });
         return;
       }
 
@@ -3330,7 +3964,7 @@ export function CutterApp() {
         });
         setCutNotice("已打开项目文件目录");
       } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开项目文件目录失败");
+        showCutterError(openError, "打开项目文件目录失败");
       }
     },
     createProject(title: string) {
@@ -3396,20 +4030,31 @@ export function CutterApp() {
       setTranscriptSelection({});
     },
     setSourceFilter: handleSetSourceFilter,
+    setMaterialScope: handleSetMaterialScope,
     setSourceFolderFilter: handleSetSourceFolderFilter,
     setOrientationFilter: handleSetOrientationFilter,
     setPublicLibraryOrientationFilter: handleSetPublicLibraryOrientationFilter,
+    searchPublicLibraryFilename: handleSearchPublicLibraryFilename,
     selectPublicSourceVideo: setPublicLibrarySelectedSourceVideoId,
     loadMoreSourceLibrary: handleLoadMoreSourceLibrary,
     loadMoreSearchResults: handleLoadMoreMaterialSearchResults,
+    retryMaterialSearch() {
+      performMaterialSearch(searchQuery);
+    },
     loadMoreLocalClips: handleLoadMoreLocalClips,
     loadMoreCutJobs: handleLoadMoreCutJobs,
     setCutMode: handleSetCutMode,
     selectLocalClip: setLocalLibrarySelectedClipId,
     setLocalLibraryViewMode,
     renameProject: handleRenameProject,
+    selectCutTasksTab(tab: CutTasksTab) {
+      setCutTasksTab(tab);
+    },
     moveCut(cutListItemId: string, direction: MoveDirection) {
       setCutList((current) => moveCutListItem(current, cutListItemId, direction));
+    },
+    reorderCut(cutListItemId: string, targetIndex: number) {
+      setCutList((current) => reorderCutListItem(current, cutListItemId, targetIndex));
     },
     removeCut(cutListItemId: string) {
       setCutList((current) => removeCutListItem(current, cutListItemId));
@@ -3524,47 +4169,84 @@ export function CutterApp() {
         }
       : undefined,
     retryFailedCutJob: async (cutJobId: string) => {
-      if (!apiMode) {
-        setQueueJobs((current) =>
-          current.map((job) =>
-            job.queue_job_id === cutJobId && job.status === "failed"
-              ? {
-                  ...job,
-                  status: "pending",
-                  progress: 0,
-                  error_message: undefined
-                }
-              : job
-          )
-        );
-        setCutNotice("已重试失败任务 · 等待本机剪切");
-        return;
-      }
-
       try {
-        const retried = await client.retryCutJob(cutJobId);
-        const retriedQueueJob = mapApiCutJobsToQueueJobs({
-          job_count: 1,
-          jobs: [retried]
-        }, {
-          projectIndex: cutJobProjectIndex,
-          projectTitlesById: cutterProjectTitlesById(projects)
-        })[0];
-
-        if (retriedQueueJob) {
-          setQueueJobs((current) => [
-            retriedQueueJob,
-            ...current.filter((job) => job.queue_job_id !== cutJobId)
-          ]);
+        await retrySingleCutJob(cutJobId);
+        setCutNotice("已重新加入剪切 · 等待本机剪切");
+        if (apiMode) {
+          setHasSubmittedCutJobs(true);
+          await refreshQueueJobs();
+          void runRealCutPipeline();
         }
+      } catch (retryError) {
+        showCutterError(retryError, "重试剪切任务失败");
+      }
+    },
+    cancelCutJob: async (cutJobId: string) => {
+      try {
+        await cancelSingleCutJob(cutJobId);
+        setCutNotice("已取消剪辑任务");
+        if (apiMode) {
+          await refreshQueueJobs();
+        }
+      } catch (cancelError) {
+        showCutterError(cancelError, "取消剪辑任务失败");
+      }
+    },
+    batchRetryCutJobs: async (cutJobIds: readonly string[]) => {
+      const result = await executeCutQueueBatchRetry({
+        jobs: queueJobsRef.current,
+        selected_job_ids: cutJobIds,
+        retryJob: retrySingleCutJob
+      });
 
-        setCutNotice("已重试失败任务 · 等待本机剪切");
+      setCutNotice(result.message);
+
+      if (apiMode && result.processed > 0) {
         setHasSubmittedCutJobs(true);
         await refreshQueueJobs();
         void runRealCutPipeline();
-      } catch (retryError) {
-        setError(retryError instanceof Error ? retryError.message : "重试剪切任务失败");
       }
+
+      return result;
+    },
+    batchPauseCutJobs: async (cutJobIds: readonly string[]) => {
+      const result = await executeCutQueueBatchPause({
+        jobs: queueJobsRef.current,
+        selected_job_ids: cutJobIds,
+        pauseJob: cancelSingleCutJob
+      });
+
+      setCutNotice(result.message);
+
+      if (apiMode && result.processed > 0) {
+        await refreshQueueJobs();
+      }
+
+      return result;
+    },
+    batchDeleteCutJobs: async (cutJobIds: readonly string[]) => {
+      const hiddenJobIds: string[] = [];
+      const result = await executeCutQueueBatchDelete({
+        jobs: queueJobsRef.current,
+        selected_job_ids: cutJobIds,
+        cancelJob: cancelSingleCutJob,
+        hideJob: (cutJobId) => {
+          hiddenJobIds.push(cutJobId);
+        }
+      });
+
+      hideCutQueueJobs(hiddenJobIds);
+      setCutNotice(result.message);
+
+      if (apiMode && result.cancelled > 0) {
+        await refreshQueueJobs();
+      }
+
+      return result;
+    },
+    restoreHiddenCutJobs() {
+      restoreHiddenCutQueueJobs();
+      setCutNotice("已恢复显示被删除的剪切任务");
     },
     openCutOutputDirectory: async () => {
       if (!apiMode) {
@@ -3579,7 +4261,7 @@ export function CutterApp() {
         });
         setCutNotice("已打开项目视频目录");
       } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开文件目录失败");
+        showCutterError(openError, "打开文件目录失败");
       }
     },
     openLocalClipDirectory: async (localClip: LocalClip) => {
@@ -3599,7 +4281,48 @@ export function CutterApp() {
         });
         setCutNotice(localClip.project_id ? "已打开本地素材所属项目目录" : "已打开本地素材目录");
       } catch (openError) {
-        setError(openError instanceof Error ? openError.message : "打开本地素材目录失败");
+        showCutterError(openError, "打开本地素材目录失败");
+      }
+    },
+    deleteLocalClip: async (localClip: LocalClip) => {
+      if (!apiMode) {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                localClips: {
+                  ...current.localClips,
+                  local_clip_count: Math.max(0, current.localClips.local_clip_count - 1),
+                  clips: current.localClips.clips.filter((clip) => clip.local_clip_id !== localClip.local_clip_id)
+                }
+              }
+            : current
+        );
+        setLocalLibrarySelectedClipId(undefined);
+        setCutNotice("已删除本地素材");
+        return;
+      }
+
+      try {
+        await client.deleteLocalClip(localClip.local_clip_id);
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                localClips: {
+                  ...current.localClips,
+                  local_clip_count: Math.max(0, current.localClips.local_clip_count - 1),
+                  clips: current.localClips.clips.filter((clip) => clip.local_clip_id !== localClip.local_clip_id)
+                }
+              }
+            : current
+        );
+        if (localLibrarySelectedClipId === localClip.local_clip_id) {
+          setLocalLibrarySelectedClipId(undefined);
+        }
+        setCutNotice("已删除本地素材及对应文件");
+      } catch (deleteError) {
+        showCutterError(deleteError, "删除本地素材失败");
       }
     },
     setAppearanceMode: handleSetAppearanceMode,
@@ -3677,7 +4400,7 @@ export function CutterApp() {
         await refreshLocalClips();
         await refreshQueueJobs(removeCutJobsForProject(cutJobProjectIndex, projectId));
       } catch (deleteError) {
-        setError(deleteError instanceof Error ? deleteError.message : "删除项目产出失败");
+        showCutterError(deleteError, "删除项目产出失败");
       }
       return;
     }
@@ -3692,6 +4415,21 @@ export function CutterApp() {
     "本机剪辑师";
   const engineReady = Boolean(data?.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用");
   const runtimeCacheBytes = cutterRuntimeCacheBytes(data?.runtimeStatus);
+  // local_trusted deployments have no per-user credentials: logout would just
+  // re-apply the machine identity, so the account menu only targets reviewed.
+  const canLogout = apiMode && authModeStatus?.local_trusted !== true;
+  const clientVersion = resolveCutterClientVersion({
+    envClientVersion:
+      import.meta.env?.VITE_MIXLAB_CLIENT_VERSION ||
+      (isDesktopMode ? desktopAppVersionText : undefined),
+    buildCommit
+  });
+  const upgradeNotice: CapabilityUpgradeNotice | null = capabilityUpgradeNotice(
+    capabilities,
+    clientVersion
+  );
+  const verificationUiEnabled = cutVerificationUiEnabled(capabilities);
+  const releaseV2UiEnabledFlag = releaseV2UiEnabled(capabilities);
 
   if (isDesktopMode && desktopStage !== "ready") {
     if (desktopAutoStarting && desktopStage === "engine-starting") {
@@ -3764,6 +4502,16 @@ export function CutterApp() {
               engineReady={engineReady}
               currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
               cacheBytes={runtimeCacheBytes}
+              {...(canLogout
+                ? {
+                    onLogout: () => {
+                      void handleLogout(false);
+                    },
+                    onSwitchAccount: () => {
+                      void handleLogout(true);
+                    }
+                  }
+                : {})}
             />
           ) : null
         }
@@ -3771,9 +4519,92 @@ export function CutterApp() {
         workbenchClassName={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
       >
         <section className="cutter-content ml-workbench-content">
+          {upgradeNotice ? (
+            <div className="cutter-contract-notice" role="alert">
+              <div className="cutter-contract-notice-body">
+                <strong>{upgradeNotice.message}</strong>
+                <span>{upgradeNotice.remediation}</span>
+                <code>
+                  {upgradeNotice.code} · 需要 v{upgradeNotice.required_version}
+                </code>
+              </div>
+            </div>
+          ) : null}
+          {recoverableError ? (
+            <div className="cutter-recoverable-notice" role="alert">
+              <div className="cutter-recoverable-notice-body">
+                <strong>{recoverableError.message}</strong>
+                {recoverableError.remediation ? <span>{recoverableError.remediation}</span> : null}
+                <span className="cutter-recoverable-notice-meta">
+                  <code>{recoverableError.code}</code>
+                  <span>{retryabilityLabel(recoverableError.retryability)}</span>
+                </span>
+                {recoverableError.expandable ? (
+                  <details className="cutter-recoverable-notice-details">
+                    <summary>技术信息</summary>
+                    <pre>{recoverableError.technical}</pre>
+                  </details>
+                ) : null}
+              </div>
+              <Button
+                className="cutter-recoverable-notice-dismiss"
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setRecoverableNotice("");
+                  setRecoverableError(null);
+                }}
+              >
+                关闭
+              </Button>
+            </div>
+          ) : recoverableNotice ? (
+            <div className="cutter-recoverable-notice" role="alert">
+              <span>{recoverableNotice}</span>
+              <Button
+                className="cutter-recoverable-notice-dismiss"
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setRecoverableNotice("");
+                  setRecoverableError(null);
+                }}
+              >
+                关闭
+              </Button>
+            </div>
+          ) : null}
+          {data?.runtimeStatus.workspace_residue_count ? (
+            <div className="cutter-contract-notice" role="status">
+              <div className="cutter-contract-notice-body">
+                <strong>发现 {data.runtimeStatus.workspace_residue_count} 个工作区临时残留</strong>
+                <span>可在缓存管理页预览并清理；项目与已完成作品不会被删除。</span>
+                <a href={routeToHash("cache-management")}>去清理</a>
+              </div>
+            </div>
+          ) : null}
           {shouldRenderGlobalCutterError({ error, hasData: Boolean(data) }) ? (
             <InspectorPanel title="加载失败">
-              <p>{error}</p>
+              {errorPresentation ? (
+                <div className="cutter-recoverable-notice-body">
+                  <p>{errorPresentation.message}</p>
+                  {errorPresentation.remediation ? <p>{errorPresentation.remediation}</p> : null}
+                  <p className="cutter-recoverable-notice-meta">
+                    <code>{errorPresentation.code}</code>
+                    <span>{retryabilityLabel(errorPresentation.retryability)}</span>
+                  </p>
+                  {errorPresentation.expandable ? (
+                    <details className="cutter-recoverable-notice-details">
+                      <summary>技术信息</summary>
+                      <pre>{errorPresentation.technical}</pre>
+                    </details>
+                  ) : null}
+                </div>
+              ) : (
+                <p>{error}</p>
+              )}
             </InspectorPanel>
           ) : data ? (
             renderPage(
@@ -3783,6 +4614,7 @@ export function CutterApp() {
               pageQueue,
               {
                 searchQuery,
+                materialSearchMode,
                 highlightedSegmentIds,
                 highlightedHitSegments,
                 currentHitIndex: locatorCurrentHitIndex,
@@ -3790,6 +4622,8 @@ export function CutterApp() {
                 globalHitCount,
                 selectedMaterialKey,
                 materialSearchPending,
+                materialSearchLoadingMore,
+                materialSearchFailed,
                 localLibrarySelectedClipId,
                 localLibraryViewMode,
                 recentSearches:
@@ -3809,10 +4643,13 @@ export function CutterApp() {
                 orientationFilter,
                 publicLibraryOrientationFilter,
                 publicLibrarySelectedSourceVideoId,
+                publicLibraryFilenameQuery,
+                publicLibraryFilenameSearching,
                 sourceLibraryLoadingMore,
                 localClipsLoadingMore,
                 cutJobsLoadingMore,
                 cutJobsTotalCount,
+                cutTasksTab,
                 cutNotice,
                 autoRefreshCutJobs,
                 lastQueueUpdatedLabel,
@@ -3822,9 +4659,13 @@ export function CutterApp() {
                 appVersion: isDesktopMode ? desktopAppVersionText || "读取中" : undefined,
                 buildCommit,
                 runtimeEnvironment: isDesktopMode ? "Windows 桌面端" : "Web 端",
+                cacheApiClient: client,
                 selectedCutMode,
                 localWorkspacePath: isDesktopMode ? desktopConfig.local_workspace_root : undefined,
-                workspaceConfigNotice
+                workspaceConfigNotice,
+                hiddenCutJobCount: countHiddenCutJobs(queueJobs, hiddenCutJobIdsSet),
+                verificationEnabled: verificationUiEnabled,
+                releaseV2Enabled: releaseV2UiEnabledFlag
               },
               handlers
             )

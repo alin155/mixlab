@@ -1,3 +1,12 @@
+import {
+  isCapabilityTableV1,
+  type CapabilityTableV1
+} from "../../../packages/contracts/src/capabilities.ts";
+import type {
+  ContractErrorBody,
+  ErrorRetryability
+} from "../../../packages/contracts/src/errors.ts";
+
 export interface CutterApiEnvelope<T> {
   schema_version: string;
   data: T;
@@ -8,6 +17,16 @@ export interface CutterApiErrorBody {
     code?: string;
     message?: string;
   };
+  /** Contract error registry envelope v1 (may be absent on legacy servers). */
+  ok?: false;
+  error_code?: string;
+  code?: string;
+  message?: string;
+  remediation?: string;
+  retryable?: ErrorRetryability;
+  http_status?: number;
+  details?: Record<string, unknown>;
+  contract_version?: string;
 }
 
 export interface SourceVideoCard {
@@ -20,6 +39,7 @@ export interface SourceVideoCard {
   codec?: string;
   file_size?: number;
   relative_path?: string;
+  source_video_file_path?: string;
   source_folder_name?: string;
   description?: string;
   tags?: string[];
@@ -205,6 +225,26 @@ export interface CutJobPhaseTiming {
   duration_ms?: number;
 }
 
+export interface CutJobVerificationCheck {
+  check_id?: string;
+  label?: string;
+  passed?: boolean;
+  message?: string;
+}
+
+/**
+ * Optional post-cut output verification written by newer cutter engines.
+ * Older engines omit this field entirely; the UI must treat a missing/invalid
+ * value as "unverified" and never as "verified".
+ */
+export interface CutJobVerification {
+  passed: boolean;
+  expected_duration_ms?: number;
+  actual_duration_ms?: number;
+  tolerance_ms?: number;
+  checks?: CutJobVerificationCheck[];
+}
+
 export interface CutJob {
   cut_job_id: string;
   clip_list_id: string;
@@ -233,6 +273,8 @@ export interface CutJob {
   error_message?: string;
   export_clip_id?: string;
   output_file?: string;
+  cut_mode_used?: CutMode;
+  verification?: CutJobVerification;
 }
 
 export interface CutJobSubmission {
@@ -256,6 +298,12 @@ export interface OpenCutOutputDirectoryResult {
 export interface OpenCutOutputDirectoryRequest {
   project_id?: string;
   project_title?: string;
+  open?: boolean;
+}
+
+export interface OpenSourceVideoDirectoryRequest {
+  source_video_id?: string;
+  source_video_file_path?: string;
   open?: boolean;
 }
 
@@ -429,7 +477,14 @@ export interface CutterRuntimeStatus {
       size_bytes: number;
       file_count: number;
     };
+    disk_free_bytes?: number;
+    disk_total_bytes?: number;
+    disk_low?: boolean;
+    disk_unavailable_reason?: string;
   };
+  workspace_residue_count?: number;
+  workspace_residue_bytes?: number;
+  workspace_residue_reason?: string;
   source_video_preflight?: {
     status: "ready" | "checking" | "blocked" | "unavailable";
     checked_count: number;
@@ -463,6 +518,170 @@ export interface CutterRuntimeStatus {
   };
 }
 
+export interface CutterWorkspaceResidueItem {
+  id: string;
+  kind: string;
+  path: string;
+  size_bytes: number;
+  created_at?: string;
+  safe_to_delete: boolean;
+  reason?: string;
+}
+
+export interface CutterWorkspaceResidue {
+  items: CutterWorkspaceResidueItem[];
+  total_bytes: number;
+  expected_bytes: number;
+  confirm_token: string;
+}
+
+export interface CutterWorkspaceResidueCleanRequest {
+  ids: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterWorkspaceResidueCleanResult {
+  removed: string[];
+  freed_bytes: number;
+  skipped: Array<{ id: string; reason: string }>;
+  errors: Array<{ id: string; code: string; message: string; path?: string }>;
+}
+
+export interface CutterReleaseCacheReference {
+  project_id: string;
+  title: string;
+  kind: string;
+}
+
+export interface CutterReleaseCacheVersion {
+  version: string;
+  size_bytes: number;
+  last_used_at?: string;
+  referenced_by?: CutterReleaseCacheReference[];
+}
+
+export interface CutterReleaseCachePins {
+  pinned: CutterReleaseCacheVersion[];
+  unpinned: CutterReleaseCacheVersion[];
+  active_release_version?: string;
+  max_cached_releases: number;
+  expected_bytes: number;
+  confirm_token: string;
+  warnings: Array<{ code: string; message: string }>;
+}
+
+export interface CutterReleaseCacheEvictRequest {
+  versions: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterReleaseCacheEvictResult {
+  evicted: string[];
+  freed_bytes: number;
+  blocked: Array<{ version: string; reason: string; referenced_by?: CutterReleaseCacheReference[] }>;
+}
+
+export interface CutterGovernanceAuditEntry {
+  at: string;
+  operation: string;
+  targets: string[];
+  removed_count: number;
+  freed_bytes: number;
+  skipped_count: number;
+  errors: Array<{ code: string; message: string }>;
+  result: "ok" | "partial" | "failed";
+  duration_ms: number;
+}
+
+export interface CutterGovernanceAudit {
+  entries: CutterGovernanceAuditEntry[];
+  audit_error?: string;
+}
+
+export interface CutterLocalClipIntegrityReference {
+  local_clip_id: string;
+  referenced_by: Array<{ kind: string; ref_id: string; title: string }>;
+}
+
+export interface CutterLocalClipOrphan {
+  local_clip_id: string;
+  path: string;
+  size_bytes: number;
+  reason: string;
+}
+
+export interface CutterLocalClipIntegrity {
+  referenced: CutterLocalClipIntegrityReference[];
+  orphans: CutterLocalClipOrphan[];
+  total_bytes: number;
+  expected_bytes: number;
+  confirm_token: string;
+  /** fail-safe：引用索引损坏/不可读时为 true，orphans 为空且禁止 clean。 */
+  degraded: boolean;
+  warnings: Array<{ code: string; message: string }>;
+}
+
+export interface CutterLocalClipCleanRequest {
+  local_clip_ids: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterLocalClipCleanResult {
+  removed: string[];
+  freed_bytes: number;
+  skipped: Array<{ local_clip_id: string; reason: string }>;
+}
+
+export interface CutterCacheInventoryTarget {
+  id: string;
+  label: string;
+  path: string;
+  size_bytes: number;
+  file_count: number;
+  updated_at?: string;
+  writable: boolean;
+  deletable: boolean;
+  deletable_bytes: number;
+  reason?: string;
+}
+
+export interface CutterCacheInventoryProtectedItem {
+  kind: string;
+  ref_id: string;
+  title: string;
+  reason: string;
+}
+
+export interface CutterCacheInventoryWarning {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface CutterCacheInventory {
+  targets: CutterCacheInventoryTarget[];
+  protected: CutterCacheInventoryProtectedItem[];
+  warnings: CutterCacheInventoryWarning[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterCacheCleanRequest {
+  targets: string[];
+  confirm_token: string;
+  expected_bytes: number;
+}
+
+export interface CutterCacheCleanResult {
+  cleaned: string[];
+  freed_bytes: number;
+  skipped: Array<{ id: string; reason: string }>;
+  errors: Array<{ code: string; path?: string; message: string }>;
+}
+
 export interface CutterAuthHeaders {
   device_id: string;
   session_token: string;
@@ -472,17 +691,38 @@ export interface CutterApiClientInput {
   base_url: string;
   fetch?: typeof fetch;
   auth?: CutterAuthHeaders;
+  /**
+   * Called when a session-authenticated request is rejected with 401:
+   * the app layer clears the stored session and returns to the login gate.
+   */
+  on_unauthenticated?: (error: CutterApiError) => void;
 }
 
 export class CutterApiError extends Error {
   readonly name = "CutterApiError";
   readonly status: number;
   readonly code: string;
+  readonly remediation?: string;
+  readonly retryable?: ErrorRetryability;
+  readonly details?: Record<string, unknown>;
+  readonly contract_version?: string;
 
-  constructor(input: { status: number; code: string; message: string }) {
+  constructor(input: {
+    status: number;
+    code: string;
+    message: string;
+    remediation?: string;
+    retryable?: ErrorRetryability;
+    details?: Record<string, unknown>;
+    contract_version?: string;
+  }) {
     super(input.message);
     this.status = input.status;
     this.code = input.code;
+    this.remediation = input.remediation;
+    this.retryable = input.retryable;
+    this.details = input.details;
+    this.contract_version = input.contract_version;
   }
 }
 
@@ -493,21 +733,45 @@ export interface CutterApiClient {
   logoutAccount(): Promise<CutterLogoutResult>;
   changePassword(input: CutterPasswordChangeRequest): Promise<CutterPasswordChangeResult>;
   getAuthMode(): Promise<CutterAuthModeStatus>;
+  /** GET /cutter/capabilities; null means the endpoint is absent (legacy server). */
+  getCapabilities(): Promise<CapabilityTableV1 | null>;
   getLoginStatus(): Promise<CutterLoginStatus>;
   getRuntimeStatus(options?: { includeCache?: boolean }): Promise<CutterRuntimeStatus>;
-  listSourceLibrary(options?: { limit?: number; offset?: number; sourceFolderName?: string }): Promise<SourceLibraryResponse>;
+  getCacheInventory(options?: { include?: readonly string[] }): Promise<CutterCacheInventory>;
+  cleanCache(request: CutterCacheCleanRequest): Promise<CutterCacheCleanResult>;
+  getLocalClipIntegrity(): Promise<CutterLocalClipIntegrity>;
+  cleanLocalClips(request: CutterLocalClipCleanRequest): Promise<CutterLocalClipCleanResult>;
+  getGovernanceAudit(limit?: number): Promise<CutterGovernanceAudit>;
+  getWorkspaceResidue(): Promise<CutterWorkspaceResidue>;
+  cleanWorkspaceResidue(request: CutterWorkspaceResidueCleanRequest): Promise<CutterWorkspaceResidueCleanResult>;
+  getReleaseCachePins(): Promise<CutterReleaseCachePins>;
+  evictReleaseCache(request: CutterReleaseCacheEvictRequest): Promise<CutterReleaseCacheEvictResult>;
+  listSourceLibrary(options?: {
+    limit?: number;
+    offset?: number;
+    sourceFolderName?: string;
+    filenameQuery?: string;
+    folderQuery?: string;
+  }): Promise<SourceLibraryResponse>;
   listSourceFolders(): Promise<SourceFolderResponse>;
   getSourceVideoDetail(sourceVideoId: string): Promise<SourceVideoDetail>;
-  searchSourceLibrary(query: string, limit?: number, options?: { cursor?: string; sourceFolderName?: string }): Promise<SearchResponse>;
+  searchSourceLibrary(
+    query: string,
+    limit?: number,
+    options?: { cursor?: string; sourceFolderName?: string; folderQuery?: string }
+  ): Promise<SearchResponse>;
   listLocalClips(options?: { limit?: number; offset?: number }): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
+  deleteLocalClip(localClipId: string): Promise<{ local_clip_id: string; deleted: boolean }>;
   createLocalClip(request: CreateLocalClipRequest): Promise<LocalClip>;
   createClipList(request: CreateClipListRequest): Promise<ClipList>;
   submitCutJobs(request: SubmitCutJobsRequest): Promise<CutJobSubmission>;
   listCutJobs(options?: { limit?: number; offset?: number }): Promise<CutJobCatalog>;
   runNextCutJob(): Promise<CutJob | null>;
   retryCutJob(cutJobId: string): Promise<CutJob>;
+  cancelCutJob(cutJobId: string): Promise<CutJob>;
   openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
+  openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
   deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
 }
@@ -550,19 +814,76 @@ async function requestEnvelope<T>(
   const body = await readJson<CutterApiEnvelope<T> | CutterApiErrorBody>(response);
 
   if (!response.ok) {
-    const errorBody = body as CutterApiErrorBody;
+    const errorBody = body as CutterApiErrorBody & Partial<ContractErrorBody>;
+    const legacyCode = errorBody.error?.code;
+    const contractCode = typeof errorBody.error_code === "string" && errorBody.error_code.trim()
+      ? errorBody.error_code.trim()
+      : typeof errorBody.code === "string" && errorBody.code.trim()
+        ? errorBody.code.trim()
+        : "";
+    const code = contractCode || legacyCode || "api_error";
+    const message = legacyCode
+      ? errorBody.error?.message ?? `Request failed with status ${response.status}`
+      : typeof errorBody.message === "string" && errorBody.message.trim()
+        ? errorBody.message
+        : `Request failed with status ${response.status}`;
     throw new CutterApiError({
       status: response.status,
-      code: errorBody.error?.code ?? "api_error",
-      message: errorBody.error?.message ?? `Request failed with status ${response.status}`
+      code,
+      message,
+      ...(typeof errorBody.remediation === "string" ? { remediation: errorBody.remediation } : {}),
+      ...(errorBody.retryable ? { retryable: errorBody.retryable } : {}),
+      ...(errorBody.details && typeof errorBody.details === "object" ? { details: errorBody.details } : {}),
+      ...(typeof errorBody.contract_version === "string"
+        ? { contract_version: errorBody.contract_version }
+        : {})
     });
   }
 
   return (body as CutterApiEnvelope<T>).data;
 }
 
+function requestHasSessionToken(init?: RequestInit): boolean {
+  if (!init?.headers) {
+    return false;
+  }
+
+  try {
+    return new Headers(init.headers).has("X-MixLab-Session-Token");
+  } catch {
+    return false;
+  }
+}
+
+async function readUnauthorizedError(response: Response): Promise<CutterApiError> {
+  try {
+    const body = (await response.clone().json()) as CutterApiErrorBody & Partial<ContractErrorBody>;
+    return new CutterApiError({
+      status: response.status,
+      code: body.error_code ?? body.code ?? body.error?.code ?? "login_required",
+      message: body.message ?? body.error?.message ?? "登录已失效，请重新登录。",
+      ...(typeof body.remediation === "string" ? { remediation: body.remediation } : {})
+    });
+  } catch {
+    return new CutterApiError({
+      status: response.status,
+      code: "login_required",
+      message: "登录已失效，请重新登录。"
+    });
+  }
+}
+
 export function createCutterApiClient(input: CutterApiClientInput): CutterApiClient {
-  const fetchImpl = input.fetch ?? fetch;
+  const rawFetchImpl = input.fetch ?? fetch;
+  const fetchImpl: typeof fetch = async (resource, init) => {
+    const response = await rawFetchImpl(resource, init);
+
+    if (response.status === 401 && input.on_unauthenticated && requestHasSessionToken(init)) {
+      input.on_unauthenticated(await readUnauthorizedError(response));
+    }
+
+    return response;
+  };
   const protectedHeaders = authHeaders(input.auth);
 
   return {
@@ -653,6 +974,28 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    async getCapabilities() {
+      try {
+        const table = await requestEnvelope<unknown>(
+          fetchImpl,
+          appendPath(input.base_url, "/cutter/capabilities"),
+          { headers: protectedHeaders }
+        );
+        return isCapabilityTableV1(table) ? table : null;
+      } catch (capabilityError) {
+        if (
+          capabilityError instanceof CutterApiError &&
+          (capabilityError.status === 404 ||
+            capabilityError.status === 405 ||
+            capabilityError.status === 501)
+        ) {
+          // Legacy engines do not expose capabilities: degrade to old behaviour.
+          return null;
+        }
+        throw capabilityError;
+      }
+    },
+
     getLoginStatus() {
       return requestEnvelope<CutterLoginStatus>(
         fetchImpl,
@@ -678,6 +1021,96 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    getCacheInventory(options) {
+      const params = new URLSearchParams();
+      if (options?.include && options.include.length > 0) {
+        params.set("include", options.include.join(","));
+      }
+      const query = params.toString();
+      return requestEnvelope<CutterCacheInventory>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cache/inventory${query ? `?${query}` : ""}`),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    cleanCache(request) {
+      return requestEnvelope<CutterCacheCleanResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/cache/clean"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    getLocalClipIntegrity() {
+      return requestEnvelope<CutterLocalClipIntegrity>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/local-clips/integrity"),
+        {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    cleanLocalClips(request) {
+      return requestEnvelope<CutterLocalClipCleanResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/local-clips/clean"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    getGovernanceAudit(limit = 50) {
+      const params = new URLSearchParams({ limit: String(limit) });
+      return requestEnvelope<CutterGovernanceAudit>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/governance/audit?" + params.toString()),
+        { headers: protectedHeaders }
+      );
+    },
+
+    getWorkspaceResidue() {
+      return requestEnvelope<CutterWorkspaceResidue>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/workspace/residue"),
+        { headers: protectedHeaders }
+      );
+    },
+
+    cleanWorkspaceResidue(request) {
+      return requestEnvelope<CutterWorkspaceResidueCleanResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/workspace/residue/clean"),
+        { method: "POST", headers: jsonHeaders(input.auth), body: JSON.stringify(request) }
+      );
+    },
+
+    getReleaseCachePins() {
+      return requestEnvelope<CutterReleaseCachePins>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/release-cache/pins"),
+        { headers: protectedHeaders }
+      );
+    },
+
+    evictReleaseCache(request) {
+      return requestEnvelope<CutterReleaseCacheEvictResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/release-cache/evict"),
+        { method: "POST", headers: jsonHeaders(input.auth), body: JSON.stringify(request) }
+      );
+    },
+
     listSourceLibrary(options) {
       const params = new URLSearchParams();
       if (options?.limit) {
@@ -688,6 +1121,12 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       }
       if (options?.sourceFolderName) {
         params.set("source_folder_name", options.sourceFolderName);
+      }
+      if (options?.filenameQuery) {
+        params.set("filename_query", options.filenameQuery);
+      }
+      if (options?.folderQuery) {
+        params.set("folder_query", options.folderQuery);
       }
       const query = params.toString();
       return requestEnvelope<SourceLibraryResponse>(
@@ -730,6 +1169,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       if (options.sourceFolderName) {
         params.set("source_folder_name", options.sourceFolderName);
       }
+      if (options.folderQuery) {
+        params.set("folder_query", options.folderQuery);
+      }
       return requestEnvelope<SearchResponse>(
         fetchImpl,
         appendPath(input.base_url, `/cutter/source-search?${params.toString()}`),
@@ -762,6 +1204,17 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
         fetchImpl,
         appendPath(input.base_url, `/cutter/local-clips/${encodeURIComponent(localClipId)}`),
         {
+          headers: protectedHeaders
+        }
+      );
+    },
+
+    deleteLocalClip(localClipId: string) {
+      return requestEnvelope<{ local_clip_id: string; deleted: boolean }>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/local-clips/${encodeURIComponent(localClipId)}`),
+        {
+          method: "DELETE",
           headers: protectedHeaders
         }
       );
@@ -861,10 +1314,33 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       );
     },
 
+    cancelCutJob(cutJobId: string) {
+      return requestEnvelope<CutJob>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/cancel`),
+        {
+          method: "POST",
+          headers: protectedHeaders
+        }
+      );
+    },
+
     openCutOutputDirectory(request = {}) {
       return requestEnvelope<OpenCutOutputDirectoryResult>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/workspace/open-export-directory"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {
+      return requestEnvelope<OpenCutOutputDirectoryResult>(
+        fetchImpl,
+        appendPath(input.base_url, "/cutter/source-videos/open-directory"),
         {
           method: "POST",
           headers: jsonHeaders(input.auth),

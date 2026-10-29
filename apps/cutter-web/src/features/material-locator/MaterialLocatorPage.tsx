@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type UIEvent,
   type MouseEvent as ReactMouseEvent,
   type SyntheticEvent
@@ -25,7 +26,9 @@ import {
 } from "../../api.ts";
 import {
   buildMaterialLocatorSections,
+  MATERIAL_SCOPE_FOLDER_VALUE,
   type MaterialLocatorResult,
+  type MaterialSearchMode,
   type MaterialSource,
   type MaterialSearchSourceFilter
 } from "../../state/material-locator.ts";
@@ -36,6 +39,7 @@ import {
 } from "../../state/video-orientation.ts";
 import {
   continuousTranscriptSegments,
+  isSingleSegmentClick,
   shouldSuppressTranscriptClickAfterMouseUp
 } from "../../state/transcript-selection.ts";
 import {
@@ -45,30 +49,28 @@ import {
 } from "../../state/transcript-playback.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import type { CutMode } from "../../state/cut-list.ts";
+import {
+  codePointLength,
+  codePointSlice,
+  domRangePrefixCodePointOffset,
+  normalizeCodePointOffset,
+  timeAtCodePointOffset
+} from "../../state/text-offsets.ts";
 
 function transcriptTextLength(text: string): number {
-  return Array.from(text).length;
+  return codePointLength(text);
 }
 
 function clampTranscriptCharOffset(offset: number | undefined, text: string, fallback: number): number {
-  if (typeof offset !== "number" || !Number.isFinite(offset)) {
-    return fallback;
-  }
-
-  return Math.max(0, Math.min(Math.round(offset), transcriptTextLength(text)));
+  return normalizeCodePointOffset(offset, text, fallback);
 }
 
 function sliceTranscriptText(text: string, start: number, end: number): string {
-  return Array.from(text).slice(start, end).join("");
+  return codePointSlice(text, start, end);
 }
 
 function transcriptTimeAtCharOffset(segment: TranscriptSegment, offset: number): number {
-  const length = transcriptTextLength(segment.text);
-  if (length <= 0) {
-    return segment.begin_ms;
-  }
-
-  return Math.round(segment.begin_ms + (segment.end_ms - segment.begin_ms) * (offset / length));
+  return timeAtCodePointOffset(segment, offset);
 }
 
 function selectedBeginMs(
@@ -188,6 +190,25 @@ function selectedTranscriptText(
         .trim()
     : segments.map((segment) => segment.text.trim()).filter(Boolean).join(" ");
   return text;
+}
+
+const PUBLIC_LIBRARY_SOURCE_PATH_PREFIX = "/Volumes/MixLab/PublicLibrary/source-videos/";
+const PUBLIC_LIBRARY_SOURCE_PATH_SEGMENT = "/source-videos/";
+
+function normalizeMaterialPath(pathValue: string): string {
+  return pathValue.replace(/\\/g, "/").trim();
+}
+
+function materialDisplayPath(pathValue: string): string {
+  const normalizedPath = normalizeMaterialPath(pathValue);
+  if (normalizedPath.startsWith(PUBLIC_LIBRARY_SOURCE_PATH_PREFIX)) {
+    return normalizedPath.slice(PUBLIC_LIBRARY_SOURCE_PATH_PREFIX.length) || normalizedPath;
+  }
+  const sourcePathIndex = normalizedPath.indexOf(PUBLIC_LIBRARY_SOURCE_PATH_SEGMENT);
+
+  return sourcePathIndex >= 0
+    ? normalizedPath.slice(sourcePathIndex + PUBLIC_LIBRARY_SOURCE_PATH_SEGMENT.length) || normalizedPath
+    : normalizedPath;
 }
 
 function splitTextByQuery(
@@ -433,6 +454,7 @@ export function materialLocatorCandidateSummary(input: {
   hitCount: number;
   isSearching: boolean;
   hasMoreSearchResults: boolean;
+  searchMode?: MaterialSearchMode;
 }): string {
   if (!input.hasActiveQuery) {
     return "等待搜索";
@@ -450,6 +472,10 @@ export function materialLocatorCandidateSummary(input: {
     ? "加载中"
     : "完成";
 
+  if (input.searchMode === "folder") {
+    return `已载入${input.candidateCount}个视频 · ${loadingLabel}`;
+  }
+
   return `已载入${input.candidateCount}条 · 命中${input.hitCount}处 · ${loadingLabel}`;
 }
 
@@ -457,17 +483,54 @@ export function materialLocatorSectionFooterLabel(input: {
   sectionKey: MaterialSource;
   itemCount: number;
   isSearching: boolean;
+  isLoadingMore?: boolean;
   hasMoreSearchResults: boolean;
 }): string {
-  if (input.sectionKey === "public" && input.isSearching) {
+  if (input.sectionKey !== "public") {
+    return `已显示全部（${input.itemCount}）`;
+  }
+
+  // 「继续加载中」只属于翻页；首次检索显示「首批搜索中」，避免被误读成
+  // 分页一直卡在加载中（B3）。空闲但仍有 cursor 时才提示可加载更多。
+  if (input.isLoadingMore) {
     return `继续加载中（已显示 ${input.itemCount}）`;
   }
 
-  if (input.sectionKey === "public" && input.hasMoreSearchResults) {
+  if (input.isSearching) {
+    return `首批搜索中（已显示 ${input.itemCount}）`;
+  }
+
+  if (input.hasMoreSearchResults) {
     return `加载更多（已显示 ${input.itemCount}）`;
   }
 
   return `已显示全部（${input.itemCount}）`;
+}
+
+/**
+ * B4: surface a visible, stable degradation notice when the search backend is
+ * running in a fallback mode (e.g. searchd unavailable -> sqlite-index).
+ */
+export interface MaterialLocatorBackendStatus {
+  mode: string;
+  preferred_mode: string;
+  label: string;
+  degraded: boolean;
+  message?: string;
+}
+
+export function materialLocatorBackendNotice(backend?: MaterialLocatorBackendStatus): string {
+  if (!backend) {
+    return "";
+  }
+
+  const degraded = backend.degraded || backend.mode !== backend.preferred_mode;
+  if (!degraded) {
+    return "";
+  }
+
+  const detail = backend.message?.trim();
+  return `已回退到${backend.label}（searchd 不可用）${detail ? `：${detail}` : ""}`;
 }
 
 function shouldIgnoreSelectionShortcutTarget(target: EventTarget | null): boolean {
@@ -523,6 +586,7 @@ export function MaterialLocatorPage({
   localClips,
   search,
   query,
+  searchMode = "content",
   sourceFilter,
   sourceFolderFilter = "",
   sourceFolders = [],
@@ -538,23 +602,30 @@ export function MaterialLocatorPage({
   globalHitCount,
   selectedMaterialKey,
   isSearching = false,
+  isLoadingMore = false,
+  searchFailed = false,
+  backendNotice = "",
   cutNotice = "",
   queue,
   onSearch,
-  onSetSourceFolderFilter,
+  onSetMaterialScope,
   onSelectMaterial,
   onSelectTranscriptRange,
   onSelectTranscriptTextRange,
+  onSelectTranscriptSegment,
   onNavigateHit,
   onLoadMoreSearchResults,
   onCutSelection,
+  onAddToCutList,
   onCancelSelection,
-  onOpenCutOutputDirectory
+  onOpenCutOutputDirectory,
+  onRetrySearch
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
   search: SearchResponse;
   query: string;
+  searchMode?: MaterialSearchMode;
   sourceFilter: MaterialSearchSourceFilter;
   sourceFolderFilter?: string;
   sourceFolders?: readonly SourceFolderOption[];
@@ -570,13 +641,16 @@ export function MaterialLocatorPage({
   globalHitCount?: number;
   selectedMaterialKey?: string;
   isSearching?: boolean;
+  isLoadingMore?: boolean;
+  searchFailed?: boolean;
+  backendNotice?: string;
   recentSearches?: readonly MaterialSearchHistoryItem[];
   cutNotice?: string;
   searchStatus?: MaterialLocatorSearchStatus;
   queue: readonly CutQueueJob[];
   cutMode?: CutMode;
   onSearch?: (query: string) => void;
-  onSetSourceFolderFilter?: (folderName: string) => void;
+  onSetMaterialScope?: (scope: string) => void;
   onSelectMaterial?: (result: MaterialLocatorResult) => void;
   onSelectTranscriptRange?: (startSegmentId: string, endSegmentId: string) => void;
   onSelectTranscriptTextRange?: (
@@ -585,15 +659,19 @@ export function MaterialLocatorPage({
     endSegmentId: string,
     endCharOffset: number
   ) => void;
+  onSelectTranscriptSegment?: (segmentId: string) => void;
   onNavigateHit?: (direction: "previous" | "next") => void;
   onLoadMoreSearchResults?: () => void;
   onCutSelection?: () => void;
+  onAddToCutList?: () => void;
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
+  onRetrySearch?: () => void;
   onSetCutMode?: (mode: CutMode) => void;
 }) {
   const sections = buildMaterialLocatorSections({
     query,
+    searchMode,
     sourceFilter,
     orientationFilter,
     localClips,
@@ -601,6 +679,7 @@ export function MaterialLocatorPage({
     search
   });
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
+  const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
   const hasActiveQuery = query.trim().length > 0;
   const hasFocusedMaterial = hasActiveQuery && Boolean(selectedMaterialKey);
   const focusedDetail = hasFocusedMaterial ? selectedDetail : undefined;
@@ -655,6 +734,20 @@ export function MaterialLocatorPage({
   const focusedMaterial = sections
     .flatMap((section) => section.items)
     .find((item) => `${item.source}:${item.id}` === selectedMaterialKey);
+  const focusedVideoPath = focusedDetail
+    ? focusedDetail.source_video_file_path || focusedDetail.relative_path || ""
+    : "";
+  const focusedVideoFullPath = focusedVideoPath ? normalizeMaterialPath(focusedVideoPath) : "";
+  const focusedVideoDisplayPath = focusedVideoPath ? materialDisplayPath(focusedVideoPath) : "";
+  const focusedMaterialPathKey = focusedMaterial && focusedVideoFullPath
+    ? `${focusedMaterial.source}:${focusedMaterial.id}:${focusedVideoFullPath}`
+    : "";
+  const [visibleMaterialPathKey, setVisibleMaterialPathKey] = useState<string | undefined>();
+  const showFocusedMaterialPath = Boolean(
+    focusedVideoFullPath &&
+    focusedMaterialPathKey &&
+    visibleMaterialPathKey === focusedMaterialPathKey
+  );
   const focusedMaterialHitCount = focusedMaterial?.hit_count ?? highlightedSegmentIds.length;
   const isPreviewLoading = hasActiveQuery && !isSearching && candidateCount > 0 && !focusedDetail;
   const hasHitNavigation = hitCount > 0;
@@ -669,7 +762,8 @@ export function MaterialLocatorPage({
     candidateCount,
     hitCount: candidateHitCount,
     isSearching,
-    hasMoreSearchResults
+    hasMoreSearchResults,
+    searchMode
   });
   const recentQueue = queue.slice(0, 5);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -729,7 +823,7 @@ export function MaterialLocatorPage({
   const hasSelectedTextRange = hasSelectedText &&
     typeof selectedStartCharOffset === "number" &&
     typeof selectedEndCharOffset === "number";
-  const showFloatingSelectionAction = Boolean(focusedDetail && hasSelectedTextRange && selectionBarAnchor);
+  const showFloatingSelectionAction = Boolean(focusedDetail && hasSelectedText && selectionBarAnchor);
   const selectedRangeBeginMs = selectedBeginMs(selectedSegments, selectedStartCharOffset);
   const selectedRangeEndMs = selectedEndMs(selectedSegments, selectedEndCharOffset);
   const dragPreviewIds = new Set(dragPreviewSegmentIds);
@@ -764,7 +858,9 @@ export function MaterialLocatorPage({
 
     return {
       segmentId,
-      charOffset: range.toString().length
+      // DOM gives UTF-16 code units; every downstream selection/time helper
+      // works in code points, so convert once at the DOM boundary (CW-02).
+      charOffset: domRangePrefixCodePointOffset(range.toString())
     };
   }
 
@@ -936,6 +1032,43 @@ export function MaterialLocatorPage({
     );
   }
 
+  function selectWholeSegment(segmentId: string) {
+    const segment = focusedDetail?.transcript.segments.find(
+      (candidate) => candidate.segment_id === segmentId
+    );
+    if (!segment) {
+      return;
+    }
+
+    pauseSelectionPreview();
+    seekToSegment(segment);
+
+    const node = segmentRefs.current.get(segmentId);
+    const rect = node?.getBoundingClientRect();
+    const left = rect
+      ? Math.min(Math.max(rect.left + rect.width / 2, 220), window.innerWidth - 220)
+      : Math.round(window.innerWidth / 2);
+    setSelectionBarAnchor({ left, top: rect ? Math.max(88, rect.top - 8) : 120 });
+    onSelectTranscriptSegment?.(segmentId);
+  }
+
+  function handleSegmentKeyDown(
+    event: ReactKeyboardEvent<HTMLSpanElement>,
+    segment: TranscriptSegment
+  ) {
+    if (event.key !== "Enter" || event.defaultPrevented) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button, a, input, textarea, select")) {
+      return;
+    }
+
+    event.preventDefault();
+    selectWholeSegment(segment.segment_id);
+  }
+
   function handleTranscriptMouseUp(event: ReactMouseEvent<HTMLDivElement>) {
     if (!focusedDetail) {
       return;
@@ -988,7 +1121,11 @@ export function MaterialLocatorPage({
       setSelectionBarAnchor(floatingAnchorFromEvent(event));
       playSegmentsPreview(draggedSegments);
       onSelectTranscriptRange?.(dragStartSegmentId, dragEndSegmentId ?? dragStartSegmentId);
+    } else if (isSingleSegmentClick(dragStartSegmentId, dragEndSegmentId)) {
+      // Single click on a sentence row: select the whole sentence and seek.
+      selectWholeSegment(dragStartSegmentId);
     }
+
     dragStartRef.current = null;
     dragEndRef.current = null;
     setDragPreviewSegmentIds([]);
@@ -1027,6 +1164,13 @@ export function MaterialLocatorPage({
     onCutSelection?.();
   }
 
+  function handleAddToCutList() {
+    pauseSelectionPreview();
+    setSelectionBarAnchor(null);
+    setTimeSelectionStartSegmentId(undefined);
+    onAddToCutList?.();
+  }
+
   useEffect(() => {
     if (!hasSelectedTextRange) {
       setSelectionBarAnchor(null);
@@ -1036,6 +1180,10 @@ export function MaterialLocatorPage({
   useEffect(() => {
     setTimeSelectionStartSegmentId(undefined);
   }, [selectedMaterialKey]);
+
+  useEffect(() => {
+    setVisibleMaterialPathKey(undefined);
+  }, [focusedMaterialPathKey]);
 
   useEffect(() => {
     if (!timeSelectionStartSegmentId) {
@@ -1214,30 +1362,29 @@ export function MaterialLocatorPage({
         <section className="cutter-locator-command ml-command-row ml-split-workbench-command" aria-label="素材搜索">
           <div className="cutter-locator-command-header ml-command-row-header ml-command-row-header--source-filter">
             <SearchBox
-              aria-label="搜索文案关键词或粘贴爆款文案"
+              aria-label={searchMode === "folder" ? "搜索文件夹名称" : "搜索文案关键词、素材文件名或粘贴爆款文案"}
               buttonLabel="搜索"
               className="cutter-locator-search-form ml-command-row-form"
               defaultValue={query}
-              key={query}
+              key={`${searchMode}:${query}`}
               name="query"
               onSubmit={(value) => onSearch?.(value)}
-              placeholder="搜索文案关键词或粘贴爆款文案"
+              placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索文案关键词、素材文件名或粘贴爆款文案"}
             />
-            {sourceFolderOptions.length > 0 ? (
-              <select
-                aria-label="按老师筛选"
-                className="cutter-source-folder-select ml-field-select"
-                value={sourceFolderFilter}
-                onChange={(event) => onSetSourceFolderFilter?.(event.currentTarget.value)}
-              >
-                <option value="">全部老师</option>
-                {sourceFolderOptions.map((folder) => (
-                  <option key={folder.name} value={folder.name}>
-                    {folder.name}（{folder.count}）
-                  </option>
-                ))}
-              </select>
-            ) : null}
+            <select
+              aria-label="素材范围"
+              className="cutter-source-folder-select ml-field-select"
+              value={materialScopeValue}
+              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+            >
+              <option value="">全部素材</option>
+              {sourceFolderOptions.map((folder) => (
+                <option key={folder.name} value={folder.name}>
+                  {folder.name}（{folder.count}）
+                </option>
+              ))}
+              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+            </select>
           </div>
         </section>
 
@@ -1247,18 +1394,34 @@ export function MaterialLocatorPage({
                 <div className="ml-list-panel-heading">
                   <h2 className="ml-section-title ml-section-title--dense">候选素材</h2>
                   <span className="ml-section-meta" aria-live="polite">{candidateSummaryLabel}</span>
+                  {backendNotice ? (
+                    <span className="ml-section-meta cutter-locator-backend-notice" role="status">
+                      {backendNotice}
+                    </span>
+                  ) : null}
                 </div>
               </header>
               <div className="cutter-locator-results ml-pane-scroll">
+                {searchFailed && !isSearching ? (
+                  <div className="cutter-locator-search-error ml-empty-panel ml-empty-panel--plain" role="alert">
+                    <strong>搜索失败</strong>
+                    <span>本机搜索服务可能暂时不可用，可重试或稍后再试。</span>
+                    {onRetrySearch ? (
+                      <Button type="button" onClick={onRetrySearch} size="sm" variant="secondary">
+                        重新搜索
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {!hasActiveQuery ? (
                   <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
-                    <strong>先搜索文案</strong>
-                    <span>输入关键词或粘贴文案后，系统会列出可选素材。</span>
+                    <strong>{searchMode === "folder" ? "先搜索文件夹" : "先搜索文案"}</strong>
+                    <span>{searchMode === "folder" ? "输入课程文件夹名称后，系统会列出该文件夹下的视频。" : "输入关键词或粘贴文案后，系统会列出可选素材。"}</span>
                   </div>
                 ) : isSearching && sections.length === 0 ? (
                   <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
-                    <strong>正在匹配文案</strong>
-                    <span>长文案会跨句检索，结果返回前不会判定为无命中。</span>
+                    <strong>{searchMode === "folder" ? "正在查找文件夹" : "正在匹配文案"}</strong>
+                    <span>{searchMode === "folder" ? "只检查素材目录路径，不会扫描完整文案。" : "长文案会跨句检索，结果返回前不会判定为无命中。"}</span>
                   </div>
                 ) : sections.length === 0 ? (
                   <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
@@ -1303,7 +1466,7 @@ export function MaterialLocatorPage({
                       {section.key === "public" && canLoadMoreSearchResults ? (
                         <Button
                           className="cutter-locator-load-more ml-list-footer-action"
-                          disabled={isSearching}
+                          disabled={isSearching || isLoadingMore}
                           onClick={() => onLoadMoreSearchResults?.()}
                           size="sm"
                           type="button"
@@ -1313,6 +1476,7 @@ export function MaterialLocatorPage({
                             sectionKey: section.key,
                             itemCount: section.items.length,
                             isSearching,
+                            isLoadingMore,
                             hasMoreSearchResults
                           })}
                         </Button>
@@ -1322,6 +1486,7 @@ export function MaterialLocatorPage({
                             sectionKey: section.key,
                             itemCount: section.items.length,
                             isSearching,
+                            isLoadingMore,
                             hasMoreSearchResults
                           })}
                         </span>
@@ -1341,7 +1506,14 @@ export function MaterialLocatorPage({
             >
               <header className="ml-transcript-panel-header">
                 <div className="cutter-transcript-heading ml-transcript-heading">
-                  <h2 className="ml-section-title ml-section-title--dense">视频文案</h2>
+                  <div className="ml-list-panel-heading">
+                    <h2 className="ml-section-title ml-section-title--dense">视频文案</h2>
+                    {focusedVideoDisplayPath ? (
+                      <span className="ml-section-meta" title={focusedVideoDisplayPath}>
+                        {focusedVideoDisplayPath}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="cutter-hit-navigation ml-transcript-actions" aria-label="命中文案切换">
                     <Button
                       className="cutter-hit-nav-button"
@@ -1402,8 +1574,11 @@ export function MaterialLocatorPage({
                       data-segment-id={segment.segment_id}
                       key={segment.segment_id}
                       ref={(node) => setSegmentRef(segment.segment_id, node)}
+                      tabIndex={0}
+                      aria-label={`选择第 ${transcriptSegmentOrdinal(segment, absoluteIndex)} 句`}
                       onMouseDown={() => handleSegmentMouseDown(segment)}
                       onMouseEnter={() => handleSegmentMouseEnter(segment)}
+                      onKeyDown={(event) => handleSegmentKeyDown(event, segment)}
                     >
                       <button
                         aria-label={`${formatDuration(segment.begin_ms)} 作为选区时间点`}
@@ -1485,6 +1660,17 @@ export function MaterialLocatorPage({
                   >
                     剪切这段
                   </Button>
+                  {onAddToCutList ? (
+                    <Button
+                      className="cutter-floating-add-to-cut-list-button"
+                      type="button"
+                      onClick={handleAddToCutList}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      加入待剪清单
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </section>
@@ -1553,7 +1739,7 @@ export function MaterialLocatorPage({
             </section>
 
             <section className="cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail" aria-label="选区导出">
-              <header className="ml-pane-header">
+              <header className="ml-pane-header ml-pane-header--split">
                 <div>
                   <h2 className="ml-section-title ml-section-title--dense">选区信息</h2>
                   <span className="ml-section-meta">
@@ -1562,8 +1748,24 @@ export function MaterialLocatorPage({
                       : "暂无选区"}
                   </span>
                 </div>
+                {focusedMaterial && focusedVideoFullPath ? (
+                  <Button
+                    className="cutter-open-material-folder-button"
+                    onClick={() => setVisibleMaterialPathKey(focusedMaterialPathKey)}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    查看文件目录
+                  </Button>
+                ) : null}
               </header>
               <div className="cutter-locator-cut-selection ml-pane-body">
+                {showFocusedMaterialPath ? (
+                  <div className="cutter-material-path-reveal ml-path-reveal" title={focusedVideoFullPath}>
+                    {focusedVideoFullPath}
+                  </div>
+                ) : null}
                 <div className="cutter-locator-selected-copy ml-selected-copy">
                   <p>{selectedText || "暂无选区"}</p>
                 </div>

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, stat, truncate, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,9 +9,17 @@ import {
   writeClipList
 } from "./index.ts";
 import {
+  acquireWorkspaceLease,
+  cancelCutJob,
   getCutJob,
+  invalidateCutJobCache,
   listCutJobs,
+  pinCachePath,
+  pruneCutTempCache,
   readCutTempCacheStatus,
+  readWorkspaceLease,
+  recoverInterruptedCutJobs,
+  recoverInterruptedCutJobsIfLeased,
   retryCutJob,
   runCutJob,
   runNextCutJob,
@@ -219,8 +227,13 @@ test("submits cut-list rows to pending jobs and runs the oldest job to an export
   );
   assert.equal(localSourceManifest.title, "1-现金流混剪-01_现金流");
   assert.equal(localSourceManifest.relative_path, ".mixlab-library/videos/E000001/source.mp4");
-  assert.equal(localSourceManifest.duration_ms, 4200);
+  // Round2 CUT-14：无实测 probe 时 duration 明确 unknown（0 + 标记），不再用请求时长冒充。
+  assert.equal(localSourceManifest.duration_ms, 0);
+  assert.equal(localSourceManifest.duration_unknown, true);
+  assert.equal(localSourceManifest.duration_source, "unknown");
   assert.equal(localSourceManifest.width, 1920);
+  assert.equal(localSourceManifest.visual_metadata_source, "source_manifest");
+  assert.equal(localSourceManifest.transcript_text_scope, "exact_or_selected");
   assert.equal(localSourceManifest.cover_path, ".mixlab-library/videos/E000001/cover.jpg");
 
   const localTranscript = JSON.parse(
@@ -1057,6 +1070,8 @@ test("marks failed jobs with error message and continues to later pending jobs",
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
+      // 区间边界契约（CUT-P0-2）要求实测源时长，否则在 preflight 阶段拒绝。
+      duration_ms: 40_000,
       source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path)
     }),
     cut_runner: async () => {
@@ -1075,6 +1090,8 @@ test("marks failed jobs with error message and continues to later pending jobs",
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
+      // 区间边界契约（CUT-P0-2）要求实测源时长。
+      duration_ms: 40_000,
       source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path)
     }),
     cut_runner: async (input) => {
@@ -1135,6 +1152,8 @@ test("retries failed cut jobs by returning them to pending", async () => {
       source_video_id: job.source_video_id,
       title: job.source_title,
       relative_path: job.source_relative_path,
+      // 区间边界契约（CUT-P0-2）要求实测源时长，否则在 preflight 阶段拒绝。
+      duration_ms: 40_000,
       source_video_file_path: await writeLibrarySource(libraryRoot, job.source_relative_path)
     }),
     cut_runner: async () => {
@@ -1176,7 +1195,9 @@ test("retry rejects non-failed cut jobs", async () => {
         cut_job_id: submission.jobs[0]!.cut_job_id,
         now: "2026-05-04T10:01:00.000Z"
       }),
-    /only failed cut jobs can be retried/
+    (error: unknown) =>
+      (error as { code?: string }).code === "cut_job_not_retryable" &&
+      /只有失败、已取消或已完成但输出校验未通过的任务可以复剪/.test((error as Error).message)
   );
 });
 
@@ -1196,4 +1217,1087 @@ test("returns null when no pending cut job exists", async () => {
   });
 
   assert.equal(result, null);
+});
+
+// --- CUT-P0 修复新增契约测试（输出验收 / 区间边界 / copy 关键帧 / 超时恢复） -----
+
+type LocalCutMode = "copy" | "smart" | "precise";
+
+async function makeSingleClipList(
+  workspaceRoot: string,
+  input: {
+    begin_ms: number;
+    end_ms: number;
+    cut_mode?: LocalCutMode;
+    title?: string;
+    source_video_id?: string;
+    source_relative_path?: string;
+  }
+) {
+  return writeClipList({
+    workspace_root: workspaceRoot,
+    library_id: "lib_main_001",
+    title: input.title ?? "输出验收",
+    items: [
+      {
+        source_video_id: input.source_video_id ?? "V000001",
+        source_title: "01_现金流",
+        source_relative_path: input.source_relative_path ?? "source-videos/01_现金流.mp4",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: input.begin_ms,
+        end_ms: input.end_ms,
+        selected_text: "现金流，是企业的血液。",
+        cut_mode: input.cut_mode ?? "smart"
+      }
+    ],
+    now: "2026-05-02T10:00:00Z"
+  });
+}
+
+async function writeRawCutJobFile(
+  workspaceRoot: string,
+  input: {
+    cut_job_id: string;
+    begin_ms: number;
+    end_ms: number;
+    cut_mode?: LocalCutMode;
+    source_video_id?: string;
+    status?: string;
+    created_at?: string;
+    extra?: Record<string, unknown>;
+  }
+): Promise<void> {
+  const jobDir = path.join(workspaceRoot, "clip-jobs");
+  await mkdir(jobDir, { recursive: true });
+  const job = {
+    schema_version: "1.0",
+    cut_job_id: input.cut_job_id,
+    clip_list_id: "CL20260502-0001",
+    clip_list_item_id: "CLI000001",
+    library_id: "lib_main_001",
+    source_video_id: input.source_video_id ?? "V000001",
+    source_title: "01_现金流",
+    source_relative_path: "source-videos/01_现金流.mp4",
+    start_segment_id: "V000001-S000001",
+    end_segment_id: "V000001-S000001",
+    begin_ms: input.begin_ms,
+    end_ms: input.end_ms,
+    selected_text: "现金流，是企业的血液。",
+    cut_mode: input.cut_mode ?? "smart",
+    status: input.status ?? "pending",
+    current_phase: "queue_wait",
+    created_at: input.created_at ?? "2026-05-02T10:00:00Z",
+    updated_at: input.created_at ?? "2026-05-02T10:00:00Z",
+    ...(input.extra ?? {})
+  };
+  await writeFile(path.join(jobDir, `${input.cut_job_id}.json`), `${JSON.stringify(job, null, 2)}\n`, "utf8");
+  // 测试直接落盘任务文件，绕过 writeCutJob 的进程内快照缓存。
+  invalidateCutJobCache(workspaceRoot);
+}
+
+function healthyProbe(overrides: Record<string, unknown> = {}) {
+  return {
+    exists: true,
+    size_bytes: 1024,
+    duration_ms: 2000,
+    has_video_stream: true,
+    has_audio_stream: true,
+    source_has_audio_stream: true,
+    first_video_pts_ms: 0,
+    video_duration_ms: 2000,
+    audio_duration_ms: 2000,
+    ...overrides
+  };
+}
+
+async function writeTempMedia(input: { output_path: string }): Promise<void> {
+  await mkdir(path.dirname(input.output_path), { recursive: true });
+  await writeFile(input.output_path, "fake-clip-bytes");
+}
+
+test("verifies output duration and streams before marking a cut job done", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-verify-ok-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: writeTempMedia,
+    output_probe: async () => healthyProbe()
+  });
+
+  assert.equal(job?.status, "done");
+  assert.equal(job?.cut_mode_used, "smart");
+  assert.equal(job?.verification?.passed, true);
+  assert.equal(job?.verification?.expected_duration_ms, 2000);
+  assert.equal(job?.verification?.actual_duration_ms, 2000);
+  assert.equal(job?.verification?.tolerance_ms, 200);
+  assert.deepEqual(
+    job?.verification?.checks.map((check) => check.check),
+    ["file_exists", "file_size", "duration", "video_stream", "audio_stream", "first_frame_pts", "av_duration_delta"]
+  );
+});
+
+test("fails a cut job whose output file is empty instead of marking done", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-verify-empty-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: writeTempMedia,
+    output_probe: async () => healthyProbe({
+      size_bytes: 0,
+      duration_ms: 0,
+      has_video_stream: false,
+      has_audio_stream: false,
+      first_video_pts_ms: undefined,
+      video_duration_ms: 0,
+      audio_duration_ms: 0
+    })
+  });
+
+  assert.equal(job?.status, "failed");
+  assert.equal(job?.error_code, "CUT_OUTPUT_MISMATCH");
+  assert.match(job?.error_message ?? "", /输出校验未通过/);
+  assert.equal(job?.verification?.passed, false);
+  assert.equal((await listExportClips({ workspace_root: workspaceRoot })).local_clip_count, 0);
+});
+
+test("fails a cut job when the output is far shorter than requested", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-verify-short-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: writeTempMedia,
+    output_probe: async () => healthyProbe({
+      duration_ms: 1000,
+      video_duration_ms: 1000,
+      audio_duration_ms: 1000
+    })
+  });
+
+  assert.equal(job?.status, "failed");
+  assert.equal(job?.error_code, "CUT_OUTPUT_MISMATCH");
+  assert.equal(job?.verification?.expected_duration_ms, 2000);
+  assert.equal(job?.verification?.actual_duration_ms, 1000);
+  assert.match(job?.error_message ?? "", /输出时长 1000ms/);
+});
+
+test("accepts an output without audio when the source has no audio track", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-verify-no-audio-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: writeTempMedia,
+    output_probe: async () => healthyProbe({
+      has_audio_stream: false,
+      source_has_audio_stream: false,
+      audio_duration_ms: undefined
+    })
+  });
+
+  assert.equal(job?.status, "done");
+  const audioCheck = job?.verification?.checks.find((check) => check.check === "audio_stream");
+  assert.equal(audioCheck?.passed, true);
+});
+
+test("rejects a request range that ends after the measured source duration", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-range-out-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 12_500, end_ms: 13_500 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  let cutCalled = false;
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: async (input) => {
+      cutCalled = true;
+      await writeTempMedia(input);
+    }
+  });
+
+  assert.equal(job?.status, "failed");
+  assert.equal(job?.error_code, "CUT_RANGE_OUT_OF_SOURCE");
+  assert.match(job?.error_message ?? "", /超出源视频时长/);
+  assert.equal(cutCalled, false);
+});
+
+test("rejects negative, zero-length, and overlong ranges before cutting", async () => {
+  const cases = [
+    { cut_job_id: "CJ20260502-0101", begin_ms: -100, end_ms: 1000, message: /剪切时间段非法/ },
+    { cut_job_id: "CJ20260502-0102", begin_ms: 1000, end_ms: 1000, message: /剪切时间段非法/ },
+    { cut_job_id: "CJ20260502-0103", begin_ms: 1000, end_ms: 200_000, message: /超出源视频时长/ }
+  ];
+
+  for (const item of cases) {
+    const workspaceRoot = await makeRoot("mixlab-cutter-local-range-invalid-");
+    const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+    await writeRawCutJobFile(workspaceRoot, {
+      cut_job_id: item.cut_job_id,
+      begin_ms: item.begin_ms,
+      end_ms: item.end_ms
+    });
+    let cutCalled = false;
+    const job = await runNextCutJob({
+      workspace_root: workspaceRoot,
+      library_root: libraryRoot,
+      now: () => "2026-05-02T10:02:00Z",
+      resolve_source: async (pending) => ({
+        source_video_id: pending.source_video_id,
+        title: pending.source_title,
+        relative_path: pending.source_relative_path,
+        source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+        duration_ms: 12_000
+      }),
+      cut_runner: async (input) => {
+        cutCalled = true;
+        await writeTempMedia(input);
+      }
+    });
+
+    assert.equal(job?.status, "failed");
+    assert.match(job?.error_message ?? "", item.message);
+    assert.equal(cutCalled, false);
+  }
+});
+
+test("probes real media duration for re-cut jobs sourced from local export clips", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-recut-probe-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const sourcePath = await writeLibrarySource(libraryRoot, "source-videos/01_现金流.mp4");
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0201",
+    begin_ms: 1_500,
+    end_ms: 2_500,
+    source_video_id: "E000001"
+  });
+
+  const probedPaths: string[] = [];
+  const rejected = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async () => ({
+      source_video_id: "E000001",
+      title: "本地作品",
+      relative_path: ".mixlab-library/videos/E000001/source.mp4",
+      source_video_file_path: sourcePath,
+      // manifest 里的请求时长故意写成 2000ms，预检必须忽略它并探测真实 1000ms。
+      duration_ms: 2000
+    }),
+    cut_runner: writeTempMedia,
+    source_duration_probe: async (probeInput) => {
+      probedPaths.push(probeInput.source_video_path);
+      return { duration_ms: 1000 };
+    }
+  });
+
+  assert.equal(rejected?.status, "failed");
+  assert.equal(rejected?.error_code, "CUT_RANGE_OUT_OF_SOURCE");
+  assert.match(rejected?.error_message ?? "", /超出源视频时长/);
+  assert.deepEqual(probedPaths, [sourcePath]);
+
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0202",
+    begin_ms: 100,
+    end_ms: 800,
+    source_video_id: "E000001"
+  });
+
+  const accepted = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:03:00Z",
+    resolve_source: async () => ({
+      source_video_id: "E000001",
+      title: "本地作品",
+      relative_path: ".mixlab-library/videos/E000001/source.mp4",
+      source_video_file_path: sourcePath,
+      duration_ms: 2000
+    }),
+    cut_runner: writeTempMedia,
+    source_duration_probe: async (probeInput) => {
+      probedPaths.push(probeInput.source_video_path);
+      return { duration_ms: 1000 };
+    }
+  });
+
+  assert.equal(accepted?.status, "done");
+  assert.equal(probedPaths.length, 2);
+});
+
+test("degrades copy to precise when the begin point is far from a keyframe", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-keyframe-degrade-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, {
+    begin_ms: 1000,
+    end_ms: 3000,
+    cut_mode: "copy"
+  });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const runnerModes: string[] = [];
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: async (input) => {
+      runnerModes.push(input.cut_mode);
+      await writeTempMedia(input);
+    },
+    keyframe_probe: async () => ({ keyframe_times_ms: [0] }),
+    output_probe: async () => healthyProbe()
+  });
+
+  assert.equal(job?.status, "done");
+  assert.deepEqual(runnerModes, ["precise"]);
+  assert.equal(job?.cut_mode_used, "precise");
+  assert.match(job?.degrade_reason ?? "", /自动降级为精准剪切/);
+  const clips = await listExportClips({ workspace_root: workspaceRoot });
+  assert.equal(clips.clips[0]?.cut_mode, "precise");
+});
+
+test("keeps copy when the begin point is close to a keyframe and records the keyframe tolerance", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-keyframe-keep-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, {
+    begin_ms: 1000,
+    end_ms: 3000,
+    cut_mode: "copy"
+  });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: writeTempMedia,
+    keyframe_probe: async () => ({ keyframe_times_ms: [0, 1000] }),
+    // copy 模式容差 = 500 + 250 + 关键帧距离(0) = 750ms，允许 300ms 误差。
+    output_probe: async () => healthyProbe({
+      duration_ms: 2300,
+      video_duration_ms: 2300,
+      audio_duration_ms: 2300
+    })
+  });
+
+  assert.equal(job?.status, "done");
+  assert.equal(job?.cut_mode_used, "copy");
+  assert.equal(job?.verification?.tolerance_ms, 750);
+  assert.equal(job?.degrade_reason, undefined);
+});
+
+test("times out a hung cut runner and marks the job failed with CUT_TIMEOUT", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-timeout-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  let runnerAborted = false;
+  const startedAt = Date.now();
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    cut_timeout_ms: 60,
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: (input) =>
+      new Promise<void>((resolve) => {
+        input.signal?.addEventListener("abort", () => {
+          runnerAborted = true;
+          resolve();
+        });
+      })
+  });
+
+  assert.equal(job?.status, "failed");
+  assert.equal(job?.error_code, "CUT_TIMEOUT");
+  assert.match(job?.error_message ?? "", /剪切超时/);
+  assert.equal(runnerAborted, true);
+  assert.ok(Date.now() - startedAt < 5_000);
+});
+
+test("cancels an in-flight cut job and aborts the runner", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-cancel-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  const submission = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+  const cutJobId = submission.jobs[0]!.cut_job_id;
+  let runnerAborted = false;
+  let releaseRunner!: () => void;
+  const runnerStarted = new Promise<void>((resolve) => {
+    releaseRunner = resolve;
+  });
+
+  const runPromise = runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 12_000
+    }),
+    cut_runner: (input) =>
+      new Promise<void>((resolve) => {
+        releaseRunner();
+        input.signal?.addEventListener("abort", () => {
+          runnerAborted = true;
+          resolve();
+        });
+      })
+  });
+
+  await runnerStarted;
+  await cancelCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: cutJobId,
+    now: "2026-05-02T10:02:30Z"
+  });
+  const result = await runPromise;
+
+  assert.equal(result?.status, "cancelled");
+  assert.equal(result?.error_code, "CUT_CANCELLED");
+  assert.equal(runnerAborted, true);
+});
+
+test("recovers interrupted running jobs on startup and allows retry", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-recover-");
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0301",
+    begin_ms: 1000,
+    end_ms: 3000,
+    status: "running",
+    created_at: "2026-05-02T10:00:00Z"
+  });
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0302",
+    begin_ms: 1000,
+    end_ms: 3000,
+    status: "pending",
+    created_at: "2026-05-02T10:00:01Z"
+  });
+
+  const recovered = await recoverInterruptedCutJobs({
+    workspace_root: workspaceRoot,
+    now: "2026-05-02T11:00:00Z"
+  });
+
+  assert.equal(recovered.length, 1);
+  const interrupted = await getCutJob({ workspace_root: workspaceRoot, cut_job_id: "CJ20260502-0301" });
+  assert.equal(interrupted?.status, "failed");
+  assert.equal(interrupted?.error_code, "CUT_PROCESS_INTERRUPTED");
+  assert.match(interrupted?.error_message ?? "", /进程中断/);
+  assert.equal(interrupted?.finished_at, "2026-05-02T11:00:00Z");
+  assert.equal((await getCutJob({ workspace_root: workspaceRoot, cut_job_id: "CJ20260502-0302" }))?.status, "pending");
+
+  const retried = await retryCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: "CJ20260502-0301",
+    now: "2026-05-02T11:01:00Z"
+  });
+  assert.equal(retried.status, "pending");
+  assert.equal(retried.error_code, undefined);
+});
+
+test("retries a done job whose output verification failed and clears verification state", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-retry-done-unverified-");
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0401",
+    begin_ms: 1000,
+    end_ms: 3000,
+    status: "done",
+    extra: {
+      cut_mode_used: "precise",
+      degrade_reason: "起点距最近关键帧 2600ms，已自动降级为精准剪切",
+      verification: {
+        passed: false,
+        expected_duration_ms: 2000,
+        actual_duration_ms: 1000,
+        tolerance_ms: 200,
+        checks: [{ check: "duration", passed: false, detail: "输出时长不足" }]
+      },
+      export_clip_id: "E000001",
+      output_file: "export-clips/E000001/001-输出验收.mp4",
+      error_code: "CUT_OUTPUT_MISMATCH",
+      error_message: "输出校验未通过",
+      started_at: "2026-05-02T10:00:10Z",
+      finished_at: "2026-05-02T10:00:20Z"
+    }
+  });
+
+  const retried = await retryCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: "CJ20260502-0401",
+    now: "2026-05-02T10:05:00Z"
+  });
+
+  assert.equal(retried.cut_job_id, "CJ20260502-0401");
+  assert.equal(retried.status, "pending");
+  assert.equal(retried.begin_ms, 1000);
+  assert.equal(retried.end_ms, 3000);
+  assert.equal(retried.verification, undefined);
+  assert.equal(retried.cut_mode_used, undefined);
+  assert.equal(retried.degrade_reason, undefined);
+  assert.equal(retried.export_clip_id, undefined);
+  assert.equal(retried.output_file, undefined);
+  assert.equal(retried.error_code, undefined);
+  assert.equal(retried.error_message, undefined);
+  assert.equal(retried.started_at, undefined);
+  assert.equal(retried.finished_at, undefined);
+  assert.equal(retried.updated_at, "2026-05-02T10:05:00Z");
+});
+
+test("rejects retry for done jobs whose output verification passed", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-retry-done-verified-");
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0402",
+    begin_ms: 1000,
+    end_ms: 3000,
+    status: "done",
+    extra: {
+      verification: {
+        passed: true,
+        expected_duration_ms: 2000,
+        actual_duration_ms: 2000,
+        tolerance_ms: 200,
+        checks: []
+      }
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      retryCutJob({
+        workspace_root: workspaceRoot,
+        cut_job_id: "CJ20260502-0402",
+        now: "2026-05-02T10:05:00Z"
+      }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "cut_job_not_retryable" &&
+      /输出校验通过/.test((error as Error).message)
+  );
+});
+
+test("rejects retry for done jobs without legacy output verification record", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-retry-done-legacy-");
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0403",
+    begin_ms: 1000,
+    end_ms: 3000,
+    status: "done"
+  });
+
+  await assert.rejects(
+    () =>
+      retryCutJob({
+        workspace_root: workspaceRoot,
+        cut_job_id: "CJ20260502-0403",
+        now: "2026-05-02T10:05:00Z"
+      }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "cut_job_not_retryable" &&
+      /缺少输出校验记录/.test((error as Error).message)
+  );
+});
+
+// --- Round2 契约测试：workspace 租约 / 提交幂等与原子 / 缓存 pin / 元数据实测 -------
+
+test("workspace lease is exclusive, reclaims stale locks, and releases cleanly", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-lease-");
+  const first = await acquireWorkspaceLease({
+    workspace_root: workspaceRoot,
+    instance_id: "instance-a",
+    heartbeat_interval_ms: 0,
+    now: () => "2026-05-02T10:00:00Z"
+  });
+  assert.equal(first.is_held(), true);
+  assert.equal((await readWorkspaceLease(workspaceRoot))?.instance_id, "instance-a");
+
+  await assert.rejects(
+    () =>
+      acquireWorkspaceLease({
+        workspace_root: workspaceRoot,
+        instance_id: "instance-b",
+        heartbeat_interval_ms: 0,
+        now: () => "2026-05-02T10:00:01Z"
+      }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "workspace_lease_unavailable" &&
+      /另一个剪辑实例/.test((error as Error).message)
+  );
+
+  await first.release();
+  assert.equal(await readWorkspaceLease(workspaceRoot), null);
+
+  const reclaimable = await acquireWorkspaceLease({
+    workspace_root: workspaceRoot,
+    instance_id: "instance-c",
+    heartbeat_interval_ms: 0,
+    now: () => "2026-05-02T10:00:02Z"
+  });
+  assert.equal(reclaimable.is_held(), true);
+  await reclaimable.release();
+
+  // 陈旧锁：心跳超过 stale_after_ms 时允许回收。
+  await writeFile(
+    path.join(workspaceRoot, ".mixlab-workspace-lock.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      instance_id: "dead-instance",
+      pid: 999_999,
+      hostname: "another-host",
+      workspace_root: workspaceRoot,
+      acquired_at: "2026-05-02T09:00:00Z",
+      heartbeat_at: "2026-05-02T09:00:00Z"
+    }),
+    "utf8"
+  );
+  const reclaimed = await acquireWorkspaceLease({
+    workspace_root: workspaceRoot,
+    instance_id: "instance-d",
+    heartbeat_interval_ms: 0,
+    stale_after_ms: 1_000,
+    now: () => "2026-05-02T10:00:03Z"
+  });
+  assert.equal(reclaimed.is_held(), true);
+  await reclaimed.release();
+});
+
+test("only the lease holder runs startup recovery; other instances leave running jobs untouched", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-lease-recovery-");
+  const holder = await acquireWorkspaceLease({
+    workspace_root: workspaceRoot,
+    instance_id: "holder",
+    heartbeat_interval_ms: 0
+  });
+  await writeRawCutJobFile(workspaceRoot, {
+    cut_job_id: "CJ20260502-0501",
+    begin_ms: 1000,
+    end_ms: 3000,
+    status: "running"
+  });
+
+  const notHeld = {
+    workspace_root: workspaceRoot,
+    instance_id: "pretender",
+    pid: process.pid,
+    acquired_at: "2026-05-02T10:00:00Z",
+    heartbeat_at: () => "2026-05-02T10:00:00Z",
+    is_held: () => false,
+    refresh: async () => false,
+    release: async () => undefined
+  };
+
+  const skipped = await recoverInterruptedCutJobsIfLeased({
+    workspace_root: workspaceRoot,
+    now: "2026-05-02T11:00:00Z",
+    lease: notHeld
+  });
+  assert.equal(skipped.skipped, true);
+  assert.equal(
+    (await getCutJob({ workspace_root: workspaceRoot, cut_job_id: "CJ20260502-0501" }))?.status,
+    "running"
+  );
+
+  const recovered = await recoverInterruptedCutJobsIfLeased({
+    workspace_root: workspaceRoot,
+    now: "2026-05-02T11:00:00Z",
+    lease: holder
+  });
+  assert.equal(recovered.skipped, false);
+  assert.equal(recovered.recovered.length, 1);
+  assert.equal(
+    (await getCutJob({ workspace_root: workspaceRoot, cut_job_id: "CJ20260502-0501" }))?.status,
+    "failed"
+  );
+  await holder.release();
+});
+
+test("repeated submission with the same idempotency key returns existing jobs without new tasks", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-idempotent-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  const first = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+  const second = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:02:00Z"
+  });
+
+  assert.equal(first.replayed, false);
+  assert.equal(first.submission_key, `clip_list:${clipList.clip_list_id}`);
+  assert.equal(second.replayed, true);
+  assert.deepEqual(
+    second.jobs.map((job) => job.cut_job_id),
+    first.jobs.map((job) => job.cut_job_id)
+  );
+  assert.equal((await listCutJobs({ workspace_root: workspaceRoot })).job_count, 1);
+
+  const clientKeyed = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:03:00Z",
+    client_request_id: "req:abc-123"
+  });
+  assert.equal(clientKeyed.replayed, false);
+  assert.equal(clientKeyed.submission_key, "client:req:abc-123");
+  assert.equal((await listCutJobs({ workspace_root: workspaceRoot })).job_count, 2);
+
+  const clientKeyedReplay = await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:04:00Z",
+    client_request_id: "req:abc-123"
+  });
+  assert.equal(clientKeyedReplay.replayed, true);
+  assert.equal((await listCutJobs({ workspace_root: workspaceRoot })).job_count, 2);
+});
+
+test("batch submission rolls back already written jobs when a later write fails", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-submit-rollback-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000, title: "回滚" });
+
+  await assert.rejects(
+    () =>
+      submitClipListToQueue({
+        workspace_root: workspaceRoot,
+        clip_list: clipList,
+        now: "2026-05-02T10:01:00Z",
+        on_job_written: (_job, index) => {
+          if (index === 0) {
+            throw new Error("simulated write failure");
+          }
+        }
+      }),
+    /simulated write failure/
+  );
+
+  assert.equal((await listCutJobs({ workspace_root: workspaceRoot })).job_count, 0);
+  assert.deepEqual(
+    (await readdir(path.join(workspaceRoot, "clip-jobs"))).filter((name) =>
+      name.startsWith(".staging-")
+    ),
+    []
+  );
+});
+
+test("submission reports cut_queue_busy when another process holds the submission lock", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-submit-busy-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 3000 });
+  const lockPath = path.join(workspaceRoot, "clip-jobs", ".submission.lock");
+  await mkdir(path.dirname(lockPath), { recursive: true });
+  await writeFile(lockPath, JSON.stringify({ pid: process.pid }), "utf8");
+
+  await assert.rejects(
+    () =>
+      submitClipListToQueue({
+        workspace_root: workspaceRoot,
+        clip_list: clipList,
+        now: "2026-05-02T10:01:00Z",
+        submission_lock_wait_ms: 30
+      }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "cut_queue_busy" &&
+      /正在提交剪切任务/.test((error as Error).message)
+  );
+});
+
+test("cut temp cache pruning skips pinned files that are being written", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-cache-pin-");
+  const cutTempDir = path.join(workspaceRoot, "cache", "cut-temp");
+  await mkdir(cutTempDir, { recursive: true });
+  const pinnedPath = path.join(cutTempDir, "CJ20260502-0001-E000001-pinned.mp4");
+  const otherPath = path.join(cutTempDir, "CJ20260502-0001-E000002-older.mp4");
+  await writeFile(pinnedPath, "");
+  await writeFile(otherPath, "");
+  await truncate(pinnedPath, 70 * 1024 * 1024);
+  await truncate(otherPath, 70 * 1024 * 1024);
+
+  const release = pinCachePath(pinnedPath);
+
+  try {
+    const pruned = await pruneCutTempCache({
+      workspace_root: workspaceRoot,
+      max_bytes: 128 * 1024 * 1024
+    });
+    assert.deepEqual(pruned, [otherPath]);
+    assert.equal(await fileOrDirExists(pinnedPath), true);
+    assert.equal(await fileOrDirExists(otherPath), false);
+  } finally {
+    release();
+  }
+});
+
+test("local asset metadata comes from measured probe values instead of the requested range", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-measured-metadata-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1000, end_ms: 4000 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  const job = await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 40_000,
+      width: 1920,
+      height: 1080,
+      fps: 25,
+      codec: "h264"
+    }),
+    cut_runner: writeTempMedia,
+    output_probe: async () => healthyProbe({
+      duration_ms: 2950,
+      video_duration_ms: 2950,
+      audio_duration_ms: 2950,
+      width: 1280,
+      height: 720,
+      fps: 30,
+      codec: "hevc"
+    })
+  });
+
+  assert.equal(job?.status, "done");
+  const manifest = JSON.parse(
+    await readFile(
+      path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "source-video.json"),
+      "utf8"
+    )
+  );
+  // 请求区间 3000ms，但清单使用实测 2950ms；宽高/编码来自 probe 而非源清单。
+  assert.equal(manifest.duration_ms, 2950);
+  assert.equal(manifest.duration_unknown, false);
+  assert.equal(manifest.duration_source, "probe");
+  assert.equal(manifest.width, 1280);
+  assert.equal(manifest.height, 720);
+  assert.equal(manifest.fps, 30);
+  assert.equal(manifest.codec, "hevc");
+  assert.equal(manifest.visual_metadata_source, "probe");
+});
+
+test("partial transcript segments explicitly mark selected-text timing estimate", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-text-scope-");
+  const libraryRoot = await makeRoot("mixlab-cutter-local-library-");
+  const clipList = await makeSingleClipList(workspaceRoot, { begin_ms: 1200, end_ms: 2800 });
+  await submitClipListToQueue({
+    workspace_root: workspaceRoot,
+    clip_list: clipList,
+    now: "2026-05-02T10:01:00Z"
+  });
+
+  await runNextCutJob({
+    workspace_root: workspaceRoot,
+    library_root: libraryRoot,
+    now: () => "2026-05-02T10:02:00Z",
+    resolve_source: async (pending) => ({
+      source_video_id: pending.source_video_id,
+      title: pending.source_title,
+      relative_path: pending.source_relative_path,
+      source_video_file_path: await writeLibrarySource(libraryRoot, pending.source_relative_path),
+      duration_ms: 40_000,
+      transcript_segments: [
+        {
+          segment_id: "V000001-S000001",
+          index: 1,
+          begin_ms: 1000,
+          end_ms: 2200,
+          begin_char: 0,
+          end_char: 10,
+          normalized_begin_char: 0,
+          normalized_end_char: 10,
+          text: "现金流，是企业的血液。",
+          normalized_text: "现金流，是企业的血液。",
+          confidence: 0.99
+        },
+        {
+          segment_id: "V000001-S000002",
+          index: 2,
+          begin_ms: 2200,
+          end_ms: 5200,
+          begin_char: 10,
+          end_char: 17,
+          normalized_begin_char: 10,
+          normalized_end_char: 17,
+          text: "不是账面数字。",
+          normalized_text: "不是账面数字。",
+          confidence: 0.98
+        }
+      ]
+    }),
+    cut_runner: writeTempMedia,
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
+    }
+  });
+
+  const transcript = JSON.parse(
+    await readFile(
+      path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "transcript.json"),
+      "utf8"
+    )
+  );
+  // 选区落在句内：文字为精确选区、时间为整句估算，用 text_scope 明确标注（不再静默冒充逐字对齐）。
+  assert.deepEqual(
+    transcript.segments.map((segment: { text_scope: string; source_begin_ms?: number; text: string }) => [
+      segment.text_scope,
+      segment.source_begin_ms ?? null,
+      segment.text
+    ]),
+    [["selected_text_estimated_timing", null, "现金流，是企业的血液。"]]
+  );
+  assert.match(
+    await readFile(
+      path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "subtitles.srt"),
+      "utf8"
+    ),
+    /现金流，是企业的血液。/
+  );
+  const manifest = JSON.parse(
+    await readFile(
+      path.join(workspaceRoot, ".mixlab-library", "videos", "E000001", "source-video.json"),
+      "utf8"
+    )
+  );
+  assert.equal(manifest.transcript_text_scope, "exact_or_selected");
+});
+
+test("startup recovery cleans stale submission staging directories", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-staging-cleanup-");
+  const stagingDir = path.join(workspaceRoot, "clip-jobs", ".staging-dead-batch");
+  await mkdir(stagingDir, { recursive: true });
+  await writeFile(path.join(stagingDir, "CJ20260502-0009.json"), "{}", "utf8");
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  await utimes(stagingDir, tenMinutesAgo, tenMinutesAgo);
+
+  await recoverInterruptedCutJobs({
+    workspace_root: workspaceRoot,
+    now: new Date().toISOString()
+  });
+
+  assert.equal(await fileOrDirExists(stagingDir), false);
 });

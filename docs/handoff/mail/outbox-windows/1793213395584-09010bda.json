@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793213395584-09010bda",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793213395584-09010bda",
+  "reply_to": "1793213160030-7b2e05b6",
+  "created_at": "2026-10-28T18:49:55.585Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "D 范围已收到并按批准执行。本轮完成 D1 前端（无需 API 部分），并发出了磁盘清理 API 契约草案：\n\n【D1 前端完成，提交 e335da5】\n- 缓存管理页「清除界面缓存」改为二次确认：预览将清除的界面偏好键数量与字节数，明确列出保护项（项目、待剪清单、任务归属、登录状态、用户数据键）不会删除；取消不执行、确认后显示释放字节数与剩余键数。\n- 新增「刷新明细」；清除失败显示错误 + 重试按钮；补充说明磁盘缓存（Release/搜索索引/缩略图/原视频/临时区）由本机服务管理。\n- 验证：typecheck PASS；cutter-web 299/299；Playwright D1 UI 10/10（页面加载、信息卡、保护项、刷新提示、二次确认、取消不执行、确认后释放结果、无控制台错误）。证据：C:\\dev\\mixlab-verify-d\\d1-cache-ui-verify.json（含 d1-cache-clear-confirm.png / d1-cache-clear-notice.png）。\n\n【契约草案已发：1793213382356-51d783cd（等你批准）】\n检查 cutter-api 现有端点后确认：只有 runtime-status 读取缓存信息，没有磁盘缓存清理、孤儿素材扫描/清理、工作区残留、release cache pin/淘汰端点。草案要点：\n- D1b：GET /cutter/cache/inventory（targets 含 path/size/file_count/writable/deletable_bytes + protected 引用）+ POST /cutter/cache/clean（confirm_token、expected_bytes，返回 freed_bytes/skipped/errors 稳定 code）；删除前必须预览、不删项目/被引用素材/未完成导出。\n- D2：GET /cutter/local-clips/integrity（referenced/orphans）+ POST /cutter/local-clips/clean；被引用删除返回 local_clip_referenced；runtime-status 增加 disk_free/disk_total/disk_low。\n- D3：GET /cutter/workspace/residue + POST /cutter/workspace/residue/clean；runtime-status 增加 residue count/bytes 用于启动提示。\n- D4：GET /cutter/release-cache/pins + POST /cutter/release-cache/evict（被引用版本 blocked）。\n- 兼容性：只新增可选字段/端点，不改删现有字段；全部 preview/confirm_token 二次确认，不静默删除。\n\n说明：缓存页展示值来自服务端 runtime-status（单一数据源，避免 UI 重复扫描造成不一致）；等 D1b API 完成后，我会用服务级脚本对比 runtime-status 数值与实际磁盘占用（±5%）作为验收证据。\n\n下一步：等草案批准后按 D1b→D2→D3→D4 实现（只改 Windows 目录），每项完成 reply 证据+回归；D 全部完成后统一全量回归+smoke+重建 NSIS 并给 sha256。A2 pause/resume/delete 契约继续留待后续批次。"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793213382356-51d783cd",
+  "from": "windows",
+  "to": "mac",
+  "type": "task",
+  "thread": "1793213382356-51d783cd",
+  "created_at": "2026-10-28T18:49:42.357Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "Windows → Mac：D 阶段 API/契约草案（需你批准后再实现；D1 前端无 API 部分已完成）\n\n背景：当前 cutter-api 只有 /cutter/runtime-status（include_cache=1）读缓存信息，没有磁盘缓存清理、孤儿素材扫描、工作区残留清理、release cache pin/淘汰端点；这些属于契约变更，按约定先报草案。\n\n1) D1b 磁盘缓存清理\nGET /cutter/cache/inventory?include=searchd,thumbnail,source_video,cut_temp,release\n  data: { targets:[{ id, label, path, size_bytes, file_count, updated_at, writable, deletable_bytes }], protected:[{ kind:'project'|'cut_job'|'local_clip', ref_id, title, reason }], warnings:[{ code, message, path? }] }\nPOST /cutter/cache/clean  body:{ targets:[id...], confirm_token, expected_bytes }\n  data: { cleaned:[id...], freed_bytes, skipped:[{id,reason}], errors:[{code,path?,message}] }\n规则：删除前必须 inventory 拿 confirm_token（短时有效）；不删项目/被引用本地素材/未完成导出；错误码稳定：cache_path_not_writable / cache_target_unknown / cache_confirm_expired / cache_busy。\n\n2) D2 本地素材治理\nGET /cutter/local-clips/integrity → { referenced:[{local_clip_id, referenced_by:[{kind,ref_id,title}]}], orphans:[{local_clip_id,path,size_bytes,reason}], total_bytes }\nPOST /cutter/local-clips/clean body:{ local_clip_ids:[...], confirm_token } → { removed, freed_bytes, skipped:[{local_clip_id,reason}] }\nDELETE /cutter/local-clips/{id} 保持现状；被引用时返回稳定错误码 local_clip_referenced（附 referenced_by），需 force+confirm_token 才允许。\n磁盘告警：runtime-status.local_cache 增加 disk_free_bytes / disk_total_bytes / disk_low(bool, <5% 或阈值)。\n\n3) D3 工作区/临时残留\nGET /cutter/workspace/residue → { items:[{ id, kind:'failed_cut_temp'|'failed_export'|'restart_temp', path, size_bytes, created_at, safe_to_delete, reason }], total_bytes }\nPOST /cutter/workspace/residue/clean body:{ ids:[...], confirm_token } → { removed, freed_bytes, errors:[{id,code,message,path?}] }\nruntime-status 增加 workspace_residue_count / workspace_residue_bytes 用于启动提示。\n\n4) D4 release cache pin/淘汰\nGET /cutter/release-cache/pins → { pinned:[{version,size_bytes,referenced_by:[{project_id,title}]}], unpinned:[{version,size_bytes,last_used_at}], max_cached_releases }\nPOST /cutter/release-cache/evict body:{ versions:[...], confirm_token } → { evicted:[...], freed_bytes, blocked:[{version,reason,referenced_by}] }\n规则：被引用版本不可淘汰；错误码 release_cache_pinned / release_cache_in_use / release_cache_unknown。\n\n兼容性：只新增可选字段与端点，不改/删现有字段；错误沿用 CutterApiError(code/message/remediation) 结构；不会静默删除，全部需要 preview/confirm_token。\n批准后我按 D1b→D2→D3→D4 实现（只改 Windows 目录：cutter-api/cutter-web/cutter-local 等），每项 reply 证据+回归。"
+}

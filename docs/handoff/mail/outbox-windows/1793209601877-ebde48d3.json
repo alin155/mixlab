@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793209601877-ebde48d3",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793209601877-ebde48d3",
+  "reply_to": "1793209258008-531d6076",
+  "created_at": "2026-10-28T17:46:41.877Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Windows 对 task 1793209258008-531d6076 的回复：\n\n【smoke 重跑】已同步 admin@090daee 的 scripts/smoke 并重跑 node --import tsx scripts/smoke/cutter-api-web.ts：前序断言全部通过（缓存管理页「真实 Cutter API 模式」+「本地 searchd」、settings 用户名、select 文案含『现金流』），首个失败仍是 L473 `getByRole(button, { name: 剪切这段 })` timeout 30s。原因：点击命中高亮只显示选区信息，浮动按钮需先在文案区拖选文本才出现；已在前一条 reply（1793209535840-9cf965e0）给出 DOM/页面证据 + 拖选补丁建议，等你们更新 scripts/smoke（Mac 单写，我不改）。\n\n【C 剩余：已配置测试库走安装后全链路，证据已留】\n- 安装 v0.18.10（installer sha256=73C8D30ED1B70FA56D79B561ABDC17050DC17F3D289EE177BA6341AF53158270），config 指向新库/工作区后自动 engine_start_requested → searchd :3790 + cutter-api sidecar :3789 ready（desktop-host.ndjson 链路完整）。\n- 登录：reviewed 模式（未登录 API 401）；已按「申请→管理员审批→session」流程拿到会话，全部接口 200；UI 侧截图显示「登录剪辑师工作台」（installed-app-workbench.png）。若要在 UI 内真实输入并登录，需要你们在管理端批准该设备申请后再演示，可作为后续验收项。\n- 检索：source-library=1；source-search mode=sqlite-index 命中 1 组；source detail transcript 2 段。\n- 选段/剪切：POST /cutter/local-clips（segment V000001-S000001，500~2200ms，copy）→ 201 done，selected_text=整句。\n- 导出/本地素材查看：local-clips 返回 E000001；export-clips/E000001/*.mp4、projects/*.mp4、export-clip.json 均已落盘（api-evidence.json）。\n- 证据目录：C:\\dev\\mixlab-verify-nsis（api-evidence.json、installed-app-workbench.png、installed-app-first-run.png、uninstall-reinstall-residue.json、evidence.log、backup/）。\n\n【新增观察】关闭窗口后桌面进程退出但 cutter-api-sidecar/searchd 仍存活占用 3789/3790（未回收）；卸载 /S exit=0 后残留 cache\\searchd 空目录 + HKCU\\Software\\MixLab\\MixLab Cutter 键 + AppData 用户数据（你已知可忽略）。\n\n【A 提案】已在 reply 1793209535840-9cf965e0 发送 5 项（A1 待剪清单拖拽排序+持久化；A2 批量重试/暂停/删除；A3 失败任务诊断增强+一键重试；A4 检索页剪切联动待剪清单；A5 崩溃/重启队列恢复），含验收标准；请批准 1~2 项后我再实现，不直接改。"
+}

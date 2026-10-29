@@ -56,6 +56,46 @@ async function rmRoot(root: string): Promise<void> {
   throw lastError;
 }
 
+const LAUNCH_APP_PROBE_ENV_KEYS = [
+  "LOCALAPPDATA",
+  "APPDATA",
+  "USERPROFILE",
+  "PROGRAMFILES",
+  "PROGRAMFILES(X86)",
+  "PROGRAMDATA",
+  "ProgramData",
+  "MIXLAB_CUTTER_APP_PATH"
+] as const;
+
+/**
+ * 开发机上可能真实安装了 MixLab Cutter（桌面/开始菜单快捷方式），
+ * launch_app_probe 的静态候选会先命中最装好的 .lnk，导致依赖“机器上没装”
+ * 的测试在本机误判。这里临时把静态候选所用环境变量指向隔离目录。
+ */
+function isolateLaunchAppProbeEnv(root: string): () => void {
+  const saved = new Map<string, string | undefined>();
+  for (const key of LAUNCH_APP_PROBE_ENV_KEYS) {
+    saved.set(key, process.env[key]);
+  }
+  const envRoot = path.join(root, "isolated-launch-app-env");
+  process.env.LOCALAPPDATA = path.join(envRoot, "LocalAppData");
+  process.env.APPDATA = path.join(envRoot, "AppData");
+  process.env.USERPROFILE = path.join(envRoot, "UserProfile");
+  process.env.PROGRAMFILES = path.join(envRoot, "ProgramFiles");
+  process.env["PROGRAMFILES(X86)"] = path.join(envRoot, "ProgramFilesX86");
+  process.env.ProgramData = path.join(envRoot, "ProgramData");
+  delete process.env.MIXLAB_CUTTER_APP_PATH;
+  return () => {
+    for (const [key, value] of saved) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  };
+}
+
 async function readMockRequestBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
@@ -414,14 +454,12 @@ test("startup run request creates a report pointer for firewall-hidden backup ru
       request: request!
     });
     const pointerPath = path.join(root, "reports", "startup-run-latest.json");
-    for (let attempt = 0; attempt < 80; attempt += 1) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
       await sleep(50);
-      let pointer: Record<string, unknown>;
+      let pointer: Record<string, unknown> | undefined;
       try {
         pointer = JSON.parse(await readFile(pointerPath, "utf8")) as Record<string, unknown>;
       } catch {
-        // The runner writes the pointer asynchronously; a partially written or not-yet-created
-        // file is expected while polling, so keep retrying until the deadline.
         continue;
       }
       if (pointer.status === "failed") {
@@ -1231,6 +1269,7 @@ test("launch_app_probe starts an app candidate and runs cutter API probes", asyn
 
 test("launch_app_probe discovers a nested MixLab Cutter executable", async () => {
   const root = await tempRoot();
+  const restoreProbeEnv = isolateLaunchAppProbeEnv(root);
   const previousSearchRoot = process.env.MIXLAB_CUTTER_APP_SEARCH_ROOT;
   const nestedDir = path.join(root, "vendor", "mixlab-cutter");
   const nestedAppPath = path.join(nestedDir, "MixLab Cutter.exe");
@@ -1291,11 +1330,13 @@ test("launch_app_probe discovers a nested MixLab Cutter executable", async () =>
       await close(runner.server);
     }
     await rmRoot(root);
+    restoreProbeEnv();
   }
 });
 
 test("launch_app_probe reports app_executable_not_found for missing app paths", async () => {
   const root = await tempRoot();
+  const restoreProbeEnv = isolateLaunchAppProbeEnv(root);
   const missingAppPath = path.join(root, "missing", "MixLab Cutter.exe");
   const runner = createWindowsTestRunnerServer(runnerConfig({
     reportsRoot: path.join(root, "reports"),
@@ -1332,6 +1373,7 @@ test("launch_app_probe reports app_executable_not_found for missing app paths", 
   } finally {
     await close(runner.server);
     await rmRoot(root);
+    restoreProbeEnv();
   }
 });
 

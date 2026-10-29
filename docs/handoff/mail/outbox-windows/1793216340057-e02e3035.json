@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793216340057-e02e3035",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793216340057-e02e3035",
+  "reply_to": "1793215869696-08200562",
+  "created_at": "2026-10-28T19:39:00.057Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "D 最终收口完成：D2 fail-safe（之前已完成）+ D4 跨进程锁（本轮完成）+ D5 明确 defer。\n\n【1) D2 fail-safe：已完成（提交 b0e4641，已在 task 1793215256460 的 reply 1793215875261-ac76b4f8 详细报告）】\n- integrity：引用索引/本地素材 manifest 读取失败或损坏 → degraded=true + warning local_clip_reference_index_unreadable，orphans=[]、expected_bytes=0；\n- clean：degraded 时 409 local_clip_reference_index_unreadable，不删任何文件；DELETE 同样 faile-safe 拒绝；\n- UI：显示警告并禁用清理按钮；\n- 新增损坏场景 HTTP 用例（integrity degraded、clean 409 且文件仍在、DELETE 409 且文件仍在），已通过。\n\n【2) D4 跨进程锁：已完成（提交 1d8c162）】\n- 在 cache_root/.mixlab-library/locks/release-cache-maintenance.lock 新增文件锁（writeFile wx 排他 + 10min stale 回收，避免崩溃残留死锁）；\n- POST /cutter/release-cache/evict 必须持锁；拿不到锁返回 409 release_cache_busy（不删除任何版本）；\n- cutter-api 内部 release cache 同步（syncCutterReleaseCacheRuntimeStatusUncached）复用同一把锁：同步与淘汰互斥，冲突时本轮同步跳过并返回 syncing 状态，不阻塞接口；\n- 新增 HTTP 用例：手工持锁时 evict 409 busy 且版本目录仍在（release 测试 10/10）；\n- 残余风险（已记录）：仅覆盖经 cutter-api 的同进程/多实例路径；若外部工具或旧版本 sidecar 直接写同一 cache_root 且不遵守该锁，仍可能并发（当前部署为单 cutter-api 进程，实际不可触发；跨进程写方需后续接入同一锁，属契约/外部工具范畴）。\n\n【3) D5】本轮明确 defer（时间不足，未做治理操作记录/审计）；计划下一批轻量实现（workspace 保存最近 50 次操作 + 缓存管理页查看，不恢复文件）。\n\n【最终回归与产物】\n- typecheck PASS；全量 545/545 PASS（cutter-api 133、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7）；smoke status=passed ✅。\n- NSIS 最终安装包（含 A1/A2+B+D+fail-safe+锁）：MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=0EC5E323EA23FB8C98CDDEAEFA1CCA44879E9877A0730E4504CE13DB1F46A28B。\n- 证据：C:\\dev\\mixlab-verify-d（D1b/D2/D3/D4 服务级与 UI JSON+截图）、C:\\dev\\logs\\d2-failsafe-tests.log、C:\\dev\\logs\\release-lock-tests.log、C:\\dev\\logs\\smoke-cutter-api-web.log。\n\n【提交】b0e4641 fail-safe、1d8c162 D4 锁；状态报告将更新（545/545、新 sha256、锁残余风险、D5 defer）。\nD 阶段（D1、D1b、D2、D3、D4）即可提交最终验收；D5/A2 契约留后续批次。"
+}

@@ -1,7 +1,11 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { Button, SearchBox } from "@mixlab/ui-foundation";
-import type { LocalClipCatalog, SourceLibraryResponse } from "../../api.ts";
+import type { LocalClipCatalog, SourceFolderOption, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
+import {
+  MATERIAL_SCOPE_FOLDER_VALUE,
+  type MaterialSearchMode
+} from "../../state/material-locator.ts";
 import {
   projectAutoTitleFromDate,
   projectDisplayTitle,
@@ -231,7 +235,11 @@ export function ProjectHomePage({
   projects,
   selectedProjectId,
   queue = [],
+  sourceFolderFilter = "",
+  sourceFolders = [],
+  searchMode = "content",
   onSearch,
+  onSetMaterialScope,
   onSelectProject,
   onOpenProject,
   onOpenProjectDirectory,
@@ -244,7 +252,11 @@ export function ProjectHomePage({
   projects: readonly CutterProject[];
   selectedProjectId?: string;
   queue?: readonly CutQueueJob[];
+  sourceFolderFilter?: string;
+  sourceFolders?: readonly SourceFolderOption[];
+  searchMode?: MaterialSearchMode;
   onSearch?: (query: string) => void;
+  onSetMaterialScope?: (scope: string) => void;
   onSelectProject?: (projectId: string) => void;
   onOpenProject?: (projectId: string) => void;
   onOpenProjectDirectory?: (projectId: string) => void;
@@ -259,6 +271,8 @@ export function ProjectHomePage({
   const deleteTargetProject = projects.find((project) => project.project_id === deleteTargetProjectId);
   const selectedProjectClipCount = selectedProject ? projectCompletedClipCount(selectedProject, queue) : 0;
   const selectedProjectTitle = selectedProject ? projectDisplayTitle(selectedProject) : "";
+  const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
+  const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
 
   function openDeleteDialog(projectId: string) {
     setDeleteTargetProjectId(projectId);
@@ -303,14 +317,37 @@ export function ProjectHomePage({
               根据会议选择一个项目后，搜索结果、剪切任务和本地素材都会按项目归档。
             </p>
           </div>
-          <div className="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions">
+          <div
+            className="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions ml-workbench-hero-actions--with-filter"
+          >
+            <select
+              aria-label="素材范围"
+              className="cutter-source-folder-select ml-field-select ml-workbench-hero-filter"
+              value={materialScopeValue}
+              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+            >
+              <option value="">全部素材</option>
+              {sourceFolderOptions.map((folder) => (
+                <option key={folder.name} value={folder.name}>
+                  {folder.name}（{folder.count}）
+                </option>
+              ))}
+              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+            </select>
             <SearchBox
-              aria-label="搜索文案关键词或粘贴爆款文案"
+              aria-label={searchMode === "folder" ? "搜索文件夹名称" : "搜索文案关键词或素材文件名"}
               buttonLabel="搜索"
               className="cutter-project-search-box"
+              key={searchMode}
               name="query"
               onSubmit={(value) => onSearch?.(value)}
-              placeholder={selectedProjectTitle ? `如「${selectedProjectTitle}」或搜索关键词` : "搜索文案关键词"}
+              placeholder={
+                searchMode === "folder"
+                  ? "搜索课程文件夹名称"
+                  : selectedProjectTitle
+                    ? `如「${selectedProjectTitle}」/ 文件名 / 关键词`
+                    : "搜索文案关键词或素材文件名"
+              }
             />
             <Button type="button" onClick={openCreateDialog} variant="secondary">
               新建项目

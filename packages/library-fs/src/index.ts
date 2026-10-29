@@ -67,6 +67,7 @@ export {
 export {
   allocateNextLocalClipId,
   buildLocalClipArtifactPaths,
+  deleteLocalClip,
   getLocalClipDetail,
   listLocalClips,
   writeLocalClipManifest
@@ -120,6 +121,10 @@ export type {
   ListCutterSourceLibraryInput,
   SearchCutterSourceLibraryInput
 } from "./cutter-source-library.ts";
+export type {
+  DeleteLocalClipInput,
+  DeleteLocalClipResult
+} from "./local-clips.ts";
 export type {
   CutterReleaseCurrentPointer,
   CutterReleaseManifest,
@@ -184,7 +189,8 @@ function indexRoot(libraryRoot: string): string {
 }
 
 async function makeFileReadable(filePath: string): Promise<void> {
-  await chmod(filePath, 0o666).catch(() => {
+  // 权限收紧：发布/索引文件只允许属主读写（0640），SMB/NAS 不支持时保持 best-effort。
+  await chmod(filePath, 0o640).catch(() => {
     // Best effort for SMB/NAS filesystems that may not support chmod.
   });
 }

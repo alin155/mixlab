@@ -109,6 +109,17 @@ export function shouldSuppressTranscriptClickAfterMouseUp(
   return Boolean(endSegmentId && startSegmentId !== endSegmentId);
 }
 
+/**
+ * A mouseup that started and ended on the same sentence row (and did not create
+ * a text selection) means "select this whole sentence" (CW-16).
+ */
+export function isSingleSegmentClick(
+  dragStartSegmentId: string | null | undefined,
+  dragEndSegmentId: string | null | undefined
+): boolean {
+  return Boolean(dragStartSegmentId && dragStartSegmentId === dragEndSegmentId);
+}
+
 function normalizedCharOffsets(input: {
   startIndex: number;
   endIndex: number;

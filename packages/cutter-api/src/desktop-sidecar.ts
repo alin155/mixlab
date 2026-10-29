@@ -135,12 +135,14 @@ export function buildCutterApiServerInputFromDesktopConfig(
   const authMode = env.MIXLAB_CUTTER_AUTH_MODE?.trim() === "local_trusted"
     ? "local_trusted"
     : "reviewed";
+  const cutTimeoutMsMax = optionalPositiveInteger(env.MIXLAB_CUTTER_FFMPEG_TIMEOUT_MS);
 
   return {
     library_root: normalizeDesktopPathForStorage(config.public_library_root),
     workspace_root: workspaceRoot,
     release_cache_root: releaseCacheRoot,
     auto_run_cut_queue: true,
+    ...(cutTimeoutMsMax === undefined ? {} : { cut_timeout_ms_max: cutTimeoutMsMax }),
     auth_mode: authMode,
     ...(authMode === "local_trusted"
       ? { trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师" }

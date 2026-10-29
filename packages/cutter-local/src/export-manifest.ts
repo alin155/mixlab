@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   validateExportClipManifest,
@@ -83,6 +83,16 @@ export interface ListExportClipsInput {
 export interface GetExportClipDetailInput {
   workspace_root: string;
   export_clip_id: string;
+}
+
+export interface DeleteExportClipInput {
+  workspace_root: string;
+  export_clip_id: string;
+}
+
+export interface DeleteExportClipResult {
+  export_clip_id: string;
+  deleted: boolean;
 }
 
 const EXPORT_CLIP_ID_PATTERN = /^E\d{6}$/;
@@ -452,4 +462,42 @@ export async function getExportClipDetail(
 
     throw error;
   }
+}
+
+export async function deleteExportClip(
+  input: DeleteExportClipInput
+): Promise<DeleteExportClipResult> {
+  assertExportClipId(input.export_clip_id);
+
+  const clip = await getExportClipDetail({
+    workspace_root: input.workspace_root,
+    export_clip_id: input.export_clip_id
+  });
+  if (!clip) {
+    return {
+      export_clip_id: input.export_clip_id,
+      deleted: false
+    };
+  }
+
+  await Promise.all([
+    rm(path.join(exportClipsRoot(input.workspace_root), input.export_clip_id), { recursive: true, force: true }),
+    clip.project_output_file
+      ? rm(safeWorkspaceRelativePath(input.workspace_root, clip.project_output_file), { force: true })
+      : Promise.resolve(),
+    clip.local_asset_relative_path
+      ? rm(safeWorkspaceRelativePath(input.workspace_root, clip.local_asset_relative_path), { force: true })
+      : Promise.resolve(),
+    clip.source_video_manifest_path
+      ? rm(path.dirname(safeWorkspaceRelativePath(input.workspace_root, clip.source_video_manifest_path)), {
+          recursive: true,
+          force: true
+        })
+      : Promise.resolve()
+  ]);
+
+  return {
+    export_clip_id: input.export_clip_id,
+    deleted: true
+  };
 }

@@ -8,6 +8,7 @@ import type {
   LocalClip,
   LocalClipCatalog,
   OpenCutOutputDirectoryRequest,
+  OpenSourceVideoDirectoryRequest,
   SearchResponse,
   SourceFolderOption,
   SourceLibraryResponse,
@@ -15,6 +16,7 @@ import type {
   SourceVideoDetail,
   CreateLocalClipRequest
 } from "./api.ts";
+import type { CapabilityTableV1 } from "../../../packages/contracts/src/capabilities.ts";
 
 export interface CutterWorkbenchSettings {
   public_library_mount: string;
@@ -46,6 +48,8 @@ export interface LoadCutterWorkbenchDataOptions {
   includeRuntimeCache?: boolean;
   sourceLibraryLimit?: number;
   sourceFolderName?: string;
+  sourceLibraryFilenameQuery?: string;
+  sourceLibraryFolderQuery?: string;
   localClipLimit?: number;
 }
 
@@ -714,9 +718,12 @@ export function emptySearchResponse(query = ""): SearchResponse {
 }
 
 function searchGroupText(group: SearchResponse["groups"][number]): string {
+  const metadata = group as Partial<{ relative_path: string; source_folder_name: string }>;
   return [
     group.title,
     group.best_excerpt,
+    metadata.relative_path,
+    metadata.source_folder_name,
     ...group.hit_segments.map((segment) => segment.text)
   ].filter(Boolean).join(" ");
 }
@@ -876,6 +883,10 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         trusted_username: ""
       };
     },
+    async getCapabilities(): Promise<CapabilityTableV1 | null> {
+      // Fixture/demo stays on the legacy field-based path (no capability table).
+      return null;
+    },
     async getLoginStatus() {
       return {
         ok: true,
@@ -906,13 +917,150 @@ export function createFixtureCutterApiClient(): CutterApiClient {
     async getRuntimeStatus() {
       return data.runtimeStatus;
     },
-    async listSourceLibrary(options?: { limit?: number; offset?: number; sourceFolderName?: string }) {
+    async getCacheInventory(options?: { include?: readonly string[] }) {
+      const include = options?.include && options.include.length > 0
+        ? new Set(options.include)
+        : new Set(["searchd", "thumbnail", "source_video", "cut_temp", "release"]);
+      const runtime = data.runtimeStatus;
+      const targets = [
+        { id: "searchd", label: "搜索索引缓存", path: runtime.local_cache?.searchd_cache_root_path ?? "/fixture/cache/searchd", size_bytes: runtime.local_cache?.searchd_cache_size_bytes ?? 0, file_count: 0, writable: true, deletable: true, deletable_bytes: runtime.local_cache?.searchd_cache_size_bytes ?? 0 },
+        { id: "thumbnail", label: "缩略图缓存", path: runtime.local_cache?.thumbnail_cache_root_path ?? "/fixture/cache/thumbnail", size_bytes: runtime.local_cache?.thumbnail_cache_size_bytes ?? 0, file_count: 0, writable: true, deletable: true, deletable_bytes: runtime.local_cache?.thumbnail_cache_size_bytes ?? 0 },
+        { id: "cut_temp", label: "剪切临时区", path: runtime.local_cache?.cut_temp_cache.cache_root_path ?? "/fixture/cache/cut-temp", size_bytes: runtime.local_cache?.cut_temp_cache.size_bytes ?? 0, file_count: runtime.local_cache?.cut_temp_cache.file_count ?? 0, writable: true, deletable: true, deletable_bytes: runtime.local_cache?.cut_temp_cache.size_bytes ?? 0 },
+        { id: "release", label: "Release 缓存", path: runtime.release_cache?.cache_root_path ?? "/fixture/cache/release", size_bytes: runtime.release_cache?.cache_size_bytes ?? 0, file_count: 0, writable: true, deletable: false, deletable_bytes: 0, reason: "由 release cache 单独管理" }
+      ].filter((target) => include.has(target.id));
+      return {
+        targets,
+        protected: [{ kind: "project", ref_id: "fixture-project", title: "Fixture 项目", reason: "作品引用不参与缓存清理" }],
+        warnings: [],
+        confirm_token: "fixture-confirm-token",
+        expected_bytes: targets.reduce((sum, target) => sum + target.deletable_bytes, 0)
+      };
+    },
+    async cleanCache(request: { targets: string[]; confirm_token: string; expected_bytes: number }) {
+      return {
+        cleaned: [...request.targets],
+        freed_bytes: 0,
+        skipped: [],
+        errors: []
+      };
+    },
+    async getLocalClipIntegrity() {
+      const orphanId = "E999999";
+      return {
+        referenced: data.localClips.clips.slice(0, 1).map((clip) => ({
+          local_clip_id: clip.local_clip_id,
+          referenced_by: [{ kind: "project", ref_id: "fixture-project", title: "Fixture 项目" }]
+        })),
+        orphans: [{ local_clip_id: orphanId, path: "/fixture/local/export-clips/" + orphanId, size_bytes: 2048, reason: "清单缺失" }],
+        total_bytes: 2048,
+        expected_bytes: 2048,
+        confirm_token: "fixture-local-token",
+        degraded: false,
+        warnings: []
+      };
+    },
+    async cleanLocalClips(request: { local_clip_ids: string[]; confirm_token: string; expected_bytes: number }) {
+      return {
+        removed: [...request.local_clip_ids],
+        freed_bytes: request.expected_bytes,
+        skipped: []
+      };
+    },
+    async getGovernanceAudit(limit = 50) {
+      const entries = [
+        {
+          at: "2026-10-29T01:00:00.000Z",
+          operation: "cache_clean",
+          targets: ["searchd", "cut_temp"],
+          removed_count: 2,
+          freed_bytes: 2048,
+          skipped_count: 0,
+          errors: [],
+          result: "ok" as const,
+          duration_ms: 12
+        },
+        {
+          at: "2026-10-29T01:05:00.000Z",
+          operation: "release_cache_evict",
+          targets: ["v000002"],
+          removed_count: 1,
+          freed_bytes: 1024,
+          skipped_count: 1,
+          errors: [{ code: "release_cache_pinned", message: "被作品引用" }],
+          result: "partial" as const,
+          duration_ms: 8
+        }
+      ];
+      return { entries: entries.slice(0, limit) };
+    },
+    async getWorkspaceResidue() {
+      return {
+        items: [{ id: "failed_export:export-clips/.tmp-1", kind: "failed_export", path: "/fixture/ws/export-clips/.tmp-1", size_bytes: 1024, created_at: "2026-10-29T00:00:00Z", safe_to_delete: true, reason: "" }],
+        total_bytes: 1024,
+        expected_bytes: 1024,
+        confirm_token: "fixture-residue-token"
+      };
+    },
+    async cleanWorkspaceResidue(request: { ids: string[]; confirm_token: string; expected_bytes: number }) {
+      return { removed: [...request.ids], freed_bytes: request.expected_bytes, skipped: [], errors: [] };
+    },
+    async getReleaseCachePins() {
+      return {
+        pinned: [{ version: "v000001", size_bytes: 4096, referenced_by: [{ project_id: "P1", title: "Fixture 项目", kind: "project" }] }],
+        unpinned: [{ version: "v000002", size_bytes: 2048, last_used_at: "2026-10-01T00:00:00Z" }],
+        active_release_version: "v000001",
+        max_cached_releases: 2,
+        expected_bytes: 2048,
+        confirm_token: "fixture-release-token",
+        warnings: []
+      };
+    },
+    async evictReleaseCache(request: { versions: string[]; confirm_token: string; expected_bytes: number }) {
+      return { evicted: [...request.versions], freed_bytes: request.expected_bytes, blocked: [] };
+    },
+
+    async listSourceLibrary(options?: {
+      limit?: number;
+      offset?: number;
+      sourceFolderName?: string;
+      filenameQuery?: string;
+      folderQuery?: string;
+    }) {
       const sourceFolderName = options?.sourceFolderName?.trim();
+      const filenameQuery = options?.filenameQuery?.trim().toLowerCase();
+      const folderQuery = options?.folderQuery?.trim().toLowerCase();
       const offset = options?.offset && options.offset > 0 ? options.offset : 0;
       const limit = options?.limit && options.limit > 0 ? options.limit : data.library.videos.length;
-      const videos = sourceFolderName
-        ? data.library.videos.filter((video) => video.source_folder_name === sourceFolderName)
-        : data.library.videos;
+      const videos = data.library.videos.filter((video) => {
+        if (sourceFolderName && video.source_folder_name !== sourceFolderName) {
+          return false;
+        }
+
+        if (folderQuery) {
+          const directoryPath = (video.relative_path ?? "")
+            .split(/[\\/]/)
+            .slice(0, -1)
+            .join("/");
+          if (!directoryPath.toLowerCase().includes(folderQuery)) {
+            return false;
+          }
+        }
+
+        if (!filenameQuery) {
+          return true;
+        }
+
+        return [
+          video.title,
+          video.relative_path,
+          video.source_folder_name,
+          video.lecturer,
+          video.course,
+          video.category
+        ]
+          .filter((part): part is string => Boolean(part))
+          .some((part) => part.toLowerCase().includes(filenameQuery));
+      });
 
       return {
         ...data.library,
@@ -931,16 +1079,26 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         ? data.primaryDetail
         : { ...data.primaryDetail, ...data.library.videos.find((video) => video.source_video_id === sourceVideoId) };
     },
-    async searchSourceLibrary(query: string, limit = 20, options: { cursor?: string; sourceFolderName?: string } = {}) {
+    async searchSourceLibrary(
+      query: string,
+      limit = 20,
+      options: { cursor?: string; sourceFolderName?: string; folderQuery?: string } = {}
+    ) {
       const normalizedQuery = query.trim().toLowerCase();
       if (!normalizedQuery) {
         return emptySearchResponse(query);
       }
 
-      const filteredGroups = data.search.groups.filter((group) =>
-        searchGroupText(group).toLowerCase().includes(normalizedQuery) &&
-        (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName)
-      );
+      const filteredGroups = options.folderQuery?.trim()
+        ? data.search.groups.filter((group) =>
+            (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName) &&
+            (group.title.toLowerCase().includes(normalizedQuery) ||
+              group.source_folder_name?.toLowerCase().includes(normalizedQuery))
+          )
+        : data.search.groups.filter((group) =>
+            searchGroupText(group).toLowerCase().includes(normalizedQuery) &&
+            (!options.sourceFolderName || group.source_folder_name === options.sourceFolderName)
+          );
       const offset = fixtureSearchOffset(options.cursor);
       const groups = filteredGroups.slice(offset, offset + limit);
       return {
@@ -971,6 +1129,15 @@ export function createFixtureCutterApiClient(): CutterApiClient {
     },
     async getLocalClipDetail(localClipId: string) {
       return data.localClips.clips.find((clip) => clip.local_clip_id === localClipId) ?? data.localClips.clips[0]!;
+    },
+    async deleteLocalClip(localClipId: string) {
+      const initialCount = data.localClips.clips.length;
+      data.localClips.clips = data.localClips.clips.filter((clip) => clip.local_clip_id !== localClipId);
+      data.localClips.local_clip_count = data.localClips.clips.length;
+      return {
+        local_clip_id: localClipId,
+        deleted: data.localClips.clips.length < initialCount
+      };
     },
     async createLocalClip(request) {
       return fixtureLocalClipFromRequest(request);
@@ -1018,6 +1185,14 @@ export function createFixtureCutterApiClient(): CutterApiClient {
             clip_list_id: "CL20260502-0001",
             clip_list_item_id: "CLI000003",
             status: "done",
+            cut_mode_used: "copy",
+            verification: {
+              passed: true,
+              expected_duration_ms: 16_500,
+              actual_duration_ms: 16_480,
+              tolerance_ms: 200,
+              checks: []
+            },
             export_clip_id: "E000003",
             output_file: "export-clips/E000003/E000003_销售话术拆解.mp4",
             created_at: "2026-05-02T10:10:00Z",
@@ -1055,6 +1230,14 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         clip_list_id: "CL20260502-0001",
         clip_list_item_id: "CLI000002",
         status: "done",
+        cut_mode_used: "copy",
+        verification: {
+          passed: true,
+          expected_duration_ms: 11_400,
+          actual_duration_ms: 11_390,
+          tolerance_ms: 200,
+          checks: []
+        },
         export_clip_id: "E000002",
         output_file: "export-clips/E000002/E000002_现金流，是企业的血液.mp4",
         created_at: "2026-05-02T10:05:00Z",
@@ -1071,11 +1254,29 @@ export function createFixtureCutterApiClient(): CutterApiClient {
         updated_at: "2026-05-02T10:17:00Z"
       };
     },
+    async cancelCutJob(cutJobId: string): Promise<CutJob> {
+      return {
+        cut_job_id: cutJobId,
+        clip_list_id: "CL20260502-0001",
+        clip_list_item_id: "CLI000002",
+        status: "cancelled",
+        error_message: "用户取消剪辑任务",
+        created_at: "2026-05-02T10:05:00Z",
+        updated_at: "2026-05-02T10:18:00Z"
+      };
+    },
     async openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest) {
       return {
         path: request?.project_title
           ? `/fixture-workspace/projects/${request.project_title}`
           : "/fixture-workspace/export-clips"
+      };
+    },
+    async openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest) {
+      return {
+        path: request.source_video_file_path
+          ? request.source_video_file_path.replace(/[\\/][^\\/]+$/, "")
+          : `/fixture-library/source-videos/${request.source_video_id ?? ""}`
       };
     },
     async deleteProjectOutputs(projectId: string) {
@@ -1240,7 +1441,9 @@ export async function loadCutterWorkbenchData(
     includeSourceLibrary
       ? client.listSourceLibrary({
           limit: options.sourceLibraryLimit,
-          sourceFolderName: options.sourceFolderName
+          sourceFolderName: options.sourceFolderName,
+          filenameQuery: options.sourceLibraryFilenameQuery,
+          folderQuery: options.sourceLibraryFolderQuery
         })
       : Promise.resolve(undefined)
   ]);

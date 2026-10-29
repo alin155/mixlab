@@ -12,6 +12,7 @@ import { LibraryGallery } from "./features/library-gallery.tsx";
 import { SourceDetailPage } from "./features/source-detail/SourceDetailPage.tsx";
 import {
   MaterialLocatorPage,
+  materialLocatorBackendNotice,
   materialLocatorCandidateSummary,
   materialLocatorDisplayDurationMs,
   materialLocatorSectionFooterLabel,
@@ -19,10 +20,26 @@ import {
   materialLocatorTimeSelectionRange
 } from "./features/material-locator/MaterialLocatorPage.tsx";
 import { CutListPage } from "./features/cut-list/CutListPage.tsx";
-import { LocalLibraryPage } from "./features/local-library/LocalLibraryPage.tsx";
+import { CutTasksTabNav } from "./features/cut-tasks/CutTasksTabNav.tsx";
+import {
+  LocalLibraryPage,
+  localClipCleanPreviewText,
+  localClipCleanResultSummary,
+  localClipDegradedNotice,
+  localClipGovernanceSummary
+} from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
-import { CacheManagementPage } from "./features/cache-management/CacheManagementPage.tsx";
+import {
+  CacheManagementPage,
+  cacheClearPreviewText,
+  cacheCleanupPreviewText,
+  diskCleanResultSummary,
+  governanceAuditOperationLabel,
+  governanceAuditSummary,
+  releaseCachePinsSummary,
+  workspaceResidueSummary
+} from "./features/cache-management/CacheManagementPage.tsx";
 import { DesktopFirstRunPage } from "./features/desktop/DesktopFirstRunPage.tsx";
 import {
   ProjectCreateDialog,
@@ -73,6 +90,8 @@ import {
   materialFocusFromResult,
   materialLocatorHitTargets,
   materialSearchHitCount,
+  searchPageAddsNewResults,
+  shouldApplyMaterialSearchPage,
   materialSearchFailureFeedback,
   materialSearchStatusLabels,
   mergeMaterialLocatorReloadData,
@@ -99,11 +118,13 @@ import {
 } from "./app/CutterApp.tsx";
 import {
   CUTTER_NAV_ITEMS,
+  materialSearchModeFromHash,
   routeFromHash,
   routeToHash,
   routeTitle,
   searchHash,
   searchQueryFromHash,
+  searchSourceFolderFromHash,
   sourceDetailHash,
   sourceDetailContextFromHash,
   sourceVideoIdFromHash
@@ -112,7 +133,8 @@ import { createCutListItemFromSegments } from "./state/cut-list.ts";
 import { createQueueJobsFromCutList, type CutQueueJob } from "./state/cut-queue.ts";
 import {
   buildMaterialLocatorSections,
-  localClipToSourceVideoDetail
+  localClipToSourceVideoDetail,
+  MATERIAL_SCOPE_FOLDER_VALUE
 } from "./state/material-locator.ts";
 import {
   continuousTranscriptSelection,
@@ -277,7 +299,20 @@ function fixture() {
     queue: [
       queue[0]!,
       { ...queue[0]!, queue_job_id: "job-running", status: "running" as const, progress: 67 },
-      { ...queue[0]!, queue_job_id: "job-done", status: "done" as const, progress: 100 },
+      {
+        ...queue[0]!,
+        queue_job_id: "job-done",
+        status: "done" as const,
+        progress: 100,
+        cut_mode_used: "smart" as const,
+        verification: {
+          passed: true,
+          expected_duration_ms: 16_000,
+          actual_duration_ms: 15_990,
+          tolerance_ms: 200,
+          checks: []
+        }
+      },
       {
         ...queue[0]!,
         queue_job_id: "job-failed",
@@ -410,6 +445,7 @@ test("project home renders search-first startup, recent projects, and project de
       library: data.library,
       localClips: data.localClips,
       queue,
+      sourceFolders: data.sourceFolders,
       projects: [
         {
           project_id: "P20260505-001",
@@ -441,7 +477,9 @@ test("project home renders search-first startup, recent projects, and project de
 
   for (const text of [
     "开始搜索",
-    "如「5月5日」或搜索关键词",
+    "全部素材",
+    "文件夹",
+    "如「5月5日」/ 文件名 / 关键词",
     "最近项目",
     "5月5日",
     "搜索",
@@ -456,6 +494,8 @@ test("project home renders search-first startup, recent projects, and project de
   }
 
   assert.match(html, /data-page="project-home"/);
+  assert.equal(html.includes("搜索类型"), false);
+  assert.equal(html.includes("全部老师"), false);
   assert.match(html, /class="cutter-page cutter-project-home ml-workbench-page ml-workbench-page--project-home"/);
   assert.match(html, /class="cutter-page-main ml-workbench-main ml-workbench-main--project-home"/);
   assert.match(html, /class="cutter-eyebrow ml-page-kicker ml-page-kicker--hero"/);
@@ -463,7 +503,7 @@ test("project home renders search-first startup, recent projects, and project de
   assert.match(html, /class="cutter-note ml-page-description ml-page-description--hero"/);
   assert.match(html, /class="cutter-project-hero ml-workbench-hero"/);
   assert.match(html, /class="ml-workbench-hero-copy"/);
-  assert.match(html, /class="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions"/);
+  assert.match(html, /class="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions ml-workbench-hero-actions--with-filter"/);
   assert.match(html, /class="ml-section-heading"/);
   assert.match(html, /class="ml-section-title">最近项目<\/h2>/);
   assert.match(html, /class="cutter-project-board ml-workbench-board"/);
@@ -1020,9 +1060,17 @@ test("search hash preserves query while targeting the material locator route", (
   assert.equal(searchQueryFromHash("#material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
   assert.equal(searchQueryFromHash("#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
   assert.equal(searchQueryFromHash("#search?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "现金流");
+  assert.equal(searchQueryFromHash("#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE"), "南京项目课");
+  assert.equal(materialSearchModeFromHash("#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE"), "folder");
+  assert.equal(materialSearchModeFromHash("#/material-locator?search_mode=folder"), "folder");
+  assert.equal(materialSearchModeFromHash("#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81"), "content");
+  assert.equal(searchSourceFolderFromHash("#/material-locator?search_mode=folder&source_folder_name=%E9%99%B6%E7%9F%9C2"), "");
   assert.equal(searchQueryFromHash("#public-library"), "");
   assert.equal(searchQueryFromHash("#/public-library"), "");
   assert.equal(searchHash(" 现金流 "), "#/material-locator?query=%E7%8E%B0%E9%87%91%E6%B5%81");
+  assert.equal(searchHash(" 南京项目课 ", { searchMode: "folder", sourceFolderName: "陶矜2" }), "#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE");
+  assert.equal(searchHash(" 南京项目课 ", { searchMode: "folder" }), "#/material-locator?folder_query=%E5%8D%97%E4%BA%AC%E9%A1%B9%E7%9B%AE%E8%AF%BE");
+  assert.equal(searchHash("", { searchMode: "folder" }), "#/material-locator?search_mode=folder");
 });
 
 test("material locator search query survives navigating to task pages and back", () => {
@@ -1133,6 +1181,9 @@ test("public library is a read-only gallery of available source videos", () => {
   for (const text of [
     "可用原素材",
     "原素材详情",
+    "搜索素材文件名",
+    "全部素材",
+    "文件夹",
     "全部",
     "横版",
     "竖版",
@@ -1156,6 +1207,11 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /cutter-public-library-scroll ml-scroll-region/);
   assert.match(html, /cutter-library-grid/);
+  assert.match(html, /class="ml-search-box cutter-public-library-filename-search"/);
+  assert.match(html, /aria-label="按文件名搜索公共素材"/);
+  assert.match(html, /aria-label="素材范围"/);
+  assert.equal(html.includes("全部老师"), false);
+  assert.equal(html.includes("按老师筛选"), false);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
   assert.equal(html.includes("编辑元数据"), false);
@@ -1173,6 +1229,22 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(portraitHtml, /竖版爆款开场/);
   assert.equal(portraitHtml.includes("直播复盘：从流量到现金流健康度"), false);
   assert.match(portraitHtml, /cutter-local-view-toggle ml-segmented-control/);
+
+  const folderSearchHtml = renderToStaticMarkup(
+    h(PublicLibraryPage, {
+      library,
+      searchMode: "folder",
+      filenameQuery: "南京项目课",
+      sourceFolders: data.sourceFolders,
+      sourceFolderFilter: "经营课",
+      onSetMaterialScope: () => undefined,
+      onSearchFilename: () => undefined
+    })
+  );
+  assert.match(folderSearchHtml, /aria-label="搜索文件夹名称"/);
+  assert.match(folderSearchHtml, /搜索课程文件夹名称/);
+  assert.match(folderSearchHtml, new RegExp(`value="${MATERIAL_SCOPE_FOLDER_VALUE}" selected=""`));
+  assert.equal(folderSearchHtml.includes("全部老师"), false);
 
   const emptyPortraitHtml = renderToStaticMarkup(
     h(PublicLibraryPage, {
@@ -1642,7 +1714,6 @@ test("source detail renders player, complete transcript, continuous selection, a
       detail: data.primaryDetail,
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 4),
       highlightedSegmentIds: ["s-062", "s-064"],
-      onSelectSegment: () => undefined,
       onAddToCutList: () => undefined
     })
   );
@@ -1652,9 +1723,9 @@ test("source detail renders player, complete transcript, continuous selection, a
     "完整文案",
     "连续选择",
     "已选 3 句",
-    "加入待剪清单",
+    "剪切这段",
     "现金流的本质",
-    "选择此句"
+    "拖拉选择"
   ]) {
     assert.match(html, new RegExp(text));
   }
@@ -1675,7 +1746,6 @@ test("source detail renders player, complete transcript, continuous selection, a
   assert.match(html, /cutter-segment ml-segment-row/);
   assert.match(html, /class="ml-segment-time"/);
   assert.match(html, /class="ml-segment-text"/);
-  assert.match(html, /class="ml-segment-action"/);
   assert.match(html, /data-selection-mode="continuous"/);
   assert.match(html, /is-highlighted/);
   assert.match(html, new RegExp(`${data.primaryDetail.title} 片段`));
@@ -1734,9 +1804,13 @@ test("material locator is the main search-select-cut workbench with public sourc
       localClips: data.localClips,
       search: data.search,
       query: data.search.query,
+      sourceFolders: data.sourceFolders,
       sourceFilter: "all",
       orientationFilter: "all",
-      selectedDetail: data.primaryDetail,
+      selectedDetail: {
+        ...data.primaryDetail,
+        source_video_file_path: "/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课/复盘/C0510.mp4"
+      },
       selectedSegments: data.primaryDetail.transcript.segments.slice(1, 3),
       highlightedSegmentIds: ["s-062"],
       currentHitIndex: 0,
@@ -1762,15 +1836,19 @@ test("material locator is the main search-select-cut workbench with public sourc
 
   for (const text of [
     "素材搜索",
-	    "搜索文案关键词或粘贴爆款文案",
+    "搜索文案关键词、素材文件名或粘贴爆款文案",
+    "全部素材",
+    "文件夹",
 	    "候选素材",
 	    "本地素材",
 	    "公共原素材",
 	    "横版",
 	    "视频文案",
+    "陶矜/南京项目课/复盘/C0510.mp4",
 	    "上一个",
 	    "下一个",
 	    "选区信息",
+    "查看文件目录",
 	    "命中",
 	    "已加入剪切任务 · 等待中 1",
     "最近剪切任务",
@@ -1780,6 +1858,9 @@ test("material locator is the main search-select-cut workbench with public sourc
   ]) {
     assert.ok(html.includes(text), text);
   }
+  assert.equal(html.includes("/Volumes/MixLab/PublicLibrary/source-videos/陶矜/南京项目课/复盘/C0510.mp4"), false);
+  assert.equal(html.includes("source-videos/陶矜/南京项目课/复盘/C0510.mp4"), false);
+  assert.equal(html.includes("打开文件夹"), false);
   assert.equal(html.includes("导出片段"), false);
   for (const removedText of [
 	    "清空搜索",
@@ -1796,6 +1877,8 @@ test("material locator is the main search-select-cut workbench with public sourc
 	  ]) {
 	    assert.equal(html.includes(removedText), false, removedText);
 	  }
+  assert.equal(html.includes("搜索类型"), false);
+  assert.equal(html.includes("全部老师"), false);
   for (const removedClass of [
     "cutter-locator-status-strip",
     "cutter-locator-clear-button",
@@ -1895,7 +1978,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   assert.ok(html.includes("class=\"ml-media-frame-inner\""));
   assert.equal(html.includes("cutter-video-frame"), false);
   assert.ok(html.includes("cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail"));
-  assert.ok(html.includes("class=\"ml-pane-header\""));
+  assert.ok(html.includes("class=\"ml-pane-header ml-pane-header--split\""));
   assert.ok(html.includes("cutter-locator-cut-selection ml-pane-body"));
   assert.ok(html.includes("cutter-locator-selected-copy ml-selected-copy"));
   assert.ok(html.includes("cutter-locator-queue-panel ml-pane-shell"));
@@ -2139,11 +2222,12 @@ test("material locator data reload preserves the active search while focusing a 
   assert.equal(typeof mergeMaterialLocatorReloadData, "function");
 
   const merged = mergeMaterialLocatorReloadData(data, reloadedData, data.search.query);
-  assert.equal(merged.primaryDetail.source_video_id, "src-002");
+  assert.equal(merged.primaryDetail.source_video_id, data.primaryDetail.source_video_id);
   assert.equal(merged.search.groups.length, data.search.groups.length);
   assert.equal(merged.search.query, data.search.query);
 
   const blankSearchMerged = mergeMaterialLocatorReloadData(data, reloadedData, "");
+  assert.equal(blankSearchMerged.primaryDetail.source_video_id, "src-002");
   assert.equal(blankSearchMerged.search.groups.length, 0);
 });
 
@@ -2227,6 +2311,144 @@ test("material search pages merge cursor batches without delaying first results"
   assert.equal(merged.returned_count, 2);
   assert.equal(merged.search_ms, 14);
   assert.equal(materialSearchHitCount(merged), 12);
+});
+
+test("material locator surfaces a stable fallback notice when searchd degrades", () => {
+  const data = createFixtureCutterData();
+  const degraded = {
+    mode: "sqlite-index",
+    preferred_mode: "searchd",
+    label: "本地索引（SQLite）",
+    degraded: true,
+    message: "searchd 连接超时，已回退 sqlite-index"
+  };
+  const healthy = {
+    mode: "searchd",
+    preferred_mode: "searchd",
+    label: "本地 searchd",
+    degraded: false,
+    message: ""
+  };
+
+  assert.match(materialLocatorBackendNotice(degraded), /已回退到本地索引（SQLite）/);
+  assert.match(materialLocatorBackendNotice(degraded), /searchd 不可用/);
+  assert.equal(materialLocatorBackendNotice(healthy), "");
+  assert.equal(materialLocatorBackendNotice(undefined), "");
+});
+
+test("material locator renders the fallback backend notice and retry affordance", () => {
+  const data = createFixtureCutterData();
+  const html = renderToStaticMarkup(
+    h(MaterialLocatorPage, {
+      library: data.library,
+      localClips: { ...data.localClips, clips: [] },
+      search: data.search,
+      query: data.search.query,
+      sourceFilter: "public",
+      orientationFilter: "all",
+      selectedDetail: data.primaryDetail,
+      selectedMaterialKey: `public:${data.search.groups[0]!.source_video_id}`,
+      selectedSegments: [],
+      searchFailed: true,
+      backendNotice: materialLocatorBackendNotice({
+        mode: "sqlite-index",
+        preferred_mode: "searchd",
+        label: "本地索引（SQLite）",
+        degraded: true,
+        message: "searchd 连接超时，已回退"
+      }),
+      onRetrySearch: () => undefined,
+      queue: []
+    })
+  );
+
+  assert.match(html, /class="[^"]*cutter-locator-backend-notice" role="status"/);
+  assert.match(html, /已回退到本地索引（SQLite）（searchd 不可用）/);
+  assert.match(html, /搜索失败/);
+  assert.match(html, /重新搜索/);
+});
+
+test("material search applies only the newest request and active query (stale response guard)", () => {
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 2,
+      current_request_id: 3,
+      query: "现金流",
+      active_query: "现金流"
+    }),
+    false
+  );
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 3,
+      current_request_id: 3,
+      query: "现金流",
+      active_query: "现金流"
+    }),
+    true
+  );
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 3,
+      current_request_id: 3,
+      query: "现金流",
+      active_query: "组织效率"
+    }),
+    false
+  );
+  assert.equal(
+    shouldApplyMaterialSearchPage({
+      request_id: 3,
+      current_request_id: 3,
+      query: " 现金流 ",
+      active_query: "现金流"
+    }),
+    true
+  );
+});
+
+test("material search pagination terminates when a page adds no new hits", () => {
+  const data = createFixtureCutterData();
+  const firstGroup = data.search.groups[0]!;
+  const firstPage = {
+    ...data.search,
+    groups: [firstGroup],
+    next_cursor: "sqlite:1",
+    has_more: true
+  };
+  const repeatedPage = {
+    ...data.search,
+    groups: [firstGroup],
+    cursor: "sqlite:1",
+    next_cursor: "sqlite:1",
+    has_more: true
+  };
+  const newSegmentPage = {
+    ...data.search,
+    groups: [
+      {
+        ...firstGroup,
+        hit_segments: [
+          ...firstGroup.hit_segments,
+          { ...firstGroup.hit_segments[0]!, segment_id: "s-new-hit" }
+        ]
+      }
+    ],
+    cursor: "sqlite:1",
+    next_cursor: "",
+    has_more: false
+  };
+  const newGroupPage = {
+    ...data.search,
+    groups: [data.search.groups[1]!],
+    cursor: "sqlite:1",
+    next_cursor: "",
+    has_more: false
+  };
+
+  assert.equal(searchPageAddsNewResults(firstPage, repeatedPage), false);
+  assert.equal(searchPageAddsNewResults(firstPage, newSegmentPage), true);
+  assert.equal(searchPageAddsNewResults(firstPage, newGroupPage), true);
 });
 
 test("material search page merge deduplicates a repeated source video and preserves hit text", () => {
@@ -2423,7 +2645,35 @@ test("material locator candidate summary reports background search loading and c
       isSearching: true,
       hasMoreSearchResults: true
     }),
+    "首批搜索中（已显示 20）"
+  );
+  assert.equal(
+    materialLocatorSectionFooterLabel({
+      sectionKey: "public",
+      itemCount: 20,
+      isSearching: true,
+      isLoadingMore: true,
+      hasMoreSearchResults: true
+    }),
     "继续加载中（已显示 20）"
+  );
+  assert.equal(
+    materialLocatorSectionFooterLabel({
+      sectionKey: "public",
+      itemCount: 20,
+      isSearching: false,
+      hasMoreSearchResults: true
+    }),
+    "加载更多（已显示 20）"
+  );
+  assert.equal(
+    materialLocatorSectionFooterLabel({
+      sectionKey: "public",
+      itemCount: 20,
+      isSearching: false,
+      hasMoreSearchResults: false
+    }),
+    "已显示全部（20）"
   );
   assert.equal(
     materialLocatorSectionFooterLabel({
@@ -2469,7 +2719,7 @@ test("material locator renders high-hit search loading as passive status instead
   );
 
   assert.match(html, /已载入1条 · 命中\d+处 · 加载中/);
-  assert.match(html, /继续加载中（已显示 1）/);
+  assert.match(html, /首批搜索中（已显示 1）/);
   assert.equal(html.includes("展开全部"), false);
 });
 
@@ -2972,7 +3222,6 @@ test("material locator keeps search and review areas fixed while transcript scro
   const foundationTranscriptRowRule = lastFoundationRule(/\.ml-transcript-row\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptPanelRule = lastFoundationRule(/\.ml-transcript-panel\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptHeaderRule = lastFoundationRule(/\.ml-transcript-panel-header\s*{(?<body>[^}]+)}/g);
-  const foundationTranscriptHeadingRule = lastFoundationRule(/\.ml-transcript-heading\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptActionsRule = lastFoundationRule(/\.ml-transcript-actions\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptBodyRule = lastFoundationRule(/\.ml-transcript-body\s*{(?<body>[^}]+)}/g);
   const foundationTranscriptTimeRule = lastFoundationRule(/(?:^|\n)\.ml-transcript-time\s*{(?<body>[^}]+)}/g);
@@ -3207,9 +3456,9 @@ test("material locator keeps search and review areas fixed while transcript scro
   assert.match(foundationTranscriptPanelRule, /overflow:\s*hidden/);
   assert.match(foundationTranscriptHeaderRule, /display:\s*block/);
   assert.match(foundationTranscriptHeaderRule, /padding:\s*0 16px/);
-  assert.match(foundationTranscriptHeadingRule, /display:\s*flex/);
-  assert.match(foundationTranscriptHeadingRule, /justify-content:\s*space-between/);
+  assert.match(foundationCss, /\.ml-transcript-heading\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto/s);
   assert.match(foundationTranscriptActionsRule, /display:\s*flex/);
+  assert.match(foundationTranscriptActionsRule, /justify-self:\s*end/);
   assert.match(foundationTranscriptActionsRule, /gap:\s*12px/);
   assert.match(foundationTranscriptBodyRule, /contain:\s*content/);
   assert.match(foundationTranscriptBodyRule, /min-height:\s*0/);
@@ -3446,7 +3695,7 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
   assert.match(taskTableRule, /overscroll-behavior:\s*contain/);
   assert.doesNotMatch(css, /\.cutter-queue-table\.ml-table-wrap\s*{/);
   assert.equal(galleryGridRules.length, 0);
-  assert.equal(libraryScrollPaneRules.length, 0);
+  assert.equal(libraryScrollPaneRules.length, 2);
   assert.match(foundationWorkbenchPageRule, /grid-template-columns:\s*minmax\(0,\s*var\(--ml-workbench-page-main,\s*900px\)\)/);
   assert.match(foundationWorkbenchPageRule, /var\(--ml-workbench-page-side,\s*330px\)/);
   assert.match(foundationWorkbenchPageRule, /overflow:\s*hidden/);
@@ -3776,6 +4025,27 @@ test("cut list renders order, range, text, mode, reorder, delete, clear, and sub
   assert.match(html, /ml-inspector--workbench ml-workbench-inspector/);
 });
 
+test("cut list renders drag handles and clamps up/down boundary actions", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(CutListPage, {
+      items: data.cutList,
+      onMove: () => undefined,
+      onReorder: () => undefined,
+      onRemove: () => undefined,
+      onSubmit: () => undefined
+    })
+  );
+
+  assert.match(html, /class="cutter-cut-list-sort"/);
+  assert.match(html, /draggable="true"/);
+  assert.match(html, /拖拽调整顺序/);
+  assert.match(html, /data-page="cut-list"/);
+  assert.match(html, /拖拽行或使用上移\/下移调整顺序/);
+  // A single-row fixture sits on both boundaries: up and down are disabled.
+  assert.equal((html.match(/\bis-disabled\b/g) ?? []).length, 2);
+});
+
 test("cut list table sizing uses table props and foundation utilities", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
   const foundationCss = await readFile(
@@ -4057,6 +4327,43 @@ test("cut tasks page renders every task state and summary in Chinese", () => {
   assert.match(html, /cutter-queue-pipeline-card-body ml-summary-card-body/);
   assert.match(html, /class="ml-inline-summary"/);
   assert.match(html, /class="ml-supporting-text"/);
+});
+
+test("cut tasks page distinguishes verified, failed and unverified completions", () => {
+  const data = fixture();
+  const doneJob = data.queue.find((job) => job.queue_job_id === "job-done");
+  assert.ok(doneJob);
+
+  const renderJob = (job: CutQueueJob) =>
+    renderToStaticMarkup(
+      h(CutQueuePage, {
+        jobs: [job],
+        onRetryFailed: () => undefined
+      })
+    );
+
+  const verified = renderJob(doneJob);
+  assert.match(verified, /aria-label="剪切成功"/);
+  assert.equal(verified.includes("已完成（未校验）"), false);
+  assert.equal(verified.includes("已完成（未通过校验）"), false);
+
+  const unverified = renderJob({ ...doneJob, verification: undefined });
+  assert.match(unverified, /已完成（未校验）/);
+  assert.match(unverified, />复剪</);
+  assert.equal(unverified.includes("aria-label=\"剪切成功\""), false);
+
+  const failedVerification = renderJob({
+    ...doneJob,
+    verification: {
+      passed: false,
+      expected_duration_ms: 16_000,
+      actual_duration_ms: 8_000,
+      tolerance_ms: 200,
+      checks: []
+    }
+  });
+  assert.match(failedVerification, /已完成（未通过校验）/);
+  assert.match(failedVerification, />复剪</);
 });
 
 test("cut tasks page uses a production table and task detail without internal task names", () => {
@@ -4392,6 +4699,50 @@ test("cut tasks table keeps selected text and problem cells to one line with sem
   );
 });
 
+test("cut tasks page exposes batch retry, pause and delete with empty-selection guards", () => {
+  const data = fixture();
+  const emptyResult = {
+    action: "retry" as const,
+    requested: 0,
+    processed: 0,
+    skipped: 0,
+    failed: 0,
+    cancelled: 0,
+    processed_job_ids: [],
+    message: ""
+  };
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: data.queue,
+      hiddenJobCount: 2,
+      onRestoreHiddenJobs: () => undefined,
+      onBatchRetry: async () => emptyResult,
+      onBatchPause: async () => emptyResult,
+      onBatchDelete: async () => emptyResult
+    })
+  );
+
+  for (const text of ["0 个已选", "批量重试（0）", "批量取消（可重试）（0）", "隐藏（可恢复）（0）", "恢复已隐藏（2）"]) {
+    assert.match(html, new RegExp(text));
+  }
+  assert.match(html, /aria-label="全选当前任务"/);
+  assert.equal((html.match(/aria-label="选择任务 /g) ?? []).length, data.queue.length);
+  assert.equal((html.match(/cutter-queue-batch-button[^>]*disabled=""/g) ?? []).length, 3);
+  assert.match(html, /class="cutter-queue-select-input"/);
+});
+
+test("cut tasks page hides batch controls when no batch handlers are wired", () => {
+  const html = renderToStaticMarkup(
+    h(CutQueuePage, {
+      jobs: fixture().queue
+    })
+  );
+
+  for (const text of ["批量重试", "批量取消", "隐藏", "全选当前任务"]) {
+    assert.equal(html.includes(text), false, text);
+  }
+});
+
 test("cut tasks omits manual refresh and continue controls", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
@@ -4508,18 +4859,104 @@ test("sidebar cache helpers count clearable local cutter cache and preserve logi
   window.localStorage.setItem("mixlab.cutter.projects", "[]");
   window.localStorage.setItem("other:key", "ignore");
 
+  window.localStorage.setItem("mixlab.cutter.cutList", "[]");
+  window.localStorage.setItem("mixlab.cutter.currentProjectId", "P-1");
+  window.localStorage.setItem("mixlab.cutter.cutJobProjectIndex", "{}");
+
   const snapshot = cutterLocalCacheSnapshot(window.localStorage);
-  assert.deepEqual(snapshot.keys.sort(), ["mixlab.cutter.projects", "mixlab:cutter:default_cut_mode"]);
+  assert.deepEqual(snapshot.keys.sort(), ["mixlab:cutter:default_cut_mode"]);
   assert.equal(formatCutterCacheSize(snapshot.bytes), "1 KB");
 
   const cleared = clearCutterLocalCache(window.localStorage);
-  assert.deepEqual(cleared.keys.sort(), ["mixlab.cutter.projects", "mixlab:cutter:default_cut_mode"]);
+  assert.deepEqual(cleared.keys.sort(), ["mixlab:cutter:default_cut_mode"]);
   assert.equal(window.localStorage.getItem("mixlab:cutter:auth_session"), "keep-auth");
   assert.equal(window.localStorage.getItem("mixlab:cutter:device_id"), "keep-device");
   assert.equal(window.localStorage.getItem("mixlab:cutter:pending_login"), "keep-pending");
   assert.equal(window.localStorage.getItem("mixlab:cutter:default_cut_mode"), null);
-  assert.equal(window.localStorage.getItem("mixlab.cutter.projects"), null);
+  // CW-07: user data must survive the "clear UI cache" action.
+  assert.equal(window.localStorage.getItem("mixlab.cutter.projects"), "[]");
+  assert.equal(window.localStorage.getItem("mixlab.cutter.cutList"), "[]");
+  assert.equal(window.localStorage.getItem("mixlab.cutter.currentProjectId"), "P-1");
+  assert.equal(window.localStorage.getItem("mixlab.cutter.cutJobProjectIndex"), "{}");
   assert.equal(window.localStorage.getItem("other:key"), "ignore");
+});
+
+test("cut queue only shows verification UI when the capability or field is available", () => {
+  const data = fixture();
+  const doneJob = data.queue.find((job) => job.queue_job_id === "job-done");
+  assert.ok(doneJob);
+  const withoutVerification = { ...doneJob, verification: undefined };
+
+  const renderJob = (job: CutQueueJob, verificationEnabled: boolean) =>
+    renderToStaticMarkup(
+      h(CutQueuePage, {
+        jobs: [job],
+        onRetryFailed: () => undefined,
+        verificationEnabled
+      })
+    );
+
+  // Capability explicitly unsupported + no field => legacy success label, no verification row/recut.
+  const legacy = renderJob(withoutVerification, false);
+  assert.match(legacy, /剪切成功/);
+  assert.equal(legacy.includes("已完成（未校验）"), false);
+  assert.equal(legacy.includes("输出校验"), false);
+  assert.equal(legacy.includes(">复剪<"), false);
+
+  // Field present still enables the verification UI even if the capability is absent.
+  assert.match(renderJob(doneJob, false), /aria-label="剪切成功"/);
+
+  // Legacy default keeps the Round 2 field-based unverified state.
+  const fieldBased = renderJob(withoutVerification, true);
+  assert.match(fieldBased, /已完成（未校验）/);
+  assert.match(fieldBased, /输出校验/);
+});
+
+test("sentence rows are keyboard-selectable and wired to whole-sentence selection", async () => {
+  const locatorSource = await readFile(
+    new URL("./features/material-locator/MaterialLocatorPage.tsx", import.meta.url),
+    "utf8"
+  );
+  const detailSource = await readFile(
+    new URL("./features/source-detail/SourceDetailPage.tsx", import.meta.url),
+    "utf8"
+  );
+  const appSource = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+
+  for (const source of [locatorSource, detailSource]) {
+    assert.match(source, /tabIndex=\{0\}/);
+    assert.match(source, /handleSegmentKeyDown/);
+    assert.match(source, /选择第/);
+  }
+  assert.match(
+    appSource,
+    /onSelectTranscriptSegment=\{handlers\.selectTranscriptSegment\}/
+  );
+  assert.match(
+    locatorSource,
+    /isSingleSegmentClick\(dragStartSegmentId, dragEndSegmentId\)/
+  );
+});
+
+test("sidebar account menu exposes logout and switch-account entries", async () => {
+  const html = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      username: "Allen",
+      localCount: 1,
+      publicCount: 2,
+      activeTaskCount: 0,
+      engineReady: true,
+      onLogout: () => undefined,
+      onSwitchAccount: () => undefined
+    })
+  );
+  assert.match(html, /账户/);
+  assert.equal((html.match(/aria-haspopup="menu"/g) ?? []).length, 2);
+
+  const source = await readFile(new URL("./app/CutterApp.tsx", import.meta.url), "utf8");
+  assert.match(source, /退出登录/);
+  assert.match(source, /切换账号/);
+  assert.match(source, /clearCutterAuthSession/);
 });
 
 test("sidebar footer does not swap local and public library counts", () => {
@@ -5819,6 +6256,161 @@ test("401 login_required status errors clear stored session and show an honest C
   assert.equal(loginMessageForAuthError(error), "登录已失效，请重新申请或联系管理员。");
 });
 
+test("cache management previews protected user data before clearing UI cache", () => {
+  const preview = cacheClearPreviewText({
+    ui_key_count: 7,
+    ui_bytes: 2048,
+    protected_key_count: 3
+  });
+  assert.match(preview, /将清除 7 个界面偏好键（2 KB）/);
+  assert.match(preview, /不会删除项目、待剪清单、任务归属、登录状态与 3 个用户数据键/);
+  assert.match(preview, /磁盘缓存.*由本机服务管理/);
+
+  const data = createFixtureCutterData();
+  const html = renderToStaticMarkup(
+    h(CacheManagementPage, {
+      runtimeStatus: data.runtimeStatus,
+      releaseV2Enabled: true
+    })
+  );
+  assert.match(html, /清除界面缓存/);
+  assert.match(html, /刷新明细/);
+  assert.equal(html.includes("确认清除界面缓存"), false);
+});
+
+test("disk cache cleanup previews selected targets and summarizes clean results", () => {
+  const inventory = {
+    targets: [
+      { id: "searchd", label: "搜索索引", path: "/cache/searchd", size_bytes: 1024, file_count: 3, writable: true, deletable: true, deletable_bytes: 1024 },
+      { id: "release", label: "Release", path: "/cache/release", size_bytes: 4096, file_count: 1, writable: true, deletable: true, deletable_bytes: 4096 }
+    ],
+    protected: [{ kind: "project", ref_id: "P1", title: "现金流项目", reason: "作品引用" }],
+    warnings: [],
+    confirm_token: "token",
+    expected_bytes: 5120
+  };
+  const preview = cacheCleanupPreviewText(inventory, ["searchd"]);
+  assert.match(preview, /将清理 1 个磁盘缓存目标（1 KB）：搜索索引/);
+  assert.match(preview, /被引用的本地素材和未完成导出不会删除/);
+
+  const summary = diskCleanResultSummary({
+    cleaned: ["searchd"],
+    freed_bytes: 1024,
+    skipped: [{ id: "release", reason: "release_cache_pinned" }],
+    errors: [{ code: "cache_path_not_writable", message: "locked" }]
+  });
+  assert.match(summary, /已清理 1 个目标，释放 1 KB/);
+  assert.match(summary, /跳过 1 个/);
+  assert.match(summary, /失败 1 个（cache_path_not_writable）/);
+
+  const data = createFixtureCutterData();
+  const html = renderToStaticMarkup(
+    h(CacheManagementPage, {
+      runtimeStatus: data.runtimeStatus,
+      client: {
+        getCacheInventory: async () => inventory,
+        cleanCache: async () => ({ cleaned: [], freed_bytes: 0, skipped: [], errors: [] }),
+        getWorkspaceResidue: async () => ({
+          items: [{ id: "r1", kind: "restart_temp", path: "/ws/cache/cut-temp/r1", size_bytes: 512, safe_to_delete: true }],
+          total_bytes: 512,
+          expected_bytes: 512,
+          confirm_token: "t"
+        }),
+        cleanWorkspaceResidue: async () => ({ removed: [], freed_bytes: 0, skipped: [], errors: [] }),
+        getReleaseCachePins: async () => ({
+          pinned: [{ version: "v000001", size_bytes: 2048, referenced_by: [{ project_id: "P1", title: "项目 A", kind: "project" }] }],
+          unpinned: [{ version: "v000002", size_bytes: 1024 }],
+          active_release_version: "v000001",
+          max_cached_releases: 2,
+          expected_bytes: 1024,
+          confirm_token: "t",
+          warnings: []
+        }),
+        evictReleaseCache: async () => ({ evicted: [], freed_bytes: 0, blocked: [] }),
+        getGovernanceAudit: async () => ({ entries: [] })
+      }
+    })
+  );
+  assert.match(html, /磁盘缓存清理/);
+  assert.match(html, /预览清理/);
+  assert.match(html, /工作区残留与 Release 缓存/);
+  assert.match(html, /预览清理（0）/);
+  assert.match(html, /治理操作记录/);
+  assert.equal(governanceAuditOperationLabel("cache_clean"), "磁盘缓存清理");
+  assert.match(
+    governanceAuditSummary({
+      at: "2026-10-29T01:00:00.000Z",
+      operation: "release_cache_evict",
+      targets: ["v000002"],
+      removed_count: 1,
+      freed_bytes: 1024,
+      skipped_count: 1,
+      errors: [{ code: "release_cache_pinned", message: "被引用" }],
+      result: "partial",
+      duration_ms: 8
+    }),
+    /Release 缓存淘汰 · 1 项 · 1 KB · 跳过 1 项 · 错误 release_cache_pinned/
+  );
+
+  assert.match(
+    workspaceResidueSummary({
+      items: [
+        { id: "a", kind: "failed_export", path: "/a", size_bytes: 1024, safe_to_delete: true },
+        { id: "b", kind: "restart_temp", path: "/b", size_bytes: 1024, safe_to_delete: false }
+      ],
+      total_bytes: 2048,
+      expected_bytes: 1024,
+      confirm_token: "t"
+    }),
+    /残留 2 项（2 KB），其中 1 项可安全清理/
+  );
+  assert.match(
+    releaseCachePinsSummary({
+      pinned: [{ version: "v000001", size_bytes: 2048 }],
+      unpinned: [{ version: "v000002", size_bytes: 1024 }],
+      max_cached_releases: 2,
+      expected_bytes: 1024,
+      confirm_token: "t",
+      warnings: []
+    }),
+    /已缓存 2 个版本，其中被引用 1 个（上限 2）/
+  );
+});
+
+test("local clip governance summarizes orphans, references and cleanup results", () => {
+  const integrity = {
+    referenced: [{ local_clip_id: "E000001", referenced_by: [{ kind: "project", ref_id: "P1", title: "项目 A" }] }],
+    orphans: [
+      { local_clip_id: "E000002", path: "/ws/export-clips/E000002", size_bytes: 2048, reason: "清单缺失" }
+    ],
+    total_bytes: 2048,
+    expected_bytes: 2048,
+    confirm_token: "token",
+    degraded: false,
+    warnings: []
+  };
+  assert.match(localClipGovernanceSummary(integrity), /孤儿素材 1 个（2 KB） · 被引用素材 1 个/);
+  assert.equal(localClipDegradedNotice(integrity), "");
+  assert.match(
+    localClipDegradedNotice({
+      ...integrity,
+      degraded: true,
+      warnings: [{ code: "local_clip_reference_index_unreadable", message: "索引损坏，已暂停清理" }]
+    }),
+    /索引损坏，已暂停清理/
+  );
+  const preview = localClipCleanPreviewText(integrity);
+  assert.match(preview, /将清理 1 个孤儿本地素材（2 KB）/);
+  assert.match(preview, /项目成片、被引用素材不会被删除/);
+  const summary = localClipCleanResultSummary({
+    removed: ["E000002"],
+    freed_bytes: 2048,
+    skipped: [{ local_clip_id: "E000003", reason: "local_clip_referenced" }]
+  });
+  assert.match(summary, /已清理 1 个孤儿素材，释放 2 KB/);
+  assert.match(summary, /跳过 1 个/);
+});
+
 test("pending login polling retries transient errors only", () => {
   assert.equal(
     shouldRetryPendingLoginError(
@@ -5841,4 +6433,31 @@ test("pending login polling retries transient errors only", () => {
     true
   );
   assert.equal(shouldRetryPendingLoginError(new TypeError("网络中断")), true);
+});
+
+test("cut tasks tabs expose queue and pending cut-list views", () => {
+  const queueHtml = renderToStaticMarkup(
+    h(CutTasksTabNav, {
+      activeTab: "queue",
+      cutListCount: 3,
+      onSelectTab: () => undefined
+    })
+  );
+  assert.match(queueHtml, /role="tablist"/);
+  assert.match(queueHtml, /aria-label="剪切任务视图"/);
+  assert.match(queueHtml, /待剪清单（3）/);
+  assert.equal((queueHtml.match(/role="tab"/g) ?? []).length, 2);
+  assert.equal((queueHtml.match(/aria-selected="true"/g) ?? []).length, 1);
+  assert.match(queueHtml, /class="cutter-cut-tasks-tab is-active"[^>]*>剪切任务/);
+
+  const cutListHtml = renderToStaticMarkup(
+    h(CutTasksTabNav, {
+      activeTab: "cut-list",
+      cutListCount: 0,
+      onSelectTab: () => undefined
+    })
+  );
+  assert.match(cutListHtml, /待剪清单（0）/);
+  assert.match(cutListHtml, /class="cutter-cut-tasks-tab is-active"[^>]*>待剪清单/);
+  assert.match(cutListHtml, /class="cutter-cut-tasks-tab"[^>]*>剪切任务/);
 });

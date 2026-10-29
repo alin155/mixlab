@@ -14,6 +14,8 @@ export interface CutterNavItem {
   icon: string;
 }
 
+export type MaterialSearchMode = "content" | "folder";
+
 export const CUTTER_NAV_ITEMS: CutterNavItem[] = [
   { route: "project-home", label: "首页", icon: "home" },
   { route: "material-locator", label: "素材搜索", icon: "search" },
@@ -64,16 +66,63 @@ export function searchQueryFromHash(hash: string): string {
     return "";
   }
 
-  return searchParamsFromHash(hash).get("query")?.trim() ?? "";
+  const params = searchParamsFromHash(hash);
+  return params.get("folder_query")?.trim() ?? params.get("query")?.trim() ?? "";
 }
 
-export function searchHash(query: string): string {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    return "#/material-locator";
+export function materialSearchModeFromHash(hash: string): MaterialSearchMode {
+  if (routeFromHash(hash) !== "material-locator") {
+    return "content";
   }
 
-  return `#/material-locator?query=${encodeURIComponent(trimmed)}`;
+  const params = searchParamsFromHash(hash);
+  return params.get("folder_query")?.trim() || params.get("search_mode") === "folder"
+    ? "folder"
+    : "content";
+}
+
+export function searchSourceFolderFromHash(hash: string): string {
+  if (routeFromHash(hash) !== "material-locator") {
+    return "";
+  }
+
+  if (materialSearchModeFromHash(hash) === "folder") {
+    return "";
+  }
+
+  return searchParamsFromHash(hash).get("source_folder_name")?.trim() ?? "";
+}
+
+export function searchHash(
+  query: string,
+  options: { sourceFolderName?: string; searchMode?: MaterialSearchMode } = {}
+): string {
+  const trimmed = query.trim();
+  const searchMode = options.searchMode ?? "content";
+  const sourceFolderName = searchMode === "folder" ? "" : options.sourceFolderName?.trim();
+  if (!trimmed) {
+    if (!sourceFolderName && searchMode !== "folder") {
+      return "#/material-locator";
+    }
+
+    const params = new URLSearchParams();
+    if (sourceFolderName) {
+      params.set("source_folder_name", sourceFolderName);
+    }
+    if (searchMode === "folder") {
+      params.set("search_mode", "folder");
+    }
+
+    return `#/material-locator?${params.toString()}`;
+  }
+
+  const params = new URLSearchParams();
+  params.set(searchMode === "folder" ? "folder_query" : "query", trimmed);
+  if (sourceFolderName) {
+    params.set("source_folder_name", sourceFolderName);
+  }
+
+  return `#/material-locator?${params.toString()}`;
 }
 
 export function sourceDetailHash(

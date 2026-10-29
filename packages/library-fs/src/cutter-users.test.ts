@@ -129,6 +129,23 @@ test("registers cutter account with password and logs in after admin approval", 
     "2026-06-18T10:05:00.000Z"
   );
 
+  const repeatLogin = await loginCutterAccount(root, {
+    username: "cutter-a",
+    password: "Cutter12345",
+    device_id: "device-a",
+    device_name: "剪辑工作站",
+    now: "2026-06-18T10:06:00.000Z"
+  });
+  assert.equal(repeatLogin.ok, true);
+  assert.equal(repeatLogin.ok ? repeatLogin.session.session_token : "", session.session_token);
+  const storeAfterRepeatLogin = JSON.parse(await readFile(storePath(root), "utf8")) as {
+    sessions: Array<{ session_token: string; last_seen_at: string }>;
+  };
+  assert.equal(
+    storeAfterRepeatLogin.sessions.find((item) => item.session_token === session.session_token)?.last_seen_at,
+    "2026-06-18T10:05:00.000Z"
+  );
+
   assert.deepEqual(await logoutCutterSession(root, {
     device_id: "device-a",
     session_token: session.session_token

@@ -1,4 +1,4 @@
-import { Button, InspectorPanel } from "@mixlab/ui-foundation";
+import { Button, InspectorPanel, SearchBox } from "@mixlab/ui-foundation";
 import {
   formatDuration,
   formatFileSize,
@@ -13,6 +13,10 @@ import {
   videoOrientationLabel,
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
+import {
+  MATERIAL_SCOPE_FOLDER_VALUE,
+  type MaterialSearchMode
+} from "../../state/material-locator.ts";
 import { LibraryGallery } from "../library-gallery.tsx";
 
 const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
@@ -52,30 +56,39 @@ export function PublicLibraryPage({
   library,
   selectedSourceVideoId,
   orientationFilter = "all",
+  searchMode = "content",
   sourceFolderFilter = "",
+  filenameQuery = "",
   sourceFolders = [],
   runtimeStatus,
   isLoadingMore = false,
+  isSearchingFilename = false,
   hasMore = false,
   onSetOrientationFilter,
-  onSetSourceFolderFilter,
+  onSetMaterialScope,
+  onSearchFilename,
   onSelectSourceVideo,
   onLoadMore
 }: {
   library: SourceLibraryResponse;
   selectedSourceVideoId?: string;
   orientationFilter?: VideoOrientationFilter;
+  searchMode?: MaterialSearchMode;
   sourceFolderFilter?: string;
+  filenameQuery?: string;
   sourceFolders?: readonly SourceFolderOption[];
   runtimeStatus?: CutterRuntimeStatus;
   isLoadingMore?: boolean;
+  isSearchingFilename?: boolean;
   hasMore?: boolean;
   onSetOrientationFilter?: (filter: VideoOrientationFilter) => void;
-  onSetSourceFolderFilter?: (folderName: string) => void;
+  onSetMaterialScope?: (scope: string) => void;
+  onSearchFilename?: (query: string) => void;
   onSelectSourceVideo?: (sourceVideoId: string) => void;
   onLoadMore?: () => void;
 }) {
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
+  const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
   const filtered = library.videos.filter((video) => matchesOrientationFilter(video, orientationFilter));
   const selected =
     filtered.find((video) => video.source_video_id === selectedSourceVideoId) ?? filtered[0];
@@ -94,21 +107,31 @@ export function PublicLibraryPage({
             <p className="ml-page-description">浏览管理端已经发布到剪辑端的原视频。</p>
           </div>
           <div className="cutter-public-library-controls ml-control-cluster">
-            {sourceFolderOptions.length > 0 ? (
-              <select
-                aria-label="按老师筛选"
-                className="cutter-source-folder-select ml-field-select"
-                value={sourceFolderFilter}
-                onChange={(event) => onSetSourceFolderFilter?.(event.currentTarget.value)}
-              >
-                <option value="">全部老师</option>
-                {sourceFolderOptions.map((folder) => (
-                  <option key={folder.name} value={folder.name}>
-                    {folder.name}（{folder.count}）
-                  </option>
-                ))}
-              </select>
-            ) : null}
+            <SearchBox
+              aria-label={searchMode === "folder" ? "搜索文件夹名称" : "按文件名搜索公共素材"}
+              buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}
+              className="cutter-public-library-filename-search"
+              defaultValue={filenameQuery}
+              disabled={isSearchingFilename}
+              key={searchMode}
+              name="public-library-filename"
+              onSubmit={(value) => onSearchFilename?.(value)}
+              placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
+            />
+            <select
+              aria-label="素材范围"
+              className="cutter-source-folder-select ml-field-select"
+              value={materialScopeValue}
+              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+            >
+              <option value="">全部素材</option>
+              {sourceFolderOptions.map((folder) => (
+                <option key={folder.name} value={folder.name}>
+                  {folder.name}（{folder.count}）
+                </option>
+              ))}
+              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+            </select>
             <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
               {orientationFilterOptions.map((option) => (
                 <Button

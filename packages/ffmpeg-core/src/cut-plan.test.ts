@@ -5,9 +5,17 @@ import {
   buildFfmpegAudioExtractionPlan,
   buildFfmpegCoverImagePlan,
   buildFfmpegCutPlan,
+  buildFfprobeFirstFramePtsPlan,
+  buildFfprobeKeyframePlan,
+  buildFfprobeOutputVerificationPlan,
   buildFfprobeSourceMetadataPlan,
+  decideCopyCutMode,
   formatSeconds,
+  parseFfprobeFirstFramePts,
+  parseFfprobeKeyframeTimes,
+  parseFfprobeOutputProbe,
   parseFfprobeSourceMetadata,
+  resolveFfmpegTimeoutMs,
   resolveFfmpegRuntime
 } from "./index.ts";
 
@@ -360,4 +368,168 @@ test("rejects ffprobe metadata without a video stream", () => {
       ),
     /ffprobe output did not include a video stream/
   );
+});
+
+test("builds output verification ffprobe plan with duration, streams, and start time", () => {
+  assert.deepEqual(
+    buildFfprobeOutputVerificationPlan({ output_path: "/exports/out.mp4" }),
+    {
+      executable: "ffprobe",
+      args: [
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_entries",
+        "format=duration,start_time:stream=codec_type,duration,start_time",
+        "/exports/out.mp4"
+      ]
+    }
+  );
+});
+
+test("parses output verification probe with video and audio streams", () => {
+  const probe = parseFfprobeOutputProbe(JSON.stringify({
+    format: { duration: "2.021000" },
+    streams: [
+      { codec_type: "video", codec_name: "h264", duration: "2.000000", start_time: "0.000000" },
+      { codec_type: "audio", codec_name: "aac", duration: "2.021000", start_time: "0.000000" }
+    ]
+  }));
+
+  assert.deepEqual(probe, {
+    duration_ms: 2021,
+    has_video_stream: true,
+    has_audio_stream: true,
+    video_duration_ms: 2000,
+    audio_duration_ms: 2021,
+    video_start_ms: 0
+  });
+});
+
+test("parses output verification probe for video without audio track", () => {
+  const probe = parseFfprobeOutputProbe(JSON.stringify({
+    format: { duration: "1.500000" },
+    streams: [{ codec_type: "video", duration: "1.500000", start_time: "0.000000" }]
+  }));
+
+  assert.deepEqual(probe, {
+    duration_ms: 1500,
+    has_video_stream: true,
+    has_audio_stream: false,
+    video_duration_ms: 1500,
+    video_start_ms: 0
+  });
+});
+
+test("builds first frame pts plan that reads a single packet", () => {
+  assert.deepEqual(
+    buildFfprobeFirstFramePtsPlan({ output_path: "/exports/out.mp4" }),
+    {
+      executable: "ffprobe",
+      args: [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "packet=pts_time",
+        "-read_intervals",
+        "%+#1",
+        "-print_format",
+        "json",
+        "/exports/out.mp4"
+      ]
+    }
+  );
+});
+
+test("parses first frame pts from packet probe output", () => {
+  assert.equal(parseFfprobeFirstFramePts(JSON.stringify({ packets: [{ pts_time: "0.000000" }] })), 0);
+  assert.equal(parseFfprobeFirstFramePts(JSON.stringify({ packets: [{ pts_time: "0.120000" }] })), 120);
+  assert.equal(parseFfprobeFirstFramePts(JSON.stringify({ packets: [] })), undefined);
+});
+
+test("builds keyframe probe plan around the requested begin point", () => {
+  const plan = buildFfprobeKeyframePlan({
+    source_path: "/source/long-gop.mp4",
+    begin_ms: 12_500
+  });
+
+  assert.deepEqual(plan, {
+    executable: "ffprobe",
+    args: [
+      "-v",
+      "error",
+      "-print_format",
+      "json",
+      "-select_streams",
+      "v:0",
+      "-skip_frame",
+      "nokey",
+      "-show_entries",
+      "frame=pts_time",
+      "-read_intervals",
+      "2.500%13.500",
+      "/source/long-gop.mp4"
+    ]
+  });
+});
+
+test("parses and de-duplicates keyframe timestamps", () => {
+  assert.deepEqual(
+    parseFfprobeKeyframeTimes(JSON.stringify({
+      frames: [
+        { pts_time: "0.000000" },
+        { pts_time: "2.000000" },
+        { pts_time: "2.000000" },
+        { pts_time: "4.500000" }
+      ]
+    })),
+    [0, 2000, 4500]
+  );
+});
+
+test("decideCopyCutMode keeps copy when begin is near a keyframe", () => {
+  assert.deepEqual(
+    decideCopyCutMode({
+      cut_mode: "copy",
+      begin_ms: 3_200,
+      keyframe_times_ms: [0, 3_000, 6_000]
+    }),
+    { cut_mode_used: "copy", keyframe_distance_ms: 200 }
+  );
+});
+
+test("decideCopyCutMode degrades copy to precise when keyframe distance exceeds threshold", () => {
+  const decision = decideCopyCutMode({
+    cut_mode: "copy",
+    begin_ms: 4_800,
+    keyframe_times_ms: [0, 2_000]
+  });
+
+  assert.equal(decision.cut_mode_used, "precise");
+  assert.equal(decision.keyframe_distance_ms, 2_800);
+  assert.match(decision.degrade_reason ?? "", /自动降级为精准剪切/);
+  assert.match(decision.degrade_reason ?? "", /2800ms/);
+});
+
+test("decideCopyCutMode degrades when no keyframe could be located and leaves non-copy modes unchanged", () => {
+  assert.deepEqual(
+    decideCopyCutMode({ cut_mode: "copy", begin_ms: 4_800, keyframe_times_ms: [] }),
+    { cut_mode_used: "precise", degrade_reason: "无法定位源视频关键帧，已自动降级为精准剪切" }
+  );
+  assert.deepEqual(
+    decideCopyCutMode({ cut_mode: "smart", begin_ms: 4_800, keyframe_times_ms: [] }),
+    { cut_mode_used: "smart" }
+  );
+});
+
+test("estimates ffmpeg timeout from cut range with configurable upper bound", () => {
+  assert.equal(resolveFfmpegTimeoutMs({ range_ms: 10_000 }), 140_000);
+  assert.equal(resolveFfmpegTimeoutMs({ range_ms: 10_000, max_ms: 60_000 }), 60_000);
+  assert.equal(resolveFfmpegTimeoutMs({ range_ms: 0 }), 120_000);
+  assert.equal(resolveFfmpegTimeoutMs({ range_ms: -50 }), 120_000);
+  assert.equal(resolveFfmpegTimeoutMs({ range_ms: 10_000, max_ms: 1_000 }), 30_000);
+  assert.equal(resolveFfmpegTimeoutMs({ range_ms: 60 * 60 * 1000 }), 2 * 60 * 60 * 1000);
 });

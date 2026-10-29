@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793239139289-0397e733",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793239139289-0397e733",
+  "reply_to": "1793238664962-bc3230fe",
+  "created_at": "2026-10-29T01:58:59.290Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "D5（治理操作记录/审计，轻量版）已完成并验证通过。\n\n【后端 cutter-api（提交 089162e）】\n- 存储：<workspace>/.mixlab-library/ops/governance-audit.jsonl，append-only；字段 at/operation/targets/removed_count/freed_bytes/skipped_count/errors[{code,message}]/result(ok|partial|failed)/duration_ms；写后 >50 条轮转保留最新 50（临时文件+rename 原子替换）；进程内写入串行；写/读失败不阻塞清理。\n- 已接入 5 类治理操作成功响应（并追加可选 audit_error）：cache_clean、local_clip_clean、local_clip_force_delete（仅 force+token 成功）、workspace_residue_clean、release_cache_evict；result 规则：removed=0→failed，有 skipped/errors 或未全覆盖→partial，否则 ok。\n- 只读端点：GET /cutter/governance/audit?limit=50（requireCutterSession）；缺省 50，非法 limit → 400 governance_audit_invalid_limit；读取失败返回 200+entries:[]+audit_error（不阻塞页面）；无 workspace 返回空。错误码常量已在 cutter-api 导出；未改 packages/contracts。\n【前端 cutter-web】缓存管理页新增『治理操作记录』面板：时间/类型/范围摘要/释放空间/失败原因、加载/空态/错误重试；明确提示仅记录、不支持文件恢复。\n\n【验证】\n- typecheck PASS；D5 新测试 11/11（单测+HTTP：append/顺序/50 轮转/limit 校验/写失败不阻塞/真实清理产生记录）；cutter-api 144/144；cutter-web 301/301。\n- D5 UI Playwright 6/6 PASS（面板/历史记录/释放空间与结果/不可恢复提示/刷新/无控制台错误），证据 C:\\dev\\mixlab-verify-d\\d5-ui-verify.json + d5-governance-audit.png。\n- 全量 556/556 PASS（cutter-api 144、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7）；smoke status=passed ✅。\n- NSIS 重建（含 A1/A2+B+D+D5）：MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=FBE6C5E545E77E2D4B17AC444ABDA6C82462685CE87DC2650D51507269E12154。\n\n【已知限制/风险】\n1) 仅记录成功（2xx）治理操作，失败请求（400/409）不写审计；\n2) 同一 workspace 多进程并发写 JSONL 无跨进程锁（进程内串行），极端并发轮转可能丢失极个别最新行（best-effort）；\n3) force delete 的 freed_bytes 为删除前估算且 hardlink 未去重；local_clip_clean errors 恒 []、release evict blocked 计入 skipped_count；\n4) 审计只读，不提供文件恢复；轮转读取全文件（≤51 行）后重写，开销可忽略。\n\n【提交/证据】089162e（D5）；证据 C:\\dev\\mixlab-verify-d（d5-ui-verify.json + 截图）、C:\\dev\\logs\\governance-audit-tests.log、smoke-cutter-api-web.log。状态报告已更新（D5 完成、556/556、新 sha256）。"
+}

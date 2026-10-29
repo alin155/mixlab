@@ -352,6 +352,17 @@ fn stop_windows_process_tree(process_name: &str) {
 #[cfg(not(windows))]
 fn stop_windows_process_tree(_process_name: &str) {}
 
+fn engine_sidecar_process_names() -> [&'static str; 2] {
+    [CUTTER_API_SIDECAR_EXECUTABLE_NAME, SEARCHD_EXECUTABLE_NAME]
+}
+
+/// 应用退出/窗口关闭时回收本机引擎子进程，避免 sidecar 在 3789/3790 上成为孤儿。
+fn stop_engine_sidecars() {
+    for process_name in engine_sidecar_process_names() {
+        stop_windows_process_tree(process_name);
+    }
+}
+
 fn wait_for_health_endpoint(
     app: &AppHandle,
     event_prefix: &str,
@@ -1269,7 +1280,7 @@ fn desktop_run_doctor(config: CutterDesktopConfig) -> DesktopDoctorResult {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             desktop_config_path,
@@ -1282,8 +1293,29 @@ fn main() {
             desktop_start_engine,
             desktop_open_directory
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run MixLab Cutter desktop app");
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                stop_engine_sidecars();
+                desktop_host_log(
+                    window.app_handle(),
+                    "app_window_close_cleanup",
+                    json!({ "message": "terminating cutter-api sidecar and searchd" }),
+                );
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("failed to build MixLab Cutter desktop app");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            stop_engine_sidecars();
+            desktop_host_log(
+                app_handle,
+                "app_exit_cleanup",
+                json!({ "message": "terminating cutter-api sidecar and searchd" }),
+            );
+        }
+    });
 }
 
 #[cfg(test)]
@@ -1304,6 +1336,14 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("create temp library root");
         root
+    }
+
+    #[test]
+    fn engine_cleanup_targets_both_sidecars() {
+        let names = engine_sidecar_process_names();
+        assert_eq!(names.len(), 2);
+        assert!(names[0].contains("cutter-api-sidecar"));
+        assert!(names[1].contains("mixlab-searchd"));
     }
 
     #[test]

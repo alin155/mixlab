@@ -311,3 +311,256 @@ export function parseFfprobeSourceMetadata(stdout: string): SourceVideoMediaMeta
     codec: typeof videoStream.codec_name === "string" ? videoStream.codec_name : ""
   };
 }
+
+
+// --- 剪辑产物质检 / 关键帧 / 超时（P0 契约，2026-10-27） ---------------------
+
+export interface FfprobeOutputVerificationPlanInput {
+  output_path: string;
+}
+
+export interface OutputMediaProbe {
+  duration_ms?: number;
+  has_video_stream: boolean;
+  has_audio_stream: boolean;
+  video_duration_ms?: number;
+  audio_duration_ms?: number;
+  video_start_ms?: number;
+}
+
+export function buildFfprobeOutputVerificationPlan(
+  input: FfprobeOutputVerificationPlanInput
+): FfmpegCommandPlan {
+  return {
+    executable: "ffprobe",
+    args: [
+      "-v",
+      "error",
+      "-print_format",
+      "json",
+      "-show_entries",
+      "format=duration,start_time:stream=codec_type,duration,start_time",
+      input.output_path
+    ]
+  };
+}
+
+function millisecondsFromSeconds(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  return Math.round(value * 1000);
+}
+
+export function parseFfprobeOutputProbe(stdout: string): OutputMediaProbe {
+  const output = JSON.parse(stdout) as {
+    format?: {
+      duration?: unknown;
+    };
+    streams?: Array<{
+      codec_type?: unknown;
+      duration?: unknown;
+      start_time?: unknown;
+    }>;
+  };
+  const streams = Array.isArray(output.streams) ? output.streams : [];
+  const videoStream = streams.find((stream) => stream.codec_type === "video");
+  const audioStream = streams.find((stream) => stream.codec_type === "audio");
+  const durationSeconds =
+    parseNumber(output.format?.duration) ??
+    parseNumber(videoStream?.duration) ??
+    parseNumber(audioStream?.duration);
+
+  return {
+    ...(millisecondsFromSeconds(durationSeconds) !== undefined
+      ? { duration_ms: millisecondsFromSeconds(durationSeconds) }
+      : {}),
+    has_video_stream: Boolean(videoStream),
+    has_audio_stream: Boolean(audioStream),
+    ...(millisecondsFromSeconds(parseNumber(videoStream?.duration)) !== undefined
+      ? { video_duration_ms: millisecondsFromSeconds(parseNumber(videoStream?.duration)) }
+      : {}),
+    ...(millisecondsFromSeconds(parseNumber(audioStream?.duration)) !== undefined
+      ? { audio_duration_ms: millisecondsFromSeconds(parseNumber(audioStream?.duration)) }
+      : {}),
+    ...(millisecondsFromSeconds(parseNumber(videoStream?.start_time)) !== undefined
+      ? { video_start_ms: millisecondsFromSeconds(parseNumber(videoStream?.start_time)) }
+      : {})
+  };
+}
+
+export interface FfprobeFirstFramePtsPlanInput {
+  output_path: string;
+}
+
+export function buildFfprobeFirstFramePtsPlan(
+  input: FfprobeFirstFramePtsPlanInput
+): FfmpegCommandPlan {
+  return {
+    executable: "ffprobe",
+    args: [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "packet=pts_time",
+      "-read_intervals",
+      "%+#1",
+      "-print_format",
+      "json",
+      input.output_path
+    ]
+  };
+}
+
+/** 返回输出文件首个视频帧的 PTS（毫秒）；无视频包时返回 undefined。 */
+export function parseFfprobeFirstFramePts(stdout: string): number | undefined {
+  const output = JSON.parse(stdout) as {
+    packets?: Array<{ pts_time?: unknown }>;
+  };
+  const firstPacket = Array.isArray(output.packets) ? output.packets[0] : undefined;
+  return millisecondsFromSeconds(parseNumber(firstPacket?.pts_time));
+}
+
+export interface FfprobeKeyframePlanInput {
+  source_path: string;
+  begin_ms: number;
+  search_window_ms?: number;
+}
+
+export const DEFAULT_KEYFRAME_SEARCH_WINDOW_MS = 10_000;
+
+export function buildFfprobeKeyframePlan(
+  input: FfprobeKeyframePlanInput
+): FfmpegCommandPlan {
+  const safeBeginMs = Number.isFinite(input.begin_ms) ? Math.max(0, input.begin_ms) : 0;
+  const windowMs = Number.isFinite(input.search_window_ms)
+    ? Math.max(1_000, Math.floor(input.search_window_ms!))
+    : DEFAULT_KEYFRAME_SEARCH_WINDOW_MS;
+  const windowStartMs = Math.max(0, safeBeginMs - windowMs);
+  const windowEndMs = safeBeginMs + 1_000;
+
+  return {
+    executable: "ffprobe",
+    args: [
+      "-v",
+      "error",
+      "-print_format",
+      "json",
+      "-select_streams",
+      "v:0",
+      "-skip_frame",
+      "nokey",
+      "-show_entries",
+      "frame=pts_time",
+      "-read_intervals",
+      `${formatSeconds(windowStartMs)}%${formatSeconds(windowEndMs)}`,
+      input.source_path
+    ]
+  };
+}
+
+/** 解析 -skip_frame nokey 探测出的关键帧时间点（毫秒，升序去重）。 */
+export function parseFfprobeKeyframeTimes(stdout: string): number[] {
+  const output = JSON.parse(stdout) as {
+    frames?: Array<{ pts_time?: unknown }>;
+  };
+  const frames = Array.isArray(output.frames) ? output.frames : [];
+  const times = new Set<number>();
+
+  for (const frame of frames) {
+    const milliseconds = millisecondsFromSeconds(parseNumber(frame?.pts_time));
+
+    if (milliseconds !== undefined && milliseconds >= 0) {
+      times.add(milliseconds);
+    }
+  }
+
+  return [...times].sort((left, right) => left - right);
+}
+
+export const MAX_COPY_KEYFRAME_DISTANCE_MS = 500;
+
+export interface CopyKeyframeDecisionInput {
+  cut_mode: CutMode;
+  begin_ms: number;
+  keyframe_times_ms: number[];
+  max_keyframe_distance_ms?: number;
+}
+
+export interface CopyKeyframeDecision {
+  cut_mode_used: CutMode;
+  keyframe_distance_ms?: number;
+  degrade_reason?: string;
+}
+
+/**
+ * copy 模式只能从关键帧起切；起点距最近关键帧超过阈值时自动降级为 precise，
+ * 并返回可写入任务清单的降级原因。
+ */
+export function decideCopyCutMode(input: CopyKeyframeDecisionInput): CopyKeyframeDecision {
+  if (input.cut_mode !== "copy") {
+    return { cut_mode_used: input.cut_mode };
+  }
+
+  const threshold = Number.isFinite(input.max_keyframe_distance_ms) && (input.max_keyframe_distance_ms ?? 0) > 0
+    ? Math.floor(input.max_keyframe_distance_ms!)
+    : MAX_COPY_KEYFRAME_DISTANCE_MS;
+  const beginMs = Number.isFinite(input.begin_ms) ? Math.max(0, input.begin_ms) : 0;
+  const keyframeTimes = (Array.isArray(input.keyframe_times_ms) ? input.keyframe_times_ms : [])
+    .filter((value) => Number.isFinite(value) && value >= 0)
+    .sort((left, right) => left - right);
+  let previousKeyframe: number | undefined;
+
+  for (const keyframeTime of keyframeTimes) {
+    if (keyframeTime <= beginMs + 1) {
+      previousKeyframe = keyframeTime;
+    }
+  }
+
+  if (previousKeyframe === undefined) {
+    return {
+      cut_mode_used: "precise",
+      degrade_reason: "无法定位源视频关键帧，已自动降级为精准剪切"
+    };
+  }
+
+  const keyframeDistance = Math.max(0, Math.round(beginMs - previousKeyframe));
+
+  if (keyframeDistance > threshold) {
+    return {
+      cut_mode_used: "precise",
+      keyframe_distance_ms: keyframeDistance,
+      degrade_reason: `起点距最近关键帧 ${keyframeDistance}ms，超过 ${threshold}ms 关键帧阈值，已自动降级为精准剪切`
+    };
+  }
+
+  return {
+    cut_mode_used: "copy",
+    keyframe_distance_ms: keyframeDistance
+  };
+}
+
+export const DEFAULT_FFMPEG_TIMEOUT_BASE_MS = 120_000;
+export const DEFAULT_FFMPEG_TIMEOUT_FACTOR = 2;
+export const DEFAULT_FFMPEG_TIMEOUT_MAX_MS = 2 * 60 * 60 * 1000;
+export const MIN_FFMPEG_TIMEOUT_MS = 30_000;
+
+export interface FfmpegTimeoutEstimateInput {
+  range_ms: number;
+  max_ms?: number;
+}
+
+/** 按剪切区间估算超时：基础 120s + 区间 x2，受可配置上限约束。 */
+export function resolveFfmpegTimeoutMs(input: FfmpegTimeoutEstimateInput): number {
+  const rangeMs = Number.isFinite(input.range_ms) ? Math.max(0, input.range_ms) : 0;
+  const estimate = DEFAULT_FFMPEG_TIMEOUT_BASE_MS + Math.round(rangeMs * DEFAULT_FFMPEG_TIMEOUT_FACTOR);
+  const configuredMax =
+    Number.isFinite(input.max_ms) && (input.max_ms ?? 0) > 0
+      ? Math.floor(input.max_ms!)
+      : DEFAULT_FFMPEG_TIMEOUT_MAX_MS;
+
+  return Math.max(MIN_FFMPEG_TIMEOUT_MS, Math.min(estimate, configuredMax));
+}

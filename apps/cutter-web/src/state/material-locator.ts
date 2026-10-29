@@ -24,6 +24,8 @@ import {
 import type { TranscriptSegment as IndexedTranscriptSegment } from "@mixlab/protocol";
 
 export type MaterialSearchSourceFilter = "all" | "local" | "public";
+export type MaterialSearchMode = "content" | "folder";
+export const MATERIAL_SCOPE_FOLDER_VALUE = "__folder__";
 
 export type MaterialSource = "local" | "public";
 
@@ -58,6 +60,7 @@ export interface MaterialLocatorSection {
 
 export interface BuildMaterialLocatorSectionsInput {
   query: string;
+  searchMode?: MaterialSearchMode;
   sourceFilter: MaterialSearchSourceFilter;
   orientationFilter: VideoOrientationFilter;
   localClips: LocalClipCatalog;
@@ -116,6 +119,21 @@ function matchedLocalClipSegments(clip: LocalClip, query: string): SearchHitSegm
   }
 
   return segments.filter((segment) => transcriptTextMatchesQuery(segment.text, normalizedQuery));
+}
+
+function isFilenameSearchSegment(segment: SearchHitSegment): boolean {
+  return (
+    segment.match_type === "exact" &&
+    (segment.match_ranges ?? []).length === 0 &&
+    Boolean(segment.match_id?.includes("-F"))
+  );
+}
+
+function hasPublicFilenameSearchResult(search: SearchResponse): boolean {
+  return search.groups.some((group) =>
+    group.hit_segments.length > 0 &&
+    group.hit_segments.every((segment) => isFilenameSearchSegment(segment))
+  );
 }
 
 function indexedLocalClipSegments(segments: readonly TranscriptSegment[]): IndexedTranscriptSegment[] {
@@ -304,7 +322,11 @@ export function buildMaterialLocatorSections(
     }
   }
 
-  if (input.sourceFilter === "all" || input.sourceFilter === "local") {
+  if (
+    (input.sourceFilter === "all" || input.sourceFilter === "local") &&
+    input.searchMode !== "folder" &&
+    !hasPublicFilenameSearchResult(input.search)
+  ) {
     const localItems = input.localClips.clips
       .filter(hasUsableLocalTranscript)
       .filter((clip) => textIncludesQuery(localClipSearchText(clip), input.query))

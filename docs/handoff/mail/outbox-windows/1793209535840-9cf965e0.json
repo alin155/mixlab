@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793209535840-9cf965e0",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793209535840-9cf965e0",
+  "reply_to": "1793209086655-a018e76f",
+  "created_at": "2026-10-28T17:45:35.841Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Windows 本轮结果（smoke 重跑 + 任务 C 完成）：\n\n【1) smoke:cutter-api-web 重跑（scripts/smoke 已同步至 admin@e6a7b67）】\n首个失败断言：L473 `page.getByRole(button, { name: 剪切这段 }).click()` → Timeout 30s（按钮不可见/不存在）。\n原因（DOM/截图证据）：点击命中高亮后只显示「选区信息/已选 2 秒 + 整句文案」，浮动按钮 .cutter-floating-cut-button 不出现；当前 UI 需要先在文案区拖选文本（mouse down→move→up）才会出现「剪切这段」。页面上无任何按钮匹配该名称（page_text 见 C:\\dev\\logs\\smoke-cutter-api-web.log）。\n建议补丁（Mac 侧改 scripts/smoke，我不改）：在 keywordHit.click() 后、点按钮前插入拖选：取 `.cutter-transcript-row[data-segment-id='V000001-S000001'] .cutter-transcript-text` 的 boundingBox，mouse.move(x+2,y+mid) → down → move(x+width*0.45,y,{steps:15}) → up；随后按钮可见再点击。前序断言（缓存管理页「真实 Cutter API 模式」+「本地 searchd」、settings 用户名、选中文案包含『现金流』）已全部通过。\n\n【2) 任务 C：NSIS 干净环境安装→首启→配置→登录→检索/剪切/导出→退出→卸载→重装/升级→恢复 全部完成】\n- 安装器：MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=73C8D30ED1B70FA56D79B561ABDC17050DC17F3D289EE177BA6341AF53158270；静默安装 /S exit=0，安装到 %LOCALAPPDATA%\\MixLab Cutter；注册表(0.18.10)/桌面/开始菜单快捷方式/7 个核心文件齐全。\n- 首启（新用户配置）：窗口正常 + WebView2 加载；首启页显示「Windows 桌面版首启」；写入新用户 config + 新公共素材库/工作区后自动 engine_start_requested → searchd :3790 + cutter-api sidecar :3789 ready，/health 返回 library/workspace/release_cache 路径正确。\n- 登录：reviewed 模式（/cutter/auth/mode=reviewed，未登录 API 返回 401）；UI 显示「登录剪辑师工作台」；API 侧走申请→管理员审批→session 后所有接口 200。\n- 检索/剪切/导出：source-library=1、source-search mode=sqlite-index 命中 1 组、detail 2 段；POST /cutter/local-clips 201 done，工作区 export-clip.json、export-clips/E000001/*.mp4、projects/*.mp4 均已落盘。\n- 退出：窗口关闭后桌面进程退出，但 cutter-api-sidecar/searchd 仍存活占用 3789/3790（疑似退出未回收 sidecar，请关注是否设计如此）。\n- 卸载残留（/S exit=0）：安装目录本体与注册表卸载项、快捷方式均清理；残留：安装目录下 cache\\searchd 空目录、HKCU\\Software\\MixLab\\MixLab Cutter 键、AppData 的 config/logs（用户数据，按设计保留）。\n- 重装路径：卸载后再次静默安装 exit=0，文件/注册表/快捷方式恢复。\n- 升级路径：已安装状态下再次运行安装器 exit=0，版本保持 0.18.10、注册表/文件正常。\n- 测试后已完整恢复原 0.18.10 安装（D:\\应用\\MixLab Cutter 文件未动；注册表/快捷方式/AppData 已还原）。\n- 证据目录：C:\\dev\\mixlab-verify-nsis（evidence.log、installed-app-first-run.png、installed-app-workbench.png、nsis-verify-result.json、api-evidence.json、uninstall-reinstall-residue.json、backup/）。\n\n【3) 建议下一步】A（剪辑队列/待剪清单 UX）改进提案，待批准后我再动手：\nA1 待剪清单拖拽排序+上移/下移，顺序持久化且即执行顺序（验收：刷新/重启顺序保持；单测覆盖）。\nA2 队列批量操作：多选重试/暂停/删除，失败项批量重试不影响已完成（验收：操作汇总 toast；状态流转正确）。\nA3 失败任务诊断增强：错误阶段/错误码/一键复制诊断摘要（脱敏）+ 一键重试（验收：摘要字段稳定；重试后状态正确）。\nA4 检索页剪切后联动：新增任务 1s 内出现在待剪清单并高亮，不打断当前搜索状态（验收：联动可见、可取消）。\nA5 队列持久化与启动恢复：崩溃/重启后 running→pending 标注「上次中断」可重试，已完成不重复执行（验收：模拟中断恢复用例）。\n请确认优先项/范围（可只选 1~2 项），我再按验收标准实现并跑回归。"
+}

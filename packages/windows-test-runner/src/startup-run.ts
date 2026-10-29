@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { reportPath } from "./report.ts";
 import type { RunnerConfig, RunnerStatus, RunRecord, RunRequest, RunnerSuite } from "./types.ts";
@@ -39,6 +40,26 @@ export function parseStartupRunRequest(value: string | undefined): RunRequest | 
   };
 }
 
+async function writeFileAtomically(filePath: string, content: string): Promise<void> {
+  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(temporaryPath, content, "utf8");
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(temporaryPath, filePath);
+      return;
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (attempt >= 4 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) {
+        await rm(temporaryPath, { force: true }).catch(() => undefined);
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
+  }
+}
+
 async function writeStartupRunPointer(input: {
   config: RunnerConfig;
   record: RunRecord;
@@ -46,7 +67,7 @@ async function writeStartupRunPointer(input: {
 }): Promise<void> {
   const pointerPath = path.join(input.config.reports_root, STARTUP_RUN_POINTER_FILE);
   await mkdir(input.config.reports_root, { recursive: true });
-  await writeFile(pointerPath, `${JSON.stringify({
+  await writeFileAtomically(pointerPath, `${JSON.stringify({
     schema_version: "1.0",
     runner_version: input.config.runner_version,
     phase: input.phase,
@@ -58,7 +79,7 @@ async function writeStartupRunPointer(input: {
     report_path: reportPath(input.record.report_dir),
     summary_path: input.record.summary_path,
     updated_at: input.record.updated_at
-  }, null, 2)}\n`, "utf8");
+  }, null, 2)}\n`);
 }
 
 export function startStartupRun(input: {
