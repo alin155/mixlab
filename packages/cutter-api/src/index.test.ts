@@ -2343,11 +2343,68 @@ test("source search falls back to sqlite path when searchd first page is unavail
 
         assert.equal(search.data.search_mode, "transcript-artifact-fallback");
         assert.equal(search.data.groups[0].source_video_id, "V000001");
+        assert.equal(search.data.searchd_fallback_reason, "warming");
+        assert.equal(search.data.searchd_attempts, 3);
       }, {
-        searchd_base_url: searchdBaseUrl
+        searchd_base_url: searchdBaseUrl,
+        searchd_retry_attempts: 3,
+        searchd_retry_backoff_ms: 1
       });
 
-      assert.equal(searchdRequests.length, 1);
+      assert.equal(searchdRequests.length, 3);
+    }
+  );
+});
+
+test("source search retries searchd warming failures before falling back", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  let attempts = 0;
+
+  await withSearchdServer(
+    () => {
+      attempts += 1;
+      if (attempts === 1) {
+        return {
+          status: 503,
+          body: { error: { code: "searchd_warming", message: "index warming" } }
+        };
+      }
+      if (attempts === 2) {
+        return {
+          status: 503,
+          body: { error: { code: "searchd_warming", message: "index warming" } }
+        };
+      }
+      return {
+        status: 200,
+        body: {
+          schema_version: "1.0",
+          data: {
+            query: "现金流",
+            normalized_query: "现金流",
+            groups: [],
+            index_version: "tantivy-v000001",
+            search_ms: 1
+          }
+        }
+      };
+    },
+    async (searchdBaseUrl, searchdRequests) => {
+      await withApiServer(libraryRoot, async (baseUrl) => {
+        const response = await fetch(`${baseUrl}/cutter/source-search?query=${encodeURIComponent("现金流")}&limit=10`, {
+          headers
+        });
+        assert.equal(response.status, 200);
+        const search = await response.json() as any;
+        // searchd 恢复后返回空首屏，sidecar 按既有规则本地补充文件名搜索，不再标记回退原因。
+        assert.equal(search.data.searchd_fallback_reason, undefined);
+      }, {
+        searchd_base_url: searchdBaseUrl,
+        searchd_retry_backoff_ms: 1
+      });
+
+      assert.equal(searchdRequests.length, 3);
     }
   );
 });

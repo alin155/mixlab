@@ -461,7 +461,7 @@ export function materialLocatorCandidateSummary(input: {
   }
 
   if (input.isSearching && input.candidateCount === 0) {
-    return "首批匹配中";
+    return "搜索索引预热中…";
   }
 
   if (input.candidateCount === 0) {
@@ -497,7 +497,7 @@ export function materialLocatorSectionFooterLabel(input: {
   }
 
   if (input.isSearching) {
-    return `首批搜索中（已显示 ${input.itemCount}）`;
+    return `首批搜索中（已显示 ${input.itemCount}，索引预热时可能较慢）`;
   }
 
   if (input.hasMoreSearchResults) {
@@ -530,6 +530,10 @@ export function materialLocatorBackendNotice(backend?: MaterialLocatorBackendSta
   }
 
   const detail = backend.message?.trim();
+  const warming = /预热|warming/i.test(backend.label) || /预热|warming/i.test(detail ?? "");
+  if (warming) {
+    return `搜索索引预热中（首次搜索可能较慢）${detail ? `：${detail}` : ""}`;
+  }
   return `已回退到${backend.label}（searchd 不可用）${detail ? `：${detail}` : ""}`;
 }
 

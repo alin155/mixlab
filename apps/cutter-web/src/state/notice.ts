@@ -1,6 +1,6 @@
 import { CutterApiError } from "../api.ts";
 
-export const MATERIAL_SEARCH_TIMEOUT_NOTICE = "搜索响应较慢，请缩短关键词或稍后重试。";
+export const MATERIAL_SEARCH_TIMEOUT_NOTICE = "搜索响应较慢（索引预热时首次搜索可能较慢），请稍后重试或缩短关键词。";
 
 /** 401 / login_required on any protected request must clear the stored session. */
 export function shouldClearCutterSessionForApiError(error: unknown): boolean {

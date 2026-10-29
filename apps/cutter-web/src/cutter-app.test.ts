@@ -2332,6 +2332,16 @@ test("material locator surfaces a stable fallback notice when searchd degrades",
 
   assert.match(materialLocatorBackendNotice(degraded), /已回退到本地索引（SQLite）/);
   assert.match(materialLocatorBackendNotice(degraded), /searchd 不可用/);
+  assert.match(
+    materialLocatorBackendNotice({
+      mode: "sqlite-index",
+      preferred_mode: "searchd",
+      label: "本地 searchd（索引预热中）",
+      degraded: true,
+      message: "本地 Tantivy 搜索索引正在预热，首批搜索会临时使用本地 SQLite 索引"
+    }),
+    /搜索索引预热中（首次搜索可能较慢）/
+  );
   assert.equal(materialLocatorBackendNotice(healthy), "");
   assert.equal(materialLocatorBackendNotice(undefined), "");
 });
@@ -2616,7 +2626,7 @@ test("material locator candidate summary reports background search loading and c
       isSearching: true,
       hasMoreSearchResults: false
     }),
-    "首批匹配中"
+    "搜索索引预热中…"
   );
   assert.equal(
     materialLocatorCandidateSummary({
@@ -2645,7 +2655,7 @@ test("material locator candidate summary reports background search loading and c
       isSearching: true,
       hasMoreSearchResults: true
     }),
-    "首批搜索中（已显示 20）"
+    "首批搜索中（已显示 20，索引预热时可能较慢）"
   );
   assert.equal(
     materialLocatorSectionFooterLabel({
@@ -2719,7 +2729,7 @@ test("material locator renders high-hit search loading as passive status instead
   );
 
   assert.match(html, /已载入1条 · 命中\d+处 · 加载中/);
-  assert.match(html, /首批搜索中（已显示 1）/);
+  assert.match(html, /首批搜索中（已显示 1，索引预热时可能较慢）/);
   assert.equal(html.includes("展开全部"), false);
 });
 
