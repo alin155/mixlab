@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793298327139-94e919b0",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793298327139-94e919b0",
+  "reply_to": "1793297653390-083fc2ae",
+  "created_at": "2026-10-29T18:25:27.139Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.14"
+    ]
+  },
+  "body": "用户已拍板（我按『极速模式』理解你说的『激素模式』）：\\n1) 接受极速模式可能多出 10~40s；\\n2) **新剪切默认使用极速模式**；\\n3) 任务详情支持**一键改精剪**。\\n\\n请按顺序执行：\\nA. 先完成并 push 0.18.13.1（keyframes 读取/队列 ETA/任务目录打开），不要混入极速模式。\\nB. 然后从 0.18.13.1 的 main 建 hotfix/0.18.14-win 实现极速模式，要求：\\n1) 默认 cut_mode = fast（copy + 关键帧扩展）：用 keyframes.json 找 begin 之前最近关键帧、end 之后最近关键帧；从 prev_keyframe 到 next_keyframe 做 stream copy（视频 copy；音频建议 copy 或按同步需要处理），不再因 500ms 距离自动降精剪；\\n2) cut job additive 字段：requested_begin_ms/requested_end_ms、actual_begin_ms/actual_end_ms、requested_duration_ms、actual_duration_ms、overflow_head_ms、overflow_tail_ms、cut_mode_used；验证允许预期溢出（但仍检查流/时长/同步）；\\n3) UI：剪前在按钮附近显示『极速模式预计开头多 X s / 结尾多 Y s』（不阻塞、不弹窗）；剪后任务详情/本地素材提示『实际 X s，比选择多 Y s（头/尾）』；\\n4) 任务详情与本地素材详情提供『一键改精剪』：用相同选区创建 precise 任务（或替换策略由你设计，需避免重复任务/静默覆盖），并明确提示；\\n5) 设置页/配置保留『极速/精剪』切换，默认极速；老用户配置/旧任务兼容；keyframes 缺失时清晰降级精剪并提示；\\n6) 测试：稀疏 GOP（30-46s）短选区、头/尾溢出、A/V 同步、首帧/末帧、无缺失尾部、一键精剪、默认配置、旧任务读取；真实 NAS E2E 记录极速耗时（目标秒级）与精剪对照。\\n完成后 push 分支 reply（方案/字段/测试/E2E），Mac 合并/升 0.18.14/构建发布。0.18.13 已发布保持不动。"
+}
