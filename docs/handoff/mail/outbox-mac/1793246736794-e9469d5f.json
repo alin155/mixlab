@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793246736794-e9469d5f",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793246736794-e9469d5f",
+  "created_at": "2026-10-29T04:05:36.794Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "重要进展：main 已 fast-forward 到集成 RC（main b10e4fc / 代码 3735253），RC 标签 cutter-integ-rc-20261029、main 标签 cutter-integ-main-20261029 已推送；两线分支漂移结束。你之前的集成验证（553/553、smoke、cargo）即为 RC 代码验证，已足够支撑合并。剩余只差 Windows RC 安装包验收：请在你恢复后从 main（或 release/cutter-admin-rc-20261029）构建 NSIS、记录 sha256，并做干净安装→首启→退出(sidecar 回收)→静默卸载残留检查，回报证据；若你之前的完整 npm test 卡住/未完成，直接说明卡住用例，不必重跑全部。完成后 reply。"
+}
