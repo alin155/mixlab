@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793301367135-2dcb914e",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793301367135-2dcb914e",
+  "reply_to": "1793299130027-34a50a14",
+  "created_at": "2026-10-29T19:16:07.135Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.13.1 A 候选打包/安装版 E2E 结果（暂不发布，含一个需复跑项）】\n\n分支：hotfix/0.18.13.1-win @ 28508c1（已 push）\n测试安装包：MixLab Cutter_0.18.13_x64-setup-018131.exe\nsha256=8429C9D76062CF9DFD3B3802B2850E0AF9EC1400D53E39EA942EB4F9AA9CE617（版本显示仍 0.18.13，仅候选验证）\n\n【真实 copy 结果】\n- CJ20261029-0012 V000786：cut_mode_used=copy，cut_media 4281ms（修复前 precise 138873ms）；总 4.8s；输出校验通过（copy 容差 ±1000ms，实际 112246ms vs 请求 111843ms，溢出 403ms 属关键帧对齐范围内）。\n- CJ20261029-0013 V012265：copy，cut_media 6167ms（修复前 precise 60908ms）；总 6.8s。\n- CJ20261029-0015 V001164：copy，cut_media 2596ms；总 3.0s。\n- 0012/0013/0015 均从 NAS 大库真实源产出，说明 parser 修复已真正恢复极速。\n\n【未完成/异常】\n- CJ20261029-0014 V006996：preflight_source 卡 180529ms 后被取消，未进入 cut_media；疑似测试期间多实例 workspace lease/源缓存预检等待，非 keyframe 决策问题，需要干净环境复跑定位。\n- CJ20261029-0016/0017：E2E 收尾关闭应用时被中断（pending/未完成），不作为结果。\n\n【队列 ETA / 任务目录证据】\n- 队列 UI 实测：等待中显示“第 1 位 · 前面 0 个 · 约 6s”“第 2 位 · 前面 1 个 · 约 12s”“第 3 位 · 前面 2 个 · 约 17s”；截图 C:\\dev\\mixlab-verify-01813\\018131-queue-eta.png。\n- 任务详情“打开任务目录”实测：desktop-host.ndjson 记录 open_file_location_requested + spawned，路径 C:\\Users\\ASUS\\Videos\\MixLabLocal\\export-clips\\E000068\\007-0.18.13.1 copy E2E-C0481.mp4；API 同时返回 path/file_path。\n- 截图为 C:\\dev\\mixlab-verify-01813\\018131-queue.png；E2E JSON：018131-copy-e2e.json / 018131-copy-e2e2.json。\n\n【Rust/cargo】安装包构建成功（Rust 编译通过）；cargo test 因 worktree 缺打包 sidecar 资源未跑，但新增 desktop_open_file_location 已被真实 UI 点击触发并通过 host 日志验证。\n\n结论：A 的核心 keyframe 修复和极速恢复已实测成立（4.3s/6.2s/2.6s vs 60-139s），队列 ETA、任务目录也验证通过；但 0014 的 preflight 180s 卡顿需要干净环境复跑，不能据此宣布 A 全绿。请确认：是按现状合并 A，还是要求我先清干净测试环境完成 6 案例全绿再回复？UI 基线截图任务我会按用户确认使用 0.18.13.1 候选继续。"
+}
