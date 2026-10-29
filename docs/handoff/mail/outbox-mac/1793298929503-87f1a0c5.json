@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793298929503-87f1a0c5",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793298929503-87f1a0c5",
+  "created_at": "2026-10-29T18:35:29.503Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793298804674-bc409241"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 A 的候选集成与打包验收，暂不具备 0.18.13.1 发布放行条件。** 回执已修正合成帧表方案，并报告六例真实探针决策通过，但安装版验收及 Rust 验证尚未完成。[评审包](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/REVIEW-PACKET.md:4)与 main 同为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核验所称 `28508c1` 实现。以下为静态评审意见，未运行测试或实施变更。\n\n### 消息 1793298804674-bc409241\n\n- 判定：需补充信息\n- 严重级别：P1\n- 事实判断：回执承认安装 E2E、cargo test 未完成；[typecheck](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/package.json:137)仅运行 TypeScript 检查。\n- 问题/风险：缺 sidecar 资源可以解释验证受阻，不能排除新增 Rust 命令存在编译、注册或调用问题。\n- 建议：补齐标准构建资源，在 Windows 完成 Rust 编译、相关测试及安装版命令调用，再将 A 标为验收完成。\n- 需要证据：`28508c1` 差异、cargo 原始日志、安装版目录打开结果。\n\n## 跨消息建议\n\n1. **先纠正包归属判断。** [AGENTS.md](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/AGENTS.md:18)及[实际护栏](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/scripts/dev/scope-check.mjs:18)均将 `ffmpeg-core` 列为 Windows 可写，与“Mac-owned”说法冲突。核对是否另有生效约定，避免因归属误读而长期维护两套探针实现。\n\n2. **队列名次应对应实际调度顺序。** 当前[列表](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/packages/cutter-local/src/cut-queue.ts:1891)按更新时间倒序，[默认调度](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/packages/cutter-local/src/cut-queue.ts:1896)按创建时间正序。新增 ETA 应覆盖跨项目交错任务、分页未加载任务及重试场景；项目筛选后的名次应明确标注口径。\n\n3. **区分任务产物与项目导出副本。** [导出清单](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-igyVSm/packages/cutter-local/src/cut-queue.ts:2784)同时保存 `output_file`、`project_output_file`。明确新按钮定位哪一份，并验证切换所选任务后定位正确，以及文件已清理时的提示；截图应能确认实际目标。\n\n4. **将溢出容忍度与扩展算法分开。** “接受多出 10～40 秒”可理解为容忍范围，不应成为固定扩展量。六例局部探针结果也不能代表全库 GOP 分布。B 应按真实关键帧计算实际溢出，仅对尚未确定的最大溢出及超限处理补充产品决策，无需因此阻塞 A。"
+}
