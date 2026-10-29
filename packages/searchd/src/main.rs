@@ -15,7 +15,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
     thread,
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tantivy::{
     collector::TopDocs,
@@ -999,6 +999,110 @@ fn unique_build_dir(cache_root: &Path, current_version: &str) -> PathBuf {
     ))
 }
 
+/// 尽力删除目录，失败不向上传播（用于清理临时产物）。
+fn remove_dir_all_best_effort(path: &Path) {
+    if path.exists() {
+        let _ = fs::remove_dir_all(path);
+    }
+}
+
+/// Windows 上杀毒/索引器可能短暂占用目录句柄，删除失败时重试。
+fn remove_dir_all_with_retry(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let mut last_error = None;
+    for attempt in 0..6 {
+        match fs::remove_dir_all(path) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                last_error = Some(error);
+                thread::sleep(Duration::from_millis(100 * (attempt + 1)));
+            }
+        }
+    }
+    Err(anyhow!(
+        "failed to remove directory {}: {}",
+        path.display(),
+        last_error
+            .map(|error| error.to_string())
+            .unwrap_or_default()
+    ))
+}
+
+fn copy_dir_recursive(source: &Path, destination: &Path) -> Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_dir_recursive(&source_path, &destination_path)?;
+        } else {
+            fs::copy(&source_path, &destination_path)?;
+        }
+    }
+    Ok(())
+}
+
+/// 用临时构建目录替换最终缓存目录。
+/// Windows 上 fs::rename 可能因 AV/文件句柄返回 os error 5；这里重试后回退到复制，
+/// 避免每次启动都失败并退回内存索引（1.3M 段会导致首搜极慢）。
+fn replace_cache_dir(build_dir: &Path, final_dir: &Path) -> Result<()> {
+    if let Some(parent) = final_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    remove_dir_all_with_retry(final_dir)?;
+
+    let mut last_error = None;
+    for attempt in 0..8 {
+        match fs::rename(build_dir, final_dir) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                last_error = Some(error);
+                thread::sleep(Duration::from_millis(100 * (attempt + 1)));
+            }
+        }
+    }
+
+    remove_dir_all_with_retry(final_dir)?;
+    copy_dir_recursive(build_dir, final_dir).with_context(|| {
+        format!(
+            "rename failed after retries ({}); directory copy fallback failed",
+            last_error
+                .map(|error| error.to_string())
+                .unwrap_or_default()
+        )
+    })?;
+    remove_dir_all_best_effort(build_dir);
+    Ok(())
+}
+
+/// 清理历史失败构建遗留的 .building-* 目录，避免磁盘被数 GB 垃圾占满。
+fn cleanup_stale_build_dirs(cache_root: &Path, max_age: Duration) {
+    let tantivy_root = cache_root.join("tantivy");
+    let entries = match fs::read_dir(&tantivy_root) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    let now = SystemTime::now();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with(".building-") {
+            continue;
+        }
+        let modified = match entry.metadata().and_then(|metadata| metadata.modified()) {
+            Ok(modified) => modified,
+            Err(_) => continue,
+        };
+        let age = now.duration_since(modified).unwrap_or_default();
+        if age >= max_age {
+            let _ = fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 fn write_cache_metadata(cache_dir: &Path, metadata: &SearchCacheMetadata) -> Result<()> {
     let raw = serde_json::to_string_pretty(metadata)?;
     fs::write(cache_metadata_path(cache_dir), format!("{raw}\n"))?;
@@ -1040,30 +1144,57 @@ fn build_persistent_tantivy_index(
     cache_root: &Path,
     expected: &SearchCacheMetadata,
 ) -> Result<Index> {
+    cleanup_stale_build_dirs(cache_root, Duration::from_secs(600));
+
     let final_dir = cache_version_root(cache_root, current_version);
     let build_dir = unique_build_dir(cache_root, current_version);
     if build_dir.exists() {
-        fs::remove_dir_all(&build_dir).ok();
+        remove_dir_all_best_effort(&build_dir);
     }
     fs::create_dir_all(&build_dir)?;
 
-    {
-        let index = Index::create_in_dir(&build_dir, schema)?;
+    let build_result = (|| -> Result<()> {
+        let index = Index::create_in_dir(&build_dir, schema.clone())?;
         index_documents(&index, fields, segments, videos)?;
+        write_cache_metadata(&build_dir, expected)?;
+        Ok(())
+    })();
+    if let Err(error) = build_result {
+        remove_dir_all_best_effort(&build_dir);
+        return Err(error);
     }
-    write_cache_metadata(&build_dir, expected)?;
 
-    if final_dir.exists() {
-        fs::remove_dir_all(&final_dir)?;
+    match replace_cache_dir(&build_dir, &final_dir) {
+        Ok(()) => Ok(Index::open_in_dir(&final_dir)
+            .with_context(|| format!("failed to open persistent cache {}", final_dir.display()))?),
+        Err(rename_error) => {
+            // rename + 复制都失败时的最后兜底：直接在最终目录构建。
+            // 中途崩溃留下的半成品没有有效 metadata，下次 cache_is_valid 会重建。
+            remove_dir_all_best_effort(&build_dir);
+            remove_dir_all_best_effort(&final_dir);
+            fs::create_dir_all(&final_dir)?;
+            let fallback_result = (|| -> Result<()> {
+                let index = Index::create_in_dir(&final_dir, schema)?;
+                index_documents(&index, fields, segments, videos)?;
+                write_cache_metadata(&final_dir, expected)?;
+                Ok(())
+            })();
+            if let Err(error) = fallback_result {
+                remove_dir_all_best_effort(&final_dir);
+                return Err(anyhow!(
+                    "persistent cache build failed ({}); direct build fallback failed: {}",
+                    rename_error,
+                    error
+                ));
+            }
+            Ok(Index::open_in_dir(&final_dir).with_context(|| {
+                format!(
+                    "failed to open persistent cache after direct build fallback {}",
+                    final_dir.display()
+                )
+            })?)
+        }
     }
-    fs::create_dir_all(
-        final_dir
-            .parent()
-            .ok_or_else(|| anyhow!("invalid searchd cache path"))?,
-    )?;
-    fs::rename(&build_dir, &final_dir)?;
-
-    Ok(Index::open_in_dir(&final_dir)?)
 }
 
 fn build_in_memory_tantivy_index(
@@ -1089,6 +1220,8 @@ fn open_or_build_tantivy_index(
     let Some(cache_root) = cache_root else {
         return build_in_memory_tantivy_index(schema, fields, segments, videos);
     };
+
+    cleanup_stale_build_dirs(cache_root, Duration::from_secs(600));
 
     let expected = expected_cache_metadata(current_version, metadata);
     let cache_dir = cache_version_root(cache_root, current_version);
@@ -2978,6 +3111,44 @@ mod tests {
                 .map(|group| group.source_video_id.as_str())
                 .collect::<Vec<_>>(),
             vec!["V000004", "V000003"]
+        );
+    }
+
+    #[test]
+    fn stale_build_dirs_are_removed() {
+        let cache = TempDir::new().unwrap();
+        let cache_root = cache.path().to_path_buf();
+        let tantivy_root = cache_root.join("tantivy");
+        fs::create_dir_all(tantivy_root.join(".building-v000001-1-1")).unwrap();
+        fs::create_dir_all(tantivy_root.join("v000001")).unwrap();
+        fs::write(
+            tantivy_root.join(".building-v000001-1-1").join("meta.json"),
+            "stale",
+        )
+        .unwrap();
+
+        cleanup_stale_build_dirs(&cache_root, Duration::ZERO);
+
+        assert!(!tantivy_root.join(".building-v000001-1-1").exists());
+        assert!(tantivy_root.join("v000001").exists());
+    }
+
+    #[test]
+    fn replace_cache_dir_replaces_existing_target() {
+        let cache = TempDir::new().unwrap();
+        let build = cache.path().join(".building-new");
+        let final_dir = cache.path().join("v000001");
+        fs::create_dir_all(&build).unwrap();
+        fs::write(build.join("meta.json"), "new").unwrap();
+        fs::create_dir_all(&final_dir).unwrap();
+        fs::write(final_dir.join("meta.json"), "old").unwrap();
+
+        replace_cache_dir(&build, &final_dir).unwrap();
+
+        assert!(!build.exists());
+        assert_eq!(
+            fs::read_to_string(final_dir.join("meta.json")).unwrap(),
+            "new"
         );
     }
 
