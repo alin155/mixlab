@@ -216,6 +216,12 @@ const PAGE = String.raw`<!doctype html>
   .msg { border:1px solid var(--border); border-left:4px solid var(--muted); border-radius:8px; padding:10px 12px; background:#0f141b; }
   .msg.mac { border-left-color:var(--mac); }
   .msg.windows { border-left-color:var(--win); }
+  .msg.advisor { border-left-color:var(--warn); background:rgba(210,153,34,.07); }
+  .badge.advisory { color:var(--warn); }
+  .filters { display:flex; gap:6px; padding:8px 12px; border-bottom:1px solid var(--border); align-items:center; flex-wrap:wrap; }
+  .filters button { background:#21262d; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:3px 9px; font-size:12px; cursor:pointer; }
+  .filters button.active { border-color:var(--mac); color:var(--mac); }
+  .filters input { background:#0d1117; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:12px; min-width:180px; }
   .msg .meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:var(--muted); font-size:12px; }
   .badge { border-radius:5px; padding:1px 7px; font-size:11px; background:#21262d; border:1px solid var(--border); }
   .badge.notice { color:#79c0ff; } .badge.task { color:#f0883e; } .badge.reply { color:#3fb950; } .badge.ack { color:#8b949e; } .badge.control { color:#d29922; } .badge.status { color:#bc8cff; }
@@ -249,10 +255,21 @@ const PAGE = String.raw`<!doctype html>
 </header>
 <main>
   <section class="panel">
-    <h2>通信记录（Mac ↔ Windows）</h2>
+    <h2>通信记录（Mac ↔ Windows ↔ Codex 顾问）</h2>
+    <div class="filters">
+      <button data-filter="all" class="active">全部</button>
+      <button data-filter="mac">Mac</button>
+      <button data-filter="windows">Windows</button>
+      <button data-filter="advisor">Codex 顾问</button>
+      <input id="filter-text" placeholder="搜索内容…" />
+    </div>
     <div id="messages"><div class="empty">加载中…</div></div>
   </section>
   <aside class="side">
+    <section class="panel">
+      <h2>Codex 顾问（最新意见）</h2>
+      <div class="statusbox" id="advisor-box" style="white-space:pre-wrap;max-height:360px;overflow:auto;color:#d29922;font-size:12px">暂无顾问意见</div>
+    </section>
     <section class="panel">
       <h2>待处理 / 阻塞</h2>
       <div class="statusbox" id="attention" style="color:var(--muted)">加载中…</div>
@@ -325,7 +342,14 @@ function renderAttention(attention) {
   }
 }
 
+let activeFilter = "all";
+let searchText = "";
+let latestSnapshot = null;
+function senderLabel(from) {
+  return from === "codex-advisor" ? "Codex 顾问" : (from === "mac" ? "Mac" : "Windows");
+}
 function render(snapshot) {
+  latestSnapshot = snapshot;
   const messages = snapshot.messages || [];
   $("mac-head").textContent = "Mac: " + (snapshot.heads?.mac || "?").slice(0, 8);
   $("win-head").textContent = "Windows: " + (snapshot.heads?.windows || "?").slice(0, 8);
@@ -334,7 +358,16 @@ function render(snapshot) {
   const pausedChip = $("paused-chip");
   pausedChip.style.display = paused.mac || paused.windows ? "" : "none";
   pausedChip.textContent = "通信已暂停" + (paused.mac ? " (Mac)" : "") + (paused.windows ? " (Windows)" : "");
-  $("counts").textContent = "消息 " + messages.length;
+  const visibleMessages = messages.filter((message) => {
+    const sender = message.from === "codex-advisor" ? "advisor" : message.from;
+    if (activeFilter !== "all" && sender !== activeFilter) return false;
+    if (!searchText) return true;
+    return (String(message.body || "") + " " + String(message.from || "") + " " + String(message.type || "")).toLowerCase().includes(searchText);
+  });
+  $("counts").textContent = "消息 " + (visibleMessages.length === messages.length ? messages.length : visibleMessages.length + "/" + messages.length);
+  const advisorMessages = messages.filter((message) => message.from === "codex-advisor");
+  const latestAdvisor = advisorMessages[advisorMessages.length - 1];
+  $("advisor-box").textContent = latestAdvisor ? String(latestAdvisor.body || "").slice(0, 4000) : "暂无顾问意见";
   renderAttention(snapshot.attention || {});
   $("win-status").textContent = snapshot.statuses?.windows || "（暂无 Windows 状态报告）";
   $("mac-status").textContent = snapshot.statuses?.mac || "（暂无 Mac 状态报告）";
@@ -342,23 +375,23 @@ function render(snapshot) {
   const container = $("messages");
   const scrollNearBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 60;
   container.textContent = "";
-  if (messages.length === 0) {
+  if (visibleMessages.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "还没有任何通信记录。";
+    empty.textContent = messages.length === 0 ? "还没有任何通信记录。" : "没有符合筛选条件的消息。";
     container.appendChild(empty);
     return;
   }
-  for (const message of messages) {
+  for (const message of visibleMessages) {
     const card = document.createElement("article");
-    card.className = "msg " + (message.from === "mac" ? "mac" : "windows");
+    card.className = "msg " + (message.from === "codex-advisor" ? "advisor" : (message.from === "mac" ? "mac" : "windows"));
     const meta = document.createElement("div");
     meta.className = "meta";
     const badge = document.createElement("span");
     badge.className = "badge " + message.type;
     badge.textContent = message.type + (message.action ? ":" + message.action : "");
     const direction = document.createElement("span");
-    direction.textContent = (message.from === "mac" ? "Mac" : "Windows") + " → " + (message.to === "mac" ? "Mac" : "Windows");
+    direction.textContent = senderLabel(message.from) + " → " + (message.to === "all" ? "全部" : senderLabel(message.to));
     const time = document.createElement("span");
     time.textContent = fmtTime(message.created_at);
     const id = document.createElement("span");
@@ -395,6 +428,20 @@ async function refresh() {
   } catch (error) {
     $("updated").textContent = "刷新失败: " + error.message;
   }
+}
+const filterText = $("filter-text");
+if (filterText) {
+  filterText.addEventListener("input", (event) => {
+    searchText = String(event.target.value || "").trim().toLowerCase();
+    if (latestSnapshot) render(latestSnapshot);
+  });
+}
+for (const button of document.querySelectorAll("[data-filter]")) {
+  button.addEventListener("click", () => {
+    activeFilter = button.dataset.filter || "all";
+    for (const item of document.querySelectorAll("[data-filter]")) item.classList.toggle("active", item === button);
+    if (latestSnapshot) render(latestSnapshot);
+  });
 }
 refresh();
 setInterval(refresh, 2500);

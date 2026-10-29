@@ -97,3 +97,8 @@ node scripts/dev/shared-sync.mjs --apply    # 执行（确认未手改共享包�
 ## 沟通纪律（mail 分支规则）
 
 - mail 必须在角色分支：mac=`dev/admin`、windows=`dev/cutter`。`mail.mjs send` 已强制守卫并做推送核验；离开角色分支前先处理邮箱，否则消息会落到错误分支、对端读不到。
+
+## Codex 顾问（只读第三方）
+
+- `scripts/dev/advisor.mjs` 自动把新消息提交给 Codex 做第三方评审；Codex 只读沙箱、不参与实施、不改代码。
+- 顾问消息 `from=codex-advisor`，`needs=none`，不阻塞；Mac/Windows 可采纳或不采纳，并在回复中说明理由。

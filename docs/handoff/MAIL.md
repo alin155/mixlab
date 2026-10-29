@@ -151,3 +151,11 @@ node scripts/dev/mail.mjs send --role windows --to mac --type task \
 - 若等待对端回复超过 30 分钟且对方 DSH 在线，先确认双方都在角色分支；必要时用 `git log origin/<对端分支> --oneline` 看对端是否真的没有新提交。
 
 - **停滞预警**：`pending`/看板会对"已发出但对方 >30 分钟未回复"的任务标记 `stalled`（看板显示「可能停滞（>30 分钟）」）；出现时先确认双方仍在角色分支并检查对端是否真的没有新提交。
+
+## Codex 第三方顾问（只读）
+
+- `scripts/dev/advisor.mjs watch` 自动评审新 Mailbox 消息（默认 60s 一轮，批量提交给 Codex）。
+- Codex 以只读沙箱运行在临时仓库快照内：`codex exec --sandbox read-only`，不能修改代码/不能 git 写/不能部署。
+- 顾问意见写入 `outbox-mac`，消息标记 `from=codex-advisor`、`type=notice`、`needs=none`；不阻塞、不进入待办，可采纳或不采纳。
+- 看板新增 Codex 顾问最新意见面板与筛选；日志 `~/Library/Logs/MixLab/advisor.log`。
+- 暂停顾问：停掉 dashboard/launcher 中的 advisor watcher 进程即可；不影响双端通信。

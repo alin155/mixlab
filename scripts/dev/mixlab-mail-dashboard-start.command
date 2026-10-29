@@ -29,13 +29,20 @@ if [ ! -d "$REPO" ]; then
   exit 1
 fi
 
+mkdir -p "$LOG_DIR"
+
+# Codex 顾问 watcher（只读 agent；与看板一起常驻）
+if [ -x "$REPO/scripts/dev/advisor.mjs" ] && ! pgrep -f "scripts/dev/advisor.mjs watch" >/dev/null 2>&1; then
+  cd "$REPO" || exit 1
+  nohup node scripts/dev/advisor.mjs watch --interval 60 >>"$LOG_DIR/advisor.log" 2>&1 &
+  disown
+fi
+
 # 已在运行：直接打开页面
 if curl -s --max-time 2 "$URL/health" >/dev/null 2>&1; then
   open_page
   exit 0
 fi
-
-mkdir -p "$LOG_DIR"
 cd "$REPO" || exit 1
 nohup node scripts/dev/mail-server.mjs --port "$PORT" --refresh 3000 --fetch 20000 >>"$LOG" 2>&1 &
 disown
