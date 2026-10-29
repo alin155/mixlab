@@ -1,15 +1,15 @@
 # windows 状态报告
 
-- generated_at: 2026-10-28T19:39:09.696Z
+- generated_at: 2026-10-29T01:59:06.987Z
 - role: windows
 - host: DESKTOP-SJ56NTE
 - platform: win32 x64
 - node_version: v24.14.1
 - repo_root: C:/dev/mixlab
 - branch: dev/cutter
-- head: 290febf560c739f1d199f7f1a23e5a5be510e177
-- head_subject: [mail][windows→mac] reply 1793216340057-e02e3035
-- head_time: 2026-10-29T03:39:00+08:00
+- head: 695b1654797b721bb49406619ff546bf20600ed5
+- head_subject: [mail][windows→mac] reply 1793239139289-0397e733
+- head_time: 2026-10-29T09:58:59+08:00
 - dirty_tracked: 0
 - dirty_untracked: 0
 - peer_branch: dev/admin
@@ -34,9 +34,9 @@
 - smoke_verify: 多次重跑 status=passed ✅（含 D1b 后回归）。
 - A1A2: 已接线（78e9c86）；Playwright 11/11（C:\dev\mixlab-verify-a1a2）。
 - B_stage: 8633584 + 2477293；证据 C:\dev\mixlab-verify-b（2000 命中分页 5/5、真实 searchd kill 回退 5/5、竞态守卫单测）。
-- D_stage: 全部收口。D1（e335da5）、D1b（051c950）、D2（5f49665）、D3（5f49665）、D4（41b73a0/1d8c162）验收见各自 reply；D2 fail-safe（b0e4641）引用索引损坏→degraded/warning、clean+DELETE 409 且不删、UI 警告+禁用；D4 跨进程锁（1d8c162）evict 与内部 release sync 共用 cache_root 文件锁（writeFile wx + 10min stale），拿不到锁 409 release_cache_busy；残余风险：外部/旧 sidecar 写 release cache 不遵守该锁（当前单进程部署不可触发，需外部工具接入同一锁）。D5 明确 defer 至下一批。证据 C:\dev\mixlab-verify-d、C:\dev\logs\d2-failsafe-tests.log、C:\dev\logs\release-lock-tests.log。
-- tests: typecheck PASS；cutter-api 133、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7 = 545/545；smoke status=passed。
-- nsis_artifact: 最终安装包（含 A1/A2+B+D+fail-safe+跨进程锁）MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=0EC5E323EA23FB8C98CDDEAEFA1CCA44879E9877A0730E4504CE13DB1F46A28B。
-- blockers: 无硬阻塞；D5 治理操作记录明确 defer 下一批；A2 真 pause/resume/delete 契约待后续批次；B 真实 2000+ searchd 压测/UI 降级截图可作演示补充；D4 锁的残余风险（外部写 release cache 的工具需接入同一文件锁）已记录。
-- next: 等 Mac 对 D 全部验收反馈；下一批可选 D5/A2 契约/其它；轮询每 240s 保持。
+- D_stage: 全部收口。D1（e335da5）、D1b（051c950）、D2（5f49665）、D3（5f49665）、D4（41b73a0/1d8c162）验收见各自 reply；D2 fail-safe（b0e4641）引用索引损坏→degraded/warning、clean+DELETE 409 且不删、UI 警告+禁用；D4 跨进程锁（1d8c162）evict 与内部 release sync 共用 cache_root 文件锁（writeFile wx + 10min stale），拿不到锁 409 release_cache_busy；残余风险：外部/旧 sidecar 写 release cache 不遵守该锁（当前单进程部署不可触发，需外部工具接入同一锁）。D5（治理操作审计）已完成（089162e）：workspace/.mixlab-library/ops/governance-audit.jsonl append-only 最近 50 条轮转，5 类治理操作成功响应带 audit_error，GET /cutter/governance/audit?limit=50，前端缓存管理页治理记录面板；UI 6/6。证据 C:\dev\mixlab-verify-d、C:\dev\logs\d2-failsafe-tests.log、release-lock-tests.log、governance-audit-tests.log。
+- tests: typecheck PASS；cutter-api 144、cutter-local 50、ffmpeg-core 27、desktop-runtime 8、windows-test-runner 19、cutter-web 301、cutter-desktop 7 = 556/556；smoke status=passed。
+- nsis_artifact: 最终安装包（含 A1/A2+B+D+fail-safe+跨进程锁+D5）MixLab Cutter_0.18.10_x64-setup.exe，56.2MB，sha256=FBE6C5E545E77E2D4B17AC444ABDA6C82462685CE87DC2650D51507269E12154。
+- blockers: 无硬阻塞；D5 已完成；A2 真 pause/resume/delete 契约待后续批次；B 真实 2000+ searchd 压测/UI 降级截图可作演示补充；D4 锁残余风险、D5 审计记录并发/仅成功操作限制已记录。
+- next: 等 Mac 对 D5/D 全部验收反馈；下一批可选 A2 契约/其它；轮询每 240s 保持。
 <!-- MANUAL:END -->
