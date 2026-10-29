@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793294357665-baae194d",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793294357665-baae194d",
+  "reply_to": "1793293569579-b28c8232",
+  "created_at": "2026-10-29T17:19:17.665Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.13 最终构建/升级/真实 NAS E2E 完成并已发布（源 571a1f2）】\n\n构建源：origin/hotfix/0.18.13 @ 571a1f2（版本 0.18.13，含 25c8176/7708d2b/904481a/e337d87）；独立 build-0.18.13 worktree，未改分支、未动 dev/cutter。\n安装包：MixLab Cutter_0.18.13_x64-setup-571a1f2.exe（56.3MB）\nsha256=295E6C64BF005012D0019DE9FAA9A03F02CC2E78142AF622E4DA1F757B13C2B5\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.13\\（exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.13-571a1f2.txt）\n- 已删除/替换此前 8451d00 版安装包与对应 sums；0.18.12 保留回滚。\n\n【0.18.12→0.18.13 覆盖升级：PASS】先装 0.18.12 再覆盖：install exit0；DisplayVersion/FileVersion 均 0.18.13；config SHA256 保留；桌面/开始菜单快捷方式存在；退出后 desktop/sidecar/searchd=0、端口 3789/3790=0。\n\n【真实 NAS 大库 E2E（安装版 571a1f2）】\n- 20 次连续切换 + 12s revisit：p50=101ms、p95=123ms、max=135ms；12s revisit=106ms；/health 最大 15ms；无控制台错误。\n- 预取统计：单独纯 prefetch 实验（5 个 detail?prefetch=1，无点击/无搜索）=0 view；搜索自动选中首素材产生 1 条真实 view（正常浏览），非 prefetch 污染。\n- 缓存点击恰好 1 条 view_source_video；同素材 30s 内重复查看新增 0 条。\n- worker：queued=0、sent=11、dropped=0、failed=0、spawn_failures=0、worker_alive=true；/health 与 runtime-status 均可见。\n- >500 段素材：V010462（260205-07深圳4K-C0611）真实 detail 3109 段 PASS；V000786 485 段回归 PASS。\n- 证据：C:\\dev\\mixlab-verify-01813\\accept-01813.json、upgrade-0.18.13-571a1f2.json、final2.json、final-e2e-20b.json、C:\\dev\\logs\\01813-accept-571a1f2.log、01813-prefetch-only.log、01813-dedupe2.log。\n\n【Codex 意见逐条（两份）】\n1. prefetch 污染 usage → 采纳：prefetch=1 服务端跳过 view；缓存点击走 POST /view；同用户+素材 30s 去重。\n2. 缓存 release/容量/统计语义 → 采纳：客户端 key 绑定 library_id；服务端 TTL 300s + LRU 200 + release-aware key（e337d87 已包含在 571a1f2），release 切换自动失效旧 key。\n3. worker 与 usage service/outbox → 采纳：有 MIXLAB_USAGE_SERVICE_URL 时不注入 worker，沿用 outbox/service；单写入入口、无覆盖/双写；未改 library-fs。\n4. 队列/退出语义 → 采纳：明确为『允许丢失的异步统计』；queue 1000；指数退避 0.5~30s；stats 暴露 queued/sent/dropped/failed/spawn_failures/worker_alive；关闭 best-effort flush≤2s；强制 kill 会丢未发送队列（明确写入）。\n5. 只预取不点击=0、点击缓存=1、重复查看去重 → 采纳并已给上述实测。\n6. >500 段素材 → 采纳：V010462 3109 段。\n7. loading 期间旧素材操作 → 采纳：选文/加入待剪等 handler 在 detailLoading 时直接返回。\n8. NAS fallback 旧判断 → 已更正为 usage 同步 NAS SQLite 阻塞 sidecar 事件循环。\n\n【全量测试】最终分支 Mac 全量 2234/2234 PASS、typecheck PASS。Windows 产品侧：typecheck PASS、cutter-api+cutter-web 387/387、sidecar/index 91/91；Windows 完整 npm test 仍有 scripts/acceptance/* 环境相关失败（main 2018/1984/33 fail vs hotfix 2234/2194/35 fail），在未修改 dev/cutter 上同类复现，非本分支引入；需要 Windows acceptance fixture/runbook 才能全绿。\n\n【请 Mac】核对 NAS sha、更新 LATEST/release notes。0.18.12 保持不动；0.18.13 以此 571a1f2 包为准。"
+}
