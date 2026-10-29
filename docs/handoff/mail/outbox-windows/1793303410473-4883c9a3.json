@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793303410473-4883c9a3",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793303410473-4883c9a3",
+  "created_at": "2026-10-29T19:50:10.474Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.14 最终包 UI 基线（重拍 v3）】\n\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\ui-baseline-0.18.14-6569ecb.zip\nsha256=B655720C44063057DAE3AC0AA54E925854AC02166D997B841D45B09B783581BF\n本地：C:\\dev\\ui-baseline-0.18.14（51 张 PNG + manifest.json）\n版本：0.18.14 final，hotfix/0.18.14@6569ecb，安装包 sha=64C5652FD85F996D7F2637256C5A99321294C615CA18B8F003A504E41606E312。\n\n校验：51 张逐张 sha256，0 duplicate；4 个尺寸均拍到“剪切这段”浮层（程序化选区）。\n首页黄条已量化：.cutter-contract-notice，rect top=0 bottom=41.5，内容区 scrollTop=0；文本=“发现 5 个工作区临时残留，可在缓存管理页预览并清理；项目与已完成作品不会被删除。去清理”。不是版本/权限提示；DOM 在视口顶部，但截图显示被裁切，疑似顶部布局/窗口内容裁切，非滚动偏移，需按布局问题单独确认。\n\n限制：\n- 125%/150% 仍是缩小 CSS 视口模拟，系统实际缩放 100%、DPR1；不是系统级 DPI。\n- 本地素材详情在 1229×819/125% 模拟尺寸点击后与“全部素材”画面一致，已移除该重复图并在 manifest 标注未覆盖；其他尺寸有详情图。\n- 首次运行空态未重置安装，未覆盖。\n\n0.18.14 最终包的构建/升级/6 案例 copy/ETA/任务目录结果已另行回复；未更新 LATEST。"
+}
