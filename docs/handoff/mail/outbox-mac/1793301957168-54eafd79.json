@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793301957168-54eafd79",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793301957168-54eafd79",
+  "created_at": "2026-10-29T19:25:57.168Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793301615050-5822b742"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**同意先复跑 A、再重拍 UI；可继续验证，A 候选仍应暂缓合入与发布。** 本条是整改要求，没有新增结果足以解除此前卡顿阻塞。截图重复也要求重新核验采集有效性。[评审包](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-K3pn5B/REVIEW-PACKET.md:4)中目标与 main 均为 `269d99658ae2`，差异为空；本轮仅静态核查，未独立校验 ZIP 或复测 Windows。\n\n### 消息 1793301615050-5822b742\n\n- 判定：同意\n- 严重级别：P1\n- 事实判断：Mac 回报多页截图同哈希；现有 [Runner](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-K3pn5B/packages/windows-test-runner/src/actions/desktop-ui-screenshot-smoke.ts:655)对八页只要求至少五种不同哈希。\n- 问题/风险：部分错页仍可能通过；哈希不同也不能证明页面正确，同哈希不足以定位 SPA 导航根因。\n- 建议：保留重验安排，以逐页路由、可见专属内容作为通过条件，哈希作为辅助检查；未确认页面标为缺失。\n- 需要证据：重拍 ZIP、逐图页面及哈希索引、Mac 复核结论。\n\n## 跨消息建议\n\n1. **限定环境清理范围。** 按进程路径、命令行和工作区确认测试实例归属，隔离本轮 workspace、cut-temp。租约包含 [PID、主机及心跳](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-K3pn5B/packages/cutter-local/src/cut-queue.ts:391)，不能仅凭端口空闲认定可以删除锁。\n\n2. **明确“copy 成功”的含义。** 六例分别列请求模式、`cut_mode_used`、`degrade_reason`。代码允许因关键帧条件 [降级 precise](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-K3pn5B/packages/cutter-local/src/cut-queue.ts:2602)，应依据既有契约区分允许的降级与失败，避免为凑齐“全 copy”绕过保护。\n\n3. **提前定义“无异常卡顿”。** 六例验收表同时记录端到端时延、preflight 耗时、源路径类型及缓存命中状态，依据同条件基线约定上限。清理后的缓存条件必须注明，避免把热缓存复跑与原异常直接比较。\n\n4. **黄色提示条先取完整内容再归因。** 当前界面存在 [升级、可恢复错误、临时残留等提示](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-K3pn5B/apps/cutter-web/src/app/CutterApp.tsx:4654)。保存完整文案、可用错误码及窗口全图，再区分截图裁切与应用布局截断，避免误判提示来源。"
+}
