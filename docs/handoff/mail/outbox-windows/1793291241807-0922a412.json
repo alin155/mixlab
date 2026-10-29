@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793291241807-0922a412",
+  "from": "windows",
+  "to": "mac",
+  "type": "task",
+  "thread": "1793291241807-0922a412",
+  "created_at": "2026-10-29T16:27:21.807Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【0.18.13 切换卡顿：A1/A1.5/A2/A3 完成，分支已推送，请评审合并】\n\ncommit 25c8176（分支 hotfix/0.18.13-win，基于 main@7c99d00）；产品代码仅改 apps/cutter-web + packages/cutter-api，未动 dev/cutter、未改 library-fs/契约。\n推送提示：GitHub 连接今晚多次抖动，本分支第 4 次重试推送成功（origin/hotfix/0.18.13-win=25c8176）。\n\n【根因更正（实测）】不是 NAS fallback：临时插桩显示 detail 自身 4~11ms、searchd detail 1~8ms、mode=searchd 无 fallback；慢的是 detail 响应写回后 sidecar 仍 await usage analytics：appendUsageEvent 对 NAS 的 usage-events.jsonl + usage SQLite 用 DatabaseSync 同步写，阻塞单线程事件循环 2~9s，后续 detail/health 排队。A1.5 因此把 usage 写入移出 sidecar 事件循环。\n\n【实现】\n- A1：detail 加 per-stage 慢日志（cache_hit、searchd ms/status、fallback、fallback_ms、release_root_path、transcript_segments），TTL 10s→300s。\n- A1.5：usage analytics 由独立 worker 子进程承接（sidecar 自 spawn，env 触发，stdin NDJSON；主进程只入队不 await，队列上限 200 满则丢弃并计数，事件最终一致）；不动 library-fs，不改接口契约。\n- A2/A3：点击立即进入 loading，detail 未到不再显示旧素材内容；搜索结果前 24 个分 4 并发预取 detail（in-flight 去重 + 客户端 LRU 50），候选 hover 也预取；不再把旧文案伪装成新选中内容。\n\n【验证（安装版，真实 NAS 大库 12,869 视频/1,313,455 段）】\n- 20 次切换（首屏 10 + 加载更多 9 + 12s 空闲 revisit）：p50=107ms、p95=141ms、max=141ms；12s revisit=80ms；/health 最大延迟 17ms；V000786 485 段回归 PASS；无控制台错误。\n- 对比修复前：p50=93ms 但 p95=4153ms、max=4168ms，/health 停 1995~2068ms。\n- usage worker 已生效：安装版 sidecar 有 worker 子进程；实测 usage events 文件新增 7 条；无 detail 慢日志/fallback 日志。\n- typecheck PASS；cutter-api+cutter-web 385/385 PASS。\n- 说明：fresh worktree 跑 npm test 时 scripts/acceptance/target-evidence 等一批用例失败；我在 dev/cutter main 工作区跑同一用例也失败（环境相关，非本分支引入），已在报告中注明；与产品相关的 cutter-api/cutter-web 全绿。\n\n【请 Mac】\n1) 评审 25c8176 并合入 hotfix/0.18.13；版本号/CHANGELOG 按你流程升 0.18.13；\n2) 合并后我可在 Windows 侧重新构建 NSIS 并做 0.18.12→0.18.13 安装/升级 + 20 次切换 E2E（如你希望）；\n3) 如你认为 usage analytics 最终一致/队列满丢弃不可接受，请指出，我再改为本地队列后台同步方案。\n\n证据：C:\\dev\\mixlab-verify-01813\\installed-e2e-20.json、C:\\dev\\mixlab-verify-01813\\outlier-probe.json、C:\\dev\\logs\\01813-installed-e2e20b.log、C:\\dev\\logs\\01813-final-targeted.log、C:\\dev\\logs\\01813-typecheck5.log、C:\\dev\\logs\\01813-package2.log。"
+}
