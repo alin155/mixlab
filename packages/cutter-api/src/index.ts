@@ -3922,6 +3922,36 @@ async function defaultCutKeyframeProbe(input: {
 
 const VISIBLE_DETAIL_CACHE_TTL_MS = 300_000;
 const VISIBLE_DETAIL_CACHE_MAX_ENTRIES = 200;
+const RELEASE_DETAIL_CACHE_KEY_TTL_MS = 5_000;
+const releaseDetailCacheKeyByRoot = new Map<string, { expires_at_ms: number; version: string }>();
+
+async function currentReleaseVersionForDetailCache(input: CreateCutterApiServerInput): Promise<string> {
+  const root = optionalTrimmed(input.release_cache_root);
+  if (!root) {
+    return "";
+  }
+  const now = Date.now();
+  const cached = releaseDetailCacheKeyByRoot.get(root);
+  if (cached && cached.expires_at_ms > now) {
+    return cached.version;
+  }
+  let version = "";
+  try {
+    const payload = JSON.parse(
+      await readFile(path.join(root, ".mixlab-library", "current-release.json"), "utf8")
+    ) as { current_version?: unknown };
+    if (typeof payload.current_version === "string") {
+      version = payload.current_version.trim();
+    }
+  } catch {
+    // 没有 release 指针时使用空 key；不影响 detail 读取。
+  }
+  releaseDetailCacheKeyByRoot.set(root, {
+    expires_at_ms: now + RELEASE_DETAIL_CACHE_KEY_TTL_MS,
+    version
+  });
+  return version;
+}
 const SOURCE_VIEW_DEDUPE_MS = 30_000;
 const SOURCE_VIEW_DEDUPE_MAX_ENTRIES = 1_000;
 const sourceViewRecordedAtByUser = new Map<string, number>();
@@ -4071,13 +4101,15 @@ async function loadVisibleDetail(
   sourceVideoId: string
 ): Promise<CutterSourceVideoDetail | null> {
   const nowMs = Date.now();
+  const releaseKey = await currentReleaseVersionForDetailCache(input);
+  const cacheKey = releaseKey ? `${releaseKey}:${sourceVideoId}` : sourceVideoId;
   let cache = visibleDetailCacheByInput.get(input);
   if (!cache) {
     cache = new Map();
     visibleDetailCacheByInput.set(input, cache);
   }
 
-  const cached = cache.get(sourceVideoId);
+  const cached = cache.get(cacheKey);
   if (cached && cached.expires_at_ms > nowMs) {
     const startedAt = performance.now();
     const value = await cached.promise;
@@ -4092,10 +4124,10 @@ async function loadVisibleDetail(
   }
 
   const promise = loadVisibleDetailUncached(input, sourceVideoId).catch((error) => {
-    cache.delete(sourceVideoId);
+    cache.delete(cacheKey);
     throw error;
   });
-  cache.set(sourceVideoId, {
+  cache.set(cacheKey, {
     expires_at_ms: nowMs + VISIBLE_DETAIL_CACHE_TTL_MS,
     promise
   });
