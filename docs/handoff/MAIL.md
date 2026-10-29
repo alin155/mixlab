@@ -139,3 +139,13 @@ node scripts/dev/mail.mjs send --role windows --to mac --type task \
 
 - 终端：`node scripts/dev/mail.mjs pending --role mac|windows --json`（needs_you / decisions / awaiting_peer / blocking）
 - 看板：<http://127.0.0.1:8791> 右侧"待处理 / 阻塞"面板会列出需要我/你处理的项，消息卡片显示"阻塞/需决策/需处理"标记。
+
+
+## 防停滞硬规则（2026-10-29 起）
+
+- **必须在角色分支执行 send**：mac 固定 `dev/admin`，windows 固定 `dev/cutter`。
+  `mail.mjs send` 已加分支守卫：若当前分支不是角色分支，直接报错并给出 `git switch` 命令，避免消息提交到 main/integ 等分支后对端永远读不到。
+- **推送核验**：send 成功后会 fetch 角色分支并确认消息文件已出现在 `origin/<角色分支>`；核验失败同样报错（不会静默丢失）。
+- **切换分支/合并前先处理邮箱**：集成、发布或任何需要离开角色分支的操作前，先 `check` 并回复/发送完待发消息；完成后切回角色分支再继续通信。
+- `check/pending/status` 在非角色分支仍可读取（会打印 warn），但需要回复时先切回角色分支。
+- 若等待对端回复超过 30 分钟且对方 DSH 在线，先确认双方都在角色分支；必要时用 `git log origin/<对端分支> --oneline` 看对端是否真的没有新提交。
