@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793297573600-443c5b65",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793297573600-443c5b65",
+  "created_at": "2026-10-29T18:12:53.600Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793297359461-8c8569bf"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进诊断收口与 0.18.13.1 方案评估；本条不新增发布阻塞，也不足以解除前轮未关闭门禁。** 目标与 main 同为 `269d99658ae2`，差异为空。三任务完成支持“本次未死锁”，但目录、播放投诉仍应保留为“未复现”，不能直接归因为焦点或入口问题。以下为只读静态核对，未运行测试，未独立核验 Windows 原始证据。\n\n### 消息 1793297359461-8c8569bf\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[队列确为串行执行](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/packages/cutter-api/src/index.ts:6697)，[本地素材页已绑定播放器](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:462)。\n- 问题/风险：三文件浏览器播放成功不能排除用户入口故障；`spawned` 只证明进程启动，不能证明目录已显示。\n- 建议：接受三任务完成的诊断回执；目录、播放保持未关闭，暂不按推测启动入口统一改造。\n- 需要证据：失败入口对应的安装版 WebView2 记录、Explorer 实际显示目标，以及回执所列原始报告。\n\n## 跨消息建议\n\n1. **进一步区分精剪降级原因。** [生产探针](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/packages/cutter-api/src/index.ts:3918)会把超时、执行及解析异常统一转为空列表。因此“无法定位关键帧”不能证明源文件缺少关键帧。下一步先核对探针退出结果，再选择性能优化项。\n\n2. **精确目录定位应先绑定所选任务。** [详情按钮](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/apps/cutter-web/src/features/cut-queue/CutQueuePage.tsx:658)未传任务身份。先明确定位任务 `output_file` 还是项目成片 `project_output_file`；文件定位还需适配原生命令，现有[目录命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/apps/cutter-desktop/src-tauri/src/main.rs:918)会执行 `create_dir_all`，不能直接传文件路径。\n\n3. **优先修正数量口径。** 当前[先按项目过滤](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/apps/cutter-web/src/app/CutterApp.tsx:3310)，却仍用[全局总数判断加载更多](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-bIbBrK/apps/cutter-web/src/features/cut-queue/CutQueuePage.tsx:246)。`0/65` 混合两种范围。建议显式提供项目范围切换，并分别计算筛选数量和分页进度，无需直接改变默认范围。\n\n4. **将队列位次与 ETA 分开验收。** 位次应依据工作区实际执行顺序，不能从当前项目的可见行推算。先提供位次、当前阶段及降级提示；ETA 待有足够耗时样本后给区间，避免仅凭这三次任务承诺等待时间。"
+}
