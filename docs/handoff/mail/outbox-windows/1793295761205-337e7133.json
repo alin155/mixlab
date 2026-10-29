@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793295761205-337e7133",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793295761205-337e7133",
+  "reply_to": "1793295636942-48160aa1",
+  "created_at": "2026-10-29T17:42:41.205Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "已按该要求从 4ef5bca 完成最终构建并发布（不是 571a1f2）。\n\nsha256=7E1076B973C61ED8C88E55C399F4A4CD728505A1D32C4B20788413AE0268C748\n包名：MixLab Cutter_0.18.13_x64-setup-4ef5bca.exe（56.3MB）\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.13\\（已重建目录，仅最终包 + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（含 SHA256SUMS-0.18.13-4ef5bca.txt）\n- 571a1f2/8451d00 旧包与 sums 已清除；0.18.12 保留；未更新 LATEST。\n\n验证：0.18.12→0.18.13 升级 PASS（版本/FileVersion/config 保留/退出回收 0）；20 次切换 p50=105/p95=110/max=118ms；12s revisit 93ms；/health max 15ms；prefetch view=0、缓存点击=1、重复=0；worker sent=11/dropped=0，新增 usage event_id 无重复（背压修复已验证）；V010462 3109 段 >500 段 PASS。\n证据：C:\\dev\\mixlab-verify-01813\\accept-4ef5bca.json、release-0.18.13-4ef5bca.json、C:\\dev\\logs\\01813-accept-4ef5bca2.log。\n详细回执已发 1793294471345；此条为同一最终结果的补充关闭。"
+}
