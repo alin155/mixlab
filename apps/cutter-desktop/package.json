@@ -1,6 +1,6 @@
 {
   "name": "@mixlab/cutter-desktop",
-  "version": "0.18.10",
+  "version": "0.18.11",
   "type": "module",
   "private": true,
   "scripts": {

@@ -313,7 +313,12 @@ test("usage outbox persists locally and delivers acknowledged events", async () 
     await outbox.enqueue(usageEvent({ event_id: "evt-outbox-1" }) as never);
     await outbox.enqueue(usageEvent({ event_id: "evt-outbox-2", event_type: "cut_failure" }) as never);
     await outbox.enqueue(usageEvent({ event_id: "evt-outbox-1" }) as never);
-    await outbox.flush();
+    // 全量测试并行运行时，flush 可能尚未把最后一个批次投递完；轮询等待而非瞬时断言。
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await outbox.flush();
+      if ((await outbox.status()).total === 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
 
     const status = await outbox.status();
     // 投递成功的事件会被删除，因此 total 反映的是剩余待投递数量。
