@@ -297,6 +297,11 @@ async function runOnce(args) {
   } finally {
     await rm(info.dir, { recursive: true, force: true });
   }
+  if (currentBranch() !== ROLE_BRANCH) {
+    console.log("[advisor] branch changed during review to " + (currentBranch() || "detached") + "；跳过发布，下轮重试。");
+    return { reviewed: 0, skipped_branch_change: true };
+  }
+
   const posted = await postAdvisory(repo, advice, fresh, args, info);
   state.reviewed_ids = state.reviewed_ids.concat(fresh.map((message) => message.id)).slice(-2000);
   state.last_run = new Date().toISOString();
