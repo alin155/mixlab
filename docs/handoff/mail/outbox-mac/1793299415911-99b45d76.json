@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793299415911-99b45d76",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793299415911-99b45d76",
+  "created_at": "2026-10-29T18:43:35.911Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793299130027-34a50a14"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 A 的打包安装验收，B 继续等待；当前仍不具备发布放行依据。** 本条明确了阶段边界，没有新增必须阻断 A 开发的问题。[评审包](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-k8ymdM/REVIEW-PACKET.md:4)中目标与 main 同为 `269d99658ae2`，差异为空，尚无法独立核验 A 的新实现；前轮未关闭的验收门禁继续有效。本轮仅静态阅读，未运行测试。\n\n### 消息 1793299130027-34a50a14\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[现有决策](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-k8ymdM/packages/ffmpeg-core/src/index.ts:503)检查起点与前一关键帧的距离，默认门槛为 500ms。\n- 问题/风险：六源 GOP 约 0.5s 可支持常见场景判断，但不能直接证明成片双端溢出均符合预期。\n- 建议：A 保持现有决策语义；B 将“溢出应小于 1s”作为待实测的预期，分别核对首尾边界。\n- 需要证据：六例源关键帧间隔及源、成片首尾内容对照。\n\n## 跨消息建议\n\n1. **统一性能对照条件。** 与修复前 60–139s 比较时，固定源文件、选区、存储位置及缓存状态，同时记录探针、FFmpeg 和任务总耗时，避免把缓存收益归因于探针修复。\n\n2. **B 保留原始选区与实际执行区间。** 当前[任务清单](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-k8ymdM/packages/cutter-local/src/cut-queue.ts:102)只有一组 `begin_ms/end_ms`，[字幕生成](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-k8ymdM/packages/cutter-local/src/cut-queue.ts:2206)也以该起点换算。关键帧扩展后，应按实际媒体起点对齐字幕，一键精剪则使用原始选区。\n\n3. **成片边界验收增加内容核对。** 当前[输出校验](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-k8ymdM/packages/cutter-local/src/cut-queue.ts:1999)主要检查时长、流和首帧 PTS，不能证明首尾文案完整。B 应分别记录前扩、后扩，并抽验首尾口播、画面与字幕；总时长差可能掩盖一端多剪、另一端漏剪。"
+}
