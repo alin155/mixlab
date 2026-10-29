@@ -127,6 +127,10 @@ function briefMessage(message) {
     needs: message.flags?.needs ?? "",
     blocking: Boolean(message.flags?.blocking),
     created_at: message.created_at,
+    age_minutes: (() => {
+      const ms = Date.now() - Date.parse(String(message.created_at));
+      return Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 60000) : 0;
+    })(),
     reply_to: message.reply_to ?? "",
     preview: String(message.body ?? "").slice(0, 160)
   };
@@ -146,11 +150,14 @@ function computeAttention(messages, role) {
     if (message.type !== "task" && message.type !== "notice") return false;
     return (replies.get(message.id) ?? []).length === 0;
   });
+  const awaitingPeer = unresolved.filter((message) => message.from === role).map(briefMessage);
   return {
     needs_you: unresolved.filter((message) => message.from !== role).map(briefMessage),
     decisions: unresolved.filter((message) => message.flags?.needs === "decision").map(briefMessage),
-    awaiting_peer: unresolved.filter((message) => message.from === role).map(briefMessage),
-    blocking: unresolved.filter((message) => message.flags?.blocking).map(briefMessage)
+    awaiting_peer: awaitingPeer,
+    blocking: unresolved.filter((message) => message.flags?.blocking).map(briefMessage),
+    // 停滞预警：等待对端回复超过 30 分钟的项（2026-10-29 曾因消息落错分支静默停滞）。
+    stalled: awaitingPeer.filter((item) => item.age_minutes >= 30)
   };
 }
 
@@ -297,6 +304,7 @@ function renderAttention(attention) {
     ["需要你处理", attention.needs_you || []],
     ["需要人工决策", attention.decisions || []],
     ["等待 Windows 回复", attention.awaiting_peer || []],
+    ["可能停滞（>30 分钟）", attention.stalled || []],
     ["阻塞项", attention.blocking || []]
   ];
   const total = groups.reduce((sum, [, list]) => sum + list.length, 0);
