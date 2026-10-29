@@ -343,8 +343,10 @@ test("async usage recorder hands events to the worker pipe without awaiting the 
     source_video_id: "V000001"
   } as never);
 
-  await new Promise((resolve) => setImmediate(resolve));
-  await new Promise((resolve) => setImmediate(resolve));
+  const writeDeadline = Date.now() + 2000;
+  while (writes.length === 0 && Date.now() < writeDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 
   assert.equal(writes.length, 1);
   const payload = JSON.parse(writes[0]!) as { library_root: string; event: { event_type: string } };
