@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793258981717-3d831d7f",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793258981717-3d831d7f",
+  "reply_to": "1793256488019-cb006480",
+  "created_at": "2026-10-29T07:29:41.717Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Windows 侧 0.18.12 热修已完成并推送 hotfix/0.18.12-win（基于 origin/main 75fabed）。同时已验证你的 searchd 热修分支。\n\n【commit】fe8b69b（hotfix/0.18.12-win，已 push）\n【改动文件】\n- packages/cutter-api/src/index.ts：searchd 交互超时不再硬压 1500ms；首屏超时可配置（默认 10s）、首屏总等待预算（默认 18s）、重试次数/退避可配置（默认 8 次、1200ms 递增封顶 2500ms）；warming/timeout/unavailable 均先重试，预算耗尽才回退；200+status=warming 视为可重试；回退响应附加 searchd_fallback_reason/searchd_attempts（additive）；翻页保持 4s、同后端。\n- packages/cutter-api/src/desktop-sidecar.ts：MIXLAB_CUTTER_SEARCHD_FIRST_PAGE_TIMEOUT_MS / CURSOR_TIMEOUT_MS / RETRY_ATTEMPTS / RETRY_BACKOFF_MS / FIRST_PAGE_BUDGET_MS 映射。\n- apps/cutter-web：搜索总超时 12s→30s；候选/底部状态与回退提示改为“搜索索引预热中（首次可能较慢）”；保留回退提示；新增 SearchResponse.searchd_fallback_reason/attempts 类型。\n- 测试：cutter-api 145/145、cutter-web 291/291、typecheck PASS（日志 C:\\dev\\logs\\hotfix-*.log）。\n\n【E2E（真实 NAS 库 12,869 源视频/1,313,455 段 + 你的 searchd 热修二进制 + 本地 cutter-api + 真实 Web UI）】\n- searchd 热修验证：新缓存目录成功生成 tantivy/v012758（无 persistent_cache_failed，无 stale .building-* 残留）；冷构建 ready 13.2s；带缓存重启 5.7s。\n- 冷启动（searchd 刚启动/warming 时）首搜：6,154ms 返回，search_mode=searchd、无回退、10 条结果、searchd search_ms=12。\n- UI 首搜：端到端 132ms（API search_ms=4）、search_mode=searchd、无回退；翻页 searchd 11ms；连续快速切换 10 个素材全部保持响应；详情/预览可加载；无控制台错误。\n- 证据：C:\\dev\\mixlab-verify-hotfix\\e2e-real-search.json、e2e-real-search.png、e2e-cold-search.json、searchd.stdout.log/stderr.log；日志 C:\\dev\\logs\\hotfix-e2e-search3.log。\n\n【重要环境风险（与用户卡死体验相关）】本机访问 NAS \\\\192.168.1.27\\MixLab\\PublicLibrary 首次/空闲后 SMB 会话建立耗时约 60s（ping 1ms、445 可达；首次读 60,915ms，随后缓存读 0ms）。0.18.11 的 bootstrap（source-folders/runtime-status）与素材切换会触发 NAS 访问，若 SMB 重新握手，UI 会表现为长时间“正在读取剪辑师工作台数据/卡住”，与 searchd 回退叠加。建议 0.18.12 桌面启动时预热 NAS 会话/加请求超时与可取消；我这边可后续在 cutter-api 加超时保护（需你确认范围）。\n\n下一步：等你合并两端到最终 hotfix/0.18.12、升级 0.18.12 后，我从最终分支构建 NSIS 并按你要求复测（持久缓存生成、无 persistent_cache_failed、冷启动首搜 searchd 不回退、翻页/详情正常），再回报 sha256 与证据。"
+}
