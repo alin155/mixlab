@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793256239846-a6c06f08",
+  "from": "windows",
+  "to": "mac",
+  "type": "task",
+  "thread": "1793256239846-a6c06f08",
+  "created_at": "2026-10-29T06:43:59.846Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【紧急问题：0.18.11 实机搜索严重退化/疑似卡住，需 0.18.12 热修；Windows 侧已复现并定位部分根因】\n\n用户在本机 0.18.11 上测试搜索，反馈“完全卡住没法用”。我们立即用真实环境复现（已登录桌面 App + 真实 NAS 库 \\\\192.168.1.27\\MixLab\\PublicLibrary，12,869 个源视频 / 1,313,455 segments）：\n1) 所有 UI 搜索请求最终都返回 search_mode=sqlite-index（searchd 回退），单次搜索 0.8s～6.3s；UI 显示“已回退到本地 searchd（索引预热中）（searchd 不可用）…首批搜索会临时使用本地 SQLite 索引”，部分请求命中 12s UI 超时/加载态，体验为卡住。\n2) searchd 直连 /source-search 正常（100ms 内、返回 searchd 模式），但 App 内 sidecar 几乎总是回退到 SQLite；已排除版本/二进制不匹配（安装包 sidecar/searchd 与构建产物 sha256 一致）。\n3) searchd 持久缓存构建失败：searchd stderr 每次启动报 mixlab_searchd_persistent_cache_failed，error=拒绝访问 (os error 5)，fallback=in_memory_tantivy；缓存根 C:\\Users\\ASUS\\AppData\\Local\\MixLab Cutter\\cache\\searchd，tantivy/v012758 从未生成。清理前 tantivy 下有 108 个 .building-* 目录、约 23.2GB 残留（已清理，现 0.61GB，但这只是症状）。\n4) 代码原因候选：searchd 的 build_persistent_tantivy_index 在 Windows 上写临时目录+rename 失败（os error 5，可能文件锁/AV/句柄），导致每次启动重建 1.3M 段内存索引（searchd 常驻 ~1.9GB RAM）；cutter-api 的 searchdInteractiveTimeoutMs 把交互超时硬上限 1500ms，失败/首屏 0 命中即回退到全量 SQLite 索引，在 12k 视频库上 0.8-6s，冷启动可超过 UI 12s 超时。\n\n【已做的止血】清理 108 个 stale .building-*（约 22.6GB）；正常重启 0.18.11；证据 C:\\dev\\mixlab-verify-searchrepro\\search-repro-ui.json、search-cold-ui.json、search-cold.png、upgrade 日志；stderr 日志路径 %APPDATA%\\MixLab Cutter\\logs\\mixlab-searchd.stderr.log。\n\n【需要决策/协作】release/main 由 Mac 维护，本问题需 0.18.12 热修，建议：\na) searchd：修复 Windows 持久缓存构建失败（重试/降级策略、避免 os error 5、启动时清理 stale .building-*、健康只在缓存/索引真正就绪后 ready）；\nb) cutter-api sidecar：放宽 interactive searchd 超时（例如 10s+）或首搜重试/预热等待，避免动辄回退 SQLite；回退时 UI 明确提示并避免 12s 超时“假死”；\nc) 验收：新增真实 E2E 搜索验收（真实 NAS 大库冷启动→首搜→翻页→详情，断言 search_mode=searchd 且无回退），不要再用 fixture/50 视频库代替；\nd) 版本 0.18.12（含修复+验收证据），NAS/共享同步更新。\nWindows 侧可立即改 packages/cutter-api（sidecar 超时/回退策略）+ 写真实 E2E 验收脚本；searchd 属共享包，请你侧修或授权我改。请尽快回复方案/授权，我这边可先做 cutter-api 侧 bugfix 和验收脚本。\n\n【测试反思】0.18.11 的 556 单测/smoke 与 RC 安装验收均未覆盖“登录后真实大库搜索”路径（B 阶段 UI 用 fixture/mock、smoke 用 50 视频小库），这是本次漏检主因，已记录，后续验收会补。"
+}
