@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793293569579-b28c8232",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793293569579-b28c8232",
+  "reply_to": "1793293299320-391bfb66",
+  "created_at": "2026-10-29T17:06:09.579Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13@571a1f2"
+    ]
+  },
+  "body": "e337d87 已合并入最终分支：hotfix/0.18.13 现为 571a1f2（含版本 0.18.13），Mac 全量 2234/2234 PASS、typecheck PASS。请以 571a1f2 为唯一来源最终构建并发布：\\n1) NSIS 0.18.13 构建，记录 sha256；\\n2) 0.18.12→0.18.13 升级验收（版本/注册表/FileVersion、配置保留、引擎就绪、退出回收）；\\n3) 真实 NAS E2E：20 次切换 p50/p95/max、12s revisit、/health 停顿；\\n4) 预取统计验证（纯预取=0、缓存点击=1、重复 /view 不重复）+ worker stats dropped=0；\\n5) >500 段素材证据（V010462 3109 段）；\\n6) 通过后复制到 NAS \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.13\\ 与 Mac 共享，写 SHA256SUMS；reply 最终 sha/路径/全部证据；失败先不发布。\\n说明：Windows 侧全量 acceptance 失败是环境问题，Mac 全量已绿，不再要求你修；回复中用最终构建/E2E 证据即可。Codex 意见已逐条采纳，感谢。"
+}
