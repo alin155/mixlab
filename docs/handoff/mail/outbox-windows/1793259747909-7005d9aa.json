@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793259747909-7005d9aa",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793259747909-7005d9aa",
+  "reply_to": "1793259331035-c2fabe8c",
+  "created_at": "2026-10-29T07:42:27.909Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.12 构建与验收结果：升级/缓存通过，但冷启动首搜 E2E 未通过，按约定【暂不发布】，请决策后再发。\n\n【构建】hotfix/0.18.12 @ 0bc10df（独立 worktree build-0.18.12）；NSIS 0.18.12 构建 exit0。\n- 暂存：C:\\dev\\mixlab-verify-01812\\MixLab Cutter_0.18.12_x64-setup-0bc10df.exe（56.3MB）\n- sha256=E341DED06B36BAB6B2D60889C9133024C6E84C611AECBF0DF4E5ADC08D6618EA\n- 未复制到 NAS/Mac 共享（等修复后重打再发）。\n\n【升级验收 0.18.11→0.18.12：PASS】注册表 DisplayVersion=0.18.12、exe FileVersion=0.18.12、安装位置不变、config SHA256 完全保留、快捷方式齐全、install exit0；退出后 desktop/sidecar/searchd=0、端口 3789/3790=0；证据 C:\\dev\\mixlab-verify-01812\\upgrade-0.18.12.json。\n\n【searchd 缓存修复：PASS】安装前 5 个 stale .building-* 目录 → 启动/构建后 0 个；生成完整 tantivy/v012758（263 文件，metadata schema1.1、12869 源视频/1313455 段）；stderr 无新增 mixlab_searchd_persistent_cache_failed（行数 8 保持不变、mtime 仍为旧 14:54）。带缓存重启 searchd 仍在 5-6s 处于 warming 后 ready。\n\n【真实 NAS 大库 E2E：FAIL（唯一失败点）】\n- 冷启动（升级后首次启动，首次构建缓存）首搜：17.5s 后返回 search_mode=sqlite-index、searchd_fallback_reason=warming、attempts=8、10 条结果；翻页同样回退 sqlite-index；连续快速切换 10 个素材保持响应、详情/预览正常、无控制台错误。\n- 根因：桌面端 ensure_searchd_started 只把 /health HTTP 200 当作 ready，而 searchd 在预热时已返回 200 + data.status=warming/ready=false → sidecar 在索引真正 ready 前已启动；首次构建耗时超过 sidecar 首屏预算 18s，于是回退。缓存建成后的后续启动会好，但新机器首次升级/首次冷启动仍会复现。\n- 另：本机升级后首次启动整机耗时 48.2s（NAS SMB 冷握手约 40s+），观察记录在案。\n\n【建议修复（需你授权，apps/cutter-desktop 不在本次授权范围）】在 apps/cutter-desktop/src-tauri/src/main.rs 的 ensure_searchd_started 中：轮询 /health 直到 data.ready===true（或 status!==warming），超时提高到 120s 并记录 searchd_warming 进度，ready 后才 spawn sidecar/标记 engine ready；可选 UI 显示“正在预热搜索索引（首次可能较慢）”。这样首次冷启动首搜必走 searchd。也可同时把 sidecar 首屏预算临时提到 60-90s 作为兜底，但根治靠桌面 ready 门控。\n\n【请求】授权我基于 hotfix/0.18.12（0bc10df）做桌面 ready 门控修复 + 重建 0.18.12 + 重跑真实 NAS E2E；通过后再复制 NAS/Mac 共享并回报最终 sha。当前 0.18.11 保留，未发布任何 0.18.12 产物。证据：C:\\dev\\mixlab-verify-01812\\（e2e-0.18.12.json、e2e-0.18.12-real-search.png、upgrade-0.18.12.json）、C:\\dev\\logs\\e2e-01812.log、v01812-nsis-package.log。"
+}
