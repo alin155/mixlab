@@ -259,6 +259,7 @@ import {
   desktopConfigPath,
   desktopLogDirectory,
   openDesktopDirectory,
+  openDesktopFileLocation,
   readDesktopConfig,
   resolveDesktopBridgeEnvironment,
   resolveRuntimeApiBaseUrl,
@@ -1523,6 +1524,7 @@ function renderPage(
     batchDeleteCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
     restoreHiddenCutJobs?: () => void;
     openCutOutputDirectory: () => void;
+    openCutJobDirectory: (job: CutQueueJob) => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
     deleteLocalClip: (localClip: LocalClip) => void;
     selectLocalClip: (localClipId: string) => void;
@@ -1686,6 +1688,7 @@ function renderPage(
             hiddenJobCount={viewState.hiddenCutJobCount}
             onRestoreHiddenJobs={handlers.restoreHiddenCutJobs}
             onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
+            onOpenCutJobDirectory={handlers.openCutJobDirectory}
             onLoadMore={handlers.loadMoreCutJobs}
             verificationEnabled={viewState.verificationEnabled}
           />
@@ -4394,6 +4397,24 @@ export function CutterApp() {
         setCutNotice("已打开项目视频目录");
       } catch (openError) {
         showCutterError(openError, "打开文件目录失败");
+      }
+    },
+    openCutJobDirectory: async (job: CutQueueJob) => {
+      if (!apiMode) {
+        setCutNotice("请先连接本机剪辑服务，再打开任务目录");
+        return;
+      }
+
+      try {
+        const opened = await client.openCutJobOutputDirectory(job.queue_job_id, {
+          ...(isDesktopMode ? { open: false } : {})
+        });
+        if (isDesktopMode) {
+          await openDesktopFileLocation(opened.file_path ?? opened.path);
+        }
+        setCutNotice(`已打开任务目录：${opened.path}`);
+      } catch (openError) {
+        showCutterError(openError, "打开任务目录失败");
       }
     },
     openLocalClipDirectory: async (localClip: LocalClip) => {

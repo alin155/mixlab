@@ -7,19 +7,18 @@ import os from "node:os";
 import path from "node:path";
 import {
   buildFfprobeFirstFramePtsPlan,
-  buildFfprobeKeyframePlan,
   buildFfprobeOutputVerificationPlan,
   buildFfprobeSourceMetadataPlan,
   buildFfmpegCoverImagePlan,
   buildFfmpegCutPlan,
   parseFfprobeFirstFramePts,
-  parseFfprobeKeyframeTimes,
   parseFfprobeOutputProbe,
   parseFfprobeSourceMetadata,
   resolveFfmpegRuntime,
   type SourceVideoMediaMetadata,
   type CutMode
 } from "../../ffmpeg-core/src/index.ts";
+import { buildCutKeyframeProbeArgs, parseCutKeyframeProbeTimes } from "./keyframe-probe.ts";
 import {
   allocateNextLocalClipId,
   appendUsageEvent,
@@ -61,6 +60,7 @@ import {
   getExportClipDetail,
   deleteProjectOutputs,
   exportClipsDirectory,
+  getCutJob,
   listClipLists,
   listCutJobs,
   readCutTempCacheStatus,
@@ -3778,7 +3778,7 @@ async function defaultSourceVideoProbeRunner(input: {
 
 const OUTPUT_VERIFICATION_PROBE_TIMEOUT_MS = 10_000;
 const SOURCE_DURATION_PROBE_TIMEOUT_MS = 10_000;
-const KEYFRAME_PROBE_TIMEOUT_MS = 5_000;
+const KEYFRAME_PROBE_TIMEOUT_MS = 15_000;
 
 async function runFfprobeWithFallback(
   args: string[],
@@ -3907,14 +3907,14 @@ async function defaultCutKeyframeProbe(input: {
 }): Promise<{ keyframe_times_ms: number[] }> {
   try {
     const stdout = await runFfprobeWithFallback(
-      buildFfprobeKeyframePlan({
+      buildCutKeyframeProbeArgs({
         source_path: input.source_video_path,
         begin_ms: input.begin_ms
-      }).args,
+      }),
       KEYFRAME_PROBE_TIMEOUT_MS,
       "ffprobe keyframe preflight"
     );
-    return { keyframe_times_ms: parseFfprobeKeyframeTimes(stdout) };
+    return { keyframe_times_ms: parseCutKeyframeProbeTimes(stdout) };
   } catch {
     return { keyframe_times_ms: [] };
   }
@@ -6289,6 +6289,41 @@ async function openWorkspaceExportDirectory(
   return { path: targetPath };
 }
 
+async function openCutJobOutputDirectory(
+  input: CreateCutterApiServerInput,
+  cutJobId: string,
+  body: { open?: boolean } = {}
+): Promise<{ path: string; file_path?: string }> {
+  const workspaceRoot = workspaceRootOrThrow(input);
+  const job = await getCutJob({
+    workspace_root: workspaceRoot,
+    cut_job_id: cutJobId
+  });
+  if (!job) {
+    throw new Error("cut_job_not_found");
+  }
+
+  const relative = (job as { output_file?: string; project_output_file?: string }).output_file
+    ?? (job as { project_output_file?: string }).project_output_file;
+  if (!relative) {
+    throw new Error("cut_job_output_not_found");
+  }
+
+  const filePath = path.resolve(workspaceRoot, relative);
+  const relativeToRoot = path.relative(workspaceRoot, filePath);
+  if (!relativeToRoot || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    throw new Error("invalid_cut_job_output_path");
+  }
+
+  const targetPath = path.dirname(filePath);
+  await stat(targetPath);
+  if (body.open !== false) {
+    await (input.open_path ?? defaultOpenPath)(targetPath);
+  }
+
+  return { path: targetPath, file_path: filePath };
+}
+
 async function openSourceVideoDirectory(
   input: CreateCutterApiServerInput,
   body: OpenSourceVideoDirectoryRequestBody = {}
@@ -7296,6 +7331,39 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         const body = (await readRequestJson(request)) as OpenExportDirectoryRequestBody;
         writeJson(response, 200, apiResponse(await openWorkspaceExportDirectory(input, body)));
+        return;
+      }
+
+      const cutJobOpenDirectoryMatch = /^\/cutter\/cut-jobs\/([^/]+)\/open-directory$/.exec(url.pathname);
+      if (request.method === "POST" && cutJobOpenDirectoryMatch) {
+        if (!(await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        }))) {
+          return;
+        }
+
+        const cutJobId = cutJobOpenDirectoryMatch[1] ?? "";
+        if (!CUT_JOB_ID_PATTERN.test(cutJobId)) {
+          writeError(response, 400, "invalid_cut_job_id", "切割任务编号格式不正确");
+          return;
+        }
+
+        const body = (await readRequestJson(request)) as { open?: boolean };
+        try {
+          writeJson(response, 200, apiResponse(await openCutJobOutputDirectory(input, cutJobId, body)));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "open_cut_job_directory_failed";
+          if (message === "cut_job_not_found") {
+            writeError(response, 404, message, "Cut job not found");
+          } else if (message === "cut_job_output_not_found" || message === "invalid_cut_job_output_path") {
+            writeError(response, 409, message, "Cut job output is not available");
+          } else {
+            writeError(response, 500, "open_cut_job_directory_failed", message);
+          }
+          return;
+        }
         return;
       }
 

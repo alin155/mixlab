@@ -963,6 +963,67 @@ fn desktop_open_directory(app: AppHandle, path_value: String) -> Result<(), Stri
     }
 }
 
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_open_file_location(app: AppHandle, path_value: String) -> Result<(), String> {
+    let trimmed = path_value.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let target = PathBuf::from(trimmed);
+    if !target.is_file() {
+        return Err("文件不存在，无法在资源管理器中定位".to_string());
+    }
+
+    desktop_host_log(
+        &app,
+        "open_file_location_requested",
+        json!({ "path": path_string(target.clone()) }),
+    );
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg("-R").arg(&target);
+        command
+    };
+
+    #[cfg(windows)]
+    let mut command = {
+        let mut command = Command::new(windows_explorer_path());
+        command.arg(format!("/select,{}", path_string(target.clone())));
+        command
+    };
+
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        if let Some(parent) = target.parent() {
+            command.arg(parent);
+        }
+        command
+    };
+
+    match spawn_visible_process(&mut command) {
+        Ok(()) => {
+            desktop_host_log(
+                &app,
+                "open_file_location_spawned",
+                json!({ "path": path_string(target) }),
+            );
+            Ok(())
+        }
+        Err(error) => {
+            desktop_host_log(
+                &app,
+                "open_file_location_failed",
+                json!({ "path": path_string(target), "error": error }),
+            );
+            Err(error)
+        }
+    }
+}
+
 #[tauri::command]
 fn desktop_default_workspace_root() -> String {
     let profile = env::var("USERPROFILE")
@@ -1402,7 +1463,8 @@ fn main() {
             desktop_write_config,
             desktop_run_doctor,
             desktop_start_engine,
-            desktop_open_directory
+            desktop_open_directory,
+            desktop_open_file_location
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {

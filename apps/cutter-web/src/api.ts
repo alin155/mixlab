@@ -297,11 +297,16 @@ export interface SubmitCutJobsRequest {
 
 export interface OpenCutOutputDirectoryResult {
   path: string;
+  file_path?: string;
 }
 
 export interface OpenCutOutputDirectoryRequest {
   project_id?: string;
   project_title?: string;
+  open?: boolean;
+}
+
+export interface OpenCutJobOutputDirectoryRequest {
   open?: boolean;
 }
 
@@ -779,6 +784,7 @@ export interface CutterApiClient {
   retryCutJob(cutJobId: string): Promise<CutJob>;
   cancelCutJob(cutJobId: string): Promise<CutJob>;
   openCutOutputDirectory(request?: OpenCutOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
+  openCutJobOutputDirectory(cutJobId: string, request?: OpenCutJobOutputDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
   openSourceVideoDirectory(request: OpenSourceVideoDirectoryRequest): Promise<OpenCutOutputDirectoryResult>;
   deleteProjectOutputs(projectId: string): Promise<DeleteProjectOutputsResult>;
   resolveApiUrl(pathOrUrl: string): string;
@@ -1356,6 +1362,18 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       return requestEnvelope<OpenCutOutputDirectoryResult>(
         fetchImpl,
         appendPath(input.base_url, "/cutter/workspace/open-export-directory"),
+        {
+          method: "POST",
+          headers: jsonHeaders(input.auth),
+          body: JSON.stringify(request)
+        }
+      );
+    },
+
+    openCutJobOutputDirectory(cutJobId, request = {}) {
+      return requestEnvelope<OpenCutOutputDirectoryResult>(
+        fetchImpl,
+        appendPath(input.base_url, `/cutter/cut-jobs/${encodeURIComponent(cutJobId)}/open-directory`),
         {
           method: "POST",
           headers: jsonHeaders(input.auth),
