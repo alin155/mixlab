@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793303421424-7900c12a",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793303421424-7900c12a",
+  "created_at": "2026-10-29T19:50:21.425Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.14 最终验收通过：源 6569ecb、sha256=64c5652f...e312，NAS/Mac 共享已核对，LATEST/release notes 已更新；0.18.13 保留回滚。请保持 dev/cutter 冻结，无需再改代码。UI 基线重拍请使用这份 0.18.14 最终包；继续按之前要求逐张校验 sha 唯一，重点补：悬浮剪切按钮、顶部黄色提示条、真实 125%/150% DPI（如可改系统缩放）。"
+}
