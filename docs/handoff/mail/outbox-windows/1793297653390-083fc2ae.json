@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793297653390-083fc2ae",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793297653390-083fc2ae",
+  "reply_to": "1793297391569-1a7a958d",
+  "created_at": "2026-10-29T18:14:13.390Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【首任务精剪降级根因 + 0.18.13.1 方案（未改代码/未发布）】\n\n一、根因：不是关键帧记录缺失，也不是 release cache 同步缺失，而是“关键帧本身很稀疏 + 探针 5s 超时 + 没有优先用现成 keyframes.json”。\n- 三个源在 NAS 公共库均有 `.mixlab-library/videos/<id>/keyframes.json`，各 60 条：V000786/V012265/V006996 关键帧间隔分别约 46.7s / 30.1s / 30.35s。\n- 用户起点距最近前一关键帧：V000786 111428-93398=18030ms；V012265 229684-210729=18955ms；V006996 130926-121409=9517ms；均远超 500ms 阈值。即使探针成功，也必然降级 precise，这是源素材 GOP 稀疏导致的预期行为。\n- 日志写“无法定位关键帧”是第二层问题：defaultCutKeyframeProbe 对源文件跑 ffprobe（5s 超时），NAS/SMB 实测 V006996 120-131s 读取 13.3s、cached 大文件某些区间 16.9~25.2s，超时后 catch 返回空数组，消息失真。\n- 本地 release cache 没有这些 keyframes.json，代码也没有读取它；实际直接读取 NAS 的 keyframes.json，可毫秒级得到完整 60 帧。\n- 队列本身没有 drain 延迟：0004 开始 - 0003 结束 = 5ms；0005 开始 - 0004 结束 = 2ms；queue_wait 与执行区间完全吻合。首任务 cut_media 138.9s、后两个约 60s，属于精剪编码耗时，不是队列阻塞。\n\n二、0.18.13.1 计划（均 additive，不改既有契约）\n1) 关键帧降级：\n   - 优先读 `library_root/.mixlab-library/videos/<id>/keyframes.json`（按 mtime 缓存），用真实 keyframes_ms 做 decideCopyCutMode；\n   - artifact 缺失时才 ffprobe，超时 5s→15s，并优先用本地缓存源；\n   - 降级原因改为“起点距最近关键帧 Xms，超过 500ms 阈值，已精剪”，不再报“无法定位”；\n   - 测试：稀疏关键帧→precise+正确 distance；artifact 存在时不调用 ffprobe；ffprobe 超时降级路径。\n2) 队列 UX：\n   - 客户端按 created_at 计算“第 N 位/前面 M 个”，预计等待 = 当前 running 剩余（按 elapsed）+ 前面 pending 的同类中位耗时；\n   - 可选服务端 additive 字段：`queue_position`、`queue_ahead_count`、`estimated_wait_ms`（不破坏旧客户端）；\n   - 当前项目过滤显式显示“当前项目：X / 全部项目(65)”；当前项目 0 时给切换提示；评估默认全部项目是否更合适；\n   - 测试：1 running + 2 pending 的位置/ETA、跨项目过滤、空项目提示。\n3) 打开目录/播放：\n   - 任务详情：新增按 cut_job 打开精确输出目录（`export-clips/E000xx`），Windows 用 `explorer.exe /select,<file>` 并尝试置前台，页面给明确 toast；保留现有项目目录按钮。\n   - 播放：先定位用户具体入口（本地素材详情/剪切任务详情/素材搜索详情），缺播放器的页面补统一 LocalClip 播放器；media URL 已确认正常，不改鉴权/HTTP。\n   - 需用户提供具体入口或截图后再动播放器代码。\n\n证据：C:\\dev\\mixlab-verify-01813\\keyframes-rootcause.json、diagnose-cut.json、C:\\dev\\logs\\01813-diag-videos.log；关键帧文件在 NAS `.mixlab-library/videos/<id>/keyframes.json`。\n当前不改 0.18.13、不发布任何新包；等你确认后再开 0.18.13.1。"
+}
