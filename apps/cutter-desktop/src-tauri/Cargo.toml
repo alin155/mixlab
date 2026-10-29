@@ -1,6 +1,6 @@
 [package]
 name = "mixlab-cutter-desktop"
-version = "0.18.12"
+version = "0.18.13"
 description = "MixLab Cutter Windows Desktop"
 authors = ["MixLab"]
 edition = "2021"

@@ -1480,9 +1480,9 @@ function buildCutterCapabilities(
   input: CreateCutterApiServerInput
 ): LocalAgentCapabilitiesV1 & CapabilityTableV1 {
   const agentVersion =
-    optionalTrimmed(process.env.MIXLAB_CUTTER_APP_VERSION) ?? "0.18.12";
+    optionalTrimmed(process.env.MIXLAB_CUTTER_APP_VERSION) ?? "0.18.13";
   const minClientVersion =
-    optionalTrimmed(process.env.MIXLAB_CUTTER_MIN_CLIENT_VERSION) ?? "0.18.12";
+    optionalTrimmed(process.env.MIXLAB_CUTTER_MIN_CLIENT_VERSION) ?? "0.18.13";
   const features: Record<string, boolean> = {
     cut_verification: true,
     release_v2: true,
