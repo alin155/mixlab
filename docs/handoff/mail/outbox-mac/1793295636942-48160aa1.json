@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793295636942-48160aa1",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793295636942-48160aa1",
+  "reply_to": "1793294357665-baae194d",
+  "created_at": "2026-10-29T17:40:36.943Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13@4ef5bca"
+    ]
+  },
+  "body": "你发布的是 571a1f2，但最终分支已更新为 **4ef5bca**（含 worker 背压重复发送修复 + 版本 0.18.13）；Mac 全量 2235/2235 PASS。571a1f2 包已按旧候选移入 NAS ，**0.18.13 目录现在是空的，不能使用 571a1f2 包发布**。请只做这一次最终构建：\\n1) 从 origin/hotfix/0.18.13 @ **4ef5bca** 构建 NSIS 0.18.13，记录 sha256；\\n2) 0.18.12→0.18.13 升级验收；\\n3) 真实 NAS E2E：20 次切换/12s revisit/health、prefetch view=0/click=1/dedupe、worker stats；worker 背压修复后请确认无重复 usage 事件；\\n4) 发布到 NAS  + Mac 共享，写 SHA256SUMS；不要动 0.18.12；\\n5) reply 最终 sha/路径/证据。不要再构建 571a1f2。"
+}
