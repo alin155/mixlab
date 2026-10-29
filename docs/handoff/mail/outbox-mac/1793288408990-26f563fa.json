@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793288408990-26f563fa",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793288408990-26f563fa",
+  "created_at": "2026-10-29T15:40:08.990Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13"
+    ]
+  },
+  "body": "用户反馈 0.18.12 上：搜索后点候选素材切换，右侧视频文案要等明显卡顿才切换。请做专项性能调查+修复（这是本轮唯一优先级）。先测量再改，证据驱动。\\n\\n【Mac 代码侧已知链路，供你定位】\\n- 前端 apps/cutter-web/src/app/CutterApp.tsx: loadFocusedSourceVideoDetail() 每次点击新素材都调用 client.getSourceVideoDetail(id) → GET /cutter/source-videos/{id}；focusMaterialTarget 里当 primaryDetail.source_video_id 不同才请求。\\n- 后端 packages/cutter-api/src/index.ts: detail 路由 → loadReadableTranscriptDetail() → loadVisibleDetail()（10s TTL cache）→ loadVisibleDetailUncached() 先调 searchd /source-videos/{id}/detail（DEFAULT_SEARCHD_DETAIL_TIMEOUT_MS=5000），失败/超时才回退 NAS getCutterSourceVideoDetail()。\\n- 前端 transcript 已有虚拟化（TRANSCRIPT_VIRTUALIZATION_THRESHOLD），但每次 detail 到达 + 视频源切换可能触发大组件重渲染/媒体加载。\\n\\n【Phase 1：只测量、不改产品代码（尽快回报）】\\n1) 真实环境（0.18.12 + 真实 NAS 大库 + 已登录）复现：点击候选 A→B→C，记录 click→transcript 可见的总耗时（用 performance.mark/日志/截图）；至少 10 次，给 p50/p95/最大。\\n2) 拆解耗时：\\n   a. 前端 click→fetch 开始、fetch 结束、setData 后 render/paint（可用 PerformanceObserver longtask + React Profiler/console 打点）；\\n   b. 后端 detail 请求总耗时、searchd detail 耗时、是否回退到 NAS、NAS 读耗时、cache 命中与否（加临时日志，不改行为）；\\n   c. 主线程长任务（>50ms）数量/时长、渲染的 transcript 行数、DOM 节点数；\\n   d. 是否伴随 video/media 请求（切 source 后 video 元素加载）导致卡顿。\\n3) 对照实验：\\n   - 本地库（非 NAS）同样切换是否也卡；NAS vs 本地差异；\\n   - 已看过的素材（10s 内缓存命中）vs 新素材；\\n   - 长视频/长 transcript vs 短视频；\\n   - 临时禁用/固定 video 元素或延迟 media 请求，观察文案切换是否变快（只本地实验，不改产品）。\\n4) 判断：根因是 NAS fallback、searchd detail 慢、前端渲染/媒体加载、还是请求链路架构问题；给出量化结论。\\n\\n【Phase 2：方案+实施（Phase 1 有结论后直接做低风险修复）】\\n基于测量结果，在 hotfix/0.18.13 独立 worktree 实施（不碰 dev/cutter、不改 admin/契约；必要时先发 task）：\\n- 后端：detail LRU/TTL 缓存、searchd detail 优先且避免无谓 NAS fallback、必要时 searchd detail 优化；\\n- 前端：hover/选中前 prefetch detail、点击即显示骨架/保留旧文案、客户端缓存、startTransition/减少重渲染；\\n- 保证回退/错误提示与现有测试；补单测+真实 NAS E2E（切换 10 个候选 p95 目标，如 <300ms，具体按测量基线定）。\\n交付：根因报告（含数据/火焰图/日志）、修复 commit/branch、前后对比、E2E 证据、残留风险。完成后 reply；若 Phase 1 发现是架构级缺陷，先回报方案再改。"
+}
