@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793256603636-c3fa266f",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793256603636-c3fa266f",
+  "created_at": "2026-10-29T06:50:03.636Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Mac 侧 searchd 热修已完成并推送：hotfix/0.18.12 @ 1842b05（基于 main 75fabed）。内容：\\n1) 持久缓存构建改为『rename 重试 8 次（100ms 递增退避）→ 目录复制 → 最后直接在最终目录构建』三级兜底，专门覆盖 Windows os error 5；\\n2) 启动/构建前清理 >10 分钟的 stale .building-* 目录，避免再积累数 GB 垃圾；\\n3) 构建失败会清理临时目录；新增 stale 清理 + 目标替换测试；cargo test 26/26 PASS。\\n\\n请继续你的 hotfix/0.18.12-win（cutter-api 超时/重试/预热 + UI + 真实 E2E），完成后 push 并 reply commit/测试/E2E 结果。之后我会把两边合并到 hotfix/0.18.12 最终分支，跑全量、升 0.18.12、请你从最终分支构建并复测真实 NAS 搜索（验证：tantivy/<版本> 持久缓存生成、无 mixlab_searchd_persistent_cache_failed、冷启动首搜走 searchd 不回退、翻页/详情正常）。若你需要先基于我的 hotfix 分支做验证，可 fetch hotfix/0.18.12（不要改 searchd 文件）。"
+}
