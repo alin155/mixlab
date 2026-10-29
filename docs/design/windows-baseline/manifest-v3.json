@@ -1,0 +1,940 @@
+{
+  "generated_at": "2026-10-29T19:50:00.746Z",
+  "app_version": "0.18.14 final (hotfix/0.18.14@6569ecb)",
+  "installer_sha256": "64C5652FD85F996D7F2637256C5A99321294C615CA18B8F003A504E41606E312",
+  "windows": "Microsoft Windows 11 Pro 10.0.26200 build 26200",
+  "system": {
+    "screen": [
+      1920,
+      1080
+    ],
+    "dpr": 1,
+    "inner": [
+      1440,
+      900
+    ],
+    "os": "Microsoft Windows 11 Pro 10.0.26200 build 26200",
+    "actual_display": "1920x1080, system scaling 100%, DPR1",
+    "scaling_mode": "125%/150% 通过缩小 CSS 视口模拟；系统缩放未改，DPR1",
+    "app_version": "0.18.14 final (hotfix/0.18.14@6569ecb)",
+    "installer_sha256": "64C5652FD85F996D7F2637256C5A99321294C615CA18B8F003A504E41606E312",
+    "branch": "hotfix/0.18.14 @ 6569ecb"
+  },
+  "shots": [
+    {
+      "file": "home-1536x1024-100.png",
+      "label": "首页/项目首页",
+      "sha256": "a6123b2df0c51fbb43980ad39c2f06185eb3c88ab2e277cf7ddea12cab315229",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "new-project-1536x1024-100.png",
+      "label": "新建项目弹窗",
+      "sha256": "f8fa1da01ab602d0222ea1481174d813b285173dc7d78224e9442e147165a4e3",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "search-results-1536x1024-100.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "41d1c7c3a26445819ac38ef0b35a974ae5f673e81933f4c58fd862049a9ffaf2",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-selected-1536x1024-100.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "c2df7d7515fdb2c8a4b1fcfc17dd52614d7ff01dd7f12d3cc2db6247b1689429",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-floating-1536x1024-100.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "7720fefdbffc221cd9195dedf4646bc222b66a66d9faaf1dedb84aa32a2ac965",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "cut-tasks-1536x1024-100.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "834b94efb929c4c9970fd2696f86a1a4a9290382ed89976b45fd16095176637f",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "cut-task-detail-1536x1024-100.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "eedd52b0d5eb11d3196461958a997a0f2cc04cb029dd9e716b1147a85a4dba3d",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "local-library-1536x1024-100.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "80f60a27a6be991ff32524b7120d54c91865723e9183cf167534adf6d2b1befa",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-all-1536x1024-100.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "367e101d07b91e0f373304a7c2e606725703fb2f6d3157ba5e6263b9d6ca27fe",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-clip-detail-1536x1024-100.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "7851270b5abaa790f82322f90db4d2db72da2511cf48ae9fbb3874d229aac7b8",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "public-library-1536x1024-100.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "c7f162b05bf47ddf558a00975646fe9ea54f8d328f34639032b22e87af261ff7",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材"
+    },
+    {
+      "file": "cache-1536x1024-100.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "ffb68a78e26777013befb9eed905307b849e38964b376a7ec2f6766d0c412f7c",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理"
+    },
+    {
+      "file": "settings-1536x1024-100.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "10e8d96b016d0cd0d11d79f14cea62b5eeb83fed16cdfeebbcebcdf9b0ed7e97",
+      "pixel": [
+        1536,
+        1024
+      ],
+      "css": [
+        1536,
+        1024
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置"
+    },
+    {
+      "file": "home-1229x819-125sim.png",
+      "label": "首页/项目首页",
+      "sha256": "939d3fa31147a91ab99e23e183c43ef974780da98a05971ff70865e62cf91277",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "new-project-1229x819-125sim.png",
+      "label": "新建项目弹窗",
+      "sha256": "fdbe19377a04470c0f83e7d9380d37e68f10f0c717232b1cd182f0f76ee260f8",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "search-results-1229x819-125sim.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "92bc0acd00c4244b199d0cdcfb15bc35ea6c68f49570c86a60f14a2e50e29c2d",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-selected-1229x819-125sim.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "33158bb766185f9fc56af9b1655382aa155553d3f6e27d1a386c3d1e3afda9c2",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-floating-1229x819-125sim.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "c8a2339e7e84c895e34cf6526695fe76f774f1d8a17fdcf3d2993d0a67d7a955",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "cut-tasks-1229x819-125sim.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "6c5ea59c0746ad27537ef624f6d91e8e580940f9ad4edc00b2667f6fc0bfc518",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "cut-task-detail-1229x819-125sim.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "3ecf756085ea3f36e0fc84997a068929feb20118f1bc9175e4534668df8a7a76",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "local-library-1229x819-125sim.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "18315c79426c06f5edc882d72fafa9fb3c08ced426c0b26b2ec3a19de0069a67",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-all-1229x819-125sim.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "5f369ca630d6a870a8a0cf5b1f8e64f5d427c1ee8fb7c4aa257c9e3d2547c9f1",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "public-library-1229x819-125sim.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "7d1a7c65bd62e0773f10947dd49a699891bb5882dee84ddb09d907db7ac2a341",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材"
+    },
+    {
+      "file": "cache-1229x819-125sim.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "d2e4067f89e534a56d849d62034fe97e92ca37975eca1d61a4ec2882e65bb584",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理"
+    },
+    {
+      "file": "settings-1229x819-125sim.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "19e3c209e2ce2c21e82da5dadc62ff49066d17f66a3103c82ec77b334f96d063",
+      "pixel": [
+        1229,
+        819
+      ],
+      "css": [
+        1229,
+        819
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置"
+    },
+    {
+      "file": "home-1024x683-150sim.png",
+      "label": "首页/项目首页",
+      "sha256": "318fa8c054f28c5bb89231bbc9c887d79b38c1ec98a1dd9e97a56ee10ba74a73",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "new-project-1024x683-150sim.png",
+      "label": "新建项目弹窗",
+      "sha256": "928ef79b4d6c58ba2adfe697be753d98be9b1509279998e61fae74ab19a709fd",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "search-results-1024x683-150sim.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "75fd1af3e9d499d8dba0898e1968a95a6fc7395a8b36f2e284c2c3ae2a1e8356",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-selected-1024x683-150sim.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "53920978a5b6ed4bef2c4ff8fa7e743e94a5d5f12c5c4f3ca4c827b41f72a3fc",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-floating-1024x683-150sim.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "6238fe96af06705da7ca3478c90fb225986ba04ebc9082b97823633fd5373fbd",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "cut-tasks-1024x683-150sim.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "fb36b222fe2c86dc34d8545477bb569c782dca6a9bfa943f5fac341a5a86296b",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "cut-task-detail-1024x683-150sim.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "46af585b7194f94ced2ac666b7f8787e3da100fe6372ac5ab3d525e88a80104b",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "local-library-1024x683-150sim.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "9883c07a846f6e6822b6c381ac176a3805503ba4c672d5fb0ce3da45b2384f4c",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-all-1024x683-150sim.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "9425e9a03ddd709f1b442245e08d1298158bc83f46301379e9395dfa8399644b",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-clip-detail-1024x683-150sim.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "a34da8078e8c11c7db25c005ca069a32d3b730b2e57a15be7c0a34f8a833acf1",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "public-library-1024x683-150sim.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "267fa5b4964955e6ace073023e8a373739584f620fbcc960832e2a7422ef78b8",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材"
+    },
+    {
+      "file": "cache-1024x683-150sim.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "3fc60ebf7dec122b41d99e90cb855b58c71e0069fe89d29e62f0c81a585cb0a4",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理"
+    },
+    {
+      "file": "settings-1024x683-150sim.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "c5bf4f30d4f81f7bae7b003e0d5e69c44f60ea0c5e7e70d5133e28703bee3759",
+      "pixel": [
+        1024,
+        683
+      ],
+      "css": [
+        1024,
+        683
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置"
+    },
+    {
+      "file": "home-1440x900-100.png",
+      "label": "首页/项目首页",
+      "sha256": "a2b47f837269bd9526a1213a662e8aefbf4342ea76d8d31d886c2463a47c1e60",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "new-project-1440x900-100.png",
+      "label": "新建项目弹窗",
+      "sha256": "123bb621c4815a2949e5d3033d91b0c2ec105023ac6d956cd0ba4093c83dd503",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "project-home",
+      "heading": "选择项目，然后开始搜索素材"
+    },
+    {
+      "file": "search-results-1440x900-100.png",
+      "label": "素材搜索结果",
+      "expected_page": "material-locator",
+      "sha256": "43b6a345ba51da8b1767c0f7fcce2167332292bed9349ff7a903dde4fdd3e5f0",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-selected-1440x900-100.png",
+      "label": "素材搜索选中详情",
+      "expected_page": "material-locator",
+      "sha256": "cf4e9c7d837911b03f0661f042665cb2559d70610d8a73648d45f3af35167ec0",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "search-floating-1440x900-100.png",
+      "label": "素材搜索选区浮层/剪切这段",
+      "expected_page": "material-locator",
+      "sha256": "94af2c527475cd4b8a84ec38374440082e363d6b263acfa8c92d09fb65b3f05a",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "material-locator",
+      "heading": ""
+    },
+    {
+      "file": "cut-tasks-1440x900-100.png",
+      "label": "剪切任务列表",
+      "expected_page": "cut-tasks",
+      "sha256": "52f9c99a49e21ce7530b08a1bf3972cea6bd04fe39d17a30c2005de6bee131da",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "cut-task-detail-1440x900-100.png",
+      "label": "剪切任务详情",
+      "expected_page": "cut-tasks",
+      "sha256": "5c1a6e14d0799e8880e584a66111e99361cf163be335aad57430edef5340899f",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "cut-tasks",
+      "heading": "剪切任务"
+    },
+    {
+      "file": "local-library-1440x900-100.png",
+      "label": "本地素材网格",
+      "expected_page": "local-library",
+      "sha256": "72f215a66f43839f5f45521eabe4a18bce8ff7ad00b8b8e1b2de2dd25acacc3a",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-all-1440x900-100.png",
+      "label": "本地素材全部素材",
+      "expected_page": "local-library",
+      "sha256": "f8d293d0242e835a4abc39a9ddb7651344e3d74b817ca227d82bec82162ad53c",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "local-clip-detail-1440x900-100.png",
+      "label": "本地素材详情",
+      "expected_page": "local-library",
+      "sha256": "89b008f6b9fa5dd69a729937c7023f0d81c3b4c3e93b0c3815a9ccfb1c81defd",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "local-library",
+      "heading": "本地可复剪素材"
+    },
+    {
+      "file": "public-library-1440x900-100.png",
+      "label": "公共素材库",
+      "expected_page": "public-library",
+      "sha256": "af4cea0ddd22c4b76e65c76ce36179f32b8fdf8cd44e1b85d6ac0312163fa38c",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "public-library",
+      "heading": "可用原素材"
+    },
+    {
+      "file": "cache-1440x900-100.png",
+      "label": "缓存管理",
+      "expected_page": "cache-management",
+      "sha256": "376c849ed13124909b3562f4d356bc0f9f99c0355c5400d2118a6c6fe9886b3b",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "cache-management",
+      "heading": "缓存管理"
+    },
+    {
+      "file": "settings-1440x900-100.png",
+      "label": "设置",
+      "expected_page": "settings",
+      "sha256": "646579be248bda166417b26567d8956f2d2a13d476df865f66a406b847dcbf5b",
+      "pixel": [
+        1440,
+        900
+      ],
+      "css": [
+        1440,
+        900
+      ],
+      "dpr": 1,
+      "dataPage": "settings",
+      "heading": "设置"
+    }
+  ],
+  "failures": [],
+  "notes": [],
+  "notice": {
+    "text": "发现 5 个工作区临时残留可在缓存管理页预览并清理；项目与已完成作品不会被删除。去清理",
+    "rect": {
+      "top": 0,
+      "bottom": 41.5,
+      "height": 41.5
+    },
+    "content_scrollTop": 0,
+    "content_rect": {
+      "x": 292,
+      "y": 0,
+      "width": 1244,
+      "height": 1024,
+      "top": 0,
+      "right": 1536,
+      "bottom": 1024,
+      "left": 292
+    }
+  },
+  "floating_cut": {
+    "size": "1440x900-100",
+    "floating_bar": 1,
+    "cut_button": 1
+  },
+  "coverage": {
+    "sizes": [
+      "1536x1024 @100% (real CSS viewport)",
+      "1229x819 @125% CSS layout simulation (DPR1)",
+      "1024x683 @150% CSS layout simulation (DPR1)",
+      "1440x900 @100% (real CSS viewport)"
+    ],
+    "states": [
+      "首页/项目首页",
+      "新建项目弹窗",
+      "素材搜索结果",
+      "素材搜索选中详情",
+      "素材搜索浮层/剪切这段",
+      "剪切任务列表",
+      "剪切任务详情",
+      "本地素材网格",
+      "本地素材全部素材",
+      "本地素材详情(除125%模拟)",
+      "公共素材库",
+      "缓存管理",
+      "设置"
+    ],
+    "not_covered": [
+      "真实系统级 125%/150% DPI 缩放",
+      "首次运行空态",
+      "本地素材详情在 1229×819/125% 模拟尺寸下点击后画面与全部素材一致，已移除该重复图并标注未覆盖",
+      "悬浮按钮为程序化选区，不是真实鼠标拖选"
+    ],
+    "duplicate_hash_check": "PASS: all screenshots unique sha256"
+  }
+}
