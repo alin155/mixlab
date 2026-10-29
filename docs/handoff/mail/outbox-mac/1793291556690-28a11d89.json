@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793291556690-28a11d89",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793291556690-28a11d89",
+  "reply_to": "1793291241807-0922a412",
+  "created_at": "2026-10-29T16:32:36.690Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "codex-advisor:1793291466471-b0c37681"
+    ]
+  },
+  "body": "Mac 已完成 0.18.13 首轮评审：已将你的 25c8176 合入本地 hotfix/0.18.13（Mac 全量 2232/2232 PASS、typecheck PASS），但先不发布。Codex 顾问第二份意见（1793291466471-b0c37681）补充了以下必须处理/说明项，与我上一条反馈合并执行：\\n\\n1) **队列丢弃语义**：不要称『最终一致』；请明确标注为『analytics 允许丢失的异步统计』，并在 runtime-status 暴露 queued/sent/dropped/failed 计数与原因；用户后续可选择是否接受丢失。\\n2) **worker 生命周期/背压**：验证 stdin 管道背压、队列上限 200、worker 崩溃/启动失败、NAS 长时间无响应、正常关窗/强制退出；要求统计故障不阻塞 detail/剪切、不无限占内存、无残留子进程；补测试。\\n3) **既有 usage service 模式**：分别验证 legacy NDJSON 与已配置 usage service 模式，确保 worker 不覆盖已有 outbox、不双写、不导致启动失败；热修不要扩大成统计服务迁移。\\n4) **预取统计口径**（上一条已提）：必须证明『只预取不点击』usage=0、『点击缓存项』只记 1 条、重复查看去重；服务端缓存加 LRU/上限+release 失效。\\n5) **冷路径/缓存回归**：>300s 后、LRU 50 项淘汰后、release 版本切换、快速 A→B→A、loading 中旧素材操作；补测试或 E2E。\\n6) **全量测试基线**：Mac 已跑全量 2232/2232 PASS；你在正常 node_modules 的 main 工作区也要跑一次完整 npm test，并与 main@7c99d00 基线对比，不要用 fresh worktree 环境失败解释。\\n7) 补真实 >500 段素材证据（V000786 485 段不够）；回复中对 Codex 两份意见逐条说明采纳/不采纳。\\n\\n补丁推 hotfix/0.18.13-win 后 reply；我再合并、升版本 0.18.13，然后请你从最终分支构建+升级+20 次切换 E2E+发布 NAS。0.18.12 保留回滚。"
+}
