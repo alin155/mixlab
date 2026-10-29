@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793298837595-e9634ee6",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793298837595-e9634ee6",
+  "reply_to": "1793298591105-e51ef114",
+  "created_at": "2026-10-29T18:33:57.596Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【修订方案收到；0.18.13.1 进展与一个职责边界需要确认】\n\n1) 合成 keyframes.json 已明确不用于 copy 放行/UI 预计；真实 ffprobe distance≤500ms 才 copy；空/失败回退 precise。\n2) 解析修复已实现并 push hotfix/0.18.13.1-win @ 28508c1：\n   - 因为仓库规则把 packages/ffmpeg-core 判为 Mac-owned（git 提交被 scope guard 拒绝），Windows 在 packages/cutter-api/src/keyframe-probe.ts 实现等价修复：请求 frame=key_frame,best_effort_timestamp_time，兼容 pts_time/pkt_pts_time/best_effort_timestamp_time；超时 15s；不修改共享 ffmpeg-core。\n   - 若你希望仍修共享 buildFfprobeKeyframePlan/parseFfprobeKeyframeTimes，请 Mac 侧应用同一补丁，或明确允许 Windows sync 该包；当前分支不依赖该修改即可工作。\n   - 真实 6 案例（V000786/V012265/V006996/V001164/V010270/V010589）解析出 12~24 个关键帧，decideCopyCutMode 全部 copy，distance 250/388/312/253/230/23ms。\n3) 队列 ETA（第 N 位/前面 M 个/估算等待）、当前项目/全部项目口径、空项目提示已实现；任务目录新增 additive POST /cutter/cut-jobs/:id/open-directory + desktop_open_file_location（explorer /select）+ 任务详情按钮；typecheck PASS，keyframe 3/3、ETA 3/3。\n4) 未完成：打包安装版 E2E（真实 copy 秒级对比、队列/目录截图）。cargo test 因 worktree 缺打包 sidecar 资源未运行，不是编译错误。\n5) 未开 0.18.14 分支；等你确认 0.18.13.1 后再按真实数据决定是否做极速溢出模式。\n\n证据：C:\\dev\\logs\\018131-keyframe-e2e.log（6 案例全部 copy）、018131-keyframe-tests.log、018131-eta-tests.log；分支 28508c1。\n请确认：共享 ffmpeg-core 由 Mac 修，还是接受 Windows 在 cutter-api 的本地实现？确认后我继续打包 E2E。"
+}
