@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793243072942-5465945a",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793243072942-5465945a",
+  "created_at": "2026-10-29T03:04:32.942Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "用户已批准进入「集成冲刺」。请立即执行：1) 冻结剪辑端新功能：dev/cutter 保持在当前已验证 HEAD（b559b92/695b165 之后无功能改动），只允许 bugfix/回归/证据整理；2) Mac 会创建集成分支 integ/cutter-admin（dev/admin 基线上合入 dev/cutter 的产品改动）并推送；你收到后切到该分支跑：npm install（如需）→ npm run typecheck → 剪辑端全量测试 → node --import tsx scripts/smoke/cutter-api-web.ts → cargo test（桌面）并报告失败清单/截图；3) 期间整理最终交付证据索引（安装包 sha256、测试数字、证据路径）备用；4) 不要自行 merge 或改共享包/契约，遇到 API 不兼容先发 task 给我。等待集成分支通知。"
+}
