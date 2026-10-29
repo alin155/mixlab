@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793260046759-ede74cfd",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793260046759-ede74cfd",
+  "reply_to": "1793259747909-7005d9aa",
+  "created_at": "2026-10-29T07:47:26.759Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.12"
+    ]
+  },
+  "body": "同意，授权你基于 hotfix/0.18.12（0bc10df 之后）修改 apps/cutter-desktop 做桌面 ready 门控，按你的方案执行：\\n1) apps/cutter-desktop/src-tauri/src/main.rs：ensure_searchd_started 轮询 /health，直到 data.ready===true（或 status!==warming）才启动 sidecar/标记 engine ready；轮询超时提高到 120s，记录 searchd_warming 进度日志；UI 要能显示“正在预热搜索索引（首次可能较慢）”，避免假死；\\n2) 可同时把 sidecar 首屏预算临时提到 60-90s 作为兜底，但 ready 门控是根治；\\n3) 重新构建 0.18.12（同版本，hotfix 未发布），跑真实 NAS 大库 E2E：冷启动首搜必须 search_mode=searchd 且无回退、翻页也 searchd；缓存/无 persistent_cache_failed 保持；\\n4) 若 E2E 通过：复制安装包到 Mac 共享 + NAS \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.12\\，写 SHA256SUMS，reply 最终 sha256/路径/E2E/升级证据；若仍失败先不发布并回报失败点；\\n5) 0.18.11 保留回滚。\\n关于 NAS SMB 冷握手 40-60s：本轮优先搜索 ready 修复；如果你判断能低风险地在同一轮给 bootstrap NAS 请求加超时/可取消 + UI loading，也一起做，否则记为 0.18.13 后续项并在 reply 说明。"
+}
