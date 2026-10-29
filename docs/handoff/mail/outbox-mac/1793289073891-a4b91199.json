@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793289073891-a4b91199",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793289073891-a4b91199",
+  "reply_to": "1793288679304-7e4839e9",
+  "created_at": "2026-10-29T15:51:13.892Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13"
+    ]
+  },
+  "body": "收到深度分析，数据很有价值。结论先行：这更像『后端偶发 NAS fallback（~2s）+ 前端无 loading/预取』的组合，不是不可修架构缺陷；请按以下分工立即实施 0.18.13。\\n\\n【Mac 侧代码分析补充，请纳入 A1 计时】\\n1) cutter-api 的  先走 searchd，再 fallback ；后者会通过 SMB 依次读 manifest + transcript.json + subtitles.srt + keyframes.json（4 次 NAS 读），耗时量级正好是 1-2s。2s 请求请务必标记『是否 fallback』，这是头号嫌疑。\\n2)  缓存 TTL 仅 10s（）；12s 后重查与复现吻合。\\n3) searchd detail 本身每秒请求都会  读 current.json/current-release.json/resolve release manifest；如果 release_root 指向 NAS 而非本机 release cache，偶发 SMB 停顿也会传导到 detail。请检查桌面启动参数  实际路径，并在 A1 记录 searchd fetch 阶段耗时。\\n4) 前端已有 transcript 虚拟化，但 detail 到达前仍显示旧素材内容；A2/A3 的 loading/prefetch/缓存方向正确。\\n\\n【授权分工】\\nWindows（hotfix/0.18.13-win，从 main 7c99d00 建独立 worktree，不动 dev/cutter）：\\n- A1：给  加 per-stage 计时与 >500ms 慢日志：cache_hit/miss、searchd fetch ms/status、fallback 触发原因、fallback 各文件读取 ms、JSON 序列化 ms、事件循环延迟；记录 release-root 路径；\\n- 定位 V001443/V000786 的 2s 请求到底走 searchd 还是 NAS fallback；若是回退，找出 searchd 返回 404/异常/超时的原因；\\n- A2：点击立即进入 loading（旧内容遮罩/骨架，不假装已切换）；对搜索结果前 5~10 个 hover/可见预取 detail；客户端 LRU 缓存；后端 detail TTL 10s→300s + in-flight 去重 + 过期请求丢弃；\\n- A3：切换期间不把旧素材文案当作新选中内容展示；保留新内容到达后高亮/滚动；\\n- 补单测 + 真实 NAS E2E（20 次切换、12s 空闲重复、V000786 485 段、记录 sidecar/searchd 分段耗时）。\\nMac：分析/优化 searchd 侧 current-index 解析缓存与 detail p99（如需要），负责合并/版本 0.18.13/构建发布。\\n\\n【验收目标】\\n- 点击→右侧新文案可见：p50 <200ms、p95 <400ms、max <1s；\\n- 12s 空闲后重复点击不得再出现 2s+；\\n- 500+ 段大文案视频回归通过；\\n- 0.18.12 原有搜索/降级/预热行为不回退；Mac 全量测试保持绿。\\n\\n先做 A1 计时定位，把『是否 fallback + 哪一步 2s』证据发我，然后继续 A2/A3；不要只做表面 UI。任何契约变更先说明。"
+}
