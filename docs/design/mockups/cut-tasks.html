@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MixLab Cutter · UI Mockup</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">ML</div><div><div class="brand-name">MixLab Cutter</div><div class="brand-sub">项目化素材剪切</div></div></div>
+    <nav class="nav">
+      <div class="nav-label">工作台</div>
+      <a class="nav-item" href="#"><span class="nav-icon">⌂</span><span>首页</span></a>
+      <a class="nav-item " href="workbench.html"><span class="nav-icon">⌕</span><span>素材搜索</span></a>
+      <a class="nav-item active" href="cut-tasks.html"><span class="nav-icon">✂</span><span>剪切任务</span></a>
+      <a class="nav-item " href="local-library.html"><span class="nav-icon">▤</span><span>本地素材</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">▦</span><span>公共素材库</span></a>
+      <div class="nav-label">系统</div>
+      <a class="nav-item" href="#"><span class="nav-icon">≋</span><span>缓存管理</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">⚙</span><span>设置</span></a>
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-status">
+      <div class="status-row"><span>当前项目</span><strong>10月30日</strong></div>
+      <div class="status-row"><span>素材库</span><strong>本地 3 / 公共 12869</strong></div>
+      <div class="status-row"><span>剪切任务</span><strong>1 个处理中</strong></div>
+      <div class="status-row"><span>本机服务</span><strong><i class="status-dot"></i>正常</strong></div>
+    </div>
+    <div class="user-card"><div class="avatar">演</div><div class="user-copy"><div class="user-name">演示剪辑师</div><div class="user-meta">缓存 918 MB</div></div></div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumb">素材库 / <strong>剪切任务</strong></div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions"><span class="badge success"><span class="dot"></span>本机服务正常</span><button class="btn ghost">快捷键</button></div>
+    </header>
+    <div class="page">
+      <div class="page-header">
+        <div><div class="page-eyebrow">剪切任务</div><h1>剪切队列</h1><p class="page-subtitle">串行执行，一次只跑一个任务；列表显示队列位置与预计等待</p></div>
+        <div class="page-actions"><button class="btn">打开文件目录</button><button class="btn">刷新</button></div>
+      </div>
+      <div class="kpi-grid">
+        <div class="card kpi"><div class="kpi-label">等待中<span class="badge warning">2</span></div><div class="kpi-value">2</div><div class="kpi-meta">前面还有 1 个任务</div></div>
+        <div class="card kpi"><div class="kpi-label">剪切中<span class="badge info">1</span></div><div class="kpi-value">1</div><div class="kpi-meta">预计剩余 1 分 05 秒</div></div>
+        <div class="card kpi"><div class="kpi-label">已完成<span class="badge success">12</span></div><div class="kpi-value">12</div><div class="kpi-meta">今天 · 本地素材已更新</div></div>
+        <div class="card kpi"><div class="kpi-label">失败<span class="badge danger">1</span></div><div class="kpi-value">1</div><div class="kpi-meta">可重试 · 查看错误摘要</div></div>
+      </div>
+      <div class="card pipeline">
+        <div class="pipeline-left"><span class="pipeline-dot"></span><div><div class="pipeline-title">本机剪切流水线</div><div class="pipeline-sub">正在执行：1-10月30日-直播复盘 · 68% · 预计剩余 1 分 05 秒</div></div></div>
+        <span class="badge info">1 个处理中</span>
+      </div>
+      <div class="detail-grid">
+        <section class="card table-card">
+          <div class="card-header"><div class="card-title"><strong>最近任务</strong><span>4 个任务 · 当前项目 10月30日</span></div><button class="btn small">全部项目（65）</button></div>
+          <div class="table-toolbar">
+            <div class="segmented"><button class="active">全部 4</button><button>等待中 2</button><button>剪切中 1</button><button>失败 1</button><button>已完成 12</button></div>
+            <select class="input" style="width:150px"><option>当前项目：10月30日</option><option>全部项目</option></select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>状态</th><th>来源视频</th><th>时间段</th><th>模式</th><th>进度 / 预计</th><th>耗时</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td><span class="badge warning"><span class="dot"></span>等待中</span></td><td><div class="source-cell"><div class="thumb dark"></div><div><strong>直播复盘：从流量到现金流</strong><span>第 2 位 · 前面 1 个</span></div></div></td><td class="mono">11:58 – 12:28</td><td>极速</td><td><div class="progress"><i style="width:0%"></i></div><div class="table-note">预计等待 3 分 20 秒</div></td><td>—</td><td><button class="btn small">查看</button></td></tr>
+                <tr class="selected"><td><span class="badge info"><span class="dot"></span>剪切中</span></td><td><div class="source-cell"><div class="thumb"></div><div><strong>投放复盘：ROI 与现金流</strong><span>1-10月30日-投放复盘</span></div></div></td><td class="mono">11:58 – 12:28</td><td>极速</td><td><div class="progress"><i style="width:68%"></i></div><div class="table-note">剩余 1 分 05 秒</div></td><td>00:31</td><td><button class="btn small">查看</button></td></tr>
+                <tr><td><span class="badge success"><span class="dot"></span>已完成</span></td><td><div class="source-cell"><div class="thumb"></div><div><strong>私域直播复盘方法</strong><span>1-10月30日-私域直播</span></div></div></td><td class="mono">12:07 – 12:36</td><td>极速</td><td><div class="progress done"><i style="width:100%"></i></div><div class="table-note">输出校验通过</div></td><td>00:03</td><td><button class="btn small">打开目录</button></td></tr>
+                <tr><td><span class="badge danger">失败</span></td><td><div class="source-cell"><div class="thumb dark"></div><div><strong>企业运营与现金流管理</strong><span>1-10月30日-企业运营</span></div></div></td><td class="mono">12:45 – 13:10</td><td>精剪</td><td><div class="progress danger"><i style="width:100%"></i></div><div class="table-note">FFmpeg 输出目录不可写</div></td><td>00:02</td><td><button class="btn small">重试</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer"><span>任务按创建时间排序 · 已完成任务保留在本地素材</span><span>共 4 条</span></div>
+        </section>
+        <section class="card">
+          <div class="card-header"><div class="card-title"><strong>任务详情</strong><span>1-10月30日-投放复盘</span></div><button class="btn small ghost">打开目录</button></div>
+          <div class="card-body">
+            <div class="meta-grid" style="margin-top:0">
+              <div class="meta-item"><span>状态</span><strong>剪切中 68%</strong></div>
+              <div class="meta-item"><span>模式</span><strong>极速</strong></div>
+              <div class="meta-item"><span>选区</span><strong>9 秒</strong></div>
+              <div class="meta-item"><span>预计剩余</span><strong>1 分 05 秒</strong></div>
+            </div>
+            <div class="detail-list" style="padding:0">
+              <div class="row"><span>来源</span><strong>直播复盘：从流量到现金流</strong></div>
+              <div class="row"><span>时间段</span><strong class="mono">11:58 – 12:28</strong></div>
+              <div class="row"><span>预计溢出</span><strong>开头 +0.2 秒 / 结尾 +0.3 秒</strong></div>
+              <div class="row"><span>输出路径</span><strong>projects/10月30日/export-clips</strong></div>
+            </div>
+            <div class="action-row"><button class="btn">打开任务目录</button><button class="btn">取消任务</button></div>
+            <div class="action-row"><button class="btn primary">改精剪</button><button class="btn">重新剪切</button></div>
+          </div>
+          <div class="card-footer"><span>极速模式按关键帧扩展</span><span>可一键改精剪</span></div>
+        </section>
+      </div>
+      <div class="footer-note"><span>Mockup v2 · 剪切任务 · 表格占主宽度，详情固定右栏</span><span>队列位置 / ETA / 溢出报告</span></div>
+    </div>  </div>
+</div>
+</body>
+</html>

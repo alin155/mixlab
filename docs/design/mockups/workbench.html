@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MixLab Cutter · UI Mockup</title>
+<link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">ML</div>
+      <div><div class="brand-name">MixLab Cutter</div><div class="brand-sub">项目化素材剪切</div></div>
+    </div>
+    <nav class="nav">
+      <div class="nav-label">工作台</div>
+      <a class="nav-item" href="#"><span class="nav-icon">⌂</span><span>首页</span></a>
+      <a class="nav-item active" href="workbench.html"><span class="nav-icon">⌕</span><span>素材搜索</span></a>
+      <a class="nav-item" href="cut-tasks.html"><span class="nav-icon">✂</span><span>剪切任务</span></a>
+      <a class="nav-item" href="local-library.html"><span class="nav-icon">▤</span><span>本地素材</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">▦</span><span>公共素材库</span></a>
+      <div class="nav-label">系统</div>
+      <a class="nav-item" href="#"><span class="nav-icon">≋</span><span>缓存管理</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">⚙</span><span>设置</span></a>
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-status">
+      <div class="status-row"><span>当前项目</span><strong>10月30日</strong></div>
+      <div class="status-row"><span>素材库</span><strong>本地 3 / 公共 12869</strong></div>
+      <div class="status-row"><span>剪切任务</span><strong>1 个处理中</strong></div>
+      <div class="status-row"><span>本机服务</span><strong><i class="status-dot"></i>正常</strong></div>
+    </div>
+    <div class="user-card">
+      <div class="avatar">演</div>
+      <div class="user-copy"><div class="user-name">演示剪辑师</div><div class="user-meta">缓存 918 MB</div></div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumb">素材库 / <strong>素材搜索</strong></div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <span class="badge success"><span class="dot"></span>本机服务正常</span>
+        <button class="btn ghost">快捷键</button>
+      </div>
+    </header>
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-eyebrow">素材搜索</div>
+          <h1>找到一句话，剪出一段视频</h1>
+          <p class="page-subtitle">搜索公共素材库文案、定位命中片段，加入待剪清单后统一剪切</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn">打开待剪清单</button>
+          <button class="btn primary">＋ 新建项目</button>
+        </div>
+      </div>
+      <div class="searchbar" style="max-width:none;margin-bottom:14px">
+        <div class="input-wrap"><input class="input" value="现金流" placeholder="搜索文案，例如：现金流" /></div>
+        <select class="input scope"><option>全部素材</option><option>公共原素材</option><option>本地素材</option></select>
+        <select class="input scope"><option>全部类型</option><option>横屏</option><option>竖屏</option></select>
+        <button class="btn primary">搜索</button>
+      </div>
+      <div class="workbench-grid">
+        <section class="card">
+          <div class="card-header">
+            <div class="card-title"><strong>候选素材</strong><span>已载入 5 条 · 命中 18 处</span></div>
+            <button class="btn small ghost">筛选</button>
+          </div>
+          <div class="candidate-toolbar">
+            <span class="badge neutral">公共原素材 · 5</span>
+            <span class="table-note">按命中排序</span>
+          </div>
+          <div class="candidate-list scroll-area">
+            <div class="candidate active">
+              <div class="thumb"><span class="play">▶</span></div>
+              <div class="candidate-title"><strong>直播复盘：从流量到现金流健康度</strong><div class="candidate-meta"><span>509 字</span><span>32:15</span><span>命中 8</span></div></div>
+              <span class="candidate-hit">8</span>
+            </div>
+            <div class="candidate">
+              <div class="thumb dark"><span class="play">▶</span></div>
+              <div class="candidate-title"><strong>投放复盘：ROI 与现金流管理</strong><div class="candidate-meta"><span>14,575 字</span><span>08:56</span><span>命中 4</span></div></div>
+              <span class="candidate-hit">4</span>
+            </div>
+            <div class="candidate">
+              <div class="thumb"><span class="play">▶</span></div>
+              <div class="candidate-title"><strong>组织成本控制与现金流预警</strong><div class="candidate-meta"><span>19,032 字</span><span>13:26</span><span>命中 3</span></div></div>
+              <span class="candidate-hit">3</span>
+            </div>
+            <div class="candidate">
+              <div class="thumb dark"><span class="play">▶</span></div>
+              <div class="candidate-title"><strong>私域直播复盘方法</strong><div class="candidate-meta"><span>25 字</span><span>12:22</span><span>命中 1</span></div></div>
+              <span class="candidate-hit">1</span>
+            </div>
+            <div class="candidate">
+              <div class="thumb"><span class="play">▶</span></div>
+              <div class="candidate-title"><strong>企业运营与现金流管理</strong><div class="candidate-meta"><span>22,114 字</span><span>11:24</span><span>命中 2</span></div></div>
+              <span class="candidate-hit">2</span>
+            </div>
+          </div>
+          <div class="card-footer"><span>已显示全部（5）</span><button class="btn small ghost">加载更多</button></div>
+        </section>
+
+        <section class="card">
+          <div class="transcript-head">
+            <div><div class="transcript-title">直播复盘：从流量到现金流健康度</div><div class="transcript-meta">V000786 · 32:15 · 509 字 · 命中 8 处</div></div>
+            <div class="hit-nav"><button class="btn small">上一个</button><button class="btn small">下一个</button></div>
+          </div>
+          <div class="transcript scroll-area">
+            <div class="transcript-row"><div class="transcript-time">11:45</div><div class="transcript-text">我们先看这个月的整体数据，整体流量环比上升了 18%，但利润没有同步增长。</div></div>
+            <div class="transcript-row current"><div class="transcript-time">11:58</div><div class="transcript-text">原因其实很简单，投放费用增加了，但回收周期变长了，这直接影响到我们的<mark>现金流</mark>。</div></div>
+            <div class="transcript-row"><div class="transcript-time">12:07</div><div class="transcript-text">很多团队只看利润，而忽略了<mark>现金流</mark>的健康度，结果账上赚了钱，实际却缺钱用。</div></div>
+            <div class="transcript-row"><div class="transcript-time">12:17</div><div class="transcript-text"><mark>现金流</mark>的本质，是在正确的时间点，有足够的现金去支持业务的持续运转。</div></div>
+            <div class="transcript-row"><div class="transcript-time">12:28</div><div class="transcript-text">我们做直播带货，最核心的指标除了 GMV，还有一个就是投放回收周期。</div></div>
+            <div class="transcript-row"><div class="transcript-time">12:36</div><div class="transcript-text">如果回收周期过长，哪怕最终能赚钱，过程中的<mark>现金流</mark>也会非常紧张，甚至断裂。</div></div>
+            <div class="transcript-row"><div class="transcript-time">12:45</div><div class="transcript-text">所以我们要控制的不是单日 ROI，而是整体的<mark>现金流</mark>节奏和回收周期。</div></div>
+            <div class="transcript-row"><div class="transcript-time">12:54</div><div class="transcript-text">建议大家把回收周期控制在 7 天以内，这样<mark>现金流</mark>压力会小很多。</div></div>
+            <div class="transcript-row"><div class="transcript-time">13:03</div><div class="transcript-text">具体怎么做？第一，缩短发货周期，减少用户等待时间。</div></div>
+            <div class="transcript-row"><div class="transcript-time">13:10</div><div class="transcript-text">第二，优化投放结构，把更多预算放在高转化的计划上。</div></div>
+            <div class="transcript-row"><div class="transcript-time">13:18</div><div class="transcript-text">第三，建立稳定的复购和私域，把现金流的来源从单次交易变成持续收入。</div></div>
+            <div class="transcript-row"><div class="transcript-time">13:27</div><div class="transcript-text">我们来看一个案例，这个团队通过优化投放和供应链，把回收周期从 14 天缩短到 6 天。</div></div>
+            <div class="transcript-row"><div class="transcript-time">13:36</div><div class="transcript-text">现金流改善后，他们可以更快地加大投放，形成正向循环，业绩自然就起来了。</div></div>
+            <div class="transcript-row"><div class="transcript-time">13:45</div><div class="transcript-text">总结一下，<mark>现金流</mark>管理的核心就是：回得快、花得准、控得住。</div></div>
+          </div>
+          <div class="transcript-footer">
+            <span>已选 1 段 · 00:00:09 · 共有 8 处命中</span>
+            <button class="btn small">复制文案</button>
+          </div>
+        </section>
+
+        <section class="card inspector-card">
+          <div class="inspector-tabs">
+            <button class="active" onclick="showTab('video', this)">视频</button>
+            <button onclick="showTab('selection', this)">选区</button>
+            <button onclick="showTab('tasks', this)">任务</button>
+          </div>
+          <div class="inspector-body" data-tab="video">
+            <div class="video-frame">
+              <span class="video-label">公共原素材 · 1080P</span>
+              <button class="play-btn">▶</button>
+              <span class="video-title">现金流，是企业的血液。</span>
+              <span class="timecode">00:39 / 32:15</span>
+            </div>
+            <div class="detail-title">直播复盘：从流量到现金流健康度</div>
+            <div class="detail-sub">V000786 · 公共原素材 · 横屏</div>
+            <div class="meta-grid">
+              <div class="meta-item"><span>当前命中</span><strong>3 / 8</strong></div>
+              <div class="meta-item"><span>时长</span><strong>32:15</strong></div>
+              <div class="meta-item"><span>剪切模式</span><strong>极速</strong></div>
+              <div class="meta-item"><span>预计耗时</span><strong>&lt; 3 秒</strong></div>
+            </div>
+            <div class="selection-box">
+              <div class="range"><span>已选片段</span><span>00:11:58 - 00:12:07</span></div>
+              原因其实很简单，投放费用增加了，但回收周期变长了，这直接影响到我们的现金流。
+            </div>
+            <div class="action-row"><button class="btn">加入待剪清单</button><button class="btn primary">剪切这段</button></div>
+            <div class="action-row"><button class="btn">打开文件目录</button><button class="btn ghost">查看完整详情</button></div>
+          </div>
+          <div class="inspector-body" data-tab="selection" style="display:none">
+            <div class="selection-box">
+              <div class="range"><span>选段时间</span><span>00:11:58 - 00:12:07</span></div>
+              原因其实很简单，投放费用增加了，但回收周期变长了，这直接影响到我们的现金流。
+            </div>
+            <div class="meta-grid">
+              <div class="meta-item"><span>选中字数</span><strong>37 字</strong></div>
+              <div class="meta-item"><span>时长</span><strong>9 秒</strong></div>
+            </div>
+            <div class="action-row"><button class="btn">加入待剪清单</button><button class="btn primary">剪切这段</button></div>
+          </div>
+          <div class="inspector-body" data-tab="tasks" style="display:none">
+            <div class="mini-task"><span class="badge warning"><span class="dot"></span>等待中</span><div class="mini-task-title">1-10月30日-直播复盘</div><span class="table-note">第 1 位</span></div>
+            <div class="mini-task"><span class="badge danger">失败</span><div class="mini-task-title">1-10月30日-投放复盘</div><button class="btn small">重试</button></div>
+            <div class="mini-task"><span class="badge success"><span class="dot"></span>已完成</span><div class="mini-task-title">1-10月30日-私域直播</div><span class="table-note">00:30</span></div>
+            <div class="action-row"><button class="btn">查看全部任务</button></div>
+          </div>
+        </section>
+      </div>
+      <div class="footer-note"><span>提示：极速模式会按关键帧自动扩展，剪后显示实际时长与溢出。</span><span>Mockup v2 · 1536 × 1024</span></div>
+    </div>
+  </div>
+</div>
+<script>
+function showTab(name, button) {
+  var tabs = document.querySelectorAll(".inspector-tabs button");
+  for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove("active"); }
+  button.classList.add("active");
+  var bodies = document.querySelectorAll(".inspector-body");
+  for (var j = 0; j < bodies.length; j++) { bodies[j].style.display = bodies[j].getAttribute("data-tab") === name ? "" : "none"; }
+}
+</script>
+</body>
+</html>

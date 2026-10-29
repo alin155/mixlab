@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>MixLab Cutter · UI Mockup</title><link rel="stylesheet" href="assets/styles.css" /></head>
+<body><div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">ML</div><div><div class="brand-name">MixLab Cutter</div><div class="brand-sub">项目化素材剪切</div></div></div>
+    <nav class="nav">
+      <div class="nav-label">工作台</div>
+      <a class="nav-item" href="#"><span class="nav-icon">⌂</span><span>首页</span></a>
+      <a class="nav-item " href="workbench.html"><span class="nav-icon">⌕</span><span>素材搜索</span></a>
+      <a class="nav-item " href="cut-tasks.html"><span class="nav-icon">✂</span><span>剪切任务</span></a>
+      <a class="nav-item active" href="local-library.html"><span class="nav-icon">▤</span><span>本地素材</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">▦</span><span>公共素材库</span></a>
+      <div class="nav-label">系统</div>
+      <a class="nav-item" href="#"><span class="nav-icon">≋</span><span>缓存管理</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">⚙</span><span>设置</span></a>
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-status"><div class="status-row"><span>当前项目</span><strong>10月30日</strong></div><div class="status-row"><span>素材库</span><strong>本地 3 / 公共 12869</strong></div><div class="status-row"><span>剪切任务</span><strong>1 个处理中</strong></div><div class="status-row"><span>本机服务</span><strong><i class="status-dot"></i>正常</strong></div></div>
+    <div class="user-card"><div class="avatar">演</div><div class="user-copy"><div class="user-name">演示剪辑师</div><div class="user-meta">缓存 918 MB</div></div></div>
+  </aside>
+  <div class="main">
+    <header class="topbar"><div class="breadcrumb">素材库 / <strong>本地素材</strong></div><div class="topbar-spacer"></div><div class="topbar-actions"><span class="badge success"><span class="dot"></span>本机服务正常</span><button class="btn ghost">快捷键</button></div></header>
+    <div class="page">
+      <div class="page-header"><div><div class="page-eyebrow">本地素材</div><h1>本地素材库</h1><p class="page-subtitle">查看本机剪切结果，播放、打开目录或继续编辑</p></div><div class="page-actions"><button class="btn">打开素材目录</button><button class="btn primary">＋ 新建项目</button></div></div>
+      <div class="tabs-page"><div class="segmented"><button class="active">当前项目</button><button>全部素材</button></div><div class="segmented"><button class="active">全部</button><button>横屏</button><button>竖屏</button></div><span class="table-note">共 6 个素材 · 按创建时间倒序</span></div>
+      <div class="detail-grid">
+        <section class="card">
+          <div class="card-header"><div class="card-title"><strong>当前项目素材</strong><span>6 个 · 本地 3 / 公共 3</span></div><button class="btn small">刷新</button></div>
+          <div class="card-body">
+            <div class="gallery-grid">
+              <div class="clip-card selected"><div class="clip-thumb"><span class="duration">00:31</span></div><div class="clip-body"><div class="clip-title">1-10月30日-直播复盘</div><div class="clip-meta"><span>直播复盘 · 9 秒选区</span><span>今日</span></div></div></div>
+              <div class="clip-card"><div class="clip-thumb dark"><span class="duration">00:03</span></div><div class="clip-body"><div class="clip-title">2-10月30日-投放复盘</div><div class="clip-meta"><span>投放复盘 · 9 秒选区</span><span>今日</span></div></div></div>
+              <div class="clip-card"><div class="clip-thumb"><span class="duration">00:08</span></div><div class="clip-body"><div class="clip-title">3-10月30日-私域直播</div><div class="clip-meta"><span>私域直播 · 8 秒选区</span><span>今日</span></div></div></div>
+              <div class="clip-card"><div class="clip-thumb dark"><span class="duration">00:12</span></div><div class="clip-body"><div class="clip-title">4-10月30日-企业运营</div><div class="clip-meta"><span>企业运营 · 12 秒选区</span><span>昨日</span></div></div></div>
+              <div class="clip-card"><div class="clip-thumb"><span class="duration">00:05</span></div><div class="clip-body"><div class="clip-title">5-10月29日-现金流</div><div class="clip-meta"><span>直播复盘 · 5 秒选区</span><span>昨日</span></div></div></div>
+              <div class="clip-card"><div class="clip-thumb dark"><span class="duration">00:19</span></div><div class="clip-body"><div class="clip-title">6-10月29日-复盘方法</div><div class="clip-meta"><span>私域直播 · 19 秒选区</span><span>昨日</span></div></div></div>
+            </div>
+          </div>
+          <div class="card-footer"><span>已显示全部（6）</span><span>本地素材会保留最近 200 条</span></div>
+        </section>
+        <section class="card">
+          <div class="card-header"><div class="card-title"><strong>素材详情</strong><span>已选中 1 个</span></div><button class="btn small ghost">打开目录</button></div>
+          <div class="card-body">
+            <div class="video-frame"><span class="video-label">本地素材 · H.264 / AAC</span><button class="play-btn">▶</button><span class="video-title">1-10月30日-直播复盘</span><span class="timecode">00:00 / 00:31</span></div>
+            <div class="detail-title">1-10月30日-直播复盘</div>
+            <div class="detail-sub">来源：直播复盘：从流量到现金流健康度</div>
+            <div class="meta-grid">
+              <div class="meta-item"><span>项目</span><strong>10月30日</strong></div>
+              <div class="meta-item"><span>时长</span><strong>00:31</strong></div>
+              <div class="meta-item"><span>来源</span><strong>公共原素材</strong></div>
+              <div class="meta-item"><span>创建时间</span><strong>今日 10:21</strong></div>
+            </div>
+            <div class="action-row"><button class="btn primary">播放</button><button class="btn">打开文件目录</button></div>
+            <div class="action-row"><button class="btn">加入待剪清单</button><button class="btn ghost">复制来源文案</button></div>
+            <div class="selection-box"><div class="range"><span>选中文案</span><span>00:11:58 - 00:12:07</span></div>原因其实很简单，投放费用增加了，但回收周期变长了，这直接影响到我们的现金流。</div>
+          </div>
+        </section>
+      </div>
+      <div class="footer-note"><span>Mockup v2 · 本地素材 · 网格 + 详情 Inspector</span><span>空态、错误态与选中态统一</span></div>
+    </div>  </div>
+</div></body></html>
