@@ -38,6 +38,13 @@ if [ -x "$REPO/scripts/dev/advisor.mjs" ] && ! pgrep -f "scripts/dev/advisor.mjs
   disown
 fi
 
+# 通信 liveness watcher（只读；不消费邮件，只在异常时提醒）
+if [ -x "$REPO/scripts/dev/mail-liveness.mjs" ] && ! pgrep -f "scripts/dev/mail-liveness.mjs watch" >/dev/null 2>&1; then
+  cd "$REPO" || exit 1
+  nohup node scripts/dev/mail-liveness.mjs watch --interval 60 >>"$LOG_DIR/mail-liveness.log" 2>&1 &
+  disown
+fi
+
 # 已在运行：直接打开页面
 if curl -s --max-time 2 "$URL/health" >/dev/null 2>&1; then
   open_page
