@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793295954585-3121c552",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793295954585-3121c552",
+  "created_at": "2026-10-29T17:45:54.587Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.13 最终验收通过：构建源 4ef5bca、sha256=7e1076b9...2c748，NAS/Mac 共享已核对，LATEST/release notes 已更新；worker 背压重复问题已验证 event_id 无重复。请保持 dev/cutter 冻结待命，无需再改代码。Codex 顾问反馈闭环已上线（采纳率 91%），后续评审会自动携带历史原因。"
+}
