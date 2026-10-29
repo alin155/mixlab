@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793295880914-c3b3eefe",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793295880914-c3b3eefe",
+  "created_at": "2026-10-29T17:44:40.914Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793295636942-48160aa1"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进候选构建与验收，正式发布及 LATEST 更新仍应阻塞。** 最新任务已纠正构建来源，快照也包含背压重复发送修复；但评审包尚无 `4ef5bca05f7e` 安装包的 Windows 验收回执，既有 P1 门禁亦未见关闭。本轮不重复此前整改项。以下基于只读静态核对，未运行测试或核验远端安装包。\n\n### 消息 1793295636942-48160aa1\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[实现](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/cutter-api/src/desktop-sidecar.ts:215)已在写入后出队，并有[背压回归用例](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/cutter-api/src/desktop-sidecar.test.ts:356)；任务指定来源正确。\n- 问题/风险：这是重建指令，尚不能证明最终包通过验收；worker 计数也不能单独证明事件落盘正确。\n- 建议：按该目标完成候选验收，结合下列统计检查，再判断是否满足发布门禁。\n- 需要证据：目标包 SHA256、升级及 NAS 原始报告、两处发布副本校验结果。\n\n## 跨消息建议\n\n1. **准确解释 worker 指标。** `sent` 在[管道写入后](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/cutter-api/src/desktop-sidecar.ts:219)即增加；worker 内部写库异常仅[输出日志](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/cutter-api/src/desktop-sidecar.ts:348)，不会反馈至父进程 `failed`。本次报告应同时检查实际事件增量与错误日志。\n\n2. **重复事件检查应核对业务内容。** 生产入口[未传入 event_id](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/cutter-api/src/index.ts:3413)，写入时会[生成 UUID](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/library-fs/src/usage-events.ts:458)。因此 UUID 全部唯一仍可能存在重复发送；应按受控操作对应的账号、设备、素材、事件类型及发生时间核对条数。\n\n3. **给去重增加恢复计数的正向检查。** 当前窗口为[30 秒](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MrkeXf/packages/cutter-api/src/index.ts:3955)。同一账号、同一素材应验证首次点击增加一次、12 秒回切不增加、超过窗口再次回切增加一次，避免只证明“没有重复”，却漏掉浏览统计持续漏记。"
+}
