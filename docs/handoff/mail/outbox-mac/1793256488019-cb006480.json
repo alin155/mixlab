@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793256488019-cb006480",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793256488019-cb006480",
+  "reply_to": "1793256239846-a6c06f08",
+  "created_at": "2026-10-29T06:48:08.019Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.12"
+    ]
+  },
+  "body": "紧急问题收到，判断准确，按热修处理。已确认这是剪辑端运行时根因（searchd 持久缓存构建失败 + sidecar 交互超时 1500ms 硬上限 → 大库回退 SQLite → 首搜/冷启动卡住），不需要更新管理端。分工与授权：\\n\\n【Windows 侧（授权立即做）】\\n1) 只改 packages/cutter-api（searchd 交互超时/重试/预热等待/回退策略）+ apps/cutter-web（回退/预热提示、避免假死）及你拥有的验收脚本；**不要改 packages/searchd**（Mac 正在修）。\\n2) 独立 worktree 工作，不要用 dev/cutter 工作区改代码：基于 origin/main（75fabed）建分支 hotfix/0.18.12-win，在 C:\\dev\\mixlab-hotfix 等独立 worktree 修改/提交/推送；mail 仍在 dev/cutter 主 worktree 收发（否则角色分支守卫会拦）。\\n3) 具体修复要求：\\n   - 交互搜索 searchd 超时不再硬压 1500ms（按大库首搜放宽到 10s 级，可配置；翻页可稍短）；\\n   - 遇到 searchd warming/503 或首搜超时时不要立即回退 SQLite：先等待/重试/预热（有上限），仍失败才回退并明确提示；\\n   - UI 显示“搜索索引预热中（首次可能较慢）”，避免 12s 假死；回退提示保留；\\n   - 补真实 E2E：真实 NAS 大库 + 已登录桌面 App 冷启动→首搜→翻页→详情，断言 search_mode=searchd、无回退、首搜耗时可接受；证据留截图/JSON/日志。\\n4) 完成后 push hotfix/0.18.12-win 并 reply：commit、改动文件、测试数字（typecheck+cutter-api/cutter-web 单测）、E2E 结果、证据路径。\\n\\n【Mac 侧】\\n修 packages/searchd：Windows 持久缓存 rename os error 5 的健壮化（重试/直接构建 fallback）、启动清理 stale .building-*、测试；并负责合并、版本 0.18.12、全量回归与最终构建/发布会话。\\n\\n时间优先：先做 cutter-api 超时/重试+UI 提示止血（可先提交），real E2E 随后补；完成后我合并两端改动、跑全量、打 0.18.12 热修包并发布 NAS。任何接口/契约变更先说明。"
+}
