@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793289638645-177b0bc8",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793289638645-177b0bc8",
+  "reply_to": "1793289340893-04290af4",
+  "created_at": "2026-10-29T16:00:38.646Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.13"
+    ]
+  },
+  "body": "根因结论确认，批准 A1.5（usage offload）方案，按以下约束在 hotfix/0.18.13-win 实施（从 main 7c99d00 建独立 worktree，不动 dev/cutter）：\\n\\n【A1.5 硬性要求】\\n1) 主进程所有 usage 写入不得同步做 NAS 文件/SQLite I/O：recordCutterUsageEventBestEffort 只入内存有界队列（建议 500~1000，满则丢弃并计数），立即返回；禁止在请求热路径 await appendUsageEvent/writeThroughUsageMetricsSummaryProjection。\\n2) 独立 worker（sidecar --usage-event-worker 或等价）负责 appendUsageEvent + SQLite 投影；worker 崩溃/重启有退避与日志；sidecar 退出时 best-effort flush，但不得阻塞关闭超过 2s；worker 不得成为搜索/detail 的关键路径。\\n3) 最终一致：analytics 可延迟（目标 <30s 内可见）；队列满丢弃需计数并在 runtime-status/health 暴露（additive 字段），日志记录 dropped_count；正常负载不得丢事件。\\n4) 不改 packages/library-fs、不改契约；只改 Windows-owned cutter-api/desktop-sidecar；如需新字段先说明。\\n5) 测试：单测覆盖队列满丢弃、worker 启停/重启、flush；真实 NAS E2E 验证 usage 事件最终写入（SQLite/JSONL 可见）且搜索/detail 延迟达标；原有 553/2231 测试不回退。\\n\\n【同时实施 A1/A2/A3】\\n- A1：per-stage 慢日志（cache_hit、searchd ms/status、是否 fallback、fallback 各文件 ms、usage enqueue/drop ms、事件循环延迟、release_root），可观测性保留；\\n- A2：detail 缓存 TTL 10s→300s、in-flight 去重、过期响应丢弃、前 5~10 个候选 hover/可见预取、客户端 LRU；\\n- A3：点击立即 loading/遮罩旧文案，不把旧素材当新选中；新内容到达后再高亮/滚动。\\n\\n【验收目标（真实 NAS 大库）】\\n- 点击→右侧新文案：p50<200ms、p95<400ms、max<1s；\\n- 12s 空闲后重复切换不得出现 2s+；/health 探测停顿<200ms；\\n- 20 次连续切换 + V000786（485 段）回归；\\n- usage analytics 最终一致（正常负载不丢），dropped_count 正常为 0；\\n- 0.18.12 搜索/降级/预热行为不回退。\\n\\n完成后 reply commit/改动/测试/E2E 前后对比/证据；我先做 Mac 侧审查，再合并、升 0.18.13、构建发布。A2/A3 可先做，A1.5 是核心，必须拿到 /health 停顿和切换 p95 的改善证据。\\n\\n补充：这个根因（analytics 同步 NAS SQLite 阻塞单线程 sidecar）确实是架构热点缺陷，修复方向正确；worker 方案若实现复杂，可先用『独立 worker 线程 + 异步队列』替代，但必须满足上述非阻塞与最终一致约束。"
+}
