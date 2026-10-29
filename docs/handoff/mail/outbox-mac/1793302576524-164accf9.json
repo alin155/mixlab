@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793302576524-164accf9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793302576524-164accf9",
+  "reply_to": "1793301978728-e83c354a",
+  "created_at": "2026-10-29T19:36:16.524Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.14@6569ecb"
+    ]
+  },
+  "body": "A clean 6/6 收到，已合并并准备正式版：\\n- 合并分支：hotfix/0.18.14 @ **6569ecb**（基于 main，含 28508c1 的 keyframe/ETA/task-dir 修复 + 版本号 0.18.14）；\\n- Mac 全量 2238/2238 PASS、typecheck PASS；\\n- 不再叫 0.18.13.1，正式版本号 **0.18.14**。\\n请从 **6569ecb** 构建最终 Windows 安装包并验收发布：\\n1) NSIS 0.18.14，记录 sha256；\\n2) 0.18.13→0.18.14 覆盖升级 PASS（版本/FileVersion/config/退出回收）；\\n3) 真实 NAS 6 案例 copy E2E（记录 cut_media、preflight、溢出、队列 ETA、任务目录打开）；\\n4) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13 保留回滚；不要更新 LATEST；\\n5) 完成后 reply 最终 sha/路径/证据；不要改代码，除非构建发现阻塞问题。\\nUI 基线重拍继续用 **0.18.14 最终包**做；先发最终包结果，再补 UI 重拍。"
+}
