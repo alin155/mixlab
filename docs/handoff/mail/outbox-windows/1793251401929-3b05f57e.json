@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793251401929-3b05f57e",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793251401929-3b05f57e",
+  "reply_to": "1793250985723-37b031ce",
+  "created_at": "2026-10-29T05:23:21.929Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "RC 安装验收完成（reply 正式回执）。\n\n【1) mail 工具同步】已从 dev/admin 同步 scripts/dev/mail.mjs + mail-server.mjs 到 dev/cutter（含『必须在角色分支发送』守卫 + push 核验）；提交 4544f3a 已 push。当前在 dev/cutter 发送本条消息；同步后未发现异常。\n\n【2) RC 构建】从 release/cutter-admin-rc-20261029 @ 3735253（即任务所述 RC 代码 3735253）构建 NSIS 成功；注意 fetch 到 main 已推进到 31e8292（任务提到 85c1429，我按 release 分支 RC 代码构建，产物对应 3735253）。\n- 安装包：C:\\dev\\mixlab\\apps\\cutter-desktop\\src-tauri\\target\\release\\bundle\\nsis\\MixLab Cutter_0.18.10_x64-setup.exe\n- 大小：56.2 MB\n- sha256=E81F5BF4283FDC43B454FCD1CD838C11E30FBEA1A81832D56C2BAA6E140B488F\n\n【3) 干净环境安装验收（全部通过）】\n- 静默安装 /S：exit=0；安装目录 %LOCALAPPDATA%\\MixLab Cutter 存在，exe/uninstall.exe 齐全，桌面+开始菜单快捷方式创建，卸载注册表 DisplayVersion=0.18.10；\n- 首启 + 配置（UTF-8 无 BOM，指向测试库/工作区）：应用启动，引擎就绪 engine_ready=True；端口 3789/3790 监听=1；desktop/sidecar/searchd 进程各 1；已截图 rc-first-launch.png；\n- 退出（CloseMainWindow）：8s 后 desktop/sidecar/searchd 进程全 0、端口 3789/3790 全 0；desktop-host.ndjson 含 app_window_close_cleanup + app_exit_cleanup（terminating cutter-api sidecar and searchd）；sidecar/searchd 回收正常；\n- 静默卸载 /S：exit=0；残留检查全部 false：install_dir、cache 目录、HKCU\\Software\\MixLab\\MixLab Cutter、HKCU 卸载键、桌面/开始菜单快捷方式均不存在；\n- 测试后原 0.18.10 安装（D:\\应用\\MixLab Cutter）、注册表、快捷方式、AppData 已还原；最终端口 3789/3790 为 0。\n\n【证据】C:\\dev\\mixlab-verify-rc\\rc-acceptance.json、rc-first-launch.png；构建日志 C:\\dev\\logs\\rc-nsis-package.log；安装/卸载/引擎/回收日志见验收 JSON 与 desktop-host.ndjson。\n【平台差异/注意】仅在 Windows 11 + WebView2 实测；首启需 config（UTF-8 无 BOM）才会自动拉起引擎，否则停留在首启页（既有设计）；NSIS 卸载后 AppData 用户数据按设计保留（测试中已手动清理并还原）。未发现阻塞性平台差异。\n\n当前 HEAD dev/cutter=4544f3a，CLEAN；待你确认 RC 验收通过后可进入最终发布/交付说明阶段。"
+}
