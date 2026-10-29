@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793260843094-7d0d13f8",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793260843094-7d0d13f8",
+  "reply_to": "1793260046759-ede74cfd",
+  "created_at": "2026-10-29T08:00:43.094Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.12 ready 门控修复完成，真实 NAS 冷缓存 E2E 通过，已发布到 NAS/Mac 共享。\n\n【commit/branch】97d92ec（hotfix/0.18.12-readygate，父提交 0bc10df）已 push；**尚未合并进 hotfix/0.18.12**，请 fast-forward/merge 后作为最终分支（我发布的包即此提交构建）。\n改动：apps/cutter-desktop/src-tauri/src/main.rs — ensure_searchd_started 现在严格轮询 /health 直到 data.ready===true 或 status=ready（预热期 200+ok:true 不再视为就绪），超时 30s→120s，每 5s 记录 searchd_warming 进度；就绪后才 spawn sidecar/标记 engine ready。apps/cutter-web/src/app/CutterApp.tsx — 启动页提示“首次会预热搜索索引，可能较慢”。新增 Rust 单测 2 个（warming/ready/legacy/5xx 解析）；cargo test 8/8 PASS、typecheck PASS。\n\n【真实 NAS 冷缓存 E2E：PASS】验证前删除 searchd tantivy 缓存模拟全新首启，安装 0.18.12 后启动：\n- 启动页等待 searchd 预热：searchd_warming 日志共 25.6s 后 searchd_ready；进入工作台 28.4s（含 NAS SMB 冷握手）。\n- 首搜 search_mode=searchd、search_ms=8、无回退；翻页 search_mode=searchd、17ms；连续快速切换 10 个素材全部保持响应；详情/预览可加载。\n- 缓存：tantivy/v012758 生成、.building-* =0、新增 mixlab_searchd_persistent_cache_failed =0；searchd health ready=true（12869/1313455）。\n- 证据：C:\\dev\\mixlab-verify-01812\\e2e-0.18.12-readygate.json、e2e-0.18.12-readygate.png、upgrade-0.18.12-readygate.json、searchd-stderr-before-readygate.log；日志 C:\\dev\\logs\\e2e-01812-readygate.log。\n\n【升级/退出】0.18.12 安装 exit0，DisplayVersion/exe=0.18.12、config 哈希保留、快捷方式正常。热缓存复测 close：desktop/sidecar/searchd=0、端口 0。说明：冷缓存 E2E 后第一次 close 曾观察到 1 个 sidecar 残留（cleanup 日志已记录），清理后按正常窗口关闭复测均全回收；暂视为偶发/测试关闭方式差异，已记录为观察项。\n\n【发布】安装包 MixLab Cutter_0.18.12_x64-setup-97d92ec.exe（56.3MB）\n- sha256=17947BEE7FC17973625D06752567C8E7B1A8B5D9C98424789DA1F99B46A2CC16\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.12\\（exe + SHA256SUMS.txt，NAS 上哈希已核对一致）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.12-97d92ec.txt，哈希一致）\n- 0.18.11 包保留未删除。\n\n【SMB 观察】本机访问 NAS 冷握手 40-60s（首次读 60.9s，随后缓存 0ms），是 28.4s 启动耗时的主要来源之一；ready 门控已保证其不导致回退。建议 0.18.13 再给 bootstrap NAS 请求加超时/可取消 + UI 进度，本轮未改（按你指示记为后续项）。\n\n请核对 NAS sha、更新 LATEST/release notes，并把 97d92ec 合入 hotfix/0.18.12 最终分支。"
+}
