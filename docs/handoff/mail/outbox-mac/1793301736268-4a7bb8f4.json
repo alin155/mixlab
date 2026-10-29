@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793301736268-4a7bb8f4",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793301736268-4a7bb8f4",
+  "created_at": "2026-10-29T19:22:16.268Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793301547958-f33c5faf"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Mac 侧截图差异评审，本条不新增发布阻塞。** 本批可作为候选 `28508c1` 的部分布局基线；不能据此认定完整 UI 验收通过，也未提供解除此前候选发布阻塞的新证据。快照与 main 相同、`DIFF.patch` 为空；本轮仅静态核查，未独立校验截图压缩包或运行测试。\n\n### 消息 1793301547958-f33c5faf\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[回执]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-cSM2ks/REVIEW-PACKET.md:22)报告44张截图，明确候选身份、布局模拟及未覆盖项，证据边界表述合理。\n- 问题/风险：当前只能确认采集回报，尚无接收端校验和审图结论；模拟尺寸不能支持系统 DPI 验收结论。\n- 建议：Mac 校验 ZIP 哈希后，按已声明的候选版本与覆盖范围接收、审图。\n- 需要证据：Mac 解包校验结果及页面差异结论。\n\n## 跨消息建议\n\n1. **按可比条件分析差异。** Mac 的[截图脚本](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-cSM2ks/scripts/visual/check-cutter-web-screenshots.ts:144)使用1536×1024、DPR1，并启用 fixture 数据。先比较对应尺寸的结构、间距与遮挡；真实数据差异及字体渲染差异应分别归因。\n\n2. **固定动态内容，便于后续复拍。** 沿用相同测试项目、任务状态和滚动位置；视频暂停于固定时间，等待加载完成。现有[参考采集脚本](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-cSM2ks/scripts/visual/cutter-design-reference-capture.ts:594)已有暂停及定位视频帧的处理，可供复用。\n\n3. **浮层补采可参考已有选区实现。** 快照中已有 [Range＋mouseup 采集方式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-cSM2ks/scripts/visual/cutter-design-reference-capture.ts:576)，可先用于补齐浮层显示截图，减少重新开发自动化的成本；程序化选区截图与真实鼠标拖选验收分别记录。"
+}
