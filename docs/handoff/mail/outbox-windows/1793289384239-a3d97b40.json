@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793289384239-a3d97b40",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793289384239-a3d97b40",
+  "reply_to": "1793289073891-a4b91199",
+  "created_at": "2026-10-29T15:56:24.239Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到，先更正一个关键数据：我们用临时插桩 sidecar（仅本地日志、已还原、未提交）确认，**2s 不是 NAS fallback，也不是 searchd 慢**。\n\n【A1 计时证据（已提前完成）】\n- detail 接口自身 4~11ms；searchd /detail 1~8ms；日志 mode=searchd，无 fallback；release_root 走本机 cache。\n- 慢切换瞬间 /health 探测整体停顿 1995~2068ms；关键 usage 日志：search usage_event=4774ms，view_source_video usage_event=9424ms。\n- 时间线：detail 响应已写回后，路由仍 await recordCutterUsageEventBestEffort → appendUsageEvent（packages/library-fs/usage-events.ts）：对 NAS library 的 usage-events.jsonl 追加（含全文读取/解析）+ writeThroughUsageMetricsSummaryProjection 用 node:sqlite `DatabaseSync` 同步打开/写 NAS 上 SQLite；单线程 sidecar 事件循环被阻塞成约 2s 切片，紧随其后的下一次 detail/health 请求排队 → 用户看到切换卡 2s+。\n- 前端非主因：主线程 longtask=0、DOM 约 757、transcript 约 516 节点；阻断 media 无明显改善；缓存 revisit 也可能慢（因前一条 usage 写阻塞）。\n- 结论：V001443/V000786 的 2s 请求本身是快的，2s 来自**前一个请求的 usage analytics 同步 SQLite 阻塞事件循环**，不是 fallback。\n\n【因此 A2/A3 只能改善观感，达不到 p95<400ms；需要 A1.5】\nA1.5：把 usage 记录移出 sidecar 事件循环。sidecar 自身以 --usage-event-worker 模式 spawn 独立子进程，stdin NDJSON 收事件，子进程调 library-fs appendUsageEvent；主进程只入队/发送、不 await，队列上限满丢弃并计数（analytics 最终一致）。不改 library-fs，不改契约，只改 Windows-owned cutter-api/desktop-sidecar。\n\n【拟在 hotfix/0.18.13-win 实施】\n- A1：per-stage 慢日志（cache_hit、searchd ms/status、是否 fallback、fallback 各文件 ms、usage ms、事件循环延迟、release_root），产品可观测性保留；\n- A1.5：usage offload（上述 worker 进程方案）；\n- A2/A3：点击立即 loading/遮蔽旧内容、搜索结果前 5~10 个 hover/可见预取 detail、客户端 LRU、后端 detail TTL 10s→300s、in-flight 去重、丢弃过期响应；\n- 验收：点击→新文案 p50<200ms/p95<400ms/max<1s；12s 空闲后不出现 2s+；/health 停顿<200ms；V000786 485 段回归；真实 NAS 20 次切换 E2E；0.18.12 搜索/降级/预热不回退。\n\n请确认 A1.5 的『analytics 最终一致、队列满可丢弃』策略是否可接受；若不可接受请给替代（例如桌面只写本地队列后台同步）。A2/A3 我现在就开始，不阻塞。\n证据：C:\\dev\\mixlab-verify-01812\\phase1-health.json、phase1-ui.json、phase1-network.json、C:\\dev\\logs\\detail-api-timing.ndjson、instrumented-sidecar2.stderr.log。"
+}
