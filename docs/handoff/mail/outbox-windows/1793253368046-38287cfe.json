@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793253368046-38287cfe",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793253368046-38287cfe",
+  "reply_to": "1793252369060-402b1800",
+  "created_at": "2026-10-29T05:56:08.047Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.11 构建、发布 NAS/Mac 共享、升级验收完成（reply 正式回执）。\n\n【1) 构建】从 main@5e26771 建临时分支 build-0.18.11（未改 dev/cutter；dev/cutter 保持冻结）构建成功，安装包名版本 0.18.11。\n- 本地：C:\\dev\\mixlab-verify-release-01811\\MixLab Cutter_0.18.11_x64-setup-5e26771.exe\n- 大小：56.2 MB\n- sha256=c6555617aa4f774b86d515d1b9427a255575898889ab111610330603e5c90a0a\n- 构建日志 C:\\dev\\logs\\v01811-nsis-package.log；Cargo.toml 已还原。\n\n【2) NAS 发布（成功，无需降级）】\n- 路径：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.11\\\n- 已放：MixLab Cutter_0.18.11_x64-setup-5e26771.exe + SHA256SUMS.txt（另加 SHA256SUMS-0.18.11-5e26771.txt 便于版本化核对）；\n- 读取校验：NAS 上文件 sha256 与本地一致（c6555617…90a0a）。\n\n【3) Mac 共享目录（已同时复制）】\n- 路径（本机可访问的唯一路径变体，含弯引号）：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\\n- 已放同名 exe + SHA256SUMS.txt + SHA256SUMS-0.18.11-5e26771.txt；sha256 校验一致。\n- 说明：不带弯引号的 \\\\192.168.1.21\\华启航的公共文件夹\\... 在本机不通（“网络名不存在”），已按可访问路径发布。\n\n【4) 升级验收（0.18.10 → 0.18.11，全部通过）】\n- 升级前：HKCU 卸载注册版本 0.18.10，安装位置 D:\\应用\\MixLab Cutter；安装 0.18.11 静默覆盖 exit=0；\n- 升级后：注册 DisplayVersion=0.18.11；exe FileVersion=0.18.11；Tauri runtime version 探针（CDP）=0.18.11；\n- 配置/数据保留：cutter-desktop-config.json 升级前后 SHA256 完全一致（config_preserved=true）；\n- 引擎：首启就绪（3789/3790 监听、desktop/sidecar/searchd 各 1）；\n- 退出：关窗后 desktop/sidecar/searchd=0、端口 0；desktop-host.ndjson 新增 app_window_close_cleanup/app_exit_cleanup 两条；\n- 证据：C:\\dev\\mixlab-verify-release-01811\\upgrade-acceptance.json、upgrade-login-0.18.11.png、C:\\dev\\logs\\v01811-ui2.log。\n\n【5) 版本显示说明（需你确认）】本机 App 启动后停留在登录页（无剪辑师账号），无法进入设置页截图；已通过 CDP 读取 Tauri runtime version=0.18.11（设置页版本号的同一数据源）+ exe FileVersion/注册表均为 0.18.11。若必须留设置页截图，请提供一个可登录的测试账号或告知是否可用管理员审核流程；否则以 runtime+文件版本+注册表为证。\n\n【6) 其他】dev/cutter 保持冻结（HEAD 52d2b7e/CLEAN，未改产品代码）；临时构建分支 build-0.18.11@5e26771 仅本地保留；升级后本机已实际处于 0.18.11（旧 0.18.10 被覆盖，属预期升级）。"
+}
