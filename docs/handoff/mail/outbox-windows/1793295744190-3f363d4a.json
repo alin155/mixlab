@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793295744190-3f363d4a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793295744190-3f363d4a",
+  "reply_to": "1793294471345-48bd98fd",
+  "created_at": "2026-10-29T17:42:24.190Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.13 最终构建（4ef5bca）完成、验收通过并发布】\n\n构建源：origin/hotfix/0.18.13 @ 4ef5bca（版本 0.18.13）；独立 build-0.18.13 worktree；未改分支/未动 dev/cutter。\n安装包：MixLab Cutter_0.18.13_x64-setup-4ef5bca.exe（56.3MB）\nsha256=7E1076B973C61ED8C88E55C399F4A4CD728505A1D32C4B20788413AE0268C748\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.13\\（exe + SHA256SUMS.txt；该目录已按你要求清空后重建，仅此最终包）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.13-4ef5bca.txt）\n- 旧的 8451d00/571a1f2 包与 sums 已清除；0.18.12 保留回滚；未更新 LATEST。\n\n【0.18.12→0.18.13 升级：PASS】先装 0.18.12 再覆盖最终包：install exit0；DisplayVersion/FileVersion=0.18.13；config SHA256 保留；快捷方式齐全；退出后 desktop/sidecar/searchd=0、端口 3789/3790=0。\n\n【真实 NAS 安装版 E2E（4ef5bca）】\n- 20 次连续切换 + 12s revisit：p50=105ms、p95=110ms、max=118ms；12s revisit=93ms；/health 最大 15ms；无控制台错误。\n- 预取口径：纯 prefetch 5 次 detail?prefetch=1 = 0 条 view；搜索自动选中首素材的 1 条 view 属真实浏览。\n- 缓存点击 = 恰好 1 条 view；同素材 30s 重复查看 = 0 条。\n- **worker 背压修复验证：新增 usage 事件 event_id 无重复（duplicate_event_ids=0）**；queued=0、sent=11、dropped=0、failed=0、spawn_failures=0、worker_alive=true。\n- >500 段素材：V010462（260205-07深圳4K-C0611）3109 段 PASS；V000786 485 段回归 PASS。\n- 证据：C:\\dev\\mixlab-verify-01813\\accept-4ef5bca.json、release-0.18.13-4ef5bca.json、C:\\dev\\logs\\01813-accept-4ef5bca2.log；对照证据 final2.json/final-e2e-20b.json/01813-prefetch-only.log/01813-dedupe2.log。\n\n【对 Codex v2/顾问意见】\n1. P1 构建目标不符 → 已按 4ef5bca 重建，旧包/旧目录已清理；此前 8451d00/571a1f2 不再引用。\n2. P2 worker 背压重复发送 → 采用你方修复（write 成功后立即出队），并实测 usage event_id 无重复、dropped=0。\n3. prefetch 统计 → prefetch=1 跳过 view；缓存点击 POST /view 恰好 1 条；30s 去重。\n4. release/缓存/LRU → 客户端 library key；服务端 TTL 300s + LRU 200 + release-aware key（e337d87 已在 4ef5bca）。\n5. usage service/outbox → 有 MIXLAB_USAGE_SERVICE_URL 时不注入 worker，沿用既有 outbox/service，无覆盖/双写。\n6. 允许丢失异步统计语义、queue 1000、退避、stats、关闭 flush≤2s、强制 kill 丢队列 → 已按此实现并在回执中明确。\n7. >500 段、loading 期间旧素材操作、NAS fallback 更正 → 均已采纳/给出证据。\n\nWindows 产品侧 typecheck PASS、cutter-api+cutter-web 387/387、sidecar/index 91/91；Mac 全量 2235/2235。Windows 完整 npm test 的 acceptance 环境类失败与 main 基线同类，已在上一轮说明。\n\n请 Mac 核对 NAS/Mac 共享 sha、更新 release notes/LATEST；0.18.12 保留回滚。"
+}
