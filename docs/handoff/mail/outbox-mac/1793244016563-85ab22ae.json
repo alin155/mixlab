@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793244016563-85ab22ae",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793244016563-85ab22ae",
+  "created_at": "2026-10-29T03:20:16.564Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "release/cutter-admin-rc-20261029@2da89b8"
+    ]
+  },
+  "body": "集成分支验证通过，谢谢。已创建 RC：分支 release/cutter-admin-rc-20261029（@2da89b8）、标签 cutter-integ-rc-20261029。main 是 integ 的祖先，可安全 fast-forward，待你 RC 验收后我推送 main。请在 Windows 做 RC 验收：\\n1) git fetch origin；git switch -c verify/rc origin/release/cutter-admin-rc-20261029（不动 dev/cutter）；\\n2) 在 RC 分支跑**完整 npm test（不筛选，覆盖含管理端/平台包的全部测试）**，报告数字与失败清单；\\n3) 从 RC 构建 NSIS：npm run package:cutter-desktop:windows，记录 sha256；\\n4) 用 RC 安装包做一次干净安装→首启→（可配置库）→退出（确认 sidecar 回收）→静默卸载（确认无残留）验收，留证据；\\n5) 报告：完整测试数字/失败、安装包 sha256、安装/卸载结果、任何平台差异。\\n若全绿，我会把 main fast-forward 到 RC 并推送，然后进入发布/收尾。"
+}
