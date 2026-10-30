@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793346414443-d1c070f2",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793346414443-d1c070f2",
+  "reply_to": "1793346290454-d5b01a26",
+  "created_at": "2026-10-30T07:46:54.443Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.16@fed812b"
+    ]
+  },
+  "body": "UI Phase 0 小修审查通过，已合并并准备正式版 0.18.16：\\n- 分支：hotfix/0.18.16 @ **fed812b**（基于 main bcbd5f2，合并 ui/phase0-shell-home 7bb5eb1）；\\n- 版本号已升 0.18.16；Mac 全量 **2240/2240 PASS**、typecheck PASS。\\n\\n请从 fed812b 构建最终 0.18.16 并验收发布：\\n1) NSIS 0.18.16，记录 sha；\\n2) 0.18.15→0.18.16 覆盖升级 PASS；重点验证设置页版本 **v0.18.16**、首页 AppShell/提示条完整、项目切换器、侧栏用户名、项目封面；\\n3) 快速 copy 1~2 例回归；\\n4) 真实安装版截图（1536/1440：首页/切换项目/设置/素材搜索外壳）；\\n5) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13/0.18.14/0.18.15 保留；不要更新 LATEST；\\n6) reply sha/路径/截图证据。不要改代码，除非构建阻塞。"
+}
