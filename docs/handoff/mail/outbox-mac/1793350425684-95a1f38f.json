@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793350425684-95a1f38f",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793350425684-95a1f38f",
+  "created_at": "2026-10-30T08:53:45.685Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/home-v3-minimal"
+    ]
+  },
+  "body": "再次修正工作区残留提示：用户最终选择**左侧栏底部**，不要右下角浮层。请在左侧栏状态卡下方/内部增加一行琥珀色“临时残留 N”状态；点击弹出小清理面板（去清理/关闭/稍后）；不占主内容布局；0 时隐藏；关闭后 localStorage 记忆（按 count，变化/24h 重现）。升级/错误提示保持原通知栈。其余首页 v3 范围不变，按更新后的 docs/design/UI-HOME-V3-SPEC.md 实施。"
+}
