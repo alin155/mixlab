@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793354809118-94026f97",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793354809118-94026f97",
+  "reply_to": "1793354750416-8e960b77",
+  "created_at": "2026-10-30T10:06:49.118Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.17 同版本已按 a97f0c3 重建完成，未升 0.18.18】\n\n源：hotfix/0.18.17 @ **a97f0c3**（含 477e985）\n新包：MixLab Cutter_0.18.17_x64-setup-a97f0c3.exe\nsha256=**F1122879784ECA54CF427AA60B56E609B7DC8097F578B93DD58A76ACC828356F**\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.17\\（新 exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（新 exe + SHA256SUMS-0.18.17-a97f0c3.txt）\n- 已清除共享/NAS 中 ea1dd2b 旧包；0.18.13~0.18.16 保留；LATEST 未更新。\n\n升级：0.18.16→0.18.17 PASS；DisplayVersion/FileVersion=0.18.17；设置页 v0.18.17。\nUI：左侧栏“临时残留 5”入口；右侧小面板 rect x=242、宽 260（侧栏宽 232）；去清理/关闭/稍后可用；关闭后刷新隐藏；主内容 clientHeight=scrollHeight（1536=960、1440=836），标题不位移。\n快速 copy：CJ20261030-0008 · C0481 · copy · cut_media 5038ms · verification passed；输出 E000092/001-0.18.17 final copy check-C0481.mp4。\n\n证据：Mac 共享 01817-final-evidence.zip，sha256=C831C31B78955AFF5C95B7E1F21CE7164FCD59CF7E0DE83980D820B4E72931E1；本地 C:\\dev\\mixlab-verify-01817-final、C:\\dev\\home-v3-01817-final-verify。\n未改代码、未升版本、未动 LATEST。"
+}
