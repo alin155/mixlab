@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793383894998-9cdf2f40",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793383894998-9cdf2f40",
+  "reply_to": "1793383106225-5170c4b7",
+  "created_at": "2026-10-30T18:11:34.998Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【ui/teacher-filter 实现完成，待审查】\n\n分支：ui/teacher-filter @ **e24a24b**（基于 origin/main d3cf163）\n远程：origin/ui/teacher-filter = e24a24b\n\n实现：\n1) Cutter API：\n- 新增 teacher 查询参数：陶矜→陶矜/陶矜2、王牧笛、陈永亮，按 U+001F 拼目录串传 searchd；\n- 返回 groups 回填 teacher（lecturer 字段优先，当前搜索结果无 lecturer 时按 source_folder_name 归一化）；\n- 新增 /cutter/teacher-options：陶矜 10964、王牧笛 1478、陈永亮 427；\n- /cutter/source-library 回填 teacher + teacher_options；source-folders 同时返回 teacher_options。\n\n2) cutter-web：\n- 素材搜索老师一级筛选（全部老师 + 三个带数量按钮）；\n- 文件夹筛选收进“高级 / 来源目录”折叠；\n- 候选卡片显示老师 + 时长/命中；素材详情标题显示老师；\n- 选中老师触发重新搜索，过滤结果只含该老师（陶矜含陶矜2）。\n\n验证：typecheck PASS；产品测试 151/151 PASS；API 实测 teacher 计数与过滤结果正确；1536/1440 截图无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\teacher-filter-e24a24b.zip\n含 all/陶矜/王牧笛/陈永亮、1440、folder-advanced、api.json、verify-ui.json；本地 C:\\dev\\teacher-filter-verify。\n\n未升版本、未发布。"
+}
