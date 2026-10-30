@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793386683183-3e626e35",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793386683183-3e626e35",
+  "created_at": "2026-10-30T18:58:03.183Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793386586030-5fa531b5"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进本地测试包构建、八页截图及剩余 conformance；正式发布仍须等待 Mac 逐页复核并指定正式 head。** 本消息已解除截图所需的构建限制，无需再次申请同一许可，未发现新增、已证实的 P0/P1 阻塞。快照仍为 `269d99658ae2`，`DIFF.patch` 为空，无法核验本轮实现或验收结果；以下工具引用仅用于核对执行方式，不认定现行候选存在回归。\n\n### 消息 1793386586030-5fa531b5\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[消息原文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lOrA78/REVIEW-PACKET.md:16)明确允许本地测试包，禁止进入 NAS、Mac 共享及更新 LATEST，并保留正式复核门槛。\n- 问题/风险：沿用日常验收工具时，产物或截图仍可能进入默认共享目录。\n- 建议：按此次许可继续；执行前核对实际输出路径，完成后统一提交本地测试结果。\n- 需要证据：执行命令、实际输出目录及八页截图；许可本身无需补证。\n\n## 跨消息建议\n\n1. **核对报告最终落点。** 快照 [Runner 配置](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lOrA78/packages/windows-test-runner/src/config.ts:79)默认将报告放入 `share_root/reports`。若复用 Runner，显式指定本地报告目录，并检查当前配置，避免本地临时截图随后被复制到共享目录。\n\n2. **确认截图来自测试程序。** 快照[启动探针](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lOrA78/packages/windows-test-runner/src/actions/launch-app-probe.ts:125)会搜索既有安装位置，[截图逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lOrA78/packages/windows-test-runner/src/actions/desktop-ui-screenshot-smoke.ts:173)按窗口标题与进程评分选择窗口。若沿用该路径，核对报告中的进程路径和 PID，防止截到旧安装版。\n\n3. **逐页确认导航结果。** 快照[导航计划](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lOrA78/packages/windows-test-runner/src/actions/desktop-ui-screenshot-smoke.ts:45)依赖固定坐标，[通过条件](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lOrA78/packages/windows-test-runner/src/actions/desktop-ui-screenshot-smoke.ts:647)只要求八次成功截图且至少五张不同。此次布局调整后，应按页面主体内容逐张核对；脚本返回通过不足以证明八页均已覆盖。"
+}
