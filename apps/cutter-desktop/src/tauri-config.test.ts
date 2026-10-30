@@ -13,7 +13,7 @@ async function readJson(relativePath: string) {
 test("cutter desktop package exposes Windows desktop scripts only", async () => {
   const packageJson = await readJson("package.json");
   assert.equal(packageJson.name, "@mixlab/cutter-desktop");
-  assert.equal(packageJson.version, "0.18.14");
+  assert.equal(packageJson.version, "0.18.15");
   assert.deepEqual(Object.keys(packageJson.scripts as Record<string, string>).sort(), [
     "build:searchd",
     "build:sidecar",
@@ -24,9 +24,18 @@ test("cutter desktop package exposes Windows desktop scripts only", async () => 
   ]);
 });
 
+test("cargo package version stays in sync with the app version", async () => {
+  const packageJson = await readJson("package.json");
+  const config = await readJson("src-tauri/tauri.conf.json");
+  const cargoToml = await readFile(path.join(appRoot, "src-tauri/Cargo.toml"), "utf8");
+  const cargoVersion = cargoToml.match(/^version = "([^"]+)"/m)?.[1];
+  assert.equal(cargoVersion, packageJson.version);
+  assert.equal(config.version, packageJson.version);
+});
+
 test("tauri config embeds cutter web dist and Windows exe installer target", async () => {
   const config = await readJson("src-tauri/tauri.conf.json");
-  assert.equal(config.version, "0.18.14");
+  assert.equal(config.version, "0.18.15");
   assert.equal((config.build as Record<string, unknown>).frontendDist, "../../cutter-web/dist");
   assert.equal((config.build as Record<string, unknown>).beforeBuildCommand, undefined);
 
