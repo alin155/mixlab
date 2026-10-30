@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793341875995-8e75827d",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793341875995-8e75827d",
+  "created_at": "2026-10-30T06:31:15.995Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793341679606-9f495b6e"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进本批准备工作，正式实施前需补齐分支护栏与共享层分工。** 消息明确限制范围、禁止升版发布，方向合理，未发现本条新增的现网发布阻塞。本次仅核查 `269d99658ae2` 快照；`DIFF.patch` 为空，快照不含 Phase 0 规格与 mockup，不能据此确认 `288e7a2` 基线上的实施结果。\n\n### 消息 1793341679606-9f495b6e\n\n- 判定：警惕\n- 严重级别：P1\n- 事实判断：[分支识别](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-rYztRp/scripts/dev/scope-check.mjs:88)将新 UI 分支默认视为 Mac；[规则](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-rYztRp/AGENTS.md:19)限定共享包由 Mac 修改。\n- 问题/风险：按快照护栏，Windows 在该分支修改 Cutter 会被提交检查拦截；令牌与 AppShell 的修改归属也未说明。\n- 建议：Mac 补充分工及功能分支检查方式，再实施；维持不发布要求。\n- 需要证据：规格/mockup 提交 SHA、共享层负责人、目标分支护栏验证结果。\n\n## 跨消息建议\n\n1. **补通共享层交付路径。** 当前 [shared-sync 白名单](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-rYztRp/scripts/dev/shared-sync.mjs:14)与 scope-check 同步名单均未包含 `ui-foundation`。若本批修改共享令牌或 AppShell，应由 Mac 先补齐同步与校验路径，Windows 再消费指定提交。\n\n2. **功能分支需要有效护栏。** 快照的 pre-push 与 sync-guard CI 主要覆盖角色分支，不能把功能分支推送成功视为检查通过。建议明确该 UI 分支的 Windows 角色并验证检查生效；完成回执仍从 `dev/cutter` 发送，引用功能分支 SHA。\n\n3. **明确“切换项目”的状态含义。** [现有处理](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-rYztRp/apps/cutter-web/src/app/CutterApp.tsx:4052)区分首页选中与当前项目。验收应覆盖“A→B→提交任务”，核对顶栏、当前项目及任务 `project_id` 一致，避免仅标签切换。\n\n4. **按共享改动的影响面回归。** [AppShell](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-rYztRp/packages/ui-foundation/src/components.tsx:325)与令牌属于共用层。除首页截图外，抽查 Cutter 未重排页面的导航、滚动和弹层；若改共享默认样式，由 Mac 补管理端冒烟，保持本批页面范围不扩大。"
+}
