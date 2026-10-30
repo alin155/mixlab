@@ -488,6 +488,7 @@ export interface CopyKeyframeDecisionInput {
   cut_mode: CutMode;
   begin_ms: number;
   keyframe_times_ms: number[];
+  end_ms?: number;
   max_keyframe_distance_ms?: number;
 }
 
@@ -528,7 +529,8 @@ export function decideCopyCutMode(input: CopyKeyframeDecisionInput): CopyKeyfram
     const firstKeyframe = keyframeTimes.find((keyframeTime) => keyframeTime >= beginMs);
     if (firstKeyframe !== undefined) {
       const firstKeyframeDistance = Math.max(0, Math.round(firstKeyframe - beginMs));
-      if (firstKeyframeDistance <= MAX_COPY_START_KEYFRAME_DISTANCE_MS) {
+      const endsBeforeFirstKeyframe = typeof input.end_ms === "number" && input.end_ms <= firstKeyframe;
+      if (!endsBeforeFirstKeyframe && firstKeyframeDistance <= MAX_COPY_START_KEYFRAME_DISTANCE_MS) {
         return {
           cut_mode_used: "copy",
           keyframe_distance_ms: firstKeyframeDistance
@@ -537,7 +539,9 @@ export function decideCopyCutMode(input: CopyKeyframeDecisionInput): CopyKeyfram
       return {
         cut_mode_used: "precise",
         keyframe_distance_ms: firstKeyframeDistance,
-        degrade_reason: "起点前无关键帧，首个关键帧距起点 " + firstKeyframeDistance + "ms，超过 " + MAX_COPY_START_KEYFRAME_DISTANCE_MS + "ms 起始关键帧阈值，已自动降级为精准剪切"
+        degrade_reason: endsBeforeFirstKeyframe
+          ? "首个关键帧晚于剪切终点，已自动降级为精准剪切"
+          : "起点前无关键帧，首个关键帧距起点 " + firstKeyframeDistance + "ms，超过 " + MAX_COPY_START_KEYFRAME_DISTANCE_MS + "ms 起始关键帧阈值，已自动降级为精准剪切"
       };
     }
     return {

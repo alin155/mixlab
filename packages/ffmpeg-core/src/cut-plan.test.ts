@@ -537,6 +537,18 @@ test("decideCopyCutMode degrades when the first keyframe is more than 1000ms aft
   assert.match(decision.degrade_reason ?? "", /1000ms/);
 });
 
+test("decideCopyCutMode does not copy when the cut ends before the first keyframe", () => {
+  const decision = decideCopyCutMode({
+    cut_mode: "copy",
+    begin_ms: 0,
+    end_ms: 30,
+    keyframe_times_ms: [40]
+  });
+
+  assert.equal(decision.cut_mode_used, "precise");
+  assert.match(decision.degrade_reason ?? "", /晚于剪切终点/);
+});
+
 test("decideCopyCutMode degrades when no keyframe could be located and leaves non-copy modes unchanged", () => {
   assert.deepEqual(
     decideCopyCutMode({ cut_mode: "copy", begin_ms: 4_800, keyframe_times_ms: [] }),

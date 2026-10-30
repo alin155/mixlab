@@ -2609,6 +2609,7 @@ async function runPendingCutJobUnlocked(
             const decision = decideCopyCutMode({
               cut_mode: "copy",
               begin_ms: running.begin_ms,
+              end_ms: running.end_ms,
               keyframe_times_ms: keyframes?.keyframe_times_ms ?? []
             });
             cutModeUsed = decision.cut_mode_used;
