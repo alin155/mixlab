@@ -318,9 +318,12 @@ export function SourceDetailPage({
   useEffect(() => {
     function handleDocumentMouseDown(event: MouseEvent) {
       const target = event.target as Node | null;
+      const targetElement = target instanceof Element ? target : target?.parentElement;
       if (
         target &&
-        (selectionBarRef.current?.contains(target) || transcriptRef.current?.contains(target))
+        (selectionBarRef.current?.contains(target) ||
+          transcriptRef.current?.contains(target) ||
+          targetElement?.closest(".ml-inspector, .cutter-page-header"))
       ) {
         return;
       }
