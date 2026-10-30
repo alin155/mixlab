@@ -1195,8 +1195,7 @@ test("public library is a read-only gallery of available source videos", () => {
     "横版",
     "竖版",
     "直播复盘：从流量到现金流健康度",
-    "经营分析",
-    "由管理端配置",
+    "林老师",
     "可搜索素材 2 条",
     "全部可搜索",
     "查看完整文案"

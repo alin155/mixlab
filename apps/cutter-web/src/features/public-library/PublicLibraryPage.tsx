@@ -28,7 +28,7 @@ const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: st
 function galleryMeta(video: SourceVideoCard): string {
   const resolution = video.width && video.height ? `${video.width}x${video.height}` : "";
   return [formatDuration(video.duration_ms), resolution, video.codec?.toUpperCase(), formatFileSize(video.file_size)]
-    .filter(Boolean)
+    .filter((value) => Boolean(value) && value !== "-")
     .join(" · ");
 }
 
@@ -160,9 +160,8 @@ export function PublicLibraryPage({
                 id: video.source_video_id,
                 title: video.title,
                 image: video.cover_url,
-                meta: galleryMeta(video),
-                tags: [videoOrientationLabel(video), ...(video.tags ?? [])],
-                description: video.description,
+                meta: [video.lecturer, galleryMeta(video)].filter(Boolean).join(" · "),
+                tags: [videoOrientationLabel(video)],
                 selected: video.source_video_id === selected?.source_video_id,
                 ...(onSelectSourceVideo
                   ? {

@@ -50,7 +50,7 @@ function galleryMeta(clip: LocalClip): string {
     clip.codec?.toUpperCase(),
     formatFileSize(clip.file_size)
   ]
-    .filter(Boolean)
+    .filter((value) => Boolean(value) && value !== "-")
     .join(" · ");
 }
 
@@ -280,11 +280,7 @@ export function LocalLibraryPage({
       title: clip.title,
       image: clip.cover_url ?? LOCAL_CLIP_FALLBACK_COVER,
       meta: galleryMeta(clip),
-      tags: [
-        videoOrientationLabel(clip as LocalClipVisualMetadata),
-        projectTitleForClip(clip, projectById)
-      ],
-      description: clip.selected_text,
+      tags: [videoOrientationLabel(clip as LocalClipVisualMetadata)],
       selected: clip.local_clip_id === selected?.local_clip_id,
       ...(onSelectLocalClip
         ? {

@@ -306,14 +306,45 @@ export function SourceDetailPage({
     endCharOffset: selectedEndCharOffset
   });
   const showFloatingSelectionAction = canAddSelection && selectionBarAnchor;
+  const transcriptTop = transcriptRef.current?.getBoundingClientRect().top ?? 0;
   const selectionBarStyle: CSSProperties | undefined = selectionBarAnchor
     ? {
         position: "fixed",
         left: selectionBarAnchor.left,
-        top: selectionBarAnchor.top,
+        top: Math.max(selectionBarAnchor.top, transcriptTop + 48),
         transform: "translate(-50%, -100%)"
       }
     : undefined;
+
+  useEffect(() => {
+    if (!showFloatingSelectionAction) {
+      return;
+    }
+
+    const hideSelectionBarOverVideo = () => {
+      const bar = selectionBarRef.current?.getBoundingClientRect();
+      const video = videoRef.current?.getBoundingClientRect();
+      if (!bar || !video) {
+        return;
+      }
+      const overlapsVideo = !(
+        bar.right <= video.left ||
+        bar.left >= video.right ||
+        bar.bottom <= video.top ||
+        bar.top >= video.bottom
+      );
+      if (overlapsVideo) {
+        setSelectionBarAnchor(null);
+      }
+    };
+    window.addEventListener("scroll", hideSelectionBarOverVideo, true);
+    const scroller = transcriptRef.current?.closest(".ml-scroll-region");
+    scroller?.addEventListener("scroll", hideSelectionBarOverVideo);
+    return () => {
+      window.removeEventListener("scroll", hideSelectionBarOverVideo, true);
+      scroller?.removeEventListener("scroll", hideSelectionBarOverVideo);
+    };
+  }, [showFloatingSelectionAction]);
 
   useEffect(() => {
     function handleDocumentMouseDown(event: MouseEvent) {
@@ -444,6 +475,7 @@ export function SourceDetailPage({
             className="ml-document-media-video"
             controls
             preload="none"
+            style={{ maxHeight: 360 }}
             poster={detail.cover_url}
             ref={videoRef}
             src={videoSource}
