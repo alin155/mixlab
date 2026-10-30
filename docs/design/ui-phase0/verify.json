@@ -1,0 +1,163 @@
+{
+  "captured_at": "2026-10-30T07:44:14.684Z",
+  "sizes": {
+    "1536x1024": {
+      "home": {
+        "dataPage": "project-home",
+        "topbarCount": 1,
+        "sidebarCount": 1,
+        "horizontalOverflow": false,
+        "username": {
+          "text": "Allen",
+          "clientWidth": 54,
+          "scrollWidth": 54,
+          "truncated": false
+        },
+        "notice": {
+          "x": 256,
+          "y": 76,
+          "width": 1256,
+          "height": 41.5,
+          "top": 76,
+          "right": 1512,
+          "bottom": 117.5,
+          "left": 256
+        },
+        "covers": [
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          },
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          },
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          },
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          }
+        ],
+        "coverSkeletonCount": 0,
+        "content": {
+          "h": 907,
+          "sh": 907
+        }
+      },
+      "switcher": {
+        "open": true,
+        "items": 5,
+        "menuText": "最近项目\n10月30日\n7 个已剪片段\n当前\n6月24日\n6 个已剪片段\n6月22日\n3 个已剪片段\n6月1日-1\n16 个已剪片段\n6月1日-2\n1.房产置换与资产优化\n回到项目首页"
+      },
+      "settings": {
+        "dataPage": "settings",
+        "topbarCount": 1,
+        "versionLine": [
+          "应用版本",
+          "v0.18.15",
+          "构建版本"
+        ]
+      },
+      "materialLocator": {
+        "dataPage": "material-locator",
+        "topbarCount": 1,
+        "horizontalOverflow": false,
+        "bodyStart": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 87 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n5.0 GB\n账"
+      }
+    },
+    "1440x900": {
+      "home": {
+        "dataPage": "project-home",
+        "topbarCount": 1,
+        "sidebarCount": 1,
+        "horizontalOverflow": false,
+        "username": {
+          "text": "Allen",
+          "clientWidth": 42,
+          "scrollWidth": 42,
+          "truncated": false
+        },
+        "notice": {
+          "x": 256,
+          "y": 76,
+          "width": 1160,
+          "height": 41.5,
+          "top": 76,
+          "right": 1416,
+          "bottom": 117.5,
+          "left": 256
+        },
+        "covers": [
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          },
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          },
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          },
+          {
+            "state": "ready",
+            "img": {
+              "complete": true,
+              "naturalWidth": 640
+            }
+          }
+        ],
+        "coverSkeletonCount": 0,
+        "content": {
+          "h": 783,
+          "sh": 868
+        }
+      },
+      "switcher": {
+        "open": true,
+        "items": 5,
+        "menuText": "最近项目\n10月30日\n7 个已剪片段\n当前\n6月24日\n6 个已剪片段\n6月22日\n3 个已剪片段\n6月1日-1\n16 个已剪片段\n6月1日-2\n1.房产置换与资产优化\n回到项目首页"
+      },
+      "settings": {
+        "dataPage": "settings",
+        "topbarCount": 1,
+        "versionLine": [
+          "应用版本",
+          "v0.18.15",
+          "构建版本"
+        ]
+      },
+      "materialLocator": {
+        "dataPage": "material-locator",
+        "topbarCount": 1,
+        "horizontalOverflow": false,
+        "bodyStart": "ML\nMixLab Cutter\n项目化素材剪切\n首页\n素材搜索\n剪切任务\n本地素材\n公共素材库\n缓存管理\n设置\n当前项目\n10月30日\n素材库\n本地 87 / 公共 12869\n剪切任务\n空闲\n本机服务\n正常\nAllen\n5.0 GB\n账"
+      }
+    }
+  }
+}
