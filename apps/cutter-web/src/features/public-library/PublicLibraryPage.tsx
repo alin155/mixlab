@@ -128,6 +128,9 @@ export function PublicLibraryPage({
         </header>
 
         <div className="cutter-public-library-toolbar ml-control-cluster">
+          <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
+            刷新
+          </Button>
           <SearchBox
             aria-label={searchMode === "folder" ? "搜索文件夹名称" : "按文件名搜索公共素材"}
             buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}

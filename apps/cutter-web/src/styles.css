@@ -2262,3 +2262,25 @@ body,
   padding-top: 4px;
   padding-bottom: 4px;
 }
+
+.cutter-page .ml-page-kicker,
+.cutter-home-header .ml-page-kicker,
+.cutter-home-header-copy .ml-page-kicker {
+  display: none !important;
+}
+.cutter-page-header {
+  padding-top: 0 !important;
+}
+.cutter-cut-tasks-secondary-entry {
+  display: flex;
+  justify-content: flex-end;
+  margin: -46px 0 8px;
+}
+.cutter-cut-tasks-secondary-button {
+  border: 0;
+  background: transparent;
+  color: var(--ml-color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
