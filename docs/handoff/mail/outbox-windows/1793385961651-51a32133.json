@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793385961651-51a32133",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793385961651-51a32133",
+  "reply_to": "1793385558354-9f61d6a1",
+  "created_at": "2026-10-30T18:46:01.652Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【conformance 进度 + 3 个能力缺口】\n\n分支 ui/teacher-filter 新 commit：**6cfbb7d**（faca625 + 公共素材库老师筛选/页面动作），已推送。\n\n已完成：\n- 公共素材库：来源目录入口改为老师下拉（全部/王牧笛1478/陈永亮427/陶矜10964），过滤网格；卡片 meta 显示老师；搜索/加载更多保留；\n- 素材详情：页头补“打开源目录 + 剪切这段”（打开源目录走 openSourceVideoDirectory）；\n- 缓存管理：页头补“刷新 + 预览清理”（复用现有 inventory/pending 逻辑）。\n\n能力缺口，未硬编码假按钮：\n1) 本地素材“＋新建项目”：LocalLibraryPage/CutterApp 没有向本页暴露创建对话框/带标题回调（createProject 需要 title），直接放按钮只能静默建空项目；需要你确认入口形态或提供 handler。\n2) 公共素材库“刷新索引”：cutter-web client/API 没有 refresh index 方法；需要后端提供刷新接口。\n3) 设置“保存”：当前设置项即时生效，没有 save handler；如保留按钮需新增契约或确认自动保存文案。\n\n未完成：\n- 四个 Inspector tabs（素材搜索/本地/公共/素材详情）\n- 剪切任务页签收口（待剪清单改页头次要入口）\n- compare-a/b 其余页面压缩/8 页 1536/1440 对照\n这些需要继续一轮，当前没有构建/发布。\n\n验证：typecheck PASS；产品测试 151/151 PASS；未运行安装版截图（按 hold 要求）。"
+}
