@@ -1533,6 +1533,7 @@ export function MaterialLocatorPage({
                       <div className="cutter-locator-result-list ml-media-row-list ml-list-body--compact-inset">
                         {section.items.map((item) => (
                           <button
+                            aria-current={selectedMaterialKey === `${item.source}:${item.id}` ? "true" : undefined}
                             className={[
                               "cutter-locator-result",
                               "ml-media-row",
@@ -1545,6 +1546,15 @@ export function MaterialLocatorPage({
                             onClick={() => onSelectMaterial?.(item)}
                             onFocus={() => onPrefetchMaterial?.(item)}
                             onMouseEnter={() => onPrefetchMaterial?.(item)}
+                            style={
+                              selectedMaterialKey === `${item.source}:${item.id}`
+                                ? {
+                                    borderLeft: "3px solid var(--ml-color-accent)",
+                                    background: "var(--ml-color-control-active)",
+                                    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--ml-color-accent) 35%, transparent)"
+                                  }
+                                : undefined
+                            }
                           >
                             {item.cover_url ? (
                               <img className="ml-media-row-thumb" src={item.cover_url} alt="" />
@@ -1554,6 +1564,9 @@ export function MaterialLocatorPage({
                             <span className="ml-media-row-body">
                               <strong className="ml-media-row-title">{item.title}</strong>
                               <span className="ml-media-row-meta">
+                                {selectedMaterialKey === `${item.source}:${item.id}` ? (
+                                  <small className="ml-badge is-info">当前</small>
+                                ) : null}
                                 <small className="ml-media-row-subtle">{item.transcript_character_count.toLocaleString()} 字</small>
                                 <small className="ml-media-row-subtle">{formatDuration(item.duration_ms)} · 命中 {item.hit_count}</small>
                               </span>
@@ -1737,13 +1750,14 @@ export function MaterialLocatorPage({
                   className={[
                     "cutter-selection-bar",
                     "cutter-floating-selection-bar",
-                    "ml-floating-action-bar"
+                    "ml-floating-action-bar",
+                    "ml-floating-selection-anchor",
+                    "is-anchored"
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  data-placement="docked"
+                  style={selectionBarStyle}
                   ref={selectionBarRef}
-                  style={{ alignSelf: "end", justifySelf: "end", margin: "6px 14px 10px" }}
                 >
                   <strong className="ml-floating-action-label">
                     已选 {selectedDurationLabel(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}
