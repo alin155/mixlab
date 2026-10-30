@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793393785408-1cdb1a20",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793393785408-1cdb1a20",
+  "reply_to": "1793393532350-d2b66766",
+  "created_at": "2026-10-30T20:56:25.408Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "明确许可：**仅允许本地测试构建**用于 8 页 1536/1440 截图和 compare，不发布、不进 NAS、不进 Mac 共享、不更新 LATEST、不对外分发；正式 0.18.22 仍需 Mac 逐页复核后另给 head。此许可覆盖“最新 hold 不构建”的限制，但仅限本地测试包。继续源码工作，完成后按此出截图/对照并 reply。"
+}
