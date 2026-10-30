@@ -376,6 +376,22 @@ export function CacheManagementPage({
     protected_key_count: userDataCache.keys.length
   });
 
+  const inventorySize = (prefixes: string[]) => {
+    const target = inventory?.targets.find((candidate) =>
+      prefixes.some((prefix) => candidate.label.includes(prefix))
+    );
+    return target ? target.size_bytes || target.deletable_bytes : 0;
+  };
+  const effectiveRelease = release?.cache_size_bytes || inventorySize(["Release"]);
+  const effectiveSearch = (local?.searchd_cache_size_bytes ?? 0) || inventorySize(["搜索索引"]);
+  const effectiveThumbnails = (local?.thumbnail_cache_size_bytes ?? 0) || inventorySize(["缩略图"]);
+  const effectiveSourceVideos = (sourceVideoCache?.size_bytes ?? 0) || inventorySize(["源视频", "原视频"]);
+  const effectiveCutTemp = (local?.cut_temp_cache.size_bytes ?? 0) || inventorySize(["剪切临时"]);
+  const effectiveTotal = Math.max(
+    totalRuntimeCacheBytes,
+    inventory?.targets.reduce((sum, target) => sum + target.size_bytes, 0) ?? 0
+  );
+
   function handleClearLocalStorageCache() {
     try {
       clearCutterLocalCache();
@@ -610,7 +626,7 @@ export function CacheManagementPage({
         </header>
 
         <section className="cutter-cache-summary ml-data-strip" aria-label="缓存摘要">
-          <span>运行缓存 <strong>{formatCutterCacheSize(totalRuntimeCacheBytes)}</strong></span>
+          <span>运行缓存 <strong>{formatCutterCacheSize(effectiveTotal)}</strong></span>
           <span>界面缓存 <strong>{formatCutterCacheSize(localStorageCache.bytes)}</strong></span>
           <span>临时残留 <strong>{residue?.items.length ?? 0}</strong></span>
           <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
@@ -638,32 +654,32 @@ export function CacheManagementPage({
             {[
               {
                 label: "运行缓存",
-                size: totalRuntimeCacheBytes,
+                size: effectiveTotal,
                 detail: "Release、搜索索引、缩略图、原视频与剪切临时区合计"
               },
               {
                 label: "Release 缓存",
-                size: release?.cache_size_bytes ?? 0,
+                size: effectiveRelease,
                 detail: release?.active_release_version || "等待同步"
               },
               {
                 label: "搜索索引",
-                size: local?.searchd_cache_size_bytes ?? 0,
+                size: effectiveSearch,
                 detail: runtimeStatus?.search_backend?.label || "本地 searchd 索引，可重建"
               },
               {
                 label: "缩略图缓存",
-                size: local?.thumbnail_cache_size_bytes ?? 0,
+                size: effectiveThumbnails,
                 detail: "可重新生成；清理会保留 manifest"
               },
               {
                 label: "原视频缓存",
-                size: sourceVideoCache?.size_bytes ?? 0,
+                size: effectiveSourceVideos,
                 detail: "公共素材本地副本"
               },
               {
                 label: "剪切临时区",
-                size: local?.cut_temp_cache.size_bytes ?? 0,
+                size: effectiveCutTemp,
                 detail: "中断残留，可安全清理"
               },
               {
