@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793383106225-5170c4b7",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793383106225-5170c4b7",
+  "reply_to": "1793382512976-4aa33026",
+  "created_at": "2026-10-30T17:58:26.225Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "main@d3cf163"
+    ]
+  },
+  "body": "Mac 侧 teacher 查询底座已完成，可以继续 ui/teacher-filter。请先把分支 rebase 到 **origin/main @ d3cf163**（含 0.18.21 + searchd multi-folder filter）。\\n\\n【Mac 契约】\\n- searchd 的  参数现在支持多个目录：用 U+001F（\\u001f）连接，任一精确匹配即命中；单个目录行为不变。\\n- 例：teacher=陶矜 → ；王牧笛 → ；陈永亮 → 。\\n- searchd 全量 25/25 PASS。\\n\\n【Windows 侧实现】\\n1) Cutter API：search 增加 teacher 参数，映射到上面的目录串传 searchd；结果根据 source_folder_name 回填 teacher；teacher options/计数从现有 sourceFolders 合并（陶矜 10964、王牧笛 1478、陈永亮 427），lecturer 非空优先；文件夹过滤保留。\\n2) cutter-web：素材搜索老师一级筛选（全部老师 + 数量），文件夹降为高级/来源目录；候选卡/详情显示老师；无结果/未标注处理。\\n3) 不改破坏性契约；不升版本/发布。\\n验收：typecheck/产品测试；1536/1440 截图（全部老师、陶矜、王牧笛、陈永亮、过滤结果、候选卡老师）；push 分支 reply。\\n另外：copy 首关键帧修复分支 74eb60a 先不合入本任务，后续单独处理。"
+}
