@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793373429136-1e4d65a0",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793373429136-1e4d65a0",
+  "created_at": "2026-10-30T15:17:09.136Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793372961333-e31244af",
+      "1793373139089-fd67e3ba"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 `5e574a2` 的最终构建与 Windows 验收，暂不放行正式分发。** 本轮未发现已证实的新增 P0/P1 缺陷；提交号与文件名更正可以接受，但未增加验收证据。发布任务已覆盖升级、页面与剪切检查，完成后方可放行。当前快照仍为 `269d996`、`DIFF.patch` 为空，因此无法独立确认 `5e574a2` 的实现及消息所报测试结果。\n\n### 消息 1793372961333-e31244af\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：实算[更正后的 ZIP](/Users/huaqihang/Public/MixLabWindowsBuilds/batch-c-review3-5be49db.zip)与旧文件 SHA256 相同，均为 `45ad75f0…59575282`，符合声明。\n- 问题/风险：本条修正了记录对应关系，未新增构建或运行证明；实际推送 HEAD 无法从本快照核验。\n- 建议：接受更正，将原回执、候选提交及证据归为同一条验收记录。\n- 需要证据：无（文件更名项）。\n\n### 消息 1793373139089-fd67e3ba\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[发布任务](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aRJuR6/REVIEW-PACKET.md:24>)明确要求最终提交构建、升级、真机验收后分发；本包尚无这些步骤的完成回执。\n- 问题/风险：“复审通过”只能支持进入最终验收，不能据此认定安装包已通过发布验收。\n- 建议：按任务顺序推进，全部通过后分发；失败则停在对应步骤。\n- 需要证据：最终包 SHA256、升级及页面验收结果、剪切日志、两处分发文件的校验结果。\n\n## 跨消息建议\n\n1. **“不更新 LATEST”仍需防止自动选中候选包。** 快照中的 [Runner 按修改时间选择共享根目录安装包](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aRJuR6/packages/windows-test-runner/src/actions/install-latest-and-smoke.ts:169>)，不依赖 LATEST。若使用该入口，候选包放版本子目录，并显式传入 `installer_path`、`installer_sha256`。\n\n2. **构建阻塞修复后重新确定发布提交。** “除非构建阻塞”若触发代码修改，应记录新提交、重跑受影响检查，并验收新包；不得继续将结果归于 `5e574a2`。\n\n3. **copy 验收记录实际执行模式。** 现有实现[允许自动降级为 precise](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aRJuR6/packages/ffmpeg-core/src/index.ts:503>)。至少一例确认 `cut_mode_used=copy`，同时记录目标区间、输出时长及音视频检查结果，避免两例均降级却被计为 copy 通过。"
+}
