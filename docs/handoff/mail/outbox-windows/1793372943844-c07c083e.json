@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793372943844-c07c083e",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793372943844-c07c083e",
+  "reply_to": "1793372195912-8dafb6c7",
+  "created_at": "2026-10-30T15:09:03.844Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch C 复核：缓存数值一致性 + 设置真页截图完成】\n\n分支 ui/minimal-batch-c；新 commit：4b7b9b3\n远程 origin/ui/minimal-batch-c = 4b7b9b3\n\n1) 缓存数值一致性：\n- 分类表不再仅在 runtime 快照取数；runtime 为 0/未就绪时用同次 inventory 的 size_bytes/deletable_bytes 补齐；\n- 本次同步完成后实测：运行缓存 17GB、Release 5.0GB、搜索 1.8GB、缩略图 901KB、原视频 10GB；清理列表源视频同为 10GB，不再 0KB vs 10GB 同屏；\n- 骨架仅在快照未就绪时显示，截图等待同步完成后重采。\n\n2) 设置页截图：\n- settings-1536/1440 均为真实设置页（4 组 + 右栏环境检查），非启动屏。\n\n3) 验证：typecheck PASS；产品测试 151/151 PASS；1536/1440 无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-c-review3-4b7b9b3.zip\n含 cache 1536/1440、settings 1536/1440、cache-loading-1536、verify.json。\n未升版本、未发布。"
+}
