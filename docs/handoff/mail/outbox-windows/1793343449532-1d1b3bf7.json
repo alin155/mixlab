@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793343449532-1d1b3bf7",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793343449532-1d1b3bf7",
+  "reply_to": "1793341679606-9f495b6e",
+  "created_at": "2026-10-30T06:57:29.533Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【UI Phase 0 已完成：AppShell + 首页重排 + 提示条修复】\n\n分支：ui/phase0-shell-home（基于 origin/main @ 288e7a2，已 push）\ncommit：e0844d5  feat(cutter-web): add phase 0 app shell and home redesign\n远程：origin/ui/phase0-shell-home = e0844d5\n\n【改动文件】\n- apps/cutter-web/src/app/CutterApp.tsx：新增统一 CutterTopbar；提示条移出滚动内容，放到顶栏下方 notice stack；注册 navigate。\n- apps/cutter-web/src/features/app-shell/CutterTopbar.tsx（新增）：64px 顶栏、面包屑、“切换项目”显式入口、最近项目菜单、服务状态。\n- apps/cutter-web/src/features/project-home/ProjectHomePage.tsx：按 mockup 重排 Hero/最近项目/快速开始/最近剪切；移除英文面包屑；保留进入项目/打开目录/重命名/删除。\n- apps/cutter-web/src/styles.css：设计令牌、232px 侧栏、Card/Button/Badge/Empty/Loading 基础样式、首页响应式。\n- apps/cutter-web/src/cutter-app.test.ts：更新首页/顶栏测试。\n未改 shared/ui-foundation、未改 API/业务规则、未升版本、未发布。\n\n【验证结果】\n- typecheck：PASS。\n- 剪辑端产品测试：199/199 PASS（cutter-app + cutter-state）。\n- 全仓 npm test：2239 项，2198 pass / 36 fail；失败集中在 admin/NAS evidence/windows-test-runner 等既有环境类测试，未见 cutter-web 相关新失败。\n- 安装版真机截图：1536×1024、1440×900；home/material-locator/cut-tasks/local-library/settings + 新建项目弹窗。\n- 每页 topbar=1、sidebar=1，无横向滚动；提示条正文完整：rect top=76（顶栏 64 下方），显示“发现 5 个工作区临时残留…去清理”。\n- 项目切换实测：6月24日 → 10月30日，label 变更；跳转 #/material-locator?query=人性，data-page=material-locator。\n\n【截图与证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\ui-phase0-shell-home-e0844d5.zip\nsha256=F2DB4E4362699913D42BF1271C09F14439309124155E494413FDA0162ACE92B3\n本地：C:\\dev\\ui-phase0-verify（png + verify.json + switcher.json）\n\n【与 mockup 的差异/已知限制】\n- 侧栏保留现有导航/底部状态，宽度 232px；未新增 mockup 的“工作台/系统”分组标签。\n- 顶栏项目切换器 Phase 0 只列最近项目；选择项目仍沿用现有“进入项目”语义（跳素材搜索），不提供全站“全部项目”作用域。\n- 首页最近项目最多展示 4 个；快速开始入口已接搜索/新建/任务/本地素材。\n- 1440×900 下本机 5 个项目 + 提示条时首页内容略超视口，允许纵向滚动；1536×1024 无纵向溢出。\n- 顶部提示条按“顶栏下方、页面内容上方”固定，不随内容滚动。\n\n未改版本、未发布，等你审查；可指定要调整的视觉/范围项，我继续在同一分支迭代。"
+}
