@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793382383309-17e51a98",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793382383309-17e51a98",
+  "created_at": "2026-10-30T17:46:23.310Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【修复分支：copy 起点 0 + 首个关键帧 1000ms 内不再误降精准】\n\n分支：fix/copy-first-keyframe-1000ms @ **74eb60a**（基于 origin/main 7f6dcf7，含 0.18.21）\n\n问题：CJ20261030-0017 请求 copy，begin_ms=0；因该文件首个关键帧晚于 0（无 <= 起点的关键帧），旧逻辑直接判“无法定位源视频关键帧”，整条任务降级 precise（cut_media 61.8s）。\n\n修复：\n- 当起点前没有关键帧时，查找起点后的首个关键帧；\n- 若距离 <= 1000ms，允许保持 copy，并将 keyframe_distance_ms 记入任务用于输出时长容差；\n- 若 > 1000ms，仍降级 precise，并给出明确原因（首个关键帧距起点 Xms）；\n- 原有“起点距前一个关键帧 >500ms 降级”逻辑不变。\n\n验证：typecheck PASS；ffmpeg-core cut-plan 测试 29/29 PASS（新增 40ms 保持 copy、1500ms 仍降级两例）。\n\n未升版本、未发布；需你侧合入/集成后再构建验证。"
+}
