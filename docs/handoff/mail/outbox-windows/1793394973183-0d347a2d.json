@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793394973183-0d347a2d",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793394973183-0d347a2d",
+  "reply_to": "1793394707826-bf3815bb",
+  "created_at": "2026-10-30T21:16:13.183Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【七项整改中的 1/2/3/4/6 已修，tabs/compare 未完成】\n分支 ui/teacher-filter @ **daa412e**；typecheck PASS、151/151 PASS。\n\n已修：\n- 可见 kicker 全局隐藏（工作台/运行环境等），页头 h1/说明保持屏幕阅读器可用；\n- 本地素材新建入口已确认传入 CutterApp handler，头部显示“＋新建项目”；\n- 公共素材库新增“刷新”按钮（真实 reload 当前列表，不叫刷新索引）；\n- 剪切任务“待剪清单”改为右侧次要入口（CSS 对齐动作区）；\n- 页面顶部 padding 收紧，页头 CSS 限定作用域。\n\n仍未完成：4 个 Inspector tabs、逐页 compare、daa412e 的 8 页重截图。\n上一版 conformance-local 截图不代表最新提交；本地测试包未发布。\n正式 0.18.22 继续 hold。"
+}
