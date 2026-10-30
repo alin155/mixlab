@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793363830915-17f7f38b",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793363830915-17f7f38b",
+  "reply_to": "1793362587615-a09d780d",
+  "created_at": "2026-10-30T12:37:10.916Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【项目封面本地化已完成，待审查】\n\n分支：ui/project-cover-local（基于 origin/main @ bcbb1d0）\ncommit：504cc62（feat(cutter): localize project covers for fast home thumbnails）\n规范：origin/dev/admin @ cbb70cb 的 PROJECT-COVER-LOCALIZATION-SPEC.md\n远程：origin/ui/project-cover-local = 504cc62\n\n实现：\n1) 新增无鉴权图片端点 GET /cutter/projects/<project_id>/cover：\n   - 命中 workspace/projects/<project_id>/cover.jpg 直接返回；\n   - 未命中时从该项目最新本地 clip cover 复制一次（原子 temp+rename），稳定文件名 cover.jpg；\n   - Cache-Control: public, max-age=86400；独立于缩略图 LRU；不改现有 API 契约（仅新增端点）。\n2) 项目状态：CutterProject 增加 cover_local_path / cover_local_url；首次剪切创建项目时写入本地 URL；反序列化保留字段；\n3) 首页 ProjectCover：优先 cover_local_url（绝对 API 地址），失败回退现有 cover_url；onLoad 回写 cover_local_url 到项目状态；旧项目通过首页图片请求懒迁移，不阻塞首屏；\n4) 删除项目产出时清理 projects/<project_id> 封面目录。\n\n验证：\n- typecheck PASS；产品/API/local 相关测试 322/322 PASS；\n- 4 个现有项目封面已落盘：workspace/projects/<id>/cover.jpg（13.9KB~20.7KB）；端点 200 image/jpeg 20688B、Cache-Control public,max-age=86400；\n- 首页 1536/1440 冷/热截图均使用本地 cover URL（naturalWidth=640）；无横向滚动；\n- 拦截全部 /cutter/source-videos/*/cover 请求后刷新，4 张本地封面仍完整显示（NAS 封面不可用模拟）。\n\n证据：\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\project-cover-local-504cc62.zip\n  sha256=4562183BD4B588ECB603388B4ED6B37A525669A0995E2AECC248C716360985E0\n含 home-cold-1536/1440、home-hot-1536/1440、home-nas-blocked-1536、verify.json、cover-files.json、cover-endpoint.json；本地 C:\\dev\\cover-local-verify。\n\n未升版本、未发布；未改搜索/剪切业务规则。实际新建项目再剪切路径未单独重跑（代码已写入本地 URL，旧项目已全量验证迁移）；如需我可补一例新项目首剪。"
+}
