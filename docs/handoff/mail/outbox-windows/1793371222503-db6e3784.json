@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793371222503-db6e3784",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793371222503-db6e3784",
+  "reply_to": "1793370107045-3b0fc948",
+  "created_at": "2026-10-30T14:40:22.504Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch C 初审三处修改完成，待复审】\n\n同一分支 ui/minimal-batch-c；新 commit：acc265b（fix(cutter-web): add cache loading state and clean cleanup list）\n远程：origin/ui/minimal-batch-c = acc265b\n\n1) 缓存首次进入加载态：\n- 运行时快照未就绪时渲染“缓存分类”骨架（6 行灰条）+“正在读取缓存…”，不再先渲染 0 KB/同步中表格；\n- 快照 ready 后再一次性渲染摘要/分类/清理内容。\n\n2) 清理操作列表：\n- 去掉原生黑方块 checkbox，改为自定义 16px 方框（appearance:none，选中显示对勾）；\n- 每行改为“类型 + 大小 + 保护/不可写状态 + 原因”；长路径移入行 title，不再内联显示；\n- 保留勾选、预览清理、确认清理、禁用条件、失败提示、治理记录。\n\n3) 设置右栏环境检查：\n- 标签列固定 96px + 描述列自适应，Badge 不换行，改为上下对齐排版。\n\n验证：typecheck PASS；产品测试 151/151 PASS；缓存/设置 1536/1440 截图；无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-c-review-acc265b.zip\n含 cache 1536/1440、settings 1536/1440、cache-loading-1536 加载态、verify.json。\n\n说明：加载态截图取自 App 启动→进入缓存页的首次渲染；进入稳定页后仍可复现骨架逻辑（首帧）。\n未升版本、未发布。"
+}
