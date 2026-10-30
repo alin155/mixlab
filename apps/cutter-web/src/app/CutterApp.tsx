@@ -159,6 +159,12 @@ import {
   formatCutterCacheSize
 } from "../state/cutter-cache.ts";
 import {
+  readWorkspaceResidueNoticeDismissal,
+  shouldShowWorkspaceResidueNotice,
+  writeWorkspaceResidueNoticeDismissal,
+  type WorkspaceResidueNoticeDismissal
+} from "../state/workspace-residue-notice.ts";
+import {
   CUTTER_NAV_ITEMS,
   materialSearchModeFromHash,
   routeFromHash,
@@ -549,6 +555,9 @@ export function CutterSidebarFooter({
   engineReady,
   currentProjectLabel = "未选择",
   cacheBytes,
+  residueCount = 0,
+  showResidueNotice = false,
+  onDismissResidue,
   onLogout,
   onSwitchAccount
 }: {
@@ -559,11 +568,15 @@ export function CutterSidebarFooter({
   engineReady: boolean;
   currentProjectLabel?: string;
   cacheBytes?: number;
+  residueCount?: number;
+  showResidueNotice?: boolean;
+  onDismissResidue?: () => void;
   onLogout?: () => void;
   onSwitchAccount?: () => void;
 }) {
   const [cacheMenuOpen, setCacheMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [residuePanelOpen, setResiduePanelOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
   const libraryCountLabel = `本地 ${localCount} / 公共 ${publicCount}`;
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
@@ -606,7 +619,51 @@ export function CutterSidebarFooter({
             {engineReady ? "正常" : "需检查"}
           </strong>
         </div>
+        {showResidueNotice && residueCount > 0 ? (
+          <button
+            aria-expanded={residuePanelOpen}
+            aria-haspopup="dialog"
+            className="cutter-sidebar-residue-entry"
+            onClick={() => setResiduePanelOpen((open) => !open)}
+            type="button"
+          >
+            <span className="cutter-sidebar-residue-dot" aria-hidden="true" />
+            <span>临时残留 {residueCount}</span>
+          </button>
+        ) : null}
       </section>
+      {showResidueNotice && residueCount > 0 && residuePanelOpen ? (
+        <div aria-label="临时残留清理" className="cutter-sidebar-residue-panel" role="dialog">
+          <header>
+            <strong>临时残留 {residueCount}</strong>
+            <button
+              aria-label="关闭临时残留提示"
+              className="cutter-sidebar-residue-close"
+              onClick={() => {
+                setResiduePanelOpen(false);
+                onDismissResidue?.();
+              }}
+              type="button"
+            >
+              ×
+            </button>
+          </header>
+          <p>清理不会删除项目与已完成作品。</p>
+          <div className="cutter-sidebar-residue-actions">
+            <a href={routeToHash("cache-management")} onClick={() => setResiduePanelOpen(false)}>去清理</a>
+            <button
+              onClick={() => {
+                setResiduePanelOpen(false);
+                onDismissResidue?.();
+              }}
+              type="button"
+            >
+              关闭
+            </button>
+            <button onClick={() => setResiduePanelOpen(false)} type="button">稍后</button>
+          </div>
+        </div>
+      ) : null}
       <div className="cutter-sidebar-user-entry ml-sidebar-user-entry" aria-label="当前用户">
         <span className="cutter-sidebar-user-icon ml-sidebar-user-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" role="img">
@@ -1544,6 +1601,7 @@ function renderPage(
         localClips={data.localClips}
         projects={viewState.projects}
         selectedProjectId={viewState.homeSelectedProjectId}
+        currentProjectId={viewState.currentProjectId}
         queue={queue}
         sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
@@ -1824,6 +1882,9 @@ export function CutterApp() {
   const didAutoApplyLocalTrustedLoginRef = useRef(false);
   const [cutNotice, setCutNotice] = useState("");
   const [recoverableNotice, setRecoverableNotice] = useState("");
+  const [residueNoticeDismissal, setResidueNoticeDismissal] = useState<WorkspaceResidueNoticeDismissal | null>(() =>
+    readWorkspaceResidueNoticeDismissal()
+  );
   const [recoverableError, setRecoverableError] = useState<CutterErrorPresentation | null>(null);
   const [errorPresentation, setErrorPresentation] = useState<CutterErrorPresentation | null>(null);
   const [capabilities, setCapabilities] = useState<CutterCapabilityTable | null>(null);
@@ -1852,6 +1913,12 @@ export function CutterApp() {
   const queueRefreshRequestIdRef = useRef(0);
   const authFailureHandlerRef = useRef<((error: CutterApiError) => void) | null>(null);
   const [data, setData] = useState<CutterFixtureData | null>(null);
+  const workspaceResidueCount = data?.runtimeStatus.workspace_residue_count ?? 0;
+  const showWorkspaceResidueNotice = shouldShowWorkspaceResidueNotice({
+    count: workspaceResidueCount,
+    now: Date.now(),
+    dismissal: residueNoticeDismissal
+  });
   const dataRef = useRef<CutterFixtureData | null>(data);
   const sourceDetailCacheRef = useRef(new Map<string, SourceVideoDetail>());
   const sourceDetailInFlightRef = useRef(new Map<string, Promise<SourceVideoDetail>>());
@@ -4568,6 +4635,11 @@ export function CutterApp() {
     removeProjectFromFrontend(projectId, title);
   }
 
+  function dismissWorkspaceResidueNotice() {
+    writeWorkspaceResidueNoticeDismissal(workspaceResidueCount);
+    setResidueNoticeDismissal({ count: workspaceResidueCount, dismissed_at: Date.now() });
+  }
+
   const cutterUsername =
     authSession?.username?.trim() ||
     data?.runtimeStatus.current_user.display_name.trim() ||
@@ -4662,6 +4734,9 @@ export function CutterApp() {
               engineReady={engineReady}
               currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
               cacheBytes={runtimeCacheBytes}
+              residueCount={workspaceResidueCount}
+              showResidueNotice={showWorkspaceResidueNotice}
+              onDismissResidue={dismissWorkspaceResidueNotice}
               {...(canLogout
                 ? {
                     onLogout: () => {
@@ -4743,15 +4818,6 @@ export function CutterApp() {
               >
                 关闭
               </Button>
-            </div>
-          ) : null}
-          {data?.runtimeStatus.workspace_residue_count ? (
-            <div className="cutter-contract-notice" role="status">
-              <div className="cutter-contract-notice-body">
-                <strong>发现 {data.runtimeStatus.workspace_residue_count} 个工作区临时残留</strong>
-                <span>可在缓存管理页预览并清理；项目与已完成作品不会被删除。</span>
-                <a href={routeToHash("cache-management")}>去清理</a>
-              </div>
             </div>
           ) : null}
           </div>

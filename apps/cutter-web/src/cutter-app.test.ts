@@ -405,7 +405,7 @@ test("workbench navigation adopts the project selected on the home page", () => 
   }), undefined);
 });
 
-test("project home renders search-first workbench and keeps project actions", () => {
+test("project home renders the minimal v3 workbench", () => {
   const data = fixture();
   const queue: CutQueueJob[] = [
     {
@@ -460,12 +460,11 @@ test("project home renders search-first workbench and keeps project actions", ()
           failed_count: 0,
           cover_url: data.primaryDetail.cover_url,
           source_title: data.primaryDetail.title,
-          searches: [
-            { query: "今天想学管理", hit_count: 1, searched_at: "2026-05-05T10:00:00.000Z" }
-          ]
+          searches: [{ query: "今天想学管理", hit_count: 1, searched_at: "2026-05-05T10:00:00.000Z" }]
         }
       ],
       selectedProjectId: "P20260505-001",
+      currentProjectId: "P20260505-001",
       onSearch: () => undefined,
       onOpenProject: () => undefined,
       onOpenProjectDirectory: () => undefined,
@@ -475,45 +474,40 @@ test("project home renders search-first workbench and keeps project actions", ()
   );
 
   for (const text of [
-    "素材与剪切工作台",
-    "全部素材",
-    "文件夹",
-    "输入文案关键词，例如：现金流",
-    "最近项目",
-    "5月5日",
-    "搜索素材",
+    "工作台",
+    "搜索素材、继续项目，或查看最近的剪切结果。",
+    "打开待剪清单",
     "新建项目",
-    "快速开始",
-    "直接搜索素材",
-    "查看剪切任务",
-    "本地素材",
-    "最近剪切 · 全部项目",
-    "进入项目",
+    "最近项目",
+    "最近剪切",
+    "5月5日",
+    "已剪 1",
+    "待剪 1",
+    "已完成 1 · 失败 0",
+    "C0015",
+    "00:01",
     "打开目录",
     "重命名",
-    "删除",
-    "1 处理中"
+    "删除"
   ]) {
     assert.ok(html.includes(text), text);
   }
 
   assert.match(html, /data-page="project-home"/);
-  assert.match(html, /class="cutter-page cutter-project-home ml-workbench-page ml-workbench-page--project-home"/);
-  assert.match(html, /class="cutter-home-header"/);
-  assert.match(html, /class="cutter-project-hero ml-workbench-hero cutter-home-hero"/);
-  assert.match(html, /class="cutter-home-search cutter-project-search-form ml-workbench-hero-actions"/);
-  assert.match(html, /class="cutter-home-grid"/);
-  assert.match(html, /aria-label="选择项目 5月5日"/);
-  assert.match(html, /class="cutter-home-project-card is-selected"/);
-  assert.match(html, /class="cutter-home-project-actions"/);
+  assert.match(html, /class="cutter-home-command"/);
+  assert.match(html, /class="cutter-home-project-grid"/);
+  assert.match(html, /class="cutter-home-project-card is-current"/);
+  assert.match(html, /aria-label="进入项目 5月5日"/);
+  assert.match(html, /aria-label="项目操作 5月5日"/);
+  assert.match(html, /class="cutter-home-task-table"/);
+  assert.match(html, /class="cutter-home-task-status is-done">已完成/);
   assert.match(html, /class="cutter-cover-skeleton"/);
-  assert.match(html, /class="ml-media-fill cutter-cover-image"/);
-  assert.equal(html.includes('data-cover-state="loading"'), true);
+  assert.equal(html.includes("快速开始"), false);
+  assert.equal(html.includes("从一句话，剪出一条视频"), false);
   assert.equal(html.includes("Cutter / Project Home"), false);
-  assert.equal(html.includes("项目详情"), false);
 });
 
-test("project home separates selecting a recent project from entering it", () => {
+test("project home keeps project actions in a per-card menu", () => {
   const data = fixture();
   const projects: CutterProject[] = [
     {
@@ -547,8 +541,7 @@ test("project home separates selecting a recent project from entering it", () =>
       library: data.library,
       localClips: data.localClips,
       projects,
-      selectedProjectId: "P20260506-001",
-      onSelectProject: () => undefined,
+      currentProjectId: "P20260506-001",
       onOpenProject: () => undefined,
       onOpenProjectDirectory: () => undefined,
       onRenameProject: () => undefined,
@@ -556,17 +549,14 @@ test("project home separates selecting a recent project from entering it", () =>
     })
   );
 
-  assert.match(html, /aria-label="选择项目 5月5日"/);
-  assert.match(html, /aria-label="选择项目 直播复盘"/);
-  assert.match(html, /class="cutter-home-project-card is-selected"/);
-  assert.match(html, /class="cutter-home-project-select"/);
-  assert.match(html, /class="cutter-home-project-actions"/);
-  assert.ok((html.match(/class="cutter-home-project-actions"/g) ?? []).length === 1);
-  assert.match(html, /<span class="ml-button-label">进入项目<\/span>/);
-  assert.match(html, /<span class="ml-button-label">打开目录<\/span>/);
-  assert.match(html, /<span class="ml-button-label">重命名<\/span>/);
-  assert.match(html, /<span class="ml-button-label">删除<\/span>/);
-  assert.ok(html.indexOf("直播复盘") < html.indexOf("进入项目"));
+  assert.match(html, /aria-label="进入项目 5月5日"/);
+  assert.match(html, /aria-label="进入项目 直播复盘"/);
+  assert.equal((html.match(/aria-label="项目操作 /g) ?? []).length, 2);
+  assert.match(html, /class="cutter-home-project-card is-current"/);
+  assert.equal(html.includes("cutter-home-project-actions"), false);
+  assert.ok((html.match(/打开目录/g) ?? []).length === 2);
+  assert.ok((html.match(/重命名/g) ?? []).length === 2);
+  assert.ok((html.match(/删除/g) ?? []).length === 2);
 });
 
 test("project rename dialog uses an in-app form instead of a browser prompt", () => {
@@ -5000,6 +4990,37 @@ test("sidebar footer does not swap local and public library counts", () => {
 
   assert.match(html, /本地 146 \/ 公共 7950/);
   assert.equal(html.includes("本地 7950 / 公共 146"), false);
+});
+
+test("sidebar exposes workspace residue as a sidebar status entry", () => {
+  const base = {
+    username: "Allen",
+    localCount: 1,
+    publicCount: 2,
+    activeTaskCount: 0,
+    engineReady: true,
+    cacheBytes: 0
+  };
+  const withResidue = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      ...base,
+      residueCount: 5,
+      showResidueNotice: true,
+      onDismissResidue: () => undefined
+    })
+  );
+  assert.match(withResidue, /class="cutter-sidebar-residue-entry"/);
+  assert.ok(withResidue.includes("临时残留 5"));
+
+  const noResidue = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      ...base,
+      residueCount: 0,
+      showResidueNotice: true,
+      onDismissResidue: () => undefined
+    })
+  );
+  assert.equal(noResidue.includes("cutter-sidebar-residue-entry"), false);
 });
 
 test("sidebar footer keeps cutter status visually quiet", async () => {

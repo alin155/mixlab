@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { Button, SearchBox } from "@mixlab/ui-foundation";
+import { Button } from "@mixlab/ui-foundation";
 import type { LocalClipCatalog, SourceFolderOption, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
 import {
@@ -26,6 +26,48 @@ function formatProjectTime(value: string): string {
   }
 
   return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatRelativeTime(value: string, now: number = Date.now()): string {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const diffMs = Math.max(0, now - date.getTime());
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatTaskDuration(durationMs: number): string {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return "-";
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function taskStatusLabel(status: CutQueueJob["status"]): string {
+  if (status === "pending") return "等待中";
+  if (status === "running") return "剪切中";
+  if (status === "done") return "已完成";
+  if (status === "cancelled") return "已取消";
+  return "失败";
+}
+
+function taskStatusTimestamp(job: CutQueueJob): number {
+  const value = job.finished_at || job.updated_at || job.created_at;
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
 }
 
 function ProjectCover({ project, variant = "card" }: { project: CutterProject; variant?: "card" | "detail" }) {
@@ -272,13 +314,13 @@ export function ProjectHomePage({
   localClips,
   projects,
   selectedProjectId,
+  currentProjectId,
   queue = [],
   sourceFolderFilter = "",
   sourceFolders = [],
   searchMode = "content",
   onSearch,
   onSetMaterialScope,
-  onSelectProject,
   onOpenProject,
   onOpenProjectDirectory,
   onCreateProject,
@@ -291,6 +333,7 @@ export function ProjectHomePage({
   localClips: LocalClipCatalog;
   projects: readonly CutterProject[];
   selectedProjectId?: string;
+  currentProjectId?: string;
   queue?: readonly CutQueueJob[];
   sourceFolderFilter?: string;
   sourceFolders?: readonly SourceFolderOption[];
@@ -310,19 +353,13 @@ export function ProjectHomePage({
   const [deleteTargetProjectId, setDeleteTargetProjectId] = useState<string | undefined>();
   const [deleteMode, setDeleteMode] = useState<ProjectDeleteMode>("remove");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const selectedProject = projects.find((project) => project.project_id === selectedProjectId) ?? projects[0];
+  const activeProjectId = currentProjectId ?? selectedProjectId;
   const deleteTargetProject = projects.find((project) => project.project_id === deleteTargetProjectId);
-  const selectedProjectClipCount = selectedProject ? projectCompletedClipCount(selectedProject, queue) : 0;
-  const selectedProjectTitle = selectedProject ? projectDisplayTitle(selectedProject) : "";
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
-  const runningCount = queue.filter((job) => job.status === "running").length;
-  const pendingCount = queue.filter((job) => job.status === "pending").length;
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const todayDoneCount = queue.filter(
-    (job) => job.status === "done" && (job.finished_at || job.updated_at || "").slice(0, 10) === todayKey
-  ).length;
-  const recentJobs = queue.slice(0, 3);
+  const recentJobs = [...queue].sort((a, b) => taskStatusTimestamp(b) - taskStatusTimestamp(a)).slice(0, 5);
+  const doneJobCount = queue.filter((job) => job.status === "done").length;
+  const failedJobCount = queue.filter((job) => job.status === "failed").length;
 
 
   function openDeleteDialog(projectId: string) {
@@ -362,20 +399,13 @@ export function ProjectHomePage({
       <div className="cutter-page-main ml-workbench-main ml-workbench-main--project-home cutter-home-main">
         <header className="cutter-home-header">
           <div className="cutter-home-header-copy">
-            <p className="cutter-eyebrow ml-page-kicker ml-page-kicker--hero">工作台</p>
-            <h1 className="ml-page-title ml-page-title--hero">素材与剪切工作台</h1>
-            <p className="cutter-note ml-page-description ml-page-description--hero">
-              不选项目也能直接搜索和剪切；项目只是归档范围，可随时切换。
-            </p>
+            <p className="cutter-eyebrow ml-page-kicker">工作台</p>
+            <h1 className="ml-page-title cutter-home-title">工作台</h1>
+            <p className="cutter-note ml-page-description">搜索素材、继续项目，或查看最近的剪切结果。</p>
           </div>
           <div className="cutter-home-header-actions">
-            <Button
-              disabled={projects.length === 0}
-              onClick={() => onOpenProject?.(projects[0]!.project_id)}
-              type="button"
-              variant="secondary"
-            >
-              继续最近项目
+            <Button onClick={() => onNavigate?.("cut-tasks")} type="button" variant="secondary">
+              打开待剪清单
             </Button>
             <Button onClick={openCreateDialog} type="button" variant="primary">
               ＋ 新建项目
@@ -383,171 +413,178 @@ export function ProjectHomePage({
           </div>
         </header>
 
-        <section className="cutter-project-hero ml-workbench-hero cutter-home-hero" aria-label="开始搜索">
-          <div className="cutter-home-hero-side">
-            <span className="cutter-home-chip">
-              <span className="cutter-home-chip-dot" aria-hidden="true" />
-              {engineReady ? "本机服务正常" : "本机服务未就绪"}
-            </span>
-            <span className="cutter-home-chip">本地素材 {localClips.local_clip_count}</span>
-          </div>
-          <h2 className="cutter-home-hero-title">从一句话，剪出一条视频</h2>
-          <p className="cutter-home-hero-sub">
-            在公共素材库中搜索文案，定位命中片段，加入待剪清单后统一剪切。
-          </p>
-          <form
-            className="cutter-home-search cutter-project-search-form ml-workbench-hero-actions"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSearch?.(query);
-            }}
+        <form
+          className="cutter-home-command"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSearch?.(query);
+          }}
+        >
+          <input
+            aria-label="搜索素材"
+            className="ml-field-input cutter-home-command-input"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="搜索文案，例如：现金流"
+            value={query}
+          />
+          <select
+            aria-label="素材范围"
+            className="cutter-home-command-scope"
+            onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+            value={materialScopeValue}
           >
-            <select
-              aria-label="素材范围"
-              className="cutter-source-folder-select cutter-home-search-scope"
-              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
-              value={materialScopeValue}
-            >
-              <option value="">全部素材</option>
-              {sourceFolderOptions.map((folder) => (
-                <option key={folder.name} value={folder.name}>
-                  {folder.name}（{folder.count}）
-                </option>
-              ))}
-              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
-            </select>
-            <input
-              aria-label="搜索文案关键词或素材文件名"
-              className="ml-field-input cutter-home-search-input"
-              onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="输入文案关键词，例如：现金流"
-              value={query}
-            />
-            <Button type="submit" variant="primary">搜索素材</Button>
-            <Button onClick={() => onNavigate?.("public-library")} type="button" variant="secondary">
-              浏览公共素材库
-            </Button>
-          </form>
-          <div className="cutter-home-stats">
-            <div className="cutter-home-stat"><span>最近项目</span><strong>{projects.length}</strong></div>
-            <div className="cutter-home-stat"><span>本地素材</span><strong>{localClips.local_clip_count}</strong></div>
-            <div className="cutter-home-stat"><span>剪切任务</span><strong>{runningCount + pendingCount} 处理中</strong></div>
-            <div className="cutter-home-stat"><span>今日完成</span><strong>{todayDoneCount}</strong></div>
+            <option value="">全部素材</option>
+            {sourceFolderOptions.map((folder) => (
+              <option key={folder.name} value={folder.name}>
+                {folder.name}（{folder.count}）
+              </option>
+            ))}
+            <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+          </select>
+          <Button type="submit" variant="primary">搜索素材</Button>
+          <div className="cutter-home-command-meta">
+            <span>本地素材 <strong>{localClips.local_clip_count}</strong></span>
+            <span>公共素材 <strong>{library.available_video_count}</strong></span>
           </div>
+        </form>
+
+        <section className="cutter-home-section" aria-label="最近项目">
+          <div className="cutter-home-section-head">
+            <div>
+              <h2>最近项目</h2>
+              <span>共 {projects.length} 个</span>
+            </div>
+          </div>
+          {projects.length > 0 ? (
+            <div className="cutter-home-project-grid">
+              {projects.slice(0, 4).map((project) => {
+                const completedClipCount = projectCompletedClipCount(project, queue);
+                const pendingCount = project.searches[0]?.hit_count ?? 0;
+                const projectTitle = projectDisplayTitle(project);
+                const isCurrent = project.project_id === activeProjectId;
+                return (
+                  <article className={`cutter-home-project-card${isCurrent ? " is-current" : ""}`} key={project.project_id}>
+                    <button
+                      aria-label={`进入项目 ${projectTitle}`}
+                      className="cutter-home-project-open"
+                      onClick={() => onOpenProject?.(project.project_id)}
+                      type="button"
+                    >
+                      <span className="cutter-home-project-cover">
+                        <ProjectCover project={project} />
+                        <span className="cutter-home-project-badge">{isCurrent ? "当前项目" : projectTitle}</span>
+                        <span className="cutter-home-project-count">{project.clip_count} 片段</span>
+                      </span>
+                      <span className="cutter-home-project-body">
+                        <strong>{projectTitle}</strong>
+                        <span className="cutter-home-project-meta">
+                          <span className="is-done">已剪 {completedClipCount}</span>
+                          <span>待剪 {pendingCount}</span>
+                          <span>{formatRelativeTime(project.updated_at || project.created_at)}</span>
+                        </span>
+                      </span>
+                    </button>
+                    <details className="cutter-home-project-menu" onClick={(event) => event.stopPropagation()}>
+                      <summary aria-label={`项目操作 ${projectTitle}`}>⋯</summary>
+                      <div className="cutter-home-project-menu-popover" role="menu">
+                        {onOpenProjectDirectory ? (
+                          <button
+                            onClick={(event) => {
+                              event.currentTarget.closest("details")?.removeAttribute("open");
+                              onOpenProjectDirectory(project.project_id);
+                            }}
+                            role="menuitem"
+                            type="button"
+                          >
+                            打开目录
+                          </button>
+                        ) : null}
+                        {onRenameProject ? (
+                          <button
+                            onClick={(event) => {
+                              event.currentTarget.closest("details")?.removeAttribute("open");
+                              onRenameProject(project.project_id);
+                            }}
+                            role="menuitem"
+                            type="button"
+                          >
+                            重命名
+                          </button>
+                        ) : null}
+                        {onDeleteProject ? (
+                          <button
+                            className="is-danger"
+                            onClick={(event) => {
+                              event.currentTarget.closest("details")?.removeAttribute("open");
+                              openDeleteDialog(project.project_id);
+                            }}
+                            role="menuitem"
+                            type="button"
+                          >
+                            删除
+                          </button>
+                        ) : null}
+                      </div>
+                    </details>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="cutter-home-empty">
+              <strong>还没有归档项目</strong>
+              <span>项目只用于归档；不选项目也可以直接搜索，剪切时再选择归档到哪个项目。</span>
+              <div className="cutter-home-empty-actions">
+                <Button onClick={openCreateDialog} type="button" variant="primary">＋ 新建项目</Button>
+                <Button onClick={() => onSearch?.("")} type="button" variant="secondary">直接搜索素材</Button>
+              </div>
+            </div>
+          )}
         </section>
 
-        <div className="cutter-home-grid">
-          <section className="cutter-home-card cutter-home-projects" aria-label="最近项目">
-            <div className="cutter-home-section-title">
-              <strong>最近项目</strong>
-              <span>{projects.length > 0 ? `共 ${projects.length} 个项目` : "项目归档"}</span>
+        <section className="cutter-home-section" aria-label="最近剪切">
+          <div className="cutter-home-section-head">
+            <div>
+              <h2>最近剪切</h2>
+              <span>全部项目</span>
             </div>
-            {projects.length > 0 ? (
-              <div className="cutter-home-project-grid">
-                {projects.slice(0, 4).map((project) => {
-                  const completedClipCount = projectCompletedClipCount(project, queue);
-                  const isSelected = project.project_id === selectedProject?.project_id;
-                  const projectTitle = projectDisplayTitle(project);
-                  const projectSourceTitle = project.source_title?.trim();
-                  const pendingCount = project.searches[0]?.hit_count ?? 0;
-                  return (
-                    <article
-                      className={`cutter-home-project-card${isSelected ? " is-selected" : ""}`}
-                      key={project.project_id}
-                    >
-                      <button
-                        aria-label={`选择项目 ${projectDisplayTitle(project)}`}
-                        className="cutter-home-project-select"
-                        onClick={() => onSelectProject?.(project.project_id)}
-                        type="button"
-                      >
-                        <span className="cutter-home-project-cover"><ProjectCover project={project} /></span>
-                        <span className="cutter-home-project-body">
-                          <strong>{projectSourceTitle || projectTitle}</strong>
-                          <span>{projectSourceTitle ? projectTitle : `已剪 ${completedClipCount} · 待剪 ${pendingCount}`}</span>
-                        </span>
-                      </button>
-                      {isSelected ? (
-                        <div className="cutter-home-project-actions">
-                          <Button onClick={() => onOpenProject?.(project.project_id)} size="sm" type="button" variant="primary">
-                            进入项目
-                          </Button>
-                          {onOpenProjectDirectory ? (
-                            <Button onClick={() => onOpenProjectDirectory(project.project_id)} size="sm" type="button" variant="secondary">
-                              打开目录
-                            </Button>
-                          ) : null}
-                          <Button onClick={() => onRenameProject?.(project.project_id)} size="sm" type="button" variant="secondary">
-                            重命名
-                          </Button>
-                          <Button onClick={() => openDeleteDialog(project.project_id)} size="sm" type="button" variant="danger">
-                            删除
-                          </Button>
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
+            <Button onClick={() => onNavigate?.("cut-tasks")} size="sm" type="button" variant="ghost">
+              全部任务
+            </Button>
+          </div>
+          <div className="cutter-home-task-table">
+            <div className="cutter-home-task-table-head">
+              <strong>已完成 {doneJobCount} · 失败 {failedJobCount}</strong>
+              <span>最近 {recentJobs.length} 条</span>
+            </div>
+            {recentJobs.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>状态</th>
+                    <th>来源视频</th>
+                    <th>时长</th>
+                    <th>完成时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentJobs.map((job) => (
+                    <tr key={job.queue_job_id}>
+                      <td>
+                        <span className={`cutter-home-task-status is-${job.status}`}>{taskStatusLabel(job.status)}</span>
+                      </td>
+                      <td className="cutter-home-task-source">{job.source_title || job.title}</td>
+                      <td className="cutter-home-task-time">{formatTaskDuration(job.duration_ms)}</td>
+                      <td className="cutter-home-task-time">{formatRelativeTime(job.finished_at || job.updated_at || job.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : (
-              <div className="cutter-home-empty">
-                <strong>还没有归档项目</strong>
-                <span>项目只用于归档；不选项目也可以直接搜索，剪切时再选择归档到哪个项目。</span>
-                <div className="cutter-home-empty-actions">
-                  <Button onClick={openCreateDialog} type="button" variant="primary">＋ 新建项目</Button>
-                  <Button onClick={() => onSearch?.("")} type="button" variant="secondary">直接搜索素材</Button>
-                </div>
-              </div>
+              <p className="cutter-home-task-empty">还没有剪切任务；先去搜索一段文案，加入待剪清单。</p>
             )}
-          </section>
-
-          <section className="cutter-home-card cutter-home-quick" aria-label="快速开始">
-            <div className="cutter-home-section-title">
-              <strong>快速开始</strong>
-              <span>常用入口</span>
-            </div>
-            <div className="cutter-home-quick-list">
-              <button className="cutter-home-quick-item" onClick={() => onSearch?.("")} type="button">
-                <span className="cutter-home-quick-icon" aria-hidden="true">⌕</span>
-                <span className="cutter-home-quick-copy"><strong>直接搜索素材</strong><span>不选项目，先找文案和片段</span></span>
-                <span className="cutter-home-quick-note">推荐</span>
-              </button>
-              <button className="cutter-home-quick-item" onClick={openCreateDialog} type="button">
-                <span className="cutter-home-quick-icon" aria-hidden="true">＋</span>
-                <span className="cutter-home-quick-copy"><strong>新建项目</strong><span>为这次剪辑建立归档项目</span></span>
-              </button>
-              <button className="cutter-home-quick-item" onClick={() => onNavigate?.("cut-tasks")} type="button">
-                <span className="cutter-home-quick-icon" aria-hidden="true">✂</span>
-                <span className="cutter-home-quick-copy">
-                  <strong>查看剪切任务</strong>
-                  <span>{runningCount + pendingCount > 0 ? `${runningCount + pendingCount} 个处理中` : "查看队列与已完成任务"}</span>
-                </span>
-              </button>
-              <button className="cutter-home-quick-item" onClick={() => onNavigate?.("local-library")} type="button">
-                <span className="cutter-home-quick-icon" aria-hidden="true">▤</span>
-                <span className="cutter-home-quick-copy"><strong>本地素材</strong><span>播放、打开目录或继续编辑</span></span>
-              </button>
-            </div>
-            <div className="cutter-home-section-title cutter-home-recent-title">
-              <strong>最近剪切 · 全部项目</strong>
-              <Button onClick={() => onNavigate?.("cut-tasks")} size="sm" type="button" variant="ghost">全部任务</Button>
-            </div>
-            <div className="cutter-home-recent-list">
-              {recentJobs.length > 0 ? recentJobs.map((job, index) => {
-                const statusLabel = queueJobStatusLabel(job);
-                return (
-                  <button className="cutter-home-recent-item" key={job.queue_job_id} onClick={() => onNavigate?.("cut-tasks")} type="button">
-                    <span className={`cutter-home-recent-badge is-${job.status}`}>{statusLabel}</span>
-                    <span className="cutter-home-recent-title">{job.title || job.source_title}</span>
-                    <span className="cutter-home-recent-meta">{queueJobMeta(job, index)}</span>
-                  </button>
-                );
-              }) : (
-                <p className="cutter-home-recent-empty">还没有剪切任务；先去搜索一段文案，加入待剪清单。</p>
-              )}
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
       {deleteTargetProject ? (
         <ProjectDeleteDialog
