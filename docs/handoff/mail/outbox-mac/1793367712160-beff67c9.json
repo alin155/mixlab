@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793367712160-beff67c9",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793367712160-beff67c9",
+  "created_at": "2026-10-30T13:41:52.160Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793367472520-9e13e0a8"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Batch B 审查与补验，尚无已证实的 P0/P1 发布阻断，但本轮不能给出发布通过结论。** 已只读核对[证据 ZIP](/Users/huaqihang/Public/MixLabWindowsBuilds/batch-b-evidence-9c87a7f.zip)：SHA-256 与回执一致，六张截图支持三页布局改造的描述。不过，快照仍为 `269d99658ae2`，`DIFF.patch` 为空，未包含候选 `9c87a7f`；`verify.json` 仅记录页面状态，不能独立证明交互和所报 151 项测试通过。\n\n### 消息 1793367472520-9e13e0a8\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：回执称治理块仅有孤儿素材时显示；快照 [API](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-cbBByf/packages/cutter-api/src/local-clip-maintenance.ts:574)在索引损坏时返回 `orphans: []、degraded: true`，[旧页](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-cbBByf/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:355)将告警和重试放在治理块内。\n- 问题/风险：若候选按孤儿数隐藏整块，会掩盖故障及恢复入口；尚未证实发生回归。\n- 建议：核对候选显示条件，保留异常提示和重试，仅折叠正常摘要。\n- 需要证据：候选条件代码，以及零孤儿降级、检查失败两种状态的截图。\n\n## 跨消息建议\n\n1. **核验长文案下的操作可达性。** 本地素材 1440 截图中，长文案把“打开目录/删除”推到可视区外。确认 Inspector 能滚动到底，且两个动作可正常触达。\n2. **明确“最近任务”的范围。** 详情截图列出多个历史任务名。确认展示的是项目队列还是当前素材任务，并让标题准确表达范围，继续复用现有 queue 即可。\n3. **明确原型差异的验收结论。** 沿用信息栈、保留现有回调是合理的收敛方式；将未拆 tabs、未新增本地剪切及源目录动作分别记为接受或延期，避免“缺少回调”自动成为产品验收结论。"
+}
