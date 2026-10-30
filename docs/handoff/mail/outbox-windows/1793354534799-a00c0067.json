@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793354534799-a00c0067",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793354534799-a00c0067",
+  "reply_to": "1793353017482-72aec863",
+  "created_at": "2026-10-30T10:02:14.799Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.17 构建/升级/UI/copy/发布完成】\n\n构建源：hotfix/0.18.17 @ ea1dd2b（基于 main 4594991，含 UI Phase 0 + 首页 v3 eaee13e）\n安装包：MixLab Cutter_0.18.17_x64-setup-ea1dd2b.exe\nsha256=CA2EC8C308FD76CFC65679259E64E989266D557A5520CD9706BCE7FF9302EA78\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.17\\（exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.17-ea1dd2b.txt）\n- 三处 sha 一致；0.18.13/0.18.14/0.18.15/0.18.16 均保留；**LATEST 未更新**。\n\n【0.18.16→0.18.17 覆盖升级：PASS】\n- DisplayVersion=0.18.17；exe FileVersion=0.18.17；设置页版本 v0.18.17；\n- 首页 v3：命令栏 + 4 项目卡 + 最近剪切表格 + ⋯ 菜单；1536/1440 无横向滚动，主内容 clientHeight=scrollHeight。\n- 左侧栏“临时残留 5”入口/面板/去清理/关闭/稍后；关闭后刷新入口隐藏；升级/错误通知栈未混用。\n\n【快速 copy：2/2 copy，verification 通过】\n| 任务 | 源 | queue | preflight | cut_media | 输出 |\n| CJ20261030-0006 | C0481 | 12ms | 9ms | 5100ms | E000090/001-0.18.17 quick copy E2E-C0481.mp4 |\n| CJ20261030-0007 | 040A4313 | 5.6s | 5ms | 6337ms | E000091/002-0.18.17 quick copy E2E-040A4313.mp4 |\n\n【必须说明的交互差异】\nea1dd2b 合并的是 eaee13e，**未包含后续 477e985（右侧小面板）**。因此 0.18.17 中的小清理面板实际在侧栏状态卡上方（rect x=12、宽 207），不是最终确认的“右侧弹出”位置。\n如果你要求最终右侧面板，请把 ui/home-v3-minimal 的 477e985 补进来（或发新 hotfix/0.18.18），我再构建；当前包严格对应你指定的 ea1dd2b。\n\n【证据】\n- 本地：C:\\dev\\mixlab-verify-01817、C:\\dev\\home-v3-01817-verify\n- Mac 共享：01817-evidence.zip\n  sha256=14462050CFCFB0508E9221560C1CA4C1CC9B291A0BC9B6C2336868F0F3D69CBF\n\n本任务未改代码、未升版本、未发布 LATEST。"
+}
