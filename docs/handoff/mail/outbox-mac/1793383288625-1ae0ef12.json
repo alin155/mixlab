@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793383288625-1ae0ef12",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793383288625-1ae0ef12",
+  "created_at": "2026-10-30T18:01:28.625Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793383106225-5170c4b7"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进隔离开发，筛选接线前需补全交接契约；未发现新增发布阻塞的实证。** 本任务明确不升版、不发布。当前快照仍为 `269d99658ae2`，`DIFF.patch` 为空，未覆盖 `d3cf163` 多目录实现，因此本轮只能评审方案，不能独立确认所报 25/25 或新版发布条件。\n\n### 消息 1793383106225-5170c4b7\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[消息正文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kIgIOa/REVIEW-PACKET.md:16)缺少 searchd 参数名及三组老师→目录映射；[现有过滤逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kIgIOa/packages/searchd/src/main.rs:1595)仍为单值相等。\n- 问题/风险：Windows 无法据此确定别名范围及实际分隔值，容易误接。\n- 建议：先核对原始 Mail JSON 与评审包，补发关联更正，明确参数名、目录数组及真实 U+001F 的编码示例。\n- 需要证据：完整映射、`d3cf163` 差异及新增测试输出。\n\n## 跨消息建议\n\n1. **覆盖所有搜索分流。** 当前[目录查询、文件名查询及故障回退](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kIgIOa/packages/cutter-api/src/index.ts:2630)均可能绕过 searchd；[SQLite](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kIgIOa/packages/search-sqlite/src/index.ts:627)仍按单目录相等过滤。需确认新基线是否覆盖这些路径，补“老师筛选＋文件名／目录查询／searchd 不可用”用例，避免直接透传目录串导致零结果。\n\n2. **明确老师与目录的组合规则。** 建议老师范围与来源目录取交集：同属目录进一步缩小，不属目录返回空结果；未知老师明确报错或返回空集。现有[请求同时携带目录条件与目录查询](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kIgIOa/apps/cutter-web/src/api.ts:1196)，新增 teacher 后应验证三者不会互相覆盖。\n\n3. **统一归属、显示与计数口径。** 当前[sourceFolders 只有 name/count](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-kIgIOa/packages/library-fs/src/cutter-source-library.ts:96)。先明确“lecturer 优先”是否改变筛选归属；补目录归属与 lecturer 冲突样本，保证选项、候选卡和详情一致。消息中的三个数量应作为指定素材库快照的校验值，运行时动态计算，并标明是素材总数还是搜索命中数。"
+}
