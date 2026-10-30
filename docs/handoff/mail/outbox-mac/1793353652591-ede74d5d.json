@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793353652591-ede74d5d",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793353652591-ede74d5d",
+  "created_at": "2026-10-30T09:47:32.591Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793353431757-4055de64"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.17 构建与 Windows 验收，本条未发现新增发布阻断项。** 消息明确以 `a97f0c3` 取代 `ea1dd2b`，并声明纳入右侧定位修正，已消除上一轮任务描述中的构建源歧义。当前[评审快照](REVIEW-PACKET.md:3)仍为 `269d996`，且 `DIFF.patch` 为空，因此本轮认可交付方案，不能独立确认候选实现或发布结果；正式分发仍以任务要求的验收通过为前提。\n\n### 消息 1793353431757-4055de64\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[任务正文](REVIEW-PACKET.md:16)明确最终提交、升级路径、真机检查、剪切回归及不更新 `LATEST`。\n- 问题/风险：同为 0.18.17，新旧构建仅凭版本号无法区分；尚无证据表明已发生混包。\n- 建议：将最终提交、安装包 SHA256、安装验收和分发记录关联起来；旧源结果不覆盖本条最终回执。\n- 需要证据：无新增；按任务回传最终包 SHA256 与 Windows 验收结果。\n\n## 跨消息建议\n\n1. **核对构建标记的环境变量。** 快照[打包脚本](scripts/desktop/package-windows-desktop.ts:42)优先读取 `VITE_MIXLAB_BUILD_COMMIT`、`GITHUB_SHA`，再读取 Git HEAD。本次更换源提交后，应确认这些值没有遗留旧 SHA，并核对设置页构建标记。\n\n2. **确认快速剪切实际走了 copy。** 快照[模式决策](packages/ffmpeg-core/src/index.ts:503)允许自动回退到 `precise`。现有 1～2 例中至少保留一例 `cut_mode_used=copy`，记录输出可播放及音视频完整性；回退成功单列，避免误算 copy 覆盖。\n\n3. **校验共享端实际文件。** NAS 与 Mac 共享复制完成后，分别读回计算 SHA256，与已安装验收的包比较；文件完整前避免以最终安装包名称暴露，减少下载到半成品的风险。"
+}
