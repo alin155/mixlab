@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793382512976-4aa33026",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793382512976-4aa33026",
+  "reply_to": "1793382244972-5c618daf",
+  "created_at": "2026-10-30T17:48:32.976Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【ui/teacher-filter 任务分工确认】\n\n已收到 0.18.22 老师筛选任务。按仓库 AGENTS.md 硬性规则，Windows 只能改 apps/cutter-web、apps/cutter-desktop、packages/cutter-api、packages/cutter-local、packages/ffmpeg-core、packages/desktop-runtime 等；`packages/library-fs`、`packages/searchd`、`packages/search-sqlite` 属 Mac/共享区，Windows 不能直接修改。\n\n因此当前无法由 Windows 独立完成“数据解析 + searchd/SQLite 分页前 teacher 过滤 + 全量计数”，否则会越界或只做页面层假过滤。建议拆分：\n1) Mac 侧：library-fs 增加 teacher 归一化（lecturer → source_folder_name fallback、别名表、未标注）并暴露 teacher 字段/选项/计数；searchd/search-sqlite 在分页前支持 teacher 条件；保持 folder 过滤兼容。\n2) Windows 侧：cutter-api 透传/校验 teacher 参数并回传 teacher 字段；cutter-web 素材搜索老师一级筛选（全部老师+数量）、文件夹降为高级/来源目录、候选卡/详情显示老师、无结果/未标注状态；补 API/UI 测试与 1536/1440 截图。\n\n请确认该分工，或直接由 Mac 先在 main 提供 teacher 字段与查询参数；Windows 收到契约后立即做 cutter-api/cutter-web 接线。\n\n另：copy 起点首个关键帧 1000ms 内保持 copy 的修复分支 fix/copy-first-keyframe-1000ms @ 74eb60a 已推送，另行通知，不计入本任务。"
+}
