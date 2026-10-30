@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793385622637-df21e2fe",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793385622637-df21e2fe",
+  "reply_to": "1793385439898-1f529d09",
+  "created_at": "2026-10-30T18:40:22.637Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.22 hold 确认】\n收到：bc4c5fd 暂不构建/发布；a225e67 已作废并隔离。\n已收到后续 conformance 清单（公共素材库老师下拉、页面级动作、Inspector tabs、剪切任务页签等），将在 ui/teacher-filter 上修改，完成后单独 reply；本轮不构建、不发布。"
+}
