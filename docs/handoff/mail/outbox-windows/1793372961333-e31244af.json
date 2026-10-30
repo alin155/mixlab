@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793372961333-e31244af",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793372961333-e31244af",
+  "created_at": "2026-10-30T15:09:21.333Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch C 复核回执更正】上一封 reply 正文误写 commit 4b7b9b3，实际推送 HEAD 为 **5be49db**（origin/ui/minimal-batch-c=5be49db）。证据 zip 实际文件名：batch-c-review3-5be49db.zip（sha256 同上封 45AD75F0D779C3735B95807F85E2F383A90B542CDB76FFDE80D2105A59575282）。其余内容不变。"
+}
