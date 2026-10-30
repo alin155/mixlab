@@ -2257,8 +2257,8 @@ body,
 .cutter-home-header-copy .ml-page-description {
   display: none;
 }
-.cutter-page-header,
-.cutter-home-header {
+.cutter-page .cutter-page-header,
+.cutter-page .cutter-home-header {
   padding-top: 4px;
   padding-bottom: 4px;
 }
@@ -2268,7 +2268,7 @@ body,
 .cutter-home-header-copy .ml-page-kicker {
   display: none !important;
 }
-.cutter-page-header {
+.cutter-page .cutter-page-header {
   padding-top: 0 !important;
 }
 .cutter-cut-tasks-secondary-entry {
