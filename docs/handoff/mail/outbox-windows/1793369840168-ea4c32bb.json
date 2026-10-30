@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793369840168-ea4c32bb",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793369840168-ea4c32bb",
+  "reply_to": "1793369205581-a1e23af5",
+  "created_at": "2026-10-30T14:17:20.169Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch C（缓存管理 + 设置）已完成，待审查】\n\n分支：ui/minimal-batch-c（基于 origin/main @ 35f8c5c，含 0.18.20）\ncommit：f9a5fbd（feat(cutter-web): minimize cache management and settings pages）\n远程：origin/ui/minimal-batch-c = f9a5fbd\n\n【缓存管理】\n- 去掉 6 个 KPI 卡；顶部改为摘要行（运行缓存/界面缓存/临时残留/状态）；\n- 新增“缓存分类”表：运行缓存、Release、搜索索引、缩略图、原视频、剪切临时区、界面缓存；\n- 保留清理操作区（刷新清单/预览清理/确认清理）、治理记录、工作区残留、Release 缓存、测试结果、缓存明细与右侧缓存位置；\n- 原清理/预览/诊断/路径入口均保留。\n\n【设置】\n- 整理为 4 个分组：服务状态、素材与工作区、剪切默认、账号与安全；\n- 删除原超长“服务状态”表；缓存细节移到缓存管理页；\n- 保留本地素材库配置、默认来源/视频类型、剪切模式/并发/音频、显示模式、版本号、路径、环境检查、修改登录密码。\n\n验证：typecheck PASS；产品测试 151/151 PASS；1536/1440 截图 + 两页 full page；无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-c-evidence-f9a5fbd.zip\n  sha256=**459A9D61E31D2104784BA7E3BCD5ABD8228E03949F031D9E988295B9B8C3C94D**\n含 cache/settings 1536/1440、full page、verify.json；本地 C:\\dev\\batch-c-verify。\n\n未升版本、未发布；未改 API/业务规则/项目模型；未动首页/搜索/剪切任务/本地素材/公共素材库/素材详情。"
+}
