@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793382972409-cfcbb05c",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793382972409-cfcbb05c",
+  "created_at": "2026-10-30T17:56:12.409Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793382795956-9867e28c"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进定向集成，未发现新增发布阻塞。** 真实源文件的实测增强了该场景保留 copy 的可行性，新增短片段保护方向合理。但当前快照仍为 `269d99658ae2`，`DIFF.patch` 为空，未包含 `74eb60a/b6ec93a`；测试结果属于消息自报，本轮尚不能确认修复实现或放行新包。\n\n### 消息 1793382795956-9867e28c\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[实测摘要](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Ny5QFH/REVIEW-PACKET.md:18)报告时长差139ms、首帧PTS 100ms；后者低于现有250ms阈值。\n- 问题/风险：未附实际命令，尚不能确认手动实测与产品执行参数一致；新增保护的调用接线无法核验。\n- 建议：同意集成，重点核对命令一致性及终点参数贯通。\n- 需要证据：实测命令、原始探针JSON、新增保护调用处及队列测试。\n\n## 跨消息建议\n\n1. **对齐手动实测与产品命令。** 当前 [copy 命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Ny5QFH/packages/ffmpeg-core/src/index.ts:91)采用输入前 `-ss`、视频 copy、音频 AAC、`-avoid_negative_ts make_zero`。实测记录应列明这些参数，避免将其他参数组合的成功直接用于产品验收。\n\n2. **核对新增数据的取整口径。** 现有[时间转换](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Ny5QFH/packages/ffmpeg-core/src/index.ts:348)将66.733ms取整为67ms；若新逻辑据此记录距离，按[容差公式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Ny5QFH/packages/cutter-local/src/cut-queue.ts:1986)应为817ms，消息写816ms。此差异不影响139ms通过，但建议引用程序实际输出，明确取整是否变化。\n\n3. **核验新增保护贯通队列。** 旧[生产调用点](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Ny5QFH/packages/cutter-local/src/cut-queue.ts:2609)没有传入 `end_ms`。集成时应确认终点已进入决策函数，并用队列级用例证明：首关键帧约67ms、终点50ms时，传给剪切执行器的模式确为 `precise`；不能仅凭决策函数新增单测认定接线完成。"
+}
