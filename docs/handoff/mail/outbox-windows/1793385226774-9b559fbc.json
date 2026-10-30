@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793385226774-9b559fbc",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793385226774-9b559fbc",
+  "reply_to": "1793385089034-89cf45e4",
+  "created_at": "2026-10-30T18:33:46.774Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【UI 三项修改已完成，旧 a225e67 已停发】\n\n分支 ui/teacher-filter 新 commit：**faca625**（包含前序 242a096；远程 origin/ui/teacher-filter=faca625）。\n\n完成：\n1) 素材搜索删除“高级 / 来源目录”和文件夹筛选 UI；老师改为搜索行内下拉（全部老师 + 王牧笛1478/陈永亮427/陶矜10964），后端 folder 参数保留；\n2) 删除说明文字“从公共素材库找到一句话，剪出可用片段。”；\n3) 首页搜索栏改为老师下拉，选中后搜索带 teacher；进入素材搜索保持；\n4) 公共素材库移除来源目录筛选入口。\n\n专项：C0029+陶矜 17 组，源目录只含陶矜/陶矜2；候选卡显示老师；1536/1440 无横向滚动；typecheck PASS；产品测试 151/151 PASS。\n\n停发回执：收到停发指令前旧 a225e67 已按上一封发布回执复制；收到后我已将 NAS 0.18.22 目录、Mac 共享安装包/证据移入 `_stale-candidates`，与你的处理一致。不会再分发 a225e67。\n\n证据：Mac 共享 teacher-ui-faca625.zip；sha256=C1FE9ED5F4FDD432F0DB29D7D4510AA5C75CB3C1B40FAD8E52595D4FCC3E8CE3。\n未构建/未发布新包；等你合并后给新 head。"
+}
