@@ -346,14 +346,14 @@ export function CutQueuePage({
     {
       id: "status",
       header: "状态",
-      width: "86px",
+      width: "80px",
       align: "center",
       render: (job) => <Badge tone={statusTone(job.status)}>{labelForStatus(job.status)}</Badge>
     },
     {
       id: "queue",
       header: "队列",
-      width: "150px",
+      width: "120px",
       align: "center",
       render: (job) => {
         const progress = estimateCutQueueProgress(jobs, job, nowMs);
@@ -367,7 +367,7 @@ export function CutQueuePage({
     {
       id: "source",
       header: "来源",
-      width: "17%",
+      width: "22%",
       render: (job) => (
         <button
           className="cutter-queue-source-button ml-table-text-button"
@@ -384,20 +384,11 @@ export function CutQueuePage({
     {
       id: "time",
       header: "时间段",
-      width: "15%",
+      width: "17%",
       align: "center",
       render: (job) => (
         <span className="cutter-queue-time-range ml-truncate-line ml-table-muted-text">
           {formatDuration(job.begin_ms)} - {formatDuration(job.end_ms)}
-        </span>
-      )
-    },
-    {
-      id: "text",
-      header: "选中文案",
-      render: (job) => (
-        <span className="cutter-queue-selected-text ml-truncate-line ml-table-primary-text">
-          {shortSelectedText(job.selected_text)}
         </span>
       )
     },
@@ -415,7 +406,7 @@ export function CutQueuePage({
     {
       id: "action",
       header: "操作",
-      width: "92px",
+      width: "100px",
       align: "center",
       render: (job) => {
         const verification = jobVerification(job);
@@ -503,14 +494,24 @@ export function CutQueuePage({
                 {batchResult.message}
               </p>
             ) : null}
-            {batchEnabled ? (
+            {batchEnabled && selectedJobIds.size > 0 ? (
               <p className="cutter-queue-batch-hint">
                 批量取消可在稍后重新重试；隐藏只影响本机视图，可恢复，不会删除任务文件。
               </p>
             ) : null}
           </div>
           <div className="ml-control-cluster">
-            {batchEnabled ? (
+            {hiddenJobCount > 0 && onRestoreHiddenJobs ? (
+              <Button
+                className="cutter-queue-batch-restore"
+                onClick={onRestoreHiddenJobs}
+                size="sm"
+                variant="ghost"
+              >
+                {`恢复已隐藏（${hiddenJobCount}）`}
+              </Button>
+            ) : null}
+            {batchEnabled && selectedJobIds.size > 0 ? (
               <div className="cutter-queue-batch ml-control-cluster" role="group" aria-label="批量操作">
                 <span className="cutter-queue-batch-count">{selectedJobIds.size} 个已选</span>
                 <Button
@@ -540,16 +541,6 @@ export function CutQueuePage({
                 >
                   {batchPending === "delete" ? "隐藏中" : `隐藏（可恢复）（${deleteTargetCount}）`}
                 </Button>
-                {hiddenJobCount > 0 && onRestoreHiddenJobs ? (
-                  <Button
-                    className="cutter-queue-batch-restore"
-                    onClick={onRestoreHiddenJobs}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    {`恢复已隐藏（${hiddenJobCount}）`}
-                  </Button>
-                ) : null}
               </div>
             ) : null}
             {onOpenCutOutputDirectory ? (
@@ -643,6 +634,12 @@ export function CutQueuePage({
               <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>选区时长</dt>
                 <dd>{formatDuration(Math.max(0, selectedJob.end_ms - selectedJob.begin_ms))}</dd>
+              </div>
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
+                <dt>选中文案</dt>
+                <dd>
+                  <span title={selectedJob.selected_text}>{shortSelectedText(selectedJob.selected_text || "") || "-"}</span>
+                </dd>
               </div>
               <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>来源素材</dt>

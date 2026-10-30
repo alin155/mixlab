@@ -1737,14 +1737,13 @@ export function MaterialLocatorPage({
                   className={[
                     "cutter-selection-bar",
                     "cutter-floating-selection-bar",
-                    "ml-floating-action-bar",
-                    "ml-floating-selection-anchor",
-                    "is-anchored"
+                    "ml-floating-action-bar"
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  style={selectionBarStyle}
+                  data-placement="docked"
                   ref={selectionBarRef}
+                  style={{ alignSelf: "end", justifySelf: "end", margin: "6px 14px 10px" }}
                 >
                   <strong className="ml-floating-action-label">
                     已选 {selectedDurationLabel(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}

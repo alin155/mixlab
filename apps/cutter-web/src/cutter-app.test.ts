@@ -4739,12 +4739,15 @@ test("cut tasks page exposes batch retry, pause and delete with empty-selection 
     })
   );
 
-  for (const text of ["0 个已选", "批量重试（0）", "批量取消（可重试）（0）", "隐藏（可恢复）（0）", "恢复已隐藏（2）"]) {
-    assert.match(html, new RegExp(text));
-  }
+  // Batch actions stay collapsed until at least one row is explicitly checked;
+  // the independent hidden-restore entry remains available.
+  assert.equal(html.includes("0 个已选"), false);
+  assert.equal(html.includes("批量重试"), false);
+  assert.equal(html.includes("批量取消"), false);
+  assert.equal(html.includes("隐藏（可恢复）"), false);
+  assert.match(html, /恢复已隐藏（2）/);
   assert.match(html, /aria-label="全选当前任务"/);
   assert.equal((html.match(/aria-label="选择任务 /g) ?? []).length, data.queue.length);
-  assert.equal((html.match(/cutter-queue-batch-button[^>]*disabled=""/g) ?? []).length, 3);
   assert.match(html, /class="cutter-queue-select-input"/);
 });
 
