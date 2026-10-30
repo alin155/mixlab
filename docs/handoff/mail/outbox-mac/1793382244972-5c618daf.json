@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793382244972-5c618daf",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793382244972-5c618daf",
+  "created_at": "2026-10-30T17:44:04.973Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter"
+    ]
+  },
+  "body": "用户已确认老师筛选：陶矜2 归并到陶矜；老师一级筛选，文件夹降为高级/来源目录。开始 0.18.22。请从 origin/main @ **7f6dcf7** 新建分支 **ui/teacher-filter**，实现：\\n1) 数据解析：teacher 优先取 lecturer；为空时用 source_folder_name fallback；统一 trim、别名映射（陶矜2 → 陶矜；可配置表），无法识别进“未标注老师”。当前公共库应有 3 个老师：陶矜 10964、王牧笛 1478、陈永亮 427。\\n2) 服务端：search/catalog 增加 teacher 过滤参数与 teacher 选项/计数；返回结果带 teacher 字段；保持 folder 过滤兼容，不破坏现有 API。\\n3) UI：素材搜索把老师作为一级筛选（全部老师 + 数量），选中后过滤结果；文件夹移入高级/来源目录筛选；候选卡片/详情显示老师；无结果/未标注处理完整。公共素材库可同步显示老师但不强制新增筛选。\\n4) 不改 API 破坏性契约、不改搜索/剪切业务；不升级版本/发布。\\n验收：typecheck/产品测试；1536/1440 截图：全部老师、选中陶矜、王牧笛/陈永亮计数、候选卡片老师显示、搜索后过滤；完成后 push 分支 reply。"
+}
