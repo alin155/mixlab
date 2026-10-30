@@ -1960,11 +1960,12 @@ body,
 }
 
 .cutter-sidebar-residue-panel {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 25;
+  position: fixed;
+  left: calc(var(--ml-sidebar-width) + 10px);
+  bottom: 96px;
+  z-index: 60;
+  width: 260px;
+  max-width: calc(100vw - var(--ml-sidebar-width) - 24px);
   padding: 10px;
   border: 1px solid var(--ml-color-border);
   border-radius: 10px;
