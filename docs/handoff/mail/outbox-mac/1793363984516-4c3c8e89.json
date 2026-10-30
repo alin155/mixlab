@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793363984516-4c3c8e89",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793363984516-4c3c8e89",
+  "created_at": "2026-10-30T12:39:44.516Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793363830915-17f7f38b"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Mac 复审与定向补验，尚不足以认定本功能可发布。** 回执已说明独立落盘、规范提交和旧项目迁移结果，未发现新增 P0/P1 阻断依据。但当前快照仍为 `269d996`，`DIFF.patch` 为空，无法独立核验候选 `504cc62`；新项目首剪也明确未实测。以上是验收缺口，不构成对既有版本发布的否定。\n\n### 消息 1793363830915-17f7f38b\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[回执](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PTRiln/REVIEW-PACKET.md:33>)报告 322/322 通过、四个旧项目迁移成功；[第43行](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PTRiln/REVIEW-PACKET.md:43>)明确未重跑新项目首剪。\n- 问题/风险：旧项目已有本地 clip，不能证明新项目从无封面到可显示的完整链路。\n- 建议：补一例“新建项目→首剪完成→首次回首页”，核对项目归属、封面落盘及本地图片响应后再收口。\n- 需要证据：该案例的任务结果、文件记录和图片请求记录。\n\n## 跨消息建议\n\n1. **检查首剪期间的重试行为。** 封面请求可能早于本地 clip 生成；确认首次未命中后，剪切完成能够重新加载本地封面，避免一直停留在源封面回退状态。这是待核验项，尚无已发生故障证据。\n\n2. **复审新增匿名路由的路径边界。** 现有[项目删除逻辑](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PTRiln/packages/cutter-local/src/project-cleanup.ts:21>)限制项目 ID。核对新端点具有同等校验，编码分隔符及非法 ID 无法越出项目封面目录；已有测试覆盖即可，无需扩大鉴权改造。\n\n3. **核对持久化绝对 URL 与当前 API 地址的关系。** 回执称保存绝对地址；旧版[URL 解析器](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PTRiln/apps/cutter-web/src/api.ts:1390>)会原样保留绝对 URL。复审时确认配置地址变化后是否重新计算，避免本地文件仍在却持续请求旧地址；若候选实现已处理，记录覆盖即可。"
+}
