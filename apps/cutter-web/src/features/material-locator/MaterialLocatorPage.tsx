@@ -593,6 +593,8 @@ export function MaterialLocatorPage({
   searchMode = "content",
   sourceFilter,
   sourceFolderFilter = "",
+  teacherFilter = "",
+  onSetTeacherFilter,
   sourceFolders = [],
   orientationFilter,
   selectedDetail,
@@ -634,6 +636,8 @@ export function MaterialLocatorPage({
   searchMode?: MaterialSearchMode;
   sourceFilter: MaterialSearchSourceFilter;
   sourceFolderFilter?: string;
+  teacherFilter?: string;
+  onSetTeacherFilter?: (teacher: string) => void;
   sourceFolders?: readonly SourceFolderOption[];
   orientationFilter: VideoOrientationFilter;
   selectedDetail: SourceVideoDetail;
@@ -687,6 +691,18 @@ export function MaterialLocatorPage({
     search
   });
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
+  const teacherAliases: Record<string, string> = { "陶矜2": "陶矜" };
+  const teacherForFolderName = (folderName?: string): string => {
+    const first = (folderName ?? "").replace(/\\/g, "/").split("/").filter(Boolean)[0]?.trim() ?? "";
+    return first ? (teacherAliases[first] ?? first) : "未标注老师";
+  };
+  const teacherOptions: Array<{ name: string; count: number }> = [];
+  for (const folder of sourceFolderOptions) {
+    const teacher = teacherForFolderName(folder.name);
+    const existing = teacherOptions.find((item) => item.name === teacher);
+    if (existing) existing.count += folder.count;
+    else teacherOptions.push({ name: teacher, count: folder.count });
+  }
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
   const hasActiveQuery = query.trim().length > 0;
   const hasFocusedMaterial = hasActiveQuery && Boolean(selectedMaterialKey);
@@ -1461,20 +1477,46 @@ export function MaterialLocatorPage({
               onSubmit={(value) => onSearch?.(value)}
               placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索文案关键词、素材文件名或粘贴爆款文案"}
             />
-            <select
-              aria-label="素材范围"
-              className="cutter-source-folder-select ml-field-select"
-              value={materialScopeValue}
-              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
-            >
-              <option value="">全部素材</option>
-              {sourceFolderOptions.map((folder) => (
-                <option key={folder.name} value={folder.name}>
-                  {folder.name}（{folder.count}）
-                </option>
+            <details className="cutter-locator-advanced">
+              <summary>高级 / 来源目录</summary>
+              <select
+                aria-label="素材范围"
+                className="cutter-source-folder-select ml-field-select"
+                value={materialScopeValue}
+                onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+              >
+                <option value="">全部素材</option>
+                {sourceFolderOptions.map((folder) => (
+                  <option key={folder.name} value={folder.name}>
+                    {folder.name}（{folder.count}）
+                  </option>
+                ))}
+                <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+              </select>
+            </details>
+            <div className="ml-segmented-control cutter-teacher-filter" role="group" aria-label="老师筛选">
+              <Button
+                type="button"
+                size="sm"
+                variant={teacherFilter ? "ghost" : "primary"}
+                aria-pressed={!teacherFilter}
+                onClick={() => onSetTeacherFilter?.("")}
+              >
+                全部老师
+              </Button>
+              {teacherOptions.map((teacher) => (
+                <Button
+                  key={teacher.name}
+                  type="button"
+                  size="sm"
+                  variant={teacherFilter === teacher.name ? "primary" : "ghost"}
+                  aria-pressed={teacherFilter === teacher.name}
+                  onClick={() => onSetTeacherFilter?.(teacher.name)}
+                >
+                  {teacher.name} {teacher.count}
+                </Button>
               ))}
-              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
-            </select>
+            </div>
           </div>
         </section>
 
@@ -1568,7 +1610,9 @@ export function MaterialLocatorPage({
                                   <small className="ml-badge is-info">当前</small>
                                 ) : null}
                                 <small className="ml-media-row-subtle">{item.transcript_character_count.toLocaleString()} 字</small>
-                                <small className="ml-media-row-subtle">{formatDuration(item.duration_ms)} · 命中 {item.hit_count}</small>
+                                <small className="ml-media-row-subtle">
+                                  {item.source === "public" ? `${item.teacher ?? "未标注老师"} · ` : ""}{formatDuration(item.duration_ms)} · 命中 {item.hit_count}
+                                </small>
                               </span>
                             </span>
                           </button>

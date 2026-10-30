@@ -1216,7 +1216,6 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(html, /class="ml-search-box cutter-public-library-filename-search"/);
   assert.match(html, /aria-label="按文件名搜索公共素材"/);
   assert.match(html, /aria-label="素材范围"/);
-  assert.equal(html.includes("全部老师"), false);
   assert.equal(html.includes("按老师筛选"), false);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
@@ -1884,7 +1883,7 @@ test("material locator is the main search-select-cut workbench with public sourc
 	    assert.equal(html.includes(removedText), false, removedText);
 	  }
   assert.equal(html.includes("搜索类型"), false);
-  assert.equal(html.includes("全部老师"), false);
+  assert.equal(html.includes("全部老师"), true);
   for (const removedClass of [
     "cutter-locator-status-strip",
     "cutter-locator-clear-button",
@@ -1938,7 +1937,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   assert.equal(html.includes("cutter-locator-notice"), false);
   assert.ok(html.includes(`直播复盘：从流量到现金流健康度 · 公共原素材 · 横版 · 32:15 · 文案 ${publicTranscriptLength} 字 · 命中 8 处`));
   assert.match(html, new RegExp(`<small class="ml-media-row-subtle">${publicTranscriptLength.toLocaleString()} 字</small>`));
-  assert.ok(html.includes(`<small class="ml-media-row-subtle">32:15 · 命中 8</small>`));
+  assert.ok(html.includes(`<small class="ml-media-row-subtle">经营课 · 32:15 · 命中 8</small>`));
   assert.equal(html.includes(`<small>文案 ${publicTranscriptLength.toLocaleString()} 字</small>`), false);
   assert.ok(html.includes("命中 3"));
   assert.match(html, /class="cutter-locator-result ml-media-row is-selected"/);

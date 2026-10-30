@@ -182,6 +182,47 @@ export {
   parseGovernanceAuditLimit
 } from "./governance-audit.ts";
 
+const TEACHER_FOLDER_ALIASES: Record<string, string> = { "陶矜2": "陶矜" };
+const TEACHER_FOLDER_NAMES: Record<string, string[]> = {
+  "陶矜": ["陶矜", "陶矜2"],
+  "王牧笛": ["王牧笛"],
+  "陈永亮": ["陈永亮"]
+};
+const UNLABELED_TEACHER = "未标注老师";
+
+function normalizeTeacherName(value: string | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return UNLABELED_TEACHER;
+  }
+  return TEACHER_FOLDER_ALIASES[trimmed] ?? trimmed;
+}
+
+function teacherForSourceFolder(folderName: string | undefined): string {
+  if (!folderName?.trim()) {
+    return UNLABELED_TEACHER;
+  }
+  const segments = folderName.replace(/\\/g, "/").split("/").filter(Boolean);
+  return normalizeTeacherName(segments[0] ?? folderName);
+}
+
+function teacherFolderFilter(teacher: string): string | undefined {
+  const normalized = normalizeTeacherName(teacher);
+  if (normalized === UNLABELED_TEACHER) {
+    return undefined;
+  }
+  const folders = TEACHER_FOLDER_NAMES[normalized] ?? [normalized];
+  return folders.join("\u001f");
+}
+
+function buildTeacherOptions(folders: readonly { name: string; count: number }[]) {
+  const counts = new Map<string, number>();
+  for (const folder of folders) {
+    const teacher = teacherForSourceFolder(folder.name);
+    counts.set(teacher, (counts.get(teacher) ?? 0) + folder.count);
+  }
+  return [...counts.entries()].map(([name, count]) => ({ name, count }));
+}
 export interface CreateCutterApiServerInput {
   /** 隔离事件服务连接（默认从 MIXLAB_USAGE_SERVICE_URL 读取；未配置走旧共享 NDJSON）。 */
   usage_service?: UsageServiceConnection;
@@ -8016,10 +8057,23 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           filename_query: optionalTrimmed(url.searchParams.get("filename_query") ?? undefined),
           folder_query: optionalTrimmed(url.searchParams.get("folder_query") ?? undefined)
         });
+        const sourceFolders = await listCutterSourceFolders({
+          library_root: input.library_root,
+          ...(await releaseRootForFastLibraryRead(input)
+            ? { release_root: (await releaseRootForFastLibraryRead(input)) as string }
+            : {})
+        });
         writeJson(
           response,
           200,
-          apiResponse(library)
+          apiResponse({
+            ...library,
+            videos: library.videos.map((video) => ({
+              ...video,
+              teacher: teacherForSourceFolder(video.source_folder_name)
+            })),
+            teacher_options: buildTeacherOptions(sourceFolders)
+          })
         );
         return;
       }
@@ -8042,9 +8096,22 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           response,
           200,
           apiResponse({
-            source_folders: sourceFolders
+            source_folders: sourceFolders,
+            teacher_options: buildTeacherOptions(sourceFolders)
           })
         );
+        return;
+      }
+
+      if (url.pathname === "/cutter/teacher-options") {
+        if (!(await requireCutterSession({ api_input: input, request, response }))) {
+          return;
+        }
+        const folders = await listCutterSourceFolders({
+          library_root: input.library_root,
+          ...(await releaseRootForFastLibraryRead(input) ? { release_root: await releaseRootForFastLibraryRead(input) as string } : {})
+        });
+        writeJson(response, 200, apiResponse({ teachers: buildTeacherOptions(folders) }));
         return;
       }
 
@@ -8061,7 +8128,11 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
         const query = url.searchParams.get("query") ?? "";
         const cursor = optionalTrimmed(url.searchParams.get("cursor") ?? undefined);
-        const sourceFolderName = optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined);
+        const teacherParam = optionalTrimmed(url.searchParams.get("teacher") ?? undefined);
+        const teacherFilter = teacherParam ? normalizeTeacherName(teacherParam) : "";
+        const sourceFolderName = teacherFilter && teacherFilter !== UNLABELED_TEACHER
+          ? teacherFolderFilter(teacherFilter)
+          : optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined);
         const folderQuery = optionalTrimmed(url.searchParams.get("folder_query") ?? undefined);
         const startedAt = Date.now();
         let result: CutterSourceLibrarySearchResult;
@@ -8087,7 +8158,13 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           });
           throw error;
         }
-        const groups: ApiSearchGroup[] = result.groups.map(addSourceVideoUrls);
+        let groups: Array<ApiSearchGroup & { teacher: string }> = result.groups.map((group) => ({
+          ...addSourceVideoUrls(group),
+          teacher: teacherForSourceFolder(group.source_folder_name)
+        }));
+        if (teacherFilter === UNLABELED_TEACHER) {
+          groups = groups.filter((group) => group.teacher === UNLABELED_TEACHER);
+        }
         writeJson(
           response,
           200,
