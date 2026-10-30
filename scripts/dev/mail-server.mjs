@@ -484,7 +484,18 @@ async function main() {
   }
   const repo = repoRoot();
   process.chdir(repo);
-  let snapshot = await buildSnapshot(repo, options).catch(() => ({ generated_at: new Date().toISOString(), messages: [], statuses: {}, heads: {}, paused: {} }));
+  // 先监听端口再构建快照：buildSnapshot 会 fetch，网络慢时不能阻塞看板启动。
+  let snapshot = {
+    generated_at: new Date().toISOString(),
+    loading: true,
+    messages: [],
+    statuses: {},
+    heads: {},
+    paused: {},
+    attention: { needs_you: [], decisions: [], awaiting_peer: [], blocking: [], stalled: [] },
+    counts: { total: 0, by_type: {} },
+    advisor_feedback: null
+  };
 
   const refresh = async () => {
     snapshot = await buildSnapshot(repo, options).catch((error) => ({ ...snapshot, generated_at: new Date().toISOString(), error: String(error) }));
@@ -516,6 +527,7 @@ async function main() {
   server.listen(options.port, options.host, () => {
     console.log("MixLab mail dashboard: http://" + options.host + ":" + options.port);
     console.log("repo: " + repo + "  refresh: " + options.refreshMs + "ms  fetch: " + (options.noFetch ? "(disabled)" : options.fetchMs + "ms"));
+    void refresh();
   });
   process.on("SIGINT", () => { server.close(); process.exit(0); });
   process.on("SIGTERM", () => { server.close(); process.exit(0); });
