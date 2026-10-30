@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Button, InspectorPanel } from "@mixlab/ui-foundation";
 import { formatDuration, type SourceVideoDetail, type TranscriptSegment } from "../../api.ts";
+import type { CutQueueJob } from "../../state/cut-queue.ts";
 import { isSingleSegmentClick } from "../../state/transcript-selection.ts";
 import {
   codePointLength,
@@ -259,7 +260,8 @@ export function SourceDetailPage({
   onSelectTranscriptTextRange,
   onSelectTranscriptSegment,
   onCancelSelection,
-  onAddToCutList
+  onAddToCutList,
+  recentJobs = []
 }: {
   detail: SourceVideoDetail;
   selectedSegments?: TranscriptSegment[];
@@ -276,6 +278,7 @@ export function SourceDetailPage({
   onSelectTranscriptSegment?: (segmentId: string) => void;
   onCancelSelection?: () => void;
   onAddToCutList?: () => void;
+  recentJobs?: readonly CutQueueJob[];
 }) {
   const transcriptRef = useRef<HTMLElement | null>(null);
   const selectionBarRef = useRef<HTMLDivElement | null>(null);
@@ -414,10 +417,23 @@ export function SourceDetailPage({
       <div className="cutter-page-main ml-workbench-main ml-workbench-main--stack ml-scroll-region">
         <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow ml-page-kicker">原视频详情</p>
-            <h1 className="ml-page-title">原视频与完整文案</h1>
-            <p className="ml-page-description">{detail.title}</p>
+            <h1 className="ml-page-title">素材详情</h1>
+            <p className="ml-page-description">
+              {detail.title} · {detail.source_video_id} · {formatDuration(detail.duration_ms)}
+            </p>
           </div>
+          {onAddToCutList ? (
+            <div className="ml-control-cluster">
+              <Button
+                type="button"
+                disabled={!canAddSelection}
+                onClick={canAddSelection ? onAddToCutList : undefined}
+                variant="primary"
+              >
+                剪切这段
+              </Button>
+            </div>
+          ) : null}
         </header>
 
         <section className="cutter-video-panel ml-document-media-panel">
@@ -505,7 +521,7 @@ export function SourceDetailPage({
       </div>
 
       <InspectorPanel
-        title="连续选择"
+        title="选区"
         className="ml-inspector--workbench ml-workbench-inspector"
         action={
           <Button
@@ -523,6 +539,18 @@ export function SourceDetailPage({
           <span>{selectedRange}</span>
           <p>{selectedText(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}</p>
           <span>拖拉文案后直接剪切这一段。</span>
+          <div className="ml-detail-stack">
+            <strong>最近任务</strong>
+            {recentJobs.length > 0 ? (
+              recentJobs.slice(0, 3).map((job) => (
+                <span key={job.queue_job_id}>
+                  {job.title} · {job.status}
+                </span>
+              ))
+            ) : (
+              <span>暂无最近任务</span>
+            )}
+          </div>
         </div>
       </InspectorPanel>
     </section>

@@ -99,55 +99,59 @@ export function PublicLibraryPage({
 
   return (
     <section className="cutter-page cutter-public-library ml-workbench-page ml-workbench-page--library" data-page="public-library">
-      <div className="cutter-page-main ml-workbench-main ml-workbench-main--library ml-workbench-main--rows-list-footer">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--library" style={{ gridTemplateRows: "auto auto minmax(0, 1fr) auto" }}>
         <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow ml-page-kicker">公共素材库</p>
-            <h1 className="ml-page-title">可用原素材</h1>
-            <p className="ml-page-description">浏览管理端已经发布到剪辑端的原视频。</p>
+            <h1 className="ml-page-title">公共素材库</h1>
+            <p className="ml-page-description">按文案或标题浏览原素材，加入项目后开始剪切。</p>
           </div>
-          <div className="cutter-public-library-controls ml-control-cluster">
-            <SearchBox
-              aria-label={searchMode === "folder" ? "搜索文件夹名称" : "按文件名搜索公共素材"}
-              buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}
-              className="cutter-public-library-filename-search"
-              defaultValue={filenameQuery}
-              disabled={isSearchingFilename}
-              key={searchMode}
-              name="public-library-filename"
-              onSubmit={(value) => onSearchFilename?.(value)}
-              placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
-            />
-            <select
-              aria-label="素材范围"
-              className="cutter-source-folder-select ml-field-select"
-              value={materialScopeValue}
-              onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
-            >
-              <option value="">全部素材</option>
-              {sourceFolderOptions.map((folder) => (
-                <option key={folder.name} value={folder.name}>
-                  {folder.name}（{folder.count}）
-                </option>
-              ))}
-              <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
-            </select>
-            <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
-              {orientationFilterOptions.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={orientationFilter === option.value ? "primary" : "ghost"}
-                  size="sm"
-                  aria-pressed={orientationFilter === option.value}
-                  onClick={() => onSetOrientationFilter?.(option.value)}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
+          <div className="ml-control-cluster">
+            <span className="ml-section-meta">共 {library.available_video_count.toLocaleString()} 个原素材</span>
           </div>
         </header>
+
+        <div className="cutter-public-library-toolbar ml-control-cluster">
+          <SearchBox
+            aria-label={searchMode === "folder" ? "搜索文件夹名称" : "按文件名搜索公共素材"}
+            buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}
+            className="cutter-public-library-filename-search"
+            defaultValue={filenameQuery}
+            disabled={isSearchingFilename}
+            key={searchMode}
+            name="public-library-filename"
+            onSubmit={(value) => onSearchFilename?.(value)}
+            placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
+          />
+          <select
+            aria-label="素材范围"
+            className="cutter-source-folder-select ml-field-select"
+            value={materialScopeValue}
+            onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
+          >
+            <option value="">全部素材</option>
+            {sourceFolderOptions.map((folder) => (
+              <option key={folder.name} value={folder.name}>
+                {folder.name}（{folder.count}）
+              </option>
+            ))}
+            <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
+          </select>
+          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
+            {orientationFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={orientationFilter === option.value ? "primary" : "ghost"}
+                size="sm"
+                aria-pressed={orientationFilter === option.value}
+                onClick={() => onSetOrientationFilter?.(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
 
         <div className="cutter-public-library-scroll ml-scroll-region">
           {filtered.length > 0 ? (
@@ -197,7 +201,7 @@ export function PublicLibraryPage({
         ) : null}
       </div>
 
-      <InspectorPanel title="原素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
+      <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
         <div className="ml-detail-stack">
           {selected ? (
             <video
