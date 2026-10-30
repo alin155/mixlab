@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793367770775-4f761965",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793367770775-4f761965",
+  "created_at": "2026-10-30T13:42:50.775Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch B 补充：右栏剪切动作选区保留修复（follow-up）】\n\n分支 ui/minimal-batch-b 追加 commit **9dee168**（fix(cutter-web): keep source selection when using inspector actions）\n远程 origin/ui/minimal-batch-b = 9dee168；原回执提交流 9c87a7f 仍有效，截图/证据不受影响。\n\n背景：检查发现 SourceDetailPage 的 document mousedown 会在点击右栏时先清空选区，存在“右栏剪切按钮失效/丢选区”风险。\n修复：mousedown 例外范围加入 .ml-inspector 与 .cutter-page-header，点击右栏/页头不再提前取消选区；实际提交后仍由业务 handler 正常清空。\n\n实机验证（Windows 安装版）：source-detail 选中 1 段后点击右栏“剪切这段”，cut-jobs 最新任务从 CJ20261030-0012 变为 CJ20261030-0013，说明动作确实入队；选区在点击前保持、提交后清空符合预期。\ntypecheck PASS；产品测试 151/151 PASS。\n\n未升版本、未发布；Batch B 其余范围不变。"
+}
