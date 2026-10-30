@@ -1753,7 +1753,7 @@ dependencies = [
 
 [[package]]
 name = "mixlab-cutter-desktop"
-version = "0.18.16"
+version = "0.18.17"
 dependencies = [
  "serde",
  "serde_json",
