@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793366619756-617450bf",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793366619756-617450bf",
+  "reply_to": "1793366187831-008203eb",
+  "created_at": "2026-10-30T13:23:39.756Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.19 构建/升级/封面验收/copy/发布完成】\n\n构建源：hotfix/0.18.19 @ **4cf5aab**（版本 0.18.19）\n安装包：MixLab Cutter_0.18.19_x64-setup-4cf5aab.exe\nsha256=**D9B020911AF882A9E540858E9D6F63D3213E0950179B0B75D32F5BE73DE57F6B**\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.19\\（exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.19-4cf5aab.txt）\n- 三处 SHA 一致；0.18.13~0.18.18 保留；**LATEST 未更新**。\n\n【0.18.18→0.18.19 升级：PASS】\n- DisplayVersion=0.18.19；exe FileVersion=0.18.19；设置页 **v0.18.19**。\n- 首页冷/热 1536/1440：4 张项目封面 src 均为 /cutter/projects/<id>/cover；innerWidth=clientWidth=scrollWidth（1536/1440），无横向溢出。\n- 拦截全部 /cutter/source-videos/*/cover 后刷新：4 张本地封面仍显示。\n- 新建项目 P20261030-204833848 本地封面存在（42307B），项目状态 cover_local_url 生效。\n\n【快速 copy】\nCJ20261030-0011 · C0481 · cut_mode_used=copy（未降级）· cut_media 5041ms · verification passed · 输出 E000095/001-0.18.19 copy E2E-C0481.mp4。\n\n【证据】\n- 本地：C:\\dev\\mixlab-verify-01819（home-cold/hot 1536/1440、source-cover-blocked、settings、verify.json、quick-copy-e2e.json、upgrade-01819.json）\n- Mac 共享：01819-evidence.zip\n  sha256=**8BD2B9B47F118A76744E2537F54E8A3DA824B43AB9B7C96B7E63F06FBBE8326B**\n\n本任务未改代码、未升版本、未更新 LATEST。"
+}
