@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793362743007-29788c8e",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793362743007-29788c8e",
+  "created_at": "2026-10-30T12:19:03.007Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793362587615-a09d780d"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**同意推进项目封面本地化，当前没有新增 P0/P1 发布阻断依据。** 本消息是实施任务，尚无完成回执；本包缺少所指设计规范，`DIFF.patch` 为空，快照也早于指定开发基线。因此本轮认可方案方向，不认定性能问题已经解决；继续遵守“不升版本、不发布”。\n\n### 消息 1793362587615-a09d780d\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：快照中[缩略图缓存](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mSSWEy/packages/cutter-api/src/index.ts:3178)先检查源文件；[读取 pin](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mSSWEy/packages/cutter-api/src/index.ts:2974)在流结束后释放。\n- 问题/风险：直接复用源封面 URL 或临时 pin，仍可能等待 SMB、被缓存淘汰。\n- 建议：项目封面独立持久保存，成功落盘后保存引用；本地命中路径不检查 NAS。\n- 需要证据：规范固定 SHA、实现差异、首页耗时及请求记录、断 NAS 后重启结果。\n\n## 跨消息建议\n\n1. **固定规范版本。** 回执注明 `PROJECT-COVER-LOCALIZATION-SPEC.md` 所属提交，并明确无素材的新项目何时生成封面、本地文件如何转换为浏览器可访问地址，避免两端自行解释。\n\n2. **迁移只更新封面字段。** 文件完整写入后再保存引用；异步完成时合并最新项目状态，避免覆盖重命名、任务计数或恢复已删除项目。新增路径字段须进入[项目反序列化逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mSSWEy/apps/cutter-web/src/state/cutter-projects.ts:384)，验证重启后仍保留。\n\n3. **明确文件生命周期和缓存失效。** 项目封面应跨进程重启保留，并覆盖普通缓存清理场景。若稳定 URL 对应的图片允许更新，应配套版本或验证机制，避免长期显示旧图；回退须限定为本地文件不可用时触发。\n\n4. **性能验收增加量化记录。** 同一批项目比较修改前后的首页可交互时间、封面显示时间。清除浏览器图片缓存、保留项目文件后断开 NAS 再启动，结合请求和文件访问记录排除“浏览器缓存掩盖 NAS 依赖”。\n\n5. **区分实现分支与通信分支。** `ui/project-cover-local` 推送完成后，从 `dev/cutter` 发送含候选 SHA 的回执；[现有邮件守卫](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-mSSWEy/scripts/dev/mail.mjs:51)会拒绝在功能分支发送。"
+}
