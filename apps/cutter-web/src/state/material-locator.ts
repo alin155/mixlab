@@ -48,6 +48,7 @@ export interface MaterialLocatorResult {
   orientation: VideoOrientation;
   orientation_label: string;
   segments: SearchHitSegment[];
+  teacher?: string;
   source_video?: SourceVideoCard;
   local_clip?: LocalClip;
 }
@@ -228,6 +229,12 @@ export function localClipToSourceVideoDetail(clip: LocalClip): SourceVideoDetail
   };
 }
 
+function teacherFromFolderName(folderName?: string): string {
+  const first = (folderName ?? "").replace(/\\/g, "/").split("/").filter(Boolean)[0]?.trim() ?? "";
+  if (!first) return "未标注老师";
+  return first === "陶矜2" ? "陶矜" : first;
+}
+
 function publicResultFromGroup(
   group: SearchGroup,
   sourceVideo: SourceVideoCard | undefined
@@ -251,6 +258,7 @@ function publicResultFromGroup(
     orientation: videoOrientation(dimensions),
     orientation_label: videoOrientationLabel(dimensions),
     segments: group.hit_segments,
+    teacher: group.teacher ?? sourceVideo?.teacher ?? teacherFromFolderName(group.source_folder_name),
     source_video: sourceVideo
   };
 }

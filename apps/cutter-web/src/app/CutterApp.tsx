@@ -1493,6 +1493,8 @@ function renderPage(
     homeSelectedProjectId?: string;
     sourceFilter: MaterialSearchSourceFilter;
     sourceFolderFilter: string;
+    teacherFilter: string;
+    onSetTeacherFilter: (teacher: string) => void;
     sourceFolders: readonly SourceFolderOption[];
     orientationFilter: VideoOrientationFilter;
     publicLibraryOrientationFilter: VideoOrientationFilter;
@@ -1644,6 +1646,8 @@ function renderPage(
   if (route === "material-locator") {
     return (
       <MaterialLocatorPage
+        teacherFilter={viewState.teacherFilter}
+        onSetTeacherFilter={viewState.onSetTeacherFilter}
         library={data.library}
         localClips={data.localClips}
         search={data.search}
@@ -1853,6 +1857,7 @@ export function CutterApp() {
   const [sourceFilter, setSourceFilter] = useState<MaterialSearchSourceFilter>(() =>
     readCutterDefaultSourceFilter()
   );
+  const [teacherFilter, setTeacherFilter] = useState("");
   const [sourceFolderFilter, setSourceFolderFilter] = useState(() =>
     searchSourceFolderFromHash(window.location.hash)
   );
@@ -3109,7 +3114,8 @@ export function CutterApp() {
           client,
           await client.searchSourceLibrary(query, MATERIAL_SEARCH_FIRST_BATCH_LIMIT, {
             sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
-            folderQuery: materialSearchMode === "folder" ? query : undefined
+            folderQuery: materialSearchMode === "folder" ? query : undefined,
+            teacher: teacherFilter || undefined
           })
         );
         if (cancelled || materialSearchRequestIdRef.current !== requestId) {
@@ -3196,6 +3202,7 @@ export function CutterApp() {
     route,
     searchQuery,
     sourceFolderFilter,
+    teacherFilter,
     sourceFilter
   ]);
 
@@ -3220,7 +3227,8 @@ export function CutterApp() {
         await client.searchSourceLibrary(query, MATERIAL_SEARCH_NEXT_BATCH_LIMIT, {
           cursor: nextCursor,
           sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
-          folderQuery: materialSearchMode === "folder" ? query : undefined
+          folderQuery: materialSearchMode === "folder" ? query : undefined,
+          teacher: teacherFilter || undefined
         })
       );
 
@@ -4893,6 +4901,8 @@ export function CutterApp() {
                 homeSelectedProjectId,
                 sourceFilter,
                 sourceFolderFilter,
+                teacherFilter,
+                onSetTeacherFilter: setTeacherFilter,
                 sourceFolders: data.sourceFolders,
                 orientationFilter,
                 publicLibraryOrientationFilter,

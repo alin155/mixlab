@@ -18,6 +18,12 @@ import {
   timeAtCodePointOffset
 } from "../../state/text-offsets.ts";
 
+function teacherFromDetail(detail: SourceVideoDetail): string {
+  const first = (detail.relative_path ?? "").replace(/\\/g, "/").split("/").filter(Boolean)[0]?.trim() ?? "";
+  if (!first) return "未标注老师";
+  return first === "陶矜2" ? "陶矜" : first;
+}
+
 function transcriptTextLength(text: string): number {
   return codePointLength(text);
 }
@@ -453,7 +459,7 @@ export function SourceDetailPage({
           <div>
             <h1 className="ml-page-title">素材详情</h1>
             <p className="ml-page-description">
-              {detail.title} · {detail.source_video_id} · {formatDuration(detail.duration_ms)}
+              {detail.teacher ?? teacherFromDetail(detail)} · {detail.title} · {detail.source_video_id} · {formatDuration(detail.duration_ms)}
             </p>
           </div>
           {onAddToCutList ? (

@@ -46,6 +46,7 @@ export interface SourceVideoCard {
   category?: string;
   course?: string;
   lecturer?: string;
+  teacher?: string;
   publish_status?: "ready";
   media_url: string;
   cover_url: string;
@@ -101,6 +102,7 @@ export interface SearchGroup {
   hit_segments: SearchHitSegment[];
   transcript_character_count?: number;
   source_folder_name?: string;
+  teacher?: string;
   media_url?: string;
   cover_url?: string;
   detail_url?: string;
@@ -771,7 +773,7 @@ export interface CutterApiClient {
   searchSourceLibrary(
     query: string,
     limit?: number,
-    options?: { cursor?: string; sourceFolderName?: string; folderQuery?: string }
+    options?: { cursor?: string; sourceFolderName?: string; folderQuery?: string; teacher?: string }
   ): Promise<SearchResponse>;
   listLocalClips(options?: { limit?: number; offset?: number }): Promise<LocalClipCatalog>;
   getLocalClipDetail(localClipId: string): Promise<LocalClip>;
@@ -1204,6 +1206,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       }
       if (options.folderQuery) {
         params.set("folder_query", options.folderQuery);
+      }
+      if (options.teacher) {
+        params.set("teacher", options.teacher);
       }
       return requestEnvelope<SearchResponse>(
         fetchImpl,
