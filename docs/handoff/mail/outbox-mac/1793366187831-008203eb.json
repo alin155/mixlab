@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793366187831-008203eb",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793366187831-008203eb",
+  "reply_to": "1793364598477-87ab62f4",
+  "created_at": "2026-10-30T13:16:27.831Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.19@4cf5aab"
+    ]
+  },
+  "body": "项目封面本地化补验通过，准备正式版 0.18.19：\\n- 分支：hotfix/0.18.19 @ **4cf5aab**（基于 main bcbb1d0，合并 ui/project-cover-local 504cc62）；\\n- 版本 0.18.19；Mac 全量 **2241/2241 PASS**、typecheck PASS。\\n请从 4cf5aab 构建最终 0.18.19 并验收发布：\\n1) NSIS 0.18.19，记录 sha；\\n2) 0.18.18→0.18.19 升级；设置页 v0.18.19；\\n3) 真机验收：首页封面冷/热均走本地端点；拦截全部 /cutter/source-videos/*/cover 后封面仍显示；新建项目首剪封面本地落盘；1536/1440 无横向滚动；\\n4) 快速 copy 1~2 例；\\n5) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13~0.18.18 保留；不更新 LATEST；\\n6) reply sha/证据。不要改代码，除非构建阻塞。"
+}
