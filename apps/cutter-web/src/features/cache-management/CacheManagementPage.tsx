@@ -344,6 +344,20 @@ export function CacheManagementPage({
   const [audit, setAudit] = useState<CutterGovernanceAudit | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState("");
+  const [cacheSnapshotReady, setCacheSnapshotReady] = useState(() => Boolean(runtimeStatus) && cutterRuntimeCacheBytes(runtimeStatus) > 0);
+  useEffect(() => {
+    if (!runtimeStatus) {
+      setCacheSnapshotReady(false);
+      return;
+    }
+    if (cutterRuntimeCacheBytes(runtimeStatus) > 0) {
+      setCacheSnapshotReady(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setCacheSnapshotReady(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [runtimeStatus]);
+
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -361,6 +375,22 @@ export function CacheManagementPage({
     ui_bytes: localStorageCache.bytes,
     protected_key_count: userDataCache.keys.length
   });
+
+  const inventorySize = (prefixes: string[]) => {
+    const target = inventory?.targets.find((candidate) =>
+      prefixes.some((prefix) => candidate.label.includes(prefix))
+    );
+    return target ? target.size_bytes || target.deletable_bytes : 0;
+  };
+  const effectiveRelease = release?.cache_size_bytes || inventorySize(["Release"]);
+  const effectiveSearch = (local?.searchd_cache_size_bytes ?? 0) || inventorySize(["搜索索引"]);
+  const effectiveThumbnails = (local?.thumbnail_cache_size_bytes ?? 0) || inventorySize(["缩略图"]);
+  const effectiveSourceVideos = (sourceVideoCache?.size_bytes ?? 0) || inventorySize(["源视频", "原视频"]);
+  const effectiveCutTemp = (local?.cut_temp_cache.size_bytes ?? 0) || inventorySize(["剪切临时"]);
+  const effectiveTotal = Math.max(
+    totalRuntimeCacheBytes,
+    inventory?.targets.reduce((sum, target) => sum + target.size_bytes, 0) ?? 0
+  );
 
   function handleClearLocalStorageCache() {
     try {
@@ -556,12 +586,37 @@ export function CacheManagementPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
+  if (!cacheSnapshotReady || !runtimeStatus) {
+    return (
+      <section className="cutter-page cutter-cache-management cutter-operational-page ml-workbench-page ml-workbench-page--fluid" data-page="cache-management">
+        <div className="cutter-page-main ml-workbench-main">
+          <header className="cutter-page-header ml-workbench-header">
+            <div>
+              <h1 className="ml-page-title">缓存管理</h1>
+              <p className="ml-page-description">正在读取缓存，请稍候…</p>
+            </div>
+          </header>
+          <Card className="cutter-cache-panel ml-panel-card" title="缓存分类" subtitle="正在读取缓存…">
+            <div className="cutter-cache-skeleton" aria-label="正在读取缓存">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div className="cutter-cache-skeleton-row" key={index}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="cutter-page cutter-cache-management cutter-operational-page ml-workbench-page ml-workbench-page--fluid" data-page="cache-management">
-      <div className="cutter-page-main ml-workbench-main ml-workbench-main--rows-dashboard">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--rows-dashboard" style={{ gridTemplateRows: "auto auto auto minmax(0, 1fr)" }}>
         <header className="cutter-page-header cutter-cache-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow ml-page-kicker">Local Runtime</p>
             <h1 className="ml-page-title">缓存管理</h1>
             <p className="ml-page-description">
               查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除项目、待剪清单、任务归属或登录状态。
@@ -570,66 +625,96 @@ export function CacheManagementPage({
           <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
         </header>
 
-        <section className="cutter-cache-stats ml-metric-grid" aria-label="缓存概览">
-          <CacheStatCard
-            title="运行缓存"
-            value={formatCutterCacheSize(totalRuntimeCacheBytes)}
-            detail="Release、搜索索引、缩略图、原视频和剪切临时区合计"
-          />
-          <CacheStatCard
-            title="Release"
-            value={formatCutterCacheSize(release?.cache_size_bytes ?? 0)}
-            detail={release?.active_release_version || "等待同步"}
-            percent={cutterCachePercent(
-              release?.cached_release_count,
-              release?.max_cached_releases
-            )}
-            tone={releaseState.tone}
-          />
-          <CacheStatCard
-            title="搜索索引"
-            value={formatCutterCacheSize(local?.searchd_cache_size_bytes ?? 0)}
-            detail={runtimeStatus?.search_backend?.label || "等待搜索服务"}
-            tone={runtimeStatus?.search_backend?.last_error ? "warning" : searchState.tone}
-          />
-          <CacheStatCard
-            title="缩略图"
-            value={formatCutterCacheSize(local?.thumbnail_cache_size_bytes ?? 0)}
-            detail={`${local?.thumbnail_cache_manifest_entry_count ?? 0} 条记录`}
-            percent={cutterCachePercent(
-              local?.thumbnail_cache_size_bytes,
-              local?.thumbnail_cache_max_bytes
-            )}
-          />
-          <CacheStatCard
-            title="原视频"
-            value={formatCutterCacheSize(sourceVideoCache?.size_bytes ?? 0)}
-            detail={`${sourceVideoCache?.cached_video_count ?? 0} 条视频 · ${sourceVideoCache?.active_prefetch_count ?? 0} 个预取中`}
-            percent={cutterCachePercent(
-              sourceVideoCache?.size_bytes,
-              sourceVideoCache?.max_bytes
-            )}
-            tone={sourceVideoCache?.last_error ? "warning" : "ready"}
-          />
-          <CacheStatCard
-            title="剪切临时区"
-            value={formatCutterCacheSize(local?.cut_temp_cache.size_bytes ?? 0)}
-            detail={`${local?.cut_temp_cache.file_count ?? 0} 个文件`}
-            percent={cutterCachePercent(
-              local?.cut_temp_cache.size_bytes,
-              local?.cut_temp_cache.max_bytes
-            )}
-          />
+        <section className="cutter-cache-summary ml-data-strip" aria-label="缓存摘要">
+          <span>运行缓存 <strong>{formatCutterCacheSize(effectiveTotal)}</strong></span>
+          <span>界面缓存 <strong>{formatCutterCacheSize(localStorageCache.bytes)}</strong></span>
+          <span>临时残留 <strong>{residue?.items.length ?? 0}</strong></span>
+          <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
         </section>
 
+        <Card
+          className="cutter-cache-panel ml-panel-card"
+          bodyFlush
+          bodyClassName="cutter-cache-category-body"
+          title="缓存分类"
+          subtitle="清理前会再次确认；项目、被引用素材与未完成导出不会删除。"
+          actions={
+            <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById("cache-cleanup")?.scrollIntoView({ block: "start" })}>
+              预览清理
+            </Button>
+          }
+        >
+          <div className="cutter-cache-categories" role="table" aria-label="缓存分类">
+            <div className="cutter-cache-category-row is-head" role="row">
+              <span role="columnheader">类型</span>
+              <span role="columnheader">占用</span>
+              <span role="columnheader">说明</span>
+              <span role="columnheader">操作</span>
+            </div>
+            {[
+              {
+                label: "运行缓存",
+                size: effectiveTotal,
+                detail: "Release、搜索索引、缩略图、原视频与剪切临时区合计"
+              },
+              {
+                label: "Release 缓存",
+                size: effectiveRelease,
+                detail: release?.active_release_version || "等待同步"
+              },
+              {
+                label: "搜索索引",
+                size: effectiveSearch,
+                detail: runtimeStatus?.search_backend?.label || "本地 searchd 索引，可重建"
+              },
+              {
+                label: "缩略图缓存",
+                size: effectiveThumbnails,
+                detail: "可重新生成；清理会保留 manifest"
+              },
+              {
+                label: "原视频缓存",
+                size: effectiveSourceVideos,
+                detail: "公共素材本地副本"
+              },
+              {
+                label: "剪切临时区",
+                size: effectiveCutTemp,
+                detail: "中断残留，可安全清理"
+              },
+              {
+                label: "界面缓存",
+                size: localStorageCache.bytes,
+                detail: "仅清理界面偏好，不影响项目与登录"
+              }
+            ].map((row) => (
+              <div className="cutter-cache-category-row" role="row" key={row.label}>
+                <strong role="cell">{row.label}</strong>
+                <span role="cell">{formatCutterCacheSize(row.size)}</span>
+                <span role="cell">{row.detail}</span>
+                <span role="cell">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => document.getElementById("cache-cleanup")?.scrollIntoView({ block: "start" })}
+                  >
+                    查看
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
         <section className="cutter-cache-panels ml-panel-grid ml-scroll-region">
-          <div style={{ gridColumn: "1 / -1" }}>
+          <div id="cache-cleanup" style={{ gridColumn: "1 / -1" }}>
           {client ? (
             <Card
               className="cutter-cache-panel ml-panel-card"
               bodyFlush
               bodyClassName="cutter-cache-panel-body"
-              title="磁盘缓存清理"
+              title="清理操作"
               subtitle="先预览再确认；需要本机服务生成一次性确认令牌。项目、被引用素材与未完成导出不会被删除。"
               actions={
                 <div className="ml-control-cluster">
@@ -672,13 +757,14 @@ export function CacheManagementPage({
                             disabled={!target.deletable || !target.writable || diskCleaning}
                             onChange={() => toggleCacheTarget(target)}
                           />
-                          <span>
-                            <strong>{target.label}</strong>
-                            <span> {formatCutterCacheSize(target.deletable_bytes)}</span>
-                            {!target.writable ? <Badge tone="warning">不可写</Badge> : null}
-                            {!target.deletable ? <Badge tone="info">受保护</Badge> : null}
-                            <code>{target.path}</code>
-                            {target.reason ? <em>{target.reason}</em> : null}
+                          <span className="cutter-cache-disk-target-main" title={target.path}>
+                            <span className="cutter-cache-disk-target-title">
+                              <strong>{target.label}</strong>
+                              <span>{formatCutterCacheSize(target.deletable_bytes)}</span>
+                              {!target.writable ? <Badge tone="warning">不可写</Badge> : null}
+                              {!target.deletable ? <Badge tone="info">受保护</Badge> : null}
+                            </span>
+                            {target.reason ? <span className="cutter-cache-disk-target-reason">{target.reason}</span> : null}
                           </span>
                         </label>
                       </li>
