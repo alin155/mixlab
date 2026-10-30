@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793372010305-4bd6b620",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793372010305-4bd6b620",
+  "reply_to": "1793371301618-13c94d56",
+  "created_at": "2026-10-30T14:53:30.306Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch C 缓存加载态/清理列表复核修复】\n\n同一分支 ui/minimal-batch-c；新 commit：3e1a383（fix(cutter-web): gate cache table on snapshot and compact cleanup list）\n远程：origin/ui/minimal-batch-c = 3e1a383\n\n1) 同步未完成不再渲染半截数据：\n- 以“已拿到真实缓存字节数”为快照就绪条件；未就绪时整块显示“缓存分类”六行骨架 + “正在读取缓存…”，不显示 0 KB；\n- 若真实缓存为空，最多等待 5s 后结束骨架，避免永久遮住空数据；\n- 就绪后一次性渲染摘要/分类/清理区。\n\n2) 清理列表：\n- 自定义 16×16 checkbox（修正 foundation min-height/圆角覆盖，实测高度 16px）；\n- 去掉原生黑色标记与内联长路径，路径放行 title；类型/大小/保护状态保留。\n\n3) 设置右栏已保持上轮通过版式（96px 标签列 + 自适应描述）。\n\n验证：typecheck PASS；产品测试 151/151 PASS；缓存/设置 1536/1440 截图；无横向滚动。\n加载态：cache-loading-1536.png 为进入缓存路由后、快照未就绪时的真实六行骨架（skeleton=true）。1440 加载态未能截到，因为该宽度下同步快照先于截图完成；缓存页同一渲染逻辑。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-c-review2-3e1a383.zip\n含 cache-loading-1536、cache 1536/1440、settings 1536/1440、verify.json。\n未升版本、未发布。"
+}
