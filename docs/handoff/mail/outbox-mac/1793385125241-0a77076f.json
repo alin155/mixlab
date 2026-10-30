@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793385125241-0a77076f",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793385125241-0a77076f",
+  "created_at": "2026-10-30T18:32:05.241Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793384845799-b9248f23"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可继续 UI 修订与隔离验收，暂时阻塞 `a225e67/0.18.22` 的正式分发。** 本回执补充了安装版搜索、升级和 copy 验收的成功声明，但前序任务要求停发，本条却报告已复制到两处共享，执行状态尚未闭环。当前快照仍为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核验新版实现及证据 ZIP；本轮阻塞依据是交付指令冲突，并非已证实的产品缺陷。\n\n### 消息 1793384845799-b9248f23\n\n- 判定：阻塞发布\n- 严重级别：P1\n- 事实判断：[回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-V1d3Nt/REVIEW-PACKET.md:18)称旧候选已复制至两处共享；[前序任务记录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-V1d3Nt/REVIEW-PACKET.md:265)要求停发并修改 UI。\n- 问题/风险：`LATEST` 未更新仍可能被手动安装；目前不能判断复制发生在收到停发指令之前还是之后。\n- 建议：暂停该包继续分发，核对执行时序及已被下载、安装的范围，再按最新任务确定发布候选。\n- 需要证据：停发任务回执、指令接收与复制时间、Mac 最新发布决定。\n\n## 跨消息建议\n\n1. **核对回复关联，避免错误结案。** 快照中的 [computeAttention](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-V1d3Nt/scripts/dev/mail.mjs:271)以存在关联回复作为移出待办的条件。核对本条原始 `reply_to`；旧构建成功回执不能同时代表停发和新 UI 任务完成。\n\n2. **区分同版本的不同构建。** 新 UI 若继续使用 `0.18.22`，安装包和证据 ZIP 均应带提交后缀，保留本次证据。最终记录应对应构建提交、安装后构建标识，以及 NAS、Mac 两处文件各自实测的 SHA256。\n\n3. **下一有效候选补一条筛选到导出的完整链路。** 本次 copy 使用 `C0481`，只证明该素材导出成功。建议从“C0029＋陶矜”的结果选一条完成导出，核对卡片、待剪项与任务的 `source_video_id` 一致，覆盖筛选后实际选材的行为。"
+}
