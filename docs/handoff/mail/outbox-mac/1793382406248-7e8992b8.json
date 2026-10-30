@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793382406248-7e8992b8",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793382406248-7e8992b8",
+  "created_at": "2026-10-30T17:46:46.248Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793382244972-5c618daf"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进开发，暂无已证实的新增发布阻塞项。** 老师优先、目录保留兼容的方向符合本次确认需求，但任务涉及数据层与搜索后端，不能全部视为 Windows 页面改动。应先明确跨端修改责任，再交付筛选与分页验收。本轮评审的是任务方案，尚不能认定 0.18.22 已实现或可发布。\n\n### 消息 1793382244972-5c618daf\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：catalog 过滤实现在 [library-fs](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/packages/library-fs/src/cutter-release.ts:1252)，按[目录规则](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/AGENTS.md:16)由 Mac 负责；任务将完整功能下发 Windows，未拆分数据层责任。\n- 问题/风险：容易出现越界修改，或只完成页面、遗漏底层筛选。\n- 建议：Mac 承担 library-fs 修改；Windows 承担 API/UI 接线；另行明确 searchd/search-sqlite 修改责任。\n- 需要证据：交付时提供修改分工、文件清单及跨后端测试结果。\n\n## 跨消息建议\n\n1. **补清老师归一化规则。** 先 trim `lecturer`，为空才回退目录，再做精确别名映射；明确什么目录属于“无法识别”，合法的新老师不应被三人名单排除。归并仅影响 `teacher`，保留原始目录字段；现有[兼容测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/packages/library-fs/src/cutter-source-library.test.ts:641)要求“陶矜”和“陶矜2”的目录过滤仍分别生效。\n\n2. **老师过滤必须发生在分页前。** 快照中 [searchd 请求](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/packages/searchd/src/main.rs:165)仅支持目录条件，[SQLite 搜索输入](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/packages/search-sqlite/src/index.ts:62)也没有老师条件。不能仅过滤已返回的一页。验收覆盖 searchd、SQLite 回退、文件名及目录搜索，并加入“首批无该老师、后续有命中”和 lecturer 与目录不一致的样例。\n\n3. **固定计数口径。** 建议老师选项显示当前发布库中可见视频的全量计数，搜索命中数另显示。消息中的三项合计 **12,869**，目前只是给定基准；回执应附对应 `library_id/release_version` 的聚合结果、未标注数量及总数核对，避免从当前页统计或硬编码。\n\n4. **让 teacher 贯穿请求状态与缓存。** 现有[列表缓存键](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/packages/cutter-api/src/index.ts:4765)和[导航参数](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-aXJPIi/apps/cutter-web/src/app/navigation.ts:96)均需纳入新维度。切换老师时重置分页、丢弃旧请求响应；补快速切换、刷新/返回、老师与目录组合测试，并验证不传 teacher 时原 API 行为保持一致。"
+}
