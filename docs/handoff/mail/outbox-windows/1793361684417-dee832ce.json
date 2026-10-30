@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793361684417-dee832ce",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793361684417-dee832ce",
+  "reply_to": "1793361314626-52671aae",
+  "created_at": "2026-10-30T12:01:24.417Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【候选素材 active 态已增强，待复审】\n\n同一分支：ui/minimal-batch-a；新 commit：086464b\n远程：origin/ui/minimal-batch-a = 086464b\n\n改动：\n- 选中候选行：左侧 3px 主色竖条 + 浅蓝背景 + 内描边，标题保持加粗，行尾新增“当前”徽标；\n- 增加 aria-current=true；hover 不会覆盖 active 内联样式；\n- 切换候选/进入素材后 active 行保持明显，右侧视频/文案同步；\n- 未新增冗余大块，仅行级强化；\n- 与悬浮跟随工具条同版截图。\n\n验证：typecheck PASS；产品测试 151/151 PASS；1536/1440 截图可一眼识别选中行；实测 borderLeft=3px、背景 rgb(239,246,255)、badge“当前”、aria-current=true。\n\n证据：同上 zip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-a-follow-086464b.zip\nsha256=37C47C29F006DB2B532288A8CBCB7A2004827365867F7BE4201EEA6699169FB3\n\n未升版本、未发布；剪切任务表格未改动。"
+}
