@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793353290044-1c27c4bd",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793353290044-1c27c4bd",
+  "created_at": "2026-10-30T09:41:30.044Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793353017482-72aec863"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.17 构建与 Windows 安装验收，本条无新增发布阻断项。** 任务已明确构建源、升级路径、UI 与剪切回归、分发及保留旧版的要求。正式分发仍须以这些验收通过为前提。本轮[快照范围](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sGsTks/REVIEW-PACKET.md:3>)未覆盖 `ea1dd2b`，因此认可的是交付方案，不能独立确认候选实现或发布结果；既有证据缺口不重复列为新问题。\n\n### 消息 1793353017482-72aec863\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[任务正文](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sGsTks/REVIEW-PACKET.md:16>)指定 `ea1dd2b`，报告 Mac 测试通过，并允许构建阻塞时修改代码。\n- 问题/风险：若触发修补例外，原提交的测试结论不能直接覆盖修补后的安装包；目前没有证据表明已发生修补。\n- 建议：无修补则按指定源验收；若修改产品代码，记录新提交并重跑相关检查、重建和安装验收，再分发。\n- 需要证据：仅发生修补时新增要求：修补差异、新 SHA 及对应验证结果；否则无新增。\n\n## 跨消息建议\n\n1. **明确使用完整打包入口。** 快照的 [Tauri 配置](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sGsTks/apps/cutter-desktop/src-tauri/tauri.conf.json:6>)直接读取已有 `dist`，没有构建前钩子。建议使用 `npm run package:cutter-desktop:windows`；[该流程](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sGsTks/scripts/desktop/package-windows-desktop.ts:58>)会依次构建前端、sidecar、searchd，再打 NSIS，减少混入旧生成物的风险。\n\n2. **把升级通过落到首页数据保留。** 在现有覆盖升级步骤中，对照升级前后的项目 ID、名称、最近任务 ID 与状态，并在重启后复查。安装成功和版本显示正确，尚不能证明新首页完整读取了旧数据。\n\n3. **注明截图的尺寸口径。** 1536/1440 截图附应用内容区尺寸及 Windows 显示缩放比例，用同一口径比较标题位置和侧栏面板，避免将屏幕分辨率直接当成页面可用宽度；无需因此扩大测试矩阵。"
+}
