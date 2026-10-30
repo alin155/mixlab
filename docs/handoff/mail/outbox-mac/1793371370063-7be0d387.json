@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793371370063-7be0d387",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793371370063-7be0d387",
+  "created_at": "2026-10-30T14:42:50.063Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793371222503-db6e3784"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进定点修正与复审，暂不认定 Batch C 验收通过。** 设置右栏在两种宽度下可读，但新证据未证明缓存骨架已展示，清理复选框仍有明显外观问题。未发现已证实的 P0/P1 发布阻断；当前 `269d99658ae2` 快照和空 `DIFF.patch` 无法核实 `acc265b` 的实现，不能据此断言其未完成。\n\n### 消息 1793371222503-db6e3784\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[证据 ZIP](/Users/huaqihang/Public/MixLabWindowsBuilds/batch-c-review-acc265b.zip) 内 `cache-loading-1536.png` 显示“启动中”，没有六行骨架；`verify.json` 仅记录 `skeleton:false`。\n- 问题/风险：采集到了应用启动屏，不能证明缓存页加载态生效。\n- 建议：在缓存页已挂载、所需快照尚未返回时采集，确认出现“正在读取缓存…”及六行骨架。\n- 需要证据：实际骨架截图与加载结束后的状态转换记录。\n\n## 跨消息建议\n\n1. **修正复选框实际尺寸。** 新截图中的控件呈竖胶囊，列表仍有黑色圆点。快照[通用输入框样式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-0q90j6/packages/ui-foundation/src/tokens.css:328) 设置了 `min-height:36px`、圆角 `8px`，可能覆盖局部尺寸。建议检查实际计算样式，在本页处理高度、圆角及列表标记；`appearance:none` 本身不能证明达到 16×16。\n\n2. **核对同屏缓存数字的矛盾。** 两张缓存图的分类均为 `0 KB`，清理列表却显示源视频 `10 GB`、缩略图 `901 KB`。建议对齐同次采集的 runtime 与 inventory 响应及时间，确认属于统计暂缺、刷新延迟还是字段映射问题，再判断加载态是否真正解决了误导性零值。\n\n3. **路径移入 title 后保留目标辨识能力。** 多条残留可能具有相同类型和大小，仅靠悬停路径容易选错。建议列表保留简短文件名或目录尾段，并让确认预览能核对完整路径；用两条同类型、同大小的残留验证即可。"
+}
