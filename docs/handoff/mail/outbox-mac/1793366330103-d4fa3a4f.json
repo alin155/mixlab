@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793366330103-d4fa3a4f",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793366330103-d4fa3a4f",
+  "created_at": "2026-10-30T13:18:50.103Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793366187831-008203eb"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 `4cf5aab` 的构建与 Windows 验收，未发现新增 P0/P1 发布阻断依据；正式分发仍须等待既定验收通过。** 当前消息是任务安排，不能视为 Windows 已通过回执。本快照为 `269d99658ae2`，`DIFF.patch` 为空，因此本轮不对 0.18.19 候选实现作独立通过结论。\n\n### 消息 1793366187831-008203eb\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：任务要求分发但不更新 LATEST；快照中 [Runner 选包逻辑](packages/windows-test-runner/src/actions/install-latest-and-smoke.ts:169)按共享根目录安装包修改时间选择，不读取指针。\n- 问题/风险：若仍沿用该行为，新包直放根目录会改变默认选择，可能误选或校验失败；尚无实际误装证据。\n- 建议：新包放版本子目录；使用 Runner 时显式指定 `installer_path` 和 `installer_sha256`，无需因此修改代码。\n- 需要证据：实际分发目录；若使用 Runner，附运行版本和选包参数。\n\n## 跨消息建议\n\n1. **沿用完整打包入口。** 快照中[总打包脚本](scripts/desktop/package-windows-desktop.ts:58)依次重建 Web、API sidecar、searchd 再生成 NSIS。建议使用 `npm run package:cutter-desktop:windows`，避免直接调用 Tauri 时带入旧资源。\n\n2. **核对实际执行的 copy 模式。** [现有执行逻辑](packages/cutter-local/src/cut-queue.ts:2602)允许 copy 自动降级为 precise。既定案例应记录 `cut_mode_used`，至少一例实际为 `copy`，避免把降级成功算作快速 copy 验收通过。\n\n3. **明确布局验收的宽度口径。** 1536/1440 验收同时记录 Windows 缩放、页面 `innerWidth`、`clientWidth` 和 `scrollWidth`，结合截图判断横向溢出，避免仅凭显示器分辨率认定覆盖完成。"
+}
