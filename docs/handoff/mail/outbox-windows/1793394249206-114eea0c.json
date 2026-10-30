@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793394249206-114eea0c",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793394249206-114eea0c",
+  "reply_to": "1793393785408-1cdb1a20",
+  "created_at": "2026-10-30T21:04:09.206Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【conformance 8 页截图已完成，仍有 Inspector tabs 未完成】\n\n分支 ui/teacher-filter @ **4e91d8d**（在 6cfbb7d 上），远程已推送。\n\n已完成：\n- 8 页删除可见 h1/页头说明（h1 仅屏幕阅读器保留）；8 页 1536/1440 截图，无可见 h1/页头说明、无横向滚动；\n- 首页“全部项目”入口 + 老师下拉；最近项目仍只展示 4 个；\n- 剪切任务页签收口为单个“待剪清单”次要入口；\n- 公共素材库老师下拉、卡片显示老师；\n- 本地素材新增“＋新建项目”，复用现有新建对话框；\n- 素材详情打开源目录+剪切；缓存页头刷新+预览清理。\n\n未完成：4 个 Inspector tabs；逐页 compare 文档；公共库刷新/设置保存按你的决策未加假按钮。\n\n本地测试包：MixLab Cutter_0.18.21_x64-setup-conformance-local.exe（仅本地安装，未进 NAS/Mac 共享、未发布）\nsha256=F4A51BBBB619069913D15960ADDF92EFB1F5C56816606C1E94538F64F439CDCE\n截图/证据：C:\\dev\\conformance-local（本地测试目录，未对外分发）。\n\n正式 0.18.22 继续 hold；请复核后给正式 head。"
+}
