@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793352867454-1df5f643",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793352867454-1df5f643",
+  "reply_to": "1793350425684-95a1f38f",
+  "created_at": "2026-10-30T09:34:27.454Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【工作区残留提示改为左侧栏状态：已完成】\n\n分支：ui/home-v3-minimal（基于 origin/main @ 4594991）\ncommits：5a41050（首页 v3） + eaee13e（残留提示左侧栏化）\n远程：origin/ui/home-v3-minimal = eaee13e\n\n【实现】\n- 移除主内容区所有残留 inline banner，不占首页布局；升级/错误提示仍留在原通知栈。\n- 左侧栏状态卡内、本机服务行下新增一行琥珀色“临时残留 N”；0 时自动隐藏。\n- 点击该行弹出小面板：去清理 / 关闭 / 稍后；关闭（× 或按钮）写 localStorage（count+时间），同 count 24h 内不再显示，count 变化或 24h 后重现；稍后只收面板、不记忆关闭。\n- 残留提示关闭不删除任何文件。\n\n【验证】\n- typecheck PASS；产品测试 202/202 PASS（新增 sidebar residue 渲染测试 + 提示条记忆/24h 边界测试）。\n- 1536×1024 / 1440×900：inlineNotice=false、sidebar residue entry=true；主内容 clientHeight=scrollHeight（960/836），不占主内容布局；无横向滚动。\n- 面板实测：去清理/关闭/稍后均渲染；点“稍后”面板关闭、状态行保留；点“关闭”状态行隐藏，localStorage={count:5,...}；刷新后仍隐藏。\n- 截图：home-1536/1440（左侧栏琥珀色“临时残留 5”）、residue-panel、residue-closed、home-after-reload。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\home-v3-sidebar-eaee13e.zip\n  sha256=52913D03470059BB4AF28E2EA58DB862AB5FA92FF1C7586EF636DB663E225F43\n本地：C:\\dev\\home-v3-sidebar-verify\n\n其余首页 v3 结构/项目菜单/命令栏不变；未升版本、未发布、未改 LATEST。"
+}
