@@ -48,6 +48,7 @@ import {
   ProjectRenameDialog
 } from "./features/project-home/ProjectHomePage.tsx";
 import { CutterLoginGate } from "./features/login/CutterLoginGate.tsx";
+import { CutterTopbar } from "./features/app-shell/CutterTopbar.tsx";
 import {
   CutterApiError,
   type CutterLoginStatus,
@@ -404,7 +405,7 @@ test("workbench navigation adopts the project selected on the home page", () => 
   }), undefined);
 });
 
-test("project home renders search-first startup, recent projects, and project detail", () => {
+test("project home renders search-first workbench and keeps project actions", () => {
   const data = fixture();
   const queue: CutQueueJob[] = [
     {
@@ -460,74 +461,56 @@ test("project home renders search-first startup, recent projects, and project de
           cover_url: data.primaryDetail.cover_url,
           source_title: data.primaryDetail.title,
           searches: [
-            {
-              query: "今天想学管理",
-              hit_count: 1,
-              searched_at: "2026-05-05T10:00:00.000Z"
-            }
+            { query: "今天想学管理", hit_count: 1, searched_at: "2026-05-05T10:00:00.000Z" }
           ]
         }
       ],
       selectedProjectId: "P20260505-001",
       onSearch: () => undefined,
       onOpenProject: () => undefined,
-      onOpenProjectDirectory: () => undefined
+      onOpenProjectDirectory: () => undefined,
+      onRenameProject: () => undefined,
+      onDeleteProject: () => undefined
     })
   );
 
   for (const text of [
-    "开始搜索",
+    "素材与剪切工作台",
     "全部素材",
     "文件夹",
-    "如「5月5日」/ 文件名 / 关键词",
+    "输入文案关键词，例如：现金流",
     "最近项目",
     "5月5日",
-    "搜索",
+    "搜索素材",
     "新建项目",
-	    "项目详情",
-	    "进入项目",
-	    "打开文件目录",
-	    "重命名",
-	    "删除项目"
-	  ]) {
+    "快速开始",
+    "直接搜索素材",
+    "查看剪切任务",
+    "本地素材",
+    "最近剪切 · 全部项目",
+    "进入项目",
+    "打开目录",
+    "重命名",
+    "删除",
+    "1 处理中"
+  ]) {
     assert.ok(html.includes(text), text);
   }
 
   assert.match(html, /data-page="project-home"/);
-  assert.equal(html.includes("搜索类型"), false);
-  assert.equal(html.includes("全部老师"), false);
   assert.match(html, /class="cutter-page cutter-project-home ml-workbench-page ml-workbench-page--project-home"/);
-  assert.match(html, /class="cutter-page-main ml-workbench-main ml-workbench-main--project-home"/);
-  assert.match(html, /class="cutter-eyebrow ml-page-kicker ml-page-kicker--hero"/);
-  assert.match(html, /class="ml-page-title ml-page-title--hero"/);
-  assert.match(html, /class="cutter-note ml-page-description ml-page-description--hero"/);
-  assert.match(html, /class="cutter-project-hero ml-workbench-hero"/);
-  assert.match(html, /class="ml-workbench-hero-copy"/);
-  assert.match(html, /class="cutter-search-form cutter-project-search-form ml-control-row--hero ml-workbench-hero-actions ml-workbench-hero-actions--with-filter"/);
-  assert.match(html, /class="ml-section-heading"/);
-  assert.match(html, /class="ml-section-title">最近项目<\/h2>/);
-  assert.match(html, /class="cutter-project-board ml-workbench-board"/);
-  assert.match(html, /class="cutter-project-list-panel ml-workbench-panel ml-workbench-panel--list"/);
-  assert.match(html, /class="cutter-project-grid ml-scroll-region ml-fixed-media-grid"/);
-  assert.ok((html.match(/class="ml-media-fill"/g) ?? []).length >= 2);
-  assert.match(html, /class="cutter-project-detail ml-scroll-region ml-workbench-panel ml-detail-panel"/);
-  assert.match(html, /class="cutter-project-detail-header ml-section-heading"/);
-  assert.match(html, /class="ml-section-title">项目详情<\/h2>/);
-  assert.match(html, /class="cutter-project-detail-cover ml-media-frame ml-detail-cover"/);
-  assert.match(html, /class="ml-data-list ml-data-list--detail cutter-project-detail-list"/);
-  assert.equal((html.match(/class="ml-data-row ml-data-row--detail cutter-project-detail-row"/g) ?? []).length, 4);
-  assert.equal(html.includes("cutter-project-detail-tools"), false);
-  assert.equal(html.includes("cutter-project-detail-tool"), false);
-  assert.equal(html.includes("启动入口"), false);
-  assert.equal(html.includes("首次剪切时自动创建剪切项目"), false);
-  assert.equal(html.includes("最近搜索"), false);
-  assert.equal(html.includes("最近搜索："), false);
-  assert.equal(html.includes("未完成 1 · 已交付 0"), false);
-  assert.equal(html.includes("已剪 1 · 搜索"), false);
-  assert.equal(html.includes("选项"), false);
-  assert.equal(html.includes("素材来源"), false);
-  assert.equal(html.includes("视频类型"), false);
-  assert.match(html, /已剪片段<\/dt><dd>1 个/);
+  assert.match(html, /class="cutter-home-header"/);
+  assert.match(html, /class="cutter-project-hero ml-workbench-hero cutter-home-hero"/);
+  assert.match(html, /class="cutter-home-search cutter-project-search-form ml-workbench-hero-actions"/);
+  assert.match(html, /class="cutter-home-grid"/);
+  assert.match(html, /aria-label="选择项目 5月5日"/);
+  assert.match(html, /class="cutter-home-project-card is-selected"/);
+  assert.match(html, /class="cutter-home-project-actions"/);
+  assert.match(html, /class="cutter-cover-skeleton"/);
+  assert.match(html, /class="ml-media-fill cutter-cover-image"/);
+  assert.equal(html.includes('data-cover-state="loading"'), true);
+  assert.equal(html.includes("Cutter / Project Home"), false);
+  assert.equal(html.includes("项目详情"), false);
 });
 
 test("project home separates selecting a recent project from entering it", () => {
@@ -567,30 +550,23 @@ test("project home separates selecting a recent project from entering it", () =>
       selectedProjectId: "P20260506-001",
       onSelectProject: () => undefined,
       onOpenProject: () => undefined,
-      onOpenProjectDirectory: () => undefined
+      onOpenProjectDirectory: () => undefined,
+      onRenameProject: () => undefined,
+      onDeleteProject: () => undefined
     })
   );
 
   assert.match(html, /aria-label="选择项目 5月5日"/);
   assert.match(html, /aria-label="选择项目 直播复盘"/);
-  assert.match(html, /class="cutter-project-card-main ml-media-card-fill-action ml-focus-inset"/);
-  assert.match(html, /class="cutter-project-card ml-media-card ml-media-card--fixed is-selected"/);
-  assert.match(html, /class="cutter-project-cover ml-media-card-cover-fill"/);
-  assert.match(html, /class="cutter-project-card-summary ml-media-card-caption ml-media-card-caption--top"/);
-  assert.match(html, /class="ml-media-card-title">直播复盘<\/strong>/);
-  assert.match(html, /class="cutter-project-card-stats ml-media-card-meta-stack"/);
-  assert.match(html, /cutter-project-card-enter/);
-  assert.match(html, /cutter-project-card-directory/);
-  assert.match(html, /class="cutter-project-card-actions ml-overlay-action-row ml-media-card-action-row"/);
-  assert.equal(html.includes("cutter-project-card-more"), false);
-  assert.match(html, /已剪 3/);
-  assert.match(html, /待剪 0/);
-  assert.match(html, /ml-button--primary/);
-  assert.match(html, /ml-button--secondary/);
-  assert.match(html, /class="ml-action-stack ml-sticky-action-stack ml-action-stack--detail cutter-project-detail-controls"/);
-  assert.ok(html.indexOf("直播复盘") < html.indexOf("项目详情"));
-  assert.match(html, /项目名<\/dt><dd>直播复盘<\/dd>/);
+  assert.match(html, /class="cutter-home-project-card is-selected"/);
+  assert.match(html, /class="cutter-home-project-select"/);
+  assert.match(html, /class="cutter-home-project-actions"/);
+  assert.ok((html.match(/class="cutter-home-project-actions"/g) ?? []).length === 1);
+  assert.match(html, /<span class="ml-button-label">进入项目<\/span>/);
+  assert.match(html, /<span class="ml-button-label">打开目录<\/span>/);
   assert.match(html, /<span class="ml-button-label">重命名<\/span>/);
+  assert.match(html, /<span class="ml-button-label">删除<\/span>/);
+  assert.ok(html.indexOf("直播复盘") < html.indexOf("进入项目"));
 });
 
 test("project rename dialog uses an in-app form instead of a browser prompt", () => {
@@ -984,7 +960,7 @@ test("generic cutter empty state visual owner moved to foundation", async () => 
   );
 });
 
-test("project home empty state uses foundation panels", () => {
+test("project home empty state offers create and direct search", () => {
   const data = fixture();
   const projectHomeHtml = renderToStaticMarkup(
     h(ProjectHomePage, {
@@ -997,8 +973,49 @@ test("project home empty state uses foundation panels", () => {
     })
   );
 
-  assert.match(projectHomeHtml, /class="cutter-project-empty-state ml-empty-panel"/);
+  assert.match(projectHomeHtml, /class="cutter-home-empty"/);
+  assert.ok(projectHomeHtml.includes("还没有归档项目"));
+  assert.match(projectHomeHtml, /<span class="ml-button-label">＋ 新建项目<\/span>/);
+  assert.match(projectHomeHtml, /<span class="ml-button-label">直接搜索素材<\/span>/);
   assert.equal(projectHomeHtml.includes("cutter-empty-state"), false);
+});
+
+test("cutter topbar exposes an explicit project switcher", () => {
+  const base = {
+    project_id: "P20260505-001",
+    title: "5月5日",
+    title_source: "auto" as const,
+    status: "active" as const,
+    created_at: "2026-05-05T10:00:00.000Z",
+    updated_at: "2026-05-05T10:05:00.000Z",
+    clip_count: 3,
+    running_count: 0,
+    failed_count: 0,
+    searches: []
+  };
+  const other = {
+    ...base,
+    project_id: "P20260506-001",
+    title: "直播复盘",
+    title_source: "manual" as const
+  };
+  const html = renderToStaticMarkup(
+    h(CutterTopbar, {
+      route: "project-home",
+      project: base,
+      projects: [base, other],
+      engineReady: true,
+      onOpenProject: () => undefined
+    })
+  );
+
+  assert.ok(html.includes("切换项目"));
+  assert.ok(html.includes("5月5日"));
+  assert.ok(html.includes("直播复盘"));
+  assert.ok(html.includes("本机服务正常"));
+  assert.equal(html.includes("全部项目"), false);
+  assert.match(html, /class="cutter-project-switch-trigger"/);
+  assert.match(html, /class="cutter-project-switch-menu"/);
 });
 
 test("chrome project switcher exposes project actions and home return", async () => {
