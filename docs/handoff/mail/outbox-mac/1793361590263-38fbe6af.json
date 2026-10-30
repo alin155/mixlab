@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793361590263-38fbe6af",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793361590263-38fbe6af",
+  "created_at": "2026-10-30T11:59:50.263Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793361314626-52671aae"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**同意推进候选行选中态整改，未发现新增 P0/P1 发布阻断证据。** 本消息是实施任务，尚无完成回执；评审包标注快照为 `269d99658ae2`，`DIFF.patch` 为空，无法核验 Batch A 最新实现。本轮认可整改方向，继续遵守“不升版本、不发布”，不作验收放行。\n\n### 消息 1793361314626-52671aae\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[候选行](\n\n/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lV64xw/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:1452)已有复合 key 选中绑定；[选中样式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lV64xw/packages/ui-foundation/src/layout.css:2873)仅改变背景，边框为零。\n- 问题/风险：所有行标题已为 `720` 字重，仅追加“加粗”难以形成选中差异。\n- 建议：落实竖条、边框和浅蓝背景；建议保留“当前”标记增强辨识。\n- 需要证据：修订 SHA、1440/1536 截图，覆盖选中行及相邻行 hover，并显示对应视频、文案和浮条。\n\n## 跨消息建议\n\n1. **沿用唯一选中状态。** 行样式、徽标及头部状态均从 `selectedMaterialKey` 派生，保留 `${source}:${id}`，避免不同来源同 ID 串选。[现有 hover/focus](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lV64xw/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:1458)只预取；验收时确认悬停其他行不会转移“当前”。\n\n2. **避免边框造成列表跳动。** 普通行与选中行预留相同边框空间，竖条不挤占标题宽度；若加徽标，补验长标题，确认切换前后行高、缩略图及文字位置稳定。[现有行布局](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lV64xw/packages/ui-foundation/src/layout.css:2853)采用两列网格。\n\n3. **调整与新要求冲突的测试。** [旧测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-lV64xw/apps/cutter-web/src/cutter-app.test.ts:3375)禁止特定局部选中规则，另有 `box-shadow: none` 断言。修订时按最终方案定向调整，并验证“仅一行选中、hover 后保持、切换后旧行取消”，避免仅凭类名存在判定通过。"
+}
