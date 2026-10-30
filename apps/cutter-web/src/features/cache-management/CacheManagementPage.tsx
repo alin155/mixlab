@@ -344,6 +344,16 @@ export function CacheManagementPage({
   const [audit, setAudit] = useState<CutterGovernanceAudit | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState("");
+  const [cacheSnapshotReady, setCacheSnapshotReady] = useState(() => Boolean(runtimeStatus?.release_cache?.ready));
+  useEffect(() => {
+    if (!runtimeStatus) {
+      setCacheSnapshotReady(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setCacheSnapshotReady(true), 350);
+    return () => window.clearTimeout(timer);
+  }, [runtimeStatus]);
+
   const release = runtimeStatus?.release_cache;
   const local = runtimeStatus?.local_cache;
   const releaseState = releaseStatus(runtimeStatus);
@@ -556,6 +566,32 @@ export function CacheManagementPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
+  if (!cacheSnapshotReady || !runtimeStatus) {
+    return (
+      <section className="cutter-page cutter-cache-management cutter-operational-page ml-workbench-page ml-workbench-page--fluid" data-page="cache-management">
+        <div className="cutter-page-main ml-workbench-main">
+          <header className="cutter-page-header ml-workbench-header">
+            <div>
+              <h1 className="ml-page-title">缓存管理</h1>
+              <p className="ml-page-description">正在读取缓存，请稍候…</p>
+            </div>
+          </header>
+          <Card className="cutter-cache-panel ml-panel-card" title="缓存分类" subtitle="正在读取缓存…">
+            <div className="cutter-cache-skeleton" aria-label="正在读取缓存">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div className="cutter-cache-skeleton-row" key={index}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="cutter-page cutter-cache-management cutter-operational-page ml-workbench-page ml-workbench-page--fluid" data-page="cache-management">
       <div className="cutter-page-main ml-workbench-main ml-workbench-main--rows-dashboard" style={{ gridTemplateRows: "auto auto auto minmax(0, 1fr)" }}>
@@ -701,13 +737,14 @@ export function CacheManagementPage({
                             disabled={!target.deletable || !target.writable || diskCleaning}
                             onChange={() => toggleCacheTarget(target)}
                           />
-                          <span>
-                            <strong>{target.label}</strong>
-                            <span> {formatCutterCacheSize(target.deletable_bytes)}</span>
-                            {!target.writable ? <Badge tone="warning">不可写</Badge> : null}
-                            {!target.deletable ? <Badge tone="info">受保护</Badge> : null}
-                            <code>{target.path}</code>
-                            {target.reason ? <em>{target.reason}</em> : null}
+                          <span className="cutter-cache-disk-target-main" title={target.path}>
+                            <span className="cutter-cache-disk-target-title">
+                              <strong>{target.label}</strong>
+                              <span>{formatCutterCacheSize(target.deletable_bytes)}</span>
+                              {!target.writable ? <Badge tone="warning">不可写</Badge> : null}
+                              {!target.deletable ? <Badge tone="info">受保护</Badge> : null}
+                            </span>
+                            {target.reason ? <span className="cutter-cache-disk-target-reason">{target.reason}</span> : null}
                           </span>
                         </label>
                       </li>
