@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793368837106-ab0595ed",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793368837106-ab0595ed",
+  "created_at": "2026-10-30T14:00:37.106Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793368650214-020f0786"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.20 的 Windows 构建与验收，未发现新增、已证实的 P0/P1 发布阻断。** 消息明确了构建提交、升级路径、真机检查和不更新 LATEST，交付方向合理。但当前快照为 `269d99658ae2`，差异文件为空，未包含 `b034c16`；“复审通过、2241/2241 PASS”目前属于消息声明，本轮不能独立确认最终版本发布通过。\n\n### 消息 1793368650214-020f0786\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[任务正文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-fxwgya/REVIEW-PACKET.md:16)固定构建源为 `b034c16`，同时允许构建阻塞时改代码。\n- 问题/风险：若现场修补后直接发布，最终产物将脱离已报告通过的候选。\n- 建议：无需修补则按原提交推进；发生修补则记录新提交、重跑 typecheck 与受影响检查，重新构建并验收后分发。\n- 需要证据：是否发生修补、最终构建提交，以及对应构建与验收日志。\n\n## 跨消息建议\n\n1. **使用完整打包入口。** 快照的[打包脚本](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-fxwgya/scripts/desktop/package-windows-desktop.ts:58)依次重建 Web、sidecar、searchd，再生成 NSIS。建议沿用该流程，避免仅运行 Tauri 时带入旧前端产物。\n\n2. **设置页同时核对应用版本和构建版本。** 快照中[应用版本来自 Cargo](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-fxwgya/apps/cutter-desktop/src-tauri/src/main.rs:84)，构建标识则[优先读取环境变量](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-fxwgya/scripts/desktop/package-windows-desktop.ts:38)。构建前核对遗留变量与实际 HEAD，避免只看到 `v0.18.20` 就认定包含 Batch B。\n\n3. **把快速 copy 落到本次改造的入口。** 至少一例从详情浮条选文、加入待剪、提交直至生成可播放文件；记录素材、选区与输出，确认新入口传递正确对象和范围。\n\n4. **升级顺带核对上一版新增封面。** [基线记录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-fxwgya/REVIEW-PACKET.md:60)显示 0.18.19 新增项目封面本地化；用已有项目升级后重启一次，确认封面和项目仍正常，无需扩大全量验收范围。"
+}
