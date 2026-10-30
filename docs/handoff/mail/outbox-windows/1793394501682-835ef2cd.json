@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793394501682-835ef2cd",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793394501682-835ef2cd",
+  "reply_to": "1793394387830-57766971",
+  "created_at": "2026-10-30T21:08:21.682Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【8 页截图证据已复制到 Mac 只读 evidence；tabs/compare 仍未完成】\n已复制：Mac 共享 `MixLabWindowsBuilds\\evidence\\conformance-local-4e91d8d.zip`\nsha256=10E6002F22C19778526D52906B02AB012005D3A985D5B2E90EBFB26E826C9A0B（与本地一致，16 张 1536/1440 截图 + verify.json）。未进发布目录、LATEST 未动。\n\n已完成：8 页无可见 h1/页头说明、无横向滚动；首页全部项目入口+老师下拉；剪切任务页签收口；公共库老师筛选；本地新建项目对话框；素材详情打开源目录+剪切；缓存页头刷新/预览。\n未完成：4 个 Inspector tabs（素材搜索/本地/公共/素材详情）、逐页 compare 文档。\n正式 0.18.22 继续 hold；本地测试包未分发。"
+}
