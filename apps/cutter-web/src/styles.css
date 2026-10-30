@@ -2239,3 +2239,26 @@ body,
   height: 16px !important;
   border-radius: 4px !important;
 }
+
+/* Conformance: compress page headers; keep titles for assistive tech only. */
+.cutter-page .ml-page-title,
+.cutter-home-title {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.cutter-page-header .ml-page-description,
+.cutter-home-header-copy .ml-page-description {
+  display: none;
+}
+.cutter-page-header,
+.cutter-home-header {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}

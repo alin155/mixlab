@@ -499,6 +499,21 @@ export function ProjectHomePage({
               <h2>最近项目</h2>
               <span>共 {projects.length} 个</span>
             </div>
+            <details className="cutter-home-all-projects">
+              <summary>全部项目</summary>
+              <div className="cutter-home-all-projects-list" role="list">
+                {projects.map((project) => (
+                  <button
+                    key={project.project_id}
+                    type="button"
+                    role="listitem"
+                    onClick={() => onOpenProject?.(project.project_id)}
+                  >
+                    {projectDisplayTitle(project)}
+                  </button>
+                ))}
+              </div>
+            </details>
           </div>
           {projects.length > 0 ? (
             <div className="cutter-home-project-grid">

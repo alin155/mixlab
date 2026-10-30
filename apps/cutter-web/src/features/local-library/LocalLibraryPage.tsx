@@ -29,6 +29,7 @@ import {
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
 import { LibraryGallery } from "../library-gallery.tsx";
+import { ProjectCreateDialog } from "../project-home/ProjectHomePage.tsx";
 
 type LocalClipVisualMetadata = LocalClipCatalog["clips"][number] & VideoDimensions;
 export type LocalClip = LocalClipCatalog["clips"][number];
@@ -162,6 +163,7 @@ export function LocalLibraryPage({
   onSelectLocalClip,
   onOpenLocalClipDirectory,
   onDeleteLocalClip,
+  onCreateProject,
   onLoadMore,
   isLoadingMore = false,
   client,
@@ -182,6 +184,7 @@ export function LocalLibraryPage({
   onSelectLocalClip?: (localClipId: string) => void;
   onOpenLocalClipDirectory?: (localClip: LocalClip) => void;
   onDeleteLocalClip?: (localClip: LocalClip) => void;
+  onCreateProject?: (title: string) => void;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   client?: Pick<CutterApiClient, "getLocalClipIntegrity" | "cleanLocalClips">;
@@ -196,6 +199,7 @@ export function LocalLibraryPage({
   const [orphanCleanResult, setOrphanCleanResult] = useState<CutterLocalClipCleanResult | null>(null);
   const [orphanCleanError, setOrphanCleanError] = useState("");
   const [orphanCleaning, setOrphanCleaning] = useState(false);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   async function loadLocalClipIntegrity() {
     if (!client) {
@@ -299,6 +303,11 @@ export function LocalLibraryPage({
             <p className="ml-page-description">查看本机剪切结果，播放、打开目录或继续编辑。</p>
           </div>
           <div className="cutter-local-library-controls ml-control-cluster">
+            {onCreateProject ? (
+              <Button type="button" variant="primary" size="sm" onClick={() => setCreateProjectOpen(true)}>
+                ＋ 新建项目
+              </Button>
+            ) : null}
             {onOpenLocalClipDirectory && (selected ?? visible[0]) ? (
               <Button
                 type="button"
@@ -507,6 +516,16 @@ export function LocalLibraryPage({
           {actionNotice ? <p className="cutter-note ml-page-description">{actionNotice}</p> : null}
         </div>
       </InspectorPanel>
+      {createProjectOpen ? (
+        <ProjectCreateDialog
+          initialTitle=""
+          onCancel={() => setCreateProjectOpen(false)}
+          onConfirm={(title) => {
+            setCreateProjectOpen(false);
+            onCreateProject?.(title);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
