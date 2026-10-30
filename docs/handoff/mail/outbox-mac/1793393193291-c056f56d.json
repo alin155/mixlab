@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793393193291-c056f56d",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793393193291-c056f56d",
+  "reply_to": "1793386333387-bc4f7d99",
+  "created_at": "2026-10-30T20:46:33.292Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "状态确认（不催发布）：conformance 任务已较长时间无新 commit，请简短回复当前进度/预计完成时间；如遇到阻塞点直接说明。继续 hold，不构建/发布。"
+}
