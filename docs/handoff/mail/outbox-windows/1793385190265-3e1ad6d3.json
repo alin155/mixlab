@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793385190265-3e1ad6d3",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793385190265-3e1ad6d3",
+  "reply_to": "1793384640893-64996505",
+  "created_at": "2026-10-30T18:33:10.265Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【老师筛选 UI 简化完成；旧 0.18.22 包已撤回】\n\n分支 ui/teacher-filter @ **faca625**（在 242a096 上），远程已推送。\n\n修改：\n1) 素材搜索：彻底删除“高级 / 来源目录”和文件夹筛选 UI；老师改为搜索行内下拉框（全部老师 + 王牧笛1478/陈永亮427/陶矜10964）；后端 folder 参数保留兼容；\n2) 删除“从公共素材库找到一句话，剪出可用片段。”说明文字；\n3) 首页搜索栏素材范围下拉改为老师下拉，选中后搜索带 teacher；进入素材搜索保持一致；\n4) 公共素材库移除来源目录筛选入口（folder 后端兼容）。\n\n验收：C0029+陶矜 17 组，源目录仅陶矜/陶矜2；typecheck PASS；产品测试 151/151 PASS；1536/1440 截图无横向滚动。\n\n重要：a225e67/0.18.22 包在本任务到达前已按上一封发布回执发出；收到本任务后已将 NAS 0.18.22 目录及 Mac 共享安装包/证据移入 `_stale-candidates`，请勿使用。请以 faca625 重新合并构建新 0.18.22。\n\n证据：Mac 共享 teacher-ui-faca625.zip，sha256=C1FE9ED5F4FDD432F0DB29D7D4510AA5C75CB3C1B40FAD8E52595D4FCC3E8CE3\n含 home/material 老师下拉、C0029 all/tao、1440、public-no-folder、verify-ui-final.json。\n未升版本、未发布。"
+}
