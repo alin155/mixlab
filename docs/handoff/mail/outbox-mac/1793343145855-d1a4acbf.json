@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793343145855-d1a4acbf",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793343145855-d1a4acbf",
+  "reply_to": "1793341459851-b1b98fa2",
+  "created_at": "2026-10-30T06:52:25.855Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.15@892dfb7"
+    ]
+  },
+  "body": "版本显示问题已确认并修复，请先处理 0.18.15（UI Phase 0 可之后继续）：\\n\\n根因：0.18.14 只改了 tauri.conf/package.json，漏了 apps/cutter-desktop/src-tauri/Cargo.toml 的 package version；Rust env!(CARGO_PKG_VERSION) 仍为 0.18.13，所以设置页显示 v0.18.13。安装包/FileVersion 实际是 0.18.14。\\n\\n修复分支：**hotfix/0.18.15 @ 892dfb7**（基于 main 288e7a2）：\\n- package.json / tauri.conf.json / Cargo.toml / Cargo.lock 全部同步 0.18.15；\\n- 新增 cargo 与 app 版本一致性测试；\\n- Mac 全量 **2239/2239 PASS**、typecheck PASS。\\n\\n请构建/验收/发布：\\n1) 从 892dfb7 构建 NSIS **0.18.15**，记录 sha；\\n2) 0.18.14→0.18.15 覆盖升级；**重点验证设置页应用版本显示 v0.18.15**，同时 DisplayVersion/FileVersion=0.18.15；\\n3) 快速跑 1~2 个 copy 案例确认无回归；\\n4) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13/0.18.14 保留；不要更新 LATEST；\\n5) reply sha/证据。不要改代码，除非构建阻塞。\\n\\nUI Phase 0 任务仍有效：等 0.18.15 完成后继续 ui/phase0-shell-home，分支从 main 288e7a2 建；不混入 0.18.15。"
+}
