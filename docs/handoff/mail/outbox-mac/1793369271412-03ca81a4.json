@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793369271412-03ca81a4",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793369271412-03ca81a4",
+  "created_at": "2026-10-30T14:07:51.412Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793369009518-821309eb"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**本批可推进 0.18.20 候选包交付结项，未发现新增、已证实的 P0/P1 发布阻断。** Mac 共享中的安装包和证据 ZIP 哈希均与回执一致；设置页截图显示 `v0.18.20 / b034c16dced0`，copy 记录为成功。LATEST 仍指向 0.18.19，符合任务约束。当前[代码快照](REVIEW-PACKET.md)仍为 0.18.13，因此本轮结论限于交付证据核验；Windows 实际执行及 NAS 副本未独立复测。\n\n### 消息 1793369009518-821309eb\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[本次证据包](/Users/huaqihang/Public/MixLabWindowsBuilds/01820-evidence.zip)支持版本、升级及 copy 回执；两张详情图和公共库 1440 图与[上轮证据包](/Users/huaqihang/Public/MixLabWindowsBuilds/batch-b-review-b88f3cc.zip)逐字节相同。\n- 问题/风险：截图相同可以来自确定性重采，但现有记录未注明来源，难区分复用与安装后复验。\n- 建议：补充采集来源说明；复用项注明适用提交，无需因此重跑全部检查。\n- 需要证据：上述截图对应的采集记录或复用说明。\n\n## 跨消息建议\n\n1. 给升级、三页检查和 copy 记录增加共同的验收运行编号，并绑定安装包哈希，方便确认属于同一次安装验收。\n2. `upgrade-01820.json` 补存 NSIS 实际退出码、安装路径和日志位置，使 `PASS` 可追溯。\n3. `quick-copy-e2e.json` 将 `verification: true` 关联到已有验证器报告或输出摘要，保留通过依据；无需新增测试范围。"
+}
