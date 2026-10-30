@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793384411293-90e45520",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793384411293-90e45520",
+  "created_at": "2026-10-30T18:20:11.294Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【修复 C0029 选择陶矜后无结果】\n\n分支 ui/teacher-filter 追加 commit **242a096**（在 e24a24b 上）：\n原因：C0029 是文件名类查询，先走本地 filename 搜索；该路径当时只接收单一目录过滤，没走 searchd 的 U+001F 多目录逻辑，导致老师条件丢失/零结果。\n修复：cutter-api 的 teacher 过滤同时应用到 filename 本地搜索、folder_query 和 searchd 失败回退；searchd 路径继续传多目录串。\n实测：C0029 + 全部老师返回 C0029 多老师素材；选陶矜后返回 **17 组**，源目录只含陶矜/陶矜2，不再为空。\ntypecheck PASS；产品测试 151/151 PASS；已重构建安装验证。\n未升版本、未发布。"
+}
