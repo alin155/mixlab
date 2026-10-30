@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793385851895-248cde47",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793385851895-248cde47",
+  "created_at": "2026-10-30T18:44:11.895Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793385558354-9f61d6a1",
+      "1793385622637-df21e2fe"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 `ui/teacher-filter` 的修改与复审准备，0.18.22 继续暂停构建和发布。** 本轮已补齐逐页清单及 Windows 停发确认，前轮等待回执的问题已解决。未发现新增、已证实的 P0/P1 缺陷。快照仍为 `269d99658ae2`，`DIFF.patch` 为空，因此本次结论限于任务与回执，不能视为新实现通过验收。\n\n### 消息 1793385558354-9f61d6a1\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[任务](REVIEW-PACKET.md:16)明确恢复修改，并保留构建、发布禁令；要求复用真实能力。\n- 问题/风险：“刷新索引”“保存”等新增入口仍需明确操作语义，不能仅凭按钮和截图验收。\n- 建议：完成回执逐项列出绑定 handler、实际效果及能力缺口；缺口按本条要求先报告。\n- 需要证据：完成提交对应的动作绑定清单及交互验证结果。\n\n### 消息 1793385622637-df21e2fe\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[回执](REVIEW-PACKET.md:24)确认暂停 `bc4c5fd` 构建发布，并接受后续清单。\n- 问题/风险：这是接收与执行边界确认，尚未声明修改完成。\n- 建议：认可本次确认；完成后的独立 reply 再进入实现验收，无需追加一次停发确认。\n- 需要证据：无（本条作为确认回执已充分）。\n\n## 跨消息建议\n\n以下为本轮新增修改的验收项；代码引用均来自旧快照，不据此认定候选存在缺陷。\n\n1. **核清“刷新索引”的能力范围。** 快照中的[公共库接口](apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx:55)没有刷新回调。新实现应说明实际执行的是列表重载、发布同步还是索引重建，并提供调用证据，避免用列表重载冒充索引更新。\n\n2. **明确设置页“保存”涵盖哪些字段。** 快照中[外观和默认剪切方式](apps/cutter-web/src/app/CutterApp.tsx:3441)修改后立即持久化；[工作区配置](apps/cutter-web/src/app/CutterApp.tsx:3537)另行保存且需重启生效。先确定本次保存边界，再验证重新进入页面后的值及失败反馈。\n\n3. **验证缓存页头动作保持预览与删除分离。** 现有[预览入口](apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:639)与[确认删除](apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:513)分开。迁移后核对选中项、预览字节与删除请求一致；点击预览或取消时不得调用 `cleanCache`。\n\n4. **补交互状态验证。** Inspector 新 tabs 验证切换后素材、文案选区和播放位置符合预期；待剪清单入口迁移后，覆盖“进入清单→返回任务→提交”，核对项目归属、清单内容及提交次数。截图之外保留这两条操作结果。"
+}
