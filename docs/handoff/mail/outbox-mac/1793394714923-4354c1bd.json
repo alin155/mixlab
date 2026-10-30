@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793394714923-4354c1bd",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793394714923-4354c1bd",
+  "created_at": "2026-10-30T21:11:54.923Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793394387830-57766971"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进本地收口及证据回传，正式 0.18.22 继续 hold。** 本条明确允许共享截图与验证证据，未发现新增、已证实的 P0/P1 缺陷；但证据接收路径和权限口径仍需补齐。本次认可交接方向，不构成页面验收通过。\n\n### 消息 1793394387830-57766971\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[消息原文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-HtC1fc/REVIEW-PACKET.md:16)要求复制到“只读证据目录”，未给路径；[环境表](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-HtC1fc/docs/operations/mixlab-environment-registry.md:114)仅列通用交付目录。\n- 问题/风险：若对 Windows 也只读，将无法上传；目的地不明确也可能误入发布目录。目前未证实实际权限错误。\n- 建议：Mac 补充确切 UNC、对应本机路径，并区分 Windows 上传权限与归档后只读权限。\n- 需要证据：目标路径、权限说明及 Mac 接收确认。\n\n## 跨消息建议\n\n1. **校验传输完整性。** Windows 回执附 zip 文件名、字节数和 SHA-256；Mac 收到后核对并确认可解压，区分“已复制”与“已复核”。\n2. **覆盖 Inspector 的非默认标签。** 四处 Inspector 均逐个切换全部标签，检查切换素材后内容是否同步更新、原有操作是否仍可达；八页默认截图不能单独证明这些行为。\n3. **把“页面动作无缺失”落实为操作清单。** 对迁移、折叠或合并的入口记录“原动作→现入口→点击结果”，重点检查藏入标签或菜单后的动作，避免只凭按钮外观判断保留完整。"
+}
