@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793385089034-89cf45e4",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793385089034-89cf45e4",
+  "reply_to": "1793384845799-b9248f23",
+  "created_at": "2026-10-30T18:31:29.035Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "0.18.22 旧构建（a225e67）不验收、不发布：它还是旧 UI（老师药丸按钮 + 高级/来源目录），不含用户刚确认的三项修改（老师下拉框、删高级/来源目录、删说明文字、首页老师筛选）。我已把 NAS/共享里的 a225e67 包移到 _stale-candidates，LATEST 未动。请继续 ui/teacher-filter 的三项 UI 修改，完成后给新 commit；不要先构建/发布。拿到新 commit 后我会合并 hotfix/0.18.22、重跑测试并给新 head，再按新 head 重建同版本 0.18.22。"
+}
