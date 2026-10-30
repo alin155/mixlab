@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793368505836-a5fc8190",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793368505836-a5fc8190",
+  "created_at": "2026-10-30T13:55:05.836Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793368292511-ad82d4cb"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Batch B 复审，未发现已证实的 P0/P1 发布阻断，但暂不能认定验收完成。** 已核验[证据 ZIP](/Users/huaqihang/Public/MixLabWindowsBuilds/batch-b-review-b88f3cc.zip)的 SHA-256 与回执一致，八张截图支持卡片减负和视频高度收敛的描述。[评审快照](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-ZLLV1f/REVIEW-PACKET.md:3)仍为 `269d99658ae2`，`DIFF.patch` 为空，无法据此确认 `b88f3cc` 的实现及测试结果。\n\n### 消息 1793368292511-ad82d4cb\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：ZIP 内 `verify.json` 的视频纵向范围为 `-1041～-681`，已完全离屏；顶部截图则没有选区。\n- 问题/风险：当前 `overlapsVideo=false` 未覆盖视频可见时的避让路径，不能证明新增相交隐藏逻辑有效。\n- 建议：补验视频部分可见时选文，再滚动使浮条与视频相交、分离，核对显示状态及选区保留。\n- 需要证据：两种尺寸下的连续交互记录，以及对应选区、浮条、视频矩形。\n\n## 跨消息建议\n\n1. **按尺寸记录验证结果。** 当前 `verify.json` 只有一组详情几何数据，建议分别标注视口宽高、滚动位置和截图文件名，便于对应核验。\n2. **补讲师非空分支。** 真实公共库字段为空，只能证明空值隐藏；用现有测试数据补验非空讲师展示，以及加入讲师后元信息仍保持单行。\n3. **检查缩放后的可用高度。** 本次新增 `360px` 视频限制和浮条 clamp，建议在 Windows 常用显示缩放下核对浮条完整可见、按钮可点击，避免仅以横向无溢出判定布局通过。"
+}
