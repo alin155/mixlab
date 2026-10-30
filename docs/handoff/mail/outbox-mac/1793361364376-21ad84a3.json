@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793361364376-21ad84a3",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793361364376-21ad84a3",
+  "created_at": "2026-10-30T11:56:04.376Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793361212830-8c60982a"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**同意推进“悬浮跟随”返工，未发现新增 P0/P1 发布阻断证据。** 本消息是实施指令，尚无完成回执；快照 `269d99658ae2` 的 `DIFF.patch` 为空，不能据此验证 `28c9da2` 后的实现。本批继续遵守“不升版本、不发布”，验收通过前不作发布放行判断。\n\n### 消息 1793361212830-8c60982a\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：任务已明确用户选择及表格冻结范围；[旧选区逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-s8URP8/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:1108)提交业务选区后调用 `removeAllRanges()`。\n- 问题/风险：若新增监听把原生选区消失等同“无选区”，浮条可能刚出现就隐藏；时间点和 Enter 选句也可能失效。\n- 建议：以业务选区判断有效性，结合段 ID、字符偏移测量位置；验证点击两个动作按钮不会提前丢失选区。\n- 需要证据：松开鼠标、时间点选段、Enter 选句及按钮点击的交互记录。\n\n## 跨消息建议\n\n1. **跟随逻辑应覆盖普通文案滚动。** [当前滚动处理](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-s8URP8/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:1144)在非虚拟化模式直接返回，而当前虚拟化阈值为无穷大。重定位不能放在该返回之后；明确选区滚出面板时隐藏浮条、滚回后恢复的行为。\n\n2. **统一定位坐标与 CSS 变换。** [共享锚点样式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-s8URP8/packages/ui-foundation/src/layout.css:1196)已有居中、上移的 `transform`。新算法若输出浮条左上角坐标，直接复用会产生二次偏移；需核对最终盒子。若涉及共享样式修改，由 Mac 处理，并检查同类消费者 `SourceDetailPage`。\n\n3. **用连续交互证明跟随。** [现有浮条测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-s8URP8/apps/cutter-web/src/cutter-app.test.ts:3082)主要检查 CSS 文本。新增浏览器验证应连续执行“选区变化→滚动→调整窗口→点击动作”，同时断言位置更新、提交的文本和时间范围正确；静态截图无法证明这些行为。"
+}
