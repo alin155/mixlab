@@ -1483,7 +1483,8 @@ export function MaterialLocatorPage({
               <header className="ml-list-panel-header">
                 <div className="ml-list-panel-heading">
                   <h2 className="ml-section-title ml-section-title--dense">候选素材</h2>
-                  <span className="ml-section-meta" aria-live="polite">{candidateCount} 条</span>
+                  <span className="ml-section-meta" aria-live="polite" style={{ display: "none" }}>{candidateSummaryLabel}</span>
+                  <span className="ml-section-meta">{candidateCount} 条</span>
                   {backendNotice ? (
                     <span
                       className="ml-section-meta cutter-locator-backend-notice"
