@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793352510522-f9ac9de6",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793352510522-f9ac9de6",
+  "reply_to": "1793350279408-10658827",
+  "created_at": "2026-10-30T09:28:30.523Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【首页 v3 极简工作台已完成，待审查】\n\n分支：ui/home-v3-minimal（基于 origin/main @ 4594991）\ncommit：5a41050  feat(cutter-web): add home v3 minimal workbench\n远程：origin/ui/home-v3-minimal = 5a41050（普通 push，无 rebase/强推）\n\n【本轮改动】\n- 首页：命令栏（搜索输入+范围+搜索按钮+本地/公共数量） + 最近项目 4 卡（16:9、标题、已剪/待剪/时间、当前项目高亮） + 最近剪切紧凑表格（状态/来源/时长/完成时间，最多 5 条）。\n- 删除 Hero / 快速开始卡片；标题改为“工作台”，右侧只保留“打开待剪清单”+“新建项目”。\n- 项目卡：点击卡片进入项目；原打开目录/重命名/删除收进右上角 ⋯ 菜单，不再常驻按钮。\n- 工作区残留提示条：单行紧凑、带关闭 ×；关闭写 localStorage（count+时间），同 count 24h 隐藏，count 变化或 24h 后重新提示，保留去清理链接；关闭不删文件。\n- 未改素材搜索/任务/本地素材内容、未做全站项目作用域、未改 API/业务规则。\n\n【验证】\n- typecheck PASS；产品测试 201/201 PASS（含新增提示条记忆测试）。\n- 1536×1024 / 1440×900 安装版首页截图；无横向滚动。\n- 项目 ⋯ 菜单：打开目录/重命名/删除 3 项；点重命名弹出重命名弹窗（已取消）。\n- 命令栏搜索“现金流”跳转 #/material-locator?query=…；点项目卡进入 material-locator。\n- 提示条：关闭前显示 → 关闭后隐藏 → 刷新后仍隐藏（localStorage 记录 count=5）；同 count/不同 count/24h 边界由单元测试覆盖。\n- 当前本机可见剪切队列为 0，所以截图表格是空态；组件测试用 2 条队列数据覆盖了表格行渲染。\n\n【截图证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\home-v3-minimal-5a41050.zip\n  sha256=45E119007B790203EAFFFDEF3B13F178D05E3D6A7D66FABF7262D61B33AED5BA\n  含 home-1536/1440、project-menu、notice-closed、notice-after-reload、verify2.json\n本地：C:\\dev\\home-v3-verify\n\n【与 mockup 差异】\n- 保留现有侧栏分组/顶栏项目切换器，未新增侧栏“工作台/系统”标签。\n- 最近项目固定最多 4 个；最近剪切表格最多 5 条，全部任务入口保留。\n- 提示条按 count+24h 记忆；关闭按钮为新增交互，mockup 中为演示脚本。\n\n未升版本、未发布、未改 LATEST。"
+}
