@@ -70,15 +70,39 @@ function taskStatusTimestamp(job: CutQueueJob): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-function ProjectCover({ project, variant = "card" }: { project: CutterProject; variant?: "card" | "detail" }) {
-  const coverUrl = variant === "detail" ? project.detail_cover_url ?? project.cover_url : project.cover_url;
+function ProjectCover({
+  project,
+  variant = "card",
+  apiBaseUrl = "",
+  onLocalized
+}: {
+  project: CutterProject;
+  variant?: "card" | "detail";
+  apiBaseUrl?: string;
+  onLocalized?: (projectId: string, coverLocalUrl: string) => void;
+}) {
+  const fallbackCoverUrl = variant === "detail" ? project.detail_cover_url ?? project.cover_url : project.cover_url;
+  const localCoverPath =
+    project.cover_local_url ??
+    `/cutter/projects/${encodeURIComponent(project.project_id)}/cover`;
+  const localCoverUrl =
+    apiBaseUrl && localCoverPath.startsWith("/") ? `${apiBaseUrl}${localCoverPath}` : localCoverPath;
+  const sources = [localCoverUrl, fallbackCoverUrl].filter(
+    (value, index, values): value is string => Boolean(value) && values.indexOf(value) === index
+  );
+  const [sourceIndex, setSourceIndex] = useState(0);
   const [coverState, setCoverState] = useState<"loading" | "ready" | "error">("loading");
+  const source = sources[sourceIndex];
+
+  useEffect(() => {
+    setSourceIndex(0);
+  }, [project.project_id, project.cover_local_url, fallbackCoverUrl, variant]);
 
   useEffect(() => {
     setCoverState("loading");
-  }, [coverUrl]);
+  }, [source]);
 
-  if (!coverUrl) {
+  if (!source) {
     return <span className="cutter-cover-fallback">{project.source_title ?? projectDisplayTitle(project)}</span>;
   }
 
@@ -89,9 +113,14 @@ function ProjectCover({ project, variant = "card" }: { project: CutterProject; v
         alt=""
         className={`ml-media-fill cutter-cover-image${coverState === "ready" ? " is-loaded" : ""}`}
         loading="eager"
-        onError={() => setCoverState("error")}
-        onLoad={() => setCoverState("ready")}
-        src={coverUrl}
+        onError={() => setSourceIndex((current) => current + 1)}
+        onLoad={() => {
+          setCoverState("ready");
+          if (sourceIndex === 0 && source !== fallbackCoverUrl) {
+            onLocalized?.(project.project_id, localCoverUrl);
+          }
+        }}
+        src={source}
       />
     </span>
   );
@@ -319,6 +348,7 @@ export function ProjectHomePage({
   sourceFolderFilter = "",
   sourceFolders = [],
   searchMode = "content",
+  apiBaseUrl = "",
   onSearch,
   onSetMaterialScope,
   onOpenProject,
@@ -327,7 +357,8 @@ export function ProjectHomePage({
   onRenameProject,
   onDeleteProject,
   engineReady = false,
-  onNavigate
+  onNavigate,
+  onProjectCoverLocalized
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
@@ -338,6 +369,7 @@ export function ProjectHomePage({
   sourceFolderFilter?: string;
   sourceFolders?: readonly SourceFolderOption[];
   searchMode?: MaterialSearchMode;
+  apiBaseUrl?: string;
   onSearch?: (query: string) => void;
   onSetMaterialScope?: (scope: string) => void;
   onSelectProject?: (projectId: string) => void;
@@ -348,6 +380,7 @@ export function ProjectHomePage({
   onDeleteProject?: (projectId: string, mode: ProjectDeleteMode) => void;
   engineReady?: boolean;
   onNavigate?: (route: CutterRoute) => void;
+  onProjectCoverLocalized?: (projectId: string, coverLocalUrl: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [deleteTargetProjectId, setDeleteTargetProjectId] = useState<string | undefined>();
@@ -471,7 +504,7 @@ export function ProjectHomePage({
                       type="button"
                     >
                       <span className="cutter-home-project-cover">
-                        <ProjectCover project={project} />
+                        <ProjectCover apiBaseUrl={apiBaseUrl} onLocalized={onProjectCoverLocalized} project={project} />
                         <span className="cutter-home-project-badge">{isCurrent ? "当前项目" : projectTitle}</span>
                         <span className="cutter-home-project-count">{project.clip_count} 片段</span>
                       </span>

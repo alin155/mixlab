@@ -6239,6 +6239,51 @@ async function runWorkspaceCutJob(input: {
   }
 }
 
+async function localProjectCoverFilePath(input: {
+  workspace_root: string;
+  project_id: string;
+}): Promise<string | undefined> {
+  if (!/^[A-Za-z0-9_-]+$/.test(input.project_id)) {
+    throw new Error("project_id must be a safe project identifier");
+  }
+
+  const projectDir = path.join(input.workspace_root, "projects", input.project_id);
+  const targetPath = path.join(projectDir, "cover.jpg");
+
+  if (await fileExists(targetPath)) {
+    return targetPath;
+  }
+
+  let catalog;
+  try {
+    catalog = await listExportClips({ workspace_root: input.workspace_root });
+  } catch {
+    return undefined;
+  }
+
+  const candidates = catalog.clips
+    .filter((clip) => clip.project_id === input.project_id && clip.cover_file_path)
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+
+  for (const clip of candidates) {
+    if (!clip.cover_file_path || !(await fileExists(clip.cover_file_path))) {
+      continue;
+    }
+
+    await mkdir(projectDir, { recursive: true });
+    const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      await copyFile(clip.cover_file_path, temporaryPath);
+      await rename(temporaryPath, targetPath);
+      return targetPath;
+    } catch {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+    }
+  }
+
+  return undefined;
+}
+
 async function resolveProjectOutputDirectory(input: {
   workspace_root: string;
   project_id?: string;
@@ -7758,6 +7803,37 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           writeNoContent(response);
         } catch {
           writeError(response, 500, "usage_event_failed", "failed to record source video view");
+        }
+        return;
+      }
+
+      const projectCoverMatch = /^\/cutter\/projects\/([^/]+)\/cover$/.exec(url.pathname);
+      if (request.method === "GET" && projectCoverMatch) {
+        const workspaceRoot = workspaceRootOrThrow(input);
+        const projectId = decodeURIComponent(projectCoverMatch[1] ?? "");
+        try {
+          const coverPath = await localProjectCoverFilePath({
+            workspace_root: workspaceRoot,
+            project_id: projectId
+          });
+          if (!coverPath) {
+            writeError(response, 404, "project_cover_not_found", "Project cover not found");
+            return;
+          }
+          response.setHeader("Cache-Control", "public, max-age=86400");
+          await streamFileWithCachePin({
+            request,
+            response,
+            file_path: coverPath,
+            content_type: contentTypeForImage(coverPath),
+            range_enabled: false
+          });
+        } catch (error) {
+          if ((error as Error).message === "project_id must be a safe project identifier") {
+            writeError(response, 400, "invalid_project_id", "项目编号格式不正确");
+            return;
+          }
+          throw error;
         }
         return;
       }
