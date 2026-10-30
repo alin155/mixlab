@@ -135,6 +135,10 @@ export async function deleteProjectOutputs(
     invalidateCutJobCache(input.workspace_root);
   }
 
+  // Remove the localized project cover directory for this project id (project
+  // cover files live under projects/<project_id>, separate from title folders).
+  await removeIfPresent(path.join(input.workspace_root, "projects", input.project_id));
+
   let removedClipLists = 0;
   for (const clipList of clipLists) {
     if (await removeIfPresent(path.join(input.workspace_root, "clip-lists", clipList.clip_list_id))) {

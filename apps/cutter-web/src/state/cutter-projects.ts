@@ -23,6 +23,8 @@ export interface CutterProject {
   failed_count: number;
   searches: CutterProjectSearch[];
   cover_url?: string;
+  cover_local_path?: string;
+  cover_local_url?: string;
   detail_cover_url?: string;
   source_title?: string;
 }
@@ -174,6 +176,7 @@ export function createProjectFromFirstCut(input: {
 }): CutterProject {
   const now = input.now ?? new Date().toISOString();
   const title = projectAutoTitleFromDate(now, input.existingProjects);
+  const projectId = projectIdFromDate(now);
   const searches = [
     ...(input.query.trim()
       ? [
@@ -189,7 +192,7 @@ export function createProjectFromFirstCut(input: {
     .reduce<CutterProjectSearch[]>((current, search) => recordProjectSearch(current, search, now), []);
 
   return {
-    project_id: projectIdFromDate(now),
+    project_id: projectId,
     title,
     title_source: "auto",
     status: "active",
@@ -200,6 +203,7 @@ export function createProjectFromFirstCut(input: {
     failed_count: 0,
     searches,
     ...(input.coverUrl ? { cover_url: input.coverUrl } : {}),
+    cover_local_url: `/cutter/projects/${encodeURIComponent(projectId)}/cover`,
     source_title: input.cut.source_title
   };
 }
@@ -393,6 +397,12 @@ function normalizedProject(value: unknown): CutterProject | null {
     failed_count: Math.max(0, Math.round(finiteNumber(value.failed_count, 0))),
     searches,
     ...(typeof value.cover_url === "string" && value.cover_url ? { cover_url: value.cover_url } : {}),
+    ...(typeof value.cover_local_path === "string" && value.cover_local_path
+      ? { cover_local_path: value.cover_local_path }
+      : {}),
+    ...(typeof value.cover_local_url === "string" && value.cover_local_url
+      ? { cover_local_url: value.cover_local_url }
+      : {}),
     ...(typeof value.detail_cover_url === "string" && value.detail_cover_url
       ? { detail_cover_url: value.detail_cover_url }
       : {}),

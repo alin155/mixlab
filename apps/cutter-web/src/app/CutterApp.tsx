@@ -1568,6 +1568,7 @@ function renderPage(
     createProject: (title: string) => void;
     renameProject: (projectId?: string) => void;
     deleteProject: (projectId: string, mode: ProjectDeleteMode) => void;
+    markProjectCoverLocalized: (projectId: string, coverLocalUrl: string) => void;
     moveCut: (cutListItemId: string, direction: MoveDirection) => void;
     reorderCut: (cutListItemId: string, targetIndex: number) => void;
     selectCutTasksTab: (tab: CutTasksTab) => void;
@@ -1606,6 +1607,7 @@ function renderPage(
         sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
         searchMode={viewState.materialSearchMode}
+        apiBaseUrl={viewState.apiBaseUrl}
         onSearch={handlers.searchFromProjectHome}
         onSetMaterialScope={handlers.setMaterialScope}
         onSelectProject={handlers.selectProject}
@@ -1614,6 +1616,7 @@ function renderPage(
         onCreateProject={handlers.createProject}
         onRenameProject={handlers.renameProject}
         onDeleteProject={handlers.deleteProject}
+        onProjectCoverLocalized={handlers.markProjectCoverLocalized}
         engineReady={Boolean(data.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用")}
         onNavigate={handlers.navigate}
       />
@@ -4170,6 +4173,18 @@ export function CutterApp() {
       commitProjects(upsertCutterProject(projects, project), project.project_id);
       setCutNotice(`已新建项目：${projectDisplayTitle(project)}`);
       window.location.hash = routeToHash("material-locator");
+    },
+    markProjectCoverLocalized(projectId: string, coverLocalUrl: string) {
+      const existing = projectsRef.current.find((project) => project.project_id === projectId);
+      if (!existing || existing.cover_local_url === coverLocalUrl) {
+        return;
+      }
+      commitProjects(
+        projectsRef.current.map((project) =>
+          project.project_id === projectId ? { ...project, cover_local_url: coverLocalUrl } : project
+        ),
+        currentProjectIdRef.current
+      );
     },
     deleteProject: handleDeleteProject,
     selectMaterial(result: MaterialLocatorResult) {

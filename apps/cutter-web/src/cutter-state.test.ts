@@ -1346,6 +1346,7 @@ test("first cut silently creates a cutter project from the active search query",
   assert.equal(project.title_source, "auto");
   assert.equal(projectDisplayTitle(project), "5月5日");
   assert.equal(project.cover_url, "/covers/project.jpg");
+  assert.equal(project.cover_local_url, `/cutter/projects/${project.project_id}/cover`);
   assert.equal(project.status, "active");
   assert.equal(project.clip_count, 1);
   assert.deepEqual(
