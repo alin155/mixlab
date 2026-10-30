@@ -256,6 +256,7 @@ export function CutQueuePage({
   const [batchPending, setBatchPending] = useState<CutQueueBatchAction | null>(null);
   const [batchResult, setBatchResult] = useState<CutQueueBatchResult | null>(null);
   const selectedJob = jobs.find((job) => job.queue_job_id === selectedJobId) ?? preferredTaskJob(jobs);
+  const selectedJobProgress = selectedJob ? estimateCutQueueProgress(jobs, selectedJob, nowMs) : null;
   const visibleJobs = statusFilter === "all" ? jobs : jobs.filter((job) => job.status === statusFilter);
   const visibleSelectableJobIds = visibleJobs.map((job) => job.queue_job_id);
   const allVisibleJobsSelected =
@@ -491,13 +492,7 @@ export function CutQueuePage({
         <header className="cutter-page-header ml-workbench-header">
           <div>
             <h1 className="ml-page-title">剪切任务</h1>
-            <p className="ml-page-description">
-              {summary.total} 个任务
-              {summary.running > 0 ? ` · ${summary.running} 个剪切中` : ""}
-              {summary.failed > 0 ? ` · ${summary.failed} 个需要处理` : ""}
-              {projectTitle ? ` · 当前项目 ${projectTitle}` : " · 全部项目"}
-              {totalCount > 0 ? ` · 全部 ${totalCount} 个任务` : ""}
-            </p>
+            <p className="ml-page-description">串行执行，等待中的任务显示队列位置和预计时间。</p>
             {jobs.length === 0 && totalCount > 0 ? (
               <p className="cutter-queue-batch-notice" role="status">
                 当前项目暂无剪切任务；可切换项目查看。全部项目共 {totalCount} 个任务。
@@ -508,57 +503,81 @@ export function CutQueuePage({
                 {batchResult.message}
               </p>
             ) : null}
+            {batchEnabled ? (
+              <p className="cutter-queue-batch-hint">
+                批量取消可在稍后重新重试；隐藏只影响本机视图，可恢复，不会删除任务文件。
+              </p>
+            ) : null}
           </div>
-          {batchEnabled ? (
-            <div className="cutter-queue-batch ml-control-cluster" role="group" aria-label="批量操作">
-              <span className="cutter-queue-batch-count">{selectedJobIds.size} 个已选</span>
-              <Button
-                className="cutter-queue-batch-button"
-                disabled={batchButtonsDisabled || !onBatchRetry}
-                onClick={() => void runBatchAction("retry")}
-                size="sm"
-                variant="secondary"
-              >
-                {batchPending === "retry" ? "重试中" : `批量重试（${retryTargetCount}）`}
-              </Button>
-              <Button
-                className="cutter-queue-batch-button"
-                disabled={batchButtonsDisabled || !onBatchPause}
-                onClick={() => void runBatchAction("pause")}
-                size="sm"
-                variant="secondary"
-              >
-                {batchPending === "pause" ? "取消中" : `批量取消（可重试）（${pauseTargetCount}）`}
-              </Button>
-              <Button
-                className="cutter-queue-batch-button"
-                disabled={batchButtonsDisabled || !onBatchDelete}
-                onClick={() => void runBatchAction("delete")}
-                size="sm"
-                variant="danger"
-              >
-                {batchPending === "delete" ? "隐藏中" : `隐藏（可恢复）（${deleteTargetCount}）`}
-              </Button>
-              {hiddenJobCount > 0 && onRestoreHiddenJobs ? (
+          <div className="ml-control-cluster">
+            {batchEnabled ? (
+              <div className="cutter-queue-batch ml-control-cluster" role="group" aria-label="批量操作">
+                <span className="cutter-queue-batch-count">{selectedJobIds.size} 个已选</span>
                 <Button
-                  className="cutter-queue-batch-restore"
-                  onClick={onRestoreHiddenJobs}
+                  className="cutter-queue-batch-button"
+                  disabled={batchButtonsDisabled || !onBatchRetry}
+                  onClick={() => void runBatchAction("retry")}
                   size="sm"
-                  variant="ghost"
+                  variant="secondary"
                 >
-                  {`恢复已隐藏（${hiddenJobCount}）`}
+                  {batchPending === "retry" ? "重试中" : `批量重试（${retryTargetCount}）`}
                 </Button>
-              ) : null}
-            </div>
-          ) : null}
-          {batchEnabled ? (
-            <p className="cutter-queue-batch-hint">
-              批量取消可在稍后重新重试；隐藏只影响本机视图，可恢复，不会删除任务文件。
-            </p>
-          ) : null}
+                <Button
+                  className="cutter-queue-batch-button"
+                  disabled={batchButtonsDisabled || !onBatchPause}
+                  onClick={() => void runBatchAction("pause")}
+                  size="sm"
+                  variant="secondary"
+                >
+                  {batchPending === "pause" ? "取消中" : `批量取消（可重试）（${pauseTargetCount}）`}
+                </Button>
+                <Button
+                  className="cutter-queue-batch-button"
+                  disabled={batchButtonsDisabled || !onBatchDelete}
+                  onClick={() => void runBatchAction("delete")}
+                  size="sm"
+                  variant="danger"
+                >
+                  {batchPending === "delete" ? "隐藏中" : `隐藏（可恢复）（${deleteTargetCount}）`}
+                </Button>
+                {hiddenJobCount > 0 && onRestoreHiddenJobs ? (
+                  <Button
+                    className="cutter-queue-batch-restore"
+                    onClick={onRestoreHiddenJobs}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    {`恢复已隐藏（${hiddenJobCount}）`}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+            {onOpenCutOutputDirectory ? (
+              <Button
+                className="cutter-queue-directory-action"
+                leadingIcon={<FolderIcon />}
+                onClick={onOpenCutOutputDirectory}
+                size="sm"
+                variant="secondary"
+              >
+                打开文件目录
+              </Button>
+            ) : null}
+          </div>
         </header>
+        <div className="cutter-queue-summary-line ml-inline-summary" aria-label="剪切任务摘要">
+          <span>等待 <strong>{summary.pending}</strong></span>
+          <span>剪切中 <strong>{summary.running}</strong></span>
+          <span>已完成 <strong>{summary.done}</strong></span>
+          <span>失败 <strong>{summary.failed}</strong></span>
+          <span className="cutter-queue-summary-pipeline">
+            本机流水线 <strong>{pipelineStatus}</strong>
+            <span className="cutter-queue-summary-detail"> · {pipelineDetail}</span>
+          </span>
+          {projectTitle ? <span className="cutter-queue-summary-project">当前项目：{projectTitle}</span> : null}
+        </div>
 
-        <Card className="cutter-queue-filter-card is-workbench" bodyClassName="cutter-queue-filter-card-body ml-toolbar-card-body">
+        <div className="cutter-queue-toolbar">
           <div className="cutter-queue-filter-list ml-toolbar-list">
             {statusFilters.map((filter) => (
               <Button
@@ -574,31 +593,14 @@ export function CutQueuePage({
               </Button>
             ))}
           </div>
-          {onOpenCutOutputDirectory ? (
-            <Button
-              className="cutter-queue-directory-action ml-toolbar-action"
-              leadingIcon={<FolderIcon />}
-              onClick={onOpenCutOutputDirectory}
-              variant="secondary"
-            >
-              打开文件目录
-            </Button>
-          ) : null}
-        </Card>
+          <span className="cutter-queue-toolbar-note">
+            {lastUpdatedLabel ? `更新于 ${lastUpdatedLabel}` : `全部 ${totalCount} 个任务`}
+          </span>
+        </div>
 
-        <Card
-          className={`cutter-queue-pipeline-card is-${pipelineState.status} is-workbench`}
-          bodyClassName="cutter-queue-pipeline-card-body ml-summary-card-body"
-        >
-          <div className="ml-inline-summary">
-            <span>本机剪切流水线</span>
-            <strong>{pipelineStatus}</strong>
-          </div>
-          <p className="ml-supporting-text">{pipelineDetail}</p>
-        </Card>
-
-        <Table<CutQueueJob>
-          className="cutter-queue-table is-workbench"
+        <div className="cutter-queue-table-area">
+          <Table<CutQueueJob>
+            className="cutter-queue-table is-workbench"
           columns={taskColumns}
           density="compact"
           empty={<span className="cutter-queue-empty ml-empty-inline">当前筛选没有剪切任务。</span>}
@@ -606,20 +608,21 @@ export function CutQueuePage({
           onRowClick={(job) => setSelectedJobId(job.queue_job_id)}
           rows={visibleJobs}
           selectedRowKey={selectedJob?.queue_job_id}
-          stickyHeader
-        />
-        {canLoadMore ? (
-          <Button
-            type="button"
-            className="cutter-queue-load-more"
-            variant="secondary"
-            size="sm"
-            disabled={isLoadingMore}
-            onClick={onLoadMore}
-          >
-            {isLoadingMore ? "加载中" : `加载更多（已显示 ${jobs.length} / ${totalCount}）`}
-          </Button>
-        ) : null}
+            stickyHeader
+          />
+          {canLoadMore ? (
+            <Button
+              type="button"
+              className="cutter-queue-load-more"
+              variant="secondary"
+              size="sm"
+              disabled={isLoadingMore}
+              onClick={onLoadMore}
+            >
+              {isLoadingMore ? "加载中" : `加载更多（已显示 ${jobs.length} / ${totalCount}）`}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <InspectorPanel
@@ -633,6 +636,14 @@ export function CutQueuePage({
               {labelForStatus(selectedJob.status)}
             </Badge>
             <dl className="ml-data-list ml-data-list--grid cutter-queue-detail-list">
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
+                <dt>队列 / ETA</dt>
+                <dd>{selectedJobProgress?.label ?? "-"}</dd>
+              </div>
+              <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
+                <dt>选区时长</dt>
+                <dd>{formatDuration(Math.max(0, selectedJob.end_ms - selectedJob.begin_ms))}</dd>
+              </div>
               <div className="ml-data-row ml-data-row--detail-pair cutter-queue-detail-row">
                 <dt>来源素材</dt>
                 <dd>{selectedJob.source_title || selectedJob.source_video_id || "未知来源"}</dd>
@@ -664,36 +675,39 @@ export function CutQueuePage({
                 </div>
               ) : null}
             </dl>
-            {jobNeedsRecut(selectedJob) && onRetryFailed ? (
-              <Button onClick={() => onRetryFailed(selectedJob.queue_job_id)} variant="primary">
-                {selectedJob.status === "done" ? "复剪" : "重新剪切"}
-              </Button>
-            ) : null}
-            {(selectedJob.status === "pending" || selectedJob.status === "running") && onCancelJob ? (
-              <Button onClick={() => onCancelJob(selectedJob.queue_job_id)} variant="secondary">
-                取消剪辑
-              </Button>
-            ) : null}
-            {onOpenCutOutputDirectory ? (
-              <Button
-                className="cutter-queue-detail-directory"
-                leadingIcon={<FolderIcon />}
-                onClick={onOpenCutOutputDirectory}
-                variant="secondary"
-              >
-                打开文件目录
-              </Button>
-            ) : null}
-            {onOpenCutJobDirectory ? (
-              <Button
-                className="cutter-queue-detail-directory cutter-queue-detail-job-directory"
-                leadingIcon={<FolderIcon />}
-                onClick={() => onOpenCutJobDirectory(selectedJob)}
-                variant="secondary"
-              >
-                打开任务目录
-              </Button>
-            ) : null}
+            <div className="ml-control-cluster cutter-queue-detail-actions">
+              {jobNeedsRecut(selectedJob) && onRetryFailed ? (
+                <Button onClick={() => onRetryFailed(selectedJob.queue_job_id)} variant="primary">
+                  {selectedJob.status === "done" ? "复剪" : "重新剪切"}
+                </Button>
+              ) : null}
+              {(selectedJob.status === "pending" || selectedJob.status === "running") && onCancelJob ? (
+                <Button onClick={() => onCancelJob(selectedJob.queue_job_id)} variant="secondary">
+                  取消剪辑
+                </Button>
+              ) : null}
+              {onOpenCutOutputDirectory ? (
+                <Button
+                  className="cutter-queue-detail-directory"
+                  leadingIcon={<FolderIcon />}
+                  onClick={onOpenCutOutputDirectory}
+                  variant="secondary"
+                >
+                  打开文件目录
+                </Button>
+              ) : null}
+              {onOpenCutJobDirectory ? (
+                <Button
+                  className="cutter-queue-detail-directory cutter-queue-detail-job-directory"
+                  leadingIcon={<FolderIcon />}
+                  onClick={() => onOpenCutJobDirectory(selectedJob)}
+                  variant="secondary"
+                >
+                  打开任务目录
+                </Button>
+              ) : null}
+
+            </div>
           </div>
         ) : (
           <span>暂无剪切任务</span>

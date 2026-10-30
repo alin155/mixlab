@@ -1901,7 +1901,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   }
 
   assert.equal(html.includes("片段篮"), false);
-  assert.equal(html.includes("待剪清单"), false);
+  assert.match(html, /打开待剪清单/);
   assert.equal(html.includes("搜索定位"), false);
   assert.equal(html.includes("候选素材 <span>·"), false);
   const localCandidateSectionIndex = html.indexOf("本地素材");
@@ -4341,9 +4341,9 @@ test("cut tasks page renders every task state and summary in Chinese", () => {
   assert.match(html, /cutter-cut-queue ml-workbench-page ml-workbench-page--fluid/);
   assert.match(html, /cutter-page-main ml-workbench-main ml-workbench-main--task-flow/);
   assert.match(html, /cutter-page-header ml-workbench-header/);
-  assert.match(html, /cutter-queue-pipeline-card-body ml-summary-card-body/);
-  assert.match(html, /class="ml-inline-summary"/);
-  assert.match(html, /class="ml-supporting-text"/);
+  assert.match(html, /cutter-queue-summary-line ml-inline-summary/);
+  assert.match(html, /class="cutter-queue-summary-pipeline"/);
+  assert.match(html, /class="cutter-queue-toolbar"/);
 });
 
 test("cut tasks page distinguishes verified, failed and unverified completions", () => {
@@ -4420,8 +4420,8 @@ test("cut tasks page uses a production table and task detail without internal ta
   assert.equal(html.includes("任务说明"), false);
   assert.match(html, /class="ml-table-wrap has-sticky-header is-compact cutter-queue-table is-workbench"/);
   assert.match(html, /<table class="ml-table"/);
-  assert.match(html, /class="ml-card cutter-queue-filter-card is-workbench"/);
-  assert.match(html, /class="ml-card cutter-queue-pipeline-card is-[^"]+ is-workbench"/);
+  assert.match(html, /class="cutter-queue-summary-line ml-inline-summary"/);
+  assert.match(html, /class="cutter-queue-toolbar"/);
   assert.match(html, /class="ml-button ml-button--ghost ml-button--sm cutter-queue-filter-button"/);
   assert.match(html, /class="ml-badge is-success"/);
   assert.match(html, /class="ml-badge is-danger"/);
@@ -4479,7 +4479,7 @@ test("cut tasks page names the current cutter project context", () => {
     })
   );
 
-  assert.equal(html.includes("当前项目："), false);
+  assert.match(html, /当前项目：/);
   assert.match(html, /剪切任务/);
 });
 
@@ -4812,7 +4812,7 @@ test("cut tasks page exposes a project output directory action near filters", ()
   assert.match(html, /打开文件目录/);
   assert.match(
     html,
-    /class="[^"]*\bml-button\b[^"]*\bml-button--secondary\b[^"]*\bml-button--md\b[^"]*\bcutter-queue-directory-action\b[^"]*\bml-toolbar-action\b[^"]*"/
+    /class="[^"]*\bml-button\b[^"]*\bml-button--secondary\b[^"]*\bml-button--sm\b[^"]*\bcutter-queue-directory-action\b[^"]*"/
   );
   assert.match(html, /class="ml-button ml-button--secondary ml-button--md cutter-queue-detail-directory"/);
   assert.doesNotMatch(html, /class="ml-button ml-button--primary ml-button--md cutter-queue-detail-directory"/);
