@@ -122,20 +122,6 @@ export function PublicLibraryPage({
             onSubmit={(value) => onSearchFilename?.(value)}
             placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
           />
-          <select
-            aria-label="素材范围"
-            className="cutter-source-folder-select ml-field-select"
-            value={materialScopeValue}
-            onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
-          >
-            <option value="">全部素材</option>
-            {sourceFolderOptions.map((folder) => (
-              <option key={folder.name} value={folder.name}>
-                {folder.name}（{folder.count}）
-              </option>
-            ))}
-            <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
-          </select>
           <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
             {orientationFilterOptions.map((option) => (
               <Button
