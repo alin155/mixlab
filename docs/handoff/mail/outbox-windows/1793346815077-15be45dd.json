@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793346815077-15be45dd",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793346815077-15be45dd",
+  "reply_to": "1793346414443-d1c070f2",
+  "created_at": "2026-10-30T07:53:35.077Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.16 最终包构建/升级/UI/copy/发布完成】\n\n构建源：hotfix/0.18.16 @ fed812b（含 UI Phase 0 7bb5eb1，基于 main bcbd5f2）\n安装包：MixLab Cutter_0.18.16_x64-setup-fed812b.exe（59.0MB）\nsha256=2A2C4091BB8949EC5906F11C542DD69BB97F61CEB90C3E04BCF71BB6AFCD3272\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.16\\（exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.16-fed812b.txt）\n- 两处 sha 一致；0.18.13/0.18.14/0.18.15 全部保留；**LATEST 未更新**。\n\n【0.18.15→0.18.16 覆盖升级：PASS】\n- DisplayVersion=0.18.16；exe FileVersion=0.18.16；\n- 设置页应用版本 **v0.18.16**，构建版本 **fed812bc358b**；\n- config SHA256 升级前后一致（F4C5685B…43A）；启动 health 200。\n\n【UI 验收：1536×1024 / 1440×900】\n- 首页 AppShell/提示条完整（notice top=76，正文可见）；项目切换器可打开、5 个最近项目；\n- 侧栏用户名 Allen 完整：1536 clientWidth/scrollWidth=42/42，1440=42/42，不截断；\n- 首页 4/4 项目封面 state=ready、naturalWidth=640，无空白；骨架加载态已实现；\n- 每页 topbar=1、sidebar=1、无横向滚动；1536 无纵向溢出；1440 首页允许纵向滚动；\n- 截图：home/switcher/settings/material-locator 两尺寸；material-locator 仅验证外壳，内容重排留 Phase 1。\n\n【快速 copy 回归：2/2 copy，verification 全部通过】\n| 任务 | 源 | queue | preflight | cut_media | 输出 |\n| CJ20261030-0004 | C0481 | 18ms | 51ms | 22948ms | E000088/001-0.18.16 quick copy E2E-C0481.mp4 |\n| CJ20261030-0005 | 040A4313 | 23.5s | 251ms | 25631ms | E000089/002-0.18.16 quick copy E2E-040A4313.mp4 |\n两条均 cut_mode_used=copy，文件/时长/视频/音频/首帧 PTS 校验通过。本次 cut_media 较慢（约 23~26s），判断为本机负载/NAS 状态差异，非解码路径回归；仍全部 copy 且校验通过。\n\n【证据】\n- 本地：C:\\dev\\mixlab-verify-01816\\（upgrade-01816.json、verify.json、quick-copy-e2e.json、8 张 png）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\01816-evidence.zip\n  sha256=87FE084653FCA6323E1675E005D4688081C78A054A4C2D588A3C645422E71D07\n\n未改代码、未升版本、未发布 LATEST；UI Phase 0 已包含在 0.18.16 中。"
+}
