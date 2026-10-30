@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793362587615-a09d780d",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793362587615-a09d780d",
+  "created_at": "2026-10-30T12:16:27.615Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.19"
+    ]
+  },
+  "body": "开始 0.18.19：项目封面本地化（用户反馈首页最近项目封面加载慢）。请从 origin/main @ **bcbb1d0** 新建分支 **ui/project-cover-local**，按 docs/design/PROJECT-COVER-LOCALIZATION-SPEC.md 实施（文件在 origin/dev/admin）。要求：1) 新建项目/首次剪切时把封面写成本地项目文件（优先使用本次本地 clip cover；没有再从源 cover copy 一次），项目状态保存本地路径；2) 首页优先加载本地封面，不再请求 NAS 源 cover；3) 旧项目后台异步迁移，不阻塞首页，幂等；4) 项目封面 pin 住，不参与普通 LRU；稳定文件名/Cache-Control；5) 保留现有回退；不改搜索/剪切业务规则/API 契约。验收：typecheck/产品测试；1536/1440 冷/热启动截图；NAS 断开也可显示；完成后 push 分支 reply（commit/截图/测试/差异），不升版本/发布。"
+}
