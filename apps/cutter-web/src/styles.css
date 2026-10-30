@@ -1923,3 +1923,123 @@ body,
 .cutter-home-project-body .cutter-home-project-meta > span.is-done {
   color: var(--ml-color-ready);
 }
+
+/* Home v3: residue lives in the sidebar footer, not in main content flow. */
+.ml-sidebar-status {
+  position: relative;
+}
+
+.cutter-sidebar-residue-entry {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 30px;
+  margin-top: 2px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-warning) 35%, var(--ml-color-border));
+  border-radius: 7px;
+  background: var(--ml-color-warning-soft);
+  color: var(--ml-color-warning);
+  font-size: 11.5px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cutter-sidebar-residue-entry:hover {
+  background: color-mix(in srgb, var(--ml-color-warning) 10%, var(--ml-color-warning-soft));
+}
+
+.cutter-sidebar-residue-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cutter-sidebar-residue-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 25;
+  padding: 10px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: 10px;
+  background: var(--ml-color-surface);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+}
+
+.cutter-sidebar-residue-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cutter-sidebar-residue-panel header strong {
+  color: var(--ml-color-warning);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cutter-sidebar-residue-close {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ml-color-text-tertiary);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cutter-sidebar-residue-close:hover {
+  background: var(--ml-color-surface-muted);
+  color: var(--ml-color-text);
+}
+
+.cutter-sidebar-residue-panel p {
+  margin: 6px 0 9px;
+  color: var(--ml-color-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.cutter-sidebar-residue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.cutter-sidebar-residue-actions a,
+.cutter-sidebar-residue-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: 6px;
+  background: var(--ml-color-surface);
+  color: var(--ml-color-text-secondary);
+  font-size: 10.5px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cutter-sidebar-residue-actions a {
+  border-color: var(--ml-color-accent);
+  background: var(--ml-color-accent);
+  color: #fff;
+  font-weight: 650;
+}
+
+.cutter-sidebar-residue-actions button:hover {
+  background: var(--ml-color-surface-muted);
+}

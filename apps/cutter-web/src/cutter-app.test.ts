@@ -4992,6 +4992,37 @@ test("sidebar footer does not swap local and public library counts", () => {
   assert.equal(html.includes("本地 7950 / 公共 146"), false);
 });
 
+test("sidebar exposes workspace residue as a sidebar status entry", () => {
+  const base = {
+    username: "Allen",
+    localCount: 1,
+    publicCount: 2,
+    activeTaskCount: 0,
+    engineReady: true,
+    cacheBytes: 0
+  };
+  const withResidue = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      ...base,
+      residueCount: 5,
+      showResidueNotice: true,
+      onDismissResidue: () => undefined
+    })
+  );
+  assert.match(withResidue, /class="cutter-sidebar-residue-entry"/);
+  assert.ok(withResidue.includes("临时残留 5"));
+
+  const noResidue = renderToStaticMarkup(
+    h(CutterSidebarFooter, {
+      ...base,
+      residueCount: 0,
+      showResidueNotice: true,
+      onDismissResidue: () => undefined
+    })
+  );
+  assert.equal(noResidue.includes("cutter-sidebar-residue-entry"), false);
+});
+
 test("sidebar footer keeps cutter status visually quiet", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
   const foundationCss = await readFile(new URL("../../../packages/ui-foundation/src/layout.css", import.meta.url), "utf8");
