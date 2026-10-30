@@ -2122,3 +2122,28 @@ body,
   min-height: 0;
   overflow: auto;
 }
+
+/* Batch B: flat library toolbars. */
+.cutter-local-library-toolbar,
+.cutter-public-library-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 36px;
+}
+
+.cutter-local-library-toolbar .ml-section-meta {
+  margin-left: auto;
+  color: var(--ml-color-text-tertiary);
+  font-size: 11px;
+}
+
+.cutter-public-library-toolbar .cutter-public-library-filename-search {
+  flex: 0 1 380px;
+  min-width: 220px;
+}
+
+.cutter-public-library-toolbar .cutter-source-folder-select {
+  flex: 0 0 150px;
+}

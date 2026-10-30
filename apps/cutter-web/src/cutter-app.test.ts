@@ -1186,8 +1186,8 @@ test("public library is a read-only gallery of available source videos", () => {
   );
 
   for (const text of [
-    "可用原素材",
-    "原素材详情",
+    "公共素材库",
+    "素材详情",
     "搜索素材文件名",
     "全部素材",
     "文件夹",
@@ -1195,8 +1195,7 @@ test("public library is a read-only gallery of available source videos", () => {
     "横版",
     "竖版",
     "直播复盘：从流量到现金流健康度",
-    "经营分析",
-    "由管理端配置",
+    "林老师",
     "可搜索素材 2 条",
     "全部可搜索",
     "查看完整文案"
@@ -1726,9 +1725,9 @@ test("source detail renders player, complete transcript, continuous selection, a
   );
 
   for (const text of [
-    "原视频与完整文案",
+    "素材详情",
     "完整文案",
-    "连续选择",
+    "选区",
     "已选 3 句",
     "剪切这段",
     "现金流的本质",
@@ -4140,7 +4139,7 @@ test("local library is independent and exposes local recut materials with orient
     })
   );
 
-  for (const text of ["本地素材库", "本地可复剪素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017", "打开文件目录", "已打开本地素材所属项目目录"]) {
+  for (const text of ["本地素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017", "打开文件目录", "已打开本地素材所属项目目录"]) {
     assert.match(html, new RegExp(text));
   }
 

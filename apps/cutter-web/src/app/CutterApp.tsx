@@ -1636,6 +1636,7 @@ function renderPage(
         onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onAddToCutList={handlers.addSelectedSpan}
+        recentJobs={queue}
       />
     );
   }

@@ -50,7 +50,7 @@ function galleryMeta(clip: LocalClip): string {
     clip.codec?.toUpperCase(),
     formatFileSize(clip.file_size)
   ]
-    .filter(Boolean)
+    .filter((value) => Boolean(value) && value !== "-")
     .join(" · ");
 }
 
@@ -280,11 +280,7 @@ export function LocalLibraryPage({
       title: clip.title,
       image: clip.cover_url ?? LOCAL_CLIP_FALLBACK_COVER,
       meta: galleryMeta(clip),
-      tags: [
-        videoOrientationLabel(clip as LocalClipVisualMetadata),
-        projectTitleForClip(clip, projectById)
-      ],
-      description: clip.selected_text,
+      tags: [videoOrientationLabel(clip as LocalClipVisualMetadata)],
       selected: clip.local_clip_id === selected?.local_clip_id,
       ...(onSelectLocalClip
         ? {
@@ -296,51 +292,61 @@ export function LocalLibraryPage({
 
   return (
     <section className="cutter-page cutter-local-library ml-workbench-page ml-workbench-page--library" data-page="local-library">
-      <div className="cutter-page-main ml-workbench-main ml-workbench-main--library ml-workbench-main--rows-list">
+      <div className="cutter-page-main ml-workbench-main ml-workbench-main--library" style={{ gridTemplateRows: "auto auto minmax(0, 1fr)" }}>
         <header className="cutter-page-header ml-workbench-header">
           <div>
-            <p className="cutter-eyebrow ml-page-kicker">本地素材库</p>
-            <h1 className="ml-page-title">本地可复剪素材</h1>
-            <p className="ml-page-description">
-              {viewMode === "current-project"
-                ? `${currentProjectTitle} · ${visible.length} 个当前项目素材`
-                : `${catalog.local_clip_count} 个本地可复剪素材，来自本机剪切输出。`}
-            </p>
+            <h1 className="ml-page-title">本地素材</h1>
+            <p className="ml-page-description">查看本机剪切结果，播放、打开目录或继续编辑。</p>
           </div>
           <div className="cutter-local-library-controls ml-control-cluster">
-            <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视图">
-              {[
-                ["current-project", "当前项目"],
-                ["all", "全部素材"]
-              ].map(([mode, label]) => (
-                <Button
-                  key={mode}
-                  type="button"
-                  variant={viewMode === mode ? "primary" : "ghost"}
-                  size="sm"
-                  aria-pressed={viewMode === mode}
-                  onClick={() => onSetViewMode?.(mode as LocalLibraryViewMode)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-            <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视频类型">
-              {orientationFilterOptions.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={orientationFilter === option.value ? "primary" : "ghost"}
-                  size="sm"
-                  aria-pressed={orientationFilter === option.value}
-                  onClick={() => onSetOrientationFilter?.(option.value)}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
+            {onOpenLocalClipDirectory && (selected ?? visible[0]) ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => onOpenLocalClipDirectory?.((selected ?? visible[0])!)}
+              >
+                打开素材目录
+              </Button>
+            ) : null}
           </div>
         </header>
+
+        <div className="cutter-local-library-toolbar ml-control-cluster">
+          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视图">
+            {[
+              ["current-project", "当前项目"],
+              ["all", "全部素材"]
+            ].map(([mode, label]) => (
+              <Button
+                key={mode}
+                type="button"
+                variant={viewMode === mode ? "primary" : "ghost"}
+                size="sm"
+                aria-pressed={viewMode === mode}
+                onClick={() => onSetViewMode?.(mode as LocalLibraryViewMode)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视频类型">
+            {orientationFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={orientationFilter === option.value ? "primary" : "ghost"}
+                size="sm"
+                aria-pressed={orientationFilter === option.value}
+                onClick={() => onSetOrientationFilter?.(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <span className="ml-section-meta">共 {visible.length} 个素材</span>
+        </div>
+
 
         {diskLow ? (
           <div className="ml-empty-panel ml-empty-panel--plain" role="alert">
@@ -352,7 +358,7 @@ export function LocalLibraryPage({
             </span>
           </div>
         ) : null}
-        {client ? (
+        {client && integrity && integrity.orphans.length > 0 ? (
           <section className="cutter-local-governance" aria-label="本地素材治理">
             {integrityLoading ? <p className="ml-metric-description">正在检查本地素材引用…</p> : null}
             {integrityError ? (
