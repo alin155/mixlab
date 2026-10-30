@@ -783,7 +783,7 @@ export function MaterialLocatorPage({
   const dragEndRef = useRef<string | null>(null);
   const previewEndMsRef = useRef<number | null>(null);
   const lastAutoSeekKeyRef = useRef<string | undefined>(undefined);
-  const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
+  const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number; placement: "above" | "below" | "right" } | null>(null);
   const [dragPreviewSegmentIds, setDragPreviewSegmentIds] = useState<readonly string[]>([]);
   const [timeSelectionStartSegmentId, setTimeSelectionStartSegmentId] = useState<string | undefined>();
   const [previewActive, setPreviewActive] = useState(false);
@@ -923,11 +923,68 @@ export function MaterialLocatorPage({
     };
   }
 
-  function floatingAnchorFromEvent(event: ReactMouseEvent<HTMLElement>): { left: number; top: number } {
+  function floatingAnchorFromEvent(event: ReactMouseEvent<HTMLElement>): { left: number; top: number; placement: "above" | "below" | "right" } {
     return {
       left: Math.min(Math.max(event.clientX, 220), window.innerWidth - 220),
-      top: Math.max(88, event.clientY - 8)
+      top: Math.max(88, event.clientY - 8),
+      placement: "above"
     };
+  }
+
+  // Anchor the selection toolbar to the actual selected content, not just the
+  // mouse-up coordinate. If there is room below the selection, place it below
+  // so the toolbar never covers the selected sentence; otherwise place it above.
+  function floatingAnchorFromRect(rect: DOMRect | null): { left: number; top: number; placement: "above" | "below" | "right" } | null {
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+
+    // Prefer a gutter immediately to the right of the selected text, matching
+    // the workbench mockup. This keeps the selected sentence unobscured; only
+    // fall back to above/below when the transcript/panel has no room.
+    const barWidth = 280;
+    const transcriptRight = transcriptBodyRef.current?.getBoundingClientRect().right ?? window.innerWidth;
+    const rightBoundary = Math.min(window.innerWidth - 12, transcriptRight - 4);
+    if (rect.right + barWidth + 16 <= rightBoundary) {
+      return {
+        left: rect.right + 8,
+        top: rect.top + rect.height / 2,
+        placement: "right"
+      };
+    }
+
+    const halfBarWidth = 180;
+    const left = Math.min(
+      Math.max(rect.left + rect.width / 2, halfBarWidth),
+      Math.max(halfBarWidth, window.innerWidth - halfBarWidth)
+    );
+    const belowTop = rect.bottom + 8;
+    const canPlaceBelow = belowTop + 42 <= window.innerHeight;
+    return {
+      left,
+      top: canPlaceBelow ? belowTop : Math.max(88, rect.top - 8),
+      placement: canPlaceBelow ? "below" : "above"
+    };
+  }
+
+  function floatingAnchorFromSegments(segments: readonly TranscriptSegment[]): { left: number; top: number; placement: "above" | "below" | "right" } | null {
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = 0;
+    let bottom = 0;
+    for (const segment of segments) {
+      const rect = segmentRefs.current.get(segment.segment_id)?.getBoundingClientRect();
+      if (!rect) {
+        continue;
+      }
+      left = Math.min(left, rect.left);
+      top = Math.min(top, rect.top);
+      right = Math.max(right, rect.right);
+      bottom = Math.max(bottom, rect.bottom);
+    }
+    return Number.isFinite(left)
+      ? floatingAnchorFromRect(new DOMRect(left, top, right - left, bottom - top))
+      : null;
   }
 
   function seekToSegment(segment: TranscriptSegment) {
@@ -1054,10 +1111,13 @@ export function MaterialLocatorPage({
 
     const node = segmentRefs.current.get(segmentId);
     const rect = node?.getBoundingClientRect();
-    const left = rect
-      ? Math.min(Math.max(rect.left + rect.width / 2, 220), window.innerWidth - 220)
-      : Math.round(window.innerWidth / 2);
-    setSelectionBarAnchor({ left, top: rect ? Math.max(88, rect.top - 8) : 120 });
+    setSelectionBarAnchor(
+      (rect ? floatingAnchorFromRect(rect) : null) ?? {
+        left: Math.round(window.innerWidth / 2),
+        top: 120,
+        placement: "above"
+      }
+    );
     onSelectTranscriptSegment?.(segmentId);
   }
 
@@ -1084,6 +1144,11 @@ export function MaterialLocatorPage({
     }
 
     const textRange = selectedTranscriptTextRange();
+    const domSelection = window.getSelection?.();
+    const selectedRangeRect =
+      domSelection && domSelection.rangeCount > 0
+        ? domSelection.getRangeAt(0).getBoundingClientRect()
+        : null;
     if (textRange) {
       dragStartRef.current = null;
       dragEndRef.current = null;
@@ -1097,7 +1162,7 @@ export function MaterialLocatorPage({
       if (firstSelectedTextSegment) {
         seekToSegment(firstSelectedTextSegment);
       }
-      setSelectionBarAnchor(floatingAnchorFromEvent(event));
+      setSelectionBarAnchor(floatingAnchorFromRect(selectedRangeRect) ?? floatingAnchorFromEvent(event));
       playSegmentsPreview(selectedTextSegments);
       onSelectTranscriptTextRange?.(
         textRange.startSegmentId,
@@ -1127,7 +1192,7 @@ export function MaterialLocatorPage({
       if (firstDraggedSegment) {
         seekToSegment(firstDraggedSegment);
       }
-      setSelectionBarAnchor(floatingAnchorFromEvent(event));
+      setSelectionBarAnchor(floatingAnchorFromSegments(draggedSegments) ?? floatingAnchorFromEvent(event));
       playSegmentsPreview(draggedSegments);
       onSelectTranscriptRange?.(dragStartSegmentId, dragEndSegmentId ?? dragStartSegmentId);
     } else if (isSingleSegmentClick(dragStartSegmentId, dragEndSegmentId)) {
@@ -1356,7 +1421,12 @@ export function MaterialLocatorPage({
   const selectionBarStyle: CSSProperties | undefined = selectionBarAnchor
     ? {
         left: selectionBarAnchor.left,
-        top: selectionBarAnchor.top
+        top: selectionBarAnchor.top,
+        ...(selectionBarAnchor.placement === "below"
+          ? { transform: "translate(-50%, 0)" }
+          : selectionBarAnchor.placement === "right"
+            ? { transform: "translate(0, -50%)" }
+            : {})
       }
     : undefined;
 
@@ -1369,6 +1439,17 @@ export function MaterialLocatorPage({
     >
       <div className="cutter-page-main ml-split-workbench">
         <section className="cutter-locator-command ml-command-row ml-split-workbench-command" aria-label="素材搜索">
+          <header className="ml-workbench-header cutter-locator-page-head">
+            <div>
+              <h1 className="ml-page-title">素材搜索</h1>
+              <p className="ml-page-description">从公共素材库找到一句话，剪出可用片段。</p>
+            </div>
+            <div className="ml-control-cluster">
+              <Button href="#/cut-tasks" size="sm" type="button" variant="secondary">
+                打开待剪清单
+              </Button>
+            </div>
+          </header>
           <div className="cutter-locator-command-header ml-command-row-header ml-command-row-header--source-filter">
             <SearchBox
               aria-label={searchMode === "folder" ? "搜索文件夹名称" : "搜索文案关键词、素材文件名或粘贴爆款文案"}
@@ -1402,9 +1483,15 @@ export function MaterialLocatorPage({
               <header className="ml-list-panel-header">
                 <div className="ml-list-panel-heading">
                   <h2 className="ml-section-title ml-section-title--dense">候选素材</h2>
-                  <span className="ml-section-meta" aria-live="polite">{candidateSummaryLabel}</span>
+                  <span className="ml-section-meta" aria-live="polite" style={{ display: "none" }}>{candidateSummaryLabel}</span>
+                  <span className="ml-section-meta">{candidateCount} 条</span>
                   {backendNotice ? (
-                    <span className="ml-section-meta cutter-locator-backend-notice" role="status">
+                    <span
+                      className="ml-section-meta cutter-locator-backend-notice"
+                      role="status"
+                      style={{ display: "none" }}
+                      title={backendNotice}
+                    >
                       {backendNotice}
                     </span>
                   ) : null}
@@ -1446,6 +1533,7 @@ export function MaterialLocatorPage({
                       <div className="cutter-locator-result-list ml-media-row-list ml-list-body--compact-inset">
                         {section.items.map((item) => (
                           <button
+                            aria-current={selectedMaterialKey === `${item.source}:${item.id}` ? "true" : undefined}
                             className={[
                               "cutter-locator-result",
                               "ml-media-row",
@@ -1458,6 +1546,15 @@ export function MaterialLocatorPage({
                             onClick={() => onSelectMaterial?.(item)}
                             onFocus={() => onPrefetchMaterial?.(item)}
                             onMouseEnter={() => onPrefetchMaterial?.(item)}
+                            style={
+                              selectedMaterialKey === `${item.source}:${item.id}`
+                                ? {
+                                    borderLeft: "3px solid var(--ml-color-accent)",
+                                    background: "var(--ml-color-control-active)",
+                                    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--ml-color-accent) 35%, transparent)"
+                                  }
+                                : undefined
+                            }
                           >
                             {item.cover_url ? (
                               <img className="ml-media-row-thumb" src={item.cover_url} alt="" />
@@ -1467,6 +1564,9 @@ export function MaterialLocatorPage({
                             <span className="ml-media-row-body">
                               <strong className="ml-media-row-title">{item.title}</strong>
                               <span className="ml-media-row-meta">
+                                {selectedMaterialKey === `${item.source}:${item.id}` ? (
+                                  <small className="ml-badge is-info">当前</small>
+                                ) : null}
                                 <small className="ml-media-row-subtle">{item.transcript_character_count.toLocaleString()} 字</small>
                                 <small className="ml-media-row-subtle">{formatDuration(item.duration_ms)} · 命中 {item.hit_count}</small>
                               </span>
