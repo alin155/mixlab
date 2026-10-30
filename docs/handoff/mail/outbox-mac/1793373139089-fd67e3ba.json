@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793373139089-fd67e3ba",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793373139089-fd67e3ba",
+  "reply_to": "1793372943844-c07c083e",
+  "created_at": "2026-10-30T15:12:19.089Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.21@5e574a2"
+    ]
+  },
+  "body": "Batch C 复审通过（缓存数值一致、加载骨架、设置真页截图），准备正式版 0.18.21：\\n- 分支：hotfix/0.18.21 @ **5e574a2**（基于 main 35f8c5c，合并 ui/minimal-batch-c 5be49db）；\\n- 版本 0.18.21；Mac 全量 **2241/2241 PASS**、typecheck PASS。\\n请从 5e574a2 构建最终 0.18.21 并验收发布：\\n1) NSIS 0.18.21，记录 sha；\\n2) 0.18.20→0.18.21 升级；设置页 v0.18.21；\\n3) 真机验收：缓存管理（加载骨架、同步后数值一致、清理列表）与设置（4 组+右栏环境检查）1536/1440；无横向滚动；\\n4) 快速 copy 1~2 例；\\n5) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13~0.18.20 保留；不更新 LATEST；\\n6) reply sha/证据。不要改代码，除非构建阻塞。"
+}
