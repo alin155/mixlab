@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793364598477-87ab62f4",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793364598477-87ab62f4",
+  "reply_to": "1793364368996-a60ea741",
+  "created_at": "2026-10-30T12:49:58.477Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【新项目首剪封面链路补验完成】\n\n同一分支：ui/project-cover-local；commit 仍为 504cc62（未改代码）\n\n验证项目：P20261030-204833848（新建项目“封面首剪验证-513707”）\n- 通过首页“新建项目”UI 创建；为避免长搜索/选段流程，cut 以该 project_id 归属提交 1 个 copy 任务；\n- cut：CJ20261030-0010，status=done，cut_mode_used=copy，verification=true；\n- 本地封面：workspace/projects/P20261030-204833848/cover.jpg，存在，42307 bytes；\n- 项目状态已写入 cover_local_url=.../cutter/projects/P20261030-204833848/cover；\n- 端点：200 image/jpeg，Cache-Control public,max-age=86400，42307 bytes；\n- 首次回首页图片 src 已是本地端点，非 source-videos cover；\n- 重启 App 冷启动后：该新项目卡封面仍从本地端点加载，naturalWidth>0；\n- 离开首页再返回（热）同样本地加载；1536/1440 均无横向滚动。\n\n说明：该 cut 通过本机 API 提交，因此 UI 项目卡的 clip_count 未做前端增量更新（显示 0 片段），不影响封面落盘/回写/加载链路；如需我再用纯 UI 搜索→加入待剪→提交完整跑一遍可另说。\n\n证据：\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\project-cover-new-project-504cc62.zip\n  sha256=F3C98CDF97A430025845DD0A148D0DEA909000FB387B5A7AF0138336022C509B\n含 new-project-first-home-1536、cold 1536/1440、hot 1536/1440、verify JSON、cover-file JSON；本地 C:\\dev\\cover-local-verify。\n\n未升版本、未发布；封面链路无需修代码。"
+}
