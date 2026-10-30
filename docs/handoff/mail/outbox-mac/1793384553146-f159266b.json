@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793384553146-f159266b",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793384553146-f159266b",
+  "created_at": "2026-10-30T18:22:33.146Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793384411293-90e45520"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进修复后的隔离集成，未发现新增 P0/P1 发布阻塞实证，但本轮不足以放行新版。** 根因描述与可见代码的搜索分流一致，修复方向合理。当前快照为 `269d99658ae2`，`DIFF.patch` 为空，未包含 `242a096`；17 组结果、151/151 和安装验证均属消息自报，不能据此确认修复完整性。\n\n### 消息 1793384411293-90e45520\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[现有分流](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LWxnH2/packages/cutter-api/src/index.ts:2643)优先执行本地 filename 搜索，文件名类查询直接返回，支持该根因解释。\n- 问题/风险：恢复非空结果，仍不能证明筛选没有遗漏匹配素材。\n- 建议：核对本次增量的过滤顺序，并纳入新的集成候选。\n- 需要证据：`e24a24b..242a096` 差异及 C0029 专项回归结果。\n\n## 跨消息建议\n\n1. **核对正在构建的候选是否包含补丁。** 前条任务指定 `1cb4a0d`，本条新增 `242a096`，目前无法确认包含关系。Mac 应明确回复最终集成提交；若旧候选未含补丁，应更新构建任务，避免两条消息各自验收成功却交付旧实现。\n\n2. **检查过滤是否发生在截断之前。** [现有本地文件名搜索](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LWxnH2/packages/library-fs/src/cutter-source-library.ts:1094)受 `limit` 限制且不返回后续游标。补一个“前若干条均属其他老师、目标老师排在其后”的用例，防止取前 N 条后再筛选造成少结果或零结果；这是待核查风险，尚非新版已证实缺陷。\n\n3. **保留翻页故障的后端边界。** [现有逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LWxnH2/packages/cutter-api/src/index.ts:2709)遇到携带 searchd 游标的失败会报错。核查此次扩大本地回退时仍保留该行为，并分别验证首屏故障回退、后续页故障报错，避免错误复用游标造成重复或漏项。"
+}
