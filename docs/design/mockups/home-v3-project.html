@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>MixLab Cutter · 首页 v3 对比</title><link rel="stylesheet" href="assets/styles.css" /><link rel="stylesheet" href="home-v3.css" /></head>
+<body><div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">ML</div><div><div class="brand-name">MixLab Cutter</div><div class="brand-sub">项目化素材剪切</div></div></div>
+    <nav class="nav">
+      <div class="nav-label">工作台</div>
+      <a class="nav-item " href="home-v3-minimal.html"><span class="nav-icon">⌂</span><span>首页</span></a>
+      <a class="nav-item" href="workbench.html"><span class="nav-icon">⌕</span><span>素材搜索</span></a>
+      <a class="nav-item" href="cut-tasks.html"><span class="nav-icon">✂</span><span>剪切任务</span></a>
+      <a class="nav-item" href="local-library.html"><span class="nav-icon">▤</span><span>本地素材</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">▦</span><span>公共素材库</span></a>
+      <div class="nav-label">系统</div>
+      <a class="nav-item" href="#"><span class="nav-icon">≋</span><span>缓存管理</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon">⚙</span><span>设置</span></a>
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-status"><div class="status-row"><span>当前项目</span><strong>10月30日</strong></div><div class="status-row"><span>素材库</span><strong>本地 87 / 公共 12869</strong></div><div class="status-row"><span>剪切任务</span><strong>空闲</strong></div><div class="status-row"><span>本机服务</span><strong><i class="status-dot"></i>正常</strong></div></div>
+    <div class="user-card"><div class="avatar">A</div><div class="user-copy"><div class="user-name">Allen</div><div class="user-meta">缓存 5.0 GB</div></div></div>
+  </aside>
+  <div class="main">
+    <header class="topbar"><div class="breadcrumb">工作台 / <strong>首页</strong></div><button class="project-switch"><span class="ps-label">切换项目</span><strong>10月30日</strong><span class="ps-caret">▾</span></button><div class="topbar-spacer"></div><div class="topbar-actions"><span class="badge success"><span class="dot"></span>本机服务正常</span><button class="btn ghost">快捷键</button></div></header>
+    
+    <div class="h3-page">
+      <div class="h3-notice"><strong>发现 5 个工作区临时残留</strong><span>可在缓存管理页预览并清理；项目与已完成作品不会被删除。</span><a class="h3-notice-link" href="#">去清理</a><button class="h3-notice-close" onclick="hideNotice()" title="关闭">×</button></div>
+      <div class="h3-header"><div><h1>剪切项目</h1><p>打开一个项目继续工作，或新建项目开始这次剪辑。</p></div><div class="h3-header-actions"><input class="input" style="width:240px;height:34px" placeholder="搜索文案或项目" /><button class="btn primary">＋ 新建项目</button></div></div>
+      <div class="h3-project-layout">
+        <section><div class="h3-section-head"><div class="h3-head-left"><h2>最近项目</h2><span class="h3-section-sub">共 5 个</span></div><a href="#">全部项目</a></div><div class="h3-project-grid-big">
+<div class="h3-project active"><div class="h3-cover"><span class="h3-badge">当前项目</span><span class="h3-count">65 片段</span></div><div class="h3-project-body"><div class="h3-project-title"><span>10月30日</span></div><div class="h3-project-meta"><span class="done">已剪 22</span><span>待剪 41</span><span>今天 09:12</span></div><div class="h3-project-actions"><button class="btn primary">进入项目</button><button class="btn">打开目录</button></div></div></div>
+<div class="h3-project"><div class="h3-cover dark"><span class="h3-badge">6月24日</span><span class="h3-count">42 片段</span></div><div class="h3-project-body"><div class="h3-project-title"><span>6月24日</span></div><div class="h3-project-meta"><span class="done">已剪 4</span><span>待剪 38</span><span>昨天</span></div><div class="h3-project-actions"><button class="btn">进入项目</button><button class="btn ghost">打开目录</button></div></div></div>
+<div class="h3-project"><div class="h3-cover"><span class="h3-badge">6月22日</span><span class="h3-count">26 片段</span></div><div class="h3-project-body"><div class="h3-project-title"><span>6月22日</span></div><div class="h3-project-meta"><span class="done">已剪 3</span><span>待剪 23</span><span>昨天</span></div><div class="h3-project-actions"><button class="btn">进入项目</button><button class="btn ghost">打开目录</button></div></div></div>
+<div class="h3-project"><div class="h3-cover dark"><span class="h3-badge">6月1日-1</span><span class="h3-count">39 片段</span></div><div class="h3-project-body"><div class="h3-project-title"><span>6月1日-1</span></div><div class="h3-project-meta"><span class="done">已剪 16</span><span>待剪 23</span><span>2 天前</span></div><div class="h3-project-actions"><button class="btn">进入项目</button><button class="btn ghost">打开目录</button></div></div></div></div></section>
+        <aside class="h3-side-card">
+          <div class="h3-side-cover"><span>当前项目 · 10月30日</span></div>
+          <div class="h3-side-body"><div class="h3-side-title">10月30日</div><div class="h3-side-sub">现金流专题 · 最近编辑今天 09:12</div><div class="h3-side-stats"><div class="h3-side-stat"><span>已剪</span><strong>22</strong></div><div class="h3-side-stat"><span>待剪</span><strong>41</strong></div><div class="h3-side-stat"><span>片段</span><strong>65</strong></div></div><div class="h3-side-actions"><button class="btn primary">进入项目</button><button class="btn">打开文件目录</button><button class="btn ghost">重命名项目</button></div></div>
+          <div class="h3-side-recent"><div class="h3-side-recent-head"><strong>最近剪切</strong><a href="#">全部任务</a></div><div class="h3-side-task"><span class="badge success"><span class="dot"></span>已完成</span><div class="h3-side-task-title">直播复盘：从流量到现金流</div><span class="h3-side-task-time">00:31</span></div><div class="h3-side-task"><span class="badge warning"><span class="dot"></span>等待中</span><div class="h3-side-task-title">投放复盘：ROI 与现金流</div><span class="h3-side-task-time">第 2 位</span></div><div class="h3-side-task"><span class="badge danger">失败</span><div class="h3-side-task-title">企业运营与现金流管理</div><span class="h3-side-task-time">重试</span></div></div>
+        </aside>
+      </div>
+      <div class="footer-note"><span>首页 v3 · 项目优先：更大的项目卡 + 当前项目详情面板</span><span>搜索入口收进标题区</span></div>
+    </div>  </div>
+</div>
+<script>
+function hideNotice() {
+  var notice = document.querySelector(".h3-notice");
+  if (notice) notice.style.display = "none";
+}
+</script>
+</body></html>
