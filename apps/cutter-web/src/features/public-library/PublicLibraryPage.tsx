@@ -1,4 +1,5 @@
 import { Button, InspectorPanel, SearchBox } from "@mixlab/ui-foundation";
+import { useState } from "react";
 import {
   formatDuration,
   formatFileSize,
@@ -88,8 +89,24 @@ export function PublicLibraryPage({
   onLoadMore?: () => void;
 }) {
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
+  const teacherAliases: Record<string, string> = { "陶矜2": "陶矜" };
+  const teacherForFolderName = (folderName?: string): string => {
+    const first = (folderName ?? "").replace(/\\/g, "/").split("/").filter(Boolean)[0]?.trim() ?? "";
+    return first ? (teacherAliases[first] ?? first) : "未标注老师";
+  };
+  const teacherOptions: Array<{ name: string; count: number }> = [];
+  for (const folder of sourceFolderOptions) {
+    const teacher = teacherForFolderName(folder.name);
+    const existing = teacherOptions.find((item) => item.name === teacher);
+    if (existing) existing.count += folder.count;
+    else teacherOptions.push({ name: teacher, count: folder.count });
+  }
+  const [teacherFilter, setTeacherFilter] = useState("");
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
-  const filtered = library.videos.filter((video) => matchesOrientationFilter(video, orientationFilter));
+  const filtered = library.videos.filter((video) =>
+    matchesOrientationFilter(video, orientationFilter) &&
+    (!teacherFilter || (video.teacher ?? teacherForFolderName(video.source_folder_name)) === teacherFilter)
+  );
   const selected =
     filtered.find((video) => video.source_video_id === selectedSourceVideoId) ?? filtered[0];
   const remainingCount = Math.max(0, library.available_video_count - library.videos.length);
@@ -122,6 +139,19 @@ export function PublicLibraryPage({
             onSubmit={(value) => onSearchFilename?.(value)}
             placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
           />
+          <select
+            aria-label="老师筛选"
+            className="ml-field-select cutter-teacher-select"
+            value={teacherFilter}
+            onChange={(event) => setTeacherFilter(event.currentTarget.value)}
+          >
+            <option value="">全部老师</option>
+            {teacherOptions.map((teacher) => (
+              <option key={teacher.name} value={teacher.name}>
+                {teacher.name} {teacher.count}
+              </option>
+            ))}
+          </select>
           <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
             {orientationFilterOptions.map((option) => (
               <Button
@@ -146,7 +176,7 @@ export function PublicLibraryPage({
                 id: video.source_video_id,
                 title: video.title,
                 image: video.cover_url,
-                meta: [video.lecturer, galleryMeta(video)].filter(Boolean).join(" · "),
+                meta: [video.teacher ?? teacherForFolderName(video.source_folder_name), galleryMeta(video)].filter(Boolean).join(" · "),
                 tags: [videoOrientationLabel(video)],
                 selected: video.source_video_id === selected?.source_video_id,
                 ...(onSelectSourceVideo

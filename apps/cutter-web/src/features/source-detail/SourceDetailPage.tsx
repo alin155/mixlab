@@ -267,6 +267,7 @@ export function SourceDetailPage({
   onSelectTranscriptSegment,
   onCancelSelection,
   onAddToCutList,
+  onOpenSourceDirectory,
   recentJobs = []
 }: {
   detail: SourceVideoDetail;
@@ -284,6 +285,7 @@ export function SourceDetailPage({
   onSelectTranscriptSegment?: (segmentId: string) => void;
   onCancelSelection?: () => void;
   onAddToCutList?: () => void;
+  onOpenSourceDirectory?: () => void;
   recentJobs?: readonly CutQueueJob[];
 }) {
   const transcriptRef = useRef<HTMLElement | null>(null);
@@ -464,6 +466,11 @@ export function SourceDetailPage({
           </div>
           {onAddToCutList ? (
             <div className="ml-control-cluster">
+              {onOpenSourceDirectory ? (
+                <Button type="button" variant="secondary" onClick={onOpenSourceDirectory}>
+                  打开源目录
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 disabled={!canAddSelection}

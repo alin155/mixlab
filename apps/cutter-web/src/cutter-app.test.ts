@@ -1246,7 +1246,7 @@ test("public library is a read-only gallery of available source videos", () => {
   );
   assert.match(folderSearchHtml, /aria-label="搜索文件夹名称"/);
   assert.match(folderSearchHtml, /搜索课程文件夹名称/);
-  assert.equal(folderSearchHtml.includes("全部老师"), false);
+  assert.equal(folderSearchHtml.includes("全部老师"), true);
 
   const emptyPortraitHtml = renderToStaticMarkup(
     h(PublicLibraryPage, {

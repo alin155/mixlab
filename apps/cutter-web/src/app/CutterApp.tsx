@@ -1586,6 +1586,7 @@ function renderPage(
     batchDeleteCutJobs?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
     restoreHiddenCutJobs?: () => void;
     openCutOutputDirectory: () => void;
+  openSourceDirectory: () => void;
     openCutJobDirectory: (job: CutQueueJob) => void;
     openLocalClipDirectory: (localClip: LocalClip) => void;
     deleteLocalClip: (localClip: LocalClip) => void;
@@ -1638,6 +1639,7 @@ function renderPage(
         onSelectTranscriptSegment={handlers.selectTranscriptSegment}
         onCancelSelection={handlers.cancelTranscriptSelection}
         onAddToCutList={handlers.addSelectedSpan}
+        onOpenSourceDirectory={handlers.openSourceDirectory}
         recentJobs={queue}
       />
     );
@@ -4480,6 +4482,11 @@ export function CutterApp() {
     restoreHiddenCutJobs() {
       restoreHiddenCutQueueJobs();
       setCutNotice("已恢复显示被删除的剪切任务");
+    },
+    openSourceDirectory: async () => {
+      const sourceVideoId = selectedDetail?.source_video_id ?? data?.primaryDetail.source_video_id;
+      if (!sourceVideoId) return;
+      await client.openSourceVideoDirectory({ source_video_id: sourceVideoId });
     },
     openCutOutputDirectory: async () => {
       if (!apiMode) {
