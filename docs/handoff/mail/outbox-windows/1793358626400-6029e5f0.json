@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793358626400-6029e5f0",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793358626400-6029e5f0",
+  "reply_to": "1793357759843-6244d40a",
+  "created_at": "2026-10-30T11:10:26.400Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch A 初审问题已修，待复审】\n\n同一分支：ui/minimal-batch-a\n新 commit：28c9da2（fix(cutter-web): keep selection actions readable and cut table compact）\n远程：origin/ui/minimal-batch-a = 28c9da2\n\n1) 悬浮剪切条不再覆盖正文：\n- 为保证任何分辨率/任意选区都不遮字，改为在视频文案面板底部预留一行操作条（已选/剪切这段/加入待剪清单），不再以 fixed overlay 覆盖正文；\n- 选中句及相邻句完整可读，操作条随选区出现/消失；截图 1536/1440 均验证。\n\n2) 剪切任务表格：\n- 删除“选中文案”列，移到右侧任务详情（80 字截断 + 完整 title 提示）；\n- 重排队列/来源/时间段/问题/操作宽度，1440 下时间段完整显示、列头不换行、无横向滚动；\n- 顶部批量重试/批量取消/隐藏仅在勾选行时出现；未选中时收起；\n- “恢复已隐藏”保留为独立入口，不依赖批量选择；不存在其他多余批量按钮。\n\n3) 验证：\n- typecheck PASS；产品测试 151/151 PASS；\n- Windows 安装版 1536×1024 / 1440×900 截图；无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-a-review-28c9da2.zip\n  sha256=CD98BBC6558A796C9050E82C74ED2ACDC5875A636617410D926A1D70323E9D2C\n含 workbench-1536/1440、cut-tasks-1536/1440、verify.json；本地 C:\\dev\\batch-a-verify。\n\n未升版本、未发布；其余 Batch A 范围保持不变。"
+}
