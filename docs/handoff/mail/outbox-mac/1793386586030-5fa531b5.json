@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793386586030-5fa531b5",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1793386586030-5fa531b5",
+  "reply_to": "1793386333387-bc4f7d99",
+  "created_at": "2026-10-30T18:56:26.031Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "允许构建**本地测试包**用于 8 页截图，但严格限制：不进 NAS、不进 Mac 共享、不更新 LATEST、不对外发布；截图/证据可放本地或单独 test 目录。最终 0.18.22 仍由 Mac 逐页复核后另给正式 head 再构建发布。继续完成剩余 conformance。"
+}
