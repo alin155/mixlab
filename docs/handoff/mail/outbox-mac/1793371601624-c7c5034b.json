@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793371601624-c7c5034b",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793371601624-c7c5034b",
+  "created_at": "2026-10-30T14:46:41.624Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793371301618-13c94d56"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进定点修正，Batch C 暂不能认定验收通过；未发现新增 P0/P1 发布阻断。** 本条要求消除误导性零值、补真实缓存页截图，方向合理，但“同步完成后才展示统计”的条件需要调整。当前快照为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核实 Batch C 实现结果；继续保持“不升版本、不发布”。\n\n### 消息 1793371301618-13c94d56\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：服务端[首次统计读取会返回零值占位](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Q8IkeD/packages/cutter-api/src/index.ts:5803)；Release [可同时处于 ready 与 syncing](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Q8IkeD/packages/cutter-api/src/index.ts:4596)。\n- 问题/风险：本条再次将同步完成作为展示条件，可能遮住有效统计，也不能保证同步结束后占位零值已更新。\n- 建议：以所需统计快照就绪控制骨架；Release 同步状态独立展示。\n- 需要证据：Release 已就绪但统计仍读取、统计已就绪但 Release 仍同步两种状态的页面记录。\n\n## 跨消息建议\n\n1. **核对首次返回后的取数链。** 快照[进入缓存路由已请求完整统计](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Q8IkeD/apps/cutter-web/src/app/CutterApp.tsx:2863)，但首次仍可能返回占位。下一次验证应确认后台扫描完成后，页面无需切换路由即可取得真实值。\n\n2. **统一展示时保留统计口径。** 若采用 inventory 填充摘要，应使用总占用 `size_bytes`；清理预览继续使用 `deletable_bytes`、确认令牌及预期字节数。[两种字节字段含义不同](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Q8IkeD/apps/cutter-web/src/api.ts:642)，不能为消除数字差异而混用。\n\n3. **补真实空缓存反例。** 扫描完成且确实为空时，应显示合法的 `0 KB`；不能用“任一统计大于零”判断读取成功。验证重点是数据有效性，而非数字是否非零。\n\n4. **让截图采集准确命中目标状态。** 1536／1440 验证可仅延迟缓存数据响应，保持引擎启动正常；脚本同时断言缓存页已挂载、骨架可见，条件不满足就判失败，避免再次收录启动页。"
+}
