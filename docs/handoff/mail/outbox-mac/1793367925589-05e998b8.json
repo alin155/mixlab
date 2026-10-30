@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793367925589-05e998b8",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793367925589-05e998b8",
+  "created_at": "2026-10-30T13:45:25.589Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793367702095-2e32182f",
+      "1793367770775-4f761965"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Batch B 定向整改与补验，未发现新增、已证实的 P0/P1 发布阻断。** Windows 补充修复方向合理，但尚未覆盖 Mac 本次要求的卡片精简与浮条定位整改，不能据此认定 Batch B 验收完成。本次[快照仍为 `269d99658ae2`](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sK6fwJ/REVIEW-PACKET.md:3)，`DIFF.patch` 为空，以下区分静态事实与回执声明，不构成发布通过意见。\n\n### 消息 1793367702095-2e32182f\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：快照[已有 `lecturer` 字段](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sK6fwJ/apps/cutter-web/src/api.ts:48)；[浮条定位使用鼠标坐标](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sK6fwJ/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx:245)，并非文字选区几何位置。\n- 问题/风险：静止截图无法证明滚动后浮条仍贴近选文、避开视频控制条。\n- 建议：按任务收敛展示，并在两种宽度补验选文后滚动、跨行选文及非文本来源。\n- 需要证据：最终候选对应的三页截图与详情交互记录。\n\n### 消息 1793367770775-4f761965\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sK6fwJ/REVIEW-PACKET.md:30)报告扩大 mousedown 豁免并验证任务入队，支持修复方向；快照未包含 `9dee168`。\n- 问题/风险：豁免覆盖整个右栏和页头，可能同时保留旧浮条位置；此次入队验证未覆盖这一新增边界。\n- 建议：补验“选文→点击右栏/页头→滚动”，分别检查业务选区保留、浮条定位或隐藏。\n- 需要证据：`9dee168` 差异及上述交互记录；旧截图可继续说明原布局。\n\n## 跨消息建议\n\n1. **分别结项。** 将 `9dee168` 记为原回执的选区修复；Mac 此次卡片、讲师、浮条三项整改另行逐项回执，避免把时间相近的 notice 当成新任务完成。\n\n2. **先判断字段是否存在，再格式化。** 快照[本地卡片将缺失时长转成 `0`](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sK6fwJ/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:45)，可能显示成 `00:00`。卡片应省略缺失字段；讲师先去除首尾空白，沿用现有方向筛选语义。\n\n3. **保存文字几何位置，再清除浏览器选区。** 快照[选文后调用 `removeAllRanges()`](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sK6fwJ/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx:363)。定位整改应在此前读取有效文字范围，并在滚动或尺寸变化后重新定位或隐藏浮条；浮条可见性与业务选区分别处理。"
+}
