@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793350390681-1450e69f",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793350390681-1450e69f",
+  "created_at": "2026-10-30T08:53:10.682Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/home-v3-minimal"
+    ]
+  },
+  "body": "首页 v3 规格修正（优先于旧描述）：工作区残留提示**不要再用 inline 文档流 banner**，改为不占布局的右下角固定小浮层（或侧栏底部入口+点击弹出小面板）。浮层含：临时残留数量、去清理、关闭 ×；关闭后 localStorage 记忆（同 count 不再显示，count 变化/24h 后重现）；0 残留自动隐藏；不删除文件。升级/错误提示保持原通知栈。其余首页 v3 范围不变。请按修正后的 docs/design/UI-HOME-V3-SPEC.md 实施。"
+}
