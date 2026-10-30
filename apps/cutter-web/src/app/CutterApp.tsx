@@ -159,6 +159,12 @@ import {
   formatCutterCacheSize
 } from "../state/cutter-cache.ts";
 import {
+  readWorkspaceResidueNoticeDismissal,
+  shouldShowWorkspaceResidueNotice,
+  writeWorkspaceResidueNoticeDismissal,
+  type WorkspaceResidueNoticeDismissal
+} from "../state/workspace-residue-notice.ts";
+import {
   CUTTER_NAV_ITEMS,
   materialSearchModeFromHash,
   routeFromHash,
@@ -1544,6 +1550,7 @@ function renderPage(
         localClips={data.localClips}
         projects={viewState.projects}
         selectedProjectId={viewState.homeSelectedProjectId}
+        currentProjectId={viewState.currentProjectId}
         queue={queue}
         sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
@@ -1824,6 +1831,9 @@ export function CutterApp() {
   const didAutoApplyLocalTrustedLoginRef = useRef(false);
   const [cutNotice, setCutNotice] = useState("");
   const [recoverableNotice, setRecoverableNotice] = useState("");
+  const [residueNoticeDismissal, setResidueNoticeDismissal] = useState<WorkspaceResidueNoticeDismissal | null>(() =>
+    readWorkspaceResidueNoticeDismissal()
+  );
   const [recoverableError, setRecoverableError] = useState<CutterErrorPresentation | null>(null);
   const [errorPresentation, setErrorPresentation] = useState<CutterErrorPresentation | null>(null);
   const [capabilities, setCapabilities] = useState<CutterCapabilityTable | null>(null);
@@ -1852,6 +1862,12 @@ export function CutterApp() {
   const queueRefreshRequestIdRef = useRef(0);
   const authFailureHandlerRef = useRef<((error: CutterApiError) => void) | null>(null);
   const [data, setData] = useState<CutterFixtureData | null>(null);
+  const workspaceResidueCount = data?.runtimeStatus.workspace_residue_count ?? 0;
+  const showWorkspaceResidueNotice = shouldShowWorkspaceResidueNotice({
+    count: workspaceResidueCount,
+    now: Date.now(),
+    dismissal: residueNoticeDismissal
+  });
   const dataRef = useRef<CutterFixtureData | null>(data);
   const sourceDetailCacheRef = useRef(new Map<string, SourceVideoDetail>());
   const sourceDetailInFlightRef = useRef(new Map<string, Promise<SourceVideoDetail>>());
@@ -4568,6 +4584,11 @@ export function CutterApp() {
     removeProjectFromFrontend(projectId, title);
   }
 
+  function dismissWorkspaceResidueNotice() {
+    writeWorkspaceResidueNoticeDismissal(workspaceResidueCount);
+    setResidueNoticeDismissal({ count: workspaceResidueCount, dismissed_at: Date.now() });
+  }
+
   const cutterUsername =
     authSession?.username?.trim() ||
     data?.runtimeStatus.current_user.display_name.trim() ||
@@ -4745,13 +4766,21 @@ export function CutterApp() {
               </Button>
             </div>
           ) : null}
-          {data?.runtimeStatus.workspace_residue_count ? (
-            <div className="cutter-contract-notice" role="status">
+          {showWorkspaceResidueNotice ? (
+            <div className="cutter-contract-notice cutter-residue-notice" role="status">
               <div className="cutter-contract-notice-body">
-                <strong>发现 {data.runtimeStatus.workspace_residue_count} 个工作区临时残留</strong>
+                <strong>发现 {workspaceResidueCount} 个工作区临时残留</strong>
                 <span>可在缓存管理页预览并清理；项目与已完成作品不会被删除。</span>
                 <a href={routeToHash("cache-management")}>去清理</a>
               </div>
+              <button
+                aria-label="关闭工作区残留提示"
+                className="cutter-residue-notice-close"
+                onClick={dismissWorkspaceResidueNotice}
+                type="button"
+              >
+                ×
+              </button>
             </div>
           ) : null}
           </div>
