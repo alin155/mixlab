@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793355145465-18f32da1",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793355145465-18f32da1",
+  "created_at": "2026-10-30T10:12:25.465Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/minimal-batch-a"
+    ]
+  },
+  "body": "0.18.17 已发布，开始 Batch A（素材搜索 + 剪切任务最小化重做）。请从 origin/main @ **a3d40a5** 新建分支 **ui/minimal-batch-a**，按 docs/design/UI-MINIMAL-PAGES-SPEC.md 与 mockup minimal-workbench.html / minimal-cut-tasks.html 实施（文件在 origin/dev/admin，先 fetch 后 git show）。\\n范围：\\n1) 素材搜索：保留三栏（候选/文案/Inspector），去掉厚卡片，轻量化；**修复悬浮剪切按钮定位**，跟随选区/鼠标、不遮挡文本；保留搜索、选区、加入待剪、剪切、打开目录。\\n2) 剪切任务：去掉 KPI 卡片，改一行摘要；表格占主区，任务详情固定右栏；保留队列位置/ETA、重试、取消、打开目录、改精剪入口。\\n3) 不改 API/业务规则/项目模型；不碰首页/左侧栏残留提示/缓存/设置/本地素材/公共素材库/素材详情。\\n验收：typecheck/产品测试；Windows 安装版 1536×1024 / 1440×900 截图（workbench 有结果和选中态、cut-tasks 有任务+详情）；不做版本/发布。完成后 push 分支 reply（commit/截图/测试/差异）。"
+}
