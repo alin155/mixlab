@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793369506571-06f9e944",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793369506571-06f9e944",
+  "created_at": "2026-10-30T14:11:46.571Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793369205581-a1e23af5"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Batch C 实施，未发现本消息构成发布阻断。** 两页范围、业务边界及“不升版本、不发布”的约束清楚。当前快照为 `269d99658ae2`，未包含所引设计稿及 Batch C 实现，因此本轮仅认可方案方向，不能认定布局或功能验收通过。\n\n### 消息 1793369205581-a1e23af5\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：快照已有[残留清理与 Release 淘汰](自有目录/不存在)、磁盘清理及治理记录，各清理请求独立携带确认令牌。\n- 问题/风险：“保留清理”需覆盖全部现有入口，避免精简布局时遗漏引用保护、禁用原因或治理记录。\n- 建议：实施前逐项列出保留能力；允许折叠展示，沿用原请求、确认步骤和禁用条件。依据见[缓存页](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-I1WnOL/apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:428)。\n- 需要证据：隔离工作区下的预览、取消、确认，以及受保护项禁用、失败提示和治理记录展示证据。\n\n## 跨消息建议\n\n1. **明确设置的生效时机。** 对照 0.18.20 区分即时生效项与需保存项；快照的[偏好控件直接调用回调](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-I1WnOL/apps/cutter-web/src/features/settings/SettingsPage.tsx:343)，不要因新增分组或保存按钮而改变行为。\n\n2. **摘要区分总占用与预计可释放量。** 预计释放沿用所选目标的 `deletable_bytes`；操作结果继续显示实际释放、跳过及失败，不能将部分成功简化为“全部清理完成”。见[现有结果汇总](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-I1WnOL/apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:243)。\n\n3. **限制样式影响范围。** 两页布局选择器限定在各自路由根节点，复用现有组件；若必须修改共享组件，由 Mac 维护。提交前检查共享 CSS 是否影响本批明确排除的页面。\n\n4. **区分实现分支与发信分支。** 推送 `ui/minimal-batch-c` 后，从 `dev/cutter` 发送关联原消息的回执，正文注明实现 HEAD；[现有 Mailbox 守卫](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-I1WnOL/scripts/dev/mail.mjs:51)会拒绝其他分支发信，无需为回执合并产品分支。"
+}
