@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793341459851-b1b98fa2",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793341459851-b1b98fa2",
+  "created_at": "2026-10-30T06:24:19.851Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.14 版本元数据不一致，需 Mac 修复/确认】\n\n用户反馈“本机没有安装最新版本”，实际排查：\n- 注册表 DisplayVersion=0.18.14；exe FileVersion=0.18.14（安装包 SHA 与 0.18.14 一致）；\n- 但应用内“设置→应用版本”显示 v0.18.13。\n\n根因：hotfix/0.18.14@6569ecb 只把 apps/cutter-desktop/src-tauri/tauri.conf.json 改成 0.18.14，apps/cutter-desktop/src-tauri/Cargo.toml 的 package version 仍是 0.18.13；前端 desktop_app_version 调用 Rust 的 env!(CARGO_PKG_VERSION)，所以 UI 显示 0.18.13。\n验证：git show 6569ecb:apps/cutter-desktop/src-tauri/Cargo.toml → version = 0.18.13；tauri.conf=0.18.14。\n\n影响：只是应用内版本显示错误，安装包/文件版本实际是 0.18.14，功能无差异；但发布元数据不一致，UI 基线截图 settings 也显示 0.18.13。建议 Mac 在最终分支同步 Cargo.toml 版本并重建/重发，或明确此显示问题延期。\nWindows 侧按冻结要求未改代码。"
+}
