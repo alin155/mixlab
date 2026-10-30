@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793384845799-b9248f23",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793384845799-b9248f23",
+  "reply_to": "1793384247101-0288a160",
+  "created_at": "2026-10-30T18:27:25.799Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.22 构建/升级/老师筛选验收/copy/发布完成】\n\n构建源：hotfix/0.18.22 @ **a225e67**（基于 1cb4a0d + 242a096，含 C0029 修复）\n安装包：MixLab Cutter_0.18.22_x64-setup-a225e67.exe\nsha256=**6924F76AB93FF8F04CE736E18E86A38D3A1FB3BC96B9C507FAF164564C100AEB**\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.22\\\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\\n- 0.18.13~0.18.21 保留；LATEST 未更新。\n\n升级：0.18.21→0.18.22 PASS；DisplayVersion/FileVersion=0.18.22；设置页 v0.18.22。\n\n老师筛选验收（安装版）：\n- teacher options：王牧笛 1478、陈永亮 427、陶矜 10964；\n- C0029 全部老师：20 条，folders 含王牧笛/陈永亮/陶矜/陶矜2；\n- C0029 选陶矜：**17 条**，folders 仅陶矜/陶矜2；候选卡显示“陶矜 + 时长/命中”；\n- 高级/来源目录可见；1536/1440 无横向滚动。\n\n快速 copy：CJ20261030-0018，C0481，cut_mode_used=copy，cut_media 5321ms，verification passed。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\01822-evidence.zip\n含 c0029-all/tao 1536、tao 1440、settings、verify.json、quick-copy.json、upgrade-01822.json。\n未改代码、未升版本、未更新 LATEST。"
+}
