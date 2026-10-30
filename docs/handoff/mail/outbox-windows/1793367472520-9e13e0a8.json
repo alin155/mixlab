@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793367472520-9e13e0a8",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793367472520-9e13e0a8",
+  "reply_to": "1793366804143-e9427bd2",
+  "created_at": "2026-10-30T13:37:52.521Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch B（本地素材 + 公共素材库 + 素材详情）已完成，待审查】\n\n分支：ui/minimal-batch-b（基于 origin/main @ 105cc86，含 0.18.19）\ncommit：9c87a7f（feat(cutter-web): minimize local and public libraries with source detail）\n远程：origin/ui/minimal-batch-b = 9c87a7f\n\n【本地素材】\n- 页头改为“本地素材”+说明；筛选/视图/横竖版移入独立工具栏，右侧显示素材数；\n- 3 列网格 + 右侧“素材详情”；当前项目/全部素材分组、选中态、播放、打开目录、删除保留；\n- 治理块仅在存在孤儿素材时出现，不再占据主区域。\n\n【公共素材库】\n- 页头改为“公共素材库”+说明，右侧总数；搜索/范围/横竖版移至单行工具栏；\n- 3 列网格 + 右侧“素材详情”，保留搜索、筛选、加载更多、查看完整文案。\n\n【素材详情】\n- 页头“素材详情”+来源/ID/时长+剪切动作；视频/文案主区，右侧“选区”+最近任务；\n- 保留连续选择、拖拽/点击选句、加入待剪（原剪切动作）、查看完整文案；\n- 最近任务复用现有 queue，不新增 API。\n\n验证：typecheck PASS；产品测试 151/151 PASS；1536/1440 三页截图；无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-b-evidence-9c87a7f.zip\n  sha256=B30A1991B3CD8818DB48D3787ED2EE45ECA436A32F00BD0C4C74AC728BA32478\n本地 C:\\dev\\batch-b-verify（local/public/source-detail 各 1536/1440、verify.json）。\n\n【与 mockup 差异】\n- 右侧 Inspector 未拆视频/信息/选区/任务 tabs，沿用现有信息栈；\n- 本地素材页现有数据/接口没有“加入待剪/剪切”回调，因此未新增这两个动作；播放/打开目录/删除保留；\n- 公共素材页同样未新增视频/信息 tabs；\n- 素材详情未新增独立“打开源目录”动作（现有 props 无该回调）。\n\n未升版本、未发布、未改 API/业务规则；未动首页/搜索/剪切任务/缓存/设置。"
+}
