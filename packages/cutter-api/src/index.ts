@@ -2665,33 +2665,43 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
   cursor?: string;
   source_folder_name?: string;
   folder_query?: string;
+  teacher?: string;
 }): Promise<CutterSourceLibrarySearchResultWithMeta> {
+  const normalizedTeacher = input.teacher?.trim() ? normalizeTeacherName(input.teacher) : "";
+  const teacherFolderName = normalizedTeacher ? teacherFolderFilter(normalizedTeacher) : undefined;
+  const searchdSourceFolderName = teacherFolderName ?? input.source_folder_name;
+  const localSourceFolderName = normalizedTeacher ? undefined : input.source_folder_name;
+  const filterByTeacher = (result: CutterSourceLibrarySearchResult): CutterSourceLibrarySearchResult => {
+    if (!normalizedTeacher) return result;
+    const groups = result.groups.filter((group) => teacherForSourceFolder(group.source_folder_name) === normalizedTeacher);
+    return { ...result, groups, returned_count: groups.length };
+  };
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
   if (input.folder_query?.trim()) {
     const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
-    return searchCutterSourceLibrary({
+    return filterByTeacher(await searchCutterSourceLibrary({
       library_root: input.api_input.library_root,
       ...(releaseRoot ? { release_root: releaseRoot } : {}),
       query: input.query,
       limit: input.limit,
       cursor: input.cursor,
-      source_folder_name: input.source_folder_name,
+      source_folder_name: localSourceFolderName,
       folder_query: input.folder_query
-    });
+    }));
   }
 
   const shouldTryFilenameFirst = !input.cursor && shouldTrySourceFilenameSearch(input.query);
   if (shouldTryFilenameFirst) {
     const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
-    const filenameResult = await searchCutterSourceLibrary({
+    const filenameResult = filterByTeacher(await searchCutterSourceLibrary({
       library_root: input.api_input.library_root,
       ...(releaseRoot ? { release_root: releaseRoot } : {}),
       query: input.query,
       limit: input.limit,
-      source_folder_name: input.source_folder_name,
+      source_folder_name: localSourceFolderName,
       filename_only: true
-    });
+    }));
     if (looksLikeSourceFilenameQuery(input.query) || filenameResult.groups.length > 0) {
       return filenameResult;
     }
@@ -2735,7 +2745,7 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
           query: input.query,
           limit: input.limit,
           cursor: input.cursor,
-          source_folder_name: input.source_folder_name
+          source_folder_name: searchdSourceFolderName
         });
         if (input.cursor || searchdResult.groups.length > 0) {
           return searchdResult;
@@ -2774,14 +2784,14 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
   }
 
   const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
-  const localResult = await searchCutterSourceLibrary({
+  const localResult = filterByTeacher(await searchCutterSourceLibrary({
     library_root: input.api_input.library_root,
     ...(releaseRoot ? { release_root: releaseRoot } : {}),
     query: input.query,
     limit: input.limit,
     cursor: input.cursor,
-    source_folder_name: input.source_folder_name
-  });
+    source_folder_name: localSourceFolderName
+  }));
 
   if (searchdFallback) {
     return {
@@ -8130,9 +8140,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const cursor = optionalTrimmed(url.searchParams.get("cursor") ?? undefined);
         const teacherParam = optionalTrimmed(url.searchParams.get("teacher") ?? undefined);
         const teacherFilter = teacherParam ? normalizeTeacherName(teacherParam) : "";
-        const sourceFolderName = teacherFilter && teacherFilter !== UNLABELED_TEACHER
-          ? teacherFolderFilter(teacherFilter)
-          : optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined);
+        const sourceFolderName = optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined);
         const folderQuery = optionalTrimmed(url.searchParams.get("folder_query") ?? undefined);
         const startedAt = Date.now();
         let result: CutterSourceLibrarySearchResult;
@@ -8143,7 +8151,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
             limit: parsePositiveLimit(url.searchParams.get("limit")),
             cursor,
             source_folder_name: sourceFolderName,
-            folder_query: folderQuery
+            folder_query: folderQuery,
+            teacher: teacherFilter || undefined
           });
         } catch (error) {
           await recordCutterUsageEventBestEffort({
