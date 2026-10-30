@@ -345,8 +345,9 @@ export function ProjectHomePage({
   selectedProjectId,
   currentProjectId,
   queue = [],
-  sourceFolderFilter = "",
   sourceFolders = [],
+  teacherFilter = "",
+  onSetTeacherFilter,
   searchMode = "content",
   apiBaseUrl = "",
   onSearch,
@@ -366,8 +367,9 @@ export function ProjectHomePage({
   selectedProjectId?: string;
   currentProjectId?: string;
   queue?: readonly CutQueueJob[];
-  sourceFolderFilter?: string;
   sourceFolders?: readonly SourceFolderOption[];
+  teacherFilter?: string;
+  onSetTeacherFilter?: (teacher: string) => void;
   searchMode?: MaterialSearchMode;
   apiBaseUrl?: string;
   onSearch?: (query: string) => void;
@@ -389,7 +391,18 @@ export function ProjectHomePage({
   const activeProjectId = currentProjectId ?? selectedProjectId;
   const deleteTargetProject = projects.find((project) => project.project_id === deleteTargetProjectId);
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
-  const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
+  const teacherAliases: Record<string, string> = { "陶矜2": "陶矜" };
+  const teacherForFolderName = (folderName?: string): string => {
+    const first = (folderName ?? "").replace(/\\/g, "/").split("/").filter(Boolean)[0]?.trim() ?? "";
+    return first ? (teacherAliases[first] ?? first) : "未标注老师";
+  };
+  const teacherOptions: Array<{ name: string; count: number }> = [];
+  for (const folder of sourceFolderOptions) {
+    const teacher = teacherForFolderName(folder.name);
+    const existing = teacherOptions.find((item) => item.name === teacher);
+    if (existing) existing.count += folder.count;
+    else teacherOptions.push({ name: teacher, count: folder.count });
+  }
   const recentJobs = [...queue].sort((a, b) => taskStatusTimestamp(b) - taskStatusTimestamp(a)).slice(0, 5);
   const doneJobCount = queue.filter((job) => job.status === "done").length;
   const failedJobCount = queue.filter((job) => job.status === "failed").length;
@@ -461,18 +474,17 @@ export function ProjectHomePage({
             value={query}
           />
           <select
-            aria-label="素材范围"
-            className="cutter-home-command-scope"
-            onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
-            value={materialScopeValue}
+            aria-label="老师筛选"
+            className="cutter-home-command-scope cutter-teacher-select"
+            onChange={(event) => onSetTeacherFilter?.(event.currentTarget.value)}
+            value={teacherFilter}
           >
-            <option value="">全部素材</option>
-            {sourceFolderOptions.map((folder) => (
-              <option key={folder.name} value={folder.name}>
-                {folder.name}（{folder.count}）
+            <option value="">全部老师</option>
+            {teacherOptions.map((teacher) => (
+              <option key={teacher.name} value={teacher.name}>
+                {teacher.name} {teacher.count}
               </option>
             ))}
-            <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
           </select>
           <Button type="submit" variant="primary">搜索素材</Button>
           <div className="cutter-home-command-meta">

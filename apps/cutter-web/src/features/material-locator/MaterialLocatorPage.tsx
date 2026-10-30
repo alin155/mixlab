@@ -1458,7 +1458,6 @@ export function MaterialLocatorPage({
           <header className="ml-workbench-header cutter-locator-page-head">
             <div>
               <h1 className="ml-page-title">素材搜索</h1>
-              <p className="ml-page-description">从公共素材库找到一句话，剪出可用片段。</p>
             </div>
             <div className="ml-control-cluster">
               <Button href="#/cut-tasks" size="sm" type="button" variant="secondary">
@@ -1477,46 +1476,19 @@ export function MaterialLocatorPage({
               onSubmit={(value) => onSearch?.(value)}
               placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索文案关键词、素材文件名或粘贴爆款文案"}
             />
-            <details className="cutter-locator-advanced">
-              <summary>高级 / 来源目录</summary>
-              <select
-                aria-label="素材范围"
-                className="cutter-source-folder-select ml-field-select"
-                value={materialScopeValue}
-                onChange={(event) => onSetMaterialScope?.(event.currentTarget.value)}
-              >
-                <option value="">全部素材</option>
-                {sourceFolderOptions.map((folder) => (
-                  <option key={folder.name} value={folder.name}>
-                    {folder.name}（{folder.count}）
-                  </option>
-                ))}
-                <option value={MATERIAL_SCOPE_FOLDER_VALUE}>文件夹</option>
-              </select>
-            </details>
-            <div className="ml-segmented-control cutter-teacher-filter" role="group" aria-label="老师筛选">
-              <Button
-                type="button"
-                size="sm"
-                variant={teacherFilter ? "ghost" : "primary"}
-                aria-pressed={!teacherFilter}
-                onClick={() => onSetTeacherFilter?.("")}
-              >
-                全部老师
-              </Button>
+            <select
+              aria-label="老师筛选"
+              className="ml-field-select cutter-teacher-select"
+              value={teacherFilter}
+              onChange={(event) => onSetTeacherFilter?.(event.currentTarget.value)}
+            >
+              <option value="">全部老师</option>
               {teacherOptions.map((teacher) => (
-                <Button
-                  key={teacher.name}
-                  type="button"
-                  size="sm"
-                  variant={teacherFilter === teacher.name ? "primary" : "ghost"}
-                  aria-pressed={teacherFilter === teacher.name}
-                  onClick={() => onSetTeacherFilter?.(teacher.name)}
-                >
+                <option key={teacher.name} value={teacher.name}>
                   {teacher.name} {teacher.count}
-                </Button>
+                </option>
               ))}
-            </div>
+            </select>
           </div>
         </section>
 

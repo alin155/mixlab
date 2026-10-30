@@ -1189,8 +1189,6 @@ test("public library is a read-only gallery of available source videos", () => {
     "公共素材库",
     "素材详情",
     "搜索素材文件名",
-    "全部素材",
-    "文件夹",
     "全部",
     "横版",
     "竖版",
@@ -1215,7 +1213,7 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.match(html, /cutter-library-grid/);
   assert.match(html, /class="ml-search-box cutter-public-library-filename-search"/);
   assert.match(html, /aria-label="按文件名搜索公共素材"/);
-  assert.match(html, /aria-label="素材范围"/);
+  assert.equal(html.includes('aria-label="素材范围"'), false);
   assert.equal(html.includes("按老师筛选"), false);
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
@@ -1248,7 +1246,6 @@ test("public library is a read-only gallery of available source videos", () => {
   );
   assert.match(folderSearchHtml, /aria-label="搜索文件夹名称"/);
   assert.match(folderSearchHtml, /搜索课程文件夹名称/);
-  assert.match(folderSearchHtml, new RegExp(`value="${MATERIAL_SCOPE_FOLDER_VALUE}" selected=""`));
   assert.equal(folderSearchHtml.includes("全部老师"), false);
 
   const emptyPortraitHtml = renderToStaticMarkup(
@@ -1842,8 +1839,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   for (const text of [
     "素材搜索",
     "搜索文案关键词、素材文件名或粘贴爆款文案",
-    "全部素材",
-    "文件夹",
+    "全部老师",
 	    "候选素材",
 	    "本地素材",
 	    "公共原素材",

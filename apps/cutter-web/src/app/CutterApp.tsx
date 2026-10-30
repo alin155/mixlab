@@ -1606,12 +1606,12 @@ function renderPage(
         selectedProjectId={viewState.homeSelectedProjectId}
         currentProjectId={viewState.currentProjectId}
         queue={queue}
-        sourceFolderFilter={viewState.sourceFolderFilter}
         sourceFolders={viewState.sourceFolders}
+        teacherFilter={viewState.teacherFilter}
+        onSetTeacherFilter={viewState.onSetTeacherFilter}
         searchMode={viewState.materialSearchMode}
         apiBaseUrl={viewState.apiBaseUrl}
         onSearch={handlers.searchFromProjectHome}
-        onSetMaterialScope={handlers.setMaterialScope}
         onSelectProject={handlers.selectProject}
         onOpenProject={handlers.openProject}
         onOpenProjectDirectory={handlers.openProjectDirectory}
