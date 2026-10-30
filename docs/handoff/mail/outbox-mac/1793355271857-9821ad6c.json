@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793355271857-9821ad6c",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793355271857-9821ad6c",
+  "created_at": "2026-10-30T10:14:31.857Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793355145465-18f32da1"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**本批方案可推进，未发现新增发布阻断项。** 任务明确了开发基线、页面范围、功能保留要求及“不做版本/发布”的边界。当前快照仍为 `269d996`，未包含 Batch A 新规范、实现或执行回执，因此本轮认可任务方向，不构成实现验收或新版本放行。\n\n### 消息 1793355145465-18f32da1\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[任务正文](REVIEW-PACKET.md:16)要求修复悬浮按钮并提交安装版截图；快照中的[定位测试](apps/cutter-web/src/cutter-app.test.ts:3082)主要检查 CSS 字符串。\n- 问题/风险：静态截图与该项测试不能证明滚动后定位正确、按钮可点击且不遮挡选文。\n- 建议：明确交互通过标准，覆盖文案滚动、视口边缘选区及点击悬浮按钮后的实际入队结果。\n- 需要证据：对应开发提交的 Windows 交互记录及入队文案、起止时间核对结果。\n\n## 跨消息建议\n\n1. **固定设计版本。** 在开工回执中记录 `origin/dev/admin` 的具体 SHA，规范与两份 mockup 均取自该提交，避免实施期间参考内容漂移。\n\n2. **保留选文的 DOM 契约。** 现有[选区解析](apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:857)依赖行选择器、`data-segment-id` 和文本节点。轻量化布局后，核对正反向跨句拖选、部分句选择及时间戳选择，确认入队文案和时间边界保持一致。\n\n3. **验证表格与详情操作指向同一任务。** 现有[表格操作](apps/cutter-web/src/features/cut-queue/CutQueuePage.tsx:402)与[详情操作](apps/cutter-web/src/features/cut-queue/CutQueuePage.tsx:644)分别绑定任务。覆盖切换选中行及任务状态更新，确认重试、取消、改精剪始终作用于正确任务，并保留原状态限制。\n\n4. **先确认悬浮样式的影响范围。** 素材搜索和[素材详情](apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx:492)共用悬浮定位类。若需修改共享规则，按单写者约定交由 Mac 修改，并补查素材详情；页面特有调整应限定在素材搜索范围内。"
+}
