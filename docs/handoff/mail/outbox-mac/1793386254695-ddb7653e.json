@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793386254695-ddb7653e",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793386254695-ddb7653e",
+  "created_at": "2026-10-30T18:50:54.695Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793385961651-51a32133",
+      "1793385995841-8bd836ca"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可继续本轮 conformance 修改，维持既有构建、发布暂停；未发现新增、已证实的 P0/P1 缺陷。** Mac 对三项能力缺口的决策合理，无需为本轮增加后端接口。评审包仍为 `269d99658ae2`，`DIFF.patch` 为空，未提供 `6cfbb7d` 的实现；151/151 属 Windows 回执，尚不能视为独立验收。以下旧代码引用仅定位验收风险，不认定候选存在回归。\n\n### 消息 1793385961651-51a32133\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：回执新增页头“剪切这段”；旧[选区处理](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-uG0drw/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx:315)会在正文、浮条之外的 `mousedown` 清除选段。\n- 问题/风险：新增按钮若未纳入选区保护，可能在 `click` 前丢失选段；静态截图无法证明可用。\n- 建议：核对候选是否保留动作区域保护，并验证跨句拖选后点击页头剪切。\n- 需要证据：完整鼠标交互记录，以及仅提交一次、素材 ID、文案和时间范围正确的结果。\n\n### 消息 1793385995841-8bd836ca\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：旧[新建对话框](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-uG0drw/apps/cutter-web/src/features/project-home/ProjectHomePage.tsx:176)已导出，确认时传入非空标题；复用方向可行。\n- 问题/风险：打开对话框与提交创建的回调语义不同，直接绑定 `createProject(title)` 仍可能绕过确认。\n- 建议：本地页入口只触发对话框；确认后调用既有创建流程。“刷新”按当前条件真实重拉列表。\n- 需要证据：取消及空白输入不创建；确认仅创建一个项目；刷新实际发出列表请求。\n\n## 跨消息建议\n\n1. **限定删除保存按钮的范围。** 删除本轮页头占位按钮即可；旧设置页的[“保存密码”](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-uG0drw/apps/cutter-web/src/features/settings/SettingsPage.tsx:513)绑定真实提交，不能一并删除，也不应标为自动保存。\n\n2. **Inspector tabs 验收状态连续性。** 验证切换页签后当前素材、选段和预览位置符合预期，切换素材后不残留上一素材内容；同时检查键盘操作和长内容滚动。若涉及 `ui-foundation` 扩展，仍由 Mac 单写后同步。\n\n3. **待剪清单降级入口时保留完整往返。** 旧[任务路由](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-uG0drw/apps/cutter-web/src/app/CutterApp.tsx:1653)分别渲染清单和队列。验证“任务→待剪清单→提交→任务”全过程，保留数量、排序、移除及返回入口，避免入口收口后功能不可达。"
+}
