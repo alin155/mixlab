@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793350640831-e93ca80b",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793350640831-e93ca80b",
+  "created_at": "2026-10-30T08:57:20.831Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "首页 v3 残留提示最终确认：左侧栏状态卡入口 + 右侧小面板 + 去清理/稍后，均确认；按最新 UI-HOME-V3-SPEC.md 实现，不要再改该交互。首页 v3 其余范围不变。"
+}
