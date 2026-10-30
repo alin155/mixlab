@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793344299244-af84b747",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793344299244-af84b747",
+  "reply_to": "1793343145855-d1a4acbf",
+  "created_at": "2026-10-30T07:11:39.245Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.15 构建/升级/快速 copy/发布完成】\n\n构建源：hotfix/0.18.15 @ 892dfb7（基于 main 288e7a2）\n安装包：MixLab Cutter_0.18.15_x64-setup-892dfb7.exe\nsha256=C7085CABC3A05682746E35BEDE4E5521E47E5FF12DC31E72EA53FBA769047C3C（58.99MB）\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.15\\（exe + SHA256SUMS.txt）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\（exe + SHA256SUMS-0.18.15-892dfb7.txt）\n- 两处 sha 与本地一致；0.18.13/0.18.14 目录保留；**未更新 LATEST**。\n\n【0.18.14→0.18.15 覆盖升级：PASS】\n- 注册表 DisplayVersion=0.18.15；exe FileVersion=0.18.15；\n- 设置页“应用版本”显示 **v0.18.15**，构建版本 892dfb70610f；\n- 配置文件 cutter-desktop-config.json 未被升级改写（LastWrite 2026-06-24）；\n- 静默 NSIS 两段安装 exit0，启动后 health 200。\n\n【快速 copy 回归：2/2 copy，verification 全部通过】\n| 任务 | 源 | queue | preflight | cut_media | 输出 |\n| CJ20261030-0002 | C0481 | 13ms | 8ms | 5069ms | E000086/001-0.18.15 quick copy E2E-C0481.mp4 |\n| CJ20261030-0003 | 040A4313 | 5.8s | 11ms | 6479ms | E000087/002-0.18.15 quick copy E2E-040A4313.mp4 |\n两条均 cut_mode_used=copy，文件/时长/视频流/音频流/首帧 PTS 校验通过。\n\n【证据】\n- 本地：C:\\dev\\mixlab-verify-01815\\（upgrade-01815.json、copy-summary.json、quick-copy-e2e.json、settings-0.18.15-1536x1024.png）\n- Mac 共享：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\01815-evidence.zip\n  sha256=C089956EDB7B9CCEFFCA612B9D647E3A243EDB5D17CC712F15F5BAA9F486A5B4\n\n【环境观察（未改代码）】\n首次启动 0.18.15 时曾出现一次 NAS 用户存储文件瞬时不可读，UI 停在加载；重启后正常，升级/功能验收不受影响。可能是 NAS 刚启动/连接时序，建议后续单独评估启动重试/错误提示，不在本任务改代码。\n\nUI Phase 0 已单独 push：ui/phase0-shell-home @ e0844d5（基于 main 288e7a2），未混入 0.18.15；等你审查。\n本任务未改代码、未升版本、未发布 LATEST。"
+}
