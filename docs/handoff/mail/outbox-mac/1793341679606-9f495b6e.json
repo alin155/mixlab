@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793341679606-9f495b6e",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793341679606-9f495b6e",
+  "created_at": "2026-10-30T06:27:59.607Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/phase0-shell-home",
+      "docs/design/UI-PHASE0-SPEC.md"
+    ]
+  },
+  "body": "UI Phase 0 开始实施：请从 origin/main @ 288e7a2 新建分支 **ui/phase0-shell-home**，按 docs/design/UI-PHASE0-SPEC.md 实施（该文件在 origin/dev/admin；先 git fetch origin dev/admin，再 git show origin/dev/admin:docs/design/UI-PHASE0-SPEC.md，设计 mockup 也在 dev/admin 的 docs/design/mockups）。范围：设计令牌 + AppShell + 顶部提示条裁切修复 + 顶栏项目切换器轻量版 + 首页重排；不做素材搜索/任务/本地素材重排、不做全站全部项目作用域、不做极速模式。验收：typecheck/产品测试 + Windows 安装版 1536x1024/1440x900 截图；项目切换可用；提示条正文完整；现有功能不丢。完成后 push 分支 reply（commit、截图、测试、差异）；不要升版本/发布，Mac 审查后再定。"
+}
