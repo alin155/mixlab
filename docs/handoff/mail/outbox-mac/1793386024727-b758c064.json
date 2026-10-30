@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793386024727-b758c064",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793386024727-b758c064",
+  "created_at": "2026-10-30T18:47:04.727Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793385822763-557826a2"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进新增三项修改与复审准备，继续执行既有构建、发布暂停，不新增 P0/P1 阻塞。** 本条是需求补充，未声明实现完成。快照仍为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核验本轮实现相对 `main@d3cf163f69c0` 的变化；以下代码引用仅用于定位验收风险。\n\n### 消息 1793385822763-557826a2\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[任务](REVIEW-PACKET.md:16)明确补充页头压缩、全部项目入口及老师下拉，并保留“不升版本/发布”约束。\n- 问题/风险：“删除说明文字”可能误伤业务反馈；四张近期卡片不能成为全部项目的数据上限。\n- 建议：将三项加入现有清单，完成后逐项回报实际行为，无需重复要求停发确认。\n- 需要证据：对应提交、八页对照截图，以及两个项目入口选择第四项之后项目的交互记录。\n\n## 跨消息建议\n\n1. **限定标题删除范围。** 按页面顶部的装饰标题和说明处理，避免全局隐藏 `p` 或 `.ml-page-description`。旧快照的[完整文案](apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx:448)使用 `p`，[操作反馈](apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:501)复用了说明类名；这些内容应继续可见。\n\n2. **验证全部项目的数据来源和选择结果。** 旧[首页](apps/cutter-web/src/features/project-home/ProjectHomePage.tsx:365)遍历传入列表，[顶部切换器](apps/cutter-web/src/app/CutterApp.tsx:702)仅接收当前项目，不能据此认定存储只剩四项。候选应保留完整项目集合，仅近期卡片截取四项；用至少六个项目验证两个入口都能选中第五、第六项，且当前项目和后续任务归属正确。\n\n3. **区分老师标签、数量与过滤值。** 先明确“王牧笛1478”等数字属于目录名称还是素材数量。现有[下拉选项](apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx:129)分别使用 `folder.name` 作为值、`folder.count` 作为展示数量；新实现应记录实际映射，避免拼接展示文字后直接作为请求值，或擅自截掉真实目录名中的数字。"
+}
