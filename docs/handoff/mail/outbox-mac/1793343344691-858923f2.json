@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793343344691-858923f2",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793343344691-858923f2",
+  "created_at": "2026-10-30T06:55:44.691Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793343145855-d1a4acbf"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 Windows 构建与定向验收，未发现新增的发布阻塞缺陷；尚不能确认 0.18.15 已修复并可放行。** 新补丁版本、同步版本元数据和一致性测试，已回应前轮建议。本次快照仍为 `269d996`，`DIFF.patch` 为空；`892dfb7` 的改动及 2239/2239 测试结果仅见消息声明，正式分发应以 Windows 验收通过为前提。\n\n### 消息 1793343145855-d1a4acbf\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[原生命令](apps/cutter-desktop/src-tauri/src/main.rs:84)确实读取 `CARGO_PKG_VERSION`，支持根因解释；[任务](REVIEW-PACKET.md:16)已明确修复提交、覆盖升级和暂不更新 LATEST。\n- 问题/风险：修复代码不在当前快照，Mac 测试声明尚不能证明 Windows 成品版本一致。\n- 建议：按指定提交构建，完成版本核验及 copy 回归后再定向分发；失败则停止分发并回报。\n- 需要证据：`288e7a2→892dfb7` 补丁、新增测试原文，以及关联源提交和安装包 SHA256 的 Windows 验收回执。\n\n## 跨消息建议\n\n1. **确认锁文件没有扩大修复范围。** 当前 [Cargo.lock](apps/cutter-desktop/src-tauri/Cargo.lock:1755)中的桌面包版本仍为 `0.18.10`。核对新补丁是否仅同步根包版本；若还更新了依赖，应按实际变化补充 Windows 验证，不能仅按版本修复验收。\n\n2. **核对设置页“构建版本”的来源。** [打包脚本](scripts/desktop/package-windows-desktop.ts:42)优先使用环境变量中的提交号。构建前确认 `VITE_MIXLAB_BUILD_COMMIT`、`GITHUB_SHA` 与实际源提交一致，避免应用版本已更新、构建标识仍指向旧提交。\n\n3. **防止后续 UI 发布遗漏本次修复。** UI 分支按消息从 `288e7a2` 隔离开发可以继续；后续集成发布时，应定点带入本次版本一致性修复及测试，避免旧基线重新引入遗漏，无需整分支合并。"
+}
