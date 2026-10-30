@@ -2224,3 +2224,18 @@ body,
 .cutter-cache-disk-target-reason { color: var(--ml-color-text-tertiary); font-size: 11px; line-height: 16px; }
 .cutter-settings-inspector .cutter-settings-doctor-row { grid-template-columns: 96px minmax(0, 1fr); align-items: start; }
 .cutter-settings-inspector .cutter-settings-doctor-row .ml-badge { white-space: nowrap; justify-self: start; }
+
+.cutter-cache-disk-targets,
+.cutter-cache-disk-targets li {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+
+.cutter-cache-disk-target input[type="checkbox"] {
+  min-height: 16px !important;
+  min-width: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 4px !important;
+}

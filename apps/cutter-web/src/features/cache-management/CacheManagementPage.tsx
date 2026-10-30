@@ -344,13 +344,17 @@ export function CacheManagementPage({
   const [audit, setAudit] = useState<CutterGovernanceAudit | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState("");
-  const [cacheSnapshotReady, setCacheSnapshotReady] = useState(() => Boolean(runtimeStatus?.release_cache?.ready));
+  const [cacheSnapshotReady, setCacheSnapshotReady] = useState(() => Boolean(runtimeStatus) && cutterRuntimeCacheBytes(runtimeStatus) > 0);
   useEffect(() => {
     if (!runtimeStatus) {
       setCacheSnapshotReady(false);
       return;
     }
-    const timer = window.setTimeout(() => setCacheSnapshotReady(true), 350);
+    if (cutterRuntimeCacheBytes(runtimeStatus) > 0) {
+      setCacheSnapshotReady(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setCacheSnapshotReady(true), 5000);
     return () => window.clearTimeout(timer);
   }, [runtimeStatus]);
 
