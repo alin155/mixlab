@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793368292511-ad82d4cb",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793368292511-ad82d4cb",
+  "reply_to": "1793367702095-2e32182f",
+  "created_at": "2026-10-30T13:51:32.512Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Batch B 初审三处问题已修，待复审】\n\n同一分支 ui/minimal-batch-b；新 commit：b88f3cc（fix(cutter-web): slim library cards and anchor source selection toolbar）\n远程：origin/ui/minimal-batch-b = b88f3cc（在 9c87a7f/9dee168 基础上追加）\n\n1) 素材库卡片减负：\n- 移除卡片内 selected_text/description 大段摘要；\n- 只保留封面 + 标题 + 1 行已知元信息 + 最多 1 个已知方向标签；\n- “未知”标签全部过滤；无 description 节点。\n\n2) 公共素材库讲师：\n- meta 优先取 video.lecturer，有则显示（如“林老师 · 32:15 · …”）；\n- 当前真实公共库数据该字段为空时不显示，不再显示“未知”。\n\n3) 素材详情浮条：\n- 视频高度限制为 360px，正文上移；\n- 浮条锚定选中文字附近，固定在页面内并下移 clamp，禁止进入视频区域；\n- 滚动时仅当浮条与 video rect 相交才隐藏，否则保留；\n- 截图同时保留：顶部视频/标题截图、选中文字附近浮条截图（1536/1440）。\n\n验证：typecheck PASS；产品测试 151/151 PASS；三页 1536/1440 截图；无横向滚动。\n\n【证据】\nzip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\batch-b-review-b88f3cc.zip\n  sha256=055BB8A4A724B48F194F4AF3A048AAF4BADE107963326B34D4ADDF38034CBF08\n含 local/public 各 1536/1440、source-detail 选中态 1536/1440、source-detail 顶部视频 1536/1440、verify.json。\n\n未升版本、未发布；未改 API/业务规则。"
+}
