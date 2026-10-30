@@ -49,6 +49,7 @@ import {
   ProjectRenameDialog,
   type ProjectDeleteMode
 } from "../features/project-home/ProjectHomePage.tsx";
+import { CutterTopbar } from "../features/app-shell/CutterTopbar.tsx";
 import { CutListPage } from "../features/cut-list/CutListPage.tsx";
 import { CutTasksTabNav } from "../features/cut-tasks/CutTasksTabNav.tsx";
 import type { CutTasksTab } from "../features/cut-tasks/cut-tasks-tab.ts";
@@ -1479,6 +1480,7 @@ function renderPage(
     addSelectionToCutList: () => void;
     search: (query: string) => void;
     searchFromProjectHome: (query: string) => void;
+    navigate: (route: CutterRoute) => void;
     selectMaterial: (result: MaterialLocatorResult) => void;
     prefetchMaterial: (result: MaterialLocatorResult) => void;
     selectTranscriptSegment: (segmentId: string) => void;
@@ -1554,6 +1556,8 @@ function renderPage(
         onCreateProject={handlers.createProject}
         onRenameProject={handlers.renameProject}
         onDeleteProject={handlers.deleteProject}
+        engineReady={Boolean(data.runtimeStatus.api_ready && data.runtimeStatus.ffmpeg_status === "可用")}
+        onNavigate={handlers.navigate}
       />
     );
   }
@@ -4052,6 +4056,9 @@ export function CutterApp() {
     },
     search: performMaterialSearch,
     searchFromProjectHome: startProjectHomeSearch,
+    navigate(nextRoute: CutterRoute) {
+      window.location.hash = routeToHash(nextRoute);
+    },
     selectProject(projectId: string) {
       setHomeSelectedProjectId(projectId);
     },
@@ -4671,7 +4678,16 @@ export function CutterApp() {
         className="cutter-shell-v1"
         workbenchClassName={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
       >
-        <section className="cutter-content ml-workbench-content">
+        <div className="cutter-frame">
+          <CutterTopbar
+            engineReady={engineReady}
+            onOpenProject={handlers.openProject}
+            project={sidebarProject}
+            projects={projects}
+            route={route}
+          />
+          <div className="cutter-notice-stack">
+
           {upgradeNotice ? (
             <div className="cutter-contract-notice" role="alert">
               <div className="cutter-contract-notice-body">
@@ -4738,6 +4754,8 @@ export function CutterApp() {
               </div>
             </div>
           ) : null}
+          </div>
+          <section className="cutter-content ml-workbench-content">
           {shouldRenderGlobalCutterError({ error, hasData: Boolean(data) }) ? (
             <InspectorPanel title="加载失败">
               {errorPresentation ? (
@@ -4828,7 +4846,8 @@ export function CutterApp() {
               <p>正在读取剪辑师工作台数据</p>
             </InspectorPanel>
           )}
-        </section>
+          </section>
+        </div>
       </AppShell>
       {renameTargetProject ? (
         <ProjectRenameDialog
