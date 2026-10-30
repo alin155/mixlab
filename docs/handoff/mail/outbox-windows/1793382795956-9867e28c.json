@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793382795956-9867e28c",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793382795956-9867e28c",
+  "created_at": "2026-10-30T17:53:15.956Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【关键帧 copy 修复更新：真实源文件验证 + 短片段保护】\n\n分支 fix/copy-first-keyframe-1000ms 追加 commit **b6ec93a**（在 74eb60a 上）：\n1) 真实探测 CJ20261030-0017 源文件 040A3647.MP4：首关键帧 **66.733ms**，距起点 0 在 1000ms 内，修复后应保持 copy；\n2) 用安装包 ffmpeg 以 copy 从 0 切 285.580s 实测：输出视频 start_time 0.100s、duration 285.719s，时长差 139ms（容差 816ms），首帧 PTS 100ms，说明该场景 copy 可行；\n3) 增加短片段保护：若剪切终点早于首关键帧，仍降级 precise（新增测试），避免输出空片。\n\n验证：typecheck PASS；ffmpeg-core cut-plan 30/30 PASS；cutter-local cut-queue 42/42 PASS。\n\n未升版本、未发布；请集成后用真实任务复验。"
+}
