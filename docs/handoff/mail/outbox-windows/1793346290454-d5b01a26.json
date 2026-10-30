@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793346290454-d5b01a26",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793346290454-d5b01a26",
+  "reply_to": "1793345716463-2b9d9b45",
+  "created_at": "2026-10-30T07:44:50.455Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【UI Phase 0 小修完成：rebase 0.18.15 + 侧栏用户名 + 封面加载】\n\n分支：ui/phase0-shell-home（已 rebase 到 origin/main @ bcbd5f2，含 0.18.15 Cargo 版本修复）\ncommits：cdc63bb（AppShell/首页） + 7bb5eb1（本轮小修）\n远程：origin/ui/phase0-shell-home = 7bb5eb1（因 rebase 历史重写，使用 force-with-lease 更新同一分支）\n\n【本轮修复】\n1) 版本：设置页“应用版本”显示 v0.18.15，构建版本 7bb5eb1c2d1e；与 0.18.15 基线一致。\n2) 侧栏用户名：紧凑化缓存按钮（隐藏“缓存”文字、保留大小）与账户按钮；Allen 在 1536/1440 下 clientWidth == scrollWidth（54/54、42/42），不再截断；超长名字仍 ellipsis。\n3) 项目封面：新增加载骨架 cutter-cover-skeleton + 图片淡入；截图前等待所有封面 complete；本次 4/4 封面 state=ready、naturalWidth=640，无纯色空白。\n4) 1440 首页允许纵向滚动（本机 5 项目+提示条），无横向滚动；1536 无纵向溢出。\n\n【测试/截图】\n- typecheck PASS；剪辑端产品测试 199/199 PASS。\n- 截图：1536×1024、1440×900 的 home / switcher-open / settings / material-locator 外壳；每页 topbar=1、sidebar=1、无横向滚动。\n- 设置页截图可见 v0.18.15 + 构建版本 7bb5eb1c2d1e；material-locator 仅验证外壳，内容重排留 Phase 1。\n- 证据 zip：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\ui-phase0-shell-home-7bb5eb1.zip\n  sha256=EF17E3E0AEE39AEE58E7EBED549984ACFB87843168DC0FA6B518B70D78FD3D2D\n  本地：C:\\dev\\ui-phase0-verify2（png + verify.json）\n\n【与 mockup 差异/限制】\n- 侧栏未加 mockup 的“工作台/系统”分组标签；沿用现有导航。\n- 顶栏项目切换器仍只列最近 8 个项目；选择沿用“进入项目”语义，不提供全站全部项目作用域。\n- 首页最近项目最多 4 个；1440 纵向滚动可接受。\n\n未升版本、未发布、未改 LATEST；本轮验证安装包仅本地构建用于截图。"
+}
