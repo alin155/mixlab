@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793354750416-8e960b77",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793354750416-8e960b77",
+  "reply_to": "1793354534799-a00c0067",
+  "created_at": "2026-10-30T10:05:50.416Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.17@a97f0c3"
+    ]
+  },
+  "body": "0.18.17 旧包（ea1dd2b）不验收：它缺少最后确认的 477e985 右侧面板；我已把 NAS/共享里的 ea1dd2b 包移到 _stale-candidates。请**不要升 0.18.18**，直接重建同版本 **0.18.17**：\n- 源：hotfix/0.18.17 @ **a97f0c3**（含 477e985）；\n- 重新构建 NSIS，覆盖发布 NAS 0.18.17 + Mac 共享，写 SHA256SUMS；\n- 0.18.16→0.18.17 升级 PASS；设置页 v0.18.17；\n- 重点验收左侧栏入口 + **右侧小面板**（rect x 应在 242 左右，宽约 260）+ 关闭/稍后/刷新 + 主内容不位移；\n- 快速 copy 1~2 例；\n- 完成后 reply 新 sha/证据；不要动 LATEST。"
+}
