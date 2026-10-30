@@ -506,6 +506,9 @@ test("project home renders search-first workbench and keeps project actions", ()
   assert.match(html, /aria-label="选择项目 5月5日"/);
   assert.match(html, /class="cutter-home-project-card is-selected"/);
   assert.match(html, /class="cutter-home-project-actions"/);
+  assert.match(html, /class="cutter-cover-skeleton"/);
+  assert.match(html, /class="ml-media-fill cutter-cover-image"/);
+  assert.equal(html.includes('data-cover-state="loading"'), true);
   assert.equal(html.includes("Cutter / Project Home"), false);
   assert.equal(html.includes("项目详情"), false);
 });

@@ -1298,3 +1298,88 @@ body,
     gap: 16px 24px;
   }
 }
+
+/* Cutter sidebar user row: keep common usernames readable next to cache/account. */
+.cutter-shell-v1 .ml-sidebar-user-entry {
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  min-height: 50px;
+  padding: 8px 10px;
+}
+
+.cutter-shell-v1 .ml-sidebar-user-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.cutter-shell-v1 .ml-sidebar-user-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cutter-shell-v1 .ml-sidebar-user-name {
+  font-size: 12.5px;
+}
+
+.cutter-shell-v1 .ml-sidebar-cache-button {
+  min-height: 26px;
+  padding: 0 6px;
+}
+
+.cutter-shell-v1 .ml-sidebar-cache-button:has(strong) .ml-button-label > span:first-child {
+  display: none;
+}
+
+.cutter-shell-v1 .ml-sidebar-cache-button .ml-button-label {
+  gap: 0;
+}
+
+.cutter-shell-v1 .ml-sidebar-cache-button:last-of-type {
+  min-height: 26px;
+  padding: 0 7px;
+}
+
+/* Project cover skeleton: never show a blank card while NAS covers are loading. */
+.cutter-home-project-cover {
+  position: relative;
+}
+
+.cutter-cover-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.cutter-cover-frame .cutter-cover-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.cutter-cover-frame .cutter-cover-image.is-loaded {
+  opacity: 1;
+}
+
+.cutter-cover-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #e8eef8 0%, #f6f9fe 45%, #e8eef8 100%);
+  background-size: 220% 100%;
+  animation: cutter-cover-shimmer 1.3s ease-in-out infinite;
+}
+
+.cutter-cover-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+@keyframes cutter-cover-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}

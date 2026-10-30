@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Button, SearchBox } from "@mixlab/ui-foundation";
 import type { LocalClipCatalog, SourceFolderOption, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
@@ -30,11 +30,28 @@ function formatProjectTime(value: string): string {
 
 function ProjectCover({ project, variant = "card" }: { project: CutterProject; variant?: "card" | "detail" }) {
   const coverUrl = variant === "detail" ? project.detail_cover_url ?? project.cover_url : project.cover_url;
+  const [coverState, setCoverState] = useState<"loading" | "ready" | "error">("loading");
 
-  return coverUrl ? (
-    <img className="ml-media-fill" src={coverUrl} alt="" />
-  ) : (
-    <span>{project.source_title ?? projectDisplayTitle(project)}</span>
+  useEffect(() => {
+    setCoverState("loading");
+  }, [coverUrl]);
+
+  if (!coverUrl) {
+    return <span className="cutter-cover-fallback">{project.source_title ?? projectDisplayTitle(project)}</span>;
+  }
+
+  return (
+    <span className="cutter-cover-frame" data-cover-state={coverState}>
+      {coverState !== "ready" ? <span className="cutter-cover-skeleton" aria-hidden="true" /> : null}
+      <img
+        alt=""
+        className={`ml-media-fill cutter-cover-image${coverState === "ready" ? " is-loaded" : ""}`}
+        loading="eager"
+        onError={() => setCoverState("error")}
+        onLoad={() => setCoverState("ready")}
+        src={coverUrl}
+      />
+    </span>
   );
 }
 
