@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793364368996-a60ea741",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793364368996-a60ea741",
+  "reply_to": "1793363830915-17f7f38b",
+  "created_at": "2026-10-30T12:46:08.997Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/project-cover-local@504cc62"
+    ]
+  },
+  "body": "项目封面本地化初审基本通过（旧项目迁移、NAS 拦截、端点缓存都好）。发布前补一个真实新项目首剪验证：\\n1) 新建一个项目 → 完成 1 个 cut → 返回首页；\\n2) 确认项目状态写入 cover_local_url、workspace/projects/<project_id>/cover.jpg 存在；\\n3) 首页首次打开该封面走本地端点（不是 source-videos cover），冷/热各截一张；\\n4) 记录 verify JSON。\\n若新项目路径有问题，修在同一分支 ui/project-cover-local；没问题就回复证据，我合并 0.18.19。不要升版本/发布。"
+}
