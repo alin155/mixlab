@@ -202,40 +202,7 @@ export function SettingsPage({
           {
             label: "当前剪辑师",
             value: runtimeStatus.current_user.display_name || runtimeStatus.current_user.username
-          },
-          { label: "可用原素材", value: `${runtimeStatus.available_video_count}` },
-          {
-            label: "本地工作区",
-            value: runtimeStatus.workspace_enabled ? runtimeStatus.workspace_root_label : "未启用"
-          },
-          { label: "本地素材数", value: `${runtimeStatus.local_clip_count}` },
-          {
-            label: "当前 Release",
-            value: runtimeStatus.release_cache?.active_release_version || "同步中"
-          },
-          {
-            label: "Release 缓存",
-            value: runtimeStatus.release_cache?.ready ? "本机可用" : "待同步"
-          },
-          {
-            label: "源视频预检",
-            value: sourcePreflightLabel(runtimeStatus.source_video_preflight)
-          },
-          {
-            label: "缩略图缓存",
-            value: compactFileSize(runtimeStatus.local_cache?.thumbnail_cache_size_bytes)
-          },
-          {
-            label: "缩略图索引",
-            value: runtimeStatus.local_cache
-              ? `${runtimeStatus.local_cache.thumbnail_cache_checksum_entry_count ?? 0}/${runtimeStatus.local_cache.thumbnail_cache_manifest_entry_count ?? 0}`
-              : "0/0"
-          },
-          {
-            label: "剪切临时区",
-            value: compactFileSize(runtimeStatus.local_cache?.cut_temp_cache.size_bytes)
-          },
-          { label: "剪切工具", value: runtimeStatus.ffmpeg_status }
+          }
         ]
       }
     : {
@@ -245,7 +212,7 @@ export function SettingsPage({
           { label: "连接", value: "未连接" },
           { label: "素材库", value: "待连接" }
         ]
-    };
+      };
 
   const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -340,6 +307,24 @@ export function SettingsPage({
                 ...(workspaceConfigNotice?.trim()
                   ? [{ label: "配置状态", value: workspaceConfigNotice }]
                   : []),
+                ...(runtimeStatus
+                  ? [
+                      { label: "可用原素材", value: `${runtimeStatus.available_video_count}` },
+                      { label: "本地素材数", value: `${runtimeStatus.local_clip_count}` },
+                      {
+                        label: "当前 Release",
+                        value: runtimeStatus.release_cache?.active_release_version || "同步中"
+                      },
+                      {
+                        label: "本地工作区",
+                        value: runtimeStatus.workspace_enabled ? runtimeStatus.workspace_root_label : "未启用"
+                      },
+                      {
+                        label: "源视频预检",
+                        value: sourcePreflightLabel(runtimeStatus.source_video_preflight)
+                      }
+                    ]
+                  : []),
                 {
                   label: "默认素材来源",
                   value: (
@@ -381,7 +366,7 @@ export function SettingsPage({
               ]
             },
             {
-              title: "剪切偏好",
+              title: "剪切默认",
               rows: [
                 { label: "剪切工具路径", value: settings.ffmpeg_path },
                 {
@@ -431,93 +416,33 @@ export function SettingsPage({
           ]}
         />
 
-        <Card
-          title="账号安全"
-          actions={
-            <Button disabled={!onChangePassword} type="button" variant="secondary" onClick={openPasswordDialog}>
-              修改登录密码
-            </Button>
-          }
-          className="cutter-settings-security ml-card-section-offset"
-        >
-          <div className="cutter-password-current-user ml-form-summary-row">
-            <span>当前账号</span>
-            <strong>
-              {runtimeStatus?.current_user.display_name || runtimeStatus?.current_user.username || "未登录"}
-            </strong>
-          </div>
-          {passwordStatus ? (
-            <p className="cutter-password-message is-success ml-form-message ml-form-message--success">
-              {passwordStatus}
-            </p>
-          ) : null}
-        </Card>
-      </div>
-
-      {passwordDialogOpen ? (
-        <div className="cutter-modal-backdrop ml-modal-backdrop" role="presentation">
-          <section className="cutter-password-dialog ml-dialog" role="dialog" aria-modal="true" aria-label="修改登录密码">
-            <header className="ml-dialog-header">
-              <h2 className="ml-dialog-title">修改登录密码</h2>
-              <p className="ml-dialog-description">当前账号：{runtimeStatus?.current_user.display_name || runtimeStatus?.current_user.username || "未登录"}</p>
-            </header>
-            <form className="cutter-password-form ml-form-stack" onSubmit={handlePasswordSubmit}>
-            <label className="cutter-password-field ml-form-field">
-              <span>当前密码</span>
-              <input
-                autoComplete="current-password"
-                className="cutter-password-input ml-field-input"
-                disabled={!onChangePassword || passwordSubmitting}
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.currentTarget.value)}
-              />
-            </label>
-            <label className="cutter-password-field ml-form-field">
-              <span>新密码</span>
-              <input
-                autoComplete="new-password"
-                className="cutter-password-input ml-field-input"
-                disabled={!onChangePassword || passwordSubmitting}
-                placeholder="至少 8 位，包含字母和数字"
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.currentTarget.value)}
-              />
-            </label>
-            <label className="cutter-password-field ml-form-field">
-              <span>确认新密码</span>
-              <input
-                autoComplete="new-password"
-                className="cutter-password-input ml-field-input"
-                disabled={!onChangePassword || passwordSubmitting}
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.currentTarget.value)}
-              />
-            </label>
-            {passwordError ? (
-              <p className="cutter-password-message is-error ml-form-message ml-form-message--danger">
-                {passwordError}
-              </p>
-            ) : null}
-            {passwordStatus ? (
-              <p className="cutter-password-message is-success ml-form-message ml-form-message--success">
-                {passwordStatus}
-              </p>
-            ) : null}
-            <footer className="ml-dialog-footer">
-              <Button disabled={passwordSubmitting} type="button" variant="secondary" onClick={closePasswordDialog}>
-                取消
-              </Button>
-              <Button disabled={!onChangePassword || passwordSubmitting} type="submit" variant="primary">
-                保存密码
-              </Button>
-            </footer>
-          </form>
-          </section>
+        <CutterInfoGroups
+          groups={[
+            {
+              title: "账号与安全",
+              rows: [
+                { label: "登录方式", value: "密码 / 管理员审核" },
+                {
+                  label: "当前账号",
+                  value: runtimeStatus
+                    ? runtimeStatus.current_user.display_name || runtimeStatus.current_user.username
+                    : "未登录"
+                },
+                { label: "设备", value: "本机已登录" },
+                {
+                  label: "登录密码",
+                  value: onChangePassword ? "可修改" : "不可修改",
+                  action: onChangePassword ? (
+                    <Button type="button" variant="secondary" size="sm" onClick={openPasswordDialog}>
+                      修改登录密码
+                    </Button>
+                  ) : undefined
+                }
+              ]
+            }
+          ]}
+        />
         </div>
-      ) : null}
 
       <InspectorPanel title="环境检查" className="ml-inspector--workbench ml-inspector--operational ml-workbench-inspector ml-workbench-inspector--offset-header cutter-operational-inspector cutter-settings-inspector">
         <div className="cutter-settings-doctor ml-data-surface">

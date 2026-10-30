@@ -5133,13 +5133,11 @@ test("cache management page exposes runtime cache and test results", () => {
   ]) {
     assert.match(html, new RegExp(text));
   }
-  assert.match(html, /cutter-cache-stat-body ml-metric-card-body/);
-  assert.match(html, /cutter-cache-stat-summary ml-metric-summary/);
-  assert.match(html, /class="ml-metric-value"/);
-  assert.match(html, /class="ml-metric-description"/);
-  assert.match(html, /cutter-cache-meter ml-meter/);
-  assert.match(html, /ml-meter-fill is-ready/);
-  assert.match(html, /cutter-cache-stats ml-metric-grid/);
+  assert.match(html, /cutter-cache-summary ml-data-strip/);
+  assert.match(html, /cutter-cache-categories/);
+  assert.match(html, /cutter-cache-category-row is-head/);
+  assert.match(html, /cutter-cache-category-row/);
+  assert.match(html, /缓存分类/);
   assert.match(html, /cutter-cache-panels ml-panel-grid ml-scroll-region/);
   assert.match(html, /cutter-cache-panel ml-panel-card/);
   assert.match(html, /ml-card-body is-flush cutter-cache-panel-body/);
@@ -5195,7 +5193,7 @@ test("cache management colors come from foundation tokens", async () => {
   const css = await readFile(new URL("./styles.css", import.meta.url), "utf8");
   const foundationCss = await readFile(new URL("../../../packages/ui-foundation/src/layout.css", import.meta.url), "utf8");
   const cacheCss = css.slice(
-    css.indexOf(".cutter-cache-stats"),
+    css.indexOf(".cutter-cache-summary"),
     css.indexOf("/* Desktop viewport containment.")
   );
 
@@ -5297,7 +5295,7 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
     "浅色",
     "系统",
     "同时剪切数",
-    "账号安全",
+    "账号与安全",
     "当前账号",
     "修改登录密码",
     "环境检查",
@@ -5331,8 +5329,6 @@ test("settings render mount, workspace, ffmpeg, default mode, concurrency, and s
   assert.match(html, /cutter-cut-mode-toggle cutter-settings-cut-mode-toggle ml-segmented-control/);
   assert.match(html, /cutter-appearance-select ml-field-select/);
   assert.match(html, /cutter-settings-doctor ml-data-surface/);
-  assert.match(html, /cutter-password-current-user ml-form-summary-row/);
-  assert.match(html, /cutter-settings-security ml-card-section-offset/);
   assert.match(html, /ml-card-body is-flush cutter-info-group-body/);
   assert.doesNotMatch(html, /cutter-card-body-flush/);
   assert.match(html, /ml-data-list cutter-info-list/);
@@ -6381,7 +6377,7 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
       }
     })
   );
-  assert.match(html, /磁盘缓存清理/);
+  assert.match(html, /清理操作/);
   assert.match(html, /预览清理/);
   assert.match(html, /工作区残留与 Release 缓存/);
   assert.match(html, /预览清理（0）/);
