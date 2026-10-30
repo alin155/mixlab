@@ -1348,7 +1348,13 @@ fn search_bundle(
 
     if should_supplement_recall {
         let (broad_candidate_video_ids, broad_has_more_from_window) =
-            candidate_video_ids_for_query(bundle, normalized_query, offset, limit, source_folder_name)?;
+            candidate_video_ids_for_query(
+                bundle,
+                normalized_query,
+                offset,
+                limit,
+                source_folder_name,
+            )?;
         has_more_from_window |= broad_has_more_from_window;
         let supplemental_candidate_video_ids = broad_candidate_video_ids
             .into_iter()
@@ -1419,14 +1425,13 @@ fn precise_candidate_video_ids_for_query(
     let fetch_docs = ((offset + limit).max(limit) * 50).clamp(200, MAX_TANTIVY_DOCS);
     let query = BooleanQuery::intersection(tantivy_term_queries(bundle, &grams));
     let mut candidate_video_ids = Vec::new();
-    let has_more_from_window =
-        collect_tantivy_candidates(
-            bundle,
-            &query,
-            fetch_docs,
-            &mut candidate_video_ids,
-            source_folder_name,
-        )?;
+    let has_more_from_window = collect_tantivy_candidates(
+        bundle,
+        &query,
+        fetch_docs,
+        &mut candidate_video_ids,
+        source_folder_name,
+    )?;
 
     Ok((candidate_video_ids, has_more_from_window))
 }
@@ -1452,6 +1457,8 @@ fn push_candidate_video_id(candidate_video_ids: &mut Vec<String>, source_video_i
     }
 }
 
+const SOURCE_FOLDER_FILTER_SEPARATOR: char = '\u{1f}';
+
 fn normalize_source_folder_filter(source_folder_name: Option<&str>) -> Option<String> {
     source_folder_name
         .map(str::trim)
@@ -1459,15 +1466,26 @@ fn normalize_source_folder_filter(source_folder_name: Option<&str>) -> Option<St
         .map(ToOwned::to_owned)
 }
 
+fn source_folder_filter_matches(filter: &str, source_folder_name: &str) -> bool {
+    filter
+        .split(SOURCE_FOLDER_FILTER_SEPARATOR)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .any(|name| name == source_folder_name)
+}
+
 fn video_matches_source_folder(video: &VideoRecord, source_folder_name: Option<&str>) -> bool {
     source_folder_name
-        .map(|filter| video.source_folder_name == filter)
+        .map(|filter| source_folder_filter_matches(filter, &video.source_folder_name))
         .unwrap_or(true)
 }
 
-fn segment_matches_source_folder(segment: &SegmentRecord, source_folder_name: Option<&str>) -> bool {
+fn segment_matches_source_folder(
+    segment: &SegmentRecord,
+    source_folder_name: Option<&str>,
+) -> bool {
     source_folder_name
-        .map(|filter| segment.source_folder_name == filter)
+        .map(|filter| source_folder_filter_matches(filter, &segment.source_folder_name))
         .unwrap_or(true)
 }
 
@@ -1570,14 +1588,13 @@ fn candidate_video_ids_for_query(
     let mut has_more_from_window = false;
 
     let broad_query = BooleanQuery::union(tantivy_term_queries(bundle, &grams));
-    has_more_from_window |=
-        collect_tantivy_candidates(
-            bundle,
-            &broad_query,
-            fetch_docs,
-            &mut candidate_video_ids,
-            source_folder_name,
-        )?;
+    has_more_from_window |= collect_tantivy_candidates(
+        bundle,
+        &broad_query,
+        fetch_docs,
+        &mut candidate_video_ids,
+        source_folder_name,
+    )?;
 
     for anchor_text in supplemental_candidate_anchor_texts(normalized_query) {
         let anchor_grams = query_grams(&anchor_text);
@@ -2407,30 +2424,26 @@ async fn source_search_handler(
     let query_text = query.query;
     let cursor = query.cursor;
     let source_folder_name = query.source_folder_name;
-    let data =
-        tokio::task::spawn_blocking(move || {
-            engine.search(
-                &query_text,
-                limit,
-                cursor.as_deref(),
-                source_folder_name.as_deref(),
-            )
-        })
-            .await
-            .map_err(|error| ApiError::internal(error.to_string()))?
-            .map_err(|error| {
-                let message = error.to_string();
-                if message.contains("invalid_search_cursor") {
-                    ApiError::bad_request("invalid_search_cursor", "搜索分页游标格式不正确")
-                } else if message.contains("searchd_index_warming") {
-                    ApiError::service_unavailable(
-                        "searchd_index_warming",
-                        "search index is warming up",
-                    )
-                } else {
-                    ApiError::internal(message)
-                }
-            })?;
+    let data = tokio::task::spawn_blocking(move || {
+        engine.search(
+            &query_text,
+            limit,
+            cursor.as_deref(),
+            source_folder_name.as_deref(),
+        )
+    })
+    .await
+    .map_err(|error| ApiError::internal(error.to_string()))?
+    .map_err(|error| {
+        let message = error.to_string();
+        if message.contains("invalid_search_cursor") {
+            ApiError::bad_request("invalid_search_cursor", "搜索分页游标格式不正确")
+        } else if message.contains("searchd_index_warming") {
+            ApiError::service_unavailable("searchd_index_warming", "search index is warming up")
+        } else {
+            ApiError::internal(message)
+        }
+    })?;
 
     Ok(Json(ApiEnvelope {
         schema_version: "1.0",
@@ -2700,7 +2713,9 @@ mod tests {
         ]);
         let engine = SearchEngine::new(library.path().to_path_buf(), None);
 
-        let result = engine.search("现金流，是企业的血液", 10, None, None).unwrap();
+        let result = engine
+            .search("现金流，是企业的血液", 10, None, None)
+            .unwrap();
 
         assert_eq!(
             result
@@ -2769,6 +2784,47 @@ mod tests {
     }
 
     #[test]
+    fn source_folder_filter_supports_multiple_folders_for_merged_teacher() {
+        let library = prepare_library_with_folder_paths(&[
+            (
+                "V000001",
+                "陶矜课程",
+                "陶矜",
+                "现金流决定项目健康。",
+                "现金流决定项目健康",
+            ),
+            (
+                "V000002",
+                "陶矜2课程",
+                "陶矜2",
+                "现金流决定项目健康。",
+                "现金流决定项目健康",
+            ),
+            (
+                "V000003",
+                "王牧笛课程",
+                "王牧笛",
+                "现金流决定项目健康。",
+                "现金流决定项目健康",
+            ),
+        ]);
+        let engine = SearchEngine::new(library.path().to_path_buf(), None);
+
+        let merged = engine
+            .search("现金流", 10, None, Some("陶矜\u{1f}陶矜2"))
+            .unwrap();
+
+        assert_eq!(merged.returned_count, 2);
+        let mut ids = merged
+            .groups
+            .iter()
+            .map(|group| group.source_video_id.as_str())
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        assert_eq!(ids, vec!["V000001", "V000002"]);
+    }
+
+    #[test]
     fn tantivy_candidates_cover_tolerant_and_long_anchor_queries() {
         let library = prepare_library_with_segments(&[(
             "V000001",
@@ -2801,7 +2857,8 @@ mod tests {
              未来中国将走向一个阶段，叫企业平台化，员工老板创业化。你要防备的是你的同行推出平台合伙人，\
              把你的优质人才卷到他的平台上。所以我们再提出来叫做企业平台化，员工老板创业化。",
         );
-        let (long_ids, _) = candidate_video_ids_for_query(&bundle, &long_query, 0, 10, None).unwrap();
+        let (long_ids, _) =
+            candidate_video_ids_for_query(&bundle, &long_query, 0, 10, None).unwrap();
         assert!(long_ids.iter().any(|id| id == "V000001"));
     }
 
@@ -3212,9 +3269,7 @@ mod tests {
         library
     }
 
-    fn prepare_library_with_folder_paths(
-        videos: &[(&str, &str, &str, &str, &str)],
-    ) -> TempDir {
+    fn prepare_library_with_folder_paths(videos: &[(&str, &str, &str, &str, &str)]) -> TempDir {
         let library = TempDir::new().unwrap();
         let index_root = library
             .path()
