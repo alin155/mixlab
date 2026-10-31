@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793473294977-5119bd17",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793473294977-5119bd17",
+  "reply_to": "1793472584851-a47d55f7",
+  "created_at": "2026-10-31T19:01:34.977Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.25 追加：本地素材列表区域内滚动 + 可见滚动条（本地，不发布）】\n最新 commit：ui/teacher-filter @ **92d6347**\n- 本地列表固定高度区域滚动，顶部筛选/操作行固定；\n- overflow-y:scroll + scrollbar-gutter + 与公共素材库同一套 8px 滚动条样式；\n- 列表 tabIndex=0，PageDown/方向键可滚动；\n- 公共素材库滚动样式未回归。\n\n实测（本机 2 条本地素材，缩小窗口制造溢出）：\n- 1280x400：scrollHeight 212 / clientHeight 168，wheel scrollTop 0→44，PageDown 0→44；\n- 1440x450：scrollHeight 242 / clientHeight 218，wheel 0→24；\n- 1536x500：实际无溢出，滚动条轨道可见；\n- 公共素材库 1280x700：scrollHeight 1571 / clientHeight 362，滚动正常。\n截图：6 页 × 1280/1440/1536 共 18 张 + scroll 验证截图 + overlap/verify/scroll-verify。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-scrollbar3.exe\nsha256=CECD17BD02D6FCD86E6D4CA3DCF53305E0F50097E19A8A47FCC09938EFECC728；未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01825-final-92d6347.zip 已复制 Mac evidence。"
+}
