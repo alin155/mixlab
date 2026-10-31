@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793476692481-995cd5aa",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793476692481-995cd5aa",
+  "reply_to": "1793476451439-d8cddbc6",
+  "created_at": "2026-10-31T19:58:12.481Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【确认：保留 a6795a7 + 刷新素材顶栏 + 确认弹窗】\n当前 HEAD：ui/teacher-filter @ **39f7d23**\n- 旧 revert 曾执行过一次，但已按用户更正恢复；最终公共筛选区域与 a6795a7 一致（老师/方向同排）。\n- 对比 a6795a7..39f7d23 仅新增「刷新素材」按钮、确认弹窗与相关样式；公共筛选布局无回退。\n\n刷新素材：\n- 页面内容「刷新」已删除；顶栏「刷新素材」位于本机服务正常左侧；\n- 点击弹确认框（标题/正文/取消/确认刷新），取消关闭不执行；确认执行原 reload 逻辑；加载中禁用并显示刷新中。\n- 1280/1440/1536 实测 sameRow=true，顶栏动作与状态无重叠；确认框可见、取消后关闭。\n\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-refresh-row.exe\nsha256=A03B0E3EEB4DD4345D4741F06D5407AF2DDF652C59F1F45902C14A44A3AE7642；未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01826-refresh-39f7d23.zip（sha256=EB7CE10E1642FFC5F20AD48F7E394EF36810D82A31F4F7B56FE6E3F433020167）。"
+}
