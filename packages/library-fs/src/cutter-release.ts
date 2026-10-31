@@ -1298,6 +1298,13 @@ export async function listCutterReleaseCatalog(
         ${whereClause}
       `).get(...whereParams) as { count?: number } | undefined)?.count ?? 0
     );
+    const totalSourceSizeBytes = Number(
+      (db.prepare(`
+        SELECT COALESCE(SUM(file_size), 0) AS total
+        FROM source_videos
+        ${whereClause}
+      `).get(...whereParams) as { total?: number } | undefined)?.total ?? 0
+    );
     const limit = input.limit && input.limit > 0 ? input.limit : availableVideoCount;
     const rows = db.prepare(`
       SELECT
@@ -1333,6 +1340,7 @@ export async function listCutterReleaseCatalog(
 
     return {
       available_video_count: availableVideoCount,
+      total_source_size_bytes: totalSourceSizeBytes,
       videos: rows.map((row) => releaseCatalogRowToCard({
         library_root: input.library_root,
         artifact_root: artifactRoot

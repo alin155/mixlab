@@ -57,6 +57,7 @@ export interface SourceVideoCard {
 export interface SourceLibraryResponse {
   library_id?: string;
   available_video_count: number;
+  total_source_size_bytes?: number;
   videos: SourceVideoCard[];
   source_folders?: SourceFolderOption[];
 }

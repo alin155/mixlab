@@ -4693,6 +4693,7 @@ interface FastLibraryReadState {
 interface SourceLibraryPagePayload {
   library_id: string;
   available_video_count: number;
+  total_source_size_bytes?: number;
   videos: ApiSourceVideoCard[];
   source_folders?: CutterSourceFolderOption[];
 }
@@ -4883,6 +4884,7 @@ async function loadSourceLibraryPageWithState(
     return {
       library_id: await readLibraryIdBestEffort(input),
       available_video_count: library.available_video_count,
+      ...(typeof library.total_source_size_bytes === "number" ? { total_source_size_bytes: library.total_source_size_bytes } : {}),
       ...(library.source_folders ? { source_folders: library.source_folders } : {}),
       videos: library.videos.map((video) => addSourceVideoUrls(withNormalizedSourceVideoPath(video)))
     };
