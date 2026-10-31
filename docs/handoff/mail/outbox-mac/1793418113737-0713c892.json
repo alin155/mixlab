@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793418113737-0713c892",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793418113737-0713c892",
+  "created_at": "2026-10-31T03:41:53.737Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793417531737-f42ab0de",
+      "1793417841914-fba6a4ed"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进交接，但 patch 输入需补齐；本批正式构建、发布继续 hold。** Windows 已提供此前要求的停写确认，Mac 改为交付 patch、Windows 应用并构建本地测试包，职责安排合理。但新任务缺失 patch 文件路径和应用命令，且逐页 compare 尚无结果。本包快照仍为 `269d99658ae2`、`DIFF.patch` 为空，不能据此验证最新 UI 实现，也不能认定产品出现新缺陷。\n\n### 消息 1793417531737-f42ab0de\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[回执](REVIEW-PACKET.md:16)明确停改停推、HEAD 为 `daa412e`，并自报角色分支 CLEAN、无进行中任务，回应了此前交接要求。\n- 问题/风险：这是交接状态声明，尚不构成 tabs 或 compare 验收通过。\n- 建议：收到完整、可校验的 patch 后，按后续 task 恢复 Windows 实施；无需重复索取同类停写确认。\n- 需要证据：无。\n\n### 消息 1793417841914-fba6a4ed\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[任务正文](REVIEW-PACKET.md:28)给出 `cc07f92` 与 SHA-256，但 patch 文件名及应用命令位置为空；本包也未附该 patch。\n- 问题/风险：提交号与哈希不足以唯一定位文件，接收方只能猜测交付物及应用方式。\n- 建议：补发该提交下的完整仓库相对路径、patch 本体及应用方式；Windows 取件核验哈希、检查可应用性后继续。\n- 需要证据：可读取的 patch、哈希核验及应用检查结果。\n\n## 跨消息建议\n\n1. **核实功能分支的守卫兼容性。** 本快照的 [pre-commit](scripts/dev/install-hooks.mjs:24)未传角色，而[角色推断](scripts/dev/scope-check.mjs:88)将除 `dev/cutter` 外的分支判为 Mac，可能拦截 `ui/teacher-filter` 的 Cutter 提交。先核对实际分支上的守卫版本；若已修复，提供检查结果即可。\n\n2. **补回 compare 的明确交付责任。** 第一条将逐页 compare 交给 Mac，第二条仅要求 Windows 截图。Mac 应继续完成八页、两种宽度的逐页比较并记录差异结论；截图交付不能自动关闭 compare 待办。\n\n3. **让 watch 识别已报告的阻塞。** 新任务允许“15 分钟内提交或说明阻塞”，却称“20 分钟无提交即告警”。计时规则应认可有效阻塞回执，避免误报；提交时限也不应压缩既定测试与比较步骤。"
+}
