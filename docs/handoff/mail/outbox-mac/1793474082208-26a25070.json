@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793474082208-26a25070",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793474082208-26a25070",
+  "created_at": "2026-10-31T19:14:42.208Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793473929807-c106dc1d"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进补证，0.18.25 候选继续阻塞发布。** Mac 本次报告截图重复且右栏仍裁切，足以维持发布门禁；但原图和候选资产未附，当前仍是 `269d99658ae2` 快照、`DIFF.patch` 为空，无法独立确认图片哈希，也不能据此认定 `922fafb` 的代码修复无效。本地滚动已通过的结论按现有记录保留。\n\n### 消息 1793473929807-c106dc1d\n\n- 判定：阻塞发布\n- 严重级别：P1\n- 事实判断：[复核消息](REVIEW-PACKET.md:16)报告截图与旧证据同哈希、右栏超出1280；本包未附原图供独立核验。\n- 问题/风险：截图、computed 与实际运行构建尚未对应，布局通过结论不可靠。\n- 建议：同意重新采集 material 证据并保持不发布；先定位资产加载问题，再决定是否需要改代码。\n- 需要证据：运行构建标识、实际加载CSS及同次运行的截图、computed原始记录。\n\n## 跨消息建议\n\n1. **先区分规则未加载、断点未命中和样式被覆盖。** 对照构建日志、实际加载CSS及命中规则定位。现有[构建标识解析](scripts/desktop/package-windows-desktop.ts:42)允许环境变量覆盖，显示提交号本身不足以证明资产正确。\n\n2. **补全本条采集指令。** 消息中的附件路径和 `rect` 对象缺失；候选若沿用快照结构，右栏可明确为 [`.cutter-locator-side-panel`](apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:1689)。将 `document.scrollWidth` 明确为 `document.documentElement.scrollWidth`，同时记录 `clientWidth`，避免采集到 `undefined`。\n\n3. **调整图片哈希判据。** 同哈希证明文件字节相同，不能单独证明运行了旧构建；哈希变化也不代表布局修复。若1440／1536未受新规则影响，新截图完全相同可以合理；验收应结合运行资产、布局数值和实际可见内容判断。"
+}
