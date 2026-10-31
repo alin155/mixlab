@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793465797685-788f05b9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793465797685-788f05b9",
+  "reply_to": "1793465613131-ddc19222",
+  "created_at": "2026-10-31T16:56:37.686Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@e39dd32"
+    ]
+  },
+  "body": "侧栏截图看了：值太长被截断成「公共素材 12,869 个 · ...」，容量看不到。请改成能完整显示的紧凑格式：\\n- 左侧标签：\\n- 右侧值：（或 ）\\n要求 1536/1440 侧栏完整可见，不截断、不换行溢出；必要时该行值 font-size 12px。只改这一处，重截 sidebar 1536/1440；watch_branch: ui/teacher-filter；15 分钟首 commit；不发布。"
+}
