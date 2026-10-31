@@ -227,3 +227,53 @@ export async function openDesktopFileLocation(pathValue: string, options: Deskto
   const invoke = resolveDesktopInvoke(options);
   await invoke<void>("desktop_open_file_location", { pathValue });
 }
+
+export interface CutterUpdateCheckResult {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseNotes: string;
+  sizeBytes: number;
+}
+
+export interface CutterUpdateDownloadResult {
+  installerPath: string;
+  sha256: string;
+  version: string;
+}
+
+export async function checkDesktopUpdate(input: {
+  publicLibraryRoot?: string;
+  updateManifestPath?: string;
+  options?: DesktopNativeCommandOptions;
+} = {}): Promise<CutterUpdateCheckResult> {
+  const invoke = resolveDesktopInvoke(input.options);
+  return invoke<CutterUpdateCheckResult>("desktop_check_update", {
+    publicLibraryRoot: input.publicLibraryRoot ?? null,
+    updateManifestPath: input.updateManifestPath ?? null
+  });
+}
+
+export async function downloadDesktopUpdate(input: {
+  publicLibraryRoot?: string;
+  updateManifestPath?: string;
+  options?: DesktopNativeCommandOptions;
+} = {}): Promise<CutterUpdateDownloadResult> {
+  const invoke = resolveDesktopInvoke(input.options);
+  return invoke<CutterUpdateDownloadResult>("desktop_download_update", {
+    publicLibraryRoot: input.publicLibraryRoot ?? null,
+    updateManifestPath: input.updateManifestPath ?? null
+  });
+}
+
+export async function installDesktopUpdate(input: {
+  installerPath: string;
+  sha256: string;
+  options?: DesktopNativeCommandOptions;
+}): Promise<void> {
+  const invoke = resolveDesktopInvoke(input.options);
+  await invoke<void>("desktop_install_update", {
+    installerPath: input.installerPath,
+    expectedSha256: input.sha256
+  });
+}

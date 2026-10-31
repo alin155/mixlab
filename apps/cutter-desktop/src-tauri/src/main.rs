@@ -48,6 +48,255 @@ struct CutterDesktopConfig {
     ffprobe_path: Option<String>,
 }
 
+
+#[derive(Debug, Clone, Deserialize)]
+struct CutterUpdateManifest {
+    version: String,
+    #[serde(default)]
+    min_supported_version: Option<String>,
+    #[serde(default)]
+    installer_path: Option<String>,
+    #[serde(default)]
+    installer: Option<String>,
+    sha256: String,
+    #[serde(default)]
+    size_bytes: u64,
+    #[serde(default)]
+    release_notes: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CutterUpdateCheckResult {
+    available: bool,
+    current_version: String,
+    latest_version: String,
+    release_notes: String,
+    size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CutterUpdateDownloadResult {
+    installer_path: String,
+    sha256: String,
+    version: String,
+}
+
+fn version_segments(value: &str) -> Vec<u64> {
+    value
+        .trim()
+        .trim_start_matches('v')
+        .split(|ch: char| ch == '.' || ch == '-' || ch == '+')
+        .take(3)
+        .map(|part| part.parse::<u64>().unwrap_or(0))
+        .collect()
+}
+
+fn version_is_newer(current: &str, latest: &str) -> bool {
+    let current = version_segments(current);
+    let latest = version_segments(latest);
+    for index in 0..3 {
+        let current_part = current.get(index).copied().unwrap_or(0);
+        let latest_part = latest.get(index).copied().unwrap_or(0);
+        if latest_part != current_part {
+            return latest_part > current_part;
+        }
+    }
+    false
+}
+
+fn update_manifest_path(
+    public_library_root: Option<&str>,
+    explicit_path: Option<&str>,
+) -> Result<PathBuf, String> {
+    if let Some(path) = explicit_path.map(str::trim).filter(|path| !path.is_empty()) {
+        return Ok(PathBuf::from(path));
+    }
+
+    let public_root = public_library_root
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .ok_or_else(|| "尚未配置公共素材库，无法检查更新".to_string())?;
+    let parent = Path::new(public_root)
+        .parent()
+        .ok_or_else(|| "无法从公共素材库路径推导更新目录".to_string())?;
+    Ok(parent.join("安装包").join("MixLab Cutter").join("update.json"))
+}
+
+fn read_update_manifest(
+    public_library_root: Option<&str>,
+    explicit_path: Option<&str>,
+) -> Result<(PathBuf, CutterUpdateManifest), String> {
+    let path = update_manifest_path(public_library_root, explicit_path)?;
+    let raw = fs::read_to_string(&path)
+        .map_err(|error| format!("无法读取更新清单 {}：{error}", path.display()))?;
+    let manifest = serde_json::from_str::<CutterUpdateManifest>(&raw)
+        .map_err(|error| format!("更新清单格式无效：{error}"))?;
+    if manifest.version.trim().is_empty() {
+        return Err("更新清单缺少版本号".to_string());
+    }
+    if !is_valid_sha256(&manifest.sha256) {
+        return Err("更新清单 sha256 无效".to_string());
+    }
+    Ok((path, manifest))
+}
+
+fn is_valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
+fn sha256_file(path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let mut file = fs::File::open(path)
+        .map_err(|error| format!("无法读取安装包 {}：{error}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 1024 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("读取安装包失败：{error}"))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn resolve_update_installer(
+    manifest_path: &Path,
+    manifest: &CutterUpdateManifest,
+) -> Result<PathBuf, String> {
+    let raw = manifest
+        .installer_path
+        .as_deref()
+        .or(manifest.installer.as_deref())
+        .ok_or_else(|| "更新清单缺少 installer_path".to_string())?;
+    let relative = Path::new(raw);
+    let looks_absolute = relative.is_absolute()
+        || raw.starts_with('/')
+        || raw.starts_with('\\')
+        || raw.as_bytes().get(1) == Some(&b':');
+    if looks_absolute
+        || relative
+            .components()
+            .any(|component| matches!(component, Component::ParentDir | Component::RootDir))
+    {
+        return Err("更新清单 installer_path 不允许绝对路径或越界".to_string());
+    }
+    let base = manifest_path
+        .parent()
+        .ok_or_else(|| "更新清单位置无效".to_string())?;
+    Ok(base.join(relative))
+}
+
+fn cutter_update_cache_dir() -> Result<PathBuf, String> {
+    let root = env::var("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| env::temp_dir());
+    let dir = root.join("MixLab Cutter").join("updates");
+    fs::create_dir_all(&dir).map_err(|error| format!("无法创建更新目录：{error}"))?;
+    Ok(dir)
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_check_update(
+    public_library_root: Option<String>,
+    update_manifest_path: Option<String>,
+) -> Result<CutterUpdateCheckResult, String> {
+    let (_, manifest) = read_update_manifest(
+        public_library_root.as_deref(),
+        update_manifest_path.as_deref(),
+    )?;
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    Ok(CutterUpdateCheckResult {
+        available: version_is_newer(&current_version, &manifest.version),
+        current_version,
+        latest_version: manifest.version,
+        release_notes: manifest.release_notes,
+        size_bytes: manifest.size_bytes,
+    })
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_download_update(
+    public_library_root: Option<String>,
+    update_manifest_path: Option<String>,
+) -> Result<CutterUpdateDownloadResult, String> {
+    let (manifest_path, manifest) = read_update_manifest(
+        public_library_root.as_deref(),
+        update_manifest_path.as_deref(),
+    )?;
+    let source = resolve_update_installer(&manifest_path, &manifest)?;
+    if !source.is_file() {
+        return Err(format!("更新安装包不存在：{}", source.display()));
+    }
+    let file_name = source
+        .file_name()
+        .ok_or_else(|| "更新安装包文件名无效".to_string())?;
+    let destination = cutter_update_cache_dir()?.join(file_name);
+    let _ = fs::remove_file(&destination);
+    fs::copy(&source, &destination).map_err(|error| format!("下载更新安装包失败：{error}"))?;
+    let expected = manifest.sha256.to_lowercase();
+    let actual = sha256_file(&destination)?;
+    if actual != expected {
+        let _ = fs::remove_file(&destination);
+        return Err("更新安装包校验失败：sha256 不匹配".to_string());
+    }
+    Ok(CutterUpdateDownloadResult {
+        installer_path: path_string(destination),
+        sha256: actual,
+        version: manifest.version,
+    })
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_install_update(
+    app: AppHandle,
+    installer_path: String,
+    expected_sha256: String,
+) -> Result<(), String> {
+    #[cfg(not(windows))]
+    {
+        let _ = (app, installer_path, expected_sha256);
+        return Err("当前平台不支持应用内安装".to_string());
+    }
+
+    #[cfg(windows)]
+    {
+        let updates_dir = fs::canonicalize(cutter_update_cache_dir()?)
+            .map_err(|error| format!("无法定位更新目录：{error}"))?;
+        let installer = fs::canonicalize(&installer_path)
+            .map_err(|error| format!("更新安装包不存在：{error}"))?;
+        if !installer.starts_with(&updates_dir) {
+            return Err("更新安装包不在受信任目录内".to_string());
+        }
+        let actual = sha256_file(&installer)?;
+        if actual != expected_sha256.to_lowercase() {
+            return Err("更新安装包校验失败：文件已变化，请重新检查更新".to_string());
+        }
+
+        let helper = updates_dir.join("apply-cutter-update.cmd");
+        let installer_for_script = path_string(installer).replace('"', "");
+        let script = format!(
+            "@echo off\r\n:wait\r\ntasklist /FI \"IMAGENAME eq MixLab Cutter.exe\" 2>nul | find /I \"MixLab Cutter.exe\" >nul\r\nif not errorlevel 1 (\r\n  timeout /t 2 /nobreak >nul\r\n  goto wait\r\n)\r\nstart \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
+            installer_for_script
+        );
+        fs::write(&helper, script).map_err(|error| format!("无法创建更新启动脚本：{error}"))?;
+        let mut command = Command::new("cmd");
+        command.arg("/C").arg(&helper);
+        spawn_hidden_process(&mut command)?;
+        desktop_host_log(
+            &app,
+            "cutter_update_installer_spawned",
+            json!({ "installer_path": path_string(installer), "sha256": actual }),
+        );
+        app.exit(0);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct DesktopDoctorCheck {
     id: String,
@@ -1464,7 +1713,10 @@ fn main() {
             desktop_run_doctor,
             desktop_start_engine,
             desktop_open_directory,
-            desktop_open_file_location
+            desktop_open_file_location,
+            desktop_check_update,
+            desktop_download_update,
+            desktop_install_update
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -1686,5 +1938,42 @@ mod tests {
     fn cutter_api_health_keeps_ok_true_semantics() {
         let api = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"searchd_configured\":true}}";
         assert!(health_response_is_ready(api));
+    }
+
+    #[test]
+    fn update_version_compare_handles_patch_release() {
+        assert!(version_is_newer("0.18.26", "0.18.27"));
+        assert!(version_is_newer("0.18.9", "0.18.10"));
+        assert!(!version_is_newer("0.18.27", "0.18.27"));
+        assert!(!version_is_newer("0.19.0", "0.18.99"));
+    }
+
+    fn update_manifest_for(installer_path: &str) -> CutterUpdateManifest {
+        CutterUpdateManifest {
+            version: "0.18.27".to_string(),
+            min_supported_version: None,
+            installer_path: Some(installer_path.to_string()),
+            installer: None,
+            sha256: "a".repeat(64),
+            size_bytes: 1,
+            release_notes: String::new(),
+        }
+    }
+
+    #[test]
+    fn update_installer_accepts_version_subdirectory() {
+        let manifest = update_manifest_for("0.18.27/MixLab Cutter_0.18.27_x64-setup.exe");
+        let resolved = resolve_update_installer(Path::new("C:/MixLab/update.json"), &manifest)
+            .expect("relative installer path");
+        assert!(resolved.ends_with("0.18.27/MixLab Cutter_0.18.27_x64-setup.exe"));
+    }
+
+    #[test]
+    fn update_installer_rejects_traversal_and_absolute_paths() {
+        let parent = update_manifest_for("../evil.exe");
+        assert!(resolve_update_installer(Path::new("C:/MixLab/update.json"), &parent).is_err());
+
+        let absolute = update_manifest_for("C:/Windows/evil.exe");
+        assert!(resolve_update_installer(Path::new("C:/MixLab/update.json"), &absolute).is_err());
     }
 }

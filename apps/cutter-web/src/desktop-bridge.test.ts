@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  checkDesktopUpdate,
   desktopAppVersion,
+  downloadDesktopUpdate,
+  installDesktopUpdate,
   openDesktopDirectory,
   resolveDesktopBridgeEnvironment,
   resolveRuntimeApiBaseUrl,
@@ -164,5 +167,65 @@ test("desktop directory opening delegates to the native desktop host", async () 
         pathValue: String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\logs`
       }
     }
+  ]);
+});
+
+test("desktop update check delegates to the native host", async () => {
+  const calls: unknown[] = [];
+  const result = await checkDesktopUpdate({
+    publicLibraryRoot: String.raw`\\nas\MixLab\PublicLibrary`,
+    options: {
+      invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+        calls.push({ command, args });
+        return {
+          available: true,
+          currentVersion: "0.18.26",
+          latestVersion: "0.18.27",
+          releaseNotes: "updater",
+          sizeBytes: 59000000
+        } as T;
+      }
+    }
+  });
+
+  assert.equal(result.latestVersion, "0.18.27");
+  assert.deepEqual(calls, [{
+    command: "desktop_check_update",
+    args: {
+      publicLibraryRoot: String.raw`\\nas\MixLab\PublicLibrary`,
+      updateManifestPath: null
+    }
+  }]);
+});
+
+test("desktop update download and install delegate to the native host", async () => {
+  const calls: unknown[] = [];
+  const download = await downloadDesktopUpdate({
+    publicLibraryRoot: String.raw`\\nas\MixLab\PublicLibrary`,
+    options: {
+      invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+        calls.push({ command, args });
+        return {
+          installerPath: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\updates\setup.exe`,
+          sha256: "a".repeat(64),
+          version: "0.18.27"
+        } as T;
+      }
+    }
+  });
+  await installDesktopUpdate({
+    installerPath: download.installerPath,
+    sha256: download.sha256,
+    options: {
+      invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+        calls.push({ command, args });
+        return undefined as T;
+      }
+    }
+  });
+
+  assert.deepEqual(calls.map((call) => (call as { command: string }).command), [
+    "desktop_download_update",
+    "desktop_install_update"
   ]);
 });

@@ -2491,3 +2491,91 @@ body,
   margin-left: 0;
   flex: 0 0 auto;
 }
+
+/* Cutter Phase 1 updater */
+.cutter-update-panel {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-panel);
+  background: var(--ml-color-surface);
+}
+
+.cutter-update-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cutter-update-header h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.cutter-update-header p {
+  margin: 3px 0 0;
+  color: var(--ml-color-text-muted);
+  font-size: 12px;
+}
+
+.cutter-update-status,
+.cutter-update-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.cutter-update-status {
+  color: var(--ml-color-text-secondary);
+}
+
+.cutter-update-error {
+  color: var(--ml-color-failed);
+}
+
+.cutter-update-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--ml-color-accent) 25%, var(--ml-color-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ml-color-accent) 5%, var(--ml-color-surface));
+}
+
+.cutter-update-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.cutter-update-card-head span {
+  color: var(--ml-color-text-muted);
+}
+
+.cutter-update-notes {
+  margin: 0;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--ml-color-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.cutter-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 1366px) {
+  .cutter-update-panel {
+    padding: 14px;
+  }
+}
