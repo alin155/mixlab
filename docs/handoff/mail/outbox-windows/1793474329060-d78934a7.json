@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793474329060-d78934a7",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793474329060-d78934a7",
+  "reply_to": "1793473929807-c106dc1d",
+  "created_at": "2026-10-31T19:18:49.060Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.25 material 1280 重新采集：新构建、新截图、computed 已核实】\n问题定位：上次 zip 里 `material-1280.png` 是旧图（根目录同名旧文件），不是 922fafb 构建；已删除复用，改为独立目录+新文件名。\n本次新构建：MixLab Cutter_0.18.23_x64-setup-922fafb-material.exe\nsha256=74DDCEF09BC838A862EBDA3F993C6BA1BC8CE17E1E4C68CCD287DBBF7D9203F3\n设置页构建版本：**922fafb98fb5**；应用版本 v0.18.23。\n\n1280 computed：grid-template-columns = **224px 480px 320px**；\n- `.cutter-locator-side-panel`.rect.right = **1280**；sideWidth=320；\n- documentElement.scrollWidth=clientWidth=1280；无横向溢出；\n- 1440：256px 544px 360px，sideRight=1416；\n- 1536：256px 640px 360px，sideRight=1512。\n\n新截图 sha256（与旧图不同）：\n- material-922fafb-1280.png 16B0D0B481EB8C1181FD497CBA5C578BAA0221590F6493D4C65BFBD2732248DB；\n- material-922fafb-1440.png 10706C0D2B3C524C3B196DFCEA1CB90DB55029DBE47AD15F11467CAB8EF61E8A；\n- material-922fafb-1536.png CD9956EAB2E22BFAF96E07287A64769C728C47071BB146628B7F4B7B0C1A7CB6。\n\nlocal-all 109 条滚动证据保留（1280/1440/1536，scrollbarWidth=10，wheel/PageDown/拖拽均有效）；公共库复核保留。\n未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01825-material-922fafb.zip 已复制 Mac evidence。"
+}
