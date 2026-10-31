@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793472729808-1e1aa77f",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793472729808-1e1aa77f",
+  "created_at": "2026-10-31T18:52:09.808Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793472584851-a47d55f7"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.25 的本地素材列表滚动整改，发布继续暂停。** 本条要求明确、范围合理，未发现新增的独立发布阻塞。附件仍为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核验相对 `main@9bfca893305e` 的新实现；以下判断限于方案及快照可见风险，不代表整改验收通过。\n\n### 消息 1793472584851-a47d55f7\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[快照样式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-CnXbyG/apps/cutter-web/src/styles.css:42)全局隐藏滚动条，公共库另有显示规则；本地列表未获得同等覆盖。\n- 问题/风险：仅设置 `overflow-y`，仍可能出现“可滚但无可拖动条”；截图不能证明拖动及键盘有效。\n- 建议：复用公共库显示规则，限定列表滚动范围，按本条验收后回执，继续遵守“不发布”。\n- 需要证据：三档宽度截图、真实交互记录及公共库滚动回归结果。\n\n## 跨消息建议\n\n1. **复用完整的滚动条规则。** 公共库已有[显示样式](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-CnXbyG/apps/cutter-web/src/styles.css:90)，应同时覆盖 `scrollbar-width` 与 `::-webkit-scrollbar`，统一宽度、滑块及轨道表现；作用域限定两个素材列表。\n\n2. **核对条件区域对列表高度的影响。** 快照[本地页](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-CnXbyG/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:345)可在标题与列表间插入磁盘告警、治理区，而[网格模板](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-CnXbyG/packages/ui-foundation/src/layout.css:463)只有两行。若新候选保留此结构，应确保这些区域出现后，实际列表仍占受约束的剩余高度。\n\n3. **用真实输入证明滚动归属。** 在目标 Windows WebView2 中拖动滑块并使用滚轮，记录列表 `scrollTop` 变化，同时确认顶部筛选行位置及外层滚动位置不变。三档截图另需包含鼠标移离后的滚动条，验证持续可见。\n\n4. **单独核验键盘入口。** 快照[列表容器](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-CnXbyG/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:423)没有显式焦点入口。验收应从 Tab 导航开始，再验证方向键和 PageDown；若目标环境无法进入，补充焦点入口、可读名称与焦点提示，并确认筛选控件和视频原有按键行为正常。"
+}
