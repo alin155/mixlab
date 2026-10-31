@@ -192,7 +192,7 @@ fn desktop_download_update(app: AppHandle, manifest: UpdateManifest) -> Result<S
 }
 
 #[tauri::command(rename_all = "camelCase")]
-fn desktop_install_update(app: AppHandle, installer_path: String) -> Result<(), String> {
+fn desktop_install_update(app: AppHandle, installer_path: String, expected_sha256: String) -> Result<(), String> {
     let updates_dir = env::var("LOCALAPPDATA")
         .map(|root| PathBuf::from(root).join("MixLab Cutter").join("updates"))
         .unwrap_or_else(|_| std::env::temp_dir().join("MixLab Cutter").join("updates"));
@@ -202,6 +202,14 @@ fn desktop_install_update(app: AppHandle, installer_path: String) -> Result<(), 
     }
     if installer.parent() != Some(updates_dir.as_path()) {
         return Err("更新安装包路径不合法".into());
+    }
+    let expected_hash = expected_sha256.trim().to_ascii_lowercase();
+    if expected_hash.len() != 64 {
+        return Err("更新安装包缺少有效 SHA256".into());
+    }
+    let actual_hash = file_sha256(&installer)?;
+    if actual_hash.to_ascii_lowercase() != expected_hash {
+        return Err("更新安装包 SHA256 校验失败，已拒绝安装".into());
     }
     let helper = updates_dir.join(format!("install-update-{}.ps1", std::process::id()));
     let escaped_installer = installer.to_string_lossy().replace('\'', "''");

@@ -180,10 +180,11 @@ export async function downloadDesktopUpdate(
 
 export async function installDesktopUpdate(
   installerPath: string,
+  expectedSha256: string,
   options: DesktopNativeCommandOptions = {}
 ): Promise<void> {
   const invoke = resolveDesktopInvoke(options);
-  return invoke<void>("desktop_install_update", { installerPath });
+  return invoke<void>("desktop_install_update", { installerPath, expectedSha256 });
 }
 
 export async function desktopAppVersion(options: DesktopNativeCommandOptions = {}): Promise<string> {

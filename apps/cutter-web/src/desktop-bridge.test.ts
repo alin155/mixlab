@@ -205,11 +205,11 @@ test("desktop update commands delegate to native host", async () => {
     { invoke_fn }
   );
   assert.match(downloaded, /updates/);
-  await installDesktopUpdate(downloaded, { invoke_fn });
+  await installDesktopUpdate(downloaded, "abc", { invoke_fn });
 
   assert.equal(calls.length, 3);
   assert.deepEqual((calls[0] as { command: string }).command, "desktop_check_update");
   assert.equal((calls[1] as { command: string }).command, "desktop_download_update");
   assert.equal((calls[2] as { command: string }).command, "desktop_install_update");
-  assert.deepEqual((calls[2] as { args: Record<string, unknown> }).args, { installerPath: downloaded });
+  assert.deepEqual((calls[2] as { args: Record<string, unknown> }).args, { installerPath: downloaded, expectedSha256: "abc" });
 });

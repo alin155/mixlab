@@ -19,6 +19,7 @@ export function SoftwareUpdateCard({ appVersion }: { appVersion?: string }) {
   const [status, setStatus] = useState<"idle" | "checking" | "available" | "downloading" | "ready" | "up-to-date" | "error">("idle");
   const [update, setUpdate] = useState<DesktopUpdateCheckResult | undefined>();
   const [installerPath, setInstallerPath] = useState("");
+  const [installerHash, setInstallerHash] = useState("");
   const [error, setError] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const desktopAvailable = resolveDesktopBridgeEnvironment().desktop_available;
@@ -46,6 +47,7 @@ export function SoftwareUpdateCard({ appVersion }: { appVersion?: string }) {
     try {
       const path = await downloadDesktopUpdate(update.manifest);
       setInstallerPath(path);
+      setInstallerHash(update.manifest.sha256);
       setStatus("ready");
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : String(downloadError));
@@ -54,11 +56,11 @@ export function SoftwareUpdateCard({ appVersion }: { appVersion?: string }) {
   }
 
   async function handleInstall() {
-    if (!installerPath) {
+    if (!installerPath || !installerHash) {
       return;
     }
     try {
-      await installDesktopUpdate(installerPath);
+      await installDesktopUpdate(installerPath, installerHash);
     } catch (installError) {
       setError(installError instanceof Error ? installError.message : String(installError));
       setStatus("error");
