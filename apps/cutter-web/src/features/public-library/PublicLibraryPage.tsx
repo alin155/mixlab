@@ -19,6 +19,7 @@ import {
   type MaterialSearchMode
 } from "../../state/material-locator.ts";
 import { LibraryGallery } from "../library-gallery.tsx";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 
 const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
   { value: "all", label: "全部" },
@@ -102,6 +103,8 @@ export function PublicLibraryPage({
     else teacherOptions.push({ name: teacher, count: folder.count });
   }
   const [teacherFilter, setTeacherFilter] = useState("");
+  const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
   const filtered = library.videos.filter((video) =>
     matchesOrientationFilter(video, orientationFilter) &&
@@ -117,6 +120,17 @@ export function PublicLibraryPage({
   return (
     <section className="cutter-page cutter-public-library ml-workbench-page ml-workbench-page--library" data-page="public-library">
       <div className="cutter-page-main ml-workbench-main ml-workbench-main--library" style={{ gridTemplateRows: "auto auto minmax(0, 1fr) auto" }}>
+        <TopbarActions>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={refreshing}
+            onClick={() => setRefreshConfirmOpen(true)}
+          >
+            {refreshing ? "刷新中" : "刷新素材"}
+          </Button>
+        </TopbarActions>
         <header className="cutter-page-header ml-workbench-header">
           <div>
             <h1 className="ml-page-title">公共素材库</h1>
@@ -128,9 +142,6 @@ export function PublicLibraryPage({
         </header>
 
         <div className="cutter-public-library-toolbar ml-control-cluster">
-          <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
-            刷新
-          </Button>
           <SearchBox
             aria-label={searchMode === "folder" ? "搜索文件夹名称" : "按文件名搜索公共素材"}
             buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}
@@ -244,6 +255,35 @@ export function PublicLibraryPage({
           ) : null}
         </div>
       </InspectorPanel>
+      {refreshConfirmOpen ? (
+        <div className="cutter-confirm-backdrop" role="presentation">
+          <div
+            aria-labelledby="public-refresh-title"
+            aria-modal="true"
+            className="cutter-confirm-dialog"
+            role="dialog"
+          >
+            <h2 id="public-refresh-title">刷新素材</h2>
+            <p>刷新会重新进行剪切预热，并加载服务器新预处理的视频。此过程可能需要一些时间，确认刷新？</p>
+            <div className="cutter-confirm-actions">
+              <Button type="button" variant="secondary" onClick={() => setRefreshConfirmOpen(false)}>
+                取消
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setRefreshing(true);
+                  setRefreshConfirmOpen(false);
+                  window.location.reload();
+                }}
+              >
+                确认刷新
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

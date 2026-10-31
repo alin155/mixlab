@@ -2441,3 +2441,35 @@ body,
   border-radius: 999px;
   background: color-mix(in srgb, var(--ml-color-text-tertiary) 35%, transparent);
 }
+
+.cutter-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 52%, transparent);
+}
+.cutter-confirm-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: 12px;
+  background: var(--ml-color-surface);
+  box-shadow: var(--ml-shadow-panel);
+}
+.cutter-confirm-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+.cutter-confirm-dialog p {
+  margin: 0 0 16px;
+  color: var(--ml-color-text-secondary);
+  line-height: 1.6;
+}
+.cutter-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
