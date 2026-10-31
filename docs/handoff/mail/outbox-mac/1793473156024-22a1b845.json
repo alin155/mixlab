@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793473156024-22a1b845",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793473156024-22a1b845",
+  "created_at": "2026-10-31T18:59:16.024Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793473004919-485ecaf7"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.25 整改，发布继续阻塞。** 本次新增的右栏裁切影响预览与任务查看，要求补测真实溢出场景也合理。目前只有任务描述；快照为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核验相对 `main@9bfca893305e` 的候选实现，不能据此认定整改完成。\n\n### 消息 1793473004919-485ecaf7\n\n- 判定：阻塞发布\n- 严重级别：P1\n- 事实判断：[任务记录](REVIEW-PACKET.md:16)报告 1280 右栏裁切；[快照三栏布局](packages/ui-foundation/src/layout.css:2772)存在固定最小宽度且隐藏溢出。\n- 问题/风险：仅将右栏缩至 320px，仍可能超宽；无溢出截图无法证明滚动条验收通过。\n- 建议：同意并入 0.18.25，按整体宽度预算整改，补齐有效场景后复审，维持不发布。\n- 需要证据：material 1280 全宽图、本地三档“全部素材”截图、两库实际溢出及滑块拖动记录。\n\n## 跨消息建议\n\n1. **核算整页宽度。** 若候选沿用快照参数，[主题](packages/ui-foundation/src/tokens.css:260)与三栏约束推算为：侧栏 292＋页边距 44＋候选 256＋文案 480＋右栏 320＝1392px。320px 方案仍不足以适配 1280，应同时调整其他列约束或采用可展开右栏。\n\n2. **增加裁切判据。** [现有检测](scripts/visual/check-cutter-desktop-viewport.ts:66)仅筛选允许滚动的横向溢出元素，可能漏掉被 `overflow:hidden` 裁掉的内容。对右栏、预览和最近任务分别检查其边界是否落在视口及祖先裁剪范围内，并记录实际 WebView `innerWidth`。\n\n3. **补齐溢出前置条件。** 消息中“verify 记录 、”缺少指标，应明确为列表 `scrollHeight > clientHeight`。[本地列表](apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:245)受查询、项目和方向筛选影响，且支持分页；应同时记录总数、已加载数、实际显示数及筛选状态。无实际溢出应记为未覆盖，公共库采用同一规则。"
+}
