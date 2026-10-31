@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793483895520-eb3d47f6",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793483895520-eb3d47f6",
+  "reply_to": "1793483122210-8d55cd0e",
+  "created_at": "2026-10-31T21:58:15.520Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【安装前 SHA256 复验 + 真实 0.18.27→0.18.28 闭环已补 + 最终 0.18.27 重发（feature 分支，不发布最终候选）】\ncommit：**64e546e**（feat/updater-phase1）\n1) desktop_install_update 新增 expectedSha256：下载路径校验后再计算文件 SHA256，不一致拒绝且应用不退出；前端把 manifest.sha256 传入；bridge 测试已覆盖参数。\n2) 真实闭环：从 0.18.27 安装包点击“立即更新”→ helper 从 %LOCALAPPDATA%\\MixLab Cutter\\updates 启动 0.18.28 测试安装包，应用退出；安装完成后重启设置页 **v0.18.28**。测试分支 test/updater-0.18.28 + 测试包仅本地/隔离，不发布。\n3) 最终 0.18.27 重建：MixLab Cutter_0.18.27_x64-setup-final.exe\nsha256=**A0EBD76A9391FCF7CB6BB6F94D3206742CFF589BD2CF5FAC5A1FB2BC2C9271DF**；size=59,030,303。\nNAS：0.18.27 目录 + 根目录 update.json（installer 与 update.json 同目录，installer 字段，sha 已核对）；installer 同在根目录；LATEST 未更新。\n证据：Mac evidence\\01827-phase1-64e546e.zip\nsha256=3B4B1691AD08FA847ACD48D02C5F4E03B46017A86E7C44671318998BFE17DB8B。\n测试：typecheck PASS；cutter-web 161/161；Rust 9/9。"
+}
